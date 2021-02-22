@@ -3,6 +3,11 @@
 // RUN: ld.lld --hash-style=sysv %t.o %t.o -o %t -shared
 // RUN: llvm-readobj -S --section-data %t | FileCheck %s
 
+/// Also show that the merging happens when going via a -r link.
+// RUN: ld.lld -r %t.o %t.o -o %t.r.o
+// RUN: ld.lld --hash-style=sysv %t.r.o -o %t2 -shared
+// RUN: llvm-readobj -S --section-data %t2 | FileCheck %s
+
         .section	foo,"ax",@progbits
 	.cfi_startproc
         nop
@@ -35,10 +40,10 @@
 // CHECK-NEXT: SectionData (
 // CHECK-NEXT: 0000: 14000000 00000000 017A5200 01781001  |
 // CHECK-NEXT: 0010: 1B0C0708 90010000 14000000 1C000000  |
-// CHECK-NEXT: 0020: E80D0000 01000000 00000000 00000000  |
-// CHECK-NEXT: 0030: 14000000 34000000 D20D0000 02000000  |
+// CHECK-NEXT: 0020: 44100000 01000000 00000000 00000000  |
+// CHECK-NEXT: 0030: 14000000 34000000 2E100000 02000000  |
 // CHECK-NEXT: 0040: 00000000 00000000 14000000 4C000000  |
-// CHECK-NEXT: 0050: B90D0000 01000000 00000000 00000000  |
+// CHECK-NEXT: 0050: 15100000 01000000 00000000 00000000  |
 // CHECK-NEXT: 0060: 00000000
 // CHECK-NEXT: )
 
@@ -48,7 +53,7 @@
 // CHECK-NEXT:   SHF_ALLOC
 // CHECK-NEXT:   SHF_EXECINSTR
 // CHECK-NEXT: ]
-// CHECK-NEXT: Address: 0x1000
+// CHECK-NEXT: Address: 0x125C
 
 // CHECK:      Name: bar
 // CHECK-NEXT: Type: SHT_PROGBITS
@@ -56,4 +61,4 @@
 // CHECK-NEXT:   SHF_ALLOC
 // CHECK-NEXT:   SHF_EXECINSTR
 // CHECK-NEXT: ]
-// CHECK-NEXT: Address: 0x1002
+// CHECK-NEXT: Address: 0x125E

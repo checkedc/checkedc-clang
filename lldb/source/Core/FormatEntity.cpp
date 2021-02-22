@@ -1,4 +1,4 @@
-//===-- FormatEntity.cpp ----------------------------------------*- C++ -*-===//
+//===-- FormatEntity.cpp --------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -46,7 +46,6 @@
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Logging.h"
 #include "lldb/Utility/RegisterValue.h"
-#include "lldb/Utility/SharingPtr.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/StringList.h"
@@ -125,6 +124,7 @@ static FormatEntity::Entry::Definition g_function_child_entries[] = {
     ENTRY("name", FunctionName),
     ENTRY("name-without-args", FunctionNameNoArgs),
     ENTRY("name-with-args", FunctionNameWithArgs),
+    ENTRY("mangled-name", FunctionMangledName),
     ENTRY("addr-offset", FunctionAddrOffset),
     ENTRY("concrete-only-addr-offset-no-padding", FunctionAddrOffsetConcrete),
     ENTRY("line-offset", FunctionLineOffset),
@@ -165,6 +165,7 @@ static FormatEntity::Entry::Definition g_thread_child_entries[] = {
     ENTRY("queue", ThreadQueue),
     ENTRY("name", ThreadName),
     ENTRY("stop-reason", ThreadStopReason),
+    ENTRY("stop-reason-raw", ThreadStopReasonRaw),
     ENTRY("return-value", ThreadReturnValue),
     ENTRY("completed-expression", ThreadCompletedExpression),
 };
@@ -327,6 +328,7 @@ const char *FormatEntity::Entry::TypeToCString(Type t) {
     ENUM_TO_CSTR(ThreadName);
     ENUM_TO_CSTR(ThreadQueue);
     ENUM_TO_CSTR(ThreadStopReason);
+    ENUM_TO_CSTR(ThreadStopReasonRaw);
     ENUM_TO_CSTR(ThreadReturnValue);
     ENUM_TO_CSTR(ThreadCompletedExpression);
     ENUM_TO_CSTR(ScriptThread);
@@ -351,6 +353,7 @@ const char *FormatEntity::Entry::TypeToCString(Type t) {
     ENUM_TO_CSTR(FunctionName);
     ENUM_TO_CSTR(FunctionNameWithArgs);
     ENUM_TO_CSTR(FunctionNameNoArgs);
+    ENUM_TO_CSTR(FunctionMangledName);
     ENUM_TO_CSTR(FunctionAddrOffset);
     ENUM_TO_CSTR(FunctionAddrOffsetConcrete);
     ENUM_TO_CSTR(FunctionLineOffset);
@@ -414,9 +417,10 @@ static bool RunScriptFormatKeyword(Stream &s, const SymbolContext *sc,
   return false;
 }
 
-static bool DumpAddress(Stream &s, const SymbolContext *sc,
-                        const ExecutionContext *exe_ctx, const Address &addr,
-                        bool print_file_addr_or_load_addr) {
+static bool DumpAddressAndContent(Stream &s, const SymbolContext *sc,
+                                  const ExecutionContext *exe_ctx,
+                                  const Address &addr,
+                                  bool print_file_addr_or_load_addr) {
   Target *target = Target::GetTargetFromContexts(exe_ctx, sc);
   addr_t vaddr = LLDB_INVALID_ADDRESS;
   if (exe_ctx && !target->GetSectionLoadList().IsEmpty())
@@ -514,24 +518,24 @@ static bool ScanBracketedRange(llvm::StringRef subpath,
   close_bracket_index = llvm::StringRef::npos;
   const size_t open_bracket_index = subpath.find('[');
   if (open_bracket_index == llvm::StringRef::npos) {
-    if (log)
-      log->Printf("[ScanBracketedRange] no bracketed range, skipping entirely");
+    LLDB_LOGF(log,
+              "[ScanBracketedRange] no bracketed range, skipping entirely");
     return false;
   }
 
   close_bracket_index = subpath.find(']', open_bracket_index + 1);
 
   if (close_bracket_index == llvm::StringRef::npos) {
-    if (log)
-      log->Printf("[ScanBracketedRange] no bracketed range, skipping entirely");
+    LLDB_LOGF(log,
+              "[ScanBracketedRange] no bracketed range, skipping entirely");
     return false;
   } else {
     var_name_final_if_array_range = subpath.data() + open_bracket_index;
 
     if (close_bracket_index - open_bracket_index == 1) {
-      if (log)
-        log->Printf(
-            "[ScanBracketedRange] '[]' detected.. going from 0 to end of data");
+      LLDB_LOGF(
+          log,
+          "[ScanBracketedRange] '[]' detected.. going from 0 to end of data");
       index_lower = 0;
     } else {
       const size_t separator_index = subpath.find('-', open_bracket_index + 1);
@@ -540,22 +544,21 @@ static bool ScanBracketedRange(llvm::StringRef subpath,
         const char *index_lower_cstr = subpath.data() + open_bracket_index + 1;
         index_lower = ::strtoul(index_lower_cstr, nullptr, 0);
         index_higher = index_lower;
-        if (log)
-          log->Printf("[ScanBracketedRange] [%" PRId64
-                      "] detected, high index is same",
-                      index_lower);
+        LLDB_LOGF(log,
+                  "[ScanBracketedRange] [%" PRId64
+                  "] detected, high index is same",
+                  index_lower);
       } else {
         const char *index_lower_cstr = subpath.data() + open_bracket_index + 1;
         const char *index_higher_cstr = subpath.data() + separator_index + 1;
         index_lower = ::strtoul(index_lower_cstr, nullptr, 0);
         index_higher = ::strtoul(index_higher_cstr, nullptr, 0);
-        if (log)
-          log->Printf("[ScanBracketedRange] [%" PRId64 "-%" PRId64 "] detected",
-                      index_lower, index_higher);
+        LLDB_LOGF(log,
+                  "[ScanBracketedRange] [%" PRId64 "-%" PRId64 "] detected",
+                  index_lower, index_higher);
       }
       if (index_lower > index_higher && index_higher > 0) {
-        if (log)
-          log->Printf("[ScanBracketedRange] swapping indices");
+        LLDB_LOGF(log, "[ScanBracketedRange] swapping indices");
         const int64_t temp = index_lower;
         index_lower = index_higher;
         index_higher = temp;
@@ -627,9 +630,8 @@ static ValueObjectSP ExpandIndexedExpression(ValueObject *valobj, size_t index,
   const char *ptr_deref_format = "[%d]";
   std::string ptr_deref_buffer(10, 0);
   ::sprintf(&ptr_deref_buffer[0], ptr_deref_format, index);
-  if (log)
-    log->Printf("[ExpandIndexedExpression] name to deref: %s",
-                ptr_deref_buffer.c_str());
+  LLDB_LOGF(log, "[ExpandIndexedExpression] name to deref: %s",
+            ptr_deref_buffer.c_str());
   ValueObject::GetValueForExpressionPathOptions options;
   ValueObject::ExpressionPathEndResultType final_value_type;
   ValueObject::ExpressionPathScanEndReason reason_to_stop;
@@ -640,15 +642,15 @@ static ValueObjectSP ExpandIndexedExpression(ValueObject *valobj, size_t index,
       ptr_deref_buffer.c_str(), &reason_to_stop, &final_value_type, options,
       &what_next);
   if (!item) {
-    if (log)
-      log->Printf("[ExpandIndexedExpression] ERROR: why stopping = %d,"
-                  " final_value_type %d",
-                  reason_to_stop, final_value_type);
+    LLDB_LOGF(log,
+              "[ExpandIndexedExpression] ERROR: why stopping = %d,"
+              " final_value_type %d",
+              reason_to_stop, final_value_type);
   } else {
-    if (log)
-      log->Printf("[ExpandIndexedExpression] ALL RIGHT: why stopping = %d,"
-                  " final_value_type %d",
-                  reason_to_stop, final_value_type);
+    LLDB_LOGF(log,
+              "[ExpandIndexedExpression] ALL RIGHT: why stopping = %d,"
+              " final_value_type %d",
+              reason_to_stop, final_value_type);
   }
   return item;
 }
@@ -770,9 +772,8 @@ static bool DumpValue(Stream &s, const SymbolContext *sc,
 
     const std::string &expr_path = entry.string;
 
-    if (log)
-      log->Printf("[Debugger::FormatPrompt] symbol to expand: %s",
-                  expr_path.c_str());
+    LLDB_LOGF(log, "[Debugger::FormatPrompt] symbol to expand: %s",
+              expr_path.c_str());
 
     target =
         valobj
@@ -781,16 +782,16 @@ static bool DumpValue(Stream &s, const SymbolContext *sc,
             .get();
 
     if (!target) {
-      if (log)
-        log->Printf("[Debugger::FormatPrompt] ERROR: why stopping = %d,"
-                    " final_value_type %d",
-                    reason_to_stop, final_value_type);
+      LLDB_LOGF(log,
+                "[Debugger::FormatPrompt] ERROR: why stopping = %d,"
+                " final_value_type %d",
+                reason_to_stop, final_value_type);
       return false;
     } else {
-      if (log)
-        log->Printf("[Debugger::FormatPrompt] ALL RIGHT: why stopping = %d,"
-                    " final_value_type %d",
-                    reason_to_stop, final_value_type);
+      LLDB_LOGF(log,
+                "[Debugger::FormatPrompt] ALL RIGHT: why stopping = %d,"
+                " final_value_type %d",
+                reason_to_stop, final_value_type);
       target = target
                    ->GetQualifiedRepresentationIfAvailable(
                        target->GetDynamicValueType(), true)
@@ -814,18 +815,16 @@ static bool DumpValue(Stream &s, const SymbolContext *sc,
     Status error;
     target = target->Dereference(error).get();
     if (error.Fail()) {
-      if (log)
-        log->Printf("[Debugger::FormatPrompt] ERROR: %s\n",
-                    error.AsCString("unknown"));
+      LLDB_LOGF(log, "[Debugger::FormatPrompt] ERROR: %s\n",
+                error.AsCString("unknown"));
       return false;
     }
     do_deref_pointer = false;
   }
 
   if (!target) {
-    if (log)
-      log->Printf("[Debugger::FormatPrompt] could not calculate target for "
-                  "prompt expression");
+    LLDB_LOGF(log, "[Debugger::FormatPrompt] could not calculate target for "
+                   "prompt expression");
     return false;
   }
 
@@ -860,18 +859,16 @@ static bool DumpValue(Stream &s, const SymbolContext *sc,
                                                              // exceptions
   {
     StreamString str_temp;
-    if (log)
-      log->Printf(
-          "[Debugger::FormatPrompt] I am into array || pointer && !range");
+    LLDB_LOGF(log,
+              "[Debugger::FormatPrompt] I am into array || pointer && !range");
 
     if (target->HasSpecialPrintableRepresentation(val_obj_display,
                                                   custom_format)) {
       // try to use the special cases
       bool success = target->DumpPrintableRepresentation(
           str_temp, val_obj_display, custom_format);
-      if (log)
-        log->Printf("[Debugger::FormatPrompt] special cases did%s match",
-                    success ? "" : "n't");
+      LLDB_LOGF(log, "[Debugger::FormatPrompt] special cases did%s match",
+                success ? "" : "n't");
 
       // should not happen
       if (success)
@@ -909,17 +906,16 @@ static bool DumpValue(Stream &s, const SymbolContext *sc,
   }
 
   if (!is_array_range) {
-    if (log)
-      log->Printf("[Debugger::FormatPrompt] dumping ordinary printable output");
+    LLDB_LOGF(log,
+              "[Debugger::FormatPrompt] dumping ordinary printable output");
     return target->DumpPrintableRepresentation(s, val_obj_display,
                                                custom_format);
   } else {
-    if (log)
-      log->Printf("[Debugger::FormatPrompt] checking if I can handle as array");
+    LLDB_LOGF(log,
+              "[Debugger::FormatPrompt] checking if I can handle as array");
     if (!is_array && !is_pointer)
       return false;
-    if (log)
-      log->Printf("[Debugger::FormatPrompt] handle as array");
+    LLDB_LOGF(log, "[Debugger::FormatPrompt] handle as array");
     StreamString special_directions_stream;
     llvm::StringRef special_directions;
     if (close_bracket_index != llvm::StringRef::npos &&
@@ -965,15 +961,15 @@ static bool DumpValue(Stream &s, const SymbolContext *sc,
               .get();
 
       if (!item) {
-        if (log)
-          log->Printf("[Debugger::FormatPrompt] ERROR in getting child item at "
-                      "index %" PRId64,
-                      index);
+        LLDB_LOGF(log,
+                  "[Debugger::FormatPrompt] ERROR in getting child item at "
+                  "index %" PRId64,
+                  index);
       } else {
-        if (log)
-          log->Printf(
-              "[Debugger::FormatPrompt] special_directions for child item: %s",
-              special_directions.data() ? special_directions.data() : "");
+        LLDB_LOGF(
+            log,
+            "[Debugger::FormatPrompt] special_directions for child item: %s",
+            special_directions.data() ? special_directions.data() : "");
       }
 
       if (special_directions.empty()) {
@@ -1153,9 +1149,10 @@ bool FormatEntity::Format(const Entry &entry, Stream &s,
   case Entry::Type::AddressFile:
   case Entry::Type::AddressLoad:
   case Entry::Type::AddressLoadOrFile:
-    return (addr != nullptr && addr->IsValid() &&
-            DumpAddress(s, sc, exe_ctx, *addr,
-                        entry.type == Entry::Type::AddressLoadOrFile));
+    return (
+        addr != nullptr && addr->IsValid() &&
+        DumpAddressAndContent(s, sc, exe_ctx, *addr,
+                              entry.type == Entry::Type::AddressLoadOrFile));
 
   case Entry::Type::ProcessID:
     if (exe_ctx) {
@@ -1277,15 +1274,23 @@ bool FormatEntity::Format(const Entry &entry, Stream &s,
 
   case Entry::Type::ThreadStopReason:
     if (exe_ctx) {
-      Thread *thread = exe_ctx->GetThreadPtr();
-      if (thread) {
-        StopInfoSP stop_info_sp = thread->GetStopInfo();
-        if (stop_info_sp && stop_info_sp->IsValid()) {
-          const char *cstr = stop_info_sp->GetDescription();
-          if (cstr && cstr[0]) {
-            s.PutCString(cstr);
-            return true;
-          }
+      if (Thread *thread = exe_ctx->GetThreadPtr()) {
+        std::string stop_description = thread->GetStopDescription();
+        if (!stop_description.empty()) {
+          s.PutCString(stop_description);
+          return true;
+        }
+      }
+    }
+    return false;
+
+  case Entry::Type::ThreadStopReasonRaw:
+    if (exe_ctx) {
+      if (Thread *thread = exe_ctx->GetThreadPtr()) {
+        std::string stop_description = thread->GetStopDescriptionRaw();
+        if (!stop_description.empty()) {
+          s.PutCString(stop_description);
+          return true;
         }
       }
     }
@@ -1384,8 +1389,7 @@ bool FormatEntity::Format(const Entry &entry, Stream &s,
     if (sc) {
       CompileUnit *cu = sc->comp_unit;
       if (cu) {
-        // CompileUnit is a FileSpec
-        if (DumpFile(s, *cu, (FileKind)entry.number))
+        if (DumpFile(s, cu->GetPrimaryFile(), (FileKind)entry.number))
           return true;
       }
     }
@@ -1424,7 +1428,7 @@ bool FormatEntity::Format(const Entry &entry, Stream &s,
       if (frame) {
         const Address &pc_addr = frame->GetFrameCodeAddress();
         if (pc_addr.IsValid()) {
-          if (DumpAddress(s, sc, exe_ctx, pc_addr, false))
+          if (DumpAddressAndContent(s, sc, exe_ctx, pc_addr, false))
             return true;
         }
       }
@@ -1549,7 +1553,7 @@ bool FormatEntity::Format(const Entry &entry, Stream &s,
                 sc->block->GetInlinedFunctionInfo();
             if (inline_info) {
               s.PutCString(" [inlined] ");
-              inline_info->GetName(sc->function->GetLanguage()).Dump(&s);
+              inline_info->GetName().Dump(&s);
             }
           }
         }
@@ -1633,8 +1637,7 @@ bool FormatEntity::Format(const Entry &entry, Stream &s,
           if (inline_info) {
             s.PutCString(cstr);
             s.PutCString(" [inlined] ");
-            cstr =
-                inline_info->GetName(sc->function->GetLanguage()).GetCString();
+            cstr = inline_info->GetName().GetCString();
           }
 
           VariableList args;
@@ -1752,6 +1755,30 @@ bool FormatEntity::Format(const Entry &entry, Stream &s,
   }
     return false;
 
+  case Entry::Type::FunctionMangledName: {
+    const char *name = nullptr;
+    if (sc->symbol)
+      name =
+          sc->symbol->GetMangled().GetName(Mangled::ePreferMangled).AsCString();
+    else if (sc->function)
+      name = sc->function->GetMangled()
+                 .GetName(Mangled::ePreferMangled)
+                 .AsCString();
+
+    if (!name)
+      return false;
+    s.PutCString(name);
+
+    if (sc->block->GetContainingInlinedBlock()) {
+      if (const InlineFunctionInfo *inline_info =
+              sc->block->GetInlinedFunctionInfo()) {
+        s.PutCString(" [inlined] ");
+        inline_info->GetName().Dump(&s);
+      }
+    }
+    return true;
+  }
+
   case Entry::Type::FunctionAddrOffset:
     if (addr) {
       if (DumpAddressOffsetFromFunction(s, sc, exe_ctx, *addr, false, false,
@@ -1836,7 +1863,7 @@ bool FormatEntity::Format(const Entry &entry, Stream &s,
 
       if (entry.type == Entry::Type::LineEntryEndAddress)
         addr.Slide(sc->line_entry.range.GetByteSize());
-      if (DumpAddress(s, sc, exe_ctx, addr, false))
+      if (DumpAddressAndContent(s, sc, exe_ctx, addr, false))
         return true;
     }
     return false;
@@ -2317,13 +2344,13 @@ bool FormatEntity::FormatFileSpec(const FileSpec &file_spec, Stream &s,
                                   llvm::StringRef variable_name,
                                   llvm::StringRef variable_format) {
   if (variable_name.empty() || variable_name.equals(".fullpath")) {
-    file_spec.Dump(&s);
+    file_spec.Dump(s.AsRawOstream());
     return true;
   } else if (variable_name.equals(".basename")) {
-    s.PutCString(file_spec.GetFilename().AsCString(""));
+    s.PutCString(file_spec.GetFilename().GetStringRef());
     return true;
   } else if (variable_name.equals(".dirname")) {
-    s.PutCString(file_spec.GetFilename().AsCString(""));
+    s.PutCString(file_spec.GetFilename().GetStringRef());
     return true;
   }
   return false;
@@ -2354,42 +2381,39 @@ static void AddMatches(const FormatEntity::Entry::Definition *def,
   }
 }
 
-size_t FormatEntity::AutoComplete(CompletionRequest &request) {
-  llvm::StringRef str = request.GetCursorArgumentPrefix().str();
-
-  request.SetWordComplete(false);
-  str = str.drop_front(request.GetMatchStartPoint());
+void FormatEntity::AutoComplete(CompletionRequest &request) {
+  llvm::StringRef str = request.GetCursorArgumentPrefix();
 
   const size_t dollar_pos = str.rfind('$');
   if (dollar_pos == llvm::StringRef::npos)
-    return 0;
+    return;
 
   // Hitting TAB after $ at the end of the string add a "{"
   if (dollar_pos == str.size() - 1) {
     std::string match = str.str();
     match.append("{");
     request.AddCompletion(match);
-    return 1;
+    return;
   }
 
   if (str[dollar_pos + 1] != '{')
-    return 0;
+    return;
 
   const size_t close_pos = str.find('}', dollar_pos + 2);
   if (close_pos != llvm::StringRef::npos)
-    return 0;
+    return;
 
   const size_t format_pos = str.find('%', dollar_pos + 2);
   if (format_pos != llvm::StringRef::npos)
-    return 0;
+    return;
 
   llvm::StringRef partial_variable(str.substr(dollar_pos + 2));
   if (partial_variable.empty()) {
-    // Suggest all top level entites as we are just past "${"
+    // Suggest all top level entities as we are just past "${"
     StringList new_matches;
     AddMatches(&g_root, str, llvm::StringRef(), new_matches);
     request.AddCompletions(new_matches);
-    return request.GetNumberOfMatches();
+    return;
   }
 
   // We have a partially specified variable, find it
@@ -2397,7 +2421,7 @@ size_t FormatEntity::AutoComplete(CompletionRequest &request) {
   const FormatEntity::Entry::Definition *entry_def =
       FindEntry(partial_variable, &g_root, remainder);
   if (!entry_def)
-    return 0;
+    return;
 
   const size_t n = entry_def->num_children;
 
@@ -2409,7 +2433,6 @@ size_t FormatEntity::AutoComplete(CompletionRequest &request) {
     } else {
       // "${thread.id" <TAB>
       request.AddCompletion(MakeMatch(str, "}"));
-      request.SetWordComplete(true);
     }
   } else if (remainder.equals(".")) {
     // "${thread." <TAB>
@@ -2423,5 +2446,4 @@ size_t FormatEntity::AutoComplete(CompletionRequest &request) {
     AddMatches(entry_def, str, remainder, new_matches);
     request.AddCompletions(new_matches);
   }
-  return request.GetNumberOfMatches();
 }

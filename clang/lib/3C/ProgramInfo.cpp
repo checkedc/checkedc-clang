@@ -605,7 +605,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       PVConstraint *P = new PVConstraint(D, *this, *AstContext);
       P->setValidDecl();
       NewCV = P;
-      std::string VarName = VD->getName();
+      std::string VarName(VD->getName());
       unifyIfTypedef(Ty, *AstContext, VD, P);
       if (VD->hasGlobalStorage()) {
         // if we see a definition for this global variable, indicate so in

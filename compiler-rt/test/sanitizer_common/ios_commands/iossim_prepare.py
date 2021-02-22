@@ -1,5 +1,5 @@
 #!/usr/bin/python
 
-import os, sys, subprocess, json
+import json
 
 print(json.dumps({"env": {}}))

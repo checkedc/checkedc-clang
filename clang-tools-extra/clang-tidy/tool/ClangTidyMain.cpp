@@ -14,15 +14,17 @@
 ///
 //===----------------------------------------------------------------------===//
 
+#include "ClangTidyMain.h"
 #include "../ClangTidy.h"
 #include "../ClangTidyForceLinker.h"
+#include "../GlobList.h"
 #include "clang/Tooling/CommonOptionsParser.h"
+#include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/WithColor.h"
 
-using namespace clang::ast_matchers;
-using namespace clang::driver;
 using namespace clang::tooling;
 using namespace llvm;
 
@@ -33,17 +35,20 @@ static cl::extrahelp ClangTidyHelp(R"(
 Configuration files:
   clang-tidy attempts to read configuration for each source file from a
   .clang-tidy file located in the closest parent directory of the source
-  file. If any configuration options have a corresponding command-line
-  option, command-line option takes precedence. The effective
-  configuration can be inspected using -dump-config:
+  file. If InheritParentConfig is true in a config file, the configuration file
+  in the parent directory (if any exists) will be taken and current config file
+  will be applied on top of the parent one. If any configuration options have
+  a corresponding command-line option, command-line option takes precedence.
+  The effective configuration can be inspected using -dump-config:
 
     $ clang-tidy -dump-config
     ---
-    Checks:          '-*,some-check'
-    WarningsAsErrors: ''
-    HeaderFilterRegex: ''
-    FormatStyle:     none
-    User:            user
+    Checks:              '-*,some-check'
+    WarningsAsErrors:    ''
+    HeaderFilterRegex:   ''
+    FormatStyle:         none
+    InheritParentConfig: true
+    User:                user
     CheckOptions:
       - key:             some-check.SomeOption
         value:           'some value'
@@ -223,6 +228,15 @@ over the real file system.
                                        cl::value_desc("filename"),
                                        cl::cat(ClangTidyCategory));
 
+static cl::opt<bool> UseColor("use-color", cl::desc(R"(
+Use colors in diagnostics. If not set, colors
+will be used if the terminal connected to
+standard output supports colors.
+This option overrides the 'UseColor' option in
+.clang-tidy file, if any.
+)"),
+                              cl::init(false), cl::cat(ClangTidyCategory));
+
 namespace clang {
 namespace tidy {
 
@@ -285,21 +299,23 @@ static std::unique_ptr<ClangTidyOptionsProvider> createOptionsProvider(
     OverrideOptions.SystemHeaders = SystemHeaders;
   if (FormatStyle.getNumOccurrences() > 0)
     OverrideOptions.FormatStyle = FormatStyle;
+  if (UseColor.getNumOccurrences() > 0)
+    OverrideOptions.UseColor = UseColor;
 
   if (!Config.empty()) {
     if (llvm::ErrorOr<ClangTidyOptions> ParsedConfig =
             parseConfiguration(Config)) {
-      return llvm::make_unique<ConfigOptionsProvider>(
+      return std::make_unique<ConfigOptionsProvider>(
           GlobalOptions,
-          ClangTidyOptions::getDefaults().mergeWith(DefaultOptions),
-          *ParsedConfig, OverrideOptions);
+          ClangTidyOptions::getDefaults().mergeWith(DefaultOptions, 0),
+          *ParsedConfig, OverrideOptions, std::move(FS));
     } else {
       llvm::errs() << "Error: invalid configuration specified.\n"
                    << ParsedConfig.getError().message() << "\n";
       return nullptr;
     }
   }
-  return llvm::make_unique<FileOptionsProvider>(GlobalOptions, DefaultOptions,
+  return std::make_unique<FileOptionsProvider>(GlobalOptions, DefaultOptions,
                                                 OverrideOptions, std::move(FS));
 }
 
@@ -325,10 +341,16 @@ getVfsFromFile(const std::string &OverlayFile,
   return FS;
 }
 
-static int clangTidyMain(int argc, const char **argv) {
-  llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
-  CommonOptionsParser OptionsParser(argc, argv, ClangTidyCategory,
-                                    cl::ZeroOrMore);
+int clangTidyMain(int argc, const char **argv) {
+  llvm::InitLLVM X(argc, argv);
+  llvm::Expected<CommonOptionsParser> OptionsParser =
+      CommonOptionsParser::create(argc, argv, ClangTidyCategory,
+                                  cl::ZeroOrMore);
+  if (!OptionsParser) {
+    llvm::WithColor::error() << llvm::toString(OptionsParser.takeError());
+    return 1;
+  }
+
   llvm::IntrusiveRefCntPtr<vfs::OverlayFileSystem> BaseFS(
       new vfs::OverlayFileSystem(vfs::getRealFileSystem()));
 
@@ -359,12 +381,12 @@ static int clangTidyMain(int argc, const char **argv) {
   SmallString<256> ProfilePrefix = MakeAbsolute(StoreCheckProfile);
 
   StringRef FileName("dummy");
-  auto PathList = OptionsParser.getSourcePathList();
+  auto PathList = OptionsParser->getSourcePathList();
   if (!PathList.empty()) {
     FileName = PathList.front();
   }
 
-  SmallString<256> FilePath = MakeAbsolute(FileName);
+  SmallString<256> FilePath = MakeAbsolute(std::string(FileName));
 
   ClangTidyOptions EffectiveOptions = OptionsProvider->getOptions(FilePath);
   std::vector<std::string> EnabledChecks =
@@ -403,7 +425,7 @@ static int clangTidyMain(int argc, const char **argv) {
         getCheckOptions(EffectiveOptions, AllowEnablingAnalyzerAlphaCheckers);
     llvm::outs() << configurationAsText(
                         ClangTidyOptions::getDefaults().mergeWith(
-                            EffectiveOptions))
+                            EffectiveOptions, 0))
                  << "\n";
     return 0;
   }
@@ -427,7 +449,7 @@ static int clangTidyMain(int argc, const char **argv) {
   ClangTidyContext Context(std::move(OwningOptionsProvider),
                            AllowEnablingAnalyzerAlphaCheckers);
   std::vector<ClangTidyError> Errors =
-      runClangTidy(Context, OptionsParser.getCompilations(), PathList, BaseFS,
+      runClangTidy(Context, OptionsParser->getCompilations(), PathList, BaseFS,
                    EnableCheckProfile, ProfilePrefix);
   bool FoundErrors = llvm::find_if(Errors, [](const ClangTidyError &E) {
                        return E.DiagLevel == ClangTidyError::Error;
@@ -443,7 +465,7 @@ static int clangTidyMain(int argc, const char **argv) {
 
   if (!ExportFixes.empty() && !Errors.empty()) {
     std::error_code EC;
-    llvm::raw_fd_ostream OS(ExportFixes, EC, llvm::sys::fs::F_None);
+    llvm::raw_fd_ostream OS(ExportFixes, EC, llvm::sys::fs::OF_None);
     if (EC) {
       llvm::errs() << "Error opening output file: " << EC.message() << '\n';
       return 1;
@@ -465,7 +487,7 @@ static int clangTidyMain(int argc, const char **argv) {
       llvm::errs() << WErrorCount << " warning" << Plural << " treated as error"
                    << Plural << "\n";
     }
-    return WErrorCount;
+    return 1;
   }
 
   if (FoundErrors) {
@@ -486,7 +508,3 @@ static int clangTidyMain(int argc, const char **argv) {
 
 } // namespace tidy
 } // namespace clang
-
-int main(int argc, const char **argv) {
-  return clang::tidy::clangTidyMain(argc, argv);
-}

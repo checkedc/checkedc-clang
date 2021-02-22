@@ -604,33 +604,36 @@ define <4 x double> @merge_4f64_f64_34uz_volatile(double* %ptr) nounwind uwtable
 define <16 x i16> @merge_16i16_i16_0uu3zzuuuuuzCuEF_volatile(i16* %ptr) nounwind uwtable noinline ssp {
 ; AVX1-LABEL: merge_16i16_i16_0uu3zzuuuuuzCuEF_volatile:
 ; AVX1:       # %bb.0:
+; AVX1-NEXT:    movzwl (%rdi), %eax
 ; AVX1-NEXT:    vpxor %xmm0, %xmm0, %xmm0
-; AVX1-NEXT:    vpinsrw $0, (%rdi), %xmm0, %xmm1
 ; AVX1-NEXT:    vpinsrw $4, 24(%rdi), %xmm0, %xmm0
 ; AVX1-NEXT:    vpinsrw $6, 28(%rdi), %xmm0, %xmm0
 ; AVX1-NEXT:    vpinsrw $7, 30(%rdi), %xmm0, %xmm0
+; AVX1-NEXT:    vmovd %eax, %xmm1
 ; AVX1-NEXT:    vpinsrw $3, 6(%rdi), %xmm1, %xmm1
 ; AVX1-NEXT:    vinsertf128 $1, %xmm0, %ymm1, %ymm0
 ; AVX1-NEXT:    retq
 ;
 ; AVX2-LABEL: merge_16i16_i16_0uu3zzuuuuuzCuEF_volatile:
 ; AVX2:       # %bb.0:
+; AVX2-NEXT:    movzwl (%rdi), %eax
 ; AVX2-NEXT:    vpxor %xmm0, %xmm0, %xmm0
-; AVX2-NEXT:    vpinsrw $0, (%rdi), %xmm0, %xmm1
 ; AVX2-NEXT:    vpinsrw $4, 24(%rdi), %xmm0, %xmm0
 ; AVX2-NEXT:    vpinsrw $6, 28(%rdi), %xmm0, %xmm0
 ; AVX2-NEXT:    vpinsrw $7, 30(%rdi), %xmm0, %xmm0
+; AVX2-NEXT:    vmovd %eax, %xmm1
 ; AVX2-NEXT:    vpinsrw $3, 6(%rdi), %xmm1, %xmm1
 ; AVX2-NEXT:    vinserti128 $1, %xmm0, %ymm1, %ymm0
 ; AVX2-NEXT:    retq
 ;
 ; AVX512F-LABEL: merge_16i16_i16_0uu3zzuuuuuzCuEF_volatile:
 ; AVX512F:       # %bb.0:
+; AVX512F-NEXT:    movzwl (%rdi), %eax
 ; AVX512F-NEXT:    vpxor %xmm0, %xmm0, %xmm0
-; AVX512F-NEXT:    vpinsrw $0, (%rdi), %xmm0, %xmm1
 ; AVX512F-NEXT:    vpinsrw $4, 24(%rdi), %xmm0, %xmm0
 ; AVX512F-NEXT:    vpinsrw $6, 28(%rdi), %xmm0, %xmm0
 ; AVX512F-NEXT:    vpinsrw $7, 30(%rdi), %xmm0, %xmm0
+; AVX512F-NEXT:    vmovd %eax, %xmm1
 ; AVX512F-NEXT:    vpinsrw $3, 6(%rdi), %xmm1, %xmm1
 ; AVX512F-NEXT:    vinserti128 $1, %xmm0, %ymm1, %ymm0
 ; AVX512F-NEXT:    retq
@@ -638,11 +641,12 @@ define <16 x i16> @merge_16i16_i16_0uu3zzuuuuuzCuEF_volatile(i16* %ptr) nounwind
 ; X32-AVX-LABEL: merge_16i16_i16_0uu3zzuuuuuzCuEF_volatile:
 ; X32-AVX:       # %bb.0:
 ; X32-AVX-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-AVX-NEXT:    movzwl (%eax), %ecx
 ; X32-AVX-NEXT:    vpxor %xmm0, %xmm0, %xmm0
-; X32-AVX-NEXT:    vpinsrw $0, (%eax), %xmm0, %xmm1
 ; X32-AVX-NEXT:    vpinsrw $4, 24(%eax), %xmm0, %xmm0
 ; X32-AVX-NEXT:    vpinsrw $6, 28(%eax), %xmm0, %xmm0
 ; X32-AVX-NEXT:    vpinsrw $7, 30(%eax), %xmm0, %xmm0
+; X32-AVX-NEXT:    vmovd %ecx, %xmm1
 ; X32-AVX-NEXT:    vpinsrw $3, 6(%eax), %xmm1, %xmm1
 ; X32-AVX-NEXT:    vinsertf128 $1, %xmm0, %ymm1, %ymm0
 ; X32-AVX-NEXT:    retl
@@ -665,4 +669,33 @@ define <16 x i16> @merge_16i16_i16_0uu3zzuuuuuzCuEF_volatile(i16* %ptr) nounwind
   %resE = insertelement <16 x i16> %resD, i16 %valE, i16 14
   %resF = insertelement <16 x i16> %resE, i16 %valF, i16 15
   ret <16 x i16> %resF
+}
+
+;
+; Volatile tests.
+;
+
+@l = external global <32 x i8>, align 32
+
+define <2 x i8> @PR42846(<2 x i8>* %j, <2 x i8> %k) {
+; AVX-LABEL: PR42846:
+; AVX:       # %bb.0:
+; AVX-NEXT:    vmovdqa {{.*}}(%rip), %ymm0
+; AVX-NEXT:    vpextrw $0, %xmm0, (%rdi)
+; AVX-NEXT:    # kill: def $xmm0 killed $xmm0 killed $ymm0
+; AVX-NEXT:    vzeroupper
+; AVX-NEXT:    retq
+;
+; X32-AVX-LABEL: PR42846:
+; X32-AVX:       # %bb.0:
+; X32-AVX-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-AVX-NEXT:    vmovdqa l, %ymm0
+; X32-AVX-NEXT:    vpextrw $0, %xmm0, (%eax)
+; X32-AVX-NEXT:    # kill: def $xmm0 killed $xmm0 killed $ymm0
+; X32-AVX-NEXT:    vzeroupper
+; X32-AVX-NEXT:    retl
+  %t0 = load volatile <32 x i8>, <32 x i8>* @l, align 32
+  %shuffle = shufflevector <32 x i8> %t0, <32 x i8> undef, <2 x i32> <i32 0, i32 1>
+  store <2 x i8> %shuffle, <2 x i8>* %j, align 2
+  ret <2 x i8> %shuffle
 }

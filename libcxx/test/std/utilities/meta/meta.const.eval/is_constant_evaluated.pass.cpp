@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <type_traits>
 
@@ -23,11 +23,21 @@
 #endif
 #endif
 
+// Disable the tautological constant evaluation warnings for this test,
+// because it's explicitly testing those cases.
+#if TEST_HAS_WARNING("-Wconstant-evaluated") && defined(__clang__)
+#pragma clang diagnostic ignored "-Wconstant-evaluated"
+#endif
+
 template <bool> struct InTemplate {};
 
 int main(int, char**)
 {
 #ifdef __cpp_lib_is_constant_evaluated
+#ifdef TEST_COMPILER_C1XX
+    #pragma warning(push)
+    #pragma warning(disable: 5063) // 'std::is_constant_evaluated' always evaluates to true in manifestly constant-evaluated expressions
+#endif // TEST_COMPILER_C1XX
   // Test the signature
   {
     ASSERT_SAME_TYPE(decltype(std::is_constant_evaluated()), bool);
@@ -36,7 +46,7 @@ int main(int, char**)
     assert(p);
   }
   // Test the return value of the builtin for basic sanity only. It's the
-  // compilers job to test tho builtin for correctness.
+  // compiler's job to test the builtin for correctness.
   {
     static_assert(std::is_constant_evaluated(), "");
     bool p = std::is_constant_evaluated();
@@ -45,6 +55,9 @@ int main(int, char**)
     static int local_static = std::is_constant_evaluated() ? 42 : -1;
     assert(local_static == 42);
   }
-#endif
+#ifdef TEST_COMPILER_C1XX
+    #pragma warning(pop)
+#endif // TEST_COMPILER_C1XX
+#endif // __cpp_lib_is_constant_evaluated
   return 0;
 }

@@ -117,7 +117,7 @@ void ARMInstrInfo::expandLoadStackGuard(MachineBasicBlock::iterator MI) const {
 
   MachineBasicBlock &MBB = *MI->getParent();
   DebugLoc DL = MI->getDebugLoc();
-  unsigned Reg = MI->getOperand(0).getReg();
+  Register Reg = MI->getOperand(0).getReg();
   MachineInstrBuilder MIB;
 
   MIB = BuildMI(MBB, MI, DL, get(ARM::MOV_ga_pcrel_ldr), Reg)
@@ -126,7 +126,7 @@ void ARMInstrInfo::expandLoadStackGuard(MachineBasicBlock::iterator MI) const {
                MachineMemOperand::MODereferenceable |
                MachineMemOperand::MOInvariant;
   MachineMemOperand *MMO = MBB.getParent()->getMachineMemOperand(
-      MachinePointerInfo::getGOT(*MBB.getParent()), Flags, 4, 4);
+      MachinePointerInfo::getGOT(*MBB.getParent()), Flags, 4, Align(4));
   MIB.addMemOperand(MMO);
   BuildMI(MBB, MI, DL, get(ARM::LDRi12), Reg)
       .addReg(Reg, RegState::Kill)

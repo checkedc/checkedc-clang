@@ -1,4 +1,4 @@
-//===-- SBAddress.cpp -------------------------------------------*- C++ -*-===//
+//===-- SBAddress.cpp -----------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -28,7 +28,7 @@ SBAddress::SBAddress() : m_opaque_up(new Address()) {
 SBAddress::SBAddress(const Address *lldb_object_ptr)
     : m_opaque_up(new Address()) {
   if (lldb_object_ptr)
-    m_opaque_up = llvm::make_unique<Address>(*lldb_object_ptr);
+    m_opaque_up = std::make_unique<Address>(*lldb_object_ptr);
 }
 
 SBAddress::SBAddress(const SBAddress &rhs) : m_opaque_up(new Address()) {
@@ -52,7 +52,7 @@ SBAddress::SBAddress(lldb::addr_t load_addr, lldb::SBTarget &target)
   SetLoadAddress(load_addr, target);
 }
 
-SBAddress::~SBAddress() {}
+SBAddress::~SBAddress() = default;
 
 const SBAddress &SBAddress::operator=(const SBAddress &rhs) {
   LLDB_RECORD_METHOD(const lldb::SBAddress &,
@@ -89,7 +89,7 @@ SBAddress::operator bool() const {
 void SBAddress::Clear() {
   LLDB_RECORD_METHOD_NO_ARGS(void, SBAddress, Clear);
 
-  m_opaque_up.reset(new Address());
+  m_opaque_up = std::make_unique<Address>();
 }
 
 void SBAddress::SetAddress(lldb::SBSection section, lldb::addr_t offset) {
@@ -105,7 +105,7 @@ void SBAddress::SetAddress(const Address *lldb_object_ptr) {
   if (lldb_object_ptr)
     ref() = *lldb_object_ptr;
   else
-    m_opaque_up.reset(new Address());
+    m_opaque_up = std::make_unique<Address>();
 }
 
 lldb::addr_t SBAddress::GetFileAddress() const {
@@ -187,7 +187,7 @@ const Address *SBAddress::operator->() const { return m_opaque_up.get(); }
 
 Address &SBAddress::ref() {
   if (m_opaque_up == nullptr)
-    m_opaque_up.reset(new Address());
+    m_opaque_up = std::make_unique<Address>();
   return *m_opaque_up;
 }
 
@@ -210,12 +210,6 @@ bool SBAddress::GetDescription(SBStream &description) {
   if (m_opaque_up->IsValid()) {
     m_opaque_up->Dump(&strm, nullptr, Address::DumpStyleResolvedDescription,
                       Address::DumpStyleModuleWithFileAddress, 4);
-    StreamString sstrm;
-    //        m_opaque_up->Dump (&sstrm, NULL,
-    //        Address::DumpStyleResolvedDescription, Address::DumpStyleInvalid,
-    //        4);
-    //        if (sstrm.GetData())
-    //            strm.Printf (" (%s)", sstrm.GetData());
   } else
     strm.PutCString("No value");
 

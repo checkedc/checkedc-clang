@@ -12,8 +12,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Analysis/CFG.h"
-#include "llvm/ADT/SmallPtrSet.h"
-#include "llvm/ADT/SmallSet.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/Dominators.h"
 
@@ -31,16 +29,16 @@ void llvm::FindFunctionBackedges(const Function &F,
     return;
 
   SmallPtrSet<const BasicBlock*, 8> Visited;
-  SmallVector<std::pair<const BasicBlock*, succ_const_iterator>, 8> VisitStack;
+  SmallVector<std::pair<const BasicBlock *, const_succ_iterator>, 8> VisitStack;
   SmallPtrSet<const BasicBlock*, 8> InStack;
 
   Visited.insert(BB);
   VisitStack.push_back(std::make_pair(BB, succ_begin(BB)));
   InStack.insert(BB);
   do {
-    std::pair<const BasicBlock*, succ_const_iterator> &Top = VisitStack.back();
+    std::pair<const BasicBlock *, const_succ_iterator> &Top = VisitStack.back();
     const BasicBlock *ParentBB = Top.first;
-    succ_const_iterator &I = Top.second;
+    const_succ_iterator &I = Top.second;
 
     bool FoundNew = false;
     while (I != succ_end(ParentBB)) {
@@ -87,11 +85,18 @@ unsigned llvm::GetSuccessorNumber(const BasicBlock *BB,
 /// with multiple predecessors.
 bool llvm::isCriticalEdge(const Instruction *TI, unsigned SuccNum,
                           bool AllowIdenticalEdges) {
-  assert(TI->isTerminator() && "Must be a terminator to have successors!");
   assert(SuccNum < TI->getNumSuccessors() && "Illegal edge specification!");
+  return isCriticalEdge(TI, TI->getSuccessor(SuccNum), AllowIdenticalEdges);
+}
+
+bool llvm::isCriticalEdge(const Instruction *TI, const BasicBlock *Dest,
+                          bool AllowIdenticalEdges) {
+  assert(TI->isTerminator() && "Must be a terminator to have successors!");
   if (TI->getNumSuccessors() == 1) return false;
 
-  const BasicBlock *Dest = TI->getSuccessor(SuccNum);
+  assert(find(predecessors(Dest), TI->getParent()) != pred_end(Dest) &&
+         "No edge between TI's block and Dest.");
+
   const_pred_iterator I = pred_begin(Dest), E = pred_end(Dest);
 
   // If there is more than one predecessor, this is a critical edge...

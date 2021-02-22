@@ -1,4 +1,4 @@
-; RUN: opt -basicaa -objc-arc -S < %s | FileCheck %s
+; RUN: opt -basic-aa -objc-arc -S < %s | FileCheck %s
 
 target datalayout = "e-p:64:64:64"
 
@@ -3070,5 +3070,5 @@ define void @test67(i8* %x) {
 !5 = !{i32 2, !"Debug Info Version", i32 3}
 
 ; CHECK: attributes [[NUW]] = { nounwind }
-; CHECK: attributes #1 = { nounwind readnone speculatable }
+; CHECK: attributes #1 = { nounwind readnone speculatable willreturn }
 ; CHECK: ![[RELEASE]] = !{}

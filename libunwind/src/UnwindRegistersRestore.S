@@ -557,7 +557,7 @@ Lnovec:
   lwz     %r3,  20(%r3)   // do r3 last
   bctr
 
-#elif defined(__arm64__) || defined(__aarch64__)
+#elif defined(__aarch64__)
 
 //
 // void libunwind::Registers_arm64::jumpto()
@@ -808,6 +808,48 @@ DEFINE_LIBUNWIND_FUNCTION(_ZN9libunwind14Registers_or1k6jumptoEv)
   l.jr     r9
    l.nop
 
+#elif defined(__hexagon__)
+# On entry:
+#  thread_state pointer is in r2
+DEFINE_LIBUNWIND_FUNCTION(_ZN9libunwind17Registers_hexagon6jumptoEv)
+#
+# void libunwind::Registers_hexagon::jumpto()
+#
+  r8 = memw(r0+#32)
+  r9 = memw(r0+#36)
+  r10 = memw(r0+#40)
+  r11 = memw(r0+#44)
+
+  r12 = memw(r0+#48)
+  r13 = memw(r0+#52)
+  r14 = memw(r0+#56)
+  r15 = memw(r0+#60)
+
+  r16 = memw(r0+#64)
+  r17 = memw(r0+#68)
+  r18 = memw(r0+#72)
+  r19 = memw(r0+#76)
+
+  r20 = memw(r0+#80)
+  r21 = memw(r0+#84)
+  r22 = memw(r0+#88)
+  r23 = memw(r0+#92)
+
+  r24 = memw(r0+#96)
+  r25 = memw(r0+#100)
+  r26 = memw(r0+#104)
+  r27 = memw(r0+#108)
+
+  r28 = memw(r0+#112)
+  r29 = memw(r0+#116)
+  r30 = memw(r0+#120)
+  r31 = memw(r0+#132)
+
+  r1 = memw(r0+#128)
+  c4 = r1   // Predicate register
+  r1 = memw(r0+#4)
+  r0 = memw(r0)
+  jumpr r31
 #elif defined(__mips__) && defined(_ABIO32) && _MIPS_SIM == _ABIO32
 
 //
@@ -1028,6 +1070,87 @@ DEFINE_LIBUNWIND_FUNCTION(_ZN9libunwind15Registers_sparc6jumptoEv)
   ld  [%o0 + 60],  %o7
   jmp %o7
    nop
+
+#elif defined(__riscv) && __riscv_xlen == 64
+
+//
+// void libunwind::Registers_riscv::jumpto()
+//
+// On entry:
+//  thread_state pointer is in a0
+//
+  .p2align 2
+DEFINE_LIBUNWIND_FUNCTION(_ZN9libunwind15Registers_riscv6jumptoEv)
+#if defined(__riscv_flen) && __riscv_flen == 64
+  fld    f0, (8 * 32 + 8 * 0)(a0)
+  fld    f1, (8 * 32 + 8 * 1)(a0)
+  fld    f2, (8 * 32 + 8 * 2)(a0)
+  fld    f3, (8 * 32 + 8 * 3)(a0)
+  fld    f4, (8 * 32 + 8 * 4)(a0)
+  fld    f5, (8 * 32 + 8 * 5)(a0)
+  fld    f6, (8 * 32 + 8 * 6)(a0)
+  fld    f7, (8 * 32 + 8 * 7)(a0)
+  fld    f8, (8 * 32 + 8 * 8)(a0)
+  fld    f9, (8 * 32 + 8 * 9)(a0)
+  fld    f10, (8 * 32 + 8 * 10)(a0)
+  fld    f11, (8 * 32 + 8 * 11)(a0)
+  fld    f12, (8 * 32 + 8 * 12)(a0)
+  fld    f13, (8 * 32 + 8 * 13)(a0)
+  fld    f14, (8 * 32 + 8 * 14)(a0)
+  fld    f15, (8 * 32 + 8 * 15)(a0)
+  fld    f16, (8 * 32 + 8 * 16)(a0)
+  fld    f17, (8 * 32 + 8 * 17)(a0)
+  fld    f18, (8 * 32 + 8 * 18)(a0)
+  fld    f19, (8 * 32 + 8 * 19)(a0)
+  fld    f20, (8 * 32 + 8 * 20)(a0)
+  fld    f21, (8 * 32 + 8 * 21)(a0)
+  fld    f22, (8 * 32 + 8 * 22)(a0)
+  fld    f23, (8 * 32 + 8 * 23)(a0)
+  fld    f24, (8 * 32 + 8 * 24)(a0)
+  fld    f25, (8 * 32 + 8 * 25)(a0)
+  fld    f26, (8 * 32 + 8 * 26)(a0)
+  fld    f27, (8 * 32 + 8 * 27)(a0)
+  fld    f28, (8 * 32 + 8 * 28)(a0)
+  fld    f29, (8 * 32 + 8 * 29)(a0)
+  fld    f30, (8 * 32 + 8 * 30)(a0)
+  fld    f31, (8 * 32 + 8 * 31)(a0)
+#endif
+
+  // x0 is zero
+  ld    x1, (8 * 0)(a0) // restore pc into ra
+  ld    x2, (8 * 2)(a0)
+  ld    x3, (8 * 3)(a0)
+  ld    x4, (8 * 4)(a0)
+  ld    x5, (8 * 5)(a0)
+  ld    x6, (8 * 6)(a0)
+  ld    x7, (8 * 7)(a0)
+  ld    x8, (8 * 8)(a0)
+  ld    x9, (8 * 9)(a0)
+  // skip a0 for now
+  ld    x11, (8 * 11)(a0)
+  ld    x12, (8 * 12)(a0)
+  ld    x13, (8 * 13)(a0)
+  ld    x14, (8 * 14)(a0)
+  ld    x15, (8 * 15)(a0)
+  ld    x16, (8 * 16)(a0)
+  ld    x17, (8 * 17)(a0)
+  ld    x18, (8 * 18)(a0)
+  ld    x19, (8 * 19)(a0)
+  ld    x20, (8 * 20)(a0)
+  ld    x21, (8 * 21)(a0)
+  ld    x22, (8 * 22)(a0)
+  ld    x23, (8 * 23)(a0)
+  ld    x24, (8 * 24)(a0)
+  ld    x25, (8 * 25)(a0)
+  ld    x26, (8 * 26)(a0)
+  ld    x27, (8 * 27)(a0)
+  ld    x28, (8 * 28)(a0)
+  ld    x29, (8 * 29)(a0)
+  ld    x30, (8 * 30)(a0)
+  ld    x31, (8 * 31)(a0)
+  ld    x10, (8 * 10)(a0)   // restore a0
+
+  ret                       // jump to ra
 
 #endif
 

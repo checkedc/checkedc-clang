@@ -1,4 +1,4 @@
-//===-- SBThreadPlan.cpp ----------------------------------------*- C++ -*-===//
+//===-- SBThreadPlan.cpp --------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,10 +11,12 @@
 
 #include "lldb/API/SBFileSpec.h"
 #include "lldb/API/SBStream.h"
+#include "lldb/API/SBStructuredData.h"
 #include "lldb/API/SBSymbolContext.h"
 #include "lldb/Breakpoint/BreakpointLocation.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/StreamFile.h"
+#include "lldb/Core/StructuredDataImpl.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/SymbolContext.h"
@@ -67,7 +69,20 @@ SBThreadPlan::SBThreadPlan(lldb::SBThread &sb_thread, const char *class_name) {
 
   Thread *thread = sb_thread.get();
   if (thread)
-    m_opaque_sp = std::make_shared<ThreadPlanPython>(*thread, class_name);
+    m_opaque_sp = std::make_shared<ThreadPlanPython>(*thread, class_name, 
+                                                     nullptr);
+}
+
+SBThreadPlan::SBThreadPlan(lldb::SBThread &sb_thread, const char *class_name,
+                           lldb::SBStructuredData &args_data) {
+  LLDB_RECORD_CONSTRUCTOR(SBThreadPlan, (lldb::SBThread &, const char *,
+                                         SBStructuredData &),
+                          sb_thread, class_name, args_data);
+
+  Thread *thread = sb_thread.get();
+  if (thread)
+    m_opaque_sp = std::make_shared<ThreadPlanPython>(*thread, class_name, 
+                                                     args_data.m_impl_up.get());
 }
 
 // Assignment operator
@@ -81,7 +96,7 @@ const lldb::SBThreadPlan &SBThreadPlan::operator=(const SBThreadPlan &rhs) {
   return LLDB_RECORD_RESULT(*this);
 }
 // Destructor
-SBThreadPlan::~SBThreadPlan() {}
+SBThreadPlan::~SBThreadPlan() = default;
 
 lldb_private::ThreadPlan *SBThreadPlan::get() { return m_opaque_sp.get(); }
 
@@ -222,7 +237,9 @@ SBThreadPlan SBThreadPlan::QueueThreadPlanForStepOverRange(
 
     if (plan_status.Fail())
       error.SetErrorString(plan_status.AsCString());
-
+    else
+      plan.m_opaque_sp->SetPrivate(true);
+    
     return LLDB_RECORD_RESULT(plan);
   } else {
     return LLDB_RECORD_RESULT(SBThreadPlan());
@@ -266,6 +283,8 @@ SBThreadPlan::QueueThreadPlanForStepInRange(SBAddress &sb_start_address,
 
     if (plan_status.Fail())
       error.SetErrorString(plan_status.AsCString());
+    else
+      plan.m_opaque_sp->SetPrivate(true);
 
     return LLDB_RECORD_RESULT(plan);
   } else {
@@ -306,6 +325,8 @@ SBThreadPlan::QueueThreadPlanForStepOut(uint32_t frame_idx_to_step_to,
 
     if (plan_status.Fail())
       error.SetErrorString(plan_status.AsCString());
+    else
+      plan.m_opaque_sp->SetPrivate(true);
 
     return LLDB_RECORD_RESULT(plan);
   } else {
@@ -341,6 +362,8 @@ SBThreadPlan SBThreadPlan::QueueThreadPlanForRunToAddress(SBAddress sb_address,
 
     if (plan_status.Fail())
       error.SetErrorString(plan_status.AsCString());
+    else
+      plan.m_opaque_sp->SetPrivate(true);
 
     return LLDB_RECORD_RESULT(plan);
   } else {
@@ -368,12 +391,42 @@ SBThreadPlan::QueueThreadPlanForStepScripted(const char *script_class_name,
 
   if (m_opaque_sp) {
     Status plan_status;
+    StructuredData::ObjectSP empty_args;
     SBThreadPlan plan =
         SBThreadPlan(m_opaque_sp->GetThread().QueueThreadPlanForStepScripted(
-            false, script_class_name, false, plan_status));
+            false, script_class_name, empty_args, false, plan_status));
 
     if (plan_status.Fail())
       error.SetErrorString(plan_status.AsCString());
+    else
+      plan.m_opaque_sp->SetPrivate(true);
+
+    return LLDB_RECORD_RESULT(plan);
+  } else {
+    return LLDB_RECORD_RESULT(SBThreadPlan());
+  }
+}
+
+SBThreadPlan
+SBThreadPlan::QueueThreadPlanForStepScripted(const char *script_class_name,
+                                             lldb::SBStructuredData &args_data,
+                                             SBError &error) {
+  LLDB_RECORD_METHOD(lldb::SBThreadPlan, SBThreadPlan,
+                     QueueThreadPlanForStepScripted,
+                     (const char *, lldb::SBStructuredData &, lldb::SBError &), 
+                     script_class_name, args_data, error);
+
+  if (m_opaque_sp) {
+    Status plan_status;
+    StructuredData::ObjectSP args_obj = args_data.m_impl_up->GetObjectSP();
+    SBThreadPlan plan =
+        SBThreadPlan(m_opaque_sp->GetThread().QueueThreadPlanForStepScripted(
+            false, script_class_name, args_obj, false, plan_status));
+
+    if (plan_status.Fail())
+      error.SetErrorString(plan_status.AsCString());
+    else
+      plan.m_opaque_sp->SetPrivate(true);
 
     return LLDB_RECORD_RESULT(plan);
   } else {
@@ -390,6 +443,8 @@ void RegisterMethods<SBThreadPlan>(Registry &R) {
   LLDB_REGISTER_CONSTRUCTOR(SBThreadPlan, (const lldb::ThreadPlanSP &));
   LLDB_REGISTER_CONSTRUCTOR(SBThreadPlan, (const lldb::SBThreadPlan &));
   LLDB_REGISTER_CONSTRUCTOR(SBThreadPlan, (lldb::SBThread &, const char *));
+  LLDB_REGISTER_CONSTRUCTOR(SBThreadPlan, (lldb::SBThread &, const char *,
+                       lldb::SBStructuredData &));
   LLDB_REGISTER_METHOD(const lldb::SBThreadPlan &,
                        SBThreadPlan, operator=,(const lldb::SBThreadPlan &));
   LLDB_REGISTER_METHOD_CONST(bool, SBThreadPlan, IsValid, ());
@@ -433,6 +488,10 @@ void RegisterMethods<SBThreadPlan>(Registry &R) {
   LLDB_REGISTER_METHOD(lldb::SBThreadPlan, SBThreadPlan,
                        QueueThreadPlanForStepScripted,
                        (const char *, lldb::SBError &));
+  LLDB_REGISTER_METHOD(lldb::SBThreadPlan, SBThreadPlan,
+                       QueueThreadPlanForStepScripted,
+                       (const char *, lldb::SBStructuredData &,
+                       lldb::SBError &));
 }
 
 }

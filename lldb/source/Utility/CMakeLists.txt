@@ -1,6 +1,19 @@
 set(LLDB_SYSTEM_LIBS)
 
-list(APPEND LLDB_SYSTEM_LIBS ${system_libs})
+if (APPLE)
+  list(APPEND LLDB_SYSTEM_LIBS
+       ${FOUNDATION_LIBRARY}
+       ${CORE_FOUNDATION_LIBRARY}
+       ${CORE_SERVICES_LIBRARY}
+       ${SECURITY_LIBRARY}
+       ${DEBUG_SYMBOLS_LIBRARY})
+endif()
+
+if(NOT PURE_WINDOWS)
+  list(APPEND LLDB_SYSTEM_LIBS ${CMAKE_THREAD_LIBS_INIT})
+endif()
+
+list(APPEND LLDB_SYSTEM_LIBS ${CMAKE_DL_LIBS})
 
 if (CMAKE_SYSTEM_NAME MATCHES "Windows")
   list(APPEND LLDB_SYSTEM_LIBS ws2_32 rpcrt4)
@@ -15,19 +28,18 @@ add_lldb_library(lldbUtility
   Args.cpp
   Baton.cpp
   Broadcaster.cpp
+  CompletionRequest.cpp
   Connection.cpp
   ConstString.cpp
-  CompletionRequest.cpp
   DataBufferHeap.cpp
   DataBufferLLVM.cpp
   DataEncoder.cpp
   DataExtractor.cpp
   Environment.cpp
-  FileCollector.cpp
   Event.cpp
   FileSpec.cpp
+  GDBRemote.cpp
   IOObject.cpp
-  JSON.cpp
   LLDBAssert.cpp
   Listener.cpp
   Log.cpp
@@ -40,12 +52,10 @@ add_lldb_library(lldbUtility
   ReproducerInstrumentation.cpp
   Scalar.cpp
   SelectHelper.cpp
-  SharingPtr.cpp
   State.cpp
   Status.cpp
   Stream.cpp
   StreamCallback.cpp
-  StreamGDBRemote.cpp
   StreamString.cpp
   StringExtractor.cpp
   StringExtractorGDBRemote.cpp
@@ -54,12 +64,13 @@ add_lldb_library(lldbUtility
   StructuredData.cpp
   TildeExpressionResolver.cpp
   Timer.cpp
+  UUID.cpp
+  UriParser.cpp
   UserID.cpp
   UserIDResolver.cpp
-  UriParser.cpp
-  UUID.cpp
   VASprintf.cpp
   VMRange.cpp
+  XcodeSDK.cpp
 
   LINK_LIBS
     ${LLDB_SYSTEM_LIBS}

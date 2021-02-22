@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <typeindex>
 
@@ -15,7 +15,7 @@
 
 #include <typeindex>
 
-#include "poisoned_hash_helper.hpp"
+#include "poisoned_hash_helper.h"
 
 #include "test_macros.h"
 

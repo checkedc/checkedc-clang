@@ -20,7 +20,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/SmallPtrSet.h"
-#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -28,8 +27,10 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/TypeFinder.h"
 #include "llvm/IR/ValueSymbolTable.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Transforms/IPO.h"
+#include "llvm/Transforms/Utils/Local.h"
 using namespace llvm;
 
 namespace {
@@ -146,10 +147,12 @@ static void RemoveDeadConstant(Constant *C) {
   if (GlobalVariable *GV = dyn_cast<GlobalVariable>(C)) {
     if (!GV->hasLocalLinkage()) return;   // Don't delete non-static globals.
     GV->eraseFromParent();
-  }
-  else if (!isa<Function>(C))
-    if (isa<CompositeType>(C->getType()))
+  } else if (!isa<Function>(C)) {
+    // FIXME: Why does the type of the constant matter here?
+    if (isa<StructType>(C->getType()) || isa<ArrayType>(C->getType()) ||
+        isa<VectorType>(C->getType()))
       C->destroyConstant();
+  }
 
   // If the constant referenced anything, see if we can delete it as well.
   for (Constant *O : Operands)

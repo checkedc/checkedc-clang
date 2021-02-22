@@ -8,12 +8,12 @@
 
 #include "Serialization.h"
 #include "Headers.h"
-#include "Logger.h"
 #include "RIFF.h"
 #include "SymbolLocation.h"
 #include "SymbolOrigin.h"
-#include "Trace.h"
 #include "dex/Dex.h"
+#include "support/Logger.h"
+#include "support/Trace.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Compression.h"
@@ -29,29 +29,6 @@ llvm::Error makeError(const llvm::Twine &Msg) {
   return llvm::make_error<llvm::StringError>(Msg,
                                              llvm::inconvertibleErrorCode());
 }
-} // namespace
-
-RelationKind symbolRoleToRelationKind(index::SymbolRole Role) {
-  // SymbolRole is used to record relations in the index.
-  // Only handle the relations we actually store currently.
-  // If we start storing more relations, this list can be expanded.
-  switch (Role) {
-  case index::SymbolRole::RelationBaseOf:
-    return RelationKind::BaseOf;
-  default:
-    llvm_unreachable("Unsupported symbol role");
-  }
-}
-
-index::SymbolRole relationKindToSymbolRole(RelationKind Kind) {
-  switch (Kind) {
-  case RelationKind::BaseOf:
-    return index::SymbolRole::RelationBaseOf;
-  }
-  llvm_unreachable("Invalid relation kind");
-}
-
-namespace {
 
 // IO PRIMITIVES
 // We use little-endian 32 bit ints, sometimes with variable-length encoding.
@@ -192,7 +169,7 @@ public:
 
     std::string RawTable;
     for (llvm::StringRef S : Sorted) {
-      RawTable.append(S);
+      RawTable.append(std::string(S));
       RawTable.push_back(0);
     }
     if (llvm::zlib::isAvailable()) {
@@ -395,15 +372,13 @@ readRefs(Reader &Data, llvm::ArrayRef<llvm::StringRef> Strings) {
 
 void writeRelation(const Relation &R, llvm::raw_ostream &OS) {
   OS << R.Subject.raw();
-  RelationKind Kind = symbolRoleToRelationKind(R.Predicate);
-  OS.write(static_cast<uint8_t>(Kind));
+  OS.write(static_cast<uint8_t>(R.Predicate));
   OS << R.Object.raw();
 }
 
 Relation readRelation(Reader &Data) {
   SymbolID Subject = Data.consumeID();
-  index::SymbolRole Predicate =
-      relationKindToSymbolRole(static_cast<RelationKind>(Data.consume8()));
+  RelationKind Predicate = static_cast<RelationKind>(Data.consume8());
   SymbolID Object = Data.consumeID();
   return {Subject, Predicate, Object};
 }
@@ -444,26 +419,31 @@ readCompileCommand(Reader CmdReader, llvm::ArrayRef<llvm::StringRef> Strings) {
 // The current versioning scheme is simple - non-current versions are rejected.
 // If you make a breaking change, bump this version number to invalidate stored
 // data. Later we may want to support some backward compatibility.
-constexpr static uint32_t Version = 12;
+constexpr static uint32_t Version = 13;
 
 llvm::Expected<IndexFileIn> readRIFF(llvm::StringRef Data) {
   auto RIFF = riff::readFile(Data);
   if (!RIFF)
     return RIFF.takeError();
   if (RIFF->Type != riff::fourCC("CdIx"))
-    return makeError("wrong RIFF type");
+    return makeError("wrong RIFF filetype: " + riff::fourCCStr(RIFF->Type));
   llvm::StringMap<llvm::StringRef> Chunks;
   for (const auto &Chunk : RIFF->Chunks)
     Chunks.try_emplace(llvm::StringRef(Chunk.ID.data(), Chunk.ID.size()),
                        Chunk.Data);
 
-  for (llvm::StringRef RequiredChunk : {"meta", "stri"})
+  if (!Chunks.count("meta"))
+    return makeError("missing meta chunk");
+  Reader Meta(Chunks.lookup("meta"));
+  auto SeenVersion = Meta.consume32();
+  if (SeenVersion != Version)
+    return makeError("wrong version: want " + llvm::Twine(Version) + ", got " +
+                     llvm::Twine(SeenVersion));
+
+  // meta chunk is checked above, as we prefer the "version mismatch" error.
+  for (llvm::StringRef RequiredChunk : {"stri"})
     if (!Chunks.count(RequiredChunk))
       return makeError("missing required chunk " + RequiredChunk);
-
-  Reader Meta(Chunks.lookup("meta"));
-  if (Meta.consume32() != Version)
-    return makeError("wrong version");
 
   auto Strings = readStringTable(Chunks.lookup("stri"));
   if (!Strings)
@@ -526,7 +506,7 @@ llvm::Expected<IndexFileIn> readRIFF(llvm::StringRef Data) {
     InternedCompileCommand Cmd =
         readCompileCommand(CmdReader, Strings->Strings);
     Result.Cmd.emplace();
-    Result.Cmd->Directory = Cmd.Directory;
+    Result.Cmd->Directory = std::string(Cmd.Directory);
     Result.Cmd->CommandLine.reserve(Cmd.CommandLine.size());
     for (llvm::StringRef C : Cmd.CommandLine)
       Result.Cmd->CommandLine.emplace_back(C);
@@ -690,7 +670,7 @@ std::unique_ptr<SymbolIndex> loadIndex(llvm::StringRef SymbolFilename,
   trace::Span OverallTracer("LoadIndex");
   auto Buffer = llvm::MemoryBuffer::getFile(SymbolFilename);
   if (!Buffer) {
-    llvm::errs() << "Can't open " << SymbolFilename << "\n";
+    elog("Can't open {0}: {1}", SymbolFilename, Buffer.getError().message());
     return nullptr;
   }
 
@@ -707,7 +687,7 @@ std::unique_ptr<SymbolIndex> loadIndex(llvm::StringRef SymbolFilename,
       if (I->Relations)
         Relations = std::move(*I->Relations);
     } else {
-      llvm::errs() << "Bad Index: " << llvm::toString(I.takeError()) << "\n";
+      elog("Bad index file: {0}", I.takeError());
       return nullptr;
     }
   }
@@ -724,7 +704,7 @@ std::unique_ptr<SymbolIndex> loadIndex(llvm::StringRef SymbolFilename,
   vlog("Loaded {0} from {1} with estimated memory usage {2} bytes\n"
        "  - number of symbols: {3}\n"
        "  - number of refs: {4}\n"
-       "  - numnber of relations: {5}",
+       "  - number of relations: {5}",
        UseDex ? "Dex" : "MemIndex", SymbolFilename,
        Index->estimateMemoryUsage(), NumSym, NumRefs, NumRelations);
   return Index;

@@ -47,16 +47,19 @@ void ImplicitConversionInLoopCheck::registerMatchers(MatchFinder *Finder) {
   // CXXOperatorCallExpr, so it should not get caught by the
   // cxxOperatorCallExpr() matcher.
   Finder->addMatcher(
-      cxxForRangeStmt(hasLoopVariable(
-          varDecl(
-              hasType(qualType(references(qualType(isConstQualified())))),
-              hasInitializer(
-                  expr(anyOf(hasDescendant(
-                                 cxxOperatorCallExpr().bind("operator-call")),
-                             hasDescendant(unaryOperator(hasOperatorName("*"))
-                                               .bind("operator-call"))))
-                      .bind("init")))
-              .bind("faulty-var"))),
+      traverse(
+          ast_type_traits::TK_AsIs,
+          cxxForRangeStmt(hasLoopVariable(
+              varDecl(
+                  hasType(qualType(references(qualType(isConstQualified())))),
+                  hasInitializer(
+                      expr(anyOf(
+                               hasDescendant(
+                                   cxxOperatorCallExpr().bind("operator-call")),
+                               hasDescendant(unaryOperator(hasOperatorName("*"))
+                                                 .bind("operator-call"))))
+                          .bind("init")))
+                  .bind("faulty-var")))),
       this);
 }
 
@@ -78,7 +81,7 @@ void ImplicitConversionInLoopCheck::check(
   // iterator returns a value instead of a reference, and the loop variable
   // is a reference. This situation is fine (it probably produces the same
   // code at the end).
-  if (IsNonTrivialImplicitCast(Materialized->getTemporary()))
+  if (IsNonTrivialImplicitCast(Materialized->getSubExpr()))
     ReportAndFix(Result.Context, VD, OperatorCall);
 }
 

@@ -5,6 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+///
+/// \file
+/// This file implements the class GCNIterativeScheduler.
+///
+//===----------------------------------------------------------------------===//
 
 #include "GCNIterativeScheduler.h"
 #include "AMDGPUSubtarget.h"
@@ -237,7 +242,7 @@ public:
 
 GCNIterativeScheduler::GCNIterativeScheduler(MachineSchedContext *C,
                                              StrategyKind S)
-  : BaseClass(C, llvm::make_unique<SchedStrategyStub>())
+  : BaseClass(C, std::make_unique<SchedStrategyStub>())
   , Context(C)
   , Strategy(S)
   , UPTracker(*LIS) {

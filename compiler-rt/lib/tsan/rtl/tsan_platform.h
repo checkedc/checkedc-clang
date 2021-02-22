@@ -457,6 +457,8 @@ struct Mapping47 {
   static const uptr kAppMemEnd     = 0x00e000000000ull;
 };
 
+#define TSAN_RUNTIME_VMA 1
+
 #elif SANITIZER_GO && defined(__aarch64__)
 
 /* Go on linux/aarch64 (48-bit VMA)
@@ -1019,6 +1021,7 @@ int call_pthread_cancel_with_cleanup(int(*fn)(void *c, void *m,
     void(*cleanup)(void *arg), void *arg);
 
 void DestroyThreadState();
+void PlatformCleanUpThreadState(ThreadState *thr);
 
 }  // namespace __tsan
 

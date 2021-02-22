@@ -129,7 +129,7 @@ CSEMIRBuilder::generateCopiesIfRequired(ArrayRef<DstOp> DstOps,
   if (DstOps.size() == 1) {
     const DstOp &Op = DstOps[0];
     if (Op.getDstOpKind() == DstOp::DstType::Ty_Reg)
-      return buildCopy(Op.getReg(), MIB->getOperand(0).getReg());
+      return buildCopy(Op.getReg(), MIB.getReg(0));
   }
   return MIB;
 }
@@ -160,6 +160,17 @@ MachineInstrBuilder CSEMIRBuilder::buildInstr(unsigned Opc,
     if (Optional<APInt> Cst = ConstantFoldBinOp(Opc, SrcOps[0].getReg(),
                                                 SrcOps[1].getReg(), *getMRI()))
       return buildConstant(DstOps[0], Cst->getSExtValue());
+    break;
+  }
+  case TargetOpcode::G_SEXT_INREG: {
+    assert(DstOps.size() == 1 && "Invalid dst ops");
+    assert(SrcOps.size() == 2 && "Invalid src ops");
+    const DstOp &Dst = DstOps[0];
+    const SrcOp &Src0 = SrcOps[0];
+    const SrcOp &Src1 = SrcOps[1];
+    if (auto MaybeCst =
+            ConstantFoldExtOp(Opc, Src0.getReg(), Src1.getImm(), *getMRI()))
+      return buildConstant(Dst, MaybeCst->getSExtValue());
     break;
   }
   }

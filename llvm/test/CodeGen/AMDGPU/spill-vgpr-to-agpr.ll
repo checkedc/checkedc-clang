@@ -1,5 +1,5 @@
 ; RUN: llc -march=amdgcn -mcpu=gfx908 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,GFX908 %s
-; RUN: llc -march=amdgcn -mcpu=gfx900 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,GFX900 %s
+; RUN: not llc -march=amdgcn -mcpu=gfx900 -verify-machineinstrs < %s 2>&1 | FileCheck -check-prefixes=GCN,GFX900 %s
 
 ; GCN-LABEL: {{^}}max_10_vgprs:
 ; GFX900-DAG: s_mov_b32 s{{[0-9]+}}, SCRATCH_RSRC_DWORD0
@@ -12,7 +12,7 @@
 ; GFX900:     buffer_load_dword v{{[0-9]}},
 ; GFX900:     buffer_load_dword v{{[0-9]}},
 ; GFX908-NOT: buffer_
-; GFX908-DAG  v_accvgpr_read_b32 v{{[0-9]}}, a0
+; GFX908-DAG: v_accvgpr_read_b32 v{{[0-9]}}, a0
 ; GFX908-DAG: v_accvgpr_read_b32 v{{[0-9]}}, a1
 
 ; GCN:    NumVgprs: 10
@@ -57,23 +57,21 @@ define amdgpu_kernel void @max_10_vgprs(i32 addrspace(1)* %p) #0 {
 }
 
 ; GCN-LABEL: {{^}}max_10_vgprs_used_9a:
-; GCN-DAG:    s_mov_b32 s{{[0-9]+}}, SCRATCH_RSRC_DWORD0
-; GCN-DAG:    s_mov_b32 s{{[0-9]+}}, SCRATCH_RSRC_DWORD1
-; GFX908:     v_accvgpr_write_b32 a9, v{{[0-9]}}
-; GCN:        buffer_store_dword v{{[0-9]}},
-; GFX900:     buffer_store_dword v{{[0-9]}},
-; GFX900:     buffer_load_dword v{{[0-9]}},
-; GFX900:     buffer_load_dword v{{[0-9]}},
+; GFX908-DAG: s_mov_b32 s{{[0-9]+}}, SCRATCH_RSRC_DWORD0
+; GFX908-DAG: s_mov_b32 s{{[0-9]+}}, SCRATCH_RSRC_DWORD1
+; GFX908-DAG: v_accvgpr_write_b32 a9, v{{[0-9]}}
+; GFX908:     buffer_store_dword v{{[0-9]}},
 ; GFX908-NOT: buffer_
 ; GFX908:     v_accvgpr_read_b32 v{{[0-9]}}, a9
 ; GFX908:     buffer_load_dword v{{[0-9]}},
 ; GFX908-NOT: buffer_
 
-; GCN:    NumVgprs: 10
-; GFX900: ScratchSize: 12
+; GFX900:     couldn't allocate input reg for constraint 'a'
+
+; GFX908: NumVgprs: 10
 ; GFX908: ScratchSize: 8
-; GCN:    VGPRBlocks: 2
-; GCN:    NumVGPRsForWavesPerEU: 10
+; GFX908: VGPRBlocks: 2
+; GFX908: NumVGPRsForWavesPerEU: 10
 define amdgpu_kernel void @max_10_vgprs_used_9a(i32 addrspace(1)* %p) #0 {
   %tid = call i32 @llvm.amdgcn.workitem.id.x()
   call void asm sideeffect "", "a,a,a,a,a,a,a,a,a"(i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9)
@@ -128,7 +126,7 @@ define amdgpu_kernel void @max_10_vgprs_used_9a(i32 addrspace(1)* %p) #0 {
 ; GCN-DAG:    buffer_store_dword v{{[0-9]}},
 ; GFX900:     buffer_load_dword v{{[0-9]}},
 ; GCN-DAG:    buffer_load_dword v{{[0-9]}},
-; GFX908-DAG  v_accvgpr_read_b32 v{{[0-9]}}, a1
+; GFX908-DAG: v_accvgpr_read_b32 v{{[0-9]}}, a1
 ; GFX908-DAG: v_accvgpr_read_b32 v{{[0-9]}}, a2
 ; GFX908-DAG: v_accvgpr_read_b32 v{{[0-9]}}, a3
 ; GFX908-DAG: v_accvgpr_read_b32 v{{[0-9]}}, a4
@@ -194,14 +192,14 @@ define amdgpu_kernel void @max_10_vgprs_spill_v32(<32 x float> addrspace(1)* %p)
 ; GFX900:     buffer_store_dword v
 ; GFX900:     buffer_load_dword v
 ; GFX908-NOT: buffer_
-; GFX908-DAG  v_accvgpr_read_b32
+; GFX908-DAG: v_accvgpr_read_b32
 
 ; GCN:    NumVgprs: 256
 ; GFX900: ScratchSize: 148
 ; GFX908: ScratchSize: 0
 ; GCN:    VGPRBlocks: 63
 ; GCN:    NumVGPRsForWavesPerEU: 256
-define amdgpu_kernel void @max_256_vgprs_spill_9x32(<32 x float> addrspace(1)* %p) {
+define amdgpu_kernel void @max_256_vgprs_spill_9x32(<32 x float> addrspace(1)* %p) #1 {
   %tid = call i32 @llvm.amdgcn.workitem.id.x()
   %p1 = getelementptr inbounds <32 x float>, <32 x float> addrspace(1)* %p, i32 %tid
   %p2 = getelementptr inbounds <32 x float>, <32 x float> addrspace(1)* %p1, i32 %tid
@@ -245,14 +243,14 @@ define amdgpu_kernel void @max_256_vgprs_spill_9x32(<32 x float> addrspace(1)* %
 ; GFX900:     buffer_store_dword v
 ; GFX900:     buffer_load_dword v
 ; GFX908-FIXME-NOT: buffer_
-; GFX908-DAG  v_accvgpr_read_b32
+; GFX908-DAG: v_accvgpr_read_b32
 
 ; GCN:    NumVgprs: 256
-; GFX900: ScratchSize: 580
+; GFX900: ScratchSize: 2052
 ; GFX908-FIXME: ScratchSize: 0
 ; GCN:    VGPRBlocks: 63
 ; GCN:    NumVGPRsForWavesPerEU: 256
-define amdgpu_kernel void @max_256_vgprs_spill_9x32_2bb(<32 x float> addrspace(1)* %p) {
+define amdgpu_kernel void @max_256_vgprs_spill_9x32_2bb(<32 x float> addrspace(1)* %p) #1 {
   %tid = call i32 @llvm.amdgcn.workitem.id.x()
   %p1 = getelementptr inbounds <32 x float>, <32 x float> addrspace(1)* %p, i32 %tid
   %p2 = getelementptr inbounds <32 x float>, <32 x float> addrspace(1)* %p1, i32 %tid
@@ -290,3 +288,4 @@ st:
 declare i32 @llvm.amdgcn.workitem.id.x()
 
 attributes #0 = { nounwind "amdgpu-num-vgpr"="10" }
+attributes #1 = { "amdgpu-flat-work-group-size"="1,256" }

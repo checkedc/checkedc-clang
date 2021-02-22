@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 // UNSUPPORTED: libcpp-no-deduction-guides
 
 // <string>
@@ -21,7 +21,7 @@
 #include "test_macros.h"
 #include "test_allocator.h"
 #include "test_iterators.h"
-#include "constexpr_char_traits.hpp"
+#include "constexpr_char_traits.h"
 
 template <class T, class Alloc = std::allocator<T>>
 using BStr = std::basic_string<T, std::char_traits<T>, Alloc>;
@@ -50,7 +50,7 @@ int main(int, char**)
 {
   using TestSizeT = test_allocator<char>::size_type;
   { // Testing (1)
-    // Nothing TODO. Cannot deduce without any arguments.
+    // Nothing to do. Cannot deduce without any arguments.
   }
   { // Testing (2)
     // This overload isn't compatible with implicit deduction guides as

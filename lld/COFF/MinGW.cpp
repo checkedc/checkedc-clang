@@ -13,10 +13,10 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 
-using namespace lld;
-using namespace lld::coff;
 using namespace llvm;
 using namespace llvm::COFF;
+using namespace lld;
+using namespace lld::coff;
 
 AutoExporter::AutoExporter() {
   excludeLibs = {
@@ -55,7 +55,7 @@ AutoExporter::AutoExporter() {
       // C++ symbols
       "__rtti_",
       "__builtin_",
-      // Artifical symbols such as .refptr
+      // Artificial symbols such as .refptr
       ".",
   };
 
@@ -146,9 +146,9 @@ bool AutoExporter::shouldExport(Defined *sym) const {
   return !excludeObjects.count(fileName);
 }
 
-void coff::writeDefFile(StringRef name) {
+void lld::coff::writeDefFile(StringRef name) {
   std::error_code ec;
-  raw_fd_ostream os(name, ec, sys::fs::F_None);
+  raw_fd_ostream os(name, ec, sys::fs::OF_None);
   if (ec)
     fatal("cannot open " + name + ": " + ec.message());
 

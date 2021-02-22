@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_IRDynamicChecks_h_
-#define liblldb_IRDynamicChecks_h_
+#ifndef LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_IRDYNAMICCHECKS_H
+#define LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_IRDYNAMICCHECKS_H
 
 #include "lldb/Expression/DynamicCheckerFunctions.h"
 #include "lldb/lldb-types.h"
@@ -76,10 +76,6 @@ public:
   ///
   /// \param[in] func_name
   ///     The name of the function to prepare for execution in the target.
-  ///
-  /// \param[in] decl_map
-  ///     The mapping used to look up entities in the target process. In
-  ///     this case, used to find objc_msgSend
   IRDynamicChecks(ClangDynamicCheckerFunctions &checker_functions,
                   const char *func_name = "$__lldb_expr");
 
@@ -128,4 +124,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_IRDynamicChecks_h_
+#endif // LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_IRDYNAMICCHECKS_H

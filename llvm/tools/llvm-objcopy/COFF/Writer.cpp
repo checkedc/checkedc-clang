@@ -97,9 +97,16 @@ void COFFWriter::layoutSections() {
       S.Header.PointerToRawData = FileSize;
     FileSize += S.Header.SizeOfRawData; // For executables, this is already
                                         // aligned to FileAlignment.
-    S.Header.NumberOfRelocations = S.Relocs.size();
-    S.Header.PointerToRelocations =
-        S.Header.NumberOfRelocations > 0 ? FileSize : 0;
+    if (S.Relocs.size() >= 0xffff) {
+      S.Header.Characteristics |= COFF::IMAGE_SCN_LNK_NRELOC_OVFL;
+      S.Header.NumberOfRelocations = 0xffff;
+      S.Header.PointerToRelocations = FileSize;
+      FileSize += sizeof(coff_relocation);
+    } else {
+      S.Header.NumberOfRelocations = S.Relocs.size();
+      S.Header.PointerToRelocations = S.Relocs.size() ? FileSize : 0;
+    }
+
     FileSize += S.Relocs.size() * sizeof(coff_relocation);
     FileSize = alignTo(FileSize, FileAlignment);
 
@@ -120,12 +127,12 @@ size_t COFFWriter::finalizeStringTable() {
   StrTabBuilder.finalize();
 
   for (auto &S : Obj.getMutableSections()) {
+    memset(S.Header.Name, 0, sizeof(S.Header.Name));
     if (S.Name.size() > COFF::NameSize) {
-      memset(S.Header.Name, 0, sizeof(S.Header.Name));
       snprintf(S.Header.Name, sizeof(S.Header.Name), "/%d",
                (int)StrTabBuilder.getOffset(S.Name));
     } else {
-      strncpy(S.Header.Name, S.Name.data(), COFF::NameSize);
+      memcpy(S.Header.Name, S.Name.data(), S.Name.size());
     }
   }
   for (auto &S : Obj.getMutableSymbols()) {
@@ -307,6 +314,15 @@ void COFFWriter::writeSections() {
              S.Header.SizeOfRawData - Contents.size());
 
     Ptr += S.Header.SizeOfRawData;
+
+    if (S.Relocs.size() >= 0xffff) {
+      object::coff_relocation R;
+      R.VirtualAddress = S.Relocs.size() + 1;
+      R.SymbolTableIndex = 0;
+      R.Type = 0;
+      memcpy(Ptr, &R, sizeof(R));
+      Ptr += sizeof(R);
+    }
     for (const auto &R : S.Relocs) {
       memcpy(Ptr, &R.Reloc, sizeof(R.Reloc));
       Ptr += sizeof(R.Reloc);
@@ -367,6 +383,16 @@ Error COFFWriter::write(bool IsBigObj) {
   return Buf.commit();
 }
 
+Expected<uint32_t> COFFWriter::virtualAddressToFileAddress(uint32_t RVA) {
+  for (const auto &S : Obj.getSections()) {
+    if (RVA >= S.Header.VirtualAddress &&
+        RVA < S.Header.VirtualAddress + S.Header.SizeOfRawData)
+      return S.Header.PointerToRawData + RVA - S.Header.VirtualAddress;
+  }
+  return createStringError(object_error::parse_failed,
+                           "debug directory payload not found");
+}
+
 // Locate which sections contain the debug directories, iterate over all
 // the debug_directory structs in there, and set the PointerToRawData field
 // in all of them, according to their new physical location in the file.
@@ -390,10 +416,17 @@ Error COFFWriter::patchDebugDirectory() {
       uint8_t *End = Ptr + Dir->Size;
       while (Ptr < End) {
         debug_directory *Debug = reinterpret_cast<debug_directory *>(Ptr);
-        Debug->PointerToRawData =
-            S.Header.PointerToRawData + Offset + sizeof(debug_directory);
-        Ptr += sizeof(debug_directory) + Debug->SizeOfData;
-        Offset += sizeof(debug_directory) + Debug->SizeOfData;
+        if (!Debug->AddressOfRawData)
+          return createStringError(object_error::parse_failed,
+                                   "debug directory payload outside of "
+                                   "mapped sections not supported");
+        if (Expected<uint32_t> FilePosOrErr =
+                virtualAddressToFileAddress(Debug->AddressOfRawData))
+          Debug->PointerToRawData = *FilePosOrErr;
+        else
+          return FilePosOrErr.takeError();
+        Ptr += sizeof(debug_directory);
+        Offset += sizeof(debug_directory);
       }
       // Debug directory found and patched, all done.
       return Error::success();

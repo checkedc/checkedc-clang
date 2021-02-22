@@ -28,7 +28,7 @@
 ; CHECK-O2: ModulePass Manager
 ; CHECK-O2-NOT: Manager
 ; First function pass pipeline just does early opts.
-; CHECK-O2: FunctionPass Manager
+; CHECK-O2-COUNT-3: FunctionPass Manager
 ; CHECK-O2-NOT: Manager
 ; FIXME: It's a bit odd to do dead arg elim in the middle of early opts...
 ; CHECK-O2: Dead Argument Elimination
@@ -46,11 +46,13 @@
 ; CHECK-O2-NEXT: Call Graph SCC Pass Manager
 ; CHECK-O2-NEXT: Remove unused exception handling info
 ; CHECK-O2-NEXT: Function Integration/Inlining
+; CHECK-O2-NEXT: OpenMP specific optimizations
 ; CHECK-O2-NEXT: Deduce function attributes
 ; Next up is the main function pass pipeline. It shouldn't be split up and
 ; should contain the main loop pass pipeline as well.
 ; CHECK-O2-NEXT: FunctionPass Manager
 ; CHECK-O2-NOT: Manager
+; CHECK-O2: Loop Pass Manager
 ; CHECK-O2: Loop Pass Manager
 ; CHECK-O2-NOT: Manager
 ; FIXME: We shouldn't be pulling out to simplify-cfg and instcombine and

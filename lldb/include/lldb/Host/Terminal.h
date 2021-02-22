@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Terminal_h_
-#define liblldb_Terminal_h_
+#ifndef LLDB_HOST_TERMINAL_H
+#define LLDB_HOST_TERMINAL_H
 #if defined(__cplusplus)
 
 #include "lldb/Host/Config.h"
@@ -117,7 +117,7 @@ protected:
   // Member variables
   Terminal m_tty; ///< A terminal
   int m_tflags;   ///< Cached tflags information.
-#ifdef LLDB_CONFIG_TERMIOS_SUPPORTED
+#if LLDB_ENABLE_TERMIOS
   std::unique_ptr<struct termios>
       m_termios_up; ///< Cached terminal state information.
 #endif
@@ -179,4 +179,4 @@ protected:
 } // namespace lldb_private
 
 #endif // #if defined(__cplusplus)
-#endif // #ifndef liblldb_Terminal_h_
+#endif // LLDB_HOST_TERMINAL_H

@@ -22,6 +22,8 @@ namespace MachO_x86_64_Edges {
 
 enum MachOX86RelocationKind : Edge::Kind {
   Branch32 = Edge::FirstRelocation,
+  Branch32ToStub,
+  Pointer32,
   Pointer64,
   Pointer64Anon,
   PCRel32,

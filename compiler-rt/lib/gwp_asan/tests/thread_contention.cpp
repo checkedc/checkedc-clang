@@ -1,4 +1,4 @@
-//===-- thread_contention.cc ------------------------------------*- C++ -*-===//
+//===-- thread_contention.cpp -----------------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -24,7 +24,7 @@ void asyncTask(gwp_asan::GuardedPoolAllocator *GPA,
   // Get ourselves a new allocation.
   for (unsigned i = 0; i < NumIterations; ++i) {
     volatile char *Ptr = reinterpret_cast<volatile char *>(
-        GPA->allocate(GPA->maximumAllocationSize()));
+        GPA->allocate(GPA->getAllocatorState()->maximumAllocationSize()));
     // Do any other threads have access to this page?
     EXPECT_EQ(*Ptr, 0);
 

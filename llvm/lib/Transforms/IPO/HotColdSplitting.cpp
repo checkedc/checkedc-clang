@@ -25,6 +25,7 @@
 ///
 //===----------------------------------------------------------------------===//
 
+#include "llvm/Transforms/IPO/HotColdSplitting.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
@@ -38,7 +39,6 @@
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/Dominators.h"
@@ -53,13 +53,14 @@
 #include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/BlockFrequency.h"
 #include "llvm/Support/BranchProbability.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO.h"
-#include "llvm/Transforms/IPO/HotColdSplitting.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -85,12 +86,6 @@ static cl::opt<int>
                                 "multiple of TCC_Basic)"));
 
 namespace {
-
-/// A sequence of basic blocks.
-///
-/// A 0-sized SmallVector is slightly cheaper to move than a std::vector.
-using BlockSequence = SmallVector<BasicBlock *, 0>;
-
 // Same as blockEndsInUnreachable in CodeGen/BranchFolding.cpp. Do not modify
 // this function unless you modify the MBB version as well.
 //
@@ -114,8 +109,8 @@ bool unlikelyExecuted(BasicBlock &BB) {
   // The block is cold if it calls/invokes a cold function. However, do not
   // mark sanitizer traps as cold.
   for (Instruction &I : BB)
-    if (auto CS = CallSite(&I))
-      if (CS.hasFnAttr(Attribute::Cold) && !CS->getMetadata("nosanitize"))
+    if (auto *CB = dyn_cast<CallBase>(&I))
+      if (CB->hasFnAttr(Attribute::Cold) && !CB->getMetadata("nosanitize"))
         return true;
 
   // The block is cold if it has an unreachable terminator, unless it's
@@ -169,31 +164,6 @@ static bool markFunctionCold(Function &F, bool UpdateEntryCount = false) {
   return Changed;
 }
 
-class HotColdSplitting {
-public:
-  HotColdSplitting(ProfileSummaryInfo *ProfSI,
-                   function_ref<BlockFrequencyInfo *(Function &)> GBFI,
-                   function_ref<TargetTransformInfo &(Function &)> GTTI,
-                   std::function<OptimizationRemarkEmitter &(Function &)> *GORE,
-                   function_ref<AssumptionCache *(Function &)> LAC)
-      : PSI(ProfSI), GetBFI(GBFI), GetTTI(GTTI), GetORE(GORE), LookupAC(LAC) {}
-  bool run(Module &M);
-
-private:
-  bool isFunctionCold(const Function &F) const;
-  bool shouldOutlineFrom(const Function &F) const;
-  bool outlineColdRegions(Function &F, bool HasProfileSummary);
-  Function *extractColdRegion(const BlockSequence &Region, DominatorTree &DT,
-                              BlockFrequencyInfo *BFI, TargetTransformInfo &TTI,
-                              OptimizationRemarkEmitter &ORE,
-                              AssumptionCache *AC, unsigned Count);
-  ProfileSummaryInfo *PSI;
-  function_ref<BlockFrequencyInfo *(Function &)> GetBFI;
-  function_ref<TargetTransformInfo &(Function &)> GetTTI;
-  std::function<OptimizationRemarkEmitter &(Function &)> *GetORE;
-  function_ref<AssumptionCache *(Function &)> LookupAC;
-};
-
 class HotColdSplittingLegacyPass : public ModulePass {
 public:
   static char ID;
@@ -234,6 +204,11 @@ bool HotColdSplitting::shouldOutlineFrom(const Function &F) const {
     return false;
 
   if (F.hasFnAttribute(Attribute::NoInline))
+    return false;
+
+  // A function marked `noreturn` may contain unreachable terminators: these
+  // should not be considered cold, as the function may be a trampoline.
+  if (F.hasFnAttribute(Attribute::NoReturn))
     return false;
 
   if (F.hasFnAttribute(Attribute::SanitizeAddress) ||
@@ -321,13 +296,10 @@ static int getOutliningPenalty(ArrayRef<BasicBlock *> Region,
   return Penalty;
 }
 
-Function *HotColdSplitting::extractColdRegion(const BlockSequence &Region,
-                                              DominatorTree &DT,
-                                              BlockFrequencyInfo *BFI,
-                                              TargetTransformInfo &TTI,
-                                              OptimizationRemarkEmitter &ORE,
-                                              AssumptionCache *AC,
-                                              unsigned Count) {
+Function *HotColdSplitting::extractColdRegion(
+    const BlockSequence &Region, const CodeExtractorAnalysisCache &CEAC,
+    DominatorTree &DT, BlockFrequencyInfo *BFI, TargetTransformInfo &TTI,
+    OptimizationRemarkEmitter &ORE, AssumptionCache *AC, unsigned Count) {
   assert(!Region.empty());
 
   // TODO: Pass BFI and BPI to update profile information.
@@ -349,16 +321,18 @@ Function *HotColdSplitting::extractColdRegion(const BlockSequence &Region,
     return nullptr;
 
   Function *OrigF = Region[0]->getParent();
-  if (Function *OutF = CE.extractCodeRegion()) {
+  if (Function *OutF = CE.extractCodeRegion(CEAC)) {
     User *U = *OutF->user_begin();
     CallInst *CI = cast<CallInst>(U);
-    CallSite CS(CI);
     NumColdRegionsOutlined++;
     if (TTI.useColdCCForColdCall(*OutF)) {
       OutF->setCallingConv(CallingConv::Cold);
-      CS.setCallingConv(CallingConv::Cold);
+      CI->setCallingConv(CallingConv::Cold);
     }
     CI->setIsNoInline();
+
+    if (OrigF->hasSection())
+      OutF->setSection(OrigF->getSection());
 
     markFunctionCold(*OutF, BFI != nullptr);
 
@@ -482,6 +456,10 @@ public:
     // first have predecessors within the extraction region.
     if (mayExtractBlock(SinkBB)) {
       addBlockToRegion(&SinkBB, SinkScore);
+      if (pred_empty(&SinkBB)) {
+        ColdRegion->EntireFunctionCold = true;
+        return Regions;
+      }
     } else {
       Regions.emplace_back();
       ColdRegion = &Regions.back();
@@ -607,9 +585,9 @@ bool HotColdSplitting::outlineColdRegions(Function &F, bool HasProfileSummary) {
     });
 
     if (!DT)
-      DT = make_unique<DominatorTree>(F);
+      DT = std::make_unique<DominatorTree>(F);
     if (!PDT)
-      PDT = make_unique<PostDominatorTree>(F);
+      PDT = std::make_unique<PostDominatorTree>(F);
 
     auto Regions = OutliningRegion::create(*BB, *DT, *PDT);
     for (OutliningRegion &Region : Regions) {
@@ -637,9 +615,14 @@ bool HotColdSplitting::outlineColdRegions(Function &F, bool HasProfileSummary) {
     }
   }
 
+  if (OutliningWorklist.empty())
+    return Changed;
+
   // Outline single-entry cold regions, splitting up larger regions as needed.
   unsigned OutlinedFunctionID = 1;
-  while (!OutliningWorklist.empty()) {
+  // Cache and recycle the CodeExtractor analysis to avoid O(n^2) compile-time.
+  CodeExtractorAnalysisCache CEAC(F);
+  do {
     OutliningRegion Region = OutliningWorklist.pop_back_val();
     assert(!Region.empty() && "Empty outlining region in worklist");
     do {
@@ -650,14 +633,14 @@ bool HotColdSplitting::outlineColdRegions(Function &F, bool HasProfileSummary) {
           BB->dump();
       });
 
-      Function *Outlined = extractColdRegion(SubRegion, *DT, BFI, TTI, ORE, AC,
-                                             OutlinedFunctionID);
+      Function *Outlined = extractColdRegion(SubRegion, CEAC, *DT, BFI, TTI,
+                                             ORE, AC, OutlinedFunctionID);
       if (Outlined) {
         ++OutlinedFunctionID;
         Changed = true;
       }
     } while (!Region.empty());
-  }
+  } while (!OutliningWorklist.empty());
 
   return Changed;
 }

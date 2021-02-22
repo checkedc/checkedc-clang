@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/Basic/Builtins.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Frontend/ASTUnit.h"
 #include "clang/Frontend/CompilerInstance.h"
@@ -158,7 +159,7 @@ IntrusiveRefCntPtr<ExternalSemaSource> clang::createChainedIncludesSource(
 
     auto Buffer = std::make_shared<PCHBuffer>();
     ArrayRef<std::shared_ptr<ModuleFileExtension>> Extensions;
-    auto consumer = llvm::make_unique<PCHGenerator>(
+    auto consumer = std::make_unique<PCHGenerator>(
         Clang->getPreprocessor(), Clang->getModuleCache(), "-", /*isysroot=*/"",
         Buffer, Extensions, /*AllowASTWithErrors=*/true);
     Clang->getASTContext().setASTMutationListener(
@@ -188,7 +189,7 @@ IntrusiveRefCntPtr<ExternalSemaSource> clang::createChainedIncludesSource(
           Clang->getASTConsumer().GetASTDeserializationListener());
       if (!Reader)
         return nullptr;
-      Clang->setModuleManager(Reader);
+      Clang->setASTReader(Reader);
       Clang->getASTContext().setExternalSource(Reader);
     }
 

@@ -8,12 +8,7 @@
 
 // <string>
 
-// int compare(size_type pos1, size_type n1, basic_string_vew sv) const;
-
-// When back-deploying to macosx10.7, the RTTI for exception classes
-// incorrectly provided by libc++.dylib is mixed with the one in
-// libc++abi.dylib and exceptions are not caught properly.
-// XFAIL: with_system_cxx_lib=macosx10.7
+// int compare(size_type pos1, size_type n1, basic_string_view sv) const;
 
 #include <string>
 #include <stdexcept>

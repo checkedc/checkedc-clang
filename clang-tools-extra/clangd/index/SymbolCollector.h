@@ -9,6 +9,7 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_SYMBOL_COLLECTOR_H
 
 #include "CanonicalIncludes.h"
+#include "CollectMacros.h"
 #include "Index.h"
 #include "SymbolOrigin.h"
 #include "clang/AST/ASTContext.h"
@@ -25,7 +26,7 @@
 namespace clang {
 namespace clangd {
 
-/// \brief Collect declarations (symbols) from an AST.
+/// Collect declarations (symbols) from an AST.
 /// It collects most declarations except:
 /// - Implicit declarations
 /// - Anonymous declarations (anonymous enum/class/struct, etc)
@@ -99,18 +100,25 @@ public:
   }
 
   bool
-  handleDeclOccurence(const Decl *D, index::SymbolRoleSet Roles,
-                      ArrayRef<index::SymbolRelation> Relations,
-                      SourceLocation Loc,
-                      index::IndexDataConsumer::ASTNodeInfo ASTNode) override;
+  handleDeclOccurrence(const Decl *D, index::SymbolRoleSet Roles,
+                       ArrayRef<index::SymbolRelation> Relations,
+                       SourceLocation Loc,
+                       index::IndexDataConsumer::ASTNodeInfo ASTNode) override;
 
-  bool handleMacroOccurence(const IdentifierInfo *Name, const MacroInfo *MI,
-                            index::SymbolRoleSet Roles,
-                            SourceLocation Loc) override;
+  bool handleMacroOccurrence(const IdentifierInfo *Name, const MacroInfo *MI,
+                             index::SymbolRoleSet Roles,
+                             SourceLocation Loc) override;
+
+  void handleMacros(const MainFileMacros &MacroRefsToIndex);
 
   SymbolSlab takeSymbols() { return std::move(Symbols).build(); }
   RefSlab takeRefs() { return std::move(Refs).build(); }
   RelationSlab takeRelations() { return std::move(Relations).build(); }
+
+  /// Returns true if we are interested in references and declarations from \p
+  /// FID. If this function return false, bodies of functions inside those files
+  /// will be skipped to decrease indexing time.
+  bool shouldIndexFile(FileID FID);
 
   void finish() override;
 
@@ -146,11 +154,12 @@ private:
   std::shared_ptr<GlobalCodeCompletionAllocator> CompletionAllocator;
   std::unique_ptr<CodeCompletionTUInfo> CompletionTUInfo;
   Options Opts;
-  using DeclRef = std::pair<SourceLocation, index::SymbolRoleSet>;
+  using SymbolRef = std::pair<SourceLocation, index::SymbolRoleSet>;
   // Symbols referenced from the current TU, flushed on finish().
   llvm::DenseSet<const NamedDecl *> ReferencedDecls;
   llvm::DenseSet<const IdentifierInfo *> ReferencedMacros;
-  llvm::DenseMap<const NamedDecl *, std::vector<DeclRef>> DeclRefs;
+  llvm::DenseMap<const NamedDecl *, std::vector<SymbolRef>> DeclRefs;
+  llvm::DenseMap<SymbolID, std::vector<SymbolRef>> MacroRefs;
   // Maps canonical declaration provided by clang to canonical declaration for
   // an index symbol, if clangd prefers a different declaration than that
   // provided by clang. For example, friend declaration might be considered

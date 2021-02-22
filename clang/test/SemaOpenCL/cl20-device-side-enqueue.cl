@@ -91,7 +91,7 @@ kernel void enqueue_kernel_tests() {
                  },
                  c, 1024L);
 #ifdef WCONV
-// expected-warning-re@-2{{implicit conversion changes signedness: 'char' to 'unsigned {{int|long}}'}}
+// expected-warning-re@-2{{implicit conversion changes signedness: '__private char' to 'unsigned {{int|long}}'}}
 #endif
 #define UINT_MAX 4294967295
 
@@ -158,6 +158,8 @@ kernel void enqueue_kernel_tests() {
   enqueue_kernel(default_queue, flags, ndrange, 1, &event_wait_list, &evt); // expected-error{{illegal call to enqueue_kernel, incorrect argument types}}
 
   enqueue_kernel(default_queue, flags, ndrange, 1, 1); // expected-error{{illegal call to enqueue_kernel, incorrect argument types}}
+
+  enqueue_kernel(default_queue, ndrange, ^{}); // expected-error{{too few arguments to function call, expected at least 4, have 3}}
 }
 
 // Diagnostic tests for get_kernel_work_group_size and allowed block parameter types in dynamic parallelism.

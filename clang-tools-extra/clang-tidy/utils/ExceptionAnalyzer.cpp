@@ -125,13 +125,13 @@ ExceptionAnalyzer::ExceptionInfo ExceptionAnalyzer::throwsException(
 
   auto Result = ExceptionInfo::createUnknown();
   if (const auto *FPT = Func->getType()->getAs<FunctionProtoType>()) {
-    for (const QualType Ex : FPT->exceptions())
+    for (const QualType &Ex : FPT->exceptions())
       Result.registerException(Ex.getTypePtr());
   }
   return Result;
 }
 
-/// Analyzes a single statment on it's throwing behaviour. This is in principle
+/// Analyzes a single statement on it's throwing behaviour. This is in principle
 /// possible except some 'Unknown' functions are called.
 ExceptionAnalyzer::ExceptionInfo ExceptionAnalyzer::throwsException(
     const Stmt *St, const ExceptionInfo::Throwables &Caught,

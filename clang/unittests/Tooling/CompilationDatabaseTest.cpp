@@ -87,11 +87,11 @@ TEST(JSONCompilationDatabase, GetAllFiles) {
   std::vector<std::string> expected_files;
   SmallString<16> PathStorage;
   llvm::sys::path::native("//net/dir/file1", PathStorage);
-  expected_files.push_back(PathStorage.str());
+  expected_files.push_back(std::string(PathStorage.str()));
   llvm::sys::path::native("//net/dir/file2", PathStorage);
-  expected_files.push_back(PathStorage.str());
+  expected_files.push_back(std::string(PathStorage.str()));
   llvm::sys::path::native("//net/file1", PathStorage);
-  expected_files.push_back(PathStorage.str());
+  expected_files.push_back(std::string(PathStorage.str()));
   EXPECT_EQ(expected_files,
             getAllFiles("[{\"directory\":\"//net/dir\","
                         "\"command\":\"command\","
@@ -371,8 +371,6 @@ TEST(findCompileArgsInJsonDatabase, FindsEntry) {
 }
 
 TEST(findCompileArgsInJsonDatabase, ParsesCompilerWrappers) {
-  StringRef Directory("//net/dir");
-  StringRef FileName("//net/dir/filename");
   std::vector<std::pair<std::string, std::string>> Cases = {
       {"distcc gcc foo.c", "gcc foo.c"},
       {"gomacc clang++ foo.c", "clang++ foo.c"},
@@ -656,7 +654,7 @@ struct MemCDB : public CompilationDatabase {
   std::vector<std::string> getAllFiles() const override {
     std::vector<std::string> Result;
     for (const auto &Entry : Entries)
-      Result.push_back(Entry.first());
+      Result.push_back(std::string(Entry.first()));
     return Result;
   }
 };
@@ -684,7 +682,7 @@ protected:
     llvm::sys::path::native(File);
     llvm::SmallString<64> Result;
     llvm::sys::path::append(Result, Dir, File);
-    return Result.str();
+    return std::string(Result.str());
   }
 
   MemCDB::EntryMap Entries;
@@ -696,7 +694,7 @@ protected:
   // The input file is not included in the returned command.
   std::string getCommand(llvm::StringRef F) {
     auto Results =
-        inferMissingCompileCommands(llvm::make_unique<MemCDB>(Entries))
+        inferMissingCompileCommands(std::make_unique<MemCDB>(Entries))
             ->getCompileCommands(path(F));
     if (Results.empty())
       return "none";
@@ -710,7 +708,7 @@ protected:
   // Parse the file whose command was used out of the Heuristic string.
   std::string getProxy(llvm::StringRef F) {
     auto Results =
-        inferMissingCompileCommands(llvm::make_unique<MemCDB>(Entries))
+        inferMissingCompileCommands(std::make_unique<MemCDB>(Entries))
             ->getCompileCommands(path(F));
     if (Results.empty())
       return "none";
@@ -725,7 +723,7 @@ protected:
     Proxy.consume_front(llvm::sys::path::get_separator());
     llvm::SmallString<32> Result = Proxy;
     llvm::sys::path::native(Result, llvm::sys::path::Style::posix);
-    return Result.str();
+    return std::string(Result.str());
   }
 };
 
@@ -751,6 +749,7 @@ TEST_F(InterpolateTest, Language) {
   add("dir/foo.cpp", "-std=c++17");
   add("dir/bar.c", "");
   add("dir/baz.cee", "-x c");
+  add("dir/aux.cpp", "-std=c++17 -x objective-c++");
 
   // .h is ambiguous, so we add explicit language flags
   EXPECT_EQ(getCommand("foo.h"),
@@ -769,6 +768,9 @@ TEST_F(InterpolateTest, Language) {
   Entries.erase(path(StringRef("dir/bar.c")));
   // Now we transfer across languages, so drop -std too.
   EXPECT_EQ(getCommand("foo.c"), "clang -D dir/foo.cpp");
+  // Prefer -x over -std when overriding language.
+  EXPECT_EQ(getCommand("aux.h"),
+            "clang -D dir/aux.cpp -x objective-c++-header -std=c++17");
 }
 
 TEST_F(InterpolateTest, Strip) {
@@ -843,7 +845,7 @@ public:
 protected:
   // Look up the command from a relative path, and return it in string form.
   std::string getCommand(llvm::StringRef F) {
-    auto Results = inferTargetAndDriverMode(llvm::make_unique<MemCDB>(Entries))
+    auto Results = inferTargetAndDriverMode(std::make_unique<MemCDB>(Entries))
                        ->getCompileCommands(path(F));
     if (Results.empty())
       return "none";
@@ -859,6 +861,36 @@ TEST_F(TargetAndModeTest, TargetAndMode) {
             "clang-cl --driver-mode=cl foo.cpp -D foo.cpp");
   EXPECT_EQ(getCommand("bar.cpp"),
             "clang++ --driver-mode=g++ bar.cpp -D bar.cpp");
+}
+
+class ExpandResponseFilesTest : public MemDBTest {
+public:
+  ExpandResponseFilesTest() : FS(new llvm::vfs::InMemoryFileSystem) {}
+
+protected:
+  void addFile(StringRef File, StringRef Content) {
+    ASSERT_TRUE(
+        FS->addFile(File, 0, llvm::MemoryBuffer::getMemBufferCopy(Content)));
+  }
+
+  std::string getCommand(llvm::StringRef F) {
+    auto Results = expandResponseFiles(std::make_unique<MemCDB>(Entries), FS)
+                       ->getCompileCommands(path(F));
+    if (Results.empty())
+      return "none";
+    return llvm::join(Results[0].CommandLine, " ");
+  }
+
+  llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> FS;
+};
+
+TEST_F(ExpandResponseFilesTest, ExpandResponseFiles) {
+  addFile(path(StringRef("rsp1.rsp")), "-Dflag");
+
+  add("foo.cpp", "clang", "@rsp1.rsp");
+  add("bar.cpp", "clang", "-Dflag");
+  EXPECT_EQ(getCommand("foo.cpp"), "clang foo.cpp -D foo.cpp -Dflag");
+  EXPECT_EQ(getCommand("bar.cpp"), "clang bar.cpp -D bar.cpp -Dflag");
 }
 
 } // end namespace tooling

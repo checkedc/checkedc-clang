@@ -19,7 +19,7 @@ PreambleFileStatusCache::PreambleFileStatusCache(llvm::StringRef MainFilePath){
   assert(llvm::sys::path::is_absolute(MainFilePath));
   llvm::SmallString<256> MainFileCanonical(MainFilePath);
   llvm::sys::path::remove_dots(MainFileCanonical, /*remove_dot_dot=*/true);
-  this->MainFilePath = MainFileCanonical.str();
+  this->MainFilePath = std::string(MainFileCanonical.str());
 }
 
 void PreambleFileStatusCache::update(const llvm::vfs::FileSystem &FS,
@@ -109,6 +109,12 @@ PreambleFileStatusCache::getConsumingFS(
     const PreambleFileStatusCache &StatCache;
   };
   return llvm::IntrusiveRefCntPtr<CacheVFS>(new CacheVFS(std::move(FS), *this));
+}
+
+Path removeDots(PathRef File) {
+  llvm::SmallString<128> CanonPath(File);
+  llvm::sys::path::remove_dots(CanonPath, /*remove_dot_dot=*/true);
+  return CanonPath.str().str();
 }
 
 } // namespace clangd

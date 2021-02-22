@@ -1,5 +1,6 @@
 // RUN: %clang_cc1 -triple arm64-unknown-linux -disable-O0-optnone -emit-llvm -o - %s | opt -S -mem2reg | FileCheck %s --check-prefix=CHECK --check-prefix=CHECK-LINUX
 // RUN: %clang_cc1 -triple aarch64-windows -disable-O0-optnone -S -emit-llvm -o - %s | opt -S -mem2reg | FileCheck %s --check-prefix=CHECK --check-prefix=CHECK-WIN
+// RUN: %clang_cc1 -triple arm64_32-apple-ios13 -disable-O0-optnone -emit-llvm -o - %s | opt -S -mem2reg | FileCheck %s
 #include <stdint.h>
 
 void f0(void *a, void *b) {
@@ -9,7 +10,7 @@ void f0(void *a, void *b) {
 
 void *tp (void) {
   return __builtin_thread_pointer ();
-// CHECK: call {{.*}} @llvm.thread.pointer()
+// CHECK-LINUX: call {{.*}} @llvm.thread.pointer()
 }
 
 // CHECK: call {{.*}} @llvm.bitreverse.i32(i32 %a)
@@ -46,16 +47,16 @@ void barriers() {
 
 void prefetch() {
   __builtin_arm_prefetch(0, 1, 2, 0, 1); // pstl3keep
-// CHECK: call {{.*}} @llvm.prefetch(i8* null, i32 1, i32 1, i32 1)
+  // CHECK: call {{.*}} @llvm.prefetch.p0i8(i8* null, i32 1, i32 1, i32 1)
 
   __builtin_arm_prefetch(0, 0, 0, 1, 1); // pldl1keep
-// CHECK: call {{.*}} @llvm.prefetch(i8* null, i32 0, i32 0, i32 1)
+  // CHECK: call {{.*}} @llvm.prefetch.p0i8(i8* null, i32 0, i32 0, i32 1)
 
   __builtin_arm_prefetch(0, 0, 0, 1, 1); // pldl1strm
-// CHECK: call {{.*}} @llvm.prefetch(i8* null, i32 0, i32 0, i32 1)
+  // CHECK: call {{.*}} @llvm.prefetch.p0i8(i8* null, i32 0, i32 0, i32 1)
 
   __builtin_arm_prefetch(0, 0, 0, 0, 0); // plil1keep
-// CHECK: call {{.*}} @llvm.prefetch(i8* null, i32 0, i32 3, i32 0)
+  // CHECK: call {{.*}} @llvm.prefetch.p0i8(i8* null, i32 0, i32 3, i32 0)
 }
 
 int32_t jcvt(double v) {
@@ -67,7 +68,7 @@ int32_t jcvt(double v) {
 __typeof__(__builtin_arm_rsr("1:2:3:4:5")) rsr(void);
 
 uint32_t rsr() {
-  // CHECK: [[V0:[%A-Za-z0-9.]+]] = call i64 @llvm.read_register.i64(metadata ![[M0:[0-9]]])
+  // CHECK: [[V0:[%A-Za-z0-9.]+]] = call i64 @llvm.read_volatile_register.i64(metadata ![[M0:[0-9]]])
   // CHECK-NEXT: trunc i64 [[V0]] to i32
   return __builtin_arm_rsr("1:2:3:4:5");
 }
@@ -75,12 +76,12 @@ uint32_t rsr() {
 __typeof__(__builtin_arm_rsr64("1:2:3:4:5")) rsr64(void);
 
 uint64_t rsr64(void) {
-  // CHECK: call i64 @llvm.read_register.i64(metadata ![[M0:[0-9]]])
+  // CHECK: call i64 @llvm.read_volatile_register.i64(metadata ![[M0:[0-9]]])
   return __builtin_arm_rsr64("1:2:3:4:5");
 }
 
 void *rsrp() {
-  // CHECK: [[V0:[%A-Za-z0-9.]+]] = call i64 @llvm.read_register.i64(metadata ![[M0:[0-9]]])
+  // CHECK: [[V0:[%A-Za-z0-9.]+]] = call i64 @llvm.read_volatile_register.i64(metadata ![[M0:[0-9]]])
   // CHECK-NEXT: inttoptr i64 [[V0]] to i8*
   return __builtin_arm_rsrp("1:2:3:4:5");
 }
@@ -104,6 +105,23 @@ void wsrp(void *v) {
   // CHECK: [[V0:[%A-Za-z0-9.]+]] = ptrtoint i8* %v to i64
   // CHECK-NEXT: call void @llvm.write_register.i64(metadata ![[M0:[0-9]]], i64 [[V0]])
   __builtin_arm_wsrp("1:2:3:4:5", v);
+}
+
+unsigned int cls(uint32_t v) {
+  // CHECK: call i32 @llvm.aarch64.cls(i32 %v)
+  return __builtin_arm_cls(v);
+}
+
+unsigned int clsl(unsigned long v) {
+  // CHECK-WIN: [[V64:%[^ ]+]] = zext i32 %v to i64
+  // CHECK-WIN: call i32 @llvm.aarch64.cls64(i64 [[V64]]
+  // CHECK-LINUX: call i32 @llvm.aarch64.cls64(i64 %v)
+  return __builtin_arm_cls64(v);
+}
+
+unsigned int clsll(uint64_t v) {
+  // CHECK: call i32 @llvm.aarch64.cls64(i64 %v)
+  return __builtin_arm_cls64(v);
 }
 
 // CHECK: ![[M0]] = !{!"1:2:3:4:5"}

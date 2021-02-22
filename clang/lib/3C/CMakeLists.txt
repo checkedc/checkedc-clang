@@ -13,6 +13,7 @@ set( LLVM_LINK_COMPONENTS
         if (MSVC)
           set_source_files_properties(ArrayBoundsInferenceConsumer.cpp PROPERTIES COMPILE_FLAGS /bigobj)
           set_source_files_properties(ConstraintBuilder.cpp PROPERTIES COMPILE_FLAGS /bigobj)
+          set_source_files_properties(DeclRewriter.cpp PROPERTIES COMPILE_FLAGS /bigobj)
           set_source_files_properties(RewriteUtils.cpp PROPERTIES COMPILE_FLAGS /bigobj)
         endif()
 
@@ -50,6 +51,6 @@ set( LLVM_LINK_COMPONENTS
           clangRewriteFrontend
           clangStaticAnalyzerFrontend
           clangTooling
-          clangToolingRefactoring
+          clangTransformer
         )
 	target_include_directories(obj.clang3C PUBLIC)

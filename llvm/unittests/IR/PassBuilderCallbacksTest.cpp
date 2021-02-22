@@ -270,10 +270,12 @@ static std::unique_ptr<Module> parseIR(LLVMContext &C, const char *IR) {
 /// Helper for HasName matcher that returns getName both for IRUnit and
 /// for IRUnit pointer wrapper into llvm::Any (wrapped by PassInstrumentation).
 template <typename IRUnitT> std::string getName(const IRUnitT &IR) {
-  return IR.getName();
+  return std::string(IR.getName());
 }
 
-template <> std::string getName(const StringRef &name) { return name; }
+template <> std::string getName(const StringRef &name) {
+  return std::string(name);
+}
 
 template <> std::string getName(const llvm::Any &WrappedIR) {
   if (any_isa<const Module *>(WrappedIR))
@@ -417,6 +419,9 @@ protected:
         CallbacksHandle(),
         PB(nullptr, PipelineTuningOptions(), None, &CallbacksHandle.Callbacks),
         PM(true), LAM(true), FAM(true), CGAM(true), AM(true) {
+
+    EXPECT_TRUE(&CallbacksHandle.Callbacks ==
+                PB.getPassInstrumentationCallbacks());
 
     /// Register a callback for analysis registration.
     ///
@@ -776,6 +781,7 @@ TEST_F(CGSCCCallbacksTest, InstrumentedPasses) {
   CallbacksHandle.registerPassInstrumentation();
   // Non-mock instrumentation not specifically mentioned below can be ignored.
   CallbacksHandle.ignoreNonMockPassInstrumentation("<string>");
+  CallbacksHandle.ignoreNonMockPassInstrumentation("foo");
   CallbacksHandle.ignoreNonMockPassInstrumentation("(foo)");
 
   EXPECT_CALL(AnalysisHandle, run(HasName("(foo)"), _, _));
@@ -815,6 +821,7 @@ TEST_F(CGSCCCallbacksTest, InstrumentedInvalidatingPasses) {
   CallbacksHandle.registerPassInstrumentation();
   // Non-mock instrumentation not specifically mentioned below can be ignored.
   CallbacksHandle.ignoreNonMockPassInstrumentation("<string>");
+  CallbacksHandle.ignoreNonMockPassInstrumentation("foo");
   CallbacksHandle.ignoreNonMockPassInstrumentation("(foo)");
 
   EXPECT_CALL(AnalysisHandle, run(HasName("(foo)"), _, _));
@@ -858,6 +865,7 @@ TEST_F(CGSCCCallbacksTest, InstrumentedSkippedPasses) {
   CallbacksHandle.registerPassInstrumentation();
   // Non-mock instrumentation run here can safely be ignored.
   CallbacksHandle.ignoreNonMockPassInstrumentation("<string>");
+  CallbacksHandle.ignoreNonMockPassInstrumentation("foo");
   CallbacksHandle.ignoreNonMockPassInstrumentation("(foo)");
 
   // Skip the pass by returning false.

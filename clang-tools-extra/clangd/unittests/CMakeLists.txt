@@ -1,5 +1,7 @@
 set(LLVM_LINK_COMPONENTS
   support
+  AllTargetsInfos
+  FrontendOpenMP
   )
 
 get_filename_component(CLANGD_SOURCE_DIR
@@ -20,18 +22,28 @@ if(CLANG_BUILT_STANDALONE)
   endif()
 endif()
 
+if (CLANGD_ENABLE_REMOTE)
+  include_directories(${CMAKE_CURRENT_BINARY_DIR}/../index/remote)
+  add_definitions(-DGOOGLE_PROTOBUF_NO_RTTI=1)
+  set(REMOTE_TEST_SOURCES remote/MarshallingTests.cpp)
+endif()
+
 add_custom_target(ClangdUnitTests)
 add_unittest(ClangdUnitTests ClangdTests
   Annotations.cpp
   ASTTests.cpp
   BackgroundIndexTests.cpp
-  CancellationTests.cpp
   CanonicalIncludesTests.cpp
   ClangdTests.cpp
-  ClangdUnitTests.cpp
+  ClangdLSPServerTests.cpp
   CodeCompleteTests.cpp
   CodeCompletionStringsTests.cpp
-  ContextTests.cpp
+  CollectMacrosTests.cpp
+  CompileCommandsTests.cpp
+  CompilerTests.cpp
+  ConfigCompileTests.cpp
+  ConfigProviderTests.cpp
+  ConfigYAMLTests.cpp
   DexTests.cpp
   DiagnosticsTests.cpp
   DraftStoreTests.cpp
@@ -39,22 +51,28 @@ add_unittest(ClangdUnitTests ClangdTests
   FileDistanceTests.cpp
   FileIndexTests.cpp
   FindSymbolsTests.cpp
-  FormattedStringTests.cpp
+  FindTargetTests.cpp
   FormatTests.cpp
   FSTests.cpp
-  FunctionTests.cpp
   FuzzyMatchTests.cpp
   GlobalCompilationDatabaseTests.cpp
   HeadersTests.cpp
+  HeaderSourceSwitchTests.cpp
+  HoverTests.cpp
   IndexActionTests.cpp
   IndexTests.cpp
   JSONTransportTests.cpp
+  LSPClient.cpp
+  ParsedASTTests.cpp
+  PathMappingTests.cpp
+  PreambleTests.cpp
   PrintASTTests.cpp
   QualityTests.cpp
   RenameTests.cpp
   RIFFTests.cpp
   SelectionTests.cpp
   SemanticHighlightingTests.cpp
+  SemanticSelectionTests.cpp
   SerializationTests.cpp
   SourceCodeTests.cpp
   SymbolCollectorTests.cpp
@@ -64,35 +82,55 @@ add_unittest(ClangdUnitTests ClangdTests
   TestFS.cpp
   TestIndex.cpp
   TestTU.cpp
-  ThreadingTests.cpp
-  TraceTests.cpp
   TypeHierarchyTests.cpp
   TweakTests.cpp
+  TweakTesting.cpp
   URITests.cpp
   XRefsTests.cpp
+
+  support/CancellationTests.cpp
+  support/ContextTests.cpp
+  support/FunctionTests.cpp
+  support/MarkupTests.cpp
+  support/ThreadingTests.cpp
+  support/TestTracer.cpp
+  support/TraceTests.cpp
+
+  ${REMOTE_TEST_SOURCES}
 
   $<TARGET_OBJECTS:obj.clangDaemonTweaks>
   )
 
-target_link_libraries(ClangdTests
+clang_target_link_libraries(ClangdTests
   PRIVATE
   clangAST
+  clangASTMatchers
   clangBasic
-  clangDaemon
   clangFormat
   clangFrontend
   clangIndex
   clangLex
   clangSema
   clangSerialization
-  clangTidy
   clangTooling
   clangToolingCore
   clangToolingInclusions
+  clangToolingRefactoring
   clangToolingSyntax
-  LLVMSupport
+  )
+target_link_libraries(ClangdTests
+  PRIVATE
+  clangDaemon
+  clangdSupport
+  clangTidy
   LLVMTestingSupport
   )
+
+if (CLANGD_ENABLE_REMOTE)
+  target_link_libraries(ClangdTests
+    PRIVATE
+    clangdRemoteMarshalling)
+endif()
 
 if (CLANGD_BUILD_XPC)
   add_subdirectory(xpc)

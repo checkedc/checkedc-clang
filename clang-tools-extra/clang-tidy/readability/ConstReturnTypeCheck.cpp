@@ -47,8 +47,8 @@ findConstToRemove(const FunctionDecl *Def,
   if (FileRange.isInvalid())
     return None;
 
-  return utils::lexer::getConstQualifyingToken(FileRange, *Result.Context,
-                                               *Result.SourceManager);
+  return utils::lexer::getQualifyingToken(
+      tok::kw_const, FileRange, *Result.Context, *Result.SourceManager);
 }
 
 namespace {
@@ -79,7 +79,7 @@ static CheckResult checkDef(const clang::FunctionDecl *Def,
   Result.Hints.push_back(FixItHint::CreateRemoval(Result.ConstRange));
 
   // Fix the definition and any visible declarations, but don't warn
-  // seperately for each declaration. Instead, associate all fixes with the
+  // separately for each declaration. Instead, associate all fixes with the
   // single warning at the definition.
   for (const FunctionDecl *Decl = Def->getPreviousDecl(); Decl != nullptr;
        Decl = Decl->getPreviousDecl()) {

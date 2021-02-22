@@ -148,7 +148,7 @@ static std::string getCalledFunctionName(const Expr *E) {
   assert(CE && "The provided expression should be a call expression.");
   const FunctionDecl *CalleeDecl = dyn_cast<FunctionDecl>(CE->getCalleeDecl());
   if (CalleeDecl && CalleeDecl->getDeclName().isIdentifier())
-    return CalleeDecl->getName();
+    return std::string(CalleeDecl->getName());
   return "";
 }
 
@@ -874,7 +874,7 @@ void LengthVarInference::VisitArraySubscriptExpr(ArraySubscriptExpr *ASE) {
     }
   } else {
     llvm::dbgs() << "Array dereference";
-    ASE->dump(llvm::dbgs());
+    ASE->dump(llvm::dbgs(), *C);
     llvm::dbgs() << " does not belong to any basic block.\n";
   }
 }

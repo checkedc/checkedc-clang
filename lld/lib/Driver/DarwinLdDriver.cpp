@@ -95,7 +95,7 @@ public:
 static std::vector<std::unique_ptr<File>>
 makeErrorFile(StringRef path, std::error_code ec) {
   std::vector<std::unique_ptr<File>> result;
-  result.push_back(llvm::make_unique<ErrorFile>(path, ec));
+  result.push_back(std::make_unique<ErrorFile>(path, ec));
   return result;
 }
 
@@ -147,11 +147,11 @@ std::vector<std::unique_ptr<File>> loadFile(MachOLinkingContext &ctx,
 static std::string canonicalizePath(StringRef path) {
   char sep = llvm::sys::path::get_separator().front();
   if (sep != '/') {
-    std::string fixedPath = path;
+    std::string fixedPath = std::string(path);
     std::replace(fixedPath.begin(), fixedPath.end(), sep, '/');
     return fixedPath;
   } else {
-    return path;
+    return std::string(path);
   }
 }
 
@@ -160,7 +160,7 @@ static void addFile(StringRef path, MachOLinkingContext &ctx,
   std::vector<std::unique_ptr<File>> files =
       loadFile(ctx, path, loadWholeArchive, upwardDylib);
   for (std::unique_ptr<File> &file : files)
-    ctx.getNodes().push_back(llvm::make_unique<FileNode>(std::move(file)));
+    ctx.getNodes().push_back(std::make_unique<FileNode>(std::move(file)));
 }
 
 // Export lists are one symbol per line.  Blank lines are ignored.
@@ -232,7 +232,7 @@ static std::error_code parseOrderFile(StringRef orderFilePath,
      sym = prefixAndSym.first;
     if (!sym.empty()) {
       ctx.appendOrderedSymbol(sym, prefix);
-      //llvm::errs() << sym << ", prefix=" << prefix << "\n";
+      // llvm::errs() << sym << ", prefix=" << prefix << "\n";
     }
   }
   return std::error_code();
@@ -650,12 +650,12 @@ bool parse(llvm::ArrayRef<const char *> args, MachOLinkingContext &ctx) {
 
   // Handle -exported_symbols_list <file>
   for (auto expFile : parsedArgs.filtered(OPT_exported_symbols_list)) {
-    if (ctx.exportMode() == MachOLinkingContext::ExportMode::blackList) {
+    if (ctx.exportMode() == MachOLinkingContext::ExportMode::unexported) {
       error("-exported_symbols_list cannot be combined with "
             "-unexported_symbol[s_list]");
       return false;
     }
-    ctx.setExportMode(MachOLinkingContext::ExportMode::whiteList);
+    ctx.setExportMode(MachOLinkingContext::ExportMode::exported);
     if (std::error_code ec = parseExportsList(expFile->getValue(), ctx)) {
       error(ec.message() + ", processing '-exported_symbols_list " +
             expFile->getValue());
@@ -665,23 +665,23 @@ bool parse(llvm::ArrayRef<const char *> args, MachOLinkingContext &ctx) {
 
   // Handle -exported_symbol <symbol>
   for (auto symbol : parsedArgs.filtered(OPT_exported_symbol)) {
-    if (ctx.exportMode() == MachOLinkingContext::ExportMode::blackList) {
+    if (ctx.exportMode() == MachOLinkingContext::ExportMode::unexported) {
       error("-exported_symbol cannot be combined with "
             "-unexported_symbol[s_list]");
       return false;
     }
-    ctx.setExportMode(MachOLinkingContext::ExportMode::whiteList);
+    ctx.setExportMode(MachOLinkingContext::ExportMode::exported);
     ctx.addExportSymbol(symbol->getValue());
   }
 
   // Handle -unexported_symbols_list <file>
   for (auto expFile : parsedArgs.filtered(OPT_unexported_symbols_list)) {
-    if (ctx.exportMode() == MachOLinkingContext::ExportMode::whiteList) {
+    if (ctx.exportMode() == MachOLinkingContext::ExportMode::exported) {
       error("-unexported_symbols_list cannot be combined with "
             "-exported_symbol[s_list]");
       return false;
     }
-    ctx.setExportMode(MachOLinkingContext::ExportMode::blackList);
+    ctx.setExportMode(MachOLinkingContext::ExportMode::unexported);
     if (std::error_code ec = parseExportsList(expFile->getValue(), ctx)) {
       error(ec.message() + ", processing '-unexported_symbols_list " +
             expFile->getValue());
@@ -691,12 +691,12 @@ bool parse(llvm::ArrayRef<const char *> args, MachOLinkingContext &ctx) {
 
   // Handle -unexported_symbol <symbol>
   for (auto symbol : parsedArgs.filtered(OPT_unexported_symbol)) {
-    if (ctx.exportMode() == MachOLinkingContext::ExportMode::whiteList) {
+    if (ctx.exportMode() == MachOLinkingContext::ExportMode::exported) {
       error("-unexported_symbol cannot be combined with "
             "-exported_symbol[s_list]");
       return false;
     }
-    ctx.setExportMode(MachOLinkingContext::ExportMode::blackList);
+    ctx.setExportMode(MachOLinkingContext::ExportMode::unexported);
     ctx.addExportSymbol(symbol->getValue());
   }
 
@@ -788,7 +788,7 @@ bool parse(llvm::ArrayRef<const char *> args, MachOLinkingContext &ctx) {
         break;
       case llvm::MachO::MH_EXECUTE:
         // dynamic executables default to generating a version load command,
-        // while static exectuables only generate it if required.
+        // while static executables only generate it if required.
         if (isStaticExecutable) {
           if (flagOn)
             ctx.setGenerateVersionLoadCommand(true);
@@ -836,7 +836,7 @@ bool parse(llvm::ArrayRef<const char *> args, MachOLinkingContext &ctx) {
         break;
       case llvm::MachO::MH_EXECUTE:
         // dynamic executables default to generating a version load command,
-        // while static exectuables only generate it if required.
+        // while static executables only generate it if required.
         if (isStaticExecutable) {
           if (flagOn)
             ctx.setGenerateFunctionStartsLoadCommand(true);
@@ -885,7 +885,7 @@ bool parse(llvm::ArrayRef<const char *> args, MachOLinkingContext &ctx) {
         break;
       case llvm::MachO::MH_EXECUTE:
         // dynamic executables default to generating a version load command,
-        // while static exectuables only generate it if required.
+        // while static executables only generate it if required.
         if (isStaticExecutable) {
           if (flagOn)
             ctx.setGenerateDataInCodeLoadCommand(true);
@@ -926,7 +926,7 @@ bool parse(llvm::ArrayRef<const char *> args, MachOLinkingContext &ctx) {
     ctx.setSdkVersion(sdkVersion);
   } else if (ctx.generateVersionLoadCommand()) {
     // If we don't have an sdk version, but were going to emit a load command
-    // with min_version, then we need to give an warning as we have no sdk
+    // with min_version, then we need to give a warning as we have no sdk
     // version to put in that command.
     // FIXME: We need to decide whether to make this an error.
     warn("-sdk_version is required when emitting min version load command.  "
@@ -1138,20 +1138,22 @@ static void createFiles(MachOLinkingContext &ctx, bool Implicit) {
     ctx.createInternalFiles(Files);
   for (auto i = Files.rbegin(), e = Files.rend(); i != e; ++i) {
     auto &members = ctx.getNodes();
-    members.insert(members.begin(), llvm::make_unique<FileNode>(std::move(*i)));
+    members.insert(members.begin(), std::make_unique<FileNode>(std::move(*i)));
   }
 }
 
 /// This is where the link is actually performed.
 bool link(llvm::ArrayRef<const char *> args, bool CanExitEarly,
-          raw_ostream &Error) {
+          raw_ostream &StdoutOS, raw_ostream &StderrOS) {
+  lld::stdoutOS = &StdoutOS;
+  lld::stderrOS = &StderrOS;
+
   errorHandler().logName = args::getFilenameWithoutExe(args[0]);
   errorHandler().errorLimitExceededMsg =
       "too many errors emitted, stopping now (use "
       "'-error-limit 0' to see all errors)";
-  errorHandler().errorOS = &Error;
   errorHandler().exitEarly = CanExitEarly;
-  errorHandler().colorDiagnostics = Error.has_colors();
+  StderrOS.enable_colors(StderrOS.has_colors());
 
   MachOLinkingContext ctx;
   if (!parse(args, ctx))
@@ -1185,7 +1187,7 @@ bool link(llvm::ArrayRef<const char *> args, bool CanExitEarly,
     merged = mergedFile.get();
     auto &members = ctx.getNodes();
     members.insert(members.begin(),
-                   llvm::make_unique<FileNode>(std::move(mergedFile)));
+                   std::make_unique<FileNode>(std::move(mergedFile)));
   }
   resolveTask.end();
 
@@ -1196,10 +1198,9 @@ bool link(llvm::ArrayRef<const char *> args, bool CanExitEarly,
   if (auto ec = pm.runOnFile(*merged)) {
     // FIXME: This should be passed to logAllUnhandledErrors but it needs
     // to be passed a Twine instead of a string.
-    *errorHandler().errorOS << "Failed to run passes on file '"
-                            << ctx.outputPath() << "': ";
-    logAllUnhandledErrors(std::move(ec), *errorHandler().errorOS,
-                          std::string());
+    lld::errs() << "Failed to run passes on file '" << ctx.outputPath()
+                << "': ";
+    logAllUnhandledErrors(std::move(ec), lld::errs(), std::string());
     return false;
   }
 
@@ -1210,10 +1211,8 @@ bool link(llvm::ArrayRef<const char *> args, bool CanExitEarly,
   if (auto ec = ctx.writeFile(*merged)) {
     // FIXME: This should be passed to logAllUnhandledErrors but it needs
     // to be passed a Twine instead of a string.
-    *errorHandler().errorOS << "Failed to write file '" << ctx.outputPath()
-                            << "': ";
-    logAllUnhandledErrors(std::move(ec), *errorHandler().errorOS,
-                          std::string());
+    lld::errs() << "Failed to write file '" << ctx.outputPath() << "': ";
+    logAllUnhandledErrors(std::move(ec), lld::errs(), std::string());
     return false;
   }
 

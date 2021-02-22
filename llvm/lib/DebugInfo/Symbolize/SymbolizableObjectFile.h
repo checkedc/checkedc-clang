@@ -30,14 +30,15 @@ namespace symbolize {
 
 class SymbolizableObjectFile : public SymbolizableModule {
 public:
-  static ErrorOr<std::unique_ptr<SymbolizableObjectFile>>
-  create(const object::ObjectFile *Obj, std::unique_ptr<DIContext> DICtx);
+  static Expected<std::unique_ptr<SymbolizableObjectFile>>
+  create(const object::ObjectFile *Obj, std::unique_ptr<DIContext> DICtx,
+         bool UntagAddresses);
 
   DILineInfo symbolizeCode(object::SectionedAddress ModuleOffset,
-                           FunctionNameKind FNKind,
+                           DILineInfoSpecifier LineInfoSpecifier,
                            bool UseSymbolTable) const override;
   DIInliningInfo symbolizeInlinedCode(object::SectionedAddress ModuleOffset,
-                                      FunctionNameKind FNKind,
+                                      DILineInfoSpecifier LineInfoSpecifier,
                                       bool UseSymbolTable) const override;
   DIGlobal symbolizeData(object::SectionedAddress ModuleOffset) const override;
   std::vector<DILocal>
@@ -59,17 +60,17 @@ private:
                               uint64_t &Size) const;
   // For big-endian PowerPC64 ELF, OpdAddress is the address of the .opd
   // (function descriptor) section and OpdExtractor refers to its contents.
-  std::error_code addSymbol(const object::SymbolRef &Symbol,
-                            uint64_t SymbolSize,
-                            DataExtractor *OpdExtractor = nullptr,
-                            uint64_t OpdAddress = 0);
-  std::error_code addCoffExportSymbols(const object::COFFObjectFile *CoffObj);
+  Error addSymbol(const object::SymbolRef &Symbol, uint64_t SymbolSize,
+                  DataExtractor *OpdExtractor = nullptr,
+                  uint64_t OpdAddress = 0);
+  Error addCoffExportSymbols(const object::COFFObjectFile *CoffObj);
 
   /// Search for the first occurence of specified Address in ObjectFile.
   uint64_t getModuleSectionIndexForAddress(uint64_t Address) const;
 
   const object::ObjectFile *Module;
   std::unique_ptr<DIContext> DebugInfoContext;
+  bool UntagAddresses;
 
   struct SymbolDesc {
     uint64_t Addr;
@@ -85,7 +86,8 @@ private:
   std::vector<std::pair<SymbolDesc, StringRef>> Objects;
 
   SymbolizableObjectFile(const object::ObjectFile *Obj,
-                         std::unique_ptr<DIContext> DICtx);
+                         std::unique_ptr<DIContext> DICtx,
+                         bool UntagAddresses);
 };
 
 } // end namespace symbolize

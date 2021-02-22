@@ -18,7 +18,7 @@
 ; V8ABS:        .cfi_lsda 0,
 ; V8ABS:        .cfi_def_cfa_register {{30|%fp}}
 ; V8ABS:        .cfi_window_save
-; V8ABS:        .cfi_register 15, 31
+; V8ABS:        .cfi_register %o7, %i7
 
 ; V8ABS:        call __cxa_throw
 ; V8ABS:        call __cxa_throw
@@ -37,7 +37,7 @@
 ; V8PIC:        .cfi_lsda 27,
 ; V8PIC:        .cfi_def_cfa_register {{30|%fp}}
 ; V8PIC:        .cfi_window_save
-; V8PIC:        .cfi_register 15, 31
+; V8PIC:        .cfi_register %o7, %i7
 ; V8PIC:        .section .gcc_except_table
 ; V8PIC-NOT:    .section
 ; V8PIC:        .word %r_disp32(.L_ZTIi.DW.stub)
@@ -52,7 +52,7 @@
 ; V9ABS:        .cfi_lsda 27,
 ; V9ABS:        .cfi_def_cfa_register {{30|%fp}}
 ; V9ABS:        .cfi_window_save
-; V9ABS:        .cfi_register 15, 31
+; V9ABS:        .cfi_register %o7, %i7
 ; V9ABS:        .section .gcc_except_table
 ; V9ABS-NOT:    .section
 ; V9ABS:        .xword _ZTIi
@@ -63,7 +63,7 @@
 ; V9PIC:        .cfi_lsda 27,
 ; V9PIC:        .cfi_def_cfa_register {{30|%fp}}
 ; V9PIC:        .cfi_window_save
-; V9PIC:        .cfi_register 15, 31
+; V9PIC:        .cfi_register %o7, %i7
 ; V9PIC:        .section .gcc_except_table
 ; V9PIC-NOT:    .section
 ; V9PIC:        .word %r_disp32(.L_ZTIi.DW.stub)
@@ -151,7 +151,7 @@ declare i32 @puts(i8* nocapture readonly) #1
 
 declare i32 @__gxx_personality_v0(i32, i64, i8*, i8*)
 
-attributes #0 = { "no-frame-pointer-elim-non-leaf"="false" }
+attributes #0 = { "frame-pointer"="none" }
 attributes #1 = { nounwind }
 attributes #2 = { noreturn }
 attributes #3 = { nounwind readnone }

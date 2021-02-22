@@ -10,14 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "X86Subtarget.h"
+#include "MCTargetDesc/X86BaseInfo.h"
 #include "X86.h"
-
 #include "X86CallLowering.h"
 #include "X86LegalizerInfo.h"
 #include "X86MacroFusion.h"
 #include "X86RegisterBankInfo.h"
-#include "X86Subtarget.h"
-#include "MCTargetDesc/X86BaseInfo.h"
 #include "X86TargetMachine.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
@@ -89,7 +88,9 @@ X86Subtarget::classifyLocalReference(const GlobalValue *GV) const {
 
       // Medium is a hybrid: RIP-rel for code, GOTOFF for DSO local data.
       case CodeModel::Medium:
-        if (isa<Function>(GV))
+        // Constant pool and jump table handling pass a nullptr to this
+        // function so we need to use isa_and_nonnull.
+        if (isa_and_nonnull<Function>(GV))
           return X86II::MO_NO_FLAG; // All code is RIP-relative
         return X86II::MO_GOTOFF;    // Local symbols use GOTOFF.
       }
@@ -146,6 +147,9 @@ unsigned char X86Subtarget::classifyGlobalReference(const GlobalValue *GV,
       return X86II::MO_DLLIMPORT;
     return X86II::MO_COFFSTUB;
   }
+  // Some JIT users use *-win32-elf triples; these shouldn't use GOT tables.
+  if (isOSWindows())
+    return X86II::MO_NO_FLAG;
 
   if (is64Bit()) {
     // ELF supports a large, truly PIC code model with non-PC relative GOT
@@ -224,11 +228,11 @@ bool X86Subtarget::isLegalToCallImmediateAddr() const {
 }
 
 void X86Subtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
-  std::string CPUName = CPU;
+  std::string CPUName = std::string(CPU);
   if (CPUName.empty())
     CPUName = "generic";
 
-  std::string FullFS = FS;
+  std::string FullFS = std::string(FS);
   if (In64BitMode) {
     // SSE2 should default to enabled in 64-bit mode, but can be turned off
     // explicitly.
@@ -285,10 +289,10 @@ void X86Subtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
   // Stack alignment is 16 bytes on Darwin, Linux, kFreeBSD and Solaris (both
   // 32 and 64 bit) and for all 64-bit targets.
   if (StackAlignOverride)
-    stackAlignment = StackAlignOverride;
+    stackAlignment = *StackAlignOverride;
   else if (isTargetDarwin() || isTargetLinux() || isTargetSolaris() ||
            isTargetKFreeBSD() || In64BitMode)
-    stackAlignment = 16;
+    stackAlignment = Align(16);
 
   // Some CPUs have more overhead for gather. The specified overhead is relative
   // to the Load operation. "2" is the number provided by Intel architects. This
@@ -304,6 +308,8 @@ void X86Subtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
   // Consume the vector width attribute or apply any target specific limit.
   if (PreferVectorWidthOverride)
     PreferVectorWidth = PreferVectorWidthOverride;
+  else if (Prefer128Bit)
+    PreferVectorWidth = 128;
   else if (Prefer256Bit)
     PreferVectorWidth = 256;
 }
@@ -316,12 +322,11 @@ X86Subtarget &X86Subtarget::initializeSubtargetDependencies(StringRef CPU,
 
 X86Subtarget::X86Subtarget(const Triple &TT, StringRef CPU, StringRef FS,
                            const X86TargetMachine &TM,
-                           unsigned StackAlignOverride,
+                           MaybeAlign StackAlignOverride,
                            unsigned PreferVectorWidthOverride,
                            unsigned RequiredVectorWidth)
-    : X86GenSubtargetInfo(TT, CPU, FS),
-      PICStyle(PICStyles::None), TM(TM), TargetTriple(TT),
-      StackAlignOverride(StackAlignOverride),
+    : X86GenSubtargetInfo(TT, CPU, FS), PICStyle(PICStyles::Style::None),
+      TM(TM), TargetTriple(TT), StackAlignOverride(StackAlignOverride),
       PreferVectorWidthOverride(PreferVectorWidthOverride),
       RequiredVectorWidth(RequiredVectorWidth),
       In64BitMode(TargetTriple.getArch() == Triple::x86_64),
@@ -333,15 +338,15 @@ X86Subtarget::X86Subtarget(const Triple &TT, StringRef CPU, StringRef FS,
       FrameLowering(*this, getStackAlignment()) {
   // Determine the PICStyle based on the target selected.
   if (!isPositionIndependent())
-    setPICStyle(PICStyles::None);
+    setPICStyle(PICStyles::Style::None);
   else if (is64Bit())
-    setPICStyle(PICStyles::RIPRel);
+    setPICStyle(PICStyles::Style::RIPRel);
   else if (isTargetCOFF())
-    setPICStyle(PICStyles::None);
+    setPICStyle(PICStyles::Style::None);
   else if (isTargetDarwin())
-    setPICStyle(PICStyles::StubPIC);
+    setPICStyle(PICStyles::Style::StubPIC);
   else if (isTargetELF())
-    setPICStyle(PICStyles::GOT);
+    setPICStyle(PICStyles::Style::GOT);
 
   CallLoweringInfo.reset(new X86CallLowering(*getTargetLowering()));
   Legalizer.reset(new X86LegalizerInfo(*this, TM));
@@ -355,7 +360,7 @@ const CallLowering *X86Subtarget::getCallLowering() const {
   return CallLoweringInfo.get();
 }
 
-const InstructionSelector *X86Subtarget::getInstructionSelector() const {
+InstructionSelector *X86Subtarget::getInstructionSelector() const {
   return InstSelector.get();
 }
 
@@ -374,4 +379,8 @@ bool X86Subtarget::enableEarlyIfConversion() const {
 void X86Subtarget::getPostRAMutations(
     std::vector<std::unique_ptr<ScheduleDAGMutation>> &Mutations) const {
   Mutations.push_back(createX86MacroFusionDAGMutation());
+}
+
+bool X86Subtarget::isPositionIndependent() const {
+  return TM.isPositionIndependent();
 }

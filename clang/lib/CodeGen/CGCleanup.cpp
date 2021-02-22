@@ -179,12 +179,10 @@ void *EHScopeStack::pushCleanup(CleanupKind Kind, size_t Size) {
   char *Buffer = allocate(EHCleanupScope::getSizeForCleanupSize(Size));
   bool IsNormalCleanup = Kind & NormalCleanup;
   bool IsEHCleanup = Kind & EHCleanup;
-  bool IsActive = !(Kind & InactiveCleanup);
   bool IsLifetimeMarker = Kind & LifetimeMarker;
   EHCleanupScope *Scope =
     new (Buffer) EHCleanupScope(IsNormalCleanup,
                                 IsEHCleanup,
-                                IsActive,
                                 Size,
                                 BranchFixups.size(),
                                 InnermostNormalCleanup,
@@ -304,14 +302,14 @@ void EHScopeStack::Cleanup::anchor() {}
 static void createStoreInstBefore(llvm::Value *value, Address addr,
                                   llvm::Instruction *beforeInst) {
   auto store = new llvm::StoreInst(value, addr.getPointer(), beforeInst);
-  store->setAlignment(addr.getAlignment().getQuantity());
+  store->setAlignment(addr.getAlignment().getAsAlign());
 }
 
 static llvm::LoadInst *createLoadInstBefore(Address addr, const Twine &name,
                                             llvm::Instruction *beforeInst) {
-  auto load = new llvm::LoadInst(addr.getPointer(), name, beforeInst);
-  load->setAlignment(addr.getAlignment().getQuantity());
-  return load;
+  return new llvm::LoadInst(addr.getElementType(), addr.getPointer(), name,
+                            false, addr.getAlignment().getAsAlign(),
+                            beforeInst);
 }
 
 /// All the branch fixups on the EH stack have propagated out past the
@@ -740,14 +738,15 @@ void CodeGenFunction::PopCleanupBlock(bool FallthroughIsBranchThrough) {
   // here. Unfortunately, if you ask for a SmallVector<char>, the
   // alignment isn't sufficient.
   auto *CleanupSource = reinterpret_cast<char *>(Scope.getCleanupBuffer());
-  llvm::AlignedCharArray<EHScopeStack::ScopeStackAlignment, 8 * sizeof(void *)> CleanupBufferStack;
+  alignas(EHScopeStack::ScopeStackAlignment) char
+      CleanupBufferStack[8 * sizeof(void *)];
   std::unique_ptr<char[]> CleanupBufferHeap;
   size_t CleanupSize = Scope.getCleanupSize();
   EHScopeStack::Cleanup *Fn;
 
   if (CleanupSize <= sizeof(CleanupBufferStack)) {
-    memcpy(CleanupBufferStack.buffer, CleanupSource, CleanupSize);
-    Fn = reinterpret_cast<EHScopeStack::Cleanup *>(CleanupBufferStack.buffer);
+    memcpy(CleanupBufferStack, CleanupSource, CleanupSize);
+    Fn = reinterpret_cast<EHScopeStack::Cleanup *>(CleanupBufferStack);
   } else {
     CleanupBufferHeap.reset(new char[CleanupSize]);
     memcpy(CleanupBufferHeap.get(), CleanupSource, CleanupSize);
@@ -857,6 +856,9 @@ void CodeGenFunction::PopCleanupBlock(bool FallthroughIsBranchThrough) {
 
         // TODO: base this on the number of branch-afters and fixups
         const unsigned SwitchCapacity = 10;
+
+        // pass the abnormal exit flag to Fn (SEH cleanup)
+        cleanupFlags.setHasExitSwitch();
 
         llvm::LoadInst *Load =
           createLoadInstBefore(getNormalCleanupDestSlot(), "cleanup.dest",

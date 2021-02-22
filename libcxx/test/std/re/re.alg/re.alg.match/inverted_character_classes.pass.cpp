@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // <regex>
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // Make sure that we correctly match inverted character classes.
 
@@ -52,6 +52,9 @@ int main(int, char**) {
     assert(std::regex_match("ab5cd", std::regex("^ab\\dcd")));
     assert(!std::regex_match("abZcd", std::regex("^ab\\dcd")));
     assert(!std::regex_match("ab5cd", std::regex("^ab\\Dcd")));
+
+    assert(std::regex_match("_xyz_", std::regex("_(\\s|\\S)+_")));
+    assert(std::regex_match("_xyz_", std::regex("_[\\s\\S]+_")));
 
     return 0;
 }

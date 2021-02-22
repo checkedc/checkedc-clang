@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -ffreestanding %s -triple=x86_64-apple-darwin -target-feature +sse2 -emit-llvm -o - -Wall -Werror | FileCheck %s
-// RUN: %clang_cc1 -ffreestanding %s -triple=x86_64-apple-darwin -target-feature +sse2 -fno-signed-char -emit-llvm -o - -Wall -Werror | FileCheck %s
-// RUN: %clang_cc1 -fms-extensions -fms-compatibility -ffreestanding %s -triple=x86_64-windows-msvc -target-feature +sse2 -emit-llvm -o - -Wall -Werror | FileCheck %s
+// RUN: %clang_cc1 -flax-vector-conversions=none -ffreestanding %s -triple=x86_64-apple-darwin -target-feature +sse2 -emit-llvm -o - -Wall -Werror | FileCheck %s
+// RUN: %clang_cc1 -flax-vector-conversions=none -ffreestanding %s -triple=x86_64-apple-darwin -target-feature +sse2 -fno-signed-char -emit-llvm -o - -Wall -Werror | FileCheck %s
+// RUN: %clang_cc1 -flax-vector-conversions=none -fms-extensions -fms-compatibility -ffreestanding %s -triple=x86_64-windows-msvc -target-feature +sse2 -emit-llvm -o - -Wall -Werror | FileCheck %s
 
 
 #include <immintrin.h>
@@ -806,6 +806,23 @@ __m128d test_mm_min_sd(__m128d A, __m128d B) {
   // CHECK-LABEL: test_mm_min_sd
   // CHECK: call <2 x double> @llvm.x86.sse2.min.sd(<2 x double> %{{.*}}, <2 x double> %{{.*}})
   return _mm_min_sd(A, B);
+}
+
+__m64 test_mm_movepi64_pi64(__m128i A)
+{
+  // CHECK-LABEL: test_mm_movepi64_pi64
+  // CHECK: [[EXT:%.*]] = extractelement <2 x i64> %1, i32 0
+  // CHECK: bitcast i64 [[EXT]] to <1 x i64>
+  return _mm_movepi64_pi64(A);
+}
+
+__m128i test_mm_movpi64_epi64(__m64 A)
+{
+  // CHECK-LABEL: test_mm_movpi64_epi64
+  // CHECK: [[CAST:%.*]] = bitcast <1 x i64> %{{.*}} to i64
+  // CHECK: [[INS:%.*]] = insertelement <2 x i64> undef, i64 [[CAST]], i32 0
+  // CHECK: insertelement <2 x i64> [[INS]], i64 0, i32 1
+  return _mm_movpi64_epi64(A);
 }
 
 __m128i test_mm_move_epi64(__m128i A) {

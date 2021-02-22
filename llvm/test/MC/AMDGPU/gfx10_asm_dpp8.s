@@ -510,6 +510,26 @@ v_min_f16_dpp v5, v1, v2 dpp8:[0,1,2,3,4,5,6,7] fi:1
 v_ldexp_f16_dpp v5, v1, v2 dpp8:[0,1,2,3,4,5,6,7] fi:1
 // GFX10: encoding: [0xea,0x04,0x0a,0x76,0x01,0x88,0xc6,0xfa]
 
+v_cndmask_b32_dpp v0, v1, v2, vcc_lo dpp8:[7,6,5,4,3,2,1,0]
+// W32: v_cndmask_b32_dpp v0, v1, v2, vcc_lo  dpp8:[7,6,5,4,3,2,1,0] ; encoding: [0xe9,0x04,0x00,0x02,0x01,0x77,0x39,0x05]
+// W64-ERR: error: instruction not supported on this GPU
+
+v_cndmask_b32_dpp v0, v1, v2, vcc_lo dpp8:[0,1,2,3,4,5,6,7] fi:1
+// W32: v_cndmask_b32_dpp v0, v1, v2, vcc_lo  dpp8:[0,1,2,3,4,5,6,7] fi:1 ; encoding: [0xea,0x04,0x00,0x02,0x01,0x88,0xc6,0xfa]
+// W64-ERR: error: instruction not supported on this GPU
+
+v_cndmask_b32_dpp v0, v1, v2, vcc dpp8:[7,6,5,4,3,2,1,0]
+// W64: v_cndmask_b32_dpp v0, v1, v2, vcc  dpp8:[7,6,5,4,3,2,1,0] ; encoding: [0xe9,0x04,0x00,0x02,0x01,0x77,0x39,0x05]
+// W32-ERR: error: instruction not supported on this GPU
+
+v_cndmask_b32_dpp v0, v1, v2, vcc dpp8:[0,1,2,3,4,5,6,7] fi:1
+// W64: v_cndmask_b32_dpp v0, v1, v2, vcc  dpp8:[0,1,2,3,4,5,6,7] fi:1 ; encoding: [0xea,0x04,0x00,0x02,0x01,0x88,0xc6,0xfa]
+// W32-ERR: error: instruction not supported on this GPU
+
+v_cndmask_b32_dpp v0, v1, v2 dpp8:[0,1,2,3,4,5,6,7] fi:1
+// W32: v_cndmask_b32_dpp v0, v1, v2, vcc_lo  dpp8:[0,1,2,3,4,5,6,7] fi:1 ; encoding: [0xea,0x04,0x00,0x02,0x01,0x88,0xc6,0xfa]
+// W64: v_cndmask_b32_dpp v0, v1, v2, vcc  dpp8:[0,1,2,3,4,5,6,7] fi:1 ; encoding: [0xea,0x04,0x00,0x02,0x01,0x88,0xc6,0xfa]
+
 v_add_co_ci_u32_dpp v0, vcc_lo, v0, v0, vcc_lo dpp8:[7,6,5,4,3,2,1,0]
 // W32: [0xe9,0x00,0x00,0x50,0x00,0x77,0x39,0x05]
 // W64-ERR: error: instruction not supported on this GPU
@@ -557,3 +577,15 @@ v_mac_f32 v5, v1, v2 dpp8:[7,6,5,4,3,2,1,0]
 
 v_mac_f32 v5, v1, v2 dpp8:[7,6,5,4,3,2,1,0] fi:1
 // GFX10: v_mac_f32_dpp v5, v1, v2 dpp8:[7,6,5,4,3,2,1,0] fi:1 ; encoding: [0xea,0x04,0x0a,0x3e,0x01,0x77,0x39,0x05]
+
+v_movreld_b32 v0, v1 dpp8:[7,6,5,4,3,2,1,0] fi:1
+// GFX10: [0xea,0x84,0x00,0x7e,0x01,0x77,0x39,0x05]
+
+v_movrels_b32 v0, v2 dpp8:[0,0,0,0,0,0,0,0]
+// GFX10: [0xe9,0x86,0x00,0x7e,0x02,0x00,0x00,0x00]
+
+v_movrelsd_2_b32 v0, v255 dpp8:[7,6,5,4,3,2,1,0]
+// GFX10: [0xe9,0x90,0x00,0x7e,0xff,0x77,0x39,0x05]
+
+v_movrelsd_b32 v0, v2 dpp8:[7,6,5,4,3,2,1,0]
+// GFX10: [0xe9,0x88,0x00,0x7e,0x02,0x77,0x39,0x05]

@@ -6,8 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "AMDGPUFixupKinds.h"
 #include "AMDGPUMCTargetDesc.h"
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCFixup.h"
@@ -80,6 +82,15 @@ unsigned AMDGPUELFObjectWriter::getRelocType(MCContext &Ctx,
     return ELF::R_AMDGPU_ABS64;
   }
 
+  if (Fixup.getTargetKind() == AMDGPU::fixup_si_sopp_br) {
+    const auto *SymA = Target.getSymA();
+    assert(SymA);
+
+    Ctx.reportError(Fixup.getLoc(),
+                    Twine("undefined label '") + SymA->getSymbol().getName() + "'");
+    return ELF::R_AMDGPU_NONE;
+  }
+
   llvm_unreachable("unhandled relocation type");
 }
 
@@ -87,7 +98,7 @@ std::unique_ptr<MCObjectTargetWriter>
 llvm::createAMDGPUELFObjectWriter(bool Is64Bit, uint8_t OSABI,
                                   bool HasRelocationAddend,
                                   uint8_t ABIVersion) {
-  return llvm::make_unique<AMDGPUELFObjectWriter>(Is64Bit, OSABI,
+  return std::make_unique<AMDGPUELFObjectWriter>(Is64Bit, OSABI,
                                                   HasRelocationAddend,
                                                   ABIVersion);
 }

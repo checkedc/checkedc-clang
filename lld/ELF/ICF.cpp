@@ -42,7 +42,7 @@
 //    relocation targets. Relocation targets are considered equivalent if
 //    their targets are in the same equivalence class. Sections with
 //    different relocation targets are put into different equivalence
-//    clases.
+//    classes.
 //
 // 3. If we split an equivalence class in step 2, two relocations
 //    previously target the same equivalence class may now target
@@ -74,23 +74,26 @@
 
 #include "ICF.h"
 #include "Config.h"
+#include "LinkerScript.h"
+#include "OutputSections.h"
 #include "SymbolTable.h"
 #include "Symbols.h"
 #include "SyntheticSections.h"
 #include "Writer.h"
-#include "lld/Common/Threads.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Object/ELF.h"
+#include "llvm/Support/Parallel.h"
+#include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/xxhash.h"
 #include <algorithm>
 #include <atomic>
 
-using namespace lld;
-using namespace lld::elf;
 using namespace llvm;
 using namespace llvm::ELF;
 using namespace llvm::object;
+using namespace lld;
+using namespace lld::elf;
 
 namespace {
 template <class ELFT> class ICF {
@@ -257,6 +260,13 @@ bool ICF<ELFT>::constantEq(const InputSection *secA, ArrayRef<RelTy> ra,
     if (!da || !db || da->scriptDefined || db->scriptDefined)
       return false;
 
+    // When comparing a pair of relocations, if they refer to different symbols,
+    // and either symbol is preemptible, the containing sections should be
+    // considered different. This is because even if the sections are identical
+    // in this DSO, they may not be after preemption.
+    if (da->isPreemptible || db->isPreemptible)
+      return false;
+
     // Relocations referring to absolute symbols are constant-equal if their
     // values are equal.
     if (!da->section && !db->section && da->value + addA == db->value + addB)
@@ -304,10 +314,8 @@ bool ICF<ELFT>::equalsConstant(const InputSection *a, const InputSection *b) {
     return false;
 
   // If two sections have different output sections, we cannot merge them.
-  // FIXME: This doesn't do the right thing in the case where there is a linker
-  // script. We probably need to move output section assignment before ICF to
-  // get the correct behaviour here.
-  if (getOutputSectionName(a) != getOutputSectionName(b))
+  assert(a->getParent() && b->getParent());
+  if (a->getParent() != b->getParent())
     return false;
 
   if (a->areRelocsRela)
@@ -392,7 +400,7 @@ template <class ELFT>
 void ICF<ELFT>::forEachClass(llvm::function_ref<void(size_t, size_t)> fn) {
   // If threading is disabled or the number of sections are
   // too small to use threading, call Fn sequentially.
-  if (!threadsEnabled || sections.size() < 1024) {
+  if (parallel::strategy.ThreadsRequested == 1 || sections.size() < 1024) {
     forEachClassRange(0, sections.size(), fn);
     ++cnt;
     return;
@@ -445,16 +453,22 @@ static void print(const Twine &s) {
 
 // The main function of ICF.
 template <class ELFT> void ICF<ELFT>::run() {
+  // Compute isPreemptible early. We may add more symbols later, so this loop
+  // cannot be merged with the later computeIsPreemptible() pass which is used
+  // by scanRelocations().
+  for (Symbol *sym : symtab->symbols())
+    sym->isPreemptible = computeIsPreemptible(*sym);
+
   // Collect sections to merge.
-  for (InputSectionBase *sec : inputSections)
-    if (auto *s = dyn_cast<InputSection>(sec))
-      if (isEligible(s))
-        sections.push_back(s);
+  for (InputSectionBase *sec : inputSections) {
+    auto *s = cast<InputSection>(sec);
+    if (isEligible(s))
+      sections.push_back(s);
+  }
 
   // Initially, we use hash values to partition sections.
-  parallelForEach(sections, [&](InputSection *s) {
-    s->eqClass[0] = xxHash64(s->data());
-  });
+  parallelForEach(
+      sections, [&](InputSection *s) { s->eqClass[0] = xxHash64(s->data()); });
 
   for (unsigned cnt = 0; cnt != 2; ++cnt) {
     parallelForEach(sections, [&](InputSection *s) {
@@ -499,10 +513,22 @@ template <class ELFT> void ICF<ELFT>::run() {
         isec->markDead();
     }
   });
+
+  // InputSectionDescription::sections is populated by processSectionCommands().
+  // ICF may fold some input sections assigned to output sections. Remove them.
+  for (BaseCommand *base : script->sectionCommands)
+    if (auto *sec = dyn_cast<OutputSection>(base))
+      for (BaseCommand *sub_base : sec->sectionCommands)
+        if (auto *isd = dyn_cast<InputSectionDescription>(sub_base))
+          llvm::erase_if(isd->sections,
+                         [](InputSection *isec) { return !isec->isLive(); });
 }
 
 // ICF entry point function.
-template <class ELFT> void elf::doIcf() { ICF<ELFT>().run(); }
+template <class ELFT> void elf::doIcf() {
+  llvm::TimeTraceScope timeScope("ICF");
+  ICF<ELFT>().run();
+}
 
 template void elf::doIcf<ELF32LE>();
 template void elf::doIcf<ELF32BE>();

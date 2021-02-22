@@ -1,6 +1,8 @@
-// RUN: %clang_cc1 -verify -fopenmp %s -Wno-openmp-target -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp4 -fopenmp -fopenmp-version=45 %s -Wno-openmp-mapping -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp5 -fopenmp -fopenmp-version=50 %s -Wno-openmp-mapping -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wno-openmp-target -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp4 -fopenmp-simd -fopenmp-version=45 %s -Wno-openmp-mapping -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp5 -fopenmp-simd -fopenmp-version=50 %s -Wno-openmp-mapping -Wuninitialized
 
 extern int omp_default_mem_alloc;
 void foo() {
@@ -8,6 +10,14 @@ void foo() {
 
 bool foobool(int argc) {
   return argc;
+}
+
+void xxx(int argc) {
+  int fp; // expected-note {{initialize the variable 'fp' to silence this warning}}
+#pragma omp target
+#pragma omp teams distribute simd firstprivate(fp) // expected-warning {{variable 'fp' is uninitialized when used here}}
+  for (int i = 0; i < 10; ++i)
+    ;
 }
 
 struct S1; // expected-note {{declared here}} expected-note{{forward declaration of 'S1'}}
@@ -132,8 +142,8 @@ int main(int argc, char **argv) {
   for (i = 0; i < argc; ++i) foo();
 
 #pragma omp target
-#pragma omp teams distribute simd private(i), firstprivate(i) // expected-error {{private variable cannot be firstprivate}} expected-note 2 {{defined as private}}
-  for (i = 0; i < argc; ++i) foo(); // expected-error {{loop iteration variable in the associated loop of 'omp teams distribute simd' directive may not be private, predetermined as linear}}
+#pragma omp teams distribute simd private(i), firstprivate(i) // expected-error {{private variable cannot be firstprivate}} omp4-note 2 {{defined as private}} omp5-note {{defined as private}} 
+  for (i = 0; i < argc; ++i) foo(); // omp4-error {{loop iteration variable in the associated loop of 'omp teams distribute simd' directive may not be private, predetermined as linear}}
 
 #pragma omp target
 #pragma omp teams distribute simd firstprivate(i)

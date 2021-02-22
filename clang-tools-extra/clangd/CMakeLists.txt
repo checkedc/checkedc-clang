@@ -1,3 +1,5 @@
+add_subdirectory(support)
+
 # Configure the Features.inc file.
 if (NOT DEFINED CLANGD_BUILD_XPC)
   if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
@@ -22,59 +24,66 @@ configure_file(
 set(LLVM_LINK_COMPONENTS
   Support
   AllTargetsInfos
+  FrontendOpenMP
+  Option
   )
 
-if(CLANG_BUILT_STANDALONE)
-  # needed to get HAVE_CXX_ATOMICS64_WITHOUT_LIB defined
-  include(CheckAtomic)
-endif()
+# CMake function to generate clangDaemon and 3cClangDaemon targets, minimizing
+# the diff in this file from upstream Clang to ease future merging.
+function(add_clangDaemon_target target_name)
+cmake_parse_arguments(ARG "" "" "EXTRA_LIBS" ${ARGN})
 
-set(CLANGD_ATOMIC_LIB "")
-if(NOT HAVE_CXX_ATOMICS64_WITHOUT_LIB)
-  list(APPEND CLANGD_ATOMIC_LIB "atomic")
-endif()
-
-add_clang_library(clangDaemon
-  AST.cpp
+add_clang_library(${target_name}
+  # If we omitted these from the clangDaemon target, llvm_check_source_file_list
+  # would raise an error. We could use LLVM_OPTIONAL_SOURCES, but it doesn't
+  # seem worth it.
   3CCommands.cpp
   3CDiagnostics.cpp
-  Cancellation.cpp
+
+  AST.cpp
   ClangdLSPServer.cpp
   ClangdServer.cpp
-  ClangdUnit.cpp
   CodeComplete.cpp
   CodeCompletionStrings.cpp
+  CollectMacros.cpp
+  CompileCommands.cpp
   Compiler.cpp
-  Context.cpp
+  Config.cpp
+  ConfigCompile.cpp
+  ConfigProvider.cpp
+  ConfigYAML.cpp
   Diagnostics.cpp
   DraftStore.cpp
   ExpectedTypes.cpp
   FindSymbols.cpp
+  FindTarget.cpp
   FileDistance.cpp
   Format.cpp
   FS.cpp
-  FSProvider.cpp
-  FormattedString.cpp
   FuzzyMatch.cpp
   GlobalCompilationDatabase.cpp
   Headers.cpp
+  HeaderSourceSwitch.cpp
+  Hover.cpp
   IncludeFixer.cpp
   JSONTransport.cpp
-  Logger.cpp
+  PathMapping.cpp
   Protocol.cpp
   Quality.cpp
+  ParsedAST.cpp
+  Preamble.cpp
   RIFF.cpp
   Selection.cpp
   SemanticHighlighting.cpp
+  SemanticSelection.cpp
   SourceCode.cpp
   QueryDriverDatabase.cpp
-  Threading.cpp
-  Trace.cpp
   TUScheduler.cpp
   URI.cpp
   XRefs.cpp
 
   index/Background.cpp
+  index/BackgroundIndexLoader.cpp
   index/BackgroundIndexStorage.cpp
   index/BackgroundQueue.cpp
   index/BackgroundRebuild.cpp
@@ -103,113 +112,17 @@ add_clang_library(clangDaemon
   refactor/Tweak.cpp
 
   LINK_LIBS
-  clangAST
-  clangASTMatchers
-  clangBasic
-  clangDriver
-  clangFormat
-  clangFrontend
-  clangIndex
-  clangLex
-  clangSema
-  clangSerialization
+  clangdSupport
   clangTidy
-  clangTidyAndroidModule
-  clangTidyAbseilModule
-  clangTidyBoostModule
-  clangTidyBugproneModule
-  clangTidyCERTModule
-  clangTidyCppCoreGuidelinesModule
-  clangTidyFuchsiaModule
-  clangTidyGoogleModule
-  clangTidyHICPPModule
-  clangTidyLLVMModule
-  clangTidyMiscModule
-  clangTidyModernizeModule
-  clangTidyObjCModule
-  clangTidyPerformanceModule
-  clangTidyPortabilityModule
-  clangTidyReadabilityModule
-  clangTidyZirconModule
-  clangTooling
-  clangToolingCore
-  clangToolingInclusions
-  clangToolingRefactoring
-  clangToolingSyntax
   ${LLVM_PTHREAD_LIB}
-  ${CLANGD_ATOMIC_LIB}
+  ${ALL_CLANG_TIDY_CHECKS}
+
+  DEPENDS
+  omp_gen
   )
 
-add_clang_library(3cClangDaemon
-  AST.cpp
-  3CCommands.cpp
-  3CDiagnostics.cpp
-  Cancellation.cpp
-  ClangdLSPServer.cpp
-  ClangdServer.cpp
-  ClangdUnit.cpp
-  CodeComplete.cpp
-  CodeCompletionStrings.cpp
-  Compiler.cpp
-  Context.cpp
-  Diagnostics.cpp
-  DraftStore.cpp
-  ExpectedTypes.cpp
-  FindSymbols.cpp
-  FileDistance.cpp
-  Format.cpp
-  FS.cpp
-  FSProvider.cpp
-  FormattedString.cpp
-  FuzzyMatch.cpp
-  GlobalCompilationDatabase.cpp
-  Headers.cpp
-  IncludeFixer.cpp
-  JSONTransport.cpp
-  Logger.cpp
-  Protocol.cpp
-  Quality.cpp
-  RIFF.cpp
-  Selection.cpp
-  SemanticHighlighting.cpp
-  SourceCode.cpp
-  QueryDriverDatabase.cpp
-  Threading.cpp
-  Trace.cpp
-  TUScheduler.cpp
-  URI.cpp
-  XRefs.cpp
-
-  index/Background.cpp
-  index/BackgroundIndexStorage.cpp
-  index/BackgroundQueue.cpp
-  index/BackgroundRebuild.cpp
-  index/CanonicalIncludes.cpp
-  index/FileIndex.cpp
-  index/Index.cpp
-  index/IndexAction.cpp
-  index/MemIndex.cpp
-  index/Merge.cpp
-  index/Ref.cpp
-  index/Relation.cpp
-  index/Serialization.cpp
-  index/Symbol.cpp
-  index/SymbolCollector.cpp
-  index/SymbolID.cpp
-  index/SymbolLocation.cpp
-  index/SymbolOrigin.cpp
-  index/YAMLSerialization.cpp
-
-  index/dex/Dex.cpp
-  index/dex/Iterator.cpp
-  index/dex/PostingList.cpp
-  index/dex/Trigram.cpp
-
-  refactor/Rename.cpp
-  refactor/Tweak.cpp
-
-  LINK_LIBS
-  clang3C
+clang_target_link_libraries(${target_name}
+  PRIVATE
   clangAST
   clangASTMatchers
   clangBasic
@@ -220,34 +133,44 @@ add_clang_library(3cClangDaemon
   clangLex
   clangSema
   clangSerialization
-  clangTidy
-  clangTidyAndroidModule
-  clangTidyAbseilModule
-  clangTidyBoostModule
-  clangTidyBugproneModule
-  clangTidyCERTModule
-  clangTidyCppCoreGuidelinesModule
-  clangTidyFuchsiaModule
-  clangTidyGoogleModule
-  clangTidyHICPPModule
-  clangTidyLLVMModule
-  clangTidyMiscModule
-  clangTidyModernizeModule
-  clangTidyObjCModule
-  clangTidyPerformanceModule
-  clangTidyPortabilityModule
-  clangTidyReadabilityModule
-  clangTidyZirconModule
   clangTooling
   clangToolingCore
   clangToolingInclusions
   clangToolingRefactoring
   clangToolingSyntax
-  ${LLVM_PTHREAD_LIB}
-  ${CLANGD_ATOMIC_LIB}
-      )
+  ${ARG_EXTRA_LIBS}
+  )
 
-  target_compile_definitions(obj.3cClangDaemon PRIVATE INTERACTIVE3C=1)
+endfunction()
+
+# Some whole-program analysis tools (including IDEs) do not cope well with the
+# clangd source files being included in the compilation database twice with
+# different preprocessor flags that lead to significantly different portions of
+# each file being included in the compilation. To avoid this problem,
+# CLANGD_EXCLUSIVE_VARIANT can be set to include only one variant of clangd in
+# the configuration. This can be used, for example, to rename a program element
+# that is part of 3C and update references to it in clangd3c. If you want to
+# rename an upstream Clang program element that is referenced in both
+# INTERACTIVE3C and !INTERACTIVE3C blocks, this won't help; fortunately, we have
+# never needed to do that so far.
+set(CLANGD_KNOWN_VARIANTS "clangd;clangd3c")
+set(CLANGD_EXCLUSIVE_VARIANT "" CACHE STRING
+  "Variant of clangd to include in the configuration. If empty, include all variants.")
+set_property(CACHE CLANGD_EXCLUSIVE_VARIANT PROPERTY STRINGS ";${CLANGD_KNOWN_VARIANTS}")
+foreach(variant ${CLANGD_KNOWN_VARIANTS})
+  if(CLANGD_EXCLUSIVE_VARIANT STREQUAL "" OR CLANGD_EXCLUSIVE_VARIANT STREQUAL variant)
+    set(CLANGD_INCLUDE_VARIANT_${variant} ON)
+  endif()
+endforeach()
+
+if(CLANGD_INCLUDE_VARIANT_clangd)
+add_clangDaemon_target(clangDaemon)
+endif()
+
+if(CLANGD_INCLUDE_VARIANT_clangd3c)
+add_clangDaemon_target(3cClangDaemon EXTRA_LIBS clang3C)
+target_compile_definitions(obj.3cClangDaemon PRIVATE INTERACTIVE3C=1)
+endif()
 
 add_subdirectory(refactor/tweaks)
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
@@ -256,7 +179,6 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
 endif()
 add_subdirectory(tool)
 add_subdirectory(indexer)
-add_subdirectory(index/dex/dexp)
 
 if (LLVM_INCLUDE_BENCHMARKS)
   add_subdirectory(benchmarks)
@@ -265,7 +187,17 @@ if ( CLANGD_BUILD_XPC )
   add_subdirectory(xpc)
 endif ()
 
-if(CLANG_INCLUDE_TESTS)
+if(CLANG_INCLUDE_TESTS AND CLANGD_INCLUDE_VARIANT_clangd)
 add_subdirectory(test)
 add_subdirectory(unittests)
 endif()
+
+# FIXME(kirillbobyrev): Document this in the LLVM docs once remote index is stable.
+option(CLANGD_ENABLE_REMOTE "Use gRPC library to enable remote index support for Clangd" OFF)
+set(GRPC_INSTALL_PATH "" CACHE PATH "Path to gRPC library manual installation.")
+
+if (CLANGD_ENABLE_REMOTE)
+  include(FindGRPC)
+endif()
+add_subdirectory(index/remote)
+add_subdirectory(index/dex/dexp)

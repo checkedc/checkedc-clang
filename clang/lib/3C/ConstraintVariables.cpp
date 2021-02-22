@@ -81,7 +81,8 @@ PointerVariableConstraint *
 PointerVariableConstraint::getNamedNonPtrPVConstraint(StringRef Name,
                                                       Constraints &CS) {
   CAtoms NewVA; // empty -- represents a base type
-  return new PVConstraint(NewVA, "unsigned", Name, nullptr, false, "");
+  return new PVConstraint(NewVA, "unsigned", std::string(Name), nullptr, false,
+                          "");
 }
 
 PointerVariableConstraint::PointerVariableConstraint(
@@ -117,9 +118,9 @@ PointerVariableConstraint::PointerVariableConstraint(
 
 PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
                                                      ProgramInfo &I,
-                                                     const ASTContext &C) :
-        PointerVariableConstraint(D->getType(), D, D->getName(),
-                                  I, C) { }
+                                                     const ASTContext &C)
+    : PointerVariableConstraint(D->getType(), D, std::string(D->getName()),
+                                I, C) {}
 
 
 // Simple recursive visitor for determining if a type contains a typedef
@@ -893,7 +894,8 @@ FunctionVariableConstraint::FunctionVariableConstraint(DeclaratorDecl *D,
                                                        const ASTContext &C)
     : FunctionVariableConstraint(
           D->getType().getTypePtr(), D,
-          (D->getDeclName().isIdentifier() ? D->getName() : ""), I, C) {}
+          (D->getDeclName().isIdentifier() ? std::string(D->getName()) : ""),
+          I, C) {}
 
 FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
                                                        DeclaratorDecl *D,
@@ -968,7 +970,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
         ParmVarDecl *PVD = FD->getParamDecl(J);
         if (PVD) {
           ParmVD = PVD;
-          PName = PVD->getName();
+          PName = std::string(PVD->getName());
         }
       }
       auto ParamVar = FVComponentVariable(QT, ParmVD, PName, I, Ctx, &N,

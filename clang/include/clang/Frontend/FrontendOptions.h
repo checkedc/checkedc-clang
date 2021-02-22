@@ -10,15 +10,16 @@
 #define LLVM_CLANG_FRONTEND_FRONTENDOPTIONS_H
 
 #include "clang/AST/ASTDumperUtils.h"
+#include "clang/Basic/LangStandard.h"
 #include "clang/Frontend/CommandLineSourceLoc.h"
-#include "clang/Serialization/ModuleFileExtension.h"
 #include "clang/Sema/CodeCompleteOptions.h"
+#include "clang/Serialization/ModuleFileExtension.h"
 #include "llvm/ADT/StringRef.h"
 #include <cassert>
 #include <memory>
 #include <string>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 namespace llvm {
 
@@ -89,8 +90,7 @@ enum ActionKind {
   GeneratePCH,
 
   /// Generate Interface Stub Files.
-  GenerateInterfaceYAMLExpV1,
-  GenerateInterfaceTBEExpV1,
+  GenerateInterfaceStubs,
 
   /// Only execute frontend initialization.
   InitOnly,
@@ -143,35 +143,11 @@ enum ActionKind {
 /// The kind of a file that we've been handed as an input.
 class InputKind {
 private:
-  unsigned Lang : 4;
+  Language Lang;
   unsigned Fmt : 3;
   unsigned Preprocessed : 1;
 
 public:
-  /// The language for the input, used to select and validate the language
-  /// standard and possible actions.
-  enum Language {
-    Unknown,
-
-    /// Assembly: we accept this only so that we can preprocess it.
-    Asm,
-
-    /// LLVM IR: we accept this so that we can run the optimizer on it,
-    /// and compile it to assembly or object code.
-    LLVM_IR,
-
-    ///@{ Languages that the frontend can parse and compile.
-    C,
-    CXX,
-    ObjC,
-    ObjCXX,
-    OpenCL,
-    CUDA,
-    RenderScript,
-    HIP,
-    ///@}
-  };
-
   /// The input file format.
   enum Format {
     Source,
@@ -179,7 +155,7 @@ public:
     Precompiled
   };
 
-  constexpr InputKind(Language L = Unknown, Format F = Source,
+  constexpr InputKind(Language L = Language::Unknown, Format F = Source,
                       bool PP = false)
       : Lang(L), Fmt(F), Preprocessed(PP) {}
 
@@ -188,10 +164,12 @@ public:
   bool isPreprocessed() const { return Preprocessed; }
 
   /// Is the input kind fully-unknown?
-  bool isUnknown() const { return Lang == Unknown && Fmt == Source; }
+  bool isUnknown() const { return Lang == Language::Unknown && Fmt == Source; }
 
   /// Is the language of the input some dialect of Objective-C?
-  bool isObjectiveC() const { return Lang == ObjC || Lang == ObjCXX; }
+  bool isObjectiveC() const {
+    return Lang == Language::ObjC || Lang == Language::ObjCXX;
+  }
 
   InputKind getPreprocessed() const {
     return InputKind(getLanguage(), getFormat(), true);
@@ -307,6 +285,9 @@ public:
   /// Whether we include lookup table dumps in AST dumps.
   unsigned ASTDumpLookups : 1;
 
+  /// Whether we include declaration type dumps in AST dumps.
+  unsigned ASTDumpDeclTypes : 1;
+
   /// Whether we are performing an implicit module build.
   unsigned BuildingImplicitModule : 1;
 
@@ -315,6 +296,12 @@ public:
 
   /// Whether timestamps should be written to the produced PCH file.
   unsigned IncludeTimestamps : 1;
+
+  /// Should a temporary file be used during compilation.
+  unsigned UseTemporary : 1;
+
+  /// When using -emit-module, treat the modulemap as a system module.
+  unsigned IsSystemModule : 1;
 
   CodeCompleteOptions CodeCompleteOpts;
 
@@ -388,7 +375,7 @@ public:
   std::string ARCMTMigrateReportOut;
 
   /// The input files and their types.
-  std::vector<FrontendInputFile> Inputs;
+  SmallVector<FrontendInputFile, 0> Inputs;
 
   /// When the input is a module map, the original module map file from which
   /// that map was inferred, if any (for umbrella modules).
@@ -445,11 +432,20 @@ public:
   /// (in the format produced by -fdump-record-layouts).
   std::string OverrideRecordLayoutsFile;
 
-  /// Auxiliary triple for CUDA compilation.
+  /// Auxiliary triple for CUDA/HIP compilation.
   std::string AuxTriple;
+
+  /// Auxiliary target CPU for CUDA/HIP compilation.
+  Optional<std::string> AuxTargetCPU;
+
+  /// Auxiliary target features for CUDA/HIP compilation.
+  Optional<std::vector<std::string>> AuxTargetFeatures;
 
   /// Filename to write statistics to.
   std::string StatsFile;
+
+  /// Minimum time granularity (in microseconds) traced by time profiler.
+  unsigned TimeTraceGranularity;
 
 public:
   FrontendOptions()
@@ -461,12 +457,12 @@ public:
         UseGlobalModuleIndex(true), GenerateGlobalModuleIndex(true),
         ASTDumpDecls(false), ASTDumpLookups(false),
         BuildingImplicitModule(false), ModulesEmbedAllFiles(false),
-        IncludeTimestamps(true) {}
+        IncludeTimestamps(true), UseTemporary(true), TimeTraceGranularity(500) {}
 
   /// getInputKindForExtension - Return the appropriate input kind for a file
-  /// extension. For example, "c" would return InputKind::C.
+  /// extension. For example, "c" would return Language::C.
   ///
-  /// \return The input kind for the extension, or InputKind::Unknown if the
+  /// \return The input kind for the extension, or Language::Unknown if the
   /// extension is not recognized.
   static InputKind getInputKindForExtension(StringRef Extension);
 };

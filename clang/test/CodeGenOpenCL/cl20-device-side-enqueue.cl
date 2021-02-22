@@ -95,7 +95,7 @@ kernel void device_side_enqueue(global int *a, global int *b, int i) {
   // COMMON: [[WAIT_EVNT:%[0-9]+]] = addrspacecast %opencl.clk_event_t{{.*}}** %event_wait_list to %opencl.clk_event_t{{.*}}* addrspace(4)*
   // COMMON: [[EVNT:%[0-9]+]] = addrspacecast %opencl.clk_event_t{{.*}}** %clk_event to %opencl.clk_event_t{{.*}}* addrspace(4)*
   // COMMON: store i8 addrspace(4)* addrspacecast (i8* bitcast (void (i8 addrspace(4)*)* [[INVL2:@__device_side_enqueue_block_invoke[^ ]*]] to i8*) to i8 addrspace(4)*), i8 addrspace(4)** %block.invoke
-  // COMMON: [[BL:%[0-9]+]] = bitcast <{ i32, i32, i8 addrspace(4)*, i32{{.*}}, i32{{.*}}, i32{{.*}} }>* %block3 to %struct.__opencl_block_literal_generic*
+  // COMMON: [[BL:%[0-9]+]] = bitcast <{ i32, i32, i8 addrspace(4)*, i32{{.*}}, i32{{.*}}, i32{{.*}} }>* %block4 to %struct.__opencl_block_literal_generic*
   // COMMON: [[BL_I8:%[0-9]+]] = addrspacecast %struct.__opencl_block_literal_generic* [[BL]] to i8 addrspace(4)*
   // COMMON-LABEL: call i32 @__enqueue_kernel_basic_events
   // COMMON-SAME: (%opencl.queue_t{{.*}}* [[DEF_Q]], i32 [[FLAGS]],  %struct.ndrange_t* {{.*}}, i32 2, %opencl.clk_event_t{{.*}}* addrspace(4)* [[WAIT_EVNT]], %opencl.clk_event_t{{.*}}* addrspace(4)* [[EVNT]],
@@ -402,7 +402,7 @@ kernel void device_side_enqueue(global int *a, global int *b, int i) {
   size = get_kernel_sub_group_count_for_ndrange(ndrange, ^(){});
 }
 
-// COMMON: define internal spir_kernel void [[INVLK1]](i8 addrspace(4)*) #{{[0-9]+}} {
+// COMMON: define internal spir_kernel void [[INVLK1]](i8 addrspace(4)* %0) #{{[0-9]+}} {
 // COMMON: entry:
 // COMMON:  call void @__device_side_enqueue_block_invoke(i8 addrspace(4)* %0)
 // COMMON:  ret void
@@ -413,7 +413,7 @@ kernel void device_side_enqueue(global int *a, global int *b, int i) {
 // COMMON: define internal spir_kernel void [[INVGK3]](i8 addrspace(4)*{{.*}}, i8 addrspace(3)*{{.*}})
 // COMMON: define internal spir_kernel void [[INVGK4]](i8 addrspace(4)*{{.*}}, i8 addrspace(3)*{{.*}})
 // COMMON: define internal spir_kernel void [[INVGK5]](i8 addrspace(4)*{{.*}}, i8 addrspace(3)*{{.*}})
-// COMMON: define internal spir_kernel void [[INVGK6]](i8 addrspace(4)*, i8 addrspace(3)*, i8 addrspace(3)*, i8 addrspace(3)*) #{{[0-9]+}} {
+// COMMON: define internal spir_kernel void [[INVGK6]](i8 addrspace(4)* %0, i8 addrspace(3)* %1, i8 addrspace(3)* %2, i8 addrspace(3)* %3) #{{[0-9]+}} {
 // COMMON: entry:
 // COMMON:  call void @__device_side_enqueue_block_invoke_9(i8 addrspace(4)* %0, i8 addrspace(3)* %1, i8 addrspace(3)* %2, i8 addrspace(3)* %3)
 // COMMON:  ret void

@@ -3,12 +3,12 @@
 
 ; CHECK: .debug_info contents:
 ; CHECK: .debug_info.dwo contents:
-; CHECK: DW_AT_ranges [DW_FORM_rnglistx] (indexed (0x0) rangelist = 0x00000004
+; CHECK: DW_AT_ranges [DW_FORM_rnglistx] (indexed (0x0) rangelist = 0x00000010
 ; CHECK:          [0x0000000000000001, 0x000000000000000c) ".text"
 ; CHECK:          [0x000000000000000e, 0x0000000000000013) ".text")
 
 ; CHECK: .debug_rnglists.dwo contents:
-; CHECK: 0x00000000: range list header: length = 0x00000015, version = 0x0005, addr_size = 0x08, seg_size = 0x00, offset_entry_count = 0x00000001
+; CHECK: 0x00000000: range list header: length = 0x00000015, format = DWARF32, version = 0x0005, addr_size = 0x08, seg_size = 0x00, offset_entry_count = 0x00000001
 ; CHECK: offsets: [
 ; CHECK: 0x00000004 => 0x00000010
 ; CHECK: ]

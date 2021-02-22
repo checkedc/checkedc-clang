@@ -165,7 +165,7 @@ std::error_code tryGetCanonicalFilePath(const std::string &FileName, std::string
   if (EC) {
     return EC;
   }
-  AbsoluteFp = AbsPath.str();
+  AbsoluteFp = std::string(AbsPath.str());
   return EC;
 }
 

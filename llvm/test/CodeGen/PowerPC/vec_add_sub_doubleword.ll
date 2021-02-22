@@ -36,7 +36,7 @@ define <2 x i64> @increment_by_one(<2 x i64> %x) nounwind {
 define <2 x i64> @increment_by_val(<2 x i64> %x, i64 %val) nounwind {
 ; VSX-LABEL: increment_by_val:
 ; VSX:       # %bb.0:
-; VSX-NEXT:    mtvsrd 0, 5
+; VSX-NEXT:    mtfprd 0, 5
 ; VSX-NEXT:    xxspltd 35, 0, 0
 ; VSX-NEXT:    vaddudm 2, 2, 3
 ; VSX-NEXT:    blr
@@ -80,7 +80,7 @@ define <2 x i64> @test_sub(<2 x i64> %x, <2 x i64> %y) nounwind {
 define <2 x i64> @decrement_by_one(<2 x i64> %x) nounwind {
 ; VSX-LABEL: decrement_by_one:
 ; VSX:       # %bb.0:
-; VSX-NEXT:    vspltisb 3, -1
+; VSX-NEXT:    xxleqv 35, 35, 35
 ; VSX-NEXT:    vsubudm 2, 2, 3
 ; VSX-NEXT:    blr
 ;
@@ -98,7 +98,7 @@ define <2 x i64> @decrement_by_one(<2 x i64> %x) nounwind {
 define <2 x i64> @decrement_by_val(<2 x i64> %x, i64 %val) nounwind {
 ; VSX-LABEL: decrement_by_val:
 ; VSX:       # %bb.0:
-; VSX-NEXT:    mtvsrd 0, 5
+; VSX-NEXT:    mtfprd 0, 5
 ; VSX-NEXT:    xxspltd 35, 0, 0
 ; VSX-NEXT:    vsubudm 2, 2, 3
 ; VSX-NEXT:    blr

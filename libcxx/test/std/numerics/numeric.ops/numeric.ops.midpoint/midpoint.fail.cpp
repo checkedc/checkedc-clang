@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 // <numeric>
 
 // template <class _Tp>
@@ -34,6 +34,6 @@ int main(int, char**)
     (void) std::midpoint(func1, func2);      // expected-error {{no matching function for call to 'midpoint'}}
     (void) std::midpoint(ip, ip);            // expected-error {{no matching function for call to 'midpoint'}}
     (void) std::midpoint(vp, vp);            // expected-error {{no matching function for call to 'midpoint'}}
-    
+
     return 0;
 }

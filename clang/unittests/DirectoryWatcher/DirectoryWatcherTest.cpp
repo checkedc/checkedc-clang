@@ -8,9 +8,9 @@
 
 #include "clang/DirectoryWatcher/DirectoryWatcher.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Mutex.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Testing/Support/Error.h"
 #include "gtest/gtest.h"
 #include <condition_variable>
 #include <future>
@@ -45,9 +45,9 @@ struct DirectoryWatcherTestFixture {
 #endif
     createUniqueDirectory("dirwatcher", pathBuf);
     assert(!UniqDirRes);
-    TestRootDir = pathBuf.str();
+    TestRootDir = std::string(pathBuf.str());
     path::append(pathBuf, "watch");
-    TestWatchedDir = pathBuf.str();
+    TestWatchedDir = std::string(pathBuf.str());
 #ifndef NDEBUG
     std::error_code CreateDirRes =
 #endif
@@ -132,8 +132,10 @@ struct VerifyingConsumer {
     } else {
       ExpectedInitial.erase(It);
     }
-    if (result())
+    if (result()) {
+      L.unlock();
       ResultIsReady.notify_one();
+    }
   }
 
   void consumeNonInitial(DirectoryWatcher::Event E) {
@@ -151,8 +153,10 @@ struct VerifyingConsumer {
     } else {
       ExpectedNonInitial.erase(It);
     }
-    if (result())
+    if (result()) {
+      L.unlock();
       ResultIsReady.notify_one();
+    }
   }
 
   // This method is used by DirectoryWatcher.
@@ -273,13 +277,15 @@ TEST(DirectoryWatcherTest, InitialScanSync) {
        {EventKind::Modified, "c"}}
       };
 
-  auto DW = DirectoryWatcher::create(
-      fixture.TestWatchedDir,
-      [&TestConsumer](llvm::ArrayRef<DirectoryWatcher::Event> Events,
-                      bool IsInitial) {
-        TestConsumer.consume(Events, IsInitial);
-      },
-      /*waitForInitialSync=*/true);
+  llvm::Expected<std::unique_ptr<DirectoryWatcher>> DW =
+      DirectoryWatcher::create(
+          fixture.TestWatchedDir,
+          [&TestConsumer](llvm::ArrayRef<DirectoryWatcher::Event> Events,
+                          bool IsInitial) {
+            TestConsumer.consume(Events, IsInitial);
+          },
+          /*waitForInitialSync=*/true);
+  ASSERT_THAT_ERROR(DW.takeError(), Succeeded());
 
   checkEventualResultWithTimeout(TestConsumer);
 }
@@ -304,13 +310,15 @@ TEST(DirectoryWatcherTest, InitialScanAsync) {
        {EventKind::Modified, "c"}}
        };
 
-  auto DW = DirectoryWatcher::create(
-      fixture.TestWatchedDir,
-      [&TestConsumer](llvm::ArrayRef<DirectoryWatcher::Event> Events,
-                      bool IsInitial) {
-        TestConsumer.consume(Events, IsInitial);
-      },
-      /*waitForInitialSync=*/false);
+  llvm::Expected<std::unique_ptr<DirectoryWatcher>> DW =
+      DirectoryWatcher::create(
+          fixture.TestWatchedDir,
+          [&TestConsumer](llvm::ArrayRef<DirectoryWatcher::Event> Events,
+                          bool IsInitial) {
+            TestConsumer.consume(Events, IsInitial);
+          },
+          /*waitForInitialSync=*/false);
+  ASSERT_THAT_ERROR(DW.takeError(), Succeeded());
 
   checkEventualResultWithTimeout(TestConsumer);
 }
@@ -324,13 +332,15 @@ TEST(DirectoryWatcherTest, AddFiles) {
        {EventKind::Modified, "b"},
        {EventKind::Modified, "c"}}};
 
-  auto DW = DirectoryWatcher::create(
-      fixture.TestWatchedDir,
-      [&TestConsumer](llvm::ArrayRef<DirectoryWatcher::Event> Events,
-                      bool IsInitial) {
-        TestConsumer.consume(Events, IsInitial);
-      },
-      /*waitForInitialSync=*/true);
+  llvm::Expected<std::unique_ptr<DirectoryWatcher>> DW =
+      DirectoryWatcher::create(
+          fixture.TestWatchedDir,
+          [&TestConsumer](llvm::ArrayRef<DirectoryWatcher::Event> Events,
+                          bool IsInitial) {
+            TestConsumer.consume(Events, IsInitial);
+          },
+          /*waitForInitialSync=*/true);
+  ASSERT_THAT_ERROR(DW.takeError(), Succeeded());
 
   fixture.addFile("a");
   fixture.addFile("b");
@@ -349,13 +359,15 @@ TEST(DirectoryWatcherTest, ModifyFile) {
       {{EventKind::Modified, "a"}},
       {{EventKind::Modified, "a"}}};
 
-  auto DW = DirectoryWatcher::create(
-      fixture.TestWatchedDir,
-      [&TestConsumer](llvm::ArrayRef<DirectoryWatcher::Event> Events,
-                      bool IsInitial) {
-        TestConsumer.consume(Events, IsInitial);
-      },
-      /*waitForInitialSync=*/true);
+  llvm::Expected<std::unique_ptr<DirectoryWatcher>> DW =
+      DirectoryWatcher::create(
+          fixture.TestWatchedDir,
+          [&TestConsumer](llvm::ArrayRef<DirectoryWatcher::Event> Events,
+                          bool IsInitial) {
+            TestConsumer.consume(Events, IsInitial);
+          },
+          /*waitForInitialSync=*/true);
+  ASSERT_THAT_ERROR(DW.takeError(), Succeeded());
 
   // modify the file
   {
@@ -377,15 +389,17 @@ TEST(DirectoryWatcherTest, DeleteFile) {
   VerifyingConsumer TestConsumer{
       {{EventKind::Modified, "a"}},
       {{EventKind::Removed, "a"}},
-      {{EventKind::Modified, "a"}}};
+      {{EventKind::Modified, "a"}, {EventKind::Removed, "a"}}};
 
-  auto DW = DirectoryWatcher::create(
-      fixture.TestWatchedDir,
-      [&TestConsumer](llvm::ArrayRef<DirectoryWatcher::Event> Events,
-                      bool IsInitial) {
-        TestConsumer.consume(Events, IsInitial);
-      },
-      /*waitForInitialSync=*/true);
+  llvm::Expected<std::unique_ptr<DirectoryWatcher>> DW =
+      DirectoryWatcher::create(
+          fixture.TestWatchedDir,
+          [&TestConsumer](llvm::ArrayRef<DirectoryWatcher::Event> Events,
+                          bool IsInitial) {
+            TestConsumer.consume(Events, IsInitial);
+          },
+          /*waitForInitialSync=*/true);
+  ASSERT_THAT_ERROR(DW.takeError(), Succeeded());
 
   fixture.deleteFile("a");
 
@@ -400,13 +414,15 @@ TEST(DirectoryWatcherTest, DeleteWatchedDir) {
       {{EventKind::WatchedDirRemoved, ""},
        {EventKind::WatcherGotInvalidated, ""}}};
 
-  auto DW = DirectoryWatcher::create(
-      fixture.TestWatchedDir,
-      [&TestConsumer](llvm::ArrayRef<DirectoryWatcher::Event> Events,
-                      bool IsInitial) {
-        TestConsumer.consume(Events, IsInitial);
-      },
-      /*waitForInitialSync=*/true);
+  llvm::Expected<std::unique_ptr<DirectoryWatcher>> DW =
+      DirectoryWatcher::create(
+          fixture.TestWatchedDir,
+          [&TestConsumer](llvm::ArrayRef<DirectoryWatcher::Event> Events,
+                          bool IsInitial) {
+            TestConsumer.consume(Events, IsInitial);
+          },
+          /*waitForInitialSync=*/true);
+  ASSERT_THAT_ERROR(DW.takeError(), Succeeded());
 
   remove_directories(fixture.TestWatchedDir);
 
@@ -420,14 +436,55 @@ TEST(DirectoryWatcherTest, InvalidatedWatcher) {
       {}, {{EventKind::WatcherGotInvalidated, ""}}};
 
   {
-    auto DW = DirectoryWatcher::create(
-        fixture.TestWatchedDir,
-        [&TestConsumer](llvm::ArrayRef<DirectoryWatcher::Event> Events,
-                        bool IsInitial) {
-          TestConsumer.consume(Events, IsInitial);
-        },
-        /*waitForInitialSync=*/true);
+    llvm::Expected<std::unique_ptr<DirectoryWatcher>> DW =
+        DirectoryWatcher::create(
+            fixture.TestWatchedDir,
+            [&TestConsumer](llvm::ArrayRef<DirectoryWatcher::Event> Events,
+                            bool IsInitial) {
+              TestConsumer.consume(Events, IsInitial);
+            },
+            /*waitForInitialSync=*/true);
+    ASSERT_THAT_ERROR(DW.takeError(), Succeeded());
   } // DW is destructed here.
 
   checkEventualResultWithTimeout(TestConsumer);
+}
+
+TEST(DirectoryWatcherTest, InvalidatedWatcherAsync) {
+  DirectoryWatcherTestFixture fixture;
+  fixture.addFile("a");
+
+  // This test is checking that we get the initial notification for 'a' before
+  // the final 'invalidated'. Strictly speaking, we do not care whether 'a' is
+  // processed or not, only that it is neither racing with, nor after
+  // 'invalidated'. In practice, it is always processed in our implementations.
+  VerifyingConsumer TestConsumer{
+      {{EventKind::Modified, "a"}},
+      {{EventKind::WatcherGotInvalidated, ""}},
+      // We have to ignore these as it's a race between the test process
+      // which is scanning the directory and kernel which is sending
+      // notification.
+      {{EventKind::Modified, "a"}},
+  };
+
+  // A counter that can help detect data races on the event receiver,
+  // particularly if used with TSan. Expected count will be 2 or 3 depending on
+  // whether we get the kernel event or not (see comment above).
+  unsigned Count = 0;
+  {
+    llvm::Expected<std::unique_ptr<DirectoryWatcher>> DW =
+        DirectoryWatcher::create(
+            fixture.TestWatchedDir,
+            [&TestConsumer,
+             &Count](llvm::ArrayRef<DirectoryWatcher::Event> Events,
+                     bool IsInitial) {
+              Count += 1;
+              TestConsumer.consume(Events, IsInitial);
+            },
+            /*waitForInitialSync=*/false);
+    ASSERT_THAT_ERROR(DW.takeError(), Succeeded());
+  } // DW is destructed here.
+
+  checkEventualResultWithTimeout(TestConsumer);
+  ASSERT_TRUE(Count == 2u || Count == 3u);
 }

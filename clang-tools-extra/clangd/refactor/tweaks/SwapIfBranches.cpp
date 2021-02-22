@@ -5,10 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include "ClangdUnit.h"
-#include "Logger.h"
+#include "ParsedAST.h"
 #include "SourceCode.h"
 #include "refactor/Tweak.h"
+#include "support/Logger.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
@@ -62,8 +62,8 @@ bool SwapIfBranches::prepare(const Selection &Inputs) {
 }
 
 Expected<Tweak::Effect> SwapIfBranches::apply(const Selection &Inputs) {
-  auto &Ctx = Inputs.AST.getASTContext();
-  auto &SrcMgr = Inputs.AST.getSourceManager();
+  auto &Ctx = Inputs.AST->getASTContext();
+  auto &SrcMgr = Inputs.AST->getSourceManager();
 
   auto ThenRng = toHalfOpenFileRange(SrcMgr, Ctx.getLangOpts(),
                                      If->getThen()->getSourceRange());
@@ -90,7 +90,7 @@ Expected<Tweak::Effect> SwapIfBranches::apply(const Selection &Inputs) {
                                                  ElseRng->getBegin(),
                                                  ElseCode.size(), ThenCode)))
     return std::move(Err);
-  return Effect::applyEdit(Result);
+  return Effect::mainFileEdit(SrcMgr, std::move(Result));
 }
 
 } // namespace

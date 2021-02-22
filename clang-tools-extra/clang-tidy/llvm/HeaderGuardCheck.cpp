@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "HeaderGuardCheck.h"
+#include "clang/Tooling/Tooling.h"
 
 namespace clang {
 namespace tidy {
@@ -33,6 +34,13 @@ std::string LLVMHeaderGuardCheck::getHeaderGuard(StringRef Filename,
   if (PosToolsClang != StringRef::npos)
     Guard = Guard.substr(PosToolsClang + std::strlen("tools/"));
 
+  // Unlike LLVM svn, LLVM git monorepo is named llvm-project, so we replace
+  // "/llvm-project/" with the cannonical "/llvm/".
+  const static StringRef LLVMProject = "/llvm-project/";
+  size_t PosLLVMProject = Guard.rfind(std::string(LLVMProject));
+  if (PosLLVMProject != StringRef::npos)
+    Guard = Guard.replace(PosLLVMProject, LLVMProject.size(), "/llvm/");
+
   // The remainder is LLVM_FULL_PATH_TO_HEADER_H
   size_t PosLLVM = Guard.rfind("llvm/");
   if (PosLLVM != StringRef::npos)
@@ -45,6 +53,10 @@ std::string LLVMHeaderGuardCheck::getHeaderGuard(StringRef Filename,
   // The prevalent style in clang is LLVM_CLANG_FOO_BAR_H
   if (StringRef(Guard).startswith("clang"))
     Guard = "LLVM_" + Guard;
+
+  // The prevalent style in flang is FORTRAN_FOO_BAR_H
+  if (StringRef(Guard).startswith("flang"))
+    Guard = "FORTRAN" + Guard.substr(sizeof("flang") - 1);
 
   return StringRef(Guard).upper();
 }

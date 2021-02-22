@@ -10,6 +10,7 @@
 #include "DurationRewriter.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include "clang/Lex/Lexer.h"
 #include "clang/Tooling/FixIt.h"
 
 using namespace clang::ast_matchers;
@@ -96,7 +97,7 @@ void TimeSubtractionCheck::registerMatchers(MatchFinder *Finder) {
        {"Hours", "Minutes", "Seconds", "Millis", "Micros", "Nanos"}) {
     std::string TimeInverse = (llvm::Twine("ToUnix") + ScaleName).str();
     llvm::Optional<DurationScale> Scale = getScaleForTimeInverse(TimeInverse);
-    assert(Scale && "Unknow scale encountered");
+    assert(Scale && "Unknown scale encountered");
 
     auto TimeInverseMatcher = callExpr(callee(
         functionDecl(hasName((llvm::Twine("::absl::") + TimeInverse).str()))
@@ -168,7 +169,7 @@ void TimeSubtractionCheck::check(const MatchFinder::MatchResult &Result) {
         !InsideMacroDefinition(Result, MaybeCallArg->getSourceRange())) {
       // Handle the case where the matched expression is inside a call which
       // converts it from the inverse to a Duration.  In this case, we replace
-      // the outer with just the subtraction expresison, which gives the right
+      // the outer with just the subtraction expression, which gives the right
       // type and scale, taking care again about parenthesis.
       bool NeedParens = parensRequired(Result, MaybeCallArg);
 

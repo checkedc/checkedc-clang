@@ -2,14 +2,15 @@
 // RUN: llvm-mc -filetype=obj -triple=x86_64-unknown-linux %s -o %t1.o
 // RUN: llvm-mc -filetype=obj -triple=x86_64-unknown-linux %S/Inputs/vs-diagnostics-duplicate2.s -o %t2.o
 // RUN: llvm-mc -filetype=obj -triple=x86_64-unknown-linux %S/Inputs/vs-diagnostics-duplicate3.s -o %t3.o
-// RUN: not ld.lld --vs-diagnostics %t1.o %t2.o %t3.o -o %tout 2>&1 | FileCheck %s
+// RUN: not ld.lld --vs-diagnostics %t1.o %t2.o %t3.o -o /dev/null 2>&1 | FileCheck %s
 
 // Case 1. Both symbols have full source location.
 // CHECK:      duplicate.s(15): error: duplicate symbol: bar
 // CHECK-NEXT: >>> defined at duplicate.s:15
 // CHECK-NEXT: >>>{{.*}}1.o:(.text+0x{{.+}})
-// CHECK: >>> defined at duplicate2.s:20
-// CHECK: >>>{{.*}}2.o:(.text+0x{{.+}})
+// CHECK:      duplicate2.s(20): error: duplicate symbol: bar
+// CHECK-NEXT: >>> defined at duplicate2.s:20
+// CHECK-NEXT: >>>{{.*}}2.o:(.text+0x{{.+}})
 
 // Case 2. The source locations are unknown for both symbols.
 // CHECK:      {{.*}}ld.lld{{.*}}: error: duplicate symbol: foo
@@ -23,7 +24,14 @@
 // CHECK-NEXT: >>> defined at duplicate3.s
 // CHECK-NEXT: >>>            {{.*}}3.o:(.text+0x{{.+}})
 
-.global _start, foo, bar, baz
+// Check that we prefer using the full path of a source file.
+// CHECK:      /tmp{{/|\\}}duplicate.s(33): error: duplicate symbol: qux
+// CHECK-NEXT: >>> defined at duplicate.s:33 (/tmp{{/|\\}}duplicate.s:33)
+// CHECK-NEXT: >>> {{.*}}1.o:(.text+0x{{.+}})
+// CHECK-NEXT: >>> defined at duplicate3.s
+// CHECK-NEXT: >>>            {{.*}}3.o:(.text+0x{{.+}})
+
+.global _start, foo, bar, baz, qux
 .text
 _start:
   nop
@@ -39,6 +47,11 @@ bar:
 
 .loc 1 30
 baz:
+  nop
+
+.file 2 "/tmp" "duplicate.s"
+.loc 2 33
+qux:
   nop
 
 .section .debug_abbrev,"",@progbits

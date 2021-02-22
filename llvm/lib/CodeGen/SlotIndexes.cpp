@@ -10,6 +10,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/Config/llvm-config.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -18,6 +19,16 @@ using namespace llvm;
 #define DEBUG_TYPE "slotindexes"
 
 char SlotIndexes::ID = 0;
+
+SlotIndexes::SlotIndexes() : MachineFunctionPass(ID), mf(nullptr) {
+  initializeSlotIndexesPass(*PassRegistry::getPassRegistry());
+}
+
+SlotIndexes::~SlotIndexes() {
+  // The indexList's nodes are all allocated in the BumpPtrAllocator.
+  indexList.clearAndLeakNodesUnsafely();
+}
+
 INITIALIZE_PASS(SlotIndexes, DEBUG_TYPE,
                 "Slot index numbering", false, false)
 
@@ -101,9 +112,10 @@ bool SlotIndexes::runOnMachineFunction(MachineFunction &fn) {
   return false;
 }
 
-void SlotIndexes::removeMachineInstrFromMaps(MachineInstr &MI) {
-  assert(!MI.isBundledWithPred() &&
-         "Use removeSingleMachineInstrFromMaps() instread");
+void SlotIndexes::removeMachineInstrFromMaps(MachineInstr &MI,
+                                             bool AllowBundled) {
+  assert((AllowBundled || !MI.isBundledWithPred()) &&
+         "Use removeSingleMachineInstrFromMaps() instead");
   Mi2IndexMap::iterator mi2iItr = mi2iMap.find(&MI);
   if (mi2iItr == mi2iMap.end())
     return;
@@ -130,7 +142,7 @@ void SlotIndexes::removeSingleMachineInstrFromMaps(MachineInstr &MI) {
   // instruction.
   if (MI.isBundledWithSucc()) {
     // Only the first instruction of a bundle should have an index assigned.
-    assert(!MI.isBundledWithPred() && "Should have first bundle isntruction");
+    assert(!MI.isBundledWithPred() && "Should be first bundle instruction");
 
     MachineBasicBlock::instr_iterator Next = std::next(MI.getIterator());
     MachineInstr &NextMI = *Next;

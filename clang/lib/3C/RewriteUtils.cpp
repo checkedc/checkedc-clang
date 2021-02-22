@@ -15,7 +15,7 @@
 #include "clang/3C/CheckedRegions.h"
 #include "clang/3C/DeclRewriter.h"
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/Tooling/Refactoring/SourceCode.h"
+#include "clang/Tooling/Transformer/SourceCode.h"
 
 using namespace llvm;
 using namespace clang;
@@ -164,7 +164,7 @@ static void emit(Rewriter &R, ASTContext &C) {
 
       // Check whether we are allowed to write this file.
       std::string FeAbsS = "";
-      getCanonicalFilePath(FE->getName(), FeAbsS);
+      getCanonicalFilePath(std::string(FE->getName()), FeAbsS);
       if (!canWrite(FeAbsS)) {
         DiagnosticsEngine &DE = C.getDiagnostics();
         unsigned ID = DE.getCustomDiagID(
@@ -225,7 +225,7 @@ static void emit(Rewriter &R, ASTContext &C) {
         // nor OutputDir has a trailing separator.
         SmallString<255> Tmp(FeAbsS);
         llvm::sys::path::replace_path_prefix(Tmp, BaseDir, OutputDir);
-        NFile = Tmp.str();
+        NFile = std::string(Tmp.str());
         EC = llvm::sys::fs::create_directories(sys::path::parent_path(NFile));
         if (EC) {
           DiagnosticsEngine &DE = C.getDiagnostics();
@@ -456,10 +456,11 @@ void RewriteConsumer::emitRootCauseDiagnostics(ASTContext &Context) {
         EmittedDiagnostics.find(PSL) == EmittedDiagnostics.end()) {
       // Convert the file/line/column triple into a clang::SourceLocation that
       // can be used with the DiagnosticsEngine.
-      const auto *File = SM.getFileManager().getFile(PSL.getFileName());
-      if (File != nullptr) {
+      llvm::ErrorOr<const clang::FileEntry *> File =
+          SM.getFileManager().getFile(PSL.getFileName());
+      if (!File.getError()) {
         SourceLocation SL =
-            SM.translateFileLineCol(File, PSL.getLineNo(), PSL.getColSNo());
+            SM.translateFileLineCol(*File, PSL.getLineNo(), PSL.getColSNo());
         // Limit emitted root causes to those that effect more than one pointer
         // or are in the main file of the TU. Alternatively, don't filter causes
         // if -warn-all-root-cause is passed.

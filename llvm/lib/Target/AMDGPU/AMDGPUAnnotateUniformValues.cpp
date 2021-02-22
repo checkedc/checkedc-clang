@@ -13,12 +13,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPU.h"
+#include "Utils/AMDGPUBaseInfo.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Analysis/LegacyDivergenceAnalysis.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/MemoryDependenceAnalysis.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -34,7 +36,7 @@ class AMDGPUAnnotateUniformValues : public FunctionPass,
   MemoryDependenceResults *MDR;
   LoopInfo *LI;
   DenseMap<Value*, GetElementPtrInst*> noClobberClones;
-  bool isKernelFunc;
+  bool isEntryFunc;
 
 public:
   static char ID;
@@ -126,11 +128,10 @@ void AMDGPUAnnotateUniformValues::visitLoadInst(LoadInst &I) {
   auto isGlobalLoad = [&](LoadInst &Load)->bool {
     return Load.getPointerAddressSpace() == AMDGPUAS::GLOBAL_ADDRESS;
   };
-  // We're tracking up to the Function boundaries
-  // We cannot go beyond because of FunctionPass restrictions
-  // Thus we can ensure that memory not clobbered for memory
-  // operations that live in kernel only.
-  bool NotClobbered = isKernelFunc &&   !isClobberedInFunction(&I);
+  // We're tracking up to the Function boundaries, and cannot go beyond because
+  // of FunctionPass restrictions. We can ensure that is memory not clobbered
+  // for memory operations that are live in to entry points only.
+  bool NotClobbered = isEntryFunc && !isClobberedInFunction(&I);
   Instruction *PtrI = dyn_cast<Instruction>(Ptr);
   if (!PtrI && NotClobbered && isGlobalLoad(I)) {
     if (isa<Argument>(Ptr) || isa<GlobalValue>(Ptr)) {
@@ -169,7 +170,7 @@ bool AMDGPUAnnotateUniformValues::runOnFunction(Function &F) {
   DA  = &getAnalysis<LegacyDivergenceAnalysis>();
   MDR = &getAnalysis<MemoryDependenceWrapperPass>().getMemDep();
   LI  = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
-  isKernelFunc = F.getCallingConv() == CallingConv::AMDGPU_KERNEL;
+  isEntryFunc = AMDGPU::isEntryFunctionCC(F.getCallingConv());
 
   visit(F);
   noClobberClones.clear();

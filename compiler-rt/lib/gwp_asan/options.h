@@ -14,27 +14,27 @@
 
 namespace gwp_asan {
 namespace options {
-// The function pointer type for printf(). Follows the standard format from the
-// sanitizers library. If the supported allocator exposes printing via a
-// different function signature, please provide a wrapper which has this
-// printf() signature, and pass the wrapper instead.
-typedef void (*Printf_t)(const char *Format, ...);
-
-// The function pointer type for backtrace information. Required to be
-// implemented by the supporting allocator. The callee should elide itself and
-// all frames below itself from TraceBuffer, i.e. the caller's frame should be
-// in TraceBuffer[0], and subsequent frames 1..n into TraceBuffer[1..n], where a
-// maximum of `MaximumDepth - 1` frames are stored. TraceBuffer should be
-// nullptr-terminated (i.e. if there are 5 frames; TraceBuffer[5] == nullptr).
-// If the allocator cannot supply backtrace information, it should set
-// TraceBuffer[0] == nullptr.
-typedef void (*Backtrace_t)(uintptr_t *TraceBuffer, size_t Size);
-typedef void (*PrintBacktrace_t)(uintptr_t *TraceBuffer, Printf_t Print);
+// ================================ Requirements ===============================
+// This function is required to be either implemented by the supporting
+// allocator, or one of the two provided implementations may be used
+// (RTGwpAsanBacktraceLibc or RTGwpAsanBacktraceSanitizerCommon).
+// ================================ Description ================================
+// This function shall collect the backtrace for the calling thread and place
+// the result in `TraceBuffer`. This function should elide itself and all frames
+// below itself from `TraceBuffer`, i.e. the caller's frame should be in
+// TraceBuffer[0], and subsequent frames 1..n into TraceBuffer[1..n], where a
+// maximum of `Size` frames are stored. Returns the number of frames stored into
+// `TraceBuffer`, and zero on failure. If the return value of this function is
+// equal to `Size`, it may indicate that the backtrace is truncated.
+// =================================== Notes ===================================
+// This function may directly or indirectly call malloc(), as the
+// GuardedPoolAllocator contains a reentrancy barrier to prevent infinite
+// recursion. Any allocation made inside this function will be served by the
+// supporting allocator, and will not have GWP-ASan protections.
+typedef size_t (*Backtrace_t)(uintptr_t *TraceBuffer, size_t Size);
 
 struct Options {
-  Printf_t Printf = nullptr;
   Backtrace_t Backtrace = nullptr;
-  PrintBacktrace_t PrintBacktrace = nullptr;
 
   // Read the options from the included definitions file.
 #define GWP_ASAN_OPTION(Type, Name, DefaultValue, Description)                 \
@@ -48,9 +48,7 @@ struct Options {
 #include "gwp_asan/options.inc"
 #undef GWP_ASAN_OPTION
 
-    Printf = nullptr;
     Backtrace = nullptr;
-    PrintBacktrace = nullptr;
   }
 };
 } // namespace options

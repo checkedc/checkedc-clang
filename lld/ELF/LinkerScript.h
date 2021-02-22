@@ -109,14 +109,14 @@ struct SymbolAssignment : BaseCommand {
   std::string commandString;
 
   // Address of this assignment command.
-  unsigned addr;
+  uint64_t addr;
 
   // Size of this assignment command. This is usually 0, but if
   // you move '.' this may be greater than 0.
-  unsigned size;
+  uint64_t size;
 };
 
-// Linker scripts allow additional constraints to be put on ouput sections.
+// Linker scripts allow additional constraints to be put on output sections.
 // If an output section is marked as ONLY_IF_RO, the section is created
 // only if its input sections are read-only. Likewise, an output section
 // with ONLY_IF_RW is created if all input sections are RW.
@@ -126,14 +126,14 @@ enum class ConstraintKind { NoConstraint, ReadOnly, ReadWrite };
 // target memory. Instances of the struct are created by parsing the
 // MEMORY command.
 struct MemoryRegion {
-  MemoryRegion(StringRef name, uint64_t origin, uint64_t length, uint32_t flags,
+  MemoryRegion(StringRef name, Expr origin, Expr length, uint32_t flags,
                uint32_t negFlags)
-      : name(name), origin(origin), length(length), flags(flags),
+      : name(std::string(name)), origin(origin), length(length), flags(flags),
         negFlags(negFlags) {}
 
   std::string name;
-  uint64_t origin;
-  uint64_t length;
+  Expr origin;
+  Expr length;
   uint32_t flags;
   uint32_t negFlags;
   uint64_t curPos = 0;
@@ -155,25 +155,37 @@ struct SectionPattern {
 };
 
 struct InputSectionDescription : BaseCommand {
-  InputSectionDescription(StringRef filePattern)
-      : BaseCommand(InputSectionKind), filePat(filePattern) {}
+  InputSectionDescription(StringRef filePattern, uint64_t withFlags = 0,
+                          uint64_t withoutFlags = 0)
+      : BaseCommand(InputSectionKind), filePat(filePattern),
+        withFlags(withFlags), withoutFlags(withoutFlags) {}
 
   static bool classof(const BaseCommand *c) {
     return c->kind == InputSectionKind;
   }
 
-  StringMatcher filePat;
+  SingleStringMatcher filePat;
 
   // Input sections that matches at least one of SectionPatterns
   // will be associated with this InputSectionDescription.
   std::vector<SectionPattern> sectionPatterns;
 
+  // Includes InputSections and MergeInputSections. Used temporarily during
+  // assignment of input sections to output sections.
+  std::vector<InputSectionBase *> sectionBases;
+
+  // Used after the finalizeInputSections() pass. MergeInputSections have been
+  // merged into MergeSyntheticSections.
   std::vector<InputSection *> sections;
 
   // Temporary record of synthetic ThunkSection instances and the pass that
   // they were created in. This is used to insert newly created ThunkSections
   // into Sections at the end of a createThunks() pass.
   std::vector<std::pair<ThunkSection *, uint32_t>> thunkSections;
+
+  // SectionPatterns can be filtered with the INPUT_SECTION_FLAGS command.
+  uint64_t withFlags;
+  uint64_t withoutFlags;
 };
 
 // Represents BYTE(), SHORT(), LONG(), or QUAD().
@@ -194,6 +206,12 @@ struct ByteCommand : BaseCommand {
 
   // Size of this data command.
   unsigned size;
+};
+
+struct InsertCommand {
+  OutputSection *os;
+  bool isAfter;
+  StringRef where;
 };
 
 struct PhdrsCommand {
@@ -226,10 +244,13 @@ class LinkerScript final {
   void expandOutputSection(uint64_t size);
   void expandMemoryRegions(uint64_t size);
 
-  std::vector<InputSection *>
-  computeInputSections(const InputSectionDescription *);
+  std::vector<InputSectionBase *>
+  computeInputSections(const InputSectionDescription *,
+                       ArrayRef<InputSectionBase *>);
 
-  std::vector<InputSection *> createInputSectionList(OutputSection &cmd);
+  std::vector<InputSectionBase *> createInputSectionList(OutputSection &cmd);
+
+  void discardSynthetic(OutputSection &);
 
   std::vector<size_t> getPhdrIndices(OutputSection *sec);
 
@@ -259,11 +280,12 @@ public:
 
   bool hasPhdrsCommands() { return !phdrsCommands.empty(); }
   uint64_t getDot() { return dot; }
-  void discard(ArrayRef<InputSection *> v);
+  void discard(InputSectionBase *s);
 
   ExprValue getSymbolValue(StringRef name, const Twine &loc);
 
   void addOrphanSections();
+  void diagnoseOrphanHandling() const;
   void adjustSectionsBeforeSorting();
   void adjustSectionsAfterSorting();
 
@@ -271,9 +293,10 @@ public:
   bool needsInterpSection();
 
   bool shouldKeep(InputSectionBase *s);
-  void assignAddresses();
+  const Defined *assignAddresses();
   void allocateHeaders(std::vector<PhdrEntry *> &phdrs);
   void processSectionCommands();
+  void processSymbolAssignments();
   void declareSymbols();
 
   // Used to handle INSERT AFTER statements.
@@ -298,10 +321,12 @@ public:
   // A list of symbols referenced by the script.
   std::vector<llvm::StringRef> referencedSymbols;
 
-  // Used to implement INSERT [AFTER|BEFORE]. Contains commands that need
-  // to be inserted into SECTIONS commands list.
-  llvm::DenseMap<StringRef, std::vector<BaseCommand *>> insertAfterCommands;
-  llvm::DenseMap<StringRef, std::vector<BaseCommand *>> insertBeforeCommands;
+  // Used to implement INSERT [AFTER|BEFORE]. Contains output sections that need
+  // to be reordered.
+  std::vector<InsertCommand> insertCommands;
+
+  // Sections that will be warned/errored by --orphan-handling.
+  std::vector<const InputSectionBase *> orphanSections;
 };
 
 extern LinkerScript *script;

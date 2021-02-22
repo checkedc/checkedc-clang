@@ -21,6 +21,14 @@
 #include <vector>
 
 namespace lld {
+
+std::string toString(coff::Symbol &b);
+
+// There are two different ways to convert an Archive::Symbol to a string:
+// One for Microsoft name mangling and one for Itanium name mangling.
+// Call the functions toCOFFString and toELFString, not just toString.
+std::string toCOFFString(const coff::Archive::Symbol &b);
+
 namespace coff {
 
 using llvm::object::Archive;
@@ -51,7 +59,8 @@ public:
     DefinedSyntheticKind,
 
     UndefinedKind,
-    LazyKind,
+    LazyArchiveKind,
+    LazyObjectKind,
 
     LastDefinedCOFFKind = DefinedCommonKind,
     LastDefinedKind = DefinedSyntheticKind,
@@ -60,7 +69,18 @@ public:
   Kind kind() const { return static_cast<Kind>(symbolKind); }
 
   // Returns the symbol name.
-  StringRef getName();
+  StringRef getName() {
+    // COFF symbol names are read lazily for a performance reason.
+    // Non-external symbol names are never used by the linker except for logging
+    // or debugging. Their internal references are resolved not by name but by
+    // symbol index. And because they are not external, no one can refer them by
+    // name. Object files contain lots of non-external symbols, and creating
+    // StringRefs for them (which involves lots of strlen() on the string table)
+    // is a waste of time.
+    if (nameData == nullptr)
+      computeName();
+    return StringRef(nameData, nameSize);
+  }
 
   void replaceKeepingName(Symbol *other, size_t size);
 
@@ -70,6 +90,13 @@ public:
   // Indicates that this symbol will be included in the final image. Only valid
   // after calling markLive.
   bool isLive() const;
+
+  bool isLazy() const {
+    return symbolKind == LazyArchiveKind || symbolKind == LazyObjectKind;
+  }
+
+private:
+  void computeName();
 
 protected:
   friend SymbolTable;
@@ -215,6 +242,7 @@ public:
 
   uint64_t getRVA() { return va - config->imageBase; }
   void setVA(uint64_t v) { va = v; }
+  uint64_t getVA() const { return va; }
 
   // Section index relocations against absolute symbols resolve to
   // this 16 bit number, and it is the largest valid section index
@@ -248,22 +276,27 @@ private:
 // This class represents a symbol defined in an archive file. It is
 // created from an archive file header, and it knows how to load an
 // object file from an archive to replace itself with a defined
-// symbol. If the resolver finds both Undefined and Lazy for
-// the same name, it will ask the Lazy to load a file.
-class Lazy : public Symbol {
+// symbol. If the resolver finds both Undefined and LazyArchive for
+// the same name, it will ask the LazyArchive to load a file.
+class LazyArchive : public Symbol {
 public:
-  Lazy(ArchiveFile *f, const Archive::Symbol s)
-      : Symbol(LazyKind, s.getName()), file(f), sym(s) {}
+  LazyArchive(ArchiveFile *f, const Archive::Symbol s)
+      : Symbol(LazyArchiveKind, s.getName()), file(f), sym(s) {}
 
-  static bool classof(const Symbol *s) { return s->kind() == LazyKind; }
+  static bool classof(const Symbol *s) { return s->kind() == LazyArchiveKind; }
+
+  MemoryBufferRef getMemberBuffer();
 
   ArchiveFile *file;
-
-private:
-  friend SymbolTable;
-
-private:
   const Archive::Symbol sym;
+};
+
+class LazyObject : public Symbol {
+public:
+  LazyObject(LazyObjFile *f, StringRef n)
+      : Symbol(LazyObjectKind, n), file(f) {}
+  static bool classof(const Symbol *s) { return s->kind() == LazyObjectKind; }
+  LazyObjFile *file;
 };
 
 // Undefined symbols.
@@ -371,7 +404,8 @@ inline uint64_t Defined::getRVA() {
     return cast<DefinedCommon>(this)->getRVA();
   case DefinedRegularKind:
     return cast<DefinedRegular>(this)->getRVA();
-  case LazyKind:
+  case LazyArchiveKind:
+  case LazyObjectKind:
   case UndefinedKind:
     llvm_unreachable("Cannot get the address for an undefined symbol.");
   }
@@ -394,7 +428,8 @@ inline Chunk *Defined::getChunk() {
     return cast<DefinedLocalImport>(this)->getChunk();
   case DefinedCommonKind:
     return cast<DefinedCommon>(this)->getChunk();
-  case LazyKind:
+  case LazyArchiveKind:
+  case LazyObjectKind:
   case UndefinedKind:
     llvm_unreachable("Cannot get the chunk of an undefined symbol.");
   }
@@ -409,11 +444,12 @@ union SymbolUnion {
   alignas(DefinedCommon) char b[sizeof(DefinedCommon)];
   alignas(DefinedAbsolute) char c[sizeof(DefinedAbsolute)];
   alignas(DefinedSynthetic) char d[sizeof(DefinedSynthetic)];
-  alignas(Lazy) char e[sizeof(Lazy)];
+  alignas(LazyArchive) char e[sizeof(LazyArchive)];
   alignas(Undefined) char f[sizeof(Undefined)];
   alignas(DefinedImportData) char g[sizeof(DefinedImportData)];
   alignas(DefinedImportThunk) char h[sizeof(DefinedImportThunk)];
   alignas(DefinedLocalImport) char i[sizeof(DefinedLocalImport)];
+  alignas(LazyObject) char j[sizeof(LazyObject)];
 };
 
 template <typename T, typename... ArgT>
@@ -429,7 +465,6 @@ void replaceSymbol(Symbol *s, ArgT &&... arg) {
 }
 } // namespace coff
 
-std::string toString(coff::Symbol &b);
 } // namespace lld
 
 #endif

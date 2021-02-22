@@ -1,4 +1,4 @@
-//===-- ArgsTest.cpp --------------------------------------------*- C++ -*-===//
+//===-- ArgsTest.cpp ------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -35,6 +35,34 @@ TEST(ArgsTest, TestSingleArgWithQuotedSpace) {
   args.SetCommandString("arg\\ with\\ space");
   EXPECT_EQ(1u, args.GetArgumentCount());
   EXPECT_STREQ(args.GetArgumentAtIndex(0), "arg with space");
+}
+
+TEST(ArgsTest, TestTrailingBackslash) {
+  Args args;
+  args.SetCommandString("arg\\");
+  EXPECT_EQ(1u, args.GetArgumentCount());
+  EXPECT_STREQ(args.GetArgumentAtIndex(0), "arg\\");
+}
+
+TEST(ArgsTest, TestQuotedTrailingBackslash) {
+  Args args;
+  args.SetCommandString("\"arg\\");
+  EXPECT_EQ(1u, args.GetArgumentCount());
+  EXPECT_STREQ(args.GetArgumentAtIndex(0), "arg\\");
+}
+
+TEST(ArgsTest, TestUnknownEscape) {
+  Args args;
+  args.SetCommandString("arg\\y");
+  EXPECT_EQ(1u, args.GetArgumentCount());
+  EXPECT_STREQ(args.GetArgumentAtIndex(0), "arg\\y");
+}
+
+TEST(ArgsTest, TestQuotedUnknownEscape) {
+  Args args;
+  args.SetCommandString("\"arg\\y");
+  EXPECT_EQ(1u, args.GetArgumentCount());
+  EXPECT_STREQ(args.GetArgumentAtIndex(0), "arg\\y");
 }
 
 TEST(ArgsTest, TestMultipleArgs) {
@@ -124,9 +152,9 @@ TEST(ArgsTest, StringListConstructor) {
        << "baz";
   Args args(list);
   ASSERT_EQ(3u, args.GetArgumentCount());
-  EXPECT_EQ("foo", args[0].ref);
-  EXPECT_EQ("bar", args[1].ref);
-  EXPECT_EQ("baz", args[2].ref);
+  EXPECT_EQ("foo", args[0].ref());
+  EXPECT_EQ("bar", args[1].ref());
+  EXPECT_EQ("baz", args[2].ref());
 }
 
 TEST(ArgsTest, GetQuotedCommandString) {
@@ -213,4 +241,75 @@ TEST(ArgsTest, EscapeLLDBCommandArgument) {
   EXPECT_EQ("quux\t", Args::EscapeLLDBCommandArgument(quux, '\''));
   EXPECT_EQ("quux\t", Args::EscapeLLDBCommandArgument(quux, '`'));
   EXPECT_EQ("quux\t", Args::EscapeLLDBCommandArgument(quux, '"'));
+}
+
+TEST(ArgsTest, ReplaceArgumentAtIndexShort) {
+  Args args;
+  args.SetCommandString("foo ba b");
+  args.ReplaceArgumentAtIndex(0, "f");
+  EXPECT_EQ(3u, args.GetArgumentCount());
+  EXPECT_STREQ(args.GetArgumentAtIndex(0), "f");
+}
+
+TEST(ArgsTest, ReplaceArgumentAtIndexEqual) {
+  Args args;
+  args.SetCommandString("foo ba b");
+  args.ReplaceArgumentAtIndex(0, "bar");
+  EXPECT_EQ(3u, args.GetArgumentCount());
+  EXPECT_STREQ(args.GetArgumentAtIndex(0), "bar");
+}
+
+TEST(ArgsTest, ReplaceArgumentAtIndexLonger) {
+  Args args;
+  args.SetCommandString("foo ba b");
+  args.ReplaceArgumentAtIndex(0, "baar");
+  EXPECT_EQ(3u, args.GetArgumentCount());
+  EXPECT_STREQ(args.GetArgumentAtIndex(0), "baar");
+}
+
+TEST(ArgsTest, ReplaceArgumentAtIndexOutOfRange) {
+  Args args;
+  args.SetCommandString("foo ba b");
+  args.ReplaceArgumentAtIndex(3, "baar");
+  EXPECT_EQ(3u, args.GetArgumentCount());
+  EXPECT_STREQ(args.GetArgumentAtIndex(2), "b");
+}
+
+TEST(ArgsTest, ReplaceArgumentAtIndexFarOutOfRange) {
+  Args args;
+  args.SetCommandString("foo ba b");
+  args.ReplaceArgumentAtIndex(4, "baar");
+  EXPECT_EQ(3u, args.GetArgumentCount());
+  EXPECT_STREQ(args.GetArgumentAtIndex(2), "b");
+}
+
+TEST(ArgsTest, Yaml) {
+  std::string buffer;
+  llvm::raw_string_ostream os(buffer);
+
+  // Serialize.
+  Args args;
+  args.SetCommandString("this 'has' \"multiple\" args");
+  llvm::yaml::Output yout(os);
+  yout << args;
+  os.flush();
+
+  llvm::outs() << buffer;
+
+  // Deserialize.
+  Args deserialized;
+  llvm::yaml::Input yin(buffer);
+  yin >> deserialized;
+
+  EXPECT_EQ(4u, deserialized.GetArgumentCount());
+  EXPECT_STREQ(deserialized.GetArgumentAtIndex(0), "this");
+  EXPECT_STREQ(deserialized.GetArgumentAtIndex(1), "has");
+  EXPECT_STREQ(deserialized.GetArgumentAtIndex(2), "multiple");
+  EXPECT_STREQ(deserialized.GetArgumentAtIndex(3), "args");
+
+  llvm::ArrayRef<Args::ArgEntry> entries = deserialized.entries();
+  EXPECT_EQ(entries[0].GetQuoteChar(), '\0');
+  EXPECT_EQ(entries[1].GetQuoteChar(), '\'');
+  EXPECT_EQ(entries[2].GetQuoteChar(), '"');
+  EXPECT_EQ(entries[3].GetQuoteChar(), '\0');
 }

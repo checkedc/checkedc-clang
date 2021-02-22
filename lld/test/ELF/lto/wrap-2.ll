@@ -16,7 +16,7 @@
 ; Make sure that calls in foo() are not eliminated and that bar is
 ; routed to __wrap_bar and __real_bar is routed to bar.
 
-; CHECK:      foo:
+; CHECK:      <foo>:
 ; CHECK-NEXT: pushq	%rax
 ; CHECK-NEXT: callq{{.*}}<__wrap_bar>
 ; CHECK-NEXT: popq  %rax
@@ -27,16 +27,12 @@
 ; BIND-NEXT: Value:
 ; BIND-NEXT: Size:
 ; BIND-NEXT: Binding: Local
-; BIND:      Name: __real_bar
-; BIND-NEXT: Value:
-; BIND-NEXT: Size:
-; BIND-NEXT: Binding: Local
 ; BIND:      Name: __wrap_bar
 ; BIND-NEXT: Value:
 ; BIND-NEXT: Size:
 ; BIND-NEXT: Binding: Local
 
-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
 declare void @bar()

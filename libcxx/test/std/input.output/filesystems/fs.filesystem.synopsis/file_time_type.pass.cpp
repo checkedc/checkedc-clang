@@ -6,13 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
 // typedef TrivialClock file_time_type;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <chrono>
 #include <type_traits>
 

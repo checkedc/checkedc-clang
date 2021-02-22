@@ -220,7 +220,8 @@ void parseAligncomm(StringRef s) {
     error("/aligncomm: invalid argument: " + s);
     return;
   }
-  config->alignComm[name] = std::max(config->alignComm[name], 1 << v);
+  config->alignComm[std::string(name)] =
+      std::max(config->alignComm[std::string(name)], 1 << v);
 }
 
 // Parses /functionpadmin option argument.
@@ -318,11 +319,11 @@ public:
     SmallString<128> s;
     if (auto ec = sys::fs::createTemporaryFile("lld-" + prefix, extn, s))
       fatal("cannot create a temporary file: " + ec.message());
-    path = s.str();
+    path = std::string(s.str());
 
     if (!contents.empty()) {
       std::error_code ec;
-      raw_fd_ostream os(path, ec, sys::fs::F_None);
+      raw_fd_ostream os(path, ec, sys::fs::OF_None);
       if (ec)
         fatal("failed to open " + path + ": " + ec.message());
       os << contents;
@@ -403,14 +404,14 @@ static std::string createManifestXmlWithInternalMt(StringRef defaultXml) {
             toString(std::move(e)));
   }
 
-  return merger.getMergedManifest().get()->getBuffer();
+  return std::string(merger.getMergedManifest().get()->getBuffer());
 }
 
 static std::string createManifestXmlWithExternalMt(StringRef defaultXml) {
   // Create the default manifest file as a temporary file.
   TemporaryFile Default("defaultxml", "manifest");
   std::error_code ec;
-  raw_fd_ostream os(Default.path, ec, sys::fs::F_Text);
+  raw_fd_ostream os(Default.path, ec, sys::fs::OF_Text);
   if (ec)
     fatal("failed to open " + Default.path + ": " + ec.message());
   os << defaultXml;
@@ -431,9 +432,10 @@ static std::string createManifestXmlWithExternalMt(StringRef defaultXml) {
   e.add("/out:" + StringRef(user.path));
   e.run();
 
-  return CHECK(MemoryBuffer::getFile(user.path), "could not open " + user.path)
-      .get()
-      ->getBuffer();
+  return std::string(
+      CHECK(MemoryBuffer::getFile(user.path), "could not open " + user.path)
+          .get()
+          ->getBuffer());
 }
 
 static std::string createManifestXml() {
@@ -507,11 +509,11 @@ std::unique_ptr<MemoryBuffer> createManifestRes() {
 }
 
 void createSideBySideManifest() {
-  std::string path = config->manifestFile;
+  std::string path = std::string(config->manifestFile);
   if (path == "")
     path = config->outputFile + ".manifest";
   std::error_code ec;
-  raw_fd_ostream out(path, ec, sys::fs::F_Text);
+  raw_fd_ostream out(path, ec, sys::fs::OF_Text);
   if (ec)
     fatal("failed to create manifest: " + ec.message());
   out << createManifestXml();
@@ -700,25 +702,41 @@ void checkFailIfMismatch(StringRef arg, InputFile *source) {
 
 // Convert Windows resource files (.res files) to a .obj file.
 // Does what cvtres.exe does, but in-process and cross-platform.
-MemoryBufferRef convertResToCOFF(ArrayRef<MemoryBufferRef> mbs) {
-  object::WindowsResourceParser parser;
+MemoryBufferRef convertResToCOFF(ArrayRef<MemoryBufferRef> mbs,
+                                 ArrayRef<ObjFile *> objs) {
+  object::WindowsResourceParser parser(/* MinGW */ config->mingw);
 
+  std::vector<std::string> duplicates;
   for (MemoryBufferRef mb : mbs) {
     std::unique_ptr<object::Binary> bin = check(object::createBinary(mb));
     object::WindowsResource *rf = dyn_cast<object::WindowsResource>(bin.get());
     if (!rf)
       fatal("cannot compile non-resource file as resource");
 
-    std::vector<std::string> duplicates;
     if (auto ec = parser.parse(rf, duplicates))
       fatal(toString(std::move(ec)));
-
-    for (const auto &dupeDiag : duplicates)
-      if (config->forceMultipleRes)
-        warn(dupeDiag);
-      else
-        error(dupeDiag);
   }
+
+  // Note: This processes all .res files before all objs. Ideally they'd be
+  // handled in the same order they were linked (to keep the right one, if
+  // there are duplicates that are tolerated due to forceMultipleRes).
+  for (ObjFile *f : objs) {
+    object::ResourceSectionRef rsf;
+    if (auto ec = rsf.load(f->getCOFFObj()))
+      fatal(toString(f) + ": " + toString(std::move(ec)));
+
+    if (auto ec = parser.parse(rsf, f->getName(), duplicates))
+      fatal(toString(std::move(ec)));
+  }
+
+  if (config->mingw)
+    parser.cleanUpManifests(duplicates);
+
+  for (const auto &dupeDiag : duplicates)
+    if (config->forceMultipleRes)
+      warn(dupeDiag);
+    else
+      error(dupeDiag);
 
   Expected<std::unique_ptr<MemoryBuffer>> e =
       llvm::object::writeWindowsResourceCOFF(config->machine, parser,
@@ -749,6 +767,8 @@ static const llvm::opt::OptTable::Info infoTable[] = {
 
 COFFOptTable::COFFOptTable() : OptTable(infoTable, true) {}
 
+COFFOptTable optTable;
+
 // Set color diagnostics according to --color-diagnostics={auto,always,never}
 // or --no-color-diagnostics flags.
 static void handleColorDiagnostics(opt::InputArgList &args) {
@@ -757,15 +777,15 @@ static void handleColorDiagnostics(opt::InputArgList &args) {
   if (!arg)
     return;
   if (arg->getOption().getID() == OPT_color_diagnostics) {
-    errorHandler().colorDiagnostics = true;
+    lld::errs().enable_colors(true);
   } else if (arg->getOption().getID() == OPT_no_color_diagnostics) {
-    errorHandler().colorDiagnostics = false;
+    lld::errs().enable_colors(false);
   } else {
     StringRef s = arg->getValue();
     if (s == "always")
-      errorHandler().colorDiagnostics = true;
+      lld::errs().enable_colors(true);
     else if (s == "never")
-      errorHandler().colorDiagnostics = false;
+      lld::errs().enable_colors(false);
     else if (s != "auto")
       error("unknown option: --color-diagnostics=" + s);
   }
@@ -792,16 +812,19 @@ opt::InputArgList ArgParser::parse(ArrayRef<const char *> argv) {
 
   // We need to get the quoting style for response files before parsing all
   // options so we parse here before and ignore all the options but
-  // --rsp-quoting.
-  opt::InputArgList args = table.ParseArgs(argv, missingIndex, missingCount);
+  // --rsp-quoting and /lldignoreenv.
+  // (This means --rsp-quoting can't be added through %LINK%.)
+  opt::InputArgList args = optTable.ParseArgs(argv, missingIndex, missingCount);
 
-  // Expand response files (arguments in the form of @<filename>)
-  // and then parse the argument again.
+  // Expand response files (arguments in the form of @<filename>) and insert
+  // flags from %LINK% and %_LINK_%, and then parse the argument again.
   SmallVector<const char *, 256> expandedArgv(argv.data(),
                                               argv.data() + argv.size());
+  if (!args.hasArg(OPT_lldignoreenv))
+    addLINK(expandedArgv);
   cl::ExpandResponseFiles(saver, getQuotingStyle(args), expandedArgv);
-  args = table.ParseArgs(makeArrayRef(expandedArgv).drop_front(), missingIndex,
-                         missingCount);
+  args = optTable.ParseArgs(makeArrayRef(expandedArgv).drop_front(),
+                            missingIndex, missingCount);
 
   // Print the real command line if response files are expanded.
   if (args.hasArg(OPT_verbose) && argv.size() != expandedArgv.size()) {
@@ -825,7 +848,7 @@ opt::InputArgList ArgParser::parse(ArrayRef<const char *> argv) {
 
   for (auto *arg : args.filtered(OPT_UNKNOWN)) {
     std::string nearest;
-    if (table.findNearest(arg->getAsString(args), nearest) > 1)
+    if (optTable.findNearest(arg->getAsString(args), nearest) > 1)
       warn("ignoring unknown argument '" + arg->getAsString(args) + "'");
     else
       warn("ignoring unknown argument '" + arg->getAsString(args) +
@@ -839,36 +862,44 @@ opt::InputArgList ArgParser::parse(ArrayRef<const char *> argv) {
 }
 
 // Tokenizes and parses a given string as command line in .drective section.
-// /EXPORT options are processed in fastpath.
-std::pair<opt::InputArgList, std::vector<StringRef>>
-ArgParser::parseDirectives(StringRef s) {
-  std::vector<StringRef> exports;
+ParsedDirectives ArgParser::parseDirectives(StringRef s) {
+  ParsedDirectives result;
   SmallVector<const char *, 16> rest;
 
-  for (StringRef tok : tokenize(s)) {
+  // Handle /EXPORT and /INCLUDE in a fast path. These directives can appear for
+  // potentially every symbol in the object, so they must be handled quickly.
+  SmallVector<StringRef, 16> tokens;
+  cl::TokenizeWindowsCommandLineNoCopy(s, saver, tokens);
+  for (StringRef tok : tokens) {
     if (tok.startswith_lower("/export:") || tok.startswith_lower("-export:"))
-      exports.push_back(tok.substr(strlen("/export:")));
-    else
-      rest.push_back(tok.data());
+      result.exports.push_back(tok.substr(strlen("/export:")));
+    else if (tok.startswith_lower("/include:") ||
+             tok.startswith_lower("-include:"))
+      result.includes.push_back(tok.substr(strlen("/include:")));
+    else {
+      // Save non-null-terminated strings to make proper C strings.
+      bool HasNul = tok.data()[tok.size()] == '\0';
+      rest.push_back(HasNul ? tok.data() : saver.save(tok).data());
+    }
   }
 
   // Make InputArgList from unparsed string vectors.
   unsigned missingIndex;
   unsigned missingCount;
 
-  opt::InputArgList args = table.ParseArgs(rest, missingIndex, missingCount);
+  result.args = optTable.ParseArgs(rest, missingIndex, missingCount);
 
   if (missingCount)
-    fatal(Twine(args.getArgString(missingIndex)) + ": missing argument");
-  for (auto *arg : args.filtered(OPT_UNKNOWN))
-    warn("ignoring unknown argument: " + arg->getAsString(args));
-  return {std::move(args), std::move(exports)};
+    fatal(Twine(result.args.getArgString(missingIndex)) + ": missing argument");
+  for (auto *arg : result.args.filtered(OPT_UNKNOWN))
+    warn("ignoring unknown argument: " + arg->getAsString(result.args));
+  return result;
 }
 
 // link.exe has an interesting feature. If LINK or _LINK_ environment
 // variables exist, their contents are handled as command line strings.
 // So you can pass extra arguments using them.
-opt::InputArgList ArgParser::parseLINK(std::vector<const char *> argv) {
+void ArgParser::addLINK(SmallVector<const char *, 256> &argv) {
   // Concatenate LINK env and command line arguments, and then parse them.
   if (Optional<std::string> s = Process::GetEnv("LINK")) {
     std::vector<const char *> v = tokenize(*s);
@@ -878,7 +909,6 @@ opt::InputArgList ArgParser::parseLINK(std::vector<const char *> argv) {
     std::vector<const char *> v = tokenize(*s);
     argv.insert(std::next(argv.begin()), v.begin(), v.end());
   }
-  return parse(argv);
 }
 
 std::vector<const char *> ArgParser::tokenize(StringRef s) {
@@ -888,9 +918,9 @@ std::vector<const char *> ArgParser::tokenize(StringRef s) {
 }
 
 void printHelp(const char *argv0) {
-  COFFOptTable().PrintHelp(outs(),
-                           (std::string(argv0) + " [options] file...").c_str(),
-                           "LLVM Linker", false);
+  optTable.PrintHelp(lld::outs(),
+                     (std::string(argv0) + " [options] file...").c_str(),
+                     "LLVM Linker", false);
 }
 
 } // namespace coff

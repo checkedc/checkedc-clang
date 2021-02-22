@@ -60,7 +60,7 @@ https://github.com/llvm/llvm-project/tree/master/llvm/utils/lit
         'Development Status :: 3 - Alpha',
         'Environment :: Console',
         'Intended Audience :: Developers',
-        'License :: OSI Approved :: Apache-2.0 with LLVM exception',
+        'License :: OSI Approved :: Apache Software License',
         'Natural Language :: English',
         'Operating System :: OS Independent',
         'Programming Language :: Python',
@@ -71,7 +71,7 @@ https://github.com/llvm/llvm-project/tree/master/llvm/utils/lit
     packages = find_packages(),
     entry_points = {
         'console_scripts': [
-            'lit = lit:main',
+            'lit = lit.main:main',
             ],
         }
 )

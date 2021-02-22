@@ -6,7 +6,7 @@
 #
 # ##===----------------------------------------------------------------------===##
 #
-# Build a device RTL for each available machine available.
+# Build a device RTL for each available machine.
 #
 ##===----------------------------------------------------------------------===##
 

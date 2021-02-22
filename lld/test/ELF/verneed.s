@@ -7,7 +7,7 @@
 
 # RUN: llvm-mc -filetype=obj -triple=x86_64-pc-linux %s -o %t.o
 # RUN: ld.lld --hash-style=sysv %t.o %t1.so %t2.so -o %t
-# RUN: llvm-readobj -V --sections --section-data --dyn-syms --dynamic-table %t | FileCheck %s
+# RUN: llvm-readobj -S -d --section-data --dyn-syms -V %t | FileCheck %s
 
 # CHECK:        Section {
 # CHECK:          Index: 1
@@ -74,6 +74,10 @@
 # CHECK-NEXT:     )
 # CHECK-NEXT:   }
 
+# CHECK:      0x000000006FFFFFF0 VERSYM               [[VERSYM]]
+# CHECK-NEXT: 0x000000006FFFFFFE VERNEED              [[VERNEED]]
+# CHECK-NEXT: 0x000000006FFFFFFF VERNEEDNUM           2
+
 # CHECK:      DynamicSymbols [
 # CHECK-NEXT:   Symbol {
 # CHECK-NEXT:     Name:
@@ -113,37 +117,27 @@
 # CHECK-NEXT:   }
 # CHECK-NEXT: ]
 
-# CHECK:      0x000000006FFFFFF0 VERSYM               [[VERSYM]]
-# CHECK-NEXT: 0x000000006FFFFFFE VERNEED              [[VERNEED]]
-# CHECK-NEXT: 0x000000006FFFFFFF VERNEEDNUM           2
-
-# CHECK:      Version symbols {
-# CHECK-NEXT:    Section Name: .gnu.version
-# CHECK-NEXT:    Address: [[VERSYM]]
-# CHECK-NEXT:    Offset: [[VERSYM_OFFSET]]
-# CHECK-NEXT:    Link: 1
-# CHECK-NEXT:    Symbols [
-# CHECK-NEXT:      Symbol {
-# CHECK-NEXT:        Version: 0
-# CHECK-NEXT:        Name:
-# CHECK-NEXT:      }
-# CHECK-NEXT:      Symbol {
-# CHECK-NEXT:        Version: 2
-# CHECK-NEXT:        Name: f1@v3
-# CHECK-NEXT:      }
-# CHECK-NEXT:      Symbol {
-# CHECK-NEXT:        Version: 3
-# CHECK-NEXT:        Name: f2@v2
-# CHECK-NEXT:      }
-# CHECK-NEXT:      Symbol {
-# CHECK-NEXT:        Version: 4
-# CHECK-NEXT:        Name: g1@v1
-# CHECK-NEXT:      }
-# CHECK-NEXT:    ]
-# CHECK-NEXT:  }
-# CHECK-NEXT:  SHT_GNU_verdef {
-# CHECK-NEXT:  }
-# CHECK-NEXT:  SHT_GNU_verneed {
+# CHECK:      VersionSymbols [
+# CHECK-NEXT:    Symbol {
+# CHECK-NEXT:      Version: 0
+# CHECK-NEXT:      Name:
+# CHECK-NEXT:    }
+# CHECK-NEXT:    Symbol {
+# CHECK-NEXT:      Version: 2
+# CHECK-NEXT:      Name: f1@v3
+# CHECK-NEXT:    }
+# CHECK-NEXT:    Symbol {
+# CHECK-NEXT:      Version: 3
+# CHECK-NEXT:      Name: f2@v2
+# CHECK-NEXT:    }
+# CHECK-NEXT:    Symbol {
+# CHECK-NEXT:      Version: 4
+# CHECK-NEXT:      Name: g1@v1
+# CHECK-NEXT:    }
+# CHECK-NEXT:  ]
+# CHECK-NEXT:  VersionDefinitions [
+# CHECK-NEXT:  ]
+# CHECK-NEXT:  VersionRequirements [
 # CHECK-NEXT:    Dependency {
 # CHECK-NEXT:      Version: 1
 # CHECK-NEXT:      Count: 2
@@ -151,13 +145,15 @@
 # CHECK-NEXT:      Entries [
 # CHECK-NEXT:        Entry {
 # CHECK-NEXT:          Hash: 1938
-# CHECK-NEXT:          Flags: 0x0
+# CHECK-NEXT:          Flags [ (0x0)
+# CHECK-NEXT:          ]
 # CHECK-NEXT:          Index: 3
 # CHECK-NEXT:          Name: v2
 # CHECK-NEXT:        }
 # CHECK-NEXT:        Entry {
 # CHECK-NEXT:          Hash: 1939
-# CHECK-NEXT:          Flags: 0x0
+# CHECK-NEXT:          Flags [ (0x0)
+# CHECK-NEXT:          ]
 # CHECK-NEXT:          Index: 2
 # CHECK-NEXT:          Name: v3
 # CHECK-NEXT:        }
@@ -170,13 +166,14 @@
 # CHECK-NEXT:      Entries [
 # CHECK-NEXT:        Entry {
 # CHECK-NEXT:          Hash: 1937
-# CHECK-NEXT:          Flags: 0x0
+# CHECK-NEXT:          Flags [ (0x0)
+# CHECK-NEXT:          ]
 # CHECK-NEXT:          Index: 4
 # CHECK-NEXT:          Name: v1
 # CHECK-NEXT:        }
 # CHECK-NEXT:      ]
 # CHECK-NEXT:    }
-# CHECK-NEXT:  }
+# CHECK-NEXT:  ]
 
 .globl _start
 _start:

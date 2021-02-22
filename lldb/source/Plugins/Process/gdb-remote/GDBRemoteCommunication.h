@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_GDBRemoteCommunication_h_
-#define liblldb_GDBRemoteCommunication_h_
+#ifndef LLDB_SOURCE_PLUGINS_PROCESS_GDB_REMOTE_GDBREMOTECOMMUNICATION_H
+#define LLDB_SOURCE_PLUGINS_PROCESS_GDB_REMOTE_GDBREMOTECOMMUNICATION_H
 
 #include "GDBRemoteCommunicationHistory.h"
 
@@ -27,6 +27,9 @@
 #include "lldb/lldb-public.h"
 
 namespace lldb_private {
+namespace repro {
+class PacketRecorder;
+}
 namespace process_gdb_remote {
 
 enum GDBStoppointType {
@@ -133,10 +136,14 @@ public:
                          // fork/exec to avoid having to connect/accept
 
   void DumpHistory(Stream &strm);
-  void SetHistoryStream(llvm::raw_ostream *strm);
+
+  void SetPacketRecorder(repro::PacketRecorder *recorder);
 
   static llvm::Error ConnectLocally(GDBRemoteCommunication &client,
                                     GDBRemoteCommunication &server);
+
+  /// Expand GDB run-length encoding.
+  static std::string ExpandRLE(std::string);
 
 protected:
   std::chrono::seconds m_packet_timeout;
@@ -219,7 +226,9 @@ private:
   void *m_decompression_scratch = nullptr;
 #endif
 
-  DISALLOW_COPY_AND_ASSIGN(GDBRemoteCommunication);
+  GDBRemoteCommunication(const GDBRemoteCommunication &) = delete;
+  const GDBRemoteCommunication &
+  operator=(const GDBRemoteCommunication &) = delete;
 };
 
 } // namespace process_gdb_remote
@@ -235,4 +244,4 @@ struct format_provider<
 };
 } // namespace llvm
 
-#endif // liblldb_GDBRemoteCommunication_h_
+#endif // LLDB_SOURCE_PLUGINS_PROCESS_GDB_REMOTE_GDBREMOTECOMMUNICATION_H

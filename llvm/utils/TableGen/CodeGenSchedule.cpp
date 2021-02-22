@@ -106,7 +106,7 @@ struct InstRegexOp : public SetTheory::Operator {
       StringRef PatStr = Original.substr(FirstMeta);
       if (!PatStr.empty()) {
         // For the rest use a python-style prefix match.
-        std::string pat = PatStr;
+        std::string pat = std::string(PatStr);
         if (pat[0] != '^') {
           pat.insert(0, "^(");
           pat.insert(pat.end(), ')');
@@ -172,8 +172,8 @@ CodeGenSchedModels::CodeGenSchedModels(RecordKeeper &RK,
 
   // Allow Set evaluation to recognize the dags used in InstRW records:
   // (instrs Op1, Op1...)
-  Sets.addOperator("instrs", llvm::make_unique<InstrsOp>());
-  Sets.addOperator("instregex", llvm::make_unique<InstRegexOp>(Target));
+  Sets.addOperator("instrs", std::make_unique<InstrsOp>());
+  Sets.addOperator("instregex", std::make_unique<InstRegexOp>(Target));
 
   // Instantiate a CodeGenProcModel for each SchedMachineModel with the values
   // that are explicitly referenced in tablegen records. Resources associated
@@ -546,7 +546,7 @@ void CodeGenSchedModels::addProcModel(Record *ProcDef) {
   if (!ProcModelMap.insert(std::make_pair(ModelKey, ProcModels.size())).second)
     return;
 
-  std::string Name = ModelKey->getName();
+  std::string Name = std::string(ModelKey->getName());
   if (ModelKey->isSubClassOf("SchedMachineModel")) {
     Record *ItinsDef = ModelKey->getValueAsDef("Itineraries");
     ProcModels.emplace_back(ProcModels.size(), Name, ModelKey, ItinsDef);
@@ -977,7 +977,7 @@ CodeGenSchedModels::createSchedClassName(Record *ItinClassDef,
 
   std::string Name;
   if (ItinClassDef && ItinClassDef->getName() != "NoItinerary")
-    Name = ItinClassDef->getName();
+    Name = std::string(ItinClassDef->getName());
   for (unsigned Idx : OperWrites) {
     if (!Name.empty())
       Name += '_';
@@ -1082,11 +1082,14 @@ void CodeGenSchedModels::createInstRWClass(Record *InstRWDef) {
           for (Record *RWD : RWDefs) {
             if (RWD->getValueAsDef("SchedModel") == RWModelDef &&
                 RWModelDef->getValueAsBit("FullInstRWOverlapCheck")) {
-              for (Record *Inst : InstDefs) {
-                PrintFatalError(InstRWDef->getLoc(), "Overlapping InstRW def " +
-                            Inst->getName() + " also matches " +
-                            RWD->getValue("Instrs")->getValue()->getAsString());
-              }
+              assert(!InstDefs.empty()); // Checked at function start.
+              PrintFatalError
+                  (InstRWDef->getLoc(),
+                   "Overlapping InstRW definition for \"" +
+                   InstDefs.front()->getName() +
+                   "\" also matches previous \"" +
+                   RWD->getValue("Instrs")->getValue()->getAsString() +
+                   "\".");
             }
           }
           LLVM_DEBUG(dbgs() << "InstRW: Reuse SC " << OldSCIdx << ":"
@@ -1114,11 +1117,14 @@ void CodeGenSchedModels::createInstRWClass(Record *InstRWDef) {
       Record *RWModelDef = InstRWDef->getValueAsDef("SchedModel");
       for (Record *OldRWDef : SchedClasses[OldSCIdx].InstRWs) {
         if (OldRWDef->getValueAsDef("SchedModel") == RWModelDef) {
-          for (Record *InstDef : InstDefs) {
-            PrintFatalError(OldRWDef->getLoc(), "Overlapping InstRW def " +
-                       InstDef->getName() + " also matches " +
-                       OldRWDef->getValue("Instrs")->getValue()->getAsString());
-          }
+          assert(!InstDefs.empty()); // Checked at function start.
+          PrintFatalError
+              (InstRWDef->getLoc(),
+               "Overlapping InstRW definition for \"" +
+               InstDefs.front()->getName() +
+               "\" also matches previous \"" +
+               OldRWDef->getValue("Instrs")->getValue()->getAsString() +
+               "\".");
         }
         assert(OldRWDef != InstRWDef &&
                "SchedClass has duplicate InstRW def");

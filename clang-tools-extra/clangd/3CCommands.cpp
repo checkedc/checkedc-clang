@@ -34,13 +34,13 @@ void as3CCommands(const Diagnostic &D, std::vector<Command> &OutCommands) {
     AllPtrsCmd.The3CManualFix = PtrFix;
     Command SinglePtrCmd = AllPtrsCmd;
 
-    AllPtrsCmd.command = Command::_3C_APPLY_FOR_ALL;
+    AllPtrsCmd.command = std::string(Command::_3C_APPLY_FOR_ALL);
     AllPtrsCmd.title = "Make this pointer non-WILD and apply the "
                        "same observation to all the pointers.";
 
     OutCommands.push_back(AllPtrsCmd);
 
-    SinglePtrCmd.command = Command::_3C_APPLY_ONLY_FOR_THIS;
+    SinglePtrCmd.command = std::string(Command::_3C_APPLY_ONLY_FOR_THIS);
     SinglePtrCmd.title = "Make ONLY this pointer non-WILD.";
 
     OutCommands.push_back(SinglePtrCmd);
@@ -48,19 +48,19 @@ void as3CCommands(const Diagnostic &D, std::vector<Command> &OutCommands) {
 }
 
 bool is3CCommand(const ExecuteCommandParams &Params) {
-  return (Params.command.rfind(Command::_3C_APPLY_ONLY_FOR_THIS, 0) == 0) ||
-         (Params.command.rfind(Command::_3C_APPLY_FOR_ALL, 0) == 0);
+  return (Params.command.rfind(std::string(Command::_3C_APPLY_ONLY_FOR_THIS), 0) == 0) ||
+         (Params.command.rfind(std::string(Command::_3C_APPLY_FOR_ALL), 0) == 0);
 }
 
 bool execute3CCommand(const ExecuteCommandParams &Params,
                       std::string &ReplyMessage, _3CInterface &CcInterface) {
   ReplyMessage = "Checked C Pointer Modified.";
-  if (Params.command.rfind(Command::_3C_APPLY_ONLY_FOR_THIS, 0) == 0) {
+  if (Params.command.rfind(std::string(Command::_3C_APPLY_ONLY_FOR_THIS), 0) == 0) {
     int PtrId = Params.The3CManualFix->PtrId;
     CcInterface.makeSinglePtrNonWild(PtrId);
     return true;
   }
-  if (Params.command.rfind(Command::_3C_APPLY_FOR_ALL, 0) == 0) {
+  if (Params.command.rfind(std::string(Command::_3C_APPLY_FOR_ALL), 0) == 0) {
     int PtrId = Params.The3CManualFix->PtrId;
     CcInterface.invalidateWildReasonGlobally(PtrId);
     return true;

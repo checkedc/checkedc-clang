@@ -1,5 +1,4 @@
-//===-- AppleGetItemInfoHandler.cpp -------------------------------*- C++
-//-*-===//
+//===-- AppleGetItemInfoHandler.cpp ---------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,13 +8,12 @@
 
 #include "AppleGetItemInfoHandler.h"
 
-
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/Value.h"
 #include "lldb/Expression/DiagnosticManager.h"
 #include "lldb/Expression/FunctionCaller.h"
 #include "lldb/Expression/UtilityFunction.h"
-#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/Symbol.h"
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/Process.h"
@@ -108,7 +106,7 @@ void AppleGetItemInfoHandler::Detach() {
       m_get_item_info_return_buffer_addr != LLDB_INVALID_ADDRESS) {
     std::unique_lock<std::mutex> lock(m_get_item_info_retbuffer_mutex,
                                       std::defer_lock);
-    lock.try_lock(); // Even if we don't get the lock, deallocate the buffer
+    (void)lock.try_lock(); // Even if we don't get the lock, deallocate the buffer
     m_process->DeallocateMemory(m_get_item_info_return_buffer_addr);
   }
 }
@@ -150,50 +148,51 @@ lldb::addr_t AppleGetItemInfoHandler::SetupGetItemInfoFunction(
                 g_get_item_info_function_code, eLanguageTypeObjC,
                 g_get_item_info_function_name, error));
         if (error.Fail()) {
-          if (log)
-            log->Printf("Failed to get utility function: %s.",
-                        error.AsCString());
+          LLDB_LOGF(log, "Failed to get utility function: %s.",
+                    error.AsCString());
           return args_addr;
         }
 
         if (!m_get_item_info_impl_code->Install(diagnostics, exe_ctx)) {
           if (log) {
-            log->Printf("Failed to install get-item-info introspection.");
+            LLDB_LOGF(log, "Failed to install get-item-info introspection.");
             diagnostics.Dump(log);
           }
           m_get_item_info_impl_code.reset();
           return args_addr;
         }
       } else {
-        if (log)
-          log->Printf("No get-item-info introspection code found.");
+        LLDB_LOGF(log, "No get-item-info introspection code found.");
         return LLDB_INVALID_ADDRESS;
       }
 
       // Next make the runner function for our implementation utility function.
-      Status error;
-
-      TypeSystem *type_system =
+      auto type_system_or_err =
           thread.GetProcess()->GetTarget().GetScratchTypeSystemForLanguage(
-              nullptr, eLanguageTypeC);
+              eLanguageTypeC);
+      if (auto err = type_system_or_err.takeError()) {
+        LLDB_LOG_ERROR(log, std::move(err),
+                       "Error inseting get-item-info function");
+        return args_addr;
+      }
       CompilerType get_item_info_return_type =
-          type_system->GetBasicTypeFromAST(eBasicTypeVoid).GetPointerType();
+          type_system_or_err->GetBasicTypeFromAST(eBasicTypeVoid)
+              .GetPointerType();
 
+      Status error;
       get_item_info_caller = m_get_item_info_impl_code->MakeFunctionCaller(
           get_item_info_return_type, get_item_info_arglist,
           thread.shared_from_this(), error);
       if (error.Fail() || get_item_info_caller == nullptr) {
-        if (log)
-          log->Printf("Error Inserting get-item-info function: \"%s\".",
-                      error.AsCString());
+        LLDB_LOGF(log, "Error Inserting get-item-info function: \"%s\".",
+                  error.AsCString());
         return args_addr;
       }
     } else {
       // If it's already made, then we can just retrieve the caller:
       get_item_info_caller = m_get_item_info_impl_code->GetFunctionCaller();
       if (!get_item_info_caller) {
-        if (log)
-          log->Printf("Failed to get get-item-info introspection caller.");
+        LLDB_LOGF(log, "Failed to get get-item-info introspection caller.");
         m_get_item_info_impl_code.reset();
         return args_addr;
       }
@@ -210,7 +209,7 @@ lldb::addr_t AppleGetItemInfoHandler::SetupGetItemInfoFunction(
   if (!get_item_info_caller->WriteFunctionArguments(
           exe_ctx, args_addr, get_item_info_arglist, diagnostics)) {
     if (log) {
-      log->Printf("Error writing get-item-info function arguments.");
+      LLDB_LOGF(log, "Error writing get-item-info function arguments.");
       diagnostics.Dump(log);
     }
 
@@ -228,7 +227,7 @@ AppleGetItemInfoHandler::GetItemInfo(Thread &thread, uint64_t item,
   lldb::StackFrameSP thread_cur_frame = thread.GetStackFrameAtIndex(0);
   ProcessSP process_sp(thread.CalculateProcess());
   TargetSP target_sp(thread.CalculateTarget());
-  ClangASTContext *clang_ast_context = target_sp->GetScratchClangASTContext();
+  TypeSystemClang *clang_ast_context = TypeSystemClang::GetScratch(*target_sp);
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_SYSTEM_RUNTIME));
 
   GetItemInfoReturnInfo return_value;
@@ -238,9 +237,8 @@ AppleGetItemInfoHandler::GetItemInfo(Thread &thread, uint64_t item,
   error.Clear();
 
   if (!thread.SafeToCallFunctions()) {
-    if (log)
-      log->Printf("Not safe to call functions on thread 0x%" PRIx64,
-                  thread.GetID());
+    LLDB_LOGF(log, "Not safe to call functions on thread 0x%" PRIx64,
+              thread.GetID());
     error.SetErrorString("Not safe to call functions on this thread.");
     return return_value;
   }
@@ -297,9 +295,8 @@ AppleGetItemInfoHandler::GetItemInfo(Thread &thread, uint64_t item,
     addr_t bufaddr = process_sp->AllocateMemory(
         32, ePermissionsReadable | ePermissionsWritable, error);
     if (!error.Success() || bufaddr == LLDB_INVALID_ADDRESS) {
-      if (log)
-        log->Printf("Failed to allocate memory for return buffer for get "
-                    "current queues func call");
+      LLDB_LOGF(log, "Failed to allocate memory for return buffer for get "
+                     "current queues func call");
       return return_value;
     }
     m_get_item_info_return_buffer_addr = bufaddr;
@@ -333,6 +330,11 @@ AppleGetItemInfoHandler::GetItemInfo(Thread &thread, uint64_t item,
   options.SetUnwindOnError(true);
   options.SetIgnoreBreakpoints(true);
   options.SetStopOthers(true);
+#if __has_feature(address_sanitizer)
+  options.SetTimeout(process_sp->GetUtilityExpressionTimeout());
+#else
+  options.SetTimeout(std::chrono::milliseconds(500));
+#endif
   options.SetTimeout(process_sp->GetUtilityExpressionTimeout());
   options.SetTryAllThreads(false);
   options.SetIsForUtilityExpr(true);
@@ -348,9 +350,8 @@ AppleGetItemInfoHandler::GetItemInfo(Thread &thread, uint64_t item,
   Value results;
   FunctionCaller *func_caller = m_get_item_info_impl_code->GetFunctionCaller();
   if (!func_caller) {
-    if (log)
-      log->Printf("Could not retrieve function caller for "
-                  "__introspection_dispatch_queue_item_get_info.");
+    LLDB_LOGF(log, "Could not retrieve function caller for "
+                   "__introspection_dispatch_queue_item_get_info.");
     error.SetErrorString("Could not retrieve function caller for "
                          "__introspection_dispatch_queue_item_get_info.");
     return return_value;
@@ -359,11 +360,11 @@ AppleGetItemInfoHandler::GetItemInfo(Thread &thread, uint64_t item,
   func_call_ret = func_caller->ExecuteFunction(exe_ctx, &args_addr, options,
                                                diagnostics, results);
   if (func_call_ret != eExpressionCompleted || !error.Success()) {
-    if (log)
-      log->Printf("Unable to call "
-                  "__introspection_dispatch_queue_item_get_info(), got "
-                  "ExpressionResults %d, error contains %s",
-                  func_call_ret, error.AsCString(""));
+    LLDB_LOGF(log,
+              "Unable to call "
+              "__introspection_dispatch_queue_item_get_info(), got "
+              "ExpressionResults %d, error contains %s",
+              func_call_ret, error.AsCString(""));
     error.SetErrorString("Unable to call "
                          "__introspection_dispatch_queue_get_item_info() for "
                          "list of queues");
@@ -385,13 +386,13 @@ AppleGetItemInfoHandler::GetItemInfo(Thread &thread, uint64_t item,
     return_value.item_buffer_ptr = LLDB_INVALID_ADDRESS;
     return return_value;
   }
-  if (log)
-    log->Printf("AppleGetItemInfoHandler called "
-                "__introspection_dispatch_queue_item_get_info (page_to_free == "
-                "0x%" PRIx64 ", size = %" PRId64
-                "), returned page is at 0x%" PRIx64 ", size %" PRId64,
-                page_to_free, page_to_free_size, return_value.item_buffer_ptr,
-                return_value.item_buffer_size);
+  LLDB_LOGF(log,
+            "AppleGetItemInfoHandler called "
+            "__introspection_dispatch_queue_item_get_info (page_to_free == "
+            "0x%" PRIx64 ", size = %" PRId64 "), returned page is at 0x%" PRIx64
+            ", size %" PRId64,
+            page_to_free, page_to_free_size, return_value.item_buffer_ptr,
+            return_value.item_buffer_size);
 
   return return_value;
 }

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // type_traits
 
@@ -26,4 +26,3 @@
 #include "is_convertible.pass.cpp"
 
 #include "test_macros.h"
-

@@ -2,10 +2,6 @@
 # Extra parameters for `tblgen' may come after `ofn' parameter.
 # Adds the name of the generated file to TABLEGEN_OUTPUT.
 
-if(LLVM_MAIN_INCLUDE_DIR)
-  set(LLVM_TABLEGEN_FLAGS -I ${LLVM_MAIN_INCLUDE_DIR})
-endif()
-
 function(tablegen project ofn)
   # Validate calling context.
   if(NOT ${project}_TABLEGEN_EXE)
@@ -57,7 +53,41 @@ function(tablegen project ofn)
       list(APPEND LLVM_TABLEGEN_FLAGS "-gisel-coverage-file=${LLVM_GISEL_COV_PREFIX}all")
     endif()
   endif()
+  # Comments are only useful for Debug builds. Omit them if the backend
+  # supports it.
+  if (NOT (uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG" OR
+           uppercase_CMAKE_BUILD_TYPE STREQUAL "RELWITHDEBINFO"))
+    list(FIND ARGN "-gen-dag-isel" idx)
+    if (NOT idx EQUAL -1)
+      list(APPEND LLVM_TABLEGEN_FLAGS "-omit-comments")
+    endif()
+  endif()
 
+  # MSVC can't support long string literals ("long" > 65534 bytes)[1], so if there's
+  # a possibility of generated tables being consumed by MSVC, generate arrays of
+  # char literals, instead. If we're cross-compiling, then conservatively assume
+  # that the source might be consumed by MSVC.
+  # [1] https://docs.microsoft.com/en-us/cpp/cpp/compiler-limits?view=vs-2017
+  if (MSVC AND project STREQUAL LLVM)
+    list(APPEND LLVM_TABLEGEN_FLAGS "--long-string-literals=0")
+  endif()
+  if (CMAKE_GENERATOR MATCHES "Visual Studio")
+    # Visual Studio has problems with llvm-tblgen's native --write-if-changed
+    # behavior. Since it doesn't do restat optimizations anyway, just don't
+    # pass --write-if-changed there.
+    set(tblgen_change_flag)
+  else()
+    set(tblgen_change_flag "--write-if-changed")
+  endif()
+
+  # With CMake 3.12 this can be reduced to:
+  # get_directory_property(tblgen_includes "INCLUDE_DIRECTORIES")
+  # list(TRANSFORM tblgen_includes PREPEND -I)
+  set(tblgen_includes)
+  get_directory_property(includes "INCLUDE_DIRECTORIES")
+  foreach(include ${includes})
+    list(APPEND tblgen_includes -I ${include})
+  endforeach()
   # We need both _TABLEGEN_TARGET and _TABLEGEN_EXE in the  DEPENDS list
   # (both the target and the file) to have .inc files rebuilt on
   # a tablegen change, as cmake does not propagate file-level dependencies
@@ -69,8 +99,10 @@ function(tablegen project ofn)
   # but lets us having smaller and cleaner code here.
   add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${ofn}
     COMMAND ${${project}_TABLEGEN_EXE} ${ARGN} -I ${CMAKE_CURRENT_SOURCE_DIR}
+    ${tblgen_includes}
     ${LLVM_TABLEGEN_FLAGS}
     ${LLVM_TARGET_DEFINITIONS_ABSOLUTE}
+    ${tblgen_change_flag}
     ${additional_cmdline}
     # The file in LLVM_TARGET_DEFINITIONS may be not in the current
     # directory and local_tds may not contain it, so we must
@@ -125,7 +157,10 @@ macro(add_tablegen target project)
 
   if(LLVM_USE_HOST_TOOLS)
     if( ${${project}_TABLEGEN} STREQUAL "${target}" )
-      build_native_tool(${target} ${project}_TABLEGEN_EXE)
+      # The NATIVE tablegen executable *must* depend on the current target one
+      # otherwise the native one won't get rebuilt when the tablgen sources
+      # change, and we end up with incorrect builds.
+      build_native_tool(${target} ${project}_TABLEGEN_EXE DEPENDS ${target})
       set(${project}_TABLEGEN_EXE ${${project}_TABLEGEN_EXE} PARENT_SCOPE)
 
       add_custom_target(${project}-tablegen-host DEPENDS ${${project}_TABLEGEN_EXE})
@@ -147,7 +182,7 @@ macro(add_tablegen target project)
     endif()
   endif()
 
-  if (${project} STREQUAL LLVM AND NOT LLVM_INSTALL_TOOLCHAIN_ONLY AND LLVM_BUILD_UTILS)
+  if ((${project} STREQUAL LLVM OR ${project} STREQUAL MLIR) AND NOT LLVM_INSTALL_TOOLCHAIN_ONLY AND LLVM_BUILD_UTILS)
     set(export_to_llvmexports)
     if(${target} IN_LIST LLVM_DISTRIBUTION_COMPONENTS OR
         NOT LLVM_DISTRIBUTION_COMPONENTS)
@@ -156,7 +191,13 @@ macro(add_tablegen target project)
 
     install(TARGETS ${target}
             ${export_to_llvmexports}
+            COMPONENT ${target}
             RUNTIME DESTINATION ${LLVM_TOOLS_INSTALL_DIR})
+    if(NOT LLVM_ENABLE_IDE)
+      add_llvm_install_targets("install-${target}"
+                               DEPENDS ${target}
+                               COMPONENT ${target})
+    endif()
   endif()
   set_property(GLOBAL APPEND PROPERTY LLVM_EXPORTS ${target})
 endmacro()

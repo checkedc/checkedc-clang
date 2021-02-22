@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 // <numeric>
 
 // template <class _Tp>
@@ -17,7 +17,7 @@
 #include <cassert>
 #include "test_macros.h"
 
-//  Users are not supposed to provide template argument lists for 
+//  Users are not supposed to provide template argument lists for
 //  functions in the standard library (there's an exception for min and max)
 //  However, libc++ protects against this for pointers, so we check to make
 //  sure that our protection is working here.

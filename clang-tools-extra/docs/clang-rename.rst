@@ -16,7 +16,7 @@ functions, variables, arguments, namespaces etc.
 
 The tool is in a very early development stage, so you might encounter bugs and
 crashes. Submitting reports with information about how to reproduce the issue
-to `the LLVM bugtracker <https://llvm.org/bugs>`_ will definitely help the
+to `the LLVM bugtracker <https://bugs.llvm.org>`_ will definitely help the
 project. If you have any ideas or suggestions, you might want to put a feature
 request there.
 
@@ -123,7 +123,9 @@ That way you can avoid spelling out all the names as command line arguments:
 
     -export-fixes=<filename>   - YAML file to store suggested fixes in.
     -extra-arg=<string>        - Additional argument to append to the compiler command line
+                                 Can be used several times.
     -extra-arg-before=<string> - Additional argument to prepend to the compiler command line
+                                 Can be used several times.
     -force                     - Ignore nonexistent qualified names.
     -i                         - Overwrite edited <file>s.
     -input=<string>            - YAML file to load oldname-newname pairs from.

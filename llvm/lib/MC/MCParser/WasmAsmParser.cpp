@@ -123,6 +123,7 @@ public:
                     // See use of .init_array in WasmObjectWriter and
                     // TargetLoweringObjectFileWasm
                     .StartsWith(".init_array", SectionKind::getData())
+                    .StartsWith(".debug_", SectionKind::getMetadata())
                     .Default(Optional<SectionKind>());
     if (!Kind.hasValue())
       return Parser->Error(Lexer->getLoc(), "unknown section kind: " + Name);
@@ -209,7 +210,7 @@ public:
     if (getLexer().isNot(AsmToken::EndOfStatement))
       return TokError("unexpected token in '.ident' directive");
     Lex();
-    getStreamer().EmitIdent(Data);
+    getStreamer().emitIdent(Data);
     return false;
   }
 
@@ -231,7 +232,7 @@ public:
         if (getParser().parseIdentifier(Name))
           return TokError("expected identifier in directive");
         MCSymbol *Sym = getContext().getOrCreateSymbol(Name);
-        getStreamer().EmitSymbolAttribute(Sym, Attr);
+        getStreamer().emitSymbolAttribute(Sym, Attr);
         if (getLexer().is(AsmToken::EndOfStatement))
           break;
         if (getLexer().isNot(AsmToken::Comma))

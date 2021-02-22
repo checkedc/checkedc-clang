@@ -6,9 +6,9 @@ struct S {
   short s;
 };
 
-// CHECK-LABEL: define void @_Z1fv(%struct.S* noalias sret %
+// CHECK-LABEL: define void @_Z1fv(%struct.S* noalias sret align 2 %
 S f() { return S(); }
-// CHECK-LABEL: define void @_Z1f1S(%struct.S*)
+// CHECK-LABEL: define void @_Z1f1S(%struct.S* %0)
 void f(S) { }
 
 // Non-trivial dtors, should both be passed indirectly.
@@ -18,10 +18,10 @@ public:
   double c;
 };
 
-// CHECK-LABEL: define void @_Z1gv(%class.C* noalias sret %
+// CHECK-LABEL: define void @_Z1gv(%class.C* noalias sret align 4 %
 C g() { return C(); }
 
-// CHECK-LABEL: define void @_Z1f1C(%class.C*) 
+// CHECK-LABEL: define void @_Z1f1C(%class.C* %0) 
 void f(C) { }
 
 
@@ -89,7 +89,7 @@ struct s5 { s5(); int &x; };
 s5 f5() { return s5(); }
 
 // CHECK-LABEL: define i32 @_Z4f6_0M2s6i(i32 %a)
-// CHECK: define i64 @_Z4f6_1M2s6FivE({ i32, i32 }* byval({ i32, i32 }) align 4)
+// CHECK: define i64 @_Z4f6_1M2s6FivE({ i32, i32 }* byval({ i32, i32 }) align 4 %0)
 // FIXME: It would be nice to avoid byval on the previous case.
 struct s6 {};
 typedef int s6::* s6_mdp;
@@ -103,13 +103,13 @@ struct s7_1 { double x; };
 struct s7 : s7_0, s7_1 { };
 s7 f7() { return s7(); }
 
-// CHECK-LABEL: define void @_Z2f8v(%struct.s8* noalias sret %agg.result)
+// CHECK-LABEL: define void @_Z2f8v(%struct.s8* noalias sret align 4 %agg.result)
 struct s8_0 { };
 struct s8_1 { double x; };
 struct s8 { s8_0 a; s8_1 b; };
 s8 f8() { return s8(); }
 
-// CHECK-LABEL: define void @_Z2f9v(%struct.s9* noalias sret %agg.result)
+// CHECK-LABEL: define void @_Z2f9v(%struct.s9* noalias sret align 4 %agg.result)
 struct s9_0 { unsigned : 0; };
 struct s9_1 { double x; };
 struct s9 { s9_0 a; s9_1 b; };

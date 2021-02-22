@@ -13,13 +13,16 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Utils/LoopVersioning.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/Analysis/LoopAccessAnalysis.h"
 #include "llvm/Analysis/LoopInfo.h"
-#include "llvm/Analysis/ScalarEvolutionExpander.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/MDBuilder.h"
+#include "llvm/InitializePasses.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/ScalarEvolutionExpander.h"
 
 using namespace llvm;
 
@@ -42,9 +45,8 @@ LoopVersioning::LoopVersioning(const LoopAccessInfo &LAI, Loop *L, LoopInfo *LI,
   }
 }
 
-void LoopVersioning::setAliasChecks(
-    SmallVector<RuntimePointerChecking::PointerCheck, 4> Checks) {
-  AliasChecks = std::move(Checks);
+void LoopVersioning::setAliasChecks(ArrayRef<RuntimePointerCheck> Checks) {
+  AliasChecks = {Checks.begin(), Checks.end()};
 }
 
 void LoopVersioning::setSCEVChecks(SCEVUnionPredicate Check) {
@@ -60,8 +62,10 @@ void LoopVersioning::versionLoop(
 
   // Add the memcheck in the original preheader (this is empty initially).
   BasicBlock *RuntimeCheckBB = VersionedLoop->getLoopPreheader();
+  const auto &RtPtrChecking = *LAI.getRuntimePointerChecking();
   std::tie(FirstCheckInst, MemRuntimeCheck) =
-      LAI.addRuntimeChecks(RuntimeCheckBB->getTerminator(), AliasChecks);
+      addRuntimeChecks(RuntimeCheckBB->getTerminator(), VersionedLoop,
+                       AliasChecks, RtPtrChecking.getSE());
 
   const SCEVUnionPredicate &Pred = LAI.getPSE().getUnionPredicate();
   SCEVExpander Exp(*SE, RuntimeCheckBB->getModule()->getDataLayout(),
@@ -92,8 +96,8 @@ void LoopVersioning::versionLoop(
   // Create empty preheader for the loop (and after cloning for the
   // non-versioned loop).
   BasicBlock *PH =
-      SplitBlock(RuntimeCheckBB, RuntimeCheckBB->getTerminator(), DT, LI);
-  PH->setName(VersionedLoop->getHeader()->getName() + ".ph");
+      SplitBlock(RuntimeCheckBB, RuntimeCheckBB->getTerminator(), DT, LI,
+                 nullptr, VersionedLoop->getHeader()->getName() + ".ph");
 
   // Clone the loop including the preheader.
   //
@@ -192,8 +196,7 @@ void LoopVersioning::prepareNoAliasMetadata() {
 
   // Go through the checks and for each pointer group, collect the scopes for
   // each non-aliasing pointer group.
-  DenseMap<const RuntimePointerChecking::CheckingPtrGroup *,
-           SmallVector<Metadata *, 4>>
+  DenseMap<const RuntimeCheckingPtrGroup *, SmallVector<Metadata *, 4>>
       GroupToNonAliasingScopes;
 
   for (const auto &Check : AliasChecks)

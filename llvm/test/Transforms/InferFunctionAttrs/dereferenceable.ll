@@ -1,10 +1,13 @@
 ; RUN: opt < %s -inferattrs -S | FileCheck %s
 
+
+
 ; Determine dereference-ability before unused loads get deleted:
 ; https://bugs.llvm.org/show_bug.cgi?id=21780
 
 define <4 x double> @PR21780(double* %ptr) {
 ; CHECK-LABEL: @PR21780(double* %ptr)
+
   ; GEP of index 0 is simplified away.
   %arrayidx1 = getelementptr inbounds double, double* %ptr, i64 1
   %arrayidx2 = getelementptr inbounds double, double* %ptr, i64 2
@@ -21,6 +24,37 @@ define <4 x double> @PR21780(double* %ptr) {
   %vecinit3 = insertelement <4 x double> %vecinit2, double %t3, i32 3
   %shuffle = shufflevector <4 x double> %vecinit3, <4 x double> %vecinit3, <4 x i32> <i32 0, i32 0, i32 2, i32 2>
   ret <4 x double> %shuffle
+}
+
+
+define double @PR21780_only_access3_with_inbounds(double* %ptr) {
+; CHECK-LABEL: @PR21780_only_access3_with_inbounds(double* %ptr)
+
+  %arrayidx3 = getelementptr inbounds double, double* %ptr, i64 3
+  %t3 = load double, double* %arrayidx3, align 8
+  ret double %t3
+}
+
+define double @PR21780_only_access3_without_inbounds(double* %ptr) {
+; CHECK-LABEL: @PR21780_only_access3_without_inbounds(double* %ptr)
+  %arrayidx3 = getelementptr double, double* %ptr, i64 3
+  %t3 = load double, double* %arrayidx3, align 8
+  ret double %t3
+}
+
+define double @PR21780_without_inbounds(double* %ptr) {
+; CHECK-LABEL: @PR21780_without_inbounds(double* %ptr)
+
+  %arrayidx1 = getelementptr double, double* %ptr, i64 1
+  %arrayidx2 = getelementptr double, double* %ptr, i64 2
+  %arrayidx3 = getelementptr double, double* %ptr, i64 3
+
+  %t0 = load double, double* %ptr, align 8
+  %t1 = load double, double* %arrayidx1, align 8
+  %t2 = load double, double* %arrayidx2, align 8
+  %t3 = load double, double* %arrayidx3, align 8
+
+  ret double %t3
 }
 
 ; Unsimplified, but still valid. Also, throw in some bogus arguments.
@@ -121,6 +155,19 @@ define void @volatile_is_not_dereferenceable(i16* %ptr) {
   ret void
 }
 
+; TODO: We should allow inference for atomic (but not volatile) ops.
+
+define void @atomic_is_alright(i16* %ptr) {
+; CHECK-LABEL: @atomic_is_alright(i16* %ptr)
+  %arrayidx0 = getelementptr i16, i16* %ptr, i64 0
+  %arrayidx1 = getelementptr i16, i16* %ptr, i64 1
+  %arrayidx2 = getelementptr i16, i16* %ptr, i64 2
+  %t0 = load atomic i16, i16* %arrayidx0 unordered, align 2
+  %t1 = load i16, i16* %arrayidx1
+  %t2 = load i16, i16* %arrayidx2
+  ret void
+}
+
 declare void @may_not_return()
 
 define void @not_guaranteed_to_transfer_execution(i16* %ptr) {
@@ -151,6 +198,7 @@ define void @variable_gep_index(i8* %unused, i8* %ptr, i64 %variable_index) {
 
 define void @multi_index_gep(<4 x i8>* %ptr) {
 ; CHECK-LABEL: @multi_index_gep(<4 x i8>* %ptr)
+; FIXME: %ptr should be dereferenceable(4)
   %arrayidx00 = getelementptr <4 x i8>, <4 x i8>* %ptr, i64 0, i64 0
   %t0 = load i8, i8* %arrayidx00
   ret void
@@ -193,6 +241,21 @@ define void @non_consecutive(i32* %ptr) {
 
 define void @more_bytes(i32* dereferenceable(8) %ptr) {
 ; CHECK-LABEL: @more_bytes(i32* dereferenceable(8) %ptr)
+  %arrayidx3 = getelementptr i32, i32* %ptr, i64 3
+  %arrayidx1 = getelementptr i32, i32* %ptr, i64 1
+  %arrayidx0 = getelementptr i32, i32* %ptr, i64 0
+  %arrayidx2 = getelementptr i32, i32* %ptr, i64 2
+  %t3 = load i32, i32* %arrayidx3
+  %t1 = load i32, i32* %arrayidx1
+  %t2 = load i32, i32* %arrayidx2
+  %t0 = load i32, i32* %arrayidx0
+  ret void
+}
+
+; Improve on existing dereferenceable_or_null attribute.
+
+define void @more_bytes_and_not_null(i32* dereferenceable_or_null(8) %ptr) {
+; CHECK-LABEL: @more_bytes_and_not_null(i32* dereferenceable_or_null(8) %ptr)
   %arrayidx3 = getelementptr i32, i32* %ptr, i64 3
   %arrayidx1 = getelementptr i32, i32* %ptr, i64 1
   %arrayidx0 = getelementptr i32, i32* %ptr, i64 0
@@ -274,5 +337,21 @@ define void @load_store(i32* %arg) {
   %arrayidx1 = getelementptr float, float* %ptr, i64 1
   %t1 = load float, float* %arrayidx0
   store float 2.0, float* %arrayidx1
+  ret void
+}
+
+define void @different_size1(i32* %arg) {
+; CHECK-LABEL: @different_size1(i32* %arg)
+  %arg-cast = bitcast i32* %arg to double*
+  store double 0.000000e+00, double* %arg-cast
+  store i32 0, i32* %arg
+  ret void
+}
+
+define void @different_size2(i32* %arg) {
+; CHECK-LABEL: @different_size2(i32* %arg)
+  store i32 0, i32* %arg
+  %arg-cast = bitcast i32* %arg to double*
+  store double 0.000000e+00, double* %arg-cast
   ret void
 }

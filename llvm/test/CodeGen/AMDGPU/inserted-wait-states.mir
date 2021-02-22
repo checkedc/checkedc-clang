@@ -79,22 +79,22 @@ name: div_fmas
 body: |
   bb.0:
     $vcc = S_MOV_B64 0
-    $vgpr0 = V_DIV_FMAS_F32 0, $vgpr1, 0, $vgpr2, 0, $vgpr3, 0, 0, implicit $vcc, implicit $exec
+    $vgpr0 = V_DIV_FMAS_F32 0, $vgpr1, 0, $vgpr2, 0, $vgpr3, 0, 0, implicit $mode, implicit $vcc, implicit $exec
     S_BRANCH %bb.1
 
   bb.1:
     implicit $vcc = V_CMP_EQ_I32_e32 $vgpr1, $vgpr2, implicit $exec
-    $vgpr0 = V_DIV_FMAS_F32 0, $vgpr1, 0, $vgpr2, 0, $vgpr3, 0, 0, implicit $vcc, implicit $exec
+    $vgpr0 = V_DIV_FMAS_F32 0, $vgpr1, 0, $vgpr2, 0, $vgpr3, 0, 0, implicit $mode, implicit $vcc, implicit $exec
     S_BRANCH %bb.2
 
   bb.2:
     $vcc = V_CMP_EQ_I32_e64 $vgpr1, $vgpr2, implicit $exec
-    $vgpr0 = V_DIV_FMAS_F32 0, $vgpr1, 0, $vgpr2, 0, $vgpr3, 0, 0, implicit $vcc, implicit $exec
+    $vgpr0 = V_DIV_FMAS_F32 0, $vgpr1, 0, $vgpr2, 0, $vgpr3, 0, 0, implicit $mode, implicit $vcc, implicit $exec
     S_BRANCH %bb.3
 
   bb.3:
-    $vgpr4, $vcc = V_DIV_SCALE_F32 $vgpr1, $vgpr1, $vgpr3, implicit $exec
-    $vgpr0 = V_DIV_FMAS_F32 0, $vgpr1, 0, $vgpr2, 0, $vgpr3, 0, 0, implicit $vcc, implicit $exec
+    $vgpr4, $vcc = V_DIV_SCALE_F32 $vgpr1, $vgpr1, $vgpr3, implicit $mode, implicit $exec
+    $vgpr0 = V_DIV_FMAS_F32 0, $vgpr1, 0, $vgpr2, 0, $vgpr3, 0, 0, implicit $mode, implicit $vcc, implicit $exec
     S_ENDPGM 0
 
 ...
@@ -128,24 +128,24 @@ name: s_getreg
 
 body: |
   bb.0:
-    S_SETREG_B32 $sgpr0, 1
-    $sgpr1 = S_GETREG_B32 1
+    S_SETREG_B32 $sgpr0, 1, implicit-def $mode, implicit $mode
+    $sgpr1 = S_GETREG_B32 1, implicit-def $mode, implicit $mode
     S_BRANCH %bb.1
 
   bb.1:
-    S_SETREG_IMM32_B32 0, 1
-    $sgpr1 = S_GETREG_B32 1
+    S_SETREG_IMM32_B32 0, 1, implicit-def $mode, implicit $mode
+    $sgpr1 = S_GETREG_B32 1, implicit-def $mode, implicit $mode
     S_BRANCH %bb.2
 
   bb.2:
-    S_SETREG_B32 $sgpr0, 1
+    S_SETREG_B32 $sgpr0, 1, implicit-def $mode, implicit $mode
     $sgpr1 = S_MOV_B32 0
-    $sgpr2 = S_GETREG_B32 1
+    $sgpr2 = S_GETREG_B32 1, implicit-def $mode, implicit $mode
     S_BRANCH %bb.3
 
   bb.3:
-    S_SETREG_B32 $sgpr0, 0
-    $sgpr1 = S_GETREG_B32 1
+    S_SETREG_B32 $sgpr0, 0, implicit-def $mode, implicit $mode
+    $sgpr1 = S_GETREG_B32 1, implicit-def $mode, implicit $mode
     S_ENDPGM 0
 ...
 
@@ -173,18 +173,18 @@ name: s_setreg
 
 body: |
   bb.0:
-    S_SETREG_B32 $sgpr0, 1
-    S_SETREG_B32 $sgpr1, 1
+    S_SETREG_B32 $sgpr0, 1, implicit-def $mode, implicit $mode
+    S_SETREG_B32 $sgpr1, 1, implicit-def $mode, implicit $mode
     S_BRANCH %bb.1
 
   bb.1:
-    S_SETREG_B32 $sgpr0, 64
-    S_SETREG_B32 $sgpr1, 128
+    S_SETREG_B32 $sgpr0, 64, implicit-def $mode, implicit $mode
+    S_SETREG_B32 $sgpr1, 128, implicit-def $mode, implicit $mode
     S_BRANCH %bb.2
 
   bb.2:
-    S_SETREG_B32 $sgpr0, 1
-    S_SETREG_B32 $sgpr1, 0
+    S_SETREG_B32 $sgpr0, 1, implicit-def $mode, implicit $mode
+    S_SETREG_B32 $sgpr1, 0, implicit-def $mode, implicit $mode
     S_ENDPGM 0
 ...
 
@@ -230,17 +230,17 @@ name: vmem_gt_8dw_store
 
 body: |
   bb.0:
-    BUFFER_STORE_DWORD_OFFSET $vgpr3, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr4, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORD_OFFSET $vgpr3, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr4, 0, 0, 0, 0, 0, 0, implicit $exec
     $vgpr3 = V_MOV_B32_e32 0, implicit $exec
-    BUFFER_STORE_DWORDX3_OFFSET $vgpr2_vgpr3_vgpr4, $sgpr0_sgpr1_sgpr2_sgpr3, 0, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORDX3_OFFSET $vgpr2_vgpr3_vgpr4, $sgpr0_sgpr1_sgpr2_sgpr3, 0, 0, 0, 0, 0, 0, 0, implicit $exec
     $vgpr3 = V_MOV_B32_e32 0, implicit $exec
-    BUFFER_STORE_DWORDX4_OFFSET $vgpr2_vgpr3_vgpr4_vgpr5, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr4, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORDX4_OFFSET $vgpr2_vgpr3_vgpr4_vgpr5, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr4, 0, 0, 0, 0, 0, 0, implicit $exec
     $vgpr3 = V_MOV_B32_e32 0, implicit $exec
-    BUFFER_STORE_DWORDX4_OFFSET $vgpr2_vgpr3_vgpr4_vgpr5, $sgpr0_sgpr1_sgpr2_sgpr3, 0, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORDX4_OFFSET $vgpr2_vgpr3_vgpr4_vgpr5, $sgpr0_sgpr1_sgpr2_sgpr3, 0, 0, 0, 0, 0, 0, 0, implicit $exec
     $vgpr3 = V_MOV_B32_e32 0, implicit $exec
-    BUFFER_STORE_FORMAT_XYZ_OFFSET $vgpr2_vgpr3_vgpr4, $sgpr0_sgpr1_sgpr2_sgpr3, 0, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_FORMAT_XYZ_OFFSET $vgpr2_vgpr3_vgpr4, $sgpr0_sgpr1_sgpr2_sgpr3, 0, 0, 0, 0, 0, 0, 0, implicit $exec
     $vgpr3 = V_MOV_B32_e32 0, implicit $exec
-    BUFFER_STORE_FORMAT_XYZW_OFFSET $vgpr2_vgpr3_vgpr4_vgpr5, $sgpr0_sgpr1_sgpr2_sgpr3, 0, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_FORMAT_XYZW_OFFSET $vgpr2_vgpr3_vgpr4_vgpr5, $sgpr0_sgpr1_sgpr2_sgpr3, 0, 0, 0, 0, 0, 0, 0, implicit $exec
     $vgpr3 = V_MOV_B32_e32 0, implicit $exec
     BUFFER_ATOMIC_CMPSWAP_X2_OFFSET $vgpr2_vgpr3_vgpr4_vgpr5, $sgpr0_sgpr1_sgpr2_sgpr3, 0, 0, 0, implicit $exec
     $vgpr3 = V_MOV_B32_e32 0, implicit $exec
@@ -317,8 +317,9 @@ body: |
     S_BRANCH %bb.3
 
   bb.3:
+    $m0 = S_MOV_B32 $sgpr4
     $vgpr0,implicit $vcc = V_ADD_I32_e32 $vgpr1, $vgpr2, implicit $vcc, implicit $exec
-    $vgpr4 = V_WRITELANE_B32 $sgpr4, $vcc_lo, $vgpr4
+    $vgpr4 = V_WRITELANE_B32 $m0, $vcc_lo, $vgpr4
     S_ENDPGM 0
 
 ...
@@ -341,12 +342,12 @@ name: rfe
 
 body: |
   bb.0:
-    S_SETREG_B32 $sgpr0, 3
+    S_SETREG_B32 $sgpr0, 3, implicit-def $mode, implicit $mode
     S_RFE_B64 $sgpr2_sgpr3
     S_BRANCH %bb.1
 
   bb.1:
-    S_SETREG_B32 $sgpr0, 0
+    S_SETREG_B32 $sgpr0, 0, implicit-def $mode, implicit $mode
     S_RFE_B64 $sgpr2_sgpr3
     S_ENDPGM 0
 
@@ -421,12 +422,12 @@ body: |
 
   bb.2:
     $m0 = S_MOV_B32 0
-    $sgpr0 = S_MOVRELD_B32 $sgpr0, implicit $m0
+    S_MOVRELD_B32 $sgpr0, $sgpr0, implicit $m0
     S_BRANCH %bb.3
 
   bb.3:
     $m0 = S_MOV_B32 0
-    $sgpr0_sgpr1 = S_MOVRELD_B64 $sgpr0_sgpr1, implicit $m0
+    S_MOVRELD_B64 $sgpr0_sgpr1, $sgpr0_sgpr1, implicit $m0
     S_ENDPGM 0
 ...
 
@@ -460,22 +461,22 @@ name: v_interp
 body: |
   bb.0:
     $m0 = S_MOV_B32 0
-    $vgpr0 = V_INTERP_P1_F32 $vgpr0, 0, 0, implicit $m0, implicit $exec
+    $vgpr0 = V_INTERP_P1_F32 $vgpr0, 0, 0, implicit $mode, implicit $m0, implicit $exec
     S_BRANCH %bb.1
 
   bb.1:
     $m0 = S_MOV_B32 0
-    $vgpr0 = V_INTERP_P2_F32 $vgpr0, $vgpr1, 0, 0, implicit $m0, implicit $exec
+    $vgpr0 = V_INTERP_P2_F32 $vgpr0, $vgpr1, 0, 0, implicit $mode, implicit $m0, implicit $exec
     S_BRANCH %bb.2
 
   bb.2:
     $m0 = S_MOV_B32 0
-    $vgpr0 = V_INTERP_P1_F32_16bank $vgpr0, 0, 0, implicit $m0, implicit $exec
+    $vgpr0 = V_INTERP_P1_F32_16bank $vgpr0, 0, 0, implicit $mode, implicit $m0, implicit $exec
     S_BRANCH %bb.3
 
   bb.3:
     $m0 = S_MOV_B32 0
-    $vgpr0 = V_INTERP_MOV_F32 0, 0, 0, implicit $m0, implicit $exec
+    $vgpr0 = V_INTERP_MOV_F32 0, 0, 0, implicit $mode, implicit $m0, implicit $exec
     S_ENDPGM 0
 ...
 
@@ -514,7 +515,7 @@ body: |
 ...
 ---
 name:            mov_fed_hazard_crash_on_dbg_value
-alignment:       0
+alignment:       1
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -553,10 +554,10 @@ body:             |
     dead $sgpr6_sgpr7 = KILL $sgpr4_sgpr5
     $sgpr8 = S_MOV_B32 $sgpr5
     $vgpr0 = V_MOV_B32_e32 killed $sgpr8, implicit $exec
-    BUFFER_STORE_DWORD_OFFSET $vgpr0, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr9, 4, 0, 0, 0, 0, implicit $exec :: (store 4 into %ir.A.addr + 4)
+    BUFFER_STORE_DWORD_OFFSET $vgpr0, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr9, 4, 0, 0, 0, 0, 0, implicit $exec :: (store 4 into %ir.A.addr + 4)
     $sgpr8 = S_MOV_B32 $sgpr4, implicit killed $sgpr4_sgpr5
     $vgpr0 = V_MOV_B32_e32 killed $sgpr8, implicit $exec
-    BUFFER_STORE_DWORD_OFFSET $vgpr0, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr9, 0, 0, 0, 0, 0, implicit $exec :: (store 4 into %ir.A.addr)
+    BUFFER_STORE_DWORD_OFFSET $vgpr0, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr9, 0, 0, 0, 0, 0, 0, implicit $exec :: (store 4 into %ir.A.addr)
     S_ENDPGM 0
 
 ...

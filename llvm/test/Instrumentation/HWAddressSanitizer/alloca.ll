@@ -5,13 +5,13 @@
 ; RUN: opt < %s -hwasan -hwasan-with-ifunc=1 -hwasan-uar-retag-to-zero=0 -S | FileCheck %s --check-prefixes=CHECK,DYNAMIC-SHADOW,UAR-TAGS
 
 target datalayout = "e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128"
-target triple = "aarch64--linux-android"
+target triple = "aarch64--linux-android10000"
 
 declare void @use32(i32*)
 
 define void @test_alloca() sanitize_hwaddress {
 ; CHECK-LABEL: @test_alloca(
-; CHECK: %[[FP:[^ ]*]] = call i8* @llvm.frameaddress(i32 0)
+; CHECK: %[[FP:[^ ]*]] = call i8* @llvm.frameaddress.p0i8(i32 0)
 ; CHECK: %[[A:[^ ]*]] = ptrtoint i8* %[[FP]] to i64
 ; CHECK: %[[B:[^ ]*]] = lshr i64 %[[A]], 20
 ; CHECK: %[[BASE_TAG:[^ ]*]] = xor i64 %[[A]], %[[B]]

@@ -30,6 +30,7 @@
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
@@ -73,7 +74,7 @@ namespace {
     SmallVector<SmallVector<MachineMemOperand *, 8>, 16> SSRefs;
 
     // OrigAlignments - Alignments of stack objects before coloring.
-    SmallVector<unsigned, 16> OrigAlignments;
+    SmallVector<Align, 16> OrigAlignments;
 
     // OrigSizes - Sizess of stack objects before coloring.
     SmallVector<unsigned, 16> OrigSizes;
@@ -221,12 +222,12 @@ void StackSlotColoring::InitializeSlots() {
   for (auto *I : Intervals) {
     LiveInterval &li = I->second;
     LLVM_DEBUG(li.dump());
-    int FI = TargetRegisterInfo::stackSlot2Index(li.reg);
+    int FI = Register::stackSlot2Index(li.reg);
     if (MFI->isDeadObjectIndex(FI))
       continue;
 
     SSIntervals.push_back(&li);
-    OrigAlignments[FI] = MFI->getObjectAlignment(FI);
+    OrigAlignments[FI] = MFI->getObjectAlign(FI);
     OrigSizes[FI]      = MFI->getObjectSize(FI);
 
     auto StackID = MFI->getStackID(FI);
@@ -268,7 +269,7 @@ StackSlotColoring::OverlapWithAssignments(LiveInterval *li, int Color) const {
 int StackSlotColoring::ColorSlot(LiveInterval *li) {
   int Color = -1;
   bool Share = false;
-  int FI = TargetRegisterInfo::stackSlot2Index(li->reg);
+  int FI = Register::stackSlot2Index(li->reg);
   uint8_t StackID = MFI->getStackID(FI);
 
   if (!DisableSharing) {
@@ -308,9 +309,9 @@ int StackSlotColoring::ColorSlot(LiveInterval *li) {
   // Change size and alignment of the allocated slot. If there are multiple
   // objects sharing the same slot, then make sure the size and alignment
   // are large enough for all.
-  unsigned Align = OrigAlignments[FI];
-  if (!Share || Align > MFI->getObjectAlignment(Color))
-    MFI->setObjectAlignment(Color, Align);
+  Align Alignment = OrigAlignments[FI];
+  if (!Share || Alignment > MFI->getObjectAlign(Color))
+    MFI->setObjectAlignment(Color, Alignment);
   int64_t Size = OrigSizes[FI];
   if (!Share || Size > MFI->getObjectSize(Color))
     MFI->setObjectSize(Color, Size);
@@ -330,7 +331,7 @@ bool StackSlotColoring::ColorSlots(MachineFunction &MF) {
   bool Changed = false;
   for (unsigned i = 0, e = SSIntervals.size(); i != e; ++i) {
     LiveInterval *li = SSIntervals[i];
-    int SS = TargetRegisterInfo::stackSlot2Index(li->reg);
+    int SS = Register::stackSlot2Index(li->reg);
     int NewSS = ColorSlot(li);
     assert(NewSS >= 0 && "Stack coloring failed?");
     SlotMapping[SS] = NewSS;
@@ -343,7 +344,7 @@ bool StackSlotColoring::ColorSlots(MachineFunction &MF) {
   LLVM_DEBUG(dbgs() << "\nSpill slots after coloring:\n");
   for (unsigned i = 0, e = SSIntervals.size(); i != e; ++i) {
     LiveInterval *li = SSIntervals[i];
-    int SS = TargetRegisterInfo::stackSlot2Index(li->reg);
+    int SS = Register::stackSlot2Index(li->reg);
     li->weight = SlotWeights[SS];
   }
   // Sort them by new weight.

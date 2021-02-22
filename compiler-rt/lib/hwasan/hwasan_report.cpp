@@ -11,10 +11,14 @@
 // Error reporting.
 //===----------------------------------------------------------------------===//
 
+#include "hwasan_report.h"
+
+#include <dlfcn.h>
+
 #include "hwasan.h"
 #include "hwasan_allocator.h"
+#include "hwasan_globals.h"
 #include "hwasan_mapping.h"
-#include "hwasan_report.h"
 #include "hwasan_thread.h"
 #include "hwasan_thread_list.h"
 #include "sanitizer_common/sanitizer_allocator_internal.h"
@@ -122,21 +126,43 @@ class Decorator: public __sanitizer::SanitizerCommonDecorator {
   const char *Thread() { return Green(); }
 };
 
-// Returns the index of the rb element that matches tagged_addr (plus one),
-// or zero if found nothing.
-uptr FindHeapAllocation(HeapAllocationsRingBuffer *rb,
-                        uptr tagged_addr,
-                        HeapAllocationRecord *har) {
-  if (!rb) return 0;
+static bool FindHeapAllocation(HeapAllocationsRingBuffer *rb, uptr tagged_addr,
+                               HeapAllocationRecord *har, uptr *ring_index,
+                               uptr *num_matching_addrs,
+                               uptr *num_matching_addrs_4b) {
+  if (!rb) return false;
+
+  *num_matching_addrs = 0;
+  *num_matching_addrs_4b = 0;
   for (uptr i = 0, size = rb->size(); i < size; i++) {
     auto h = (*rb)[i];
     if (h.tagged_addr <= tagged_addr &&
         h.tagged_addr + h.requested_size > tagged_addr) {
       *har = h;
-      return i + 1;
+      *ring_index = i;
+      return true;
+    }
+
+    // Measure the number of heap ring buffer entries that would have matched
+    // if we had only one entry per address (e.g. if the ring buffer data was
+    // stored at the address itself). This will help us tune the allocator
+    // implementation for MTE.
+    if (UntagAddr(h.tagged_addr) <= UntagAddr(tagged_addr) &&
+        UntagAddr(h.tagged_addr) + h.requested_size > UntagAddr(tagged_addr)) {
+      ++*num_matching_addrs;
+    }
+
+    // Measure the number of heap ring buffer entries that would have matched
+    // if we only had 4 tag bits, which is the case for MTE.
+    auto untag_4b = [](uptr p) {
+      return p & ((1ULL << 60) - 1);
+    };
+    if (untag_4b(h.tagged_addr) <= untag_4b(tagged_addr) &&
+        untag_4b(h.tagged_addr) + h.requested_size > untag_4b(tagged_addr)) {
+      ++*num_matching_addrs_4b;
     }
   }
-  return 0;
+  return false;
 }
 
 static void PrintStackAllocations(StackAllocationsRingBuffer *sa,
@@ -221,6 +247,42 @@ static bool TagsEqual(tag_t tag, tag_t *tag_ptr) {
   return tag == inline_tag;
 }
 
+// HWASan globals store the size of the global in the descriptor. In cases where
+// we don't have a binary with symbols, we can't grab the size of the global
+// from the debug info - but we might be able to retrieve it from the
+// descriptor. Returns zero if the lookup failed.
+static uptr GetGlobalSizeFromDescriptor(uptr ptr) {
+  // Find the ELF object that this global resides in.
+  Dl_info info;
+  dladdr(reinterpret_cast<void *>(ptr), &info);
+  auto *ehdr = reinterpret_cast<const ElfW(Ehdr) *>(info.dli_fbase);
+  auto *phdr_begin = reinterpret_cast<const ElfW(Phdr) *>(
+      reinterpret_cast<const u8 *>(ehdr) + ehdr->e_phoff);
+
+  // Get the load bias. This is normally the same as the dli_fbase address on
+  // position-independent code, but can be different on non-PIE executables,
+  // binaries using LLD's partitioning feature, or binaries compiled with a
+  // linker script.
+  ElfW(Addr) load_bias = 0;
+  for (const auto &phdr :
+       ArrayRef<const ElfW(Phdr)>(phdr_begin, phdr_begin + ehdr->e_phnum)) {
+    if (phdr.p_type != PT_LOAD || phdr.p_offset != 0)
+      continue;
+    load_bias = reinterpret_cast<ElfW(Addr)>(ehdr) - phdr.p_vaddr;
+    break;
+  }
+
+  // Walk all globals in this ELF object, looking for the one we're interested
+  // in. Once we find it, we can stop iterating and return the size of the
+  // global we're interested in.
+  for (const hwasan_global &global :
+       HwasanGlobalsFor(load_bias, phdr_begin, ehdr->e_phnum))
+    if (global.addr() <= ptr && ptr < global.addr() + global.size())
+      return global.size();
+
+  return 0;
+}
+
 void PrintAddressDescription(
     uptr tagged_addr, uptr access_size,
     StackAllocationsRingBuffer *current_stack_allocations) {
@@ -278,13 +340,51 @@ void PrintAddressDescription(
       Printf("%s", d.Default());
       GetStackTraceFromId(chunk.GetAllocStackId()).Print();
       num_descriptions_printed++;
+    } else {
+      // Check whether the address points into a loaded library. If so, this is
+      // most likely a global variable.
+      const char *module_name;
+      uptr module_address;
+      Symbolizer *sym = Symbolizer::GetOrInit();
+      if (sym->GetModuleNameAndOffsetForPC(mem, &module_name,
+                                           &module_address)) {
+        DataInfo info;
+        if (sym->SymbolizeData(mem, &info) && info.start) {
+          Printf(
+              "%p is located %zd bytes to the %s of %zd-byte global variable "
+              "%s [%p,%p) in %s\n",
+              untagged_addr,
+              candidate == left ? untagged_addr - (info.start + info.size)
+                                : info.start - untagged_addr,
+              candidate == left ? "right" : "left", info.size, info.name,
+              info.start, info.start + info.size, module_name);
+        } else {
+          uptr size = GetGlobalSizeFromDescriptor(mem);
+          if (size == 0)
+            // We couldn't find the size of the global from the descriptors.
+            Printf(
+                "%p is located to the %s of a global variable in (%s+0x%x)\n",
+                untagged_addr, candidate == left ? "right" : "left",
+                module_name, module_address);
+          else
+            Printf(
+                "%p is located to the %s of a %zd-byte global variable in "
+                "(%s+0x%x)\n",
+                untagged_addr, candidate == left ? "right" : "left", size,
+                module_name, module_address);
+        }
+        num_descriptions_printed++;
+      }
     }
   }
 
   hwasanThreadList().VisitAllLiveThreads([&](Thread *t) {
     // Scan all threads' ring buffers to find if it's a heap-use-after-free.
     HeapAllocationRecord har;
-    if (uptr D = FindHeapAllocation(t->heap_allocations(), tagged_addr, &har)) {
+    uptr ring_index, num_matching_addrs, num_matching_addrs_4b;
+    if (FindHeapAllocation(t->heap_allocations(), tagged_addr, &har,
+                           &ring_index, &num_matching_addrs,
+                           &num_matching_addrs_4b)) {
       Printf("%s", d.Location());
       Printf("%p is located %zd bytes inside of %zd-byte region [%p,%p)\n",
              untagged_addr, untagged_addr - UntagAddr(har.tagged_addr),
@@ -302,8 +402,11 @@ void PrintAddressDescription(
 
       // Print a developer note: the index of this heap object
       // in the thread's deallocation ring buffer.
-      Printf("hwasan_dev_note_heap_rb_distance: %zd %zd\n", D,
+      Printf("hwasan_dev_note_heap_rb_distance: %zd %zd\n", ring_index + 1,
              flags()->heap_history_size);
+      Printf("hwasan_dev_note_num_matching_addrs: %zd\n", num_matching_addrs);
+      Printf("hwasan_dev_note_num_matching_addrs_4b: %zd\n",
+             num_matching_addrs_4b);
 
       t->Announce();
       num_descriptions_printed++;
@@ -346,12 +449,13 @@ static void PrintTagInfoAroundAddr(tag_t *tag_ptr, uptr num_rows,
   InternalScopedString s(GetPageSizeCached() * 8);
   for (tag_t *row = beg_row; row < end_row; row += row_len) {
     s.append("%s", row == center_row_beg ? "=>" : "  ");
+    s.append("%p:", row);
     for (uptr i = 0; i < row_len; i++) {
       s.append("%s", row + i == tag_ptr ? "[" : " ");
       print_tag(s, &row[i]);
       s.append("%s", row + i == tag_ptr ? "]" : " ");
     }
-    s.append("%s\n", row == center_row_beg ? "<=" : "  ");
+    s.append("\n");
   }
   Printf("%s", s.data());
 }
@@ -417,7 +521,7 @@ void ReportTailOverwritten(StackTrace *stack, uptr tagged_addr, uptr orig_size,
   Decorator d;
   uptr untagged_addr = UntagAddr(tagged_addr);
   Printf("%s", d.Error());
-  const char *bug_type = "alocation-tail-overwritten";
+  const char *bug_type = "allocation-tail-overwritten";
   Report("ERROR: %s: %s; heap object [%p,%p) of size %zd\n", SanitizerToolName,
          bug_type, untagged_addr, untagged_addr + orig_size, orig_size);
   Printf("\n%s", d.Default());

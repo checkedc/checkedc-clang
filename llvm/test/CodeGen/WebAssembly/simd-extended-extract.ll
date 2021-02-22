@@ -17,37 +17,9 @@ target datalayout = "e-m:e-p:32:32-i64:64-n32:64-S128"
 target triple = "wasm32-unknown-unknown"
 
 ; CHECK-LABEL: foo:
-
-; CHECK: i32.load8_u
-; CHECK: i32x4.splat
-; CHECK: i32.load8_u
-; CHECK: i32x4.replace_lane   1
-; CHECK: i32.load8_u
-; CHECK: i32x4.replace_lane   2
-; CHECK: i32.load8_u
-; CHECK: i32x4.replace_lane   3
-
-; CHECK: i8x16.extract_lane_s 0
-; CHECK: f64.convert_i32_s
-; CHECK: f32.demote_f64
-; CHECK: f32x4.splat
-
-; CHECK: i8x16.extract_lane_s 4
-; CHECK: f64.convert_i32_s
-; CHECK: f32.demote_f64
-; CHECK: f32x4.replace_lane   1
-
-; CHECK: i8x16.extract_lane_s 8
-; CHECK: f64.convert_i32_s
-; CHECK: f32.demote_f64
-; CHECK: f32x4.replace_lane   2
-
-; CHECK: i8x16.extract_lane_s 12
-; CHECK: f64.convert_i32_s
-; CHECK: f32.demote_f64
-; CHECK: f32x4.replace_lane   3
-
-; CHECK: v128.store
+; CHECK:         .functype foo (i32) -> ()
+; Implementation omitted...
+; CHECK:         return
 define void @foo(<4 x i8>* %p) {
   %1 = load <4 x i8>, <4 x i8>* %p
   %2 = sitofp <4 x i8> %1 to <4 x double>

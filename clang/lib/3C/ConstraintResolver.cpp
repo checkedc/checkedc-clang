@@ -451,7 +451,7 @@ CVarSet ConstraintResolver::getExprConstraintVars(Expr *E) {
         }
       } else if (DeclaratorDecl *FD = dyn_cast<DeclaratorDecl>(D)) {
         /* Allocator call */
-        if (isFunctionAllocator(FD->getName())) {
+        if (isFunctionAllocator(std::string(FD->getName()))) {
           bool DidInsert = false;
           IsAllocator = true;
           if (CE->getNumArgs() > 0) {
@@ -460,7 +460,7 @@ CVarSet ConstraintResolver::getExprConstraintVars(Expr *E) {
             ConstAtom *A;
             A = analyzeAllocExpr(CE, CS, ArgTy, FuncName, Context);
             if (A) {
-              std::string N = FD->getName();
+              std::string N(FD->getName());
               N = "&" + N;
               ExprType = Context->getPointerType(ArgTy);
               PVConstraint *PVC = new PVConstraint(ExprType, nullptr, N, Info,
@@ -620,10 +620,12 @@ CVarSet ConstraintResolver::getExprConstraintVars(Expr *E) {
       if (Expr *ESE = dyn_cast<Expr>(Res)) {
         return getExprConstraintVars(ESE);
       }
+    } else if (DesignatedInitExpr *DIE = dyn_cast<DesignatedInitExpr>(E)) {
+      Ret = getExprConstraintVars(DIE->getInit());
     } else {
       if (Verbose) {
         llvm::errs() << "WARNING! Initialization expression ignored: ";
-        E->dump(llvm::errs());
+        E->dump(llvm::errs(), *Context);
         llvm::errs() << "\n";
       }
     }

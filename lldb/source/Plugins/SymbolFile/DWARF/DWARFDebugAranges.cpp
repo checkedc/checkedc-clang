@@ -1,4 +1,4 @@
-//===-- DWARFDebugAranges.cpp -----------------------------------*- C++ -*-===//
+//===-- DWARFDebugAranges.cpp ---------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -66,8 +66,8 @@ void DWARFDebugAranges::Dump(Log *log) const {
   for (size_t i = 0; i < num_entries; ++i) {
     const RangeToDIE::Entry *entry = m_aranges.GetEntryAtIndex(i);
     if (entry)
-      log->Printf("0x%8.8x: [0x%" PRIx64 " - 0x%" PRIx64 ")", entry->data,
-                  entry->GetRangeBase(), entry->GetRangeEnd());
+      LLDB_LOGF(log, "0x%8.8x: [0x%" PRIx64 " - 0x%" PRIx64 ")", entry->data,
+                entry->GetRangeBase(), entry->GetRangeEnd());
   }
 }
 

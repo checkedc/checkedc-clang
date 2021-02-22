@@ -1,4 +1,4 @@
-# RUN: llc -debug-entry-values -run-pass=livedebugvalues -march=x86-64 -o - %s | FileCheck %s
+# RUN: llc -run-pass=livedebugvalues -verify-machineinstrs -march=x86-64 -o - %s | FileCheck %s
 #
 #extern void fn2(int);
 #
@@ -14,8 +14,8 @@
 #  fn2 (a);
 #  u --;
 #}
-# CHECK: DBG_VALUE $edi, $noreg, !14, !DIExpression(DW_OP_entry_value, 1), debug-location {{.*}}
-# CHECK: DBG_VALUE $esi, $noreg, !15, !DIExpression(DW_OP_entry_value, 1), debug-location {{.*}}
+# CHECK: DBG_VALUE $edi, $noreg, !14, !DIExpression(DW_OP_LLVM_entry_value, 1), debug-location {{.*}}
+# CHECK-NOT: DBG_VALUE $esi, $noreg, !15, !DIExpression(DW_OP_LLVM_entry_value, 1)
 
 --- |
   ; ModuleID = 'test.c'
@@ -56,16 +56,16 @@
   !11 = !{null, !12, !12}
   !12 = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
   !13 = !{!14, !15, !16, !17}
-  !14 = !DILocalVariable(name: "x", arg: 1, scope: !9, file: !1, line: 15, type: !12, flags: DIFlagArgumentNotModified)
-  !15 = !DILocalVariable(name: "y", arg: 2, scope: !9, file: !1, line: 15, type: !12, flags: DIFlagArgumentNotModified)
-  !16 = !DILocalVariable(name: "u", scope: !9, file: !1, line: 16, type: !12, flags: DIFlagArgumentNotModified)
-  !17 = !DILocalVariable(name: "a", scope: !9, file: !1, line: 21, type: !12, flags: DIFlagArgumentNotModified)
+  !14 = !DILocalVariable(name: "x", arg: 1, scope: !9, file: !1, line: 15, type: !12)
+  !15 = !DILocalVariable(name: "y", arg: 2, scope: !9, file: !1, line: 15, type: !12)
+  !16 = !DILocalVariable(name: "u", scope: !9, file: !1, line: 16, type: !12)
+  !17 = !DILocalVariable(name: "a", scope: !9, file: !1, line: 21, type: !12)
   !18 = !DILocation(line: 15, column: 10, scope: !9)
 
 ...
 ---
 name:            fn1
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 liveins:         []
 body:             |

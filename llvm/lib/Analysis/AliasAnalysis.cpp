@@ -44,6 +44,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/AtomicOrdering.h"
 #include "llvm/Support/Casting.h"
@@ -57,7 +58,7 @@ using namespace llvm;
 
 /// Allow disabling BasicAA from the AA results. This is particularly useful
 /// when testing to isolate a single AA implementation.
-static cl::opt<bool> DisableBasicAA("disable-basicaa", cl::Hidden,
+static cl::opt<bool> DisableBasicAA("disable-basic-aa", cl::Hidden,
                                     cl::init(false));
 
 AAResults::AAResults(AAResults &&Arg)
@@ -195,8 +196,7 @@ ModRefInfo AAResults::getModRefInfo(const CallBase *Call,
   // Try to refine the mod-ref info further using other API entry points to the
   // aggregate set of AA results.
   auto MRB = getModRefBehavior(Call);
-  if (MRB == FMRB_DoesNotAccessMemory ||
-      MRB == FMRB_OnlyAccessesInaccessibleMem)
+  if (onlyAccessesInaccessibleMem(MRB))
     return ModRefInfo::NoModRef;
 
   if (onlyReadsMemory(MRB))
@@ -630,16 +630,14 @@ ModRefInfo AAResults::getModRefInfo(const AtomicRMWInst *RMW,
 
 /// Return information about whether a particular call site modifies
 /// or reads the specified memory location \p MemLoc before instruction \p I
-/// in a BasicBlock. An ordered basic block \p OBB can be used to speed up
-/// instruction-ordering queries inside the BasicBlock containing \p I.
+/// in a BasicBlock.
 /// FIXME: this is really just shoring-up a deficiency in alias analysis.
 /// BasicAA isn't willing to spend linear time determining whether an alloca
 /// was captured before or after this particular call, while we are. However,
 /// with a smarter AA in place, this test is just wasting compile time.
 ModRefInfo AAResults::callCapturesBefore(const Instruction *I,
                                          const MemoryLocation &MemLoc,
-                                         DominatorTree *DT,
-                                         OrderedBasicBlock *OBB) {
+                                         DominatorTree *DT) {
   if (!DT)
     return ModRefInfo::ModRef;
 
@@ -655,8 +653,7 @@ ModRefInfo AAResults::callCapturesBefore(const Instruction *I,
 
   if (PointerMayBeCapturedBefore(Object, /* ReturnCaptures */ true,
                                  /* StoreCaptures */ true, I, DT,
-                                 /* include Object */ true,
-                                 /* OrderedBasicBlock */ OBB))
+                                 /* include Object */ true))
     return ModRefInfo::ModRef;
 
   unsigned ArgNo = 0;
@@ -734,6 +731,15 @@ namespace {
 
 } // end anonymous namespace
 
+ExternalAAWrapperPass::ExternalAAWrapperPass() : ImmutablePass(ID) {
+  initializeExternalAAWrapperPassPass(*PassRegistry::getPassRegistry());
+}
+
+ExternalAAWrapperPass::ExternalAAWrapperPass(CallbackT CB)
+    : ImmutablePass(ID), CB(std::move(CB)) {
+  initializeExternalAAWrapperPassPass(*PassRegistry::getPassRegistry());
+}
+
 char ExternalAAWrapperPass::ID = 0;
 
 INITIALIZE_PASS(ExternalAAWrapperPass, "external-aa", "External Alias Analysis",
@@ -784,7 +790,7 @@ bool AAResultsWrapperPass::runOnFunction(Function &F) {
   // previous object first, in this case replacing it with an empty one, before
   // registering new results.
   AAR.reset(
-      new AAResults(getAnalysis<TargetLibraryInfoWrapperPass>().getTLI()));
+      new AAResults(getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F)));
 
   // BasicAA is always available for function analyses. Also, we add it first
   // so that it can trump TBAA results when it proves MustAlias.
@@ -836,11 +842,12 @@ void AAResultsWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addUsedIfAvailable<SCEVAAWrapperPass>();
   AU.addUsedIfAvailable<CFLAndersAAWrapperPass>();
   AU.addUsedIfAvailable<CFLSteensAAWrapperPass>();
+  AU.addUsedIfAvailable<ExternalAAWrapperPass>();
 }
 
 AAResults llvm::createLegacyPMAAResults(Pass &P, Function &F,
                                         BasicAAResult &BAR) {
-  AAResults AAR(P.getAnalysis<TargetLibraryInfoWrapperPass>().getTLI());
+  AAResults AAR(P.getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F));
 
   // Add in our explicitly constructed BasicAA results.
   if (!DisableBasicAA)
@@ -861,6 +868,9 @@ AAResults llvm::createLegacyPMAAResults(Pass &P, Function &F,
     AAR.addAAResult(WrapperPass->getResult());
   if (auto *WrapperPass = P.getAnalysisIfAvailable<CFLSteensAAWrapperPass>())
     AAR.addAAResult(WrapperPass->getResult());
+  if (auto *WrapperPass = P.getAnalysisIfAvailable<ExternalAAWrapperPass>())
+    if (WrapperPass->CB)
+      WrapperPass->CB(P, F, AAR);
 
   return AAR;
 }
@@ -904,4 +914,5 @@ void llvm::getAAResultsAnalysisUsage(AnalysisUsage &AU) {
   AU.addUsedIfAvailable<GlobalsAAWrapperPass>();
   AU.addUsedIfAvailable<CFLAndersAAWrapperPass>();
   AU.addUsedIfAvailable<CFLSteensAAWrapperPass>();
+  AU.addUsedIfAvailable<ExternalAAWrapperPass>();
 }

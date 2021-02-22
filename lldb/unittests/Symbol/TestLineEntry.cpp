@@ -1,4 +1,4 @@
-//===-- TestLineEntry.cpp ------------------------------*- C++ -*-===//
+//===-- TestLineEntry.cpp -------------------------------------------------===//
 //
 //
 //                     The LLVM Compiler Infrastructure
@@ -14,15 +14,15 @@
 #include "Plugins/ObjectFile/Mach-O/ObjectFileMachO.h"
 #include "Plugins/SymbolFile/DWARF/DWARFASTParserClang.h"
 #include "Plugins/SymbolFile/DWARF/SymbolFileDWARF.h"
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
+#include "TestingSupport/SubsystemRAII.h"
 #include "TestingSupport/TestUtilities.h"
-#include "lldb/Symbol/ClangASTContext.h"
 
 #include "lldb/Core/Module.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/SymbolContext.h"
-#include "lldb/Utility/StreamString.h"
 
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/Program.h"
@@ -32,62 +32,35 @@ using namespace lldb_private;
 using namespace lldb;
 
 class LineEntryTest : public testing::Test {
-public:
-  void SetUp() override {
-    FileSystem::Initialize();
-    HostInfo::Initialize();
-    ObjectFileMachO::Initialize();
-    SymbolFileDWARF::Initialize();
-    ClangASTContext::Initialize();
-  }
+  SubsystemRAII<FileSystem, HostInfo, ObjectFileMachO, SymbolFileDWARF,
+                TypeSystemClang>
+      subsystem;
 
-  void TearDown() override {
-    ClangASTContext::Terminate();
-    SymbolFileDWARF::Terminate();
-    ObjectFileMachO::Terminate();
-    HostInfo::Terminate();
-    FileSystem::Terminate();
-  }
+public:
+  void SetUp() override;
 
 protected:
-  llvm::Expected<ModuleSP> GetModule();
   llvm::Expected<LineEntry> GetLineEntryForLine(uint32_t line);
+  llvm::Optional<TestFile> m_file;
   ModuleSP m_module_sp;
 };
 
-llvm::Expected<ModuleSP> LineEntryTest::GetModule() {
-  if (m_module_sp)
-    return m_module_sp;
-
-  llvm::SmallString<128> obj;
-  if (auto ec = llvm::sys::fs::createTemporaryFile("source-%%%%%%", "obj", obj))
-    return llvm::errorCodeToError(ec);
-  llvm::FileRemover obj_remover(obj);
-  if (auto error = ReadYAMLObjectFile("inlined-functions.yaml", obj))
-    return llvm::Error(std::move(error));
-
-  m_module_sp = std::make_shared<Module>(ModuleSpec(FileSpec(obj)));
-  // Preload because the temporary file will be gone once we exit this function.
-  m_module_sp->PreloadSymbols();
-  return m_module_sp;
+void LineEntryTest::SetUp() {
+  auto ExpectedFile = TestFile::fromYamlFile("inlined-functions.yaml");
+  ASSERT_THAT_EXPECTED(ExpectedFile, llvm::Succeeded());
+  m_file.emplace(std::move(*ExpectedFile));
+  m_module_sp = std::make_shared<Module>(m_file->moduleSpec());
 }
 
 llvm::Expected<LineEntry> LineEntryTest::GetLineEntryForLine(uint32_t line) {
-  auto expected_module_so = GetModule();
-
-  if (!expected_module_so)
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "Not able to get module for test object.");
-
-  auto module = expected_module_so->get();
   bool check_inlines = true;
   bool exact = true;
   SymbolContextList sc_comp_units;
   SymbolContextList sc_line_entries;
   FileSpec file_spec("inlined-functions.cpp");
-  module->ResolveSymbolContextsForFileSpec(file_spec, line, check_inlines,
-                                           lldb::eSymbolContextCompUnit,
-                                           sc_comp_units);
+  m_module_sp->ResolveSymbolContextsForFileSpec(file_spec, line, check_inlines,
+                                                lldb::eSymbolContextCompUnit,
+                                                sc_comp_units);
   if (sc_comp_units.GetSize() == 0)
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "No comp unit found on the test object.");

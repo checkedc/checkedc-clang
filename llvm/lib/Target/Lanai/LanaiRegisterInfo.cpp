@@ -66,11 +66,6 @@ bool LanaiRegisterInfo::requiresRegisterScavenging(
   return true;
 }
 
-bool LanaiRegisterInfo::trackLivenessAfterRegAlloc(
-    const MachineFunction & /*MF*/) const {
-  return true;
-}
-
 static bool isALUArithLoOpcode(unsigned Opcode) {
   switch (Opcode) {
   case Lanai::ADD_I_LO:
@@ -155,7 +150,7 @@ void LanaiRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   if (!HasFP || (needsStackRealignment(MF) && FrameIndex >= 0))
     Offset += MF.getFrameInfo().getStackSize();
 
-  unsigned FrameReg = getFrameRegister(MF);
+  Register FrameReg = getFrameRegister(MF);
   if (FrameIndex >= 0) {
     if (hasBasePointer(MF))
       FrameReg = getBaseRegister();

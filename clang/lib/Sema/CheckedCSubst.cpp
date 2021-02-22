@@ -18,6 +18,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/DenseSet.h"
+#include <stack>
 
 using namespace clang;
 using namespace sema;
@@ -439,9 +440,9 @@ public:
     QualType Result = getDerived().TransformType(TLB, NewTL);
     if (Result != TransformedType) {
       llvm::outs() << "Dumping transformed type:\n";
-      Result.dump(llvm::outs());
+      Result.dump(llvm::outs(), getSema().Context);
       llvm::outs() << "Dumping result:\n";
-      Result.dump(llvm::outs());
+      Result.dump(llvm::outs(), getSema().Context);
     }
     return Result;
   }

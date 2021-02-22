@@ -17,9 +17,6 @@
 /* Define if LLVM_ENABLE_DUMP is enabled */
 #cmakedefine LLVM_ENABLE_DUMP
 
-/* Define if we link Polly to the tools */
-#cmakedefine LINK_POLLY_INTO_TOOLS
-
 /* Target triple LLVM will generate code for by default */
 #cmakedefine LLVM_DEFAULT_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE}"
 
@@ -81,5 +78,8 @@
  * PrintStatistics() or PrintStatisticsJSON()
  */
 #cmakedefine01 LLVM_FORCE_ENABLE_STATS
+
+/* Define if LLVM was built with a dependency to the libtensorflow dynamic library */
+#cmakedefine LLVM_HAVE_TF_API
 
 #endif

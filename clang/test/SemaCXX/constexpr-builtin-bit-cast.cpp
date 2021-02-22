@@ -61,13 +61,13 @@ void test_record() {
 
   constexpr int_splicer splice{0x0C05FEFE, 0xCAFEBABE};
 
-  static_assert(bit_cast<unsigned long long>(splice) == LITTLE_END
-                ? 0xCAFEBABE0C05FEFE
-                : 0x0C05FEFECAFEBABE);
+  static_assert(bit_cast<unsigned long long>(splice) == (LITTLE_END
+                                                             ? 0xCAFEBABE0C05FEFE
+                                                             : 0x0C05FEFECAFEBABE));
 
-  static_assert(bit_cast<int_splicer>(0xCAFEBABE0C05FEFE).x == LITTLE_END
-                ? 0x0C05FEFE
-                : 0xCAFEBABE);
+  static_assert(bit_cast<int_splicer>(0xCAFEBABE0C05FEFE).x == (LITTLE_END
+                                                                    ? 0x0C05FEFE
+                                                                    : 0xCAFEBABE));
 
   static_assert(round_trip<unsigned long long>(splice));
   static_assert(round_trip<long long>(splice));
@@ -220,7 +220,7 @@ void backtrace() {
 void test_array_fill() {
   constexpr unsigned char a[4] = {1, 2};
   constexpr unsigned int i = bit_cast<unsigned int>(a);
-  static_assert(i == LITTLE_END ? 0x00000201 : 0x01020000, "");
+  static_assert(i == (LITTLE_END ? 0x00000201 : 0x01020000));
 }
 
 typedef decltype(nullptr) nullptr_t;
@@ -381,3 +381,19 @@ constexpr bool test_pad_buffer() {
   return x.a == z.a && x.b == z.b;
 }
 static_assert(test_pad_buffer());
+
+constexpr unsigned char identity1a = 42;
+constexpr unsigned char identity1b = __builtin_bit_cast(unsigned char, identity1a);
+static_assert(identity1b == 42);
+
+struct IdentityInStruct {
+  unsigned char n;
+};
+constexpr IdentityInStruct identity2a = {42};
+constexpr unsigned char identity2b = __builtin_bit_cast(unsigned char, identity2a.n);
+
+union IdentityInUnion {
+  unsigned char n;
+};
+constexpr IdentityInUnion identity3a = {42};
+constexpr unsigned char identity3b = __builtin_bit_cast(unsigned char, identity3a.n);

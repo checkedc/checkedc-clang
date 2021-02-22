@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_OptionValueUUID_h_
-#define liblldb_OptionValueUUID_h_
+#ifndef LLDB_INTERPRETER_OPTIONVALUEUUID_H
+#define LLDB_INTERPRETER_OPTIONVALUEUUID_H
 
 #include "lldb/Utility/UUID.h"
 #include "lldb/Interpreter/OptionValue.h"
@@ -52,8 +52,8 @@ public:
 
   void SetCurrentValue(const UUID &value) { m_uuid = value; }
 
-  size_t AutoComplete(CommandInterpreter &interpreter,
-                      CompletionRequest &request) override;
+  void AutoComplete(CommandInterpreter &interpreter,
+                    CompletionRequest &request) override;
 
 protected:
   UUID m_uuid;
@@ -61,4 +61,4 @@ protected:
 
 } // namespace lldb_private
 
-#endif // liblldb_OptionValueUUID_h_
+#endif // LLDB_INTERPRETER_OPTIONVALUEUUID_H

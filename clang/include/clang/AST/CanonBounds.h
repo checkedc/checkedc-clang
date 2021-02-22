@@ -80,6 +80,7 @@ namespace clang {
 
     Result CompareImpl(const PredefinedExpr *E1, const PredefinedExpr *E2);
     Result CompareImpl(const DeclRefExpr *E1, const DeclRefExpr *E2);
+    Result CompareImpl(const ConstantExpr *E1, const ConstantExpr *E2);
     Result CompareImpl(const IntegerLiteral *E1, const IntegerLiteral *E2);
     Result CompareImpl(const FloatingLiteral *E1, const FloatingLiteral *E2);
     Result CompareImpl(const StringLiteral *E1, const StringLiteral *E2);
@@ -132,6 +133,7 @@ namespace clang {
     /// \brief Compare declarations that may be used by expressions or
     /// or types.
     Result CompareDecl(const NamedDecl *D1, const NamedDecl *D2) const;
+    Result CompareDecl(const CapturedDecl *D1, const CapturedDecl *D2) const;
     Result CompareType(QualType T1, QualType T2) const;
     Result CompareTypeIgnoreCheckedness(QualType QT1, QualType QT2) const;
     Result CompareTypeLexicographically(QualType QT1, QualType QT2) const;

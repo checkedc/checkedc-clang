@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <experimental/string>
 
@@ -28,7 +28,7 @@
 #include <type_traits>
 #include <cassert>
 
-#include "constexpr_char_traits.hpp"
+#include "constexpr_char_traits.h"
 
 #include "test_macros.h"
 

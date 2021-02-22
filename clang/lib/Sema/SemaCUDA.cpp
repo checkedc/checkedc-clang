@@ -14,8 +14,10 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/Basic/Cuda.h"
+#include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Lookup.h"
+#include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaDiagnostic.h"
 #include "clang/Sema/SemaInternal.h"
@@ -210,6 +212,20 @@ Sema::IdentifyCUDAPreference(const FunctionDecl *Caller,
   llvm_unreachable("All cases should've been handled by now.");
 }
 
+template <typename AttrT> static bool hasImplicitAttr(const FunctionDecl *D) {
+  if (!D)
+    return false;
+  if (auto *A = D->getAttr<AttrT>())
+    return A->isImplicit();
+  return D->isImplicit();
+}
+
+bool Sema::isCUDAImplicitHostDeviceFunction(const FunctionDecl *D) {
+  bool IsImplicitDevAttr = hasImplicitAttr<CUDADeviceAttr>(D);
+  bool IsImplicitHostAttr = hasImplicitAttr<CUDAHostAttr>(D);
+  return IsImplicitDevAttr && IsImplicitHostAttr;
+}
+
 void Sema::EraseUnwantedCUDAMatches(
     const FunctionDecl *Caller,
     SmallVectorImpl<std::pair<DeclAccessPair, FunctionDecl *>> &Matches) {
@@ -267,6 +283,18 @@ bool Sema::inferCUDATargetForImplicitSpecialMember(CXXRecordDecl *ClassDecl,
                                                    CXXMethodDecl *MemberDecl,
                                                    bool ConstRHS,
                                                    bool Diagnose) {
+  // If the defaulted special member is defined lexically outside of its
+  // owning class, or the special member already has explicit device or host
+  // attributes, do not infer.
+  bool InClass = MemberDecl->getLexicalParent() == MemberDecl->getParent();
+  bool HasH = MemberDecl->hasAttr<CUDAHostAttr>();
+  bool HasD = MemberDecl->hasAttr<CUDADeviceAttr>();
+  bool HasExplicitAttr =
+      (HasD && !MemberDecl->getAttr<CUDADeviceAttr>()->isImplicit()) ||
+      (HasH && !MemberDecl->getAttr<CUDAHostAttr>()->isImplicit());
+  if (!InClass || HasExplicitAttr)
+    return false;
+
   llvm::Optional<CUDAFunctionTarget> InferredTarget;
 
   // We're going to invoke special member lookup; mark that these special
@@ -371,21 +399,23 @@ bool Sema::inferCUDATargetForImplicitSpecialMember(CXXRecordDecl *ClassDecl,
     }
   }
 
+
+  // If no target was inferred, mark this member as __host__ __device__;
+  // it's the least restrictive option that can be invoked from any target.
+  bool NeedsH = true, NeedsD = true;
   if (InferredTarget.hasValue()) {
-    if (InferredTarget.getValue() == CFT_Device) {
-      MemberDecl->addAttr(CUDADeviceAttr::CreateImplicit(Context));
-    } else if (InferredTarget.getValue() == CFT_Host) {
-      MemberDecl->addAttr(CUDAHostAttr::CreateImplicit(Context));
-    } else {
-      MemberDecl->addAttr(CUDADeviceAttr::CreateImplicit(Context));
-      MemberDecl->addAttr(CUDAHostAttr::CreateImplicit(Context));
-    }
-  } else {
-    // If no target was inferred, mark this member as __host__ __device__;
-    // it's the least restrictive option that can be invoked from any target.
-    MemberDecl->addAttr(CUDADeviceAttr::CreateImplicit(Context));
-    MemberDecl->addAttr(CUDAHostAttr::CreateImplicit(Context));
+    if (InferredTarget.getValue() == CFT_Device)
+      NeedsH = false;
+    else if (InferredTarget.getValue() == CFT_Host)
+      NeedsD = false;
   }
+
+  // We either setting attributes first time, or the inferred ones must match
+  // previously set ones.
+  if (NeedsD && !HasD)
+    MemberDecl->addAttr(CUDADeviceAttr::CreateImplicit(Context));
+  if (NeedsH && !HasH)
+    MemberDecl->addAttr(CUDAHostAttr::CreateImplicit(Context));
 
   return false;
 }
@@ -410,6 +440,10 @@ bool Sema::isEmptyCudaConstructor(SourceLocation Loc, CXXConstructorDecl *CD) {
   // Its class has no virtual functions and no virtual base classes.
   if (CD->getParent()->isDynamicClass())
     return false;
+
+  // Union ctor does not call ctors of its data members.
+  if (CD->getParent()->isUnion())
+    return true;
 
   // The only form of initializer allowed is an empty constructor.
   // This will recursively check all base classes and member initializers
@@ -450,6 +484,11 @@ bool Sema::isEmptyCudaDestructor(SourceLocation Loc, CXXDestructorDecl *DD) {
   if (ClassDecl->isDynamicClass())
     return false;
 
+  // Union does not have base class and union dtor does not call dtors of its
+  // data members.
+  if (DD->getParent()->isUnion())
+    return true;
+
   // Only empty destructors are allowed. This will recursively check
   // destructors for all base classes...
   if (!llvm::all_of(ClassDecl->bases(), [&](const CXXBaseSpecifier &BS) {
@@ -478,6 +517,8 @@ void Sema::checkAllowedCUDAInitializer(VarDecl *VD) {
   const Expr *Init = VD->getInit();
   if (VD->hasAttr<CUDADeviceAttr>() || VD->hasAttr<CUDAConstantAttr>() ||
       VD->hasAttr<CUDASharedAttr>()) {
+    if (LangOpts.GPUAllowDeviceInit)
+      return;
     assert(!VD->isStaticLocal() || VD->hasAttr<CUDASharedAttr>());
     bool AllowedInit = false;
     if (const CXXConstructExpr *CE = dyn_cast<CXXConstructExpr>(Init))
@@ -487,9 +528,14 @@ void Sema::checkAllowedCUDAInitializer(VarDecl *VD) {
     // constructor according to CUDA rules. This deviates from NVCC,
     // but allows us to handle things like constexpr constructors.
     if (!AllowedInit &&
-        (VD->hasAttr<CUDADeviceAttr>() || VD->hasAttr<CUDAConstantAttr>()))
-      AllowedInit = VD->getInit()->isConstantInitializer(
-          Context, VD->getType()->isReferenceType());
+        (VD->hasAttr<CUDADeviceAttr>() || VD->hasAttr<CUDAConstantAttr>())) {
+      auto *Init = VD->getInit();
+      AllowedInit =
+          ((VD->getType()->isDependentType() || Init->isValueDependent()) &&
+           VD->isConstexpr()) ||
+          Init->isConstantInitializer(Context,
+                                      VD->getType()->isReferenceType());
+    }
 
     // Also make sure that destructor, if there is one, is empty.
     if (AllowedInit)
@@ -586,38 +632,11 @@ void Sema::maybeAddCUDAHostDeviceAttrs(FunctionDecl *NewD,
   NewD->addAttr(CUDADeviceAttr::CreateImplicit(Context));
 }
 
-// Do we know that we will eventually codegen the given function?
-static bool IsKnownEmitted(Sema &S, FunctionDecl *FD) {
-  // Templates are emitted when they're instantiated.
-  if (FD->isDependentContext())
-    return false;
-
-  // When compiling for device, host functions are never emitted.  Similarly,
-  // when compiling for host, device and global functions are never emitted.
-  // (Technically, we do emit a host-side stub for global functions, but this
-  // doesn't count for our purposes here.)
-  Sema::CUDAFunctionTarget T = S.IdentifyCUDATarget(FD);
-  if (S.getLangOpts().CUDAIsDevice && T == Sema::CFT_Host)
-    return false;
-  if (!S.getLangOpts().CUDAIsDevice &&
-      (T == Sema::CFT_Device || T == Sema::CFT_Global))
-    return false;
-
-  // Check whether this function is externally visible -- if so, it's
-  // known-emitted.
-  //
-  // We have to check the GVA linkage of the function's *definition* -- if we
-  // only have a declaration, we don't know whether or not the function will be
-  // emitted, because (say) the definition could include "inline".
-  FunctionDecl *Def = FD->getDefinition();
-
-  if (Def &&
-      !isDiscardableGVALinkage(S.getASTContext().GetGVALinkageForFunction(Def)))
-    return true;
-
-  // Otherwise, the function is known-emitted if it's in our set of
-  // known-emitted functions.
-  return S.DeviceKnownEmittedFns.count(FD) > 0;
+void Sema::MaybeAddCUDAConstantAttr(VarDecl *VD) {
+  if (getLangOpts().CUDAIsDevice && VD->isConstexpr() &&
+      (VD->isFileVarDecl() || VD->isStaticDataMember())) {
+    VD->addAttr(CUDAConstantAttr::CreateImplicit(getASTContext()));
+  }
 }
 
 Sema::DeviceDiagBuilder Sema::CUDADiagIfDeviceCode(SourceLocation Loc,
@@ -633,7 +652,8 @@ Sema::DeviceDiagBuilder Sema::CUDADiagIfDeviceCode(SourceLocation Loc,
       // device code if we're compiling for device.  Defer any errors in device
       // mode until the function is known-emitted.
       if (getLangOpts().CUDAIsDevice) {
-        return IsKnownEmitted(*this, dyn_cast<FunctionDecl>(CurContext))
+        return (getEmissionStatus(cast<FunctionDecl>(CurContext)) ==
+                FunctionEmissionStatus::Emitted)
                    ? DeviceDiagBuilder::K_ImmediateWithCallStack
                    : DeviceDiagBuilder::K_Deferred;
       }
@@ -661,7 +681,8 @@ Sema::DeviceDiagBuilder Sema::CUDADiagIfHostCode(SourceLocation Loc,
       if (getLangOpts().CUDAIsDevice)
         return DeviceDiagBuilder::K_Nop;
 
-      return IsKnownEmitted(*this, dyn_cast<FunctionDecl>(CurContext))
+      return (getEmissionStatus(cast<FunctionDecl>(CurContext)) ==
+              FunctionEmissionStatus::Emitted)
                  ? DeviceDiagBuilder::K_ImmediateWithCallStack
                  : DeviceDiagBuilder::K_Deferred;
     default:
@@ -688,23 +709,8 @@ bool Sema::CheckCUDACall(SourceLocation Loc, FunctionDecl *Callee) {
 
   // If the caller is known-emitted, mark the callee as known-emitted.
   // Otherwise, mark the call in our call graph so we can traverse it later.
-  bool CallerKnownEmitted = IsKnownEmitted(*this, Caller);
-  if (CallerKnownEmitted) {
-    // Host-side references to a __global__ function refer to the stub, so the
-    // function itself is never emitted and therefore should not be marked.
-    if (getLangOpts().CUDAIsDevice || IdentifyCUDATarget(Callee) != CFT_Global)
-      markKnownEmitted(*this, Caller, Callee, Loc, IsKnownEmitted);
-  } else {
-    // If we have
-    //   host fn calls kernel fn calls host+device,
-    // the HD function does not get instantiated on the host.  We model this by
-    // omitting at the call to the kernel from the callgraph.  This ensures
-    // that, when compiling for host, only HD functions actually called from the
-    // host get marked as known-emitted.
-    if (getLangOpts().CUDAIsDevice || IdentifyCUDATarget(Callee) != CFT_Global)
-      DeviceCallGraph[Caller].insert({Callee, Loc});
-  }
-
+  bool CallerKnownEmitted =
+      getEmissionStatus(Caller) == FunctionEmissionStatus::Emitted;
   DeviceDiagBuilder::Kind DiagKind = [this, Caller, Callee,
                                       CallerKnownEmitted] {
     switch (IdentifyCUDAPreference(Caller, Callee)) {
@@ -741,20 +747,58 @@ bool Sema::CheckCUDACall(SourceLocation Loc, FunctionDecl *Callee) {
          DiagKind != DeviceDiagBuilder::K_ImmediateWithCallStack;
 }
 
+// Check the wrong-sided reference capture of lambda for CUDA/HIP.
+// A lambda function may capture a stack variable by reference when it is
+// defined and uses the capture by reference when the lambda is called. When
+// the capture and use happen on different sides, the capture is invalid and
+// should be diagnosed.
+void Sema::CUDACheckLambdaCapture(CXXMethodDecl *Callee,
+                                  const sema::Capture &Capture) {
+  // In host compilation we only need to check lambda functions emitted on host
+  // side. In such lambda functions, a reference capture is invalid only
+  // if the lambda structure is populated by a device function or kernel then
+  // is passed to and called by a host function. However that is impossible,
+  // since a device function or kernel can only call a device function, also a
+  // kernel cannot pass a lambda back to a host function since we cannot
+  // define a kernel argument type which can hold the lambda before the lambda
+  // itself is defined.
+  if (!LangOpts.CUDAIsDevice)
+    return;
+
+  // File-scope lambda can only do init captures for global variables, which
+  // results in passing by value for these global variables.
+  FunctionDecl *Caller = dyn_cast<FunctionDecl>(CurContext);
+  if (!Caller)
+    return;
+
+  // In device compilation, we only need to check lambda functions which are
+  // emitted on device side. For such lambdas, a reference capture is invalid
+  // only if the lambda structure is populated by a host function then passed
+  // to and called in a device function or kernel.
+  bool CalleeIsDevice = Callee->hasAttr<CUDADeviceAttr>();
+  bool CallerIsHost =
+      !Caller->hasAttr<CUDAGlobalAttr>() && !Caller->hasAttr<CUDADeviceAttr>();
+  bool ShouldCheck = CalleeIsDevice && CallerIsHost;
+  if (!ShouldCheck || !Capture.isReferenceCapture())
+    return;
+  auto DiagKind = DeviceDiagBuilder::K_Deferred;
+  if (Capture.isVariableCapture()) {
+    DeviceDiagBuilder(DiagKind, Capture.getLocation(),
+                      diag::err_capture_bad_target, Callee, *this)
+        << Capture.getVariable();
+  } else if (Capture.isThisCapture()) {
+    DeviceDiagBuilder(DiagKind, Capture.getLocation(),
+                      diag::err_capture_bad_target_this_ptr, Callee, *this);
+  }
+  return;
+}
+
 void Sema::CUDASetLambdaAttrs(CXXMethodDecl *Method) {
   assert(getLangOpts().CUDA && "Should only be called during CUDA compilation");
   if (Method->hasAttr<CUDAHostAttr>() || Method->hasAttr<CUDADeviceAttr>())
     return;
-  FunctionDecl *CurFn = dyn_cast<FunctionDecl>(CurContext);
-  if (!CurFn)
-    return;
-  CUDAFunctionTarget Target = IdentifyCUDATarget(CurFn);
-  if (Target == CFT_Global || Target == CFT_Device) {
-    Method->addAttr(CUDADeviceAttr::CreateImplicit(Context));
-  } else if (Target == CFT_HostDevice) {
-    Method->addAttr(CUDADeviceAttr::CreateImplicit(Context));
-    Method->addAttr(CUDAHostAttr::CreateImplicit(Context));
-  }
+  Method->addAttr(CUDADeviceAttr::CreateImplicit(Context));
+  Method->addAttr(CUDAHostAttr::CreateImplicit(Context));
 }
 
 void Sema::checkCUDATargetOverload(FunctionDecl *NewFD,
@@ -806,7 +850,8 @@ void Sema::inheritCUDATargetAttrs(FunctionDecl *FD,
 
 std::string Sema::getCudaConfigureFuncName() const {
   if (getLangOpts().HIP)
-    return "hipConfigureCall";
+    return getLangOpts().HIPUseNewLaunchAPI ? "__hipPushCallConfiguration"
+                                            : "hipConfigureCall";
 
   // New CUDA kernel launch sequence.
   if (CudaFeatureEnabled(Context.getTargetInfo().getSDKVersion(),

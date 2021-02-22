@@ -5,15 +5,15 @@
 
 // Make sure we run dsymutil on source input files.
 // RUN: %clang -target i386-apple-darwin9 -### -g %s -o BAR 2> %t.log
-// RUN: grep '".*dsymutil\(.exe\)\?" "-o" "BAR.dSYM" "BAR"' %t.log
+// RUN: grep -E '".*dsymutil(\.exe)?" "-o" "BAR.dSYM" "BAR"' %t.log
 // RUN: %clang -target i386-apple-darwin9 -### -g -filelist FOO %s -o BAR 2> %t.log
-// RUN: grep '".*dsymutil\(.exe\)\?" "-o" "BAR.dSYM" "BAR"' %t.log
+// RUN: grep -E '".*dsymutil(\.exe)?" "-o" "BAR.dSYM" "BAR"' %t.log
 
 // Check linker changes that came with new linkedit format.
 // RUN: touch %t.o
-// RUN: %clang -target i386-apple-darwin9 -### -arch armv6 -miphoneos-version-min=3.0 %t.o 2> %t.log
-// RUN: %clang -target i386-apple-darwin9 -### -arch armv6 -miphoneos-version-min=3.0 -dynamiclib %t.o 2>> %t.log
-// RUN: %clang -target i386-apple-darwin9 -### -arch armv6 -miphoneos-version-min=3.0 -bundle %t.o 2>> %t.log
+// RUN: %clang -target i386-apple-darwin9 -mlinker-version=400 -### -arch armv6 -miphoneos-version-min=3.0 %t.o 2> %t.log
+// RUN: %clang -target i386-apple-darwin9 -mlinker-version=400 -### -arch armv6 -miphoneos-version-min=3.0 -dynamiclib %t.o 2>> %t.log
+// RUN: %clang -target i386-apple-darwin9 -mlinker-version=400 -### -arch armv6 -miphoneos-version-min=3.0 -bundle %t.o 2>> %t.log
 // RUN: FileCheck -check-prefix=LINK_IPHONE_3_0 %s < %t.log
 
 // LINK_IPHONE_3_0: {{ld(.exe)?"}}
@@ -30,9 +30,9 @@
 // LINK_IPHONE_3_0: -lbundle1.o
 // LINK_IPHONE_3_0: -lSystem
 
-// RUN: %clang -target i386-apple-darwin9 -### -arch armv7 -miphoneos-version-min=3.1 %t.o 2> %t.log
-// RUN: %clang -target i386-apple-darwin9 -### -arch armv7 -miphoneos-version-min=3.1 -dynamiclib %t.o 2>> %t.log
-// RUN: %clang -target i386-apple-darwin9 -### -arch armv7 -miphoneos-version-min=3.1 -bundle %t.o 2>> %t.log
+// RUN: %clang -target i386-apple-darwin9 -mlinker-version=400 -### -arch armv7 -miphoneos-version-min=3.1 %t.o 2> %t.log
+// RUN: %clang -target i386-apple-darwin9 -mlinker-version=400 -### -arch armv7 -miphoneos-version-min=3.1 -dynamiclib %t.o 2>> %t.log
+// RUN: %clang -target i386-apple-darwin9 -mlinker-version=400 -### -arch armv7 -miphoneos-version-min=3.1 -bundle %t.o 2>> %t.log
 // RUN: FileCheck -check-prefix=LINK_IPHONE_3_1 %s < %t.log
 
 // LINK_IPHONE_3_1: {{ld(.exe)?"}}
@@ -49,9 +49,9 @@
 // LINK_IPHONE_3_1-NOT: -lbundle1.o
 // LINK_IPHONE_3_1: -lSystem
 
-// RUN: %clang -target i386-apple-darwin9 -### -arch i386 -mios-simulator-version-min=3.0 %t.o 2> %t.log
-// RUN: %clang -target i386-apple-darwin9 -### -arch i386 -mios-simulator-version-min=3.0 -dynamiclib %t.o 2>> %t.log
-// RUN: %clang -target i386-apple-darwin9 -### -arch i386 -mios-simulator-version-min=3.0 -bundle %t.o 2>> %t.log
+// RUN: %clang -target i386-apple-darwin9 -mlinker-version=400 -### -arch i386 -mios-simulator-version-min=3.0 %t.o 2> %t.log
+// RUN: %clang -target i386-apple-darwin9 -mlinker-version=400 -### -arch i386 -mios-simulator-version-min=3.0 -dynamiclib %t.o 2>> %t.log
+// RUN: %clang -target i386-apple-darwin9 -mlinker-version=400 -### -arch i386 -mios-simulator-version-min=3.0 -bundle %t.o 2>> %t.log
 // RUN: FileCheck -check-prefix=LINK_IOSSIM_3_0 %s < %t.log
 
 // LINK_IOSSIM_3_0: {{ld(.exe)?"}}
@@ -132,8 +132,8 @@
 // LINK_LAZY_LIBRARY: {{ld(.exe)?"}}
 // LINK_LAZY_LIBRARY: "-lazy_library" "Library"
 
-// RUN: %clang -target x86_64-apple-darwin10 -### %t.o 2> %t.log
-// RUN: %clang -target x86_64-apple-macosx10.7 -### %t.o 2>> %t.log
+// RUN: %clang -target x86_64-apple-darwin10 -mlinker-version=400 -### %t.o 2> %t.log
+// RUN: %clang -target x86_64-apple-macosx10.7 -mlinker-version=400 -### %t.o 2>> %t.log
 // RUN: FileCheck -check-prefix=LINK_VERSION_MIN %s < %t.log
 // LINK_VERSION_MIN: {{ld(.exe)?"}}
 // LINK_VERSION_MIN: "-macosx_version_min" "10.6.0"
@@ -158,7 +158,7 @@
 // LINK_IOSSIM_PROFILE: libclang_rt.profile_iossim.a
 // LINK_IOSSIM_PROFILE: libclang_rt.ios.a
 
-// RUN: %clang -target arm64-apple-tvos8.3 -mtvos-version-min=8.3 -resource-dir=%S/Inputs/resource_dir -### %t.o 2> %t.log
+// RUN: %clang -target arm64-apple-tvos8.3 -mlinker-version=400 -mtvos-version-min=8.3 -resource-dir=%S/Inputs/resource_dir -### %t.o 2> %t.log
 // RUN: FileCheck -check-prefix=LINK_TVOS_ARM64 %s < %t.log
 // LINK_TVOS_ARM64: {{ld(.exe)?"}}
 // LINK_TVOS_ARM64: -tvos_version_min
@@ -166,19 +166,19 @@
 // LINK_TVOS_ARM64-NOT: lgcc_s.1
 // LINK_TVOS_ARM64: libclang_rt.tvos.a
 
-// RUN: %clang -target arm64-apple-tvos8.3 -mtvos-version-min=8.3 -fprofile-instr-generate -resource-dir=%S/Inputs/resource_dir  -### %t.o 2> %t.log
+// RUN: %clang -target arm64-apple-tvos8.3 -mlinker-version=400 -mtvos-version-min=8.3 -fprofile-instr-generate -resource-dir=%S/Inputs/resource_dir  -### %t.o 2> %t.log
 // RUN: FileCheck -check-prefix=LINK_TVOS_PROFILE %s < %t.log
 // LINK_TVOS_PROFILE: {{ld(.exe)?"}}
 // LINK_TVOS_PROFILE: libclang_rt.profile_tvos.a
 // LINK_TVOS_PROFILE: libclang_rt.tvos.a
 
-// RUN: %clang -target arm64-apple-tvos8.3 -mtvos-version-min=8.3 -resource-dir=%S/Inputs/resource_dir -### %t.o -lcc_kext 2> %t.log
+// RUN: %clang -target arm64-apple-tvos8.3 -mlinker-version=400 -mtvos-version-min=8.3 -resource-dir=%S/Inputs/resource_dir -### %t.o -lcc_kext 2> %t.log
 // RUN: FileCheck -check-prefix=LINK_TVOS_KEXT %s < %t.log
 // LINK_TVOS_KEXT: {{ld(.exe)?"}}
 // LINK_TVOS_KEXT: libclang_rt.cc_kext_tvos.a
 // LINK_TVOS_KEXT: libclang_rt.tvos.a
 
-// RUN: %clang -target armv7k-apple-watchos2.0 -mwatchos-version-min=2.0 -resource-dir=%S/Inputs/resource_dir -### %t.o 2> %t.log
+// RUN: %clang -target armv7k-apple-watchos2.0 -mlinker-version=400 -mwatchos-version-min=2.0 -resource-dir=%S/Inputs/resource_dir -### %t.o 2> %t.log
 // RUN: FileCheck -check-prefix=LINK_WATCHOS_ARM %s < %t.log
 // LINK_WATCHOS_ARM: {{ld(.exe)?"}}
 // LINK_WATCHOS_ARM: -watchos_version_min
@@ -186,13 +186,13 @@
 // LINK_WATCHOS_ARM-NOT: lgcc_s.1
 // LINK_WATCHOS_ARM: libclang_rt.watchos.a
 
-// RUN: %clang -target armv7k-apple-watchos2.0 -mwatchos-version-min=2.0 -resource-dir=%S/Inputs/resource_dir -fprofile-instr-generate -### %t.o 2> %t.log
+// RUN: %clang -target armv7k-apple-watchos2.0 -mlinker-version=400 -mwatchos-version-min=2.0 -resource-dir=%S/Inputs/resource_dir -fprofile-instr-generate -### %t.o 2> %t.log
 // RUN: FileCheck -check-prefix=LINK_WATCHOS_PROFILE %s < %t.log
 // LINK_WATCHOS_PROFILE: {{ld(.exe)?"}}
 // LINK_WATCHOS_PROFILE: libclang_rt.profile_watchos.a
 // LINK_WATCHOS_PROFILE: libclang_rt.watchos.a
 
-// RUN: %clang -target armv7k-apple-watchos2.0 -mwatchos-version-min=2.0 -resource-dir=%S/Inputs/resource_dir -### %t.o -lcc_kext 2> %t.log
+// RUN: %clang -target armv7k-apple-watchos2.0 -mlinker-version=400 -mwatchos-version-min=2.0 -resource-dir=%S/Inputs/resource_dir -### %t.o -lcc_kext 2> %t.log
 // RUN: FileCheck -check-prefix=LINK_WATCHOS_KEXT %s < %t.log
 // LINK_WATCHOS_KEXT: {{ld(.exe)?"}}
 // LINK_WATCHOS_KEXT: libclang_rt.cc_kext_watchos.a
@@ -251,30 +251,30 @@
 // IPHONEOS_DEPLOYMENT_TARGET variable is used instead of the command-line
 // deployment target options.
 // RUN: env IPHONEOS_DEPLOYMENT_TARGET=7.0 \
-// RUN:   %clang -target arm64-apple-darwin -### %t.o 2> %t.log
+// RUN:   %clang -target arm64-apple-darwin -mlinker-version=400 -### %t.o 2> %t.log
 // RUN: FileCheck -check-prefix=LINK_IPHONEOS_VERSION_MIN %s < %t.log
 // RUN: env IPHONEOS_DEPLOYMENT_TARGET=7.0 \
-// RUN:   %clang -target i386-apple-darwin -### %t.o 2> %t.log
+// RUN:   %clang -target i386-apple-darwin -mlinker-version=400 -### %t.o 2> %t.log
 // RUN: FileCheck -check-prefix=LINK_IOS_SIMULATOR_VERSION_MIN %s < %t.log
 // LINK_IPHONEOS_VERSION_MIN: -iphoneos_version_min
 // LINK_IOS_SIMULATOR_VERSION_MIN: -ios_simulator_version_min
 
 // Ditto for tvOS....
 // RUN: env TVOS_DEPLOYMENT_TARGET=7.0 \
-// RUN:   %clang -target armv7-apple-darwin -### %t.o 2> %t.log
+// RUN:   %clang -target armv7-apple-darwin -mlinker-version=400 -### %t.o 2> %t.log
 // RUN: FileCheck -check-prefix=LINK_TVOS_VERSION_MIN %s < %t.log
 // RUN: env TVOS_DEPLOYMENT_TARGET=7.0 \
-// RUN:   %clang -target x86_64-apple-darwin -### %t.o 2> %t.log
+// RUN:   %clang -target x86_64-apple-darwin -mlinker-version=400 -### %t.o 2> %t.log
 // RUN: FileCheck -check-prefix=LINK_TVOS_SIMULATOR_VERSION_MIN %s < %t.log
 // LINK_TVOS_VERSION_MIN: -tvos_version_min
 // LINK_TVOS_SIMULATOR_VERSION_MIN: -tvos_simulator_version_min
 
 // ...and for watchOS.
 // RUN: env WATCHOS_DEPLOYMENT_TARGET=2.0 \
-// RUN:   %clang -target armv7k-apple-darwin -### %t.o 2> %t.log
+// RUN:   %clang -target armv7k-apple-darwin -mlinker-version=400 -### %t.o 2> %t.log
 // RUN: FileCheck -check-prefix=LINK_WATCHOS_VERSION_MIN %s < %t.log
 // RUN: env WATCHOS_DEPLOYMENT_TARGET=2.0 \
-// RUN:   %clang -target i386-apple-darwin -### %t.o 2> %t.log
+// RUN:   %clang -target i386-apple-darwin -mlinker-version=400 -### %t.o 2> %t.log
 // RUN: FileCheck -check-prefix=LINK_WATCHOS_SIMULATOR_VERSION_MIN %s < %t.log
 // LINK_WATCHOS_VERSION_MIN: -watchos_version_min
 // LINK_WATCHOS_SIMULATOR_VERSION_MIN: -watchos_simulator_version_min
@@ -309,32 +309,6 @@
 // LINK_VERSION_DIGITS: invalid version number in '-mlinker-version=133.3.0.1.a'
 // LINK_VERSION_DIGITS: invalid version number in '-mlinker-version=133.3.0.1a'
 
-// Check that we're passing -lto-pass-remarks-output for LTO
-// RUN: %clang -target x86_64-apple-darwin12 %t.o -fsave-optimization-record -### -o foo/bar.out 2> %t.log
-// RUN: FileCheck -check-prefix=PASS_REMARKS_OUTPUT %s < %t.log
-// PASS_REMARKS_OUTPUT: "-mllvm" "-lto-pass-remarks-output" "-mllvm" "foo/bar.out.opt.yaml"
-// PASS_REMARKS_OUTPUT-NOT: -lto-pass-remarks-with-hotness
-
-// RUN: %clang -target x86_64-apple-darwin12 %t.o -fsave-optimization-record -### 2> %t.log
-// RUN: FileCheck -check-prefix=PASS_REMARKS_OUTPUT_NO_O %s < %t.log
-// PASS_REMARKS_OUTPUT_NO_O: "-mllvm" "-lto-pass-remarks-output" "-mllvm" "a.out.opt.yaml"
-
-// RUN: %clang -target x86_64-apple-darwin12 %t.o -fsave-optimization-record -fprofile-instr-use=blah -### -o foo/bar.out 2> %t.log
-// RUN: FileCheck -check-prefix=PASS_REMARKS_WITH_HOTNESS %s < %t.log
-// PASS_REMARKS_WITH_HOTNESS: "-mllvm" "-lto-pass-remarks-output" "-mllvm" "foo/bar.out.opt.yaml" "-mllvm" "-lto-pass-remarks-with-hotness"
-
-// RUN: %clang -target x86_64-apple-darwin12 %t.o -fsave-optimization-record -fprofile-instr-use=blah -fdiagnostics-hotness-threshold=100 -### -o foo/bar.out 2> %t.log
-// RUN: FileCheck -check-prefix=PASS_REMARKS_WITH_HOTNESS_THRESHOLD %s < %t.log
-// PASS_REMARKS_WITH_HOTNESS_THRESHOLD: "-mllvm" "-lto-pass-remarks-output" "-mllvm" "foo/bar.out.opt.yaml" "-mllvm" "-lto-pass-remarks-with-hotness" "-mllvm" "-lto-pass-remarks-hotness-threshold=100"
-
-// RUN: %clang -target x86_64-apple-darwin12 %t.o -fsave-optimization-record -foptimization-record-passes=inline -### -o foo/bar.out 2> %t.log
-// RUN: FileCheck -check-prefix=PASS_REMARKS_WITH_PASSES %s < %t.log
-// PASS_REMARKS_WITH_PASSES: "-mllvm" "-lto-pass-remarks-output" "-mllvm" "foo/bar.out.opt.yaml" "-mllvm" "-lto-pass-remarks-filter=inline"
-//
-// RUN: %clang -target x86_64-apple-darwin12 %t.o -fsave-optimization-record=some-format -### -o foo/bar.out 2> %t.log
-// RUN: FileCheck -check-prefix=PASS_REMARKS_WITH_FORMAT %s < %t.log
-// PASS_REMARKS_WITH_FORMAT: "-mllvm" "-lto-pass-remarks-output" "-mllvm" "foo/bar.out.opt.some-format" "-mllvm" "-lto-pass-remarks-format=some-format"
-
 // RUN: %clang -target x86_64-apple-ios6.0 -miphoneos-version-min=6.0 -fprofile-instr-generate -### %t.o 2> %t.log
 // RUN: FileCheck -check-prefix=LINK_PROFILE_FIRST %s < %t.log
 // RUN: %clang -target x86_64-apple-darwin12 -fprofile-instr-generate -### %t.o 2> %t.log
@@ -344,6 +318,12 @@
 // RUN: %clang -target arm64-apple-ios5.0 -miphoneos-version-min=5.0 -fprofile-instr-generate -### %t.o 2> %t.log
 // RUN: FileCheck -check-prefix=LINK_PROFILE_FIRST %s < %t.log
 // LINK_PROFILE_FIRST: {{ld(.exe)?"}} "{{[^"]+}}libclang_rt.profile_{{[a-z]+}}.a"
+
+// RUN: %clang -target x86_64-apple-darwin12 -fprofile-instr-generate -### %t.o 2> %t.log
+// RUN: FileCheck -check-prefix=PROFILE_SECTALIGN %s < %t.log
+// RUN: %clang -target arm64-apple-ios12 -fprofile-instr-generate -### %t.o 2> %t.log
+// RUN: FileCheck -check-prefix=PROFILE_SECTALIGN %s < %t.log
+// PROFILE_SECTALIGN: "-sectalign" "__DATA" "__llvm_prf_cnts" "0x4000" "-sectalign" "__DATA" "__llvm_prf_data" "0x4000"
 
 // RUN: %clang -target x86_64-apple-darwin12 -fprofile-instr-generate -exported_symbols_list /dev/null -### %t.o 2> %t.log
 // RUN: FileCheck -check-prefix=PROFILE_EXPORT %s < %t.log
@@ -355,7 +335,7 @@
 // RUN: FileCheck -check-prefix=PROFILE_EXPORT %s < %t.log
 // RUN: %clang -target x86_64-apple-darwin12 -fprofile-instr-generate -Xlinker -exported_symbols_list -Xlinker /dev/null -### %t.o 2> %t.log
 // RUN: FileCheck -check-prefix=PROFILE_EXPORT %s < %t.log
-// PROFILE_EXPORT: "-exported_symbol" "___llvm_profile_filename" "-exported_symbol" "___llvm_profile_raw_version" "-exported_symbol" "_lprofCurFilename"
+// PROFILE_EXPORT: "-exported_symbol" "___llvm_profile_filename" "-exported_symbol" "___llvm_profile_raw_version"
 //
 // RUN: %clang -target x86_64-apple-darwin12 -fprofile-instr-generate --coverage -### %t.o 2> %t.log
 // RUN: FileCheck -check-prefix=NO_PROFILE_EXPORT %s < %t.log

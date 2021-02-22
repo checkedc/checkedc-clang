@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_AddressResolverName_h_
-#define liblldb_AddressResolverName_h_
+#ifndef LLDB_CORE_ADDRESSRESOLVERNAME_H
+#define LLDB_CORE_ADDRESSRESOLVERNAME_H
 
 #include "lldb/Core/AddressResolver.h"
 #include "lldb/Core/SearchFilter.h"
@@ -31,7 +31,7 @@ public:
 
   // Creates a function breakpoint by regular expression.  Takes over control
   // of the lifespan of func_regex.
-  AddressResolverName(RegularExpression &func_regex);
+  AddressResolverName(RegularExpression func_regex);
 
   AddressResolverName(const char *class_name, const char *method,
                       AddressResolver::MatchType type);
@@ -39,8 +39,8 @@ public:
   ~AddressResolverName() override;
 
   Searcher::CallbackReturn SearchCallback(SearchFilter &filter,
-                                          SymbolContext &context, Address *addr,
-                                          bool containing) override;
+                                          SymbolContext &context,
+                                          Address *addr) override;
 
   lldb::SearchDepth GetDepth() override;
 
@@ -54,9 +54,10 @@ protected:
   AddressResolver::MatchType m_match_type;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(AddressResolverName);
+  AddressResolverName(const AddressResolverName &) = delete;
+  const AddressResolverName &operator=(const AddressResolverName &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_AddressResolverName_h_
+#endif // LLDB_CORE_ADDRESSRESOLVERNAME_H

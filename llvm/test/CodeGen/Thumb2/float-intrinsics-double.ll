@@ -127,9 +127,11 @@ define double @copysign_d(double %a, double %b) {
 ; SOFT: bfi r1, [[REG]], #31, #1
 ; VFP: lsrs [[REG:r[0-9]+]], r3, #31
 ; VFP: bfi r1, [[REG]], #31, #1
-; NEON: vmov.i32 [[REG:d[0-9]+]], #0x80000000
-; NEON: vshl.i64 [[REG]], [[REG]], #32
-; NEON: vbsl [[REG]], d
+; NEON:         vmov.i32 d16, #0x80000000
+; NEON-NEXT:    vshl.i64 d16, d16, #32
+; NEON-NEXT:    vbsl d16, d1, d0
+; NEON-NEXT:    vorr d0, d16, d16
+; NEON-NEXT:    bx lr
   %1 = call double @llvm.copysign.f64(double %a, double %b)
   ret double %1
 }
@@ -201,7 +203,7 @@ define double @fmuladd_d(double %a, double %b, double %c) {
 ; SOFT: bl __aeabi_dadd
 ; VFP4: vmul.f64
 ; VFP4: vadd.f64
-; FP-ARMv8: vmla.f64
+; FP-ARMv8: vfma.f64
   %1 = call double @llvm.fmuladd.f64(double %a, double %b, double %c)
   ret double %1
 }

@@ -24,8 +24,6 @@
 #include "llvm/Support/Path.h"
 using namespace clang;
 
-PPCallbacks::~PPCallbacks() {}
-
 //===----------------------------------------------------------------------===//
 // Miscellaneous Methods.
 //===----------------------------------------------------------------------===//
@@ -81,7 +79,7 @@ bool Preprocessor::EnterSourceFile(FileID FID, const DirectoryLookup *CurDir,
   if (Invalid) {
     SourceLocation FileStart = SourceMgr.getLocForStartOfFile(FID);
     Diag(Loc, diag::err_pp_error_opening_file)
-      << std::string(SourceMgr.getBufferName(FileStart)) << "";
+        << std::string(SourceMgr.getBufferName(FileStart)) << "";
     return true;
   }
 
@@ -128,7 +126,7 @@ void Preprocessor::EnterMacro(Token &Tok, SourceLocation ILEnd,
                               MacroInfo *Macro, MacroArgs *Args) {
   std::unique_ptr<TokenLexer> TokLexer;
   if (NumCachedTokenLexers == 0) {
-    TokLexer = llvm::make_unique<TokenLexer>(Tok, ILEnd, Macro, Args, *this);
+    TokLexer = std::make_unique<TokenLexer>(Tok, ILEnd, Macro, Args, *this);
   } else {
     TokLexer = std::move(TokenLexerCache[--NumCachedTokenLexers]);
     TokLexer->Init(Tok, ILEnd, Macro, Args);
@@ -180,7 +178,7 @@ void Preprocessor::EnterTokenStream(const Token *Toks, unsigned NumToks,
   // Create a macro expander to expand from the specified token stream.
   std::unique_ptr<TokenLexer> TokLexer;
   if (NumCachedTokenLexers == 0) {
-    TokLexer = llvm::make_unique<TokenLexer>(
+    TokLexer = std::make_unique<TokenLexer>(
         Toks, NumToks, DisableMacroExpansion, OwnsTokens, IsReinject, *this);
   } else {
     TokLexer = std::move(TokenLexerCache[--NumCachedTokenLexers]);
@@ -206,8 +204,8 @@ static void computeRelativePath(FileManager &FM, const DirectoryEntry *Dir,
   StringRef FilePath = File->getDir()->getName();
   StringRef Path = FilePath;
   while (!Path.empty()) {
-    if (const DirectoryEntry *CurDir = FM.getDirectory(Path)) {
-      if (CurDir == Dir) {
+    if (auto CurDir = FM.getDirectory(Path)) {
+      if (*CurDir == Dir) {
         Result = FilePath.substr(Path.size());
         llvm::sys::path::append(Result,
                                 llvm::sys::path::filename(File->getName()));
@@ -287,12 +285,12 @@ void Preprocessor::diagnoseMissingHeaderInUmbrellaDir(const Module &Mod) {
              .Default(false))
       continue;
 
-    if (const FileEntry *Header = getFileManager().getFile(Entry->path()))
-      if (!getSourceManager().hasFileInfo(Header)) {
-        if (!ModMap.isHeaderInUnavailableModule(Header)) {
+    if (auto Header = getFileManager().getFile(Entry->path()))
+      if (!getSourceManager().hasFileInfo(*Header)) {
+        if (!ModMap.isHeaderInUnavailableModule(*Header)) {
           // Find the relative path that would access this header.
           SmallString<128> RelativePath;
-          computeRelativePath(FileMgr, Dir, Header, RelativePath);
+          computeRelativePath(FileMgr, Dir, *Header, RelativePath);
           Diag(StartLoc, diag::warn_uncovered_module_header)
               << Mod.getFullModuleName() << RelativePath;
         }
@@ -376,12 +374,13 @@ bool Preprocessor::HandleEndOfFile(Token &Result, bool isEndOfMacro) {
   // Complain about reaching a true EOF within arc_cf_code_audited.
   // We don't want to complain about reaching the end of a macro
   // instantiation or a _Pragma.
-  if (PragmaARCCFCodeAuditedLoc.isValid() &&
-      !isEndOfMacro && !(CurLexer && CurLexer->Is_PragmaLexer)) {
-    Diag(PragmaARCCFCodeAuditedLoc, diag::err_pp_eof_in_arc_cf_code_audited);
+  if (PragmaARCCFCodeAuditedInfo.second.isValid() && !isEndOfMacro &&
+      !(CurLexer && CurLexer->Is_PragmaLexer)) {
+    Diag(PragmaARCCFCodeAuditedInfo.second,
+         diag::err_pp_eof_in_arc_cf_code_audited);
 
     // Recover by leaving immediately.
-    PragmaARCCFCodeAuditedLoc = SourceLocation();
+    PragmaARCCFCodeAuditedInfo = {nullptr, SourceLocation()};
   }
 
   // Complain about reaching a true EOF within assume_nonnull.
@@ -416,7 +415,10 @@ bool Preprocessor::HandleEndOfFile(Token &Result, bool isEndOfMacro) {
     }
 
     if (!isEndOfMacro && CurPPLexer &&
-        SourceMgr.getIncludeLoc(CurPPLexer->getFileID()).isValid()) {
+        (SourceMgr.getIncludeLoc(CurPPLexer->getFileID()).isValid() ||
+         // Predefines file doesn't have a valid include location.
+         (PredefinesFileID.isValid() &&
+          CurPPLexer->getFileID() == PredefinesFileID))) {
       // Notify SourceManager to record the number of FileIDs that were created
       // during lexing of the #include'd file.
       unsigned NumFIDs =

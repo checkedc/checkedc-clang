@@ -346,6 +346,14 @@ public:
       : SelectionDAGISel(TM, OptLevel) {}
 
   bool runOnMachineFunction(MachineFunction &MF) override {
+    const Function &F = MF.getFunction();
+    if (F.getFnAttribute("fentry-call").getValueAsString() != "true") {
+      if (F.hasFnAttribute("mnop-mcount"))
+        report_fatal_error("mnop-mcount only supported with fentry-call");
+      if (F.hasFnAttribute("mrecord-mcount"))
+        report_fatal_error("mrecord-mcount only supported with fentry-call");
+    }
+
     Subtarget = &MF.getSubtarget<SystemZSubtarget>();
     return SelectionDAGISel::runOnMachineFunction(MF);
   }
@@ -1146,7 +1154,7 @@ void SystemZDAGToDAGISel::loadVectorConstant(
   SDLoc DL(Node);
   SmallVector<SDValue, 2> Ops;
   for (unsigned OpVal : VCI.OpVals)
-    Ops.push_back(CurDAG->getConstant(OpVal, DL, MVT::i32));
+    Ops.push_back(CurDAG->getTargetConstant(OpVal, DL, MVT::i32));
   SDValue Op = CurDAG->getNode(VCI.Opcode, DL, VCI.VecVT, Ops);
 
   if (VCI.VecVT == VT.getSimpleVT())
@@ -1448,7 +1456,8 @@ bool SystemZDAGToDAGISel::storeLoadCanUseBlockBinary(SDNode *N,
   auto *StoreA = cast<StoreSDNode>(N);
   auto *LoadA = cast<LoadSDNode>(StoreA->getValue().getOperand(1 - I));
   auto *LoadB = cast<LoadSDNode>(StoreA->getValue().getOperand(I));
-  return !LoadA->isVolatile() && canUseBlockOperation(StoreA, LoadB);
+  return !LoadA->isVolatile() && LoadA->getMemoryVT() == LoadB->getMemoryVT() &&
+         canUseBlockOperation(StoreA, LoadB);
 }
 
 void SystemZDAGToDAGISel::Select(SDNode *Node) {
@@ -1489,8 +1498,9 @@ void SystemZDAGToDAGISel::Select(SDNode *Node) {
             if (ChildOpcode == ISD::AND || ChildOpcode == ISD::OR ||
                 ChildOpcode == ISD::XOR)
               break;
-          // Check whether this expression matches OR-with-complement.
-          if (Opcode == ISD::OR && ChildOpcode == ISD::XOR) {
+          // Check whether this expression matches OR-with-complement
+          // (or matches an alternate pattern for NXOR).
+          if (ChildOpcode == ISD::XOR) {
             auto Op0 = Node->getOperand(0);
             if (auto *Op0Op1 = dyn_cast<ConstantSDNode>(Op0->getOperand(1)))
               if (Op0Op1->getZExtValue() == (uint64_t)-1)
@@ -1550,8 +1560,8 @@ void SystemZDAGToDAGISel::Select(SDNode *Node) {
       uint64_t ConstCCMask =
         cast<ConstantSDNode>(CCMask.getNode())->getZExtValue();
       // Invert the condition.
-      CCMask = CurDAG->getConstant(ConstCCValid ^ ConstCCMask, SDLoc(Node),
-                                   CCMask.getValueType());
+      CCMask = CurDAG->getTargetConstant(ConstCCValid ^ ConstCCMask,
+                                         SDLoc(Node), CCMask.getValueType());
       SDValue Op4 = Node->getOperand(4);
       SDNode *UpdatedNode =
         CurDAG->UpdateNodeOperands(Node, Op1, Op0, CCValid, CCMask, Op4);

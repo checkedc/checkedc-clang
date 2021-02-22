@@ -3,13 +3,16 @@
 # RUN: llvm-mc %s -triple riscv64 -riscv-no-aliases -show-encoding \
 # RUN:     | FileCheck -check-prefixes=CHECK-ASM,CHECK-ASM-AND-OBJ %s
 # RUN: llvm-mc -filetype=obj -triple=riscv32 < %s \
-# RUN:     | llvm-objdump -riscv-no-aliases -d -r - \
+# RUN:     | llvm-objdump -M no-aliases -d -r - \
 # RUN:     | FileCheck -check-prefixes=CHECK-OBJ,CHECK-ASM-AND-OBJ %s
 # RUN: llvm-mc -filetype=obj -triple=riscv64 < %s \
-# RUN:     | llvm-objdump -riscv-no-aliases -d -r - \
+# RUN:     | llvm-objdump -M no-aliases -d -r - \
 # RUN:     | FileCheck -check-prefixes=CHECK-OBJ,CHECK-ASM-AND-OBJ %s
 
 .equ CONST, 30
+
+# Needed for testing valid %pcrel_lo expressions
+.Lpcrel_hi0: auipc a0, %pcrel_hi(foo)
 
 # CHECK-ASM-AND-OBJ: lui a0, 2
 # CHECK-ASM: encoding: [0x37,0x25,0x00,0x00]
@@ -161,11 +164,11 @@ lw a0, 97(a2)
 # CHECK-OBJ: lbu s5, 0(s6)
 # CHECK-OBJ: R_RISCV_LO12
 lbu s5, %lo(foo)(s6)
-# CHECK-ASM: lhu t3, %pcrel_lo(foo)(t3)
+# CHECK-ASM: lhu t3, %pcrel_lo(.Lpcrel_hi0)(t3)
 # CHECK-ASM: encoding: [0x03,0x5e,0bAAAA1110,A]
 # CHECK-OBJ: lhu t3, 0(t3)
 # CHECK-OBJ: R_RISCV_PCREL_LO12
-lhu t3, %pcrel_lo(foo)(t3)
+lhu t3, %pcrel_lo(.Lpcrel_hi0)(t3)
 # CHECK-ASM-AND-OBJ: lb t0, 30(t1)
 # CHECK-ASM: encoding: [0x83,0x02,0xe3,0x01]
 lb t0, CONST(t1)

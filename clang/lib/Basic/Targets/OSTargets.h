@@ -87,7 +87,7 @@ protected:
 public:
   DarwinTargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
       : OSTargetInfo<Target>(Triple, Opts) {
-    // By default, no TLS, and we whitelist permitted architecture/OS
+    // By default, no TLS, and we list permitted architecture/OS
     // combinations.
     this->TLSSupported = false;
 
@@ -538,6 +538,7 @@ protected:
     Builder.defineMacro("__KPRINTF_ATTRIBUTE__");
     DefineStd(Builder, "unix", Opts);
     Builder.defineMacro("__ELF__");
+    Builder.defineMacro("__SCE__");
     Builder.defineMacro("__ORBIS__");
   }
 
@@ -560,6 +561,10 @@ public:
       this->NewAlign = 256;
       break;
     }
+  }
+  TargetInfo::CallingConvCheckResult
+  checkCallingConvention(CallingConv CC) const override {
+    return (CC == CC_C) ? TargetInfo::CCCR_OK : TargetInfo::CCCR_Error;
   }
 };
 
@@ -618,8 +623,11 @@ protected:
       Builder.defineMacro("_XOPEN_SOURCE", "600");
     else
       Builder.defineMacro("_XOPEN_SOURCE", "500");
-    if (Opts.CPlusPlus)
+    if (Opts.CPlusPlus) {
       Builder.defineMacro("__C99FEATURES__");
+      Builder.defineMacro("_FILE_OFFSET_BITS", "64");
+    }
+    // GCC restricts the next two to C++.
     Builder.defineMacro("_LARGEFILE_SOURCE");
     Builder.defineMacro("_LARGEFILE64_SOURCE");
     Builder.defineMacro("__EXTENSIONS__");
@@ -698,6 +706,8 @@ protected:
 public:
   AIXTargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
       : OSTargetInfo<Target>(Triple, Opts) {
+    this->TheCXXABI.set(TargetCXXABI::XL);
+
     if (this->PointerWidth == 64) {
       this->WCharType = this->UnsignedInt;
     } else {
@@ -768,9 +778,11 @@ public:
     if (Triple.getArch() == llvm::Triple::arm) {
       // Handled in ARM's setABI().
     } else if (Triple.getArch() == llvm::Triple::x86) {
-      this->resetDataLayout("e-m:e-p:32:32-i64:64-n8:16:32-S128");
+      this->resetDataLayout("e-m:e-p:32:32-p270:32:32-p271:32:32-p272:64:64-"
+                            "i64:64-n8:16:32-S128");
     } else if (Triple.getArch() == llvm::Triple::x86_64) {
-      this->resetDataLayout("e-m:e-p:32:32-i64:64-n8:16:32:64-S128");
+      this->resetDataLayout("e-m:e-p:32:32-p270:32:32-p271:32:32-p272:64:64-"
+                            "i64:64-n8:16:32:64-S128");
     } else if (Triple.getArch() == llvm::Triple::mipsel) {
       // Handled on mips' setDataLayout.
     } else {
@@ -799,6 +811,7 @@ public:
   FuchsiaTargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
       : OSTargetInfo<Target>(Triple, Opts) {
     this->MCountName = "__mcount";
+    this->TheCXXABI.set(TargetCXXABI::Fuchsia);
   }
 };
 
@@ -808,7 +821,7 @@ class LLVM_LIBRARY_VISIBILITY WebAssemblyOSTargetInfo
     : public OSTargetInfo<Target> {
 protected:
   void getOSDefines(const LangOptions &Opts, const llvm::Triple &Triple,
-                    MacroBuilder &Builder) const {
+                    MacroBuilder &Builder) const override {
     // A common platform macro.
     if (Opts.POSIXThreads)
       Builder.defineMacro("_REENTRANT");

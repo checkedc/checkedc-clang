@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "Unix.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/Twine.h"
 
@@ -35,51 +37,69 @@
 #include <lwp.h> // For _lwp_self()
 #endif
 
+#if defined(__OpenBSD__)
+#include <unistd.h> // For getthrid()
+#endif
+
 #if defined(__linux__)
+#include <sched.h>       // For sched_getaffinity
 #include <sys/syscall.h> // For syscall codes
 #include <unistd.h>      // For syscall()
 #endif
 
-namespace {
-  struct ThreadInfo {
-    void(*UserFn)(void *);
-    void *UserData;
-  };
-}
-
-static void *ExecuteOnThread_Dispatch(void *Arg) {
-  ThreadInfo *TI = reinterpret_cast<ThreadInfo*>(Arg);
+static void *threadFuncSync(void *Arg) {
+  SyncThreadInfo *TI = static_cast<SyncThreadInfo *>(Arg);
   TI->UserFn(TI->UserData);
   return nullptr;
 }
 
-void llvm::llvm_execute_on_thread(void(*Fn)(void*), void *UserData,
-  unsigned RequestedStackSize) {
-  ThreadInfo Info = { Fn, UserData };
-  pthread_attr_t Attr;
-  pthread_t Thread;
+static void *threadFuncAsync(void *Arg) {
+  std::unique_ptr<AsyncThreadInfo> Info(static_cast<AsyncThreadInfo *>(Arg));
+  (*Info)();
+  return nullptr;
+}
+
+static void
+llvm_execute_on_thread_impl(void *(*ThreadFunc)(void *), void *Arg,
+                            llvm::Optional<unsigned> StackSizeInBytes,
+                            JoiningPolicy JP) {
+  int errnum;
 
   // Construct the attributes object.
-  if (::pthread_attr_init(&Attr) != 0)
-    return;
+  pthread_attr_t Attr;
+  if ((errnum = ::pthread_attr_init(&Attr)) != 0) {
+    ReportErrnumFatal("pthread_attr_init failed", errnum);
+  }
+
+  auto AttrGuard = llvm::make_scope_exit([&] {
+    if ((errnum = ::pthread_attr_destroy(&Attr)) != 0) {
+      ReportErrnumFatal("pthread_attr_destroy failed", errnum);
+    }
+  });
 
   // Set the requested stack size, if given.
-  if (RequestedStackSize != 0) {
-    if (::pthread_attr_setstacksize(&Attr, RequestedStackSize) != 0)
-      goto error;
+  if (StackSizeInBytes) {
+    if ((errnum = ::pthread_attr_setstacksize(&Attr, *StackSizeInBytes)) != 0) {
+      ReportErrnumFatal("pthread_attr_setstacksize failed", errnum);
+    }
   }
 
   // Construct and execute the thread.
-  if (::pthread_create(&Thread, &Attr, ExecuteOnThread_Dispatch, &Info) != 0)
-    goto error;
+  pthread_t Thread;
+  if ((errnum = ::pthread_create(&Thread, &Attr, ThreadFunc, Arg)) != 0)
+    ReportErrnumFatal("pthread_create failed", errnum);
 
-  // Wait for the thread and clean up.
-  ::pthread_join(Thread, nullptr);
-
-error:
-  ::pthread_attr_destroy(&Attr);
+  if (JP == JoiningPolicy::Join) {
+    // Wait for the thread
+    if ((errnum = ::pthread_join(Thread, nullptr)) != 0) {
+      ReportErrnumFatal("pthread_join failed", errnum);
+    }
+  } else if (JP == JoiningPolicy::Detach) {
+    if ((errnum = ::pthread_detach(Thread)) != 0) {
+      ReportErrnumFatal("pthread_detach failed", errnum);
+    }
+  }
 }
-
 
 uint64_t llvm::get_threadid() {
 #if defined(__APPLE__)
@@ -93,6 +113,8 @@ uint64_t llvm::get_threadid() {
   return uint64_t(pthread_getthreadid_np());
 #elif defined(__NetBSD__)
   return uint64_t(_lwp_self());
+#elif defined(__OpenBSD__)
+  return uint64_t(getthrid());
 #elif defined(__ANDROID__)
   return uint64_t(gettid());
 #elif defined(__linux__)
@@ -256,3 +278,27 @@ SetThreadPriorityResult llvm::set_thread_priority(ThreadPriority Priority) {
 #endif
   return SetThreadPriorityResult::FAILURE;
 }
+
+#include <thread>
+
+int computeHostNumHardwareThreads() {
+#ifdef __linux__
+  cpu_set_t Set;
+  if (sched_getaffinity(0, sizeof(Set), &Set) == 0)
+    return CPU_COUNT(&Set);
+#endif
+  // Guard against std::thread::hardware_concurrency() returning 0.
+  if (unsigned Val = std::thread::hardware_concurrency())
+    return Val;
+  return 1;
+}
+
+void llvm::ThreadPoolStrategy::apply_thread_strategy(
+    unsigned ThreadPoolNum) const {}
+
+llvm::BitVector llvm::get_thread_affinity_mask() {
+  // FIXME: Implement
+  llvm_unreachable("Not implemented!");
+}
+
+unsigned llvm::get_cpus() { return 1; }

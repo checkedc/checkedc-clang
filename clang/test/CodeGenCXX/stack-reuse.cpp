@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple armv7-unknown-linux-gnueabihf %s -o - -emit-llvm -O1 | FileCheck %s
+// RUN: %clang_cc1 -triple armv7-unknown-linux-gnueabihf %s -o - -emit-llvm -O2 | FileCheck %s
 
 // Stack should be reused when possible, no need to allocate two separate slots
 // if they have disjoint lifetime.
@@ -135,7 +135,7 @@ int large_combiner_test(S_large s) {
 // CHECK: [[T2:%.*]] = alloca %struct.Combiner
 // CHECK: [[T1:%.*]] = alloca %struct.Combiner
 // CHECK: [[T3:%.*]] = call %struct.Combiner* @_ZN8CombinerC1E7S_large(%struct.Combiner* nonnull [[T1]], [9 x i32] %s.coerce)
-// CHECK: call void @_ZN8Combiner1fEv(%struct.Combiner* nonnull sret [[T2]], %struct.Combiner* nonnull [[T1]])
+// CHECK: call void @_ZN8Combiner1fEv(%struct.Combiner* nonnull sret align 4 [[T2]], %struct.Combiner* nonnull [[T1]])
 // CHECK: [[T4:%.*]] = getelementptr inbounds %struct.Combiner, %struct.Combiner* [[T2]], i32 0, i32 0, i32 0, i32 0
 // CHECK: [[T5:%.*]] = load i32, i32* [[T4]]
 // CHECK: ret i32 [[T5]]

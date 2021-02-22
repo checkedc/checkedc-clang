@@ -53,7 +53,7 @@ public:
   static const endianness TargetEndianness = E;
   static const bool Is64Bits = Is64;
 
-  using uint = typename std::conditional<Is64, uint64_t, uint32_t>::type;
+  using uint = std::conditional_t<Is64, uint64_t, uint32_t>;
   using Ehdr = Elf_Ehdr_Impl<ELFType<E, Is64>>;
   using Shdr = Elf_Shdr_Impl<ELFType<E, Is64>>;
   using Sym = Elf_Sym_Impl<ELFType<E, Is64>>;
@@ -248,7 +248,11 @@ template <class ELFT>
 Expected<StringRef> Elf_Sym_Impl<ELFT>::getName(StringRef StrTab) const {
   uint32_t Offset = this->st_name;
   if (Offset >= StrTab.size())
-    return errorCodeToError(object_error::parse_failed);
+    return createStringError(object_error::parse_failed,
+                             "st_name (0x%" PRIx32
+                             ") is past the end of the string table"
+                             " of size 0x%zx",
+                             Offset, StrTab.size());
   return StringRef(StrTab.data() + Offset);
 }
 
@@ -342,10 +346,8 @@ template <class ELFT>
 struct Elf_Dyn_Impl : Elf_Dyn_Base<ELFT> {
   using Elf_Dyn_Base<ELFT>::d_tag;
   using Elf_Dyn_Base<ELFT>::d_un;
-  using intX_t = typename std::conditional<ELFT::Is64Bits,
-                                           int64_t, int32_t>::type;
-  using uintX_t = typename std::conditional<ELFT::Is64Bits,
-                                            uint64_t, uint32_t>::type;
+  using intX_t = std::conditional_t<ELFT::Is64Bits, int64_t, int32_t>;
+  using uintX_t = std::conditional_t<ELFT::Is64Bits, uint64_t, uint32_t>;
   intX_t getTag() const { return d_tag; }
   uintX_t getVal() const { return d_un.d_val; }
   uintX_t getPtr() const { return d_un.d_ptr; }
@@ -537,6 +539,7 @@ struct Elf_GnuHash_Impl {
   }
 
   ArrayRef<Elf_Word> values(unsigned DynamicSymCount) const {
+    assert(DynamicSymCount >= symndx);
     return ArrayRef<Elf_Word>(buckets().end(), DynamicSymCount - symndx);
   }
 };
@@ -611,6 +614,12 @@ public:
         reinterpret_cast<const uint8_t *>(&Nhdr) + sizeof(Nhdr) +
           alignTo<Elf_Nhdr_Impl<ELFT>::Align>(Nhdr.n_namesz),
         Nhdr.n_descsz);
+  }
+
+  /// Get the note's descriptor as StringRef
+  StringRef getDescAsStringRef() const {
+    ArrayRef<uint8_t> Desc = getDesc();
+    return StringRef(reinterpret_cast<const char *>(Desc.data()), Desc.size());
   }
 
   /// Get the note's type.

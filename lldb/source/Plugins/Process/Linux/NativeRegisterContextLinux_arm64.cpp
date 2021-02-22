@@ -1,4 +1,4 @@
-//===-- NativeRegisterContextLinux_arm64.cpp --------------------*- C++ -*-===//
+//===-- NativeRegisterContextLinux_arm64.cpp ------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -21,7 +21,6 @@
 #include "Plugins/Process/Linux/NativeProcessLinux.h"
 #include "Plugins/Process/Linux/Procfs.h"
 #include "Plugins/Process/POSIX/ProcessPOSIXLog.h"
-#include "Plugins/Process/Utility/RegisterInfoPOSIX_arm64.h"
 
 // System includes - They have to be included after framework includes because
 // they define some macros which collide with variable names in other modules
@@ -37,85 +36,15 @@ using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::process_linux;
 
-// ARM64 general purpose registers.
-static const uint32_t g_gpr_regnums_arm64[] = {
-    gpr_x0_arm64,       gpr_x1_arm64,   gpr_x2_arm64,  gpr_x3_arm64,
-    gpr_x4_arm64,       gpr_x5_arm64,   gpr_x6_arm64,  gpr_x7_arm64,
-    gpr_x8_arm64,       gpr_x9_arm64,   gpr_x10_arm64, gpr_x11_arm64,
-    gpr_x12_arm64,      gpr_x13_arm64,  gpr_x14_arm64, gpr_x15_arm64,
-    gpr_x16_arm64,      gpr_x17_arm64,  gpr_x18_arm64, gpr_x19_arm64,
-    gpr_x20_arm64,      gpr_x21_arm64,  gpr_x22_arm64, gpr_x23_arm64,
-    gpr_x24_arm64,      gpr_x25_arm64,  gpr_x26_arm64, gpr_x27_arm64,
-    gpr_x28_arm64,      gpr_fp_arm64,   gpr_lr_arm64,  gpr_sp_arm64,
-    gpr_pc_arm64,       gpr_cpsr_arm64, gpr_w0_arm64,  gpr_w1_arm64,
-    gpr_w2_arm64,       gpr_w3_arm64,   gpr_w4_arm64,  gpr_w5_arm64,
-    gpr_w6_arm64,       gpr_w7_arm64,   gpr_w8_arm64,  gpr_w9_arm64,
-    gpr_w10_arm64,      gpr_w11_arm64,  gpr_w12_arm64, gpr_w13_arm64,
-    gpr_w14_arm64,      gpr_w15_arm64,  gpr_w16_arm64, gpr_w17_arm64,
-    gpr_w18_arm64,      gpr_w19_arm64,  gpr_w20_arm64, gpr_w21_arm64,
-    gpr_w22_arm64,      gpr_w23_arm64,  gpr_w24_arm64, gpr_w25_arm64,
-    gpr_w26_arm64,      gpr_w27_arm64,  gpr_w28_arm64,
-    LLDB_INVALID_REGNUM // register sets need to end with this flag
-};
-static_assert(((sizeof g_gpr_regnums_arm64 / sizeof g_gpr_regnums_arm64[0]) -
-               1) == k_num_gpr_registers_arm64,
-              "g_gpr_regnums_arm64 has wrong number of register infos");
-
-// ARM64 floating point registers.
-static const uint32_t g_fpu_regnums_arm64[] = {
-    fpu_v0_arm64,       fpu_v1_arm64,   fpu_v2_arm64,  fpu_v3_arm64,
-    fpu_v4_arm64,       fpu_v5_arm64,   fpu_v6_arm64,  fpu_v7_arm64,
-    fpu_v8_arm64,       fpu_v9_arm64,   fpu_v10_arm64, fpu_v11_arm64,
-    fpu_v12_arm64,      fpu_v13_arm64,  fpu_v14_arm64, fpu_v15_arm64,
-    fpu_v16_arm64,      fpu_v17_arm64,  fpu_v18_arm64, fpu_v19_arm64,
-    fpu_v20_arm64,      fpu_v21_arm64,  fpu_v22_arm64, fpu_v23_arm64,
-    fpu_v24_arm64,      fpu_v25_arm64,  fpu_v26_arm64, fpu_v27_arm64,
-    fpu_v28_arm64,      fpu_v29_arm64,  fpu_v30_arm64, fpu_v31_arm64,
-    fpu_s0_arm64,       fpu_s1_arm64,   fpu_s2_arm64,  fpu_s3_arm64,
-    fpu_s4_arm64,       fpu_s5_arm64,   fpu_s6_arm64,  fpu_s7_arm64,
-    fpu_s8_arm64,       fpu_s9_arm64,   fpu_s10_arm64, fpu_s11_arm64,
-    fpu_s12_arm64,      fpu_s13_arm64,  fpu_s14_arm64, fpu_s15_arm64,
-    fpu_s16_arm64,      fpu_s17_arm64,  fpu_s18_arm64, fpu_s19_arm64,
-    fpu_s20_arm64,      fpu_s21_arm64,  fpu_s22_arm64, fpu_s23_arm64,
-    fpu_s24_arm64,      fpu_s25_arm64,  fpu_s26_arm64, fpu_s27_arm64,
-    fpu_s28_arm64,      fpu_s29_arm64,  fpu_s30_arm64, fpu_s31_arm64,
-
-    fpu_d0_arm64,       fpu_d1_arm64,   fpu_d2_arm64,  fpu_d3_arm64,
-    fpu_d4_arm64,       fpu_d5_arm64,   fpu_d6_arm64,  fpu_d7_arm64,
-    fpu_d8_arm64,       fpu_d9_arm64,   fpu_d10_arm64, fpu_d11_arm64,
-    fpu_d12_arm64,      fpu_d13_arm64,  fpu_d14_arm64, fpu_d15_arm64,
-    fpu_d16_arm64,      fpu_d17_arm64,  fpu_d18_arm64, fpu_d19_arm64,
-    fpu_d20_arm64,      fpu_d21_arm64,  fpu_d22_arm64, fpu_d23_arm64,
-    fpu_d24_arm64,      fpu_d25_arm64,  fpu_d26_arm64, fpu_d27_arm64,
-    fpu_d28_arm64,      fpu_d29_arm64,  fpu_d30_arm64, fpu_d31_arm64,
-    fpu_fpsr_arm64,     fpu_fpcr_arm64,
-    LLDB_INVALID_REGNUM // register sets need to end with this flag
-};
-static_assert(((sizeof g_fpu_regnums_arm64 / sizeof g_fpu_regnums_arm64[0]) -
-               1) == k_num_fpr_registers_arm64,
-              "g_fpu_regnums_arm64 has wrong number of register infos");
-
-namespace {
-// Number of register sets provided by this context.
-enum { k_num_register_sets = 2 };
-}
-
-// Register sets for ARM64.
-static const RegisterSet g_reg_sets_arm64[k_num_register_sets] = {
-    {"General Purpose Registers", "gpr", k_num_gpr_registers_arm64,
-     g_gpr_regnums_arm64},
-    {"Floating Point Registers", "fpu", k_num_fpr_registers_arm64,
-     g_fpu_regnums_arm64}};
-
 std::unique_ptr<NativeRegisterContextLinux>
 NativeRegisterContextLinux::CreateHostNativeRegisterContextLinux(
     const ArchSpec &target_arch, NativeThreadProtocol &native_thread) {
   switch (target_arch.GetMachine()) {
   case llvm::Triple::arm:
-    return llvm::make_unique<NativeRegisterContextLinux_arm>(target_arch,
+    return std::make_unique<NativeRegisterContextLinux_arm>(target_arch,
                                                              native_thread);
   case llvm::Triple::aarch64:
-    return llvm::make_unique<NativeRegisterContextLinux_arm64>(target_arch,
+    return std::make_unique<NativeRegisterContextLinux_arm64>(target_arch,
                                                                native_thread);
   default:
     llvm_unreachable("have no register context for architecture");
@@ -126,23 +55,6 @@ NativeRegisterContextLinux_arm64::NativeRegisterContextLinux_arm64(
     const ArchSpec &target_arch, NativeThreadProtocol &native_thread)
     : NativeRegisterContextLinux(native_thread,
                                  new RegisterInfoPOSIX_arm64(target_arch)) {
-  switch (target_arch.GetMachine()) {
-  case llvm::Triple::aarch64:
-    m_reg_info.num_registers = k_num_registers_arm64;
-    m_reg_info.num_gpr_registers = k_num_gpr_registers_arm64;
-    m_reg_info.num_fpr_registers = k_num_fpr_registers_arm64;
-    m_reg_info.last_gpr = k_last_gpr_arm64;
-    m_reg_info.first_fpr = k_first_fpr_arm64;
-    m_reg_info.last_fpr = k_last_fpr_arm64;
-    m_reg_info.first_fpr_v = fpu_v0_arm64;
-    m_reg_info.last_fpr_v = fpu_v31_arm64;
-    m_reg_info.gpr_flags = gpr_cpsr_arm64;
-    break;
-  default:
-    llvm_unreachable("Unhandled target architecture.");
-    break;
-  }
-
   ::memset(&m_fpr, 0, sizeof(m_fpr));
   ::memset(&m_gpr_arm64, 0, sizeof(m_gpr_arm64));
   ::memset(&m_hwp_regs, 0, sizeof(m_hwp_regs));
@@ -152,24 +64,29 @@ NativeRegisterContextLinux_arm64::NativeRegisterContextLinux_arm64(
   m_max_hwp_supported = 16;
   m_max_hbp_supported = 16;
   m_refresh_hwdebug_info = true;
+
+  m_gpr_is_valid = false;
+  m_fpu_is_valid = false;
+}
+
+RegisterInfoPOSIX_arm64 &
+NativeRegisterContextLinux_arm64::GetRegisterInfo() const {
+  return static_cast<RegisterInfoPOSIX_arm64 &>(*m_register_info_interface_up);
 }
 
 uint32_t NativeRegisterContextLinux_arm64::GetRegisterSetCount() const {
-  return k_num_register_sets;
+  return GetRegisterInfo().GetRegisterSetCount();
 }
 
 const RegisterSet *
 NativeRegisterContextLinux_arm64::GetRegisterSet(uint32_t set_index) const {
-  if (set_index < k_num_register_sets)
-    return &g_reg_sets_arm64[set_index];
-
-  return nullptr;
+  return GetRegisterInfo().GetRegisterSet(set_index);
 }
 
 uint32_t NativeRegisterContextLinux_arm64::GetUserRegisterCount() const {
   uint32_t count = 0;
-  for (uint32_t set_index = 0; set_index < k_num_register_sets; ++set_index)
-    count += g_reg_sets_arm64[set_index].num_registers;
+  for (uint32_t set_index = 0; set_index < GetRegisterSetCount(); ++set_index)
+    count += GetRegisterSet(set_index)->num_registers;
   return count;
 }
 
@@ -185,41 +102,39 @@ NativeRegisterContextLinux_arm64::ReadRegister(const RegisterInfo *reg_info,
 
   const uint32_t reg = reg_info->kinds[lldb::eRegisterKindLLDB];
 
-  if (IsFPR(reg)) {
-    error = ReadFPR();
-    if (error.Fail())
-      return error;
-  } else {
-    uint32_t full_reg = reg;
-    bool is_subreg = reg_info->invalidate_regs &&
-                     (reg_info->invalidate_regs[0] != LLDB_INVALID_REGNUM);
+  if (reg == LLDB_INVALID_REGNUM)
+    return Status("no lldb regnum for %s", reg_info && reg_info->name
+                                               ? reg_info->name
+                                               : "<unknown register>");
 
-    if (is_subreg) {
-      // Read the full aligned 64-bit register.
-      full_reg = reg_info->invalidate_regs[0];
+  uint8_t *src;
+  uint32_t offset;
+
+  if (IsGPR(reg)) {
+    if (!m_gpr_is_valid) {
+      error = ReadGPR();
+      if (error.Fail())
+        return error;
     }
 
-    error = ReadRegisterRaw(full_reg, reg_value);
+    offset = reg_info->byte_offset;
+    assert(offset < GetGPRSize());
+    src = (uint8_t *)GetGPRBuffer() + offset;
 
-    if (error.Success()) {
-      // If our read was not aligned (for ah,bh,ch,dh), shift our returned
-      // value one byte to the right.
-      if (is_subreg && (reg_info->byte_offset & 0x1))
-        reg_value.SetUInt64(reg_value.GetAsUInt64() >> 8);
+  } else if (IsFPR(reg)) {
+    if (!m_fpu_is_valid) {
 
-      // If our return byte size was greater than the return value reg size,
-      // then use the type specified by reg_info rather than the uint64_t
-      // default
-      if (reg_value.GetByteSize() > reg_info->byte_size)
-        reg_value.SetType(reg_info);
+      error = ReadFPR();
+      if (error.Fail())
+        return error;
     }
-    return error;
-  }
+    offset = CalculateFprOffset(reg_info);
+    assert(offset < GetFPRSize());
+    src = (uint8_t *)GetFPRBuffer() + offset;
+  } else
+    return Status("failed - register wasn't recognized to be a GPR or an FPR, "
+                  "write strategy unknown");
 
-  // Get pointer to m_fpr variable and set the data from it.
-  uint32_t fpr_offset = CalculateFprOffset(reg_info);
-  assert(fpr_offset < sizeof m_fpr);
-  uint8_t *src = (uint8_t *)&m_fpr + fpr_offset;
   reg_value.SetFromMemoryData(reg_info, src, reg_info->byte_size,
                               eByteOrderLittle, error);
 
@@ -228,48 +143,51 @@ NativeRegisterContextLinux_arm64::ReadRegister(const RegisterInfo *reg_info,
 
 Status NativeRegisterContextLinux_arm64::WriteRegister(
     const RegisterInfo *reg_info, const RegisterValue &reg_value) {
+  Status error;
+
   if (!reg_info)
     return Status("reg_info NULL");
 
-  const uint32_t reg_index = reg_info->kinds[lldb::eRegisterKindLLDB];
-  if (reg_index == LLDB_INVALID_REGNUM)
+  const uint32_t reg = reg_info->kinds[lldb::eRegisterKindLLDB];
+
+  if (reg == LLDB_INVALID_REGNUM)
     return Status("no lldb regnum for %s", reg_info && reg_info->name
                                                ? reg_info->name
                                                : "<unknown register>");
 
-  if (IsGPR(reg_index))
-    return WriteRegisterRaw(reg_index, reg_value);
+  uint8_t *dst;
+  uint32_t offset;
 
-  if (IsFPR(reg_index)) {
-    // Get pointer to m_fpr variable and set the data to it.
-    uint32_t fpr_offset = CalculateFprOffset(reg_info);
-    assert(fpr_offset < sizeof m_fpr);
-    uint8_t *dst = (uint8_t *)&m_fpr + fpr_offset;
-    switch (reg_info->byte_size) {
-    case 2:
-      *(uint16_t *)dst = reg_value.GetAsUInt16();
-      break;
-    case 4:
-      *(uint32_t *)dst = reg_value.GetAsUInt32();
-      break;
-    case 8:
-      *(uint64_t *)dst = reg_value.GetAsUInt64();
-      break;
-    default:
-      assert(false && "Unhandled data size.");
-      return Status("unhandled register data size %" PRIu32,
-                    reg_info->byte_size);
+  if (IsGPR(reg)) {
+    if (!m_gpr_is_valid) {
+      error = ReadGPR();
+      if (error.Fail())
+        return error;
     }
 
-    Status error = WriteFPR();
-    if (error.Fail())
-      return error;
+    offset = reg_info->byte_offset;
+    assert(offset < GetGPRSize());
+    dst = (uint8_t *)GetGPRBuffer() + offset;
 
-    return Status();
+    ::memcpy(dst, reg_value.GetBytes(), reg_info->byte_size);
+
+    return WriteGPR();
+  } else if (IsFPR(reg)) {
+    if (!m_fpu_is_valid) {
+      error = ReadFPR();
+      if (error.Fail())
+        return error;
+    }
+    offset = CalculateFprOffset(reg_info);
+    assert(offset < GetFPRSize());
+    dst = (uint8_t *)GetFPRBuffer() + offset;
+
+    ::memcpy(dst, reg_value.GetBytes(), reg_info->byte_size);
+
+    return WriteFPR();
   }
 
-  return Status("failed - register wasn't recognized to be a GPR or an FPR, "
-                "write strategy unknown");
+  return error;
 }
 
 Status NativeRegisterContextLinux_arm64::ReadAllRegisterValues(
@@ -277,18 +195,21 @@ Status NativeRegisterContextLinux_arm64::ReadAllRegisterValues(
   Status error;
 
   data_sp.reset(new DataBufferHeap(REG_CONTEXT_SIZE, 0));
-  error = ReadGPR();
-  if (error.Fail())
-    return error;
+  if (!m_gpr_is_valid) {
+    error = ReadGPR();
+    if (error.Fail())
+      return error;
+  }
 
-  error = ReadFPR();
-  if (error.Fail())
-    return error;
-
+  if (!m_fpu_is_valid) {
+    error = ReadFPR();
+    if (error.Fail())
+      return error;
+  }
   uint8_t *dst = data_sp->GetBytes();
-  ::memcpy(dst, &m_gpr_arm64, GetGPRSize());
+  ::memcpy(dst, GetGPRBuffer(), GetGPRSize());
   dst += GetGPRSize();
-  ::memcpy(dst, &m_fpr, sizeof(m_fpr));
+  ::memcpy(dst, GetFPRBuffer(), GetFPRSize());
 
   return error;
 }
@@ -320,14 +241,14 @@ Status NativeRegisterContextLinux_arm64::WriteAllRegisterValues(
                                    __FUNCTION__);
     return error;
   }
-  ::memcpy(&m_gpr_arm64, src, GetRegisterInfoInterface().GetGPRSize());
+  ::memcpy(GetGPRBuffer(), src, GetRegisterInfoInterface().GetGPRSize());
 
   error = WriteGPR();
   if (error.Fail())
     return error;
 
   src += GetRegisterInfoInterface().GetGPRSize();
-  ::memcpy(&m_fpr, src, sizeof(m_fpr));
+  ::memcpy(GetFPRBuffer(), src, GetFPRSize());
 
   error = WriteFPR();
   if (error.Fail())
@@ -337,18 +258,23 @@ Status NativeRegisterContextLinux_arm64::WriteAllRegisterValues(
 }
 
 bool NativeRegisterContextLinux_arm64::IsGPR(unsigned reg) const {
-  return reg <= m_reg_info.last_gpr; // GPR's come first.
+  if (GetRegisterInfo().GetRegisterSetFromRegisterIndex(reg) ==
+      RegisterInfoPOSIX_arm64::GPRegSet)
+    return true;
+  return false;
 }
 
 bool NativeRegisterContextLinux_arm64::IsFPR(unsigned reg) const {
-  return (m_reg_info.first_fpr <= reg && reg <= m_reg_info.last_fpr);
+  if (GetRegisterInfo().GetRegisterSetFromRegisterIndex(reg) ==
+      RegisterInfoPOSIX_arm64::FPRegSet)
+    return true;
+  return false;
 }
 
 uint32_t NativeRegisterContextLinux_arm64::NumSupportedHardwareBreakpoints() {
   Log *log(ProcessPOSIXLog::GetLogIfAllCategoriesSet(POSIX_LOG_BREAKPOINTS));
 
-  if (log)
-    log->Printf("NativeRegisterContextLinux_arm64::%s()", __FUNCTION__);
+  LLDB_LOGF(log, "NativeRegisterContextLinux_arm64::%s()", __FUNCTION__);
 
   Status error;
 
@@ -458,8 +384,7 @@ Status NativeRegisterContextLinux_arm64::GetHardwareBreakHitIndex(
     uint32_t &bp_index, lldb::addr_t trap_addr) {
   Log *log(ProcessPOSIXLog::GetLogIfAllCategoriesSet(POSIX_LOG_BREAKPOINTS));
 
-  if (log)
-    log->Printf("NativeRegisterContextLinux_arm64::%s()", __FUNCTION__);
+  LLDB_LOGF(log, "NativeRegisterContextLinux_arm64::%s()", __FUNCTION__);
 
   lldb::addr_t break_addr;
 
@@ -479,8 +404,7 @@ Status NativeRegisterContextLinux_arm64::GetHardwareBreakHitIndex(
 Status NativeRegisterContextLinux_arm64::ClearAllHardwareBreakpoints() {
   Log *log(ProcessPOSIXLog::GetLogIfAllCategoriesSet(POSIX_LOG_BREAKPOINTS));
 
-  if (log)
-    log->Printf("NativeRegisterContextLinux_arm64::%s()", __FUNCTION__);
+  LLDB_LOGF(log, "NativeRegisterContextLinux_arm64::%s()", __FUNCTION__);
 
   Status error;
 
@@ -567,7 +491,7 @@ uint32_t NativeRegisterContextLinux_arm64::SetHardwareWatchpoint(
 
   // Check 8-byte alignment for hardware watchpoint target address. Below is a
   // hack to recalculate address and size in order to make sure we can watch
-  // non 8-byte alligned addresses as well.
+  // non 8-byte aligned addresses as well.
   if (addr & 0x07) {
     uint8_t watch_mask = (addr & 0x07) + size;
 
@@ -835,139 +759,68 @@ Status NativeRegisterContextLinux_arm64::WriteHardwareDebugRegs(int hwbType) {
                                            &hwbType, &ioVec, ioVec.iov_len);
 }
 
-Status NativeRegisterContextLinux_arm64::DoReadRegisterValue(
-    uint32_t offset, const char *reg_name, uint32_t size,
-    RegisterValue &value) {
+Status NativeRegisterContextLinux_arm64::ReadGPR() {
   Status error;
-  if (offset > sizeof(struct user_pt_regs)) {
-    offset -= sizeof(struct user_pt_regs);
-    if (offset > sizeof(struct user_fpsimd_state)) {
-      error.SetErrorString("invalid offset value");
-      return error;
-    }
-    elf_fpregset_t regs;
-    int regset = NT_FPREGSET;
-    struct iovec ioVec;
 
-    ioVec.iov_base = &regs;
-    ioVec.iov_len = sizeof regs;
-    error = NativeProcessLinux::PtraceWrapper(
-        PTRACE_GETREGSET, m_thread.GetID(), &regset, &ioVec, sizeof regs);
-    if (error.Success()) {
-      value.SetBytes((void *)(((unsigned char *)(&regs)) + offset), 16,
-                     m_thread.GetProcess().GetByteOrder());
-    }
-  } else {
-    elf_gregset_t regs;
-    int regset = NT_PRSTATUS;
-    struct iovec ioVec;
+  struct iovec ioVec;
 
-    ioVec.iov_base = &regs;
-    ioVec.iov_len = sizeof regs;
-    error = NativeProcessLinux::PtraceWrapper(
-        PTRACE_GETREGSET, m_thread.GetID(), &regset, &ioVec, sizeof regs);
-    if (error.Success()) {
-      value.SetBytes((void *)(((unsigned char *)(regs)) + offset), 8,
-                     m_thread.GetProcess().GetByteOrder());
-    }
-  }
+  ioVec.iov_base = GetGPRBuffer();
+  ioVec.iov_len = GetGPRSize();
+
+  error = ReadRegisterSet(&ioVec, GetGPRSize(), NT_PRSTATUS);
+
+  if (error.Success())
+    m_gpr_is_valid = true;
+
   return error;
 }
 
-Status NativeRegisterContextLinux_arm64::DoWriteRegisterValue(
-    uint32_t offset, const char *reg_name, const RegisterValue &value) {
+Status NativeRegisterContextLinux_arm64::WriteGPR() {
+  struct iovec ioVec;
+
+  m_gpr_is_valid = false;
+
+  ioVec.iov_base = GetGPRBuffer();
+  ioVec.iov_len = GetGPRSize();
+
+  return WriteRegisterSet(&ioVec, GetGPRSize(), NT_PRSTATUS);
+}
+
+Status NativeRegisterContextLinux_arm64::ReadFPR() {
   Status error;
-  ::pid_t tid = m_thread.GetID();
-  if (offset > sizeof(struct user_pt_regs)) {
-    offset -= sizeof(struct user_pt_regs);
-    if (offset > sizeof(struct user_fpsimd_state)) {
-      error.SetErrorString("invalid offset value");
-      return error;
-    }
-    elf_fpregset_t regs;
-    int regset = NT_FPREGSET;
-    struct iovec ioVec;
 
-    ioVec.iov_base = &regs;
-    ioVec.iov_len = sizeof regs;
-    error = NativeProcessLinux::PtraceWrapper(PTRACE_GETREGSET, tid, &regset,
-                                              &ioVec, sizeof regs);
+  struct iovec ioVec;
 
-    if (error.Success()) {
-      ::memcpy((void *)(((unsigned char *)(&regs)) + offset), value.GetBytes(),
-               16);
-      error = NativeProcessLinux::PtraceWrapper(PTRACE_SETREGSET, tid, &regset,
-                                                &ioVec, sizeof regs);
-    }
-  } else {
-    elf_gregset_t regs;
-    int regset = NT_PRSTATUS;
-    struct iovec ioVec;
+  ioVec.iov_base = GetFPRBuffer();
+  ioVec.iov_len = GetFPRSize();
 
-    ioVec.iov_base = &regs;
-    ioVec.iov_len = sizeof regs;
-    error = NativeProcessLinux::PtraceWrapper(PTRACE_GETREGSET, tid, &regset,
-                                              &ioVec, sizeof regs);
-    if (error.Success()) {
-      ::memcpy((void *)(((unsigned char *)(&regs)) + offset), value.GetBytes(),
-               8);
-      error = NativeProcessLinux::PtraceWrapper(PTRACE_SETREGSET, tid, &regset,
-                                                &ioVec, sizeof regs);
-    }
-  }
+  error = ReadRegisterSet(&ioVec, GetFPRSize(), NT_FPREGSET);
+
+  if (error.Success())
+    m_fpu_is_valid = true;
+
   return error;
 }
 
-Status NativeRegisterContextLinux_arm64::DoReadGPR(void *buf, size_t buf_size) {
-  int regset = NT_PRSTATUS;
+Status NativeRegisterContextLinux_arm64::WriteFPR() {
   struct iovec ioVec;
-  Status error;
 
-  ioVec.iov_base = buf;
-  ioVec.iov_len = buf_size;
-  return NativeProcessLinux::PtraceWrapper(PTRACE_GETREGSET, m_thread.GetID(),
-                                           &regset, &ioVec, buf_size);
+  m_fpu_is_valid = false;
+
+  ioVec.iov_base = GetFPRBuffer();
+  ioVec.iov_len = GetFPRSize();
+
+  return WriteRegisterSet(&ioVec, GetFPRSize(), NT_FPREGSET);
 }
 
-Status NativeRegisterContextLinux_arm64::DoWriteGPR(void *buf,
-                                                    size_t buf_size) {
-  int regset = NT_PRSTATUS;
-  struct iovec ioVec;
-  Status error;
-
-  ioVec.iov_base = buf;
-  ioVec.iov_len = buf_size;
-  return NativeProcessLinux::PtraceWrapper(PTRACE_SETREGSET, m_thread.GetID(),
-                                           &regset, &ioVec, buf_size);
-}
-
-Status NativeRegisterContextLinux_arm64::DoReadFPR(void *buf, size_t buf_size) {
-  int regset = NT_FPREGSET;
-  struct iovec ioVec;
-  Status error;
-
-  ioVec.iov_base = buf;
-  ioVec.iov_len = buf_size;
-  return NativeProcessLinux::PtraceWrapper(PTRACE_GETREGSET, m_thread.GetID(),
-                                           &regset, &ioVec, buf_size);
-}
-
-Status NativeRegisterContextLinux_arm64::DoWriteFPR(void *buf,
-                                                    size_t buf_size) {
-  int regset = NT_FPREGSET;
-  struct iovec ioVec;
-  Status error;
-
-  ioVec.iov_base = buf;
-  ioVec.iov_len = buf_size;
-  return NativeProcessLinux::PtraceWrapper(PTRACE_SETREGSET, m_thread.GetID(),
-                                           &regset, &ioVec, buf_size);
+void NativeRegisterContextLinux_arm64::InvalidateAllRegisters() {
+  m_gpr_is_valid = false;
+  m_fpu_is_valid = false;
 }
 
 uint32_t NativeRegisterContextLinux_arm64::CalculateFprOffset(
     const RegisterInfo *reg_info) const {
-  return reg_info->byte_offset -
-         GetRegisterInfoAtIndex(m_reg_info.first_fpr)->byte_offset;
+  return reg_info->byte_offset - GetGPRSize();
 }
 
 #endif // defined (__arm64__) || defined (__aarch64__)

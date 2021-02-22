@@ -1,4 +1,4 @@
-//===-- SocketTest.cpp ------------------------------------------*- C++ -*-===//
+//===-- SocketTest.cpp ----------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "SocketTestUtilities.h"
+#include "TestingSupport/SubsystemRAII.h"
+#include "lldb/Host/Config.h"
 #include "lldb/Utility/UriParser.h"
 #include "gtest/gtest.h"
 
@@ -14,11 +16,7 @@ using namespace lldb_private;
 
 class SocketTest : public testing::Test {
 public:
-  void SetUp() override {
-    ASSERT_THAT_ERROR(Socket::Initialize(), llvm::Succeeded());
-  }
-
-  void TearDown() override { Socket::Terminate(); }
+  SubsystemRAII<Socket> subsystems;
 };
 
 TEST_F(SocketTest, DecodeHostAndPort) {
@@ -87,14 +85,16 @@ TEST_F(SocketTest, DecodeHostAndPort) {
   EXPECT_TRUE(error.Success());
 }
 
-#ifndef LLDB_DISABLE_POSIX
+#if LLDB_ENABLE_POSIX
 TEST_F(SocketTest, DomainListenConnectAccept) {
   llvm::SmallString<64> Path;
   std::error_code EC = llvm::sys::fs::createUniqueDirectory("DomainListenConnectAccept", Path);
   ASSERT_FALSE(EC);
   llvm::sys::path::append(Path, "test");
-  // If this fails, $TMPDIR is too long to hold a domain socket.
-  EXPECT_LE(Path.size(), 107u);
+
+  // Skip the test if the $TMPDIR is too long to hold a domain socket.
+  if (Path.size() > 107u)
+    return;
 
   std::unique_ptr<DomainSocket> socket_a_up;
   std::unique_ptr<DomainSocket> socket_b_up;
@@ -111,10 +111,8 @@ TEST_F(SocketTest, TCPListen0ConnectAccept) {
 TEST_F(SocketTest, TCPGetAddress) {
   std::unique_ptr<TCPSocket> socket_a_up;
   std::unique_ptr<TCPSocket> socket_b_up;
-  if (!IsAddressFamilySupported("127.0.0.1")) {
-    GTEST_LOG_(WARNING) << "Skipping test due to missing IPv4 support.";
+  if (!HostSupportsIPv4())
     return;
-  }
   CreateTCPConnectedSockets("127.0.0.1", &socket_a_up, &socket_b_up);
 
   EXPECT_EQ(socket_a_up->GetLocalPortNumber(),
@@ -128,36 +126,28 @@ TEST_F(SocketTest, TCPGetAddress) {
 }
 
 TEST_F(SocketTest, UDPConnect) {
-  Socket *socket;
+  llvm::Expected<std::unique_ptr<UDPSocket>> socket =
+      UDPSocket::Connect("127.0.0.1:0", /*child_processes_inherit=*/false);
 
-  bool child_processes_inherit = false;
-  auto error = UDPSocket::Connect("127.0.0.1:0", child_processes_inherit,
-                                  socket);
-
-  std::unique_ptr<Socket> socket_up(socket);
-
-  EXPECT_TRUE(error.Success());
-  EXPECT_TRUE(socket_up->IsValid());
+  ASSERT_THAT_EXPECTED(socket, llvm::Succeeded());
+  EXPECT_TRUE(socket.get()->IsValid());
 }
 
 TEST_F(SocketTest, TCPListen0GetPort) {
-  Socket *server_socket;
   Predicate<uint16_t> port_predicate;
   port_predicate.SetValue(0, eBroadcastNever);
-  Status err =
-      Socket::TcpListen("10.10.12.3:0", false, server_socket, &port_predicate);
-  std::unique_ptr<TCPSocket> socket_up((TCPSocket*)server_socket);
-  EXPECT_TRUE(socket_up->IsValid());
-  EXPECT_NE(socket_up->GetLocalPortNumber(), 0);
+  llvm::Expected<std::unique_ptr<TCPSocket>> sock =
+      Socket::TcpListen("10.10.12.3:0", false, &port_predicate);
+  ASSERT_THAT_EXPECTED(sock, llvm::Succeeded());
+  ASSERT_TRUE(sock.get()->IsValid());
+  EXPECT_NE(sock.get()->GetLocalPortNumber(), 0);
 }
 
 TEST_F(SocketTest, TCPGetConnectURI) {
   std::unique_ptr<TCPSocket> socket_a_up;
   std::unique_ptr<TCPSocket> socket_b_up;
-  if (!IsAddressFamilySupported("127.0.0.1")) {
-    GTEST_LOG_(WARNING) << "Skipping test due to missing IPv4 support.";
+  if (!HostSupportsIPv4())
     return;
-  }
   CreateTCPConnectedSockets("127.0.0.1", &socket_a_up, &socket_b_up);
 
   llvm::StringRef scheme;
@@ -171,33 +161,32 @@ TEST_F(SocketTest, TCPGetConnectURI) {
 }
 
 TEST_F(SocketTest, UDPGetConnectURI) {
-  if (!IsAddressFamilySupported("127.0.0.1")) {
-    GTEST_LOG_(WARNING) << "Skipping test due to missing IPv4 support.";
+  if (!HostSupportsIPv4())
     return;
-  }
-  Socket *socket;
-  bool child_processes_inherit = false;
-  auto error =
-      UDPSocket::Connect("127.0.0.1:0", child_processes_inherit, socket);
+  llvm::Expected<std::unique_ptr<UDPSocket>> socket =
+      UDPSocket::Connect("127.0.0.1:0", /*child_processes_inherit=*/false);
+  ASSERT_THAT_EXPECTED(socket, llvm::Succeeded());
 
   llvm::StringRef scheme;
   llvm::StringRef hostname;
   int port;
   llvm::StringRef path;
-  std::string uri(socket->GetRemoteConnectionURI());
+  std::string uri = socket.get()->GetRemoteConnectionURI();
   EXPECT_TRUE(UriParser::Parse(uri, scheme, hostname, port, path));
   EXPECT_EQ(scheme, "udp");
 }
 
-#ifndef LLDB_DISABLE_POSIX
+#if LLDB_ENABLE_POSIX
 TEST_F(SocketTest, DomainGetConnectURI) {
   llvm::SmallString<64> domain_path;
   std::error_code EC =
       llvm::sys::fs::createUniqueDirectory("DomainListenConnectAccept", domain_path);
   ASSERT_FALSE(EC);
   llvm::sys::path::append(domain_path, "test");
-  // If this fails, $TMPDIR is too long to hold a domain socket.
-  EXPECT_LE(domain_path.size(), 107u);
+
+  // Skip the test if the $TMPDIR is too long to hold a domain socket.
+  if (domain_path.size() > 107u)
+    return;
 
   std::unique_ptr<DomainSocket> socket_a_up;
   std::unique_ptr<DomainSocket> socket_b_up;

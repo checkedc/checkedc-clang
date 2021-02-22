@@ -14,8 +14,6 @@
 
 #include "llvm/Pass.h"
 #include "llvm/Config/llvm-config.h"
-#include "llvm/IR/Attributes.h"
-#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/LLVMContext.h"
@@ -24,7 +22,6 @@
 #include "llvm/IR/OptBisect.h"
 #include "llvm/PassInfo.h"
 #include "llvm/PassRegistry.h"
-#include "llvm/PassSupport.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -174,51 +171,6 @@ bool FunctionPass::skipFunction(const Function &F) const {
     return true;
   }
   return false;
-}
-
-//===----------------------------------------------------------------------===//
-// BasicBlockPass Implementation
-//
-
-Pass *BasicBlockPass::createPrinterPass(raw_ostream &OS,
-                                        const std::string &Banner) const {
-  return createPrintBasicBlockPass(OS, Banner);
-}
-
-bool BasicBlockPass::doInitialization(Function &) {
-  // By default, don't do anything.
-  return false;
-}
-
-bool BasicBlockPass::doFinalization(Function &) {
-  // By default, don't do anything.
-  return false;
-}
-
-static std::string getDescription(const BasicBlock &BB) {
-  return "basic block (" + BB.getName().str() + ") in function (" +
-         BB.getParent()->getName().str() + ")";
-}
-
-bool BasicBlockPass::skipBasicBlock(const BasicBlock &BB) const {
-  const Function *F = BB.getParent();
-  if (!F)
-    return false;
-  OptPassGate &Gate = F->getContext().getOptPassGate();
-  if (Gate.isEnabled() && !Gate.shouldRunPass(this, getDescription(BB)))
-    return true;
-  if (F->hasOptNone()) {
-    // Report this only once per function.
-    if (&BB == &F->getEntryBlock())
-      LLVM_DEBUG(dbgs() << "Skipping pass '" << getPassName()
-                        << "' on function " << F->getName() << "\n");
-    return true;
-  }
-  return false;
-}
-
-PassManagerType BasicBlockPass::getPotentialPassManagerType() const {
-  return PMT_BasicBlockPassManager;
 }
 
 const PassInfo *Pass::lookupPassInfo(const void *TI) {

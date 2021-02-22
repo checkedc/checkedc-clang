@@ -25,6 +25,9 @@
 #include <vector>
 
 namespace llvm {
+
+class raw_ostream;
+
 namespace orc {
 
 /// A utility class for building TargetMachines for JITs.
@@ -79,15 +82,27 @@ public:
     return *this;
   }
 
+  /// Get the relocation model.
+  const Optional<Reloc::Model> &getRelocationModel() const { return RM; }
+
   /// Set the code model.
   JITTargetMachineBuilder &setCodeModel(Optional<CodeModel::Model> CM) {
     this->CM = std::move(CM);
     return *this;
   }
 
+  /// Get the code model.
+  const Optional<CodeModel::Model> &getCodeModel() const { return CM; }
+
   /// Set the LLVM CodeGen optimization level.
   JITTargetMachineBuilder &setCodeGenOptLevel(CodeGenOpt::Level OptLevel) {
     this->OptLevel = OptLevel;
+    return *this;
+  }
+
+  /// Set subtarget features.
+  JITTargetMachineBuilder &setFeatures(StringRef FeatureString) {
+    Features = SubtargetFeatures(FeatureString);
     return *this;
   }
 
@@ -101,6 +116,17 @@ public:
   /// Access subtarget features.
   const SubtargetFeatures &getFeatures() const { return Features; }
 
+  /// Set TargetOptions.
+  ///
+  /// Note: This operation will overwrite any previously configured options,
+  /// including EmulatedTLS and ExplicitEmulatedTLS which
+  /// the JITTargetMachineBuilder sets by default. Clients are responsible
+  /// for re-enabling these overwritten options.
+  JITTargetMachineBuilder &setOptions(TargetOptions Options) {
+    this->Options = std::move(Options);
+    return *this;
+  }
+
   /// Access TargetOptions.
   TargetOptions &getOptions() { return Options; }
 
@@ -113,6 +139,12 @@ public:
   /// Access Triple.
   const Triple &getTargetTriple() const { return TT; }
 
+#ifndef NDEBUG
+  /// Debug-dump a JITTargetMachineBuilder.
+  friend raw_ostream &operator<<(raw_ostream &OS,
+                                 const JITTargetMachineBuilder &JTMB);
+#endif
+
 private:
   Triple TT;
   std::string CPU;
@@ -120,7 +152,7 @@ private:
   TargetOptions Options;
   Optional<Reloc::Model> RM;
   Optional<CodeModel::Model> CM;
-  CodeGenOpt::Level OptLevel = CodeGenOpt::None;
+  CodeGenOpt::Level OptLevel = CodeGenOpt::Default;
 };
 
 } // end namespace orc

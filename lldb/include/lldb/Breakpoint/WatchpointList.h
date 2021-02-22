@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_WatchpointList_h_
-#define liblldb_WatchpointList_h_
+#ifndef LLDB_BREAKPOINT_WATCHPOINTLIST_H
+#define LLDB_BREAKPOINT_WATCHPOINTLIST_H
 
 #include <list>
 #include <mutex>
@@ -180,7 +180,7 @@ public:
 
   /// Sets the passed in Locker to hold the Watchpoint List mutex.
   ///
-  /// \param[in] locker
+  /// \param[in] lock
   ///   The locker object that is set.
   void GetListMutex(std::unique_lock<std::recursive_mutex> &lock);
 
@@ -203,4 +203,4 @@ protected:
 
 } // namespace lldb_private
 
-#endif // liblldb_WatchpointList_h_
+#endif // LLDB_BREAKPOINT_WATCHPOINTLIST_H

@@ -101,11 +101,23 @@ define i1 @test5({ i32, i32 }* %x, { i32, i32 }* %y) {
 
 define <2 x i1> @test6(<2 x i32> %X, <2 x %S*> %P) nounwind {
 ; CHECK-LABEL: @test6(
-; CHECK-NEXT:    [[C:%.*]] = icmp eq <2 x i32> [[X:%.*]], <i32 1073741823, i32 1073741823>
+; CHECK-NEXT:    [[C:%.*]] = icmp eq <2 x i32> %X, <i32 -1, i32 -1>
 ; CHECK-NEXT:    ret <2 x i1> [[C]]
 ;
   %A = getelementptr inbounds %S, <2 x %S*> %P, <2 x i32> zeroinitializer, <2 x i32> <i32 1, i32 1>, <2 x i32> %X
   %B = getelementptr inbounds %S, <2 x %S*> %P, <2 x i32> <i32 0, i32 0>, <2 x i32> <i32 0, i32 0>
+  %C = icmp eq <2 x i32*> %A, %B
+  ret <2 x i1> %C
+}
+
+; Same as above, but indices scalarized.
+define <2 x i1> @test6b(<2 x i32> %X, <2 x %S*> %P) nounwind {
+; CHECK-LABEL: @test6b(
+; CHECK-NEXT:    [[C:%.*]] = icmp eq <2 x i32> %X, <i32 -1, i32 -1>
+; CHECK-NEXT:    ret <2 x i1> [[C]]
+;
+  %A = getelementptr inbounds %S, <2 x %S*> %P, i32 0, i32 1, <2 x i32> %X
+  %B = getelementptr inbounds %S, <2 x %S*> %P, i32 0, i32 0
   %C = icmp eq <2 x i32*> %A, %B
   ret <2 x i1> %C
 }
@@ -152,3 +164,22 @@ define i32 @test10() {
   %B = ptrtoint double* %A to i32
   ret i32 %B
 }
+
+@X_as1 = addrspace(1) global [1000 x i8] zeroinitializer, align 16
+
+define i16 @constant_fold_custom_dl() {
+; CHECK-LABEL: @constant_fold_custom_dl(
+  ; CHECK: ret i16 ptrtoint
+
+entry:
+  %A = bitcast i8 addrspace(1)* getelementptr inbounds ([1000 x i8], [1000 x i8] addrspace(1)* @X_as1, i64 1, i64 0) to i8 addrspace(1)*
+  %B = bitcast i8 addrspace(1)* getelementptr inbounds ([1000 x i8], [1000 x i8] addrspace(1)* @X_as1, i64 0, i64 0) to i8 addrspace(1)*
+
+  %B2 = ptrtoint i8 addrspace(1)* %B to i16
+  %C = sub i16 0, %B2
+  %D = getelementptr i8, i8 addrspace(1)* %A, i16 %C
+  %E = ptrtoint i8 addrspace(1)* %D to i16
+
+  ret i16 %E
+}
+

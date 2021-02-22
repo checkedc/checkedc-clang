@@ -42,6 +42,7 @@
 #include "llvm/Option/Option.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Host.h"
 #include "llvm/Support/Path.h"
 
 #if !defined(_MSC_VER) && !defined(__MINGW32__)
@@ -83,9 +84,9 @@ public:
 
 static void printHelp(const char *argv0) {
   MinGWOptTable().PrintHelp(
-      outs(), (std::string(argv0) + " [options] file...").c_str(), "lld",
+      lld::outs(), (std::string(argv0) + " [options] file...").c_str(), "lld",
       false /*ShowHidden*/, true /*ShowAllAliases*/);
-  outs() << "\n";
+  lld::outs() << "\n";
 }
 
 static cl::TokenizerCallback getQuotingStyle() {
@@ -103,9 +104,9 @@ opt::InputArgList MinGWOptTable::parse(ArrayRef<const char *> argv) {
   opt::InputArgList args = this->ParseArgs(vec, missingIndex, missingCount);
 
   if (missingCount)
-    fatal(StringRef(args.getArgString(missingIndex)) + ": missing argument");
+    error(StringRef(args.getArgString(missingIndex)) + ": missing argument");
   for (auto *arg : args.filtered(OPT_UNKNOWN))
-    fatal("unknown argument: " + arg->getAsString(args));
+    error("unknown argument: " + arg->getAsString(args));
   return args;
 }
 
@@ -114,7 +115,7 @@ static Optional<std::string> findFile(StringRef path1, const Twine &path2) {
   SmallString<128> s;
   sys::path::append(s, path1, path2);
   if (sys::fs::exists(s))
-    return s.str().str();
+    return std::string(s);
   return None;
 }
 
@@ -125,24 +126,52 @@ searchLibrary(StringRef name, ArrayRef<StringRef> searchPaths, bool bStatic) {
     for (StringRef dir : searchPaths)
       if (Optional<std::string> s = findFile(dir, name.substr(1)))
         return *s;
-    fatal("unable to find library -l" + name);
+    error("unable to find library -l" + name);
+    return "";
   }
 
   for (StringRef dir : searchPaths) {
-    if (!bStatic)
+    if (!bStatic) {
       if (Optional<std::string> s = findFile(dir, "lib" + name + ".dll.a"))
         return *s;
+      if (Optional<std::string> s = findFile(dir, name + ".dll.a"))
+        return *s;
+    }
     if (Optional<std::string> s = findFile(dir, "lib" + name + ".a"))
       return *s;
+    if (!bStatic) {
+      if (Optional<std::string> s = findFile(dir, name + ".lib"))
+        return *s;
+      if (Optional<std::string> s = findFile(dir, "lib" + name + ".dll")) {
+        error("lld doesn't support linking directly against " + *s +
+              ", use an import library");
+        return "";
+      }
+      if (Optional<std::string> s = findFile(dir, name + ".dll")) {
+        error("lld doesn't support linking directly against " + *s +
+              ", use an import library");
+        return "";
+      }
+    }
   }
-  fatal("unable to find library -l" + name);
+  error("unable to find library -l" + name);
+  return "";
 }
 
 // Convert Unix-ish command line arguments to Windows-ish ones and
 // then call coff::link.
-bool mingw::link(ArrayRef<const char *> argsArr, raw_ostream &diag) {
+bool mingw::link(ArrayRef<const char *> argsArr, bool canExitEarly,
+                 raw_ostream &stdoutOS, raw_ostream &stderrOS) {
+  lld::stdoutOS = &stdoutOS;
+  lld::stderrOS = &stderrOS;
+
+  stderrOS.enable_colors(stderrOS.has_colors());
+
   MinGWOptTable parser;
   opt::InputArgList args = parser.parse(argsArr.slice(1));
+
+  if (errorCount())
+    return false;
 
   if (args.hasArg(OPT_help)) {
     printHelp(argsArr[0]);
@@ -164,8 +193,10 @@ bool mingw::link(ArrayRef<const char *> argsArr, raw_ostream &diag) {
   if (args.hasArg(OPT_version))
     return true;
 
-  if (!args.hasArg(OPT_INPUT) && !args.hasArg(OPT_l))
-    fatal("no input files");
+  if (!args.hasArg(OPT_INPUT) && !args.hasArg(OPT_l)) {
+    error("no input files");
+    return false;
+  }
 
   std::vector<std::string> linkArgs;
   auto add = [&](const Twine &s) { linkArgs.push_back(s.str()); };
@@ -216,6 +247,14 @@ bool mingw::link(ArrayRef<const char *> argsArr, raw_ostream &diag) {
     add("-base:" + StringRef(a->getValue()));
   if (auto *a = args.getLastArg(OPT_map))
     add("-lldmap:" + StringRef(a->getValue()));
+  if (auto *a = args.getLastArg(OPT_reproduce))
+    add("-reproduce:" + StringRef(a->getValue()));
+  if (auto *a = args.getLastArg(OPT_thinlto_cache_dir))
+    add("-lldltocache:" + StringRef(a->getValue()));
+  if (auto *a = args.getLastArg(OPT_file_alignment))
+    add("-filealign:" + StringRef(a->getValue()));
+  if (auto *a = args.getLastArg(OPT_section_alignment))
+    add("-align:" + StringRef(a->getValue()));
 
   if (auto *a = args.getLastArg(OPT_o))
     add("-out:" + StringRef(a->getValue()));
@@ -262,6 +301,16 @@ bool mingw::link(ArrayRef<const char *> argsArr, raw_ostream &diag) {
   else
     add("-opt:noref");
 
+  if (args.hasFlag(OPT_enable_auto_import, OPT_disable_auto_import, true))
+    add("-auto-import");
+  else
+    add("-auto-import:no");
+  if (args.hasFlag(OPT_enable_runtime_pseudo_reloc,
+                   OPT_disable_runtime_pseudo_reloc, true))
+    add("-runtime-pseudo-reloc");
+  else
+    add("-runtime-pseudo-reloc:no");
+
   if (auto *a = args.getLastArg(OPT_icf)) {
     StringRef s = a->getValue();
     if (s == "all")
@@ -269,7 +318,7 @@ bool mingw::link(ArrayRef<const char *> argsArr, raw_ostream &diag) {
     else if (s == "safe" || s == "none")
       add("-opt:noicf");
     else
-      fatal("unknown parameter: --icf=" + s);
+      error("unknown parameter: --icf=" + s);
   } else {
     add("-opt:noicf");
   }
@@ -285,7 +334,7 @@ bool mingw::link(ArrayRef<const char *> argsArr, raw_ostream &diag) {
     else if (s == "arm64pe")
       add("-machine:arm64");
     else
-      fatal("unknown parameter: -m" + s);
+      error("unknown parameter: -m" + s);
   }
 
   for (auto *a : args.filtered(OPT_mllvm))
@@ -303,6 +352,8 @@ bool mingw::link(ArrayRef<const char *> argsArr, raw_ostream &diag) {
     add("-include:" + StringRef(a->getValue()));
   for (auto *a : args.filtered(OPT_undefined))
     add("-includeoptional:" + StringRef(a->getValue()));
+  for (auto *a : args.filtered(OPT_delayload))
+    add("-delayload:" + StringRef(a->getValue()));
 
   std::vector<StringRef> searchPaths;
   for (auto *a : args.filtered(OPT_L)) {
@@ -338,8 +389,11 @@ bool mingw::link(ArrayRef<const char *> argsArr, raw_ostream &diag) {
     }
   }
 
+  if (errorCount())
+    return false;
+
   if (args.hasArg(OPT_verbose) || args.hasArg(OPT__HASH_HASH_HASH))
-    outs() << llvm::join(linkArgs, " ") << "\n";
+    lld::outs() << llvm::join(linkArgs, " ") << "\n";
 
   if (args.hasArg(OPT__HASH_HASH_HASH))
     return true;
@@ -348,5 +402,5 @@ bool mingw::link(ArrayRef<const char *> argsArr, raw_ostream &diag) {
   std::vector<const char *> vec;
   for (const std::string &s : linkArgs)
     vec.push_back(s.c_str());
-  return coff::link(vec, true);
+  return coff::link(vec, true, stdoutOS, stderrOS);
 }

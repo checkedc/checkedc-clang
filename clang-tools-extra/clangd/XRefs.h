@@ -13,18 +13,26 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_XREFS_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_XREFS_H
 
-#include "ClangdUnit.h"
-#include "FormattedString.h"
 #include "Protocol.h"
+#include "SourceCode.h"
 #include "index/Index.h"
 #include "index/SymbolLocation.h"
+#include "support/Path.h"
+#include "clang/AST/ASTTypeTraits.h"
+#include "clang/AST/Type.h"
+#include "clang/Format/Format.h"
 #include "clang/Index/IndexSymbol.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/Support/raw_ostream.h"
 #include <vector>
 
 namespace clang {
+namespace syntax {
+class Token;
+class TokenBuffer;
+} // namespace syntax
 namespace clangd {
+class ParsedAST;
 
 // Describes where a symbol is declared and defined (as far as clangd knows).
 // There are three cases:
@@ -46,86 +54,38 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &, const LocatedSymbol &);
 std::vector<LocatedSymbol> locateSymbolAt(ParsedAST &AST, Position Pos,
                                           const SymbolIndex *Index = nullptr);
 
+// Tries to provide a textual fallback for locating a symbol by looking up the
+// word under the cursor as a symbol name in the index.
+// The aim is to pick up references to symbols in contexts where
+// AST-based resolution does not work, such as comments, strings, and PP
+// disabled regions.
+// (This is for internal use by locateSymbolAt, and is exposed for testing).
+std::vector<LocatedSymbol>
+locateSymbolTextually(const SpelledWord &Word, ParsedAST &AST,
+                      const SymbolIndex *Index, const std::string &MainFilePath,
+                      ASTNodeKind NodeKind);
+
+// Try to find a proximate occurrence of `Word` as an identifier, which can be
+// used to resolve it.
+// (This is for internal use by locateSymbolAt, and is exposed for testing).
+const syntax::Token *findNearbyIdentifier(const SpelledWord &Word,
+                                          const syntax::TokenBuffer &TB);
+
+/// Get all document links
+std::vector<DocumentLink> getDocumentLinks(ParsedAST &AST);
+
 /// Returns highlights for all usages of a symbol at \p Pos.
 std::vector<DocumentHighlight> findDocumentHighlights(ParsedAST &AST,
                                                       Position Pos);
 
-/// Contains detailed information about a Symbol. Especially useful when
-/// generating hover responses. It can be rendered as a hover panel, or
-/// embedding clients can use the structured information to provide their own
-/// UI.
-struct HoverInfo {
-  /// Represents parameters of a function, a template or a macro.
-  /// For example:
-  /// - void foo(ParamType Name = DefaultValue)
-  /// - #define FOO(Name)
-  /// - template <ParamType Name = DefaultType> class Foo {};
-  struct Param {
-    /// The pretty-printed parameter type, e.g. "int", or "typename" (in
-    /// TemplateParameters)
-    llvm::Optional<std::string> Type;
-    /// None for unnamed parameters.
-    llvm::Optional<std::string> Name;
-    /// None if no default is provided.
-    llvm::Optional<std::string> Default;
-  };
-
-  /// For a variable named Bar, declared in clang::clangd::Foo::getFoo the
-  /// following fields will hold:
-  /// - NamespaceScope: clang::clangd::
-  /// - LocalScope: Foo::getFoo::
-  /// - Name: Bar
-
-  /// Scopes might be None in cases where they don't make sense, e.g. macros and
-  /// auto/decltype.
-  /// Contains all of the enclosing namespaces, empty string means global
-  /// namespace.
-  llvm::Optional<std::string> NamespaceScope;
-  /// Remaining named contexts in symbol's qualified name, empty string means
-  /// symbol is not local.
-  std::string LocalScope;
-  /// Name of the symbol, does not contain any "::".
-  std::string Name;
-  llvm::Optional<Range> SymRange;
-  /// Scope containing the symbol. e.g, "global namespace", "function x::Y"
-  /// - None for deduced types, e.g "auto", "decltype" keywords.
-  SymbolKind Kind;
-  std::string Documentation;
-  /// Source code containing the definition of the symbol.
-  std::string Definition;
-
-  /// Pretty-printed variable type.
-  /// Set only for variables.
-  llvm::Optional<std::string> Type;
-  /// Set for functions and lambadas.
-  llvm::Optional<std::string> ReturnType;
-  /// Set for functions, lambdas and macros with parameters.
-  llvm::Optional<std::vector<Param>> Parameters;
-  /// Set for all templates(function, class, variable).
-  llvm::Optional<std::vector<Param>> TemplateParameters;
-  /// Contains the evaluated value of the symbol if available.
-  llvm::Optional<std::string> Value;
-
-  /// Produce a user-readable information.
-  FormattedString present() const;
+struct ReferencesResult {
+  std::vector<Location> References;
+  bool HasMore = false;
 };
-llvm::raw_ostream &operator<<(llvm::raw_ostream &, const HoverInfo::Param &);
-inline bool operator==(const HoverInfo::Param &LHS,
-                       const HoverInfo::Param &RHS) {
-  return std::tie(LHS.Type, LHS.Name, LHS.Default) ==
-         std::tie(RHS.Type, RHS.Name, RHS.Default);
-}
-
-/// Get the hover information when hovering at \p Pos.
-llvm::Optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
-                                   format::FormatStyle Style,
-                                   const SymbolIndex *Index);
-
-/// Returns reference locations of the symbol at a specified \p Pos.
+/// Returns references of the symbol at a specified \p Pos.
 /// \p Limit limits the number of results returned (0 means no limit).
-std::vector<Location> findReferences(ParsedAST &AST, Position Pos,
-                                     uint32_t Limit,
-                                     const SymbolIndex *Index = nullptr);
+ReferencesResult findReferences(ParsedAST &AST, Position Pos, uint32_t Limit,
+                                const SymbolIndex *Index = nullptr);
 
 /// Get info about symbols at \p Pos.
 std::vector<SymbolDetails> getSymbolInfo(ParsedAST &AST, Position Pos);
@@ -145,16 +105,9 @@ void resolveTypeHierarchy(TypeHierarchyItem &Item, int ResolveLevels,
                           TypeHierarchyDirection Direction,
                           const SymbolIndex *Index);
 
-/// Retrieves the deduced type at a given location (auto, decltype).
-/// Retuns None unless SourceLocationBeg starts an auto/decltype token.
-/// It will return the underlying type.
-llvm::Optional<QualType> getDeducedType(ParsedAST &AST,
-                                        SourceLocation SourceLocationBeg);
-
-/// Check if there is a deduced type at a given location (auto, decltype).
-/// SourceLocationBeg must point to the first character of the token
-bool hasDeducedType(ParsedAST &AST, SourceLocation SourceLocationBeg);
-
+/// Returns all decls that are referenced in the \p FD except local symbols.
+llvm::DenseSet<const Decl *> getNonLocalDeclRefs(ParsedAST &AST,
+                                                 const FunctionDecl *FD);
 } // namespace clangd
 } // namespace clang
 

@@ -80,7 +80,7 @@ static void initializeUsedResources(InstrDesc &ID,
     if (PR.BufferSize < 0) {
       AllInOrderResources = false;
     } else {
-      Buffers.setBit(PRE->ProcResourceIdx);
+      Buffers.setBit(getResourceStateIndex(Mask));
       AnyDispatchHazards |= (PR.BufferSize == 0);
       AllInOrderResources &= (PR.BufferSize <= 1);
     }
@@ -139,9 +139,6 @@ static void initializeUsedResources(InstrDesc &ID,
     }
   }
 
-  ID.UsedProcResUnits = UsedResourceUnits;
-  ID.UsedProcResGroups = UsedResourceGroups;
-
   // A SchedWrite may specify a number of cycles in which a resource group
   // is reserved. For example (on target x86; cpu Haswell):
   //
@@ -163,8 +160,11 @@ static void initializeUsedResources(InstrDesc &ID,
     if (countPopulation(RPC.first) > 1 && !RPC.second.isReserved()) {
       // Remove the leading 1 from the resource group mask.
       uint64_t Mask = RPC.first ^ PowerOf2Floor(RPC.first);
-      if ((Mask & UsedResourceUnits) == Mask)
+      uint64_t MaxResourceUnits = countPopulation(Mask);
+      if (RPC.second.NumUnits > countPopulation(Mask)) {
         RPC.second.setReserved();
+        RPC.second.NumUnits = MaxResourceUnits;
+      }
     }
   }
 
@@ -177,20 +177,13 @@ static void initializeUsedResources(InstrDesc &ID,
 
       uint64_t Mask = ProcResourceMasks[I];
       if (Mask != SR.first && ((Mask & SR.first) == SR.first))
-        Buffers.setBit(I);
+        Buffers.setBit(getResourceStateIndex(Mask));
     }
   }
 
-  // Now set the buffers.
-  if (unsigned NumBuffers = Buffers.countPopulation()) {
-    ID.Buffers.resize(NumBuffers);
-    for (unsigned I = 0, E = NumProcResources; I < E && NumBuffers; ++I) {
-      if (Buffers[I]) {
-        --NumBuffers;
-        ID.Buffers[NumBuffers] = ProcResourceMasks[I];
-      }
-    }
-  }
+  ID.UsedBuffers = Buffers.getZExtValue();
+  ID.UsedProcResUnits = UsedResourceUnits;
+  ID.UsedProcResGroups = UsedResourceGroups;
 
   LLVM_DEBUG({
     for (const std::pair<uint64_t, ResourceUsage> &R : ID.Resources)
@@ -198,8 +191,12 @@ static void initializeUsedResources(InstrDesc &ID,
              << "Reserved=" << R.second.isReserved() << ", "
              << "#Units=" << R.second.NumUnits << ", "
              << "cy=" << R.second.size() << '\n';
-    for (const uint64_t R : ID.Buffers)
-      dbgs() << "\t\tBuffer Mask=" << format_hex(R, 16) << '\n';
+    uint64_t BufferIDs = ID.UsedBuffers;
+    while (BufferIDs) {
+      uint64_t Current = BufferIDs & (-BufferIDs);
+      dbgs() << "\t\tBuffer Mask=" << format_hex(Current, 16) << '\n';
+      BufferIDs ^= Current;
+    }
     dbgs() << "\t\t Used Units=" << format_hex(ID.UsedProcResUnits, 16) << '\n';
     dbgs() << "\t\tUsed Groups=" << format_hex(ID.UsedProcResGroups, 16)
            << '\n';
@@ -308,7 +305,7 @@ void InstrBuilder::populateWrites(InstrDesc &ID, const MCInst &MCI,
   unsigned NumVariadicOps = MCI.getNumOperands() - MCDesc.getNumOperands();
   ID.Writes.resize(TotalDefs + NumVariadicOps);
   // Iterate over the operands list, and skip non-register operands.
-  // The first NumExplictDefs register operands are expected to be register
+  // The first NumExplicitDefs register operands are expected to be register
   // definitions.
   unsigned CurrentDef = 0;
   unsigned i = 0;
@@ -464,9 +461,8 @@ void InstrBuilder::populateReads(InstrDesc &ID, const MCInst &MCI,
 
   // FIXME: If an instruction opcode is marked as 'mayLoad', and it has no
   // "unmodeledSideEffects", then this logic optimistically assumes that any
-  // extra register operands in the variadic sequence are not register
+  // extra register operand in the variadic sequence is not a register
   // definition.
-
   bool AssumeDefsOnly = !MCDesc.mayStore() && MCDesc.mayLoad() &&
                         !MCDesc.hasUnmodeledSideEffects();
   for (unsigned I = 0, OpIndex = MCDesc.getNumOperands();
@@ -492,24 +488,16 @@ Error InstrBuilder::verifyInstrDesc(const InstrDesc &ID,
   if (ID.NumMicroOps != 0)
     return ErrorSuccess();
 
-  bool UsesMemory = ID.MayLoad || ID.MayStore;
-  bool UsesBuffers = !ID.Buffers.empty();
+  bool UsesBuffers = ID.UsedBuffers;
   bool UsesResources = !ID.Resources.empty();
-  if (!UsesMemory && !UsesBuffers && !UsesResources)
+  if (!UsesBuffers && !UsesResources)
     return ErrorSuccess();
 
-  StringRef Message;
-  if (UsesMemory) {
-    Message = "found an inconsistent instruction that decodes "
-              "into zero opcodes and that consumes load/store "
-              "unit resources.";
-  } else {
-    Message = "found an inconsistent instruction that decodes "
-              "to zero opcodes and that consumes scheduler "
-              "resources.";
-  }
-
-  return make_error<InstructionError<MCInst>>(Message, MCI);
+  // FIXME: see PR44797. We should revisit these checks and possibly move them
+  // in CodeGenSchedule.cpp.
+  StringRef Message = "found an inconsistent instruction that decodes to zero "
+                      "opcodes and that consumes scheduler resources.";
+  return make_error<InstructionError<MCInst>>(std::string(Message), MCI);
 }
 
 Expected<const InstrDesc &>
@@ -550,7 +538,7 @@ InstrBuilder::createInstrDescImpl(const MCInst &MCI) {
   LLVM_DEBUG(dbgs() << "\t\tSchedClassID=" << SchedClassID << '\n');
 
   // Create a new empty descriptor.
-  std::unique_ptr<InstrDesc> ID = llvm::make_unique<InstrDesc>();
+  std::unique_ptr<InstrDesc> ID = std::make_unique<InstrDesc>();
   ID->NumMicroOps = SCDesc.NumMicroOps;
   ID->SchedClassID = SchedClassID;
 
@@ -619,7 +607,7 @@ InstrBuilder::createInstruction(const MCInst &MCI) {
   if (!DescOrErr)
     return DescOrErr.takeError();
   const InstrDesc &D = *DescOrErr;
-  std::unique_ptr<Instruction> NewIS = llvm::make_unique<Instruction>(D);
+  std::unique_ptr<Instruction> NewIS = std::make_unique<Instruction>(D);
 
   // Check if this is a dependency breaking instruction.
   APInt Mask;
@@ -636,8 +624,8 @@ InstrBuilder::createInstruction(const MCInst &MCI) {
   }
 
   // Initialize Reads first.
+  MCPhysReg RegID = 0;
   for (const ReadDescriptor &RD : D.Reads) {
-    int RegID = -1;
     if (!RD.isImplicitRead()) {
       // explicit read.
       const MCOperand &Op = MCI.getOperand(RD.OpIndex);
@@ -655,7 +643,6 @@ InstrBuilder::createInstruction(const MCInst &MCI) {
       continue;
 
     // Okay, this is a register operand. Create a ReadState for it.
-    assert(RegID > 0 && "Invalid register ID found!");
     NewIS->getUses().emplace_back(RD, RegID);
     ReadState &RS = NewIS->getUses().back();
 
@@ -696,8 +683,8 @@ InstrBuilder::createInstruction(const MCInst &MCI) {
   // Initialize writes.
   unsigned WriteIndex = 0;
   for (const WriteDescriptor &WD : D.Writes) {
-    unsigned RegID = WD.isImplicitWrite() ? WD.RegisterID
-                                          : MCI.getOperand(WD.OpIndex).getReg();
+    RegID = WD.isImplicitWrite() ? WD.RegisterID
+                                 : MCI.getOperand(WD.OpIndex).getReg();
     // Check if this is a optional definition that references NoReg.
     if (WD.IsOptionalDef && !RegID) {
       ++WriteIndex;

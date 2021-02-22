@@ -7,13 +7,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
-// The following compilers don't generate constexpr special members correctly.
-// XFAIL: clang-3.5, clang-3.6, clang-3.7, clang-3.8
-// XFAIL: apple-clang-6, apple-clang-7, apple-clang-8.0
-
-// XFAIL: dylib-has-no-bad_variant_access && !libcpp-no-exceptions
+// XFAIL: dylib-has-no-bad_variant_access && !no-exceptions
 
 
 // <variant>
@@ -29,7 +25,7 @@
 #include <variant>
 
 #include "test_macros.h"
-#include "variant_test_helpers.hpp"
+#include "variant_test_helpers.h"
 
 struct NoCopy {
   NoCopy(const NoCopy &) = delete;
@@ -407,7 +403,7 @@ void test_move_assignment_different_index() {
   }
   {
     using V = std::variant<int, MoveAssign, unsigned>;
-    V v1(std::in_place_type<unsigned>, 43);
+    V v1(std::in_place_type<unsigned>, 43u);
     V v2(std::in_place_type<MoveAssign>, 42);
     MoveAssign::reset();
     V &vref = (v1 = std::move(v2));
@@ -462,7 +458,7 @@ void test_move_assignment_different_index() {
     struct {
       constexpr Result<long> operator()() const {
         using V = std::variant<int, TMoveAssign, unsigned>;
-        V v(std::in_place_type<unsigned>, 43);
+        V v(std::in_place_type<unsigned>, 43u);
         V v2(std::in_place_type<TMoveAssign>, 42);
         v = std::move(v2);
         return {v.index(), std::get<1>(v).value};

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_DynamicLoader_h_
-#define liblldb_DynamicLoader_h_
+#ifndef LLDB_TARGET_DYNAMICLOADER_H
+#define LLDB_TARGET_DYNAMICLOADER_H
 
 #include "lldb/Core/PluginInterface.h"
 #include "lldb/Utility/FileSpec.h"
@@ -148,13 +148,9 @@ public:
   ///     The equivalent symbol list - any equivalent symbols found are appended
   ///     to this list.
   ///
-  /// \return
-  ///    Number of equivalent symbols found.
-  virtual size_t FindEquivalentSymbols(Symbol *original_symbol,
-                                       ModuleList &module_list,
-                                       SymbolContextList &equivalent_symbols) {
-    return 0;
-  }
+  virtual void FindEquivalentSymbols(Symbol *original_symbol,
+                                     ModuleList &module_list,
+                                     SymbolContextList &equivalent_symbols) {}
 
   /// Ask if it is ok to try and load or unload an shared library (image).
   ///
@@ -314,9 +310,10 @@ protected:
       *m_process; ///< The process that this dynamic loader plug-in is tracking.
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(DynamicLoader);
+  DynamicLoader(const DynamicLoader &) = delete;
+  const DynamicLoader &operator=(const DynamicLoader &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_DynamicLoader_h_
+#endif // LLDB_TARGET_DYNAMICLOADER_H

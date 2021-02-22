@@ -14,7 +14,7 @@
 ...
 ---
 name:            select_i8
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 body:             |
   bb.1.entry:
@@ -48,7 +48,7 @@ body:             |
 ...
 ---
 name:            select_i16
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 body:             |
   bb.1.entry:
@@ -82,7 +82,7 @@ body:             |
 ...
 ---
 name:            select_i32
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 body:             |
   bb.1.entry:
@@ -110,7 +110,7 @@ body:             |
 ...
 ---
 name:            select_ptr
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 body:             |
   bb.1.entry:
@@ -138,7 +138,7 @@ body:             |
 ...
 ---
 name:            select_with_negation
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 body:             |
   bb.1.entry:
@@ -150,14 +150,13 @@ body:             |
     ; MIPS32: [[COPY1:%[0-9]+]]:_(s32) = COPY $a1
     ; MIPS32: [[COPY2:%[0-9]+]]:_(s32) = COPY $a2
     ; MIPS32: [[COPY3:%[0-9]+]]:_(s32) = COPY $a3
-    ; MIPS32: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 -1
+    ; MIPS32: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 1
     ; MIPS32: [[ICMP:%[0-9]+]]:_(s32) = G_ICMP intpred(slt), [[COPY]](s32), [[COPY1]]
     ; MIPS32: [[COPY4:%[0-9]+]]:_(s32) = COPY [[ICMP]](s32)
     ; MIPS32: [[COPY5:%[0-9]+]]:_(s32) = COPY [[C]](s32)
     ; MIPS32: [[XOR:%[0-9]+]]:_(s32) = G_XOR [[COPY4]], [[COPY5]]
-    ; MIPS32: [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 1
     ; MIPS32: [[COPY6:%[0-9]+]]:_(s32) = COPY [[XOR]](s32)
-    ; MIPS32: [[AND:%[0-9]+]]:_(s32) = G_AND [[COPY6]], [[C1]]
+    ; MIPS32: [[AND:%[0-9]+]]:_(s32) = G_AND [[COPY6]], [[C]]
     ; MIPS32: [[SELECT:%[0-9]+]]:_(s32) = G_SELECT [[AND]](s32), [[COPY2]], [[COPY3]]
     ; MIPS32: $v0 = COPY [[SELECT]](s32)
     ; MIPS32: RetRA implicit $v0
@@ -175,7 +174,7 @@ body:             |
 ...
 ---
 name:            select_i64
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 fixedStack:
   - { id: 0, offset: 20, size: 4, alignment: 4, isImmutable: true }
@@ -222,7 +221,7 @@ body:             |
 ...
 ---
 name:            select_float
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 body:             |
   bb.1.entry:
@@ -231,18 +230,18 @@ body:             |
     ; MIPS32-LABEL: name: select_float
     ; MIPS32: liveins: $a0, $a1, $a2
     ; MIPS32: [[COPY:%[0-9]+]]:_(s32) = COPY $a0
-    ; MIPS32: [[MTC1_:%[0-9]+]]:fgr32(s32) = MTC1 $a1
-    ; MIPS32: [[MTC1_1:%[0-9]+]]:fgr32(s32) = MTC1 $a2
+    ; MIPS32: [[COPY1:%[0-9]+]]:_(s32) = COPY $a1
+    ; MIPS32: [[COPY2:%[0-9]+]]:_(s32) = COPY $a2
     ; MIPS32: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 1
-    ; MIPS32: [[COPY1:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
-    ; MIPS32: [[AND:%[0-9]+]]:_(s32) = G_AND [[COPY1]], [[C]]
-    ; MIPS32: [[SELECT:%[0-9]+]]:_(s32) = G_SELECT [[AND]](s32), [[MTC1_]], [[MTC1_1]]
+    ; MIPS32: [[COPY3:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
+    ; MIPS32: [[AND:%[0-9]+]]:_(s32) = G_AND [[COPY3]], [[C]]
+    ; MIPS32: [[SELECT:%[0-9]+]]:_(s32) = G_SELECT [[AND]](s32), [[COPY1]], [[COPY2]]
     ; MIPS32: $f0 = COPY [[SELECT]](s32)
     ; MIPS32: RetRA implicit $f0
     %3:_(s32) = COPY $a0
     %0:_(s1) = G_TRUNC %3(s32)
-    %1:fgr32(s32) = MTC1 $a1
-    %2:fgr32(s32) = MTC1 $a2
+    %1:_(s32) = COPY $a1
+    %2:_(s32) = COPY $a2
     %4:_(s32) = G_SELECT %0(s1), %1, %2
     $f0 = COPY %4(s32)
     RetRA implicit $f0
@@ -250,7 +249,7 @@ body:             |
 ...
 ---
 name:            select_double
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 fixedStack:
   - { id: 0, offset: 16, size: 4, alignment: 8, isImmutable: true }

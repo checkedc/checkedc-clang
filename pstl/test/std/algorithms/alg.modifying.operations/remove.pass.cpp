@@ -21,7 +21,7 @@ using namespace TestUtils;
 
 struct run_remove
 {
-#if _PSTL_ICC_17_VC141_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN ||                                                            \
+#if _PSTL_ICC_17_VC141_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN ||                                                             \
     _PSTL_ICC_16_VC14_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN //dummy specialization by policy type, in case of broken configuration
     template <typename InputIterator, typename OutputIterator, typename Size, typename T>
     void
@@ -59,7 +59,7 @@ struct run_remove
 
 struct run_remove_if
 {
-#if _PSTL_ICC_17_VC141_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN ||                                                            \
+#if _PSTL_ICC_17_VC141_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN ||                                                             \
     _PSTL_ICC_16_VC14_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN //dummy specialization by policy type, in case of broken configuration
     template <typename InputIterator, typename OutputIterator, typename Size, typename Predicate>
     void
@@ -130,7 +130,7 @@ struct test_non_const
     }
 };
 
-int32_t
+int
 main()
 {
 #if !_PSTL_ICC_18_TEST_EARLY_EXIT_MONOTONIC_RELEASE_BROKEN
@@ -149,6 +149,13 @@ main()
 
     test_algo_basic_single<int32_t>(run_for_rnd_fw<test_non_const>());
 
+    test<MemoryChecker>(MemoryChecker{0}, MemoryChecker{1},
+        [](const MemoryChecker& val){ return val.value() == 1; },
+        [](std::size_t idx){ return MemoryChecker{std::int32_t(idx % 3 == 0)}; }
+    );
+    EXPECT_FALSE(MemoryChecker::alive_objects() < 0, "wrong effect from remove,remove_if: number of ctors calls < num of dtors calls");
+    EXPECT_FALSE(MemoryChecker::alive_objects() > 0, "wrong effect from remove,remove_if: number of ctors calls > num of dtors calls");
+    
     std::cout << done() << std::endl;
     return 0;
 }

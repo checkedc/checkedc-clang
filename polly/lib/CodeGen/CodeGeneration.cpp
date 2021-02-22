@@ -37,6 +37,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
@@ -206,7 +207,9 @@ static bool CodeGen(Scop &S, IslAstInfo &AI, LoopInfo &LI, DominatorTree &DT,
   assert(R->isSimple());
   BasicBlock *EnteringBB = S.getEnteringBlock();
   assert(EnteringBB);
-  PollyIRBuilder Builder = createPollyIRBuilder(EnteringBB, Annotator);
+  PollyIRBuilder Builder(EnteringBB->getContext(), ConstantFolder(),
+                         IRInserter(Annotator));
+  Builder.SetInsertPoint(EnteringBB->getTerminator());
 
   // Only build the run-time condition and parameters _after_ having
   // introduced the conditional branch. This is important as the conditional

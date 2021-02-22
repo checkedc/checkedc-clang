@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_CommandInterpreter_h_
-#define liblldb_CommandInterpreter_h_
+#ifndef LLDB_INTERPRETER_COMMANDINTERPRETER_H
+#define LLDB_INTERPRETER_COMMANDINTERPRETER_H
 
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/IOHandler.h"
@@ -26,6 +26,32 @@
 #include <mutex>
 
 namespace lldb_private {
+class CommandInterpreter;
+
+class CommandInterpreterRunResult {
+public:
+  CommandInterpreterRunResult()
+      : m_num_errors(0), m_result(lldb::eCommandInterpreterResultSuccess) {}
+
+  uint32_t GetNumErrors() const { return m_num_errors; }
+
+  lldb::CommandInterpreterResult GetResult() const { return m_result; }
+
+  bool IsResult(lldb::CommandInterpreterResult result) {
+    return m_result == result;
+  }
+
+protected:
+  friend CommandInterpreter;
+
+  void IncrementNumberOfErrors() { m_num_errors++; }
+
+  void SetResult(lldb::CommandInterpreterResult result) { m_result = result; }
+
+private:
+  int m_num_errors;
+  lldb::CommandInterpreterResult m_result;
+};
 
 class CommandInterpreterRunOptions {
 public:
@@ -51,7 +77,7 @@ public:
   /// \param[in] echo_comments
   ///    If \b true, echo command even if it is a pure comment line. If
   ///    \b false, print no ouput in this case. This setting has an effect only
-  ///    if \param echo_commands is \b true.
+  ///    if echo_commands is \b true.
   /// \param[in] print_results
   ///    If \b true and the command succeeds, print the results of the command
   ///    after executing it. If \b false, execute silently.
@@ -144,6 +170,20 @@ public:
     m_add_to_history = add_to_history ? eLazyBoolYes : eLazyBoolNo;
   }
 
+  bool GetAutoHandleEvents() const {
+    return DefaultToYes(m_auto_handle_events);
+  }
+
+  void SetAutoHandleEvents(bool auto_handle_events) {
+    m_auto_handle_events = auto_handle_events ? eLazyBoolYes : eLazyBoolNo;
+  }
+
+  bool GetSpawnThread() const { return DefaultToNo(m_spawn_thread); }
+
+  void SetSpawnThread(bool spawn_thread) {
+    m_spawn_thread = spawn_thread ? eLazyBoolYes : eLazyBoolNo;
+  }
+
   LazyBool m_stop_on_continue;
   LazyBool m_stop_on_error;
   LazyBool m_stop_on_crash;
@@ -152,6 +192,8 @@ public:
   LazyBool m_print_results;
   LazyBool m_print_errors;
   LazyBool m_add_to_history;
+  LazyBool m_auto_handle_events;
+  LazyBool m_spawn_thread;
 
 private:
   static bool DefaultToYes(LazyBool flag) {
@@ -308,31 +350,12 @@ public:
 
   CommandObject *GetCommandObjectForCommand(llvm::StringRef &command_line);
 
-  // This handles command line completion.  You are given a pointer to the
-  // command string buffer, to the current cursor, and to the end of the string
-  // (in case it is not NULL terminated). You also passed in an StringList
-  // object to fill with the returns. The first element of the array will be
-  // filled with the string that you would need to insert at the cursor point
-  // to complete the cursor point to the longest common matching prefix. If you
-  // want to limit the number of elements returned, set max_return_elements to
-  // the number of elements you want returned.  Otherwise set
-  // max_return_elements to -1. If you want to start some way into the match
-  // list, then set match_start_point to the desired start point. Returns: -1
-  // if the completion character should be inserted -2 if the entire command
-  // line should be deleted and replaced with matches.GetStringAtIndex(0)
-  // INT_MAX if the number of matches is > max_return_elements, but it is
-  // expensive to compute. Otherwise, returns the number of matches.
-  //
-  // FIXME: Only max_return_elements == -1 is supported at present.
-  int HandleCompletion(const char *current_line, const char *cursor,
-                       const char *last_char, int match_start_point,
-                       int max_return_elements, StringList &matches,
-                       StringList &descriptions);
+  // This handles command line completion.
+  void HandleCompletion(CompletionRequest &request);
 
-  // This version just returns matches, and doesn't compute the substring.  It
-  // is here so the Help command can call it for the first argument. It uses
-  // a CompletionRequest for simplicity reasons.
-  int HandleCompletionMatches(CompletionRequest &request);
+  // This version just returns matches, and doesn't compute the substring. It
+  // is here so the Help command can call it for the first argument.
+  void HandleCompletionMatches(CompletionRequest &request);
 
   int GetCommandNamesMatchingPartialString(const char *cmd_cstr,
                                            bool include_aliases,
@@ -445,15 +468,16 @@ public:
 
   bool IsActive();
 
-  void RunCommandInterpreter(bool auto_handle_events, bool spawn_thread,
-                             CommandInterpreterRunOptions &options);
+  CommandInterpreterRunResult
+  RunCommandInterpreter(CommandInterpreterRunOptions &options);
+
   void GetLLDBCommandsFromIOHandler(const char *prompt,
                                     IOHandlerDelegate &delegate,
-                                    bool asynchronously, void *baton);
+                                    void *baton = nullptr);
 
   void GetPythonCommandsFromIOHandler(const char *prompt,
                                       IOHandlerDelegate &delegate,
-                                      bool asynchronously, void *baton);
+                                      void *baton = nullptr);
 
   const char *GetCommandPrefix();
 
@@ -462,13 +486,17 @@ public:
 
   bool GetPromptOnQuit() const;
 
-  void SetPromptOnQuit(bool b);
+  void SetPromptOnQuit(bool enable);
 
   bool GetEchoCommands() const;
-  void SetEchoCommands(bool b);
+  void SetEchoCommands(bool enable);
 
   bool GetEchoCommentCommands() const;
-  void SetEchoCommentCommands(bool b);
+  void SetEchoCommentCommands(bool enable);
+
+  const CommandObject::CommandMap &GetUserCommands() const {
+    return m_user_dict;
+  }
 
   /// Specify if the command interpreter should allow that the user can
   /// specify a custom exit code when calling 'quit'.
@@ -492,15 +520,9 @@ public:
 
   bool GetStopCmdSourceOnError() const;
 
-  uint32_t GetNumErrors() const { return m_num_errors; }
-
-  bool GetQuitRequested() const { return m_quit_requested; }
-
   lldb::IOHandlerSP
   GetIOHandler(bool force_create = false,
                CommandInterpreterRunOptions *options = nullptr);
-
-  bool GetStoppedForCrash() const { return m_stopped_for_crash; }
 
   bool GetSpaceReplPrompts() const;
 
@@ -519,7 +541,9 @@ protected:
 
   bool IOHandlerInterrupt(IOHandler &io_handler) override;
 
-  size_t GetProcessOutput();
+  void GetProcessOutput();
+
+  bool DidProcessStopAbnormally() const;
 
   void SetSynchronous(bool value);
 
@@ -590,9 +614,7 @@ private:
                                                        // the user has been told
   uint32_t m_command_source_depth;
   std::vector<uint32_t> m_command_source_flags;
-  uint32_t m_num_errors;
-  bool m_quit_requested;
-  bool m_stopped_for_crash;
+  CommandInterpreterRunResult m_result;
 
   // The exit code the user has requested when calling the 'quit' command.
   // No value means the user hasn't set a custom exit code so far.
@@ -603,4 +625,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_CommandInterpreter_h_
+#endif // LLDB_INTERPRETER_COMMANDINTERPRETER_H

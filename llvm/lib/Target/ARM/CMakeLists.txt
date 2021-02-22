@@ -25,7 +25,6 @@ add_llvm_target(ARMCodeGen
   ARMBasicBlockInfo.cpp
   ARMCallingConv.cpp
   ARMCallLowering.cpp
-  ARMCodeGenPrepare.cpp
   ARMConstantIslandPass.cpp
   ARMConstantPoolValue.cpp
   ARMExpandPseudoInsts.cpp
@@ -52,6 +51,10 @@ add_llvm_target(ARMCodeGen
   ARMTargetObjectFile.cpp
   ARMTargetTransformInfo.cpp
   MLxExpansionPass.cpp
+  MVEGatherScatterLowering.cpp
+  MVETailPredication.cpp
+  MVEVPTBlockPass.cpp
+  MVEVPTOptimisationsPass.cpp
   Thumb1FrameLowering.cpp
   Thumb1InstrInfo.cpp
   ThumbRegisterInfo.cpp

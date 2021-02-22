@@ -32,6 +32,7 @@
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/DynamicSize.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ExprEngine.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SMTConv.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SMTAPI.h"
@@ -103,9 +104,10 @@ void SimpleBoundsChecker::checkLocation(SVal l, bool isLoad, const Stmt *LoadS,
 
   // Get the size of the array.
   DefinedOrUnknownSVal NumElements =
-      C.getStoreManager().getSizeInElements(State,
-                                            ER->getSuperRegion(),
-                                            ER->getValueType());
+      getDynamicElementCount(State,
+                             ER->getSuperRegion(),
+                             SvalBuilder,
+                             ER->getValueType());
 
   ProgramStateRef StInBound = State->assumeInBound(Idx, NumElements, true);
   ProgramStateRef StOutBound = State->assumeInBound(Idx, NumElements, false);
@@ -264,7 +266,7 @@ void SimpleBoundsChecker::reportOutofBoundsAccess(ProgramStateRef OutBound,
           "Access out-of-bound array element (buffer overflow)"));
 
   // Generate a report for this bug.
-  auto Report = llvm::make_unique<BugReport>(*BT, BT->getDescription(), N);
+  auto Report = std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), N);
 
   Report->addRange(LoadS->getSourceRange());
   C.emitReport(std::move(Report));
@@ -370,6 +372,6 @@ void ento::registerSimpleBoundsChecker(CheckerManager &mgr) {
 }
 
 // This checker should be enabled regardless of how language options are set.
-bool ento::shouldRegisterSimpleBoundsChecker(const LangOptions &LO) {
+bool ento::shouldRegisterSimpleBoundsChecker(const CheckerManager &mgr) {
   return true;
 }

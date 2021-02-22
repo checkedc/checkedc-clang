@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
 // <iterator>
 
 // reverse_iterator
@@ -49,4 +49,3 @@ int main(int, char**)
 
   return 0;
 }
-

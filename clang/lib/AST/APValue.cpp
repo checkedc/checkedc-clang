@@ -42,6 +42,14 @@ APValue::LValueBase::LValueBase(const ValueDecl *P, unsigned I, unsigned V)
 APValue::LValueBase::LValueBase(const Expr *P, unsigned I, unsigned V)
     : Ptr(P), Local{I, V} {}
 
+APValue::LValueBase APValue::LValueBase::getDynamicAlloc(DynamicAllocLValue LV,
+                                                         QualType Type) {
+  LValueBase Base;
+  Base.Ptr = LV;
+  Base.DynamicAllocType = Type.getAsOpaquePtr();
+  return Base;
+}
+
 APValue::LValueBase APValue::LValueBase::getTypeInfo(TypeInfoLValue LV,
                                                      QualType TypeInfo) {
   LValueBase Base;
@@ -51,16 +59,22 @@ APValue::LValueBase APValue::LValueBase::getTypeInfo(TypeInfoLValue LV,
 }
 
 unsigned APValue::LValueBase::getCallIndex() const {
-  return is<TypeInfoLValue>() ? 0 : Local.CallIndex;
+  return (is<TypeInfoLValue>() || is<DynamicAllocLValue>()) ? 0
+                                                            : Local.CallIndex;
 }
 
 unsigned APValue::LValueBase::getVersion() const {
-  return is<TypeInfoLValue>() ? 0 : Local.Version;
+  return (is<TypeInfoLValue>() || is<DynamicAllocLValue>()) ? 0 : Local.Version;
 }
 
 QualType APValue::LValueBase::getTypeInfoType() const {
   assert(is<TypeInfoLValue>() && "not a type_info lvalue");
   return QualType::getFromOpaquePtr(TypeInfoType);
+}
+
+QualType APValue::LValueBase::getDynamicAllocType() const {
+  assert(is<DynamicAllocLValue>() && "not a dynamic allocation lvalue");
+  return QualType::getFromOpaquePtr(DynamicAllocType);
 }
 
 namespace clang {
@@ -111,7 +125,7 @@ llvm::DenseMapInfo<clang::APValue::LValueBase>::getTombstoneKey() {
 
 namespace clang {
 llvm::hash_code hash_value(const APValue::LValueBase &Base) {
-  if (Base.is<TypeInfoLValue>())
+  if (Base.is<TypeInfoLValue>() || Base.is<DynamicAllocLValue>())
     return llvm::hash_value(Base.getOpaqueValue());
   return llvm::hash_combine(Base.getOpaqueValue(), Base.getCallIndex(),
                             Base.getVersion());
@@ -364,96 +378,12 @@ void APValue::swap(APValue &RHS) {
   memcpy(RHS.Data.buffer, TmpData, DataSize);
 }
 
-LLVM_DUMP_METHOD void APValue::dump() const {
-  dump(llvm::errs());
-  llvm::errs() << '\n';
-}
-
 static double GetApproxValue(const llvm::APFloat &F) {
   llvm::APFloat V = F;
   bool ignored;
   V.convert(llvm::APFloat::IEEEdouble(), llvm::APFloat::rmNearestTiesToEven,
             &ignored);
   return V.convertToDouble();
-}
-
-void APValue::dump(raw_ostream &OS) const {
-  switch (getKind()) {
-  case None:
-    OS << "None";
-    return;
-  case Indeterminate:
-    OS << "Indeterminate";
-    return;
-  case Int:
-    OS << "Int: " << getInt();
-    return;
-  case Float:
-    OS << "Float: " << GetApproxValue(getFloat());
-    return;
-  case FixedPoint:
-    OS << "FixedPoint : " << getFixedPoint();
-    return;
-  case Vector:
-    OS << "Vector: ";
-    getVectorElt(0).dump(OS);
-    for (unsigned i = 1; i != getVectorLength(); ++i) {
-      OS << ", ";
-      getVectorElt(i).dump(OS);
-    }
-    return;
-  case ComplexInt:
-    OS << "ComplexInt: " << getComplexIntReal() << ", " << getComplexIntImag();
-    return;
-  case ComplexFloat:
-    OS << "ComplexFloat: " << GetApproxValue(getComplexFloatReal())
-       << ", " << GetApproxValue(getComplexFloatImag());
-    return;
-  case LValue:
-    OS << "LValue: <todo>";
-    return;
-  case Array:
-    OS << "Array: ";
-    for (unsigned I = 0, N = getArrayInitializedElts(); I != N; ++I) {
-      getArrayInitializedElt(I).dump(OS);
-      if (I != getArraySize() - 1) OS << ", ";
-    }
-    if (hasArrayFiller()) {
-      OS << getArraySize() - getArrayInitializedElts() << " x ";
-      getArrayFiller().dump(OS);
-    }
-    return;
-  case Struct:
-    OS << "Struct ";
-    if (unsigned N = getStructNumBases()) {
-      OS << " bases: ";
-      getStructBase(0).dump(OS);
-      for (unsigned I = 1; I != N; ++I) {
-        OS << ", ";
-        getStructBase(I).dump(OS);
-      }
-    }
-    if (unsigned N = getStructNumFields()) {
-      OS << " fields: ";
-      getStructField(0).dump(OS);
-      for (unsigned I = 1; I != N; ++I) {
-        OS << ", ";
-        getStructField(I).dump(OS);
-      }
-    }
-    return;
-  case Union:
-    OS << "Union: ";
-    getUnionValue().dump(OS);
-    return;
-  case MemberPointer:
-    OS << "MemberPointer: <todo>";
-    return;
-  case AddrLabelDiff:
-    OS << "AddrLabelDiff: <todo>";
-    return;
-  }
-  llvm_unreachable("Unknown APValue kind!");
 }
 
 void APValue::printPretty(raw_ostream &Out, const ASTContext &Ctx,
@@ -479,7 +409,7 @@ void APValue::printPretty(raw_ostream &Out, const ASTContext &Ctx,
     return;
   case APValue::Vector: {
     Out << '{';
-    QualType ElemTy = Ty->getAs<VectorType>()->getElementType();
+    QualType ElemTy = Ty->castAs<VectorType>()->getElementType();
     getVectorElt(0).printPretty(Out, Ctx, ElemTy);
     for (unsigned i = 1; i != getVectorLength(); ++i) {
       Out << ", ";
@@ -528,13 +458,18 @@ void APValue::printPretty(raw_ostream &Out, const ASTContext &Ctx,
           S = CharUnits::One();
         }
         Out << '&';
-      } else if (!IsReference)
+      } else if (!IsReference) {
         Out << '&';
+      }
 
       if (const ValueDecl *VD = Base.dyn_cast<const ValueDecl*>())
         Out << *VD;
       else if (TypeInfoLValue TI = Base.dyn_cast<TypeInfoLValue>()) {
         TI.print(Out, Ctx.getPrintingPolicy());
+      } else if (DynamicAllocLValue DA = Base.dyn_cast<DynamicAllocLValue>()) {
+        Out << "{*new "
+            << Base.getDynamicAllocType().stream(Ctx.getPrintingPolicy()) << "#"
+            << DA.getIndex() << "}";
       } else {
         assert(Base.get<const Expr *>() != nullptr &&
                "Expecting non-null Expr");
@@ -563,10 +498,17 @@ void APValue::printPretty(raw_ostream &Out, const ASTContext &Ctx,
     } else if (TypeInfoLValue TI = Base.dyn_cast<TypeInfoLValue>()) {
       TI.print(Out, Ctx.getPrintingPolicy());
       ElemTy = Base.getTypeInfoType();
+    } else if (DynamicAllocLValue DA = Base.dyn_cast<DynamicAllocLValue>()) {
+      Out << "{*new "
+          << Base.getDynamicAllocType().stream(Ctx.getPrintingPolicy()) << "#"
+          << DA.getIndex() << "}";
+      ElemTy = Base.getDynamicAllocType();
     } else {
       const Expr *E = Base.get<const Expr*>();
       assert(E != nullptr && "Expecting non-null Expr");
       E->printPretty(Out, nullptr, Ctx.getPrintingPolicy());
+      // FIXME: This is wrong if E is a MaterializeTemporaryExpr with an lvalue
+      // adjustment.
       ElemTy = E->getType();
     }
 
@@ -626,7 +568,7 @@ void APValue::printPretty(raw_ostream &Out, const ASTContext &Ctx,
   }
   case APValue::Struct: {
     Out << '{';
-    const RecordDecl *RD = Ty->getAs<RecordType>()->getDecl();
+    const RecordDecl *RD = Ty->castAs<RecordType>()->getDecl();
     bool First = true;
     if (unsigned N = getStructNumBases()) {
       const CXXRecordDecl *CD = cast<CXXRecordDecl>(RD);

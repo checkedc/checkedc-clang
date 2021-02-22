@@ -106,7 +106,9 @@ newFrontendActionFactoryA(ProgramInfo &I, bool VerifyTheseDiagnostics = false) {
                                       bool VerifyTheseDiagnostics)
         : Info(I), VerifyTheseDiagnostics(VerifyTheseDiagnostics) {}
 
-    FrontendAction *create() override { return new T(Info); }
+    std::unique_ptr<FrontendAction> create() override { 
+      return std::unique_ptr<FrontendAction>(new T(Info));
+    }
 
     bool runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
                        FileManager *Files,

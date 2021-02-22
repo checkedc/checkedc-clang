@@ -16,7 +16,7 @@ registers:
 
 body: |
   ; GCN-LABEL: name: phi_visit_order
-  ; GCN: V_ADD_I32
+  ; GCN: S_ADD_I32
   bb.0:
     liveins: $vgpr0
     %7 = COPY $vgpr0
@@ -58,7 +58,7 @@ body: |
 ---
 
 # GCN-LABEL: name: dead_illegal_physreg_copy
-# GCN %2:vgpr_32 = COPY $vgpr0
+# GCN: %2:vgpr_32 = COPY $vgpr0
 # GCN: %1:sreg_32_xm0 = IMPLICIT_DEF
 # GCN: S_ENDPGM 0, implicit %2
 

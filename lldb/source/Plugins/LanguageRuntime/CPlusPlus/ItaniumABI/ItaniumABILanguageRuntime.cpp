@@ -1,5 +1,4 @@
-//===-- ItaniumABILanguageRuntime.cpp --------------------------------------*-
-//C++ -*-===//
+//===-- ItaniumABILanguageRuntime.cpp -------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,6 +8,7 @@
 
 #include "ItaniumABILanguageRuntime.h"
 
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Breakpoint/BreakpointLocation.h"
 #include "lldb/Core/Mangled.h"
 #include "lldb/Core/Module.h"
@@ -21,7 +21,6 @@
 #include "lldb/Interpreter/CommandObject.h"
 #include "lldb/Interpreter/CommandObjectMultiword.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
-#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/Symbol.h"
 #include "lldb/Symbol/SymbolFile.h"
 #include "lldb/Symbol/TypeList.h"
@@ -40,6 +39,8 @@
 
 using namespace lldb;
 using namespace lldb_private;
+
+LLDB_PLUGIN_DEFINE_ADV(ItaniumABILanguageRuntime, CXXItaniumABI)
 
 static const char *vtable_demangled_prefix = "vtable for ";
 
@@ -73,17 +74,14 @@ TypeAndOrName ItaniumABILanguageRuntime::GetTypeInfoFromVTableAddress(
         Symbol *symbol = sc.symbol;
         if (symbol != nullptr) {
           const char *name =
-              symbol->GetMangled()
-                  .GetDemangledName(lldb::eLanguageTypeC_plus_plus)
-                  .AsCString();
+              symbol->GetMangled().GetDemangledName().AsCString();
           if (name && strstr(name, vtable_demangled_prefix) == name) {
             Log *log(
                 lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_OBJECT));
-            if (log)
-              log->Printf("0x%16.16" PRIx64
-                          ": static-type = '%s' has vtable symbol '%s'\n",
-                          original_ptr, in_value.GetTypeName().GetCString(),
-                          name);
+            LLDB_LOGF(log,
+                      "0x%16.16" PRIx64
+                      ": static-type = '%s' has vtable symbol '%s'\n",
+                      original_ptr, in_value.GetTypeName().GetCString(), name);
             // We are a C++ class, that's good.  Get the class name and look it
             // up:
             const char *class_name = name + strlen(vtable_demangled_prefix);
@@ -96,87 +94,81 @@ TypeAndOrName ItaniumABILanguageRuntime::GetTypeInfoFromVTableAddress(
             const bool exact_match = true;
             TypeList class_types;
 
-            uint32_t num_matches = 0;
             // First look in the module that the vtable symbol came from and
             // look for a single exact match.
             llvm::DenseSet<SymbolFile *> searched_symbol_files;
-            if (sc.module_sp) {
-              num_matches = sc.module_sp->FindTypes(
-                  ConstString(lookup_name), exact_match, 1,
-                  searched_symbol_files, class_types);
-            }
+            if (sc.module_sp)
+              sc.module_sp->FindTypes(ConstString(lookup_name), exact_match, 1,
+                                      searched_symbol_files, class_types);
 
             // If we didn't find a symbol, then move on to the entire module
             // list in the target and get as many unique matches as possible
-            if (num_matches == 0) {
-              num_matches = target.GetImages().FindTypes(
-                  nullptr, ConstString(lookup_name), exact_match, UINT32_MAX,
-                  searched_symbol_files, class_types);
-            }
+            if (class_types.Empty())
+              target.GetImages().FindTypes(nullptr, ConstString(lookup_name),
+                                           exact_match, UINT32_MAX,
+                                           searched_symbol_files, class_types);
 
             lldb::TypeSP type_sp;
-            if (num_matches == 0) {
-              if (log)
-                log->Printf("0x%16.16" PRIx64 ": is not dynamic\n",
-                            original_ptr);
+            if (class_types.Empty()) {
+              LLDB_LOGF(log, "0x%16.16" PRIx64 ": is not dynamic\n",
+                        original_ptr);
               return TypeAndOrName();
             }
-            if (num_matches == 1) {
+            if (class_types.GetSize() == 1) {
               type_sp = class_types.GetTypeAtIndex(0);
               if (type_sp) {
-                if (ClangASTContext::IsCXXClassType(
+                if (TypeSystemClang::IsCXXClassType(
                         type_sp->GetForwardCompilerType())) {
-                  if (log)
-                    log->Printf(
-                        "0x%16.16" PRIx64
-                        ": static-type = '%s' has dynamic type: uid={0x%" PRIx64
-                        "}, type-name='%s'\n",
-                        original_ptr, in_value.GetTypeName().AsCString(),
-                        type_sp->GetID(), type_sp->GetName().GetCString());
+                  LLDB_LOGF(
+                      log,
+                      "0x%16.16" PRIx64
+                      ": static-type = '%s' has dynamic type: uid={0x%" PRIx64
+                      "}, type-name='%s'\n",
+                      original_ptr, in_value.GetTypeName().AsCString(),
+                      type_sp->GetID(), type_sp->GetName().GetCString());
                   type_info.SetTypeSP(type_sp);
                 }
               }
-            } else if (num_matches > 1) {
+            } else {
               size_t i;
               if (log) {
-                for (i = 0; i < num_matches; i++) {
+                for (i = 0; i < class_types.GetSize(); i++) {
                   type_sp = class_types.GetTypeAtIndex(i);
                   if (type_sp) {
-                    if (log)
-                      log->Printf(
-                          "0x%16.16" PRIx64
-                          ": static-type = '%s' has multiple matching dynamic "
-                          "types: uid={0x%" PRIx64 "}, type-name='%s'\n",
-                          original_ptr, in_value.GetTypeName().AsCString(),
-                          type_sp->GetID(), type_sp->GetName().GetCString());
+                    LLDB_LOGF(
+                        log,
+                        "0x%16.16" PRIx64
+                        ": static-type = '%s' has multiple matching dynamic "
+                        "types: uid={0x%" PRIx64 "}, type-name='%s'\n",
+                        original_ptr, in_value.GetTypeName().AsCString(),
+                        type_sp->GetID(), type_sp->GetName().GetCString());
                   }
                 }
               }
 
-              for (i = 0; i < num_matches; i++) {
+              for (i = 0; i < class_types.GetSize(); i++) {
                 type_sp = class_types.GetTypeAtIndex(i);
                 if (type_sp) {
-                  if (ClangASTContext::IsCXXClassType(
+                  if (TypeSystemClang::IsCXXClassType(
                           type_sp->GetForwardCompilerType())) {
-                    if (log)
-                      log->Printf(
-                          "0x%16.16" PRIx64 ": static-type = '%s' has multiple "
-                                            "matching dynamic types, picking "
-                                            "this one: uid={0x%" PRIx64
-                          "}, type-name='%s'\n",
-                          original_ptr, in_value.GetTypeName().AsCString(),
-                          type_sp->GetID(), type_sp->GetName().GetCString());
+                    LLDB_LOGF(
+                        log,
+                        "0x%16.16" PRIx64 ": static-type = '%s' has multiple "
+                        "matching dynamic types, picking "
+                        "this one: uid={0x%" PRIx64 "}, type-name='%s'\n",
+                        original_ptr, in_value.GetTypeName().AsCString(),
+                        type_sp->GetID(), type_sp->GetName().GetCString());
                     type_info.SetTypeSP(type_sp);
                   }
                 }
               }
 
-              if (log && i == num_matches) {
-                log->Printf(
-                    "0x%16.16" PRIx64
-                    ": static-type = '%s' has multiple matching dynamic "
-                    "types, didn't find a C++ match\n",
-                    original_ptr, in_value.GetTypeName().AsCString());
+              if (log) {
+                LLDB_LOGF(log,
+                          "0x%16.16" PRIx64
+                          ": static-type = '%s' has multiple matching dynamic "
+                          "types, didn't find a C++ match\n",
+                          original_ptr, in_value.GetTypeName().AsCString());
               }
             }
             if (type_info)
@@ -245,7 +237,7 @@ bool ItaniumABILanguageRuntime::GetDynamicTypeAndAddress(
   if (!type)
     return true;
 
-  if (ClangASTContext::AreTypesSame(in_value.GetCompilerType(), type)) {
+  if (TypeSystemClang::AreTypesSame(in_value.GetCompilerType(), type)) {
     // The dynamic type we found was the same type, so we don't have a
     // dynamic type here...
     return false;
@@ -351,7 +343,7 @@ protected:
     bool demangled_any = false;
     bool error_any = false;
     for (auto &entry : command.entries()) {
-      if (entry.ref.empty())
+      if (entry.ref().empty())
         continue;
 
       // the actual Mangled class should be strict about this, but on the
@@ -359,21 +351,20 @@ protected:
       // they will come out with an extra underscore - be willing to strip this
       // on behalf of the user.   This is the moral equivalent of the -_/-n
       // options to c++filt
-      auto name = entry.ref;
+      auto name = entry.ref();
       if (name.startswith("__Z"))
         name = name.drop_front();
 
-      Mangled mangled(name, true);
+      Mangled mangled(name);
       if (mangled.GuessLanguage() == lldb::eLanguageTypeC_plus_plus) {
-        ConstString demangled(
-            mangled.GetDisplayDemangledName(lldb::eLanguageTypeC_plus_plus));
+        ConstString demangled(mangled.GetDisplayDemangledName());
         demangled_any = true;
-        result.AppendMessageWithFormat("%s ---> %s\n", entry.ref.str().c_str(),
+        result.AppendMessageWithFormat("%s ---> %s\n", entry.c_str(),
                                        demangled.GetCString());
       } else {
         error_any = true;
         result.AppendErrorWithFormat("%s is not a valid C++ mangled name\n",
-                                     entry.ref.str().c_str());
+                                     entry.ref().str().c_str());
       }
     }
 
@@ -427,12 +418,13 @@ lldb_private::ConstString ItaniumABILanguageRuntime::GetPluginName() {
 uint32_t ItaniumABILanguageRuntime::GetPluginVersion() { return 1; }
 
 BreakpointResolverSP ItaniumABILanguageRuntime::CreateExceptionResolver(
-    Breakpoint *bkpt, bool catch_bp, bool throw_bp) {
+    const BreakpointSP &bkpt, bool catch_bp, bool throw_bp) {
   return CreateExceptionResolver(bkpt, catch_bp, throw_bp, false);
 }
 
 BreakpointResolverSP ItaniumABILanguageRuntime::CreateExceptionResolver(
-    Breakpoint *bkpt, bool catch_bp, bool throw_bp, bool for_expressions) {
+    const BreakpointSP &bkpt, bool catch_bp, bool throw_bp,
+    bool for_expressions) {
   // One complication here is that most users DON'T want to stop at
   // __cxa_allocate_expression, but until we can do anything better with
   // predicting unwinding the expression parser does.  So we have two forms of
@@ -471,8 +463,8 @@ lldb::SearchFilterSP ItaniumABILanguageRuntime::CreateExceptionSearchFilter() {
   if (target.GetArchitecture().GetTriple().getVendor() == llvm::Triple::Apple) {
     // Limit the number of modules that are searched for these breakpoints for
     // Apple binaries.
-    filter_modules.Append(FileSpec("libc++abi.dylib"));
-    filter_modules.Append(FileSpec("libSystem.B.dylib"));
+    filter_modules.EmplaceBack("libc++abi.dylib");
+    filter_modules.EmplaceBack("libSystem.B.dylib");
   }
   return target.GetSearchFilterForModuleList(&filter_modules);
 }
@@ -543,8 +535,11 @@ ValueObjectSP ItaniumABILanguageRuntime::GetExceptionObjectForThread(
   if (!thread_sp->SafeToCallFunctions())
     return {};
 
-  ClangASTContext *clang_ast_context =
-      m_process->GetTarget().GetScratchClangASTContext();
+  TypeSystemClang *clang_ast_context =
+      TypeSystemClang::GetScratch(m_process->GetTarget());
+  if (!clang_ast_context)
+    return {};
+
   CompilerType voidstar =
       clang_ast_context->GetBasicType(eBasicTypeVoid).GetPointerType();
 
@@ -566,6 +561,9 @@ ValueObjectSP ItaniumABILanguageRuntime::GetExceptionObjectForThread(
   modules.FindSymbolsWithNameAndType(
       ConstString("__cxa_current_exception_type"), eSymbolTypeCode, contexts);
   contexts.GetContextAtIndex(0, context);
+  if (!context.symbol) {
+    return {};
+  }
   Address addr = context.symbol->GetAddress();
 
   Status error;

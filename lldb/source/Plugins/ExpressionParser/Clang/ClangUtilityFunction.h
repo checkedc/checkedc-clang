@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ClangUtilityFunction_h_
-#define liblldb_ClangUtilityFunction_h_
+#ifndef LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_CLANGUTILITYFUNCTION_H
+#define LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_CLANGUTILITYFUNCTION_H
 
 #include <map>
 #include <string>
@@ -15,7 +15,6 @@
 
 #include "ClangExpressionHelper.h"
 
-#include "lldb/Core/ClangForward.h"
 #include "lldb/Expression/UtilityFunction.h"
 #include "lldb/lldb-forward.h"
 #include "lldb/lldb-private.h"
@@ -33,11 +32,14 @@ namespace lldb_private {
 /// simply provide a way to push a function into the target for the debugger
 /// to call later on.
 class ClangUtilityFunction : public UtilityFunction {
+  // LLVM RTTI support
+  static char ID;
+
 public:
-  /// LLVM-style RTTI support.
-  static bool classof(const Expression *E) {
-    return E->getKind() == eKindClangUtilityFunction;
+  bool isA(const void *ClassID) const override {
+    return ClassID == &ID || UtilityFunction::isA(ClassID);
   }
+  static bool classof(const Expression *obj) { return obj->isA(&ID); }
 
   class ClangUtilityFunctionHelper : public ClangExpressionHelper {
   public:
@@ -104,4 +106,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_ClangUtilityFunction_h_
+#endif // LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_CLANGUTILITYFUNCTION_H

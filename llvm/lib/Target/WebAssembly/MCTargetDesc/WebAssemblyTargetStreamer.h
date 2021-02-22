@@ -21,7 +21,6 @@
 
 namespace llvm {
 
-class MCWasmStreamer;
 class MCSymbolWasm;
 
 /// WebAssembly-specific streamer interface, to implement support
@@ -48,6 +47,9 @@ public:
   /// .import_name
   virtual void emitImportName(const MCSymbolWasm *Sym,
                               StringRef ImportName) = 0;
+  /// .export_name
+  virtual void emitExportName(const MCSymbolWasm *Sym,
+                              StringRef ExportName) = 0;
 
 protected:
   void emitValueType(wasm::ValType Type);
@@ -56,9 +58,6 @@ protected:
 /// This part is for ascii assembly output
 class WebAssemblyTargetAsmStreamer final : public WebAssemblyTargetStreamer {
   formatted_raw_ostream &OS;
-  void emitSignature(const wasm::WasmSignature *Sig);
-  void emitParamList(const wasm::WasmSignature *Sig);
-  void emitReturnList(const wasm::WasmSignature *Sig);
 
 public:
   WebAssemblyTargetAsmStreamer(MCStreamer &S, formatted_raw_ostream &OS);
@@ -71,6 +70,7 @@ public:
   void emitEventType(const MCSymbolWasm *Sym) override;
   void emitImportModule(const MCSymbolWasm *Sym, StringRef ImportModule) override;
   void emitImportName(const MCSymbolWasm *Sym, StringRef ImportName) override;
+  void emitExportName(const MCSymbolWasm *Sym, StringRef ExportName) override;
 };
 
 /// This part is for Wasm object output
@@ -88,6 +88,8 @@ public:
                         StringRef ImportModule) override {}
   void emitImportName(const MCSymbolWasm *Sym,
                       StringRef ImportName) override {}
+  void emitExportName(const MCSymbolWasm *Sym,
+                      StringRef ExportName) override {}
 };
 
 /// This part is for null output
@@ -104,6 +106,7 @@ public:
   void emitEventType(const MCSymbolWasm *) override {}
   void emitImportModule(const MCSymbolWasm *, StringRef) override {}
   void emitImportName(const MCSymbolWasm *, StringRef) override {}
+  void emitExportName(const MCSymbolWasm *, StringRef) override {}
 };
 
 } // end namespace llvm

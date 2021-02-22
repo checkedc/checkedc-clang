@@ -38,6 +38,9 @@ public:
   static char ID;
 
   MachineBlockFrequencyInfo();
+  explicit MachineBlockFrequencyInfo(MachineFunction &F,
+                                     MachineBranchProbabilityInfo &MBPI,
+                                     MachineLoopInfo &MLI);
   ~MachineBlockFrequencyInfo() override;
 
   void getAnalysisUsage(AnalysisUsage &AU) const override;
@@ -62,6 +65,8 @@ public:
   Optional<uint64_t> getProfileCountFromFreq(uint64_t Freq) const;
 
   bool isIrrLoopHeader(const MachineBasicBlock *MBB);
+
+  void setBlockFreq(const MachineBasicBlock *MBB, uint64_t Freq);
 
   const MachineFunction *getFunction() const;
   const MachineBranchProbabilityInfo *getMBPI() const;

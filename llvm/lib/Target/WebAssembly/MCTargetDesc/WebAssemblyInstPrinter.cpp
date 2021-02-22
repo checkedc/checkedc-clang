@@ -15,6 +15,7 @@
 #include "MCTargetDesc/WebAssemblyMCTargetDesc.h"
 #include "WebAssembly.h"
 #include "WebAssemblyMachineFunctionInfo.h"
+#include "WebAssemblyUtilities.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
@@ -43,25 +44,40 @@ void WebAssemblyInstPrinter::printRegName(raw_ostream &OS,
   OS << "$" << RegNo;
 }
 
-void WebAssemblyInstPrinter::printInst(const MCInst *MI, raw_ostream &OS,
+void WebAssemblyInstPrinter::printInst(const MCInst *MI, uint64_t Address,
                                        StringRef Annot,
-                                       const MCSubtargetInfo &STI) {
+                                       const MCSubtargetInfo &STI,
+                                       raw_ostream &OS) {
   // Print the instruction (this uses the AsmStrings from the .td files).
-  printInstruction(MI, OS);
+  printInstruction(MI, Address, OS);
 
   // Print any additional variadic operands.
   const MCInstrDesc &Desc = MII.get(MI->getOpcode());
-  if (Desc.isVariadic())
-    for (auto I = Desc.getNumOperands(), E = MI->getNumOperands(); I < E; ++I) {
-      // FIXME: For CALL_INDIRECT_VOID, don't print a leading comma, because
-      // we have an extra flags operand which is not currently printed, for
-      // compatiblity reasons.
-      if (I != 0 && ((MI->getOpcode() != WebAssembly::CALL_INDIRECT_VOID &&
-                      MI->getOpcode() != WebAssembly::CALL_INDIRECT_VOID_S) ||
-                     I != Desc.getNumOperands()))
-        OS << ", ";
-      printOperand(MI, I, OS);
+  if (Desc.isVariadic()) {
+    if ((Desc.getNumOperands() == 0 && MI->getNumOperands() > 0) ||
+        Desc.variadicOpsAreDefs())
+      OS << "\t";
+    unsigned Start = Desc.getNumOperands();
+    unsigned NumVariadicDefs = 0;
+    if (Desc.variadicOpsAreDefs()) {
+      // The number of variadic defs is encoded in an immediate by MCInstLower
+      NumVariadicDefs = MI->getOperand(0).getImm();
+      Start = 1;
     }
+    bool NeedsComma = Desc.getNumOperands() > 0 && !Desc.variadicOpsAreDefs();
+    for (auto I = Start, E = MI->getNumOperands(); I < E; ++I) {
+      if (MI->getOpcode() == WebAssembly::CALL_INDIRECT &&
+          I - Start == NumVariadicDefs) {
+        // Skip type and flags arguments when printing for tests
+        ++I;
+        continue;
+      }
+      if (NeedsComma)
+        OS << ", ";
+      printOperand(MI, I, OS, I - Start < NumVariadicDefs);
+      NeedsComma = true;
+    }
+  }
 
   // Print any added annotation.
   printAnnotation(OS, Annot);
@@ -202,20 +218,21 @@ static std::string toString(const APFloat &FP) {
 }
 
 void WebAssemblyInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
-                                          raw_ostream &O) {
+                                          raw_ostream &O, bool IsVariadicDef) {
   const MCOperand &Op = MI->getOperand(OpNo);
   if (Op.isReg()) {
+    const MCInstrDesc &Desc = MII.get(MI->getOpcode());
     unsigned WAReg = Op.getReg();
     if (int(WAReg) >= 0)
       printRegName(O, WAReg);
-    else if (OpNo >= MII.get(MI->getOpcode()).getNumDefs())
+    else if (OpNo >= Desc.getNumDefs() && !IsVariadicDef)
       O << "$pop" << WebAssemblyFunctionInfo::getWARegStackId(WAReg);
     else if (WAReg != WebAssemblyFunctionInfo::UnusedReg)
       O << "$push" << WebAssemblyFunctionInfo::getWARegStackId(WAReg);
     else
       O << "$drop";
     // Add a '=' suffix if this is a def.
-    if (OpNo < MII.get(MI->getOpcode()).getNumDefs())
+    if (OpNo < MII.get(MI->getOpcode()).getNumDefs() || IsVariadicDef)
       O << '=';
   } else if (Op.isImm()) {
     O << Op.getImm();
@@ -232,7 +249,16 @@ void WebAssemblyInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
     }
   } else {
     assert(Op.isExpr() && "unknown operand kind in printOperand");
-    Op.getExpr()->print(O, &MAI);
+    // call_indirect instructions have a TYPEINDEX operand that we print
+    // as a signature here, such that the assembler can recover this
+    // information.
+    auto SRE = static_cast<const MCSymbolRefExpr *>(Op.getExpr());
+    if (SRE->getKind() == MCSymbolRefExpr::VK_WASM_TYPEINDEX) {
+      auto &Sym = static_cast<const MCSymbolWasm &>(SRE->getSymbol());
+      O << WebAssembly::signatureToString(Sym.getSignature());
+    } else {
+      Op.getExpr()->print(O, &MAI);
+    }
   }
 }
 
@@ -259,14 +285,26 @@ void WebAssemblyInstPrinter::printWebAssemblyP2AlignOperand(const MCInst *MI,
 void WebAssemblyInstPrinter::printWebAssemblySignatureOperand(const MCInst *MI,
                                                               unsigned OpNo,
                                                               raw_ostream &O) {
-  auto Imm = static_cast<unsigned>(MI->getOperand(OpNo).getImm());
-  if (Imm != wasm::WASM_TYPE_NORESULT)
-    O << WebAssembly::anyTypeToString(Imm);
+  const MCOperand &Op = MI->getOperand(OpNo);
+  if (Op.isImm()) {
+    auto Imm = static_cast<unsigned>(Op.getImm());
+    if (Imm != wasm::WASM_TYPE_NORESULT)
+      O << WebAssembly::anyTypeToString(Imm);
+  } else {
+    auto Expr = cast<MCSymbolRefExpr>(Op.getExpr());
+    auto *Sym = cast<MCSymbolWasm>(&Expr->getSymbol());
+    if (Sym->getSignature()) {
+      O << WebAssembly::signatureToString(Sym->getSignature());
+    } else {
+      // Disassembler does not currently produce a signature
+      O << "unknown_type";
+    }
+  }
 }
 
 // We have various enums representing a subset of these types, use this
 // function to convert any of them to text.
-const char *llvm::WebAssembly::anyTypeToString(unsigned Ty) {
+const char *WebAssembly::anyTypeToString(unsigned Ty) {
   switch (Ty) {
   case wasm::WASM_TYPE_I32:
     return "i32";
@@ -291,6 +329,24 @@ const char *llvm::WebAssembly::anyTypeToString(unsigned Ty) {
   }
 }
 
-const char *llvm::WebAssembly::typeToString(wasm::ValType Ty) {
+const char *WebAssembly::typeToString(wasm::ValType Ty) {
   return anyTypeToString(static_cast<unsigned>(Ty));
+}
+
+std::string WebAssembly::typeListToString(ArrayRef<wasm::ValType> List) {
+  std::string S;
+  for (auto &Ty : List) {
+    if (&Ty != &List[0]) S += ", ";
+    S += WebAssembly::typeToString(Ty);
+  }
+  return S;
+}
+
+std::string WebAssembly::signatureToString(const wasm::WasmSignature *Sig) {
+  std::string S("(");
+  S += typeListToString(Sig->Params);
+  S += ") -> (";
+  S += typeListToString(Sig->Returns);
+  S += ")";
+  return S;
 }

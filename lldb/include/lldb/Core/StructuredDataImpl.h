@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_StructuredDataImpl_h_
-#define liblldb_StructuredDataImpl_h_
+#ifndef LLDB_CORE_STRUCTUREDDATAIMPL_H
+#define LLDB_CORE_STRUCTUREDDATAIMPL_H
 
 #include "lldb/Target/StructuredDataPlugin.h"
 #include "lldb/Utility/Event.h"
@@ -54,7 +54,8 @@ public:
       return error;
     }
 
-    m_data_sp->Dump(stream);
+    llvm::json::OStream s(stream.AsRawOstream());
+    m_data_sp->Serialize(s);
     return error;
   }
 

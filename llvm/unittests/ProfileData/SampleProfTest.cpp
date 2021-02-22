@@ -16,6 +16,7 @@
 #include "llvm/ProfileData/SampleProfWriter.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorOr.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 #include "gtest/gtest.h"
@@ -44,24 +45,104 @@ struct SampleProfTest : ::testing::Test {
   void createWriter(SampleProfileFormat Format, StringRef Profile) {
     std::error_code EC;
     std::unique_ptr<raw_ostream> OS(
-        new raw_fd_ostream(Profile, EC, sys::fs::F_None));
+        new raw_fd_ostream(Profile, EC, sys::fs::OF_None));
     auto WriterOrErr = SampleProfileWriter::create(OS, Format);
     ASSERT_TRUE(NoError(WriterOrErr.getError()));
     Writer = std::move(WriterOrErr.get());
   }
 
-  void readProfile(const Module &M, StringRef Profile) {
-    auto ReaderOrErr = SampleProfileReader::create(Profile, Context);
+  void readProfile(const Module &M, StringRef Profile,
+                   StringRef RemapFile = "") {
+    auto ReaderOrErr = SampleProfileReader::create(
+        std::string(Profile), Context, std::string(RemapFile));
     ASSERT_TRUE(NoError(ReaderOrErr.getError()));
     Reader = std::move(ReaderOrErr.get());
-    Reader->collectFuncsToUse(M);
+    Reader->collectFuncsFrom(M);
   }
 
-  void testRoundTrip(SampleProfileFormat Format, bool Remap) {
+  void createRemapFile(SmallVectorImpl<char> &RemapPath, StringRef &RemapFile) {
+    std::error_code EC =
+        llvm::sys::fs::createTemporaryFile("remapfile", "", RemapPath);
+    ASSERT_TRUE(NoError(EC));
+    RemapFile = StringRef(RemapPath.data(), RemapPath.size());
+
+    std::unique_ptr<raw_fd_ostream> OS(
+        new raw_fd_ostream(RemapFile, EC, sys::fs::OF_None));
+    *OS << R"(
+      # Types 'int' and 'long' are equivalent
+      type i l
+      # Function names 'foo' and 'faux' are equivalent
+      name 3foo 4faux
+    )";
+    OS->close();
+  }
+
+  // Verify profile summary is consistent in the roundtrip to and from
+  // Metadata. \p AddPartialField is to choose whether the Metadata
+  // contains the IsPartialProfile field which is optional.
+  void verifyProfileSummary(ProfileSummary &Summary, Module &M,
+                            const bool AddPartialField,
+                            const bool AddPartialProfileRatioField) {
+    LLVMContext &Context = M.getContext();
+    const bool IsPartialProfile = Summary.isPartialProfile();
+    const double PartialProfileRatio = Summary.getPartialProfileRatio();
+    auto VerifySummary = [IsPartialProfile, PartialProfileRatio](
+                             ProfileSummary &Summary) mutable {
+      ASSERT_EQ(ProfileSummary::PSK_Sample, Summary.getKind());
+      ASSERT_EQ(137392u, Summary.getTotalCount());
+      ASSERT_EQ(8u, Summary.getNumCounts());
+      ASSERT_EQ(4u, Summary.getNumFunctions());
+      ASSERT_EQ(1437u, Summary.getMaxFunctionCount());
+      ASSERT_EQ(60351u, Summary.getMaxCount());
+      ASSERT_EQ(IsPartialProfile, Summary.isPartialProfile());
+      ASSERT_EQ(PartialProfileRatio, Summary.getPartialProfileRatio());
+
+      uint32_t Cutoff = 800000;
+      auto Predicate = [&Cutoff](const ProfileSummaryEntry &PE) {
+        return PE.Cutoff == Cutoff;
+      };
+      std::vector<ProfileSummaryEntry> &Details = Summary.getDetailedSummary();
+      auto EightyPerc = find_if(Details, Predicate);
+      Cutoff = 900000;
+      auto NinetyPerc = find_if(Details, Predicate);
+      Cutoff = 950000;
+      auto NinetyFivePerc = find_if(Details, Predicate);
+      Cutoff = 990000;
+      auto NinetyNinePerc = find_if(Details, Predicate);
+      ASSERT_EQ(60000u, EightyPerc->MinCount);
+      ASSERT_EQ(12557u, NinetyPerc->MinCount);
+      ASSERT_EQ(12557u, NinetyFivePerc->MinCount);
+      ASSERT_EQ(610u, NinetyNinePerc->MinCount);
+    };
+    VerifySummary(Summary);
+
+    // Test that conversion of summary to and from Metadata works.
+    Metadata *MD =
+        Summary.getMD(Context, AddPartialField, AddPartialProfileRatioField);
+    ASSERT_TRUE(MD);
+    ProfileSummary *PS = ProfileSummary::getFromMD(MD);
+    ASSERT_TRUE(PS);
+    VerifySummary(*PS);
+    delete PS;
+
+    // Test that summary can be attached to and read back from module.
+    M.eraseNamedMetadata(M.getOrInsertModuleFlagsMetadata());
+    M.setProfileSummary(MD, ProfileSummary::PSK_Sample);
+    MD = M.getProfileSummary(/* IsCS */ false);
+    ASSERT_TRUE(MD);
+    PS = ProfileSummary::getFromMD(MD);
+    ASSERT_TRUE(PS);
+    VerifySummary(*PS);
+    delete PS;
+  }
+
+  void testRoundTrip(SampleProfileFormat Format, bool Remap, bool UseMD5) {
     SmallVector<char, 128> ProfilePath;
     ASSERT_TRUE(NoError(llvm::sys::fs::createTemporaryFile("profile", "", ProfilePath)));
     StringRef Profile(ProfilePath.data(), ProfilePath.size());
     createWriter(Format, Profile);
+    if (Format == SampleProfileFormat::SPF_Ext_Binary && UseMD5)
+      static_cast<SampleProfileWriterExtBinary *>(Writer.get())->setUseMD5();
 
     StringRef FooName("_Z3fooi");
     FunctionSamples FooSamples;
@@ -86,15 +167,48 @@ struct SampleProfTest : ::testing::Test {
     BarSamples.addCalledTargetSamples(1, 0, MconstructName, 1000);
     BarSamples.addCalledTargetSamples(1, 0, StringviewName, 437);
 
-    Module M("my_module", Context);
-    FunctionType *fn_type =
-        FunctionType::get(Type::getVoidTy(Context), {}, false);
-    M.getOrInsertFunction(FooName, fn_type);
-    M.getOrInsertFunction(BarName, fn_type);
+    StringRef BazName("_Z3bazi");
+    FunctionSamples BazSamples;
+    BazSamples.setName(BazName);
+    BazSamples.addTotalSamples(12557);
+    BazSamples.addHeadSamples(1257);
+    BazSamples.addBodySamples(1, 0, 12557);
+
+    StringRef BooName("_Z3booi");
+    FunctionSamples BooSamples;
+    BooSamples.setName(BooName);
+    BooSamples.addTotalSamples(1232);
+    BooSamples.addHeadSamples(1);
+    BooSamples.addBodySamples(1, 0, 1232);
 
     StringMap<FunctionSamples> Profiles;
     Profiles[FooName] = std::move(FooSamples);
     Profiles[BarName] = std::move(BarSamples);
+    Profiles[BazName] = std::move(BazSamples);
+    Profiles[BooName] = std::move(BooSamples);
+
+    Module M("my_module", Context);
+    FunctionType *fn_type =
+        FunctionType::get(Type::getVoidTy(Context), {}, false);
+
+    SmallVector<char, 128> RemapPath;
+    StringRef RemapFile;
+    if (Remap) {
+      createRemapFile(RemapPath, RemapFile);
+      FooName = "_Z4fauxi";
+      BarName = "_Z3barl";
+    }
+
+    M.getOrInsertFunction(FooName, fn_type);
+    M.getOrInsertFunction(BarName, fn_type);
+    M.getOrInsertFunction(BooName, fn_type);
+
+    ProfileSymbolList List;
+    if (Format == SampleProfileFormat::SPF_Ext_Binary) {
+      List.add("zoo", true);
+      List.add("moo", true);
+    }
+    Writer->setProfileSymbolList(&List);
 
     std::error_code EC;
     EC = Writer->write(Profiles);
@@ -102,32 +216,20 @@ struct SampleProfTest : ::testing::Test {
 
     Writer->getOutputStream().flush();
 
-    readProfile(M, Profile);
-
+    readProfile(M, Profile, RemapFile);
     EC = Reader->read();
     ASSERT_TRUE(NoError(EC));
 
-    if (Remap) {
-      auto MemBuffer = llvm::MemoryBuffer::getMemBuffer(R"(
-        # Types 'int' and 'long' are equivalent
-        type i l
-        # Function names 'foo' and 'faux' are equivalent
-        name 3foo 4faux
-      )");
-      Reader.reset(new SampleProfileReaderItaniumRemapper(
-          std::move(MemBuffer), Context, std::move(Reader)));
-      FooName = "_Z4fauxi";
-      BarName = "_Z3barl";
-
-      EC = Reader->read();
-      ASSERT_TRUE(NoError(EC));
+    if (Format == SampleProfileFormat::SPF_Ext_Binary) {
+      std::unique_ptr<ProfileSymbolList> ReaderList =
+          Reader->getProfileSymbolList();
+      ReaderList->contains("zoo");
+      ReaderList->contains("moo");
     }
-
-    ASSERT_EQ(2u, Reader->getProfiles().size());
 
     FunctionSamples *ReadFooSamples = Reader->getSamplesFor(FooName);
     ASSERT_TRUE(ReadFooSamples != nullptr);
-    if (Format != SampleProfileFormat::SPF_Compact_Binary) {
+    if (!UseMD5) {
       ASSERT_EQ("_Z3fooi", ReadFooSamples->getName());
     }
     ASSERT_EQ(7711u, ReadFooSamples->getTotalSamples());
@@ -135,7 +237,7 @@ struct SampleProfTest : ::testing::Test {
 
     FunctionSamples *ReadBarSamples = Reader->getSamplesFor(BarName);
     ASSERT_TRUE(ReadBarSamples != nullptr);
-    if (Format != SampleProfileFormat::SPF_Compact_Binary) {
+    if (!UseMD5) {
       ASSERT_EQ("_Z3bari", ReadBarSamples->getName());
     }
     ASSERT_EQ(20301u, ReadBarSamples->getTotalSamples());
@@ -144,60 +246,46 @@ struct SampleProfTest : ::testing::Test {
         ReadBarSamples->findCallTargetMapAt(1, 0);
     ASSERT_FALSE(CTMap.getError());
 
+    // Because _Z3bazi is not defined in module M, expect _Z3bazi's profile
+    // is not loaded when the profile is ExtBinary or Compact format because
+    // these formats support loading function profiles on demand.
+    FunctionSamples *ReadBazSamples = Reader->getSamplesFor(BazName);
+    if (Format == SampleProfileFormat::SPF_Ext_Binary ||
+        Format == SampleProfileFormat::SPF_Compact_Binary) {
+      ASSERT_TRUE(ReadBazSamples == nullptr);
+      ASSERT_EQ(3u, Reader->getProfiles().size());
+    } else {
+      ASSERT_TRUE(ReadBazSamples != nullptr);
+      ASSERT_EQ(12557u, ReadBazSamples->getTotalSamples());
+      ASSERT_EQ(4u, Reader->getProfiles().size());
+    }
+
+    FunctionSamples *ReadBooSamples = Reader->getSamplesFor(BooName);
+    ASSERT_TRUE(ReadBooSamples != nullptr);
+    ASSERT_EQ(1232u, ReadBooSamples->getTotalSamples());
+
     std::string MconstructGUID;
     StringRef MconstructRep =
-        getRepInFormat(MconstructName, Format, MconstructGUID);
+        getRepInFormat(MconstructName, UseMD5, MconstructGUID);
     std::string StringviewGUID;
     StringRef StringviewRep =
-        getRepInFormat(StringviewName, Format, StringviewGUID);
+        getRepInFormat(StringviewName, UseMD5, StringviewGUID);
     ASSERT_EQ(1000u, CTMap.get()[MconstructRep]);
     ASSERT_EQ(437u, CTMap.get()[StringviewRep]);
 
-    auto VerifySummary = [](ProfileSummary &Summary) mutable {
-      ASSERT_EQ(ProfileSummary::PSK_Sample, Summary.getKind());
-      ASSERT_EQ(123603u, Summary.getTotalCount());
-      ASSERT_EQ(6u, Summary.getNumCounts());
-      ASSERT_EQ(2u, Summary.getNumFunctions());
-      ASSERT_EQ(1437u, Summary.getMaxFunctionCount());
-      ASSERT_EQ(60351u, Summary.getMaxCount());
-
-      uint32_t Cutoff = 800000;
-      auto Predicate = [&Cutoff](const ProfileSummaryEntry &PE) {
-        return PE.Cutoff == Cutoff;
-      };
-      std::vector<ProfileSummaryEntry> &Details = Summary.getDetailedSummary();
-      auto EightyPerc = find_if(Details, Predicate);
-      Cutoff = 900000;
-      auto NinetyPerc = find_if(Details, Predicate);
-      Cutoff = 950000;
-      auto NinetyFivePerc = find_if(Details, Predicate);
-      Cutoff = 990000;
-      auto NinetyNinePerc = find_if(Details, Predicate);
-      ASSERT_EQ(60000u, EightyPerc->MinCount);
-      ASSERT_EQ(60000u, NinetyPerc->MinCount);
-      ASSERT_EQ(60000u, NinetyFivePerc->MinCount);
-      ASSERT_EQ(610u, NinetyNinePerc->MinCount);
-    };
 
     ProfileSummary &Summary = Reader->getSummary();
-    VerifySummary(Summary);
+    Summary.setPartialProfile(true);
+    verifyProfileSummary(Summary, M, true, false);
 
-    // Test that conversion of summary to and from Metadata works.
-    Metadata *MD = Summary.getMD(Context);
-    ASSERT_TRUE(MD);
-    ProfileSummary *PS = ProfileSummary::getFromMD(MD);
-    ASSERT_TRUE(PS);
-    VerifySummary(*PS);
-    delete PS;
+    Summary.setPartialProfile(false);
+    verifyProfileSummary(Summary, M, true, false);
 
-    // Test that summary can be attached to and read back from module.
-    M.setProfileSummary(MD, ProfileSummary::PSK_Sample);
-    MD = M.getProfileSummary(/* IsCS */ false);
-    ASSERT_TRUE(MD);
-    PS = ProfileSummary::getFromMD(MD);
-    ASSERT_TRUE(PS);
-    VerifySummary(*PS);
-    delete PS;
+    verifyProfileSummary(Summary, M, false, false);
+
+    Summary.setPartialProfile(true);
+    Summary.setPartialProfileRatio(0.5);
+    verifyProfileSummary(Summary, M, true, true);
   }
 
   void addFunctionSamples(StringMap<FunctionSamples> *Smap, const char *Fname,
@@ -274,30 +362,41 @@ struct SampleProfTest : ::testing::Test {
 };
 
 TEST_F(SampleProfTest, roundtrip_text_profile) {
-  testRoundTrip(SampleProfileFormat::SPF_Text, false);
+  testRoundTrip(SampleProfileFormat::SPF_Text, false, false);
 }
 
 TEST_F(SampleProfTest, roundtrip_raw_binary_profile) {
-  testRoundTrip(SampleProfileFormat::SPF_Binary, false);
+  testRoundTrip(SampleProfileFormat::SPF_Binary, false, false);
 }
 
 TEST_F(SampleProfTest, roundtrip_compact_binary_profile) {
-  testRoundTrip(SampleProfileFormat::SPF_Compact_Binary, false);
+  testRoundTrip(SampleProfileFormat::SPF_Compact_Binary, false, true);
+}
+
+TEST_F(SampleProfTest, roundtrip_ext_binary_profile) {
+  testRoundTrip(SampleProfileFormat::SPF_Ext_Binary, false, false);
+}
+
+TEST_F(SampleProfTest, roundtrip_md5_ext_binary_profile) {
+  testRoundTrip(SampleProfileFormat::SPF_Ext_Binary, false, true);
 }
 
 TEST_F(SampleProfTest, remap_text_profile) {
-  testRoundTrip(SampleProfileFormat::SPF_Text, true);
+  testRoundTrip(SampleProfileFormat::SPF_Text, true, false);
 }
 
 TEST_F(SampleProfTest, remap_raw_binary_profile) {
-  testRoundTrip(SampleProfileFormat::SPF_Binary, true);
+  testRoundTrip(SampleProfileFormat::SPF_Binary, true, false);
+}
+
+TEST_F(SampleProfTest, remap_ext_binary_profile) {
+  testRoundTrip(SampleProfileFormat::SPF_Ext_Binary, true, false);
 }
 
 TEST_F(SampleProfTest, sample_overflow_saturation) {
   const uint64_t Max = std::numeric_limits<uint64_t>::max();
   sampleprof_error Result;
 
-  StringRef FooName("_Z3fooi");
   FunctionSamples FooSamples;
   Result = FooSamples.addTotalSamples(1);
   ASSERT_EQ(Result, sampleprof_error::success);

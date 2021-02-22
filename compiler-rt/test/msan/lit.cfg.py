@@ -18,6 +18,9 @@ clang_msan_cflags = (["-fsanitize=memory",
 # Some Msan tests leverage backtrace() which requires libexecinfo on FreeBSD.
 if config.host_os == 'FreeBSD':
   clang_msan_cflags += ["-lexecinfo", "-fPIC"]
+# On SystemZ we need -mbackchain to make the fast unwinder work.
+if config.target_arch == 's390x':
+  clang_msan_cflags.append("-mbackchain")
 clang_msan_cxxflags = config.cxx_mode_flags + clang_msan_cflags
 
 # Flags for KMSAN invocation. This is C-only, we're not interested in C++.
@@ -33,7 +36,7 @@ config.substitutions.append( ("%clangxx_msan ", build_invocation(clang_msan_cxxf
 config.substitutions.append( ("%clang_kmsan ", build_invocation(clang_kmsan_cflags)) )
 
 # Default test suffixes.
-config.suffixes = ['.c', '.cc', '.cpp']
+config.suffixes = ['.c', '.cpp']
 
 if config.host_os not in ['Linux', 'NetBSD', 'FreeBSD']:
   config.unsupported = True
@@ -45,3 +48,6 @@ if config.host_arch in ['mips64', 'mips64el']:
   config.substitutions.append( ('CHECK-%short-stack', 'CHECK-SHORT-STACK'))
 else:
   config.substitutions.append( ('CHECK-%short-stack', 'CHECK-FULL-STACK'))
+
+if config.host_os == 'NetBSD':
+  config.substitutions.insert(0, ('%run', config.netbsd_noaslr_prefix))

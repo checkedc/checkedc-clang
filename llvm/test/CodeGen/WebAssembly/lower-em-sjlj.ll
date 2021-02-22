@@ -5,12 +5,12 @@ target triple = "wasm32-unknown-unknown"
 
 %struct.__jmp_buf_tag = type { [6 x i32], i32, [32 x i32] }
 
-@global_var = hidden global i32 0, align 4
+@global_var = global i32 0, align 4
 ; CHECK-DAG: __THREW__ = external global i32
 ; CHECK-DAG: __threwValue = external global i32
 
 ; Test a simple setjmp - longjmp sequence
-define hidden void @setjmp_longjmp() {
+define void @setjmp_longjmp() {
 ; CHECK-LABEL: @setjmp_longjmp
 entry:
   %buf = alloca [1 x %struct.__jmp_buf_tag], align 16
@@ -34,7 +34,7 @@ entry:
 ; CHECK-NEXT: phi i32 [ 0, %entry ], [ %[[LONGJMP_RESULT:.*]], %if.end ]
 ; CHECK-NEXT: %[[ARRAYDECAY1:.*]] = getelementptr inbounds [1 x %struct.__jmp_buf_tag], [1 x %struct.__jmp_buf_tag]* %[[BUF]], i32 0, i32 0
 ; CHECK-NEXT: store i32 0, i32* @__THREW__
-; CHECK-NEXT: call void @"__invoke_void_%struct.__jmp_buf_tag*_i32"(void (%struct.__jmp_buf_tag*, i32)* @emscripten_longjmp_jmpbuf, %struct.__jmp_buf_tag* %[[ARRAYDECAY1]], i32 1)
+; CHECK-NEXT: call cc{{.*}} void @"__invoke_void_%struct.__jmp_buf_tag*_i32"(void (%struct.__jmp_buf_tag*, i32)* @emscripten_longjmp_jmpbuf, %struct.__jmp_buf_tag* %[[ARRAYDECAY1]], i32 1)
 ; CHECK-NEXT: %[[__THREW__VAL:.*]] = load i32, i32* @__THREW__
 ; CHECK-NEXT: store i32 0, i32* @__THREW__
 ; CHECK-NEXT: %[[CMP0:.*]] = icmp ne i32 %__THREW__.val, 0
@@ -73,7 +73,7 @@ entry:
 }
 
 ; Test a case of a function call (which is not longjmp) after a setjmp
-define hidden void @setjmp_other() {
+define void @setjmp_other() {
 ; CHECK-LABEL: @setjmp_other
 entry:
   %buf = alloca [1 x %struct.__jmp_buf_tag], align 16
@@ -85,7 +85,7 @@ entry:
 ; CHECK: %[[SETJMP_TABLE:.*]] = call i32* @saveSetjmp(
 
 ; CHECK: entry.split:
-; CHECK: call void @__invoke_void(void ()* @foo)
+; CHECK: @__invoke_void(void ()* @foo)
 
 ; CHECK: entry.split.split:
 ; CHECK-NEXT: %[[BUF:.*]] = bitcast i32* %[[SETJMP_TABLE]] to i8*
@@ -94,7 +94,7 @@ entry:
 }
 
 ; Test a case when a function call is within try-catch, after a setjmp
-define hidden void @exception_and_longjmp() #3 personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*) {
+define void @exception_and_longjmp() personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*) {
 ; CHECK-LABEL: @exception_and_longjmp
 entry:
   %buf = alloca [1 x %struct.__jmp_buf_tag], align 16
@@ -105,7 +105,7 @@ entry:
 
 ; CHECK: entry.split:
 ; CHECK: store i32 0, i32* @__THREW__
-; CHECK-NEXT: call void @__invoke_void(void ()* @foo)
+; CHECK-NEXT: call cc{{.*}} void @__invoke_void(void ()* @foo)
 ; CHECK-NEXT: %[[__THREW__VAL:.*]] = load i32, i32* @__THREW__
 ; CHECK-NEXT: store i32 0, i32* @__THREW__
 ; CHECK-NEXT: %[[CMP0:.*]] = icmp ne i32 %[[__THREW__VAL]], 0
@@ -132,7 +132,7 @@ try.cont:                                         ; preds = %entry, %lpad
 }
 
 ; Test SSA validity
-define hidden void @ssa(i32 %n) {
+define void @ssa(i32 %n) {
 ; CHECK-LABEL: @ssa
 entry:
   %buf = alloca [1 x %struct.__jmp_buf_tag], align 16
@@ -170,7 +170,7 @@ if.end:                                           ; preds = %if.then, %entry
 }
 
 ; Test a case when a function only calls other functions that are neither setjmp nor longjmp
-define hidden void @only_other_func() {
+define void @only_other_func() {
 entry:
   call void @foo()
   ret void
@@ -178,18 +178,18 @@ entry:
 }
 
 ; Test a case when a function only calls longjmp and not setjmp
-define hidden void @only_longjmp() {
+define void @only_longjmp() {
 entry:
   %buf = alloca [1 x %struct.__jmp_buf_tag], align 16
   %arraydecay = getelementptr inbounds [1 x %struct.__jmp_buf_tag], [1 x %struct.__jmp_buf_tag]* %buf, i32 0, i32 0
   call void @longjmp(%struct.__jmp_buf_tag* %arraydecay, i32 5) #1
   unreachable
 ; CHECK: %[[ARRAYDECAY:.*]] = getelementptr inbounds
-; CHECK-NEXT: call void @emscripten_longjmp_jmpbuf(%struct.__jmp_buf_tag* %[[ARRAYDECAY]], i32 5) #1
+; CHECK-NEXT: call void @emscripten_longjmp_jmpbuf(%struct.__jmp_buf_tag* %[[ARRAYDECAY]], i32 5)
 }
 
 ; Test inline asm handling
-define hidden void @inline_asm() {
+define void @inline_asm() {
 ; CHECK-LABEL: @inline_asm
 entry:
   %env = alloca [1 x %struct.__jmp_buf_tag], align 16
@@ -201,6 +201,49 @@ entry:
 ; CHECK-NOT: __invoke_void
   call void asm sideeffect "", ""()
   ret void
+}
+
+; Test that the allocsize attribute is being transformed properly
+declare i8 *@allocator(i32, %struct.__jmp_buf_tag*) #3
+define i8 *@allocsize() {
+; CHECK-LABEL: @allocsize
+entry:
+  %buf = alloca [1 x %struct.__jmp_buf_tag], align 16
+  %arraydecay = getelementptr inbounds [1 x %struct.__jmp_buf_tag], [1 x %struct.__jmp_buf_tag]* %buf, i32 0, i32 0
+  %call = call i32 @setjmp(%struct.__jmp_buf_tag* %arraydecay) #0
+; CHECK: call cc{{.*}} i8* @"__invoke_i8*_i32_%struct.__jmp_buf_tag*"([[ARGS:.*]]) #[[ALLOCSIZE_ATTR:[0-9]+]]
+  %alloc = call i8* @allocator(i32 20, %struct.__jmp_buf_tag* %arraydecay) #3
+  ret i8 *%alloc
+}
+
+; Tests if program does not crash when there's no setjmp function calls in the
+; module.
+@buffer = global [1 x %struct.__jmp_buf_tag] zeroinitializer, align 16
+define void @longjmp_only() {
+entry:
+  ; CHECK: call void @emscripten_longjmp_jmpbuf
+  call void @longjmp(%struct.__jmp_buf_tag* getelementptr inbounds ([1 x %struct.__jmp_buf_tag], [1 x %struct.__jmp_buf_tag]* @buffer, i32 0, i32 0), i32 1) #1
+  unreachable
+}
+
+; Tests if SSA rewrite works when a use and its def are within the same BB.
+define void @ssa_rewite_in_same_bb() {
+entry:
+  call void @foo()
+  br label %for.cond
+
+for.cond:                                         ; preds = %for.inc, %entry
+  ; CHECK: %{{.*}} = phi i32 [ %var[[VARNO:.*]], %for.inc.split ]
+  %0 = phi i32 [ %var, %for.inc ], [ undef, %entry ]
+  %var = add i32 0, 0
+  br label %for.inc
+
+for.inc:                                          ; preds = %for.cond
+  %call5 = call i32 @setjmp(%struct.__jmp_buf_tag* undef) #0
+  br label %for.cond
+
+; CHECK: for.inc.split:
+  ; CHECK: %var[[VARNO]] = phi i32 [ %var, %for.inc ]
 }
 
 declare void @foo()
@@ -227,3 +270,30 @@ declare void @free(i8*)
 attributes #0 = { returns_twice }
 attributes #1 = { noreturn }
 attributes #2 = { nounwind }
+attributes #3 = { allocsize(0) }
+; CHECK: attributes #{{[0-9]+}} = { nounwind "wasm-import-module"="env" "wasm-import-name"="getTempRet0" }
+; CHECK: attributes #{{[0-9]+}} = { nounwind "wasm-import-module"="env" "wasm-import-name"="setTempRet0" }
+; CHECK: attributes #{{[0-9]+}} = { "wasm-import-module"="env" "wasm-import-name"="__resumeException" }
+; CHECK: attributes #{{[0-9]+}} = { "wasm-import-module"="env" "wasm-import-name"="llvm_eh_typeid_for" }
+; CHECK: attributes #{{[0-9]+}} = { "wasm-import-module"="env" "wasm-import-name"="__invoke_void" }
+; CHECK: attributes #{{[0-9]+}} = { "wasm-import-module"="env" "wasm-import-name"="__cxa_find_matching_catch_3" }
+; CHECK: attributes #{{[0-9]+}} = { "wasm-import-module"="env" "wasm-import-name"="emscripten_longjmp_jmpbuf" }
+; CHECK: attributes #{{[0-9]+}} = { "wasm-import-module"="env" "wasm-import-name"="saveSetjmp" }
+; CHECK: attributes #{{[0-9]+}} = { "wasm-import-module"="env" "wasm-import-name"="testSetjmp" }
+; CHECK: attributes #{{[0-9]+}} = { "wasm-import-module"="env" "wasm-import-name"="emscripten_longjmp" }
+; CHECK: attributes #{{[0-9]+}} = { "wasm-import-module"="env" "wasm-import-name"="__invoke_i8*_i32_%struct.__jmp_buf_tag*" }
+; CHECK: attributes #{{[0-9]+}} = { "wasm-import-module"="env" "wasm-import-name"="__invoke_void_%struct.__jmp_buf_tag*_i32" }
+; CHECK: attributes #[[ALLOCSIZE_ATTR]] = { allocsize(1) }
+
+!llvm.dbg.cu = !{!2}
+!llvm.module.flags = !{!0}
+
+!0 = !{i32 2, !"Debug Info Version", i32 3}
+!1 = !DIFile(filename: "lower-em-sjlj.c", directory: "test")
+!2 = distinct !DICompileUnit(language: DW_LANG_C99, file: !1)
+!3 = distinct !DISubprogram(name: "setjmp_debug_info", unit:!2, file: !1, line: 1)
+!4 = !DILocation(line:2, scope: !3)
+!5 = !DILocation(line:3, scope: !3)
+!6 = !DILocation(line:4, scope: !3)
+!7 = !DILocation(line:5, scope: !3)
+!8 = !DILocation(line:6, scope: !3)

@@ -15,6 +15,8 @@
 
 using namespace clang;
 
+char MultiplexExternalSemaSource::ID;
+
 ///Constructs a new multiplexing external sema source and appends the
 /// given element to it.
 ///
@@ -271,6 +273,12 @@ void MultiplexExternalSemaSource::ReadExtVectorDecls(
                                      SmallVectorImpl<TypedefNameDecl*> &Decls) {
   for(size_t i = 0; i < Sources.size(); ++i)
     Sources[i]->ReadExtVectorDecls(Decls);
+}
+
+void MultiplexExternalSemaSource::ReadDeclsToCheckForDeferredDiags(
+    llvm::SmallVector<Decl *, 4> &Decls) {
+  for(size_t i = 0; i < Sources.size(); ++i)
+    Sources[i]->ReadDeclsToCheckForDeferredDiags(Decls);
 }
 
 void MultiplexExternalSemaSource::ReadUnusedLocalTypedefNameCandidates(

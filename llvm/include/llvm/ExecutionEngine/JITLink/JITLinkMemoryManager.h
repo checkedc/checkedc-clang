@@ -17,7 +17,10 @@
 #include "llvm/ExecutionEngine/JITSymbol.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Memory.h"
+#include "llvm/Support/MSVCErrorWorkarounds.h"
+
 #include <cstdint>
+#include <future>
 
 namespace llvm {
 namespace jitlink {
@@ -33,20 +36,19 @@ public:
   class SegmentRequest {
   public:
     SegmentRequest() = default;
-    SegmentRequest(size_t ContentSize, unsigned ContentAlign,
-                   uint64_t ZeroFillSize, unsigned ZeroFillAlign)
-        : ContentSize(ContentSize), ZeroFillSize(ZeroFillSize),
-          ContentAlign(ContentAlign), ZeroFillAlign(ZeroFillAlign) {}
+    SegmentRequest(uint64_t Alignment, size_t ContentSize,
+                   uint64_t ZeroFillSize)
+        : Alignment(Alignment), ContentSize(ContentSize),
+          ZeroFillSize(ZeroFillSize) {
+      assert(isPowerOf2_32(Alignment) && "Alignment must be power of 2");
+    }
+    uint64_t getAlignment() const { return Alignment; }
     size_t getContentSize() const { return ContentSize; }
-    unsigned getContentAlignment() const { return ContentAlign; }
     uint64_t getZeroFillSize() const { return ZeroFillSize; }
-    unsigned getZeroFillAlignment() const { return ZeroFillAlign; }
-
   private:
+    uint64_t Alignment = 0;
     size_t ContentSize = 0;
     uint64_t ZeroFillSize = 0;
-    unsigned ContentAlign = 0;
-    unsigned ZeroFillAlign = 0;
   };
 
   using SegmentsRequestMap = DenseMap<unsigned, SegmentRequest>;
@@ -74,6 +76,15 @@ public:
     /// Should transfer from working memory to target memory, and release
     /// working memory.
     virtual void finalizeAsync(FinalizeContinuation OnFinalize) = 0;
+
+    /// Calls finalizeAsync and waits for completion.
+    Error finalize() {
+      std::promise<MSVCPError> FinalizeResultP;
+      auto FinalizeResultF = FinalizeResultP.get_future();
+      finalizeAsync(
+          [&](Error Err) { FinalizeResultP.set_value(std::move(Err)); });
+      return FinalizeResultF.get();
+    }
 
     /// Should deallocate target memory.
     virtual Error deallocate() = 0;

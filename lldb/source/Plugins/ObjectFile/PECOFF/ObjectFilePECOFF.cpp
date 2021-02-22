@@ -1,4 +1,4 @@
-//===-- ObjectFilePECOFF.cpp ------------------------------------*- C++ -*-===//
+//===-- ObjectFilePECOFF.cpp ----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "ObjectFilePECOFF.h"
+#include "PECallFrameInfo.h"
 #include "WindowsMiniDump.h"
 
 #include "lldb/Core/FileSpecList.h"
@@ -40,6 +41,8 @@
 using namespace lldb;
 using namespace lldb_private;
 
+LLDB_PLUGIN_DEFINE(ObjectFilePECOFF)
+
 struct CVInfoPdb70 {
   // 16-byte GUID
   struct _Guid {
@@ -52,15 +55,12 @@ struct CVInfoPdb70 {
   llvm::support::ulittle32_t Age;
 };
 
-static UUID GetCoffUUID(llvm::object::COFFObjectFile *coff_obj) {
-  if (!coff_obj)
-    return UUID();
-
+static UUID GetCoffUUID(llvm::object::COFFObjectFile &coff_obj) {
   const llvm::codeview::DebugInfo *pdb_info = nullptr;
   llvm::StringRef pdb_file;
 
   // This part is similar with what has done in minidump parser.
-  if (!coff_obj->getDebugPDBInfo(pdb_info, pdb_file) && pdb_info) {
+  if (!coff_obj.getDebugPDBInfo(pdb_info, pdb_file) && pdb_info) {
     if (pdb_info->PDB70.CVSignature == llvm::OMF::Signature::PDB70) {
       using llvm::support::endian::read16be;
       using llvm::support::endian::read32be;
@@ -88,6 +88,8 @@ static UUID GetCoffUUID(llvm::object::COFFObjectFile *coff_obj) {
   return UUID();
 }
 
+char ObjectFilePECOFF::ID;
+
 void ObjectFilePECOFF::Initialize() {
   PluginManager::RegisterPlugin(
       GetPluginNameStatic(), GetPluginDescriptionStatic(), CreateInstance,
@@ -111,9 +113,10 @@ const char *ObjectFilePECOFF::GetPluginDescriptionStatic() {
 ObjectFile *ObjectFilePECOFF::CreateInstance(const lldb::ModuleSP &module_sp,
                                              DataBufferSP &data_sp,
                                              lldb::offset_t data_offset,
-                                             const lldb_private::FileSpec *file,
+                                             const lldb_private::FileSpec *file_p,
                                              lldb::offset_t file_offset,
                                              lldb::offset_t length) {
+  FileSpec file = file_p ? *file_p : FileSpec();
   if (!data_sp) {
     data_sp = MapFileData(file, length, file_offset);
     if (!data_sp)
@@ -131,8 +134,8 @@ ObjectFile *ObjectFilePECOFF::CreateInstance(const lldb::ModuleSP &module_sp,
       return nullptr;
   }
 
-  auto objfile_up = llvm::make_unique<ObjectFilePECOFF>(
-      module_sp, data_sp, data_offset, file, file_offset, length);
+  auto objfile_up = std::make_unique<ObjectFilePECOFF>(
+      module_sp, data_sp, data_offset, file_p, file_offset, length);
   if (!objfile_up || !objfile_up->ParseHeader())
     return nullptr;
 
@@ -148,7 +151,7 @@ ObjectFile *ObjectFilePECOFF::CreateMemoryInstance(
     const lldb::ProcessSP &process_sp, lldb::addr_t header_addr) {
   if (!data_sp || !ObjectFilePECOFF::MagicBytesMatch(data_sp))
     return nullptr;
-  auto objfile_up = llvm::make_unique<ObjectFilePECOFF>(
+  auto objfile_up = std::make_unique<ObjectFilePECOFF>(
       module_sp, data_sp, process_sp, header_addr);
   if (objfile_up.get() && objfile_up->ParseHeader()) {
     return objfile_up.release();
@@ -164,22 +167,29 @@ size_t ObjectFilePECOFF::GetModuleSpecifications(
   if (!data_sp || !ObjectFilePECOFF::MagicBytesMatch(data_sp))
     return initial_count;
 
-  auto binary = llvm::object::createBinary(file.GetPath());
-  if (!binary)
-    return initial_count;
+  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_OBJECT));
 
-  if (!binary->getBinary()->isCOFF() &&
-      !binary->getBinary()->isCOFFImportFile())
-    return initial_count;
+  if (data_sp->GetByteSize() < length)
+    if (DataBufferSP full_sp = MapFileData(file, -1, file_offset))
+      data_sp = std::move(full_sp);
+  auto binary = llvm::object::createBinary(llvm::MemoryBufferRef(
+      toStringRef(data_sp->GetData()), file.GetFilename().GetStringRef()));
 
-  auto COFFObj =
-    llvm::cast<llvm::object::COFFObjectFile>(binary->getBinary());
+  if (!binary) {
+    LLDB_LOG_ERROR(log, binary.takeError(),
+                   "Failed to create binary for file ({1}): {0}", file);
+    return initial_count;
+  }
+
+  auto *COFFObj = llvm::dyn_cast<llvm::object::COFFObjectFile>(binary->get());
+  if (!COFFObj)
+    return initial_count;
 
   ModuleSpec module_spec(file);
   ArchSpec &spec = module_spec.GetArchitecture();
   lldb_private::UUID &uuid = module_spec.GetUUID();
   if (!uuid.IsValid())
-    uuid = GetCoffUUID(COFFObj);
+    uuid = GetCoffUUID(*COFFObj);
 
   switch (COFFObj->getMachine()) {
   case MachineAmd64:
@@ -193,7 +203,11 @@ size_t ObjectFilePECOFF::GetModuleSpecifications(
     specs.Append(module_spec);
     break;
   case MachineArmNt:
-    spec.SetTriple("arm-pc-windows");
+    spec.SetTriple("armv7-pc-windows");
+    specs.Append(module_spec);
+    break;
+  case MachineArm64:
+    spec.SetTriple("aarch64-pc-windows");
     specs.Append(module_spec);
     break;
   default:
@@ -228,36 +242,28 @@ lldb::SymbolType ObjectFilePECOFF::MapSymbolType(uint16_t coff_symbol_type) {
 }
 
 bool ObjectFilePECOFF::CreateBinary() {
-  if (m_owningbin)
+  if (m_binary)
     return true;
 
   Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_OBJECT));
 
-  auto binary = llvm::object::createBinary(m_file.GetPath());
+  auto binary = llvm::object::createBinary(llvm::MemoryBufferRef(
+      toStringRef(m_data.GetData()), m_file.GetFilename().GetStringRef()));
   if (!binary) {
-    if (log)
-      log->Printf("ObjectFilePECOFF::CreateBinary() - failed to create binary "
-                  "for file (%s): %s",
-                  m_file ? m_file.GetPath().c_str() : "<NULL>",
-                  errorToErrorCode(binary.takeError()).message().c_str());
+    LLDB_LOG_ERROR(log, binary.takeError(),
+                   "Failed to create binary for file ({1}): {0}", m_file);
     return false;
   }
 
   // Make sure we only handle COFF format.
-  if (!binary->getBinary()->isCOFF() &&
-      !binary->getBinary()->isCOFFImportFile())
+  m_binary =
+      llvm::unique_dyn_cast<llvm::object::COFFObjectFile>(std::move(*binary));
+  if (!m_binary)
     return false;
 
-  m_owningbin = OWNBINType(std::move(*binary));
-  if (log)
-    log->Printf("%p ObjectFilePECOFF::CreateBinary() module = %p (%s), file = "
-                "%s, binary = %p (Bin = %p)",
-                static_cast<void *>(this),
-                static_cast<void *>(GetModule().get()),
-                GetModule()->GetSpecificationDescription().c_str(),
-                m_file ? m_file.GetPath().c_str() : "<NULL>",
-                static_cast<void *>(m_owningbin.getPointer()),
-                static_cast<void *>(m_owningbin->getBinary()));
+  LLDB_LOG(log, "this = {0}, module = {1} ({2}), file = {3}, binary = {4}",
+           this, GetModule().get(), GetModule()->GetSpecificationDescription(),
+           m_file.GetPath(), m_binary.get());
   return true;
 }
 
@@ -268,11 +274,10 @@ ObjectFilePECOFF::ObjectFilePECOFF(const lldb::ModuleSP &module_sp,
                                    lldb::offset_t file_offset,
                                    lldb::offset_t length)
     : ObjectFile(module_sp, file, file_offset, length, data_sp, data_offset),
-      m_dos_header(), m_coff_header(), m_coff_header_opt(), m_sect_headers(),
-      m_entry_point_address(), m_deps_filespec(), m_owningbin() {
+      m_dos_header(), m_coff_header(), m_sect_headers(),
+      m_entry_point_address(), m_deps_filespec() {
   ::memset(&m_dos_header, 0, sizeof(m_dos_header));
   ::memset(&m_coff_header, 0, sizeof(m_coff_header));
-  ::memset(&m_coff_header_opt, 0, sizeof(m_coff_header_opt));
 }
 
 ObjectFilePECOFF::ObjectFilePECOFF(const lldb::ModuleSP &module_sp,
@@ -280,11 +285,10 @@ ObjectFilePECOFF::ObjectFilePECOFF(const lldb::ModuleSP &module_sp,
                                    const lldb::ProcessSP &process_sp,
                                    addr_t header_addr)
     : ObjectFile(module_sp, process_sp, header_addr, header_data_sp),
-      m_dos_header(), m_coff_header(), m_coff_header_opt(), m_sect_headers(),
-      m_entry_point_address(), m_deps_filespec(), m_owningbin() {
+      m_dos_header(), m_coff_header(), m_sect_headers(),
+      m_entry_point_address(), m_deps_filespec() {
   ::memset(&m_dos_header, 0, sizeof(m_dos_header));
   ::memset(&m_coff_header, 0, sizeof(m_coff_header));
-  ::memset(&m_coff_header_opt, 0, sizeof(m_coff_header_opt));
 }
 
 ObjectFilePECOFF::~ObjectFilePECOFF() {}
@@ -307,6 +311,7 @@ bool ObjectFilePECOFF::ParseHeader() {
           ParseCOFFOptionalHeader(&offset);
         ParseSectionHeaders(offset);
       }
+      m_data.SetAddressByteSize(GetAddressByteSize());
       return true;
     }
   }
@@ -515,7 +520,29 @@ bool ObjectFilePECOFF::ParseCOFFOptionalHeader(lldb::offset_t *offset_ptr) {
   return success;
 }
 
+uint32_t ObjectFilePECOFF::GetRVA(const Address &addr) const {
+  return addr.GetFileAddress() - m_image_base;
+}
+
+Address ObjectFilePECOFF::GetAddress(uint32_t rva) {
+  SectionList *sect_list = GetSectionList();
+  if (!sect_list)
+    return Address(GetFileAddress(rva));
+
+  return Address(GetFileAddress(rva), sect_list);
+}
+
+lldb::addr_t ObjectFilePECOFF::GetFileAddress(uint32_t rva) const {
+  return m_image_base + rva;
+}
+
 DataExtractor ObjectFilePECOFF::ReadImageData(uint32_t offset, size_t size) {
+  if (!size)
+    return {};
+
+  if (m_data.ValidOffsetForDataOfSize(offset, size))
+    return DataExtractor(m_data, offset, size);
+
   if (m_file) {
     // A bit of a hack, but we intend to write to this buffer, so we can't
     // mmap it.
@@ -525,7 +552,7 @@ DataExtractor ObjectFilePECOFF::ReadImageData(uint32_t offset, size_t size) {
   ProcessSP process_sp(m_process_wp.lock());
   DataExtractor data;
   if (process_sp) {
-    auto data_up = llvm::make_unique<DataBufferHeap>(size, 0);
+    auto data_up = std::make_unique<DataBufferHeap>(size, 0);
     Status readmem_error;
     size_t bytes_read =
         process_sp->ReadMemory(m_image_base + offset, data_up->GetBytes(),
@@ -536,6 +563,16 @@ DataExtractor ObjectFilePECOFF::ReadImageData(uint32_t offset, size_t size) {
     }
   }
   return data;
+}
+
+DataExtractor ObjectFilePECOFF::ReadImageDataByRVA(uint32_t rva, size_t size) {
+  Address addr = GetAddress(rva);
+  SectionSP sect = addr.GetSection();
+  if (!sect)
+    return {};
+  rva = sect->GetFileOffset() + addr.GetOffset();
+
+  return ReadImageData(rva, size);
 }
 
 // ParseSectionHeaders
@@ -598,7 +635,7 @@ Symtab *ObjectFilePECOFF::GetSymtab() {
     std::lock_guard<std::recursive_mutex> guard(module_sp->GetMutex());
     if (m_symtab_up == nullptr) {
       SectionList *sect_list = GetSectionList();
-      m_symtab_up.reset(new Symtab(this));
+      m_symtab_up = std::make_unique<Symtab>(this);
       std::lock_guard<std::recursive_mutex> guard(m_symtab_up->GetMutex());
 
       const uint32_t num_syms = m_coff_header.nsyms;
@@ -619,7 +656,7 @@ Symtab *ObjectFilePECOFF::GetSymtab() {
           // because it is used as offset 0 to encode a NULL string.
           uint32_t *strtab_data_start = const_cast<uint32_t *>(
               reinterpret_cast<const uint32_t *>(strtab_data.GetDataStart()));
-          strtab_data_start[0] = 0;
+          ::memset(&strtab_data_start[0], 0, sizeof(uint32_t));
 
           offset = 0;
           std::string symbol_name;
@@ -653,7 +690,7 @@ Symtab *ObjectFilePECOFF::GetSymtab() {
             symbol.naux = symtab_data.GetU8(&offset);
             symbols[i].GetMangled().SetValue(ConstString(symbol_name.c_str()));
             if ((int16_t)symbol.sect >= 1) {
-              Address symbol_addr(sect_list->GetSectionAtIndex(symbol.sect - 1),
+              Address symbol_addr(sect_list->FindSectionByID(symbol.sect),
                                   symbol.value);
               symbols[i].GetAddressRef() = symbol_addr;
               symbols[i].SetType(MapSymbolType(symbol.type));
@@ -675,14 +712,8 @@ Symtab *ObjectFilePECOFF::GetSymtab() {
         uint32_t data_start =
             m_coff_header_opt.data_dirs[coff_data_dir_export_table].vmaddr;
 
-        uint32_t address_rva = data_start;
-        if (m_file) {
-          Address address(m_coff_header_opt.image_base + data_start, sect_list);
-          address_rva =
-              address.GetSection()->GetFileOffset() + address.GetOffset();
-        }
-        DataExtractor symtab_data =
-            ReadImageData(address_rva, m_coff_header_opt.data_dirs[0].vmsize);
+        DataExtractor symtab_data = ReadImageDataByRVA(
+            data_start, m_coff_header_opt.data_dirs[0].vmsize);
         lldb::offset_t offset = 0;
 
         // Read export_table header
@@ -737,140 +768,135 @@ Symtab *ObjectFilePECOFF::GetSymtab() {
   return m_symtab_up.get();
 }
 
+std::unique_ptr<CallFrameInfo> ObjectFilePECOFF::CreateCallFrameInfo() {
+  if (coff_data_dir_exception_table >= m_coff_header_opt.data_dirs.size())
+    return {};
+
+  data_directory data_dir_exception =
+      m_coff_header_opt.data_dirs[coff_data_dir_exception_table];
+  if (!data_dir_exception.vmaddr)
+    return {};
+
+  if (m_coff_header.machine != llvm::COFF::IMAGE_FILE_MACHINE_AMD64)
+    return {};
+
+  return std::make_unique<PECallFrameInfo>(*this, data_dir_exception.vmaddr,
+                                           data_dir_exception.vmsize);
+}
+
 bool ObjectFilePECOFF::IsStripped() {
   // TODO: determine this for COFF
   return false;
 }
 
+SectionType ObjectFilePECOFF::GetSectionType(llvm::StringRef sect_name,
+                                             const section_header_t &sect) {
+  ConstString const_sect_name(sect_name);
+  static ConstString g_code_sect_name(".code");
+  static ConstString g_CODE_sect_name("CODE");
+  static ConstString g_data_sect_name(".data");
+  static ConstString g_DATA_sect_name("DATA");
+  static ConstString g_bss_sect_name(".bss");
+  static ConstString g_BSS_sect_name("BSS");
+
+  if (sect.flags & llvm::COFF::IMAGE_SCN_CNT_CODE &&
+      ((const_sect_name == g_code_sect_name) ||
+       (const_sect_name == g_CODE_sect_name))) {
+    return eSectionTypeCode;
+  }
+  if (sect.flags & llvm::COFF::IMAGE_SCN_CNT_INITIALIZED_DATA &&
+             ((const_sect_name == g_data_sect_name) ||
+              (const_sect_name == g_DATA_sect_name))) {
+    if (sect.size == 0 && sect.offset == 0)
+      return eSectionTypeZeroFill;
+    else
+      return eSectionTypeData;
+  }
+  if (sect.flags & llvm::COFF::IMAGE_SCN_CNT_UNINITIALIZED_DATA &&
+             ((const_sect_name == g_bss_sect_name) ||
+              (const_sect_name == g_BSS_sect_name))) {
+    if (sect.size == 0)
+      return eSectionTypeZeroFill;
+    else
+      return eSectionTypeData;
+  }
+
+  SectionType section_type =
+      llvm::StringSwitch<SectionType>(sect_name)
+          .Case(".debug", eSectionTypeDebug)
+          .Case(".stabstr", eSectionTypeDataCString)
+          .Case(".reloc", eSectionTypeOther)
+          .Case(".debug_abbrev", eSectionTypeDWARFDebugAbbrev)
+          .Case(".debug_aranges", eSectionTypeDWARFDebugAranges)
+          .Case(".debug_frame", eSectionTypeDWARFDebugFrame)
+          .Case(".debug_info", eSectionTypeDWARFDebugInfo)
+          .Case(".debug_line", eSectionTypeDWARFDebugLine)
+          .Case(".debug_loc", eSectionTypeDWARFDebugLoc)
+          .Case(".debug_loclists", eSectionTypeDWARFDebugLocLists)
+          .Case(".debug_macinfo", eSectionTypeDWARFDebugMacInfo)
+          .Case(".debug_names", eSectionTypeDWARFDebugNames)
+          .Case(".debug_pubnames", eSectionTypeDWARFDebugPubNames)
+          .Case(".debug_pubtypes", eSectionTypeDWARFDebugPubTypes)
+          .Case(".debug_ranges", eSectionTypeDWARFDebugRanges)
+          .Case(".debug_str", eSectionTypeDWARFDebugStr)
+          .Case(".debug_types", eSectionTypeDWARFDebugTypes)
+          // .eh_frame can be truncated to 8 chars.
+          .Cases(".eh_frame", ".eh_fram", eSectionTypeEHFrame)
+          .Case(".gosymtab", eSectionTypeGoSymtab)
+          .Default(eSectionTypeInvalid);
+  if (section_type != eSectionTypeInvalid)
+    return section_type;
+
+  if (sect.flags & llvm::COFF::IMAGE_SCN_CNT_CODE)
+    return eSectionTypeCode;
+  if (sect.flags & llvm::COFF::IMAGE_SCN_CNT_INITIALIZED_DATA)
+    return eSectionTypeData;
+  if (sect.flags & llvm::COFF::IMAGE_SCN_CNT_UNINITIALIZED_DATA) {
+    if (sect.size == 0)
+      return eSectionTypeZeroFill;
+    else
+      return eSectionTypeData;
+  }
+  return eSectionTypeOther;
+}
+
 void ObjectFilePECOFF::CreateSections(SectionList &unified_section_list) {
   if (m_sections_up)
     return;
-  m_sections_up.reset(new SectionList());
+  m_sections_up = std::make_unique<SectionList>();
 
   ModuleSP module_sp(GetModule());
   if (module_sp) {
     std::lock_guard<std::recursive_mutex> guard(module_sp->GetMutex());
 
-    SectionSP image_sp = std::make_shared<Section>(
-        module_sp, this, ~user_id_t(0), ConstString(), eSectionTypeContainer,
-        m_coff_header_opt.image_base, m_coff_header_opt.image_size,
-        /*file_offset*/ 0, /*file_size*/ 0, m_coff_header_opt.sect_alignment,
+    SectionSP header_sp = std::make_shared<Section>(
+        module_sp, this, ~user_id_t(0), ConstString("PECOFF header"),
+        eSectionTypeOther, m_coff_header_opt.image_base,
+        m_coff_header_opt.header_size,
+        /*file_offset*/ 0, m_coff_header_opt.header_size,
+        m_coff_header_opt.sect_alignment,
         /*flags*/ 0);
-    m_sections_up->AddSection(image_sp);
-    unified_section_list.AddSection(image_sp);
+    header_sp->SetPermissions(ePermissionsReadable);
+    m_sections_up->AddSection(header_sp);
+    unified_section_list.AddSection(header_sp);
 
     const uint32_t nsects = m_sect_headers.size();
     ModuleSP module_sp(GetModule());
     for (uint32_t idx = 0; idx < nsects; ++idx) {
-      ConstString const_sect_name(GetSectionName(m_sect_headers[idx]));
-      static ConstString g_code_sect_name(".code");
-      static ConstString g_CODE_sect_name("CODE");
-      static ConstString g_data_sect_name(".data");
-      static ConstString g_DATA_sect_name("DATA");
-      static ConstString g_bss_sect_name(".bss");
-      static ConstString g_BSS_sect_name("BSS");
-      static ConstString g_debug_sect_name(".debug");
-      static ConstString g_reloc_sect_name(".reloc");
-      static ConstString g_stab_sect_name(".stab");
-      static ConstString g_stabstr_sect_name(".stabstr");
-      static ConstString g_sect_name_dwarf_debug_abbrev(".debug_abbrev");
-      static ConstString g_sect_name_dwarf_debug_aranges(".debug_aranges");
-      static ConstString g_sect_name_dwarf_debug_frame(".debug_frame");
-      static ConstString g_sect_name_dwarf_debug_info(".debug_info");
-      static ConstString g_sect_name_dwarf_debug_line(".debug_line");
-      static ConstString g_sect_name_dwarf_debug_loc(".debug_loc");
-      static ConstString g_sect_name_dwarf_debug_loclists(".debug_loclists");
-      static ConstString g_sect_name_dwarf_debug_macinfo(".debug_macinfo");
-      static ConstString g_sect_name_dwarf_debug_names(".debug_names");
-      static ConstString g_sect_name_dwarf_debug_pubnames(".debug_pubnames");
-      static ConstString g_sect_name_dwarf_debug_pubtypes(".debug_pubtypes");
-      static ConstString g_sect_name_dwarf_debug_ranges(".debug_ranges");
-      static ConstString g_sect_name_dwarf_debug_str(".debug_str");
-      static ConstString g_sect_name_dwarf_debug_types(".debug_types");
-      static ConstString g_sect_name_eh_frame(".eh_frame");
-      static ConstString g_sect_name_go_symtab(".gosymtab");
-      SectionType section_type = eSectionTypeOther;
-      if (m_sect_headers[idx].flags & llvm::COFF::IMAGE_SCN_CNT_CODE &&
-          ((const_sect_name == g_code_sect_name) ||
-           (const_sect_name == g_CODE_sect_name))) {
-        section_type = eSectionTypeCode;
-      } else if (m_sect_headers[idx].flags &
-                     llvm::COFF::IMAGE_SCN_CNT_INITIALIZED_DATA &&
-                 ((const_sect_name == g_data_sect_name) ||
-                  (const_sect_name == g_DATA_sect_name))) {
-        if (m_sect_headers[idx].size == 0 && m_sect_headers[idx].offset == 0)
-          section_type = eSectionTypeZeroFill;
-        else
-          section_type = eSectionTypeData;
-      } else if (m_sect_headers[idx].flags &
-                     llvm::COFF::IMAGE_SCN_CNT_UNINITIALIZED_DATA &&
-                 ((const_sect_name == g_bss_sect_name) ||
-                  (const_sect_name == g_BSS_sect_name))) {
-        if (m_sect_headers[idx].size == 0)
-          section_type = eSectionTypeZeroFill;
-        else
-          section_type = eSectionTypeData;
-      } else if (const_sect_name == g_debug_sect_name) {
-        section_type = eSectionTypeDebug;
-      } else if (const_sect_name == g_stabstr_sect_name) {
-        section_type = eSectionTypeDataCString;
-      } else if (const_sect_name == g_reloc_sect_name) {
-        section_type = eSectionTypeOther;
-      } else if (const_sect_name == g_sect_name_dwarf_debug_abbrev)
-        section_type = eSectionTypeDWARFDebugAbbrev;
-      else if (const_sect_name == g_sect_name_dwarf_debug_aranges)
-        section_type = eSectionTypeDWARFDebugAranges;
-      else if (const_sect_name == g_sect_name_dwarf_debug_frame)
-        section_type = eSectionTypeDWARFDebugFrame;
-      else if (const_sect_name == g_sect_name_dwarf_debug_info)
-        section_type = eSectionTypeDWARFDebugInfo;
-      else if (const_sect_name == g_sect_name_dwarf_debug_line)
-        section_type = eSectionTypeDWARFDebugLine;
-      else if (const_sect_name == g_sect_name_dwarf_debug_loc)
-        section_type = eSectionTypeDWARFDebugLoc;
-      else if (const_sect_name == g_sect_name_dwarf_debug_loclists)
-        section_type = eSectionTypeDWARFDebugLocLists;
-      else if (const_sect_name == g_sect_name_dwarf_debug_macinfo)
-        section_type = eSectionTypeDWARFDebugMacInfo;
-      else if (const_sect_name == g_sect_name_dwarf_debug_names)
-        section_type = eSectionTypeDWARFDebugNames;
-      else if (const_sect_name == g_sect_name_dwarf_debug_pubnames)
-        section_type = eSectionTypeDWARFDebugPubNames;
-      else if (const_sect_name == g_sect_name_dwarf_debug_pubtypes)
-        section_type = eSectionTypeDWARFDebugPubTypes;
-      else if (const_sect_name == g_sect_name_dwarf_debug_ranges)
-        section_type = eSectionTypeDWARFDebugRanges;
-      else if (const_sect_name == g_sect_name_dwarf_debug_str)
-        section_type = eSectionTypeDWARFDebugStr;
-      else if (const_sect_name == g_sect_name_dwarf_debug_types)
-        section_type = eSectionTypeDWARFDebugTypes;
-      else if (const_sect_name == g_sect_name_eh_frame)
-        section_type = eSectionTypeEHFrame;
-      else if (const_sect_name == g_sect_name_go_symtab)
-        section_type = eSectionTypeGoSymtab;
-      else if (m_sect_headers[idx].flags & llvm::COFF::IMAGE_SCN_CNT_CODE) {
-        section_type = eSectionTypeCode;
-      } else if (m_sect_headers[idx].flags &
-                 llvm::COFF::IMAGE_SCN_CNT_INITIALIZED_DATA) {
-        section_type = eSectionTypeData;
-      } else if (m_sect_headers[idx].flags &
-                 llvm::COFF::IMAGE_SCN_CNT_UNINITIALIZED_DATA) {
-        if (m_sect_headers[idx].size == 0)
-          section_type = eSectionTypeZeroFill;
-        else
-          section_type = eSectionTypeData;
-      }
+      llvm::StringRef sect_name = GetSectionName(m_sect_headers[idx]);
+      ConstString const_sect_name(sect_name);
+      SectionType section_type = GetSectionType(sect_name, m_sect_headers[idx]);
 
       SectionSP section_sp(new Section(
-          image_sp,        // Parent section
           module_sp,       // Module to which this section belongs
           this,            // Object file to which this section belongs
           idx + 1,         // Section ID is the 1 based section index.
           const_sect_name, // Name of this section
           section_type,
-          m_sect_headers[idx].vmaddr, // File VM address == addresses as
-                                      // they are found in the object file
-          m_sect_headers[idx].vmsize, // VM size in bytes of this section
+          m_coff_header_opt.image_base +
+              m_sect_headers[idx].vmaddr, // File VM address == addresses as
+                                          // they are found in the object file
+          m_sect_headers[idx].vmsize,     // VM size in bytes of this section
           m_sect_headers[idx]
               .offset, // Offset to the data for this section in the file
           m_sect_headers[idx]
@@ -878,7 +904,17 @@ void ObjectFilePECOFF::CreateSections(SectionList &unified_section_list) {
           m_coff_header_opt.sect_alignment, // Section alignment
           m_sect_headers[idx].flags));      // Flags for this section
 
-      image_sp->GetChildren().AddSection(std::move(section_sp));
+      uint32_t permissions = 0;
+      if (m_sect_headers[idx].flags & llvm::COFF::IMAGE_SCN_MEM_EXECUTE)
+        permissions |= ePermissionsExecutable;
+      if (m_sect_headers[idx].flags & llvm::COFF::IMAGE_SCN_MEM_READ)
+        permissions |= ePermissionsReadable;
+      if (m_sect_headers[idx].flags & llvm::COFF::IMAGE_SCN_MEM_WRITE)
+        permissions |= ePermissionsWritable;
+      section_sp->SetPermissions(permissions);
+
+      m_sections_up->AddSection(section_sp);
+      unified_section_list.AddSection(section_sp);
     }
   }
 }
@@ -890,10 +926,7 @@ UUID ObjectFilePECOFF::GetUUID() {
   if (!CreateBinary())
     return UUID();
 
-  auto COFFObj =
-    llvm::cast<llvm::object::COFFObjectFile>(m_owningbin->getBinary());
-
-  m_uuid = GetCoffUUID(COFFObj);
+  m_uuid = GetCoffUUID(*m_binary);
   return m_uuid;
 }
 
@@ -911,30 +944,20 @@ uint32_t ObjectFilePECOFF::ParseDependentModules() {
     return 0;
 
   Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_OBJECT));
-  if (log)
-    log->Printf("%p ObjectFilePECOFF::ParseDependentModules() module = %p "
-                "(%s), binary = %p (Bin = %p)",
-                static_cast<void *>(this), static_cast<void *>(module_sp.get()),
-                module_sp->GetSpecificationDescription().c_str(),
-                static_cast<void *>(m_owningbin.getPointer()),
-                static_cast<void *>(m_owningbin->getBinary()));
-
-  auto COFFObj =
-      llvm::dyn_cast<llvm::object::COFFObjectFile>(m_owningbin->getBinary());
-  if (!COFFObj)
-    return 0;
+  LLDB_LOG(log, "this = {0}, module = {1} ({2}), file = {3}, binary = {4}",
+           this, GetModule().get(), GetModule()->GetSpecificationDescription(),
+           m_file.GetPath(), m_binary.get());
 
   m_deps_filespec = FileSpecList();
 
-  for (const auto &entry : COFFObj->import_directories()) {
+  for (const auto &entry : m_binary->import_directories()) {
     llvm::StringRef dll_name;
-    auto ec = entry.getName(dll_name);
     // Report a bogus entry.
-    if (ec != std::error_code()) {
-      if (log)
-        log->Printf("ObjectFilePECOFF::ParseDependentModules() - failed to get "
-                    "import directory entry name: %s",
-                    ec.message().c_str());
+    if (llvm::Error e = entry.getName(dll_name)) {
+      LLDB_LOGF(log,
+                "ObjectFilePECOFF::ParseDependentModules() - failed to get "
+                "import directory entry name: %s",
+                llvm::toString(std::move(e)).c_str());
       continue;
     }
 
@@ -946,10 +969,10 @@ uint32_t ObjectFilePECOFF::ParseDependentModules() {
     dll_specs.GetDirectory().SetString(m_file.GetDirectory().GetCString());
 
     if (!llvm::sys::fs::real_path(dll_specs.GetPath(), dll_fullpath))
-      m_deps_filespec->Append(FileSpec(dll_fullpath));
+      m_deps_filespec->EmplaceBack(dll_fullpath);
     else {
       // Known DLLs or DLL not found in the object file directory.
-      m_deps_filespec->Append(FileSpec(dll_name));
+      m_deps_filespec->EmplaceBack(dll_name);
     }
   }
   return m_deps_filespec->GetSize();
@@ -1006,7 +1029,8 @@ void ObjectFilePECOFF::Dump(Stream *s) {
 
     SectionList *sections = GetSectionList();
     if (sections)
-      sections->Dump(s, nullptr, true, UINT32_MAX);
+      sections->Dump(s->AsRawOstream(), s->GetIndentLevel(), nullptr, true,
+                     UINT32_MAX);
 
     if (m_symtab_up)
       m_symtab_up->Dump(s, nullptr, eSortOrderNone);
@@ -1133,7 +1157,7 @@ void ObjectFilePECOFF::DumpOptCOFFHeader(Stream *s,
 // Dump a single ELF section header to the specified output stream
 void ObjectFilePECOFF::DumpSectionHeader(Stream *s,
                                          const section_header_t &sh) {
-  std::string name = GetSectionName(sh);
+  std::string name = std::string(GetSectionName(sh));
   s->Printf("%-16s 0x%8.8x 0x%8.8x 0x%8.8x 0x%8.8x 0x%8.8x 0x%8.8x 0x%4.4x "
             "0x%4.4x 0x%8.8x\n",
             name.c_str(), sh.vmaddr, sh.vmsize, sh.offset, sh.size, sh.reloff,
@@ -1201,6 +1225,7 @@ ArchSpec ObjectFilePECOFF::GetArchitecture() {
   case llvm::COFF::IMAGE_FILE_MACHINE_ARM:
   case llvm::COFF::IMAGE_FILE_MACHINE_ARMNT:
   case llvm::COFF::IMAGE_FILE_MACHINE_THUMB:
+  case llvm::COFF::IMAGE_FILE_MACHINE_ARM64:
     ArchSpec arch;
     arch.SetArchitecture(eArchTypeCOFF, machine, LLDB_INVALID_CPUTYPE,
                          IsWindowsSubsystem() ? llvm::Triple::Win32

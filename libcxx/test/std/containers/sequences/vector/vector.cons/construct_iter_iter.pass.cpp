@@ -156,7 +156,14 @@ void test_ctor_with_different_value_type() {
     // Make sure initialization is performed with each element value, not with
     // a memory blob.
     float array[3] = {0.0f, 1.0f, 2.0f};
+#ifdef TEST_COMPILER_C1XX
+    #pragma warning(push)
+    #pragma warning(disable: 4244) // conversion from 'float' to 'int', possible loss of data
+#endif // TEST_COMPILER_C1XX
     std::vector<int> v(array, array + 3);
+#ifdef TEST_COMPILER_C1XX
+    #pragma warning(pop)
+#endif // TEST_COMPILER_C1XX
     assert(v[0] == 0);
     assert(v[1] == 1);
     assert(v[2] == 2);
@@ -173,7 +180,7 @@ void test_ctor_with_different_value_type() {
     // Though the types are different, initialization can be done with `memcpy`.
     int32_t array[1] = { -1 };
     std::vector<uint32_t> v(array, array + 1);
-    assert(v[0] == 4294967295);
+    assert(v[0] == 4294967295U);
   }
 }
 

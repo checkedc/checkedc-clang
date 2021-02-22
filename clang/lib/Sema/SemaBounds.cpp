@@ -128,12 +128,10 @@ namespace {
         RHS = EnsureRValue(SemaRef, RHS);
         if (BinaryOperator::isCompoundAssignmentOp(Op))
           Op = BinaryOperator::getOpForCompoundAssignment(Op);
-        return new (SemaRef.Context) BinaryOperator(LHS, RHS, Op,
-                                                    LHS->getType(),
-                                                    LHS->getValueKind(),
-                                                    LHS->getObjectKind(),
-                                                    SourceLocation(),
-                                                    FPOptions());
+        return BinaryOperator::Create(SemaRef.Context, LHS, RHS, Op,
+                                      LHS->getType(), LHS->getValueKind(),
+                                      LHS->getObjectKind(), SourceLocation(),
+                                      FPOptionsOverride());
       }
 
       // Create an unsigned integer literal.
@@ -231,7 +229,7 @@ namespace {
         clang::NestedNameSpecifierLoc QualifierLoc  = E->getQualifierLoc();
         clang::DeclarationNameInfo NameInfo = E->getNameInfo();
         return getDerived().RebuildDeclRefExpr(QualifierLoc, ND, NameInfo,
-                                                nullptr);
+                                                nullptr, nullptr);
       }
     }
   };
@@ -388,11 +386,11 @@ BoundsExpr *Sema::ConcretizeFromFunctionTypeWithArgs(
 #ifndef NDEBUG
     llvm::outs() << "Failed concretizing\n";
     llvm::outs() << "Bounds:\n";
-    Bounds->dump(llvm::outs());
+    Bounds->dump(llvm::outs(), Context);
     int count = Args.size();
     for (int i = 0; i < count; i++) {
       llvm::outs() << "Dumping arg " << i << "\n";
-      Args[i]->dump(llvm::outs());
+      Args[i]->dump(llvm::outs(), Context);
     }
     llvm::outs().flush();
 #endif
@@ -880,14 +878,14 @@ namespace {
                               BoundsExpr *LValueTargetBounds,
                               BoundsExpr *RHSBounds) {
       OS << "\n";
-      E->dump(OS);
+      E->dump(OS, Context);
       if (LValueTargetBounds) {
         OS << "Target Bounds:\n";
-        LValueTargetBounds->dump(OS);
+        LValueTargetBounds->dump(OS, Context);
       }
       if (RHSBounds) {
         OS << "RHS Bounds:\n ";
-        RHSBounds->dump(OS);
+        RHSBounds->dump(OS, Context);
       }
     }
 
@@ -895,18 +893,18 @@ namespace {
                               BoundsExpr *Declared, BoundsExpr *NormalizedDeclared,
                               BoundsExpr *SubExprBounds) {
       OS << "\n";
-      E->dump(OS);
+      E->dump(OS, Context);
       if (Declared) {
         OS << "Declared Bounds:\n";
-        Declared->dump(OS);
+        Declared->dump(OS, Context);
       }
       if (NormalizedDeclared) {
         OS << "Normalized Declared Bounds:\n ";
-        NormalizedDeclared->dump(OS);
+        NormalizedDeclared->dump(OS, Context);
       }
       if (SubExprBounds) {
         OS << "Inferred Subexpression Bounds:\n ";
-        SubExprBounds->dump(OS);
+        SubExprBounds->dump(OS, Context);
       }
     }
 
@@ -915,14 +913,14 @@ namespace {
       OS << "\n";
       D->dump(OS);
       OS << "Declared Bounds:\n";
-      Target->dump(OS);
+      Target->dump(OS, Context);
       OS << "Initializer Bounds:\n ";
-      B->dump(OS);
+      B->dump(OS, Context);
     }
 
     void DumpExpression(raw_ostream &OS, Expr *E) {
       OS << "\n";
-      E->dump(OS);
+      E->dump(OS, Context);
     }
 
     void DumpCallArgumentBounds(raw_ostream &OS, BoundsExpr *Param,
@@ -932,25 +930,25 @@ namespace {
       OS << "\n";
       if (Param) {
         OS << "Original parameter bounds\n";
-        Param->dump(OS);
+        Param->dump(OS, Context);
       }
       if (Arg) {
         OS << "Argument:\n";
-        Arg->dump(OS);
+        Arg->dump(OS, Context);
       }
       if (ParamBounds) {
         OS << "Parameter Bounds:\n";
-        ParamBounds->dump(OS);
+        ParamBounds->dump(OS, Context);
       }
       if (ArgBounds) {
         OS << "Argument Bounds:\n ";
-        ArgBounds->dump(OS);
+        ArgBounds->dump(OS, Context);
       }
     }
 
     void DumpCheckingState(raw_ostream &OS, Stmt *S, CheckingState &State) {
       OS << "\nStatement S:\n";
-      S->dump(OS);
+      S->dump(OS, Context);
 
       OS << "Observed bounds context after checking S:\n";
       DumpBoundsContext(OS, State.ObservedBounds);
@@ -971,8 +969,8 @@ namespace {
       DumpExprsSet(OS, State.SameValue);
     }
 
-    void DumpBoundsContext(raw_ostream &OS, BoundsContextTy &Context) {
-      if (Context.empty())
+    void DumpBoundsContext(raw_ostream &OS, BoundsContextTy &BoundsContext) {
+      if (BoundsContext.empty())
         OS << "{ }\n";
       else {
         // The keys in an llvm::DenseMap are unordered.  Create a set of
@@ -980,7 +978,7 @@ namespace {
         // then by location in order to guarantee a deterministic output
         // so that printing the bounds context can be tested.
         std::vector<const VarDecl *> OrderedDecls;
-        for (auto const &Pair : Context)
+        for (auto const &Pair : BoundsContext)
           OrderedDecls.push_back(Pair.first);
         llvm::sort(OrderedDecls.begin(), OrderedDecls.end(),
              [] (const VarDecl *A, const VarDecl *B) {
@@ -993,13 +991,13 @@ namespace {
         OS << "{\n";
         for (auto I = OrderedDecls.begin(); I != OrderedDecls.end(); ++I) {
           const VarDecl *Variable = *I;
-          auto It = Context.find(Variable);
-          if (It == Context.end())
+          auto It = BoundsContext.find(Variable);
+          if (It == BoundsContext.end())
             continue;
           OS << "Variable:\n";
           Variable->dump(OS);
           OS << "Bounds:\n";
-          It->second->dump(OS);
+          It->second->dump(OS, Context);
         }
         OS << "}\n";
       }
@@ -1012,7 +1010,7 @@ namespace {
         OS << "{\n";
         for (auto I = Exprs.begin(); I != Exprs.end(); ++I) {
           Expr *E = *I;
-          E->dump(OS);
+          E->dump(OS, Context);
         }
         OS << "}\n";
       }
@@ -1736,7 +1734,7 @@ namespace {
         OS << "Range:\n";
         OS << "Base: ";
         if (Base)
-          Base->dump(OS);
+          Base->dump(OS, S.getASTContext());
         else
           OS << "nullptr\n";
         if (IsLowerOffsetConstant()) {
@@ -1751,11 +1749,11 @@ namespace {
         }
         if (IsLowerOffsetVariable()) {
           OS << "Lower offset:\n";
-          LowerOffsetVariable->dump(OS);
+          LowerOffsetVariable->dump(OS, S.getASTContext());
         }
         if (IsUpperOffsetVariable()) {
           OS << "Upper offset:\n";
-          UpperOffsetVariable->dump(OS);
+          UpperOffsetVariable->dump(OS, S.getASTContext());
         }
       }
     };
@@ -2090,9 +2088,9 @@ namespace {
 #ifdef TRACE_RANGE
         llvm::outs() << "Found constant ranges:\n";
         llvm::outs() << "Declared bounds";
-        DeclaredBounds->dump(llvm::outs());
+        DeclaredBounds->dump(llvm::outs(), Context);
         llvm::outs() << "\nSource bounds";
-        SrcBounds->dump(llvm::outs());
+        SrcBounds->dump(llvm::outs(), Context);
         llvm::outs() << "\nDeclared range:";
         DeclaredRange.Dump(llvm::outs());
         llvm::outs() << "\nSource range:";
@@ -2130,14 +2128,14 @@ namespace {
                                          ProofFailure &Cause) {
 #ifdef TRACE_RANGE
       llvm::outs() << "Examining:\nPtrBase\n";
-      PtrBase->dump(llvm::outs());
+      PtrBase->dump(llvm::outs(), Context);
       llvm::outs() << "Offset = ";
       if (Offset != nullptr) {
-        Offset->dump(llvm::outs());
+        Offset->dump(llvm::outs(), Context);
       } else
         llvm::outs() << "nullptr\n";
       llvm::outs() << "Bounds\n";
-      Bounds->dump(llvm::outs());
+      Bounds->dump(llvm::outs(), Context);
 #endif
       assert(BoundsUtil::IsStandardForm(Bounds) &&
              "bounds not in standard form");
@@ -2787,7 +2785,7 @@ namespace {
      assert(Cfg && "expected CFG to exist");
 #if TRACE_CFG
      llvm::outs() << "Dumping AST";
-     Body->dump(llvm::outs());
+     Body->dump(llvm::outs(), Context);
      llvm::outs() << "Dumping CFG:\n";
      Cfg->print(llvm::outs(), S.getLangOpts(), true);
      llvm::outs() << "Traversing CFG:\n";
@@ -2864,7 +2862,7 @@ namespace {
 
 #if TRACE_CFG
             llvm::outs() << "Visiting ";
-            S->dump(llvm::outs());
+            S->dump(llvm::outs(), Context);
             llvm::outs().flush();
 #endif
             // Modify the ObservedBounds context to include any variables with
@@ -4405,13 +4403,13 @@ namespace {
             }
           }
           Expr *UpperBound =
-            new (Context) BinaryOperator(LowerBound, Count,
-                                          BinaryOperatorKind::BO_Add,
-                                          ResultTy,
-                                          ExprValueKind::VK_RValue,
-                                          ExprObjectKind::OK_Ordinary,
-                                          SourceLocation(),
-                                          FPOptions());
+            BinaryOperator::Create(Context, LowerBound, Count,
+                                   BinaryOperatorKind::BO_Add,
+                                   ResultTy,
+                                   ExprValueKind::VK_RValue,
+                                   ExprObjectKind::OK_Ordinary,
+                                   SourceLocation(),
+                                   FPOptionsOverride());
           RangeBoundsExpr *R = new (Context) RangeBoundsExpr(LowerBound, UpperBound,
                                                SourceLocation(),
                                                SourceLocation());
@@ -4899,6 +4897,14 @@ namespace {
       if (!Val)
         return;
 
+      // StmtExprs should not be included in SameValue.  When StmtExprs are
+      // lexicographically compared, there is an assertion failure since
+      // the children of StmtExprs are Stmts and not Exprs, so StmtExprs
+      // should not be included in any sets that involve comparisons,
+      // such as CheckingState.SameValue or CheckingState.EquivExprs.
+      if (isa<StmtExpr>(Val))
+        return;
+
       // Expressions that create new objects should not be included
       // in SameValue.
       if (CreatesNewObject(Val))
@@ -5048,12 +5054,13 @@ namespace {
         else if (ArraySubscriptExpr *ArraySubExpr = dyn_cast<ArraySubscriptExpr>(SubExpr)) {
           Expr *Base = ArraySubExpr->getBase();
           Expr *Index = ArraySubExpr->getIdx();
-          BinaryOperator Sum(Base, Index, BinaryOperatorKind::BO_Add,
+          BinaryOperator Sum(Context, Base, Index,
+                             BinaryOperatorKind::BO_Add,
                              Base->getType(),
                              Base->getValueKind(),
                              Base->getObjectKind(),
                              SourceLocation(),
-                             FPOptions());
+                             FPOptionsOverride());
           return IsInvertible(X, &Sum);
         }
       }
@@ -5209,12 +5216,13 @@ namespace {
         else if (ArraySubscriptExpr *ArraySubExpr = dyn_cast<ArraySubscriptExpr>(SubExpr)) {
           Expr *Base = ArraySubExpr->getBase();
           Expr *Index = ArraySubExpr->getIdx();
-          BinaryOperator Sum(Base, Index, BinaryOperatorKind::BO_Add,
+          BinaryOperator Sum(Context, Base, Index,
+                             BinaryOperatorKind::BO_Add,
                              Base->getType(),
                              Base->getValueKind(),
                              Base->getObjectKind(),
                              SourceLocation(),
-                             FPOptions());
+                             FPOptionsOverride());
           return Inverse(X, F, &Sum);
         }
       }
@@ -5231,11 +5239,13 @@ namespace {
       // Inverse(f, -e1) = Inverse(-f, e1)
       // Inverse(f, +e1) = Inverse(+f, e1)
       Expr *Child = ExprCreatorUtil::EnsureRValue(S, F);
-      Expr *F1 = new (S.Context) UnaryOperator(Child, Op, E->getType(),
-                                               E->getValueKind(),
-                                               E->getObjectKind(),
-                                               SourceLocation(),
-                                               E->canOverflow());
+      Expr *F1 = UnaryOperator::Create(S.Context, Child, Op,
+                                       E->getType(),
+                                       E->getValueKind(),
+                                       E->getObjectKind(),
+                                       SourceLocation(),
+                                       E->canOverflow(),
+                                       FPOptionsOverride());
       return Inverse(X, F1, SubExpr);
     }
 
@@ -5711,10 +5721,11 @@ namespace {
 
     Expr *CreateAddressOfOperator(Expr *E) {
       QualType Ty = Context.getPointerType(E->getType(), CheckedPointerKind::Array);
-      return new (Context) UnaryOperator(E, UnaryOperatorKind::UO_AddrOf, Ty,
-                                         ExprValueKind::VK_RValue,
-                                         ExprObjectKind::OK_Ordinary,
-                                         SourceLocation(), false);
+      return UnaryOperator::Create(Context, E, UnaryOperatorKind::UO_AddrOf, Ty,
+                                   ExprValueKind::VK_RValue,
+                                   ExprObjectKind::OK_Ordinary,
+                                   SourceLocation(), false,
+                                   FPOptionsOverride());
     }
 
     // Determine if the mathemtical value of I (an unsigned integer) fits within
@@ -6386,6 +6397,15 @@ Expr *Sema::GetArrayPtrDereference(Expr *E, QualType &Result) {
       CHKCBindTemporaryExpr *Temp = cast<CHKCBindTemporaryExpr>(E);
       return GetArrayPtrDereference(Temp->getSubExpr(), Result);
     }
+    case Expr::MatrixSubscriptExprClass: {
+      MatrixSubscriptExpr *MS = cast<MatrixSubscriptExpr>(E);
+      if (MS->getBase()->getType()->isCheckedPointerArrayType()) {
+        Result = MS->getBase()->getType();
+        return E;
+      }
+
+      return nullptr;
+    }
     default: {
       llvm_unreachable("unexpected lvalue expression");
       return nullptr;
@@ -6517,18 +6537,12 @@ namespace {
     bool isNonModifyingExpr() { return !FoundModifyingExpr; }
 
     // Assignments are of course modifying
-    bool VisitBinAssign(BinaryOperator* E) {
-      addError(E, MEK_Assign);
-      FoundModifyingExpr = true;
-
-      return true;
-    }
-
-    // Assignments are of course modifying
-    bool VisitCompoundAssignOperator(CompoundAssignOperator *E) {
-      addError(E, MEK_Assign);
-      FoundModifyingExpr = true;
-
+    bool VisitBinaryOperator(BinaryOperator *E) {
+      if (E->isAssignmentOp()) {
+        addError(E, MEK_Assign);
+        FoundModifyingExpr = true;
+      }
+      
       return true;
     }
 

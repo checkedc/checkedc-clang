@@ -8,6 +8,9 @@
 
 #include "RedundantPreprocessorCheck.h"
 #include "clang/Frontend/CompilerInstance.h"
+#include "clang/Lex/Lexer.h"
+#include "clang/Lex/PPCallbacks.h"
+#include "clang/Lex/Preprocessor.h"
 
 namespace clang {
 namespace tidy {
@@ -83,7 +86,7 @@ private:
 
     if (Store)
       // This is an actual directive to be remembered.
-      Stack.push_back({Loc, MacroName});
+      Stack.push_back({Loc, std::string(MacroName)});
   }
 
   ClangTidyCheck &Check;
@@ -99,7 +102,7 @@ private:
 void RedundantPreprocessorCheck::registerPPCallbacks(
     const SourceManager &SM, Preprocessor *PP, Preprocessor *ModuleExpanderPP) {
   PP->addPPCallbacks(
-      ::llvm::make_unique<RedundantPreprocessorCallbacks>(*this, *PP));
+      ::std::make_unique<RedundantPreprocessorCallbacks>(*this, *PP));
 }
 
 } // namespace readability

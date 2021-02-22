@@ -23,6 +23,7 @@
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/ProfileSummary.h"
 #include "llvm/ProfileData/InstrProfData.inc"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
@@ -93,10 +94,6 @@ inline StringRef getInstrProfValuesVarPrefix() { return "__profvp_"; }
 /// Return the name of value profile node array variables:
 inline StringRef getInstrProfVNodesVarName() { return "__llvm_prf_vnodes"; }
 
-/// Return the name prefix of the COMDAT group for instrumentation variables
-/// associated with a COMDAT function.
-inline StringRef getInstrProfComdatPrefix() { return "__profv_"; }
-
 /// Return the name of the variable holding the strings (possibly compressed)
 /// of all function's PGO names.
 inline StringRef getInstrProfNamesVarName() {
@@ -155,6 +152,10 @@ inline StringRef getInstrProfRuntimeHookVarName() {
 /// runtime hook variable. The function is a weak global.
 inline StringRef getInstrProfRuntimeHookVarUseFuncName() {
   return "__llvm_profile_runtime_user";
+}
+
+inline StringRef getInstrProfCounterBiasVarName() {
+  return "__llvm_profile_counter_bias";
 }
 
 /// Return the marker used to separate PGO names during serialization.
@@ -562,7 +563,7 @@ StringRef InstrProfSymtab::getFuncName(uint64_t FuncMD5Hash) {
   finalizeSymtab();
   auto Result =
       std::lower_bound(MD5NameMap.begin(), MD5NameMap.end(), FuncMD5Hash,
-                       [](const std::pair<uint64_t, std::string> &LHS,
+                       [](const std::pair<uint64_t, StringRef> &LHS,
                           uint64_t RHS) { return LHS.first < RHS; });
   if (Result != MD5NameMap.end() && Result->first == FuncMD5Hash)
     return Result->second;
@@ -634,8 +635,8 @@ struct OverlapStats {
     FuncHash = Hash;
   }
 
-  Error accumuateCounts(const std::string &BaseFilename,
-                        const std::string &TestFilename, bool IsCS);
+  Error accumulateCounts(const std::string &BaseFilename,
+                         const std::string &TestFilename, bool IsCS);
   void addOneMismatch(const CountSumOrPercent &MismatchFunc);
   void addOneUnique(const CountSumOrPercent &UniqueFunc);
 
@@ -695,7 +696,7 @@ struct InstrProfRecord {
   InstrProfRecord(const InstrProfRecord &RHS)
       : Counts(RHS.Counts),
         ValueData(RHS.ValueData
-                      ? llvm::make_unique<ValueProfData>(*RHS.ValueData)
+                      ? std::make_unique<ValueProfData>(*RHS.ValueData)
                       : nullptr) {}
   InstrProfRecord &operator=(InstrProfRecord &&) = default;
   InstrProfRecord &operator=(const InstrProfRecord &RHS) {
@@ -705,7 +706,7 @@ struct InstrProfRecord {
       return *this;
     }
     if (!ValueData)
-      ValueData = llvm::make_unique<ValueProfData>(*RHS.ValueData);
+      ValueData = std::make_unique<ValueProfData>(*RHS.ValueData);
     else
       *ValueData = *RHS.ValueData;
     return *this;
@@ -772,7 +773,7 @@ struct InstrProfRecord {
   void clearValueData() { ValueData = nullptr; }
 
   /// Compute the sums of all counts and store in Sum.
-  void accumuateCounts(CountSumOrPercent &Sum) const;
+  void accumulateCounts(CountSumOrPercent &Sum) const;
 
   /// Compute the overlap b/w this IntrprofRecord and Other.
   void overlap(InstrProfRecord &Other, OverlapStats &Overlap,
@@ -817,7 +818,7 @@ private:
   std::vector<InstrProfValueSiteRecord> &
   getOrCreateValueSitesForKind(uint32_t ValueKind) {
     if (!ValueData)
-      ValueData = llvm::make_unique<ValueProfData>();
+      ValueData = std::make_unique<ValueProfData>();
     switch (ValueKind) {
     case IPVK_IndirectCallTarget:
       return ValueData->IndirectCallSites;
@@ -889,7 +890,7 @@ uint32_t InstrProfRecord::getNumValueDataForSite(uint32_t ValueKind,
 std::unique_ptr<InstrProfValueData[]>
 InstrProfRecord::getValueForSite(uint32_t ValueKind, uint32_t Site,
                                  uint64_t *TotalC) const {
-  uint64_t Dummy;
+  uint64_t Dummy = 0;
   uint64_t &TotalCount = (TotalC == nullptr ? Dummy : *TotalC);
   uint32_t N = getNumValueDataForSite(ValueKind, Site);
   if (N == 0) {
@@ -897,7 +898,7 @@ InstrProfRecord::getValueForSite(uint32_t ValueKind, uint32_t Site,
     return std::unique_ptr<InstrProfValueData[]>(nullptr);
   }
 
-  auto VD = llvm::make_unique<InstrProfValueData[]>(N);
+  auto VD = std::make_unique<InstrProfValueData[]>(N);
   TotalCount = getValueForSite(VD.get(), ValueKind, Site);
 
   return VD;
@@ -978,6 +979,9 @@ enum ProfVersion {
   Version4 = 4,
   // In this version, the frontend PGO stable hash algorithm defaults to V2.
   Version5 = 5,
+  // In this version, the frontend PGO stable hash algorithm got fixed and
+  // may produce hashes different from Version5.
+  Version6 = 6,
   // The current version is 5.
   CurrentVersion = INSTR_PROF_INDEX_VERSION
 };
@@ -1138,6 +1142,10 @@ void createIRLevelProfileFlagVar(Module &M, bool IsCS);
 
 // Create the variable for the profile file name.
 void createProfileFileNameVar(Module &M, StringRef InstrProfileOutput);
+
+// Whether to compress function names in profile records, and filenames in
+// code coverage mappings. Used by the Instrumentation library and unit tests.
+extern cl::opt<bool> DoInstrProfNameCompression;
 
 } // end namespace llvm
 #endif // LLVM_PROFILEDATA_INSTRPROF_H

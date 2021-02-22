@@ -22,12 +22,13 @@
 #include <cstdlib>
 #include <cassert>
 
-#include "count_new.hpp"
+#include "count_new.h"
 
 #include "test_macros.h"
 
 int main(int, char**)
 {
+    globalMemCounter.reset();
     assert(globalMemCounter.checkOutstandingNewEq(0));
     {
         typedef std::codecvt_utf8<wchar_t> C;

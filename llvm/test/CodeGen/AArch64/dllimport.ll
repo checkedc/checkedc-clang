@@ -1,6 +1,6 @@
 ; RUN: llc -mtriple aarch64-unknown-windows-msvc -filetype asm -o - %s | FileCheck %s -check-prefixes=CHECK,DAG-ISEL
 ; RUN: llc -mtriple aarch64-unknown-windows-msvc -fast-isel -filetype asm -o - %s | FileCheck %s -check-prefixes=CHECK,FAST-ISEL
-; RUN: llc -mtriple aarch64-unknown-windows-msvc -O0 -filetype asm -o - %s | FileCheck %s -check-prefixes=CHECK,GLOBAL-ISEL,GLOBAL-ISEL-FALLBACK
+; RUN: llc -mtriple aarch64-unknown-windows-msvc -verify-machineinstrs -O0 -filetype asm -o - %s | FileCheck %s -check-prefixes=CHECK,GLOBAL-ISEL,GLOBAL-ISEL-FALLBACK
 
 @var = external dllimport global i32
 @ext = external global i32
@@ -28,8 +28,7 @@ define i32 @get_ext() {
 ; DAG-ISEL: ldr w0, [x8, ext]
 ; FAST-ISEL: add x8, x8, ext
 ; FAST-ISEL: ldr w0, [x8]
-; GLOBAL-ISEL-FALLBACK: add x8, x8, ext
-; GLOBAL-ISEL-FALLBACK: ldr w0, [x8]
+; GLOBAL-ISEL-FALLBACK: ldr w0, [x8, ext]
 ; CHECK: ret
 
 define i32* @get_var_pointer() {
@@ -59,4 +58,4 @@ define i32 @call_internal() {
 ; CHECK-LABEL: call_internal
 ; DAG-ISEL: b internal
 ; FAST-ISEL: b internal
-; GLOBAL-ISEL: bl internal
+; GLOBAL-ISEL: b internal

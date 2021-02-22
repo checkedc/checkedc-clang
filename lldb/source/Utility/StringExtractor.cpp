@@ -1,4 +1,4 @@
-//===-- StringExtractor.cpp -------------------------------------*- C++ -*-===//
+//===-- StringExtractor.cpp -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Utility/StringExtractor.h"
+#include "llvm/ADT/StringExtras.h"
 
 #include <tuple>
 
@@ -296,34 +297,6 @@ size_t StringExtractor::GetHexBytesAvail(llvm::MutableArrayRef<uint8_t> dest) {
   return bytes_extracted;
 }
 
-// Consume ASCII hex nibble character pairs until we have decoded byte_size
-// bytes of data.
-
-uint64_t StringExtractor::GetHexWithFixedSize(uint32_t byte_size,
-                                              bool little_endian,
-                                              uint64_t fail_value) {
-  if (byte_size <= 8 && GetBytesLeft() >= byte_size * 2) {
-    uint64_t result = 0;
-    uint32_t i;
-    if (little_endian) {
-      // Little Endian
-      uint32_t shift_amount;
-      for (i = 0, shift_amount = 0; i < byte_size && IsGood();
-           ++i, shift_amount += 8) {
-        result |= (static_cast<uint64_t>(GetHexU8()) << shift_amount);
-      }
-    } else {
-      // Big Endian
-      for (i = 0; i < byte_size && IsGood(); ++i) {
-        result <<= 8;
-        result |= GetHexU8();
-      }
-    }
-  }
-  m_index = UINT64_MAX;
-  return fail_value;
-}
-
 size_t StringExtractor::GetHexByteString(std::string &str) {
   str.clear();
   str.reserve(GetBytesLeft() / 2);
@@ -393,6 +366,6 @@ bool StringExtractor::GetNameColonValue(llvm::StringRef &name,
 
 void StringExtractor::SkipSpaces() {
   const size_t n = m_packet.size();
-  while (m_index < n && isspace(m_packet[m_index]))
+  while (m_index < n && llvm::isSpace(m_packet[m_index]))
     ++m_index;
 }

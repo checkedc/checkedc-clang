@@ -394,8 +394,7 @@ DWARF:
         - Attribute:       DW_AT_type
           Form:            DW_FORM_ref4
   debug_aranges:   
-    - Length:          
-        TotalLength:     44
+    - Length:          44
       Version:         2
       CuOffset:        0
       AddrSize:        8
@@ -424,8 +423,7 @@ DWARF:
       - DieOffset:       0x00000071
         Name:            char
   debug_info:      
-    - Length:          
-        TotalLength:     117
+    - Length:          117
       Version:         4
       AbbrOffset:      0
       AddrSize:        8
@@ -493,8 +491,7 @@ DWARF:
         - AbbrCode:        0x00000000
           Values:          
   debug_line:      
-    - Length:          
-        TotalLength:     65
+    - Length:          65
       Version:         2
       PrologueLength:  36
       MinInstLength:   1
@@ -535,8 +532,7 @@ DWARF:
 ...
 
 #CHECK:   debug_line:      
-#CHECK:     - Length:          
-#CHECK:         TotalLength:     65
+#CHECK:     - Length:          65
 #CHECK:       Version:         2
 #CHECK:       PrologueLength:  36
 #CHECK:       MinInstLength:   1
@@ -557,21 +553,21 @@ DWARF:
 #CHECK:           SubOpcode:       DW_LNE_set_address
 #CHECK:           Data:            4294971216
 #CHECK:         - Opcode:          0x14
-#CHECK:           Data:            4294971216
+#CHECK:           Data:            0
 #CHECK:         - Opcode:          DW_LNS_set_column
 #CHECK:           Data:            3
 #CHECK:         - Opcode:          DW_LNS_set_prologue_end
-#CHECK:           Data:            3
+#CHECK:           Data:            0
 #CHECK:         - Opcode:          DW_LNS_const_add_pc
-#CHECK:           Data:            3
+#CHECK:           Data:            0
 #CHECK:         - Opcode:          0xBB
-#CHECK:           Data:            3
+#CHECK:           Data:            0
 #CHECK:         - Opcode:          0xBB
-#CHECK:           Data:            3
+#CHECK:           Data:            0
 #CHECK:         - Opcode:          DW_LNS_advance_pc
 #CHECK:           Data:            11
 #CHECK:         - Opcode:          DW_LNS_extended_op
 #CHECK:           ExtLen:          1
 #CHECK:           SubOpcode:       DW_LNE_end_sequence
-#CHECK:           Data:            11
+#CHECK:           Data:            0
 #CHECK: ...

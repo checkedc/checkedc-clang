@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Declaration_h_
-#define liblldb_Declaration_h_
+#ifndef LLDB_SYMBOL_DECLARATION_H
+#define LLDB_SYMBOL_DECLARATION_H
 
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/lldb-private.h"
@@ -55,16 +55,6 @@ public:
   {
   }
 
-  /// Construct with a reference to another Declaration object.
-  Declaration(const Declaration &rhs)
-      : m_file(rhs.m_file), m_line(rhs.m_line)
-#ifdef LLDB_ENABLE_DECLARATION_COLUMNS
-        ,
-        m_column(rhs.m_column)
-#endif
-  {
-  }
-
   /// Construct with a pointer to another Declaration object.
   Declaration(const Declaration *decl_ptr)
       : m_file(), m_line(0)
@@ -102,9 +92,9 @@ public:
   ///     The Right Hand Side const Declaration object reference.
   ///
   /// \return
-  ///     \li -1 if lhs < rhs
-  ///     \li 0 if lhs == rhs
-  ///     \li 1 if lhs > rhs
+  ///     -1 if lhs < rhs
+  ///     0 if lhs == rhs
+  ///     1 if lhs > rhs
   static int Compare(const Declaration &lhs, const Declaration &rhs);
 
   /// Checks if this object has the same file and line as another declaration
@@ -212,4 +202,4 @@ bool operator==(const Declaration &lhs, const Declaration &rhs);
 
 } // namespace lldb_private
 
-#endif // liblldb_Declaration_h_
+#endif // LLDB_SYMBOL_DECLARATION_H

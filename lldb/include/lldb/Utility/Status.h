@@ -47,8 +47,8 @@ public:
   /// into ValueType.
   typedef uint32_t ValueType;
 
-  /// Default constructor.
-  ///
+  Status();
+
   /// Initialize the error object with a generic success value.
   ///
   /// \param[in] err
@@ -56,24 +56,13 @@ public:
   ///
   /// \param[in] type
   ///     The type for \a err.
-  Status();
-
   explicit Status(ValueType err,
                   lldb::ErrorType type = lldb::eErrorTypeGeneric);
 
-  /* implicit */ Status(std::error_code EC);
+  Status(std::error_code EC);
 
   explicit Status(const char *format, ...)
       __attribute__((format(printf, 2, 3)));
-
-  /// Assignment operator.
-  ///
-  /// \param[in] err
-  ///     An error code.
-  ///
-  /// \return
-  ///     A const reference to this object.
-  const Status &operator=(const Status &rhs);
 
   ~Status();
 
@@ -122,7 +111,7 @@ public:
 
   /// Set accessor from a kern_return_t.
   ///
-  /// Set accesssor for the error value to \a err and the error type to \c
+  /// Set accessor for the error value to \a err and the error type to \c
   /// MachKernel.
   ///
   /// \param[in] err
@@ -134,9 +123,9 @@ public:
   int SetExpressionErrorWithFormat(lldb::ExpressionResults, const char *format,
                                    ...) __attribute__((format(printf, 3, 4)));
 
-  /// Set accesssor with an error value and type.
+  /// Set accessor with an error value and type.
   ///
-  /// Set accesssor for the error value to \a err and the error type to \a
+  /// Set accessor for the error value to \a err and the error type to \a
   /// type.
   ///
   /// \param[in] err
@@ -221,4 +210,11 @@ template <> struct format_provider<lldb_private::Status> {
 };
 }
 
-#endif // #ifndef LLDB_UTILITY_STATUS_H
+#define LLDB_ERRORF(status, fmt, ...)                                          \
+  do {                                                                         \
+    if (status) {                                                              \
+      (status)->SetErrorStringWithFormat((fmt), __VA_ARGS__);                  \
+    }                                                                          \
+  } while (0);
+
+#endif // LLDB_UTILITY_STATUS_H

@@ -53,7 +53,7 @@ void DwarfFile::emitUnit(DwarfUnit *TheU, bool UseOffsets) {
   Asm->emitDwarfDIE(TheU->getUnitDie());
 
   if (MCSymbol *EndLabel = TheU->getEndLabel())
-    Asm->OutStreamer->EmitLabel(EndLabel);
+    Asm->OutStreamer->emitLabel(EndLabel);
 }
 
 // Compute the size and offset for each DIE.
@@ -126,6 +126,6 @@ void DwarfFile::addScopeLabel(LexicalScope *LS, DbgLabel *Label) {
 std::pair<uint32_t, RangeSpanList *>
 DwarfFile::addRange(const DwarfCompileUnit &CU, SmallVector<RangeSpan, 2> R) {
   CURangeLists.push_back(
-      RangeSpanList(Asm->createTempSymbol("debug_ranges"), CU, std::move(R)));
+      RangeSpanList{Asm->createTempSymbol("debug_ranges"), &CU, std::move(R)});
   return std::make_pair(CURangeLists.size() - 1, &CURangeLists.back());
 }

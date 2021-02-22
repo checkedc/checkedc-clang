@@ -1,4 +1,4 @@
-//===-- OptionGroupVariable.cpp -----------------------*- C++ -*-===//
+//===-- OptionGroupVariable.cpp -------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -109,9 +109,7 @@ OptionGroupVariable::SetOptionValue(uint32_t option_idx,
     error = summary_string.SetCurrentValue(option_arg);
     break;
   default:
-    error.SetErrorStringWithFormat("unrecognized short option '%c'",
-                                   short_option);
-    break;
+    llvm_unreachable("Unimplemented option");
   }
 
   return error;

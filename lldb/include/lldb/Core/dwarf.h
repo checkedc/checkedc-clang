@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef DebugBase_dwarf_h_
-#define DebugBase_dwarf_h_
+#ifndef LLDB_CORE_DWARF_H
+#define LLDB_CORE_DWARF_H
 
 #include "lldb/Utility/RangeMap.h"
 #include <stdint.h>
@@ -22,7 +22,7 @@ typedef uint32_t dw_uleb128_t;
 typedef int32_t dw_sleb128_t;
 typedef uint16_t dw_attr_t;
 typedef uint16_t dw_form_t;
-typedef uint16_t dw_tag_t;
+typedef llvm::dwarf::Tag dw_tag_t;
 typedef uint64_t dw_addr_t; // Dwarf address define that must be big enough for
                             // any addresses in the compile units that get
                             // parsed
@@ -71,6 +71,6 @@ typedef uint32_t dw_offset_t; // Dwarf Debug Information Entry offset for any
 //#define DW_OP_APPLE_error         0xFF // Stops expression evaluation and
 //returns an error (no args)
 
-typedef lldb_private::RangeArray<dw_addr_t, dw_addr_t, 2> DWARFRangeList;
+typedef lldb_private::RangeVector<dw_addr_t, dw_addr_t, 2> DWARFRangeList;
 
-#endif // DebugBase_dwarf_h_
+#endif // LLDB_CORE_DWARF_H

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 //
 // <functional>
 //
@@ -54,6 +54,9 @@ void test_result_of_imp()
     test_invoke_result<T, U>::call();
 #endif
 }
+
+// Do not warn on deprecated uses of 'volatile' below.
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 
 int main(int, char**)
 {
@@ -171,3 +174,5 @@ int main(int, char**)
 
   return 0;
 }
+
+_LIBCPP_SUPPRESS_DEPRECATED_POP

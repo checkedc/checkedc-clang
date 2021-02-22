@@ -254,6 +254,9 @@ protected:
 
   IsaVersion IV;
 
+  /// Whether to insert cache invalidation instructions.
+  bool InsertCacheInv;
+
   SICacheControl(const GCNSubtarget &ST);
 
 public:
@@ -650,16 +653,17 @@ Optional<SIMemOpInfo> SIMemOpAccess::getAtomicCmpxchgOrRmwInfo(
 SICacheControl::SICacheControl(const GCNSubtarget &ST) {
   TII = ST.getInstrInfo();
   IV = getIsaVersion(ST.getCPU());
+  InsertCacheInv = !ST.isAmdPalOS();
 }
 
 /* static */
 std::unique_ptr<SICacheControl> SICacheControl::create(const GCNSubtarget &ST) {
   GCNSubtarget::Generation Generation = ST.getGeneration();
   if (Generation <= AMDGPUSubtarget::SOUTHERN_ISLANDS)
-    return make_unique<SIGfx6CacheControl>(ST);
+    return std::make_unique<SIGfx6CacheControl>(ST);
   if (Generation < AMDGPUSubtarget::GFX10)
-    return make_unique<SIGfx7CacheControl>(ST);
-  return make_unique<SIGfx10CacheControl>(ST, ST.isCuModeEnabled());
+    return std::make_unique<SIGfx7CacheControl>(ST);
+  return std::make_unique<SIGfx10CacheControl>(ST, ST.isCuModeEnabled());
 }
 
 bool SIGfx6CacheControl::enableLoadCacheBypass(
@@ -714,6 +718,9 @@ bool SIGfx6CacheControl::insertCacheInvalidate(MachineBasicBlock::iterator &MI,
                                                SIAtomicScope Scope,
                                                SIAtomicAddrSpace AddrSpace,
                                                Position Pos) const {
+  if (!InsertCacheInv)
+    return false;
+
   bool Changed = false;
 
   MachineBasicBlock &MBB = *MI->getParent();
@@ -852,6 +859,9 @@ bool SIGfx7CacheControl::insertCacheInvalidate(MachineBasicBlock::iterator &MI,
                                                SIAtomicScope Scope,
                                                SIAtomicAddrSpace AddrSpace,
                                                Position Pos) const {
+  if (!InsertCacheInv)
+    return false;
+
   bool Changed = false;
 
   MachineBasicBlock &MBB = *MI->getParent();
@@ -954,6 +964,9 @@ bool SIGfx10CacheControl::insertCacheInvalidate(MachineBasicBlock::iterator &MI,
                                                 SIAtomicScope Scope,
                                                 SIAtomicAddrSpace AddrSpace,
                                                 Position Pos) const {
+  if (!InsertCacheInv)
+    return false;
+
   bool Changed = false;
 
   MachineBasicBlock &MBB = *MI->getParent();
@@ -1289,6 +1302,21 @@ bool SIMemoryLegalizer::runOnMachineFunction(MachineFunction &MF) {
 
   for (auto &MBB : MF) {
     for (auto MI = MBB.begin(); MI != MBB.end(); ++MI) {
+
+      if (MI->getOpcode() == TargetOpcode::BUNDLE && MI->mayLoadOrStore()) {
+        MachineBasicBlock::instr_iterator II(MI->getIterator());
+        for (MachineBasicBlock::instr_iterator I = ++II, E = MBB.instr_end();
+             I != E && I->isBundledWithPred(); ++I) {
+          I->unbundleFromPred();
+          for (MachineOperand &MO : I->operands())
+            if (MO.isReg())
+              MO.setIsInternalRead(false);
+        }
+
+        MI->eraseFromParent();
+        MI = II->getIterator();
+      }
+
       if (!(MI->getDesc().TSFlags & SIInstrFlags::maybeAtomic))
         continue;
 

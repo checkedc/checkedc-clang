@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
 
 // <experimental/iterator>
 //
@@ -42,6 +42,6 @@ int main(int, char**) {
     { exper::ostream_joiner<std::string, wchar_t>  oj(std::wcout, std::string("9"));    test(oj); }
     { exper::ostream_joiner<std::wstring, wchar_t> oj(std::wcout, std::wstring(L"10")); test(oj); }
     { exper::ostream_joiner<int, wchar_t>          oj(std::wcout, 11);                  test(oj); }
-    
+
   return 0;
 }

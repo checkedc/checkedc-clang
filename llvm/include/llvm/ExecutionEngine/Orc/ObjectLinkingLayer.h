@@ -35,6 +35,7 @@ namespace llvm {
 
 namespace jitlink {
 class EHFrameRegistrar;
+class Symbol;
 } // namespace jitlink
 
 namespace object {
@@ -59,10 +60,14 @@ public:
   /// configured.
   class Plugin {
   public:
+    using JITLinkSymbolVector = std::vector<const jitlink::Symbol *>;
+    using LocalDependenciesMap = DenseMap<SymbolStringPtr, JITLinkSymbolVector>;
+
     virtual ~Plugin();
     virtual void modifyPassConfig(MaterializationResponsibility &MR,
                                   const Triple &TT,
                                   jitlink::PassConfiguration &Config) {}
+
     virtual void notifyLoaded(MaterializationResponsibility &MR) {}
     virtual Error notifyEmitted(MaterializationResponsibility &MR) {
       return Error::success();
@@ -71,15 +76,34 @@ public:
       return Error::success();
     }
     virtual Error notifyRemovingAllModules() { return Error::success(); }
+
+    /// Return any dependencies that synthetic symbols (e.g. init symbols)
+    /// have on locally scoped jitlink::Symbols. This is used by the
+    /// ObjectLinkingLayer to update the dependencies for the synthetic
+    /// symbols.
+    virtual LocalDependenciesMap
+    getSyntheticSymbolLocalDependencies(MaterializationResponsibility &MR) {
+      return LocalDependenciesMap();
+    }
   };
+
+  using ReturnObjectBufferFunction =
+      std::function<void(std::unique_ptr<MemoryBuffer>)>;
 
   /// Construct an ObjectLinkingLayer with the given NotifyLoaded,
   /// and NotifyEmitted functors.
   ObjectLinkingLayer(ExecutionSession &ES,
-                     jitlink::JITLinkMemoryManager &MemMgr);
+                     std::unique_ptr<jitlink::JITLinkMemoryManager> MemMgr);
 
   /// Destruct an ObjectLinkingLayer.
   ~ObjectLinkingLayer();
+
+  /// Set an object buffer return function. By default object buffers are
+  /// deleted once the JIT has linked them. If a return function is set then
+  /// it will be called to transfer ownership of the buffer instead.
+  void setReturnObjectBuffer(ReturnObjectBufferFunction ReturnObjectBuffer) {
+    this->ReturnObjectBuffer = std::move(ReturnObjectBuffer);
+  }
 
   /// Add a pass-config modifier.
   ObjectLinkingLayer &addPlugin(std::unique_ptr<Plugin> P) {
@@ -135,9 +159,10 @@ private:
   Error removeAllModules();
 
   mutable std::mutex LayerMutex;
-  jitlink::JITLinkMemoryManager &MemMgr;
+  std::unique_ptr<jitlink::JITLinkMemoryManager> MemMgr;
   bool OverrideObjectFlags = false;
   bool AutoClaimObjectSymbols = false;
+  ReturnObjectBufferFunction ReturnObjectBuffer;
   DenseMap<VModuleKey, AllocPtr> TrackedAllocs;
   std::vector<AllocPtr> UntrackedAllocs;
   std::vector<std::unique_ptr<Plugin>> Plugins;
@@ -153,10 +178,17 @@ public:
   Error notifyRemovingAllModules() override;
 
 private:
+
+  struct EHFrameRange {
+    JITTargetAddress Addr = 0;
+    size_t Size;
+  };
+
+  std::mutex EHFramePluginMutex;
   jitlink::EHFrameRegistrar &Registrar;
-  DenseMap<MaterializationResponsibility *, JITTargetAddress> InProcessLinks;
-  DenseMap<VModuleKey, JITTargetAddress> TrackedEHFrameAddrs;
-  std::vector<JITTargetAddress> UntrackedEHFrameAddrs;
+  DenseMap<MaterializationResponsibility *, EHFrameRange> InProcessLinks;
+  DenseMap<VModuleKey, EHFrameRange> TrackedEHFrameRanges;
+  std::vector<EHFrameRange> UntrackedEHFrameRanges;
 };
 
 } // end namespace orc

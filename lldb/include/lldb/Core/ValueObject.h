@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ValueObject_h_
-#define liblldb_ValueObject_h_
+#ifndef LLDB_CORE_VALUEOBJECT_H
+#define LLDB_CORE_VALUEOBJECT_H
 
 #include "lldb/Core/Value.h"
 #include "lldb/Symbol/CompilerType.h"
@@ -179,7 +179,6 @@ public:
     eClearUserVisibleDataItemsLocation = 1u << 3,
     eClearUserVisibleDataItemsDescription = 1u << 4,
     eClearUserVisibleDataItemsSyntheticChildren = 1u << 5,
-    eClearUserVisibleDataItemsValidator = 1u << 6,
     eClearUserVisibleDataItemsAllStrings =
         eClearUserVisibleDataItemsValue | eClearUserVisibleDataItemsSummary |
         eClearUserVisibleDataItemsLocation |
@@ -397,10 +396,8 @@ public:
 
   bool IsIntegerType(bool &is_signed);
 
-  virtual bool GetBaseClassPath(Stream &s);
-
   virtual void GetExpressionPath(
-      Stream &s, bool qualify_cxx_base_classes,
+      Stream &s,
       GetExpressionPathFormat = eGetExpressionPathFormatDereferencePointers);
 
   lldb::ValueObjectSP GetValueForExpressionPath(
@@ -510,8 +507,6 @@ public:
                            std::string &destination,
                            const TypeSummaryOptions &options);
 
-  std::pair<TypeValidatorResult, std::string> GetValidationStatus();
-
   const char *GetObjectDescription();
 
   bool HasSpecialPrintableRepresentation(
@@ -580,7 +575,7 @@ public:
 
   virtual lldb::ValueObjectSP GetNonSyntheticValue();
 
-  lldb::ValueObjectSP GetSyntheticValue(bool use_synthetic = true);
+  lldb::ValueObjectSP GetSyntheticValue();
 
   virtual bool HasSyntheticValue();
 
@@ -709,16 +704,6 @@ public:
   void SetSummaryFormat(lldb::TypeSummaryImplSP format) {
     m_type_summary_sp = format;
     ClearUserVisibleData(eClearUserVisibleDataItemsSummary);
-  }
-
-  lldb::TypeValidatorImplSP GetValidator() {
-    UpdateFormatsIfNeeded();
-    return m_type_validator_sp;
-  }
-
-  void SetValidator(lldb::TypeValidatorImplSP format) {
-    m_type_validator_sp = format;
-    ClearUserVisibleData(eClearUserVisibleDataItemsValidator);
   }
 
   void SetValueFormat(lldb::TypeFormatImplSP format) {
@@ -857,9 +842,6 @@ protected:
                                  // differs from the summary
   // in that the summary is consed up by us, the object_desc_string is builtin.
 
-  llvm::Optional<std::pair<TypeValidatorResult, std::string>>
-      m_validation_result;
-
   CompilerType m_override_type; // If the type of the value object should be
                                 // overridden, the type to impose.
 
@@ -888,7 +870,6 @@ protected:
   lldb::TypeSummaryImplSP m_type_summary_sp;
   lldb::TypeFormatImplSP m_type_format_sp;
   lldb::SyntheticChildrenSP m_synthetic_children_sp;
-  lldb::TypeValidatorImplSP m_type_validator_sp;
   ProcessModID m_user_id_of_forced_summary;
   AddressType m_address_type_of_ptr_or_ref_children;
 
@@ -906,7 +887,6 @@ protected:
       m_is_synthetic_children_generated : 1;
 
   friend class ValueObjectChild;
-  friend class ClangExpressionDeclMap; // For GetValue
   friend class ExpressionVariable;     // For SetName
   friend class Target;                 // For SetName
   friend class ValueObjectConstResultImpl;
@@ -922,7 +902,7 @@ protected:
   // Use this constructor to create a "root variable object".  The ValueObject
   // will be locked to this context through-out its lifespan.
 
-  ValueObject(ExecutionContextScope *exe_scope,
+  ValueObject(ExecutionContextScope *exe_scope, ValueObjectManager &manager,
               AddressType child_ptr_or_ref_addr_type = eAddressTypeLoad);
 
   // Use this constructor to create a ValueObject owned by another ValueObject.
@@ -946,7 +926,7 @@ protected:
 
   virtual bool HasDynamicValueTypeInfo() { return false; }
 
-  virtual void CalculateSyntheticValue(bool use_synthetic = true);
+  virtual void CalculateSyntheticValue();
 
   // Should only be called by ValueObject::GetChildAtIndex() Returns a
   // ValueObject managed by this ValueObject's manager.
@@ -983,8 +963,14 @@ protected:
 
   void SetPreferredDisplayLanguageIfNeeded(lldb::LanguageType);
 
+protected:
+  virtual void DoUpdateChildrenAddressType(ValueObject &valobj) { return; };
+
 private:
   virtual CompilerType MaybeCalculateCompleteType();
+  void UpdateChildrenAddressType() {
+    GetRoot()->DoUpdateChildrenAddressType(*this);
+  }
 
   lldb::ValueObjectSP GetValueForExpressionPath_Impl(
       llvm::StringRef expression_cstr,
@@ -993,7 +979,8 @@ private:
       const GetValueForExpressionPathOptions &options,
       ExpressionPathAftermath *final_task_on_target);
 
-  DISALLOW_COPY_AND_ASSIGN(ValueObject);
+  ValueObject(const ValueObject &) = delete;
+  const ValueObject &operator=(const ValueObject &) = delete;
 };
 
 // A value object manager class that is seeded with the static variable value
@@ -1039,4 +1026,4 @@ public:
 
 } // namespace lldb_private
 
-#endif // liblldb_ValueObject_h_
+#endif // LLDB_CORE_VALUEOBJECT_H

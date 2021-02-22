@@ -8,7 +8,22 @@ set(GWP_ASAN_UNITTEST_CFLAGS
   -g)
 
 file(GLOB GWP_ASAN_HEADERS ../*.h)
-file(GLOB GWP_ASAN_UNITTESTS *.cpp)
+set(GWP_ASAN_UNITTESTS
+  optional/printf_sanitizer_common.cpp
+  alignment.cpp
+  backtrace.cpp
+  basic.cpp
+  compression.cpp
+  iterate.cpp
+  crash_handler_api.cpp
+  driver.cpp
+  mutex_test.cpp
+  slot_reuse.cpp
+  thread_contention.cpp
+  harness.cpp
+  enable_disable.cpp
+  late_init.cpp)
+
 set(GWP_ASAN_UNIT_TEST_HEADERS
   ${GWP_ASAN_HEADERS}
   harness.h)
@@ -28,11 +43,10 @@ if(COMPILER_RT_DEFAULT_TARGET_ARCH IN_LIST GWP_ASAN_SUPPORTED_ARCH)
 
   set(GWP_ASAN_TEST_RUNTIME RTGwpAsanTest.${arch})
 
-  # RTSanitizerCommonNoTermination(NoLibc) required for __sanitizer::Printf.
   set(GWP_ASAN_TEST_RUNTIME_OBJECTS
     $<TARGET_OBJECTS:RTGwpAsan.${arch}>
     $<TARGET_OBJECTS:RTGwpAsanBacktraceSanitizerCommon.${arch}>
-    $<TARGET_OBJECTS:RTGwpAsanOptionsParser.${arch}>
+    $<TARGET_OBJECTS:RTGwpAsanSegvHandler.${arch}>
     $<TARGET_OBJECTS:RTSanitizerCommon.${arch}>
     $<TARGET_OBJECTS:RTSanitizerCommonLibc.${arch}>
     $<TARGET_OBJECTS:RTSanitizerCommonSymbolizer.${arch}>)

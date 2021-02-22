@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef lldb_TypeCategoryMap_h_
-#define lldb_TypeCategoryMap_h_
+#ifndef LLDB_DATAFORMATTERS_TYPECATEGORYMAP_H
+#define LLDB_DATAFORMATTERS_TYPECATEGORYMAP_H
 
 #include <functional>
 #include <list>
@@ -77,14 +77,7 @@ public:
 
   uint32_t GetCount() { return m_map.size(); }
 
-  lldb::TypeFormatImplSP GetFormat(FormattersMatchData &match_data);
-
-  lldb::TypeSummaryImplSP GetSummaryFormat(FormattersMatchData &match_data);
-
-  lldb::SyntheticChildrenSP
-  GetSyntheticChildren(FormattersMatchData &match_data);
-
-  lldb::TypeValidatorImplSP GetValidator(FormattersMatchData &match_data);
+  template <typename ImplSP> void Get(FormattersMatchData &, ImplSP &);
 
 private:
   class delete_matching_categories {
@@ -115,4 +108,4 @@ private:
 };
 } // namespace lldb_private
 
-#endif // lldb_TypeCategoryMap_h_
+#endif // LLDB_DATAFORMATTERS_TYPECATEGORYMAP_H

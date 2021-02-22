@@ -1,4 +1,4 @@
-//===-- CxxStringTypes.cpp --------------------------------------*- C++ -*-===//
+//===-- CxxStringTypes.cpp ------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,13 +10,13 @@
 
 #include "llvm/Support/ConvertUTF.h"
 
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/DataFormatters/FormattersHelpers.h"
 #include "lldb/DataFormatters/StringPrinter.h"
 #include "lldb/DataFormatters/TypeSummary.h"
 #include "lldb/Host/Time.h"
-#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Target/ProcessStructReader.h"
 #include "lldb/Target/SectionLoadList.h"
 #include "lldb/Target/Target.h"
@@ -31,6 +31,31 @@
 using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::formatters;
+
+bool lldb_private::formatters::Char8StringSummaryProvider(
+    ValueObject &valobj, Stream &stream, const TypeSummaryOptions &) {
+  ProcessSP process_sp = valobj.GetProcessSP();
+  if (!process_sp)
+    return false;
+
+  lldb::addr_t valobj_addr = GetArrayAddressOrPointerValue(valobj);
+  if (valobj_addr == 0 || valobj_addr == LLDB_INVALID_ADDRESS)
+    return false;
+
+  StringPrinter::ReadStringAndDumpToStreamOptions options(valobj);
+  options.SetLocation(valobj_addr);
+  options.SetProcessSP(process_sp);
+  options.SetStream(&stream);
+  options.SetPrefixToken("u8");
+
+  if (!StringPrinter::ReadStringAndDumpToStream<
+          StringPrinter::StringElementType::UTF8>(options)) {
+    stream.Printf("Summary Unavailable");
+    return true;
+  }
+
+  return true;
+}
 
 bool lldb_private::formatters::Char16StringSummaryProvider(
     ValueObject &valobj, Stream &stream, const TypeSummaryOptions &) {
@@ -126,6 +151,32 @@ bool lldb_private::formatters::WCharStringSummaryProvider(
     return true;
   }
   return true;
+}
+
+bool lldb_private::formatters::Char8SummaryProvider(
+    ValueObject &valobj, Stream &stream, const TypeSummaryOptions &) {
+  DataExtractor data;
+  Status error;
+  valobj.GetData(data, error);
+
+  if (error.Fail())
+    return false;
+
+  std::string value;
+  valobj.GetValueAsCString(lldb::eFormatUnicode8, value);
+  if (!value.empty())
+    stream.Printf("%s ", value.c_str());
+
+  StringPrinter::ReadBufferAndDumpToStreamOptions options(valobj);
+  options.SetData(data);
+  options.SetStream(&stream);
+  options.SetPrefixToken("u8");
+  options.SetQuote('\'');
+  options.SetSourceSize(1);
+  options.SetBinaryZeroIsTerminator(false);
+
+  return StringPrinter::ReadBufferAndDumpToStream<
+      StringPrinter::StringElementType::UTF8>(options);
 }
 
 bool lldb_private::formatters::Char16SummaryProvider(

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ObjCLanguageRuntime_h_
-#define liblldb_ObjCLanguageRuntime_h_
+#ifndef LLDB_SOURCE_PLUGINS_LANGUAGERUNTIME_OBJC_OBJCLANGUAGERUNTIME_H
+#define LLDB_SOURCE_PLUGINS_LANGUAGERUNTIME_OBJC_OBJCLANGUAGERUNTIME_H
 
 #include <functional>
 #include <map>
@@ -28,6 +28,7 @@ class CommandObjectObjC_ClassTable_Dump;
 
 namespace lldb_private {
 
+class TypeSystemClang;
 class UtilityFunction;
 
 class ObjCLanguageRuntime : public LanguageRuntime {
@@ -143,15 +144,12 @@ public:
   public:
     virtual ~EncodingToType();
 
-    virtual CompilerType RealizeType(ClangASTContext &ast_ctx, const char *name,
-                                     bool for_expression);
+    virtual CompilerType RealizeType(TypeSystemClang &ast_ctx, const char *name,
+                                     bool for_expression) = 0;
     virtual CompilerType RealizeType(const char *name, bool for_expression);
 
-    virtual CompilerType RealizeType(clang::ASTContext &ast_ctx,
-                                     const char *name, bool for_expression) = 0;
-
   protected:
-    std::unique_ptr<ClangASTContext> m_scratch_ast_ctx_up;
+    std::unique_ptr<TypeSystemClang> m_scratch_ast_ctx_up;
   };
 
   class ObjCExceptionPrecondition : public BreakpointPrecondition {
@@ -188,7 +186,8 @@ public:
     TaggedPointerVendor() = default;
 
   private:
-    DISALLOW_COPY_AND_ASSIGN(TaggedPointerVendor);
+    TaggedPointerVendor(const TaggedPointerVendor &) = delete;
+    const TaggedPointerVendor &operator=(const TaggedPointerVendor &) = delete;
   };
 
   ~ObjCLanguageRuntime() override;
@@ -273,8 +272,6 @@ public:
 
   virtual ObjCISA GetISA(ConstString name);
 
-  virtual ConstString GetActualTypeName(ObjCISA isa);
-
   virtual ObjCISA GetParentClass(ObjCISA isa);
 
   // Finds the byte offset of the child_type ivar in parent_type.  If it can't
@@ -303,7 +300,7 @@ public:
 
   /// Check whether the name is "self" or "_cmd" and should show up in
   /// "frame variable".
-  bool IsWhitelistedRuntimeValue(ConstString name) override;
+  bool IsAllowedRuntimeValue(ConstString name) override;
 
 protected:
   // Classes that inherit from ObjCLanguageRuntime can see and modify these
@@ -421,9 +418,10 @@ protected:
 
   void ReadObjCLibraryIfNeeded(const ModuleList &module_list);
 
-  DISALLOW_COPY_AND_ASSIGN(ObjCLanguageRuntime);
+  ObjCLanguageRuntime(const ObjCLanguageRuntime &) = delete;
+  const ObjCLanguageRuntime &operator=(const ObjCLanguageRuntime &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_ObjCLanguageRuntime_h_
+#endif // LLDB_SOURCE_PLUGINS_LANGUAGERUNTIME_OBJC_OBJCLANGUAGERUNTIME_H

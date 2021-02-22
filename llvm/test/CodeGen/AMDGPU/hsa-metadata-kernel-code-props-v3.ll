@@ -8,11 +8,11 @@
 ; CHECK: ---
 ; CHECK:  amdhsa.kernels:
 
-; CHECK:   - .args:           
+; CHECK:   - .args:
 ; CHECK:     .group_segment_fixed_size: 0
 ; CHECK:     .kernarg_segment_align: 8
 ; CHECK:     .kernarg_segment_size: 24
-; CHECK:     .max_flat_workgroup_size: 256
+; CHECK:     .max_flat_workgroup_size: 1024
 ; CHECK:     .name:           test
 ; CHECK:     .private_segment_fixed_size: 0
 ; WAVE64:    .sgpr_count:     8
@@ -33,11 +33,25 @@ entry:
   ret void
 }
 
+; CHECK:   - .args:
+; CHECK:     .max_flat_workgroup_size: 256
+define amdgpu_kernel void @test_max_flat_workgroup_size(
+    half addrspace(1)* %r,
+    half addrspace(1)* %a,
+    half addrspace(1)* %b) #2 {
+entry:
+  %a.val = load half, half addrspace(1)* %a
+  %b.val = load half, half addrspace(1)* %b
+  %r.val = fadd half %a.val, %b.val
+  store half %r.val, half addrspace(1)* %r
+  ret void
+}
+
 ; CHECK:   .name:       num_spilled_sgprs
-; GFX700:   .sgpr_spill_count: 40
-; GFX803:   .sgpr_spill_count: 24
-; GFX900:   .sgpr_spill_count: 24
-; GFX1010:  .sgpr_spill_count: 24
+; GFX700:   .sgpr_spill_count: 38
+; GFX803:   .sgpr_spill_count: 22
+; GFX900:   .sgpr_spill_count: 22
+; GFX1010:  .sgpr_spill_count: 22
 ; CHECK:   .symbol:     num_spilled_sgprs.kd
 define amdgpu_kernel void @num_spilled_sgprs(
     i32 addrspace(1)* %out0, i32 addrspace(1)* %out1, [8 x i32],
@@ -149,3 +163,4 @@ define amdgpu_kernel void @num_spilled_vgprs() #1 {
 
 attributes #0 = { "amdgpu-num-sgpr"="14" }
 attributes #1 = { "amdgpu-num-vgpr"="20" }
+attributes #2 = { "amdgpu-flat-work-group-size"="1,256" }

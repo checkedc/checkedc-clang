@@ -1,9 +1,7 @@
 // RUN: %exploded_graph_rewriter %s | FileCheck %s
 
-// FIXME: Substitution doesn't seem to work on Windows.
-// UNSUPPORTED: system-windows
-
 // CHECK: <b>Store: </b>
+// CHECK-SAME: <font color="gray">(0x2)</font>
 // CHECK-SAME: <table border="0">
 // CHECK-SAME:   <tr>
 // CHECK-SAME:     <td align="left">
@@ -22,12 +20,15 @@
 // CHECK-SAME: </table>
 Node0x1 [shape=record,label=
  "{
-    { "node_id": 1,
-      "pointer": "0x1",
-      "has_report": false,
-      "is_sink": false,
-      "state_id": 2,
-      "program_points": [],
+    { "state_id": 2,
+      "program_points": [
+        {
+          "kind": "BlockEntrance", "block_id": 1,
+          "terminator": null, "term_kind": null,
+          "tag": null, "node_id": 1,
+          "has_report": 0, "is_sink": 0
+        }
+      ],
       "program_state": {
         "environment": null,
         "constraints": null,

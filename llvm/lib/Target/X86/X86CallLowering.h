@@ -14,12 +14,12 @@
 #ifndef LLVM_LIB_TARGET_X86_X86CALLLOWERING_H
 #define LLVM_LIB_TARGET_X86_X86CALLLOWERING_H
 
-#include "llvm/ADT/ArrayRef.h"
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
 #include <functional>
 
 namespace llvm {
 
+template <typename T> class ArrayRef;
 class DataLayout;
 class MachineRegisterInfo;
 class X86TargetLowering;
@@ -34,9 +34,8 @@ public:
   bool lowerFormalArguments(MachineIRBuilder &MIRBuilder, const Function &F,
                             ArrayRef<ArrayRef<Register>> VRegs) const override;
 
-  bool lowerCall(MachineIRBuilder &MIRBuilder, CallingConv::ID CallConv,
-                 const MachineOperand &Callee, const ArgInfo &OrigRet,
-                 ArrayRef<ArgInfo> OrigArgs) const override;
+  bool lowerCall(MachineIRBuilder &MIRBuilder,
+                 CallLoweringInfo &Info) const override;
 
 private:
   /// A function of this type is used to perform value split action.

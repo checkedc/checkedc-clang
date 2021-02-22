@@ -55,6 +55,7 @@
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/Value.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
@@ -788,12 +789,6 @@ public:
     // instructions to partitions.
     Partitions.setupPartitionIdOnInstructions();
 
-    // To keep things simple have an empty preheader before we version or clone
-    // the loop.  (Also split if this has no predecessor, i.e. entry, because we
-    // rely on PH having a predecessor.)
-    if (!PH->getSinglePredecessor() || &*PH->begin() != PH->getTerminator())
-      SplitBlock(PH, PH->getTerminator(), DT, LI);
-
     // If we need run-time checks, version the loop now.
     auto PtrToPartition = Partitions.computePartitionSetForPointers(*LAI);
     const auto *RtPtrChecking = LAI->getRuntimePointerChecking();
@@ -805,6 +800,12 @@ public:
       return fail("RuntimeCheckWithConvergent",
                   "may not insert runtime check with convergent operation");
     }
+
+    // To keep things simple have an empty preheader before we version or clone
+    // the loop.  (Also split if this has no predecessor, i.e. entry, because we
+    // rely on PH having a predecessor.)
+    if (!PH->getSinglePredecessor() || &*PH->begin() != PH->getTerminator())
+      SplitBlock(PH, PH->getTerminator(), DT, LI);
 
     if (!Pred.isAlwaysTrue() || !Checks.empty()) {
       assert(!LAI->hasConvergentOp() && "inserting illegal loop versioning");
@@ -902,15 +903,14 @@ private:
   /// \p PtrToPartition contains the partition number for pointers.  Partition
   /// number -1 means that the pointer is used in multiple partitions.  In this
   /// case we can't safely omit the check.
-  SmallVector<RuntimePointerChecking::PointerCheck, 4>
-  includeOnlyCrossPartitionChecks(
-      const SmallVectorImpl<RuntimePointerChecking::PointerCheck> &AllChecks,
+  SmallVector<RuntimePointerCheck, 4> includeOnlyCrossPartitionChecks(
+      const SmallVectorImpl<RuntimePointerCheck> &AllChecks,
       const SmallVectorImpl<int> &PtrToPartition,
       const RuntimePointerChecking *RtPtrChecking) {
-    SmallVector<RuntimePointerChecking::PointerCheck, 4> Checks;
+    SmallVector<RuntimePointerCheck, 4> Checks;
 
     copy_if(AllChecks, std::back_inserter(Checks),
-            [&](const RuntimePointerChecking::PointerCheck &Check) {
+            [&](const RuntimePointerCheck &Check) {
               for (unsigned PtrIdx1 : Check.first->Members)
                 for (unsigned PtrIdx2 : Check.second->Members)
                   // Only include this check if there is a pair of pointers

@@ -1,11 +1,13 @@
 // RUN: %clangxx_asan -xc++ -shared -fPIC -o %t.so - < %s
 // RUN: %clang_asan %s -o %t.out -ldl
-// RUN: ASAN_OPTIONS=verbosity=1 not %t.out %t.so 2>&1 | FileCheck %s
+//
+// RUN: { env ASAN_OPTIONS=verbosity=1 %t.out %t.so || : ; } 2>&1 | FileCheck %s
 //
 // CHECK: AddressSanitizer: failed to intercept '__cxa_throw'
 //
-// dlopen() can not be intercepted on Android
-// UNSUPPORTED: android
+// This tests assumes static linking of the asan runtime.
+// UNSUPPORTED: asan-dynamic-runtime
+
 #ifdef __cplusplus
 
 static void foo(void) {
