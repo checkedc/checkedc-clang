@@ -1,3 +1,10 @@
+// This test fails on Windows X64 and X86 after upgrading to Clang 11.
+// 
+// https://github.com/microsoft/checkedc-clang/issues/985
+// https://github.com/microsoft/checkedc-clang/pull/984
+//
+// UNSUPPORTED: system-windows
+
 // RUN: %clang_analyze_cc1 -analyzer-checker=core,alpha.security.taint,debug.TaintTest,unix.Malloc %s -verify -analyzer-output=sarif -o - | %normalize_sarif | diff -U1 -b %S/Inputs/expected-sarif/sarif-multi-diagnostic-test.c.sarif -
 #include "../Inputs/system-header-simulator.h"
 #include "../Inputs/system-header-simulator-for-malloc.h"
