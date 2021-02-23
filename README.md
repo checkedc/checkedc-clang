@@ -10,8 +10,8 @@ C specification is available at the
 
 ### Source code update
 
-On Feb 18, 2020 we updated the checkedc-clang sources to upstream release_90,
-specifically [this](http://llvm.org/viewvc/llvm-project?view=revision&revision=366428) commit.
+On Feb 19, 2021 we updated the checkedc-clang sources to upstream release_110,
+specifically [this](https://github.com/llvm/llvm-project/commit/2e10b7a39b930ef8d9c4362509d8835b221fbc0a) commit.
 
 ### Transition to monorepo
 
