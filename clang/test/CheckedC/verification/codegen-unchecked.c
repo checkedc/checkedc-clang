@@ -3,7 +3,7 @@
 // dynamic check failed block.
 //
 //
-// RUN: %clang -finject-verifier-calls -funchecked-pointers-dynamic-check -emit-llvm -S %s -o - | FileCheck %s
+// RUN: %clang_cc1 -finject-verifier-calls -funchecked-pointers-dynamic-check -emit-llvm %s -o - | FileCheck %s
 
 extern void __VERIFIER_error (void);
 extern void __VERIFIER_assume (int);
