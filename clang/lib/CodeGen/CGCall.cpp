@@ -4264,7 +4264,6 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         CGM, Loc, dyn_cast_or_null<FunctionDecl>(CurCodeDecl), FD, CallArgs);
   }
 
-#ifndef NDEBUG
   if (!(CallInfo.isVariadic() && CallInfo.getArgStruct())) {
     // For an inalloca varargs function, we don't expect CallInfo to match the
     // function pointer's type, because the inalloca struct a will have extra
@@ -4310,10 +4309,12 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
 
     if (getLangOpts().CheckedC)
       IRFuncTy = cast<llvm::FunctionType>(TypeFromVal);
-    else
+    else {
+#ifndef NDEBUG
       assert(IRFuncTy == TypeFromVal);
-  }
 #endif
+    }
+  }
 
   // 1. Set up the arguments.
 
