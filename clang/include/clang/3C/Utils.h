@@ -142,7 +142,12 @@ bool isVarArgType(const std::string &TypeName);
 bool isStructOrUnionType(clang::VarDecl *VD);
 
 // Helper method to print a Type in a way that can be represented in the source.
-std::string tyToStr(const clang::Type *T);
+// If Name is given, it is included as the variable name (which otherwise isn't
+// trivial to do with function pointers, etc.).
+std::string tyToStr(const clang::Type *T, const std::string &Name = "");
+
+// Same as tyToStr with a QualType.
+std::string qtyToStr(clang::QualType QT, const std::string &Name = "");
 
 // Get the end source location of the end of the provided function.
 clang::SourceLocation getFunctionDeclRParen(clang::FunctionDecl *FD,

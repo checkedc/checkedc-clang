@@ -122,6 +122,8 @@ protected:
   void buildItypeDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
                       std::string &Type, std::string &IType, bool &RewriteParm,
                       bool &RewriteRet);
+
+  bool hasDeclWithTypedef(const FunctionDecl *FD);
 };
 
 class FieldFinder : public RecursiveASTVisitor<FieldFinder> {

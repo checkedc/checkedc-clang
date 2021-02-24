@@ -539,13 +539,13 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   if (!Defnc->hasBody())
     return true;
 
-  // DidAnyParams tracks if we have made any changes to the parameters for this
-  // declarations. If no changes are made, then there is no need to rewrite the
-  // parameter declarations. This will also be set to true if an itype is added
-  // to the return, since return itypes are inserted afters params.
+  // RewriteParams and RewriteReturn track if we will need to rewrite the
+  // parameter and return type declarations on this function. They are first
+  // set to true if any changes are made to the types of the parameter and
+  // return. If a type has changed, then it must be rewritten. There are then
+  // some special circumstances which require rewriting the parameter or return
+  // even when the type as not changed.
   bool RewriteParams = false;
-  // Does the same job as RewriteParams, but with respect to the return value.
-  // If the return does not change, there is no need to rewrite it.
   bool RewriteReturn = false;
 
   // Get rewritten parameter variable declarations
@@ -574,11 +574,26 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
                      ReturnVar, ItypeStr, RewriteParams, RewriteReturn);
 
   // If the return is a function pointer, we need to rewrite the whole
-  // declaration even if no actual changes were made to the parameters. It could
-  // probably be done better, but getting the correct source locations is
-  // painful.
+  // declaration even if no actual changes were made to the parameters because
+  // the parameter for the function pointer type appear later in the source than
+  // the parameters for the function declaration. It could probably be done
+  // better, but getting the correct source locations is painful.
   if (FD->getReturnType()->isFunctionPointerType() && RewriteReturn)
     RewriteParams = true;
+
+  // If the function is declared using a typedef for the function type, then we
+  // need to rewrite parameters and the return if either would have been
+  // rewritten. What this does is expand the typedef to the full function type
+  // to avoid the problem of rewriting inside the typedef.
+  // FIXME: If issue #437 is fixed in way that preserves typedefs on function
+  //        declarations, then this conditional should be removed to enable
+  //        separate rewriting of return type and parameters on the
+  //        corresponding definition.
+  //        https://github.com/correctcomputation/checkedc-clang/issues/437
+  if ((RewriteReturn || RewriteParams) && hasDeclWithTypedef(FD)) {
+    RewriteParams = true;
+    RewriteReturn = true;
+  }
 
   // Combine parameter and return variables rewritings into a single rewriting
   // for the entire function declaration.
@@ -647,6 +662,10 @@ void FunctionDeclBuilder::buildItypeDecl(PVConstraint *Defn,
   return;
 }
 
+// Note: For a parameter, Type + IType will give the full declaration (including
+// the name) but the breakdown between Type and IType is not guaranteed. For a
+// return, Type will be what goes before the name and IType will be what goes
+// after the parentheses.
 void
 FunctionDeclBuilder::buildDeclVar(PVConstraint *IntCV, PVConstraint *ExtCV,
                                   DeclaratorDecl *Decl, std::string &Type,
@@ -668,16 +687,34 @@ FunctionDeclBuilder::buildDeclVar(PVConstraint *IntCV, PVConstraint *ExtCV,
       buildItypeDecl(ExtCV, Decl, Type, IType, RewriteParm, RewriteRet);
     return;
   }
-  // Variables that do not need to be rewritten fall through to here. Type
-  // strings are taken unchanged from the original source.
-  if (isa<ParmVarDecl>(Decl)) {
-    Type = getSourceText(Decl->getSourceRange(), *Context);
-    IType = "";
+  // Variables that do not need to be rewritten fall through to here.
+  // For parameter variables, we try to extract the declaration from the source
+  // code. This preserves macros and other formatting. This isn't possible for
+  // return variables because the itype on returns is located after the
+  // parameter list. Sometimes we cannot get the original source for a parameter
+  // declaration, for example if a function prototype is declared using a
+  // typedef or the parameter declaration is inside a macro. For these cases, we
+  // just fall back to reconstructing the declaration from the PVConstraint.
+  ParmVarDecl *PVD = dyn_cast<ParmVarDecl>(Decl);
+  if (PVD) {
+    SourceRange Range = PVD->getSourceRange();
+    if (Range.isValid()) {
+      Type = getSourceText(Range, *Context);
+      if (!Type.empty()) {
+        // Great, we got the original source including any itype and bounds.
+        IType = "";
+        return;
+      }
+    }
+    // Otherwise, reconstruct the name and type, and reuse the code below for
+    // the itype and bounds.
+    // TODO: Do we care about `register` or anything else this doesn't handle?
+    Type = qtyToStr(PVD->getOriginalType(), PVD->getNameAsString());
   } else {
     Type = ExtCV->getOriginalTy() + " ";
-    IType = getExistingIType(ExtCV);
-    IType += ABRewriter.getBoundsString(ExtCV, Decl, !IType.empty());
   }
+  IType = getExistingIType(ExtCV);
+  IType += ABRewriter.getBoundsString(ExtCV, Decl, !IType.empty());
 }
 
 std::string FunctionDeclBuilder::getExistingIType(ConstraintVariable *DeclC) {
@@ -690,6 +727,37 @@ std::string FunctionDeclBuilder::getExistingIType(ConstraintVariable *DeclC) {
 // Check if the function is handled by this visitor.
 bool FunctionDeclBuilder::isFunctionVisited(std::string FuncName) {
   return VisitedSet.find(FuncName) != VisitedSet.end();
+}
+
+// Given a function declaration figure out if this declaration or any other
+// declaration of the same function is declared using a typedefed function type.
+bool FunctionDeclBuilder::hasDeclWithTypedef(const FunctionDecl *FD) {
+  for (FunctionDecl *FDIter : FD->redecls()) {
+    // If the declaration type is TypedefType, then this is definitely declared
+    // using a typedef. This only happens when the typedefed declaration is the
+    // first declaration of a function.
+    if (isa_and_nonnull<TypedefType>(FDIter->getType().getTypePtrOrNull()))
+      return true;
+    // Next look for a TypeDefTypeLoc. This is present on the typedefed
+    // declaration even when it is not the first declaration.
+    TypeSourceInfo *TSI = FDIter->getTypeSourceInfo();
+    if (TSI) {
+      if (!TSI->getTypeLoc().getAs<TypedefTypeLoc>().isNull())
+        return true;
+    } else {
+      // This still could possibly be a typedef type if TSI was NULL.
+      // TypeSourceInfo is null for implicit function declarations, so if a
+      // implicit declaration uses a typedef, it will be missed. That's fine
+      // since an implicit declaration can't be rewritten anyways.
+      // There might be other ways it can be null that I'm not aware of.
+      if (Verbose) {
+        llvm::errs() << "Unable to conclusively determine if a function "
+                     << "declaration uses a typedef.\n";
+        FDIter->dump();
+      }
+    }
+  }
+  return false;
 }
 
 bool FieldFinder::VisitFieldDecl(FieldDecl *FD) {
