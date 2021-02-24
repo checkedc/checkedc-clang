@@ -128,8 +128,48 @@ GlobalVariableGroups::~GlobalVariableGroups() {
 // Note that R.getRangeSize will return -1 if SR is within
 // a macro as well. This means that we can't re-write any
 // text that occurs within a macro.
-bool canRewrite(Rewriter &R, SourceRange &SR) {
+bool canRewrite(Rewriter &R, const CharSourceRange &SR) {
   return SR.isValid() && (R.getRangeSize(SR) != -1);
+}
+
+void rewriteSourceRange(Rewriter &R, const SourceRange &Range,
+                        const std::string &NewText, bool ErrFail) {
+  rewriteSourceRange(R, CharSourceRange::getTokenRange(Range), NewText, ErrFail);
+}
+
+void rewriteSourceRange(Rewriter &R, const CharSourceRange &Range,
+                        const std::string &NewText, bool ErrFail) {
+  // Attempt to rewrite the source range. First use the source range directly
+  // from the parameter.
+  bool RewriteSuccess = false;
+  if (canRewrite(R, Range))
+    RewriteSuccess = !R.ReplaceText(Range, NewText);
+
+  // If initial rewriting attempt failed (either because canRewrite returned
+  // false or because ReplaceText failed (returning true), try rewriting again
+  // with the source range expanded to be outside any macros used in the range.
+  if (!RewriteSuccess) {
+    CharSourceRange Expand = clang::Lexer::makeFileCharRange(Range,
+                                                             R.getSourceMgr(),
+                                                             R.getLangOpts());
+    if (canRewrite(R, Expand))
+      RewriteSuccess = !R.ReplaceText(Expand, NewText);
+  }
+
+  // Emit an error if we were unable to rewrite the source range. This is more
+  // likely to be a bug in 3C than an issue with the input, but emitting a
+  // diagnostic here with the intended rewriting is much more useful than
+  // crashing with an assert fail.
+  if (!RewriteSuccess) {
+    clang::DiagnosticsEngine &DE = R.getSourceMgr().getDiagnostics();
+    unsigned ErrorId =
+      DE.getCustomDiagID(
+        ErrFail ? DiagnosticsEngine::Error : DiagnosticsEngine::Warning,
+        "Unable to rewrite converted source range. Intended rewriting: \"%0\"");
+    auto ErrorBuilder = DE.Report(Range.getBegin(), ErrorId);
+    ErrorBuilder.AddSourceRange(R.getSourceMgr().getExpansionRange(Range));
+    ErrorBuilder.AddString(NewText);
+  }
 }
 
 static void emit(Rewriter &R, ASTContext &C) {
@@ -308,12 +348,9 @@ private:
            }));
 
     for (auto *CV : CVSingleton)
-      // Only rewrite if the type has changed.
-      if (CV->anyChanges(Vars)) {
-        // Replace the original type with this new one
-        if (canRewrite(Writer, Range))
-          Writer.ReplaceText(Range, CV->mkString(Vars, false));
-      }
+      // Replace the original type with this new one if the type has changed
+      if (CV->anyChanges(Vars))
+        rewriteSourceRange(Writer, Range, CV->mkString(Vars, false));
   }
 };
 

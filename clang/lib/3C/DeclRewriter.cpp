@@ -201,9 +201,7 @@ void DeclRewriter::rewriteParmVarDecl(ParmVarDeclReplacement *N) {
       ParmVarDecl *Rewrite = CurFD->getParamDecl(PIdx);
       assert(Rewrite != nullptr);
       SourceRange TR = Rewrite->getSourceRange();
-
-      if (canRewrite(R, TR))
-        R.ReplaceText(TR, N->getReplacement());
+      rewriteSourceRange(R, TR, N->getReplacement());
     }
 }
 
@@ -340,7 +338,7 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite,
         // either the end of the declaration or just before the initializer if
         // one is present.
         SourceRange SR(PrevEnd, DL->getEndLoc());
-        R.ReplaceText(SR, DeclStream.str());
+        rewriteSourceRange(R, SR, DeclStream.str());
 
         // Undo prior trickery. This need to happen so that the PSL for the decl
         // is not changed since the PSL is used as a map key in a few places.
@@ -362,7 +360,7 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite,
     // are separate statements separated by a semicolon and a newline.
     else
       End = getNextCommaOrSemicolon(DL->getEndLoc());
-    R.ReplaceText(End, ReplaceText);
+    rewriteSourceRange(R, End, ReplaceText);
     // Offset by one to skip past what we've just added so it isn't overwritten.
     PrevEnd = End.getEnd().getLocWithOffset(1);
   }
@@ -402,48 +400,12 @@ void DeclRewriter::doDeclRewrite(SourceRange &SR, DeclReplacement *N) {
     }
   }
 
-  if (canRewrite(R, SR)) {
-    R.ReplaceText(SR, Replacement);
-  } else {
-    // This can happen if SR is within a macro. If that is the case, maybe there
-    // is still something we can do because Decl refers to a non-macro line.
-    SourceRange Possible(R.getSourceMgr().getExpansionLoc(SR.getBegin()),
-                         SR.getEnd());
-
-    if (canRewrite(R, Possible))
-      R.ReplaceText(Possible, Replacement);
-    else
-      llvm_unreachable(
-          "Still can't rewrite declaration."
-          "This should have been made WILD during constraint generation.");
-  }
+  rewriteSourceRange(R, SR, Replacement);
 }
 
 void DeclRewriter::rewriteFunctionDecl(FunctionDeclReplacement *N) {
-  // TODO: If the return type is a fully-specified function pointer,
-  //       then clang will give back an invalid source range for the
-  //       return type source range. For now, check that the source
-  //       range is valid.
-  //       Additionally, a source range can be (mis) identified as
-  //       spanning multiple files. We don't know how to re-write that,
-  //       so don't.
-  SourceRange SR = N->getSourceRange(A.getSourceManager());
-  if (canRewrite(R, SR)) {
-    R.ReplaceText(SR, N->getReplacement());
-  } else {
-    SourceRange Possible(R.getSourceMgr().getExpansionLoc(SR.getBegin()),
-                         SR.getEnd());
-    if (canRewrite(R, Possible)) {
-      R.ReplaceText(Possible, N->getReplacement());
-    } else if (Verbose) {
-      errs() << "Don't know how to re-write FunctionDecl\n";
-      N->getDecl()->dump();
-      errs() << "at\n";
-      if (N->getStatement())
-        N->getStatement()->dump();
-      errs() << "with " << N->getReplacement() << "\n";
-    }
-  }
+  rewriteSourceRange(R, N->getSourceRange(A.getSourceManager()),
+                     N->getReplacement());
 }
 
 // A function to detect the presence of inline struct declarations
