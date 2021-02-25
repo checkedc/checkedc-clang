@@ -1,7 +1,7 @@
-// RUN: 3c -base-dir=%S %s > %S/temp_bodiless.c --
-// RUN: %clang -c %S/temp_bodiless.c
-// RUN: FileCheck -match-full-lines --input-file %S/temp_bodiless.c %s
-// RUN: rm %S/temp_bodiless.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S %s -- >%t
+// RUN: %clang -c %t
+// RUN: FileCheck -match-full-lines --input-file %t %s
 
 /***********************************************/
 /* Tests that functions without bodies         */
