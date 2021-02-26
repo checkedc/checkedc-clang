@@ -4310,6 +4310,9 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     if (getLangOpts().CheckedC)
       IRFuncTy = cast<llvm::FunctionType>(TypeFromVal);
     else {
+    // NOTE: This may cause merge conflicts during checkedc-clang source
+    // upgrades. For more details refer
+    // https://github.com/microsoft/checkedc-clang/pull/990
 #ifndef NDEBUG
       assert(IRFuncTy == TypeFromVal);
 #endif
