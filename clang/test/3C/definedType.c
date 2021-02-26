@@ -1,11 +1,3 @@
-// This test currently fails on Windows X86, but the 3C team is waiting to try
-// to fix it until Microsoft addresses a problem that currently makes the tests
-// difficult to run on Windows X86:
-//
-// https://github.com/microsoft/checkedc-clang/pull/956#issuecomment-752317866
-//
-// UNSUPPORTED: system-windows
-
 // RUN: rm -rf %t*
 // RUN: 3c -base-dir=%S -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
 // RUN: 3c -base-dir=%S -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s

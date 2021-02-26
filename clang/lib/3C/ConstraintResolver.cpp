@@ -119,6 +119,7 @@ PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC, ConstAtom *PtrTyp,
 }
 
 static bool getSizeOfArg(Expr *Arg, QualType &ArgTy) {
+  Arg = Arg->IgnoreParenImpCasts();
   if (auto *SizeOf = dyn_cast<UnaryExprOrTypeTraitExpr>(Arg))
     if (SizeOf->getKind() == UETT_SizeOf) {
       ArgTy = SizeOf->getTypeOfArgument();
