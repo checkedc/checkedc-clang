@@ -4264,7 +4264,6 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         CGM, Loc, dyn_cast_or_null<FunctionDecl>(CurCodeDecl), FD, CallArgs);
   }
 
-#ifndef NDEBUG
   if (!(CallInfo.isVariadic() && CallInfo.getArgStruct())) {
     // For an inalloca varargs function, we don't expect CallInfo to match the
     // function pointer's type, because the inalloca struct a will have extra
@@ -4310,10 +4309,15 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
 
     if (getLangOpts().CheckedC)
       IRFuncTy = cast<llvm::FunctionType>(TypeFromVal);
-    else
+    else {
+    // NOTE: This may cause merge conflicts during checkedc-clang source
+    // upgrades. For more details refer
+    // https://github.com/microsoft/checkedc-clang/pull/990
+#ifndef NDEBUG
       assert(IRFuncTy == TypeFromVal);
-  }
 #endif
+    }
+  }
 
   // 1. Set up the arguments.
 
