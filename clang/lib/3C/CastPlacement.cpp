@@ -196,7 +196,8 @@ void CastPlacementVisitor::surroundByCast(ConstraintVariable *Dst,
 
   // If E is already a cast expression, we will try to rewrite the cast instead
   // of adding a new expression.
-  if (auto *CE = dyn_cast<CStyleCastExpr>(E->IgnoreParens())) {
+  if (isa<CStyleCastExpr>(E->IgnoreParens()) && CastKind == CAST_TO_WILD) {
+    auto *CE = cast<CStyleCastExpr>(E->IgnoreParens());
     SourceRange CastTypeRange(CE->getLParenLoc(), CE->getRParenLoc());
     assert("Cast expected to start with '('" && !CastStrs.first.empty() &&
            CastStrs.first[0] == '(');
