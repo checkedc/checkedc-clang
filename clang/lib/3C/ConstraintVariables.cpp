@@ -290,6 +290,14 @@ PointerVariableConstraint::PointerVariableConstraint(
       InFunc ? (N == RETVAR ? VarAtom::V_Return : VarAtom::V_Param)
              : VarAtom::V_Other;
 
+  // Even though references don't exist in C, `va_list` is a typedef of
+  // `__builtin_va_list &` on windows. In order to generate correct constraints
+  // for var arg functions on windows, we need to strip the reference type.
+  if (Ty->isLValueReferenceType()) {
+    QTy = Ty->getPointeeType();
+    Ty = QTy.getTypePtr();
+  }
+
   while (Ty->isPointerType() || Ty->isArrayType()) {
     // Is this a VarArg type?
     std::string TyName = tyToStr(Ty);
