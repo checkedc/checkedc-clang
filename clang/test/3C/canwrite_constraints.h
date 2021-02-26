@@ -19,3 +19,17 @@ int *foo_var = ((void *)0);
 // dedicated test for it.
 inline void no_op() {}
 // CHECK_HIGHER: inline void no_op() _Checked {}
+
+// Test the unwritable cast internal warning
+// (https://github.com/correctcomputation/checkedc-clang/issues/454) using the
+// known bug with itypes and function pointers
+// (https://github.com/correctcomputation/checkedc-clang/issues/423) as an
+// example.
+void unwritable_cast(void ((*g)(int *q)) : itype(_Ptr<void(_Ptr<int>)>)) {
+  // expected-warning@+1 {{Declaration in non-writable file}}
+  int *p = 0;
+  // Now 3C thinks it needs to insert _Assume_bounds_cast<_Ptr<int>> around `p`
+  // because it forgets that it is allowed to use the original type of `g`.
+  // expected-warning@+1 {{3C internal error: tried to insert a cast into an unwritable file}}
+  (*g)(p);
+}

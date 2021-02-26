@@ -177,6 +177,21 @@ CastPlacementVisitor::getCastString(ConstraintVariable *Dst,
 
 void CastPlacementVisitor::surroundByCast(ConstraintVariable *Dst,
                                           CastNeeded CastKind, Expr *E) {
+  PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(E, *Context);
+  if (!canWrite(PSL.getFileName())) {
+    // 3C has known bugs that can cause attempted cast insertion in
+    // unwritable files in common use cases. Until they are fixed, report a
+    // warning rather than letting the main "unwritable change" error trigger
+    // later.
+    clang::DiagnosticsEngine &DE = Writer.getSourceMgr().getDiagnostics();
+    unsigned ErrorId = DE.getCustomDiagID(
+      DiagnosticsEngine::Warning,
+      "3C internal error: tried to insert a cast into an unwritable file "
+      "(https://github.com/correctcomputation/checkedc-clang/issues/454)");
+    DE.Report(E->getBeginLoc(), ErrorId);
+    return;
+  }
+
   auto CastStrs = getCastString(Dst, CastKind);
 
   // If E is already a cast expression, we will try to rewrite the cast instead
