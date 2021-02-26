@@ -418,7 +418,12 @@ void DeclRewriter::rewriteFunctionDecl(FunctionDeclReplacement *N) {
 /*static*/ std::map<Decl *, Decl *> DeclRewriter::VDToRDMap;
 /*static*/ std::set<Decl *> DeclRewriter::InlineVarDecls;
 void DeclRewriter::detectInlineStruct(Decl *D, SourceManager &SM) {
-  if (RecordDecl *RD = dyn_cast<RecordDecl>(D)) {
+  RecordDecl *RD = dyn_cast<RecordDecl>(D);
+  if (RD != nullptr &&
+      // With -fms-extensions (default on Windows), Clang injects an implicit
+      // `struct _GUID` with an invalid location, which would cause an assertion
+      // failure in SM.isPointWithin below.
+      RD->getBeginLoc().isValid()) {
     LastRecordDecl = RD;
   }
   if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
