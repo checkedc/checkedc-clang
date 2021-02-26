@@ -601,7 +601,7 @@ static int __kmp_affinity_create_hwloc_map(AddrUnsPair **address2os,
 
   int depth = 3;
   int levels[5] = {0, 1, 2, 3, 4}; // package, [node,] [tile,] core, thread
-  int labels[3] = {0}; // package [,node] [,tile] - head of lables array
+  int labels[3] = {0}; // package [,node] [,tile] - head of labels array
   if (__kmp_numa_detected)
     ++depth;
   if (__kmp_tile_depth)
@@ -828,7 +828,7 @@ static int __kmp_affinity_create_hwloc_map(AddrUnsPair **address2os,
   }
 
   int depth_full = depth; // number of levels before compressing
-  // Find any levels with radiix 1, and remove them from the map
+  // Find any levels with radix 1, and remove them from the map
   // (except for the package level).
   depth = __kmp_affinity_remove_radix_one_levels(retval, nActiveThreads, depth,
                                                  levels);
@@ -918,7 +918,7 @@ static int __kmp_affinity_create_flat_map(AddrUnsPair **address2os,
     return 0;
   }
 
-  // Contruct the data structure to be returned.
+  // Construct the data structure to be returned.
   *address2os =
       (AddrUnsPair *)__kmp_allocate(sizeof(**address2os) * __kmp_avail_proc);
   int avail_ct = 0;
@@ -967,7 +967,7 @@ static int __kmp_affinity_create_proc_group_map(AddrUnsPair **address2os,
     return -1;
   }
 
-  // Contruct the data structure to be returned.
+  // Construct the data structure to be returned.
   *address2os =
       (AddrUnsPair *)__kmp_allocate(sizeof(**address2os) * __kmp_avail_proc);
   KMP_DEBUG_ASSERT(__kmp_pu_os_idx == NULL);
@@ -1124,7 +1124,7 @@ static int __kmp_affinity_create_apicid_map(AddrUnsPair **address2os,
     // - Older OSes are usually found on machines with older chips, which do not
     //   support HT.
     // - The performance penalty for mistakenly identifying a machine as HT when
-    //   it isn't (which results in blocktime being incorrecly set to 0) is
+    //   it isn't (which results in blocktime being incorrectly set to 0) is
     //   greater than the penalty when for mistakenly identifying a machine as
     //   being 1 thread/core when it is really HT enabled (which results in
     //   blocktime being incorrectly set to a positive value).
@@ -1849,7 +1849,7 @@ static int __kmp_affinity_create_x2apicid_map(AddrUnsPair **address2os,
     return 0;
   }
 
-  // Find any levels with radiix 1, and remove them from the map
+  // Find any levels with radix 1, and remove them from the map
   // (except for the package level).
   int new_depth = 0;
   for (level = 0; level < depth; level++) {
@@ -1968,7 +1968,8 @@ static void __kmp_dispatch_set_hierarchy_values() {
   __kmp_hier_max_units[kmp_hier_layer_e::LAYER_THREAD + 1] =
       nPackages * nCoresPerPkg * __kmp_nThreadsPerCore;
   __kmp_hier_max_units[kmp_hier_layer_e::LAYER_L1 + 1] = __kmp_ncores;
-#if KMP_ARCH_X86_64 && (KMP_OS_LINUX || KMP_OS_WINDOWS)
+#if KMP_ARCH_X86_64 && (KMP_OS_LINUX || KMP_OS_FREEBSD || KMP_OS_WINDOWS) && \
+    KMP_MIC_SUPPORTED
   if (__kmp_mic_type >= mic3)
     __kmp_hier_max_units[kmp_hier_layer_e::LAYER_L2 + 1] = __kmp_ncores / 2;
   else
@@ -1982,7 +1983,8 @@ static void __kmp_dispatch_set_hierarchy_values() {
   __kmp_hier_threads_per[kmp_hier_layer_e::LAYER_THREAD + 1] = 1;
   __kmp_hier_threads_per[kmp_hier_layer_e::LAYER_L1 + 1] =
       __kmp_nThreadsPerCore;
-#if KMP_ARCH_X86_64 && (KMP_OS_LINUX || KMP_OS_WINDOWS)
+#if KMP_ARCH_X86_64 && (KMP_OS_LINUX || KMP_OS_FREEBSD || KMP_OS_WINDOWS) && \
+    KMP_MIC_SUPPORTED
   if (__kmp_mic_type >= mic3)
     __kmp_hier_threads_per[kmp_hier_layer_e::LAYER_L2 + 1] =
         2 * __kmp_nThreadsPerCore;
@@ -2076,7 +2078,7 @@ static int __kmp_affinity_create_cpuinfo_map(AddrUnsPair **address2os,
     return -1;
   }
 
-  // Set the file pointer back to the begginning, so that we can scan the file
+  // Set the file pointer back to the beginning, so that we can scan the file
   // again, this time performing a full parse of the data. Allocate a vector of
   // ProcCpuInfo object, where we will place the data. Adding an extra element
   // at the end allows us to remove a lot of extra checks for termination
@@ -2461,7 +2463,7 @@ restart_radix_check:
             threadInfo[i][threadIdIndex] = threadIdCt++;
           }
 
-          // Aparrently the thread id field was specified for some entries and
+          // Apparently the thread id field was specified for some entries and
           // not others. Start the thread id counter off at the next higher
           // thread id.
           else if (threadIdCt <= threadInfo[i][threadIdIndex]) {
@@ -4194,7 +4196,7 @@ static void __kmp_aux_affinity_initialize(void) {
   if (__kmp_affinity_top_method == affinity_top_method_all) {
     // In the default code path, errors are not fatal - we just try using
     // another method. We only emit a warning message if affinity is on, or the
-    // verbose flag is set, an the nowarnings flag was not set.
+    // verbose flag is set, and the nowarnings flag was not set.
     const char *file_name = NULL;
     int line = 0;
 #if KMP_USE_HWLOC
@@ -4328,7 +4330,7 @@ static void __kmp_aux_affinity_initialize(void) {
   }
 #endif // KMP_USE_HWLOC
 
-// If the user has specified that a paricular topology discovery method is to be
+// If the user has specified that a particular topology discovery method is to be
 // used, then we abort if that method fails. The exception is group affinity,
 // which might have been implicitly set.
 
@@ -4647,7 +4649,7 @@ static void __kmp_aux_affinity_initialize(void) {
 #undef KMP_EXIT_AFF_NONE
 
 void __kmp_affinity_initialize(void) {
-  // Much of the code above was written assumming that if a machine was not
+  // Much of the code above was written assuming that if a machine was not
   // affinity capable, then __kmp_affinity_type == affinity_none.  We now
   // explicitly represent this as __kmp_affinity_type == affinity_disabled.
   // There are too many checks for __kmp_affinity_type == affinity_none
@@ -4713,7 +4715,7 @@ void __kmp_affinity_set_init_mask(int gtid, int isa_root) {
     KMP_CPU_ZERO(th->th.th_affin_mask);
   }
 
-  // Copy the thread mask to the kmp_info_t strucuture. If
+  // Copy the thread mask to the kmp_info_t structure. If
   // __kmp_affinity_type == affinity_none, copy the "full" mask, i.e. one that
   // has all of the OS proc ids set, or if __kmp_affinity_respect_mask is set,
   // then the full mask is the same as the mask of the initialization thread.
@@ -4823,7 +4825,7 @@ void __kmp_affinity_set_place(int gtid) {
                (th->th.th_new_place >= th->th.th_last_place));
   }
 
-  // Copy the thread mask to the kmp_info_t strucuture,
+  // Copy the thread mask to the kmp_info_t structure,
   // and set this thread's affinity.
   kmp_affin_mask_t *mask =
       KMP_CPU_INDEX(__kmp_affinity_masks, th->th.th_new_place);
@@ -5300,7 +5302,7 @@ void __kmp_balanced_affinity(kmp_info_t *th, int nthreads) {
   }
 }
 
-#if KMP_OS_LINUX
+#if KMP_OS_LINUX || KMP_OS_FREEBSD
 // We don't need this entry for Windows because
 // there is GetProcessAffinityMask() api
 //

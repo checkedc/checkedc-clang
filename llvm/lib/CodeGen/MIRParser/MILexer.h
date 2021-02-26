@@ -15,7 +15,6 @@
 #define LLVM_LIB_CODEGEN_MIRPARSER_MILEXER_H
 
 #include "llvm/ADT/APSInt.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include <string>
 
@@ -73,7 +72,7 @@ struct MIToken {
     kw_nuw,
     kw_nsw,
     kw_exact,
-    kw_fpexcept,
+    kw_nofpexcept,
     kw_debug_location,
     kw_cfi_same_value,
     kw_cfi_offset,
@@ -110,15 +109,20 @@ struct MIToken {
     kw_jump_table,
     kw_constant_pool,
     kw_call_entry,
+    kw_custom,
     kw_liveout,
     kw_address_taken,
     kw_landing_pad,
+    kw_ehfunclet_entry,
     kw_liveins,
     kw_successors,
     kw_floatpred,
     kw_intpred,
+    kw_shufflemask,
     kw_pre_instr_symbol,
     kw_post_instr_symbol,
+    kw_heap_alloc_marker,
+    kw_bbsections,
     kw_unknown_size,
 
     // Named metadata keywords
@@ -146,6 +150,7 @@ struct MIToken {
     IntegerLiteral,
     FloatingPointLiteral,
     HexLiteral,
+    VectorLiteral,
     VirtualRegister,
     ConstantPoolItem,
     JumpTableIndex,

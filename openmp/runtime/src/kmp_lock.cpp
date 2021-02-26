@@ -1239,6 +1239,9 @@ __kmp_acquire_queuing_lock_timed_template(kmp_queuing_lock_t *lck,
       KMP_MB();
       // ToDo: Use __kmp_wait_sleep or similar when blocktime != inf
       KMP_WAIT(spin_here_p, FALSE, KMP_EQ, lck);
+      // Synchronize writes to both runtime thread structures
+      // and writes in user code.
+      KMP_MB();
 
 #ifdef DEBUG_QUEUING_LOCKS
       TRACE_LOCK(gtid + 1, "acq spin");
@@ -2943,10 +2946,10 @@ static int (*direct_test_check[])(kmp_dyna_lock_t *, kmp_int32) = {
 #undef expand
 
 // Exposes only one set of jump tables (*lock or *lock_with_checks).
-void (*(*__kmp_direct_destroy))(kmp_dyna_lock_t *) = 0;
-int (*(*__kmp_direct_set))(kmp_dyna_lock_t *, kmp_int32) = 0;
-int (*(*__kmp_direct_unset))(kmp_dyna_lock_t *, kmp_int32) = 0;
-int (*(*__kmp_direct_test))(kmp_dyna_lock_t *, kmp_int32) = 0;
+void (**__kmp_direct_destroy)(kmp_dyna_lock_t *) = 0;
+int (**__kmp_direct_set)(kmp_dyna_lock_t *, kmp_int32) = 0;
+int (**__kmp_direct_unset)(kmp_dyna_lock_t *, kmp_int32) = 0;
+int (**__kmp_direct_test)(kmp_dyna_lock_t *, kmp_int32) = 0;
 
 // Jump tables for the indirect lock functions
 #define expand(l, op) (void (*)(kmp_user_lock_p)) __kmp_##op##_##l##_##lock,
@@ -2993,10 +2996,10 @@ static int (*indirect_test_check[])(kmp_user_lock_p, kmp_int32) = {
 #undef expand
 
 // Exposes only one jump tables (*lock or *lock_with_checks).
-void (*(*__kmp_indirect_destroy))(kmp_user_lock_p) = 0;
-int (*(*__kmp_indirect_set))(kmp_user_lock_p, kmp_int32) = 0;
-int (*(*__kmp_indirect_unset))(kmp_user_lock_p, kmp_int32) = 0;
-int (*(*__kmp_indirect_test))(kmp_user_lock_p, kmp_int32) = 0;
+void (**__kmp_indirect_destroy)(kmp_user_lock_p) = 0;
+int (**__kmp_indirect_set)(kmp_user_lock_p, kmp_int32) = 0;
+int (**__kmp_indirect_unset)(kmp_user_lock_p, kmp_int32) = 0;
+int (**__kmp_indirect_test)(kmp_user_lock_p, kmp_int32) = 0;
 
 // Lock index table.
 kmp_indirect_lock_table_t __kmp_i_lock_table;
@@ -3018,7 +3021,7 @@ kmp_lock_flags_t (*__kmp_indirect_get_flags[KMP_NUM_I_LOCKS])(
 static kmp_indirect_lock_t *__kmp_indirect_lock_pool[KMP_NUM_I_LOCKS] = {0};
 
 // User lock allocator for dynamically dispatched indirect locks. Every entry of
-// the indirect lock table holds the address and type of the allocated indrect
+// the indirect lock table holds the address and type of the allocated indirect
 // lock (kmp_indirect_lock_t), and the size of the table doubles when it is
 // full. A destroyed indirect lock object is returned to the reusable pool of
 // locks, unique to each lock type.

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_SymbolContext_h_
-#define liblldb_SymbolContext_h_
+#ifndef LLDB_SYMBOL_SYMBOLCONTEXT_H
+#define LLDB_SYMBOL_SYMBOLCONTEXT_H
 
 #include <memory>
 #include <string>
@@ -51,7 +51,7 @@ public:
   ///
   /// Initialize all pointer to the specified values.
   ///
-  /// \param[in] module
+  /// \param[in] module_sp
   ///     A Module pointer to the module for this context.
   ///
   /// \param[in] comp_unit
@@ -83,18 +83,6 @@ public:
                          Symbol *symbol = nullptr);
 
   ~SymbolContext();
-
-  /// Assignment operator.
-  ///
-  /// Copies the address value from another SymbolContext object \a rhs into
-  /// \a this object.
-  ///
-  /// \param[in] rhs
-  ///     A const SymbolContext object reference to copy.
-  ///
-  /// \return
-  ///     A const SymbolContext object reference to \a this.
-  const SymbolContext &operator=(const SymbolContext &rhs);
 
   /// Clear the object's state.
   ///
@@ -279,11 +267,6 @@ public:
   /// For instance, if the symbol context contains an inlined block, it will
   /// return the inlined function name.
   ///
-  /// \param[in] prefer_mangled
-  ///    if \btrue, then the mangled name will be returned if there
-  ///    is one.  Otherwise the unmangled name will be returned if it
-  ///    is available.
-  ///
   /// \return
   ///     The name of the function represented by this symbol context.
   ConstString GetFunctionName(
@@ -298,14 +281,6 @@ public:
   /// ModuleList::FindFunctions(...) call in order to get the correct line
   /// table information for the symbol context. it will return the inlined
   /// function name.
-  ///
-  /// \param[in] prefer_mangled
-  ///    if \btrue, then the mangled name will be returned if there
-  ///    is one.  Otherwise the unmangled name will be returned if it
-  ///    is available.
-  ///
-  /// \return
-  ///     The name of the function represented by this symbol context.
   LineEntry GetFunctionStartLineEntry() const;
 
   /// Find the block containing the inlined block that contains this block.
@@ -319,13 +294,13 @@ public:
   /// \param[out] next_frame_sc
   ///     A new symbol context that does what the title says it does.
   ///
-  /// \param[out] next_frame_addr
+  /// \param[out] inlined_frame_addr
   ///     This is what you should report as the PC in \a next_frame_sc.
   ///
   /// \return
   ///     \b true if this SymbolContext specifies a block contained in an
   ///     inlined block.  If this returns \b true, \a next_frame_sc and
-  ///     \a next_frame_addr will be filled in correctly.
+  ///     \a inlined_frame_addr will be filled in correctly.
   bool GetParentOfInlinedScope(const Address &curr_frame_pc,
                                SymbolContext &next_frame_sc,
                                Address &inlined_frame_addr) const;
@@ -470,6 +445,8 @@ public:
   ///     Returns the number of symbol context objects in the list.
   uint32_t GetSize() const;
 
+  bool IsEmpty() const;
+
   uint32_t NumLineEntriesWithLine(uint32_t line) const;
 
   void GetDescription(Stream *s, lldb::DescriptionLevel level,
@@ -498,4 +475,4 @@ bool operator!=(const SymbolContextList &lhs, const SymbolContextList &rhs);
 
 } // namespace lldb_private
 
-#endif // liblldb_SymbolContext_h_
+#endif // LLDB_SYMBOL_SYMBOLCONTEXT_H

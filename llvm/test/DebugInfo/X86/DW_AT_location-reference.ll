@@ -1,9 +1,9 @@
 ; RUN: llc -O1 -filetype=obj -mtriple=x86_64-apple-darwin < %s > %t
 ; RUN: llvm-dwarfdump -v %t  | FileCheck %s
-; RUN: llvm-objdump -r %t | FileCheck -check-prefix=DARWIN %s
+; RUN: llvm-objdump -r %t | FileCheck --check-prefix=DARWIN %s
 ; RUN: llc -O1 -filetype=obj -mtriple=x86_64-pc-linux-gnu < %s > %t
 ; RUN: llvm-dwarfdump -v %t  | FileCheck %s
-; RUN: llvm-objdump -r %t | FileCheck -check-prefix=LINUX %s
+; RUN: llvm-objdump -r %t | FileCheck --check-prefix=LINUX %s
 
 ; PR9493
 ; Adapted from the original test case in r127757.
@@ -32,12 +32,11 @@
 ; CHECK: .debug_info contents:
 ; CHECK:      DW_TAG_variable
 ; CHECK-NEXT:   DW_AT_location [DW_FORM_sec_offset] (0x00000000
-; Check that the location contains only 4 ranges - this verifies that the 4th
-; and 5th ranges were successfully merged into a single range.
-; CHECK-NEXT:   [0x{{[0-9a-f]*}}, 0x{{[0-9a-f]*}}):
-; CHECK-NEXT:   [0x{{[0-9a-f]*}}, 0x{{[0-9a-f]*}}):
-; CHECK-NEXT:   [0x{{[0-9a-f]*}}, 0x{{[0-9a-f]*}}):
-; CHECK-NEXT:   [0x{{[0-9a-f]*}}, 0x{{[0-9a-f]*}}): {{.*}})
+; Check that the location contains only 4 ranges.
+; CHECK-NEXT:   [0x{{[0-9a-f]*}}, 0x{{[0-9a-f]*}})
+; CHECK-NEXT:   [0x{{[0-9a-f]*}}, 0x{{[0-9a-f]*}})
+; CHECK-NEXT:   [0x{{[0-9a-f]*}}, 0x{{[0-9a-f]*}})
+; CHECK-NEXT:   [0x{{[0-9a-f]*}}, 0x{{[0-9a-f]*}}){{.*}})
 ; CHECK-NEXT:   DW_AT_name {{.*}} "x"
 ; CHECK-NEXT:   DW_AT_decl_file
 ; CHECK-NEXT:   DW_AT_decl_line

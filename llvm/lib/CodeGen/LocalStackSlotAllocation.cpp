@@ -28,6 +28,7 @@
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -78,11 +79,11 @@ namespace {
     using StackObjSet = SmallSetVector<int, 8>;
 
     void AdjustStackOffset(MachineFrameInfo &MFI, int FrameIdx, int64_t &Offset,
-                           bool StackGrowsDown, unsigned &MaxAlign);
+                           bool StackGrowsDown, Align &MaxAlign);
     void AssignProtectedObjSet(const StackObjSet &UnassignedObjs,
                                SmallSet<int, 16> &ProtectedObjs,
                                MachineFrameInfo &MFI, bool StackGrowsDown,
-                               int64_t &Offset, unsigned &MaxAlign);
+                               int64_t &Offset, Align &MaxAlign);
     void calculateFrameObjectOffsets(MachineFunction &Fn);
     bool insertFrameReferenceRegisters(MachineFunction &Fn);
 
@@ -139,22 +140,21 @@ bool LocalStackSlotPass::runOnMachineFunction(MachineFunction &MF) {
 }
 
 /// AdjustStackOffset - Helper function used to adjust the stack frame offset.
-void LocalStackSlotPass::AdjustStackOffset(MachineFrameInfo &MFI,
-                                           int FrameIdx, int64_t &Offset,
-                                           bool StackGrowsDown,
-                                           unsigned &MaxAlign) {
+void LocalStackSlotPass::AdjustStackOffset(MachineFrameInfo &MFI, int FrameIdx,
+                                           int64_t &Offset, bool StackGrowsDown,
+                                           Align &MaxAlign) {
   // If the stack grows down, add the object size to find the lowest address.
   if (StackGrowsDown)
     Offset += MFI.getObjectSize(FrameIdx);
 
-  unsigned Align = MFI.getObjectAlignment(FrameIdx);
+  Align Alignment = MFI.getObjectAlign(FrameIdx);
 
   // If the alignment of this object is greater than that of the stack, then
   // increase the stack alignment to match.
-  MaxAlign = std::max(MaxAlign, Align);
+  MaxAlign = std::max(MaxAlign, Alignment);
 
   // Adjust to alignment boundary.
-  Offset = (Offset + Align - 1) / Align * Align;
+  Offset = alignTo(Offset, Alignment);
 
   int64_t LocalOffset = StackGrowsDown ? -Offset : Offset;
   LLVM_DEBUG(dbgs() << "Allocate FI(" << FrameIdx << ") to local offset "
@@ -172,11 +172,10 @@ void LocalStackSlotPass::AdjustStackOffset(MachineFrameInfo &MFI,
 
 /// AssignProtectedObjSet - Helper function to assign large stack objects (i.e.,
 /// those required to be close to the Stack Protector) to stack offsets.
-void LocalStackSlotPass::AssignProtectedObjSet(const StackObjSet &UnassignedObjs,
-                                           SmallSet<int, 16> &ProtectedObjs,
-                                           MachineFrameInfo &MFI,
-                                           bool StackGrowsDown, int64_t &Offset,
-                                           unsigned &MaxAlign) {
+void LocalStackSlotPass::AssignProtectedObjSet(
+    const StackObjSet &UnassignedObjs, SmallSet<int, 16> &ProtectedObjs,
+    MachineFrameInfo &MFI, bool StackGrowsDown, int64_t &Offset,
+    Align &MaxAlign) {
   for (StackObjSet::const_iterator I = UnassignedObjs.begin(),
         E = UnassignedObjs.end(); I != E; ++I) {
     int i = *I;
@@ -194,7 +193,7 @@ void LocalStackSlotPass::calculateFrameObjectOffsets(MachineFunction &Fn) {
   bool StackGrowsDown =
     TFI.getStackGrowthDirection() == TargetFrameLowering::StackGrowsDown;
   int64_t Offset = 0;
-  unsigned MaxAlign = 0;
+  Align MaxAlign;
 
   // Make sure that the stack protector comes before the local variables on the
   // stack.
@@ -350,6 +349,14 @@ bool LocalStackSlotPass::insertFrameReferenceRegisters(MachineFunction &Fn) {
     int FrameIdx = FR.getFrameIndex();
     assert(MFI.isObjectPreAllocated(FrameIdx) &&
            "Only pre-allocated locals expected!");
+
+    // We need to keep the references to the stack protector slot through frame
+    // index operands so that it gets resolved by PEI rather than this pass.
+    // This avoids accesses to the stack protector though virtual base
+    // registers, and forces PEI to address it using fp/sp/bp.
+    if (MFI.hasStackProtectorIndex() &&
+        FrameIdx == MFI.getStackProtectorIndex())
+      continue;
 
     LLVM_DEBUG(dbgs() << "Considering: " << MI);
 

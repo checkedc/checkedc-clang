@@ -1,8 +1,8 @@
-# RUN: llc -mtriple=s390x-linux-gnu -mcpu=arch13 -start-before=greedy %s -o - \
+# RUN: llc -mtriple=s390x-linux-gnu -mcpu=z15 -start-before=greedy %s -o - \
 # RUN:   | FileCheck %s
 #
 # Test that regalloc manages (via regalloc hints) to avoid a LOCRMux jump
-# sequence expansion, and a SELR instuction is emitted.
+# sequence expansion, and a SELR/LOCR instuction is emitted.
 
 --- |
   ; ModuleID = 'tc.ll'
@@ -73,17 +73,17 @@
   ; Function Attrs: nounwind
   declare void @llvm.stackprotector(i8*, i8**) #1
 
-  attributes #0 = { "target-cpu"="arch13" }
+  attributes #0 = { "target-cpu"="z15" }
   attributes #1 = { nounwind }
 
 ...
 
-# CHECK: selr
+# CHECK: locr
 # CHECK-NOT: risblg
 
 ---
 name:            fun1
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 registers:
   - { id: 0, class: grx32bit }

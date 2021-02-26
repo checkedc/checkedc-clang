@@ -1,4 +1,4 @@
-// RUN: %clang_analyze_cc1 \
+// RUN: %clang_analyze_cc1 -std=c++14 \
 // RUN:  -analyzer-checker=core,debug.ExprInspection \
 // RUN:  -verify %s
 
@@ -9,9 +9,11 @@ typedef __typeof__(sizeof(int)) size_t;
 
 void *operator new(size_t size) throw() {
   return nullptr;
+  // expected-warning@-1 {{null returned from function that requires a non-null return value}}
 }
 void *operator new[](size_t size) throw() {
   return nullptr;
+  // expected-warning@-1 {{null returned from function that requires a non-null return value}}
 }
 
 struct S {

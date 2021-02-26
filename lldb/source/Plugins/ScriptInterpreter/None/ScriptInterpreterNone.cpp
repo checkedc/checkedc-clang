@@ -1,4 +1,4 @@
-//===-- ScriptInterpreterNone.cpp -------------------------------*- C++ -*-===//
+//===-- ScriptInterpreterNone.cpp -----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -20,6 +20,8 @@
 using namespace lldb;
 using namespace lldb_private;
 
+LLDB_PLUGIN_DEFINE(ScriptInterpreterNone)
+
 ScriptInterpreterNone::ScriptInterpreterNone(Debugger &debugger)
     : ScriptInterpreter(debugger, eScriptLanguageNone) {}
 
@@ -28,13 +30,13 @@ ScriptInterpreterNone::~ScriptInterpreterNone() {}
 bool ScriptInterpreterNone::ExecuteOneLine(llvm::StringRef command,
                                            CommandReturnObject *,
                                            const ExecuteScriptOptions &) {
-  m_debugger.GetErrorFile()->PutCString(
+  m_debugger.GetErrorStream().PutCString(
       "error: there is no embedded script interpreter in this mode.\n");
   return false;
 }
 
 void ScriptInterpreterNone::ExecuteInterpreterLoop() {
-  m_debugger.GetErrorFile()->PutCString(
+  m_debugger.GetErrorStream().PutCString(
       "error: there is no embedded script interpreter in this mode.\n");
 }
 

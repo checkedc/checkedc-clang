@@ -15,17 +15,21 @@
 namespace llvm {
 class BPFTargetMachine;
 
-ModulePass *createBPFAbstractMemberAccess();
+ModulePass *createBPFAbstractMemberAccess(BPFTargetMachine *TM);
+ModulePass *createBPFPreserveDIType();
 
 FunctionPass *createBPFISelDag(BPFTargetMachine &TM);
 FunctionPass *createBPFMISimplifyPatchablePass();
 FunctionPass *createBPFMIPeepholePass();
+FunctionPass *createBPFMIPeepholeTruncElimPass();
 FunctionPass *createBPFMIPreEmitPeepholePass();
 FunctionPass *createBPFMIPreEmitCheckingPass();
 
 void initializeBPFAbstractMemberAccessPass(PassRegistry&);
+void initializeBPFPreserveDITypePass(PassRegistry&);
 void initializeBPFMISimplifyPatchablePass(PassRegistry&);
 void initializeBPFMIPeepholePass(PassRegistry&);
+void initializeBPFMIPeepholeTruncElimPass(PassRegistry&);
 void initializeBPFMIPreEmitPeepholePass(PassRegistry&);
 void initializeBPFMIPreEmitCheckingPass(PassRegistry&);
 }

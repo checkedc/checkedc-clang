@@ -14,6 +14,7 @@
 #define LLVM_CLANG_AST_STMT_H
 
 #include "clang/AST/DeclGroup.h"
+#include "clang/AST/DependenceFlags.h"
 #include "clang/AST/StmtIterator.h"
 #include "clang/Basic/CapturedStmt.h"
 #include "clang/Basic/IdentifierTable.h"
@@ -21,6 +22,7 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/BitmaskEnum.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator.h"
@@ -100,14 +102,8 @@ protected:
 
     /// The statement class.
     unsigned sClass : 8;
-
-    /// This bit is set only for the Stmts that are the structured-block of
-    /// OpenMP executable directives. Directives that have a structured block
-    /// are called "non-standalone" directives.
-    /// I.e. those returned by OMPExecutableDirective::getStructuredBlock().
-    unsigned IsOMPStructuredBlock : 1;
   };
-  enum { NumStmtBits = 9 };
+  enum { NumStmtBits = 8 };
 
   class NullStmtBitfields {
     friend class ASTStmtReader;
@@ -316,12 +312,9 @@ protected:
 
     unsigned ValueKind : 2;
     unsigned ObjectKind : 3;
-    unsigned TypeDependent : 1;
-    unsigned ValueDependent : 1;
-    unsigned InstantiationDependent : 1;
-    unsigned ContainsUnexpandedParameterPack : 1;
+    unsigned /*ExprDependence*/ Dependent : llvm::BitWidth<ExprDependence>;
   };
-  enum { NumExprBits = NumStmtBits + 9 };
+  enum { NumExprBits = NumStmtBits + 5 + llvm::BitWidth<ExprDependence> };
 
   class ConstantExprBitfields {
     friend class ASTStmtReader;
@@ -330,24 +323,27 @@ protected:
 
     unsigned : NumExprBits;
 
-    /// The kind of result that is trail-allocated.
+    /// The kind of result that is tail-allocated.
     unsigned ResultKind : 2;
 
-    /// Kind of Result as defined by APValue::Kind
+    /// The kind of Result as defined by APValue::Kind.
     unsigned APValueKind : 4;
 
-    /// When ResultKind == RSK_Int64. whether the trail-allocated integer is
-    /// signed.
+    /// When ResultKind == RSK_Int64, true if the tail-allocated integer is
+    /// unsigned.
     unsigned IsUnsigned : 1;
 
-    /// When ResultKind == RSK_Int64. the BitWidth of the trail-allocated
-    /// integer. 7 bits because it is the minimal number of bit to represent a
-    /// value from 0 to 64 (the size of the trail-allocated number).
+    /// When ResultKind == RSK_Int64. the BitWidth of the tail-allocated
+    /// integer. 7 bits because it is the minimal number of bits to represent a
+    /// value from 0 to 64 (the size of the tail-allocated integer).
     unsigned BitWidth : 7;
 
-    /// When ResultKind == RSK_APValue. Wether the ASTContext will cleanup the
-    /// destructor on the trail-allocated APValue.
+    /// When ResultKind == RSK_APValue, true if the ASTContext will cleanup the
+    /// tail-allocated APValue.
     unsigned HasCleanup : 1;
+
+    /// True if this ConstantExpr was created for immediate invocation.
+    unsigned IsImmediateInvocation : 1;
   };
 
   class PredefinedExprBitfields {
@@ -434,6 +430,12 @@ protected:
 
     unsigned Opc : 5;
     unsigned CanOverflow : 1;
+    //
+    /// This is only meaningful for operations on floating point
+    /// types when additional values need to be in trailing storage.
+    /// It is 0 otherwise.
+    unsigned HasFPFeatures : 1;
+
     unsigned BoundsCheckKind : NumBoundsCheckKindBits;
 
     SourceLocation Loc;
@@ -446,6 +448,16 @@ protected:
 
     unsigned Kind : 3;
     unsigned IsType : 1; // true if operand is a type, false if an expression.
+  };
+
+  class ArrayOrMatrixSubscriptExprBitfields {
+    friend class ArraySubscriptExpr;
+    friend class MatrixSubscriptExpr;
+
+    unsigned : NumExprBits;
+
+    unsigned BoundsCheckKind : NumBoundsCheckKindBits;
+    SourceLocation RBracketLoc;
   };
 
   class ArraySubscriptExprBitfields {
@@ -536,8 +548,9 @@ protected:
     unsigned Opc : 6;
 
     /// This is only meaningful for operations on floating point
-    /// types and 0 otherwise.
-    unsigned FPFeatures : 3;
+    /// types when additional values need to be in trailing storage.
+    /// It is 0 otherwise.
+    unsigned HasFPFeatures : 1;
 
     SourceLocation OpLoc;
   };
@@ -595,6 +608,18 @@ protected:
     unsigned Kind : 2;
   };
 
+  class StmtExprBitfields {
+    friend class ASTStmtReader;
+    friend class StmtExpr;
+
+    unsigned : NumExprBits;
+
+    /// The number of levels of template parameters enclosing this statement
+    /// expression. Used to determine if a statement expression remains
+    /// dependent after instantiation.
+    unsigned TemplateDepth;
+  };
+
   //===--- C++ Expression bitfields classes ---===//
 
   class CXXOperatorCallExprBitfields {
@@ -606,9 +631,15 @@ protected:
     /// The kind of this overloaded operator. One of the enumerator
     /// value of OverloadedOperatorKind.
     unsigned OperatorKind : 6;
+  };
 
-    // Only meaningful for floating point types.
-    unsigned FPFeatures : 3;
+  class CXXRewrittenBinaryOperatorBitfields {
+    friend class ASTStmtReader;
+    friend class CXXRewrittenBinaryOperator;
+
+    unsigned : NumCallExprBits;
+
+    unsigned IsReversed : 1;
   };
 
   class CXXBoolLiteralExprBitfields {
@@ -758,8 +789,10 @@ protected:
     /// the trait evaluated true or false.
     unsigned Value : 1;
 
-    /// The number of arguments to this type trait.
-    unsigned NumArgs : 32 - 8 - 1 - NumExprBits;
+    /// The number of arguments to this type trait. According to [implimits]
+    /// 8 bits would be enough, but we require (and test for) at least 16 bits
+    /// to mirror FunctionType.
+    unsigned NumArgs;
   };
 
   class DependentScopeDeclRefExprBitfields {
@@ -908,6 +941,39 @@ protected:
     SourceLocation NameLoc;
   };
 
+  class LambdaExprBitfields {
+    friend class ASTStmtReader;
+    friend class ASTStmtWriter;
+    friend class LambdaExpr;
+
+    unsigned : NumExprBits;
+
+    /// The default capture kind, which is a value of type
+    /// LambdaCaptureDefault.
+    unsigned CaptureDefault : 2;
+
+    /// Whether this lambda had an explicit parameter list vs. an
+    /// implicit (and empty) parameter list.
+    unsigned ExplicitParams : 1;
+
+    /// Whether this lambda had the result type explicitly specified.
+    unsigned ExplicitResultType : 1;
+
+    /// The number of captures.
+    unsigned NumCaptures : 16;
+  };
+
+  class RequiresExprBitfields {
+    friend class ASTStmtReader;
+    friend class ASTStmtWriter;
+    friend class RequiresExpr;
+
+    unsigned : NumExprBits;
+
+    unsigned IsSatisfied : 1;
+    SourceLocation RequiresKWLoc;
+  };
+
   //===--- C++ Coroutines TS bitfields classes ---===//
 
   class CoawaitExprBitfields {
@@ -993,6 +1059,7 @@ protected:
     CharacterLiteralBitfields CharacterLiteralBits;
     UnaryOperatorBitfields UnaryOperatorBits;
     UnaryExprOrTypeTraitExprBitfields UnaryExprOrTypeTraitExprBits;
+    ArrayOrMatrixSubscriptExprBitfields ArrayOrMatrixSubscriptExprBits;
     ArraySubscriptExprBitfields ArraySubscriptExprBits;
     CallExprBitfields CallExprBits;
     MemberExprBitfields MemberExprBits;
@@ -1004,8 +1071,12 @@ protected:
     PseudoObjectExprBitfields PseudoObjectExprBits;
     SourceLocExprBitfields SourceLocExprBits;
 
+    // GNU Extensions.
+    StmtExprBitfields StmtExprBits;
+
     // C++ Expressions
     CXXOperatorCallExprBitfields CXXOperatorCallExprBits;
+    CXXRewrittenBinaryOperatorBitfields CXXRewrittenBinaryOperatorBits;
     CXXBoolLiteralExprBitfields CXXBoolLiteralExprBits;
     CXXNullPtrLiteralExprBitfields CXXNullPtrLiteralExprBits;
     CXXThisExprBitfields CXXThisExprBits;
@@ -1026,6 +1097,8 @@ protected:
     UnresolvedMemberExprBitfields UnresolvedMemberExprBits;
     CXXNoexceptExprBitfields CXXNoexceptExprBits;
     SubstNonTypeTemplateParmExprBitfields SubstNonTypeTemplateParmExprBits;
+    LambdaExprBitfields LambdaExprBits;
+    RequiresExprBitfields RequiresExprBits;
 
     // C++ Coroutines TS expressions
     CoawaitExprBitfields CoawaitBits;
@@ -1111,7 +1184,6 @@ public:
     static_assert(sizeof(*this) % alignof(void *) == 0,
                   "Insufficient alignment!");
     StmtBits.sClass = SC;
-    StmtBits.IsOMPStructuredBlock = false;
     if (StatisticsEnabled) Stmt::addStmtClass(SC);
   }
 
@@ -1120,11 +1192,6 @@ public:
   }
 
   const char *getStmtClassName() const;
-
-  bool isOMPStructuredBlock() const { return StmtBits.IsOMPStructuredBlock; }
-  void setIsOMPStructuredBlock(bool IsOMPStructuredBlock) {
-    StmtBits.IsOMPStructuredBlock = IsOMPStructuredBlock;
-  }
 
   /// SourceLocation tokens are not useful in isolation - they are low level
   /// value objects created/interpreted by SourceManager. We assume AST
@@ -1141,9 +1208,7 @@ public:
   /// Dumps the specified AST fragment and all subtrees to
   /// \c llvm::errs().
   void dump() const;
-  void dump(SourceManager &SM) const;
-  void dump(raw_ostream &OS, SourceManager &SM) const;
-  void dump(raw_ostream &OS) const;
+  void dump(raw_ostream &OS, const ASTContext &Context) const;
 
   /// \return Unique reproducible object identifier
   int64_t getID(const ASTContext &Context) const;
@@ -2071,6 +2136,10 @@ public:
   bool isConstexpr() const { return IfStmtBits.IsConstexpr; }
   void setConstexpr(bool C) { IfStmtBits.IsConstexpr = C; }
 
+  /// If this is an 'if constexpr', determine which substatement will be taken.
+  /// Otherwise, or if the condition is value-dependent, returns None.
+  Optional<const Stmt*> getNondiscardedCase(const ASTContext &Ctx) const;
+
   bool isObjCAvailabilityCheck() const;
 
   SourceLocation getBeginLoc() const { return getIfLoc(); }
@@ -2305,6 +2374,8 @@ class WhileStmt final : public Stmt,
   enum { VarOffset = 0, BodyOffsetFromCond = 1 };
   enum { NumMandatoryStmtPtr = 2 };
 
+  SourceLocation LParenLoc, RParenLoc;
+
   unsigned varOffset() const { return VarOffset; }
   unsigned condOffset() const { return VarOffset + hasVarStorage(); }
   unsigned bodyOffset() const { return condOffset() + BodyOffsetFromCond; }
@@ -2315,7 +2386,8 @@ class WhileStmt final : public Stmt,
 
   /// Build a while statement.
   WhileStmt(const ASTContext &Ctx, VarDecl *Var, Expr *Cond, Stmt *Body,
-            SourceLocation WL);
+            SourceLocation WL, SourceLocation LParenLoc,
+            SourceLocation RParenLoc);
 
   /// Build an empty while statement.
   explicit WhileStmt(EmptyShell Empty, bool HasVar);
@@ -2323,7 +2395,8 @@ class WhileStmt final : public Stmt,
 public:
   /// Create a while statement.
   static WhileStmt *Create(const ASTContext &Ctx, VarDecl *Var, Expr *Cond,
-                           Stmt *Body, SourceLocation WL);
+                           Stmt *Body, SourceLocation WL,
+                           SourceLocation LParenLoc, SourceLocation RParenLoc);
 
   /// Create an empty while statement optionally with storage for
   /// a condition variable.
@@ -2386,6 +2459,11 @@ public:
 
   SourceLocation getWhileLoc() const { return WhileStmtBits.WhileLoc; }
   void setWhileLoc(SourceLocation L) { WhileStmtBits.WhileLoc = L; }
+
+  SourceLocation getLParenLoc() const { return LParenLoc; }
+  void setLParenLoc(SourceLocation L) { LParenLoc = L; }
+  SourceLocation getRParenLoc() const { return RParenLoc; }
+  void setRParenLoc(SourceLocation L) { RParenLoc = L; }
 
   SourceLocation getBeginLoc() const { return getWhileLoc(); }
   SourceLocation getEndLoc() const LLVM_READONLY {
@@ -3089,7 +3167,7 @@ public:
   }
 
   IdentifierInfo *getLabelIdentifier(unsigned i) const {
-    return Names[i + NumInputs];
+    return Names[i + NumOutputs + NumInputs];
   }
 
   AddrLabelExpr *getLabelExpr(unsigned i) const;
@@ -3100,11 +3178,11 @@ public:
   using labels_const_range = llvm::iterator_range<const_labels_iterator>;
 
   labels_iterator begin_labels() {
-    return &Exprs[0] + NumInputs;
+    return &Exprs[0] + NumOutputs + NumInputs;
   }
 
   labels_iterator end_labels() {
-    return &Exprs[0] + NumInputs + NumLabels;
+    return &Exprs[0] + NumOutputs + NumInputs + NumLabels;
   }
 
   labels_range labels() {
@@ -3112,11 +3190,11 @@ public:
   }
 
   const_labels_iterator begin_labels() const {
-    return &Exprs[0] + NumInputs;
+    return &Exprs[0] + NumOutputs + NumInputs;
   }
 
   const_labels_iterator end_labels() const {
-    return &Exprs[0] + NumInputs + NumLabels;
+    return &Exprs[0] + NumOutputs + NumInputs + NumLabels;
   }
 
   labels_const_range labels() const {

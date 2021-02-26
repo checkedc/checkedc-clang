@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -16,14 +16,14 @@
 // void copy(const path& from, const path& to, copy_options options,
 //           error_code& ec);
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cstddef>
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 using namespace fs;
 
@@ -63,6 +63,7 @@ TEST_CASE(test_error_reporting)
 #endif
     };
 
+    static_test_env static_env;
     scoped_test_env env;
     const path file = env.create_file("file1", 42);
     const path dir = env.create_dir("dir");
@@ -74,7 +75,7 @@ TEST_CASE(test_error_reporting)
     // !exists(f)
     {
         std::error_code ec = test_ec;
-        const path f = StaticEnv::DNE;
+        const path f = static_env.DNE;
         const path t = env.test_root;
         fs::copy(f, t, ec);
         TEST_REQUIRE(ec);

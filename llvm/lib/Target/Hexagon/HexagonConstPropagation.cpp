@@ -134,11 +134,21 @@ namespace {
     uint32_t properties() const;
     unsigned size() const { return Size; }
 
-    LatticeCell &operator= (const LatticeCell &L) {
+    LatticeCell(const LatticeCell &L) {
+      // This memcpy also copies Properties (when L.Size == 0).
+      uint32_t N =
+          L.IsSpecial ? sizeof L.Properties : L.Size * sizeof(const Constant *);
+      memcpy(Values, L.Values, N);
+      Kind = L.Kind;
+      Size = L.Size;
+      IsSpecial = L.IsSpecial;
+    }
+
+    LatticeCell &operator=(const LatticeCell &L) {
       if (this != &L) {
         // This memcpy also copies Properties (when L.Size == 0).
         uint32_t N = L.IsSpecial ? sizeof L.Properties
-                                 : L.Size*sizeof(const Constant*);
+                                 : L.Size * sizeof(const Constant *);
         memcpy(Values, L.Values, N);
         Kind = L.Kind;
         Size = L.Size;
@@ -208,14 +218,14 @@ namespace {
 
       bool has(unsigned R) const {
         // All non-virtual registers are considered "bottom".
-        if (!TargetRegisterInfo::isVirtualRegister(R))
+        if (!Register::isVirtualRegister(R))
           return true;
         MapType::const_iterator F = Map.find(R);
         return F != Map.end();
       }
 
       const LatticeCell &get(unsigned R) const {
-        if (!TargetRegisterInfo::isVirtualRegister(R))
+        if (!Register::isVirtualRegister(R))
           return Bottom;
         MapType::const_iterator F = Map.find(R);
         if (F != Map.end())
@@ -260,7 +270,7 @@ namespace {
     void propagate(MachineFunction &MF);
     bool rewrite(MachineFunction &MF);
 
-    MachineRegisterInfo      *MRI;
+    MachineRegisterInfo      *MRI = nullptr;
     MachineConstEvaluator    &MCE;
 
     using CFGEdge = std::pair<unsigned, unsigned>;
@@ -623,7 +633,7 @@ void MachineConstPropagator::visitPHI(const MachineInstr &PN) {
 
   const MachineOperand &MD = PN.getOperand(0);
   RegisterSubReg DefR(MD);
-  assert(TargetRegisterInfo::isVirtualRegister(DefR.Reg));
+  assert(Register::isVirtualRegister(DefR.Reg));
 
   bool Changed = false;
 
@@ -652,7 +662,7 @@ Bottomize:
     RegisterSubReg UseR(SO);
     // If the input is not a virtual register, we don't really know what
     // value it holds.
-    if (!TargetRegisterInfo::isVirtualRegister(UseR.Reg))
+    if (!Register::isVirtualRegister(UseR.Reg))
       goto Bottomize;
     // If there is no cell for an input register, it means top.
     if (!Cells.has(UseR.Reg))
@@ -694,7 +704,7 @@ void MachineConstPropagator::visitNonBranch(const MachineInstr &MI) {
       continue;
     RegisterSubReg DefR(MO);
     // Only track virtual registers.
-    if (!TargetRegisterInfo::isVirtualRegister(DefR.Reg))
+    if (!Register::isVirtualRegister(DefR.Reg))
       continue;
     bool Changed = false;
     // If the evaluation failed, set cells for all output registers to bottom.
@@ -743,6 +753,9 @@ void MachineConstPropagator::visitBranchesFrom(const MachineInstr &BrI) {
       break;
     ++It;
   }
+
+  if (B.mayHaveInlineAsmBr())
+    EvalOk = false;
 
   if (EvalOk) {
     // Need to add all CFG successors that lead to EH landing pads.
@@ -800,8 +813,12 @@ void MachineConstPropagator::visitUsesOf(unsigned Reg) {
 
 bool MachineConstPropagator::computeBlockSuccessors(const MachineBasicBlock *MB,
       SetVector<const MachineBasicBlock*> &Targets) {
+  Targets.clear();
+
   MachineBasicBlock::const_iterator FirstBr = MB->end();
   for (const MachineInstr &MI : *MB) {
+    if (MI.getOpcode() == TargetOpcode::INLINEASM_BR)
+      return false;
     if (MI.isDebugInstr())
       continue;
     if (MI.isBranch()) {
@@ -810,7 +827,6 @@ bool MachineConstPropagator::computeBlockSuccessors(const MachineBasicBlock *MB,
     }
   }
 
-  Targets.clear();
   MachineBasicBlock::const_iterator End = MB->end();
 
   bool DoNext = true;
@@ -1070,7 +1086,7 @@ bool MachineConstPropagator::run(MachineFunction &MF) {
 
 bool MachineConstEvaluator::getCell(const RegisterSubReg &R, const CellMap &Inputs,
       LatticeCell &RC) {
-  if (!TargetRegisterInfo::isVirtualRegister(R.Reg))
+  if (!Register::isVirtualRegister(R.Reg))
     return false;
   const LatticeCell &L = Inputs.get(R.Reg);
   if (!R.SubReg) {
@@ -1926,7 +1942,7 @@ bool HexagonConstEvaluator::evaluate(const MachineInstr &MI,
   unsigned Opc = MI.getOpcode();
   RegisterSubReg DefR(MD);
   assert(!DefR.SubReg);
-  if (!TargetRegisterInfo::isVirtualRegister(DefR.Reg))
+  if (!Register::isVirtualRegister(DefR.Reg))
     return false;
 
   if (MI.isCopy()) {
@@ -2793,7 +2809,7 @@ bool HexagonConstEvaluator::rewriteHexConstDefs(MachineInstr &MI,
       if (!MO.isReg() || !MO.isUse() || MO.isImplicit())
         continue;
       RegisterSubReg R(MO);
-      if (!TargetRegisterInfo::isVirtualRegister(R.Reg))
+      if (!Register::isVirtualRegister(R.Reg))
         continue;
       HasUse = true;
       // PHIs can legitimately have "top" cells after propagation.
@@ -2813,7 +2829,7 @@ bool HexagonConstEvaluator::rewriteHexConstDefs(MachineInstr &MI,
         for (const MachineOperand &MO : MI.operands()) {
           if (!MO.isReg() || !MO.isUse() || MO.isImplicit())
             continue;
-          unsigned R = MO.getReg();
+          Register R = MO.getReg();
           dbgs() << printReg(R, &TRI) << ": " << Inputs.get(R) << "\n";
         }
       }
@@ -2826,13 +2842,16 @@ bool HexagonConstEvaluator::rewriteHexConstDefs(MachineInstr &MI,
   if (MI.isCopy())
     return false;
 
+  MachineFunction *MF = MI.getParent()->getParent();
+  auto &HST = MF->getSubtarget<HexagonSubtarget>();
+
   // Collect all virtual register-def operands.
   SmallVector<unsigned,2> DefRegs;
   for (const MachineOperand &MO : MI.operands()) {
     if (!MO.isReg() || !MO.isDef())
       continue;
-    unsigned R = MO.getReg();
-    if (!TargetRegisterInfo::isVirtualRegister(R))
+    Register R = MO.getReg();
+    if (!Register::isVirtualRegister(R))
       continue;
     assert(!MO.getSubReg());
     assert(Inputs.has(R));
@@ -2871,7 +2890,7 @@ bool HexagonConstEvaluator::rewriteHexConstDefs(MachineInstr &MI,
       const MCInstrDesc *NewD = (Ps & P::Zero) ?
         &HII.get(Hexagon::PS_false) :
         &HII.get(Hexagon::PS_true);
-      unsigned NewR = MRI->createVirtualRegister(PredRC);
+      Register NewR = MRI->createVirtualRegister(PredRC);
       const MachineInstrBuilder &MIB = BuildMI(B, At, DL, *NewD, NewR);
       (void)MIB;
 #ifndef NDEBUG
@@ -2893,7 +2912,7 @@ bool HexagonConstEvaluator::rewriteHexConstDefs(MachineInstr &MI,
         NewRC = &Hexagon::IntRegsRegClass;
       else
         NewRC = &Hexagon::DoubleRegsRegClass;
-      unsigned NewR = MRI->createVirtualRegister(NewRC);
+      Register NewR = MRI->createVirtualRegister(NewRC);
       const MachineInstr *NewMI;
 
       if (W == 32) {
@@ -2913,11 +2932,13 @@ bool HexagonConstEvaluator::rewriteHexConstDefs(MachineInstr &MI,
             NewMI = BuildMI(B, At, DL, *NewD, NewR)
                       .addImm(Hi)
                       .addImm(Lo);
-          } else {
+          } else if (MF->getFunction().hasOptSize() || !HST.isTinyCore()) {
+            // Disable CONST64 for tiny core since it takes a LD resource.
             NewD = &HII.get(Hexagon::CONST64);
             NewMI = BuildMI(B, At, DL, *NewD, NewR)
                       .addImm(V);
-          }
+          } else
+            return false;
         }
       }
       (void)NewMI;
@@ -3009,7 +3030,7 @@ bool HexagonConstEvaluator::rewriteHexConstUses(MachineInstr &MI,
       if (V < 0)
         V = -V;
       const TargetRegisterClass *RC = MRI->getRegClass(DefR.Reg);
-      unsigned NewR = MRI->createVirtualRegister(RC);
+      Register NewR = MRI->createVirtualRegister(RC);
       const MachineOperand &Src1 = MI.getOperand(1);
       NewMI = BuildMI(B, At, DL, D, NewR)
                 .addReg(Src1.getReg(), getRegState(Src1), Src1.getSubReg())
@@ -3111,8 +3132,8 @@ bool HexagonConstEvaluator::rewriteHexConstUses(MachineInstr &MI,
 
 void HexagonConstEvaluator::replaceAllRegUsesWith(unsigned FromReg,
       unsigned ToReg) {
-  assert(TargetRegisterInfo::isVirtualRegister(FromReg));
-  assert(TargetRegisterInfo::isVirtualRegister(ToReg));
+  assert(Register::isVirtualRegister(FromReg));
+  assert(Register::isVirtualRegister(ToReg));
   for (auto I = MRI->use_begin(FromReg), E = MRI->use_end(); I != E;) {
     MachineOperand &O = *I;
     ++I;

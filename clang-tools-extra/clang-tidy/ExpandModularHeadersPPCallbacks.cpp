@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "ExpandModularHeadersPPCallbacks.h"
+#include "clang/Basic/FileManager.h"
+#include "clang/Basic/TargetInfo.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Serialization/ASTReader.h"
@@ -54,7 +56,7 @@ private:
 ExpandModularHeadersPPCallbacks::ExpandModularHeadersPPCallbacks(
     CompilerInstance *CI,
     IntrusiveRefCntPtr<llvm::vfs::OverlayFileSystem> OverlayFS)
-    : Recorder(llvm::make_unique<FileRecorder>()), Compiler(*CI),
+    : Recorder(std::make_unique<FileRecorder>()), Compiler(*CI),
       InMemoryFs(new llvm::vfs::InMemoryFileSystem),
       Sources(Compiler.getSourceManager()),
       // Forward the new diagnostics to the original DiagnosticConsumer.
@@ -72,13 +74,13 @@ ExpandModularHeadersPPCallbacks::ExpandModularHeadersPPCallbacks(
   auto HSO = std::make_shared<HeaderSearchOptions>();
   *HSO = Compiler.getHeaderSearchOpts();
 
-  HeaderInfo = llvm::make_unique<HeaderSearch>(HSO, Sources, Diags, LangOpts,
+  HeaderInfo = std::make_unique<HeaderSearch>(HSO, Sources, Diags, LangOpts,
                                                &Compiler.getTarget());
 
   auto PO = std::make_shared<PreprocessorOptions>();
   *PO = Compiler.getPreprocessorOpts();
 
-  PP = llvm::make_unique<clang::Preprocessor>(PO, Diags, LangOpts, Sources,
+  PP = std::make_unique<clang::Preprocessor>(PO, Diags, LangOpts, Sources,
                                               *HeaderInfo, ModuleLoader,
                                               /*IILookup=*/nullptr,
                                               /*OwnsHeaderSearch=*/false);
@@ -106,7 +108,7 @@ void ExpandModularHeadersPPCallbacks::handleModuleFile(
 
   // Visit all the input files of this module and mark them to record their
   // contents later.
-  Compiler.getModuleManager()->visitInputFiles(
+  Compiler.getASTReader()->visitInputFiles(
       *MF, true, false,
       [this](const serialization::InputFile &IF, bool /*IsSystem*/) {
         Recorder->addNecessaryFile(IF.getFile());
@@ -153,7 +155,7 @@ void ExpandModularHeadersPPCallbacks::InclusionDirective(
     const Module *Imported, SrcMgr::CharacteristicKind FileType) {
   if (Imported) {
     serialization::ModuleFile *MF =
-        Compiler.getModuleManager()->getModuleManager().lookup(
+        Compiler.getASTReader()->getModuleManager().lookup(
             Imported->getASTFile());
     handleModuleFile(MF);
   }
@@ -210,7 +212,7 @@ void ExpandModularHeadersPPCallbacks::PragmaDiagnostic(SourceLocation Loc,
   parseToLocation(Loc);
 }
 void ExpandModularHeadersPPCallbacks::HasInclude(SourceLocation Loc, StringRef,
-                                                 bool, const FileEntry *,
+                                                 bool, Optional<FileEntryRef>,
                                                  SrcMgr::CharacteristicKind) {
   parseToLocation(Loc);
 }

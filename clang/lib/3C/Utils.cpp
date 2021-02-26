@@ -147,7 +147,7 @@ bool getAbsoluteFilePath(std::string FileName, std::string &AbsoluteFp) {
   // returns true if successful else false.
   SmallString<255> AbsPath(FileName);
   llvm::sys::fs::make_absolute(BaseDir, AbsPath);
-  AbsoluteFp = AbsPath.str();
+  AbsoluteFp = std::string(AbsPath.str());
   return true;
 }
 
@@ -411,6 +411,7 @@ bool isZeroBoundsExpr(BoundsExpr *BE, const ASTContext &C) {
 }
 
 TypeLoc getBaseTypeLoc(TypeLoc T) {
+  assert(!T.isNull() && "Can't get base location from Null.");
   while (!T.getNextTypeLoc().isNull() &&
          (!T.getAs<ParenTypeLoc>().isNull() ||
           T.getTypePtr()->isPointerType() || T.getTypePtr()->isArrayType()))

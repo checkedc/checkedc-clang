@@ -12,6 +12,7 @@
 #include "FuzzerIO.h"
 #include "FuzzerInternal.h"
 #include "FuzzerMutate.h"
+#include "FuzzerPlatform.h"
 #include "FuzzerRandom.h"
 #include "FuzzerTracePC.h"
 #include <algorithm>
@@ -256,7 +257,7 @@ void Fuzzer::ExitCallback() {
 void Fuzzer::MaybeExitGracefully() {
   if (!F->GracefulExitRequested) return;
   Printf("==%lu== INFO: libFuzzer: exiting as requested\n", GetPid());
-  RmDirRecursive(TempPath(".dir"));
+  RmDirRecursive(TempPath("FuzzWithFork", ".dir"));
   F->PrintFinalStats();
   _Exit(0);
 }
@@ -265,7 +266,7 @@ void Fuzzer::InterruptCallback() {
   Printf("==%lu== libFuzzer: run interrupted; exiting\n", GetPid());
   PrintFinalStats();
   ScopedDisableMsanInterceptorChecks S; // RmDirRecursive may call opendir().
-  RmDirRecursive(TempPath(".dir"));
+  RmDirRecursive(TempPath("FuzzWithFork", ".dir"));
   // Stop right now, don't perform any at-exit actions.
   _Exit(Options.InterruptExitCode);
 }
@@ -273,9 +274,9 @@ void Fuzzer::InterruptCallback() {
 NO_SANITIZE_MEMORY
 void Fuzzer::AlarmCallback() {
   assert(Options.UnitTimeoutSec > 0);
-  // In Windows Alarm callback is executed by a different thread.
+  // In Windows and Fuchsia, Alarm callback is executed by a different thread.
   // NetBSD's current behavior needs this change too.
-#if !LIBFUZZER_WINDOWS && !LIBFUZZER_NETBSD
+#if !LIBFUZZER_WINDOWS && !LIBFUZZER_NETBSD && !LIBFUZZER_FUCHSIA
   if (!InFuzzingThread())
     return;
 #endif
@@ -319,14 +320,15 @@ void Fuzzer::RssLimitCallback() {
   _Exit(Options.OOMExitCode); // Stop right now.
 }
 
-void Fuzzer::PrintStats(const char *Where, const char *End, size_t Units) {
+void Fuzzer::PrintStats(const char *Where, const char *End, size_t Units,
+                        size_t Features) {
   size_t ExecPerSec = execPerSec();
   if (!Options.Verbosity)
     return;
   Printf("#%zd\t%s", TotalNumberOfRuns, Where);
   if (size_t N = TPC.GetTotalPCCoverage())
     Printf(" cov: %zd", N);
-  if (size_t N = Corpus.NumFeatures())
+  if (size_t N = Features ? Features : Corpus.NumFeatures())
     Printf(" ft: %zd", N);
   if (!Corpus.empty()) {
     Printf(" corp: %zd", Corpus.NumActiveUnits());
@@ -474,6 +476,8 @@ bool Fuzzer::RunOne(const uint8_t *Data, size_t Size, bool MayDeleteFile,
   TPC.CollectFeatures([&](size_t Feature) {
     if (Corpus.AddFeature(Feature, Size, Options.Shrink))
       UniqFeatureSetTmp.push_back(Feature);
+    if (Options.Entropic)
+      Corpus.UpdateFeatureFrequency(II, Feature);
     if (Options.ReduceInputs && II)
       if (std::binary_search(II->UniqFeatureSet.begin(),
                              II->UniqFeatureSet.end(), Feature))
@@ -512,10 +516,12 @@ size_t Fuzzer::GetCurrentUnitInFuzzingThead(const uint8_t **Data) const {
 }
 
 void Fuzzer::CrashOnOverwrittenData() {
-  Printf("==%d== ERROR: libFuzzer: fuzz target overwrites it's const input\n",
+  Printf("==%d== ERROR: libFuzzer: fuzz target overwrites its const input\n",
          GetPid());
+  PrintStackTrace();
+  Printf("SUMMARY: libFuzzer: overwrites-const-input\n");
   DumpCurrentUnit("crash-");
-  Printf("SUMMARY: libFuzzer: out-of-memory\n");
+  PrintFinalStats();
   _Exit(Options.ErrorExitCode); // Stop right now.
 }
 
@@ -690,6 +696,7 @@ void Fuzzer::MutateAndTestOne() {
     assert(NewSize <= CurrentMaxMutationLen && "Mutator return oversized unit");
     Size = NewSize;
     II.NumExecutedMutations++;
+    Corpus.IncrementNumExecutedMutations();
 
     bool FoundUniqFeatures = false;
     bool NewCov = RunOne(CurrentUnitData, Size, /*MayDeleteFile=*/true, &II,
@@ -703,6 +710,8 @@ void Fuzzer::MutateAndTestOne() {
     if (Options.ReduceDepth && !FoundUniqFeatures)
       break;
   }
+
+  II.NeedsEnergyUpdate = true;
 }
 
 void Fuzzer::PurgeAllocator() {
@@ -739,10 +748,6 @@ void Fuzzer::ReadAndExecuteSeedCorpora(Vector<SizedFile> &CorporaFiles) {
   uint8_t dummy = 0;
   ExecuteCallback(&dummy, 0);
 
-  // Protect lazy counters here, after the once-init code has been executed.
-  if (Options.LazyCounters)
-    TPC.ProtectLazyCounters();
-
   if (CorporaFiles.empty()) {
     Printf("INFO: A corpus is not provided, starting from an empty corpus\n");
     Unit U({'\n'}); // Valid ASCII input.
@@ -771,12 +776,14 @@ void Fuzzer::ReadAndExecuteSeedCorpora(Vector<SizedFile> &CorporaFiles) {
   }
 
   PrintStats("INITED");
-  if (!Options.FocusFunction.empty())
+  if (!Options.FocusFunction.empty()) {
     Printf("INFO: %zd/%zd inputs touch the focus function\n",
            Corpus.NumInputsThatTouchFocusFunction(), Corpus.size());
-  if (!Options.DataFlowTrace.empty())
-    Printf("INFO: %zd/%zd inputs have the Data Flow Trace\n",
-           Corpus.NumInputsWithDataFlowTrace(), Corpus.size());
+    if (!Options.DataFlowTrace.empty())
+      Printf("INFO: %zd/%zd inputs have the Data Flow Trace\n",
+             Corpus.NumInputsWithDataFlowTrace(),
+             Corpus.NumInputsThatTouchFocusFunction());
+  }
 
   if (Corpus.empty() && Options.MaxNumberOfRuns) {
     Printf("ERROR: no interesting inputs were found. "

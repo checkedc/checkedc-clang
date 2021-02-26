@@ -16,20 +16,23 @@
 #define LLVM_ANALYSIS_LEGACY_DIVERGENCE_ANALYSIS_H
 
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/IR/Function.h"
 #include "llvm/Pass.h"
-#include "llvm/Analysis/DivergenceAnalysis.h"
+#include <memory>
 
 namespace llvm {
-class Value;
+class Function;
 class GPUDivergenceAnalysis;
+class Module;
+class raw_ostream;
+class TargetTransformInfo;
+class Use;
+class Value;
+
 class LegacyDivergenceAnalysis : public FunctionPass {
 public:
   static char ID;
 
-  LegacyDivergenceAnalysis() : FunctionPass(ID) {
-    initializeLegacyDivergenceAnalysisPass(*PassRegistry::getPassRegistry());
-  }
+  LegacyDivergenceAnalysis();
 
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 
@@ -39,29 +42,34 @@ public:
   void print(raw_ostream &OS, const Module *) const override;
 
   // Returns true if V is divergent at its definition.
-  //
-  // Even if this function returns false, V may still be divergent when used
-  // in a different basic block.
   bool isDivergent(const Value *V) const;
 
+  // Returns true if U is divergent. Uses of a uniform value can be divergent.
+  bool isDivergentUse(const Use *U) const;
+
   // Returns true if V is uniform/non-divergent.
-  //
-  // Even if this function returns true, V may still be divergent when used
-  // in a different basic block.
   bool isUniform(const Value *V) const { return !isDivergent(V); }
+
+  // Returns true if U is uniform/non-divergent. Uses of a uniform value can be
+  // divergent.
+  bool isUniformUse(const Use *U) const { return !isDivergentUse(U); }
 
   // Keep the analysis results uptodate by removing an erased value.
   void removeValue(const Value *V) { DivergentValues.erase(V); }
 
 private:
   // Whether analysis should be performed by GPUDivergenceAnalysis.
-  bool shouldUseGPUDivergenceAnalysis(const Function &F) const;
+  bool shouldUseGPUDivergenceAnalysis(const Function &F,
+                                      const TargetTransformInfo &TTI) const;
 
   // (optional) handle to new DivergenceAnalysis
   std::unique_ptr<GPUDivergenceAnalysis> gpuDA;
 
   // Stores all divergent values.
   DenseSet<const Value *> DivergentValues;
+
+  // Stores divergent uses of possibly uniform values.
+  DenseSet<const Use *> DivergentUses;
 };
 } // End llvm namespace
 

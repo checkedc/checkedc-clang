@@ -17,6 +17,7 @@
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/AST/OpenMPClause.h"
 #include "clang/AST/PrettyPrinter.h"
 #include "clang/AST/Type.h"
 #include "clang/AST/TypeLoc.h"
@@ -134,11 +135,23 @@ static void printCXXConstructorDestructorName(QualType ClassType,
   ClassType.print(OS, Policy);
 }
 
-void DeclarationName::print(raw_ostream &OS, const PrintingPolicy &Policy) {
+void DeclarationName::print(raw_ostream &OS,
+                            const PrintingPolicy &Policy) const {
   switch (getNameKind()) {
   case DeclarationName::Identifier:
-    if (const IdentifierInfo *II = getAsIdentifierInfo())
-      OS << II->getName();
+    if (const IdentifierInfo *II = getAsIdentifierInfo()) {
+      StringRef Name = II->getName();
+      // If this is a mangled OpenMP variant name we strip off the mangling for
+      // printing. It should not be visible to the user at all.
+      if (II->isMangledOpenMPVariantName()) {
+        std::pair<StringRef, StringRef> NameContextPair =
+            Name.split(getOpenMPVariantManglingSeparatorStr());
+        OS << NameContextPair.first << "["
+           << OMPTraitInfo(NameContextPair.second) << "]";
+      } else {
+        OS << Name;
+      }
+    }
     return;
 
   case DeclarationName::ObjCZeroArgSelector:
@@ -447,11 +460,17 @@ bool DeclarationNameInfo::isInstantiationDependent() const {
 std::string DeclarationNameInfo::getAsString() const {
   std::string Result;
   llvm::raw_string_ostream OS(Result);
-  printName(OS);
+  OS << *this;
   return OS.str();
 }
 
-void DeclarationNameInfo::printName(raw_ostream &OS) const {
+raw_ostream &clang::operator<<(raw_ostream &OS, DeclarationNameInfo DNInfo) {
+  LangOptions LO;
+  DNInfo.printName(OS, PrintingPolicy(LangOptions()));
+  return OS;
+}
+
+void DeclarationNameInfo::printName(raw_ostream &OS, PrintingPolicy Policy) const {
   switch (Name.getNameKind()) {
   case DeclarationName::Identifier:
   case DeclarationName::ObjCZeroArgSelector:
@@ -461,7 +480,7 @@ void DeclarationNameInfo::printName(raw_ostream &OS) const {
   case DeclarationName::CXXLiteralOperatorName:
   case DeclarationName::CXXUsingDirective:
   case DeclarationName::CXXDeductionGuideName:
-    OS << Name;
+    Name.print(OS, Policy);
     return;
 
   case DeclarationName::CXXConstructorName:
@@ -473,13 +492,11 @@ void DeclarationNameInfo::printName(raw_ostream &OS) const {
       else if (Name.getNameKind() == DeclarationName::CXXConversionFunctionName)
         OS << "operator ";
       LangOptions LO;
-      LO.CPlusPlus = true;
-      LO.Bool = true;
-      PrintingPolicy PP(LO);
-      PP.SuppressScope = true;
-      OS << TInfo->getType().getAsString(PP);
+      Policy.adjustForCPlusPlus();
+      Policy.SuppressScope = true;
+      OS << TInfo->getType().getAsString(Policy);
     } else
-      OS << Name;
+      Name.print(OS, Policy);
     return;
   }
   llvm_unreachable("Unexpected declaration name kind");

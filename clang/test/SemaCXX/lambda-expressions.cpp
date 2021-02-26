@@ -1,4 +1,5 @@
-// RUN: %clang_cc1 -std=c++14 -Wno-unused-value -fsyntax-only -verify -fblocks %s
+// RUN: %clang_cc1 -std=c++14 -Wno-unused-value -fsyntax-only -verify -verify=expected-cxx14 -fblocks %s
+// RUN: %clang_cc1 -std=c++17 -Wno-unused-value -fsyntax-only -verify -fblocks %s
 
 namespace std { class type_info; };
 
@@ -12,6 +13,7 @@ namespace ExplicitCapture {
 
     void ImplicitThisCapture() {
       [](){(void)Member;}; // expected-error {{'this' cannot be implicitly captured in this context}}
+      const int var = [](){(void)Member; return 0;}(); // expected-error {{'this' cannot be implicitly captured in this context}}
       [&](){(void)Member;};
 
       [this](){(void)Member;};
@@ -105,7 +107,7 @@ namespace SpecialMembers {
     a = static_cast<decltype(a)&&>(a); // expected-error {{copy assignment operator is implicitly deleted}}
   }
   struct P {
-    P(const P&) = delete; // expected-note 2{{deleted here}}
+    P(const P&) = delete; //expected-note {{deleted here}} // expected-cxx14-note {{deleted here}}
   };
   struct Q {
     ~Q() = delete; // expected-note {{deleted here}}
@@ -118,8 +120,8 @@ namespace SpecialMembers {
   };
   void g(P &p, Q &q, R &r) {
     // FIXME: The note attached to the second error here is just amazingly bad.
-    auto pp = [p]{}; // expected-error {{deleted constructor}} expected-error {{deleted copy constructor of '(lambda}}
-    // expected-note@-1 {{copy constructor of '' is implicitly deleted because field '' has a deleted copy constructor}}
+    auto pp = [p]{}; // expected-error {{deleted constructor}} expected-cxx14-error {{deleted copy constructor of '(lambda}}
+    // expected-cxx14-note@-1 {{copy constructor of '' is implicitly deleted because field '' has a deleted copy constructor}}
     auto qq = [q]{}; // expected-error {{deleted function}} expected-note {{because}}
 
     auto a = [r]{}; // expected-note 2{{here}}
@@ -365,7 +367,7 @@ namespace PR18128 {
     int (*f())[true ? 1 : ([=]{ return n; }(), 0)];
     // expected-error@-1 {{non-local lambda expression cannot have a capture-default}}
     // expected-error@-2 {{invalid use of non-static data member 'n'}}
-    // expected-error@-3 {{a lambda expression may not appear inside of a constant expression}}
+    // expected-cxx14-error@-3 {{a lambda expression may not appear inside of a constant expression}}
     int g(int k = ([=]{ return n; }(), 0));
     // expected-error@-1 {{non-local lambda expression cannot have a capture-default}}
     // expected-error@-2 {{invalid use of non-static data member 'n'}}
@@ -596,14 +598,27 @@ namespace ConversionOperatorDoesNotHaveDeducedReturnType {
     using ExpectedTypeU = void (*)(T&);
 
   struct X {
+#if __cplusplus > 201402L
+    friend constexpr auto T::operator()(int) const;
+    friend constexpr T::operator ExpectedTypeT() const noexcept;
+
+    template<typename T>
+      friend constexpr void U::operator()(T&) const;
+    // FIXME: This should not match; the return type is specified as behaving
+    // "as if it were a decltype-specifier denoting the return type of
+    // [operator()]", which is not equivalent to this alias template.
+    template<typename T>
+      friend constexpr U::operator ExpectedTypeU<T>() const noexcept;
+#else
     friend auto T::operator()(int) const;
     friend T::operator ExpectedTypeT() const;
 
-    // FIXME: The first of these should match. The second should not.
     template<typename T>
-      friend void U::operator()(T&) const; // expected-error {{does not match}}
+      friend void U::operator()(T&) const;
+    // FIXME: This should not match, as above.
     template<typename T>
-      friend U::operator ExpectedTypeU<T>() const; // expected-error {{does not match}}
+      friend U::operator ExpectedTypeU<T>() const;
+#endif
 
   private:
     int n;
@@ -629,4 +644,8 @@ void Run(const int& points) {
     // expected-error@-2 {{template argument for template type parameter must be a type}}
   };
 }
+}
+
+void operator_parens() {
+  [&](int x){ operator()(); }(0); // expected-error {{undeclared 'operator()'}}
 }

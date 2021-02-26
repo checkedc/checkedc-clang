@@ -47,7 +47,6 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Analysis/GlobalsModRef.h"
-#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
@@ -59,6 +58,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/Value.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/ArrayRecycler.h"
@@ -71,6 +71,7 @@
 #include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/Transforms/Scalar/GVNExpression.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/Local.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -349,6 +350,7 @@ using ModelledPHISet = DenseSet<ModelledPHI, DenseMapInfo<ModelledPHI>>;
 class InstructionUseExpr : public GVNExpression::BasicExpression {
   unsigned MemoryUseOrder = -1;
   bool Volatile = false;
+  ArrayRef<int> ShuffleMask;
 
 public:
   InstructionUseExpr(Instruction *I, ArrayRecycler<Value *> &R,
@@ -357,6 +359,9 @@ public:
     allocateOperands(R, A);
     setOpcode(I->getOpcode());
     setType(I->getType());
+
+    if (ShuffleVectorInst *SVI = dyn_cast<ShuffleVectorInst>(I))
+      ShuffleMask = SVI->getShuffleMask().copy(A);
 
     for (auto &U : I->uses())
       op_push_back(U.getUser());
@@ -368,12 +373,12 @@ public:
 
   hash_code getHashValue() const override {
     return hash_combine(GVNExpression::BasicExpression::getHashValue(),
-                        MemoryUseOrder, Volatile);
+                        MemoryUseOrder, Volatile, ShuffleMask);
   }
 
   template <typename Function> hash_code getHashValue(Function MapFn) {
-    hash_code H =
-        hash_combine(getOpcode(), getType(), MemoryUseOrder, Volatile);
+    hash_code H = hash_combine(getOpcode(), getType(), MemoryUseOrder, Volatile,
+                               ShuffleMask);
     for (auto *V : operands())
       H = hash_combine(H, MapFn(V));
     return H;
@@ -474,6 +479,7 @@ public:
     case Instruction::PtrToInt:
     case Instruction::IntToPtr:
     case Instruction::BitCast:
+    case Instruction::AddrSpaceCast:
     case Instruction::Select:
     case Instruction::ExtractElement:
     case Instruction::InsertElement:
@@ -575,7 +581,7 @@ public:
 private:
   ValueTable VN;
 
-  bool isInstructionBlacklisted(Instruction *I) {
+  bool shouldAvoidSinkingInstruction(Instruction *I) {
     // These instructions may change or break semantics if moved.
     if (isa<PHINode>(I) || I->isEHPad() || isa<AllocaInst>(I) ||
         I->getType()->isTokenTy())
@@ -667,7 +673,7 @@ Optional<SinkingInstructionCandidate> GVNSink::analyzeInstructionForSinking(
       NewInsts.push_back(I);
   }
   for (auto *I : NewInsts)
-    if (isInstructionBlacklisted(I))
+    if (shouldAvoidSinkingInstruction(I))
       return None;
 
   // If we've restricted the incoming blocks, restrict all needed PHIs also

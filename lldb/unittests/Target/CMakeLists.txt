@@ -1,15 +1,21 @@
 add_lldb_unittest(TargetTests
+  ABITest.cpp
+  ExecutionContextTest.cpp
   MemoryRegionInfoTest.cpp
   ModuleCacheTest.cpp
   PathMappingListTest.cpp
-  ProcessInstanceInfoTest.cpp
+  RemoteAwarePlatformTest.cpp
+  StackFrameRecognizerTest.cpp
 
   LINK_LIBS
       lldbCore
       lldbHost
+      lldbPluginObjectFileELF
+      lldbPluginPlatformLinux
+      lldbPluginSymbolFileSymtab
+      lldbTarget
       lldbSymbol
       lldbUtility
-      lldbPluginObjectFileELF
       lldbUtilityHelpers
     LINK_COMPONENTS
       Support

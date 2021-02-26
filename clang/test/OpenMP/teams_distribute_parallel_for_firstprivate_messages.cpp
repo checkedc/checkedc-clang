@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -verify -fopenmp %s -Wno-openmp-target -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp %s -Wno-openmp-mapping -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wno-openmp-target -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wno-openmp-mapping -Wuninitialized
 
 extern int omp_default_mem_alloc;
 void foo() {
@@ -8,6 +8,14 @@ void foo() {
 
 bool foobool(int argc) {
   return argc;
+}
+
+void xxx(int argc) {
+  int fp; // expected-note {{initialize the variable 'fp' to silence this warning}}
+#pragma omp target
+#pragma omp teams distribute parallel for firstprivate(fp) // expected-warning {{variable 'fp' is uninitialized when used here}}
+  for (int i = 0; i < 10; ++i)
+    ;
 }
 
 struct S1; // expected-note {{declared here}} expected-note{{forward declaration of 'S1'}}

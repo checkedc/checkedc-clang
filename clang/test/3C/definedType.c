@@ -1,4 +1,11 @@
+// This test currently fails on Windows X86, but the 3C team is waiting to try
+// to fix it until Microsoft addresses a problem that currently makes the tests
+// difficult to run on Windows X86:
+//
+// https://github.com/microsoft/checkedc-clang/pull/956#issuecomment-752317866
+//
 // UNSUPPORTED: system-windows
+
 // RUN: 3c -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
 // RUN: 3c -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
 // RUN: 3c -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
@@ -6,7 +13,7 @@
 // RUN: 3c -alltypes %S/definedType.checked.c -- | count 0
 // RUN: rm %S/definedType.checked.c
 
-#define size_t unsigned long
+#include <stddef.h>
 _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
 
 // From issue 204

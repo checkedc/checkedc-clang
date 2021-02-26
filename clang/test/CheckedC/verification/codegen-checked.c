@@ -2,7 +2,7 @@
 // There should be a __VERIFIER_error at each dynamic check failed block.
 //
 //
-// RUN: %clang -finject-verifier-calls -emit-llvm -S %s -o - | FileCheck %s
+// RUN: %clang_cc1 -finject-verifier-calls -emit-llvm %s -o - | FileCheck %s
 
 extern void __VERIFIER_error (void);
 extern void __VERIFIER_assume (int);

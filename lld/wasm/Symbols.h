@@ -11,6 +11,7 @@
 
 #include "Config.h"
 #include "lld/Common/LLVM.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/Wasm.h"
 
@@ -85,8 +86,6 @@ public:
   // Returns the file from which this symbol was created.
   InputFile *getFile() const { return file; }
 
-  uint32_t getFlags() const { return flags; }
-
   InputChunk *getChunk() const;
 
   // Indicates that the section or import for this symbol will be included in
@@ -107,9 +106,11 @@ public:
   WasmSymbolType getWasmType() const;
   bool isExported() const;
 
-  const WasmSignature* getSignature() const;
+  // Indicates that the symbol is used in an __attribute__((used)) directive
+  // or similar.
+  bool isNoStrip() const;
 
-  bool isInGOT() const { return gotIndex != INVALID_INDEX; }
+  const WasmSignature* getSignature() const;
 
   uint32_t getGOTIndex() const {
     assert(gotIndex != INVALID_INDEX);
@@ -121,13 +122,12 @@ public:
 
 protected:
   Symbol(StringRef name, Kind k, uint32_t flags, InputFile *f)
-      : name(name), file(f), flags(flags), symbolKind(k),
-        referenced(!config->gcSections), isUsedInRegularObj(false),
-        forceExport(false), canInline(false), traced(false) {}
+      : name(name), file(f), symbolKind(k), referenced(!config->gcSections),
+        requiresGOT(false), isUsedInRegularObj(false), forceExport(false),
+        canInline(false), traced(false), flags(flags) {}
 
   StringRef name;
   InputFile *file;
-  uint32_t flags;
   uint32_t outputSymbolIndex = INVALID_INDEX;
   uint32_t gotIndex = INVALID_INDEX;
   Kind symbolKind;
@@ -135,14 +135,18 @@ protected:
 public:
   bool referenced : 1;
 
+  // True for data symbols that needs a dummy GOT entry.  Used for static
+  // linking of GOT accesses.
+  bool requiresGOT : 1;
+
   // True if the symbol was used for linking and thus need to be added to the
   // output file's symbol table. This is true for all symbols except for
   // unreferenced DSO symbols, lazy (archive) symbols, and bitcode symbols that
   // are unreferenced except by other bitcode objects.
   bool isUsedInRegularObj : 1;
 
-  // True if ths symbol is explicity marked for export (i.e. via the -e/--export
-  // command line flag)
+  // True if ths symbol is explicitly marked for export (i.e. via the
+  // -e/--export command line flag)
   bool forceExport : 1;
 
   // False if LTO shouldn't inline whatever this symbol points to. If a symbol
@@ -152,6 +156,8 @@ public:
 
   // True if this symbol is specified by --trace-symbol option.
   bool traced : 1;
+
+  uint32_t flags;
 };
 
 class FunctionSymbol : public Symbol {
@@ -196,20 +202,21 @@ public:
 
 class UndefinedFunction : public FunctionSymbol {
 public:
-  UndefinedFunction(StringRef name, StringRef importName,
-                    StringRef importModule, uint32_t flags,
+  UndefinedFunction(StringRef name, llvm::Optional<StringRef> importName,
+                    llvm::Optional<StringRef> importModule, uint32_t flags,
                     InputFile *file = nullptr,
                     const WasmSignature *type = nullptr,
                     bool isCalledDirectly = true)
       : FunctionSymbol(name, UndefinedFunctionKind, flags, file, type),
-        importName(importName), importModule(importModule), isCalledDirectly(isCalledDirectly) {}
+        importName(importName), importModule(importModule),
+        isCalledDirectly(isCalledDirectly) {}
 
   static bool classof(const Symbol *s) {
     return s->kind() == UndefinedFunctionKind;
   }
 
-  StringRef importName;
-  StringRef importModule;
+  llvm::Optional<StringRef> importName;
+  llvm::Optional<StringRef> importModule;
   bool isCalledDirectly;
 };
 
@@ -257,7 +264,7 @@ class DefinedData : public DataSymbol {
 public:
   // Constructor for regular data symbols originating from input files.
   DefinedData(StringRef name, uint32_t flags, InputFile *f,
-              InputSegment *segment, uint32_t offset, uint32_t size)
+              InputSegment *segment, uint64_t offset, uint64_t size)
       : DataSymbol(name, DefinedDataKind, flags, f), segment(segment),
         offset(offset), size(size) {}
 
@@ -268,19 +275,19 @@ public:
   static bool classof(const Symbol *s) { return s->kind() == DefinedDataKind; }
 
   // Returns the output virtual address of a defined data symbol.
-  uint32_t getVirtualAddress() const;
-  void setVirtualAddress(uint32_t va);
+  uint64_t getVirtualAddress() const;
+  void setVirtualAddress(uint64_t va);
 
   // Returns the offset of a defined data symbol within its OutputSegment.
-  uint32_t getOutputSegmentOffset() const;
-  uint32_t getOutputSegmentIndex() const;
-  uint32_t getSize() const { return size; }
+  uint64_t getOutputSegmentOffset() const;
+  uint64_t getOutputSegmentIndex() const;
+  uint64_t getSize() const { return size; }
 
   InputSegment *segment = nullptr;
 
 protected:
-  uint32_t offset = 0;
-  uint32_t size = 0;
+  uint64_t offset = 0;
+  uint64_t size = 0;
 };
 
 class UndefinedData : public DataSymbol {
@@ -328,8 +335,9 @@ public:
 
 class UndefinedGlobal : public GlobalSymbol {
 public:
-  UndefinedGlobal(StringRef name, StringRef importName, StringRef importModule,
-                  uint32_t flags, InputFile *file = nullptr,
+  UndefinedGlobal(StringRef name, llvm::Optional<StringRef> importName,
+                  llvm::Optional<StringRef> importModule, uint32_t flags,
+                  InputFile *file = nullptr,
                   const WasmGlobalType *type = nullptr)
       : GlobalSymbol(name, UndefinedGlobalKind, flags, file, type),
         importName(importName), importModule(importModule) {}
@@ -338,8 +346,8 @@ public:
     return s->kind() == UndefinedGlobalKind;
   }
 
-  StringRef importName;
-  StringRef importModule;
+  llvm::Optional<StringRef> importName;
+  llvm::Optional<StringRef> importModule;
 };
 
 // Wasm events are features that suspend the current execution and transfer the
@@ -403,10 +411,11 @@ public:
 
   static bool classof(const Symbol *s) { return s->kind() == LazyKind; }
   void fetch();
+  MemoryBufferRef getMemberBuffer();
 
   // Lazy symbols can have a signature because they can replace an
   // UndefinedFunction which which case we need to be able to preserve the
-  // signture.
+  // signature.
   // TODO(sbc): This repetition of the signature field is inelegant.  Revisit
   // the use of class hierarchy to represent symbol taxonomy.
   const WasmSignature *signature = nullptr;
@@ -435,6 +444,10 @@ struct WasmSym {
   // Symbol whose value is the size of the TLS block.
   static GlobalSymbol *tlsSize;
 
+  // __tls_size
+  // Symbol whose value is the alignment of the TLS block.
+  static GlobalSymbol *tlsAlign;
+
   // __data_end
   // Symbol marking the end of the data and bss.
   static DefinedData *dataEnd;
@@ -445,13 +458,17 @@ struct WasmSym {
   // therefore be used as a backing store for brk()/malloc() implementations.
   static DefinedData *heapBase;
 
+  // __wasm_init_memory_flag
+  // Symbol whose contents are nonzero iff memory has already been initialized.
+  static DefinedData *initMemoryFlag;
+
+  // __wasm_init_memory
+  // Function that initializes passive data segments during instantiation.
+  static DefinedFunction *initMemory;
+
   // __wasm_call_ctors
   // Function that directly calls all ctors in priority order.
   static DefinedFunction *callCtors;
-
-  // __wasm_init_memory
-  // Function that initializes passive data segments post-instantiation.
-  static DefinedFunction *initMemory;
 
   // __wasm_apply_relocs
   // Function that applies relocations to data segment post-instantiation.
@@ -468,10 +485,12 @@ struct WasmSym {
   // __table_base
   // Used in PIC code for offset of indirect function table
   static UndefinedGlobal *tableBase;
+  static DefinedData *definedTableBase;
 
   // __memory_base
   // Used in PIC code for offset of global data
   static UndefinedGlobal *memoryBase;
+  static DefinedData *definedMemoryBase;
 };
 
 // A buffer class that is large enough to hold any Symbol-derived
@@ -492,7 +511,7 @@ union SymbolUnion {
 // It is important to keep the size of SymbolUnion small for performance and
 // memory usage reasons. 96 bytes is a soft limit based on the size of
 // UndefinedFunction on a 64-bit system.
-static_assert(sizeof(SymbolUnion) <= 96, "SymbolUnion too large");
+static_assert(sizeof(SymbolUnion) <= 112, "SymbolUnion too large");
 
 void printTraceSymbol(Symbol *sym);
 void printTraceSymbolUndefined(StringRef name, const InputFile* file);

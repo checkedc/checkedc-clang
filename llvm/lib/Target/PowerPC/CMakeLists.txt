@@ -29,10 +29,11 @@ add_llvm_target(PowerPCCodeGen
   PPCEarlyReturn.cpp
   PPCFastISel.cpp
   PPCFrameLowering.cpp
-  PPCLoopPreIncPrep.cpp
+  PPCLoopInstrFormPrep.cpp
   PPCMCInstLower.cpp
   PPCMachineFunctionInfo.cpp
   PPCMachineScheduler.cpp
+  PPCMacroFusion.cpp
   PPCMIPeephole.cpp
   PPCRegisterInfo.cpp
   PPCQPXLoadSplat.cpp
@@ -48,6 +49,7 @@ add_llvm_target(PowerPCCodeGen
   PPCVSXSwapRemoval.cpp
   PPCExpandISEL.cpp
   PPCPreEmitPeephole.cpp
+  PPCLowerMASSVEntries.cpp
   )
 
 add_subdirectory(AsmParser)

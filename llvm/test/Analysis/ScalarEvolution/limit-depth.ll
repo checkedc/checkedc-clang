@@ -46,7 +46,7 @@ define void @test_mul(i32 %a, i32 %b, i32 %c, i32 %d, i32 %e, i32 %f) {
 define void @test_sext(i32 %a, i32 %b, i32 %c, i32 %d, i32 %e, i32 %f) {
 ; CHECK-LABEL: @test_sext
 ; CHECK:        %se2 = sext i64 %iv2.inc to i128
-; CHECK-NEXT:   -->  {(1 + (sext i64 {(sext i32 (1 + %a)<nsw> to i64),+,1}<nsw><%loop> to i128))<nsw>,+,1}<nsw><%loop2>
+; CHECK-NEXT:   -->  {(1 + (sext i64 {(sext i32 (1 + %a) to i64),+,1}<nsw><%loop> to i128))<nsw>,+,1}<nsw><%loop2>
 entry:
   br label %loop
 
@@ -124,5 +124,19 @@ loop2:
 
 exit:
   %trunc2 = trunc i64 %iv2.inc to i32
+  ret void
+}
+
+; Check that all constant SCEVs are folded regardless depth limit.
+define void @test_mul_const(i32 %a) {
+; CHECK-LABEL:  @test_mul_const
+; CHECK:          %test3 = mul i32 %test2, 3
+; CHECK-NEXT:     -->  (9 + (3 * (3 * %a)))
+; CHECK:          %test4 = mul i32 3, 3
+; CHECK-NEXT:     -->  9 U: [9,10) S: [9,10)
+  %test = mul i32 3, %a
+  %test2 = add i32 3, %test
+  %test3 = mul i32 %test2, 3
+  %test4 = mul i32 3, 3
   ret void
 }

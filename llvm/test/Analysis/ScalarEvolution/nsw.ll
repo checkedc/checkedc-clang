@@ -163,7 +163,7 @@ bb5:                                              ; preds = %bb2
 declare void @f(i32)
 
 ; CHECK-LABEL: nswnowrap
-; CHECK: --> {(1 + %v)<nsw>,+,1}<nsw><%for.body>{{ U: [^ ]+ S: [^ ]+}}{{ *}}Exits: (2 + %v)
+; CHECK: --> {(1 + %v)<nsw>,+,1}<nsw><%for.body>{{ U: [^ ]+ S: [^ ]+}}{{ *}}Exits: (1 + ((1 + %v)<nsw> smax %v))
 define void @nswnowrap(i32 %v, i32* %buf) {
 entry:
   %add = add nsw i32 %v, 1
@@ -223,8 +223,10 @@ leave:
   ret void
 }
 
-define void @bad_postinc_nsw_b(i32 %n) {
-; CHECK-LABEL: Classifying expressions for: @bad_postinc_nsw_b
+; Unlike @bad_postinc_nsw_a(), the SCEV expression of %iv.inc has <nsw> flag
+; because poison can be propagated through 'and %iv.inc, 0'.
+define void @postinc_poison_prop_through_and(i32 %n) {
+; CHECK-LABEL: Classifying expressions for: @postinc_poison_prop_through_and
 entry:
   br label %loop
 
@@ -233,7 +235,7 @@ loop:
   %iv.inc = add nsw i32 %iv, 7
   %iv.inc.and = and i32 %iv.inc, 0
 ; CHECK:    %iv.inc = add nsw i32 %iv, 7
-; CHECK-NEXT:  -->  {7,+,7}<nuw><%loop>
+; CHECK-NEXT:  -->  {7,+,7}<nuw><nsw><%loop>
   %becond = icmp ult i32 %iv.inc.and, %n
   br i1 %becond, label %loop, label %leave
 

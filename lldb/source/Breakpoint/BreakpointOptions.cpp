@@ -1,4 +1,4 @@
-//===-- BreakpointOptions.cpp -----------------------------------*- C++ -*-===//
+//===-- BreakpointOptions.cpp ---------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -154,7 +154,7 @@ BreakpointOptions::BreakpointOptions(const BreakpointOptions &rhs)
       m_ignore_count(rhs.m_ignore_count), m_thread_spec_up(),
       m_auto_continue(rhs.m_auto_continue), m_set_flags(rhs.m_set_flags) {
   if (rhs.m_thread_spec_up != nullptr)
-    m_thread_spec_up.reset(new ThreadSpec(*rhs.m_thread_spec_up));
+    m_thread_spec_up = std::make_unique<ThreadSpec>(*rhs.m_thread_spec_up);
   m_condition_text = rhs.m_condition_text;
   m_condition_text_hash = rhs.m_condition_text_hash;
 }
@@ -170,7 +170,7 @@ operator=(const BreakpointOptions &rhs) {
   m_one_shot = rhs.m_one_shot;
   m_ignore_count = rhs.m_ignore_count;
   if (rhs.m_thread_spec_up != nullptr)
-    m_thread_spec_up.reset(new ThreadSpec(*rhs.m_thread_spec_up));
+    m_thread_spec_up = std::make_unique<ThreadSpec>(*rhs.m_thread_spec_up);
   m_condition_text = rhs.m_condition_text;
   m_condition_text_hash = rhs.m_condition_text_hash;
   m_auto_continue = rhs.m_auto_continue;
@@ -223,7 +223,8 @@ void BreakpointOptions::CopyOverSetOptions(const BreakpointOptions &incoming)
   }
   if (incoming.m_set_flags.Test(eThreadSpec) && incoming.m_thread_spec_up) {
     if (!m_thread_spec_up)
-      m_thread_spec_up.reset(new ThreadSpec(*incoming.m_thread_spec_up));
+      m_thread_spec_up =
+          std::make_unique<ThreadSpec>(*incoming.m_thread_spec_up);
     else
       *m_thread_spec_up = *incoming.m_thread_spec_up;
     m_set_flags.Set(eThreadSpec);
@@ -309,7 +310,7 @@ std::unique_ptr<BreakpointOptions> BreakpointOptions::CreateFromStructuredData(
     }
   }
 
-  auto bp_options = llvm::make_unique<BreakpointOptions>(
+  auto bp_options = std::make_unique<BreakpointOptions>(
       condition_ref.str().c_str(), enabled, 
       ignore_count, one_shot, auto_continue);
   if (cmd_data_up) {
@@ -509,7 +510,7 @@ const ThreadSpec *BreakpointOptions::GetThreadSpecNoCreate() const {
 ThreadSpec *BreakpointOptions::GetThreadSpec() {
   if (m_thread_spec_up == nullptr) {
     m_set_flags.Set(eThreadSpec);
-    m_thread_spec_up.reset(new ThreadSpec());
+    m_thread_spec_up = std::make_unique<ThreadSpec>();
   }
 
   return m_thread_spec_up.get();
@@ -566,7 +567,8 @@ void BreakpointOptions::GetDescription(Stream *s,
   if (m_callback_baton_sp.get()) {
     if (level != eDescriptionLevelBrief) {
       s->EOL();
-      m_callback_baton_sp->GetDescription(s, level);
+      m_callback_baton_sp->GetDescription(s->AsRawOstream(), level,
+                                          s->GetIndentLevel());
     }
   }
   if (!m_condition_text.empty()) {
@@ -578,35 +580,33 @@ void BreakpointOptions::GetDescription(Stream *s,
 }
 
 void BreakpointOptions::CommandBaton::GetDescription(
-    Stream *s, lldb::DescriptionLevel level) const {
+    llvm::raw_ostream &s, lldb::DescriptionLevel level,
+    unsigned indentation) const {
   const CommandData *data = getItem();
 
   if (level == eDescriptionLevelBrief) {
-    s->Printf(", commands = %s",
-              (data && data->user_source.GetSize() > 0) ? "yes" : "no");
+    s << ", commands = "
+      << ((data && data->user_source.GetSize() > 0) ? "yes" : "no");
     return;
   }
 
-  s->IndentMore();
-  s->Indent("Breakpoint commands");
+  indentation += 2;
+  s.indent(indentation);
+  s << "Breakpoint commands";
   if (data->interpreter != eScriptLanguageNone)
-    s->Printf(" (%s):\n",
-              ScriptInterpreter::LanguageToString(data->interpreter).c_str());
+    s << llvm::formatv(" ({0}):\n",
+                       ScriptInterpreter::LanguageToString(data->interpreter));
   else
-    s->PutCString(":\n");
+    s << ":\n";
 
-  s->IndentMore();
+  indentation += 2;
   if (data && data->user_source.GetSize() > 0) {
-    const size_t num_strings = data->user_source.GetSize();
-    for (size_t i = 0; i < num_strings; ++i) {
-      s->Indent(data->user_source.GetStringAtIndex(i));
-      s->EOL();
+    for (llvm::StringRef str : data->user_source) {
+      s.indent(indentation);
+      s << str << "\n";
     }
-  } else {
-    s->PutCString("No commands.\n");
-  }
-  s->IndentLess();
-  s->IndentLess();
+  } else
+    s << "No commands.\n";
 }
 
 void BreakpointOptions::SetCommandDataCallback(
@@ -631,11 +631,11 @@ bool BreakpointOptions::BreakpointOptionsCallbackFunction(
     ExecutionContext exe_ctx(context->exe_ctx_ref);
     Target *target = exe_ctx.GetTargetPtr();
     if (target) {
-      CommandReturnObject result;
       Debugger &debugger = target->GetDebugger();
+      CommandReturnObject result(debugger.GetUseColor());
+
       // Rig up the results secondary output stream to the debugger's, so the
       // output will come out synchronously if the debugger is set up that way.
-
       StreamSP output_stream(debugger.GetAsyncOutputStream());
       StreamSP error_stream(debugger.GetAsyncErrorStream());
       result.SetImmediateOutputStream(output_stream);

@@ -33,6 +33,7 @@
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
+#include "llvm/IR/ModuleSummaryIndex.h"
 #include "llvm/IR/SymbolTableListTraits.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/TypeFinder.h"
@@ -71,9 +72,9 @@ template class llvm::SymbolTableListTraits<GlobalIFunc>;
 //
 
 Module::Module(StringRef MID, LLVMContext &C)
-    : Context(C), Materializer(), ModuleID(MID), SourceFileName(MID), DL("") {
-  ValSymTab = new ValueSymbolTable();
-  NamedMDSymTab = new StringMap<NamedMDNode *>();
+    : Context(C), ValSymTab(std::make_unique<ValueSymbolTable>()),
+      Materializer(), ModuleID(std::string(MID)),
+      SourceFileName(std::string(MID)), DL("") {
   Context.addModule(this);
 }
 
@@ -84,13 +85,11 @@ Module::~Module() {
   FunctionList.clear();
   AliasList.clear();
   IFuncList.clear();
-  NamedMDList.clear();
-  delete ValSymTab;
-  delete static_cast<StringMap<NamedMDNode *> *>(NamedMDSymTab);
 }
 
-std::unique_ptr<RandomNumberGenerator> Module::createRNG(const Pass* P) const {
-  SmallString<32> Salt(P->getPassName());
+std::unique_ptr<RandomNumberGenerator>
+Module::createRNG(const StringRef Name) const {
+  SmallString<32> Salt(Name);
 
   // This RNG is guaranteed to produce the same random stream only
   // when the Module ID and thus the input filename is the same. This
@@ -104,7 +103,8 @@ std::unique_ptr<RandomNumberGenerator> Module::createRNG(const Pass* P) const {
   // store salt metadata from the Module constructor.
   Salt += sys::path::filename(getModuleIdentifier());
 
-  return std::unique_ptr<RandomNumberGenerator>(new RandomNumberGenerator(Salt));
+  return std::unique_ptr<RandomNumberGenerator>(
+      new RandomNumberGenerator(Salt));
 }
 
 /// getNamedValue - Return the first global value in the module with
@@ -250,15 +250,14 @@ GlobalIFunc *Module::getNamedIFunc(StringRef Name) const {
 NamedMDNode *Module::getNamedMetadata(const Twine &Name) const {
   SmallString<256> NameData;
   StringRef NameRef = Name.toStringRef(NameData);
-  return static_cast<StringMap<NamedMDNode*> *>(NamedMDSymTab)->lookup(NameRef);
+  return NamedMDSymTab.lookup(NameRef);
 }
 
 /// getOrInsertNamedMetadata - Return the first named MDNode in the module
 /// with the specified name. This method returns a new NamedMDNode if a
 /// NamedMDNode with the specified name is not found.
 NamedMDNode *Module::getOrInsertNamedMetadata(StringRef Name) {
-  NamedMDNode *&NMD =
-    (*static_cast<StringMap<NamedMDNode *> *>(NamedMDSymTab))[Name];
+  NamedMDNode *&NMD = NamedMDSymTab[Name];
   if (!NMD) {
     NMD = new NamedMDNode(Name);
     NMD->setParent(this);
@@ -270,7 +269,7 @@ NamedMDNode *Module::getOrInsertNamedMetadata(StringRef Name) {
 /// eraseNamedMetadata - Remove the given NamedMDNode from this module and
 /// delete it.
 void Module::eraseNamedMetadata(NamedMDNode *NMD) {
-  static_cast<StringMap<NamedMDNode *> *>(NamedMDSymTab)->erase(NMD->getName());
+  NamedMDSymTab.erase(NMD->getName());
   NamedMDList.erase(NMD->getIterator());
 }
 
@@ -285,6 +284,20 @@ bool Module::isValidModFlagBehavior(Metadata *MD, ModFlagBehavior &MFB) {
   return false;
 }
 
+bool Module::isValidModuleFlag(const MDNode &ModFlag, ModFlagBehavior &MFB,
+                               MDString *&Key, Metadata *&Val) {
+  if (ModFlag.getNumOperands() < 3)
+    return false;
+  if (!isValidModFlagBehavior(ModFlag.getOperand(0), MFB))
+    return false;
+  MDString *K = dyn_cast_or_null<MDString>(ModFlag.getOperand(1));
+  if (!K)
+    return false;
+  Key = K;
+  Val = ModFlag.getOperand(2);
+  return true;
+}
+
 /// getModuleFlagsMetadata - Returns the module flags in the provided vector.
 void Module::
 getModuleFlagsMetadata(SmallVectorImpl<ModuleFlagEntry> &Flags) const {
@@ -293,13 +306,11 @@ getModuleFlagsMetadata(SmallVectorImpl<ModuleFlagEntry> &Flags) const {
 
   for (const MDNode *Flag : ModFlags->operands()) {
     ModFlagBehavior MFB;
-    if (Flag->getNumOperands() >= 3 &&
-        isValidModFlagBehavior(Flag->getOperand(0), MFB) &&
-        dyn_cast_or_null<MDString>(Flag->getOperand(1))) {
+    MDString *Key = nullptr;
+    Metadata *Val = nullptr;
+    if (isValidModuleFlag(*Flag, MFB, Key, Val)) {
       // Check the operands of the MDNode before accessing the operands.
       // The verifier will actually catch these failures.
-      MDString *Key = cast<MDString>(Flag->getOperand(1));
-      Metadata *Val = Flag->getOperand(2);
       Flags.push_back(ModuleFlagEntry(MFB, Key, Val));
     }
   }
@@ -360,6 +371,23 @@ void Module::addModuleFlag(MDNode *Node) {
   getOrInsertModuleFlagsMetadata()->addOperand(Node);
 }
 
+void Module::setModuleFlag(ModFlagBehavior Behavior, StringRef Key,
+                           Metadata *Val) {
+  NamedMDNode *ModFlags = getOrInsertModuleFlagsMetadata();
+  // Replace the flag if it already exists.
+  for (unsigned I = 0, E = ModFlags->getNumOperands(); I != E; ++I) {
+    MDNode *Flag = ModFlags->getOperand(I);
+    ModFlagBehavior MFB;
+    MDString *K = nullptr;
+    Metadata *V = nullptr;
+    if (isValidModuleFlag(*Flag, MFB, K, V) && K->getString() == Key) {
+      Flag->replaceOperandWith(2, Val);
+      return;
+    }
+  }
+  addModuleFlag(Behavior, Key, Val);
+}
+
 void Module::setDataLayout(StringRef Desc) {
   DL.reset(Desc);
 }
@@ -379,6 +407,22 @@ void Module::debug_compile_units_iterator::SkipNoDebugCUs() {
   while (CUs && (Idx < CUs->getNumOperands()) &&
          ((*this)->getEmissionKind() == DICompileUnit::NoDebug))
     ++Idx;
+}
+
+iterator_range<Module::global_object_iterator> Module::global_objects() {
+  return concat<GlobalObject>(functions(), globals());
+}
+iterator_range<Module::const_global_object_iterator>
+Module::global_objects() const {
+  return concat<const GlobalObject>(functions(), globals());
+}
+
+iterator_range<Module::global_value_iterator> Module::global_values() {
+  return concat<GlobalValue>(functions(), globals(), aliases(), ifuncs());
+}
+iterator_range<Module::const_global_value_iterator>
+Module::global_values() const {
+  return concat<const GlobalValue>(functions(), globals(), aliases(), ifuncs());
 }
 
 //===----------------------------------------------------------------------===//
@@ -533,14 +577,35 @@ void Module::setCodeModel(CodeModel::Model CL) {
 
 void Module::setProfileSummary(Metadata *M, ProfileSummary::Kind Kind) {
   if (Kind == ProfileSummary::PSK_CSInstr)
-    addModuleFlag(ModFlagBehavior::Error, "CSProfileSummary", M);
+    setModuleFlag(ModFlagBehavior::Error, "CSProfileSummary", M);
   else
-    addModuleFlag(ModFlagBehavior::Error, "ProfileSummary", M);
+    setModuleFlag(ModFlagBehavior::Error, "ProfileSummary", M);
 }
 
 Metadata *Module::getProfileSummary(bool IsCS) {
   return (IsCS ? getModuleFlag("CSProfileSummary")
                : getModuleFlag("ProfileSummary"));
+}
+
+bool Module::getSemanticInterposition() const {
+  Metadata *MF = getModuleFlag("SemanticInterposition");
+
+  auto *Val = cast_or_null<ConstantAsMetadata>(MF);
+  if (!Val)
+    return false;
+
+  return cast<ConstantInt>(Val->getValue())->getZExtValue();
+}
+
+void Module::setSemanticInterposition(bool SI) {
+  addModuleFlag(ModFlagBehavior::Error, "SemanticInterposition", SI);
+}
+
+bool Module::noSemanticInterposition() const {
+  // Conservatively require an explicit zero value for now.
+  Metadata *MF = getModuleFlag("SemanticInterposition");
+  auto *Val = cast_or_null<ConstantAsMetadata>(MF);
+  return Val && cast<ConstantInt>(Val->getValue())->getZExtValue() == 0;
 }
 
 void Module::setOwnedMemoryBuffer(std::unique_ptr<MemoryBuffer> MB) {
@@ -604,8 +669,28 @@ GlobalVariable *llvm::collectUsedGlobalVariables(
 
   const ConstantArray *Init = cast<ConstantArray>(GV->getInitializer());
   for (Value *Op : Init->operands()) {
-    GlobalValue *G = cast<GlobalValue>(Op->stripPointerCastsNoFollowAliases());
+    GlobalValue *G = cast<GlobalValue>(Op->stripPointerCasts());
     Set.insert(G);
   }
   return GV;
+}
+
+void Module::setPartialSampleProfileRatio(const ModuleSummaryIndex &Index) {
+  if (auto *SummaryMD = getProfileSummary(/*IsCS*/ false)) {
+    std::unique_ptr<ProfileSummary> ProfileSummary(
+        ProfileSummary::getFromMD(SummaryMD));
+    if (ProfileSummary) {
+      if (ProfileSummary->getKind() != ProfileSummary::PSK_Sample ||
+          !ProfileSummary->isPartialProfile())
+        return;
+      uint64_t BlockCount = Index.getBlockCount();
+      uint32_t NumCounts = ProfileSummary->getNumCounts();
+      if (!NumCounts)
+        return;
+      double Ratio = (double)BlockCount / NumCounts;
+      ProfileSummary->setPartialProfileRatio(Ratio);
+      setProfileSummary(ProfileSummary->getMD(getContext()),
+                        ProfileSummary::PSK_Sample);
+    }
+  }
 }

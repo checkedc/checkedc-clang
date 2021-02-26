@@ -5,6 +5,17 @@ import platform
 
 import lit.formats
 
+# Choose between lit's internal shell pipeline runner and a real shell.  If
+# LIT_USE_INTERNAL_SHELL is in the environment, we use that as an override.
+use_lit_shell = os.environ.get("LIT_USE_INTERNAL_SHELL")
+if use_lit_shell:
+    # 0 is external, "" is default, and everything else is internal.
+    execute_external = (use_lit_shell == "0")
+else:
+    # Otherwise we default to internal on Windows and external elsewhere, as
+    # bash on Windows is usually very slow.
+    execute_external = (not sys.platform in ['win32'])
+
 def get_required_attr(config, attr_name):
   attr_value = getattr(config, attr_name, None)
   if attr_value == None:
@@ -29,13 +40,22 @@ if is_msvc:
   base_lib = os.path.join(config.compiler_rt_libdir, "clang_rt.builtins%s.lib "
                           % config.target_suffix)
   config.substitutions.append( ("%librt ", base_lib) )
+elif config.host_os  == 'Darwin':
+  base_lib = os.path.join(config.compiler_rt_libdir, "libclang_rt.osx.a ")
+  config.substitutions.append( ("%librt ", base_lib + ' -lSystem ') )
 else:
   base_lib = os.path.join(config.compiler_rt_libdir, "libclang_rt.builtins%s.a"
                           % config.target_suffix)
+  if sys.platform in ['win32'] and execute_external:
+    # Don't pass dosish path separator to msys bash.exe.
+    base_lib = base_lib.replace('\\', '/')
   config.substitutions.append( ("%librt ", base_lib + ' -lc -lm ') )
 
 builtins_source_dir = os.path.join(
   get_required_attr(config, "compiler_rt_src_root"), "lib", "builtins")
+if sys.platform in ['win32'] and execute_external:
+  # Don't pass dosish path separator to msys bash.exe.
+  builtins_source_dir = builtins_source_dir.replace('\\', '/')
 builtins_lit_source_dir = get_required_attr(config, "builtins_lit_source_dir")
 
 extra_link_flags = ["-nodefaultlibs"]
@@ -67,10 +87,6 @@ def build_invocation(compile_flags):
   return " " + " ".join([clang_wrapper, config.clang] + compile_flags) + " "
 
 
-target_arch = config.target_arch
-if (target_arch == "arm"):
-  target_arch = "armv7"
-
 config.substitutions.append( ("%clang ", build_invocation(target_cflags)) )
 config.substitutions.append( ("%clangxx ", build_invocation(target_cxxflags)) )
 config.substitutions.append( ("%clang_builtins ", \
@@ -78,16 +94,30 @@ config.substitutions.append( ("%clang_builtins ", \
 config.substitutions.append( ("%clangxx_builtins ", \
                               build_invocation(clang_builtins_cxxflags)))
 
-# FIXME: move the call_apsr.s into call_apsr.h as inline-asm.
-# some ARM tests needs call_apsr.s
-call_apsr_source = os.path.join(builtins_lit_source_dir, 'arm', 'call_apsr.S')
-march_flag = '-march=' + target_arch
-call_apsr_flags = ['-c', march_flag, call_apsr_source]
-config.substitutions.append( ("%arm_call_apsr ", \
-                              build_invocation(call_apsr_flags)) )
-
 # Default test suffixes.
-config.suffixes = ['.c', '.cc', '.cpp']
+config.suffixes = ['.c', '.cpp']
 
 if not config.emulator:
   config.available_features.add('native-run')
+
+# Add features for available sources
+builtins_source_features = config.builtins_lit_source_features.split(';')
+# Sanity checks
+if not builtins_source_features:
+  lit_config.fatal('builtins_source_features cannot be empty')
+builtins_source_features_set = set()
+builtins_source_feature_duplicates = []
+for builtin_source_feature in builtins_source_features:
+  if len(builtin_source_feature) == 0:
+    lit_config.fatal('builtins_source_feature cannot contain empty features')
+  if builtin_source_feature not in builtins_source_features_set:
+    builtins_source_features_set.add(builtin_source_feature)
+  else:
+    builtins_source_feature_duplicates.append(builtin_source_feature)
+
+if len(builtins_source_feature_duplicates) > 0:
+  lit_config.fatal(
+    'builtins_source_features contains duplicates: {}'.format(
+      builtins_source_feature_duplicates)
+  )
+config.available_features.update(builtins_source_features)

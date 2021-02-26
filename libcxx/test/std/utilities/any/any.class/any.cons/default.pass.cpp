@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <any>
 
@@ -18,7 +18,7 @@
 
 #include "test_macros.h"
 #include "any_helpers.h"
-#include "count_new.hpp"
+#include "count_new.h"
 
 int main(int, char**)
 {

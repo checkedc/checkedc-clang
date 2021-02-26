@@ -14,6 +14,7 @@
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/ScalarEvolutionAliasAnalysis.h"
 #include "llvm/IR/Dominators.h"
+#include "llvm/IR/PassManagerImpl.h"
 
 using namespace llvm;
 
@@ -46,7 +47,7 @@ bool LoopAnalysisManagerFunctionProxy::Result::invalidate(
   // invalidation logic below to act on that.
   auto PAC = PA.getChecker<LoopAnalysisManagerFunctionProxy>();
   bool invalidateMemorySSAAnalysis = false;
-  if (EnableMSSALoopDependency)
+  if (MSSAUsed)
     invalidateMemorySSAAnalysis = Inv.invalidate<MemorySSAAnalysis>(F, PA);
   if (!(PAC.preserved() || PAC.preservedSet<AllAnalysesOn<Function>>()) ||
       Inv.invalidate<AAManager>(F, PA) ||

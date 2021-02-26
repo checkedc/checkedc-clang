@@ -1,4 +1,4 @@
-//===-- TargetThreadWindows.cpp----------------------------------*- C++ -*-===//
+//===-- TargetThreadWindows.cpp--------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,20 +11,23 @@
 #include "lldb/Host/windows/HostThreadWindows.h"
 #include "lldb/Host/windows/windows.h"
 #include "lldb/Target/RegisterContext.h"
+#include "lldb/Target/Unwind.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Logging.h"
 #include "lldb/Utility/State.h"
 
-#include "Plugins/Process/Utility/UnwindLLDB.h"
 #include "ProcessWindows.h"
 #include "ProcessWindowsLog.h"
 #include "TargetThreadWindows.h"
 
-// TODO support _M_ARM and _M_ARM64
-#if defined(_M_AMD64)
+#if defined(__x86_64__) || defined(_M_AMD64)
 #include "x64/RegisterContextWindows_x64.h"
-#elif defined(_M_IX86)
+#elif defined(__i386__) || defined(_M_IX86)
 #include "x86/RegisterContextWindows_x86.h"
+#elif defined(__aarch64__) || defined(_M_ARM64)
+#include "arm64/RegisterContextWindows_arm64.h"
+#elif defined(__arm__) || defined(_M_ARM)
+#include "arm/RegisterContextWindows_arm.h"
 #endif
 
 using namespace lldb;
@@ -69,15 +72,25 @@ TargetThreadWindows::CreateRegisterContextForFrame(StackFrame *frame) {
       switch (arch.GetMachine()) {
       case llvm::Triple::arm:
       case llvm::Triple::thumb:
-        LLDB_LOG(log, "debugging ARM (NT) targets is currently unsupported");
+#if defined(__arm__) || defined(_M_ARM)
+        m_thread_reg_ctx_sp.reset(
+            new RegisterContextWindows_arm(*this, concrete_frame_idx));
+#else
+        LLDB_LOG(log, "debugging foreign targets is currently unsupported");
+#endif
         break;
 
       case llvm::Triple::aarch64:
-        LLDB_LOG(log, "debugging ARM64 targets is currently unsupported");
+#if defined(__aarch64__) || defined(_M_ARM64)
+        m_thread_reg_ctx_sp.reset(
+            new RegisterContextWindows_arm64(*this, concrete_frame_idx));
+#else
+        LLDB_LOG(log, "debugging foreign targets is currently unsupported");
+#endif
         break;
 
       case llvm::Triple::x86:
-#if defined(_M_IX86)
+#if defined(__i386__) || defined(_M_IX86)
         m_thread_reg_ctx_sp.reset(
             new RegisterContextWindows_x86(*this, concrete_frame_idx));
 #else
@@ -86,7 +99,7 @@ TargetThreadWindows::CreateRegisterContextForFrame(StackFrame *frame) {
         break;
 
       case llvm::Triple::x86_64:
-#if defined(_M_AMD64)
+#if defined(__x86_64__) || defined(_M_AMD64)
         m_thread_reg_ctx_sp.reset(
             new RegisterContextWindows_x64(*this, concrete_frame_idx));
 #else
@@ -100,9 +113,7 @@ TargetThreadWindows::CreateRegisterContextForFrame(StackFrame *frame) {
     }
     reg_ctx_sp = m_thread_reg_ctx_sp;
   } else {
-    Unwind *unwinder = GetUnwinder();
-    if (unwinder != nullptr)
-      reg_ctx_sp = unwinder->CreateRegisterContextForFrame(frame);
+    reg_ctx_sp = GetUnwinder().CreateRegisterContextForFrame(frame);
   }
 
   return reg_ctx_sp;
@@ -111,14 +122,6 @@ TargetThreadWindows::CreateRegisterContextForFrame(StackFrame *frame) {
 bool TargetThreadWindows::CalculateStopInfo() {
   SetStopInfo(m_stop_info_sp);
   return true;
-}
-
-Unwind *TargetThreadWindows::GetUnwinder() {
-  // FIXME: Implement an unwinder based on the Windows unwinder exposed through
-  // DIA SDK.
-  if (!m_unwinder_up)
-    m_unwinder_up.reset(new UnwindLLDB(*this));
-  return m_unwinder_up.get();
 }
 
 Status TargetThreadWindows::DoResume() {

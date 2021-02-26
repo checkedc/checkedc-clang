@@ -1,4 +1,4 @@
-//===-- OptionGroupOutputFile.cpp -------------------------------*- C++ -*-===//
+//===-- OptionGroupOutputFile.cpp -----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -50,8 +50,7 @@ OptionGroupOutputFile::SetOptionValue(uint32_t option_idx,
     break;
 
   default:
-    error.SetErrorStringWithFormat("unrecognized option '%c'", short_option);
-    break;
+    llvm_unreachable("Unimplemented option");
   }
 
   return error;

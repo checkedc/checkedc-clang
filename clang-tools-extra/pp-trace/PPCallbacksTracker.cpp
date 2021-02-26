@@ -7,13 +7,14 @@
 //===----------------------------------------------------------------------===//
 ///
 /// \file
-/// \brief Implementations for preprocessor tracking.
+/// Implementations for preprocessor tracking.
 ///
 /// See the header for details.
 ///
 //===----------------------------------------------------------------------===//
 
 #include "PPCallbacksTracker.h"
+#include "clang/Basic/FileManager.h"
 #include "clang/Lex/MacroArgs.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -112,11 +113,11 @@ void PPCallbacksTracker::FileChanged(SourceLocation Loc,
 
 // Callback invoked whenever a source file is skipped as the result
 // of header guard optimization.
-void PPCallbacksTracker::FileSkipped(const FileEntry &SkippedFile,
+void PPCallbacksTracker::FileSkipped(const FileEntryRef &SkippedFile,
                                      const Token &FilenameTok,
                                      SrcMgr::CharacteristicKind FileType) {
   beginCallback("FileSkipped");
-  appendArgument("ParentFile", &SkippedFile);
+  appendArgument("ParentFile", &SkippedFile.getFileEntry());
   appendArgument("FilenameTok", FilenameTok);
   appendArgument("FileType", FileType, CharacteristicKindStrings);
 }
@@ -221,7 +222,7 @@ void PPCallbacksTracker::PragmaMessage(SourceLocation Loc,
   appendArgument("Str", Str);
 }
 
-// Callback invoked when a #pragma gcc dianostic push directive
+// Callback invoked when a #pragma gcc diagnostic push directive
 // is read.
 void PPCallbacksTracker::PragmaDiagnosticPush(SourceLocation Loc,
                                               llvm::StringRef Namespace) {
@@ -230,7 +231,7 @@ void PPCallbacksTracker::PragmaDiagnosticPush(SourceLocation Loc,
   appendArgument("Namespace", Namespace);
 }
 
-// Callback invoked when a #pragma gcc dianostic pop directive
+// Callback invoked when a #pragma gcc diagnostic pop directive
 // is read.
 void PPCallbacksTracker::PragmaDiagnosticPop(SourceLocation Loc,
                                              llvm::StringRef Namespace) {
@@ -239,7 +240,7 @@ void PPCallbacksTracker::PragmaDiagnosticPop(SourceLocation Loc,
   appendArgument("Namespace", Namespace);
 }
 
-// Callback invoked when a #pragma gcc dianostic directive is read.
+// Callback invoked when a #pragma gcc diagnostic directive is read.
 void PPCallbacksTracker::PragmaDiagnostic(SourceLocation Loc,
                                           llvm::StringRef Namespace,
                                           diag::Severity Mapping,

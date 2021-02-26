@@ -17,7 +17,8 @@ using namespace llvm;
 
 void NVPTXMCAsmInfo::anchor() {}
 
-NVPTXMCAsmInfo::NVPTXMCAsmInfo(const Triple &TheTriple) {
+NVPTXMCAsmInfo::NVPTXMCAsmInfo(const Triple &TheTriple,
+                               const MCTargetOptions &Options) {
   if (TheTriple.getArch() == Triple::nvptx64) {
     CodePointerSize = CalleeSaveStackSlotSize = 8;
   }
@@ -50,4 +51,6 @@ NVPTXMCAsmInfo::NVPTXMCAsmInfo(const Triple &TheTriple) {
   // @TODO: Can we just disable this?
   WeakDirective = "\t// .weak\t";
   GlobalDirective = "\t// .globl\t";
+
+  UseIntegratedAssembler = false;
 }

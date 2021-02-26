@@ -100,7 +100,9 @@ newFrontendActionFactoryA(ProgramInfo &I) {
   public:
     explicit ArgFrontendActionFactory(ProgramInfo &I) : Info(I) {}
 
-    FrontendAction *create() override { return new T(Info); }
+    std::unique_ptr<FrontendAction> create() override { 
+      return std::unique_ptr<FrontendAction>(new T(Info));
+    }
 
   private:
     ProgramInfo &Info;
@@ -217,7 +219,7 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
       assert(false && "Unable to get determine working directory.");
     }
 
-    BaseDir = Cp.str();
+    BaseDir = std::string(Cp.str());
   }
 
   SourceFiles = SourceFileList;

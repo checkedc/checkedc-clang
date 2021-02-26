@@ -112,6 +112,14 @@ End-user Options
 
  Enable optimizations that assume no NAN values.
 
+.. option:: --enable-no-signed-zeros-fp-math
+
+ Enable FP math optimizations that assume the sign of 0 is insignificant.
+
+.. option:: --enable-no-trapping-fp-math
+
+ Enable setting the FP exceptions build attribute not to use exceptions.
+
 .. option:: --enable-unsafe-fp-math
 
  Enable optimizations that make unsafe assumptions about IEEE math (e.g. that
@@ -149,8 +157,8 @@ End-user Options
 
 .. option:: -remarks-section
 
- Emit the .remarks (ELF) / __remarks (MachO) section which contains metadata
- about remark diagnostics.
+ Emit the __remarks (MachO) section which contains metadata about remark
+ diagnostics.
 
 Tuning/Configuration Options
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

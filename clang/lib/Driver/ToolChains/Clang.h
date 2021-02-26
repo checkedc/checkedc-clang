@@ -73,10 +73,13 @@ private:
                           llvm::opt::ArgStringList &CmdArgs) const;
   void AddWebAssemblyTargetArgs(const llvm::opt::ArgList &Args,
                                 llvm::opt::ArgStringList &CmdArgs) const;
+  void AddVETargetArgs(const llvm::opt::ArgList &Args,
+                       llvm::opt::ArgStringList &CmdArgs) const;
 
   enum RewriteKind { RK_None, RK_Fragile, RK_NonFragile };
 
   ObjCRuntime AddObjCRuntimeArgs(const llvm::opt::ArgList &args,
+                                 const InputInfoList &inputs,
                                  llvm::opt::ArgStringList &cmdArgs,
                                  RewriteKind rewrite) const;
 
@@ -94,6 +97,10 @@ private:
                                StringRef Target,
                                const InputInfo &Output, const InputInfo &Input,
                                const llvm::opt::ArgList &Args) const;
+
+  void DumpCompilationDatabaseFragmentToDir(
+      StringRef Dir, Compilation &C, StringRef Target, const InputInfo &Output,
+      const InputInfo &Input, const llvm::opt::ArgList &Args) const;
 
 public:
   Clang(const ToolChain &TC);
@@ -114,7 +121,7 @@ public:
 class LLVM_LIBRARY_VISIBILITY ClangAs : public Tool {
 public:
   ClangAs(const ToolChain &TC)
-      : Tool("clang::as", "clang integrated assembler", TC, RF_Full) {}
+      : Tool("clang::as", "clang integrated assembler", TC) {}
   void AddMIPSTargetArgs(const llvm::opt::ArgList &Args,
                          llvm::opt::ArgStringList &CmdArgs) const;
   void AddX86TargetArgs(const llvm::opt::ArgList &Args,
@@ -148,6 +155,20 @@ public:
                                    const llvm::opt::ArgList &TCArgs,
                                    const char *LinkingOutput) const override;
 };
+
+/// Offload wrapper tool.
+class LLVM_LIBRARY_VISIBILITY OffloadWrapper final : public Tool {
+public:
+  OffloadWrapper(const ToolChain &TC)
+      : Tool("offload wrapper", "clang-offload-wrapper", TC) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
 } // end namespace tools
 
 } // end namespace driver

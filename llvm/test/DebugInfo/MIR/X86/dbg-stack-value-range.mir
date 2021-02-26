@@ -18,9 +18,6 @@
 # CHECK-NEXT: .Ltmp6:
 # CHECK: .Lfunc_end0:
 #
-# CHECK: .Linfo_string7:
-# CHECK-NEXT: .asciz  "local1"
-#
 # CHECK: .Ldebug_loc2:
 # CHECK-NEXT: .quad   .Ltmp1-.Lfunc_begin0
 # CHECK-NEXT: .quad   .Ltmp4-.Lfunc_begin0
@@ -34,8 +31,9 @@
 #
 # CHECK: .long   .Ldebug_loc2            # DW_AT_location
 # CHECK-NEXT: .long   .Linfo_string7          # DW_AT_name
-
-
+#
+# CHECK: .Linfo_string7:
+# CHECK-NEXT: .asciz  "local1"
 --- |
   ; ModuleID = 'dbg-stack-value-range.ll'
   source_filename = "dbg-stack-value-range.c"
@@ -96,7 +94,7 @@
   ; Function Attrs: nounwind
   declare void @llvm.stackprotector(i8*, i8**)
 
-  attributes #0 = { nounwind uwtable "no-frame-pointer-elim"="false" "no-frame-pointer-elim-non-leaf" }
+  attributes #0 = { nounwind uwtable "frame-pointer"="non-leaf" }
   
   !llvm.dbg.cu = !{!0}
   !llvm.module.flags = !{!3, !4, !5}
@@ -126,7 +124,7 @@
 ...
 ---
 name:            foo
-alignment:       4
+alignment:       16
 frameInfo:       
   stackSize:       24
   offsetAdjustment: -24

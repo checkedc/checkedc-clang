@@ -87,11 +87,7 @@ class AliasSet : public ilist_node<AliasSet> {
         AAInfo = NewAAInfo;
       else {
         AAMDNodes Intersection(AAInfo.intersect(NewAAInfo));
-        if (!Intersection) {
-          // NewAAInfo conflicts with AAInfo.
-          AAInfo = DenseMapInfo<AAMDNodes>::getTombstoneKey();
-          return SizeChanged;
-        }
+        SizeChanged |= Intersection != AAInfo;
         AAInfo = Intersection;
       }
       return SizeChanged;
@@ -343,8 +339,8 @@ class AliasSetTracker {
   struct ASTCallbackVHDenseMapInfo : public DenseMapInfo<Value *> {};
 
   AliasAnalysis &AA;
-  MemorySSA *MSSA;
-  Loop *L;
+  MemorySSA *MSSA = nullptr;
+  Loop *L = nullptr;
   ilist<AliasSet> AliasSets;
 
   using PointerMapType = DenseMap<ASTCallbackVH, AliasSet::PointerRec *,

@@ -221,9 +221,7 @@ class apply_variadic {
   static StringRef apply_one(StringRef S) { return S.drop_back(); }
 
 public:
-  template <typename... Ts>
-  auto operator()(Ts &&... Items)
-      -> decltype(std::make_tuple(apply_one(Items)...)) {
+  template <typename... Ts> auto operator()(Ts &&... Items) {
     return std::make_tuple(apply_one(Items)...);
   }
 };
@@ -380,6 +378,19 @@ TEST(STLExtrasTest, EmptyTest) {
   EXPECT_FALSE(llvm::empty(R1));
 }
 
+TEST(STLExtrasTest, DropBeginTest) {
+  SmallVector<int, 5> vec{0, 1, 2, 3, 4};
+
+  for (int n = 0; n < 5; ++n) {
+    int i = n;
+    for (auto &v : drop_begin(vec, n)) {
+      EXPECT_EQ(v, i);
+      i += 1;
+    }
+    EXPECT_EQ(i, 5);
+  }
+}
+
 TEST(STLExtrasTest, EarlyIncrementTest) {
   std::list<int> L = {1, 2, 3, 4};
 
@@ -451,7 +462,7 @@ TEST(STLExtrasTest, to_address) {
   EXPECT_EQ(V1, to_address(V1));
 
   // Check fancy pointer overload for unique_ptr
-  std::unique_ptr<int> V2 = make_unique<int>(0);
+  std::unique_ptr<int> V2 = std::make_unique<int>(0);
   EXPECT_EQ(V2.get(), to_address(V2));
 
   V2.reset(V1);
@@ -479,4 +490,82 @@ TEST(STLExtrasTest, partition_point) {
   EXPECT_EQ(V.end(), partition_point(V, [](unsigned X) { return X < 50; }));
 }
 
+TEST(STLExtrasTest, hasSingleElement) {
+  const std::vector<int> V0 = {}, V1 = {1}, V2 = {1, 2};
+  const std::vector<int> V10(10);
+
+  EXPECT_EQ(hasSingleElement(V0), false);
+  EXPECT_EQ(hasSingleElement(V1), true);
+  EXPECT_EQ(hasSingleElement(V2), false);
+  EXPECT_EQ(hasSingleElement(V10), false);
+}
+
+TEST(STLExtrasTest, hasNItems) {
+  const std::list<int> V0 = {}, V1 = {1}, V2 = {1, 2};
+  const std::list<int> V3 = {1, 3, 5};
+
+  EXPECT_TRUE(hasNItems(V0, 0));
+  EXPECT_FALSE(hasNItems(V0, 2));
+  EXPECT_TRUE(hasNItems(V1, 1));
+  EXPECT_FALSE(hasNItems(V1, 2));
+
+  EXPECT_TRUE(hasNItems(V3.begin(), V3.end(), 3, [](int x) { return x < 10; }));
+  EXPECT_TRUE(hasNItems(V3.begin(), V3.end(), 0, [](int x) { return x > 10; }));
+  EXPECT_TRUE(hasNItems(V3.begin(), V3.end(), 2, [](int x) { return x < 5; }));
+}
+
+TEST(STLExtras, hasNItemsOrMore) {
+  const std::list<int> V0 = {}, V1 = {1}, V2 = {1, 2};
+  const std::list<int> V3 = {1, 3, 5};
+
+  EXPECT_TRUE(hasNItemsOrMore(V1, 1));
+  EXPECT_FALSE(hasNItemsOrMore(V1, 2));
+
+  EXPECT_TRUE(hasNItemsOrMore(V2, 1));
+  EXPECT_TRUE(hasNItemsOrMore(V2, 2));
+  EXPECT_FALSE(hasNItemsOrMore(V2, 3));
+
+  EXPECT_TRUE(hasNItemsOrMore(V3, 3));
+  EXPECT_FALSE(hasNItemsOrMore(V3, 4));
+
+  EXPECT_TRUE(
+      hasNItemsOrMore(V3.begin(), V3.end(), 3, [](int x) { return x < 10; }));
+  EXPECT_FALSE(
+      hasNItemsOrMore(V3.begin(), V3.end(), 3, [](int x) { return x > 10; }));
+  EXPECT_TRUE(
+      hasNItemsOrMore(V3.begin(), V3.end(), 2, [](int x) { return x < 5; }));
+}
+
+TEST(STLExtras, hasNItemsOrLess) {
+  const std::list<int> V0 = {}, V1 = {1}, V2 = {1, 2};
+  const std::list<int> V3 = {1, 3, 5};
+
+  EXPECT_TRUE(hasNItemsOrLess(V0, 0));
+  EXPECT_TRUE(hasNItemsOrLess(V0, 1));
+  EXPECT_TRUE(hasNItemsOrLess(V0, 2));
+
+  EXPECT_FALSE(hasNItemsOrLess(V1, 0));
+  EXPECT_TRUE(hasNItemsOrLess(V1, 1));
+  EXPECT_TRUE(hasNItemsOrLess(V1, 2));
+
+  EXPECT_FALSE(hasNItemsOrLess(V2, 0));
+  EXPECT_FALSE(hasNItemsOrLess(V2, 1));
+  EXPECT_TRUE(hasNItemsOrLess(V2, 2));
+  EXPECT_TRUE(hasNItemsOrLess(V2, 3));
+
+  EXPECT_FALSE(hasNItemsOrLess(V3, 0));
+  EXPECT_FALSE(hasNItemsOrLess(V3, 1));
+  EXPECT_FALSE(hasNItemsOrLess(V3, 2));
+  EXPECT_TRUE(hasNItemsOrLess(V3, 3));
+  EXPECT_TRUE(hasNItemsOrLess(V3, 4));
+
+  EXPECT_TRUE(
+      hasNItemsOrLess(V3.begin(), V3.end(), 1, [](int x) { return x == 1; }));
+  EXPECT_TRUE(
+      hasNItemsOrLess(V3.begin(), V3.end(), 2, [](int x) { return x < 5; }));
+  EXPECT_TRUE(
+      hasNItemsOrLess(V3.begin(), V3.end(), 5, [](int x) { return x < 5; }));
+  EXPECT_FALSE(
+      hasNItemsOrLess(V3.begin(), V3.end(), 2, [](int x) { return x < 10; }));
+}
 } // namespace

@@ -79,7 +79,8 @@ PointerVariableConstraint *
 PointerVariableConstraint::getNamedNonPtrPVConstraint(StringRef Name,
                                                       Constraints &CS) {
   CAtoms NewVA; // empty -- represents a base type
-  return new PVConstraint(NewVA, "unsigned", Name, nullptr, false, false, "");
+  return new PVConstraint(NewVA, "unsigned", std::string(Name), nullptr, false,
+                          false, "");
 }
 
 PointerVariableConstraint::PointerVariableConstraint(
@@ -113,7 +114,8 @@ PointerVariableConstraint::PointerVariableConstraint(
 PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
                                                      ProgramInfo &I,
                                                      const ASTContext &C)
-    : PointerVariableConstraint(D->getType(), D, D->getName(), I, C) {}
+    : PointerVariableConstraint(D->getType(), D, std::string(D->getName()),
+                                I, C) {}
 
 PointerVariableConstraint::PointerVariableConstraint(
     const QualType &QT, DeclaratorDecl *D, std::string N, ProgramInfo &I,
@@ -391,11 +393,10 @@ PointerVariableConstraint::PointerVariableConstraint(
   }
 }
 
-std::string PointerVariableConstraint::extractBaseType(DeclaratorDecl *D,
-                                                       QualType QT,
-                                                       const Type *Ty,
-                                                       const ASTContext &C) {
-  std::string BaseTypeStr;
+std::string PointerVariableConstraint::tryExtractBaseType(DeclaratorDecl *D,
+                                                          QualType QT,
+                                                          const Type *Ty,
+                                                          const ASTContext &C) {
   bool FoundBaseTypeInSrc = false;
   if (!QT->isOrContainsCheckedType() && !Ty->getAs<TypedefType>() && D &&
       D->getTypeSourceInfo()) {
@@ -406,32 +407,33 @@ std::string PointerVariableConstraint::extractBaseType(DeclaratorDecl *D,
       TL = getBaseTypeLoc(TL).getAs<FunctionTypeLoc>();
       // FunctionDecl that doesn't have function type? weird
       if (TL.isNull())
-        FoundBaseTypeInSrc = false;
-      else
-        TL = TL.getAs<clang::FunctionTypeLoc>().getReturnLoc();
+        return "";
+      TL = TL.getAs<clang::FunctionTypeLoc>().getReturnLoc();
     } else {
       FoundBaseTypeInSrc = D->getType() == QT;
     }
-    TypeLoc BaseLoc = getBaseTypeLoc(TL);
-    if (!BaseLoc.getAs<TypedefTypeLoc>().isNull()) {
-      FoundBaseTypeInSrc = false;
-    } else {
-      // Only use this type if the type passed as a parameter to this
-      // constructor agrees with the actual type of the declaration.
-      SourceRange SR = BaseLoc.getSourceRange();
-      if (FoundBaseTypeInSrc && SR.isValid()) {
-        BaseTypeStr = getSourceText(SR, C);
-
-        // getSourceText returns the empty string when there's a pointer level
-        // inside a macro. Not sure how to handle this, so fall back to tyToStr.
-        if (BaseTypeStr.empty())
-          FoundBaseTypeInSrc = false;
-      } else
-        FoundBaseTypeInSrc = false;
+    if (!TL.isNull()) {
+      TypeLoc BaseLoc = getBaseTypeLoc(TL);
+      // Only proceed if the base type location is not null, amd it is not a
+      // typedef type location.
+      if (!BaseLoc.isNull() && BaseLoc.getAs<TypedefTypeLoc>().isNull()) {
+        SourceRange SR = BaseLoc.getSourceRange();
+        if (FoundBaseTypeInSrc && SR.isValid())
+          return getSourceText(SR, C);
+      }
     }
   }
+
+  return "";
+}
+
+std::string PointerVariableConstraint::extractBaseType(DeclaratorDecl *D,
+                                                       QualType QT,
+                                                       const Type *Ty,
+                                                       const ASTContext &C) {
+  std::string BaseTypeStr = tryExtractBaseType(D, QT, Ty, C);
   // Fall back to rebuilding the base type based on type passed to constructor
-  if (!FoundBaseTypeInSrc)
+  if (BaseTypeStr.empty())
     BaseTypeStr = tyToStr(Ty);
 
   return BaseTypeStr;
@@ -780,7 +782,8 @@ FunctionVariableConstraint::FunctionVariableConstraint(DeclaratorDecl *D,
                                                        const ASTContext &C)
     : FunctionVariableConstraint(
           D->getType().getTypePtr(), D,
-          (D->getDeclName().isIdentifier() ? D->getName() : ""), I, C) {}
+          (D->getDeclName().isIdentifier() ? std::string(D->getName()) : ""),
+          I, C) {}
 
 FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
                                                        DeclaratorDecl *D,
@@ -838,7 +841,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
         ParmVarDecl *PVD = FD->getParamDecl(J);
         if (PVD) {
           ParmVD = PVD;
-          PName = PVD->getName();
+          PName = std::string(PVD->getName());
         }
       }
       bool IsGeneric =

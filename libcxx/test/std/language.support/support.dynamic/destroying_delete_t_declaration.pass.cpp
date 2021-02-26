@@ -12,7 +12,7 @@
 // };
 // inline constexpr destroying_delete_t destroying_delete{};
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // Test only the library parts of destroying delete in this test.
 // Verify that it's properly declared after C++17 and that it's constexpr.
@@ -24,7 +24,7 @@
 
 #include <cassert>
 #include "test_macros.h"
-#include "test_convertible.hpp"
+#include "test_convertible.h"
 
 #ifdef __cpp_impl_destroying_delete
 # ifndef __cpp_lib_destroying_delete

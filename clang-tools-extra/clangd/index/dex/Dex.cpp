@@ -9,11 +9,11 @@
 #include "Dex.h"
 #include "FileDistance.h"
 #include "FuzzyMatch.h"
-#include "Logger.h"
 #include "Quality.h"
-#include "Trace.h"
 #include "index/Index.h"
 #include "index/dex/Iterator.h"
+#include "support/Logger.h"
+#include "support/Trace.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include <algorithm>
@@ -29,7 +29,7 @@ std::unique_ptr<SymbolIndex> Dex::build(SymbolSlab Symbols, RefSlab Refs,
   // There is no need to include "Rels" in Data because the relations are self-
   // contained, without references into a backing store.
   auto Data = std::make_pair(std::move(Symbols), std::move(Refs));
-  return llvm::make_unique<Dex>(Data.first, Data.second, Rels, std::move(Data),
+  return std::make_unique<Dex>(Data.first, Data.second, Rels, std::move(Data),
                                 Size);
 }
 
@@ -39,28 +39,60 @@ namespace {
 const Token RestrictedForCodeCompletion =
     Token(Token::Kind::Sentinel, "Restricted For Code Completion");
 
-// Returns the tokens which are given symbol's characteristics. Currently, the
-// generated tokens only contain fuzzy matching trigrams and symbol's scope,
-// but in the future this will also return path proximity tokens and other
-// types of tokens such as symbol type (if applicable).
-// Returns the tokens which are given symbols's characteristics. For example,
-// trigrams and scopes.
-// FIXME(kbobyrev): Support more token types:
-// * Namespace proximity
-std::vector<Token> generateSearchTokens(const Symbol &Sym) {
-  std::vector<Token> Result = generateIdentifierTrigrams(Sym.Name);
-  Result.emplace_back(Token::Kind::Scope, Sym.Scope);
-  // Skip token generation for symbols with unknown declaration location.
-  if (!llvm::StringRef(Sym.CanonicalDeclaration.FileURI).empty())
-    for (const auto &ProximityURI :
-         generateProximityURIs(Sym.CanonicalDeclaration.FileURI))
-      Result.emplace_back(Token::Kind::ProximityURI, ProximityURI);
-  if (Sym.Flags & Symbol::IndexedForCodeCompletion)
-    Result.emplace_back(RestrictedForCodeCompletion);
-  if (!Sym.Type.empty())
-    Result.emplace_back(Token::Kind::Type, Sym.Type);
-  return Result;
-}
+// Helper to efficiently assemble the inverse index (token -> matching docs).
+// The output is a nice uniform structure keyed on Token, but constructing
+// the Token object every time we want to insert into the map is wasteful.
+// Instead we have various maps keyed on things that are cheap to compute,
+// and produce the Token keys once at the end.
+class IndexBuilder {
+  llvm::DenseMap<Trigram, std::vector<DocID>> TrigramDocs;
+  std::vector<DocID> RestrictedCCDocs;
+  llvm::StringMap<std::vector<DocID>> TypeDocs;
+  llvm::StringMap<std::vector<DocID>> ScopeDocs;
+  llvm::StringMap<std::vector<DocID>> ProximityDocs;
+  std::vector<Trigram> TrigramScratch;
+
+public:
+  // Add the tokens which are given symbol's characteristics.
+  // This includes fuzzy matching trigrams, symbol's scope, etc.
+  // FIXME(kbobyrev): Support more token types:
+  // * Namespace proximity
+  void add(const Symbol &Sym, DocID D) {
+    generateIdentifierTrigrams(Sym.Name, TrigramScratch);
+    for (Trigram T : TrigramScratch)
+      TrigramDocs[T].push_back(D);
+    ScopeDocs[Sym.Scope].push_back(D);
+    if (!llvm::StringRef(Sym.CanonicalDeclaration.FileURI).empty())
+      for (const auto &ProximityURI :
+           generateProximityURIs(Sym.CanonicalDeclaration.FileURI))
+        ProximityDocs[ProximityURI].push_back(D);
+    if (Sym.Flags & Symbol::IndexedForCodeCompletion)
+      RestrictedCCDocs.push_back(D);
+    if (!Sym.Type.empty())
+      TypeDocs[Sym.Type].push_back(D);
+  }
+
+  // Assemble the final compressed posting lists for the added symbols.
+  llvm::DenseMap<Token, PostingList> build() {
+    llvm::DenseMap<Token, PostingList> Result(/*InitialReserve=*/
+                                              TrigramDocs.size() +
+                                              RestrictedCCDocs.size() +
+                                              TypeDocs.size() +
+                                              ScopeDocs.size() +
+                                              ProximityDocs.size());
+    for (const auto &E : TrigramDocs)
+      Result.try_emplace(Token(Token::Kind::Trigram, E.first.str()), E.second);
+    for (const auto &E : TypeDocs)
+      Result.try_emplace(Token(Token::Kind::Type, E.first()), E.second);
+    for (const auto &E : ScopeDocs)
+      Result.try_emplace(Token(Token::Kind::Scope, E.first()), E.second);
+    for (const auto &E : ProximityDocs)
+      Result.try_emplace(Token(Token::Kind::ProximityURI, E.first()), E.second);
+    if (!RestrictedCCDocs.empty())
+      Result.try_emplace(RestrictedForCodeCompletion, RestrictedCCDocs);
+    return Result;
+  }
+};
 
 } // namespace
 
@@ -86,18 +118,11 @@ void Dex::buildIndex() {
     Symbols[I] = ScoredSymbols[I].second;
   }
 
-  // Populate TempInvertedIndex with lists for index symbols.
-  llvm::DenseMap<Token, std::vector<DocID>> TempInvertedIndex;
-  for (DocID SymbolRank = 0; SymbolRank < Symbols.size(); ++SymbolRank) {
-    const auto *Sym = Symbols[SymbolRank];
-    for (const auto &Token : generateSearchTokens(*Sym))
-      TempInvertedIndex[Token].push_back(SymbolRank);
-  }
-
-  // Convert lists of items to posting lists.
-  for (const auto &TokenToPostingList : TempInvertedIndex)
-    InvertedIndex.insert(
-        {TokenToPostingList.first, PostingList(TokenToPostingList.second)});
+  // Build posting lists for symbols.
+  IndexBuilder Builder;
+  for (DocID SymbolRank = 0; SymbolRank < Symbols.size(); ++SymbolRank)
+    Builder.add(*Symbols[SymbolRank], SymbolRank);
+  InvertedIndex = Builder.build();
 }
 
 std::unique_ptr<Iterator> Dex::iterator(const Token &Tok) const {
@@ -249,18 +274,21 @@ void Dex::lookup(const LookupRequest &Req,
   }
 }
 
-void Dex::refs(const RefsRequest &Req,
+bool Dex::refs(const RefsRequest &Req,
                llvm::function_ref<void(const Ref &)> Callback) const {
   trace::Span Tracer("Dex refs");
   uint32_t Remaining =
       Req.Limit.getValueOr(std::numeric_limits<uint32_t>::max());
   for (const auto &ID : Req.IDs)
     for (const auto &Ref : Refs.lookup(ID)) {
-      if (Remaining > 0 && static_cast<int>(Req.Filter & Ref.Kind)) {
-        --Remaining;
-        Callback(Ref);
-      }
+      if (!static_cast<int>(Req.Filter & Ref.Kind))
+        continue;
+      if (Remaining == 0)
+        return true; // More refs were available.
+      --Remaining;
+      Callback(Ref);
     }
+  return false; // We reported all refs.
 }
 
 void Dex::relations(
@@ -271,7 +299,8 @@ void Dex::relations(
       Req.Limit.getValueOr(std::numeric_limits<uint32_t>::max());
   for (const SymbolID &Subject : Req.Subjects) {
     LookupRequest LookupReq;
-    auto It = Relations.find(std::make_pair(Subject, Req.Predicate));
+    auto It = Relations.find(
+        std::make_pair(Subject, static_cast<uint8_t>(Req.Predicate)));
     if (It != Relations.end()) {
       for (const auto &Object : It->second) {
         if (Remaining > 0) {

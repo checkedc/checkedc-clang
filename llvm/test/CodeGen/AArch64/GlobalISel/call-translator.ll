@@ -67,10 +67,10 @@ define void @test_multiple_args(i64 %in) {
 
 ; CHECK: G_STORE [[DBL]](s64), [[ADDR]](p0) :: (store 8 into %ir.addr)
 ; CHECK: [[CST1:%[0-9]+]]:_(s64) = G_CONSTANT i64 8
-; CHECK: [[GEP1:%[0-9]+]]:_(p0) = G_GEP [[ADDR]], [[CST1]](s64)
+; CHECK: [[GEP1:%[0-9]+]]:_(p0) = G_PTR_ADD [[ADDR]], [[CST1]](s64)
 ; CHECK: G_STORE [[I64]](s64), [[GEP1]](p0) :: (store 8 into %ir.addr + 8)
 ; CHECK: [[CST2:%[0-9]+]]:_(s64) = G_CONSTANT i64 16
-; CHECK: [[GEP2:%[0-9]+]]:_(p0) = G_GEP [[ADDR]], [[CST2]](s64)
+; CHECK: [[GEP2:%[0-9]+]]:_(p0) = G_PTR_ADD [[ADDR]], [[CST2]](s64)
 ; CHECK: G_STORE [[I8]](s8), [[GEP2]](p0) :: (store 1 into %ir.addr + 16, align 8)
 ; CHECK: RET_ReallyLR
 define void @test_struct_formal({double, i64, i8} %in, {double, i64, i8}* %addr) {
@@ -84,10 +84,10 @@ define void @test_struct_formal({double, i64, i8} %in, {double, i64, i8}* %addr)
 
 ; CHECK: [[LD1:%[0-9]+]]:_(s64) = G_LOAD [[ADDR]](p0) :: (load 8 from %ir.addr)
 ; CHECK: [[CST1:%[0-9]+]]:_(s64) = G_CONSTANT i64 8
-; CHECK: [[GEP1:%[0-9]+]]:_(p0) = G_GEP [[ADDR]], [[CST1]](s64)
+; CHECK: [[GEP1:%[0-9]+]]:_(p0) = G_PTR_ADD [[ADDR]], [[CST1]](s64)
 ; CHECK: [[LD2:%[0-9]+]]:_(s64) = G_LOAD [[GEP1]](p0) :: (load 8 from %ir.addr + 8)
 ; CHECK: [[CST2:%[0-9]+]]:_(s64) = G_CONSTANT i64 16
-; CHECK: [[GEP2:%[0-9]+]]:_(p0) = G_GEP [[ADDR]], [[CST2]](s64)
+; CHECK: [[GEP2:%[0-9]+]]:_(p0) = G_PTR_ADD [[ADDR]], [[CST2]](s64)
 ; CHECK: [[LD3:%[0-9]+]]:_(s32) = G_LOAD [[GEP2]](p0) :: (load 4 from %ir.addr + 16, align 8)
 
 ; CHECK: $d0 = COPY [[LD1]](s64)
@@ -100,17 +100,16 @@ define {double, i64, i32} @test_struct_return({double, i64, i32}* %addr) {
 }
 
 ; CHECK-LABEL: name: test_arr_call
-; CHECK: hasCalls: true
 ; CHECK: %0:_(p0) = COPY $x0
 ; CHECK: [[LD1:%[0-9]+]]:_(s64) = G_LOAD %0(p0) :: (load 8 from %ir.addr)
 ; CHECK: [[CST1:%[0-9]+]]:_(s64) = G_CONSTANT i64 8
-; CHECK: [[GEP1:%[0-9]+]]:_(p0) = G_GEP %0, [[CST1]](s64)
+; CHECK: [[GEP1:%[0-9]+]]:_(p0) = G_PTR_ADD %0, [[CST1]](s64)
 ; CHECK: [[LD2:%[0-9]+]]:_(s64) = G_LOAD [[GEP1]](p0) :: (load 8 from %ir.addr + 8)
 ; CHECK: [[CST2:%[0-9]+]]:_(s64) = G_CONSTANT i64 16
-; CHECK: [[GEP2:%[0-9]+]]:_(p0) = G_GEP %0, [[CST2]](s64)
+; CHECK: [[GEP2:%[0-9]+]]:_(p0) = G_PTR_ADD %0, [[CST2]](s64)
 ; CHECK: [[LD3:%[0-9]+]]:_(s64) = G_LOAD [[GEP2]](p0) :: (load 8 from %ir.addr + 16)
 ; CHECK: [[CST3:%[0-9]+]]:_(s64) = G_CONSTANT i64 24
-; CHECK: [[GEP3:%[0-9]+]]:_(p0) = G_GEP %0, [[CST3]](s64)
+; CHECK: [[GEP3:%[0-9]+]]:_(p0) = G_PTR_ADD %0, [[CST3]](s64)
 ; CHECK: [[LD4:%[0-9]+]]:_(s64) = G_LOAD [[GEP3]](p0) :: (load 8 from %ir.addr + 24)
 
 ; CHECK: $x0 = COPY [[LD1]](s64)
@@ -178,11 +177,11 @@ define zeroext i8 @test_abi_zext_ret(i8* %addr) {
 ; CHECK-DAG:  - { id: [[STACK8:[0-9]+]], type: default, offset: 8, size: 8,
 ; CHECK-DAG:  - { id: [[STACK16:[0-9]+]], type: default, offset: 16, size: 8,
 ; CHECK: [[LHS_ADDR:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.[[STACK0]]
-; CHECK: [[LHS:%[0-9]+]]:_(s64) = G_LOAD [[LHS_ADDR]](p0) :: (invariant load 8 from %fixed-stack.[[STACK0]], align 1)
+; CHECK: [[LHS:%[0-9]+]]:_(s64) = G_LOAD [[LHS_ADDR]](p0) :: (invariant load 8 from %fixed-stack.[[STACK0]], align 16)
 ; CHECK: [[RHS_ADDR:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.[[STACK8]]
-; CHECK: [[RHS:%[0-9]+]]:_(s64) = G_LOAD [[RHS_ADDR]](p0) :: (invariant load 8 from %fixed-stack.[[STACK8]], align 1)
+; CHECK: [[RHS:%[0-9]+]]:_(s64) = G_LOAD [[RHS_ADDR]](p0) :: (invariant load 8 from %fixed-stack.[[STACK8]])
 ; CHECK: [[ADDR_ADDR:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.[[STACK16]]
-; CHECK: [[ADDR:%[0-9]+]]:_(p0) = G_LOAD [[ADDR_ADDR]](p0) :: (invariant load 8 from %fixed-stack.[[STACK16]], align 1)
+; CHECK: [[ADDR:%[0-9]+]]:_(p0) = G_LOAD [[ADDR_ADDR]](p0) :: (invariant load 8 from %fixed-stack.[[STACK16]], align 16)
 ; CHECK: [[SUM:%[0-9]+]]:_(s64) = G_ADD [[LHS]], [[RHS]]
 ; CHECK: G_STORE [[SUM]](s64), [[ADDR]](p0)
 define void @test_stack_slots([8 x i64], i64 %lhs, i64 %rhs, i64* %addr) {
@@ -194,20 +193,17 @@ define void @test_stack_slots([8 x i64], i64 %lhs, i64 %rhs, i64* %addr) {
 ; CHECK-LABEL: name: test_call_stack
 ; CHECK: [[C42:%[0-9]+]]:_(s64) = G_CONSTANT i64 42
 ; CHECK: [[C12:%[0-9]+]]:_(s64) = G_CONSTANT i64 12
-; CHECK: [[ZERO:%[0-9]+]]:_(s64) = G_CONSTANT i64 0
-; CHECK: [[PTR:%[0-9]+]]:_(p0) = G_INTTOPTR [[ZERO]]
+; CHECK: [[PTR:%[0-9]+]]:_(p0) = G_CONSTANT i64 0
 ; CHECK: ADJCALLSTACKDOWN 24, 0, implicit-def $sp, implicit $sp
 ; CHECK: [[SP:%[0-9]+]]:_(p0) = COPY $sp
 ; CHECK: [[C42_OFFS:%[0-9]+]]:_(s64) = G_CONSTANT i64 0
-; CHECK: [[C42_LOC:%[0-9]+]]:_(p0) = G_GEP [[SP]], [[C42_OFFS]](s64)
+; CHECK: [[C42_LOC:%[0-9]+]]:_(p0) = G_PTR_ADD [[SP]], [[C42_OFFS]](s64)
 ; CHECK: G_STORE [[C42]](s64), [[C42_LOC]](p0) :: (store 8 into stack, align 1)
-; CHECK: [[SP:%[0-9]+]]:_(p0) = COPY $sp
 ; CHECK: [[C12_OFFS:%[0-9]+]]:_(s64) = G_CONSTANT i64 8
-; CHECK: [[C12_LOC:%[0-9]+]]:_(p0) = G_GEP [[SP]], [[C12_OFFS]](s64)
+; CHECK: [[C12_LOC:%[0-9]+]]:_(p0) = G_PTR_ADD [[SP]], [[C12_OFFS]](s64)
 ; CHECK: G_STORE [[C12]](s64), [[C12_LOC]](p0) :: (store 8 into stack + 8, align 1)
-; CHECK: [[SP:%[0-9]+]]:_(p0) = COPY $sp
 ; CHECK: [[PTR_OFFS:%[0-9]+]]:_(s64) = G_CONSTANT i64 16
-; CHECK: [[PTR_LOC:%[0-9]+]]:_(p0) = G_GEP [[SP]], [[PTR_OFFS]](s64)
+; CHECK: [[PTR_LOC:%[0-9]+]]:_(p0) = G_PTR_ADD [[SP]], [[PTR_OFFS]](s64)
 ; CHECK: G_STORE [[PTR]](p0), [[PTR_LOC]](p0) :: (store 8 into stack + 16, align 1)
 ; CHECK: BL @test_stack_slots
 ; CHECK: ADJCALLSTACKUP 24, 0, implicit-def $sp, implicit $sp
@@ -221,7 +217,7 @@ define void @test_call_stack() {
 ; CHECK-NEXT: - { id: [[SLOT:[0-9]+]], type: default, offset: 0, size: 1, alignment: 16, stack-id: default,
 ; CHECK-NEXT: isImmutable: true,
 ; CHECK: [[ADDR:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.[[SLOT]]
-; CHECK: {{%[0-9]+}}:_(s1) = G_LOAD [[ADDR]](p0) :: (invariant load 1 from %fixed-stack.[[SLOT]])
+; CHECK: {{%[0-9]+}}:_(s1) = G_LOAD [[ADDR]](p0) :: (invariant load 1 from %fixed-stack.[[SLOT]], align 16)
 define void @test_mem_i1([8 x i64], i1 %in) {
   ret void
 }
@@ -250,16 +246,14 @@ define void @take_128bit_struct([2 x i64]* %ptr, [2 x i64] %in) {
 ; CHECK: [[ADDR:%[0-9]+]]:_(p0) = COPY $x0
 ; CHECK: [[LO:%[0-9]+]]:_(s64) = G_LOAD %0(p0) :: (load 8 from %ir.ptr)
 ; CHECK: [[CST:%[0-9]+]]:_(s64) = G_CONSTANT i64 8
-; CHECK: [[GEP:%[0-9]+]]:_(p0) = G_GEP [[ADDR]], [[CST]](s64)
+; CHECK: [[GEP:%[0-9]+]]:_(p0) = G_PTR_ADD [[ADDR]], [[CST]](s64)
 ; CHECK: [[HI:%[0-9]+]]:_(s64) = G_LOAD [[GEP]](p0) :: (load 8 from %ir.ptr + 8)
 
 ; CHECK: [[SP:%[0-9]+]]:_(p0) = COPY $sp
 ; CHECK: [[CST2:%[0-9]+]]:_(s64) = G_CONSTANT i64 0
-; CHECK: [[GEP2:%[0-9]+]]:_(p0) = G_GEP [[SP]], [[CST2]](s64)
+; CHECK: [[GEP2:%[0-9]+]]:_(p0) = G_PTR_ADD [[SP]], [[CST2]](s64)
 ; CHECK: G_STORE [[LO]](s64), [[GEP2]](p0) :: (store 8 into stack, align 1)
-; CHECK: [[SP:%[0-9]+]]:_(p0) = COPY $sp
-; CHECK: [[CST3:%[0-9]+]]:_(s64) = COPY [[CST]]
-; CHECK: [[GEP3:%[0-9]+]]:_(p0) = G_GEP [[SP]], [[CST3]](s64)
+; CHECK: [[GEP3:%[0-9]+]]:_(p0) = G_PTR_ADD [[SP]], [[CST]](s64)
 ; CHECK: G_STORE [[HI]](s64), [[GEP3]](p0) :: (store 8 into stack + 8, align 1)
 define void @test_split_struct([2 x i64]* %ptr) {
   %struct = load [2 x i64], [2 x i64]* %ptr
@@ -275,13 +269,55 @@ define void @test_split_struct([2 x i64]* %ptr) {
 ; CHECK-DAG:   - { id: [[HI_FRAME:[0-9]+]], type: default, offset: 8, size: 8
 
 ; CHECK: [[LOPTR:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.[[LO_FRAME]]
-; CHECK: [[LO:%[0-9]+]]:_(s64) = G_LOAD [[LOPTR]](p0) :: (invariant load 8 from %fixed-stack.[[LO_FRAME]], align 1)
+; CHECK: [[LO:%[0-9]+]]:_(s64) = G_LOAD [[LOPTR]](p0) :: (invariant load 8 from %fixed-stack.[[LO_FRAME]], align 16)
 
 ; CHECK: [[HIPTR:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.[[HI_FRAME]]
-; CHECK: [[HI:%[0-9]+]]:_(s64) = G_LOAD [[HIPTR]](p0) :: (invariant load 8 from %fixed-stack.[[HI_FRAME]], align 1)
+; CHECK: [[HI:%[0-9]+]]:_(s64) = G_LOAD [[HIPTR]](p0) :: (invariant load 8 from %fixed-stack.[[HI_FRAME]])
 define void @take_split_struct([2 x i64]* %ptr, i64, i64, i64,
                                i64, i64, i64,
                                [2 x i64] %in) {
   store [2 x i64] %in, [2 x i64]* %ptr
+  ret void
+}
+
+%size0type = type { }
+declare %size0type @func.returns.size0.struct()
+
+; CHECK-LABEL: name: call_returns_size0_struct
+; CHECK: bb.1
+; CHECK-NEXT: ADJCALLSTACKDOWN
+; CHECK-NEXT: BL
+; CHECK-NEXT: ADJCALLSTACKUP
+; CHECK-NEXT: RET_ReallyLR
+define void @call_returns_size0_struct() {
+  ; FIXME: Why is this valid IR?
+  %call = call %size0type @func.returns.size0.struct()
+  ret void
+}
+
+declare [0 x i8] @func.returns.size0.array()
+
+; CHECK-LABEL: name: call_returns_size0_array
+; CHECK: bb.1
+; CHECK-NEXT: ADJCALLSTACKDOWN
+; CHECK-NEXT: BL
+; CHECK-NEXT: ADJCALLSTACKUP
+; CHECK-NEXT: RET_ReallyLR
+define void @call_returns_size0_array() {
+  ; FIXME: Why is this valid IR?
+  %call = call [0 x i8] @func.returns.size0.array()
+  ret void
+}
+
+declare [1 x %size0type] @func.returns.array.size0.struct()
+; CHECK-LABEL: name: call_returns_array_size0_struct
+; CHECK: bb.1
+; CHECK-NEXT: ADJCALLSTACKDOWN
+; CHECK-NEXT: BL
+; CHECK-NEXT: ADJCALLSTACKUP
+; CHECK-NEXT: RET_ReallyLR
+define void @call_returns_array_size0_struct() {
+  ; FIXME: Why is this valid IR?
+  %call = call [1 x %size0type] @func.returns.array.size0.struct()
   ret void
 }

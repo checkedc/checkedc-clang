@@ -16,14 +16,15 @@
 #include "WebAssemblyISelLowering.h"
 #include "WebAssemblySubtarget.h"
 #include "llvm/CodeGen/Analysis.h"
+#include "llvm/Target/TargetMachine.h"
 using namespace llvm;
 
 WebAssemblyFunctionInfo::~WebAssemblyFunctionInfo() = default; // anchor.
 
-void WebAssemblyFunctionInfo::initWARegs() {
+void WebAssemblyFunctionInfo::initWARegs(MachineRegisterInfo &MRI) {
   assert(WARegs.empty());
   unsigned Reg = UnusedReg;
-  WARegs.resize(MF.getRegInfo().getNumVirtRegs(), Reg);
+  WARegs.resize(MRI.getNumVirtRegs(), Reg);
 }
 
 void llvm::computeLegalValueVTs(const Function &F, const TargetMachine &TM,
@@ -42,25 +43,48 @@ void llvm::computeLegalValueVTs(const Function &F, const TargetMachine &TM,
   }
 }
 
-void llvm::computeSignatureVTs(const FunctionType *Ty, const Function &F,
+void llvm::computeSignatureVTs(const FunctionType *Ty,
+                               const Function *TargetFunc,
+                               const Function &ContextFunc,
                                const TargetMachine &TM,
                                SmallVectorImpl<MVT> &Params,
                                SmallVectorImpl<MVT> &Results) {
-  computeLegalValueVTs(F, TM, Ty->getReturnType(), Results);
+  computeLegalValueVTs(ContextFunc, TM, Ty->getReturnType(), Results);
 
   MVT PtrVT = MVT::getIntegerVT(TM.createDataLayout().getPointerSizeInBits());
-  if (Results.size() > 1) {
-    // WebAssembly currently can't lower returns of multiple values without
-    // demoting to sret (see WebAssemblyTargetLowering::CanLowerReturn). So
-    // replace multiple return values with a pointer parameter.
+  if (Results.size() > 1 &&
+      !TM.getSubtarget<WebAssemblySubtarget>(ContextFunc).hasMultivalue()) {
+    // WebAssembly can't lower returns of multiple values without demoting to
+    // sret unless multivalue is enabled (see
+    // WebAssemblyTargetLowering::CanLowerReturn). So replace multiple return
+    // values with a poitner parameter.
     Results.clear();
     Params.push_back(PtrVT);
   }
 
   for (auto *Param : Ty->params())
-    computeLegalValueVTs(F, TM, Param, Params);
+    computeLegalValueVTs(ContextFunc, TM, Param, Params);
   if (Ty->isVarArg())
     Params.push_back(PtrVT);
+
+  // For swiftcc, emit additional swiftself and swifterror parameters
+  // if there aren't. These additional parameters are also passed for caller.
+  // They are necessary to match callee and caller signature for indirect
+  // call.
+
+  if (TargetFunc && TargetFunc->getCallingConv() == CallingConv::Swift) {
+    MVT PtrVT = MVT::getIntegerVT(TM.createDataLayout().getPointerSizeInBits());
+    bool HasSwiftErrorArg = false;
+    bool HasSwiftSelfArg = false;
+    for (const auto &Arg : TargetFunc->args()) {
+      HasSwiftErrorArg |= Arg.hasAttribute(Attribute::SwiftError);
+      HasSwiftSelfArg |= Arg.hasAttribute(Attribute::SwiftSelf);
+    }
+    if (!HasSwiftErrorArg)
+      Params.push_back(PtrVT);
+    if (!HasSwiftSelfArg)
+      Params.push_back(PtrVT);
+  }
 }
 
 void llvm::valTypesFromMVTs(const ArrayRef<MVT> &In,
@@ -72,7 +96,7 @@ void llvm::valTypesFromMVTs(const ArrayRef<MVT> &In,
 std::unique_ptr<wasm::WasmSignature>
 llvm::signatureFromMVTs(const SmallVectorImpl<MVT> &Results,
                         const SmallVectorImpl<MVT> &Params) {
-  auto Sig = make_unique<wasm::WasmSignature>();
+  auto Sig = std::make_unique<wasm::WasmSignature>();
   valTypesFromMVTs(Results, Sig->Returns);
   valTypesFromMVTs(Params, Sig->Params);
   return Sig;

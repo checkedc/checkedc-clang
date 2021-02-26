@@ -8,11 +8,11 @@
 
 // Can a noexcept member function pointer be caught by a non-noexcept catch
 // clause?
-// UNSUPPORTED: libcxxabi-no-exceptions, libcxxabi-no-noexcept-function-type
+// UNSUPPORTED: no-exceptions, libcxxabi-no-noexcept-function-type
 
 // GCC 7 and 8 support noexcept function types but this test still fails.
 // This is likely a bug in their implementation. Investigation needed.
-// XFAIL: gcc-7, gcc-8, gcc-9
+// XFAIL: gcc-7, gcc-8, gcc-9, gcc-10
 
 #include <cassert>
 

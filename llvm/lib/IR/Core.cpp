@@ -27,6 +27,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
@@ -47,7 +48,6 @@ void llvm::initializeCore(PassRegistry &Registry) {
   initializeDominatorTreeWrapperPassPass(Registry);
   initializePrintModulePassWrapperPass(Registry);
   initializePrintFunctionPassWrapperPass(Registry);
-  initializePrintBasicBlockPassPass(Registry);
   initializeSafepointIRVerifierPass(Registry);
   initializeVerifierLegacyPassPass(Registry);
 }
@@ -127,11 +127,8 @@ unsigned LLVMGetMDKindID(const char *Name, unsigned SLen) {
   return LLVMGetMDKindIDInContext(LLVMGetGlobalContext(), Name, SLen);
 }
 
-#define GET_ATTR_KIND_FROM_NAME
-#include "AttributesCompatFunc.inc"
-
 unsigned LLVMGetEnumAttributeKindForName(const char *Name, size_t SLen) {
-  return getAttrKindFromName(StringRef(Name, SLen));
+  return Attribute::getAttrKindFromName(StringRef(Name, SLen));
 }
 
 unsigned LLVMGetLastEnumAttributeKind(void) {
@@ -140,7 +137,16 @@ unsigned LLVMGetLastEnumAttributeKind(void) {
 
 LLVMAttributeRef LLVMCreateEnumAttribute(LLVMContextRef C, unsigned KindID,
                                          uint64_t Val) {
-  return wrap(Attribute::get(*unwrap(C), (Attribute::AttrKind)KindID, Val));
+  auto &Ctx = *unwrap(C);
+  auto AttrKind = (Attribute::AttrKind)KindID;
+
+  if (AttrKind == Attribute::AttrKind::ByVal) {
+    // After r362128, byval attributes need to have a type attribute. Provide a
+    // NULL one until a proper API is added for this.
+    return wrap(Attribute::getWithByValType(Ctx, NULL));
+  }
+
+  return wrap(Attribute::get(Ctx, AttrKind, Val));
 }
 
 unsigned LLVMGetEnumAttributeKind(LLVMAttributeRef A) {
@@ -386,7 +392,7 @@ void LLVMDumpModule(LLVMModuleRef M) {
 LLVMBool LLVMPrintModuleToFile(LLVMModuleRef M, const char *Filename,
                                char **ErrorMessage) {
   std::error_code EC;
-  raw_fd_ostream dest(Filename, EC, sys::fs::F_Text);
+  raw_fd_ostream dest(Filename, EC, sys::fs::OF_Text);
   if (EC) {
     *ErrorMessage = strdup(EC.message().c_str());
     return true;
@@ -471,6 +477,8 @@ LLVMTypeKind LLVMGetTypeKind(LLVMTypeRef Ty) {
     return LLVMVoidTypeKind;
   case Type::HalfTyID:
     return LLVMHalfTypeKind;
+  case Type::BFloatTyID:
+    return LLVMBFloatTypeKind;
   case Type::FloatTyID:
     return LLVMFloatTypeKind;
   case Type::DoubleTyID:
@@ -495,12 +503,14 @@ LLVMTypeKind LLVMGetTypeKind(LLVMTypeRef Ty) {
     return LLVMArrayTypeKind;
   case Type::PointerTyID:
     return LLVMPointerTypeKind;
-  case Type::VectorTyID:
+  case Type::FixedVectorTyID:
     return LLVMVectorTypeKind;
   case Type::X86_MMXTyID:
     return LLVMX86_MMXTypeKind;
   case Type::TokenTyID:
     return LLVMTokenTypeKind;
+  case Type::ScalableVectorTyID:
+    return LLVMScalableVectorTypeKind;
   }
   llvm_unreachable("Unhandled TypeID.");
 }
@@ -587,6 +597,9 @@ unsigned LLVMGetIntTypeWidth(LLVMTypeRef IntegerTy) {
 LLVMTypeRef LLVMHalfTypeInContext(LLVMContextRef C) {
   return (LLVMTypeRef) Type::getHalfTy(*unwrap(C));
 }
+LLVMTypeRef LLVMBFloatTypeInContext(LLVMContextRef C) {
+  return (LLVMTypeRef) Type::getBFloatTy(*unwrap(C));
+}
 LLVMTypeRef LLVMFloatTypeInContext(LLVMContextRef C) {
   return (LLVMTypeRef) Type::getFloatTy(*unwrap(C));
 }
@@ -608,6 +621,9 @@ LLVMTypeRef LLVMX86MMXTypeInContext(LLVMContextRef C) {
 
 LLVMTypeRef LLVMHalfType(void) {
   return LLVMHalfTypeInContext(LLVMGetGlobalContext());
+}
+LLVMTypeRef LLVMBFloatType(void) {
+  return LLVMBFloatTypeInContext(LLVMGetGlobalContext());
 }
 LLVMTypeRef LLVMFloatType(void) {
   return LLVMFloatTypeInContext(LLVMGetGlobalContext());
@@ -740,14 +756,16 @@ LLVMTypeRef LLVMPointerType(LLVMTypeRef ElementType, unsigned AddressSpace) {
 }
 
 LLVMTypeRef LLVMVectorType(LLVMTypeRef ElementType, unsigned ElementCount) {
-  return wrap(VectorType::get(unwrap(ElementType), ElementCount));
+  return wrap(FixedVectorType::get(unwrap(ElementType), ElementCount));
 }
 
 LLVMTypeRef LLVMGetElementType(LLVMTypeRef WrappedTy) {
   auto *Ty = unwrap<Type>(WrappedTy);
   if (auto *PTy = dyn_cast<PointerType>(Ty))
     return wrap(PTy->getElementType());
-  return wrap(cast<SequentialType>(Ty)->getElementType());
+  if (auto *ATy = dyn_cast<ArrayType>(Ty))
+    return wrap(ATy->getElementType());
+  return wrap(cast<VectorType>(Ty)->getElementType());
 }
 
 unsigned LLVMGetNumContainedTypes(LLVMTypeRef Tp) {
@@ -1775,9 +1793,11 @@ LLVMValueRef LLVMConstInsertElement(LLVMValueRef VectorConstant,
 LLVMValueRef LLVMConstShuffleVector(LLVMValueRef VectorAConstant,
                                     LLVMValueRef VectorBConstant,
                                     LLVMValueRef MaskConstant) {
+  SmallVector<int, 16> IntMask;
+  ShuffleVectorInst::getShuffleMask(unwrap<Constant>(MaskConstant), IntMask);
   return wrap(ConstantExpr::getShuffleVector(unwrap<Constant>(VectorAConstant),
                                              unwrap<Constant>(VectorBConstant),
-                                             unwrap<Constant>(MaskConstant)));
+                                             IntMask));
 }
 
 LLVMValueRef LLVMConstExtractValue(LLVMValueRef AggConstant, unsigned *IdxList,
@@ -1983,7 +2003,7 @@ LLVMTypeRef LLVMGlobalGetValueType(LLVMValueRef Global) {
 
 unsigned LLVMGetAlignment(LLVMValueRef V) {
   Value *P = unwrap<Value>(V);
-  if (GlobalValue *GV = dyn_cast<GlobalValue>(P))
+  if (GlobalObject *GV = dyn_cast<GlobalObject>(P))
     return GV->getAlignment();
   if (AllocaInst *AI = dyn_cast<AllocaInst>(P))
     return AI->getAlignment();
@@ -1993,19 +2013,19 @@ unsigned LLVMGetAlignment(LLVMValueRef V) {
     return SI->getAlignment();
 
   llvm_unreachable(
-      "only GlobalValue, AllocaInst, LoadInst and StoreInst have alignment");
+      "only GlobalObject, AllocaInst, LoadInst and StoreInst have alignment");
 }
 
 void LLVMSetAlignment(LLVMValueRef V, unsigned Bytes) {
   Value *P = unwrap<Value>(V);
   if (GlobalObject *GV = dyn_cast<GlobalObject>(P))
-    GV->setAlignment(Bytes);
+    GV->setAlignment(MaybeAlign(Bytes));
   else if (AllocaInst *AI = dyn_cast<AllocaInst>(P))
-    AI->setAlignment(Bytes);
+    AI->setAlignment(Align(Bytes));
   else if (LoadInst *LI = dyn_cast<LoadInst>(P))
-    LI->setAlignment(Bytes);
+    LI->setAlignment(Align(Bytes));
   else if (StoreInst *SI = dyn_cast<StoreInst>(P))
-    SI->setAlignment(Bytes);
+    SI->setAlignment(Align(Bytes));
   else
     llvm_unreachable(
         "only GlobalValue, AllocaInst, LoadInst and StoreInst have alignment");
@@ -2480,7 +2500,7 @@ LLVMValueRef LLVMGetPreviousParam(LLVMValueRef Arg) {
 
 void LLVMSetParamAlignment(LLVMValueRef Arg, unsigned align) {
   Argument *A = unwrap<Argument>(Arg);
-  A->addAttr(Attribute::getWithAlignment(A->getContext(), align));
+  A->addAttr(Attribute::getWithAlignment(A->getContext(), Align(align)));
 }
 
 /*--.. Operations on ifuncs ................................................--*/
@@ -2779,7 +2799,8 @@ void LLVMSetInstructionCallConv(LLVMValueRef Instr, unsigned CC) {
 void LLVMSetInstrParamAlignment(LLVMValueRef Instr, unsigned index,
                                 unsigned align) {
   auto *Call = unwrap<CallBase>(Instr);
-  Attribute AlignAttr = Attribute::getWithAlignment(Call->getContext(), align);
+  Attribute AlignAttr =
+      Attribute::getWithAlignment(Call->getContext(), Align(align));
   Call->addAttribute(index, AlignAttr);
 }
 
@@ -2827,7 +2848,7 @@ void LLVMRemoveCallSiteStringAttribute(LLVMValueRef C, LLVMAttributeIndex Idx,
 }
 
 LLVMValueRef LLVMGetCalledValue(LLVMValueRef Instr) {
-  return wrap(unwrap<CallBase>(Instr)->getCalledValue());
+  return wrap(unwrap<CallBase>(Instr)->getCalledOperand());
 }
 
 LLVMTypeRef LLVMGetCalledFunctionType(LLVMValueRef Instr) {
@@ -3429,18 +3450,19 @@ LLVMValueRef LLVMBuildArrayMalloc(LLVMBuilderRef B, LLVMTypeRef Ty,
   return wrap(unwrap(B)->Insert(Malloc, Twine(Name)));
 }
 
-LLVMValueRef LLVMBuildMemSet(LLVMBuilderRef B, LLVMValueRef Ptr, 
+LLVMValueRef LLVMBuildMemSet(LLVMBuilderRef B, LLVMValueRef Ptr,
                              LLVMValueRef Val, LLVMValueRef Len,
                              unsigned Align) {
-  return wrap(unwrap(B)->CreateMemSet(unwrap(Ptr), unwrap(Val), unwrap(Len), Align));
+  return wrap(unwrap(B)->CreateMemSet(unwrap(Ptr), unwrap(Val), unwrap(Len),
+                                      MaybeAlign(Align)));
 }
 
-LLVMValueRef LLVMBuildMemCpy(LLVMBuilderRef B, 
+LLVMValueRef LLVMBuildMemCpy(LLVMBuilderRef B,
                              LLVMValueRef Dst, unsigned DstAlign,
                              LLVMValueRef Src, unsigned SrcAlign,
                              LLVMValueRef Size) {
-  return wrap(unwrap(B)->CreateMemCpy(unwrap(Dst), DstAlign,
-                                      unwrap(Src), SrcAlign,
+  return wrap(unwrap(B)->CreateMemCpy(unwrap(Dst), MaybeAlign(DstAlign),
+                                      unwrap(Src), MaybeAlign(SrcAlign),
                                       unwrap(Size)));
 }
 
@@ -3448,8 +3470,8 @@ LLVMValueRef LLVMBuildMemMove(LLVMBuilderRef B,
                               LLVMValueRef Dst, unsigned DstAlign,
                               LLVMValueRef Src, unsigned SrcAlign,
                               LLVMValueRef Size) {
-  return wrap(unwrap(B)->CreateMemMove(unwrap(Dst), DstAlign,
-                                       unwrap(Src), SrcAlign,
+  return wrap(unwrap(B)->CreateMemMove(unwrap(Dst), MaybeAlign(DstAlign),
+                                       unwrap(Src), MaybeAlign(SrcAlign),
                                        unwrap(Size)));
 }
 
@@ -3516,6 +3538,47 @@ static LLVMAtomicOrdering mapToLLVMOrdering(AtomicOrdering Ordering) {
   }
 
   llvm_unreachable("Invalid AtomicOrdering value!");
+}
+
+static AtomicRMWInst::BinOp mapFromLLVMRMWBinOp(LLVMAtomicRMWBinOp BinOp) {
+  switch (BinOp) {
+    case LLVMAtomicRMWBinOpXchg: return AtomicRMWInst::Xchg;
+    case LLVMAtomicRMWBinOpAdd: return AtomicRMWInst::Add;
+    case LLVMAtomicRMWBinOpSub: return AtomicRMWInst::Sub;
+    case LLVMAtomicRMWBinOpAnd: return AtomicRMWInst::And;
+    case LLVMAtomicRMWBinOpNand: return AtomicRMWInst::Nand;
+    case LLVMAtomicRMWBinOpOr: return AtomicRMWInst::Or;
+    case LLVMAtomicRMWBinOpXor: return AtomicRMWInst::Xor;
+    case LLVMAtomicRMWBinOpMax: return AtomicRMWInst::Max;
+    case LLVMAtomicRMWBinOpMin: return AtomicRMWInst::Min;
+    case LLVMAtomicRMWBinOpUMax: return AtomicRMWInst::UMax;
+    case LLVMAtomicRMWBinOpUMin: return AtomicRMWInst::UMin;
+    case LLVMAtomicRMWBinOpFAdd: return AtomicRMWInst::FAdd;
+    case LLVMAtomicRMWBinOpFSub: return AtomicRMWInst::FSub;
+  }
+
+  llvm_unreachable("Invalid LLVMAtomicRMWBinOp value!");
+}
+
+static LLVMAtomicRMWBinOp mapToLLVMRMWBinOp(AtomicRMWInst::BinOp BinOp) {
+  switch (BinOp) {
+    case AtomicRMWInst::Xchg: return LLVMAtomicRMWBinOpXchg;
+    case AtomicRMWInst::Add: return LLVMAtomicRMWBinOpAdd;
+    case AtomicRMWInst::Sub: return LLVMAtomicRMWBinOpSub;
+    case AtomicRMWInst::And: return LLVMAtomicRMWBinOpAnd;
+    case AtomicRMWInst::Nand: return LLVMAtomicRMWBinOpNand;
+    case AtomicRMWInst::Or: return LLVMAtomicRMWBinOpOr;
+    case AtomicRMWInst::Xor: return LLVMAtomicRMWBinOpXor;
+    case AtomicRMWInst::Max: return LLVMAtomicRMWBinOpMax;
+    case AtomicRMWInst::Min: return LLVMAtomicRMWBinOpMin;
+    case AtomicRMWInst::UMax: return LLVMAtomicRMWBinOpUMax;
+    case AtomicRMWInst::UMin: return LLVMAtomicRMWBinOpUMin;
+    case AtomicRMWInst::FAdd: return LLVMAtomicRMWBinOpFAdd;
+    case AtomicRMWInst::FSub: return LLVMAtomicRMWBinOpFSub;
+    default: break;
+  }
+
+  llvm_unreachable("Invalid AtomicRMWBinOp value!");
 }
 
 // TODO: Should this and other atomic instructions support building with
@@ -3593,14 +3656,30 @@ LLVMBool LLVMGetVolatile(LLVMValueRef MemAccessInst) {
   Value *P = unwrap<Value>(MemAccessInst);
   if (LoadInst *LI = dyn_cast<LoadInst>(P))
     return LI->isVolatile();
-  return cast<StoreInst>(P)->isVolatile();
+  if (StoreInst *SI = dyn_cast<StoreInst>(P))
+    return SI->isVolatile();
+  if (AtomicRMWInst *AI = dyn_cast<AtomicRMWInst>(P))
+    return AI->isVolatile();
+  return cast<AtomicCmpXchgInst>(P)->isVolatile();
 }
 
 void LLVMSetVolatile(LLVMValueRef MemAccessInst, LLVMBool isVolatile) {
   Value *P = unwrap<Value>(MemAccessInst);
   if (LoadInst *LI = dyn_cast<LoadInst>(P))
     return LI->setVolatile(isVolatile);
-  return cast<StoreInst>(P)->setVolatile(isVolatile);
+  if (StoreInst *SI = dyn_cast<StoreInst>(P))
+    return SI->setVolatile(isVolatile);
+  if (AtomicRMWInst *AI = dyn_cast<AtomicRMWInst>(P))
+    return AI->setVolatile(isVolatile);
+  return cast<AtomicCmpXchgInst>(P)->setVolatile(isVolatile);
+}
+
+LLVMBool LLVMGetWeak(LLVMValueRef CmpXchgInst) {
+  return unwrap<AtomicCmpXchgInst>(CmpXchgInst)->isWeak();
+}
+
+void LLVMSetWeak(LLVMValueRef CmpXchgInst, LLVMBool isWeak) {
+  return unwrap<AtomicCmpXchgInst>(CmpXchgInst)->setWeak(isWeak);
 }
 
 LLVMAtomicOrdering LLVMGetOrdering(LLVMValueRef MemAccessInst) {
@@ -3608,8 +3687,10 @@ LLVMAtomicOrdering LLVMGetOrdering(LLVMValueRef MemAccessInst) {
   AtomicOrdering O;
   if (LoadInst *LI = dyn_cast<LoadInst>(P))
     O = LI->getOrdering();
+  else if (StoreInst *SI = dyn_cast<StoreInst>(P))
+    O = SI->getOrdering();
   else
-    O = cast<StoreInst>(P)->getOrdering();
+    O = cast<AtomicRMWInst>(P)->getOrdering();
   return mapToLLVMOrdering(O);
 }
 
@@ -3620,6 +3701,14 @@ void LLVMSetOrdering(LLVMValueRef MemAccessInst, LLVMAtomicOrdering Ordering) {
   if (LoadInst *LI = dyn_cast<LoadInst>(P))
     return LI->setOrdering(O);
   return cast<StoreInst>(P)->setOrdering(O);
+}
+
+LLVMAtomicRMWBinOp LLVMGetAtomicRMWBinOp(LLVMValueRef Inst) {
+  return mapToLLVMRMWBinOp(unwrap<AtomicRMWInst>(Inst)->getOperation());
+}
+
+void LLVMSetAtomicRMWBinOp(LLVMValueRef Inst, LLVMAtomicRMWBinOp BinOp) {
+  unwrap<AtomicRMWInst>(Inst)->setOperation(mapFromLLVMRMWBinOp(BinOp));
 }
 
 /*--.. Casts ...............................................................--*/
@@ -3821,6 +3910,11 @@ LLVMValueRef LLVMBuildInsertValue(LLVMBuilderRef B, LLVMValueRef AggVal,
                                            Index, Name));
 }
 
+LLVMValueRef LLVMBuildFreeze(LLVMBuilderRef B, LLVMValueRef Val,
+                             const char *Name) {
+  return wrap(unwrap(B)->CreateFreeze(unwrap(Val), Name));
+}
+
 LLVMValueRef LLVMBuildIsNull(LLVMBuilderRef B, LLVMValueRef Val,
                              const char *Name) {
   return wrap(unwrap(B)->CreateIsNull(unwrap(Val), Name));
@@ -3840,20 +3934,7 @@ LLVMValueRef LLVMBuildAtomicRMW(LLVMBuilderRef B,LLVMAtomicRMWBinOp op,
                                LLVMValueRef PTR, LLVMValueRef Val,
                                LLVMAtomicOrdering ordering,
                                LLVMBool singleThread) {
-  AtomicRMWInst::BinOp intop;
-  switch (op) {
-    case LLVMAtomicRMWBinOpXchg: intop = AtomicRMWInst::Xchg; break;
-    case LLVMAtomicRMWBinOpAdd: intop = AtomicRMWInst::Add; break;
-    case LLVMAtomicRMWBinOpSub: intop = AtomicRMWInst::Sub; break;
-    case LLVMAtomicRMWBinOpAnd: intop = AtomicRMWInst::And; break;
-    case LLVMAtomicRMWBinOpNand: intop = AtomicRMWInst::Nand; break;
-    case LLVMAtomicRMWBinOpOr: intop = AtomicRMWInst::Or; break;
-    case LLVMAtomicRMWBinOpXor: intop = AtomicRMWInst::Xor; break;
-    case LLVMAtomicRMWBinOpMax: intop = AtomicRMWInst::Max; break;
-    case LLVMAtomicRMWBinOpMin: intop = AtomicRMWInst::Min; break;
-    case LLVMAtomicRMWBinOpUMax: intop = AtomicRMWInst::UMax; break;
-    case LLVMAtomicRMWBinOpUMin: intop = AtomicRMWInst::UMin; break;
-  }
+  AtomicRMWInst::BinOp intop = mapFromLLVMRMWBinOp(op);
   return wrap(unwrap(B)->CreateAtomicRMW(intop, unwrap(PTR), unwrap(Val),
     mapFromLLVMOrdering(ordering), singleThread ? SyncScope::SingleThread
                                                 : SyncScope::System));

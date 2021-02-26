@@ -127,4 +127,63 @@ TEST(KnownBitsTest, AddSubExhaustive) {
   TestAddSubExhaustive(false);
 }
 
+TEST(KnownBitsTest, BinaryExhaustive) {
+  unsigned Bits = 4;
+  ForeachKnownBits(Bits, [&](const KnownBits &Known1) {
+    ForeachKnownBits(Bits, [&](const KnownBits &Known2) {
+      KnownBits KnownAnd(Bits), KnownOr(Bits), KnownXor(Bits);
+      KnownAnd.Zero.setAllBits();
+      KnownAnd.One.setAllBits();
+      KnownOr.Zero.setAllBits();
+      KnownOr.One.setAllBits();
+      KnownXor.Zero.setAllBits();
+      KnownXor.One.setAllBits();
+
+      ForeachNumInKnownBits(Known1, [&](const APInt &N1) {
+        ForeachNumInKnownBits(Known2, [&](const APInt &N2) {
+          APInt Res;
+
+          Res = N1 & N2;
+          KnownAnd.One &= Res;
+          KnownAnd.Zero &= ~Res;
+
+          Res = N1 | N2;
+          KnownOr.One &= Res;
+          KnownOr.Zero &= ~Res;
+
+          Res = N1 ^ N2;
+          KnownXor.One &= Res;
+          KnownXor.Zero &= ~Res;
+        });
+      });
+
+      KnownBits ComputedAnd = Known1 & Known2;
+      EXPECT_EQ(KnownAnd.Zero, ComputedAnd.Zero);
+      EXPECT_EQ(KnownAnd.One, ComputedAnd.One);
+
+      KnownBits ComputedOr = Known1 | Known2;
+      EXPECT_EQ(KnownOr.Zero, ComputedOr.Zero);
+      EXPECT_EQ(KnownOr.One, ComputedOr.One);
+
+      KnownBits ComputedXor = Known1 ^ Known2;
+      EXPECT_EQ(KnownXor.Zero, ComputedXor.Zero);
+      EXPECT_EQ(KnownXor.One, ComputedXor.One);
+    });
+  });
+}
+
+TEST(KnownBitsTest, GetMinMaxVal) {
+  unsigned Bits = 4;
+  ForeachKnownBits(Bits, [&](const KnownBits &Known) {
+    APInt Min = APInt::getMaxValue(Bits);
+    APInt Max = APInt::getMinValue(Bits);
+    ForeachNumInKnownBits(Known, [&](const APInt &N) {
+      Min = APIntOps::umin(Min, N);
+      Max = APIntOps::umax(Max, N);
+    });
+    EXPECT_EQ(Min, Known.getMinValue());
+    EXPECT_EQ(Max, Known.getMaxValue());
+  });
+}
+
 } // end anonymous namespace

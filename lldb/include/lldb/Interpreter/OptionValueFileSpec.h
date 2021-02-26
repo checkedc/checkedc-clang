@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_OptionValueFileSpec_h_
-#define liblldb_OptionValueFileSpec_h_
+#ifndef LLDB_INTERPRETER_OPTIONVALUEFILESPEC_H
+#define LLDB_INTERPRETER_OPTIONVALUEFILESPEC_H
 
 #include "lldb/Interpreter/OptionValue.h"
 
@@ -51,8 +51,8 @@ public:
 
   lldb::OptionValueSP DeepCopy() const override;
 
-  size_t AutoComplete(CommandInterpreter &interpreter,
-                      CompletionRequest &request) override;
+  void AutoComplete(CommandInterpreter &interpreter,
+                    CompletionRequest &request) override;
 
   // Subclass specific functions
 
@@ -86,4 +86,4 @@ protected:
 
 } // namespace lldb_private
 
-#endif // liblldb_OptionValueFileSpec_h_
+#endif // LLDB_INTERPRETER_OPTIONVALUEFILESPEC_H

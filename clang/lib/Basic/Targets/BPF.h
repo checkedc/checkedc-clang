@@ -22,6 +22,8 @@ namespace clang {
 namespace targets {
 
 class LLVM_LIBRARY_VISIBILITY BPFTargetInfo : public TargetInfo {
+  static const Builtin::Info BuiltinInfo[];
+
 public:
   BPFTargetInfo(const llvm::Triple &Triple, const TargetOptions &)
       : TargetInfo(Triple) {
@@ -33,9 +35,9 @@ public:
     Int64Type = SignedLong;
     RegParmMax = 5;
     if (Triple.getArch() == llvm::Triple::bpfeb) {
-      resetDataLayout("E-m:e-p:64:64-i64:64-n32:64-S128");
+      resetDataLayout("E-m:e-p:64:64-i64:64-i128:128-n32:64-S128");
     } else {
-      resetDataLayout("e-m:e-p:64:64-i64:64-n32:64-S128");
+      resetDataLayout("e-m:e-p:64:64-i64:64-i128:128-n32:64-S128");
     }
     MaxAtomicPromoteWidth = 64;
     MaxAtomicInlineWidth = 64;
@@ -54,7 +56,7 @@ public:
     Features[Name] = Enabled;
   }
 
-  ArrayRef<Builtin::Info> getTargetBuiltins() const override { return None; }
+  ArrayRef<Builtin::Info> getTargetBuiltins() const override;
 
   const char *getClobbers() const override { return ""; }
 
@@ -73,6 +75,8 @@ public:
   ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override {
     return None;
   }
+
+  bool allowDebugInfoForExternalVar() const override { return true; }
 
   CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
     switch (CC) {

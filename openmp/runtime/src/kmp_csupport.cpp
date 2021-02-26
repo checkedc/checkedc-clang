@@ -18,10 +18,7 @@
 #include "kmp_itt.h"
 #include "kmp_lock.h"
 #include "kmp_stats.h"
-
-#if OMPT_SUPPORT
 #include "ompt-specific.h"
-#endif
 
 #define MAX_MESSAGE 512
 
@@ -95,7 +92,7 @@ construct, since the master thread is necessarily thread zero).
 
 If multiple non-OpenMP threads all enter an OpenMP construct then this
 will be a unique thread identifier among all the threads created by
-the OpenMP runtime (but the value cannote be defined in terms of
+the OpenMP runtime (but the value cannot be defined in terms of
 OpenMP thread ids returned by omp_get_thread_num()).
 */
 kmp_int32 __kmpc_global_thread_num(ident_t *loc) {
@@ -545,7 +542,8 @@ void __kmpc_end_serialized_parallel(ident_t *loc, kmp_int32 global_tid) {
     if (ompt_enabled.ompt_callback_parallel_end) {
       ompt_callbacks.ompt_callback(ompt_callback_parallel_end)(
           &(serial_team->t.ompt_team_info.parallel_data), parent_task_data,
-          ompt_parallel_invoker_program, OMPT_LOAD_RETURN_ADDRESS(global_tid));
+          ompt_parallel_invoker_program | ompt_parallel_team,
+          OMPT_LOAD_RETURN_ADDRESS(global_tid));
     }
     __ompt_lw_taskteam_unlink(this_thr);
     this_thr->th.ompt_thread_info.state = ompt_state_overhead;
@@ -676,7 +674,8 @@ void __kmpc_flush(ident_t *loc) {
 #endif // KMP_COMPILER_ICC
   }
 #endif // KMP_MIC
-#elif (KMP_ARCH_ARM || KMP_ARCH_AARCH64 || KMP_ARCH_MIPS || KMP_ARCH_MIPS64)
+#elif (KMP_ARCH_ARM || KMP_ARCH_AARCH64 || KMP_ARCH_MIPS || KMP_ARCH_MIPS64 || \
+       KMP_ARCH_RISCV64)
 // Nothing to see here move along
 #elif KMP_ARCH_PPC64
 // Nothing needed here (we have a real MB above).
@@ -3427,12 +3426,17 @@ __kmpc_reduce_nowait(ident_t *loc, kmp_int32 global_tid, kmp_int32 num_vars,
       loc, global_tid, num_vars, reduce_size, reduce_data, reduce_func, lck);
   __KMP_SET_REDUCTION_METHOD(global_tid, packed_reduction_method);
 
+  OMPT_REDUCTION_DECL(th, global_tid);
   if (packed_reduction_method == critical_reduce_block) {
+
+    OMPT_REDUCTION_BEGIN;
 
     __kmp_enter_critical_section_reduce_block(loc, global_tid, lck);
     retval = 1;
 
   } else if (packed_reduction_method == empty_reduce_block) {
+
+    OMPT_REDUCTION_BEGIN;
 
     // usage: if team size == 1, no synchronization is required ( Intel
     // platforms only )
@@ -3534,14 +3538,19 @@ void __kmpc_end_reduce_nowait(ident_t *loc, kmp_int32 global_tid,
 
   packed_reduction_method = __KMP_GET_REDUCTION_METHOD(global_tid);
 
+  OMPT_REDUCTION_DECL(__kmp_thread_from_gtid(global_tid), global_tid);
+
   if (packed_reduction_method == critical_reduce_block) {
 
     __kmp_end_critical_section_reduce_block(loc, global_tid, lck);
+    OMPT_REDUCTION_END;
 
   } else if (packed_reduction_method == empty_reduce_block) {
 
     // usage: if team size == 1, no synchronization is required ( on Intel
     // platforms only )
+
+    OMPT_REDUCTION_END;
 
   } else if (packed_reduction_method == atomic_reduce_block) {
 
@@ -3554,6 +3563,7 @@ void __kmpc_end_reduce_nowait(ident_t *loc, kmp_int32 global_tid,
                                    tree_reduce_block)) {
 
     // only master gets here
+    // OMPT: tree reduction is annotated in the barrier code
 
   } else {
 
@@ -3627,13 +3637,17 @@ kmp_int32 __kmpc_reduce(ident_t *loc, kmp_int32 global_tid, kmp_int32 num_vars,
       loc, global_tid, num_vars, reduce_size, reduce_data, reduce_func, lck);
   __KMP_SET_REDUCTION_METHOD(global_tid, packed_reduction_method);
 
+  OMPT_REDUCTION_DECL(th, global_tid);
+
   if (packed_reduction_method == critical_reduce_block) {
 
+    OMPT_REDUCTION_BEGIN;
     __kmp_enter_critical_section_reduce_block(loc, global_tid, lck);
     retval = 1;
 
   } else if (packed_reduction_method == empty_reduce_block) {
 
+    OMPT_REDUCTION_BEGIN;
     // usage: if team size == 1, no synchronization is required ( Intel
     // platforms only )
     retval = 1;
@@ -3721,9 +3735,12 @@ void __kmpc_end_reduce(ident_t *loc, kmp_int32 global_tid,
 
   // this barrier should be visible to a customer and to the threading profile
   // tool (it's a terminating barrier on constructs if NOWAIT not specified)
+  OMPT_REDUCTION_DECL(th, global_tid);
 
   if (packed_reduction_method == critical_reduce_block) {
     __kmp_end_critical_section_reduce_block(loc, global_tid, lck);
+
+    OMPT_REDUCTION_END;
 
 // TODO: implicit barrier: should be exposed
 #if OMPT_SUPPORT
@@ -3746,6 +3763,8 @@ void __kmpc_end_reduce(ident_t *loc, kmp_int32 global_tid,
 #endif
 
   } else if (packed_reduction_method == empty_reduce_block) {
+
+    OMPT_REDUCTION_END;
 
 // usage: if team size==1, no synchronization is required (Intel platforms only)
 
@@ -4004,6 +4023,9 @@ void __kmpc_doacross_wait(ident_t *loc, int gtid, const kmp_int64 *vec) {
   lo = pr_buf->th_doacross_info[2];
   up = pr_buf->th_doacross_info[3];
   st = pr_buf->th_doacross_info[4];
+#if OMPT_SUPPORT && OMPT_OPTIONAL
+  ompt_dependence_t deps[num_dims];
+#endif
   if (st == 1) { // most common case
     if (vec[0] < lo || vec[0] > up) {
       KA_TRACE(20, ("__kmpc_doacross_wait() exit: T#%d iter %lld is out of "
@@ -4029,6 +4051,10 @@ void __kmpc_doacross_wait(ident_t *loc, int gtid, const kmp_int64 *vec) {
     }
     iter_number = (kmp_uint64)(lo - vec[0]) / (-st);
   }
+#if OMPT_SUPPORT && OMPT_OPTIONAL
+  deps[0].variable.value = iter_number;
+  deps[0].dependence_type = ompt_dependence_type_sink;
+#endif
   for (i = 1; i < num_dims; ++i) {
     kmp_int64 iter, ln;
     kmp_int32 j = i * 4;
@@ -4062,6 +4088,10 @@ void __kmpc_doacross_wait(ident_t *loc, int gtid, const kmp_int64 *vec) {
       iter = (kmp_uint64)(lo - vec[i]) / (-st);
     }
     iter_number = iter + ln * iter_number;
+#if OMPT_SUPPORT && OMPT_OPTIONAL
+    deps[i].variable.value = iter;
+    deps[i].dependence_type = ompt_dependence_type_sink;
+#endif
   }
   shft = iter_number % 32; // use 32-bit granularity
   iter_number >>= 5; // divided by 32
@@ -4070,6 +4100,12 @@ void __kmpc_doacross_wait(ident_t *loc, int gtid, const kmp_int64 *vec) {
     KMP_YIELD(TRUE);
   }
   KMP_MB();
+#if OMPT_SUPPORT && OMPT_OPTIONAL
+  if (ompt_enabled.ompt_callback_dependences) {
+    ompt_callbacks.ompt_callback(ompt_callback_dependences)(
+        &(OMPT_CUR_TASK_INFO(th)->task_data), deps, num_dims);
+  }
+#endif
   KA_TRACE(20,
            ("__kmpc_doacross_wait() exit: T#%d wait for iter %lld completed\n",
             gtid, (iter_number << 5) + shft));
@@ -4097,6 +4133,9 @@ void __kmpc_doacross_post(ident_t *loc, int gtid, const kmp_int64 *vec) {
   num_dims = pr_buf->th_doacross_info[0];
   lo = pr_buf->th_doacross_info[2];
   st = pr_buf->th_doacross_info[4];
+#if OMPT_SUPPORT && OMPT_OPTIONAL
+  ompt_dependence_t deps[num_dims];
+#endif
   if (st == 1) { // most common case
     iter_number = vec[0] - lo;
   } else if (st > 0) {
@@ -4104,6 +4143,10 @@ void __kmpc_doacross_post(ident_t *loc, int gtid, const kmp_int64 *vec) {
   } else { // negative increment
     iter_number = (kmp_uint64)(lo - vec[0]) / (-st);
   }
+#if OMPT_SUPPORT && OMPT_OPTIONAL
+  deps[0].variable.value = iter_number;
+  deps[0].dependence_type = ompt_dependence_type_source;
+#endif
   for (i = 1; i < num_dims; ++i) {
     kmp_int64 iter, ln;
     kmp_int32 j = i * 4;
@@ -4118,7 +4161,17 @@ void __kmpc_doacross_post(ident_t *loc, int gtid, const kmp_int64 *vec) {
       iter = (kmp_uint64)(lo - vec[i]) / (-st);
     }
     iter_number = iter + ln * iter_number;
+#if OMPT_SUPPORT && OMPT_OPTIONAL
+    deps[i].variable.value = iter;
+    deps[i].dependence_type = ompt_dependence_type_source;
+#endif
   }
+#if OMPT_SUPPORT && OMPT_OPTIONAL
+  if (ompt_enabled.ompt_callback_dependences) {
+    ompt_callbacks.ompt_callback(ompt_callback_dependences)(
+        &(OMPT_CUR_TASK_INFO(th)->task_data), deps, num_dims);
+  }
+#endif
   shft = iter_number % 32; // use 32-bit granularity
   iter_number >>= 5; // divided by 32
   flag = 1 << shft;

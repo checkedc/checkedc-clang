@@ -14,21 +14,18 @@
 using namespace llvm;
 using namespace llvm::wasm;
 
-using namespace lld;
-using namespace lld::wasm;
-
+namespace lld {
+namespace wasm {
 static bool requiresGOTAccess(const Symbol *sym) {
   return config->isPic && !sym->isHidden() && !sym->isLocal();
 }
 
 static bool allowUndefined(const Symbol* sym) {
-  // Historically --allow-undefined doesn't work for data symbols since we don't
-  // have any way to represent these as imports in the final binary.  The idea
-  // behind allowing undefined symbols is to allow importing these symbols from
-  // the embedder and we can't do this for data symbols (at least not without
-  // compiling with -fPIC)
-  if (isa<DataSymbol>(sym))
-    return false;
+  // Undefined functions with explicit import name are allowed to be undefined
+  // at link time.
+  if (auto *F = dyn_cast<UndefinedFunction>(sym))
+    if (F->importName)
+      return true;
   return (config->allowUndefined ||
           config->allowUndefinedSymbols.count(sym->getName()) != 0);
 }
@@ -40,7 +37,21 @@ static void reportUndefined(const Symbol* sym) {
     error(toString(sym->getFile()) + ": undefined symbol: " + toString(*sym));
 }
 
-void lld::wasm::scanRelocations(InputChunk *chunk) {
+static void addGOTEntry(Symbol *sym) {
+  // In PIC mode a GOT entry is an imported global that the dynamic linker
+  // will assign.
+  // In non-PIC mode (i.e. when code compiled as fPIC is linked into a static
+  // binary) we create an internal wasm global with a fixed value that takes the
+  // place of th GOT entry and effectivly acts as an i32 const. This can
+  // potentially be optimized away at runtime or with a post-link tool.
+  // TODO(sbc): Linker relaxation might also be able to optimize this away.
+  if (config->isPic)
+    out.importSec->addGOTEntry(sym);
+  else
+    out.globalSec->addStaticGOTEntry(sym);
+}
+
+void scanRelocations(InputChunk *chunk) {
   if (!chunk->live)
     return;
   ObjFile *file = chunk->file;
@@ -66,8 +77,9 @@ void lld::wasm::scanRelocations(InputChunk *chunk) {
       out.elemSec->addEntry(cast<FunctionSymbol>(sym));
       break;
     case R_WASM_GLOBAL_INDEX_LEB:
+    case R_WASM_GLOBAL_INDEX_I32:
       if (!isa<GlobalSymbol>(sym))
-        out.importSec->addGOTEntry(sym);
+        addGOTEntry(sym);
       break;
     }
 
@@ -76,6 +88,8 @@ void lld::wasm::scanRelocations(InputChunk *chunk) {
       case R_WASM_TABLE_INDEX_SLEB:
       case R_WASM_MEMORY_ADDR_SLEB:
       case R_WASM_MEMORY_ADDR_LEB:
+      case R_WASM_MEMORY_ADDR_SLEB64:
+      case R_WASM_MEMORY_ADDR_LEB64:
         // Certain relocation types can't be used when building PIC output,
         // since they would require absolute symbol addresses at link time.
         error(toString(file) + ": relocation " + relocTypeToString(reloc.Type) +
@@ -84,11 +98,12 @@ void lld::wasm::scanRelocations(InputChunk *chunk) {
         break;
       case R_WASM_TABLE_INDEX_I32:
       case R_WASM_MEMORY_ADDR_I32:
+      case R_WASM_MEMORY_ADDR_I64:
         // These relocation types are only present in the data section and
         // will be converted into code by `generateRelocationCode`.  This code
         // requires the symbols to have GOT entires.
         if (requiresGOTAccess(sym))
-          out.importSec->addGOTEntry(sym);
+          addGOTEntry(sym);
         break;
       }
     } else {
@@ -99,3 +114,6 @@ void lld::wasm::scanRelocations(InputChunk *chunk) {
 
   }
 }
+
+} // namespace wasm
+} // namespace lld

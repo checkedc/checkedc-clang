@@ -38,6 +38,7 @@ extern unsigned struct_timezone_sz;
 extern unsigned struct_tms_sz;
 extern unsigned struct_itimerspec_sz;
 extern unsigned struct_sigevent_sz;
+extern unsigned struct_stack_t_sz;
 extern unsigned struct_sched_param_sz;
 extern unsigned struct_statfs64_sz;
 extern unsigned struct_statfs_sz;
@@ -68,7 +69,7 @@ struct __sanitizer_ipc_perm {
 #if !defined(_LP64)
   int pad[4];
 #endif
-  };
+};
 
 struct __sanitizer_shmid_ds {
   __sanitizer_ipc_perm shm_perm;
@@ -236,10 +237,9 @@ typedef long __sanitizer_clock_t;
 typedef int __sanitizer_clockid_t;
 
 // This thing depends on the platform. We are only interested in the upper
-// limit. Verified with a compiler assert in .cc.
-const int pthread_attr_t_max_sz = 128;
+// limit. Verified with a compiler assert in .cpp.
 union __sanitizer_pthread_attr_t {
-  char size[pthread_attr_t_max_sz]; // NOLINT
+  char size[128];
   void *align;
 };
 

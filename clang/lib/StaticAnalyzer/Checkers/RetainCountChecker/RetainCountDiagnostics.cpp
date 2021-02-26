@@ -18,7 +18,7 @@ using namespace clang;
 using namespace ento;
 using namespace retaincountchecker;
 
-StringRef RefCountBug::bugTypeToName(RefCountBug::RefCountBugType BT) {
+StringRef RefCountBug::bugTypeToName(RefCountBug::RefCountBugKind BT) {
   switch (BT) {
   case UseAfterRelease:
     return "Use-after-release";
@@ -37,7 +37,7 @@ StringRef RefCountBug::bugTypeToName(RefCountBug::RefCountBugType BT) {
   case LeakAtReturn:
     return "Leak of returned object";
   }
-  llvm_unreachable("Unknown RefCountBugType");
+  llvm_unreachable("Unknown RefCountBugKind");
 }
 
 StringRef RefCountBug::getDescription() const {
@@ -60,13 +60,14 @@ StringRef RefCountBug::getDescription() const {
   case LeakAtReturn:
     return "";
   }
-  llvm_unreachable("Unknown RefCountBugType");
+  llvm_unreachable("Unknown RefCountBugKind");
 }
 
-RefCountBug::RefCountBug(const CheckerBase *Checker, RefCountBugType BT)
+RefCountBug::RefCountBug(CheckerNameRef Checker, RefCountBugKind BT)
     : BugType(Checker, bugTypeToName(BT), categories::MemoryRefCount,
-              /*SuppressOnSink=*/BT == LeakWithinFunction || BT == LeakAtReturn),
-      BT(BT), Checker(Checker) {}
+              /*SuppressOnSink=*/BT == LeakWithinFunction ||
+                  BT == LeakAtReturn),
+      BT(BT) {}
 
 static bool isNumericLiteralExpression(const Expr *E) {
   // FIXME: This set of cases was copied from SemaExprObjC.
@@ -84,7 +85,7 @@ static std::string getPrettyTypeName(QualType QT) {
   QualType PT = QT->getPointeeType();
   if (!PT.isNull() && !QT->getAs<TypedefType>())
     if (const auto *RD = PT->getAsCXXRecordDecl())
-      return RD->getName();
+      return std::string(RD->getName());
   return QT.getAsString();
 }
 
@@ -325,22 +326,22 @@ public:
     ID.AddPointer(Sym);
   }
 
-  std::shared_ptr<PathDiagnosticPiece> VisitNode(const ExplodedNode *N,
-                                                 BugReporterContext &BRC,
-                                                 BugReport &BR) override;
+  PathDiagnosticPieceRef VisitNode(const ExplodedNode *N,
+                                   BugReporterContext &BRC,
+                                   PathSensitiveBugReport &BR) override;
 
-  std::shared_ptr<PathDiagnosticPiece> getEndPath(BugReporterContext &BRC,
-                                                  const ExplodedNode *N,
-                                                  BugReport &BR) override;
+  PathDiagnosticPieceRef getEndPath(BugReporterContext &BRC,
+                                    const ExplodedNode *N,
+                                    PathSensitiveBugReport &BR) override;
 };
 
 class RefLeakReportVisitor : public RefCountReportVisitor {
 public:
   RefLeakReportVisitor(SymbolRef sym) : RefCountReportVisitor(sym) {}
 
-  std::shared_ptr<PathDiagnosticPiece> getEndPath(BugReporterContext &BRC,
-                                                  const ExplodedNode *N,
-                                                  BugReport &BR) override;
+  PathDiagnosticPieceRef getEndPath(BugReporterContext &BRC,
+                                    const ExplodedNode *N,
+                                    PathSensitiveBugReport &BR) override;
 };
 
 } // end namespace retaincountchecker
@@ -448,13 +449,11 @@ annotateStartParameter(const ExplodedNode *N, SymbolRef Sym,
   return std::make_shared<PathDiagnosticEventPiece>(L, os.str());
 }
 
-std::shared_ptr<PathDiagnosticPiece>
-RefCountReportVisitor::VisitNode(const ExplodedNode *N,
-                              BugReporterContext &BRC, BugReport &BR) {
+PathDiagnosticPieceRef
+RefCountReportVisitor::VisitNode(const ExplodedNode *N, BugReporterContext &BRC,
+                                 PathSensitiveBugReport &BR) {
 
   const auto &BT = static_cast<const RefCountBug&>(BR.getBugType());
-  const auto *Checker =
-      static_cast<const RetainCountChecker *>(BT.getChecker());
 
   bool IsFreeUnowned = BT.getBugType() == RefCountBug::FreeNotOwned ||
                        BT.getBugType() == RefCountBug::DeallocNotOwned;
@@ -545,11 +544,11 @@ RefCountReportVisitor::VisitNode(const ExplodedNode *N,
 
   const ProgramPointTag *Tag = N->getLocation().getTag();
 
-  if (Tag == &Checker->getCastFailTag()) {
+  if (Tag == &RetainCountChecker::getCastFailTag()) {
     os << "Assuming dynamic cast returns null due to type mismatch";
   }
 
-  if (Tag == &Checker->getDeallocSentTag()) {
+  if (Tag == &RetainCountChecker::getDeallocSentTag()) {
     // We only have summaries attached to nodes after evaluating CallExpr and
     // ObjCMessageExprs.
     const Stmt *S = N->getLocation().castAs<StmtPoint>().getStmt();
@@ -709,21 +708,22 @@ static AllocationInfo GetAllocationSite(ProgramStateManager &StateMgr,
       LeakContext)
     FirstBinding = nullptr;
 
-  return AllocationInfo(AllocationNodeInCurrentOrParentContext,
-                        FirstBinding,
+  return AllocationInfo(AllocationNodeInCurrentOrParentContext, FirstBinding,
                         InterestingMethodContext);
 }
 
-std::shared_ptr<PathDiagnosticPiece>
+PathDiagnosticPieceRef
 RefCountReportVisitor::getEndPath(BugReporterContext &BRC,
-                               const ExplodedNode *EndN, BugReport &BR) {
+                                  const ExplodedNode *EndN,
+                                  PathSensitiveBugReport &BR) {
   BR.markInteresting(Sym);
   return BugReporterVisitor::getDefaultEndPath(BRC, EndN, BR);
 }
 
-std::shared_ptr<PathDiagnosticPiece>
+PathDiagnosticPieceRef
 RefLeakReportVisitor::getEndPath(BugReporterContext &BRC,
-                                   const ExplodedNode *EndN, BugReport &BR) {
+                                 const ExplodedNode *EndN,
+                                 PathSensitiveBugReport &BR) {
 
   // Tell the BugReporterContext to report cases when the tracked symbol is
   // assigned to different variables, etc.
@@ -737,13 +737,7 @@ RefLeakReportVisitor::getEndPath(BugReporterContext &BRC,
   const MemRegion* FirstBinding = AllocI.R;
   BR.markInteresting(AllocI.InterestingMethodContext);
 
-  SourceManager& SM = BRC.getSourceManager();
-
-  // Compute an actual location for the leak.  Sometimes a leak doesn't
-  // occur at an actual statement (e.g., transition between blocks; end
-  // of function) so we need to walk the graph and compute a real location.
-  const ExplodedNode *LeakN = EndN;
-  PathDiagnosticLocation L = PathDiagnosticLocation::createEndOfPath(LeakN, SM);
+  PathDiagnosticLocation L = cast<RefLeakReport>(BR).getEndOfPath();
 
   std::string sbuf;
   llvm::raw_string_ostream os(sbuf);
@@ -814,19 +808,19 @@ RefLeakReportVisitor::getEndPath(BugReporterContext &BRC,
 }
 
 RefCountReport::RefCountReport(const RefCountBug &D, const LangOptions &LOpts,
-                               ExplodedNode *n, SymbolRef sym,
-                               bool isLeak)
-    : BugReport(D, D.getDescription(), n), Sym(sym), isLeak(isLeak) {
+                               ExplodedNode *n, SymbolRef sym, bool isLeak)
+    : PathSensitiveBugReport(D, D.getDescription(), n), Sym(sym),
+      isLeak(isLeak) {
   if (!isLeak)
-    addVisitor(llvm::make_unique<RefCountReportVisitor>(sym));
+    addVisitor(std::make_unique<RefCountReportVisitor>(sym));
 }
 
 RefCountReport::RefCountReport(const RefCountBug &D, const LangOptions &LOpts,
                                ExplodedNode *n, SymbolRef sym,
                                StringRef endText)
-    : BugReport(D, D.getDescription(), endText, n) {
+    : PathSensitiveBugReport(D, D.getDescription(), endText, n) {
 
-  addVisitor(llvm::make_unique<RefCountReportVisitor>(sym));
+  addVisitor(std::make_unique<RefCountReportVisitor>(sym));
 }
 
 void RefLeakReport::deriveParamLocation(CheckerContext &Ctx, SymbolRef sym) {
@@ -873,7 +867,7 @@ void RefLeakReport::deriveAllocLocation(CheckerContext &Ctx,
   // FIXME: This will crash the analyzer if an allocation comes from an
   // implicit call (ex: a destructor call).
   // (Currently there are no such allocations in Cocoa, though.)
-  AllocStmt = PathDiagnosticLocation::getStmt(AllocNode);
+  AllocStmt = AllocNode->getStmtForDiagnostics();
 
   if (!AllocStmt) {
     AllocBinding = nullptr;
@@ -918,5 +912,5 @@ RefLeakReport::RefLeakReport(const RefCountBug &D, const LangOptions &LOpts,
 
   createDescription(Ctx);
 
-  addVisitor(llvm::make_unique<RefLeakReportVisitor>(sym));
+  addVisitor(std::make_unique<RefLeakReportVisitor>(sym));
 }

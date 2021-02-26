@@ -9,13 +9,14 @@
 #include "IncludeFixer.h"
 #include "AST.h"
 #include "Diagnostics.h"
-#include "Logger.h"
 #include "SourceCode.h"
-#include "Trace.h"
 #include "index/Index.h"
 #include "index/Symbol.h"
+#include "support/Logger.h"
+#include "support/Trace.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
+#include "clang/AST/DeclarationName.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/Diagnostic.h"
@@ -34,6 +35,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Error.h"
@@ -93,7 +95,7 @@ std::vector<Fix> IncludeFixer::fix(DiagnosticsEngine::Level DiagLevel,
   case diag::err_no_member: // Could be no member in namespace.
   case diag::err_no_member_suggest:
     if (LastUnresolvedName) {
-      // Try to fix unresolved name caused by missing declaraion.
+      // Try to fix unresolved name caused by missing declaration.
       // E.g.
       //   clang::SourceManager SM;
       //          ~~~~~~~~~~~~~
@@ -142,10 +144,8 @@ std::vector<Fix> IncludeFixer::fixIncompleteType(const Type &T) const {
 std::vector<Fix> IncludeFixer::fixesForSymbols(const SymbolSlab &Syms) const {
   auto Inserted = [&](const Symbol &Sym, llvm::StringRef Header)
       -> llvm::Expected<std::pair<std::string, bool>> {
-    auto DeclaringURI = URI::parse(Sym.CanonicalDeclaration.FileURI);
-    if (!DeclaringURI)
-      return DeclaringURI.takeError();
-    auto ResolvedDeclaring = URI::resolve(*DeclaringURI, File);
+    auto ResolvedDeclaring =
+        URI::resolve(Sym.CanonicalDeclaration.FileURI, File);
     if (!ResolvedDeclaring)
       return ResolvedDeclaring.takeError();
     auto ResolvedInserted = toHeaderFile(Header, File);
@@ -161,7 +161,7 @@ std::vector<Fix> IncludeFixer::fixesForSymbols(const SymbolSlab &Syms) const {
   };
 
   std::vector<Fix> Fixes;
-  // Deduplicate fixes by include headers. This doesn't distiguish symbols in
+  // Deduplicate fixes by include headers. This doesn't distinguish symbols in
   // different scopes from the same header, but this case should be rare and is
   // thus ignored.
   llvm::StringSet<> InsertedHeaders;
@@ -173,10 +173,10 @@ std::vector<Fix> IncludeFixer::fixesForSymbols(const SymbolSlab &Syms) const {
           if (!I.second)
             continue;
           if (auto Edit = Inserter->insert(ToInclude->first))
-            Fixes.push_back(
-                Fix{llvm::formatv("Add include {0} for symbol {1}{2}",
-                                  ToInclude->first, Sym.Scope, Sym.Name),
-                    {std::move(*Edit)}});
+            Fixes.push_back(Fix{std::string(llvm::formatv(
+                                    "Add include {0} for symbol {1}{2}",
+                                    ToInclude->first, Sym.Scope, Sym.Name)),
+                                {std::move(*Edit)}});
         }
       } else {
         vlog("Failed to calculate include insertion for {0} into {1}: {2}", Inc,
@@ -295,10 +295,28 @@ llvm::Optional<CheapUnresolvedName> extractUnresolvedNameCheaply(
       // it as extra scope. With "index" being a specifier, we append "index::"
       // to the extra scope.
       Result.UnresolvedScope->append((Result.Name + Split.first).str());
-      Result.Name = Split.second;
+      Result.Name = std::string(Split.second);
     }
   }
   return Result;
+}
+
+/// Returns all namespace scopes that the unqualified lookup would visit.
+std::vector<std::string>
+collectAccessibleScopes(Sema &Sem, const DeclarationNameInfo &Typo, Scope *S,
+                        Sema::LookupNameKind LookupKind) {
+  std::vector<std::string> Scopes;
+  VisitedContextCollector Collector;
+  Sem.LookupVisibleDecls(S, LookupKind, Collector,
+                         /*IncludeGlobalScope=*/false,
+                         /*LoadExternal=*/false);
+
+  Scopes.push_back("");
+  for (const auto *Ctx : Collector.takeVisitedContexts()) {
+    if (isa<NamespaceDecl>(Ctx))
+      Scopes.push_back(printNamespaceScope(*Ctx));
+  }
+  return Scopes;
 }
 
 class IncludeFixer::UnresolvedNameRecorder : public ExternalSemaSource {
@@ -318,51 +336,33 @@ public:
     assert(SemaPtr && "Sema must have been set.");
     if (SemaPtr->isSFINAEContext())
       return TypoCorrection();
-    if (!SemaPtr->SourceMgr.isWrittenInMainFile(Typo.getLoc()))
+    if (!isInsideMainFile(Typo.getLoc(), SemaPtr->SourceMgr))
       return clang::TypoCorrection();
 
-    // This is not done lazily because `SS` can get out of scope and it's
-    // relatively cheap.
     auto Extracted = extractUnresolvedNameCheaply(
         SemaPtr->SourceMgr, Typo, SS, SemaPtr->LangOpts,
         static_cast<Sema::LookupNameKind>(LookupKind) ==
             Sema::LookupNameKind::LookupNestedNameSpecifierName);
     if (!Extracted)
       return TypoCorrection();
-    auto CheapUnresolved = std::move(*Extracted);
-    UnresolvedName Unresolved;
-    Unresolved.Name = CheapUnresolved.Name;
-    Unresolved.Loc = Typo.getBeginLoc();
 
-    if (!CheapUnresolved.ResolvedScope && !S) // Give up if no scope available.
+    UnresolvedName Unresolved;
+    Unresolved.Name = Extracted->Name;
+    Unresolved.Loc = Typo.getBeginLoc();
+    if (!Extracted->ResolvedScope && !S) // Give up if no scope available.
       return TypoCorrection();
 
-    auto *Sem = SemaPtr; // Avoid capturing `this`.
-    Unresolved.GetScopes = [Sem, CheapUnresolved, S, LookupKind]() {
-      std::vector<std::string> Scopes;
-      if (CheapUnresolved.ResolvedScope) {
-        Scopes.push_back(*CheapUnresolved.ResolvedScope);
-      } else {
-        assert(S);
-        // No scope specifier is specified. Collect all accessible scopes in the
-        // context.
-        VisitedContextCollector Collector;
-        Sem->LookupVisibleDecls(
-            S, static_cast<Sema::LookupNameKind>(LookupKind), Collector,
-            /*IncludeGlobalScope=*/false,
-            /*LoadExternal=*/false);
+    if (Extracted->ResolvedScope)
+      Unresolved.Scopes.push_back(*Extracted->ResolvedScope);
+    else // no qualifier or qualifier is unresolved.
+      Unresolved.Scopes = collectAccessibleScopes(
+          *SemaPtr, Typo, S, static_cast<Sema::LookupNameKind>(LookupKind));
 
-        Scopes.push_back("");
-        for (const auto *Ctx : Collector.takeVisitedContexts())
-          if (isa<NamespaceDecl>(Ctx))
-            Scopes.push_back(printNamespaceScope(*Ctx));
-      }
+    if (Extracted->UnresolvedScope) {
+      for (std::string &Scope : Unresolved.Scopes)
+        Scope += *Extracted->UnresolvedScope;
+    }
 
-      if (CheapUnresolved.UnresolvedScope)
-        for (auto &Scope : Scopes)
-          Scope.append(*CheapUnresolved.UnresolvedScope);
-      return Scopes;
-    };
     LastUnresolvedName = std::move(Unresolved);
 
     // Never return a valid correction to try to recover. Our suggested fixes
@@ -384,14 +384,13 @@ IncludeFixer::unresolvedNameRecorder() {
 std::vector<Fix> IncludeFixer::fixUnresolvedName() const {
   assert(LastUnresolvedName.hasValue());
   auto &Unresolved = *LastUnresolvedName;
-  std::vector<std::string> Scopes = Unresolved.GetScopes();
   vlog("Trying to fix unresolved name \"{0}\" in scopes: [{1}]",
-       Unresolved.Name, llvm::join(Scopes.begin(), Scopes.end(), ", "));
+       Unresolved.Name, llvm::join(Unresolved.Scopes, ", "));
 
   FuzzyFindRequest Req;
   Req.AnyScope = false;
   Req.Query = Unresolved.Name;
-  Req.Scopes = Scopes;
+  Req.Scopes = Unresolved.Scopes;
   Req.RestrictForCodeCompletion = true;
   Req.Limit = 100;
 

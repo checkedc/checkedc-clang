@@ -1,4 +1,4 @@
-//===-- OptionValueFileSpec.cpp ---------------------------------*- C++ -*-===//
+//===-- OptionValueFileSpec.cpp -------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -99,12 +99,10 @@ lldb::OptionValueSP OptionValueFileSpec::DeepCopy() const {
   return OptionValueSP(new OptionValueFileSpec(*this));
 }
 
-size_t OptionValueFileSpec::AutoComplete(CommandInterpreter &interpreter,
-                                         CompletionRequest &request) {
-  request.SetWordComplete(false);
+void OptionValueFileSpec::AutoComplete(CommandInterpreter &interpreter,
+                                       CompletionRequest &request) {
   CommandCompletions::InvokeCommonCompletionCallbacks(
       interpreter, m_completion_mask, request, nullptr);
-  return request.GetNumberOfMatches();
 }
 
 const lldb::DataBufferSP &OptionValueFileSpec::GetFileContents() {

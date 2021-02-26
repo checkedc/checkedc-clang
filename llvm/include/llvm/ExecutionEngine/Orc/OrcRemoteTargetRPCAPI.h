@@ -16,8 +16,8 @@
 #define LLVM_EXECUTIONENGINE_ORC_ORCREMOTETARGETRPCAPI_H
 
 #include "llvm/ExecutionEngine/JITSymbol.h"
-#include "llvm/ExecutionEngine/Orc/RPCUtils.h"
-#include "llvm/ExecutionEngine/Orc/RawByteChannel.h"
+#include "llvm/ExecutionEngine/Orc/RPC/RPCUtils.h"
+#include "llvm/ExecutionEngine/Orc/RPC/RawByteChannel.h"
 
 namespace llvm {
 namespace orc {
@@ -108,8 +108,7 @@ public:
 template <typename ChannelT>
 class SerializationTraits<
     ChannelT, remote::DirectBufferWriter, remote::DirectBufferWriter,
-    typename std::enable_if<
-        std::is_base_of<RawByteChannel, ChannelT>::value>::type> {
+    std::enable_if_t<std::is_base_of<RawByteChannel, ChannelT>::value>> {
 public:
   static Error serialize(ChannelT &C, const remote::DirectBufferWriter &DBW) {
     if (auto EC = serializeSeq(C, DBW.getDst()))

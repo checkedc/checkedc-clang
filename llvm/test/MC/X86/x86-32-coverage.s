@@ -10576,15 +10576,19 @@ blendvps %xmm0, (%eax), %xmm1
 // CHECK: btcw $4, (%eax)
 // CHECK: btcl $4, (%eax)
 bt $4, (%eax)
+bt $255, (%eax)
 btw $4, (%eax)
 btl $4, (%eax)
 bts $4, (%eax)
+bts $255, (%eax)
 btsw $4, (%eax)
 btsl $4, (%eax)
 btr $4, (%eax)
+btr $255, (%eax)
 btrw $4, (%eax)
 btrl $4, (%eax)
 btc $4, (%eax)
+btc $255, (%eax)
 btcw $4, (%eax)
 btcl $4, (%eax)
 
@@ -10872,3 +10876,15 @@ enqcmds (%bx,%di), %di
 // CHECK: enqcmds 8128(%bx,%di), %ax
 // CHECK: encoding: [0x67,0xf3,0x0f,0x38,0xf8,0x81,0xc0,0x1f]
 enqcmds 8128(%bx,%di), %ax
+
+// CHECK: serialize
+// CHECK: encoding: [0x0f,0x01,0xe8]
+serialize
+
+// CHECK: xsusldtrk
+// CHECK: encoding: [0xf2,0x0f,0x01,0xe8]
+xsusldtrk
+
+// CHECK: xresldtrk
+// CHECK: encoding: [0xf2,0x0f,0x01,0xe9]
+xresldtrk

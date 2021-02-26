@@ -1,4 +1,4 @@
-//===--- ReplaceAutoType.cpp -------------------------------------*- C++-*-===//
+//===--- ExpandAutoType.cpp --------------------------------------*- C++-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,20 +7,20 @@
 //===----------------------------------------------------------------------===//
 #include "refactor/Tweak.h"
 
-#include "Logger.h"
+#include "XRefs.h"
+#include "support/Logger.h"
 #include "clang/AST/Type.h"
 #include "clang/AST/TypeLoc.h"
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Error.h"
+#include <AST.h>
 #include <climits>
 #include <memory>
 #include <string>
-#include <AST.h>
-#include "XRefs.h"
-#include "llvm/ADT/StringExtras.h"
 
 namespace clang {
 namespace clangd {
@@ -61,7 +61,9 @@ bool ExpandAutoType::prepare(const Selection& Inputs) {
   if (auto *Node = Inputs.ASTSelection.commonAncestor()) {
     if (auto *TypeNode = Node->ASTNode.get<TypeLoc>()) {
       if (const AutoTypeLoc Result = TypeNode->getAs<AutoTypeLoc>()) {
-        CachedLocation = Result;
+        // Code in apply() does handle 'decltype(auto)' yet.
+        if (!Result.getTypePtr()->isDecltypeAuto())
+          CachedLocation = Result;
       }
     }
   }
@@ -69,18 +71,17 @@ bool ExpandAutoType::prepare(const Selection& Inputs) {
 }
 
 Expected<Tweak::Effect> ExpandAutoType::apply(const Selection& Inputs) {
-  auto& SrcMgr = Inputs.AST.getASTContext().getSourceManager();
+  auto &SrcMgr = Inputs.AST->getSourceManager();
 
-  llvm::Optional<clang::QualType> DeducedType =
-      getDeducedType(Inputs.AST, CachedLocation->getBeginLoc());
+  llvm::Optional<clang::QualType> DeducedType = getDeducedType(
+      Inputs.AST->getASTContext(), CachedLocation->getBeginLoc());
 
   // if we can't resolve the type, return an error message
-  if (DeducedType == llvm::None || DeducedType->isNull()) {
+  if (DeducedType == llvm::None)
     return createErrorMessage("Could not deduce type for 'auto' type", Inputs);
-  }
 
   // if it's a lambda expression, return an error message
-  if (isa<RecordType>(*DeducedType) and
+  if (isa<RecordType>(*DeducedType) &&
       dyn_cast<RecordType>(*DeducedType)->getDecl()->isLambda()) {
     return createErrorMessage("Could not expand type of lambda expression",
                               Inputs);
@@ -101,12 +102,12 @@ Expected<Tweak::Effect> ExpandAutoType::apply(const Selection& Inputs) {
       Expansion(SrcMgr, CharSourceRange(CachedLocation->getSourceRange(), true),
                 PrettyTypeName);
 
-  return Tweak::Effect::applyEdit(tooling::Replacements(Expansion));
+  return Effect::mainFileEdit(SrcMgr, tooling::Replacements(Expansion));
 }
 
 llvm::Error ExpandAutoType::createErrorMessage(const std::string& Message,
                                                const Selection& Inputs) {
-  auto& SrcMgr = Inputs.AST.getASTContext().getSourceManager();
+  auto &SrcMgr = Inputs.AST->getSourceManager();
   std::string ErrorMessage =
       Message + ": " +
           SrcMgr.getFilename(Inputs.Cursor).str() + " Line " +

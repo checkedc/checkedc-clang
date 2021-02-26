@@ -9,8 +9,10 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_GLOBALCOMPILATIONDATABASE_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_GLOBALCOMPILATIONDATABASE_H
 
-#include "Function.h"
-#include "Path.h"
+#include "CompileCommands.h"
+#include "support/Function.h"
+#include "support/Path.h"
+#include "clang/Tooling/ArgumentsAdjusters.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringMap.h"
@@ -19,7 +21,6 @@
 #include <vector>
 
 namespace clang {
-
 namespace clangd {
 
 class Logger;
@@ -80,8 +81,13 @@ public:
   llvm::Optional<ProjectInfo> getProjectInfo(PathRef File) const override;
 
 private:
-  std::pair<tooling::CompilationDatabase *, /*SentBroadcast*/ bool>
-  getCDBInDirLocked(PathRef File) const;
+  /// Caches compilation databases loaded from directories.
+  struct CachedCDB {
+    std::string Path; // Not case-folded.
+    std::unique_ptr<clang::tooling::CompilationDatabase> CDB = nullptr;
+    bool SentBroadcast = false;
+  };
+  CachedCDB &getCDBInDirLocked(PathRef File) const;
 
   struct CDBLookupRequest {
     PathRef FileName;
@@ -98,12 +104,7 @@ private:
   void broadcastCDB(CDBLookupResult Res) const;
 
   mutable std::mutex Mutex;
-  /// Caches compilation databases loaded from directories(keys are
-  /// directories).
-  struct CachedCDB {
-    std::unique_ptr<clang::tooling::CompilationDatabase> CDB = nullptr;
-    bool SentBroadcast = false;
-  };
+  // Keyed by possibly-case-folded directory path.
   mutable llvm::StringMap<CachedCDB> CompilationDatabases;
 
   /// Used for command argument pointing to folder where compile_commands.json
@@ -118,15 +119,17 @@ std::unique_ptr<GlobalCompilationDatabase>
 getQueryDriverDatabase(llvm::ArrayRef<std::string> QueryDriverGlobs,
                        std::unique_ptr<GlobalCompilationDatabase> Base);
 
+
 /// Wraps another compilation database, and supports overriding the commands
 /// using an in-memory mapping.
 class OverlayCDB : public GlobalCompilationDatabase {
 public:
   // Base may be null, in which case no entries are inherited.
   // FallbackFlags are added to the fallback compile command.
+  // Adjuster is applied to all commands, fallback or not.
   OverlayCDB(const GlobalCompilationDatabase *Base,
              std::vector<std::string> FallbackFlags = {},
-             llvm::Optional<std::string> ResourceDir = llvm::None);
+             tooling::ArgumentsAdjuster Adjuster = nullptr);
 
   llvm::Optional<tooling::CompileCommand>
   getCompileCommand(PathRef File) const override;
@@ -142,7 +145,7 @@ private:
   mutable std::mutex Mutex;
   llvm::StringMap<tooling::CompileCommand> Commands; /* GUARDED_BY(Mut) */
   const GlobalCompilationDatabase *Base;
-  std::string ResourceDir;
+  tooling::ArgumentsAdjuster ArgsAdjuster;
   std::vector<std::string> FallbackFlags;
   CommandChanged::Subscription BaseChanged;
 };

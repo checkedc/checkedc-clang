@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_WatchpointOptions_h_
-#define liblldb_WatchpointOptions_h_
+#ifndef LLDB_BREAKPOINT_WATCHPOINTOPTIONS_H
+#define LLDB_BREAKPOINT_WATCHPOINTOPTIONS_H
 
 #include <memory>
 #include <string>
@@ -180,7 +180,8 @@ public:
     CommandBaton(std::unique_ptr<CommandData> Data)
         : TypedBaton(std::move(Data)) {}
 
-    void GetDescription(Stream *s, lldb::DescriptionLevel level) const override;
+    void GetDescription(llvm::raw_ostream &s, lldb::DescriptionLevel level,
+                        unsigned indentation) const override;
   };
 
 protected:
@@ -197,4 +198,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_WatchpointOptions_h_
+#endif // LLDB_BREAKPOINT_WATCHPOINTOPTIONS_H

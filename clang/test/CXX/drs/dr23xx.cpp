@@ -1,12 +1,48 @@
-// RUN: %clang_cc1 -std=c++98 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors 2>&1 | FileCheck %s
+// RUN: %clang_cc1 -std=c++98 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors 2>&1
 // RUN: %clang_cc1 -std=c++11 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors 2>&1 | FileCheck %s
 // RUN: %clang_cc1 -std=c++14 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors 2>&1 | FileCheck %s
 // RUN: %clang_cc1 -std=c++17 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors 2>&1 | FileCheck %s
 // RUN: %clang_cc1 -std=c++2a %s -verify -fexceptions -fcxx-exceptions -pedantic-errors 2>&1 | FileCheck %s
 
-#if __cplusplus <= 201103L
-// expected-no-diagnostics
+namespace dr2346 { // dr2346: 11
+  void test() {
+    const int i2 = 0;
+    extern void h2b(int x = i2 + 0); // ok, not odr-use
+  }
+}
+
+namespace dr2352 { // dr2352: 10
+  int **p;
+  const int *const *const &f1() { return p; }
+  int *const *const &f2() { return p; }
+  int **const &f3() { return p; }
+
+  const int **const &f4() { return p; } // expected-error {{reference to type 'const int **const' could not bind to an lvalue of type 'int **'}}
+  const int *const *&f5() { return p; } // expected-error {{binding reference of type 'const int *const *' to value of type 'int **' not permitted due to incompatible qualifiers}}
+
+  // FIXME: We permit this as a speculative defect resolution, allowing
+  // qualification conversions when forming a glvalue conditional expression.
+  const int * const * const q = 0;
+  __typeof(&(true ? p : q)) x = &(true ? p : q);
+
+  // FIXME: Should we compute the composite pointer type here and produce an
+  // lvalue of type 'const int *const * const'?
+  const int * const * r;
+  void *y = &(true ? p : r); // expected-error {{rvalue of type 'const int *const *'}}
+
+  // FIXME: We order these as a speculative defect resolution.
+  void f(const int * const * const &r);
+#if __cplusplus >= 201103L
+  constexpr
 #endif
+  int *const *const &f(int * const * const &r) { return r; }
+
+  // No temporary is created here.
+  int *const *const &check_f = f(p);
+#if __cplusplus >= 201103L
+  static_assert(&p == &check_f, "");
+#endif
+}
 
 namespace dr2353 { // dr2353: 9
   struct X {
@@ -39,6 +75,27 @@ namespace dr2353 { // dr2353: 9
   }
 #pragma clang __debug dump not_use_2
 }
+
+#if __cplusplus >= 201707L
+// Otherwise, if the qualified-id std::tuple_size<E> names a complete class
+// type **with a member value**, the expression std::tuple_size<E>::value shall
+// be a well-formed integral constant expression
+namespace dr2386 { // dr2386: 9
+struct Bad1 { int a, b; };
+struct Bad2 { int a, b; };
+} // namespace dr2386
+namespace std {
+template <typename T> struct tuple_size;
+template <> struct std::tuple_size<dr2386::Bad1> {};
+template <> struct std::tuple_size<dr2386::Bad2> {
+  static const int value = 42;
+};
+} // namespace std
+namespace dr2386 {
+void no_value() { auto [x, y] = Bad1(); }
+void wrong_value() { auto [x, y] = Bad2(); } // expected-error {{decomposes into 42 elements}}
+} // namespace dr2386
+#endif
 
 namespace dr2387 { // dr2387: 9
 #if __cplusplus >= 201402L

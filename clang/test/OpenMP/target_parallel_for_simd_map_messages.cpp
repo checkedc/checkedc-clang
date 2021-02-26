@@ -1,12 +1,21 @@
-// RUN: %clang_cc1 -verify -fopenmp %s -Wno-openmp-target -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp4 -fopenmp -fopenmp-version=45 %s -Wno-openmp-mapping -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp5 -fopenmp -fopenmp-version=50 %s -Wno-openmp-mapping -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wno-openmp-target -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp4 -fopenmp-simd -fopenmp-version=45 %s -Wno-openmp-mapping -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp5 -fopenmp-simd -fopenmp-version=50 %s -Wno-openmp-mapping -Wuninitialized
 
 void foo() {
 }
 
 bool foobool(int argc) {
   return argc;
+}
+
+void xxx(int argc) {
+  int map; // expected-note {{initialize the variable 'map' to silence this warning}}
+#pragma omp target parallel for simd map(map) // expected-warning {{variable 'map' is uninitialized when used here}}
+  for (int i = 0; i < 10; ++i)
+    ;
 }
 
 struct S1; // expected-note 2 {{declared here}}
@@ -96,7 +105,7 @@ T tmain(T argc) {
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target parallel for simd map(T) // expected-error {{'T' does not refer to a value}}
   for (i = 0; i < argc; ++i) foo();
-#pragma omp target parallel for simd map(I) // expected-error 2 {{expected expression containing only member accesses and/or array sections based on named variables}}
+#pragma omp target parallel for simd map(I) // omp4-error 2 {{expected expression containing only member accesses and/or array sections based on named variables}} omp5-error 2 {{expected addressable lvalue in 'map' clause}}
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target parallel for simd map(S2::S2s)
   for (i = 0; i < argc; ++i) foo();
@@ -114,7 +123,8 @@ T tmain(T argc) {
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target parallel for simd map(to x) // expected-error {{expected ',' or ')' in 'map' clause}}
   for (i = 0; i < argc; ++i) foo();
-#pragma omp target parallel for simd map(tofrom: argc > 0 ? x : y) // expected-error 2 {{expected expression containing only member accesses and/or array sections based on named variables}} 
+#pragma omp target parallel for simd map(tofrom \
+                                         : argc > 0 ? x : y) // omp4-error 2 {{expected expression containing only member accesses and/or array sections based on named variables}} omp5-error 2 {{expected addressable lvalue in 'map' clause}}
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target parallel for simd map(argc)
   for (i = 0; i < argc; ++i) foo();
@@ -221,8 +231,10 @@ int main(int argc, char **argv) {
 #pragma omp target parallel for simd map(to, x)
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target parallel for simd map(to x) // expected-error {{expected ',' or ')' in 'map' clause}}
-  for (i = 0; i < argc; ++i) foo();
-#pragma omp target parallel for simd map(tofrom: argc > 0 ? argv[1] : argv[2]) // expected-error {{expected expression containing only member accesses and/or array sections based on named variables}}
+  for (i = 0; i < argc; ++i)
+    foo();
+#pragma omp target parallel for simd map(tofrom \
+                                         : argc > 0 ? argv[1] : argv[2]) // omp4-error {{expected expression containing only member accesses and/or array sections based on named variables}} omp5-error {{expected addressable lvalue in 'map' clause}}
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target parallel for simd map(argc)
   for (i = 0; i < argc; ++i) foo();
@@ -281,6 +293,12 @@ int main(int argc, char **argv) {
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target parallel for simd map(tofrom j) // expected-error {{expected ',' or ')' in 'map' clause}}
   for (i = 0; i < argc; ++i) foo();
+#pragma omp target parallel for simd map(delete: j) // expected-error {{map type 'delete' is not allowed for '#pragma omp target parallel for simd'}}
+  for (i = 0; i < argc; ++i)
+    foo();
+#pragma omp target parallel for simd map(release: j) // expected-error {{map type 'release' is not allowed for '#pragma omp target parallel for simd'}}
+  for (i = 0; i < argc; ++i)
+    foo();
 
   return tmain<int, 3>(argc)+tmain<from, 4>(argc); // expected-note {{in instantiation of function template specialization 'tmain<int, 3>' requested here}} expected-note {{in instantiation of function template specialization 'tmain<int, 4>' requested here}}
 }

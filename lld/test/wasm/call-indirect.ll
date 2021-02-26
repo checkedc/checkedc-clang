@@ -1,5 +1,5 @@
-; RUN: llc -filetype=obj %p/Inputs/call-indirect.ll -o %t2.o
 ; RUN: llc -filetype=obj %s -o %t.o
+; RUN: llvm-mc -filetype=obj -triple=wasm32-unknown-unknown %p/Inputs/call-indirect.s -o %t2.o
 ; RUN: wasm-ld --export-dynamic -o %t.wasm %t2.o %t.o
 ; RUN: obj2yaml %t.wasm | FileCheck %s
 
@@ -40,22 +40,25 @@ define void @call_ptr(i64 (i64)* %arg) {
 ; CHECK-NEXT:   - Type:            TYPE
 ; CHECK-NEXT:     Signatures:
 ; CHECK-NEXT:       - Index:           0
-; CHECK-NEXT:         ReturnType:      I64
 ; CHECK-NEXT:         ParamTypes:
+; CHECK-NEXT:         ReturnTypes:
+; CHECK-NEXT:           - I64
 ; CHECK-NEXT:       - Index:           1
-; CHECK-NEXT:         ReturnType:      I32
 ; CHECK-NEXT:         ParamTypes:
+; CHECK-NEXT:         ReturnTypes:
+; CHECK-NEXT:           - I32
 ; CHECK-NEXT:       - Index:           2
-; CHECK-NEXT:         ReturnType:      I64
 ; CHECK-NEXT:         ParamTypes:
 ; CHECK-NEXT:           - I64
+; CHECK-NEXT:         ReturnTypes:
+; CHECK-NEXT:           - I64
 ; CHECK-NEXT:       - Index:           3
-; CHECK-NEXT:         ReturnType:      NORESULT
 ; CHECK-NEXT:         ParamTypes:
+; CHECK-NEXT:         ReturnTypes:     []
 ; CHECK-NEXT:       - Index:           4
-; CHECK-NEXT:         ReturnType:      NORESULT
 ; CHECK-NEXT:         ParamTypes:
 ; CHECK-NEXT:           - I32
+; CHECK-NEXT:         ReturnTypes:     []
 ; CHECK-NEXT:   - Type:            FUNCTION
 ; CHECK-NEXT:     FunctionTypes:   [ 0, 3, 1, 3, 4 ]
 ; CHECK-NEXT:   - Type:            TABLE
@@ -118,9 +121,7 @@ define void @call_ptr(i64 (i64)* %arg) {
 ; CHECK-NEXT:         Body:            42010B
 ; CHECK-NEXT:       - Index:           1
 ; CHECK-NEXT:         Locals:
-; CHECK-NEXT:            - Type:            I32
-; CHECK-NEXT:              Count:           1
-; CHECK-NEXT:          Body:            4100280284888080002100410028028088808000118080808000001A2000118180808000001A0B
+; CHECK-NEXT:         Body:            28028088808000118080808000001A28028488808000118180808000001A0B
 ; CHECK-NEXT:       - Index:           2
 ; CHECK-NEXT:         Locals:
 ; CHECK-NEXT:         Body:            41020B

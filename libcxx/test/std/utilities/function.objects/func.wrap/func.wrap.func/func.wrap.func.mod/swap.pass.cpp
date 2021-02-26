@@ -12,10 +12,13 @@
 
 // void swap(function& other);
 
+// This test runs in C++03, but we have deprecated using std::function in C++03.
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
+
 #include <functional>
 #include <cassert>
 
-#include "count_new.hpp"
+#include "count_new.h"
 
 #include "test_macros.h"
 
@@ -60,6 +63,7 @@ int g2(int, int) { return 2; }
 int g3(int, int, int) { return 3; }
 
 int main(int, char**) {
+  globalMemCounter.reset();
   assert(globalMemCounter.checkOutstandingNewEq(0));
   {
     std::function<int(int)> f1 = A(1);

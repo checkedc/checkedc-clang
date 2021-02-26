@@ -993,7 +993,7 @@ void __kmp_dispatch_init_hierarchy(ident_t *loc, int n,
     th->th.th_hier_bar_data = (kmp_hier_private_bdata_t *)__kmp_allocate(
         sizeof(kmp_hier_private_bdata_t) * kmp_hier_layer_e::LAYER_LAST);
   }
-  // Have threads "register" themselves by modifiying the active count for each
+  // Have threads "register" themselves by modifying the active count for each
   // level they are involved in. The active count will act as nthreads for that
   // level regarding the scheduling algorithms
   for (int i = 0; i < n; ++i) {
@@ -1071,7 +1071,7 @@ void __kmp_dispatch_init_hierarchy(ident_t *loc, int n,
     my_unit->reset_shared_barrier();
     my_unit->hier_pr.flags.contains_last = FALSE;
     // Last layer, initialize the private buffers with entire loop information
-    // Now the next next_algorithim() call will get the first chunk of
+    // Now the next next_algorithm() call will get the first chunk of
     // iterations properly
     if (i == n - 1) {
       __kmp_dispatch_init_algorithm<T>(

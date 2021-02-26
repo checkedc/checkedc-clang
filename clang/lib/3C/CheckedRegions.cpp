@@ -17,8 +17,9 @@
 #include "clang/3C/RewriteUtils.h"
 #include "clang/3C/Utils.h"
 #include "clang/AST/ASTTypeTraits.h"
+#include "clang/AST/ParentMapContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/Tooling/Refactoring/SourceCode.h"
+#include "clang/Tooling/Transformer/SourceCode.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <sstream>
@@ -405,9 +406,12 @@ void CheckedRegionFinder::emitCauseDiagnostic(PersistentSourceLoc *PSL) {
         DE.getCustomDiagID(DiagnosticsEngine::Warning,
                            "Root cause of unchecked region: Variadic Call");
     SourceManager &SM = Context->getSourceManager();
-    const auto *File = SM.getFileManager().getFile(PSL->getFileName());
+    llvm::ErrorOr<const clang::FileEntry *> File =
+        SM.getFileManager().getFile(PSL->getFileName());
+    if (File.getError())
+      return;
     SourceLocation SL =
-        SM.translateFileLineCol(File, PSL->getLineNo(), PSL->getColSNo());
+        SM.translateFileLineCol(*File, PSL->getLineNo(), PSL->getColSNo());
     if (SL.isValid())
       DE.Report(SL, ID);
     Emitted.insert(PSL);

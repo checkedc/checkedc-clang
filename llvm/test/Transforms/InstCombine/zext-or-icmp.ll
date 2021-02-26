@@ -15,7 +15,7 @@ define i8 @zext_or_icmp_icmp(i8 %a, i8 %b) {
 ; CHECK-NEXT:    %toBool2 = icmp eq i8 %b, 0
 ; CHECK-NEXT:    %toBool22 = zext i1 %toBool2 to i8
 ; CHECK-NEXT:    %1 = xor i8 %mask, 1
-; CHECK-NEXT:    %zext = or i8 %1, %toBool22
+; CHECK-NEXT:    %zext3 = or i8 %1, %toBool22
 ; CHECK-NEXT:    ret i8 %zext
 }
 
@@ -40,8 +40,8 @@ block2:
   ret i32 %conv2
 
 ; CHECK-LABEL: dont_widen_undef(
-; CHECK:         %m.011 = phi i32 [ 33, %entry ], [ 0, %block1 ]
-; CHECK-NEXT:    %cmp.i = icmp ugt i32 %m.011, 1
+; CHECK:         %cmp.i = phi i1 [ false, %block1 ], [ true, %entry ]
+; CHECK-NEXT:    %m.011 = phi i32 [ 0, %block1 ], [ 33, %entry ]
 ; CHECK-NEXT:    %m.1.op = lshr i32 1, %m.011
 ; CHECK-NEXT:    %sext.mask = and i32 %m.1.op, 65535
 ; CHECK-NEXT:    %cmp115 = icmp ne i32 %sext.mask, 0

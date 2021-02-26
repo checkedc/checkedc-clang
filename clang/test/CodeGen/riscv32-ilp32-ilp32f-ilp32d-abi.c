@@ -1,6 +1,10 @@
 // RUN: %clang_cc1 -triple riscv32 -emit-llvm %s -o - | FileCheck %s
 // RUN: %clang_cc1 -triple riscv32 -emit-llvm -fforce-enable-int128 %s -o - \
 // RUN:   | FileCheck %s -check-prefixes=CHECK,CHECK-FORCEINT128
+// RUN: %clang_cc1 -triple riscv32 -target-feature +f -target-abi ilp32f -emit-llvm %s -o - \
+// RUN:     | FileCheck %s
+// RUN: %clang_cc1 -triple riscv32 -target-feature +d -target-abi ilp32d -emit-llvm %s -o - \
+// RUN:     | FileCheck %s
 
 // This file contains test cases that will have the same output for the ilp32,
 // ilp32f, and ilp32d ABIs.
@@ -173,19 +177,19 @@ void f_agg_large(struct large x) {
 
 // The address where the struct should be written to will be the first
 // argument
-// CHECK-LABEL: define void @f_agg_large_ret(%struct.large* noalias sret %agg.result, i32 %i, i8 signext %j)
+// CHECK-LABEL: define void @f_agg_large_ret(%struct.large* noalias sret align 4 %agg.result, i32 %i, i8 signext %j)
 struct large f_agg_large_ret(int32_t i, int8_t j) {
   return (struct large){1, 2, 3, 4};
 }
 
 typedef unsigned char v16i8 __attribute__((vector_size(16)));
 
-// CHECK-LABEL: define void @f_vec_large_v16i8(<16 x i8>*)
+// CHECK-LABEL: define void @f_vec_large_v16i8(<16 x i8>* %0)
 void f_vec_large_v16i8(v16i8 x) {
   x[0] = x[7];
 }
 
-// CHECK-LABEL: define void @f_vec_large_v16i8_ret(<16 x i8>* noalias sret %agg.result)
+// CHECK-LABEL: define void @f_vec_large_v16i8_ret(<16 x i8>* noalias sret align 16 %agg.result)
 v16i8 f_vec_large_v16i8_ret() {
   return (v16i8){1, 2, 3, 4, 5, 6, 7, 8};
 }
@@ -203,7 +207,7 @@ int f_scalar_stack_1(struct tiny a, struct small b, struct small_aligned c,
 // the presence of large return values that consume a register due to the need
 // to pass a pointer.
 
-// CHECK-LABEL: define void @f_scalar_stack_2(%struct.large* noalias sret %agg.result, i32 %a, i64 %b, i64 %c, fp128 %d, i8 zeroext %e, i8 %f, i8 %g)
+// CHECK-LABEL: define void @f_scalar_stack_2(%struct.large* noalias sret align 4 %agg.result, i32 %a, i64 %b, i64 %c, fp128 %d, i8 zeroext %e, i8 %f, i8 %g)
 struct large f_scalar_stack_2(int32_t a, int64_t b, int64_t c, long double d,
                               uint8_t e, int8_t f, uint8_t g) {
   return (struct large){a, e, f, g};

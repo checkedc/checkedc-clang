@@ -149,7 +149,7 @@
 
   attributes #0 = { argmemonly nounwind }
   attributes #1 = { nounwind readnone speculatable }
-  attributes #2 = { convergent nounwind "amdgpu-dispatch-ptr" "amdgpu-flat-scratch" "amdgpu-work-item-id-y" "amdgpu-work-item-id-z" "target-cpu"="gfx900" "target-features"="+fp32-denormals" }
+  attributes #2 = { convergent nounwind "amdgpu-dispatch-ptr" "amdgpu-flat-scratch" "amdgpu-work-item-id-y" "amdgpu-work-item-id-z" "target-cpu"="gfx900" }
   attributes #3 = { nounwind }
 
   !llvm.dbg.cu = !{!0}
@@ -172,7 +172,7 @@
 # CHECK: DBG_VALUE %99, $noreg, !5, !DIExpression(DW_OP_constu, 1, DW_OP_swap, DW_OP_xderef), debug-location !8
 
 name:            sched_dbg_value_crash
-alignment:       0
+alignment:       1
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -275,22 +275,22 @@ body:             |
     %76:vreg_128 = GLOBAL_LOAD_DWORDX4 %72, 0, 0, 0, 0, implicit $exec
     %77:vgpr_32 = IMPLICIT_DEF
     %78:vgpr_32 = IMPLICIT_DEF
-    %79:vgpr_32 = V_MUL_F32_e32 0, %77, implicit $exec
+    %79:vgpr_32 = nofpexcept V_MUL_F32_e32 0, %77, implicit $mode, implicit $exec
     %80:vgpr_32 = IMPLICIT_DEF
     %81:vgpr_32 = IMPLICIT_DEF
     %84:vgpr_32 = IMPLICIT_DEF
-    BUFFER_STORE_DWORD_OFFEN %84, %stack.0.tmp5, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr101, 108, 0, 0, 0, 0, implicit $exec
-    BUFFER_STORE_DWORD_OFFEN %81, %stack.0.tmp5, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr101, 104, 0, 0, 0, 0, implicit $exec
-    BUFFER_STORE_DWORD_OFFEN %80, %stack.0.tmp5, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr101, 100, 0, 0, 0, 0, implicit $exec
-    BUFFER_STORE_DWORD_OFFEN %78, %stack.0.tmp5, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr101, 96, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORD_OFFEN %84, %stack.0.tmp5, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr101, 108, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORD_OFFEN %81, %stack.0.tmp5, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr101, 104, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORD_OFFEN %80, %stack.0.tmp5, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr101, 100, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORD_OFFEN %78, %stack.0.tmp5, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr101, 96, 0, 0, 0, 0, 0, implicit $exec
     %85:vgpr_32 = IMPLICIT_DEF
     %86:vgpr_32 = IMPLICIT_DEF
     %87:vgpr_32 = IMPLICIT_DEF
     %88:vgpr_32 = IMPLICIT_DEF
     %90:vgpr_32 = IMPLICIT_DEF
-    %91:vgpr_32, dead %92:sreg_64 = V_DIV_SCALE_F32 %90, %90, 1065353216, implicit $exec
-    %95:vgpr_32 = V_FMA_F32 0, 0, 0, 0, 0, undef %93:vgpr_32, 0, 0, implicit $exec
-    %96:vgpr_32, %97:sreg_64 = V_DIV_SCALE_F32 1065353216, %90, 1065353216, implicit $exec
+    %91:vgpr_32, dead %92:sreg_64 = nofpexcept V_DIV_SCALE_F32 %90, %90, 1065353216, implicit $mode, implicit $exec
+    %95:vgpr_32 = nofpexcept V_FMA_F32 0, 0, 0, 0, 0, undef %93:vgpr_32, 0, 0, implicit $mode, implicit $exec
+    %96:vgpr_32, %97:sreg_64 = nofpexcept V_DIV_SCALE_F32 1065353216, %90, 1065353216, implicit $mode, implicit $exec
     %98:vgpr_32 = IMPLICIT_DEF
     %99:vgpr_32 = IMPLICIT_DEF
     %100:vgpr_32 = IMPLICIT_DEF
@@ -299,18 +299,18 @@ body:             |
     %103:vgpr_32 = IMPLICIT_DEF
     %104:vgpr_32 = IMPLICIT_DEF
     %105:vgpr_32 = IMPLICIT_DEF
-    %106:vgpr_32, dead %107:sreg_64 = V_DIV_SCALE_F32 %90, %90, %105, implicit $exec
-    %108:vgpr_32 = V_RCP_F32_e32 0, implicit $exec
+    %106:vgpr_32, dead %107:sreg_64 = nofpexcept V_DIV_SCALE_F32 %90, %90, %105, implicit $mode, implicit $exec
+    %108:vgpr_32 = nofpexcept V_RCP_F32_e32 0, implicit $mode, implicit $exec
     %109:vgpr_32 = IMPLICIT_DEF
-    %110:vgpr_32 = V_FMA_F32 0, 0, 0, 0, 0, 0, 0, 0, implicit $exec
-    %111:vgpr_32, %112:sreg_64 = V_DIV_SCALE_F32 0, 0, 0, implicit $exec
-    %113:vgpr_32 = V_MUL_F32_e32 0, %110, implicit $exec
+    %110:vgpr_32 = nofpexcept V_FMA_F32 0, 0, 0, 0, 0, 0, 0, 0, implicit $mode, implicit $exec
+    %111:vgpr_32, %112:sreg_64 = nofpexcept V_DIV_SCALE_F32 0, 0, 0, implicit $mode, implicit $exec
+    %113:vgpr_32 = nofpexcept V_MUL_F32_e32 0, %110, implicit $mode, implicit $exec
     %114:vgpr_32 = IMPLICIT_DEF
     %115:vgpr_32 = IMPLICIT_DEF
     %116:vgpr_32 = IMPLICIT_DEF
     $vcc = IMPLICIT_DEF
-    %117:vgpr_32 = V_DIV_FMAS_F32 0, %116, 0, %110, 0, %115, 0, 0, implicit killed $vcc, implicit $exec
-    %118:vgpr_32 = V_DIV_FIXUP_F32 0, %117, 0, %90, 0, %105, 0, 0, implicit $exec
+    %117:vgpr_32 = nofpexcept V_DIV_FMAS_F32 0, %116, 0, %110, 0, %115, 0, 0, implicit killed $vcc, implicit $mode, implicit $exec
+    %118:vgpr_32 = nofpexcept V_DIV_FIXUP_F32 0, %117, 0, %90, 0, %105, 0, 0, implicit $mode, implicit $exec
     %119:vgpr_32 = IMPLICIT_DEF
     %120:vgpr_32 = IMPLICIT_DEF
     %121:vgpr_32 = IMPLICIT_DEF

@@ -76,7 +76,6 @@
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/MemorySSA.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
@@ -89,10 +88,12 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/ArrayRecycler.h"
@@ -105,6 +106,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/GVNExpression.h"
+#include "llvm/Transforms/Utils/AssumeBundleBuilder.h"
+#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/PredicateInfo.h"
 #include "llvm/Transforms/Utils/VNCoercion.h"
 #include <algorithm>
@@ -122,6 +125,7 @@
 using namespace llvm;
 using namespace llvm::GVNExpression;
 using namespace llvm::VNCoercion;
+using namespace llvm::PatternMatch;
 
 #define DEBUG_TYPE "newgvn"
 
@@ -487,11 +491,12 @@ namespace {
 
 class NewGVN {
   Function &F;
-  DominatorTree *DT;
-  const TargetLibraryInfo *TLI;
-  AliasAnalysis *AA;
-  MemorySSA *MSSA;
-  MemorySSAWalker *MSSAWalker;
+  DominatorTree *DT = nullptr;
+  const TargetLibraryInfo *TLI = nullptr;
+  AliasAnalysis *AA = nullptr;
+  MemorySSA *MSSA = nullptr;
+  MemorySSAWalker *MSSAWalker = nullptr;
+  AssumptionCache *AC = nullptr;
   const DataLayout &DL;
   std::unique_ptr<PredicateInfo> PredInfo;
 
@@ -503,7 +508,7 @@ class NewGVN {
   const SimplifyQuery SQ;
 
   // Number of function arguments, used by ranking
-  unsigned int NumFuncArgs;
+  unsigned int NumFuncArgs = 0;
 
   // RPOOrdering of basic blocks
   DenseMap<const DomTreeNode *, unsigned> RPOOrdering;
@@ -514,9 +519,9 @@ class NewGVN {
   // startsout in, and represents any value. Being an optimistic analysis,
   // anything in the TOP class has the value TOP, which is indeterminate and
   // equivalent to everything.
-  CongruenceClass *TOPClass;
+  CongruenceClass *TOPClass = nullptr;
   std::vector<CongruenceClass *> CongruenceClasses;
-  unsigned NextCongruenceNum;
+  unsigned NextCongruenceNum = 0;
 
   // Value Mappings.
   DenseMap<Value *, CongruenceClass *> ValueToClass;
@@ -655,8 +660,8 @@ public:
   NewGVN(Function &F, DominatorTree *DT, AssumptionCache *AC,
          TargetLibraryInfo *TLI, AliasAnalysis *AA, MemorySSA *MSSA,
          const DataLayout &DL)
-      : F(F), DT(DT), TLI(TLI), AA(AA), MSSA(MSSA), DL(DL),
-        PredInfo(make_unique<PredicateInfo>(F, *DT, *AC)),
+      : F(F), DT(DT), TLI(TLI), AA(AA), MSSA(MSSA), AC(AC), DL(DL),
+        PredInfo(std::make_unique<PredicateInfo>(F, *DT, *AC)),
         SQ(DL, TLI, DT, AC, /*CtxI=*/nullptr, /*UseInstrInfo=*/false) {}
 
   bool runGVN();
@@ -860,7 +865,7 @@ private:
 
   // Debug counter info.  When verifying, we have to reset the value numbering
   // debug counter to the same state it started in to get the same results.
-  int64_t StartingVNCounter;
+  int64_t StartingVNCounter = 0;
 };
 
 } // end anonymous namespace
@@ -895,7 +900,7 @@ bool NewGVN::isBackedge(BasicBlock *From, BasicBlock *To) const {
 
 #ifndef NDEBUG
 static std::string getBlockName(const BasicBlock *B) {
-  return DOTGraphTraits<const Function *>::getSimpleNodeLabel(B, nullptr);
+  return DOTGraphTraits<DOTFuncInfo *>::getSimpleNodeLabel(B, nullptr);
 }
 #endif
 
@@ -1331,8 +1336,6 @@ LoadExpression *NewGVN::createLoadExpression(Type *LoadType, Value *PointerOp,
   // Give store and loads same opcode so they value number together.
   E->setOpcode(0);
   E->op_push_back(PointerOp);
-  if (LI)
-    E->setAlignment(LI->getAlignment());
 
   // TODO: Value number heap versions. We may be able to discover
   // things alias analysis can't on it's own (IE that a store and a
@@ -1467,7 +1470,8 @@ NewGVN::performSymbolicLoadCoercion(Type *LoadType, Value *LoadPtr,
   // undef value.  This can happen when loading for a fresh allocation with no
   // intervening stores, for example.  Note that this is only true in the case
   // that the result of the allocation is pointer equal to the load ptr.
-  if (isa<AllocaInst>(DepInst) || isMallocLikeFn(DepInst, TLI)) {
+  if (isa<AllocaInst>(DepInst) || isMallocLikeFn(DepInst, TLI) ||
+      isAlignedAllocLikeFn(DepInst, TLI)) {
     return createConstantExpression(UndefValue::get(LoadType));
   }
   // If this load occurs either right after a lifetime begin,
@@ -1637,8 +1641,11 @@ const Expression *NewGVN::performSymbolicCallEvaluation(Instruction *I) const {
   if (AA->doesNotAccessMemory(CI)) {
     return createCallExpression(CI, TOPClass->getMemoryLeader());
   } else if (AA->onlyReadsMemory(CI)) {
-    MemoryAccess *DefiningAccess = MSSAWalker->getClobberingMemoryAccess(CI);
-    return createCallExpression(CI, DefiningAccess);
+    if (auto *MA = MSSA->getMemoryAccess(CI)) {
+      auto *DefiningAccess = MSSAWalker->getClobberingMemoryAccess(MA);
+      return createCallExpression(CI, DefiningAccess);
+    } else // MSSA determined that CI does not access memory.
+      return createCallExpression(CI, TOPClass->getMemoryLeader());
   }
   return nullptr;
 }
@@ -1754,7 +1761,7 @@ NewGVN::performSymbolicPHIEvaluation(ArrayRef<ValPair> PHIOps,
     return true;
   });
   // If we are left with no operands, it's dead.
-  if (empty(Filtered)) {
+  if (Filtered.empty()) {
     // If it has undef at this point, it means there are no-non-undef arguments,
     // and thus, the value of the phi node must be undef.
     if (HasUndef) {
@@ -2024,10 +2031,12 @@ NewGVN::performSymbolicEvaluation(Value *V,
     case Instruction::Select:
     case Instruction::ExtractElement:
     case Instruction::InsertElement:
-    case Instruction::ShuffleVector:
     case Instruction::GetElementPtr:
       E = createExpression(I);
       break;
+    case Instruction::ShuffleVector:
+      // FIXME: Add support for shufflevector to createExpression.
+      return nullptr;
     default:
       return nullptr;
     }
@@ -2464,9 +2473,9 @@ Value *NewGVN::findConditionEquivalence(Value *Cond) const {
 // Process the outgoing edges of a block for reachability.
 void NewGVN::processOutgoingEdges(Instruction *TI, BasicBlock *B) {
   // Evaluate reachability of terminator instruction.
-  BranchInst *BR;
-  if ((BR = dyn_cast<BranchInst>(TI)) && BR->isConditional()) {
-    Value *Cond = BR->getCondition();
+  Value *Cond;
+  BasicBlock *TrueSucc, *FalseSucc;
+  if (match(TI, m_Br(m_Value(Cond), TrueSucc, FalseSucc))) {
     Value *CondEvaluated = findConditionEquivalence(Cond);
     if (!CondEvaluated) {
       if (auto *I = dyn_cast<Instruction>(Cond)) {
@@ -2479,8 +2488,6 @@ void NewGVN::processOutgoingEdges(Instruction *TI, BasicBlock *B) {
       }
     }
     ConstantInt *CI;
-    BasicBlock *TrueSucc = BR->getSuccessor(0);
-    BasicBlock *FalseSucc = BR->getSuccessor(1);
     if (CondEvaluated && (CI = dyn_cast<ConstantInt>(CondEvaluated))) {
       if (CI->isOne()) {
         LLVM_DEBUG(dbgs() << "Condition for Terminator " << *TI
@@ -3429,7 +3436,7 @@ bool NewGVN::runGVN() {
   // Sort dominator tree children arrays into RPO.
   for (auto &B : RPOT) {
     auto *Node = DT->getNode(B);
-    if (Node->getChildren().size() > 1)
+    if (Node->getNumChildren() > 1)
       llvm::sort(Node->begin(), Node->end(),
                  [&](const DomTreeNode *A, const DomTreeNode *B) {
                    return RPOOrdering[A] < RPOOrdering[B];
@@ -3689,6 +3696,7 @@ void NewGVN::deleteInstructionsInBlock(BasicBlock *BB) {
       Inst.replaceAllUsesWith(UndefValue::get(Inst.getType()));
     if (isa<LandingPadInst>(Inst))
       continue;
+    salvageKnowledge(&Inst, AC);
 
     Inst.eraseFromParent();
     ++NumGVNInstrDeleted;
@@ -4196,7 +4204,7 @@ bool NewGVNLegacyPass::runOnFunction(Function &F) {
     return false;
   return NewGVN(F, &getAnalysis<DominatorTreeWrapperPass>().getDomTree(),
                 &getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F),
-                &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(),
+                &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F),
                 &getAnalysis<AAResultsWrapperPass>().getAAResults(),
                 &getAnalysis<MemorySSAWrapperPass>().getMSSA(),
                 F.getParent()->getDataLayout())

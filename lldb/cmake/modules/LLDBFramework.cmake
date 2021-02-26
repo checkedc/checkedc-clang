@@ -1,10 +1,4 @@
-# Path relative to the root binary directory
-get_filename_component(
-  framework_target_dir ${LLDB_FRAMEWORK_BUILD_DIR} ABSOLUTE
-  BASE_DIR ${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}
-)
-
-message(STATUS "LLDB.framework: build path is '${framework_target_dir}'")
+message(STATUS "LLDB.framework: build path is '${LLDB_FRAMEWORK_ABSOLUTE_BUILD_DIR}'")
 message(STATUS "LLDB.framework: install path is '${LLDB_FRAMEWORK_INSTALL_DIR}'")
 message(STATUS "LLDB.framework: resources subdirectory is 'Versions/${LLDB_FRAMEWORK_VERSION}/Resources'")
 
@@ -15,7 +9,7 @@ set_target_properties(liblldb PROPERTIES
 
   OUTPUT_NAME LLDB
   VERSION ${LLDB_VERSION}
-  LIBRARY_OUTPUT_DIRECTORY ${framework_target_dir}
+  LIBRARY_OUTPUT_DIRECTORY ${LLDB_FRAMEWORK_ABSOLUTE_BUILD_DIR}
 
   # Compatibility version
   SOVERSION "1.0.0"
@@ -29,8 +23,8 @@ set_target_properties(liblldb PROPERTIES
 # Used in llvm_add_library() to set default output directories for multi-config
 # generators. Overwrite to account for special framework output directory.
 set_output_directory(liblldb
-  BINARY_DIR ${framework_target_dir}
-  LIBRARY_DIR ${framework_target_dir}
+  BINARY_DIR ${LLDB_FRAMEWORK_ABSOLUTE_BUILD_DIR}
+  LIBRARY_DIR ${LLDB_FRAMEWORK_ABSOLUTE_BUILD_DIR}
 )
 
 lldb_add_post_install_steps_darwin(liblldb ${LLDB_FRAMEWORK_INSTALL_DIR})
@@ -44,11 +38,14 @@ else()
     XCODE_ATTRIBUTE_MACOSX_DEPLOYMENT_TARGET "${MACOSX_DEPLOYMENT_TARGET}")
 endif()
 
+# Add -Wdocumentation parameter
+set(CMAKE_XCODE_ATTRIBUTE_CLANG_WARN_DOCUMENTATION_COMMENTS "YES")
+
 # Apart from this one, CMake creates all required symlinks in the framework bundle.
 add_custom_command(TARGET liblldb POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E create_symlink
           Versions/Current/Headers
-          ${framework_target_dir}/LLDB.framework/Headers
+          ${LLDB_FRAMEWORK_ABSOLUTE_BUILD_DIR}/LLDB.framework/Headers
   COMMENT "LLDB.framework: create Headers symlink"
 )
 
@@ -62,8 +59,7 @@ list(REMOVE_ITEM root_public_headers ${root_private_headers})
 set(lldb_header_staging ${CMAKE_CURRENT_BINARY_DIR}/FrameworkHeaders)
 foreach(header
     ${public_headers}
-    ${root_public_headers}
-    ${LLDB_SOURCE_DIR}/include/lldb/Utility/SharingPtr.h)
+    ${root_public_headers})
 
   get_filename_component(basename ${header} NAME)
   set(staged_header ${lldb_header_staging}/${basename})
@@ -78,15 +74,18 @@ endforeach()
 
 # Wrap output in a target, so lldb-framework can depend on it.
 add_custom_target(liblldb-resource-headers DEPENDS ${lldb_staged_headers})
+set_target_properties(liblldb-resource-headers PROPERTIES FOLDER "lldb misc")
 add_dependencies(liblldb liblldb-resource-headers)
 
 # At build time, copy the staged headers into the framework bundle (and do
 # some post-processing in-place).
+if (NOT IOS)
 add_custom_command(TARGET liblldb POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${lldb_header_staging} $<TARGET_FILE_DIR:liblldb>/Headers
   COMMAND ${LLDB_SOURCE_DIR}/scripts/framework-header-fix.sh $<TARGET_FILE_DIR:liblldb>/Headers ${LLDB_VERSION}
   COMMENT "LLDB.framework: copy framework headers"
 )
+endif()
 
 # Copy vendor-specific headers from clang (without staging).
 if(NOT IOS)
@@ -120,3 +119,8 @@ if(NOT IOS)
     COMMENT "LLDB.framework: copy clang vendor-specific headers"
   )
 endif()
+
+# Add an rpath pointing to the directory where LLDB.framework is installed.
+# This allows frameworks (relying on @rpath) to be installed in the same folder and found at runtime.
+set_property(TARGET liblldb APPEND PROPERTY INSTALL_RPATH
+  "@loader_path/../../../")

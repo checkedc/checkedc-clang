@@ -7,6 +7,7 @@
 
 #pragma omp declare target
 typedef void **omp_allocator_handle_t;
+extern const omp_allocator_handle_t omp_null_allocator;
 extern const omp_allocator_handle_t omp_default_mem_alloc;
 extern const omp_allocator_handle_t omp_large_cap_mem_alloc;
 extern const omp_allocator_handle_t omp_const_mem_alloc;
@@ -17,11 +18,11 @@ extern const omp_allocator_handle_t omp_pteam_mem_alloc;
 extern const omp_allocator_handle_t omp_thread_mem_alloc;
 
 // CHECK-DAG: @{{.+}}St1{{.+}}b{{.+}} = external global i32,
-// CHECK-DAG: @a ={{ dso_local | }}global i32 0,
-// CHECK-DAG: @b ={{ dso_local | }}addrspace(4) global i32 0,
-// CHECK-DAG: @c ={{ dso_local | }}global i32 0,
-// CHECK-DAG: @d ={{ dso_local | }}global %struct.St1 zeroinitializer,
-// CHECK-DAG: @{{.+}}ns{{.+}}a{{.+}} ={{ dso_local | }}addrspace(3) global i32 0,
+// CHECK-DAG: @a ={{ hidden | }}global i32 0,
+// CHECK-DAG: @b ={{ hidden | }}addrspace(4) global i32 0,
+// CHECK-DAG: @c ={{ hidden | }}global i32 0,
+// CHECK-DAG: @d ={{ hidden | }}global %struct.St1 zeroinitializer,
+// CHECK-DAG: @{{.+}}ns{{.+}}a{{.+}} ={{ hidden | }}addrspace(3) global i32 0,
 // CHECK-DAG: @{{.+}}main{{.+}}a{{.*}} = internal global i32 0,
 // CHECK-DAG: @{{.+}}ST{{.+}}m{{.+}} = external global i32,
 // CHECK-DAG: @bar_c = internal global i32 0,
@@ -79,7 +80,7 @@ extern template int ST<int>::m;
 
 void baz(float &);
 
-// CHECK: define{{ dso_local | }}void @{{.+}}bar{{.+}}()
+// CHECK: define{{ hidden | }}void @{{.+}}bar{{.+}}()
 void bar() {
   // CHECK: alloca float,
   float bar_a;

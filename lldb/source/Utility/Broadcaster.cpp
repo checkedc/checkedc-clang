@@ -1,4 +1,4 @@
-//===-- Broadcaster.cpp -----------------------------------------*- C++ -*-===//
+//===-- Broadcaster.cpp ---------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -17,7 +17,6 @@
 
 #include <algorithm>
 #include <memory>
-#include <type_traits>
 #include <utility>
 
 #include <assert.h>
@@ -31,7 +30,7 @@ Broadcaster::Broadcaster(BroadcasterManagerSP manager_sp, const char *name)
       m_manager_sp(std::move(manager_sp)), m_broadcaster_name(name) {
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_OBJECT));
   LLDB_LOG(log, "{0} Broadcaster::Broadcaster(\"{1}\")",
-           static_cast<void *>(this), GetBroadcasterName().AsCString());
+           static_cast<void *>(this), GetBroadcasterName());
 }
 
 Broadcaster::BroadcasterImpl::BroadcasterImpl(Broadcaster &broadcaster)
@@ -41,7 +40,7 @@ Broadcaster::BroadcasterImpl::BroadcasterImpl(Broadcaster &broadcaster)
 Broadcaster::~Broadcaster() {
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_OBJECT));
   LLDB_LOG(log, "{0} Broadcaster::~Broadcaster(\"{1}\")",
-           static_cast<void *>(this), GetBroadcasterName().AsCString());
+           static_cast<void *>(this), GetBroadcasterName());
 
   Clear();
 }
@@ -214,11 +213,12 @@ void Broadcaster::BroadcasterImpl::PrivateBroadcastEvent(EventSP &event_sp,
   if (Log *log = lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_EVENTS)) {
     StreamString event_description;
     event_sp->Dump(&event_description);
-    log->Printf("%p Broadcaster(\"%s\")::BroadcastEvent (event_sp = {%s}, "
-                "unique =%i) hijack = %p",
-                static_cast<void *>(this), GetBroadcasterName(),
-                event_description.GetData(), unique,
-                static_cast<void *>(hijacking_listener_sp.get()));
+    LLDB_LOGF(log,
+              "%p Broadcaster(\"%s\")::BroadcastEvent (event_sp = {%s}, "
+              "unique =%i) hijack = %p",
+              static_cast<void *>(this), GetBroadcasterName(),
+              event_description.GetData(), unique,
+              static_cast<void *>(hijacking_listener_sp.get()));
   }
 
   if (hijacking_listener_sp) {
@@ -317,9 +317,6 @@ bool BroadcastEventSpec::operator<(const BroadcastEventSpec &rhs) const {
   return GetBroadcasterClass() < rhs.GetBroadcasterClass();
 }
 
-BroadcastEventSpec &BroadcastEventSpec::
-operator=(const BroadcastEventSpec &rhs) = default;
-
 BroadcasterManager::BroadcasterManager() : m_manager_mutex() {}
 
 lldb::BroadcasterManagerSP BroadcasterManager::MakeBroadcasterManager() {
@@ -376,8 +373,8 @@ bool BroadcasterManager::UnregisterListenerForEvents(
 
     if (event_bits_to_remove != iter_event_bits) {
       uint32_t new_event_bits = iter_event_bits & ~event_bits_to_remove;
-      to_be_readded.push_back(
-          BroadcastEventSpec(event_spec.GetBroadcasterClass(), new_event_bits));
+      to_be_readded.emplace_back(event_spec.GetBroadcasterClass(),
+                                 new_event_bits);
     }
     m_event_map.erase(iter);
   }
@@ -409,7 +406,7 @@ void BroadcasterManager::RemoveListener(Listener *listener) {
   listener_collection::iterator iter = m_listeners.begin(),
                                 end_iter = m_listeners.end();
 
-  std::find_if(iter, end_iter, predicate);
+  iter = std::find_if(iter, end_iter, predicate);
   if (iter != end_iter)
     m_listeners.erase(iter);
 

@@ -7,9 +7,9 @@
 ; RUN: opt < %s -cost-model -analyze -mtriple=x86_64-apple-macosx10.8.0 -mattr=+avx512f,+avx512bw | FileCheck %s --check-prefixes=CHECK,AVX512,AVX512BW
 ; RUN: opt < %s -cost-model -analyze -mtriple=x86_64-apple-macosx10.8.0 -mattr=+avx512f,+avx512dq | FileCheck %s --check-prefixes=CHECK,AVX512,AVX512DQ
 ;
-; RUN: opt < %s -cost-model -analyze -mtriple=x86_64-apple-macosx10.8.0 -mcpu=slm | FileCheck %s --check-prefixes=SLM
-; RUN: opt < %s -cost-model -analyze -mtriple=x86_64-apple-macosx10.8.0 -mcpu=goldmont | FileCheck %s --check-prefixes=GLM
-; RUN: opt < %s -cost-model -analyze -mtriple=x86_64-apple-macosx10.8.0 -mcpu=btver2 | FileCheck %s --check-prefixes=BTVER2
+; RUN: opt < %s -cost-model -analyze -mtriple=x86_64-apple-macosx10.8.0 -mcpu=slm | FileCheck %s --check-prefixes=CHECK,SSE,SLM
+; RUN: opt < %s -cost-model -analyze -mtriple=x86_64-apple-macosx10.8.0 -mcpu=goldmont | FileCheck %s --check-prefixes=CHECK,SSE,GLM
+; RUN: opt < %s -cost-model -analyze -mtriple=x86_64-apple-macosx10.8.0 -mcpu=btver2 | FileCheck %s --check-prefixes=CHECK,AVX,BTVER2
 
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128"
 target triple = "x86_64-apple-macosx10.8.0"
@@ -170,9 +170,9 @@ define i32 @add(i32 %arg) {
 ;
 ; SLM-LABEL: 'add'
 ; SLM-NEXT:  Cost Model: Found an estimated cost of 2 for instruction: %I64 = call i64 @llvm.uadd.sat.i64(i64 undef, i64 undef)
-; SLM-NEXT:  Cost Model: Found an estimated cost of 6 for instruction: %V2I64 = call <2 x i64> @llvm.uadd.sat.v2i64(<2 x i64> undef, <2 x i64> undef)
-; SLM-NEXT:  Cost Model: Found an estimated cost of 12 for instruction: %V4I64 = call <4 x i64> @llvm.uadd.sat.v4i64(<4 x i64> undef, <4 x i64> undef)
-; SLM-NEXT:  Cost Model: Found an estimated cost of 24 for instruction: %V8I64 = call <8 x i64> @llvm.uadd.sat.v8i64(<8 x i64> undef, <8 x i64> undef)
+; SLM-NEXT:  Cost Model: Found an estimated cost of 7 for instruction: %V2I64 = call <2 x i64> @llvm.uadd.sat.v2i64(<2 x i64> undef, <2 x i64> undef)
+; SLM-NEXT:  Cost Model: Found an estimated cost of 14 for instruction: %V4I64 = call <4 x i64> @llvm.uadd.sat.v4i64(<4 x i64> undef, <4 x i64> undef)
+; SLM-NEXT:  Cost Model: Found an estimated cost of 28 for instruction: %V8I64 = call <8 x i64> @llvm.uadd.sat.v8i64(<8 x i64> undef, <8 x i64> undef)
 ; SLM-NEXT:  Cost Model: Found an estimated cost of 2 for instruction: %I32 = call i32 @llvm.uadd.sat.i32(i32 undef, i32 undef)
 ; SLM-NEXT:  Cost Model: Found an estimated cost of 3 for instruction: %V4I32 = call <4 x i32> @llvm.uadd.sat.v4i32(<4 x i32> undef, <4 x i32> undef)
 ; SLM-NEXT:  Cost Model: Found an estimated cost of 6 for instruction: %V8I32 = call <8 x i32> @llvm.uadd.sat.v8i32(<8 x i32> undef, <8 x i32> undef)
@@ -404,9 +404,9 @@ define i32 @sub(i32 %arg) {
 ;
 ; SLM-LABEL: 'sub'
 ; SLM-NEXT:  Cost Model: Found an estimated cost of 2 for instruction: %I64 = call i64 @llvm.usub.sat.i64(i64 undef, i64 undef)
-; SLM-NEXT:  Cost Model: Found an estimated cost of 6 for instruction: %V2I64 = call <2 x i64> @llvm.usub.sat.v2i64(<2 x i64> undef, <2 x i64> undef)
-; SLM-NEXT:  Cost Model: Found an estimated cost of 12 for instruction: %V4I64 = call <4 x i64> @llvm.usub.sat.v4i64(<4 x i64> undef, <4 x i64> undef)
-; SLM-NEXT:  Cost Model: Found an estimated cost of 24 for instruction: %V8I64 = call <8 x i64> @llvm.usub.sat.v8i64(<8 x i64> undef, <8 x i64> undef)
+; SLM-NEXT:  Cost Model: Found an estimated cost of 7 for instruction: %V2I64 = call <2 x i64> @llvm.usub.sat.v2i64(<2 x i64> undef, <2 x i64> undef)
+; SLM-NEXT:  Cost Model: Found an estimated cost of 14 for instruction: %V4I64 = call <4 x i64> @llvm.usub.sat.v4i64(<4 x i64> undef, <4 x i64> undef)
+; SLM-NEXT:  Cost Model: Found an estimated cost of 28 for instruction: %V8I64 = call <8 x i64> @llvm.usub.sat.v8i64(<8 x i64> undef, <8 x i64> undef)
 ; SLM-NEXT:  Cost Model: Found an estimated cost of 2 for instruction: %I32 = call i32 @llvm.usub.sat.i32(i32 undef, i32 undef)
 ; SLM-NEXT:  Cost Model: Found an estimated cost of 2 for instruction: %V4I32 = call <4 x i32> @llvm.usub.sat.v4i32(<4 x i32> undef, <4 x i32> undef)
 ; SLM-NEXT:  Cost Model: Found an estimated cost of 4 for instruction: %V8I32 = call <8 x i32> @llvm.usub.sat.v8i32(<8 x i32> undef, <8 x i32> undef)

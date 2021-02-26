@@ -71,7 +71,9 @@ public:
   uint64_t addr = 0;
   uint32_t shName = 0;
 
-  void addSection(InputSection *isec);
+  void recordSection(InputSectionBase *isec);
+  void commitSection(InputSection *isec);
+  void finalizeInputSections();
 
   // The following members are normally only used in linker scripts.
   MemoryRegion *memRegion = nullptr;
@@ -116,7 +118,8 @@ private:
 
 int getPriority(StringRef s);
 
-std::vector<InputSection *> getInputSections(OutputSection* os);
+InputSection *getFirstInputSection(const OutputSection *os);
+std::vector<InputSection *> getInputSections(const OutputSection *os);
 
 // All output sections that are handled by the linker specially are
 // globally accessible. Writer initializes them, so don't use them

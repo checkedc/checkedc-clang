@@ -611,7 +611,7 @@ Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, const std::string &Rsn,
   if (PL != nullptr && PL->valid()) {
     // Make this invalid, if the source location is not absolute path
     // this is to avoid crashes in clangd.
-    if (PL->getFileName().c_str()[0] != '/')
+    if (!llvm::sys::path::is_absolute(PL->getFileName()))
       PL = nullptr;
   }
   assert("Shouldn't be constraining WILD >= VAR" && Lhs != getWild());

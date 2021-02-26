@@ -45,9 +45,14 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "${tmachine}$")
         dl
         "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../exports")
     
+      list(APPEND LIBOMPTARGET_TESTED_PLUGINS
+        "omptarget.rtl.${tmachine_libname}")
+
       # Report to the parent scope that we are building a plugin.
       set(LIBOMPTARGET_SYSTEM_TARGETS 
         "${LIBOMPTARGET_SYSTEM_TARGETS} ${tmachine_triple}" PARENT_SCOPE)
+      set(LIBOMPTARGET_TESTED_PLUGINS
+        "${LIBOMPTARGET_TESTED_PLUGINS}" PARENT_SCOPE)
       
     else(LIBOMPTARGET_DEP_LIBFFI_FOUND)
       libomptarget_say("Not building ${tmachine_name} offloading plugin: libffi dependency not found.")
@@ -64,8 +69,10 @@ add_subdirectory(aarch64)
 add_subdirectory(cuda)
 add_subdirectory(ppc64)
 add_subdirectory(ppc64le)
+add_subdirectory(ve)
 add_subdirectory(x86_64)
 
 # Make sure the parent scope can see the plugins that will be created.
 set(LIBOMPTARGET_SYSTEM_TARGETS "${LIBOMPTARGET_SYSTEM_TARGETS}" PARENT_SCOPE)
+set(LIBOMPTARGET_TESTED_PLUGINS "${LIBOMPTARGET_TESTED_PLUGINS}" PARENT_SCOPE)
 

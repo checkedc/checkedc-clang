@@ -5,7 +5,11 @@
 target datalayout = "e-m:e-p:32:32-i64:64-n32:64-S128"
 target triple = "wasm32-unknown-unknown"
 
-declare void @has_i32_arg(i32)
+define void @has_i32_arg(i32) {
+entry:
+  ret void
+}
+
 declare void @has_struct_arg({i32})
 declare i32 @has_i32_ret()
 declare void @vararg(...)
@@ -20,7 +24,7 @@ declare void @foo3()
 ; CHECK:      call        .Lhas_i32_arg_bitcast.2{{$}}
 ; CHECK-NEXT: call        .Lhas_i32_arg_bitcast.2{{$}}
 ; CHECK-NEXT: call        .Lhas_i32_ret_bitcast{{$}}
-; CHECK-NEXT: i32.call     $drop=, has_i32_ret
+; CHECK-NEXT: call        $drop=, has_i32_ret
 ; CHECK-NEXT: i32.const   $push[[L0:[0-9]+]]=, 0
 ; CHECK-NEXT: call        .Lfoo0_bitcast, $pop[[L0]]{{$}}
 ; CHECK-NEXT: i32.const   $push[[L1:[0-9]+]]=, 0
@@ -28,7 +32,7 @@ declare void @foo3()
 ; CHECK-NEXT: i32.const   $push[[L2:[0-9]+]]=, 0
 ; CHECK-NEXT: call        .Lfoo0_bitcast, $pop[[L2]]{{$}}
 ; CHECK-NEXT: call        foo0
-; CHECK-NEXT: i32.call    $drop=, .Lfoo1_bitcast{{$}}
+; CHECK-NEXT: call        $drop=, .Lfoo1_bitcast{{$}}
 ; CHECK-NEXT: call        foo2{{$}}
 ; CHECK-NEXT: call        foo1{{$}}
 ; CHECK-NEXT: call        foo3{{$}}
@@ -53,6 +57,19 @@ entry:
 
   ret void
 }
+
+; Calling aliases should also generate a wrapper
+
+@alias_i32_arg = weak hidden alias void (i32), void (i32)* @has_i32_arg
+
+; CHECK-LABEL: test_alias:
+; CHECK: call    .Lhas_i32_arg_bitcast.2
+define void @test_alias() {
+entry:
+  call void bitcast (void (i32)* @alias_i32_arg to void ()*)()
+  ret void
+}
+
 
 ; CHECK-LABEL: test_structs:
 ; CHECK: call     .Lhas_i32_arg_bitcast.1, $pop{{[0-9]+}}, $pop{{[0-9]+$}}
@@ -109,7 +126,7 @@ define void @test_store() {
 ; CHECK-NEXT: .functype test_load () -> (i32){{$}}
 ; CHECK-NEXT: i32.const   $push[[L0:[0-9]+]]=, 0{{$}}
 ; CHECK-NEXT: i32.load    $push[[L1:[0-9]+]]=, global_func($pop[[L0]]){{$}}
-; CHECK-NEXT: i32.call_indirect $push{{[0-9]+}}=, $pop[[L1]]{{$}}
+; CHECK-NEXT: call_indirect $push{{[0-9]+}}=, $pop[[L1]]{{$}}
 define i32 @test_load() {
   %1 = load i32 ()*, i32 ()** bitcast (void ()** @global_func to i32 ()**)
   %2 = call i32 %1()

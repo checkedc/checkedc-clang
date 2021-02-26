@@ -123,6 +123,11 @@ Lexicographic::CompareScope(const DeclContext *DC1, const DeclContext *DC2) cons
 
   switch (DC1->getDeclKind()) {
     case Decl::TranslationUnit: return Result::Equal;
+    case Decl::Captured: {
+      const CapturedDecl *CD1 = dyn_cast<CapturedDecl>(DC1);
+      const CapturedDecl *CD2 = dyn_cast<CapturedDecl>(DC2);
+      return CompareDecl(CD1, CD2);
+    }
     case Decl::Function: 
     case Decl::Enum:
     case Decl::Record: {
@@ -134,6 +139,38 @@ Lexicographic::CompareScope(const DeclContext *DC1, const DeclContext *DC2) cons
       llvm_unreachable("unexpected scope type");
       return Result::LessThan;
   }
+}
+
+Result
+Lexicographic::CompareDecl(const CapturedDecl *CD1Arg,
+                           const CapturedDecl *CD2Arg) const {
+  const CapturedDecl *CD1 = dyn_cast<CapturedDecl>(CD1Arg->getCanonicalDecl());
+  const CapturedDecl *CD2 = dyn_cast<CapturedDecl>(CD2Arg->getCanonicalDecl());
+  if (CD1 == CD2)
+    return Result::Equal;
+
+  if (!CD1 || !CD2) {
+    assert(false && "unexpected cast failure");
+    return Result::LessThan;
+  }
+  Stmt *SList1 = CD1->getBody();
+  Stmt *SList2 = CD2->getBody();
+  if (!SList1 || !SList2) {
+    llvm_unreachable("unexpected captured scopes");
+    return Result::LessThan;
+  }
+  // We resort to pointer comparison of statement lists to impose an ordering
+  // between the two CapturedDecl contexts corresponding to the statement lists.
+  // TODO: This is non-deterministic across compiler runs, and is an interim
+  // solution.
+  // TODO: We need to order two CapturedDecls using an approach similar to the
+  // one that orders two NamedDecls, which is by looking at the ancestor Decl
+  // contexts that nest the compared CapturedDecls.
+  if (SList1 == SList2)
+    return Result::Equal;
+  if (SList1 < SList2)
+    return Result::LessThan;
+  return Result::GreaterThan;
 }
 
 Result
@@ -279,9 +316,9 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
      raw_ostream &OS = llvm::outs();
      OS << "Lexicographic comparing expressions\n";
      OS << "E1:\n";
-     Arg1->dump(OS);
+     Arg1->dump(OS, Context);
      OS << "E2:\n";
-     Arg2->dump(OS);
+     Arg2->dump(OS, Context);
    }
 
    Expr *E1 = const_cast<Expr *>(Arg1);
@@ -336,7 +373,8 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
 #include "clang/AST/StmtNodes.inc"
        llvm_unreachable("cannot compare a statement");  
      case Expr::PredefinedExprClass: Cmp = Compare<PredefinedExpr>(E1, E2); break;
-     case Expr::DeclRefExprClass: return Compare<DeclRefExpr>(E1, E2);
+     case Expr::DeclRefExprClass: Cmp = Compare<DeclRefExpr>(E1, E2); break;
+     case Expr::ConstantExprClass: return Compare<ConstantExpr>(E1, E2);
      case Expr::IntegerLiteralClass: return Compare<IntegerLiteral>(E1, E2);
      case Expr::FloatingLiteralClass: return Compare<FloatingLiteral>(E1, E2);
      case Expr::ImaginaryLiteralClass: break;
@@ -536,6 +574,11 @@ Lexicographic::CompareImpl(const PredefinedExpr *E1, const PredefinedExpr *E2) {
 Result
 Lexicographic::CompareImpl(const DeclRefExpr *E1, const DeclRefExpr *E2) {
   return CompareDecl(E1->getDecl(), E2->getDecl());
+}
+
+Result
+Lexicographic::CompareImpl(const ConstantExpr *E1, const ConstantExpr *E2) {
+  return CompareExpr(E1->getSubExpr(), E2->getSubExpr());
 }
 
 Result

@@ -28,6 +28,7 @@ enum QueryKind {
   QK_Match,
   QK_SetBool,
   QK_SetOutputKind,
+  QK_SetTraversalKind,
   QK_EnableOutputKind,
   QK_DisableOutputKind,
   QK_Quit
@@ -44,6 +45,7 @@ struct Query : llvm::RefCountedBase<Query> {
   /// \return false if an error occurs, otherwise return true.
   virtual bool run(llvm::raw_ostream &OS, QuerySession &QS) const = 0;
 
+  StringRef RemainingContent;
   const QueryKind Kind;
 };
 
@@ -116,6 +118,10 @@ template <> struct SetQueryKind<bool> {
 
 template <> struct SetQueryKind<OutputKind> {
   static const QueryKind value = QK_SetOutputKind;
+};
+
+template <> struct SetQueryKind<ast_type_traits::TraversalKind> {
+  static const QueryKind value = QK_SetTraversalKind;
 };
 
 /// Query for "set VAR VALUE".

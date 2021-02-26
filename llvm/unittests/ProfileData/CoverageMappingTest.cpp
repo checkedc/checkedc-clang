@@ -234,12 +234,12 @@ struct CoverageMappingTest : ::testing::TestWithParam<std::pair<bool, bool>> {
       for (const auto &OF : OutputFunctions) {
         ArrayRef<OutputFunctionCoverageData> Funcs(OF);
         CoverageReaders.push_back(
-            make_unique<CoverageMappingReaderMock>(Funcs));
+            std::make_unique<CoverageMappingReaderMock>(Funcs));
       }
     } else {
       ArrayRef<OutputFunctionCoverageData> Funcs(OutputFunctions);
       CoverageReaders.push_back(
-          make_unique<CoverageMappingReaderMock>(Funcs));
+          std::make_unique<CoverageMappingReaderMock>(Funcs));
     }
     return CoverageMapping::load(CoverageReaders, *ProfileReader);
   }
@@ -894,5 +894,30 @@ INSTANTIATE_TEST_CASE_P(ParameterizedCovMapTest, CoverageMappingTest,
                                           std::pair<bool, bool>({false, true}),
                                           std::pair<bool, bool>({true, false}),
                                           std::pair<bool, bool>({true, true})),);
+
+TEST(CoverageMappingTest, filename_roundtrip) {
+  std::vector<StringRef> Paths({"a", "b", "c", "d", "e"});
+
+  for (bool Compress : {false, true}) {
+    std::string EncodedFilenames;
+    {
+      raw_string_ostream OS(EncodedFilenames);
+      CoverageFilenamesSectionWriter Writer(Paths);
+      Writer.write(OS, Compress);
+    }
+
+    std::vector<StringRef> ReadFilenames;
+    RawCoverageFilenamesReader Reader(EncodedFilenames, ReadFilenames);
+    BinaryCoverageReader::DecompressedData Decompressed;
+    EXPECT_THAT_ERROR(Reader.read(CovMapVersion::CurrentVersion, Decompressed),
+                      Succeeded());
+    if (!Compress)
+      ASSERT_EQ(Decompressed.size(), 0U);
+
+    ASSERT_EQ(ReadFilenames.size(), Paths.size());
+    for (unsigned I = 0; I < Paths.size(); ++I)
+      ASSERT_TRUE(ReadFilenames[I] == Paths[I]);
+  }
+}
 
 } // end anonymous namespace

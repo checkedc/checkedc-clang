@@ -17,13 +17,11 @@
 #include "llvm/Support/Casting.h"
 
 #define FORWARD_SYMBOL_METHOD(MethodName)                                      \
-  auto MethodName() const->decltype(RawSymbol->MethodName()) {                 \
-    return RawSymbol->MethodName();                                            \
-  }
+  decltype(auto) MethodName() const { return RawSymbol->MethodName(); }
 
 #define FORWARD_CONCRETE_SYMBOL_ID_METHOD_WITH_NAME(ConcreteType, PrivateName, \
                                                     PublicName)                \
-  auto PublicName##Id() const->decltype(RawSymbol->PrivateName##Id()) {        \
+  decltype(auto) PublicName##Id() const {                                      \
     return RawSymbol->PrivateName##Id();                                       \
   }                                                                            \
   std::unique_ptr<ConcreteType> PublicName() const {                           \
@@ -131,7 +129,7 @@ public:
     auto BaseIter = RawSymbol->findChildren(T::Tag);
     if (!BaseIter)
       return nullptr;
-    return llvm::make_unique<ConcreteSymbolEnumerator<T>>(std::move(BaseIter));
+    return std::make_unique<ConcreteSymbolEnumerator<T>>(std::move(BaseIter));
   }
   std::unique_ptr<IPDBEnumSymbols> findAllChildren(PDB_SymType Type) const;
   std::unique_ptr<IPDBEnumSymbols> findAllChildren() const;

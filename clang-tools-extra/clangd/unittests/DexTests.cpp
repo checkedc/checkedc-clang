@@ -366,38 +366,46 @@ trigramsAre(std::initializer_list<std::string> Trigrams) {
   return tokensAre(Trigrams, Token::Kind::Trigram);
 }
 
+std::vector<Token> identifierTrigramTokens(llvm::StringRef S) {
+  std::vector<Trigram> Trigrams;
+  generateIdentifierTrigrams(S, Trigrams);
+  std::vector<Token> Tokens;
+  for (Trigram T : Trigrams)
+    Tokens.emplace_back(Token::Kind::Trigram, T.str());
+  return Tokens;
+}
+
 TEST(DexTrigrams, IdentifierTrigrams) {
-  EXPECT_THAT(generateIdentifierTrigrams("X86"),
-              trigramsAre({"x86", "x", "x8"}));
+  EXPECT_THAT(identifierTrigramTokens("X86"), trigramsAre({"x86", "x", "x8"}));
 
-  EXPECT_THAT(generateIdentifierTrigrams("nl"), trigramsAre({"nl", "n"}));
+  EXPECT_THAT(identifierTrigramTokens("nl"), trigramsAre({"nl", "n"}));
 
-  EXPECT_THAT(generateIdentifierTrigrams("n"), trigramsAre({"n"}));
+  EXPECT_THAT(identifierTrigramTokens("n"), trigramsAre({"n"}));
 
-  EXPECT_THAT(generateIdentifierTrigrams("clangd"),
+  EXPECT_THAT(identifierTrigramTokens("clangd"),
               trigramsAre({"c", "cl", "cla", "lan", "ang", "ngd"}));
 
-  EXPECT_THAT(generateIdentifierTrigrams("abc_def"),
+  EXPECT_THAT(identifierTrigramTokens("abc_def"),
               trigramsAre({"a", "ab", "ad", "abc", "abd", "ade", "bcd", "bde",
                            "cde", "def"}));
 
-  EXPECT_THAT(generateIdentifierTrigrams("a_b_c_d_e_"),
+  EXPECT_THAT(identifierTrigramTokens("a_b_c_d_e_"),
               trigramsAre({"a", "a_", "ab", "abc", "bcd", "cde"}));
 
-  EXPECT_THAT(generateIdentifierTrigrams("unique_ptr"),
+  EXPECT_THAT(identifierTrigramTokens("unique_ptr"),
               trigramsAre({"u", "un", "up", "uni", "unp", "upt", "niq", "nip",
                            "npt", "iqu", "iqp", "ipt", "que", "qup", "qpt",
                            "uep", "ept", "ptr"}));
 
   EXPECT_THAT(
-      generateIdentifierTrigrams("TUDecl"),
+      identifierTrigramTokens("TUDecl"),
       trigramsAre({"t", "tu", "td", "tud", "tde", "ude", "dec", "ecl"}));
 
-  EXPECT_THAT(generateIdentifierTrigrams("IsOK"),
+  EXPECT_THAT(identifierTrigramTokens("IsOK"),
               trigramsAre({"i", "is", "io", "iso", "iok", "sok"}));
 
   EXPECT_THAT(
-      generateIdentifierTrigrams("abc_defGhij__klm"),
+      identifierTrigramTokens("abc_defGhij__klm"),
       trigramsAre({"a",   "ab",  "ad",  "abc", "abd", "ade", "adg", "bcd",
                    "bde", "bdg", "cde", "cdg", "def", "deg", "dgh", "dgk",
                    "efg", "egh", "egk", "fgh", "fgk", "ghi", "ghk", "gkl",
@@ -687,14 +695,18 @@ TEST(DexTests, Refs) {
   Req.Filter = RefKind::Declaration | RefKind::Definition;
 
   std::vector<std::string> Files;
-  Dex(std::vector<Symbol>{Foo, Bar}, Refs, RelationSlab())
-      .refs(Req, [&](const Ref &R) { Files.push_back(R.Location.FileURI); });
+  EXPECT_FALSE(Dex(std::vector<Symbol>{Foo, Bar}, Refs, RelationSlab())
+                   .refs(Req, [&](const Ref &R) {
+                     Files.push_back(R.Location.FileURI);
+                   }));
   EXPECT_THAT(Files, UnorderedElementsAre("foo.h", "foo.cc"));
 
   Req.Limit = 1;
   Files.clear();
-  Dex(std::vector<Symbol>{Foo, Bar}, Refs, RelationSlab())
-      .refs(Req, [&](const Ref &R) { Files.push_back(R.Location.FileURI); });
+  EXPECT_TRUE(Dex(std::vector<Symbol>{Foo, Bar}, Refs, RelationSlab())
+                  .refs(Req, [&](const Ref &R) {
+                    Files.push_back(R.Location.FileURI);
+                  }));
   EXPECT_THAT(Files, ElementsAre(AnyOf("foo.h", "foo.cc")));
 }
 
@@ -705,16 +717,15 @@ TEST(DexTests, Relations) {
 
   std::vector<Symbol> Symbols{Parent, Child1, Child2};
 
-  std::vector<Relation> Relations{
-      {Parent.ID, index::SymbolRole::RelationBaseOf, Child1.ID},
-      {Parent.ID, index::SymbolRole::RelationBaseOf, Child2.ID}};
+  std::vector<Relation> Relations{{Parent.ID, RelationKind::BaseOf, Child1.ID},
+                                  {Parent.ID, RelationKind::BaseOf, Child2.ID}};
 
   Dex I{Symbols, RefSlab(), Relations};
 
   std::vector<SymbolID> Results;
   RelationsRequest Req;
   Req.Subjects.insert(Parent.ID);
-  Req.Predicate = index::SymbolRole::RelationBaseOf;
+  Req.Predicate = RelationKind::BaseOf;
   I.relations(Req, [&](const SymbolID &Subject, const Symbol &Object) {
     Results.push_back(Object.ID);
   });
@@ -736,10 +747,10 @@ TEST(DexTest, PreferredTypesBoosting) {
   // The best candidate can change depending on the preferred type.
   Req.Limit = 1;
 
-  Req.PreferredTypes = {Sym1.Type};
+  Req.PreferredTypes = {std::string(Sym1.Type)};
   EXPECT_THAT(match(I, Req), ElementsAre("t1"));
 
-  Req.PreferredTypes = {Sym2.Type};
+  Req.PreferredTypes = {std::string(Sym2.Type)};
   EXPECT_THAT(match(I, Req), ElementsAre("t2"));
 }
 

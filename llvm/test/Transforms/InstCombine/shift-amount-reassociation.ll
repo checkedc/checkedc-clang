@@ -203,3 +203,137 @@ define <2 x i32> @t13_vec(<2 x i32> %x, <2 x i32> %y) {
   %t3 = lshr <2 x i32> %t1, %t2
   ret <2 x i32> %t3
 }
+
+; If we have different right-shifts, in general, we can't do anything with it.
+define i32 @n13(i32 %x, i32 %y) {
+; CHECK-LABEL: @n13(
+; CHECK-NEXT:    [[T0:%.*]] = sub i32 32, [[Y:%.*]]
+; CHECK-NEXT:    [[T1:%.*]] = lshr i32 [[X:%.*]], [[T0]]
+; CHECK-NEXT:    [[T2:%.*]] = add i32 [[Y]], -2
+; CHECK-NEXT:    [[T3:%.*]] = ashr i32 [[T1]], [[T2]]
+; CHECK-NEXT:    ret i32 [[T3]]
+;
+  %t0 = sub i32 32, %y
+  %t1 = lshr i32 %x, %t0
+  %t2 = add i32 %y, -2
+  %t3 = ashr i32 %t1, %t2
+  ret i32 %t3
+}
+define i32 @n14(i32 %x, i32 %y) {
+; CHECK-LABEL: @n14(
+; CHECK-NEXT:    [[T0:%.*]] = sub i32 32, [[Y:%.*]]
+; CHECK-NEXT:    [[T1:%.*]] = lshr i32 [[X:%.*]], [[T0]]
+; CHECK-NEXT:    [[T2:%.*]] = add i32 [[Y]], -1
+; CHECK-NEXT:    [[T3:%.*]] = ashr i32 [[T1]], [[T2]]
+; CHECK-NEXT:    ret i32 [[T3]]
+;
+  %t0 = sub i32 32, %y
+  %t1 = lshr i32 %x, %t0
+  %t2 = add i32 %y, -1
+  %t3 = ashr i32 %t1, %t2
+  ret i32 %t3
+}
+define i32 @n15(i32 %x, i32 %y) {
+; CHECK-LABEL: @n15(
+; CHECK-NEXT:    [[T0:%.*]] = sub i32 32, [[Y:%.*]]
+; CHECK-NEXT:    [[T1:%.*]] = ashr i32 [[X:%.*]], [[T0]]
+; CHECK-NEXT:    [[T2:%.*]] = add i32 [[Y]], -2
+; CHECK-NEXT:    [[T3:%.*]] = lshr i32 [[T1]], [[T2]]
+; CHECK-NEXT:    ret i32 [[T3]]
+;
+  %t0 = sub i32 32, %y
+  %t1 = ashr i32 %x, %t0
+  %t2 = add i32 %y, -2
+  %t3 = lshr i32 %t1, %t2
+  ret i32 %t3
+}
+define i32 @n16(i32 %x, i32 %y) {
+; CHECK-LABEL: @n16(
+; CHECK-NEXT:    [[T0:%.*]] = sub i32 32, [[Y:%.*]]
+; CHECK-NEXT:    [[T1:%.*]] = ashr i32 [[X:%.*]], [[T0]]
+; CHECK-NEXT:    [[T2:%.*]] = add i32 [[Y]], -1
+; CHECK-NEXT:    [[T3:%.*]] = lshr i32 [[T1]], [[T2]]
+; CHECK-NEXT:    ret i32 [[T3]]
+;
+  %t0 = sub i32 32, %y
+  %t1 = ashr i32 %x, %t0
+  %t2 = add i32 %y, -1
+  %t3 = lshr i32 %t1, %t2
+  ret i32 %t3
+}
+
+; If the shift direction is different, then this should be handled elsewhere.
+define i32 @n17(i32 %x, i32 %y) {
+; CHECK-LABEL: @n17(
+; CHECK-NEXT:    [[T0:%.*]] = sub i32 32, [[Y:%.*]]
+; CHECK-NEXT:    [[T1:%.*]] = shl i32 [[X:%.*]], [[T0]]
+; CHECK-NEXT:    [[T2:%.*]] = add i32 [[Y]], -1
+; CHECK-NEXT:    [[T3:%.*]] = lshr i32 [[T1]], [[T2]]
+; CHECK-NEXT:    ret i32 [[T3]]
+;
+  %t0 = sub i32 32, %y
+  %t1 = shl i32 %x, %t0
+  %t2 = add i32 %y, -1
+  %t3 = lshr i32 %t1, %t2
+  ret i32 %t3
+}
+define i32 @n18(i32 %x, i32 %y) {
+; CHECK-LABEL: @n18(
+; CHECK-NEXT:    [[T0:%.*]] = sub i32 32, [[Y:%.*]]
+; CHECK-NEXT:    [[T1:%.*]] = shl i32 [[X:%.*]], [[T0]]
+; CHECK-NEXT:    [[T2:%.*]] = add i32 [[Y]], -1
+; CHECK-NEXT:    [[T3:%.*]] = ashr i32 [[T1]], [[T2]]
+; CHECK-NEXT:    ret i32 [[T3]]
+;
+  %t0 = sub i32 32, %y
+  %t1 = shl i32 %x, %t0
+  %t2 = add i32 %y, -1
+  %t3 = ashr i32 %t1, %t2
+  ret i32 %t3
+}
+define i32 @n19(i32 %x, i32 %y) {
+; CHECK-LABEL: @n19(
+; CHECK-NEXT:    [[T0:%.*]] = sub i32 32, [[Y:%.*]]
+; CHECK-NEXT:    [[T1:%.*]] = lshr i32 [[X:%.*]], [[T0]]
+; CHECK-NEXT:    [[T2:%.*]] = add i32 [[Y]], -1
+; CHECK-NEXT:    [[T3:%.*]] = shl i32 [[T1]], [[T2]]
+; CHECK-NEXT:    ret i32 [[T3]]
+;
+  %t0 = sub i32 32, %y
+  %t1 = lshr i32 %x, %t0
+  %t2 = add i32 %y, -1
+  %t3 = shl i32 %t1, %t2
+  ret i32 %t3
+}
+define i32 @n20(i32 %x, i32 %y) {
+; CHECK-LABEL: @n20(
+; CHECK-NEXT:    [[T0:%.*]] = sub i32 32, [[Y:%.*]]
+; CHECK-NEXT:    [[T1:%.*]] = ashr i32 [[X:%.*]], [[T0]]
+; CHECK-NEXT:    [[T2:%.*]] = add i32 [[Y]], -1
+; CHECK-NEXT:    [[T3:%.*]] = shl i32 [[T1]], [[T2]]
+; CHECK-NEXT:    ret i32 [[T3]]
+;
+  %t0 = sub i32 32, %y
+  %t1 = ashr i32 %x, %t0
+  %t2 = add i32 %y, -1
+  %t3 = shl i32 %t1, %t2
+  ret i32 %t3
+}
+
+; See https://bugs.llvm.org/show_bug.cgi?id=44802
+define i3 @pr44802(i3 %t0) {
+; CHECK-LABEL: @pr44802(
+; CHECK-NEXT:    [[T1:%.*]] = sub i3 0, [[T0:%.*]]
+; CHECK-NEXT:    [[T2:%.*]] = icmp ne i3 [[T0]], 0
+; CHECK-NEXT:    [[T3:%.*]] = zext i1 [[T2]] to i3
+; CHECK-NEXT:    [[T4:%.*]] = lshr i3 [[T1]], [[T3]]
+; CHECK-NEXT:    [[T5:%.*]] = lshr i3 [[T4]], [[T3]]
+; CHECK-NEXT:    ret i3 [[T5]]
+;
+  %t1 = sub i3 0, %t0
+  %t2 = icmp ne i3 %t0, 0
+  %t3 = zext i1 %t2 to i3
+  %t4 = lshr i3 %t1, %t3
+  %t5 = lshr i3 %t4, %t3
+  ret i3 %t5
+}

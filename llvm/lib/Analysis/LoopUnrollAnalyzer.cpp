@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Analysis/LoopUnrollAnalyzer.h"
+#include "llvm/Analysis/LoopInfo.h"
 
 using namespace llvm;
 
@@ -78,7 +79,7 @@ bool UnrolledInstAnalyzer::visitBinaryOperator(BinaryOperator &I) {
   const DataLayout &DL = I.getModule()->getDataLayout();
   if (auto FI = dyn_cast<FPMathOperator>(&I))
     SimpleV =
-        SimplifyFPBinOp(I.getOpcode(), LHS, RHS, FI->getFastMathFlags(), DL);
+        SimplifyBinOp(I.getOpcode(), LHS, RHS, FI->getFastMathFlags(), DL);
   else
     SimpleV = SimplifyBinOp(I.getOpcode(), LHS, RHS, DL);
 

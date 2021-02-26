@@ -238,7 +238,7 @@ class Shadow : public FastState {
       unsigned kS2AccessSize) {
     bool res = false;
     u64 diff = s1.addr0() - s2.addr0();
-    if ((s64)diff < 0) {  // s1.addr0 < s2.addr0  // NOLINT
+    if ((s64)diff < 0) {  // s1.addr0 < s2.addr0
       // if (s1.addr0() + size1) > s2.addr0()) return true;
       if (s1.size() > -diff)
         res = true;
@@ -680,6 +680,7 @@ void ALWAYS_INLINE StatSet(ThreadState *thr, StatType typ, u64 n) {
 void MapShadow(uptr addr, uptr size);
 void MapThreadTrace(uptr addr, uptr size, const char *name);
 void DontNeedShadowFor(uptr addr, uptr size);
+void UnmapShadow(ThreadState *thr, uptr addr, uptr size);
 void InitializeShadowMemory();
 void InitializeInterceptors();
 void InitializeLibIgnore();
@@ -759,6 +760,8 @@ void ALWAYS_INLINE MemoryWriteAtomic(ThreadState *thr, uptr pc,
 void MemoryResetRange(ThreadState *thr, uptr pc, uptr addr, uptr size);
 void MemoryRangeFreed(ThreadState *thr, uptr pc, uptr addr, uptr size);
 void MemoryRangeImitateWrite(ThreadState *thr, uptr pc, uptr addr, uptr size);
+void MemoryRangeImitateWriteOrResetRange(ThreadState *thr, uptr pc, uptr addr,
+                                         uptr size);
 
 void ThreadIgnoreBegin(ThreadState *thr, uptr pc, bool save_stack = true);
 void ThreadIgnoreEnd(ThreadState *thr, uptr pc);
@@ -772,7 +775,7 @@ int ThreadCreate(ThreadState *thr, uptr pc, uptr uid, bool detached);
 void ThreadStart(ThreadState *thr, int tid, tid_t os_id,
                  ThreadType thread_type);
 void ThreadFinish(ThreadState *thr);
-int ThreadTid(ThreadState *thr, uptr pc, uptr uid);
+int ThreadConsumeTid(ThreadState *thr, uptr pc, uptr uid);
 void ThreadJoin(ThreadState *thr, uptr pc, int tid);
 void ThreadDetach(ThreadState *thr, uptr pc, int tid);
 void ThreadFinalize(ThreadState *thr);
@@ -810,10 +813,12 @@ void Acquire(ThreadState *thr, uptr pc, uptr addr);
 // approximation of the actual required synchronization.
 void AcquireGlobal(ThreadState *thr, uptr pc);
 void Release(ThreadState *thr, uptr pc, uptr addr);
+void ReleaseStoreAcquire(ThreadState *thr, uptr pc, uptr addr);
 void ReleaseStore(ThreadState *thr, uptr pc, uptr addr);
 void AfterSleep(ThreadState *thr, uptr pc);
 void AcquireImpl(ThreadState *thr, uptr pc, SyncClock *c);
 void ReleaseImpl(ThreadState *thr, uptr pc, SyncClock *c);
+void ReleaseStoreAcquireImpl(ThreadState *thr, uptr pc, SyncClock *c);
 void ReleaseStoreImpl(ThreadState *thr, uptr pc, SyncClock *c);
 void AcquireReleaseImpl(ThreadState *thr, uptr pc, SyncClock *c);
 

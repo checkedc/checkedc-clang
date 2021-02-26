@@ -645,7 +645,7 @@ TEST_UNINIT(smallpartinit, smallpartinit);
 // ZERO-LABEL: @test_smallpartinit_uninit()
 // ZERO-O0: call void @llvm.memset{{.*}}, i8 0,
 // ZERO-O1-LEGACY: store i16 0, i16* %uninit, align 2
-// ZERO-O1-NEWPM: store i16 42, i16* %uninit, align 2
+// ZERO-O1-NEWPM: store i16 0, i16* %uninit, align 2
 
 TEST_BRACES(smallpartinit, smallpartinit);
 // CHECK-LABEL: @test_smallpartinit_braces()
@@ -718,7 +718,7 @@ TEST_UNINIT(paddednullinit, paddednullinit);
 // PATTERN-LABEL: @test_paddednullinit_uninit()
 // PATTERN-O0: call void @llvm.memcpy{{.*}} @__const.test_paddednullinit_uninit.uninit
 // PATTERN-O1-LEGACY: store i64 [[I64]], i64* %uninit, align 8
-// PATTERN-O1-NEWPM: store i64 2863311360, i64* %uninit, align 8
+// PATTERN-O1-NEWPM: store i64 [[I64]], i64* %uninit, align 8
 // ZERO-LABEL: @test_paddednullinit_uninit()
 // ZERO-O0: call void @llvm.memset{{.*}}, i8 0,
 // ZERO-O1: store i64 0, i64* %uninit, align 8
@@ -748,7 +748,7 @@ TEST_UNINIT(paddedpacked, paddedpacked);
 // PATTERN-LABEL: @test_paddedpacked_uninit()
 // PATTERN-O0: call void @llvm.memcpy{{.*}} @__const.test_paddedpacked_uninit.uninit
 // PATTERN-O1:  %[[C:[^ ]*]] = getelementptr inbounds {{.*}}%uninit, i64 0, i32 0
-// PATTERN-O1  store i8 [[I8]], i8* %[[C]], align
+// PATTERN-O1:  store i8 [[I8]], i8* %[[C]], align
 // PATTERN-O1:  %[[I:[^ ]*]] = getelementptr inbounds {{.*}}%uninit, i64 0, i32 1
 // PATTERN-O1: store i32 [[I32]], i32* %[[I]], align
 
@@ -830,7 +830,7 @@ TEST_UNINIT(paddedpackednested, paddedpackednested);
 // PATTERN-LABEL: @test_paddedpackednested_uninit()
 // PATTERN-O0: call void @llvm.memcpy{{.*}} @__const.test_paddedpackednested_uninit.uninit
 // PATTERN-O1: getelementptr
-// PATTERN-O1: call void @llvm.memset.p0i8.i64(i8* nonnull align 1 %0, i8 [[I8]], i64 10, i1 false
+// PATTERN-O1: call void @llvm.memset.p0i8.i64(i8* nonnull align 1 dereferenceable(10) %0, i8 [[I8]], i64 10, i1 false
 // ZERO-LABEL: @test_paddedpackednested_uninit()
 // ZERO: call void @llvm.memset{{.*}}, i8 0,
 
@@ -1042,8 +1042,7 @@ TEST_UNINIT(intptr4, int*[4]);
 // CHECK:            %uninit = alloca [4 x i32*], align
 // CHECK-NEXT:       call void @{{.*}}used{{.*}}%uninit)
 // PATTERN-O1-LABEL: @test_intptr4_uninit()
-// PATTERN-O1:       %1 = bitcast [4 x i32*]* %uninit to i8*
-// PATTERN-O1-NEXT:  call void @llvm.memset.p0i8.i64(i8* nonnull align 16 %1, i8 -86, i64 32, i1 false)
+// PATTERN-O1:  call void @llvm.memset.p0i8.i64(i8* nonnull align 16  dereferenceable(32) %{{[0-9*]}}, i8 -86, i64 32, i1 false)
 // ZERO-LABEL:       @test_intptr4_uninit()
 // ZERO:             call void @llvm.memset{{.*}}, i8 0,
 
@@ -1176,7 +1175,7 @@ TEST_UNINIT(complexfloat, _Complex float);
 // PATTERN-LABEL: @test_complexfloat_uninit()
 // PATTERN-O0: call void @llvm.memcpy{{.*}} @__const.test_complexfloat_uninit.uninit
 // PATTERN-O1:  %[[F1:[^ ]*]] = getelementptr inbounds {{.*}}%uninit, i64 0, i32 0
-// PATTERN-O1  store float 0xFFFFFFFFE0000000, float* %[[F1]], align
+// PATTERN-O1: store float 0xFFFFFFFFE0000000, float* %[[F1]], align
 // PATTERN-O1:  %[[F2:[^ ]*]] = getelementptr inbounds {{.*}}%uninit, i64 0, i32 1
 // PATTERN-O1: store float 0xFFFFFFFFE0000000, float* %[[F2]], align
 
@@ -1345,10 +1344,7 @@ TEST_UNINIT(virtualderived, virtualderived);
 // ZERO-LABEL: @test_virtualderived_uninit()
 // ZERO-O0: call void @llvm.memset{{.*}}, i8 0,
 // ZERO-O1-LEGACY: call void @llvm.memset{{.*}}, i8 0,
-// ZERO-O1-NEWPM: [[FIELD1:%.*]] = getelementptr inbounds %struct.virtualderived, %struct.virtualderived* %uninit, i64 0, i32 1, i32 0, i32 0
-// ZERO-O1-NEWPM: [[FIELD0:%.*]] = getelementptr inbounds %struct.virtualderived, %struct.virtualderived* %uninit, i64 0, i32 0, i32 0
-// ZERO-O1-NEWPM: store i32 (...)** bitcast (i8** getelementptr inbounds ({ [7 x i8*], [5 x i8*] }, { [7 x i8*], [5 x i8*] }* @_ZTV14virtualderived, i64 0, inrange i32 0, i64 5) to i32 (...)**), i32 (...)*** [[FIELD0]], align 8
-// ZERO-O1-NEWPM: store i32 (...)** bitcast (i8** getelementptr inbounds ({ [7 x i8*], [5 x i8*] }, { [7 x i8*], [5 x i8*] }* @_ZTV14virtualderived, i64 0, inrange i32 1, i64 3) to i32 (...)**), i32 (...)*** [[FIELD1]], align 8
+// ZERO-O1-NEWPM: call void @llvm.memset{{.*}}, i8 0,
 
 TEST_BRACES(virtualderived, virtualderived);
 // CHECK-LABEL: @test_virtualderived_braces()
@@ -1614,5 +1610,24 @@ TEST_CUSTOM(doublevec32, double  __attribute__((vector_size(32))), { 3.141592653
 // CHECK-NEXT:  store <4 x double> <double 0x400921FB54442D18, double 0x400921FB54442D18, double 0x400921FB54442D18, double 0x400921FB54442D18>, <4 x double>* %custom, align [[ALIGN]]
 // CHECK-NEXT:  call void @{{.*}}used{{.*}}%custom)
 
+// TODO: This vector has tail padding
+TEST_UNINIT(doublevec24, double  __attribute__((vector_size(24))));
+// CHECK-LABEL: @test_doublevec24_uninit()
+// CHECK:       %uninit = alloca <3 x double>, align
+// CHECK-NEXT:  call void @{{.*}}used{{.*}}%uninit)
+// PATTERN-LABEL: @test_doublevec24_uninit()
+// PATTERN: store <3 x double> <double 0xFFFFFFFFFFFFFFFF, double 0xFFFFFFFFFFFFFFFF, double 0xFFFFFFFFFFFFFFFF>, <3 x double>* %uninit, align 32
+// ZERO-LABEL: @test_doublevec24_uninit()
+// ZERO: store <3 x double> zeroinitializer, <3 x double>* %uninit, align 32
+
+// TODO: This vector has tail padding
+TEST_UNINIT(longdoublevec32, long double  __attribute__((vector_size(sizeof(long double)*2))));
+// CHECK-LABEL: @test_longdoublevec32_uninit()
+// CHECK:       %uninit = alloca <2 x x86_fp80>, align
+// CHECK-NEXT:  call void @{{.*}}used{{.*}}%uninit)
+// PATTERN-LABEL: @test_longdoublevec32_uninit()
+// PATTERN: store <2 x x86_fp80> <x86_fp80 0xKFFFFFFFFFFFFFFFFFFFF, x86_fp80 0xKFFFFFFFFFFFFFFFFFFFF>, <2 x x86_fp80>* %uninit, align 32
+// ZERO-LABEL: @test_longdoublevec32_uninit()
+// ZERO: store <2 x x86_fp80> zeroinitializer, <2 x x86_fp80>* %uninit, align 32
 
 } // extern "C"

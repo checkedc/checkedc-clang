@@ -82,10 +82,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK:  "kind": "ImplicitCastExpr",
 // CHECK-NEXT:  "range": {
 // CHECK-NEXT:   "begin": {
+// CHECK-NEXT:    "offset": 148,
 // CHECK-NEXT:    "col": 10,
 // CHECK-NEXT:    "tokLen": 1
 // CHECK-NEXT:   },
 // CHECK-NEXT:   "end": {
+// CHECK-NEXT:    "offset": 148,
 // CHECK-NEXT:    "col": 10,
 // CHECK-NEXT:    "tokLen": 1
 // CHECK-NEXT:   }
@@ -101,10 +103,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:    "kind": "ImplicitCastExpr",
 // CHECK-NEXT:    "range": {
 // CHECK-NEXT:     "begin": {
+// CHECK-NEXT:      "offset": 148,
 // CHECK-NEXT:      "col": 10,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     },
 // CHECK-NEXT:     "end": {
+// CHECK-NEXT:      "offset": 148,
 // CHECK-NEXT:      "col": 10,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     }
@@ -120,10 +124,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:      "kind": "DeclRefExpr",
 // CHECK-NEXT:      "range": {
 // CHECK-NEXT:       "begin": {
+// CHECK-NEXT:        "offset": 148,
 // CHECK-NEXT:        "col": 10,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       },
 // CHECK-NEXT:       "end": {
+// CHECK-NEXT:        "offset": 148,
 // CHECK-NEXT:        "col": 10,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       }
@@ -150,10 +156,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK:  "kind": "ImplicitCastExpr",
 // CHECK-NEXT:  "range": {
 // CHECK-NEXT:   "begin": {
+// CHECK-NEXT:    "offset": 208,
 // CHECK-NEXT:    "col": 10,
 // CHECK-NEXT:    "tokLen": 1
 // CHECK-NEXT:   },
 // CHECK-NEXT:   "end": {
+// CHECK-NEXT:    "offset": 208,
 // CHECK-NEXT:    "col": 10,
 // CHECK-NEXT:    "tokLen": 1
 // CHECK-NEXT:   }
@@ -169,10 +177,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:    "kind": "ImplicitCastExpr",
 // CHECK-NEXT:    "range": {
 // CHECK-NEXT:     "begin": {
+// CHECK-NEXT:      "offset": 208,
 // CHECK-NEXT:      "col": 10,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     },
 // CHECK-NEXT:     "end": {
+// CHECK-NEXT:      "offset": 208,
 // CHECK-NEXT:      "col": 10,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     }
@@ -188,10 +198,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:      "kind": "DeclRefExpr",
 // CHECK-NEXT:      "range": {
 // CHECK-NEXT:       "begin": {
+// CHECK-NEXT:        "offset": 208,
 // CHECK-NEXT:        "col": 10,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       },
 // CHECK-NEXT:       "end": {
+// CHECK-NEXT:        "offset": 208,
 // CHECK-NEXT:        "col": 10,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       }
@@ -218,10 +230,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK:  "kind": "ImplicitCastExpr",
 // CHECK-NEXT:  "range": {
 // CHECK-NEXT:   "begin": {
+// CHECK-NEXT:    "offset": 268,
 // CHECK-NEXT:    "col": 10,
 // CHECK-NEXT:    "tokLen": 1
 // CHECK-NEXT:   },
 // CHECK-NEXT:   "end": {
+// CHECK-NEXT:    "offset": 268,
 // CHECK-NEXT:    "col": 10,
 // CHECK-NEXT:    "tokLen": 1
 // CHECK-NEXT:   }
@@ -237,10 +251,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:    "kind": "ImplicitCastExpr",
 // CHECK-NEXT:    "range": {
 // CHECK-NEXT:     "begin": {
+// CHECK-NEXT:      "offset": 268,
 // CHECK-NEXT:      "col": 10,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     },
 // CHECK-NEXT:     "end": {
+// CHECK-NEXT:      "offset": 268,
 // CHECK-NEXT:      "col": 10,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     }
@@ -256,10 +272,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:      "kind": "DeclRefExpr",
 // CHECK-NEXT:      "range": {
 // CHECK-NEXT:       "begin": {
+// CHECK-NEXT:        "offset": 268,
 // CHECK-NEXT:        "col": 10,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       },
 // CHECK-NEXT:       "end": {
+// CHECK-NEXT:        "offset": 268,
 // CHECK-NEXT:        "col": 10,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       }
@@ -286,10 +304,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK:  "kind": "ImplicitCastExpr",
 // CHECK-NEXT:  "range": {
 // CHECK-NEXT:   "begin": {
+// CHECK-NEXT:    "offset": 326,
 // CHECK-NEXT:    "col": 10,
 // CHECK-NEXT:    "tokLen": 1
 // CHECK-NEXT:   },
 // CHECK-NEXT:   "end": {
+// CHECK-NEXT:    "offset": 326,
 // CHECK-NEXT:    "col": 10,
 // CHECK-NEXT:    "tokLen": 1
 // CHECK-NEXT:   }
@@ -305,10 +325,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:    "kind": "ImplicitCastExpr",
 // CHECK-NEXT:    "range": {
 // CHECK-NEXT:     "begin": {
+// CHECK-NEXT:      "offset": 326,
 // CHECK-NEXT:      "col": 10,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     },
 // CHECK-NEXT:     "end": {
+// CHECK-NEXT:      "offset": 326,
 // CHECK-NEXT:      "col": 10,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     }
@@ -324,10 +346,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:      "kind": "DeclRefExpr",
 // CHECK-NEXT:      "range": {
 // CHECK-NEXT:       "begin": {
+// CHECK-NEXT:        "offset": 326,
 // CHECK-NEXT:        "col": 10,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       },
 // CHECK-NEXT:       "end": {
+// CHECK-NEXT:        "offset": 326,
 // CHECK-NEXT:        "col": 10,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       }
@@ -354,10 +378,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK:  "kind": "CStyleCastExpr",
 // CHECK-NEXT:  "range": {
 // CHECK-NEXT:   "begin": {
+// CHECK-NEXT:    "offset": 468,
 // CHECK-NEXT:    "col": 10,
 // CHECK-NEXT:    "tokLen": 1
 // CHECK-NEXT:   },
 // CHECK-NEXT:   "end": {
+// CHECK-NEXT:    "offset": 483,
 // CHECK-NEXT:    "col": 25,
 // CHECK-NEXT:    "tokLen": 1
 // CHECK-NEXT:   }
@@ -373,10 +399,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:    "kind": "ImplicitCastExpr",
 // CHECK-NEXT:    "range": {
 // CHECK-NEXT:     "begin": {
+// CHECK-NEXT:      "offset": 483,
 // CHECK-NEXT:      "col": 25,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     },
 // CHECK-NEXT:     "end": {
+// CHECK-NEXT:      "offset": 483,
 // CHECK-NEXT:      "col": 25,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     }
@@ -393,10 +421,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:      "kind": "ImplicitCastExpr",
 // CHECK-NEXT:      "range": {
 // CHECK-NEXT:       "begin": {
+// CHECK-NEXT:        "offset": 483,
 // CHECK-NEXT:        "col": 25,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       },
 // CHECK-NEXT:       "end": {
+// CHECK-NEXT:        "offset": 483,
 // CHECK-NEXT:        "col": 25,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       }
@@ -413,10 +443,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:        "kind": "DeclRefExpr",
 // CHECK-NEXT:        "range": {
 // CHECK-NEXT:         "begin": {
+// CHECK-NEXT:          "offset": 483,
 // CHECK-NEXT:          "col": 25,
 // CHECK-NEXT:          "tokLen": 1
 // CHECK-NEXT:         },
 // CHECK-NEXT:         "end": {
+// CHECK-NEXT:          "offset": 483,
 // CHECK-NEXT:          "col": 25,
 // CHECK-NEXT:          "tokLen": 1
 // CHECK-NEXT:         }
@@ -445,10 +477,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK:  "kind": "CStyleCastExpr",
 // CHECK-NEXT:  "range": {
 // CHECK-NEXT:   "begin": {
+// CHECK-NEXT:    "offset": 541,
 // CHECK-NEXT:    "col": 10,
 // CHECK-NEXT:    "tokLen": 1
 // CHECK-NEXT:   },
 // CHECK-NEXT:   "end": {
+// CHECK-NEXT:    "offset": 554,
 // CHECK-NEXT:    "col": 23,
 // CHECK-NEXT:    "tokLen": 1
 // CHECK-NEXT:   }
@@ -464,10 +498,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:    "kind": "ImplicitCastExpr",
 // CHECK-NEXT:    "range": {
 // CHECK-NEXT:     "begin": {
+// CHECK-NEXT:      "offset": 554,
 // CHECK-NEXT:      "col": 23,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     },
 // CHECK-NEXT:     "end": {
+// CHECK-NEXT:      "offset": 554,
 // CHECK-NEXT:      "col": 23,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     }
@@ -484,10 +520,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:      "kind": "ImplicitCastExpr",
 // CHECK-NEXT:      "range": {
 // CHECK-NEXT:       "begin": {
+// CHECK-NEXT:        "offset": 554,
 // CHECK-NEXT:        "col": 23,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       },
 // CHECK-NEXT:       "end": {
+// CHECK-NEXT:        "offset": 554,
 // CHECK-NEXT:        "col": 23,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       }
@@ -504,10 +542,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:        "kind": "DeclRefExpr",
 // CHECK-NEXT:        "range": {
 // CHECK-NEXT:         "begin": {
+// CHECK-NEXT:          "offset": 554,
 // CHECK-NEXT:          "col": 23,
 // CHECK-NEXT:          "tokLen": 1
 // CHECK-NEXT:         },
 // CHECK-NEXT:         "end": {
+// CHECK-NEXT:          "offset": 554,
 // CHECK-NEXT:          "col": 23,
 // CHECK-NEXT:          "tokLen": 1
 // CHECK-NEXT:         }
@@ -536,10 +576,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK:  "kind": "CStyleCastExpr",
 // CHECK-NEXT:  "range": {
 // CHECK-NEXT:   "begin": {
+// CHECK-NEXT:    "offset": 612,
 // CHECK-NEXT:    "col": 10,
 // CHECK-NEXT:    "tokLen": 1
 // CHECK-NEXT:   },
 // CHECK-NEXT:   "end": {
+// CHECK-NEXT:    "offset": 627,
 // CHECK-NEXT:    "col": 25,
 // CHECK-NEXT:    "tokLen": 1
 // CHECK-NEXT:   }
@@ -555,10 +597,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:    "kind": "ImplicitCastExpr",
 // CHECK-NEXT:    "range": {
 // CHECK-NEXT:     "begin": {
+// CHECK-NEXT:      "offset": 627,
 // CHECK-NEXT:      "col": 25,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     },
 // CHECK-NEXT:     "end": {
+// CHECK-NEXT:      "offset": 627,
 // CHECK-NEXT:      "col": 25,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     }
@@ -575,10 +619,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:      "kind": "ImplicitCastExpr",
 // CHECK-NEXT:      "range": {
 // CHECK-NEXT:       "begin": {
+// CHECK-NEXT:        "offset": 627,
 // CHECK-NEXT:        "col": 25,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       },
 // CHECK-NEXT:       "end": {
+// CHECK-NEXT:        "offset": 627,
 // CHECK-NEXT:        "col": 25,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       }
@@ -595,10 +641,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:        "kind": "DeclRefExpr",
 // CHECK-NEXT:        "range": {
 // CHECK-NEXT:         "begin": {
+// CHECK-NEXT:          "offset": 627,
 // CHECK-NEXT:          "col": 25,
 // CHECK-NEXT:          "tokLen": 1
 // CHECK-NEXT:         },
 // CHECK-NEXT:         "end": {
+// CHECK-NEXT:          "offset": 627,
 // CHECK-NEXT:          "col": 25,
 // CHECK-NEXT:          "tokLen": 1
 // CHECK-NEXT:         }
@@ -627,10 +675,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK:  "kind": "CStyleCastExpr",
 // CHECK-NEXT:  "range": {
 // CHECK-NEXT:   "begin": {
+// CHECK-NEXT:    "offset": 683,
 // CHECK-NEXT:    "col": 10,
 // CHECK-NEXT:    "tokLen": 1
 // CHECK-NEXT:   },
 // CHECK-NEXT:   "end": {
+// CHECK-NEXT:    "offset": 696,
 // CHECK-NEXT:    "col": 23,
 // CHECK-NEXT:    "tokLen": 1
 // CHECK-NEXT:   }
@@ -646,10 +696,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:    "kind": "ImplicitCastExpr",
 // CHECK-NEXT:    "range": {
 // CHECK-NEXT:     "begin": {
+// CHECK-NEXT:      "offset": 696,
 // CHECK-NEXT:      "col": 23,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     },
 // CHECK-NEXT:     "end": {
+// CHECK-NEXT:      "offset": 696,
 // CHECK-NEXT:      "col": 23,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     }
@@ -666,10 +718,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:      "kind": "ImplicitCastExpr",
 // CHECK-NEXT:      "range": {
 // CHECK-NEXT:       "begin": {
+// CHECK-NEXT:        "offset": 696,
 // CHECK-NEXT:        "col": 23,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       },
 // CHECK-NEXT:       "end": {
+// CHECK-NEXT:        "offset": 696,
 // CHECK-NEXT:        "col": 23,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       }
@@ -686,10 +740,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:        "kind": "DeclRefExpr",
 // CHECK-NEXT:        "range": {
 // CHECK-NEXT:         "begin": {
+// CHECK-NEXT:          "offset": 696,
 // CHECK-NEXT:          "col": 23,
 // CHECK-NEXT:          "tokLen": 1
 // CHECK-NEXT:         },
 // CHECK-NEXT:         "end": {
+// CHECK-NEXT:          "offset": 696,
 // CHECK-NEXT:          "col": 23,
 // CHECK-NEXT:          "tokLen": 1
 // CHECK-NEXT:         }
@@ -718,10 +774,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK:  "kind": "CXXStaticCastExpr",
 // CHECK-NEXT:  "range": {
 // CHECK-NEXT:   "begin": {
+// CHECK-NEXT:    "offset": 841,
 // CHECK-NEXT:    "col": 10,
 // CHECK-NEXT:    "tokLen": 11
 // CHECK-NEXT:   },
 // CHECK-NEXT:   "end": {
+// CHECK-NEXT:    "offset": 869,
 // CHECK-NEXT:    "col": 38,
 // CHECK-NEXT:    "tokLen": 1
 // CHECK-NEXT:   }
@@ -737,10 +795,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:    "kind": "ImplicitCastExpr",
 // CHECK-NEXT:    "range": {
 // CHECK-NEXT:     "begin": {
+// CHECK-NEXT:      "offset": 868,
 // CHECK-NEXT:      "col": 37,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     },
 // CHECK-NEXT:     "end": {
+// CHECK-NEXT:      "offset": 868,
 // CHECK-NEXT:      "col": 37,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     }
@@ -757,10 +817,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:      "kind": "ImplicitCastExpr",
 // CHECK-NEXT:      "range": {
 // CHECK-NEXT:       "begin": {
+// CHECK-NEXT:        "offset": 868,
 // CHECK-NEXT:        "col": 37,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       },
 // CHECK-NEXT:       "end": {
+// CHECK-NEXT:        "offset": 868,
 // CHECK-NEXT:        "col": 37,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       }
@@ -777,10 +839,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:        "kind": "DeclRefExpr",
 // CHECK-NEXT:        "range": {
 // CHECK-NEXT:         "begin": {
+// CHECK-NEXT:          "offset": 868,
 // CHECK-NEXT:          "col": 37,
 // CHECK-NEXT:          "tokLen": 1
 // CHECK-NEXT:         },
 // CHECK-NEXT:         "end": {
+// CHECK-NEXT:          "offset": 868,
 // CHECK-NEXT:          "col": 37,
 // CHECK-NEXT:          "tokLen": 1
 // CHECK-NEXT:         }
@@ -809,10 +873,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK:  "kind": "CXXStaticCastExpr",
 // CHECK-NEXT:  "range": {
 // CHECK-NEXT:   "begin": {
+// CHECK-NEXT:    "offset": 930,
 // CHECK-NEXT:    "col": 10,
 // CHECK-NEXT:    "tokLen": 11
 // CHECK-NEXT:   },
 // CHECK-NEXT:   "end": {
+// CHECK-NEXT:    "offset": 956,
 // CHECK-NEXT:    "col": 36,
 // CHECK-NEXT:    "tokLen": 1
 // CHECK-NEXT:   }
@@ -828,10 +894,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:    "kind": "ImplicitCastExpr",
 // CHECK-NEXT:    "range": {
 // CHECK-NEXT:     "begin": {
+// CHECK-NEXT:      "offset": 955,
 // CHECK-NEXT:      "col": 35,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     },
 // CHECK-NEXT:     "end": {
+// CHECK-NEXT:      "offset": 955,
 // CHECK-NEXT:      "col": 35,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     }
@@ -848,10 +916,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:      "kind": "ImplicitCastExpr",
 // CHECK-NEXT:      "range": {
 // CHECK-NEXT:       "begin": {
+// CHECK-NEXT:        "offset": 955,
 // CHECK-NEXT:        "col": 35,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       },
 // CHECK-NEXT:       "end": {
+// CHECK-NEXT:        "offset": 955,
 // CHECK-NEXT:        "col": 35,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       }
@@ -868,10 +938,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:        "kind": "DeclRefExpr",
 // CHECK-NEXT:        "range": {
 // CHECK-NEXT:         "begin": {
+// CHECK-NEXT:          "offset": 955,
 // CHECK-NEXT:          "col": 35,
 // CHECK-NEXT:          "tokLen": 1
 // CHECK-NEXT:         },
 // CHECK-NEXT:         "end": {
+// CHECK-NEXT:          "offset": 955,
 // CHECK-NEXT:          "col": 35,
 // CHECK-NEXT:          "tokLen": 1
 // CHECK-NEXT:         }
@@ -900,10 +972,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK:  "kind": "CXXStaticCastExpr",
 // CHECK-NEXT:  "range": {
 // CHECK-NEXT:   "begin": {
+// CHECK-NEXT:    "offset": 1017,
 // CHECK-NEXT:    "col": 10,
 // CHECK-NEXT:    "tokLen": 11
 // CHECK-NEXT:   },
 // CHECK-NEXT:   "end": {
+// CHECK-NEXT:    "offset": 1045,
 // CHECK-NEXT:    "col": 38,
 // CHECK-NEXT:    "tokLen": 1
 // CHECK-NEXT:   }
@@ -919,10 +993,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:    "kind": "ImplicitCastExpr",
 // CHECK-NEXT:    "range": {
 // CHECK-NEXT:     "begin": {
+// CHECK-NEXT:      "offset": 1044,
 // CHECK-NEXT:      "col": 37,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     },
 // CHECK-NEXT:     "end": {
+// CHECK-NEXT:      "offset": 1044,
 // CHECK-NEXT:      "col": 37,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     }
@@ -939,10 +1015,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:      "kind": "ImplicitCastExpr",
 // CHECK-NEXT:      "range": {
 // CHECK-NEXT:       "begin": {
+// CHECK-NEXT:        "offset": 1044,
 // CHECK-NEXT:        "col": 37,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       },
 // CHECK-NEXT:       "end": {
+// CHECK-NEXT:        "offset": 1044,
 // CHECK-NEXT:        "col": 37,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       }
@@ -959,10 +1037,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:        "kind": "DeclRefExpr",
 // CHECK-NEXT:        "range": {
 // CHECK-NEXT:         "begin": {
+// CHECK-NEXT:          "offset": 1044,
 // CHECK-NEXT:          "col": 37,
 // CHECK-NEXT:          "tokLen": 1
 // CHECK-NEXT:         },
 // CHECK-NEXT:         "end": {
+// CHECK-NEXT:          "offset": 1044,
 // CHECK-NEXT:          "col": 37,
 // CHECK-NEXT:          "tokLen": 1
 // CHECK-NEXT:         }
@@ -991,10 +1071,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK:  "kind": "CXXStaticCastExpr",
 // CHECK-NEXT:  "range": {
 // CHECK-NEXT:   "begin": {
+// CHECK-NEXT:    "offset": 1104,
 // CHECK-NEXT:    "col": 10,
 // CHECK-NEXT:    "tokLen": 11
 // CHECK-NEXT:   },
 // CHECK-NEXT:   "end": {
+// CHECK-NEXT:    "offset": 1130,
 // CHECK-NEXT:    "col": 36,
 // CHECK-NEXT:    "tokLen": 1
 // CHECK-NEXT:   }
@@ -1010,10 +1092,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:    "kind": "ImplicitCastExpr",
 // CHECK-NEXT:    "range": {
 // CHECK-NEXT:     "begin": {
+// CHECK-NEXT:      "offset": 1129,
 // CHECK-NEXT:      "col": 35,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     },
 // CHECK-NEXT:     "end": {
+// CHECK-NEXT:      "offset": 1129,
 // CHECK-NEXT:      "col": 35,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     }
@@ -1030,10 +1114,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:      "kind": "ImplicitCastExpr",
 // CHECK-NEXT:      "range": {
 // CHECK-NEXT:       "begin": {
+// CHECK-NEXT:        "offset": 1129,
 // CHECK-NEXT:        "col": 35,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       },
 // CHECK-NEXT:       "end": {
+// CHECK-NEXT:        "offset": 1129,
 // CHECK-NEXT:        "col": 35,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       }
@@ -1050,10 +1136,12 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:        "kind": "DeclRefExpr",
 // CHECK-NEXT:        "range": {
 // CHECK-NEXT:         "begin": {
+// CHECK-NEXT:          "offset": 1129,
 // CHECK-NEXT:          "col": 35,
 // CHECK-NEXT:          "tokLen": 1
 // CHECK-NEXT:         },
 // CHECK-NEXT:         "end": {
+// CHECK-NEXT:          "offset": 1129,
 // CHECK-NEXT:          "col": 35,
 // CHECK-NEXT:          "tokLen": 1
 // CHECK-NEXT:         }
@@ -1082,17 +1170,20 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK:  "kind": "CXXFunctionalCastExpr",
 // CHECK-NEXT:  "range": {
 // CHECK-NEXT:   "begin": {
+// CHECK-NEXT:    "offset": 1410,
 // CHECK-NEXT:    "col": 10,
 // CHECK-NEXT:    "tokLen": 12
 // CHECK-NEXT:   },
 // CHECK-NEXT:   "end": {
+// CHECK-NEXT:    "offset": 1424,
 // CHECK-NEXT:    "col": 24,
 // CHECK-NEXT:    "tokLen": 1
 // CHECK-NEXT:   }
 // CHECK-NEXT:  },
 // CHECK-NEXT:  "type": {
 // CHECK-NEXT:   "desugaredQualType": "unsigned char",
-// CHECK-NEXT:   "qualType": "UnsignedChar"
+// CHECK-NEXT:   "qualType": "UnsignedChar",
+// CHECK-NEXT:   "typeAliasDeclId": "0x{{.*}}"
 // CHECK-NEXT:  },
 // CHECK-NEXT:  "valueCategory": "rvalue",
 // CHECK-NEXT:  "castKind": "NoOp",
@@ -1102,17 +1193,20 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:    "kind": "ImplicitCastExpr",
 // CHECK-NEXT:    "range": {
 // CHECK-NEXT:     "begin": {
+// CHECK-NEXT:      "offset": 1423,
 // CHECK-NEXT:      "col": 23,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     },
 // CHECK-NEXT:     "end": {
+// CHECK-NEXT:      "offset": 1423,
 // CHECK-NEXT:      "col": 23,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     }
 // CHECK-NEXT:    },
 // CHECK-NEXT:    "type": {
 // CHECK-NEXT:     "desugaredQualType": "unsigned char",
-// CHECK-NEXT:     "qualType": "UnsignedChar"
+// CHECK-NEXT:     "qualType": "UnsignedChar",
+// CHECK-NEXT:     "typeAliasDeclId": "0x{{.*}}"
 // CHECK-NEXT:    },
 // CHECK-NEXT:    "valueCategory": "rvalue",
 // CHECK-NEXT:    "castKind": "IntegralCast",
@@ -1123,17 +1217,20 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:      "kind": "ImplicitCastExpr",
 // CHECK-NEXT:      "range": {
 // CHECK-NEXT:       "begin": {
+// CHECK-NEXT:        "offset": 1423,
 // CHECK-NEXT:        "col": 23,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       },
 // CHECK-NEXT:       "end": {
+// CHECK-NEXT:        "offset": 1423,
 // CHECK-NEXT:        "col": 23,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       }
 // CHECK-NEXT:      },
 // CHECK-NEXT:      "type": {
 // CHECK-NEXT:       "desugaredQualType": "unsigned int",
-// CHECK-NEXT:       "qualType": "UnsignedInt"
+// CHECK-NEXT:       "qualType": "UnsignedInt",
+// CHECK-NEXT:       "typeAliasDeclId": "0x{{.*}}"
 // CHECK-NEXT:      },
 // CHECK-NEXT:      "valueCategory": "rvalue",
 // CHECK-NEXT:      "castKind": "LValueToRValue",
@@ -1144,17 +1241,20 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:        "kind": "DeclRefExpr",
 // CHECK-NEXT:        "range": {
 // CHECK-NEXT:         "begin": {
+// CHECK-NEXT:          "offset": 1423,
 // CHECK-NEXT:          "col": 23,
 // CHECK-NEXT:          "tokLen": 1
 // CHECK-NEXT:         },
 // CHECK-NEXT:         "end": {
+// CHECK-NEXT:          "offset": 1423,
 // CHECK-NEXT:          "col": 23,
 // CHECK-NEXT:          "tokLen": 1
 // CHECK-NEXT:         }
 // CHECK-NEXT:        },
 // CHECK-NEXT:        "type": {
 // CHECK-NEXT:         "desugaredQualType": "unsigned int",
-// CHECK-NEXT:         "qualType": "UnsignedInt"
+// CHECK-NEXT:         "qualType": "UnsignedInt",
+// CHECK-NEXT:         "typeAliasDeclId": "0x{{.*}}"
 // CHECK-NEXT:        },
 // CHECK-NEXT:        "valueCategory": "lvalue",
 // CHECK-NEXT:        "referencedDecl": {
@@ -1163,7 +1263,8 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:         "name": "x",
 // CHECK-NEXT:         "type": {
 // CHECK-NEXT:          "desugaredQualType": "unsigned int",
-// CHECK-NEXT:          "qualType": "UnsignedInt"
+// CHECK-NEXT:          "qualType": "UnsignedInt",
+// CHECK-NEXT:          "typeAliasDeclId": "0x{{.*}}"
 // CHECK-NEXT:         }
 // CHECK-NEXT:        }
 // CHECK-NEXT:       }
@@ -1178,17 +1279,20 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK:  "kind": "CXXFunctionalCastExpr",
 // CHECK-NEXT:  "range": {
 // CHECK-NEXT:   "begin": {
+// CHECK-NEXT:    "offset": 1487,
 // CHECK-NEXT:    "col": 10,
 // CHECK-NEXT:    "tokLen": 10
 // CHECK-NEXT:   },
 // CHECK-NEXT:   "end": {
+// CHECK-NEXT:    "offset": 1499,
 // CHECK-NEXT:    "col": 22,
 // CHECK-NEXT:    "tokLen": 1
 // CHECK-NEXT:   }
 // CHECK-NEXT:  },
 // CHECK-NEXT:  "type": {
 // CHECK-NEXT:   "desugaredQualType": "signed char",
-// CHECK-NEXT:   "qualType": "SignedChar"
+// CHECK-NEXT:   "qualType": "SignedChar",
+// CHECK-NEXT:   "typeAliasDeclId": "0x{{.*}}"
 // CHECK-NEXT:  },
 // CHECK-NEXT:  "valueCategory": "rvalue",
 // CHECK-NEXT:  "castKind": "NoOp",
@@ -1198,17 +1302,20 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:    "kind": "ImplicitCastExpr",
 // CHECK-NEXT:    "range": {
 // CHECK-NEXT:     "begin": {
+// CHECK-NEXT:      "offset": 1498,
 // CHECK-NEXT:      "col": 21,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     },
 // CHECK-NEXT:     "end": {
+// CHECK-NEXT:      "offset": 1498,
 // CHECK-NEXT:      "col": 21,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     }
 // CHECK-NEXT:    },
 // CHECK-NEXT:    "type": {
 // CHECK-NEXT:     "desugaredQualType": "signed char",
-// CHECK-NEXT:     "qualType": "SignedChar"
+// CHECK-NEXT:     "qualType": "SignedChar",
+// CHECK-NEXT:     "typeAliasDeclId": "0x{{.*}}"
 // CHECK-NEXT:    },
 // CHECK-NEXT:    "valueCategory": "rvalue",
 // CHECK-NEXT:    "castKind": "IntegralCast",
@@ -1219,17 +1326,20 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:      "kind": "ImplicitCastExpr",
 // CHECK-NEXT:      "range": {
 // CHECK-NEXT:       "begin": {
+// CHECK-NEXT:        "offset": 1498,
 // CHECK-NEXT:        "col": 21,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       },
 // CHECK-NEXT:       "end": {
+// CHECK-NEXT:        "offset": 1498,
 // CHECK-NEXT:        "col": 21,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       }
 // CHECK-NEXT:      },
 // CHECK-NEXT:      "type": {
 // CHECK-NEXT:       "desugaredQualType": "unsigned int",
-// CHECK-NEXT:       "qualType": "UnsignedInt"
+// CHECK-NEXT:       "qualType": "UnsignedInt",
+// CHECK-NEXT:       "typeAliasDeclId": "0x{{.*}}"
 // CHECK-NEXT:      },
 // CHECK-NEXT:      "valueCategory": "rvalue",
 // CHECK-NEXT:      "castKind": "LValueToRValue",
@@ -1240,17 +1350,20 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:        "kind": "DeclRefExpr",
 // CHECK-NEXT:        "range": {
 // CHECK-NEXT:         "begin": {
+// CHECK-NEXT:          "offset": 1498,
 // CHECK-NEXT:          "col": 21,
 // CHECK-NEXT:          "tokLen": 1
 // CHECK-NEXT:         },
 // CHECK-NEXT:         "end": {
+// CHECK-NEXT:          "offset": 1498,
 // CHECK-NEXT:          "col": 21,
 // CHECK-NEXT:          "tokLen": 1
 // CHECK-NEXT:         }
 // CHECK-NEXT:        },
 // CHECK-NEXT:        "type": {
 // CHECK-NEXT:         "desugaredQualType": "unsigned int",
-// CHECK-NEXT:         "qualType": "UnsignedInt"
+// CHECK-NEXT:         "qualType": "UnsignedInt",
+// CHECK-NEXT:         "typeAliasDeclId": "0x{{.*}}"
 // CHECK-NEXT:        },
 // CHECK-NEXT:        "valueCategory": "lvalue",
 // CHECK-NEXT:        "referencedDecl": {
@@ -1259,7 +1372,8 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:         "name": "x",
 // CHECK-NEXT:         "type": {
 // CHECK-NEXT:          "desugaredQualType": "unsigned int",
-// CHECK-NEXT:          "qualType": "UnsignedInt"
+// CHECK-NEXT:          "qualType": "UnsignedInt",
+// CHECK-NEXT:          "typeAliasDeclId": "0x{{.*}}"
 // CHECK-NEXT:         }
 // CHECK-NEXT:        }
 // CHECK-NEXT:       }
@@ -1274,17 +1388,20 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK:  "kind": "CXXFunctionalCastExpr",
 // CHECK-NEXT:  "range": {
 // CHECK-NEXT:   "begin": {
+// CHECK-NEXT:    "offset": 1562,
 // CHECK-NEXT:    "col": 10,
 // CHECK-NEXT:    "tokLen": 12
 // CHECK-NEXT:   },
 // CHECK-NEXT:   "end": {
+// CHECK-NEXT:    "offset": 1576,
 // CHECK-NEXT:    "col": 24,
 // CHECK-NEXT:    "tokLen": 1
 // CHECK-NEXT:   }
 // CHECK-NEXT:  },
 // CHECK-NEXT:  "type": {
 // CHECK-NEXT:   "desugaredQualType": "unsigned char",
-// CHECK-NEXT:   "qualType": "UnsignedChar"
+// CHECK-NEXT:   "qualType": "UnsignedChar",
+// CHECK-NEXT:   "typeAliasDeclId": "0x{{.*}}"
 // CHECK-NEXT:  },
 // CHECK-NEXT:  "valueCategory": "rvalue",
 // CHECK-NEXT:  "castKind": "NoOp",
@@ -1294,17 +1411,20 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:    "kind": "ImplicitCastExpr",
 // CHECK-NEXT:    "range": {
 // CHECK-NEXT:     "begin": {
+// CHECK-NEXT:      "offset": 1575,
 // CHECK-NEXT:      "col": 23,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     },
 // CHECK-NEXT:     "end": {
+// CHECK-NEXT:      "offset": 1575,
 // CHECK-NEXT:      "col": 23,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     }
 // CHECK-NEXT:    },
 // CHECK-NEXT:    "type": {
 // CHECK-NEXT:     "desugaredQualType": "unsigned char",
-// CHECK-NEXT:     "qualType": "UnsignedChar"
+// CHECK-NEXT:     "qualType": "UnsignedChar",
+// CHECK-NEXT:     "typeAliasDeclId": "0x{{.*}}"
 // CHECK-NEXT:    },
 // CHECK-NEXT:    "valueCategory": "rvalue",
 // CHECK-NEXT:    "castKind": "IntegralCast",
@@ -1315,17 +1435,20 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:      "kind": "ImplicitCastExpr",
 // CHECK-NEXT:      "range": {
 // CHECK-NEXT:       "begin": {
+// CHECK-NEXT:        "offset": 1575,
 // CHECK-NEXT:        "col": 23,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       },
 // CHECK-NEXT:       "end": {
+// CHECK-NEXT:        "offset": 1575,
 // CHECK-NEXT:        "col": 23,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       }
 // CHECK-NEXT:      },
 // CHECK-NEXT:      "type": {
 // CHECK-NEXT:       "desugaredQualType": "int",
-// CHECK-NEXT:       "qualType": "SignedInt"
+// CHECK-NEXT:       "qualType": "SignedInt",
+// CHECK-NEXT:       "typeAliasDeclId": "0x{{.*}}"
 // CHECK-NEXT:      },
 // CHECK-NEXT:      "valueCategory": "rvalue",
 // CHECK-NEXT:      "castKind": "LValueToRValue",
@@ -1336,17 +1459,20 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:        "kind": "DeclRefExpr",
 // CHECK-NEXT:        "range": {
 // CHECK-NEXT:         "begin": {
+// CHECK-NEXT:          "offset": 1575,
 // CHECK-NEXT:          "col": 23,
 // CHECK-NEXT:          "tokLen": 1
 // CHECK-NEXT:         },
 // CHECK-NEXT:         "end": {
+// CHECK-NEXT:          "offset": 1575,
 // CHECK-NEXT:          "col": 23,
 // CHECK-NEXT:          "tokLen": 1
 // CHECK-NEXT:         }
 // CHECK-NEXT:        },
 // CHECK-NEXT:        "type": {
 // CHECK-NEXT:         "desugaredQualType": "int",
-// CHECK-NEXT:         "qualType": "SignedInt"
+// CHECK-NEXT:         "qualType": "SignedInt",
+// CHECK-NEXT:         "typeAliasDeclId": "0x{{.*}}"
 // CHECK-NEXT:        },
 // CHECK-NEXT:        "valueCategory": "lvalue",
 // CHECK-NEXT:        "referencedDecl": {
@@ -1355,7 +1481,8 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:         "name": "x",
 // CHECK-NEXT:         "type": {
 // CHECK-NEXT:          "desugaredQualType": "int",
-// CHECK-NEXT:          "qualType": "SignedInt"
+// CHECK-NEXT:          "qualType": "SignedInt",
+// CHECK-NEXT:          "typeAliasDeclId": "0x{{.*}}"
 // CHECK-NEXT:         }
 // CHECK-NEXT:        }
 // CHECK-NEXT:       }
@@ -1370,17 +1497,20 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK:  "kind": "CXXFunctionalCastExpr",
 // CHECK-NEXT:  "range": {
 // CHECK-NEXT:   "begin": {
+// CHECK-NEXT:    "offset": 1637,
 // CHECK-NEXT:    "col": 10,
 // CHECK-NEXT:    "tokLen": 10
 // CHECK-NEXT:   },
 // CHECK-NEXT:   "end": {
+// CHECK-NEXT:    "offset": 1649,
 // CHECK-NEXT:    "col": 22,
 // CHECK-NEXT:    "tokLen": 1
 // CHECK-NEXT:   }
 // CHECK-NEXT:  },
 // CHECK-NEXT:  "type": {
 // CHECK-NEXT:   "desugaredQualType": "signed char",
-// CHECK-NEXT:   "qualType": "SignedChar"
+// CHECK-NEXT:   "qualType": "SignedChar",
+// CHECK-NEXT:   "typeAliasDeclId": "0x{{.*}}"
 // CHECK-NEXT:  },
 // CHECK-NEXT:  "valueCategory": "rvalue",
 // CHECK-NEXT:  "castKind": "NoOp",
@@ -1390,17 +1520,20 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:    "kind": "ImplicitCastExpr",
 // CHECK-NEXT:    "range": {
 // CHECK-NEXT:     "begin": {
+// CHECK-NEXT:      "offset": 1648,
 // CHECK-NEXT:      "col": 21,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     },
 // CHECK-NEXT:     "end": {
+// CHECK-NEXT:      "offset": 1648,
 // CHECK-NEXT:      "col": 21,
 // CHECK-NEXT:      "tokLen": 1
 // CHECK-NEXT:     }
 // CHECK-NEXT:    },
 // CHECK-NEXT:    "type": {
 // CHECK-NEXT:     "desugaredQualType": "signed char",
-// CHECK-NEXT:     "qualType": "SignedChar"
+// CHECK-NEXT:     "qualType": "SignedChar",
+// CHECK-NEXT:     "typeAliasDeclId": "0x{{.*}}"
 // CHECK-NEXT:    },
 // CHECK-NEXT:    "valueCategory": "rvalue",
 // CHECK-NEXT:    "castKind": "IntegralCast",
@@ -1411,17 +1544,20 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:      "kind": "ImplicitCastExpr",
 // CHECK-NEXT:      "range": {
 // CHECK-NEXT:       "begin": {
+// CHECK-NEXT:        "offset": 1648,
 // CHECK-NEXT:        "col": 21,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       },
 // CHECK-NEXT:       "end": {
+// CHECK-NEXT:        "offset": 1648,
 // CHECK-NEXT:        "col": 21,
 // CHECK-NEXT:        "tokLen": 1
 // CHECK-NEXT:       }
 // CHECK-NEXT:      },
 // CHECK-NEXT:      "type": {
 // CHECK-NEXT:       "desugaredQualType": "int",
-// CHECK-NEXT:       "qualType": "SignedInt"
+// CHECK-NEXT:       "qualType": "SignedInt",
+// CHECK-NEXT:       "typeAliasDeclId": "0x{{.*}}"
 // CHECK-NEXT:      },
 // CHECK-NEXT:      "valueCategory": "rvalue",
 // CHECK-NEXT:      "castKind": "LValueToRValue",
@@ -1432,17 +1568,20 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:        "kind": "DeclRefExpr",
 // CHECK-NEXT:        "range": {
 // CHECK-NEXT:         "begin": {
+// CHECK-NEXT:          "offset": 1648,
 // CHECK-NEXT:          "col": 21,
 // CHECK-NEXT:          "tokLen": 1
 // CHECK-NEXT:         },
 // CHECK-NEXT:         "end": {
+// CHECK-NEXT:          "offset": 1648,
 // CHECK-NEXT:          "col": 21,
 // CHECK-NEXT:          "tokLen": 1
 // CHECK-NEXT:         }
 // CHECK-NEXT:        },
 // CHECK-NEXT:        "type": {
 // CHECK-NEXT:         "desugaredQualType": "int",
-// CHECK-NEXT:         "qualType": "SignedInt"
+// CHECK-NEXT:         "qualType": "SignedInt",
+// CHECK-NEXT:         "typeAliasDeclId": "0x{{.*}}"
 // CHECK-NEXT:        },
 // CHECK-NEXT:        "valueCategory": "lvalue",
 // CHECK-NEXT:        "referencedDecl": {
@@ -1451,7 +1590,8 @@ SignedChar cxxfunctionalcast_3(SignedInt x) {
 // CHECK-NEXT:         "name": "x",
 // CHECK-NEXT:         "type": {
 // CHECK-NEXT:          "desugaredQualType": "int",
-// CHECK-NEXT:          "qualType": "SignedInt"
+// CHECK-NEXT:          "qualType": "SignedInt",
+// CHECK-NEXT:          "typeAliasDeclId": "0x{{.*}}"
 // CHECK-NEXT:         }
 // CHECK-NEXT:        }
 // CHECK-NEXT:       }

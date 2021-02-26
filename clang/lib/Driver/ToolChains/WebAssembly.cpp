@@ -8,6 +8,7 @@
 
 #include "WebAssembly.h"
 #include "CommonArgs.h"
+#include "clang/Basic/Version.h"
 #include "clang/Config/config.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
@@ -39,7 +40,7 @@ std::string wasm::Linker::getLinkerPath(const ArgList &Args) const {
     if (!UseLinker.empty()) {
       if (llvm::sys::path::is_absolute(UseLinker) &&
           llvm::sys::fs::can_execute(UseLinker))
-        return UseLinker;
+        return std::string(UseLinker);
 
       // Accept 'lld', and 'ld' as aliases for the default linker
       if (UseLinker != "lld" && UseLinker != "ld")
@@ -61,6 +62,12 @@ void wasm::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   const char *Linker = Args.MakeArgString(getLinkerPath(Args));
   ArgStringList CmdArgs;
 
+  CmdArgs.push_back("-m");
+  if (getToolChain().getTriple().isArch64Bit())
+    CmdArgs.push_back("wasm64");
+  else
+    CmdArgs.push_back("wasm32");
+
   if (Args.hasArg(options::OPT_s))
     CmdArgs.push_back("--strip-all");
 
@@ -68,8 +75,26 @@ void wasm::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddAllArgs(CmdArgs, options::OPT_u);
   ToolChain.AddFilePathLibArgs(Args, CmdArgs);
 
+  const char *Crt1 = "crt1.o";
+  const char *Entry = NULL;
+  if (const Arg *A = Args.getLastArg(options::OPT_mexec_model_EQ)) {
+    StringRef CM = A->getValue();
+    if (CM == "command") {
+      // Use default values.
+    } else if (CM == "reactor") {
+      Crt1 = "crt1-reactor.o";
+      Entry = "_initialize";
+    } else {
+      ToolChain.getDriver().Diag(diag::err_drv_invalid_argument_to_option)
+          << CM << A->getOption().getName();
+    }
+  }
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles))
-    CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath("crt1.o")));
+    CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath(Crt1)));
+  if (Entry) {
+    CmdArgs.push_back(Args.MakeArgString("--entry"));
+    CmdArgs.push_back(Args.MakeArgString(Entry));
+  }
 
   AddLinkerInputs(ToolChain, Inputs, Args, CmdArgs, JA);
 
@@ -89,7 +114,43 @@ void wasm::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   CmdArgs.push_back("-o");
   CmdArgs.push_back(Output.getFilename());
 
-  C.addCommand(llvm::make_unique<Command>(JA, *this, Linker, CmdArgs, Inputs));
+  C.addCommand(std::make_unique<Command>(
+      JA, *this, ResponseFileSupport::AtFileCurCP(), Linker, CmdArgs, Inputs));
+
+  // When optimizing, if wasm-opt is available, run it.
+  if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
+    auto WasmOptPath = getToolChain().GetProgramPath("wasm-opt");
+    if (WasmOptPath != "wasm-opt") {
+      StringRef OOpt = "s";
+      if (A->getOption().matches(options::OPT_O4) ||
+          A->getOption().matches(options::OPT_Ofast))
+        OOpt = "4";
+      else if (A->getOption().matches(options::OPT_O0))
+        OOpt = "0";
+      else if (A->getOption().matches(options::OPT_O))
+        OOpt = A->getValue();
+
+      if (OOpt != "0") {
+        const char *WasmOpt = Args.MakeArgString(WasmOptPath);
+        ArgStringList CmdArgs;
+        CmdArgs.push_back(Output.getFilename());
+        CmdArgs.push_back(Args.MakeArgString(llvm::Twine("-O") + OOpt));
+        CmdArgs.push_back("-o");
+        CmdArgs.push_back(Output.getFilename());
+        C.addCommand(std::make_unique<Command>(
+            JA, *this, ResponseFileSupport::AtFileCurCP(), WasmOpt, CmdArgs,
+            Inputs));
+      }
+    }
+  }
+}
+
+/// Given a base library directory, append path components to form the
+/// LTO directory.
+static std::string AppendLTOLibDir(const std::string &Dir) {
+    // The version allows the path to be keyed to the specific version of
+    // LLVM in used, as the bitcode format is not stable.
+    return Dir + "/llvm-lto/" LLVM_VERSION_STRING;
 }
 
 WebAssembly::WebAssembly(const Driver &D, const llvm::Triple &Triple,
@@ -100,16 +161,24 @@ WebAssembly::WebAssembly(const Driver &D, const llvm::Triple &Triple,
 
   getProgramPaths().push_back(getDriver().getInstalledDir());
 
+  auto SysRoot = getDriver().SysRoot;
   if (getTriple().getOS() == llvm::Triple::UnknownOS) {
     // Theoretically an "unknown" OS should mean no standard libraries, however
     // it could also mean that a custom set of libraries is in use, so just add
     // /lib to the search path. Disable multiarch in this case, to discourage
     // paths containing "unknown" from acquiring meanings.
-    getFilePaths().push_back(getDriver().SysRoot + "/lib");
+    getFilePaths().push_back(SysRoot + "/lib");
   } else {
     const std::string MultiarchTriple =
-        getMultiarchTriple(getDriver(), Triple, getDriver().SysRoot);
-    getFilePaths().push_back(getDriver().SysRoot + "/lib/" + MultiarchTriple);
+        getMultiarchTriple(getDriver(), Triple, SysRoot);
+    if (D.isUsingLTO()) {
+      // For LTO, enable use of lto-enabled sysroot libraries too, if available.
+      // Note that the directory is keyed to the LLVM revision, as LLVM's
+      // bitcode format is not stable.
+      auto Dir = AppendLTOLibDir(SysRoot + "/lib/" + MultiarchTriple);
+      getFilePaths().push_back(Dir);
+    }
+    getFilePaths().push_back(SysRoot + "/lib/" + MultiarchTriple);
   }
 }
 
@@ -137,11 +206,11 @@ bool WebAssembly::HasNativeLLVMSupport() const { return true; }
 void WebAssembly::addClangTargetOptions(const ArgList &DriverArgs,
                                         ArgStringList &CC1Args,
                                         Action::OffloadKind) const {
-  if (DriverArgs.hasFlag(clang::driver::options::OPT_fuse_init_array,
-                         options::OPT_fno_use_init_array, true))
-    CC1Args.push_back("-fuse-init-array");
+  if (!DriverArgs.hasFlag(clang::driver::options::OPT_fuse_init_array,
+                          options::OPT_fno_use_init_array, true))
+    CC1Args.push_back("-fno-use-init-array");
 
-  // '-pthread' implies atomics, bulk-memory, and mutable-globals
+  // '-pthread' implies atomics, bulk-memory, mutable-globals, and sign-ext
   if (DriverArgs.hasFlag(options::OPT_pthread, options::OPT_no_pthread,
                          false)) {
     if (DriverArgs.hasFlag(options::OPT_mno_atomics, options::OPT_matomics,
@@ -159,12 +228,47 @@ void WebAssembly::addClangTargetOptions(const ArgList &DriverArgs,
       getDriver().Diag(diag::err_drv_argument_not_allowed_with)
           << "-pthread"
           << "-mno-mutable-globals";
+    if (DriverArgs.hasFlag(options::OPT_mno_sign_ext, options::OPT_msign_ext,
+                           false))
+      getDriver().Diag(diag::err_drv_argument_not_allowed_with)
+          << "-pthread"
+          << "-mno-sign-ext";
     CC1Args.push_back("-target-feature");
     CC1Args.push_back("+atomics");
     CC1Args.push_back("-target-feature");
     CC1Args.push_back("+bulk-memory");
     CC1Args.push_back("-target-feature");
     CC1Args.push_back("+mutable-globals");
+    CC1Args.push_back("-target-feature");
+    CC1Args.push_back("+sign-ext");
+  }
+
+  if (DriverArgs.getLastArg(options::OPT_fwasm_exceptions)) {
+    // '-fwasm-exceptions' is not compatible with '-mno-exception-handling'
+    if (DriverArgs.hasFlag(options::OPT_mno_exception_handing,
+                           options::OPT_mexception_handing, false))
+      getDriver().Diag(diag::err_drv_argument_not_allowed_with)
+          << "-fwasm-exceptions"
+          << "-mno-exception-handling";
+    // '-fwasm-exceptions' is not compatible with '-mno-reference-types'
+    if (DriverArgs.hasFlag(options::OPT_mno_reference_types,
+                           options::OPT_mexception_handing, false))
+      getDriver().Diag(diag::err_drv_argument_not_allowed_with)
+          << "-fwasm-exceptions"
+          << "-mno-reference-types";
+    // '-fwasm-exceptions' is not compatible with
+    // '-mllvm -enable-emscripten-cxx-exceptions'
+    for (const Arg *A : DriverArgs.filtered(options::OPT_mllvm)) {
+      if (StringRef(A->getValue(0)) == "-enable-emscripten-cxx-exceptions")
+        getDriver().Diag(diag::err_drv_argument_not_allowed_with)
+            << "-fwasm-exceptions"
+            << "-mllvm -enable-emscripten-cxx-exceptions";
+    }
+    // '-fwasm-exceptions' implies exception-handling and reference-types
+    CC1Args.push_back("-target-feature");
+    CC1Args.push_back("+exception-handling");
+    CC1Args.push_back("-target-feature");
+    CC1Args.push_back("+reference-types");
   }
 }
 
@@ -206,7 +310,7 @@ void WebAssembly::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
     CIncludeDirs.split(dirs, ":");
     for (StringRef dir : dirs) {
       StringRef Prefix =
-          llvm::sys::path::is_absolute(dir) ? StringRef(D.SysRoot) : "";
+          llvm::sys::path::is_absolute(dir) ? "" : StringRef(D.SysRoot);
       addExternCSystemInclude(DriverArgs, CC1Args, Prefix + dir);
     }
     return;

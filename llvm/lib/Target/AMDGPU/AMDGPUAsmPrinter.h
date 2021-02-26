@@ -43,6 +43,7 @@ private:
     // Track the number of explicitly used VGPRs. Special registers reserved at
     // the end are tracked separately.
     int32_t NumVGPR = 0;
+    int32_t NumAGPR = 0;
     int32_t NumExplicitSGPR = 0;
     uint64_t PrivateSegmentSize = 0;
     bool UsesVCC = false;
@@ -51,6 +52,7 @@ private:
     bool HasRecursion = false;
 
     int32_t getTotalNumSGPRs(const GCNSubtarget &ST) const;
+    int32_t getTotalNumVGPRs(const GCNSubtarget &ST) const;
   };
 
   SIProgramInfo CurrentProgramInfo;
@@ -77,6 +79,8 @@ private:
   void EmitPALMetadata(const MachineFunction &MF,
                        const SIProgramInfo &KernelInfo);
   void emitCommonFunctionComments(uint32_t NumVGPR,
+                                  Optional<uint32_t> NumAGPR,
+                                  uint32_t TotalNumVGPR,
                                   uint32_t NumSGPR,
                                   uint64_t ScratchSize,
                                   uint64_t CodeSize,
@@ -117,21 +121,21 @@ public:
                                    const MachineInstr *MI);
 
   /// Implemented in AMDGPUMCInstLower.cpp
-  void EmitInstruction(const MachineInstr *MI) override;
+  void emitInstruction(const MachineInstr *MI) override;
 
-  void EmitFunctionBodyStart() override;
+  void emitFunctionBodyStart() override;
 
-  void EmitFunctionBodyEnd() override;
+  void emitFunctionBodyEnd() override;
 
-  void EmitFunctionEntryLabel() override;
+  void emitFunctionEntryLabel() override;
 
-  void EmitBasicBlockStart(const MachineBasicBlock &MBB) const override;
+  void emitBasicBlockStart(const MachineBasicBlock &MBB) override;
 
-  void EmitGlobalVariable(const GlobalVariable *GV) override;
+  void emitGlobalVariable(const GlobalVariable *GV) override;
 
-  void EmitStartOfAsmFile(Module &M) override;
+  void emitStartOfAsmFile(Module &M) override;
 
-  void EmitEndOfAsmFile(Module &M) override;
+  void emitEndOfAsmFile(Module &M) override;
 
   bool isBlockOnlyReachableByFallthrough(
     const MachineBasicBlock *MBB) const override;
@@ -140,8 +144,8 @@ public:
                        const char *ExtraCode, raw_ostream &O) override;
 
 protected:
-  mutable std::vector<std::string> DisasmLines, HexLines;
-  mutable size_t DisasmLineMaxLen;
+  std::vector<std::string> DisasmLines, HexLines;
+  size_t DisasmLineMaxLen;
 };
 
 } // end namespace llvm

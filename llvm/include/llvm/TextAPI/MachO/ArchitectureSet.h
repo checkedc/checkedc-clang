@@ -13,14 +13,17 @@
 #ifndef LLVM_TEXTAPI_MACHO_ARCHITECTURE_SET_H
 #define LLVM_TEXTAPI_MACHO_ARCHITECTURE_SET_H
 
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/TextAPI/MachO/Architecture.h"
 #include <cstddef>
 #include <iterator>
 #include <limits>
+#include <string>
+#include <tuple>
 #include <vector>
 
 namespace llvm {
+class raw_ostream;
+
 namespace MachO {
 
 class ArchitectureSet {
@@ -58,6 +61,10 @@ public:
   bool empty() const { return ArchSet == 0; }
 
   ArchSetType rawValue() const { return ArchSet; }
+
+  bool hasX86() const {
+    return has(AK_i386) || has(AK_x86_64) || has(AK_x86_64h);
+  }
 
   template <typename Ty>
   class arch_iterator

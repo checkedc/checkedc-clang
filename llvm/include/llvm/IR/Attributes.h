@@ -17,11 +17,11 @@
 
 #include "llvm-c/Types.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Config/llvm-config.h"
+#include "llvm/Support/Alignment.h"
 #include "llvm/Support/PointerLikeTypeTraits.h"
 #include <bitset>
 #include <cassert>
@@ -37,6 +37,7 @@ class AttributeImpl;
 class AttributeListImpl;
 class AttributeSetNode;
 template<typename T> struct DenseMapInfo;
+class FoldingSetNodeID;
 class Function;
 class LLVMContext;
 class Type;
@@ -69,9 +70,12 @@ public:
   enum AttrKind {
     // IR-Level Attributes
     None,                  ///< No attributes have been set
-    #define GET_ATTR_ENUM
+    #define GET_ATTR_NAMES
+    #define ATTRIBUTE_ENUM(ENUM_NAME, OTHER) ENUM_NAME,
     #include "llvm/IR/Attributes.inc"
-    EndAttrKinds           ///< Sentinal value useful for loops
+    EndAttrKinds,          ///< Sentinal value useful for loops
+    EmptyKey,              ///< Use as Empty key for DenseMap of AttrKind
+    TombstoneKey,          ///< Use as Tombstone key for DenseMap of AttrKind
   };
 
 private:
@@ -94,8 +98,8 @@ public:
 
   /// Return a uniquified Attribute object that has the specific
   /// alignment set.
-  static Attribute getWithAlignment(LLVMContext &Context, uint64_t Align);
-  static Attribute getWithStackAlignment(LLVMContext &Context, uint64_t Align);
+  static Attribute getWithAlignment(LLVMContext &Context, Align Alignment);
+  static Attribute getWithStackAlignment(LLVMContext &Context, Align Alignment);
   static Attribute getWithDereferenceableBytes(LLVMContext &Context,
                                               uint64_t Bytes);
   static Attribute getWithDereferenceableOrNullBytes(LLVMContext &Context,
@@ -104,6 +108,18 @@ public:
                                         unsigned ElemSizeArg,
                                         const Optional<unsigned> &NumElemsArg);
   static Attribute getWithByValType(LLVMContext &Context, Type *Ty);
+  static Attribute getWithPreallocatedType(LLVMContext &Context, Type *Ty);
+
+  static Attribute::AttrKind getAttrKindFromName(StringRef AttrName);
+
+  static StringRef getNameFromAttrKind(Attribute::AttrKind AttrKind);
+
+  /// Return true if and only if the attribute has an Argument.
+  static bool doesAttrKindHaveArgument(Attribute::AttrKind AttrKind);
+
+  /// Return true if the provided string matches the IR name of an attribute.
+  /// example: "noalias" return true but not "NoAlias"
+  static bool isExistingAttribute(StringRef Name);
 
   //===--------------------------------------------------------------------===//
   // Attribute Accessors
@@ -150,11 +166,11 @@ public:
 
   /// Returns the alignment field of an attribute as a byte alignment
   /// value.
-  unsigned getAlignment() const;
+  MaybeAlign getAlignment() const;
 
   /// Returns the stack alignment field of an attribute as a byte
   /// alignment value.
-  unsigned getStackAlignment() const;
+  MaybeAlign getStackAlignment() const;
 
   /// Returns the number of dereferenceable bytes from the
   /// dereferenceable attribute.
@@ -179,9 +195,7 @@ public:
   /// Less-than operator. Useful for sorting the attributes list.
   bool operator<(Attribute A) const;
 
-  void Profile(FoldingSetNodeID &ID) const {
-    ID.AddPointer(pImpl);
-  }
+  void Profile(FoldingSetNodeID &ID) const;
 
   /// Return a raw pointer that uniquely identifies this attribute.
   void *getRawPointer() const {
@@ -284,11 +298,12 @@ public:
   /// Return the target-dependent attribute object.
   Attribute getAttribute(StringRef Kind) const;
 
-  unsigned getAlignment() const;
-  unsigned getStackAlignment() const;
+  MaybeAlign getAlignment() const;
+  MaybeAlign getStackAlignment() const;
   uint64_t getDereferenceableBytes() const;
   uint64_t getDereferenceableOrNullBytes() const;
   Type *getByValType() const;
+  Type *getPreallocatedType() const;
   std::pair<unsigned, Optional<unsigned>> getAllocSizeArgs() const;
   std::string getAsString(bool InAttrGrp = false) const;
 
@@ -381,6 +396,9 @@ public:
   static AttributeList get(LLVMContext &C, ArrayRef<AttributeList> Attrs);
   static AttributeList get(LLVMContext &C, unsigned Index,
                            ArrayRef<Attribute::AttrKind> Kinds);
+  static AttributeList get(LLVMContext &C, unsigned Index,
+                           ArrayRef<Attribute::AttrKind> Kinds,
+                           ArrayRef<uint64_t> Values);
   static AttributeList get(LLVMContext &C, unsigned Index,
                            ArrayRef<StringRef> Kind);
   static AttributeList get(LLVMContext &C, unsigned Index,
@@ -529,9 +547,6 @@ public:
   // AttributeList Accessors
   //===--------------------------------------------------------------------===//
 
-  /// Retrieve the LLVM context.
-  LLVMContext &getContext() const;
-
   /// The attributes for the specified index are returned.
   AttributeSet getAttributes(unsigned Index) const;
 
@@ -603,16 +618,19 @@ public:
   }
 
   /// Return the alignment of the return value.
-  unsigned getRetAlignment() const;
+  MaybeAlign getRetAlignment() const;
 
   /// Return the alignment for the specified function parameter.
-  unsigned getParamAlignment(unsigned ArgNo) const;
+  MaybeAlign getParamAlignment(unsigned ArgNo) const;
 
   /// Return the byval type for the specified function parameter.
   Type *getParamByValType(unsigned ArgNo) const;
 
+  /// Return the preallocated type for the specified function parameter.
+  Type *getParamPreallocatedType(unsigned ArgNo) const;
+
   /// Get the stack alignment.
-  unsigned getStackAlignment(unsigned Index) const;
+  MaybeAlign getStackAlignment(unsigned Index) const;
 
   /// Get the number of dereferenceable bytes (or zero if unknown).
   uint64_t getDereferenceableBytes(unsigned Index) const;
@@ -704,13 +722,14 @@ template <> struct DenseMapInfo<AttributeList> {
 /// equality, presence of attributes, etc.
 class AttrBuilder {
   std::bitset<Attribute::EndAttrKinds> Attrs;
-  std::map<std::string, std::string> TargetDepAttrs;
-  uint64_t Alignment = 0;
-  uint64_t StackAlignment = 0;
+  std::map<std::string, std::string, std::less<>> TargetDepAttrs;
+  MaybeAlign Alignment;
+  MaybeAlign StackAlignment;
   uint64_t DerefBytes = 0;
   uint64_t DerefOrNullBytes = 0;
   uint64_t AllocSizeArgs = 0;
   Type *ByValType = nullptr;
+  Type *PreallocatedType = nullptr;
 
 public:
   AttrBuilder() = default;
@@ -773,10 +792,10 @@ public:
   bool hasAlignmentAttr() const;
 
   /// Retrieve the alignment attribute, if it exists.
-  uint64_t getAlignment() const { return Alignment; }
+  MaybeAlign getAlignment() const { return Alignment; }
 
   /// Retrieve the stack alignment attribute, if it exists.
-  uint64_t getStackAlignment() const { return StackAlignment; }
+  MaybeAlign getStackAlignment() const { return StackAlignment; }
 
   /// Retrieve the number of dereferenceable bytes, if the
   /// dereferenceable attribute exists (zero is returned otherwise).
@@ -789,17 +808,36 @@ public:
   /// Retrieve the byval type.
   Type *getByValType() const { return ByValType; }
 
+  /// Retrieve the preallocated type.
+  Type *getPreallocatedType() const { return PreallocatedType; }
+
   /// Retrieve the allocsize args, if the allocsize attribute exists.  If it
   /// doesn't exist, pair(0, 0) is returned.
   std::pair<unsigned, Optional<unsigned>> getAllocSizeArgs() const;
 
+  /// This turns an alignment into the form used internally in Attribute.
+  /// This call has no effect if Align is not set.
+  AttrBuilder &addAlignmentAttr(MaybeAlign Align);
+
   /// This turns an int alignment (which must be a power of 2) into the
   /// form used internally in Attribute.
-  AttrBuilder &addAlignmentAttr(unsigned Align);
+  /// This call has no effect if Align is 0.
+  /// Deprecated, use the version using a MaybeAlign.
+  inline AttrBuilder &addAlignmentAttr(unsigned Align) {
+    return addAlignmentAttr(MaybeAlign(Align));
+  }
+
+  /// This turns a stack alignment into the form used internally in Attribute.
+  /// This call has no effect if Align is not set.
+  AttrBuilder &addStackAlignmentAttr(MaybeAlign Align);
 
   /// This turns an int stack alignment (which must be a power of 2) into
   /// the form used internally in Attribute.
-  AttrBuilder &addStackAlignmentAttr(unsigned Align);
+  /// This call has no effect if Align is 0.
+  /// Deprecated, use the version using a MaybeAlign.
+  inline AttrBuilder &addStackAlignmentAttr(unsigned Align) {
+    return addStackAlignmentAttr(MaybeAlign(Align));
+  }
 
   /// This turns the number of dereferenceable bytes into the form used
   /// internally in Attribute.
@@ -816,6 +854,9 @@ public:
   /// This turns a byval type into the form used internally in Attribute.
   AttrBuilder &addByValAttr(Type *Ty);
 
+  /// This turns a preallocated type into the form used internally in Attribute.
+  AttrBuilder &addPreallocatedAttr(Type *Ty);
+
   /// Add an allocsize attribute, using the representation returned by
   /// Attribute.getIntValue().
   AttrBuilder &addAllocSizeAttrFromRawRepr(uint64_t RawAllocSizeRepr);
@@ -826,8 +867,8 @@ public:
 
   // Iterators for target-dependent attributes.
   using td_type = std::pair<std::string, std::string>;
-  using td_iterator = std::map<std::string, std::string>::iterator;
-  using td_const_iterator = std::map<std::string, std::string>::const_iterator;
+  using td_iterator = decltype(TargetDepAttrs)::iterator;
+  using td_const_iterator = decltype(TargetDepAttrs)::const_iterator;
   using td_range = iterator_range<td_iterator>;
   using td_const_range = iterator_range<td_const_iterator>;
 

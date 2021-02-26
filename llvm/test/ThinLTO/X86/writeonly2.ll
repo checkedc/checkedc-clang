@@ -19,8 +19,8 @@
 ; with corresponsing stores
 ; RUN: llvm-dis %t3.2.5.precodegen.bc -o - | FileCheck %s --check-prefix=CODEGEN-SRC
 
-; IMPORT:       @gFoo.llvm.0 = internal unnamed_addr global i32 1, align 4
-; IMPORT-NEXT:  @gBar = internal local_unnamed_addr global i32 2, align 4
+; IMPORT:       @gFoo.llvm.0 = internal unnamed_addr global i32 0, align 4
+; IMPORT-NEXT:  @gBar = internal local_unnamed_addr global i32 0, align 4
 ; IMPORT:       !DICompileUnit({{.*}})
 
 ; CODEGEN-NOT:  gFoo
@@ -37,7 +37,7 @@
 ; CODEGEN-SRC-NEXT:    %2 = tail call i32 @rand()
 ; CODEGEN-SRC-NEXT:    ret void
 
-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
 ; We should be able to link external definition of gBar to its declaration

@@ -1,4 +1,4 @@
-//===-- FileSystem.cpp ------------------------------------------*- C++ -*-===//
+//===-- FileSystem.cpp ----------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -49,7 +49,7 @@ void FileSystem::Initialize() {
   InstanceImpl().emplace();
 }
 
-void FileSystem::Initialize(FileCollector &collector) {
+void FileSystem::Initialize(std::shared_ptr<FileCollector> collector) {
   lldbassert(!InstanceImpl() && "Already initialized.");
   InstanceImpl().emplace(collector);
 }
@@ -87,6 +87,11 @@ Optional<FileSystem> &FileSystem::InstanceImpl() {
 
 vfs::directory_iterator FileSystem::DirBegin(const FileSpec &file_spec,
                                              std::error_code &ec) {
+  if (!file_spec) {
+    ec = std::error_code(static_cast<int>(errc::no_such_file_or_directory),
+                         std::system_category());
+    return {};
+  }
   return DirBegin(file_spec.GetPath(), ec);
 }
 
@@ -97,6 +102,9 @@ vfs::directory_iterator FileSystem::DirBegin(const Twine &dir,
 
 llvm::ErrorOr<vfs::Status>
 FileSystem::GetStatus(const FileSpec &file_spec) const {
+  if (!file_spec)
+    return std::error_code(static_cast<int>(errc::no_such_file_or_directory),
+                           std::system_category());
   return GetStatus(file_spec.GetPath());
 }
 
@@ -106,6 +114,8 @@ llvm::ErrorOr<vfs::Status> FileSystem::GetStatus(const Twine &path) const {
 
 sys::TimePoint<>
 FileSystem::GetModificationTime(const FileSpec &file_spec) const {
+  if (!file_spec)
+    return sys::TimePoint<>();
   return GetModificationTime(file_spec.GetPath());
 }
 
@@ -117,6 +127,8 @@ sys::TimePoint<> FileSystem::GetModificationTime(const Twine &path) const {
 }
 
 uint64_t FileSystem::GetByteSize(const FileSpec &file_spec) const {
+  if (!file_spec)
+    return 0;
   return GetByteSize(file_spec.GetPath());
 }
 
@@ -133,6 +145,8 @@ uint32_t FileSystem::GetPermissions(const FileSpec &file_spec) const {
 
 uint32_t FileSystem::GetPermissions(const FileSpec &file_spec,
                                     std::error_code &ec) const {
+  if (!file_spec)
+    return sys::fs::perms::perms_not_known;
   return GetPermissions(file_spec.GetPath(), ec);
 }
 
@@ -154,7 +168,7 @@ uint32_t FileSystem::GetPermissions(const Twine &path,
 bool FileSystem::Exists(const Twine &path) const { return m_fs->exists(path); }
 
 bool FileSystem::Exists(const FileSpec &file_spec) const {
-  return Exists(file_spec.GetPath());
+  return file_spec && Exists(file_spec.GetPath());
 }
 
 bool FileSystem::Readable(const Twine &path) const {
@@ -162,7 +176,7 @@ bool FileSystem::Readable(const Twine &path) const {
 }
 
 bool FileSystem::Readable(const FileSpec &file_spec) const {
-  return Readable(file_spec.GetPath());
+  return file_spec && Readable(file_spec.GetPath());
 }
 
 bool FileSystem::IsDirectory(const Twine &path) const {
@@ -173,7 +187,7 @@ bool FileSystem::IsDirectory(const Twine &path) const {
 }
 
 bool FileSystem::IsDirectory(const FileSpec &file_spec) const {
-  return IsDirectory(file_spec.GetPath());
+  return file_spec && IsDirectory(file_spec.GetPath());
 }
 
 bool FileSystem::IsLocal(const Twine &path) const {
@@ -183,7 +197,7 @@ bool FileSystem::IsLocal(const Twine &path) const {
 }
 
 bool FileSystem::IsLocal(const FileSpec &file_spec) const {
-  return IsLocal(file_spec.GetPath());
+  return file_spec && IsLocal(file_spec.GetPath());
 }
 
 void FileSystem::EnumerateDirectory(Twine path, bool find_directories,
@@ -261,6 +275,9 @@ void FileSystem::Resolve(SmallVectorImpl<char> &path) {
 }
 
 void FileSystem::Resolve(FileSpec &file_spec) {
+  if (!file_spec)
+    return;
+
   // Extract path from the FileSpec.
   SmallString<128> path;
   file_spec.GetPath(path);
@@ -279,8 +296,7 @@ void FileSystem::Resolve(FileSpec &file_spec) {
 std::shared_ptr<DataBufferLLVM>
 FileSystem::CreateDataBuffer(const llvm::Twine &path, uint64_t size,
                              uint64_t offset) {
-  if (m_collector)
-    m_collector->AddFile(path);
+  Collect(path);
 
   const bool is_volatile = !IsLocal(path);
   const ErrorOr<std::string> external_path = GetExternalPath(path);
@@ -415,13 +431,10 @@ static mode_t GetOpenMode(uint32_t permissions) {
   return mode;
 }
 
-Status FileSystem::Open(File &File, const FileSpec &file_spec, uint32_t options,
-                        uint32_t permissions, bool should_close_fd) {
-  if (m_collector)
-    m_collector->AddFile(file_spec);
-
-  if (File.IsValid())
-    File.Close();
+Expected<FileUP> FileSystem::Open(const FileSpec &file_spec,
+                                  File::OpenOptions options,
+                                  uint32_t permissions, bool should_close_fd) {
+  Collect(file_spec.GetPath());
 
   const int open_flags = GetOpenFlags(options);
   const mode_t open_mode =
@@ -429,20 +442,19 @@ Status FileSystem::Open(File &File, const FileSpec &file_spec, uint32_t options,
 
   auto path = GetExternalPath(file_spec);
   if (!path)
-    return Status(path.getError());
+    return errorCodeToError(path.getError());
 
   int descriptor = llvm::sys::RetryAfterSignal(
       -1, OpenWithFS, *this, path->c_str(), open_flags, open_mode);
 
-  Status error;
-  if (!File::DescriptorIsValid(descriptor)) {
-    File.SetDescriptor(descriptor, false);
-    error.SetErrorToErrno();
-  } else {
-    File.SetDescriptor(descriptor, should_close_fd);
-    File.SetOptions(options);
-  }
-  return error;
+  if (!File::DescriptorIsValid(descriptor))
+    return llvm::errorCodeToError(
+        std::error_code(errno, std::system_category()));
+
+  auto file = std::unique_ptr<File>(
+      new NativeFile(descriptor, options, should_close_fd));
+  assert(file->IsValid());
+  return std::move(file);
 }
 
 ErrorOr<std::string> FileSystem::GetExternalPath(const llvm::Twine &path) {
@@ -468,4 +480,18 @@ ErrorOr<std::string> FileSystem::GetExternalPath(const llvm::Twine &path) {
 
 ErrorOr<std::string> FileSystem::GetExternalPath(const FileSpec &file_spec) {
   return GetExternalPath(file_spec.GetPath());
+}
+
+void FileSystem::Collect(const FileSpec &file_spec) {
+  Collect(file_spec.GetPath());
+}
+
+void FileSystem::Collect(const llvm::Twine &file) {
+  if (!m_collector)
+    return;
+
+  if (llvm::sys::fs::is_directory(file))
+    m_collector->addDirectory(file);
+  else
+    m_collector->addFile(file);
 }

@@ -21,6 +21,7 @@ module asm "classical GAS"
 @protected = protected global i32 23
 @section = global i32 27, section ".custom"
 @align = global i32 31, align 4
+@nullptr = global i32* null
 
 @aliased1 = alias i32, i32* @var
 @aliased2 = internal alias i32, i32* @var
@@ -47,18 +48,18 @@ declare void @decl()
 
 ; TODO: label and metadata types
 define void @types() {
-  %1 = alloca half
-  %2 = alloca float
-  %3 = alloca double
-  %4 = alloca x86_fp80
-  %5 = alloca fp128
-  %6 = alloca ppc_fp128
-  %7 = alloca i7
-  %8 = alloca void (i1)*
-  %9 = alloca [3 x i22]
-  %10 = alloca i328 addrspace(5)*
-  %11 = alloca <5 x i23*>
-  %12 = alloca x86_mmx
+  %1 = alloca half, align 2
+  %2 = alloca float, align 4
+  %3 = alloca double, align 8
+  %4 = alloca x86_fp80, align 16
+  %5 = alloca fp128, align 16
+  %6 = alloca ppc_fp128, align 16
+  %7 = alloca i7, align 1
+  %8 = alloca void (i1)*, align 8
+  %9 = alloca [3 x i22], align 4
+  %10 = alloca i328 addrspace(5)*, align 8
+  %11 = alloca <5 x i23*>, align 64
+  %12 = alloca x86_mmx, align 8
   ret void
 }
 
@@ -138,6 +139,23 @@ done:
   ret i32 %p
 }
 
+define void @memops(i8* %ptr) {
+  %a = load i8, i8* %ptr
+  %b = load volatile i8, i8* %ptr
+  %c = load i8, i8* %ptr, align 8
+  %d = load atomic i8, i8* %ptr acquire, align 32
+  store i8 0, i8* %ptr
+  store volatile i8 0, i8* %ptr
+  store i8 0, i8* %ptr, align 8
+  store atomic i8 0, i8* %ptr release, align 32
+  %e = atomicrmw add i8* %ptr, i8 0 monotonic
+  %f = atomicrmw volatile xchg i8* %ptr, i8 0 acq_rel
+  %g = cmpxchg i8* %ptr, i8 1, i8 2 seq_cst acquire
+  %h = cmpxchg weak i8* %ptr, i8 1, i8 2 seq_cst acquire
+  %i = cmpxchg volatile i8* %ptr, i8 1, i8 2 monotonic monotonic
+  ret void
+}
+
 declare void @personalityFn()
 
 define void @exn() personality void ()* @personalityFn {
@@ -185,7 +203,7 @@ declare void @llvm.lifetime.end.p0i8(i64, i8*)
 define void @test_intrinsics() {
 entry:
   %sp = call i8* @llvm.stacksave()
-  %x = alloca i32
+  %x = alloca i32, align 4
   %0 = bitcast i32* %x to i8*
   call void @llvm.lifetime.start.p0i8(i64 4, i8* %0)
   call void @llvm.lifetime.end.p0i8(i64 4, i8* %0)

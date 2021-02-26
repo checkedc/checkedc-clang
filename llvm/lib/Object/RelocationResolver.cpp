@@ -30,6 +30,7 @@ static bool supportsX86_64(uint64_t Type) {
   case ELF::R_X86_64_DTPOFF32:
   case ELF::R_X86_64_DTPOFF64:
   case ELF::R_X86_64_PC32:
+  case ELF::R_X86_64_PC64:
   case ELF::R_X86_64_32:
   case ELF::R_X86_64_32S:
     return true;
@@ -47,6 +48,7 @@ static uint64_t resolveX86_64(RelocationRef R, uint64_t S, uint64_t A) {
   case ELF::R_X86_64_DTPOFF64:
     return S + getELFAddend(R);
   case ELF::R_X86_64_PC32:
+  case ELF::R_X86_64_PC64:
     return S + getELFAddend(R) - R.getOffset();
   case ELF::R_X86_64_32:
   case ELF::R_X86_64_32S:
@@ -90,9 +92,9 @@ static bool supportsBPF(uint64_t Type) {
 static uint64_t resolveBPF(RelocationRef R, uint64_t S, uint64_t A) {
   switch (R.getType()) {
   case ELF::R_BPF_64_32:
-    return S & 0xFFFFFFFF;
+    return (S + A) & 0xFFFFFFFF;
   case ELF::R_BPF_64_64:
-    return S;
+    return S + A;
   default:
     llvm_unreachable("Invalid relocation type");
   }
@@ -103,6 +105,7 @@ static bool supportsMips64(uint64_t Type) {
   case ELF::R_MIPS_32:
   case ELF::R_MIPS_64:
   case ELF::R_MIPS_TLS_DTPREL64:
+  case ELF::R_MIPS_PC32:
     return true;
   default:
     return false;
@@ -117,6 +120,29 @@ static uint64_t resolveMips64(RelocationRef R, uint64_t S, uint64_t A) {
     return S + getELFAddend(R);
   case ELF::R_MIPS_TLS_DTPREL64:
     return S + getELFAddend(R) - 0x8000;
+  case ELF::R_MIPS_PC32:
+    return S + getELFAddend(R) - R.getOffset();
+  default:
+    llvm_unreachable("Invalid relocation type");
+  }
+}
+
+static bool supportsMSP430(uint64_t Type) {
+  switch (Type) {
+  case ELF::R_MSP430_32:
+  case ELF::R_MSP430_16_BYTE:
+    return true;
+  default:
+    return false;
+  }
+}
+
+static uint64_t resolveMSP430(RelocationRef R, uint64_t S, uint64_t A) {
+  switch (R.getType()) {
+  case ELF::R_MSP430_32:
+    return (S + getELFAddend(R)) & 0xFFFFFFFF;
+  case ELF::R_MSP430_16_BYTE:
+    return (S + getELFAddend(R)) & 0xFFFF;
   default:
     llvm_unreachable("Invalid relocation type");
   }
@@ -334,7 +360,10 @@ static bool supportsRISCV(uint64_t Type) {
   switch (Type) {
   case ELF::R_RISCV_NONE:
   case ELF::R_RISCV_32:
+  case ELF::R_RISCV_32_PCREL:
   case ELF::R_RISCV_64:
+  case ELF::R_RISCV_SET6:
+  case ELF::R_RISCV_SUB6:
   case ELF::R_RISCV_ADD8:
   case ELF::R_RISCV_SUB8:
   case ELF::R_RISCV_ADD16:
@@ -356,8 +385,14 @@ static uint64_t resolveRISCV(RelocationRef R, uint64_t S, uint64_t A) {
     return A;
   case ELF::R_RISCV_32:
     return (S + RA) & 0xFFFFFFFF;
+  case ELF::R_RISCV_32_PCREL:
+    return (S + RA - R.getOffset()) & 0xFFFFFFFF;
   case ELF::R_RISCV_64:
     return S + RA;
+  case ELF::R_RISCV_SET6:
+    return (A & 0xC0) | ((S + RA) & 0x3F);
+  case ELF::R_RISCV_SUB6:
+    return (A & 0xC0) | (((A & 0x3F) - (S + RA)) & 0x3F);
   case ELF::R_RISCV_ADD8:
     return (A + (S + RA)) & 0xFF;
   case ELF::R_RISCV_SUB8:
@@ -420,6 +455,47 @@ static uint64_t resolveCOFFX86_64(RelocationRef R, uint64_t S, uint64_t A) {
   }
 }
 
+static bool supportsCOFFARM(uint64_t Type) {
+  switch (Type) {
+  case COFF::IMAGE_REL_ARM_SECREL:
+  case COFF::IMAGE_REL_ARM_ADDR32:
+    return true;
+  default:
+    return false;
+  }
+}
+
+static uint64_t resolveCOFFARM(RelocationRef R, uint64_t S, uint64_t A) {
+  switch (R.getType()) {
+  case COFF::IMAGE_REL_ARM_SECREL:
+  case COFF::IMAGE_REL_ARM_ADDR32:
+    return (S + A) & 0xFFFFFFFF;
+  default:
+    llvm_unreachable("Invalid relocation type");
+  }
+}
+
+static bool supportsCOFFARM64(uint64_t Type) {
+  switch (Type) {
+  case COFF::IMAGE_REL_ARM64_SECREL:
+  case COFF::IMAGE_REL_ARM64_ADDR64:
+    return true;
+  default:
+    return false;
+  }
+}
+
+static uint64_t resolveCOFFARM64(RelocationRef R, uint64_t S, uint64_t A) {
+  switch (R.getType()) {
+  case COFF::IMAGE_REL_ARM64_SECREL:
+    return (S + A) & 0xFFFFFFFF;
+  case COFF::IMAGE_REL_ARM64_ADDR64:
+    return S + A;
+  default:
+    llvm_unreachable("Invalid relocation type");
+  }
+}
+
 static bool supportsMachOX86_64(uint64_t Type) {
   return Type == MachO::X86_64_RELOC_UNSIGNED;
 }
@@ -443,9 +519,21 @@ static bool supportsWasm32(uint64_t Type) {
   case wasm::R_WASM_FUNCTION_OFFSET_I32:
   case wasm::R_WASM_SECTION_OFFSET_I32:
   case wasm::R_WASM_EVENT_INDEX_LEB:
+  case wasm::R_WASM_GLOBAL_INDEX_I32:
     return true;
   default:
     return false;
+  }
+}
+
+static bool supportsWasm64(uint64_t Type) {
+  switch (Type) {
+  case wasm::R_WASM_MEMORY_ADDR_LEB64:
+  case wasm::R_WASM_MEMORY_ADDR_SLEB64:
+  case wasm::R_WASM_MEMORY_ADDR_I64:
+    return true;
+  default:
+    return supportsWasm32(Type);
   }
 }
 
@@ -462,6 +550,7 @@ static uint64_t resolveWasm32(RelocationRef R, uint64_t S, uint64_t A) {
   case wasm::R_WASM_FUNCTION_OFFSET_I32:
   case wasm::R_WASM_SECTION_OFFSET_I32:
   case wasm::R_WASM_EVENT_INDEX_LEB:
+  case wasm::R_WASM_GLOBAL_INDEX_I32:
     // For wasm section, its offset at 0 -- ignoring Value
     return A;
   default:
@@ -469,12 +558,34 @@ static uint64_t resolveWasm32(RelocationRef R, uint64_t S, uint64_t A) {
   }
 }
 
+static uint64_t resolveWasm64(RelocationRef R, uint64_t S, uint64_t A) {
+  switch (R.getType()) {
+  case wasm::R_WASM_MEMORY_ADDR_LEB64:
+  case wasm::R_WASM_MEMORY_ADDR_SLEB64:
+  case wasm::R_WASM_MEMORY_ADDR_I64:
+    // For wasm section, its offset at 0 -- ignoring Value
+    return A;
+  default:
+    return resolveWasm32(R, S, A);
+  }
+}
+
 std::pair<bool (*)(uint64_t), RelocationResolver>
 getRelocationResolver(const ObjectFile &Obj) {
   if (Obj.isCOFF()) {
-    if (Obj.getBytesInAddress() == 8)
+    switch (Obj.getArch()) {
+    case Triple::x86_64:
       return {supportsCOFFX86_64, resolveCOFFX86_64};
-    return {supportsCOFFX86, resolveCOFFX86};
+    case Triple::x86:
+      return {supportsCOFFX86, resolveCOFFX86};
+    case Triple::arm:
+    case Triple::thumb:
+      return {supportsCOFFARM, resolveCOFFARM};
+    case Triple::aarch64:
+      return {supportsCOFFARM64, resolveCOFFARM64};
+    default:
+      return {nullptr, nullptr};
+    }
   } else if (Obj.isELF()) {
     if (Obj.getBytesInAddress() == 8) {
       switch (Obj.getArch()) {
@@ -524,6 +635,8 @@ getRelocationResolver(const ObjectFile &Obj) {
     case Triple::mipsel:
     case Triple::mips:
       return {supportsMips32, resolveMips32};
+    case Triple::msp430:
+      return {supportsMSP430, resolveMSP430};
     case Triple::sparc:
       return {supportsSparc32, resolveSparc32};
     case Triple::hexagon:
@@ -540,6 +653,8 @@ getRelocationResolver(const ObjectFile &Obj) {
   } else if (Obj.isWasm()) {
     if (Obj.getArch() == Triple::wasm32)
       return {supportsWasm32, resolveWasm32};
+    if (Obj.getArch() == Triple::wasm64)
+      return {supportsWasm64, resolveWasm64};
     return {nullptr, nullptr};
   }
 

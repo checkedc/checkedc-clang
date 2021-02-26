@@ -21,17 +21,18 @@ import sys
 # Our imports
 import lldbsuite.test.lldbtest as lldbtest
 import lldbsuite.test.lldbutil as lldbutil
+from lldbsuite.test import configuration
 from lldbsuite.test_event import build_exception
 
 
 def getArchitecture():
     """Returns the architecture in effect the test suite is running with."""
-    return os.environ["ARCH"] if "ARCH" in os.environ else ""
+    return configuration.arch if configuration.arch else ""
 
 
 def getCompiler():
     """Returns the compiler in effect the test suite is running with."""
-    compiler = os.environ.get("CC", "clang")
+    compiler = configuration.compiler if configuration.compiler else "clang"
     compiler = lldbutil.which(compiler)
     return os.path.realpath(compiler)
 
@@ -61,12 +62,12 @@ def getMake(test_subdir, test_name):
 
     # Construct the base make invocation.
     lldb_test = os.environ["LLDB_TEST"]
-    lldb_build = os.environ["LLDB_BUILD"]
-    if not (lldb_test and lldb_build and test_subdir and test_name and
-            (not os.path.isabs(test_subdir))):
+    lldb_test_src = os.environ["LLDB_TEST_SRC"]
+    if not (lldb_test and lldb_test_src and configuration.test_build_dir and test_subdir and
+            test_name and (not os.path.isabs(test_subdir))):
         raise Exception("Could not derive test directories")
-    build_dir = os.path.join(lldb_build, test_subdir, test_name)
-    src_dir = os.path.join(lldb_test, test_subdir)
+    build_dir = os.path.join(configuration.test_build_dir, test_subdir, test_name)
+    src_dir = os.path.join(lldb_test_src, test_subdir)
     # This is a bit of a hack to make inline testcases work.
     makefile = os.path.join(src_dir, "Makefile")
     if not os.path.isfile(makefile):
@@ -75,6 +76,7 @@ def getMake(test_subdir, test_name):
             "VPATH="+src_dir,
             "-C", build_dir,
             "-I", src_dir,
+            "-I", os.path.join(lldb_test, "make"),
             "-f", makefile]
 
 
@@ -84,8 +86,8 @@ def getArchSpec(architecture):
     used for the make system.
     """
     arch = architecture if architecture else None
-    if not arch and "ARCH" in os.environ:
-        arch = os.environ["ARCH"]
+    if not arch and configuration.arch:
+        arch = configuration.arch
 
     return ("ARCH=" + arch) if arch else ""
 
@@ -96,13 +98,40 @@ def getCCSpec(compiler):
     used for the make system.
     """
     cc = compiler if compiler else None
-    if not cc and "CC" in os.environ:
-        cc = os.environ["CC"]
+    if not cc and configuration.compiler:
+        cc = configuration.compiler
     if cc:
         return "CC=\"%s\"" % cc
     else:
         return ""
 
+def getDsymutilSpec():
+    """
+    Helper function to return the key-value string to specify the dsymutil
+    used for the make system.
+    """
+    if configuration.dsymutil:
+        return "DSYMUTIL={}".format(configuration.dsymutil)
+    return ""
+
+def getSDKRootSpec():
+    """
+    Helper function to return the key-value string to specify the SDK root
+    used for the make system.
+    """
+    if configuration.sdkroot:
+        return "SDKROOT={}".format(configuration.sdkroot)
+    return ""
+
+def getModuleCacheSpec():
+    """
+    Helper function to return the key-value string to specify the clang
+    module cache used for the make system.
+    """
+    if configuration.clang_module_cache_dir:
+        return "CLANG_MODULE_CACHE_DIR={}".format(
+            configuration.clang_module_cache_dir)
+    return ""
 
 def getCmdLine(d):
     """
@@ -116,7 +145,7 @@ def getCmdLine(d):
     pattern = '%s="%s"' if "win32" in sys.platform else "%s='%s'"
 
     def setOrAppendVariable(k, v):
-        append_vars = ["CFLAGS_EXTRAS", "LD_EXTRAS"]
+        append_vars = ["CFLAGS", "CFLAGS_EXTRAS", "LD_EXTRAS"]
         if k in append_vars and k in os.environ:
             v = os.environ[k] + " " + v
         return pattern % (k, v)
@@ -144,8 +173,14 @@ def buildDefault(
         testname=None):
     """Build the binaries the default way."""
     commands = []
-    commands.append(getMake(testdir, testname) + ["all", getArchSpec(architecture),
-                     getCCSpec(compiler), getCmdLine(dictionary)])
+    commands.append(getMake(testdir, testname) +
+                    ["all",
+                     getArchSpec(architecture),
+                     getCCSpec(compiler),
+                     getDsymutilSpec(),
+                     getSDKRootSpec(),
+                     getModuleCacheSpec(),
+                     getCmdLine(dictionary)])
 
     runBuildCommands(commands, sender=sender)
 
@@ -163,8 +198,13 @@ def buildDwarf(
     """Build the binaries with dwarf debug info."""
     commands = []
     commands.append(getMake(testdir, testname) +
-                    ["MAKE_DSYM=NO", getArchSpec(architecture),
-                     getCCSpec(compiler), getCmdLine(dictionary)])
+                    ["MAKE_DSYM=NO",
+                     getArchSpec(architecture),
+                     getCCSpec(compiler),
+                     getDsymutilSpec(),
+                     getSDKRootSpec(),
+                     getModuleCacheSpec(),
+                     getCmdLine(dictionary)])
 
     runBuildCommands(commands, sender=sender)
     # True signifies that we can handle building dwarf.
@@ -181,9 +221,13 @@ def buildDwo(
     """Build the binaries with dwarf debug info."""
     commands = []
     commands.append(getMake(testdir, testname) +
-                    ["MAKE_DSYM=NO", "MAKE_DWO=YES",
+                    ["MAKE_DSYM=NO",
+                     "MAKE_DWO=YES",
                      getArchSpec(architecture),
                      getCCSpec(compiler),
+                     getDsymutilSpec(),
+                     getSDKRootSpec(),
+                     getModuleCacheSpec(),
                      getCmdLine(dictionary)])
 
     runBuildCommands(commands, sender=sender)
@@ -205,9 +249,12 @@ def buildGModules(
                      "MAKE_GMODULES=YES",
                      getArchSpec(architecture),
                      getCCSpec(compiler),
+                     getDsymutilSpec(),
+                     getSDKRootSpec(),
+                     getModuleCacheSpec(),
                      getCmdLine(dictionary)])
 
-    lldbtest.system(commands, sender=sender)
+    runBuildCommands(commands, sender=sender)
     # True signifies that we can handle building with gmodules.
     return True
 

@@ -82,7 +82,6 @@
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
-#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
@@ -101,10 +100,12 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 #include "llvm/IR/ValueHandle.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Utils/Local.h"
 #include <cassert>
 #include <cstdint>
 
@@ -170,7 +171,7 @@ bool NaryReassociateLegacyPass::runOnFunction(Function &F) {
   auto *AC = &getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F);
   auto *DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
   auto *SE = &getAnalysis<ScalarEvolutionWrapperPass>().getSE();
-  auto *TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+  auto *TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
   auto *TTI = &getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F);
 
   return Impl.runImpl(F, AC, DT, SE, TLI, TTI);
@@ -212,7 +213,7 @@ bool NaryReassociatePass::runImpl(Function &F, AssumptionCache *AC_,
   return Changed;
 }
 
-// Whitelist the instruction types NaryReassociate handles for now.
+// Explicitly list the instruction types NaryReassociate handles for now.
 static bool isPotentiallyNaryReassociable(Instruction *I) {
   switch (I->getOpcode()) {
   case Instruction::Add:

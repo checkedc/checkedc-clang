@@ -1,7 +1,7 @@
-// RUN: %clang_analyze_cc1 -analyzer-checker=core \
+// RUN: %clang_analyze_cc1 -std=c++14 -analyzer-checker=core \
 // RUN:  -analyzer-config suppress-null-return-paths=false \
 // RUN:  -verify %s
-// RUN: %clang_analyze_cc1 -analyzer-checker=core \
+// RUN: %clang_analyze_cc1 -std=c++14 -analyzer-checker=core \
 // RUN:  -DSUPPRESSED \
 // RUN:  -verify %s
 
@@ -15,10 +15,12 @@ typedef __typeof__(sizeof(int)) size_t;
 void *operator new(size_t size) {
   return nullptr;
   // expected-warning@-1 {{'operator new' should not return a null pointer unless it is declared 'throw()' or 'noexcept'}}
+  // expected-warning@-2 {{null returned from function that requires a non-null return value}}
 }
 void *operator new[](size_t size) {
   return nullptr;
   // expected-warning@-1 {{'operator new[]' should not return a null pointer unless it is declared 'throw()' or 'noexcept'}}
+  // expected-warning@-2 {{null returned from function that requires a non-null return value}}
 }
 
 struct S {

@@ -6,7 +6,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===---------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <span>
 
@@ -33,7 +33,7 @@ void testRuntimeSpan(Span sp)
     using SB = decltype(spBytes);
     ASSERT_SAME_TYPE(std::byte, typename SB::element_type);
 
-    if (sp.extent == std::dynamic_extent)
+    if constexpr (sp.extent == std::dynamic_extent)
         assert(spBytes.extent == std::dynamic_extent);
     else
         assert(spBytes.extent == sizeof(typename Span::element_type) * sp.extent);

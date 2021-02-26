@@ -16,7 +16,7 @@
 // X86-SAME: nocona, core2, penryn, bonnell, atom, silvermont, slm, goldmont, goldmont-plus, tremont,
 // X86-SAME: nehalem, corei7, westmere, sandybridge, corei7-avx, ivybridge,
 // X86-SAME: core-avx-i, haswell, core-avx2, broadwell, skylake, skylake-avx512,
-// X86-SAME: skx, cascadelake, cooperlake, cannonlake, icelake-client, icelake-server, knl, knm, lakemont, k6, k6-2, k6-3,
+// X86-SAME: skx, cascadelake, cooperlake, cannonlake, icelake-client, icelake-server, tigerlake, knl, knm, lakemont, k6, k6-2, k6-3,
 // X86-SAME: athlon, athlon-tbird, athlon-xp, athlon-mp, athlon-4, k8, athlon64,
 // X86-SAME: athlon-fx, opteron, k8-sse3, athlon64-sse3, opteron-sse3, amdfam10,
 // X86-SAME: barcelona, btver1, btver2, bdver1, bdver2, bdver3, bdver4, znver1, znver2,
@@ -28,7 +28,7 @@
 // X86_64-SAME: atom, silvermont, slm, goldmont, goldmont-plus, tremont, nehalem, corei7, westmere,
 // X86_64-SAME: sandybridge, corei7-avx, ivybridge, core-avx-i, haswell,
 // X86_64-SAME: core-avx2, broadwell, skylake, skylake-avx512, skx, cascadelake, cooperlake, cannonlake,
-// X86_64-SAME: icelake-client, icelake-server, knl, knm, k8, athlon64, athlon-fx, opteron, k8-sse3,
+// X86_64-SAME: icelake-client, icelake-server, tigerlake, knl, knm, k8, athlon64, athlon-fx, opteron, k8-sse3,
 // X86_64-SAME: athlon64-sse3, opteron-sse3, amdfam10, barcelona, btver1,
 // X86_64-SAME: btver2, bdver1, bdver2, bdver3, bdver4, znver1, znver2, x86-64
 
@@ -60,7 +60,7 @@
 // RUN: not %clang_cc1 -triple systemz--- -target-cpu not-a-cpu -fsyntax-only %s 2>&1 | FileCheck %s --check-prefix SYSTEMZ
 // SYSTEMZ: error: unknown target CPU 'not-a-cpu'
 // SYSTEMZ: note: valid target CPU values are: arch8, z10, arch9, z196, arch10,
-// SYSTEMZ-SAME: zEC12, arch11, z13, arch12, z14, arch13
+// SYSTEMZ-SAME: zEC12, arch11, z13, arch12, z14, arch13, z15
 
 // RUN: not %clang_cc1 -triple sparc--- -target-cpu not-a-cpu -fsyntax-only %s 2>&1 | FileCheck %s --check-prefix SPARC
 // SPARC: error: unknown target CPU 'not-a-cpu'
@@ -79,16 +79,16 @@
 // PPC: error: unknown target CPU 'not-a-cpu'
 // PPC: note: valid target CPU values are: generic, 440, 450, 601, 602, 603,
 // PPC-SAME: 603e, 603ev, 604, 604e, 620, 630, g3, 7400, g4, 7450, g4+, 750,
-// PPC-SAME: 970, g5, a2, a2q, e500mc, e5500, power3, pwr3, power4, pwr4,
-// PPC-SAME: power5, pwr5, power5x, pwr5x, power6, pwr6, power6x, pwr6x, power7,
-// PPC-SAME: pwr7, power8, pwr8, power9, pwr9, powerpc, ppc, powerpc64, ppc64,
-// PPC-SAME: powerpc64le, ppc64le
+// PPC-SAME: 8548, 970, g5, a2, a2q, e500, e500mc, e5500, power3, pwr3, power4,
+// PPC-SAME: pwr4, power5, pwr5, power5x, pwr5x, power6, pwr6, power6x, pwr6x,
+// PPC-SAME: power7, pwr7, power8, pwr8, power9, pwr9, power10, pwr10, powerpc, ppc, powerpc64,
+// PPC-SAME: ppc64, powerpc64le, ppc64le, future
 
 // RUN: not %clang_cc1 -triple mips--- -target-cpu not-a-cpu -fsyntax-only %s 2>&1 | FileCheck %s --check-prefix MIPS
 // MIPS: error: unknown target CPU 'not-a-cpu'
 // MIPS: note: valid target CPU values are: mips1, mips2, mips3, mips4, mips5,
 // MIPS-SAME: mips32, mips32r2, mips32r3, mips32r5, mips32r6, mips64, mips64r2,
-// MIPS-SAME: mips64r3, mips64r5, mips64r6, octeon, p5600
+// MIPS-SAME: mips64r3, mips64r5, mips64r6, octeon, octeon+, p5600
 
 // RUN: not %clang_cc1 -triple lanai--- -target-cpu not-a-cpu -fsyntax-only %s 2>&1 | FileCheck %s --check-prefix LANAI
 // LANAI: error: unknown target CPU 'not-a-cpu'

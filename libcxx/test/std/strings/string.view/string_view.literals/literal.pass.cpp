@@ -7,9 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11
-// UNSUPPORTED: clang-3.3, clang-3.4, clang-3.5, clang-3.6, clang-3.7, clang-3.8, clang-3.9
-// UNSUPPORTED: apple-clang-6, apple-clang-7, apple-clang-8
+// UNSUPPORTED: c++03, c++11
+
 // Note: libc++ supports string_view before C++17, but literals were introduced in C++14
 
 #include <string_view>
@@ -39,7 +38,7 @@ int main(int, char**)
     std::u16string_view ufoo;
     std::u32string_view Ufoo;
 
-    
+
     foo  =    ""sv;     assert(  foo.size() == 0);
     u8foo = u8""sv;     assert(u8foo.size() == 0);
     Lfoo  =  L""sv;     assert( Lfoo.size() == 0);

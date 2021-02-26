@@ -43,7 +43,7 @@
 namespace llvm {
 
 namespace Intrinsic {
-enum ID : unsigned;
+typedef unsigned ID;
 }
 
 class AssemblyAnnotationWriter;
@@ -55,6 +55,8 @@ template <typename T> class Optional;
 class raw_ostream;
 class Type;
 class User;
+class BranchProbabilityInfo;
+class BlockFrequencyInfo;
 
 class Function : public GlobalObject, public ilist_node<Function> {
 public:
@@ -196,6 +198,11 @@ public:
   /// It's possible for this function to return true while getIntrinsicID()
   /// returns Intrinsic::not_intrinsic!
   bool isIntrinsic() const { return HasLLVMReservedName; }
+
+  /// Returns true if the function is one of the "Constrained Floating-Point
+  /// Intrinsics". Returns false if not, and returns false when
+  /// getIntrinsicID() returns Intrinsic::not_intrinsic.
+  bool isConstrainedFPIntrinsic() const;
 
   static Intrinsic::ID lookupIntrinsicID(StringRef Name);
 
@@ -343,6 +350,16 @@ public:
   unsigned getFnStackAlignment() const {
     if (!hasFnAttribute(Attribute::StackAlignment))
       return 0;
+    if (const auto MA =
+            AttributeSets.getStackAlignment(AttributeList::FunctionIndex))
+      return MA->value();
+    return 0;
+  }
+
+  /// Return the stack alignment for the function.
+  MaybeAlign getFnStackAlign() const {
+    if (!hasFnAttribute(Attribute::StackAlignment))
+      return None;
     return AttributeSets.getStackAlignment(AttributeList::FunctionIndex);
   }
 
@@ -432,7 +449,15 @@ public:
   void addDereferenceableOrNullParamAttr(unsigned ArgNo, uint64_t Bytes);
 
   /// Extract the alignment for a call or parameter (0=unknown).
+  /// FIXME: Remove this function once transition to Align is over.
+  /// Use getParamAlign() instead.
   unsigned getParamAlignment(unsigned ArgNo) const {
+    if (const auto MA = getParamAlign(ArgNo))
+      return MA->value();
+    return 0;
+  }
+
+  MaybeAlign getParamAlign(unsigned ArgNo) const {
     return AttributeSets.getParamAlignment(ArgNo);
   }
 
@@ -710,6 +735,12 @@ public:
     return Arguments + NumArgs;
   }
 
+  Argument* getArg(unsigned i) const {
+    assert (i < NumArgs && "getArg() out of range!");
+    CheckLazyArguments();
+    return Arguments + i;
+  }
+
   iterator_range<arg_iterator> args() {
     return make_range(arg_begin(), arg_end());
   }
@@ -763,12 +794,20 @@ public:
   ///
   void viewCFG() const;
 
+  /// Extended form to print edge weights.
+  void viewCFG(bool ViewCFGOnly, const BlockFrequencyInfo *BFI,
+               const BranchProbabilityInfo *BPI) const;
+
   /// viewCFGOnly - This function is meant for use from the debugger.  It works
   /// just like viewCFG, but it does not include the contents of basic blocks
   /// into the nodes, just the label.  If you are only interested in the CFG
   /// this can make the graph smaller.
   ///
   void viewCFGOnly() const;
+
+  /// Extended form to print edge weights.
+  void viewCFGOnly(const BlockFrequencyInfo *BFI,
+                   const BranchProbabilityInfo *BPI) const;
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const Value *V) {
@@ -791,9 +830,11 @@ public:
 
   /// hasAddressTaken - returns true if there are any uses of this function
   /// other than direct calls or invokes to it, or blockaddress expressions.
-  /// Optionally passes back an offending user for diagnostic purposes.
+  /// Optionally passes back an offending user for diagnostic purposes and
+  /// ignores callback uses.
   ///
-  bool hasAddressTaken(const User** = nullptr) const;
+  bool hasAddressTaken(const User ** = nullptr,
+                       bool IgnoreCallbackUses = false) const;
 
   /// isDefTriviallyDead - Return true if it is trivially safe to remove
   /// this function definition from the module (because it isn't externally

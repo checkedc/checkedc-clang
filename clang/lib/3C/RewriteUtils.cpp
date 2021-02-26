@@ -15,7 +15,7 @@
 #include "clang/3C/CheckedRegions.h"
 #include "clang/3C/DeclRewriter.h"
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/Tooling/Refactoring/SourceCode.h"
+#include "clang/Tooling/Transformer/SourceCode.h"
 
 using namespace llvm;
 using namespace clang;
@@ -164,8 +164,8 @@ static void emit(Rewriter &R, ASTContext &C, std::string &OutputPostfix) {
 
         // Write this file if it was specified as a file on the command line.
         std::string FeAbsS = "";
-        if (getAbsoluteFilePath(FE->getName(), FeAbsS))
-          FeAbsS = sys::path::remove_leading_dotslash(FeAbsS);
+        if (getAbsoluteFilePath(std::string(FE->getName()), FeAbsS))
+          FeAbsS = std::string(sys::path::remove_leading_dotslash(FeAbsS));
 
         if (canWrite(FeAbsS)) {
           std::error_code EC;
@@ -378,10 +378,11 @@ void RewriteConsumer::emitRootCauseDiagnostics(ASTContext &Context) {
         EmittedDiagnostics.find(PSL) == EmittedDiagnostics.end()) {
       // Convert the file/line/column triple into a clang::SourceLocation that
       // can be used with the DiagnosticsEngine.
-      const auto *File = SM.getFileManager().getFile(PSL.getFileName());
-      if (File != nullptr) {
+      llvm::ErrorOr<const clang::FileEntry *> File =
+          SM.getFileManager().getFile(PSL.getFileName());
+      if (!File.getError()) {
         SourceLocation SL =
-            SM.translateFileLineCol(File, PSL.getLineNo(), PSL.getColSNo());
+            SM.translateFileLineCol(*File, PSL.getLineNo(), PSL.getColSNo());
         // Limit emitted root causes to those that effect more than one pointer
         // or are in the main file of the TU. Alternatively, don't filter causes
         // if -warn-all-root-cause is passed.

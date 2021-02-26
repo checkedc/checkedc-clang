@@ -5,14 +5,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class year_month_day;
 
 //  constexpr year_month_day(const sys_days& dp) noexcept;
 //
-//  Effects:  Constructs an object of type year_month_day that corresponds 
+//  Effects:  Constructs an object of type year_month_day that corresponds
 //                to the date represented by dp.
 //
 //  Remarks: For any value ymd of type year_month_day for which ymd.ok() is true,

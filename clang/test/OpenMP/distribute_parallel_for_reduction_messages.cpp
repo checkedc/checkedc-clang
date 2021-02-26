@@ -1,12 +1,26 @@
-// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 150 -o - %s -Wuninitialized
-// RUN: %clang_cc1 -verify -fopenmp -std=c++98 -ferror-limit 150 -o - %s -Wuninitialized
-// RUN: %clang_cc1 -verify -fopenmp -std=c++11 -ferror-limit 150 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp45 -fopenmp -fopenmp-version=45 -ferror-limit 150 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp45 -fopenmp -fopenmp-version=45 -std=c++98 -ferror-limit 150 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp45 -fopenmp -fopenmp-version=45 -std=c++11 -ferror-limit 150 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp -fopenmp-version=50 -ferror-limit 150 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp -fopenmp-version=50 -std=c++98 -ferror-limit 150 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp -fopenmp-version=50 -std=c++11 -ferror-limit 150 -o - %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 150 -o - %s -Wuninitialized
-// RUN: %clang_cc1 -verify -fopenmp-simd -std=c++98 -ferror-limit 150 -o - %s -Wuninitialized
-// RUN: %clang_cc1 -verify -fopenmp-simd -std=c++11 -ferror-limit 150 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp45 -fopenmp-simd -fopenmp-version=45 -ferror-limit 150 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp45 -fopenmp-simd -fopenmp-version=45 -std=c++98 -ferror-limit 150 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp45 -fopenmp-simd -fopenmp-version=45 -std=c++11 -ferror-limit 150 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp-simd -fopenmp-version=50 -ferror-limit 150 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp-simd -fopenmp-version=50 -std=c++98 -ferror-limit 150 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp-simd -fopenmp-version=50 -std=c++11 -ferror-limit 150 -o - %s -Wuninitialized
 
 extern int omp_default_mem_alloc;
+
+void xxx(int argc) {
+  int fp; // expected-note {{initialize the variable 'fp' to silence this warning}}
+#pragma omp distribute parallel for reduction(+:fp) // expected-warning {{variable 'fp' is uninitialized when used here}}
+  for (int i = 0; i < 10; ++i)
+    ;
+}
+
 void foo() {
 }
 
@@ -161,7 +175,7 @@ T tmain(T argc) {
     foo();
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for reduction(+ : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 3 {{const-qualified variable cannot be reduction}} expected-error 2 {{'operator+' is a private member of 'S2'}} expected-warning 2 {{Non-trivial type 'S2' is mapped, only trivial types are guaranteed to be mapped correctly}} expected-warning 2 {{Non-trivial type 'S3' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for reduction(+ : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 3 {{const-qualified variable cannot be reduction}} expected-error 2 {{'operator+' is a private member of 'S2'}} expected-warning 2 {{Type 'S2' is not trivially copyable and not guaranteed to be mapped correctly}} expected-warning 2 {{Type 'S3' is not trivially copyable and not guaranteed to be mapped correctly}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp target
@@ -206,7 +220,7 @@ T tmain(T argc) {
     foo();
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for reduction(+ : h, k) // expected-error {{threadprivate or thread local variable cannot be reduction}} expected-warning 2 {{Non-trivial type 'S3' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for reduction(+ : h, k) // expected-error {{threadprivate or thread local variable cannot be reduction}} expected-warning 2 {{Type 'S3' is not trivially copyable and not guaranteed to be mapped correctly}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp target
@@ -345,12 +359,12 @@ int main(int argc, char **argv) {
     foo();
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for reduction(+ : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 2 {{const-qualified variable cannot be reduction}} expected-error {{'operator+' is a private member of 'S2'}} expected-error {{incomplete type 'S1' where a complete type is required}} expected-warning {{Non-trivial type 'S2' is mapped, only trivial types are guaranteed to be mapped correctly}} expected-warning {{Non-trivial type 'S3' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for reduction(+ : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 2 {{const-qualified variable cannot be reduction}} expected-error {{'operator+' is a private member of 'S2'}} expected-error {{incomplete type 'S1' where a complete type is required}} expected-warning {{Type 'S2' is not trivially copyable and not guaranteed to be mapped correctly}} expected-warning {{Type 'S3' is not trivially copyable and not guaranteed to be mapped correctly}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for reduction(min : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 2 {{arguments of OpenMP clause 'reduction' for 'min' or 'max' must be of arithmetic type}} expected-error 2 {{const-qualified variable cannot be reduction}} expected-error {{incomplete type 'S1' where a complete type is required}} expected-warning {{Non-trivial type 'S2' is mapped, only trivial types are guaranteed to be mapped correctly}} expected-warning {{Non-trivial type 'S3' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for reduction(min : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 2 {{arguments of OpenMP clause 'reduction' for 'min' or 'max' must be of arithmetic type}} expected-error 2 {{const-qualified variable cannot be reduction}} expected-error {{incomplete type 'S1' where a complete type is required}} expected-warning {{Type 'S2' is not trivially copyable and not guaranteed to be mapped correctly}} expected-warning {{Type 'S3' is not trivially copyable and not guaranteed to be mapped correctly}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp target
@@ -360,12 +374,12 @@ int main(int argc, char **argv) {
     foo();
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for reduction(+ : ba) // expected-error {{const-qualified variable cannot be reduction}} expected-warning {{Non-trivial type 'const S2 [5]' is mapped, only trivial types are guaranteed to be mapped correctl}}
+#pragma omp distribute parallel for reduction(+ : ba) // expected-error {{const-qualified variable cannot be reduction}} expected-warning {{Type 'const S2 [5]' is not trivially copyable and not guaranteed to be mapped correctly}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for reduction(* : ca) // expected-error {{const-qualified variable cannot be reduction}} expected-warning {{Non-trivial type 'const S3 [5]' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for reduction(* : ca) // expected-error {{const-qualified variable cannot be reduction}} expected-warning {{Type 'const S3 [5]' is not trivially copyable and not guaranteed to be mapped correctly}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp target
@@ -390,17 +404,17 @@ int main(int argc, char **argv) {
     foo();
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for reduction(& : e, g) // expected-error {{calling a private constructor of class 'S4'}} expected-error {{invalid operands to binary expression ('S4' and 'S4')}} expected-error {{calling a private constructor of class 'S5'}} expected-error {{invalid operands to binary expression ('S5' and 'S5')}} expected-warning {{Non-trivial type 'S4' is mapped, only trivial types are guaranteed to be mapped correctly}} expected-warning {{Non-trivial type 'S5' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for reduction(& : e, g) // expected-error {{calling a private constructor of class 'S4'}} expected-error {{invalid operands to binary expression ('S4' and 'S4')}} expected-error {{calling a private constructor of class 'S5'}} expected-error {{invalid operands to binary expression ('S5' and 'S5')}} expected-warning {{Type 'S4' is not trivially copyable and not guaranteed to be mapped correctly}} expected-warning {{Type 'S5' is not trivially copyable and not guaranteed to be mapped correctly}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for reduction(+ : h, k, B::x) // expected-error 2 {{threadprivate or thread local variable cannot be reduction}} expected-warning {{Non-trivial type 'S3' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for reduction(+ : h, k, B::x) // expected-error 2 {{threadprivate or thread local variable cannot be reduction}} expected-warning {{Type 'S3' is not trivially copyable and not guaranteed to be mapped correctly}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for reduction(+ : o) // expected-error {{no viable overloaded '='}} expected-warning {{Non-trivial type 'class S6' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for reduction(+ : o) // expected-error {{no viable overloaded '='}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp target
@@ -411,12 +425,12 @@ int main(int argc, char **argv) {
 #pragma omp parallel private(k)
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for reduction(+ : p), reduction(+ : p) // expected-error 2 {{argument of OpenMP clause 'reduction' must reference the same object in all threads}} expected-warning {{Non-trivial type 'S3' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for reduction(+ : p), reduction(+ : p) // expected-error 2 {{argument of OpenMP clause 'reduction' must reference the same object in all threads}} expected-warning {{Type 'S3' is not trivially copyable and not guaranteed to be mapped correctly}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for reduction(+ : p), reduction(+ : p) // expected-error {{variable can appear only once in OpenMP 'reduction' clause}} expected-note {{previously referenced here}} expected-warning {{Non-trivial type 'S3' is mapped, only trivial types are guaranteed to be mapped correctly}}
+#pragma omp distribute parallel for reduction(+ : p), reduction(+ : p) // expected-error {{variable can appear only once in OpenMP 'reduction' clause}} expected-note {{previously referenced here}} expected-warning {{Type 'S3' is not trivially copyable and not guaranteed to be mapped correctly}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp target
@@ -447,6 +461,11 @@ int main(int argc, char **argv) {
 #pragma omp target
 #pragma omp teams
 #pragma omp distribute parallel for reduction(+ : m) // OK
+  for (int i = 0; i < 10; ++i)
+    m++;
+#pragma omp target
+#pragma omp teams
+#pragma omp distribute parallel for reduction(task, + : m) // omp45-error 2 {{expected expression}} omp45-warning {{missing ':' after reduction identifier - ignoring}}
   for (int i = 0; i < 10; ++i)
     m++;
 

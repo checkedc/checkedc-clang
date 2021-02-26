@@ -62,10 +62,9 @@ def l: JoinedOrSeparate<["-"], "l">, MetaVarName<"<libName>">,
 def L: JoinedOrSeparate<["-"], "L">, MetaVarName<"<dir>">,
   HelpText<"Add a directory to the library search path">;
 
-def mllvm: S<"mllvm">, HelpText<"Options to pass to LLVM">;
+def m: JoinedOrSeparate<["-"], "m">, HelpText<"Set target emulation">;
 
-def no_threads: F<"no-threads">,
-  HelpText<"Do not run the linker multi-threaded">;
+def mllvm: S<"mllvm">, HelpText<"Options to pass to LLVM">;
 
 def no_color_diagnostics: F<"no-color-diagnostics">,
   HelpText<"Do not use colors in diagnostics">;
@@ -89,13 +88,18 @@ def relocatable: F<"relocatable">, HelpText<"Create relocatable object file">;
 
 defm reproduce: Eq<"reproduce", "Dump linker invocation and input files for debugging">;
 
+defm rsp_quoting: Eq<"rsp-quoting", "Quoting style for response files">,
+  MetaVarName<"[posix,windows]">;
+
 def shared: F<"shared">, HelpText<"Build a shared object">;
 
 def strip_all: F<"strip-all">, HelpText<"Strip all symbols">;
 
 def strip_debug: F<"strip-debug">, HelpText<"Strip debugging information">;
 
-def threads: F<"threads">, HelpText<"Run the linker multi-threaded">;
+defm threads
+    : Eq<"threads", "Number of threads. '1' disables multi-threading. By "
+                    "default all available hardware threads are used">;
 
 def trace: F<"trace">, HelpText<"Print the names of the input files">;
 
@@ -134,6 +138,9 @@ def export_all: F<"export-all">,
 def export_table: F<"export-table">,
   HelpText<"Export function table to the environment">;
 
+def growable_table: F<"growable-table">,
+  HelpText<"Remove maximum size from function table, allowing table to grow">;
+
 def global_base: J<"global-base=">,
   HelpText<"Where to start to place global data">;
 
@@ -142,12 +149,6 @@ def import_memory: F<"import-memory">,
 
 def shared_memory: F<"shared-memory">,
   HelpText<"Use shared linear memory">;
-
-def active_segments: F<"active-segments">,
-  HelpText<"Force segments to be active">;
-
-def passive_segments: F<"passive-segments">,
-  HelpText<"Force segments to be passive">;
 
 def import_table: F<"import-table">,
   HelpText<"Import function table from the environment">;
@@ -180,7 +181,6 @@ def: JoinedOrSeparate<["-"], "e">, Alias<entry>;
 def: J<"entry=">, Alias<entry>;
 def: Flag<["-"], "E">, Alias<export_dynamic>, HelpText<"Alias for --export-dynamic">;
 def: Flag<["-"], "i">, Alias<initial_memory>;
-def: Flag<["-"], "m">, Alias<max_memory>;
 def: Flag<["-"], "r">, Alias<relocatable>;
 def: Flag<["-"], "s">, Alias<strip_all>, HelpText<"Alias for --strip-all">;
 def: Flag<["-"], "S">, Alias<strip_debug>, HelpText<"Alias for --strip-debug">;
@@ -198,4 +198,9 @@ def save_temps: F<"save-temps">;
 def thinlto_cache_dir: J<"thinlto-cache-dir=">,
   HelpText<"Path to ThinLTO cached object file directory">;
 defm thinlto_cache_policy: Eq<"thinlto-cache-policy", "Pruning policy for the ThinLTO cache">;
-def thinlto_jobs: J<"thinlto-jobs=">, HelpText<"Number of ThinLTO jobs">;
+def thinlto_jobs: J<"thinlto-jobs=">,
+  HelpText<"Number of ThinLTO jobs. Default to --threads=">;
+
+// Experimental PIC mode.
+def experimental_pic: F<"experimental-pic">,
+  HelpText<"Enable Experimental PIC">;

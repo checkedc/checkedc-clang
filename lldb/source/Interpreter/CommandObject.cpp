@@ -1,4 +1,4 @@
-//===-- CommandObject.cpp ---------------------------------------*- C++ -*-===//
+//===-- CommandObject.cpp -------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -18,6 +18,7 @@
 #include "lldb/Core/Address.h"
 #include "lldb/Interpreter/Options.h"
 #include "lldb/Utility/ArchSpec.h"
+#include "llvm/ADT/ScopeExit.h"
 
 // These are for the Sourcename completers.
 // FIXME: Make a separate file for the completers.
@@ -37,14 +38,15 @@ using namespace lldb_private;
 
 // CommandObject
 
-CommandObject::CommandObject(CommandInterpreter &interpreter, llvm::StringRef name,
-  llvm::StringRef help, llvm::StringRef syntax, uint32_t flags)
-    : m_interpreter(interpreter), m_cmd_name(name),
+CommandObject::CommandObject(CommandInterpreter &interpreter,
+                             llvm::StringRef name, llvm::StringRef help,
+                             llvm::StringRef syntax, uint32_t flags)
+    : m_interpreter(interpreter), m_cmd_name(std::string(name)),
       m_cmd_help_short(), m_cmd_help_long(), m_cmd_syntax(), m_flags(flags),
       m_arguments(), m_deprecated_command_override_callback(nullptr),
       m_command_override_callback(nullptr), m_command_override_baton(nullptr) {
-  m_cmd_help_short = help;
-  m_cmd_syntax = syntax;
+  m_cmd_help_short = std::string(help);
+  m_cmd_syntax = std::string(syntax);
 }
 
 CommandObject::~CommandObject() {}
@@ -73,20 +75,28 @@ llvm::StringRef CommandObject::GetSyntax() {
       syntax_str.PutCString("-- ");
     GetFormattedCommandArguments(syntax_str);
   }
-  m_cmd_syntax = syntax_str.GetString();
+  m_cmd_syntax = std::string(syntax_str.GetString());
 
   return m_cmd_syntax;
 }
 
 llvm::StringRef CommandObject::GetCommandName() const { return m_cmd_name; }
 
-void CommandObject::SetCommandName(llvm::StringRef name) { m_cmd_name = name; }
+void CommandObject::SetCommandName(llvm::StringRef name) {
+  m_cmd_name = std::string(name);
+}
 
-void CommandObject::SetHelp(llvm::StringRef str) { m_cmd_help_short = str; }
+void CommandObject::SetHelp(llvm::StringRef str) {
+  m_cmd_help_short = std::string(str);
+}
 
-void CommandObject::SetHelpLong(llvm::StringRef str) { m_cmd_help_long = str; }
+void CommandObject::SetHelpLong(llvm::StringRef str) {
+  m_cmd_help_long = std::string(str);
+}
 
-void CommandObject::SetSyntax(llvm::StringRef str) { m_cmd_syntax = str; }
+void CommandObject::SetSyntax(llvm::StringRef str) {
+  m_cmd_syntax = std::string(str);
+}
 
 Options *CommandObject::GetOptions() {
   // By default commands don't have options unless this virtual function is
@@ -257,18 +267,22 @@ void CommandObject::Cleanup() {
     m_api_locker.unlock();
 }
 
-int CommandObject::HandleCompletion(CompletionRequest &request) {
+void CommandObject::HandleCompletion(CompletionRequest &request) {
+
+  m_exe_ctx = m_interpreter.GetExecutionContext();
+  auto reset_ctx = llvm::make_scope_exit([this]() { Cleanup(); });
+
   // Default implementation of WantsCompletion() is !WantsRawCommandString().
   // Subclasses who want raw command string but desire, for example, argument
   // completion should override WantsCompletion() to return true, instead.
   if (WantsRawCommandString() && !WantsCompletion()) {
     // FIXME: Abstract telling the completion to insert the completion
     // character.
-    return -1;
+    return;
   } else {
     // Can we do anything generic with the options?
     Options *cur_options = GetOptions();
-    CommandReturnObject result;
+    CommandReturnObject result(m_interpreter.GetDebugger().GetUseColor());
     OptionElementVector opt_element_vector;
 
     if (cur_options != nullptr) {
@@ -278,11 +292,11 @@ int CommandObject::HandleCompletion(CompletionRequest &request) {
       bool handled_by_options = cur_options->HandleOptionCompletion(
           request, opt_element_vector, GetCommandInterpreter());
       if (handled_by_options)
-        return request.GetNumberOfMatches();
+        return;
     }
 
     // If we got here, the last word is not an option or an option argument.
-    return HandleArgumentCompletion(request, opt_element_vector);
+    HandleArgumentCompletion(request, opt_element_vector);
   }
 }
 
@@ -485,7 +499,7 @@ void CommandObject::GetFormattedCommandArguments(Stream &str,
         names.Printf("%s", GetArgumentName(arg_entry[j].arg_type));
       }
 
-      std::string name_str = names.GetString();
+      std::string name_str = std::string(names.GetString());
       switch (arg_entry[0].arg_repetition) {
       case eArgRepeatPlain:
         str.Printf("<%s>", name_str.c_str());
@@ -673,7 +687,7 @@ static llvm::StringRef FormatHelpTextCallback() {
 
   sstr.Flush();
 
-  help_text = sstr.GetString();
+  help_text = std::string(sstr.GetString());
 
   return help_text;
 }
@@ -691,7 +705,7 @@ static llvm::StringRef LanguageTypeHelpTextCallback() {
 
   sstr.Flush();
 
-  help_text = sstr.GetString();
+  help_text = std::string(sstr.GetString());
 
   return help_text;
 }
@@ -809,7 +823,7 @@ static llvm::StringRef ExprPathHelpTextCallback() {
 void CommandObject::FormatLongHelpText(Stream &output_strm,
                                        llvm::StringRef long_help) {
   CommandInterpreter &interpreter = GetCommandInterpreter();
-  std::stringstream lineStream(long_help);
+  std::stringstream lineStream{std::string(long_help)};
   std::string line;
   while (std::getline(lineStream, line)) {
     if (line.empty()) {
@@ -822,8 +836,8 @@ void CommandObject::FormatLongHelpText(Stream &output_strm,
     }
     std::string whitespace_prefix = line.substr(0, result);
     std::string remainder = line.substr(result);
-    interpreter.OutputFormattedHelpText(output_strm, whitespace_prefix.c_str(),
-                                        remainder.c_str());
+    interpreter.OutputFormattedHelpText(output_strm, whitespace_prefix,
+                                        remainder);
   }
 }
 
@@ -835,13 +849,11 @@ void CommandObject::GenerateHelpText(CommandReturnObject &result) {
 
 void CommandObject::GenerateHelpText(Stream &output_strm) {
   CommandInterpreter &interpreter = GetCommandInterpreter();
+  std::string help_text(GetHelp());
   if (WantsRawCommandString()) {
-    std::string help_text(GetHelp());
     help_text.append("  Expects 'raw' input (see 'help raw-input'.)");
-    interpreter.OutputFormattedHelpText(output_strm, "", "", help_text.c_str(),
-                                        1);
-  } else
-    interpreter.OutputFormattedHelpText(output_strm, "", "", GetHelp(), 1);
+  }
+  interpreter.OutputFormattedHelpText(output_strm, "", help_text);
   output_strm << "\nSyntax: " << GetSyntax() << "\n";
   Options *options = GetOptions();
   if (options != nullptr) {
@@ -917,12 +929,21 @@ const char *CommandObject::GetArgumentDescriptionAsCString(
   return g_arguments_data[arg_type].help_text;
 }
 
-Target *CommandObject::GetDummyTarget() {
-  return m_interpreter.GetDebugger().GetDummyTarget();
+Target &CommandObject::GetDummyTarget() {
+  return *m_interpreter.GetDebugger().GetDummyTarget();
 }
 
-Target *CommandObject::GetSelectedOrDummyTarget(bool prefer_dummy) {
-  return m_interpreter.GetDebugger().GetSelectedOrDummyTarget(prefer_dummy);
+Target &CommandObject::GetSelectedOrDummyTarget(bool prefer_dummy) {
+  return *m_interpreter.GetDebugger().GetSelectedOrDummyTarget(prefer_dummy);
+}
+
+Target &CommandObject::GetSelectedTarget() {
+  assert(m_flags.AnySet(eCommandRequiresTarget | eCommandProcessMustBePaused |
+                        eCommandProcessMustBeLaunched | eCommandRequiresFrame |
+                        eCommandRequiresThread | eCommandRequiresProcess |
+                        eCommandRequiresRegContext) &&
+         "GetSelectedTarget called from object that may have no target");
+  return *m_interpreter.GetDebugger().GetSelectedTarget();
 }
 
 Thread *CommandObject::GetDefaultThread() {
@@ -958,7 +979,7 @@ bool CommandObjectParsed::Execute(const char *args_string,
   }
   if (!handled) {
     for (auto entry : llvm::enumerate(cmd_args.entries())) {
-      if (!entry.value().ref.empty() && entry.value().ref.front() == '`') {
+      if (!entry.value().ref().empty() && entry.value().ref().front() == '`') {
         cmd_args.ReplaceArgumentAtIndex(
             entry.index(),
             m_interpreter.ProcessEmbeddedScriptCommands(entry.value().c_str()));
@@ -1057,18 +1078,18 @@ CommandObject::ArgumentTableEntry CommandObject::g_arguments_data[] = {
     { eArgTypePermissionsNumber, "perms-numeric", CommandCompletions::eNoCompletion, { nullptr, false }, "Permissions given as an octal number (e.g. 755)." },
     { eArgTypePermissionsString, "perms=string", CommandCompletions::eNoCompletion, { nullptr, false }, "Permissions given as a string value (e.g. rw-r-xr--)." },
     { eArgTypePid, "pid", CommandCompletions::eNoCompletion, { nullptr, false }, "The process ID number." },
-    { eArgTypePlugin, "plugin", CommandCompletions::eNoCompletion, { nullptr, false }, "Help text goes here." },
+    { eArgTypePlugin, "plugin", CommandCompletions::eProcessPluginCompletion, { nullptr, false }, "Help text goes here." },
     { eArgTypeProcessName, "process-name", CommandCompletions::eNoCompletion, { nullptr, false }, "The name of the process." },
     { eArgTypePythonClass, "python-class", CommandCompletions::eNoCompletion, { nullptr, false }, "The name of a Python class." },
     { eArgTypePythonFunction, "python-function", CommandCompletions::eNoCompletion, { nullptr, false }, "The name of a Python function." },
     { eArgTypePythonScript, "python-script", CommandCompletions::eNoCompletion, { nullptr, false }, "Source code written in Python." },
     { eArgTypeQueueName, "queue-name", CommandCompletions::eNoCompletion, { nullptr, false }, "The name of the thread queue." },
     { eArgTypeRegisterName, "register-name", CommandCompletions::eNoCompletion, { RegisterNameHelpTextCallback, true }, nullptr },
-    { eArgTypeRegularExpression, "regular-expression", CommandCompletions::eNoCompletion, { nullptr, false }, "A regular expression." },
+    { eArgTypeRegularExpression, "regular-expression", CommandCompletions::eNoCompletion, { nullptr, false }, "A POSIX-compliant extended regular expression." },
     { eArgTypeRunArgs, "run-args", CommandCompletions::eNoCompletion, { nullptr, false }, "Arguments to be passed to the target program when it starts executing." },
     { eArgTypeRunMode, "run-mode", CommandCompletions::eNoCompletion, { nullptr, false }, "Help text goes here." },
     { eArgTypeScriptedCommandSynchronicity, "script-cmd-synchronicity", CommandCompletions::eNoCompletion, { nullptr, false }, "The synchronicity to use to run scripted commands with regard to LLDB event system." },
-    { eArgTypeScriptLang, "script-language", CommandCompletions::eNoCompletion, { nullptr, false }, "The scripting language to be used for script-based commands.  Currently only Python is valid." },
+    { eArgTypeScriptLang, "script-language", CommandCompletions::eNoCompletion, { nullptr, false }, "The scripting language to be used for script-based commands.  Supported languages are python and lua." },
     { eArgTypeSearchWord, "search-word", CommandCompletions::eNoCompletion, { nullptr, false }, "Any word of interest for search purposes." },
     { eArgTypeSelector, "selector", CommandCompletions::eNoCompletion, { nullptr, false }, "An Objective-C selector name." },
     { eArgTypeSettingIndex, "setting-index", CommandCompletions::eNoCompletion, { nullptr, false }, "An index into a settings variable that is an array (try 'settings list' to see all the possible settings variables and their types)." },
@@ -1096,7 +1117,8 @@ CommandObject::ArgumentTableEntry CommandObject::g_arguments_data[] = {
     { eArgTypeWatchpointIDRange, "watchpt-id-list", CommandCompletions::eNoCompletion, { nullptr, false }, "For example, '1-3' or '1 to 3'." },
     { eArgTypeWatchType, "watch-type", CommandCompletions::eNoCompletion, { nullptr, false }, "Specify the type for a watchpoint." },
     { eArgRawInput, "raw-input", CommandCompletions::eNoCompletion, { nullptr, false }, "Free-form text passed to a command without prior interpretation, allowing spaces without requiring quotes.  To pass arguments and free form text put two dashes ' -- ' between the last argument and any raw input." },
-    { eArgTypeCommand, "command", CommandCompletions::eNoCompletion, { nullptr, false }, "An LLDB Command line command." }
+    { eArgTypeCommand, "command", CommandCompletions::eNoCompletion, { nullptr, false }, "An LLDB Command line command." },
+    { eArgTypeColumnNum, "column", CommandCompletions::eNoCompletion, { nullptr, false }, "Column number in a source file." }
     // clang-format on
 };
 

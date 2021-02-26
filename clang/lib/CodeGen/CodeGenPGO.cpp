@@ -17,6 +17,7 @@
 #include "clang/AST/StmtVisitor.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/MDBuilder.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MD5.h"
@@ -51,9 +52,10 @@ void CodeGenPGO::setFuncName(llvm::Function *Fn) {
 enum PGOHashVersion : unsigned {
   PGO_HASH_V1,
   PGO_HASH_V2,
+  PGO_HASH_V3,
 
   // Keep this set to the latest hash version.
-  PGO_HASH_LATEST = PGO_HASH_V2
+  PGO_HASH_LATEST = PGO_HASH_V3
 };
 
 namespace {
@@ -121,7 +123,7 @@ public:
     BinaryOperatorGE,
     BinaryOperatorEQ,
     BinaryOperatorNE,
-    // The preceding values are available with PGO_HASH_V2.
+    // The preceding values are available since PGO_HASH_V2.
 
     // Keep this last.  It's for the static assert that follows.
     LastHashType
@@ -143,7 +145,9 @@ static PGOHashVersion getPGOHashVersion(llvm::IndexedInstrProfReader *PGOReader,
                                         CodeGenModule &CGM) {
   if (PGOReader->getVersion() <= 4)
     return PGO_HASH_V1;
-  return PGO_HASH_V2;
+  if (PGOReader->getVersion() <= 5)
+    return PGO_HASH_V2;
+  return PGO_HASH_V3;
 }
 
 /// A RecursiveASTVisitor that fills a map of statements to PGO counters.
@@ -166,7 +170,7 @@ struct MapRegionCounters : public RecursiveASTVisitor<MapRegionCounters> {
   bool TraverseBlockExpr(BlockExpr *BE) { return true; }
   bool TraverseLambdaExpr(LambdaExpr *LE) {
     // Traverse the captures, but not the body.
-    for (const auto &C : zip(LE->captures(), LE->capture_inits()))
+    for (auto C : zip(LE->captures(), LE->capture_inits()))
       TraverseLambdaCapture(LE, &std::get<0>(C), std::get<1>(C));
     return true;
   }
@@ -287,7 +291,7 @@ struct MapRegionCounters : public RecursiveASTVisitor<MapRegionCounters> {
         return PGOHash::BinaryOperatorLAnd;
       if (BO->getOpcode() == BO_LOr)
         return PGOHash::BinaryOperatorLOr;
-      if (HashVersion == PGO_HASH_V2) {
+      if (HashVersion >= PGO_HASH_V2) {
         switch (BO->getOpcode()) {
         default:
           break;
@@ -309,7 +313,7 @@ struct MapRegionCounters : public RecursiveASTVisitor<MapRegionCounters> {
     }
     }
 
-    if (HashVersion == PGO_HASH_V2) {
+    if (HashVersion >= PGO_HASH_V2) {
       switch (S->getStmtClass()) {
       default:
         break;
@@ -746,13 +750,21 @@ uint64_t PGOHash::finalize() {
     return Working;
 
   // Check for remaining work in Working.
-  if (Working)
-    MD5.update(Working);
+  if (Working) {
+    // Keep the buggy behavior from v1 and v2 for backward-compatibility. This
+    // is buggy because it converts a uint64_t into an array of uint8_t.
+    if (HashVersion < PGO_HASH_V3) {
+      MD5.update({(uint8_t)Working});
+    } else {
+      using namespace llvm::support;
+      uint64_t Swapped = endian::byte_swap<uint64_t, little>(Working);
+      MD5.update(llvm::makeArrayRef((uint8_t *)&Swapped, sizeof(Swapped)));
+    }
+  }
 
   // Finalize the MD5 and return the hash.
   llvm::MD5::MD5Result Result;
   MD5.final(Result);
-  using namespace llvm::support;
   return Result.low();
 }
 
@@ -980,7 +992,7 @@ void CodeGenPGO::loadRegionCounts(llvm::IndexedInstrProfReader *PGOReader,
     return;
   }
   ProfRecord =
-      llvm::make_unique<llvm::InstrProfRecord>(std::move(RecordExpected.get()));
+      std::make_unique<llvm::InstrProfRecord>(std::move(RecordExpected.get()));
   RegionCounts = ProfRecord->Counts;
 }
 
@@ -1050,8 +1062,7 @@ llvm::MDNode *CodeGenFunction::createProfileWeightsForLoop(const Stmt *Cond,
   if (!PGO.haveRegionCounts())
     return nullptr;
   Optional<uint64_t> CondCount = PGO.getStmtCount(Cond);
-  assert(CondCount.hasValue() && "missing expected loop condition count");
-  if (*CondCount == 0)
+  if (!CondCount || *CondCount == 0)
     return nullptr;
   return createProfileWeights(LoopCount,
                               std::max(*CondCount, LoopCount) - LoopCount);

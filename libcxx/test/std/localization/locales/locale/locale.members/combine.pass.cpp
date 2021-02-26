@@ -14,7 +14,7 @@
 #include <stdexcept>
 #include <cassert>
 
-#include "count_new.hpp"
+#include "count_new.h"
 
 #include "test_macros.h"
 
@@ -66,6 +66,7 @@ std::locale::id my_facet::id;
 int main(int, char**)
 {
 {
+    globalMemCounter.reset();
     {
         std::locale loc;
         std::locale loc2(loc, new my_facet);

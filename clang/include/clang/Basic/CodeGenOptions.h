@@ -16,6 +16,7 @@
 #include "clang/Basic/DebugInfoOptions.h"
 #include "clang/Basic/Sanitizers.h"
 #include "clang/Basic/XRayInstr.h"
+#include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Target/TargetOptions.h"
@@ -109,13 +110,27 @@ public:
     Embed_Marker    // Embed a marker as a placeholder for bitcode.
   };
 
-  enum SignReturnAddressScope {
-    None,    // No signing for any function
-    NonLeaf, // Sign the return address of functions that spill LR
-    All      // Sign the return address of all functions
-  };
+  // This field stores one of the allowed values for the option
+  // -fbasic-block-sections=.  The allowed values with this option are:
+  // {"labels", "all", "list=<file>", "none"}.
+  //
+  // "labels":      Only generate basic block symbols (labels) for all basic
+  //                blocks, do not generate unique sections for basic blocks.
+  //                Use the machine basic block id in the symbol name to
+  //                associate profile info from virtual address to machine
+  //                basic block.
+  // "all" :        Generate basic block sections for all basic blocks.
+  // "list=<file>": Generate basic block sections for a subset of basic blocks.
+  //                The functions and the machine basic block ids are specified
+  //                in the file.
+  // "none":        Disable sections/labels for basic blocks.
+  std::string BBSections;
 
-  enum SignReturnAddressKeyValue { AKey, BKey };
+  enum class FramePointerKind {
+    None,        // Omit all frame pointers.
+    NonLeaf,     // Keep non-leaf frame pointers.
+    All,         // Keep all frame pointers.
+  };
 
   /// The code model to use (-mcmodel).
   std::string CodeModel;
@@ -157,7 +172,10 @@ public:
   std::string FloatABI;
 
   /// The floating-point denormal mode to use.
-  std::string FPDenormalMode;
+  llvm::DenormalMode FPDenormalMode = llvm::DenormalMode::getIEEE();
+
+  /// The floating-point denormal mode to use, for float.
+  llvm::DenormalMode FP32DenormalMode = llvm::DenormalMode::getIEEE();
 
   /// The float precision limit to use, if non-empty.
   std::string LimitFloatPrecision;
@@ -304,6 +322,21 @@ public:
   /// List of dynamic shared object files to be loaded as pass plugins.
   std::vector<std::string> PassPlugins;
 
+  /// Path to allowlist file specifying which objects
+  /// (files, functions) should exclusively be instrumented
+  /// by sanitizer coverage pass.
+  std::vector<std::string> SanitizeCoverageAllowlistFiles;
+
+  /// Path to blocklist file specifying which objects
+  /// (files, functions) listed for instrumentation by sanitizer
+  /// coverage pass should actually not be instrumented.
+  std::vector<std::string> SanitizeCoverageBlocklistFiles;
+
+  /// Executable and command-line used to create a given CompilerInvocation.
+  /// Most of the time this will be the full -cc1 command.
+  const char *Argv0 = nullptr;
+  ArrayRef<const char *> CommandLineArgs;
+
 public:
   // Define accessors/mutators for code generation options of enumeration type.
 #define CODEGENOPT(Name, Bits, Default)
@@ -350,6 +383,11 @@ public:
 
   /// Check if CSIR profile use is on.
   bool hasProfileCSIRUse() const { return getProfileUse() == ProfileCSIRInstr; }
+
+  /// Check if type and variable info should be emitted.
+  bool hasReducedDebugInfo() const {
+    return getDebugInfo() >= codegenoptions::DebugInfoConstructor;
+  }
 };
 
 }  // end namespace clang

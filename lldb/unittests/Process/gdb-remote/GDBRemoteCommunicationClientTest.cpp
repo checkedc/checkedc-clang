@@ -1,4 +1,4 @@
-//===-- GDBRemoteCommunicationClientTest.cpp --------------------*- C++ -*-===//
+//===-- GDBRemoteCommunicationClientTest.cpp ------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -47,7 +47,7 @@ void HandlePacket(MockServer &server,
                   StringRef response) {
   StringExtractorGDBRemote request;
   ASSERT_EQ(PacketResult::Success, server.GetPacket(request));
-  ASSERT_THAT(request.GetStringRef(), expected);
+  ASSERT_THAT(std::string(request.GetStringRef()), expected);
   ASSERT_EQ(PacketResult::Success, server.SendPacket(response));
 }
 
@@ -288,7 +288,7 @@ TEST_F(GDBRemoteCommunicationClientTest, TestPacketSpeedJSON) {
   server_thread.join();
 
   GTEST_LOG_(INFO) << "Formatted output: " << ss.GetData();
-  auto object_sp = StructuredData::ParseJSON(ss.GetString());
+  auto object_sp = StructuredData::ParseJSON(std::string(ss.GetString()));
   ASSERT_TRUE(bool(object_sp));
   auto dict_sp = object_sp->GetAsDictionary();
   ASSERT_TRUE(bool(dict_sp));
@@ -384,9 +384,9 @@ TEST_F(GDBRemoteCommunicationClientTest, SendStartTracePacket) {
 
   // Since the line is exceeding 80 characters.
   std::string expected_packet1 =
-      R"(jTraceStart:{"buffersize" : 8192,"metabuffersize" : 8192,"params" :)";
+      R"(jTraceStart:{"buffersize":8192,"metabuffersize":8192,"params":)";
   std::string expected_packet2 =
-      R"( {"psb" : 1,"tracetech" : "intel-pt"},"threadid" : 35,"type" : 1})";
+      R"({"psb":1,"tracetech":"intel-pt"},"threadid":35,"type":1})";
   HandlePacket(server, (expected_packet1 + expected_packet2), "1");
   ASSERT_TRUE(error.Success());
   ASSERT_EQ(result.get(), 1u);
@@ -409,8 +409,7 @@ TEST_F(GDBRemoteCommunicationClientTest, SendStopTracePacket) {
     return client.SendStopTracePacket(trace_id, thread_id);
   });
 
-  const char *expected_packet =
-      R"(jTraceStop:{"threadid" : 35,"traceid" : 3})";
+  const char *expected_packet = R"(jTraceStop:{"threadid":35,"traceid":3})";
   HandlePacket(server, expected_packet, "OK");
   ASSERT_TRUE(result.get().Success());
 
@@ -435,8 +434,8 @@ TEST_F(GDBRemoteCommunicationClientTest, SendGetDataPacket) {
   });
 
   std::string expected_packet1 =
-      R"(jTraceBufferRead:{"buffersize" : 32,"offset" : 0,"threadid" : 35,)";
-  std::string expected_packet2 = R"("traceid" : 3})";
+      R"(jTraceBufferRead:{"buffersize":32,"offset":0,"threadid":35,)";
+  std::string expected_packet2 = R"("traceid":3})";
   HandlePacket(server, expected_packet1+expected_packet2, "123456");
   ASSERT_TRUE(result.get().Success());
   ASSERT_EQ(buffer.size(), 3u);
@@ -467,8 +466,8 @@ TEST_F(GDBRemoteCommunicationClientTest, SendGetMetaDataPacket) {
   });
 
   std::string expected_packet1 =
-      R"(jTraceMetaRead:{"buffersize" : 32,"offset" : 0,"threadid" : 35,)";
-  std::string expected_packet2 = R"("traceid" : 3})";
+      R"(jTraceMetaRead:{"buffersize":32,"offset":0,"threadid":35,)";
+  std::string expected_packet2 = R"("traceid":3})";
   HandlePacket(server, expected_packet1+expected_packet2, "123456");
   ASSERT_TRUE(result.get().Success());
   ASSERT_EQ(buffer.size(), 3u);
@@ -497,11 +496,10 @@ TEST_F(GDBRemoteCommunicationClientTest, SendGetTraceConfigPacket) {
   });
 
   const char *expected_packet =
-      R"(jTraceConfigRead:{"threadid" : 35,"traceid" : 3})";
+      R"(jTraceConfigRead:{"threadid":35,"traceid":3})";
   std::string response1 =
-      R"({"buffersize" : 8192,"params" : {"psb" : 1,"tracetech" : "intel-pt"})";
-  std::string response2 =
-      R"(],"metabuffersize" : 8192,"threadid" : 35,"type" : 1}])";
+      R"({"buffersize":8192,"params":{"psb":1,"tracetech":"intel-pt"})";
+  std::string response2 = R"(],"metabuffersize":8192,"threadid":35,"type":1}])";
   HandlePacket(server, expected_packet, response1+response2);
   ASSERT_TRUE(result.get().Success());
   ASSERT_EQ(options.getTraceBufferSize(), 8192u);
@@ -553,4 +551,30 @@ TEST_F(GDBRemoteCommunicationClientTest, SendGetTraceConfigPacket) {
   HandlePacket(server, expected_packet, incorrect_custom_params1+
       incorrect_custom_params2);
   ASSERT_FALSE(result4.get().Success());
+}
+
+TEST_F(GDBRemoteCommunicationClientTest, GetQOffsets) {
+  const auto &GetQOffsets = [&](llvm::StringRef response) {
+    std::future<Optional<QOffsets>> result = std::async(
+        std::launch::async, [&] { return client.GetQOffsets(); });
+
+    HandlePacket(server, "qOffsets", response);
+    return result.get();
+  };
+  EXPECT_EQ((QOffsets{false, {0x1234, 0x1234}}),
+            GetQOffsets("Text=1234;Data=1234"));
+  EXPECT_EQ((QOffsets{false, {0x1234, 0x1234, 0x1234}}),
+            GetQOffsets("Text=1234;Data=1234;Bss=1234"));
+  EXPECT_EQ((QOffsets{true, {0x1234}}), GetQOffsets("TextSeg=1234"));
+  EXPECT_EQ((QOffsets{true, {0x1234, 0x2345}}),
+            GetQOffsets("TextSeg=1234;DataSeg=2345"));
+
+  EXPECT_EQ(llvm::None, GetQOffsets("E05"));
+  EXPECT_EQ(llvm::None, GetQOffsets("Text=bogus"));
+  EXPECT_EQ(llvm::None, GetQOffsets("Text=1234"));
+  EXPECT_EQ(llvm::None, GetQOffsets("Text=1234;Data=1234;"));
+  EXPECT_EQ(llvm::None, GetQOffsets("Text=1234;Data=1234;Bss=1234;"));
+  EXPECT_EQ(llvm::None, GetQOffsets("TEXTSEG=1234"));
+  EXPECT_EQ(llvm::None, GetQOffsets("TextSeg=0x1234"));
+  EXPECT_EQ(llvm::None, GetQOffsets("TextSeg=12345678123456789"));
 }

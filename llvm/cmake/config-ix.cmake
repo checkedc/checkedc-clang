@@ -13,7 +13,7 @@ include(CheckCCompilerFlag)
 include(CheckCompilerVersion)
 include(HandleLLVMStdlib)
 
-if( UNIX AND NOT (BEOS OR HAIKU) )
+if( UNIX AND NOT (APPLE OR BEOS OR HAIKU) )
   # Used by check_symbol_exists:
   list(APPEND CMAKE_REQUIRED_LIBRARIES "m")
 endif()
@@ -28,6 +28,12 @@ endif()
 if (UNIX AND ${CMAKE_SYSTEM_NAME} MATCHES "AIX")
           list(APPEND CMAKE_REQUIRED_DEFINITIONS "-D_XOPEN_SOURCE=700")
           list(APPEND CMAKE_REQUIRED_DEFINITIONS "-D_LARGE_FILE_API")
+endif()
+
+# Do checks with _FILE_OFFSET_BITS=64 on Solaris, because we will build
+# with those too.
+if (UNIX AND ${CMAKE_SYSTEM_NAME} MATCHES "SunOS")
+          list(APPEND CMAKE_REQUIRED_DEFINITIONS "-D_FILE_OFFSET_BITS=64")
 endif()
 
 # include checks
@@ -160,7 +166,6 @@ if(NOT LLVM_USE_SANITIZER MATCHES "Memory.*")
         else()
           include_directories(${LIBXML2_INCLUDE_DIR})
         endif()
-        set(LIBXML2_LIBS "xml2")
       endif()
     endif()
   endif()
@@ -168,6 +173,10 @@ endif()
 
 if (LLVM_ENABLE_LIBXML2 STREQUAL "FORCE_ON" AND NOT LLVM_LIBXML2_ENABLED)
   message(FATAL_ERROR "Failed to congifure libxml2")
+endif()
+
+if (LLVM_ENABLE_ZLIB STREQUAL "FORCE_ON" AND NOT HAVE_LIBZ)
+  message(FATAL_ERROR "Failed to configure zlib")
 endif()
 
 check_library_exists(xar xar_open "" HAVE_LIBXAR)
@@ -265,8 +274,6 @@ if( LLVM_USING_GLIBC )
   list(APPEND CMAKE_REQUIRED_DEFINITIONS "-D_GNU_SOURCE")
 endif()
 # This check requires _GNU_SOURCE
-check_symbol_exists(sched_getaffinity sched.h HAVE_SCHED_GETAFFINITY)
-check_symbol_exists(CPU_COUNT sched.h HAVE_CPU_COUNT)
 if (NOT PURE_WINDOWS)
   if (LLVM_PTHREAD_LIB)
     list(APPEND CMAKE_REQUIRED_LIBRARIES ${LLVM_PTHREAD_LIB})
@@ -468,7 +475,8 @@ if( MSVC )
   set(strdup "_strdup")
 
   # See if the DIA SDK is available and usable.
-  set(MSVC_DIA_SDK_DIR "$ENV{VSINSTALLDIR}DIA SDK")
+  set(MSVC_DIA_SDK_DIR "$ENV{VSINSTALLDIR}DIA SDK" CACHE PATH
+      "Path to the DIA SDK")
 
   # Due to a bug in MSVC 2013's installation software, it is possible
   # for MSVC 2013 to write the DIA SDK into the Visual Studio 2012
@@ -477,7 +485,7 @@ if( MSVC )
   # though that we should handle it.  We do so by simply checking that
   # the DIA SDK folder exists.  Should this happen you will need to
   # uninstall VS 2012 and then re-install VS 2013.
-  if (IS_DIRECTORY ${MSVC_DIA_SDK_DIR})
+  if (IS_DIRECTORY "${MSVC_DIA_SDK_DIR}")
     set(HAVE_DIA_SDK 1)
   else()
     set(HAVE_DIA_SDK 0)
@@ -631,7 +639,7 @@ function(find_python_module module)
     return()
   endif()
 
-  execute_process(COMMAND "${PYTHON_EXECUTABLE}" "-c" "import ${module}"
+  execute_process(COMMAND "${Python3_EXECUTABLE}" "-c" "import ${module}"
     RESULT_VARIABLE status
     ERROR_QUIET)
 

@@ -98,7 +98,7 @@ bool WebAssemblyRegColoring::runOnMachineFunction(MachineFunction &MF) {
 
   LLVM_DEBUG(dbgs() << "Interesting register intervals:\n");
   for (unsigned I = 0; I < NumVRegs; ++I) {
-    unsigned VReg = TargetRegisterInfo::index2VirtReg(I);
+    unsigned VReg = Register::index2VirtReg(I);
     if (MFI.isVRegStackified(VReg))
       continue;
     // Skip unused registers, which can use $drop.
@@ -157,9 +157,11 @@ bool WebAssemblyRegColoring::runOnMachineFunction(MachineFunction &MF) {
     Changed |= Old != New;
     UsedColors.set(Color);
     Assignments[Color].push_back(LI);
-    LLVM_DEBUG(
-        dbgs() << "Assigning vreg" << TargetRegisterInfo::virtReg2Index(LI->reg)
-               << " to vreg" << TargetRegisterInfo::virtReg2Index(New) << "\n");
+    // If we reassigned the stack pointer, update the debug frame base info.
+    if (Old != New && MFI.isFrameBaseVirtual() && MFI.getFrameBaseVreg() == Old)
+      MFI.setFrameBaseVreg(New);
+    LLVM_DEBUG(dbgs() << "Assigning vreg" << Register::virtReg2Index(LI->reg)
+                      << " to vreg" << Register::virtReg2Index(New) << "\n");
   }
   if (!Changed)
     return false;

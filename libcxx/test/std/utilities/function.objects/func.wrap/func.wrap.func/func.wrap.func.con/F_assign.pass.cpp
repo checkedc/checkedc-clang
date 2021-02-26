@@ -15,11 +15,14 @@
 //         && Convertible<Callable<F, ArgTypes...>::result_type
 //   operator=(F f);
 
+// This test runs in C++03, but we have deprecated using std::function in C++03.
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
+
 #include <functional>
 #include <cassert>
 
 #include "test_macros.h"
-#include "count_new.hpp"
+#include "count_new.h"
 
 class A
 {
@@ -65,6 +68,7 @@ struct LValueCallable {
 
 int main(int, char**)
 {
+    globalMemCounter.reset();
     assert(globalMemCounter.checkOutstandingNewEq(0));
     {
     std::function<int(int)> f;
@@ -113,6 +117,21 @@ int main(int, char**)
         static_assert(std::is_assignable<Fn&, LValueCallable>::value, "");
         static_assert(!std::is_assignable<Fn&, RValueCallable&>::value, "");
         static_assert(!std::is_assignable<Fn&, RValueCallable>::value, "");
+    }
+    {
+        using Fn = std::function<void(int, int, int)>;
+        static_assert(std::is_assignable<Fn&, Fn&&>::value, "");
+    }
+    {
+        using F1 = std::function<void(int, int)>;
+        using F2 = std::function<void(int, int, int)>;
+        static_assert(!std::is_assignable<F1&, F2&&>::value, "");
+    }
+    {
+        using F1 = std::function<int(int, int)>;
+        using F2 = std::function<A  (int, int)>;
+        static_assert(!std::is_assignable<F1&, F2&&>::value, "");
+        static_assert(!std::is_assignable<F2&, F1&&>::value, "");
     }
 #endif
 

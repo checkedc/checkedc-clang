@@ -1,9 +1,7 @@
-project(lldb)
-
 option(LLVM_INSTALL_TOOLCHAIN_ONLY "Only include toolchain files in the 'install' target." OFF)
 
-find_package(LLVM REQUIRED CONFIG HINTS "${LLVM_DIR}" NO_CMAKE_FIND_ROOT_PATH)
-find_package(Clang REQUIRED CONFIG HINTS "${Clang_DIR}" NO_CMAKE_FIND_ROOT_PATH)
+find_package(LLVM REQUIRED CONFIG HINTS ${LLVM_DIR} NO_CMAKE_FIND_ROOT_PATH)
+find_package(Clang REQUIRED CONFIG HINTS ${Clang_DIR} ${LLVM_DIR}/../clang NO_CMAKE_FIND_ROOT_PATH)
 
 # We set LLVM_CMAKE_PATH so that GetSVN.cmake is found correctly when building SVNVersion.inc
 set(LLVM_CMAKE_PATH ${LLVM_CMAKE_DIR} CACHE PATH "Path to LLVM CMake modules")
@@ -31,31 +29,35 @@ append_configuration_directories(${LLVM_TOOLS_BINARY_DIR} config_dirs)
 find_program(lit_full_path ${lit_file_name} ${config_dirs} NO_DEFAULT_PATH)
 set(LLVM_DEFAULT_EXTERNAL_LIT ${lit_full_path} CACHE PATH "Path to llvm-lit")
 
-if(CMAKE_CROSSCOMPILING)
-  set(LLVM_NATIVE_BUILD "${LLVM_BINARY_DIR}/NATIVE")
-  if (NOT EXISTS "${LLVM_NATIVE_BUILD}")
-    message(FATAL_ERROR
-      "Attempting to cross-compile LLDB standalone but no native LLVM build
-      found. Please cross-compile LLVM as well.")
-  endif()
-
-  if (CMAKE_HOST_SYSTEM_NAME MATCHES "Windows")
-    set(HOST_EXECUTABLE_SUFFIX ".exe")
-  endif()
-
-  if (NOT CMAKE_CONFIGURATION_TYPES)
-    set(LLVM_TABLEGEN_EXE
-      "${LLVM_NATIVE_BUILD}/bin/llvm-tblgen${HOST_EXECUTABLE_SUFFIX}")
-  else()
-    # NOTE: LLVM NATIVE build is always built Release, as is specified in
-    # CrossCompile.cmake
-    set(LLVM_TABLEGEN_EXE
-      "${LLVM_NATIVE_BUILD}/Release/bin/llvm-tblgen${HOST_EXECUTABLE_SUFFIX}")
-  endif()
+if(LLVM_TABLEGEN)
+  set(LLVM_TABLEGEN_EXE ${LLVM_TABLEGEN})
 else()
-  set(tblgen_file_name "llvm-tblgen${CMAKE_EXECUTABLE_SUFFIX}")
-  append_configuration_directories(${LLVM_TOOLS_BINARY_DIR} config_dirs)
-  find_program(LLVM_TABLEGEN_EXE ${tblgen_file_name} ${config_dirs} NO_DEFAULT_PATH)
+  if(CMAKE_CROSSCOMPILING)
+    set(LLVM_NATIVE_BUILD "${LLVM_BINARY_DIR}/NATIVE")
+    if (NOT EXISTS "${LLVM_NATIVE_BUILD}")
+      message(FATAL_ERROR
+        "Attempting to cross-compile LLDB standalone but no native LLVM build
+        found. Please cross-compile LLVM as well.")
+    endif()
+
+    if (CMAKE_HOST_SYSTEM_NAME MATCHES "Windows")
+      set(HOST_EXECUTABLE_SUFFIX ".exe")
+    endif()
+
+    if (NOT CMAKE_CONFIGURATION_TYPES)
+      set(LLVM_TABLEGEN_EXE
+        "${LLVM_NATIVE_BUILD}/bin/llvm-tblgen${HOST_EXECUTABLE_SUFFIX}")
+    else()
+      # NOTE: LLVM NATIVE build is always built Release, as is specified in
+      # CrossCompile.cmake
+      set(LLVM_TABLEGEN_EXE
+        "${LLVM_NATIVE_BUILD}/Release/bin/llvm-tblgen${HOST_EXECUTABLE_SUFFIX}")
+    endif()
+  else()
+    set(tblgen_file_name "llvm-tblgen${CMAKE_EXECUTABLE_SUFFIX}")
+    append_configuration_directories(${LLVM_TOOLS_BINARY_DIR} config_dirs)
+    find_program(LLVM_TABLEGEN_EXE ${tblgen_file_name} ${config_dirs} NO_DEFAULT_PATH)
+  endif()
 endif()
 
 # They are used as destination of target generators.

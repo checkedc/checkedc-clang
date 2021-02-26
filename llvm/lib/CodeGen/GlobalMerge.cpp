@@ -82,6 +82,8 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
+#include "llvm/InitializePasses.h"
+#include "llvm/MC/SectionKind.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
@@ -456,14 +458,14 @@ bool GlobalMerge::doMerge(const SmallVectorImpl<GlobalVariable *> &Globals,
 
     bool HasExternal = false;
     StringRef FirstExternalName;
-    unsigned MaxAlign = 1;
+    Align MaxAlign;
     unsigned CurIdx = 0;
     for (j = i; j != -1; j = GlobalSet.find_next(j)) {
       Type *Ty = Globals[j]->getValueType();
 
       // Make sure we use the same alignment AsmPrinter would use.
-      unsigned Align = DL.getPreferredAlignment(Globals[j]);
-      unsigned Padding = alignTo(MergedSize, Align) - MergedSize;
+      Align Alignment = DL.getPreferredAlign(Globals[j]);
+      unsigned Padding = alignTo(MergedSize, Alignment) - MergedSize;
       MergedSize += Padding;
       MergedSize += DL.getTypeAllocSize(Ty);
       if (MergedSize > MaxOffset) {
@@ -478,7 +480,7 @@ bool GlobalMerge::doMerge(const SmallVectorImpl<GlobalVariable *> &Globals,
       Inits.push_back(Globals[j]->getInitializer());
       StructIdxs.push_back(CurIdx++);
 
-      MaxAlign = std::max(MaxAlign, Align);
+      MaxAlign = std::max(MaxAlign, Alignment);
 
       if (Globals[j]->hasExternalLinkage() && !HasExternal) {
         HasExternal = true;
@@ -522,7 +524,8 @@ bool GlobalMerge::doMerge(const SmallVectorImpl<GlobalVariable *> &Globals,
     const StructLayout *MergedLayout = DL.getStructLayout(MergedTy);
     for (ssize_t k = i, idx = 0; k != j; k = GlobalSet.find_next(k), ++idx) {
       GlobalValue::LinkageTypes Linkage = Globals[k]->getLinkage();
-      std::string Name = Globals[k]->getName();
+      std::string Name(Globals[k]->getName());
+      GlobalValue::VisibilityTypes Visibility = Globals[k]->getVisibility();
       GlobalValue::DLLStorageClassTypes DLLStorage =
           Globals[k]->getDLLStorageClass();
 
@@ -548,6 +551,7 @@ bool GlobalMerge::doMerge(const SmallVectorImpl<GlobalVariable *> &Globals,
       if (Linkage != GlobalValue::InternalLinkage || !IsMachO) {
         GlobalAlias *GA = GlobalAlias::create(Tys[StructIdxs[idx]], AddrSpace,
                                               Linkage, Name, GEP, &M);
+        GA->setVisibility(Visibility);
         GA->setDLLStorageClass(DLLStorage);
       }
 

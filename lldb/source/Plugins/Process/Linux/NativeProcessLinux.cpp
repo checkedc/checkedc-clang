@@ -1,4 +1,4 @@
-//===-- NativeProcessLinux.cpp -------------------------------- -*- C++ -*-===//
+//===-- NativeProcessLinux.cpp --------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -256,7 +256,7 @@ NativeProcessLinux::Factory::Launch(ProcessLaunchInfo &launch_info,
   }
 
   return std::unique_ptr<NativeProcessLinux>(new NativeProcessLinux(
-      pid, launch_info.GetPTY().ReleaseMasterFileDescriptor(), native_delegate,
+      pid, launch_info.GetPTY().ReleasePrimaryFileDescriptor(), native_delegate,
       Info.GetArchitecture(), mainloop, {pid}));
 }
 
@@ -599,12 +599,9 @@ void NativeProcessLinux::MonitorSIGTRAP(const siginfo_t &info,
     // which only copies the main thread.
     LLDB_LOG(log, "exec received, stop tracking all but main thread");
 
-    for (auto i = m_threads.begin(); i != m_threads.end();) {
-      if ((*i)->GetID() == GetID())
-        i = m_threads.erase(i);
-      else
-        ++i;
-    }
+    llvm::erase_if(m_threads, [&](std::unique_ptr<NativeThreadProtocol> &t) {
+      return t->GetID() != GetID();
+    });
     assert(m_threads.size() == 1);
     auto *main_thread = static_cast<NativeThreadLinux *>(m_threads[0].get());
 
@@ -1594,7 +1591,7 @@ NativeThreadLinux &NativeProcessLinux::AddThread(lldb::tid_t thread_id) {
   if (m_threads.empty())
     SetCurrentThreadID(thread_id);
 
-  m_threads.push_back(llvm::make_unique<NativeThreadLinux>(*this, thread_id));
+  m_threads.push_back(std::make_unique<NativeThreadLinux>(*this, thread_id));
 
   if (m_pt_proces_trace_id != LLDB_INVALID_UID) {
     auto traceMonitor = ProcessorTraceMonitor::Create(

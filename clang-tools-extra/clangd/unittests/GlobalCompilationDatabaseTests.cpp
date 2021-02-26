@@ -8,8 +8,10 @@
 
 #include "GlobalCompilationDatabase.h"
 
-#include "Path.h"
+#include "Matchers.h"
 #include "TestFS.h"
+#include "support/Path.h"
+#include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
@@ -31,6 +33,7 @@ using ::testing::AllOf;
 using ::testing::Contains;
 using ::testing::ElementsAre;
 using ::testing::EndsWith;
+using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::Not;
 using ::testing::StartsWith;
@@ -40,23 +43,21 @@ TEST(GlobalCompilationDatabaseTest, FallbackCommand) {
   DirectoryBasedGlobalCompilationDatabase DB(None);
   auto Cmd = DB.getFallbackCommand(testPath("foo/bar.cc"));
   EXPECT_EQ(Cmd.Directory, testPath("foo"));
-  EXPECT_THAT(Cmd.CommandLine,
-              ElementsAre(EndsWith("clang"), testPath("foo/bar.cc")));
+  EXPECT_THAT(Cmd.CommandLine, ElementsAre("clang", testPath("foo/bar.cc")));
   EXPECT_EQ(Cmd.Output, "");
 
   // .h files have unknown language, so they are parsed liberally as obj-c++.
   Cmd = DB.getFallbackCommand(testPath("foo/bar.h"));
-  EXPECT_THAT(Cmd.CommandLine,
-              ElementsAre(EndsWith("clang"), "-xobjective-c++-header",
-                          testPath("foo/bar.h")));
+  EXPECT_THAT(Cmd.CommandLine, ElementsAre("clang", "-xobjective-c++-header",
+                                           testPath("foo/bar.h")));
   Cmd = DB.getFallbackCommand(testPath("foo/bar"));
-  EXPECT_THAT(Cmd.CommandLine,
-              ElementsAre(EndsWith("clang"), "-xobjective-c++-header",
-                          testPath("foo/bar")));
+  EXPECT_THAT(Cmd.CommandLine, ElementsAre("clang", "-xobjective-c++-header",
+                                           testPath("foo/bar")));
 }
 
 static tooling::CompileCommand cmd(llvm::StringRef File, llvm::StringRef Arg) {
-  return tooling::CompileCommand(testRoot(), File, {"clang", Arg, File}, "");
+  return tooling::CompileCommand(
+      testRoot(), File, {"clang", std::string(Arg), std::string(File)}, "");
 }
 
 class OverlayCDBTest : public ::testing::Test {
@@ -80,12 +81,12 @@ class OverlayCDBTest : public ::testing::Test {
   };
 
 protected:
-  OverlayCDBTest() : Base(llvm::make_unique<BaseCDB>()) {}
+  OverlayCDBTest() : Base(std::make_unique<BaseCDB>()) {}
   std::unique_ptr<GlobalCompilationDatabase> Base;
 };
 
 TEST_F(OverlayCDBTest, GetCompileCommand) {
-  OverlayCDB CDB(Base.get(), {}, std::string(""));
+  OverlayCDB CDB(Base.get());
   EXPECT_THAT(CDB.getCompileCommand(testPath("foo.cc"))->CommandLine,
               AllOf(Contains(testPath("foo.cc")), Contains("-DA=1")));
   EXPECT_EQ(CDB.getCompileCommand(testPath("missing.cc")), llvm::None);
@@ -103,12 +104,11 @@ TEST_F(OverlayCDBTest, GetCompileCommand) {
 TEST_F(OverlayCDBTest, GetFallbackCommand) {
   OverlayCDB CDB(Base.get(), {"-DA=4"});
   EXPECT_THAT(CDB.getFallbackCommand(testPath("bar.cc")).CommandLine,
-              ElementsAre("clang", "-DA=2", testPath("bar.cc"), "-DA=4",
-                          "-fsyntax-only", StartsWith("-resource-dir")));
+              ElementsAre("clang", "-DA=2", testPath("bar.cc"), "-DA=4"));
 }
 
 TEST_F(OverlayCDBTest, NoBase) {
-  OverlayCDB CDB(nullptr, {"-DA=6"}, std::string(""));
+  OverlayCDB CDB(nullptr, {"-DA=6"});
   EXPECT_EQ(CDB.getCompileCommand(testPath("bar.cc")), None);
   auto Override = cmd(testPath("bar.cc"), "-DA=5");
   CDB.setCompileCommand(testPath("bar.cc"), Override);
@@ -116,8 +116,7 @@ TEST_F(OverlayCDBTest, NoBase) {
               Contains("-DA=5"));
 
   EXPECT_THAT(CDB.getFallbackCommand(testPath("foo.cc")).CommandLine,
-              ElementsAre(EndsWith("clang"), testPath("foo.cc"), "-DA=6",
-                          "-fsyntax-only"));
+              ElementsAre("clang", testPath("foo.cc"), "-DA=6"));
 }
 
 TEST_F(OverlayCDBTest, Watch) {
@@ -138,33 +137,74 @@ TEST_F(OverlayCDBTest, Watch) {
 }
 
 TEST_F(OverlayCDBTest, Adjustments) {
-  OverlayCDB CDB(Base.get(), {}, std::string(""));
+  OverlayCDB CDB(Base.get(), {"-DFallback"},
+                 [](const std::vector<std::string> &Cmd, llvm::StringRef File) {
+                   auto Ret = Cmd;
+                   Ret.push_back(
+                       ("-DAdjust_" + llvm::sys::path::filename(File)).str());
+                   return Ret;
+                 });
+  // Command from underlying gets adjusted.
   auto Cmd = CDB.getCompileCommand(testPath("foo.cc")).getValue();
-  // Delete the file name.
-  Cmd.CommandLine.pop_back();
+  EXPECT_THAT(Cmd.CommandLine, ElementsAre("clang", "-DA=1", testPath("foo.cc"),
+                                           "-DAdjust_foo.cc"));
 
-  // Check dependency file commands are dropped.
-  Cmd.CommandLine.push_back("-MF");
-  Cmd.CommandLine.push_back("random-dependency");
+  // Command from overlay gets adjusted.
+  tooling::CompileCommand BarCommand;
+  BarCommand.Filename = testPath("bar.cc");
+  BarCommand.CommandLine = {"clang++", "-DB=1", testPath("bar.cc")};
+  CDB.setCompileCommand(testPath("bar.cc"), BarCommand);
+  Cmd = CDB.getCompileCommand(testPath("bar.cc")).getValue();
+  EXPECT_THAT(
+      Cmd.CommandLine,
+      ElementsAre("clang++", "-DB=1", testPath("bar.cc"), "-DAdjust_bar.cc"));
 
-  // Check plugin-related commands are dropped.
-  Cmd.CommandLine.push_back("-Xclang");
-  Cmd.CommandLine.push_back("-load");
-  Cmd.CommandLine.push_back("-Xclang");
-  Cmd.CommandLine.push_back("random-plugin");
-
-  Cmd.CommandLine.push_back("-DA=5");
-  Cmd.CommandLine.push_back(Cmd.Filename);
-
-  CDB.setCompileCommand(testPath("foo.cc"), Cmd);
-
-  EXPECT_THAT(CDB.getCompileCommand(testPath("foo.cc"))->CommandLine,
-              AllOf(Contains("-fsyntax-only"), Contains("-DA=5"),
-                    Contains(testPath("foo.cc")), Not(Contains("-MF")),
-                    Not(Contains("random-dependency")),
-                    Not(Contains("-Xclang")), Not(Contains("-load")),
-                    Not(Contains("random-plugin"))));
+  // Fallback gets adjusted.
+  Cmd = CDB.getFallbackCommand("baz.cc");
+  EXPECT_THAT(Cmd.CommandLine, ElementsAre("clang", "-DA=2", "baz.cc",
+                                           "-DFallback", "-DAdjust_baz.cc"));
 }
+
+// Allows placement of files for tests and cleans them up after.
+class ScratchFS {
+  llvm::SmallString<128> Root;
+
+public:
+  ScratchFS() {
+    EXPECT_FALSE(llvm::sys::fs::createUniqueDirectory("clangd-cdb-test", Root))
+        << "Failed to create unique directory";
+  }
+
+  ~ScratchFS() {
+    EXPECT_FALSE(llvm::sys::fs::remove_directories(Root))
+        << "Failed to cleanup " << Root;
+  }
+
+  llvm::StringRef root() const { return Root; }
+
+  void write(PathRef RelativePath, llvm::StringRef Contents) {
+    std::string AbsPath = path(RelativePath);
+    EXPECT_FALSE(llvm::sys::fs::create_directories(
+        llvm::sys::path::parent_path(AbsPath)))
+        << "Failed to create directories for: " << AbsPath;
+
+    std::error_code EC;
+    llvm::raw_fd_ostream OS(AbsPath, EC);
+    EXPECT_FALSE(EC) << "Failed to open " << AbsPath << " for writing";
+    OS << llvm::formatv(Contents.data(),
+                        llvm::sys::path::convert_to_slash(Root));
+    OS.close();
+
+    EXPECT_FALSE(OS.has_error());
+  }
+
+  std::string path(PathRef RelativePath) const {
+    llvm::SmallString<128> AbsPath(Root);
+    llvm::sys::path::append(AbsPath, RelativePath);
+    llvm::sys::path::native(AbsPath);
+    return AbsPath.str().str();
+  }
+};
 
 TEST(GlobalCompilationDatabaseTest, DiscoveryWithNestedCDBs) {
   const char *const CDBOuter =
@@ -197,44 +237,9 @@ TEST(GlobalCompilationDatabaseTest, DiscoveryWithNestedCDBs) {
         }
       ]
       )cdb";
-  class CleaningFS {
-  public:
-    llvm::SmallString<128> Root;
-
-    CleaningFS() {
-      EXPECT_FALSE(
-          llvm::sys::fs::createUniqueDirectory("clangd-cdb-test", Root))
-          << "Failed to create unique directory";
-    }
-
-    ~CleaningFS() {
-      EXPECT_FALSE(llvm::sys::fs::remove_directories(Root))
-          << "Failed to cleanup " << Root;
-    }
-
-    void registerFile(PathRef RelativePath, llvm::StringRef Contents) {
-      llvm::SmallString<128> AbsPath(Root);
-      llvm::sys::path::append(AbsPath, RelativePath);
-
-      EXPECT_FALSE(llvm::sys::fs::create_directories(
-          llvm::sys::path::parent_path(AbsPath)))
-          << "Failed to create directories for: " << AbsPath;
-
-      std::error_code EC;
-      llvm::raw_fd_ostream OS(AbsPath, EC);
-      EXPECT_FALSE(EC) << "Failed to open " << AbsPath << " for writing";
-      OS << llvm::formatv(Contents.data(),
-                          llvm::sys::path::convert_to_slash(Root));
-      OS.close();
-
-      EXPECT_FALSE(OS.has_error());
-    }
-  };
-
-  CleaningFS FS;
-  FS.registerFile("compile_commands.json", CDBOuter);
-  FS.registerFile("build/compile_commands.json", CDBInner);
-  llvm::SmallString<128> File;
+  ScratchFS FS;
+  FS.write("compile_commands.json", CDBOuter);
+  FS.write("build/compile_commands.json", CDBInner);
 
   // Note that gen2.cc goes missing with our following model, not sure this
   // happens in practice though.
@@ -246,40 +251,69 @@ TEST(GlobalCompilationDatabaseTest, DiscoveryWithNestedCDBs) {
           DiscoveredFiles = Changes;
         });
 
-    File = FS.Root;
-    llvm::sys::path::append(File, "a.cc");
-    DB.getCompileCommand(File.str());
-    EXPECT_THAT(DiscoveredFiles, UnorderedElementsAre(EndsWith("a.cc")));
+    DB.getCompileCommand(FS.path("build/../a.cc"));
+    EXPECT_THAT(DiscoveredFiles, UnorderedElementsAre(AllOf(
+                                     EndsWith("a.cc"), Not(HasSubstr("..")))));
     DiscoveredFiles.clear();
 
-    File = FS.Root;
-    llvm::sys::path::append(File, "build", "gen.cc");
-    DB.getCompileCommand(File.str());
+    DB.getCompileCommand(FS.path("build/gen.cc"));
     EXPECT_THAT(DiscoveredFiles, UnorderedElementsAre(EndsWith("gen.cc")));
   }
 
   // With a custom compile commands dir.
   {
-    DirectoryBasedGlobalCompilationDatabase DB(FS.Root.str().str());
+    DirectoryBasedGlobalCompilationDatabase DB(FS.root().str());
     std::vector<std::string> DiscoveredFiles;
     auto Sub =
         DB.watch([&DiscoveredFiles](const std::vector<std::string> Changes) {
           DiscoveredFiles = Changes;
         });
 
-    File = FS.Root;
-    llvm::sys::path::append(File, "a.cc");
-    DB.getCompileCommand(File.str());
+    DB.getCompileCommand(FS.path("a.cc"));
     EXPECT_THAT(DiscoveredFiles,
                 UnorderedElementsAre(EndsWith("a.cc"), EndsWith("gen.cc"),
                                      EndsWith("gen2.cc")));
     DiscoveredFiles.clear();
 
-    File = FS.Root;
-    llvm::sys::path::append(File, "build", "gen.cc");
-    DB.getCompileCommand(File.str());
+    DB.getCompileCommand(FS.path("build/gen.cc"));
     EXPECT_THAT(DiscoveredFiles, IsEmpty());
   }
+}
+
+TEST(GlobalCompilationDatabaseTest, BuildDir) {
+  ScratchFS FS;
+  auto Command = [&](llvm::StringRef Relative) {
+    return DirectoryBasedGlobalCompilationDatabase(llvm::None)
+        .getCompileCommand(FS.path(Relative))
+        .getValueOr(tooling::CompileCommand())
+        .CommandLine;
+  };
+  EXPECT_THAT(Command("x/foo.cc"), IsEmpty());
+  FS.write("x/build/compile_flags.txt", "-DXYZZY");
+  EXPECT_THAT(Command("x/foo.cc"), Contains("-DXYZZY"));
+  EXPECT_THAT(Command("bar.cc"), IsEmpty())
+      << "x/build/compile_flags.txt only applicable to x/";
+}
+
+TEST(GlobalCompilationDatabaseTest, NonCanonicalFilenames) {
+  OverlayCDB DB(nullptr);
+  std::vector<std::string> DiscoveredFiles;
+  auto Sub =
+      DB.watch([&DiscoveredFiles](const std::vector<std::string> Changes) {
+        DiscoveredFiles = Changes;
+      });
+
+  llvm::SmallString<128> Root(testRoot());
+  llvm::sys::path::append(Root, "build", "..", "a.cc");
+  DB.setCompileCommand(Root.str(), tooling::CompileCommand());
+  EXPECT_THAT(DiscoveredFiles, UnorderedElementsAre(testPath("a.cc")));
+  DiscoveredFiles.clear();
+
+  llvm::SmallString<128> File(testRoot());
+  llvm::sys::path::append(File, "blabla", "..", "a.cc");
+
+  EXPECT_TRUE(DB.getCompileCommand(File));
+  EXPECT_TRUE(DB.getProjectInfo(File));
 }
 
 } // namespace

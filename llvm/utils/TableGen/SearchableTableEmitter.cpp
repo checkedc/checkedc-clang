@@ -44,7 +44,7 @@ struct GenericEnum {
   using Entry = std::pair<StringRef, int64_t>;
 
   std::string Name;
-  Record *Class;
+  Record *Class = nullptr;
   std::string PreprocessorGuard;
   std::vector<std::unique_ptr<Entry>> Entries;
   DenseMap<Record *, Entry *> EntryMap;
@@ -57,13 +57,13 @@ struct GenericField {
   bool IsInstruction = false;
   GenericEnum *Enum = nullptr;
 
-  GenericField(StringRef Name) : Name(Name) {}
+  GenericField(StringRef Name) : Name(std::string(Name)) {}
 };
 
 struct SearchIndex {
   std::string Name;
   SmallVector<GenericField, 1> Fields;
-  bool EarlyOut;
+  bool EarlyOut = false;
 };
 
 struct GenericTable {
@@ -114,13 +114,17 @@ private:
     else if (BitInit *BI = dyn_cast<BitInit>(I))
       return BI->getValue() ? "true" : "false";
     else if (CodeInit *CI = dyn_cast<CodeInit>(I))
-      return CI->getValue();
+      return std::string(CI->getValue());
     else if (Field.IsIntrinsic)
       return "Intrinsic::" + getIntrinsic(I).EnumName;
     else if (Field.IsInstruction)
       return I->getAsString();
-    else if (Field.Enum)
-      return Field.Enum->EntryMap[cast<DefInit>(I)->getDef()]->first;
+    else if (Field.Enum) {
+      auto *Entry = Field.Enum->EntryMap[cast<DefInit>(I)->getDef()];
+      if (!Entry)
+        PrintFatalError(Twine("Entry for field '") + Field.Name + "' is null");
+      return std::string(Entry->first);
+    }
     PrintFatalError(Twine("invalid field type for field '") + Field.Name +
                     "', expected: string, bits, bit or code");
   }
@@ -134,7 +138,7 @@ private:
   CodeGenIntrinsic &getIntrinsic(Init *I) {
     std::unique_ptr<CodeGenIntrinsic> &Intr = Intrinsics[I];
     if (!Intr)
-      Intr = make_unique<CodeGenIntrinsic>(cast<DefInit>(I)->getDef());
+      Intr = std::make_unique<CodeGenIntrinsic>(cast<DefInit>(I)->getDef());
     return *Intr;
   }
 
@@ -274,7 +278,7 @@ bool SearchableTableEmitter::compareBy(Record *LHS, Record *RHS,
 
 void SearchableTableEmitter::emitIfdef(StringRef Guard, raw_ostream &OS) {
   OS << "#ifdef " << Guard << "\n";
-  PreprocessorGuards.insert(Guard);
+  PreprocessorGuards.insert(std::string(Guard));
 }
 
 /// Emit a generic enum.
@@ -496,7 +500,7 @@ void SearchableTableEmitter::emitGenericTable(const GenericTable &Table,
   emitIfdef((Twine("GET_") + Table.PreprocessorGuard + "_IMPL").str(), OS);
 
   // The primary data table contains all the fields defined for this map.
-  OS << "const " << Table.CppTypeName << " " << Table.Name << "[] = {\n";
+  OS << "constexpr " << Table.CppTypeName << " " << Table.Name << "[] = {\n";
   for (unsigned i = 0; i < Table.Entries.size(); ++i) {
     Record *Entry = Table.Entries[i];
     OS << "  { ";
@@ -541,8 +545,8 @@ std::unique_ptr<SearchIndex>
 SearchableTableEmitter::parseSearchIndex(GenericTable &Table, StringRef Name,
                                          const std::vector<StringRef> &Key,
                                          bool EarlyOut) {
-  auto Index = llvm::make_unique<SearchIndex>();
-  Index->Name = Name;
+  auto Index = std::make_unique<SearchIndex>();
+  Index->Name = std::string(Name);
   Index->EarlyOut = EarlyOut;
 
   for (const auto &FieldName : Key) {
@@ -577,7 +581,7 @@ void SearchableTableEmitter::collectEnumEntries(
     if (!ValueField.empty())
       Value = getInt(EntryRec, ValueField);
 
-    Enum.Entries.push_back(llvm::make_unique<GenericEnum::Entry>(Name, Value));
+    Enum.Entries.push_back(std::make_unique<GenericEnum::Entry>(Name, Value));
     Enum.EntryMap.insert(std::make_pair(EntryRec, Enum.Entries.back().get()));
   }
 
@@ -595,10 +599,13 @@ void SearchableTableEmitter::collectEnumEntries(
 
 void SearchableTableEmitter::collectTableEntries(
     GenericTable &Table, const std::vector<Record *> &Items) {
+  if (Items.empty())
+    PrintWarning(Twine("Table '") + Table.Name + "' has no items");
+
   for (auto EntryRec : Items) {
     for (auto &Field : Table.Fields) {
       auto TI = dyn_cast<TypedInit>(EntryRec->getValueInit(Field.Name));
-      if (!TI) {
+      if (!TI || !TI->isComplete()) {
         PrintFatalError(EntryRec->getLoc(),
                         Twine("Record '") + EntryRec->getName() +
                             "' in table '" + Table.Name +
@@ -623,6 +630,10 @@ void SearchableTableEmitter::collectTableEntries(
   Record *IntrinsicClass = Records.getClass("Intrinsic");
   Record *InstructionClass = Records.getClass("Instruction");
   for (auto &Field : Table.Fields) {
+    if (!Field.RecType)
+      PrintFatalError(Twine("Cannot determine type of field '") + Field.Name +
+                      "' in table '" + Table.Name + "'. Maybe it is not used?");
+
     if (auto RecordTy = dyn_cast<RecordRecTy>(Field.RecType)) {
       if (IntrinsicClass && RecordTy->isSubClassOf(IntrinsicClass))
         Field.IsIntrinsic = true;
@@ -647,9 +658,9 @@ void SearchableTableEmitter::run(raw_ostream &OS) {
     if (!EnumRec->isValueUnset("ValueField"))
       ValueField = EnumRec->getValueAsString("ValueField");
 
-    auto Enum = llvm::make_unique<GenericEnum>();
-    Enum->Name = EnumRec->getName();
-    Enum->PreprocessorGuard = EnumRec->getName();
+    auto Enum = std::make_unique<GenericEnum>();
+    Enum->Name = std::string(EnumRec->getName());
+    Enum->PreprocessorGuard = std::string(EnumRec->getName());
 
     StringRef FilterClass = EnumRec->getValueAsString("FilterClass");
     Enum->Class = Records.getClass(FilterClass);
@@ -664,10 +675,10 @@ void SearchableTableEmitter::run(raw_ostream &OS) {
   }
 
   for (auto TableRec : Records.getAllDerivedDefinitions("GenericTable")) {
-    auto Table = llvm::make_unique<GenericTable>();
-    Table->Name = TableRec->getName();
-    Table->PreprocessorGuard = TableRec->getName();
-    Table->CppTypeName = TableRec->getValueAsString("CppTypeName");
+    auto Table = std::make_unique<GenericTable>();
+    Table->Name = std::string(TableRec->getName());
+    Table->PreprocessorGuard = std::string(TableRec->getName());
+    Table->CppTypeName = std::string(TableRec->getValueAsString("CppTypeName"));
 
     std::vector<StringRef> Fields = TableRec->getValueAsListOfStrings("Fields");
     for (const auto &FieldName : Fields) {
@@ -733,7 +744,7 @@ void SearchableTableEmitter::run(raw_ostream &OS) {
       if (!Class->isValueUnset("EnumValueField"))
         ValueField = Class->getValueAsString("EnumValueField");
 
-      auto Enum = llvm::make_unique<GenericEnum>();
+      auto Enum = std::make_unique<GenericEnum>();
       Enum->Name = (Twine(Class->getName()) + "Values").str();
       Enum->PreprocessorGuard = Class->getName().upper();
       Enum->Class = Class;
@@ -743,13 +754,13 @@ void SearchableTableEmitter::run(raw_ostream &OS) {
       Enums.emplace_back(std::move(Enum));
     }
 
-    auto Table = llvm::make_unique<GenericTable>();
+    auto Table = std::make_unique<GenericTable>();
     Table->Name = (Twine(Class->getName()) + "sList").str();
     Table->PreprocessorGuard = Class->getName().upper();
-    Table->CppTypeName = Class->getName();
+    Table->CppTypeName = std::string(Class->getName());
 
     for (const RecordVal &Field : Class->getValues()) {
-      std::string FieldName = Field.getName();
+      std::string FieldName = std::string(Field.getName());
 
       // Skip uninteresting fields: either special to us, or injected
       // template parameters (if they contain a ':').

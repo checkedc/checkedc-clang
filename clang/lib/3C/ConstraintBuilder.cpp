@@ -138,14 +138,6 @@ public:
     return true;
   }
 
-  // x = e
-  bool VisitBinAssign(BinaryOperator *O) {
-    Expr *LHS = O->getLHS();
-    Expr *RHS = O->getRHS();
-    CB.constrainLocalAssign(O, LHS, RHS, Same_to_Same);
-    return true;
-  }
-
   // e(e1,e2,...)
   bool VisitCallExpr(CallExpr *E) {
     Decl *D = E->getCalleeDecl();
@@ -298,39 +290,35 @@ public:
     return true;
   }
 
-  // ++x
-  bool VisitUnaryPreInc(UnaryOperator *O) {
-    constraintPointerArithmetic(O->getSubExpr());
+  // ++e, --e, e++, and e--
+  bool VisitUnaryOperator(UnaryOperator *O) {
+    switch (O->getOpcode()) {
+    case clang::UO_PreInc:
+    case clang::UO_PreDec:
+    case clang::UO_PostInc:
+    case clang::UO_PostDec:
+      constraintPointerArithmetic(O->getSubExpr());
+      break;
+    default:
+      break;
+    }
     return true;
   }
 
-  // x++
-  bool VisitUnaryPostInc(UnaryOperator *O) {
-    constraintPointerArithmetic(O->getSubExpr());
-    return true;
-  }
-
-  // --x
-  bool VisitUnaryPreDec(UnaryOperator *O) {
-    constraintPointerArithmetic(O->getSubExpr());
-    return true;
-  }
-
-  // x--
-  bool VisitUnaryPostDec(UnaryOperator *O) {
-    constraintPointerArithmetic(O->getSubExpr());
-    return true;
-  }
-
-  // e1 + e2
-  bool VisitBinAdd(BinaryOperator *O) {
-    arithBinop(O);
-    return true;
-  }
-
-  // e1 - e2
-  bool VisitBinSub(BinaryOperator *O) {
-    arithBinop(O);
+  bool VisitBinaryOperator(BinaryOperator *O) {
+    switch (O->getOpcode()) {
+    // e1 + e2 and e1 - e2
+    case clang::BO_Add:
+    case clang::BO_Sub:
+      arithBinop(O);
+      break;
+    // x = e
+    case clang::BO_Assign:
+      CB.constrainLocalAssign(O, O->getLHS(), O->getRHS(), Same_to_Same);
+      break;
+    default:
+      break;
+    }
     return true;
   }
 

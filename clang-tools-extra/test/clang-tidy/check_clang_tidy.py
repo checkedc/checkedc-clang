@@ -69,7 +69,8 @@ def run_test_once(args, extra_args):
     clang_tidy_extra_args.append('-format-style=none')
 
   if extension in ['.m', '.mm']:
-    clang_extra_args = ['-fobjc-abi-version=2', '-fobjc-arc'] + clang_extra_args
+    clang_extra_args = ['-fobjc-abi-version=2', '-fobjc-arc', '-fblocks'] + \
+        clang_extra_args
 
   if extension in ['.cpp', '.hpp', '.mm']:
     clang_extra_args.append('-std=' + std)
@@ -158,7 +159,7 @@ def run_test_once(args, extra_args):
     diff_output = e.output
 
   print('------------------------------ Fixes -----------------------------\n' +
-        diff_output.decode() +
+        diff_output.decode(errors='ignore') +
         '\n------------------------------------------------------------------')
 
   if has_check_fixes:
@@ -203,15 +204,15 @@ def run_test_once(args, extra_args):
 
 def expand_std(std):
   if std == 'c++98-or-later':
-    return ['c++98', 'c++11', 'c++14', 'c++17', 'c++2a']
+    return ['c++98', 'c++11', 'c++14', 'c++17', 'c++20']
   if std == 'c++11-or-later':
-    return ['c++11', 'c++14', 'c++17', 'c++2a']
+    return ['c++11', 'c++14', 'c++17', 'c++20']
   if std == 'c++14-or-later':
-    return ['c++14', 'c++17', 'c++2a']
+    return ['c++14', 'c++17', 'c++20']
   if std == 'c++17-or-later':
-    return ['c++17', 'c++2a']
-  if std == 'c++2a-or-later':
-    return ['c++2a']
+    return ['c++17', 'c++20']
+  if std == 'c++20-or-later':
+    return ['c++20']
   return [std]
 
 

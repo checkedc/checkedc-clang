@@ -102,7 +102,7 @@ namespace PtrMem {
   static_assert(!is_same<Ab, Abce>, ""); // expected-error {{undeclared}} expected-error {{must be a type}}
   static_assert(!is_same<Ab, Abde>, ""); // expected-error {{undeclared}} expected-error {{must be a type}}
   static_assert(!is_same<Abce, Abde>, ""); // expected-error 2{{undeclared}} expected-error {{must be a type}}
-  static_assert(is_same<Abce, A<int B::*, (int B::*)(int C::*)&E::e>, ""); // expected-error {{undeclared}} expected-error {{not supported}}
+  static_assert(is_same<Abce, A<int B::*, (int B::*)(int C::*)&E::e>>, ""); // expected-error {{undeclared}} expected-error {{not supported}}
 
   using Ae = A<int E::*, e>;
   using Ae = A<int E::*, &E::e>;
@@ -111,7 +111,7 @@ namespace PtrMem {
   static_assert(!is_same<Ae, Aecb>, ""); // expected-error {{undeclared}} expected-error {{must be a type}}
   static_assert(!is_same<Ae, Aedb>, ""); // expected-error {{undeclared}} expected-error {{must be a type}}
   static_assert(!is_same<Aecb, Aedb>, ""); // expected-error 2{{undeclared}} expected-error {{must be a type}}
-  static_assert(is_same<Aecb, A<int E::*, (int E::*)(int C::*)&B::b>, ""); // expected-error {{undeclared}} expected-error {{not supported}}
+  static_assert(is_same<Aecb, A<int E::*, (int E::*)(int C::*)&B::b>>, ""); // expected-error {{undeclared}} expected-error {{not supported}}
 
   using An = A<int E::*, nullptr>;
   using A0 = A<int E::*, (int E::*)0>;
@@ -392,4 +392,59 @@ namespace PR42362 {
   template<auto (&...F)()> struct Z { struct Q; };
   template<auto (&...F)()> struct Z<F...>::Q {};
   Z<f, f, f>::Q q;
+}
+
+namespace QualConv {
+  int *X;
+  template<const int *const *P> void f() {
+    using T = decltype(P);
+    using T = const int* const*;
+  }
+  template void f<&X>();
+
+  template<const int *const &R> void g() {
+    using T = decltype(R);
+    using T = const int *const &;
+  }
+  template void g<(const int *const&)X>();
+}
+
+namespace FunctionConversion {
+  struct a { void c(char *) noexcept; };
+  template<void (a::*f)(char*)> void g() {
+    using T = decltype(f);
+    using T = void (a::*)(char*); // (not 'noexcept')
+  }
+  template void g<&a::c>();
+
+  void c() noexcept;
+  template<void (*p)()> void h() {
+    using T = decltype(p);
+    using T = void (*)(); // (not 'noexcept')
+  }
+  template void h<&c>();
+}
+
+namespace VoidPtr {
+  // Note, this is an extension in C++17 but valid in C++20.
+  template<void *P> void f() {
+    using T = decltype(P);
+    using T = void*;
+  }
+  int n;
+  template void f<(void*)&n>();
+}
+
+namespace PR42108 {
+  struct R {};
+  struct S { constexpr S() {} constexpr S(R) {} };
+  struct T { constexpr operator S() { return {}; } };
+  template <const S &> struct A {};
+  void f() {
+    A<R{}>(); // expected-error {{would bind reference to a temporary}}
+    A<S{}>(); // expected-error {{non-type template argument is not a constant expression}} expected-note 2{{temporary}}
+    // FIXME: We could diagnose this better if we treated this as not binding
+    // directly. It's unclear whether that's the intent.
+    A<T{}>(); // expected-error {{non-type template argument is not a constant expression}} expected-note 2{{temporary}}
+  }
 }

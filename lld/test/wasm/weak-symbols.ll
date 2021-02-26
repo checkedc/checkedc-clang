@@ -1,5 +1,5 @@
-; RUN: llc -filetype=obj %p/Inputs/weak-symbol1.ll -o %t1.o
-; RUN: llc -filetype=obj %p/Inputs/weak-symbol2.ll -o %t2.o
+; RUN: llvm-mc -filetype=obj -triple=wasm32-unknown-unknown %p/Inputs/weak-symbol1.s -o %t1.o
+; RUN: llvm-mc -filetype=obj -triple=wasm32-unknown-unknown %p/Inputs/weak-symbol2.s -o %t2.o
 ; RUN: llc -filetype=obj %s -o %t.o
 ; RUN: wasm-ld --export-dynamic -o %t.wasm %t.o %t1.o %t2.o
 ; RUN: obj2yaml %t.wasm | FileCheck %s
@@ -23,11 +23,12 @@ entry:
 ; CHECK-NEXT:   - Type:            TYPE
 ; CHECK-NEXT:     Signatures:
 ; CHECK-NEXT:       - Index:           0
-; CHECK-NEXT:         ReturnType:      NORESULT
-; CHECK-NEXT:         ParamTypes:
+; CHECK-NEXT:         ParamTypes:      []
+; CHECK-NEXT:         ReturnTypes:     []
 ; CHECK-NEXT:       - Index:           1
-; CHECK-NEXT:         ReturnType:      I32
-; CHECK-NEXT:         ParamTypes:
+; CHECK-NEXT:         ParamTypes:      []
+; CHECK-NEXT:         ReturnTypes:
+; CHECK-NEXT:           - I32
 ; CHECK-NEXT:   - Type:            FUNCTION
 ; CHECK-NEXT:     FunctionTypes:   [ 0, 1, 1, 1 ]
 ; CHECK-NEXT:   - Type:            TABLE

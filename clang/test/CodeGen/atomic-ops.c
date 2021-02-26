@@ -343,20 +343,20 @@ struct Incomplete;
 int lock_free(struct Incomplete *incomplete) {
   // CHECK-LABEL: @lock_free
 
-  // CHECK: call i32 @__atomic_is_lock_free(i32 3, i8* null)
+  // CHECK: call zeroext i1 @__atomic_is_lock_free(i32 3, i8* null)
   __c11_atomic_is_lock_free(3);
 
-  // CHECK: call i32 @__atomic_is_lock_free(i32 16, i8* {{.*}}@sixteen{{.*}})
+  // CHECK: call zeroext i1 @__atomic_is_lock_free(i32 16, i8* {{.*}}@sixteen{{.*}})
   __atomic_is_lock_free(16, &sixteen);
 
-  // CHECK: call i32 @__atomic_is_lock_free(i32 17, i8* {{.*}}@seventeen{{.*}})
+  // CHECK: call zeroext i1 @__atomic_is_lock_free(i32 17, i8* {{.*}}@seventeen{{.*}})
   __atomic_is_lock_free(17, &seventeen);
 
-  // CHECK: call i32 @__atomic_is_lock_free(i32 4, {{.*}})
+  // CHECK: call zeroext i1 @__atomic_is_lock_free(i32 4, {{.*}})
   __atomic_is_lock_free(4, incomplete);
 
   char cs[20];
-  // CHECK: call i32 @__atomic_is_lock_free(i32 4, {{.*}})
+  // CHECK: call zeroext i1 @__atomic_is_lock_free(i32 4, {{.*}})
   __atomic_is_lock_free(4, cs+1);
 
   // CHECK-NOT: call
@@ -659,6 +659,83 @@ void test_underaligned() {
   __atomic_exchange(&aligned_a, &aligned_b, &aligned_c, memory_order_seq_cst);
   // CHECK: cmpxchg weak
   __atomic_compare_exchange(&aligned_a, &aligned_b, &aligned_c, 1, memory_order_seq_cst, memory_order_seq_cst);
+}
+
+void test_c11_minmax(_Atomic(int) * si, _Atomic(unsigned) * ui, _Atomic(short) * ss, _Atomic(unsigned char) * uc, _Atomic(long long) * sll) {
+  // CHECK-LABEL: @test_c11_minmax
+
+  // CHECK: atomicrmw max i32
+  *si = __c11_atomic_fetch_max(si, 42, memory_order_acquire);
+  // CHECK: atomicrmw min i32
+  *si = __c11_atomic_fetch_min(si, 42, memory_order_acquire);
+  // CHECK: atomicrmw umax i32
+  *ui = __c11_atomic_fetch_max(ui, 42, memory_order_acquire);
+  // CHECK: atomicrmw umin i32
+  *ui = __c11_atomic_fetch_min(ui, 42, memory_order_acquire);
+
+  // CHECK: atomicrmw max i16
+  *ss = __c11_atomic_fetch_max(ss, 42, memory_order_acquire);
+  // CHECK: atomicrmw min i16
+  *ss = __c11_atomic_fetch_min(ss, 42, memory_order_acquire);
+
+  // CHECK: atomicrmw umax i8
+  *uc = __c11_atomic_fetch_max(uc, 42, memory_order_acquire);
+  // CHECK: atomicrmw umin i8
+  *uc = __c11_atomic_fetch_min(uc, 42, memory_order_acquire);
+
+  // CHECK: atomicrmw max i64
+  *sll = __c11_atomic_fetch_max(sll, 42, memory_order_acquire);
+  // CHECK: atomicrmw min i64
+  *sll = __c11_atomic_fetch_min(sll, 42, memory_order_acquire);
+
+}
+
+void test_minmax_postop(int *si, unsigned *ui, unsigned short *us, signed char *sc, unsigned long long *ull) {
+  int val = 42;
+  // CHECK-LABEL: @test_minmax_postop
+
+  // CHECK: [[OLD:%.*]] = atomicrmw max i32* [[PTR:%.*]], i32 [[RHS:%.*]] release
+  // CHECK: [[TST:%.*]] = icmp sgt i32 [[OLD]], [[RHS]]
+  // CHECK: [[NEW:%.*]] = select i1 [[TST]], i32 [[OLD]], i32 [[RHS]]
+  // CHECK: store i32 [[NEW]], i32*
+  *si = __atomic_max_fetch(si, 42, memory_order_release);
+
+  // CHECK: [[OLD:%.*]] = atomicrmw min i32* [[PTR:%.*]], i32 [[RHS:%.*]] release
+  // CHECK: [[TST:%.*]] = icmp slt i32 [[OLD]], [[RHS]]
+  // CHECK: [[NEW:%.*]] = select i1 [[TST]], i32 [[OLD]], i32 [[RHS]]
+  // CHECK: store i32 [[NEW]], i32*
+  *si = __atomic_min_fetch(si, 42, memory_order_release);
+  
+  // CHECK: [[OLD:%.*]] = atomicrmw umax i32* [[PTR:%.*]], i32 [[RHS:%.*]] release
+  // CHECK: [[TST:%.*]] = icmp ugt i32 [[OLD]], [[RHS]]
+  // CHECK: [[NEW:%.*]] = select i1 [[TST]], i32 [[OLD]], i32 [[RHS]]
+  // CHECK: store i32 [[NEW]], i32*
+  *ui = __atomic_max_fetch(ui, 42, memory_order_release);
+
+  // CHECK: [[OLD:%.*]] = atomicrmw umin i32* [[PTR:%.*]], i32 [[RHS:%.*]] release
+  // CHECK: [[TST:%.*]] = icmp ult i32 [[OLD]], [[RHS]]
+  // CHECK: [[NEW:%.*]] = select i1 [[TST]], i32 [[OLD]], i32 [[RHS]]
+  // CHECK: store i32 [[NEW]], i32*
+  *ui = __atomic_min_fetch(ui, 42, memory_order_release);
+
+  // CHECK: [[OLD:%.*]] = atomicrmw umin i16* [[PTR:%.*]], i16 [[RHS:%.*]] release
+  // CHECK: [[TST:%.*]] = icmp ult i16 [[OLD]], [[RHS]]
+  // CHECK: [[NEW:%.*]] = select i1 [[TST]], i16 [[OLD]], i16 [[RHS]]
+  // CHECK: store i16 [[NEW]], i16*
+  *us = __atomic_min_fetch(us, 42, memory_order_release);
+
+  // CHECK: [[OLD:%.*]] = atomicrmw min i8* [[PTR:%.*]], i8 [[RHS:%.*]] release
+  // CHECK: [[TST:%.*]] = icmp slt i8 [[OLD]], [[RHS]]
+  // CHECK: [[NEW:%.*]] = select i1 [[TST]], i8 [[OLD]], i8 [[RHS]]
+  // CHECK: store i8 [[NEW]], i8*
+  *sc = __atomic_min_fetch(sc, 42, memory_order_release);
+
+  // CHECK: [[OLD:%.*]] = call i64 @__atomic_fetch_umin_8(i8* {{%.*}}, i64 [[RHS:%.*]],
+  // CHECK: [[TST:%.*]] = icmp ult i64 [[OLD]], [[RHS]]
+  // CHECK: [[NEW:%.*]] = select i1 [[TST]], i64 [[OLD]], i64 [[RHS]]
+  // CHECK: store i64 [[NEW]], i64*
+  *ull = __atomic_min_fetch(ull, 42, memory_order_release);
+
 }
 
 #endif

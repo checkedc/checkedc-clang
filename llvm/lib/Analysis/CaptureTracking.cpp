@@ -20,18 +20,49 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/CFG.h"
-#include "llvm/Analysis/OrderedBasicBlock.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/Support/CommandLine.h"
 
 using namespace llvm;
+
+/// The default value for MaxUsesToExplore argument. It's relatively small to
+/// keep the cost of analysis reasonable for clients like BasicAliasAnalysis,
+/// where the results can't be cached.
+/// TODO: we should probably introduce a caching CaptureTracking analysis and
+/// use it where possible. The caching version can use much higher limit or
+/// don't have this cap at all.
+static cl::opt<unsigned>
+DefaultMaxUsesToExplore("capture-tracking-max-uses-to-explore", cl::Hidden,
+                        cl::desc("Maximal number of uses to explore."),
+                        cl::init(20));
+
+unsigned llvm::getDefaultMaxUsesToExploreForCaptureTracking() {
+  return DefaultMaxUsesToExplore;
+}
 
 CaptureTracker::~CaptureTracker() {}
 
 bool CaptureTracker::shouldExplore(const Use *U) { return true; }
+
+bool CaptureTracker::isDereferenceableOrNull(Value *O, const DataLayout &DL) {
+  // An inbounds GEP can either be a valid pointer (pointing into
+  // or to the end of an allocation), or be null in the default
+  // address space. So for an inbounds GEP there is no way to let
+  // the pointer escape using clever GEP hacking because doing so
+  // would make the pointer point outside of the allocated object
+  // and thus make the GEP result a poison value. Similarly, other
+  // dereferenceable pointers cannot be manipulated without producing
+  // poison.
+  if (auto *GEP = dyn_cast<GetElementPtrInst>(O))
+    if (GEP->isInBounds())
+      return true;
+  bool CanBeNull;
+  return O->getPointerDereferenceableBytes(DL, CanBeNull);
+}
 
 namespace {
   struct SimpleCaptureTracker : public CaptureTracker {
@@ -60,8 +91,8 @@ namespace {
   struct CapturesBefore : public CaptureTracker {
 
     CapturesBefore(bool ReturnCaptures, const Instruction *I, const DominatorTree *DT,
-                   bool IncludeI, OrderedBasicBlock *IC)
-      : OrderedBB(IC), BeforeHere(I), DT(DT),
+                   bool IncludeI)
+      : BeforeHere(I), DT(DT),
         ReturnCaptures(ReturnCaptures), IncludeI(IncludeI), Captured(false) {}
 
     void tooManyUses() override { Captured = true; }
@@ -74,9 +105,7 @@ namespace {
         return true;
 
       // Compute the case where both instructions are inside the same basic
-      // block. Since instructions in the same BB as BeforeHere are numbered in
-      // 'OrderedBB', avoid using 'dominates' and 'isPotentiallyReachable'
-      // which are very expensive for large basic blocks.
+      // block.
       if (BB == BeforeHere->getParent()) {
         // 'I' dominates 'BeforeHere' => not safe to prune.
         //
@@ -86,7 +115,7 @@ namespace {
         // UseBB == BB, avoid pruning.
         if (isa<InvokeInst>(BeforeHere) || isa<PHINode>(I) || I == BeforeHere)
           return false;
-        if (!OrderedBB->dominates(BeforeHere, I))
+        if (!BeforeHere->comesBefore(I))
           return false;
 
         // 'BeforeHere' comes before 'I', it's safe to prune if we also
@@ -137,7 +166,6 @@ namespace {
       return true;
     }
 
-    OrderedBasicBlock *OrderedBB;
     const Instruction *BeforeHere;
     const DominatorTree *DT;
 
@@ -180,39 +208,35 @@ bool llvm::PointerMayBeCaptured(const Value *V,
 /// returning the value (or part of it) from the function counts as capturing
 /// it or not.  The boolean StoreCaptures specified whether storing the value
 /// (or part of it) into memory anywhere automatically counts as capturing it
-/// or not. A ordered basic block \p OBB can be used in order to speed up
-/// queries about relative order among instructions in the same basic block.
+/// or not.
 bool llvm::PointerMayBeCapturedBefore(const Value *V, bool ReturnCaptures,
                                       bool StoreCaptures, const Instruction *I,
                                       const DominatorTree *DT, bool IncludeI,
-                                      OrderedBasicBlock *OBB,
                                       unsigned MaxUsesToExplore) {
   assert(!isa<GlobalValue>(V) &&
          "It doesn't make sense to ask whether a global is captured.");
-  bool UseNewOBB = OBB == nullptr;
 
   if (!DT)
     return PointerMayBeCaptured(V, ReturnCaptures, StoreCaptures,
                                 MaxUsesToExplore);
-  if (UseNewOBB)
-    OBB = new OrderedBasicBlock(I->getParent());
 
   // TODO: See comment in PointerMayBeCaptured regarding what could be done
   // with StoreCaptures.
 
-  CapturesBefore CB(ReturnCaptures, I, DT, IncludeI, OBB);
+  CapturesBefore CB(ReturnCaptures, I, DT, IncludeI);
   PointerMayBeCaptured(V, &CB, MaxUsesToExplore);
-
-  if (UseNewOBB)
-    delete OBB;
   return CB.Captured;
 }
 
 void llvm::PointerMayBeCaptured(const Value *V, CaptureTracker *Tracker,
                                 unsigned MaxUsesToExplore) {
   assert(V->getType()->isPointerTy() && "Capture is for pointers only!");
-  SmallVector<const Use *, DefaultMaxUsesToExplore> Worklist;
-  SmallSet<const Use *, DefaultMaxUsesToExplore> Visited;
+  if (MaxUsesToExplore == 0)
+    MaxUsesToExplore = DefaultMaxUsesToExplore;
+
+  SmallVector<const Use *, 20> Worklist;
+  Worklist.reserve(getDefaultMaxUsesToExploreForCaptureTracking());
+  SmallSet<const Use *, 20> Visited;
 
   auto AddUses = [&](const Value *V) {
     unsigned Count = 0;
@@ -251,7 +275,8 @@ void llvm::PointerMayBeCaptured(const Value *V, CaptureTracker *Tracker,
       // marked with nocapture do not capture. This means that places like
       // GetUnderlyingObject in ValueTracking or DecomposeGEPExpression
       // in BasicAA also need to know about this property.
-      if (isIntrinsicReturningPointerAliasingArgumentWithoutCapturing(Call)) {
+      if (isIntrinsicReturningPointerAliasingArgumentWithoutCapturing(Call,
+                                                                      true)) {
         AddUses(Call);
         break;
       }
@@ -330,7 +355,9 @@ void llvm::PointerMayBeCaptured(const Value *V, CaptureTracker *Tracker,
       AddUses(I);
       break;
     case Instruction::ICmp: {
-      if (auto *CPN = dyn_cast<ConstantPointerNull>(I->getOperand(1))) {
+      unsigned Idx = (I->getOperand(0) == V) ? 0 : 1;
+      unsigned OtherIdx = 1 - Idx;
+      if (auto *CPN = dyn_cast<ConstantPointerNull>(I->getOperand(OtherIdx))) {
         // Don't count comparisons of a no-alias return value against null as
         // captures. This allows us to ignore comparisons of malloc results
         // with null, for example.
@@ -338,29 +365,18 @@ void llvm::PointerMayBeCaptured(const Value *V, CaptureTracker *Tracker,
           if (isNoAliasCall(V->stripPointerCasts()))
             break;
         if (!I->getFunction()->nullPointerIsDefined()) {
-          auto *O = I->getOperand(0)->stripPointerCastsSameRepresentation();
-          // An inbounds GEP can either be a valid pointer (pointing into
-          // or to the end of an allocation), or be null in the default
-          // address space. So for an inbounds GEPs there is no way to let
-          // the pointer escape using clever GEP hacking because doing so
-          // would make the pointer point outside of the allocated object
-          // and thus make the GEP result a poison value.
-          if (auto *GEP = dyn_cast<GetElementPtrInst>(O))
-            if (GEP->isInBounds())
-              break;
-          // Comparing a dereferenceable_or_null argument against null
-          // cannot lead to pointer escapes, because if it is not null it
-          // must be a valid (in-bounds) pointer.
-          bool CanBeNull;
-          if (O->getPointerDereferenceableBytes(I->getModule()->getDataLayout(), CanBeNull))
+          auto *O = I->getOperand(Idx)->stripPointerCastsSameRepresentation();
+          // Comparing a dereferenceable_or_null pointer against null cannot
+          // lead to pointer escapes, because if it is not null it must be a
+          // valid (in-bounds) pointer.
+          if (Tracker->isDereferenceableOrNull(O, I->getModule()->getDataLayout()))
             break;
         }
       }
       // Comparison against value stored in global variable. Given the pointer
       // does not escape, its value cannot be guessed and stored separately in a
       // global variable.
-      unsigned OtherIndex = (I->getOperand(0) == V) ? 1 : 0;
-      auto *LI = dyn_cast<LoadInst>(I->getOperand(OtherIndex));
+      auto *LI = dyn_cast<LoadInst>(I->getOperand(OtherIdx));
       if (LI && isa<GlobalVariable>(LI->getPointerOperand()))
         break;
       // Otherwise, be conservative. There are crazy ways to capture pointers

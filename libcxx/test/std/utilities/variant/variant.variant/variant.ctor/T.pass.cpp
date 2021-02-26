@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
-// XFAIL: dylib-has-no-bad_variant_access && !libcpp-no-exceptions
+// UNSUPPORTED: c++03, c++11, c++14
+// XFAIL: dylib-has-no-bad_variant_access && !no-exceptions
 
 // <variant>
 
@@ -23,7 +23,7 @@
 #include <memory>
 
 #include "test_macros.h"
-#include "variant_test_helpers.hpp"
+#include "variant_test_helpers.h"
 
 struct Dummy {
   Dummy() = default;

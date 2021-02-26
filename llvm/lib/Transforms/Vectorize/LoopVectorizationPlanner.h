@@ -31,9 +31,12 @@
 
 namespace llvm {
 
+class LoopVectorizationLegality;
+class LoopVectorizationCostModel;
+class PredicatedScalarEvolution;
+
 /// VPlan-based builder utility analogous to IRBuilder.
 class VPBuilder {
-private:
   VPBasicBlock *BB = nullptr;
   VPBasicBlock::iterator InsertPt = VPBasicBlock::iterator();
 
@@ -201,6 +204,11 @@ class LoopVectorizationPlanner {
   /// The profitability analysis.
   LoopVectorizationCostModel &CM;
 
+  /// The interleaved access analysis.
+  InterleavedAccessInfo &IAI;
+
+  PredicatedScalarEvolution &PSE;
+
   SmallVector<VPlanPtr, 4> VPlans;
 
   /// This class is used to enable the VPlan to invoke a method of ILV. This is
@@ -211,6 +219,8 @@ class LoopVectorizationPlanner {
     VPCallbackILV(InnerLoopVectorizer &ILV) : ILV(ILV) {}
 
     Value *getOrCreateVectorValues(Value *V, unsigned Part) override;
+    Value *getOrCreateScalarValue(Value *V,
+                                  const VPIteration &Instance) override;
   };
 
   /// A builder used to construct the current plan.
@@ -223,16 +233,19 @@ public:
   LoopVectorizationPlanner(Loop *L, LoopInfo *LI, const TargetLibraryInfo *TLI,
                            const TargetTransformInfo *TTI,
                            LoopVectorizationLegality *Legal,
-                           LoopVectorizationCostModel &CM)
-      : OrigLoop(L), LI(LI), TLI(TLI), TTI(TTI), Legal(Legal), CM(CM) {}
+                           LoopVectorizationCostModel &CM,
+                           InterleavedAccessInfo &IAI,
+                           PredicatedScalarEvolution &PSE)
+      : OrigLoop(L), LI(LI), TLI(TLI), TTI(TTI), Legal(Legal), CM(CM), IAI(IAI),
+        PSE(PSE) {}
 
   /// Plan how to best vectorize, return the best VF and its cost, or None if
   /// vectorization and interleaving should be avoided up front.
-  Optional<VectorizationFactor> plan(bool OptForSize, unsigned UserVF);
+  Optional<VectorizationFactor> plan(unsigned UserVF, unsigned UserIC);
 
   /// Use the VPlan-native path to plan how to best vectorize, return the best
   /// VF and its cost.
-  VectorizationFactor planInVPlanNativePath(bool OptForSize, unsigned UserVF);
+  VectorizationFactor planInVPlanNativePath(unsigned UserVF);
 
   /// Finalize the best decision and dispose of all other VPlans.
   void setBestPlan(unsigned VF, unsigned UF);
@@ -272,9 +285,10 @@ private:
 
   /// Build a VPlan using VPRecipes according to the information gather by
   /// Legal. This method is only used for the legacy inner loop vectorizer.
-  VPlanPtr
-  buildVPlanWithVPRecipes(VFRange &Range, SmallPtrSetImpl<Value *> &NeedDef,
-                          SmallPtrSetImpl<Instruction *> &DeadInstructions);
+  VPlanPtr buildVPlanWithVPRecipes(
+      VFRange &Range, SmallPtrSetImpl<Value *> &NeedDef,
+      SmallPtrSetImpl<Instruction *> &DeadInstructions,
+      const DenseMap<Instruction *, Instruction *> &SinkAfter);
 
   /// Build VPlans for power-of-2 VF's between \p MinVF and \p MaxVF inclusive,
   /// according to the information gathered by Legal when it checked if it is

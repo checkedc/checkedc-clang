@@ -1,4 +1,4 @@
-//===-- ValueObjectCast.cpp -------------------------------------*- C++ -*-===//
+//===-- ValueObjectCast.cpp -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -33,8 +33,6 @@ ValueObjectCast::ValueObjectCast(ValueObject &parent, ConstString name,
                                  const CompilerType &cast_type)
     : ValueObject(parent), m_cast_type(cast_type) {
   SetName(name);
-  // m_value.SetContext (Value::eContextTypeClangType,
-  // cast_type.GetOpaqueQualType());
   m_value.SetCompilerType(cast_type);
 }
 
@@ -68,7 +66,6 @@ bool ValueObjectCast::UpdateValue() {
     m_update_point.SetUpdated();
     m_value = m_parent->GetValue();
     CompilerType compiler_type(GetCompilerType());
-    // m_value.SetContext (Value::eContextTypeClangType, compiler_type);
     m_value.SetCompilerType(compiler_type);
     SetAddressTypeOfChildren(m_parent->GetAddressTypeOfChildren());
     if (!CanProvideValue()) {
@@ -79,7 +76,7 @@ bool ValueObjectCast::UpdateValue() {
                         m_value.GetScalar() != old_value.GetScalar());
     }
     ExecutionContext exe_ctx(GetExecutionContextRef());
-    m_error = m_value.GetValueAsData(&exe_ctx, m_data, 0, GetModule().get());
+    m_error = m_value.GetValueAsData(&exe_ctx, m_data, GetModule().get());
     SetValueDidChange(m_parent->GetValueDidChange());
     return true;
   }

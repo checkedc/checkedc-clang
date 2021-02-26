@@ -24,7 +24,7 @@ define dso_local void @f1() local_unnamed_addr #0 !dbg !7 {
 ; CHECK-NEXT:        .long   218103808               # 0xd000000
 ; CHECK-NEXT:        .long   0
 ; CHECK-NEXT:        .long   1                       # BTF_KIND_FUNC(id = 2)
-; CHECK-NEXT:        .long   201326592               # 0xc000000
+; CHECK-NEXT:        .long   201326593               # 0xc000001
 ; CHECK-NEXT:        .long   1
 ; CHECK-NEXT:        .byte   0                       # string offset=0
 ; CHECK-NEXT:        .ascii  "f1"                    # string offset=1
@@ -37,13 +37,11 @@ define dso_local void @f1() local_unnamed_addr #0 !dbg !7 {
 ; CHECK-NEXT:        .short  60319                   # 0xeb9f
 ; CHECK-NEXT:        .byte   1
 ; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .long   40
+; CHECK-NEXT:        .long   32
 ; CHECK-NEXT:        .long   0
 ; CHECK-NEXT:        .long   20
 ; CHECK-NEXT:        .long   20
 ; CHECK-NEXT:        .long   28
-; CHECK-NEXT:        .long   48
-; CHECK-NEXT:        .long   0
 ; CHECK-NEXT:        .long   48
 ; CHECK-NEXT:        .long   0
 ; CHECK-NEXT:        .long   8                       # FuncInfo
@@ -59,7 +57,7 @@ define dso_local void @f1() local_unnamed_addr #0 !dbg !7 {
 ; CHECK-NEXT:        .long   0
 ; CHECK-NEXT:        .long   1040                    # Line 1 Col 16
 
-attributes #0 = { norecurse nounwind readnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { norecurse nounwind readnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!3, !4, !5}

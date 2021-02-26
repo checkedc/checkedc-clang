@@ -67,6 +67,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils.h"
@@ -228,6 +229,27 @@ static Loop *separateNestedLoop(Loop *L, BasicBlock *Preheader,
   // Don't try to separate loops without a preheader.
   if (!Preheader)
     return nullptr;
+
+  // Treat the presence of convergent functions conservatively. The
+  // transformation is invalid if calls to certain convergent
+  // functions (like an AMDGPU barrier) get included in the resulting
+  // inner loop. But blocks meant for the inner loop will be
+  // identified later at a point where it's too late to abort the
+  // transformation. Also, the convergent attribute is not really
+  // sufficient to express the semantics of functions that are
+  // affected by this transformation. So we choose to back off if such
+  // a function call is present until a better alternative becomes
+  // available. This is similar to the conservative treatment of
+  // convergent function calls in GVNHoist and JumpThreading.
+  for (auto BB : L->blocks()) {
+    for (auto &II : *BB) {
+      if (auto CI = dyn_cast<CallBase>(&II)) {
+        if (CI->isConvergent()) {
+          return nullptr;
+        }
+      }
+    }
+  }
 
   // The header is not a landing pad; preheader insertion should ensure this.
   BasicBlock *Header = L->getHeader();
@@ -597,6 +619,7 @@ ReprocessLoop:
       if (!PreserveLCSSA || LI->replacementPreservesLCSSAForm(PN, V)) {
         PN->replaceAllUsesWith(V);
         PN->eraseFromParent();
+        Changed = true;
       }
     }
 
@@ -673,10 +696,8 @@ ReprocessLoop:
       LI->removeBlock(ExitingBlock);
 
       DomTreeNode *Node = DT->getNode(ExitingBlock);
-      const std::vector<DomTreeNodeBase<BasicBlock> *> &Children =
-        Node->getChildren();
-      while (!Children.empty()) {
-        DomTreeNode *Child = Children.front();
+      while (!Node->isLeaf()) {
+        DomTreeNode *Child = Node->back();
         DT->changeImmediateDominator(Child, Node->getIDom());
       }
       DT->eraseNode(ExitingBlock);
@@ -808,7 +829,7 @@ bool LoopSimplify::runOnFunction(Function &F) {
     auto *MSSAAnalysis = getAnalysisIfAvailable<MemorySSAWrapperPass>();
     if (MSSAAnalysis) {
       MSSA = &MSSAAnalysis->getMSSA();
-      MSSAU = make_unique<MemorySSAUpdater>(MSSA);
+      MSSAU = std::make_unique<MemorySSAUpdater>(MSSA);
     }
   }
 
@@ -835,12 +856,19 @@ PreservedAnalyses LoopSimplifyPass::run(Function &F,
   DominatorTree *DT = &AM.getResult<DominatorTreeAnalysis>(F);
   ScalarEvolution *SE = AM.getCachedResult<ScalarEvolutionAnalysis>(F);
   AssumptionCache *AC = &AM.getResult<AssumptionAnalysis>(F);
+  auto *MSSAAnalysis = AM.getCachedResult<MemorySSAAnalysis>(F);
+  std::unique_ptr<MemorySSAUpdater> MSSAU;
+  if (MSSAAnalysis) {
+    auto *MSSA = &MSSAAnalysis->getMSSA();
+    MSSAU = std::make_unique<MemorySSAUpdater>(MSSA);
+  }
+
 
   // Note that we don't preserve LCSSA in the new PM, if you need it run LCSSA
-  // after simplifying the loops. MemorySSA is not preserved either.
+  // after simplifying the loops. MemorySSA is preserved if it exists.
   for (LoopInfo::iterator I = LI->begin(), E = LI->end(); I != E; ++I)
     Changed |=
-        simplifyLoop(*I, DT, LI, SE, AC, nullptr, /*PreserveLCSSA*/ false);
+        simplifyLoop(*I, DT, LI, SE, AC, MSSAU.get(), /*PreserveLCSSA*/ false);
 
   if (!Changed)
     return PreservedAnalyses::all();
@@ -853,6 +881,8 @@ PreservedAnalyses LoopSimplifyPass::run(Function &F,
   PA.preserve<SCEVAA>();
   PA.preserve<ScalarEvolutionAnalysis>();
   PA.preserve<DependenceAnalysis>();
+  if (MSSAAnalysis)
+    PA.preserve<MemorySSAAnalysis>();
   // BPI maps conditional terminators to probabilities, LoopSimplify can insert
   // blocks, but it does so only by splitting existing blocks and edges. This
   // results in the interesting property that all new terminators inserted are

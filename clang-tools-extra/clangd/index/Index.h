@@ -24,10 +24,10 @@ namespace clang {
 namespace clangd {
 
 struct FuzzyFindRequest {
-  /// \brief A query string for the fuzzy find. This is matched against symbols'
+  /// A query string for the fuzzy find. This is matched against symbols'
   /// un-qualified identifiers and should not contain qualifiers like "::".
   std::string Query;
-  /// \brief If this is non-empty, symbols must be in at least one of the scopes
+  /// If this is non-empty, symbols must be in at least one of the scopes
   /// (e.g. namespaces) excluding nested scopes. For example, if a scope "xyz::"
   /// is provided, the matched symbols must be defined in namespace xyz but not
   /// namespace xyz::abc.
@@ -37,7 +37,7 @@ struct FuzzyFindRequest {
   /// If set to true, allow symbols from any scope. Scopes explicitly listed
   /// above will be ranked higher.
   bool AnyScope = false;
-  /// \brief The number of top candidates to return. The index may choose to
+  /// The number of top candidates to return. The index may choose to
   /// return more than this, e.g. if it doesn't know which candidates are best.
   llvm::Optional<uint32_t> Limit;
   /// If set to true, only symbols for completion support will be considered.
@@ -75,7 +75,7 @@ struct RefsRequest {
 
 struct RelationsRequest {
   llvm::DenseSet<SymbolID> Subjects;
-  index::SymbolRole Predicate;
+  RelationKind Predicate;
   /// If set, limit the number of relations returned from the index.
   llvm::Optional<uint32_t> Limit;
 };
@@ -86,7 +86,7 @@ class SymbolIndex {
 public:
   virtual ~SymbolIndex() = default;
 
-  /// \brief Matches symbols in the index fuzzily and applies \p Callback on
+  /// Matches symbols in the index fuzzily and applies \p Callback on
   /// each matched symbol before returning.
   /// If returned Symbols are used outside Callback, they must be deep-copied!
   ///
@@ -107,7 +107,9 @@ public:
   ///
   /// Results should be returned in arbitrary order.
   /// The returned result must be deep-copied if it's used outside Callback.
-  virtual void refs(const RefsRequest &Req,
+  ///
+  /// Returns true if there will be more results (limited by Req.Limit);
+  virtual bool refs(const RefsRequest &Req,
                     llvm::function_ref<void(const Ref &)> Callback) const = 0;
 
   /// Finds all relations (S, P, O) stored in the index such that S is among
@@ -136,7 +138,7 @@ public:
                  llvm::function_ref<void(const Symbol &)>) const override;
   void lookup(const LookupRequest &,
               llvm::function_ref<void(const Symbol &)>) const override;
-  void refs(const RefsRequest &,
+  bool refs(const RefsRequest &,
             llvm::function_ref<void(const Ref &)>) const override;
   void relations(const RelationsRequest &,
                  llvm::function_ref<void(const SymbolID &, const Symbol &)>)

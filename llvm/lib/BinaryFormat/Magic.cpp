@@ -7,7 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/BinaryFormat/Magic.h"
-
+#include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/COFF.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/BinaryFormat/MachO.h"
@@ -208,6 +209,11 @@ file_magic llvm::identify_magic(StringRef Magic) {
   case 0x64: // x86-64 or ARM64 Windows.
     if (Magic[1] == char(0x86) || Magic[1] == char(0xaa))
       return file_magic::coff_object;
+    break;
+
+  case 0x2d: // YAML '-'
+    if (startswith(Magic, "--- !tapi") || startswith(Magic, "---\narchs:"))
+      return file_magic::tapi_file;
     break;
 
   default:

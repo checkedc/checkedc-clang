@@ -23,7 +23,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
-#include "llvm/Support/ScalableSize.h"
+#include "llvm/Support/TypeSize.h"
 #include <cassert>
 #include <cstdint>
 
@@ -61,6 +61,11 @@ public:
   /// one instance with a given NumBits value is ever created.
   /// Get or create an IntegerType instance.
   static IntegerType *get(LLVMContext &C, unsigned NumBits);
+
+  /// Returns type twice as wide the input type.
+  IntegerType *getExtendedType() const {
+    return Type::getIntNTy(getContext(), 2 * getScalarSizeInBits());
+  }
 
   /// Get the number of bits in this IntegerType
   unsigned getBitWidth() const { return getSubclassData(); }
@@ -190,26 +195,6 @@ private:
   Value *Callee = nullptr;
 };
 
-/// Common super class of ArrayType, StructType and VectorType.
-class CompositeType : public Type {
-protected:
-  explicit CompositeType(LLVMContext &C, TypeID tid) : Type(C, tid) {}
-
-public:
-  /// Given an index value into the type, return the type of the element.
-  Type *getTypeAtIndex(const Value *V) const;
-  Type *getTypeAtIndex(unsigned Idx) const;
-  bool indexValid(const Value *V) const;
-  bool indexValid(unsigned Idx) const;
-
-  /// Methods for support type inquiry through isa, cast, and dyn_cast.
-  static bool classof(const Type *T) {
-    return T->getTypeID() == ArrayTyID ||
-           T->getTypeID() == StructTyID ||
-           T->getTypeID() == VectorTyID;
-  }
-};
-
 /// Class to represent struct types. There are two different kinds of struct
 /// types: Literal structs and Identified structs.
 ///
@@ -230,8 +215,8 @@ public:
 /// elements as defined by DataLayout (which is required to match what the code
 /// generator for a target expects).
 ///
-class StructType : public CompositeType {
-  StructType(LLVMContext &C) : CompositeType(C, StructTyID) {}
+class StructType : public Type {
+  StructType(LLVMContext &C) : Type(C, StructTyID) {}
 
   enum {
     /// This is the contents of the SubClassData field.
@@ -262,8 +247,7 @@ public:
                             StringRef Name, bool isPacked = false);
   static StructType *create(LLVMContext &Context, ArrayRef<Type *> Elements);
   template <class... Tys>
-  static typename std::enable_if<are_base_of<Type, Tys...>::value,
-                                 StructType *>::type
+  static std::enable_if_t<are_base_of<Type, Tys...>::value, StructType *>
   create(StringRef Name, Type *elt1, Tys *... elts) {
     assert(elt1 && "Cannot create a struct type with no elements with this");
     SmallVector<llvm::Type *, 8> StructFields({elt1, elts...});
@@ -281,8 +265,7 @@ public:
   /// specifying the elements as arguments. Note that this method always returns
   /// a non-packed struct, and requires at least one element type.
   template <class... Tys>
-  static typename std::enable_if<are_base_of<Type, Tys...>::value,
-                                 StructType *>::type
+  static std::enable_if_t<are_base_of<Type, Tys...>::value, StructType *>
   get(Type *elt1, Tys *... elts) {
     assert(elt1 && "Cannot create a struct type with no elements with this");
     LLVMContext &Ctx = elt1->getContext();
@@ -319,7 +302,7 @@ public:
   void setBody(ArrayRef<Type*> Elements, bool isPacked = false);
 
   template <typename... Tys>
-  typename std::enable_if<are_base_of<Type, Tys...>::value, void>::type
+  std::enable_if_t<are_base_of<Type, Tys...>::value, void>
   setBody(Type *elt1, Tys *... elts) {
     assert(elt1 && "Cannot create a struct type with no elements with this");
     SmallVector<llvm::Type *, 8> StructFields({elt1, elts...});
@@ -347,6 +330,11 @@ public:
     assert(N < NumContainedTys && "Element number out of range!");
     return ContainedTys[N];
   }
+  /// Given an index value into the type, return the type of the element.
+  Type *getTypeAtIndex(const Value *V) const;
+  Type *getTypeAtIndex(unsigned N) const { return getElementType(N); }
+  bool indexValid(const Value *V) const;
+  bool indexValid(unsigned Idx) const { return Idx < getNumElements(); }
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast.
   static bool classof(const Type *T) {
@@ -366,46 +354,21 @@ Type *Type::getStructElementType(unsigned N) const {
   return cast<StructType>(this)->getElementType(N);
 }
 
-/// This is the superclass of the array and vector type classes. Both of these
-/// represent "arrays" in memory. The array type represents a specifically sized
-/// array, and the vector type represents a specifically sized array that allows
-/// for use of SIMD instructions. SequentialType holds the common features of
-/// both, which stem from the fact that both lay their components out in memory
-/// identically.
-class SequentialType : public CompositeType {
-  Type *ContainedType;               ///< Storage for the single contained type.
+/// Class to represent array types.
+class ArrayType : public Type {
+  /// The element type of the array.
+  Type *ContainedType;
+  /// Number of elements in the array.
   uint64_t NumElements;
 
-protected:
-  SequentialType(TypeID TID, Type *ElType, uint64_t NumElements)
-    : CompositeType(ElType->getContext(), TID), ContainedType(ElType),
-      NumElements(NumElements) {
-    ContainedTys = &ContainedType;
-    NumContainedTys = 1;
-  }
-
-public:
-  SequentialType(const SequentialType &) = delete;
-  SequentialType &operator=(const SequentialType &) = delete;
-
-  /// For scalable vectors, this will return the minimum number of elements
-  /// in the vector.
-  uint64_t getNumElements() const { return NumElements; }
-  Type *getElementType() const { return ContainedType; }
-
-  /// Methods for support type inquiry through isa, cast, and dyn_cast.
-  static bool classof(const Type *T) {
-    return T->getTypeID() == ArrayTyID || T->getTypeID() == VectorTyID;
-  }
-};
-
-/// Class to represent array types.
-class ArrayType : public SequentialType {
   ArrayType(Type *ElType, uint64_t NumEl);
 
 public:
   ArrayType(const ArrayType &) = delete;
   ArrayType &operator=(const ArrayType &) = delete;
+
+  uint64_t getNumElements() const { return NumElements; }
+  Type *getElementType() const { return ContainedType; }
 
   /// This static method is the primary way to construct an ArrayType
   static ArrayType *get(Type *ElementType, uint64_t NumElements);
@@ -423,8 +386,8 @@ uint64_t Type::getArrayNumElements() const {
   return cast<ArrayType>(this)->getNumElements();
 }
 
-/// Class to represent vector types.
-class VectorType : public SequentialType {
+/// Base class of all SIMD vector types
+class VectorType : public Type {
   /// A fully specified VectorType is of the form <vscale x n x Ty>. 'n' is the
   /// minimum number of elements of type Ty contained within the vector, and
   /// 'vscale x' indicates that the total element count is an integer multiple
@@ -438,23 +401,67 @@ class VectorType : public SequentialType {
   /// <vscale x 4 x i32> - a vector containing an unknown integer multiple
   ///                      of 4 i32s
 
-  VectorType(Type *ElType, unsigned NumEl, bool Scalable = false);
-  VectorType(Type *ElType, ElementCount EC);
+  /// The element type of the vector.
+  Type *ContainedType;
 
-  // If true, the total number of elements is an unknown multiple of the
-  // minimum 'NumElements' from SequentialType. Otherwise the total number
-  // of elements is exactly equal to 'NumElements'.
-  bool Scalable;
+protected:
+  /// The element quantity of this vector. The meaning of this value depends
+  /// on the type of vector:
+  /// - For FixedVectorType = <ElementQuantity x ty>, there are
+  ///   exactly ElementQuantity elements in this vector.
+  /// - For ScalableVectorType = <vscale x ElementQuantity x ty>,
+  ///   there are vscale * ElementQuantity elements in this vector, where
+  ///   vscale is a runtime-constant integer greater than 0.
+  const unsigned ElementQuantity;
+
+  VectorType(Type *ElType, unsigned EQ, Type::TypeID TID);
 
 public:
   VectorType(const VectorType &) = delete;
   VectorType &operator=(const VectorType &) = delete;
 
+  /// Get the number of elements in this vector. It does not make sense to call
+  /// this function on a scalable vector, and this will be moved into
+  /// FixedVectorType in a future commit
+  unsigned getNumElements() const {
+    ElementCount EC = getElementCount();
+#ifdef STRICT_FIXED_SIZE_VECTORS
+    assert(!EC.Scalable &&
+           "Request for fixed number of elements from scalable vector");
+    return EC.Min;
+#else
+    if (EC.Scalable)
+      WithColor::warning()
+          << "The code that requested the fixed number of elements has made "
+             "the assumption that this vector is not scalable. This assumption "
+             "was not correct, and this may lead to broken code\n";
+    return EC.Min;
+#endif
+  }
+
+  Type *getElementType() const { return ContainedType; }
+
   /// This static method is the primary way to construct an VectorType.
   static VectorType *get(Type *ElementType, ElementCount EC);
+
+  /// Base class getter that specifically constructs a FixedVectorType. This
+  /// function is deprecated, and will be removed after LLVM 11 ships. Since
+  /// this always returns a FixedVectorType via a base VectorType pointer,
+  /// FixedVectorType::get(Type *, unsigned) is strictly better since no cast is
+  /// required to call getNumElements() on the result.
+  LLVM_ATTRIBUTE_DEPRECATED(
+      inline static VectorType *get(Type *ElementType, unsigned NumElements),
+      "The base class version of get with the scalable argument defaulted to "
+      "false is deprecated. Either call VectorType::get(Type *, unsigned, "
+      "bool) and pass false, or call FixedVectorType::get(Type *, unsigned).");
+
   static VectorType *get(Type *ElementType, unsigned NumElements,
-                         bool Scalable = false) {
+                         bool Scalable) {
     return VectorType::get(ElementType, {NumElements, Scalable});
+  }
+
+  static VectorType *get(Type *ElementType, const VectorType *Other) {
+    return VectorType::get(ElementType, Other->getElementCount());
   }
 
   /// This static method gets a VectorType with the same number of elements as
@@ -470,19 +477,45 @@ public:
   /// This static method is like getInteger except that the element types are
   /// twice as wide as the elements in the input type.
   static VectorType *getExtendedElementVectorType(VectorType *VTy) {
-    unsigned EltBits = VTy->getElementType()->getPrimitiveSizeInBits();
-    Type *EltTy = IntegerType::get(VTy->getContext(), EltBits * 2);
+    assert(VTy->isIntOrIntVectorTy() && "VTy expected to be a vector of ints.");
+    auto *EltTy = cast<IntegerType>(VTy->getElementType());
+    return VectorType::get(EltTy->getExtendedType(), VTy->getElementCount());
+  }
+
+  // This static method gets a VectorType with the same number of elements as
+  // the input type, and the element type is an integer or float type which
+  // is half as wide as the elements in the input type.
+  static VectorType *getTruncatedElementVectorType(VectorType *VTy) {
+    Type *EltTy;
+    if (VTy->getElementType()->isFloatingPointTy()) {
+      switch(VTy->getElementType()->getTypeID()) {
+      case DoubleTyID:
+        EltTy = Type::getFloatTy(VTy->getContext());
+        break;
+      case FloatTyID:
+        EltTy = Type::getHalfTy(VTy->getContext());
+        break;
+      default:
+        llvm_unreachable("Cannot create narrower fp vector element type");
+      }
+    } else {
+      unsigned EltBits = VTy->getElementType()->getPrimitiveSizeInBits();
+      assert((EltBits & 1) == 0 &&
+             "Cannot truncate vector element with odd bit-width");
+      EltTy = IntegerType::get(VTy->getContext(), EltBits / 2);
+    }
     return VectorType::get(EltTy, VTy->getElementCount());
   }
 
-  /// This static method is like getInteger except that the element types are
-  /// half as wide as the elements in the input type.
-  static VectorType *getTruncatedElementVectorType(VectorType *VTy) {
-    unsigned EltBits = VTy->getElementType()->getPrimitiveSizeInBits();
-    assert((EltBits & 1) == 0 &&
-           "Cannot truncate vector element with odd bit-width");
-    Type *EltTy = IntegerType::get(VTy->getContext(), EltBits / 2);
-    return VectorType::get(EltTy, VTy->getElementCount());
+  // This static method returns a VectorType with a smaller number of elements
+  // of a larger type than the input element type. For example, a <16 x i8>
+  // subdivided twice would return <4 x i32>
+  static VectorType *getSubdividedVectorType(VectorType *VTy, int NumSubdivs) {
+    for (int i = 0; i < NumSubdivs; ++i) {
+      VTy = VectorType::getDoubleElementsVectorType(VTy);
+      VTy = VectorType::getTruncatedElementVectorType(VTy);
+    }
+    return VTy;
   }
 
   /// This static method returns a VectorType with half as many elements as the
@@ -498,9 +531,8 @@ public:
   /// input type and the same element type.
   static VectorType *getDoubleElementsVectorType(VectorType *VTy) {
     auto EltCnt = VTy->getElementCount();
-    assert((VTy->getNumElements() * 2ull) <= UINT_MAX &&
-           "Too many elements in vector");
-    return VectorType::get(VTy->getElementType(), EltCnt*2);
+    assert((EltCnt.Min * 2ull) <= UINT_MAX && "Too many elements in vector");
+    return VectorType::get(VTy->getElementType(), EltCnt * 2);
   }
 
   /// Return true if the specified type is valid as a element type.
@@ -508,36 +540,122 @@ public:
 
   /// Return an ElementCount instance to represent the (possibly scalable)
   /// number of elements in the vector.
-  ElementCount getElementCount() const {
-    uint64_t MinimumEltCnt = getNumElements();
-    assert(MinimumEltCnt <= UINT_MAX && "Too many elements in vector");
-    return { (unsigned)MinimumEltCnt, Scalable };
-  }
-
-  /// Returns whether or not this is a scalable vector (meaning the total
-  /// element count is a multiple of the minimum).
-  bool isScalable() const {
-    return Scalable;
-  }
-
-  /// Return the minimum number of bits in the Vector type.
-  /// Returns zero when the vector is a vector of pointers.
-  unsigned getBitWidth() const {
-    return getNumElements() * getElementType()->getPrimitiveSizeInBits();
-  }
+  inline ElementCount getElementCount() const;
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast.
   static bool classof(const Type *T) {
-    return T->getTypeID() == VectorTyID;
+    return T->getTypeID() == FixedVectorTyID ||
+           T->getTypeID() == ScalableVectorTyID;
   }
 };
 
-unsigned Type::getVectorNumElements() const {
-  return cast<VectorType>(this)->getNumElements();
+inline VectorType *VectorType::get(Type *ElementType, unsigned NumElements) {
+  return VectorType::get(ElementType, NumElements, false);
 }
 
-bool Type::getVectorIsScalable() const {
-  return cast<VectorType>(this)->isScalable();
+/// Class to represent fixed width SIMD vectors
+class FixedVectorType : public VectorType {
+protected:
+  FixedVectorType(Type *ElTy, unsigned NumElts)
+      : VectorType(ElTy, NumElts, FixedVectorTyID) {}
+
+public:
+  static FixedVectorType *get(Type *ElementType, unsigned NumElts);
+
+  static FixedVectorType *get(Type *ElementType, const FixedVectorType *FVTy) {
+    return get(ElementType, FVTy->getNumElements());
+  }
+
+  static FixedVectorType *getInteger(FixedVectorType *VTy) {
+    return cast<FixedVectorType>(VectorType::getInteger(VTy));
+  }
+
+  static FixedVectorType *getExtendedElementVectorType(FixedVectorType *VTy) {
+    return cast<FixedVectorType>(VectorType::getExtendedElementVectorType(VTy));
+  }
+
+  static FixedVectorType *getTruncatedElementVectorType(FixedVectorType *VTy) {
+    return cast<FixedVectorType>(
+        VectorType::getTruncatedElementVectorType(VTy));
+  }
+
+  static FixedVectorType *getSubdividedVectorType(FixedVectorType *VTy,
+                                                  int NumSubdivs) {
+    return cast<FixedVectorType>(
+        VectorType::getSubdividedVectorType(VTy, NumSubdivs));
+  }
+
+  static FixedVectorType *getHalfElementsVectorType(FixedVectorType *VTy) {
+    return cast<FixedVectorType>(VectorType::getHalfElementsVectorType(VTy));
+  }
+
+  static FixedVectorType *getDoubleElementsVectorType(FixedVectorType *VTy) {
+    return cast<FixedVectorType>(VectorType::getDoubleElementsVectorType(VTy));
+  }
+
+  static bool classof(const Type *T) {
+    return T->getTypeID() == FixedVectorTyID;
+  }
+};
+
+/// Class to represent scalable SIMD vectors
+class ScalableVectorType : public VectorType {
+protected:
+  ScalableVectorType(Type *ElTy, unsigned MinNumElts)
+      : VectorType(ElTy, MinNumElts, ScalableVectorTyID) {}
+
+public:
+  static ScalableVectorType *get(Type *ElementType, unsigned MinNumElts);
+
+  static ScalableVectorType *get(Type *ElementType,
+                                 const ScalableVectorType *SVTy) {
+    return get(ElementType, SVTy->getMinNumElements());
+  }
+
+  static ScalableVectorType *getInteger(ScalableVectorType *VTy) {
+    return cast<ScalableVectorType>(VectorType::getInteger(VTy));
+  }
+
+  static ScalableVectorType *
+  getExtendedElementVectorType(ScalableVectorType *VTy) {
+    return cast<ScalableVectorType>(
+        VectorType::getExtendedElementVectorType(VTy));
+  }
+
+  static ScalableVectorType *
+  getTruncatedElementVectorType(ScalableVectorType *VTy) {
+    return cast<ScalableVectorType>(
+        VectorType::getTruncatedElementVectorType(VTy));
+  }
+
+  static ScalableVectorType *getSubdividedVectorType(ScalableVectorType *VTy,
+                                                     int NumSubdivs) {
+    return cast<ScalableVectorType>(
+        VectorType::getSubdividedVectorType(VTy, NumSubdivs));
+  }
+
+  static ScalableVectorType *
+  getHalfElementsVectorType(ScalableVectorType *VTy) {
+    return cast<ScalableVectorType>(VectorType::getHalfElementsVectorType(VTy));
+  }
+
+  static ScalableVectorType *
+  getDoubleElementsVectorType(ScalableVectorType *VTy) {
+    return cast<ScalableVectorType>(
+        VectorType::getDoubleElementsVectorType(VTy));
+  }
+
+  /// Get the minimum number of elements in this vector. The actual number of
+  /// elements in the vector is an integer multiple of this value.
+  uint64_t getMinNumElements() const { return ElementQuantity; }
+
+  static bool classof(const Type *T) {
+    return T->getTypeID() == ScalableVectorTyID;
+  }
+};
+
+inline ElementCount VectorType::getElementCount() const {
+  return ElementCount(ElementQuantity, isa<ScalableVectorType>(this));
 }
 
 /// Class to represent pointers.
@@ -576,6 +694,26 @@ public:
     return T->getTypeID() == PointerTyID;
   }
 };
+
+Type *Type::getExtendedType() const {
+  assert(
+      isIntOrIntVectorTy() &&
+      "Original type expected to be a vector of integers or a scalar integer.");
+  if (auto *VTy = dyn_cast<VectorType>(this))
+    return VectorType::getExtendedElementVectorType(
+        const_cast<VectorType *>(VTy));
+  return cast<IntegerType>(this)->getExtendedType();
+}
+
+Type *Type::getWithNewBitWidth(unsigned NewBitWidth) const {
+  assert(
+      isIntOrIntVectorTy() &&
+      "Original type expected to be a vector of integers or a scalar integer.");
+  Type *NewType = getIntNTy(getContext(), NewBitWidth);
+  if (auto *VTy = dyn_cast<VectorType>(this))
+    NewType = VectorType::get(NewType, VTy->getElementCount());
+  return NewType;
+}
 
 unsigned Type::getPointerAddressSpace() const {
   return cast<PointerType>(getScalarType())->getAddressSpace();

@@ -12,7 +12,7 @@
 ...
 ---
 name:            load_i32
-alignment:       2
+alignment:       4
 legalized:       true
 tracksRegLiveness: true
 body:             |
@@ -33,7 +33,7 @@ body:             |
 ...
 ---
 name:            load_i64
-alignment:       2
+alignment:       4
 legalized:       true
 tracksRegLiveness: true
 body:             |
@@ -45,7 +45,7 @@ body:             |
     ; MIPS32: [[COPY:%[0-9]+]]:gprb(p0) = COPY $a0
     ; MIPS32: [[LOAD:%[0-9]+]]:gprb(s32) = G_LOAD [[COPY]](p0) :: (load 4 from %ir.ptr, align 8)
     ; MIPS32: [[C:%[0-9]+]]:gprb(s32) = G_CONSTANT i32 4
-    ; MIPS32: [[GEP:%[0-9]+]]:gprb(p0) = G_GEP [[COPY]], [[C]](s32)
+    ; MIPS32: [[GEP:%[0-9]+]]:gprb(p0) = G_PTR_ADD [[COPY]], [[C]](s32)
     ; MIPS32: [[LOAD1:%[0-9]+]]:gprb(s32) = G_LOAD [[GEP]](p0) :: (load 4 from %ir.ptr + 4, align 8)
     ; MIPS32: $v0 = COPY [[LOAD]](s32)
     ; MIPS32: $v1 = COPY [[LOAD1]](s32)
@@ -60,7 +60,7 @@ body:             |
 ...
 ---
 name:            load_ambiguous_i64_in_fpr
-alignment:       2
+alignment:       4
 legalized:       true
 tracksRegLiveness: true
 body:             |
@@ -83,7 +83,7 @@ body:             |
 ...
 ---
 name:            load_float
-alignment:       2
+alignment:       4
 legalized:       true
 tracksRegLiveness: true
 body:             |
@@ -104,7 +104,7 @@ body:             |
 ...
 ---
 name:            load_ambiguous_float_in_gpr
-alignment:       2
+alignment:       4
 legalized:       true
 tracksRegLiveness: true
 body:             |
@@ -127,7 +127,7 @@ body:             |
 ...
 ---
 name:            load_double
-alignment:       2
+alignment:       4
 legalized:       true
 tracksRegLiveness: true
 body:             |

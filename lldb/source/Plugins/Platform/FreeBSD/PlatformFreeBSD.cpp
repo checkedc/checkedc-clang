@@ -1,4 +1,4 @@
-//===-- PlatformFreeBSD.cpp -------------------------------------*- C++ -*-===//
+//===-- PlatformFreeBSD.cpp -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,7 +10,7 @@
 #include "lldb/Host/Config.h"
 
 #include <stdio.h>
-#ifndef LLDB_DISABLE_POSIX
+#if LLDB_ENABLE_POSIX
 #include <sys/utsname.h>
 #endif
 
@@ -35,6 +35,8 @@
 using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::platform_freebsd;
+
+LLDB_PLUGIN_DEFINE(PlatformFreeBSD)
 
 static uint32_t g_initialize_count = 0;
 
@@ -194,7 +196,7 @@ bool PlatformFreeBSD::GetSupportedArchitectureAtIndex(uint32_t idx,
 void PlatformFreeBSD::GetStatus(Stream &strm) {
   Platform::GetStatus(strm);
 
-#ifndef LLDB_DISABLE_POSIX
+#if LLDB_ENABLE_POSIX
   // Display local kernel information only when we are running in host mode.
   // Otherwise, we would end up printing non-FreeBSD information (when running
   // on Mac OS for example).

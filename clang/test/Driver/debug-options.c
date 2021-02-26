@@ -64,10 +64,20 @@
 // RUN: %clang -### -c -g %s -target arm64-apple-tvos9.0 2>&1 \
 // RUN:             | FileCheck -check-prefix=G_STANDALONE \
 // RUN:                         -check-prefix=G_DWARF4 %s
+// RUN: %clang -### -c -fsave-optimization-record %s \
+// RUN:        -target x86_64-apple-darwin 2>&1 \
+// RUN:             | FileCheck -check-prefix=GLTO_ONLY %s
+// RUN: %clang -### -c -g -fsave-optimization-record %s \
+// RUN:        -target x86_64-apple-darwin 2>&1 \
+// RUN:             | FileCheck -check-prefix=G_STANDALONE %s
 
 // FreeBSD.
-// RUN: %clang -### -c -g %s -target x86_64-pc-freebsd10.0 2>&1 \
-// RUN:             | FileCheck -check-prefix=G_GDB %s
+// RUN: %clang -### -c -g %s -target x86_64-pc-freebsd11.0 2>&1 \
+// RUN:             | FileCheck -check-prefix=G_GDB \
+// RUN:                         -check-prefix=G_DWARF2 %s
+// RUN: %clang -### -c -g %s -target x86_64-pc-freebsd12.0 2>&1 \
+// RUN:             | FileCheck -check-prefix=G_GDB \
+// RUN:                         -check-prefix=G_DWARF4 %s
 
 // Windows.
 // RUN: %clang -### -c -g %s -target x86_64-w64-windows-gnu 2>&1 \
@@ -193,7 +203,7 @@
 // RUN: %clang -### -c %s 2>&1 | FileCheck -check-prefix=NORNGBSE %s
 // RUN: %clang -### -c -fdebug-ranges-base-address -fno-debug-ranges-base-address %s 2>&1 | FileCheck -check-prefix=NORNGBSE %s
 //
-// RUN: %clang -### -c -glldb %s 2>&1 | FileCheck -check-prefix=GPUB %s
+// RUN: %clang -### -c -glldb %s 2>&1 | FileCheck -check-prefix=NOPUB %s
 // RUN: %clang -### -c -glldb -gno-pubnames %s 2>&1 | FileCheck -check-prefix=NOPUB %s
 //
 // RUN: %clang -### -c -gdwarf-aranges %s 2>&1 | FileCheck -check-prefix=GARANGE %s
@@ -232,7 +242,7 @@
 // RUN:        | FileCheck -check-prefix=GLIO_ONLY %s
 //
 // NOG_PS4: "-cc1"
-// NOG_PS4-NOT "-dwarf-version=
+// NOG_PS4-NOT: "-dwarf-version=
 // NOG_PS4: "-generate-arange-section"
 // NOG_PS4-NOT: "-dwarf-version=
 //
@@ -264,18 +274,18 @@
 // GLIO_ONLY_DWARF2: "-dwarf-version=2"
 //
 // G_ONLY: "-cc1"
-// G_ONLY: "-debug-info-kind=limited"
+// G_ONLY: "-debug-info-kind=constructor"
 //
 // These tests assert that "-gline-tables-only" "-g" uses the latter,
 // but otherwise not caring about the DebugInfoKind.
 // G_ONLY_DWARF2: "-cc1"
-// G_ONLY_DWARF2: "-debug-info-kind={{standalone|limited}}"
+// G_ONLY_DWARF2: "-debug-info-kind={{standalone|constructor}}"
 // G_ONLY_DWARF2: "-dwarf-version=2"
 //
 // G_STANDALONE: "-cc1"
 // G_STANDALONE: "-debug-info-kind=standalone"
 // G_LIMITED: "-cc1"
-// G_LIMITED: "-debug-info-kind=limited"
+// G_LIMITED: "-debug-info-kind=constructor"
 // G_DWARF2: "-dwarf-version=2"
 // G_DWARF4: "-dwarf-version=4"
 //
@@ -324,12 +334,12 @@
 // NOFDTS-NOT: "-mllvm" "-generate-type-units"
 // NOFDTSE-NOT: error: unsupported option '-fdebug-types-section' for target 'x86_64-apple-darwin'
 //
-// CI: "-dwarf-column-info"
+// CI-NOT: "-gno-column-info"
 //
-// NOCI-NOT: "-dwarf-column-info"
+// NOCI: "-gno-column-info"
 //
 // GEXTREFS: "-dwarf-ext-refs" "-fmodule-format=obj"
-// GEXTREFS: "-debug-info-kind={{standalone|limited}}"
+// GEXTREFS: "-debug-info-kind={{standalone|constructor}}"
 
 // RUN: not %clang -cc1 -debug-info-kind=watkind 2>&1 | FileCheck -check-prefix=BADSTRING1 %s
 // BADSTRING1: error: invalid value 'watkind' in '-debug-info-kind=watkind'

@@ -107,8 +107,10 @@ struct Function {
 struct Relocation {
   RelocType Type;
   uint32_t Index;
+  // TODO(wvo): this would strictly be better as Hex64, but that will change
+  // all existing obj2yaml output.
   yaml::Hex32 Offset;
-  int32_t Addend;
+  int64_t Addend;
 };
 
 struct DataSegment {
@@ -145,7 +147,7 @@ struct Signature {
   uint32_t Index;
   SignatureForm Form = wasm::WASM_TYPE_FUNC;
   std::vector<ValueType> ParamTypes;
-  ValueType ReturnType;
+  std::vector<ValueType> ReturnTypes;
 };
 
 struct SymbolInfo {
@@ -309,16 +311,6 @@ struct MemorySection : Section {
   std::vector<Limits> Memories;
 };
 
-struct GlobalSection : Section {
-  GlobalSection() : Section(wasm::WASM_SEC_GLOBAL) {}
-
-  static bool classof(const Section *S) {
-    return S->Type == wasm::WASM_SEC_GLOBAL;
-  }
-
-  std::vector<Global> Globals;
-};
-
 struct EventSection : Section {
   EventSection() : Section(wasm::WASM_SEC_EVENT) {}
 
@@ -327,6 +319,16 @@ struct EventSection : Section {
   }
 
   std::vector<Event> Events;
+};
+
+struct GlobalSection : Section {
+  GlobalSection() : Section(wasm::WASM_SEC_GLOBAL) {}
+
+  static bool classof(const Section *S) {
+    return S->Type == wasm::WASM_SEC_GLOBAL;
+  }
+
+  std::vector<Global> Globals;
 };
 
 struct ExportSection : Section {

@@ -42,14 +42,16 @@ OUT: -out:bar.exe
 
 RUN: ld.lld -### foo.o -m i386pep --out-implib bar | FileCheck -check-prefix=IMPLIB %s
 RUN: ld.lld -### foo.o -m i386pep --out-implib=bar | FileCheck -check-prefix=IMPLIB %s
+RUN: ld.lld -### foo.o -m i386pep -out-implib bar | FileCheck -check-prefix=IMPLIB %s
+RUN: ld.lld -### foo.o -m i386pep -out-implib=bar | FileCheck -check-prefix=IMPLIB %s
 IMPLIB: -implib:bar
 
-RUN: ld.lld -### foo.o -m i386pep -out-implib bar | FileCheck -check-prefix=NOIMPLIB %s
-NOIMPLIB: -out:ut-implib
-
 RUN: ld.lld -### foo.o -m i386pep -e bar | FileCheck -check-prefix=ENTRY %s
+RUN: ld.lld -### foo.o -m i386pep -ebar | FileCheck -check-prefix=ENTRY %s
 RUN: ld.lld -### foo.o -m i386pep -entry bar | FileCheck -check-prefix=ENTRY %s
 RUN: ld.lld -### foo.o -m i386pep --entry bar | FileCheck -check-prefix=ENTRY %s
+RUN: ld.lld -### foo.o -m i386pep -entry=bar | FileCheck -check-prefix=ENTRY %s
+RUN: ld.lld -### foo.o -m i386pep --entry=bar | FileCheck -check-prefix=ENTRY %s
 ENTRY: -entry:bar
 
 RUN: ld.lld -### foo.o -m i386pep -mllvm bar -mllvm baz | FileCheck -check-prefix=MLLVM %s
@@ -94,12 +96,17 @@ RUN: ld.lld -### -m i386pep foo.o | FileCheck -check-prefix MINGW-FLAG %s
 MINGW-FLAG: -lldmingw
 
 RUN: ld.lld -### -m i386pep foo.o --exclude-all-symbols | FileCheck -check-prefix EXCLUDE-ALL %s
+RUN: ld.lld -### -m i386pep foo.o -exclude-all-symbols | FileCheck -check-prefix EXCLUDE-ALL %s
 EXCLUDE-ALL: -exclude-all-symbols
 
 RUN: ld.lld -### -m i386pep foo.o --export-all-symbols | FileCheck -check-prefix EXPORT-ALL %s
+RUN: ld.lld -### -m i386pep foo.o -export-all-symbols | FileCheck -check-prefix EXPORT-ALL %s
 EXPORT-ALL: -export-all-symbols
 
 RUN: ld.lld -### -m i386pep foo.o --output-def out.def | FileCheck -check-prefix OUTPUT-DEF %s
+RUN: ld.lld -### -m i386pep foo.o --output-def=out.def | FileCheck -check-prefix OUTPUT-DEF %s
+RUN: ld.lld -### -m i386pep foo.o -output-def out.def | FileCheck -check-prefix OUTPUT-DEF %s
+RUN: ld.lld -### -m i386pep foo.o -output-def=out.def | FileCheck -check-prefix OUTPUT-DEF %s
 OUTPUT-DEF: -output-def:out.def
 
 RUN: ld.lld -### -m i386pep foo.o -Xlink=-lldmap | FileCheck -check-prefix XLINK %s
@@ -176,11 +183,14 @@ MAP: -lldmap:bar.map
 RUN: ld.lld -### foo.o -m i386pe -require-defined _foo --require-defined _bar -require-defined=_baz --require-defined=_foo2 | FileCheck -check-prefix=REQUIRE-DEFINED %s
 REQUIRE-DEFINED: -include:_foo -include:_bar -include:_baz -include:_foo2
 
-RUN: ld.lld -### foo.o -m i386pe -u _foo --undefined _bar -undefined=_baz --undefined=_foo2 | FileCheck -check-prefix=UNDEFINED %s
-UNDEFINED: -includeoptional:_foo -includeoptional:_bar -includeoptional:_baz -includeoptional:_foo2
+RUN: ld.lld -### foo.o -m i386pe -u _foo --undefined _bar -undefined=_baz --undefined=_foo2 -u_foo3 | FileCheck -check-prefix=UNDEFINED %s
+UNDEFINED: -includeoptional:_foo -includeoptional:_bar -includeoptional:_baz -includeoptional:_foo2 -includeoptional:_foo3
 
 RUN: ld.lld -### -m i386pep foo.o -Llibpath | FileCheck -check-prefix LIBPATH %s
 LIBPATH: -libpath:libpath
+
+RUN: ld.lld -### -m i386pep foo.o --reproduce=foo.tar | FileCheck -check-prefix REPRO %s
+REPRO: -reproduce:foo.tar
 
 RUN: ld.lld -### -m i386pep foo.o --no-insert-timestamp | FileCheck -check-prefix NOTIMESTAMP %s
 RUN: ld.lld -### -m i386pep foo.o --insert-timestamp --no-insert-timestamp | FileCheck -check-prefix NOTIMESTAMP %s
@@ -192,11 +202,57 @@ RUN: ld.lld -### -m i386pep foo.o -appcontainer | FileCheck -check-prefix APPCON
 RUN: ld.lld -### -m i386pep foo.o --appcontainer | FileCheck -check-prefix APPCONTAINER %s
 APPCONTAINER: -appcontainer
 
-# RUN: ld.lld -m i386pep --version 2>&1 | FileCheck -check-prefix=VERSION %s
-# RUN: ld.lld -m i386pep -v 2>&1 | FileCheck -check-prefix=VERSION %s
-# RUN: not ld.lld -m i386pep -v xyz 2>&1 | FileCheck -check-prefix=VERSION %s
-# VERSION: LLD {{.*}} (compatible with GNU linkers)
+RUN: ld.lld -m i386pep --version 2>&1 | FileCheck -check-prefix=VERSION %s
+RUN: ld.lld -m i386pep -v 2>&1 | FileCheck -check-prefix=VERSION %s
+RUN: not ld.lld -m i386pep -v xyz 2>&1 | FileCheck -check-prefix=VERSION %s
+VERSION: LLD {{.*}} (compatible with GNU linkers)
 
-# RUN: ld.lld -m i386pep --help 2>&1 | FileCheck -check-prefix=HELP %s
-# HELP: USAGE:
-# HELP: --enable-auto-import
+RUN: ld.lld -m i386pep --help 2>&1 | FileCheck -check-prefix=HELP %s
+HELP: USAGE:
+HELP: --enable-auto-import
+
+RUN: ld.lld -### -m i386pep foo.o -delayload user32.dll --delayload shell32.dll | FileCheck -check-prefix DELAYLOAD %s
+RUN: ld.lld -### -m i386pep foo.o -delayload=user32.dll --delayload=shell32.dll | FileCheck -check-prefix DELAYLOAD %s
+DELAYLOAD: -delayload:user32.dll -delayload:shell32.dll
+
+RUN: not ld.lld -m i386pep -entry 2>&1 | FileCheck -check-prefix MISSING_ARG %s
+MISSING_ARG: error: -entry: missing argument
+
+RUN: not ld.lld -m i386pep --foo 2>&1 | FileCheck -check-prefix UNKNOWN_ARG %s
+UNKNOWN_ARG: error: unknown argument: --foo
+
+RUN: not ld.lld -m i386pep 2>&1 | FileCheck -check-prefix NO_INPUT_FILES %s
+NO_INPUT_FILES: error: no input files
+
+RUN: ld.lld -### -m i386pep foo.o | FileCheck -check-prefix ENABLE_AUTO_IMPORT %s
+RUN: ld.lld -### -m i386pep foo.o --disable-auto-import --enable-auto-import | FileCheck -check-prefix ENABLE_AUTO_IMPORT %s
+RUN: ld.lld -### -m i386pep foo.o -enable-auto-import | FileCheck -check-prefix ENABLE_AUTO_IMPORT %s
+ENABLE_AUTO_IMPORT: -auto-import{{ }}
+
+RUN: ld.lld -### -m i386pep foo.o --disable-auto-import | FileCheck -check-prefix DISABLE_AUTO_IMPORT %s
+RUN: ld.lld -### -m i386pep foo.o -disable-auto-import | FileCheck -check-prefix DISABLE_AUTO_IMPORT %s
+DISABLE_AUTO_IMPORT: -auto-import:no
+
+RUN: ld.lld -### -m i386pep foo.o | FileCheck -check-prefix ENABLE_RUNTIME_PSEUDO_RELOC %s
+RUN: ld.lld -### -m i386pep foo.o --disable-runtime-pseudo-reloc --enable-runtime-pseudo-reloc | FileCheck -check-prefix ENABLE_RUNTIME_PSEUDO_RELOC %s
+RUN: ld.lld -### -m i386pep foo.o -enable-runtime-pseudo-reloc | FileCheck -check-prefix ENABLE_RUNTIME_PSEUDO_RELOC %s
+ENABLE_RUNTIME_PSEUDO_RELOC: -runtime-pseudo-reloc{{ }}
+
+RUN: ld.lld -### -m i386pep foo.o --disable-runtime-pseudo-reloc | FileCheck -check-prefix DISABLE_RUNTIME_PSEUDO_RELOC %s
+RUN: ld.lld -### -m i386pep foo.o -disable-runtime-pseudo-reloc | FileCheck -check-prefix DISABLE_RUNTIME_PSEUDO_RELOC %s
+DISABLE_RUNTIME_PSEUDO_RELOC: -runtime-pseudo-reloc:no
+
+RUN: ld.lld -### foo.o -m i386pe --thinlto-cache-dir=_foo | FileCheck -check-prefix=THINLTO_CACHEDIR %s
+THINLTO_CACHEDIR: -lldltocache:_foo
+
+RUN: ld.lld -### -m i386pep foo.o --file-alignment 0x1000 | FileCheck -check-prefix FILEALIGN %s
+RUN: ld.lld -### -m i386pep foo.o -file-alignment 0x1000 | FileCheck -check-prefix FILEALIGN %s
+RUN: ld.lld -### -m i386pep foo.o --file-alignment=0x1000 | FileCheck -check-prefix FILEALIGN %s
+RUN: ld.lld -### -m i386pep foo.o -file-alignment=0x1000 | FileCheck -check-prefix FILEALIGN %s
+FILEALIGN: -filealign:0x1000
+
+RUN: ld.lld -### -m i386pep foo.o --section-alignment 0x2000 | FileCheck -check-prefix ALIGN %s
+RUN: ld.lld -### -m i386pep foo.o -section-alignment 0x2000 | FileCheck -check-prefix ALIGN %s
+RUN: ld.lld -### -m i386pep foo.o --section-alignment=0x2000 | FileCheck -check-prefix ALIGN %s
+RUN: ld.lld -### -m i386pep foo.o -section-alignment=0x2000 | FileCheck -check-prefix ALIGN %s
+ALIGN: -align:0x2000

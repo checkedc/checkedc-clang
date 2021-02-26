@@ -3,6 +3,7 @@
 // RUN: %clang -target x86_64-linux-gnu -fsanitize=undefined -fsanitize-undefined-trap-on-error %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-UNDEFINED-TRAP
 // RUN: %clang -target x86_64-linux-gnu -fsanitize=undefined-trap -fsanitize-undefined-trap-on-error %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-UNDEFINED-TRAP
 // RUN: %clang -target x86_64-linux-gnu -fsanitize-undefined-trap-on-error -fsanitize=undefined-trap %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-UNDEFINED-TRAP
+// RUN: %clang -target x86_64-linux-gnu -fsanitize-trap -fsanitize=undefined-trap %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-UNDEFINED-TRAP
 // CHECK-UNDEFINED-TRAP-NOT: -fsanitize-recover
 // CHECK-UNDEFINED-TRAP: "-fsanitize={{((signed-integer-overflow|integer-divide-by-zero|shift-base|shift-exponent|unreachable|return|vla-bound|alignment|null|pointer-overflow|float-cast-overflow|array-bounds|enum|bool|builtin|returns-nonnull-attribute|nonnull-attribute|function),?){18}"}}
 // CHECK-UNDEFINED-TRAP: "-fsanitize-trap=alignment,array-bounds,bool,builtin,enum,float-cast-overflow,function,integer-divide-by-zero,nonnull-attribute,null,pointer-overflow,return,returns-nonnull-attribute,shift-base,shift-exponent,signed-integer-overflow,unreachable,vla-bound"
@@ -191,6 +192,16 @@
 // RUN: %clang -target x86_64-linux-android -fsanitize=memtag -fno-rtti %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SANMT-BAD-ARCH
 // CHECK-SANMT-BAD-ARCH: unsupported option '-fsanitize=memtag' for target
 
+// RUN: %clang -target aarch64-linux -fsanitize=memtag -march=armv8-a+memtag %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SANMT-MT
+// CHECK-SANMT-MT: "-target-feature" "+mte"
+// CHECK-SANMT-MT-SAME: "-fsanitize=memtag"
+
+// RUN: %clang -target aarch64-linux -fsanitize=memtag %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SANMT-NOMT-0
+// CHECK-SANMT-NOMT-0: '-fsanitize=memtag' requires hardware support (+memtag)
+
+// RUN: %clang -target aarch64-linux -fsanitize=memtag -I +mte %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SANMT-NOMT-1
+// CHECK-SANMT-NOMT-1: '-fsanitize=memtag' requires hardware support (+memtag)
+
 // RUN: %clang -target x86_64-linux-gnu -fsanitize=address -fsanitize-address-use-after-scope %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-USE-AFTER-SCOPE
 // RUN: %clang_cl --target=x86_64-windows -fsanitize=address -fsanitize-address-use-after-scope -### -- %s 2>&1 | FileCheck %s --check-prefix=CHECK-USE-AFTER-SCOPE
 // CHECK-USE-AFTER-SCOPE: -cc1{{.*}}-fsanitize-address-use-after-scope
@@ -356,6 +367,7 @@
 // CHECK-PARTIAL-RECOVER: "-fsanitize-recover={{((shift-base),?){1}"}}
 
 // RUN: %clang -target x86_64-linux-gnu %s -fsanitize=address -fsanitize-recover=all -### 2>&1 | FileCheck %s --check-prefix=CHECK-RECOVER-ASAN
+// RUN: %clang -target x86_64-linux-gnu %s -fsanitize=address -fsanitize-recover -### 2>&1 | FileCheck %s --check-prefix=CHECK-RECOVER-ASAN
 // CHECK-RECOVER-ASAN: "-fsanitize-recover=address"
 
 // RUN: %clang -target x86_64-linux-gnu %s -fsanitize=undefined -fsanitize-recover=foobar,object-size,unreachable -### 2>&1 | FileCheck %s --check-prefix=CHECK-DIAG-RECOVER
@@ -363,8 +375,6 @@
 // CHECK-DIAG-RECOVER: unsupported argument 'unreachable' to option 'fsanitize-recover='
 
 // RUN: %clang -target x86_64-linux-gnu %s -fsanitize=undefined -fsanitize-recover -fno-sanitize-recover -### 2>&1 | FileCheck %s --check-prefix=CHECK-DEPRECATED-RECOVER
-// CHECK-DEPRECATED-RECOVER: argument '-fsanitize-recover' is deprecated, use '-fsanitize-recover=undefined,integer' or '-fsanitize-recover=all' instead
-// CHECK-DEPRECATED-RECOVER: argument '-fno-sanitize-recover' is deprecated, use '-fno-sanitize-recover=undefined,integer' or '-fno-sanitize-recover=all' instead
 // CHECK-DEPRECATED-RECOVER-NOT: is deprecated
 
 // RUN: %clang -target x86_64-linux-gnu %s -fsanitize=kernel-address -fno-sanitize-recover=kernel-address -### 2>&1 | FileCheck %s --check-prefix=CHECK-NO-RECOVER-KASAN
@@ -567,6 +577,7 @@
 // RUN: %clang -target aarch64-linux-gnu -fvisibility=hidden -fsanitize=cfi -flto -c %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-CFI
 // RUN: %clang -target arm-linux-android -fvisibility=hidden -fsanitize=cfi -flto -c %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-CFI
 // RUN: %clang -target aarch64-linux-android -fvisibility=hidden -fsanitize=cfi -flto -c %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-CFI
+// RUN: %clang -target aarch64_be -fvisibility=hidden -fsanitize=cfi -flto -c %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-CFI
 // CHECK-CFI: -emit-llvm-bc{{.*}}-fsanitize=cfi-derived-cast,cfi-icall,cfi-mfcall,cfi-unrelated-cast,cfi-nvcall,cfi-vcall
 // CHECK-CFI-NOMFCALL: -emit-llvm-bc{{.*}}-fsanitize=cfi-derived-cast,cfi-icall,cfi-unrelated-cast,cfi-nvcall,cfi-vcall
 // CHECK-CFI-DCAST: -emit-llvm-bc{{.*}}-fsanitize=cfi-derived-cast
@@ -620,6 +631,12 @@
 
 // RUN: %clang -target x86_64-linux-gnu -fsanitize=cfi-icall -fsanitize-cfi-icall-generalize-pointers -fsanitize-cfi-cross-dso -fvisibility=hidden -flto -c %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-CFI-GENERALIZE-AND-CROSS-DSO
 // CHECK-CFI-GENERALIZE-AND-CROSS-DSO: error: invalid argument '-fsanitize-cfi-cross-dso' not allowed with '-fsanitize-cfi-icall-generalize-pointers'
+
+// RUN: %clang -target x86_64-linux-gnu -fsanitize=cfi-icall -fsanitize-cfi-canonical-jump-tables -fvisibility=hidden -flto -c %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-CFI-CANONICAL-JUMP-TABLES
+// RUN: %clang -target x86_64-linux-gnu -fsanitize=cfi-icall -fno-sanitize-cfi-canonical-jump-tables -fvisibility=hidden -flto -c %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-NO-CFI-CANONICAL-JUMP-TABLES
+// RUN: %clang -target x86_64-linux-gnu -fsanitize=cfi-icall -fvisibility=hidden -flto -c %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-CFI-CANONICAL-JUMP-TABLES
+// CHECK-CFI-CANONICAL-JUMP-TABLES: -fsanitize-cfi-canonical-jump-tables
+// CHECK-NO-CFI-CANONICAL-JUMP-TABLES-NOT: -fsanitize-cfi-canonical-jump-tables
 
 // RUN: %clang -target x86_64-linux-gnu -fsanitize=cfi -fsanitize-stats -flto -c %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-CFI-STATS
 // CHECK-CFI-STATS: -fsanitize-stats
@@ -727,6 +744,9 @@
 // RUN: %clang -target x86_64--netbsd -fsanitize=scudo %s -### 2>&1 | FileCheck %s -check-prefix=SCUDO-NETBSD
 // SCUDO-NETBSD: "-fsanitize=scudo"
 
+// RUN: %clang -target i386--solaris -fsanitize=function %s -### 2>&1 | FileCheck %s -check-prefix=FUNCTION-SOLARIS
+// RUN: %clang -target x86_64--solaris -fsanitize=function %s -### 2>&1 | FileCheck %s -check-prefix=FUNCTION-SOLARIS
+// FUNCTION-SOLARIS: "-fsanitize=function"
 
 
 // RUN: %clang -target x86_64-scei-ps4 -fsanitize=function -fsanitize=undefined %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-FSAN-UBSAN-PS4
@@ -762,6 +782,10 @@
 // CHECK-UBSAN-MINIMAL: "-fsanitize={{((signed-integer-overflow|integer-divide-by-zero|shift-base|shift-exponent|unreachable|return|vla-bound|alignment|null|pointer-overflow|float-cast-overflow|array-bounds|enum|bool|builtin|returns-nonnull-attribute|nonnull-attribute),?){17}"}}
 // CHECK-UBSAN-MINIMAL: "-fsanitize-minimal-runtime"
 
+// RUN: %clang -target aarch64-linux-android -march=armv8-a+memtag -fsanitize=memtag -fsanitize-minimal-runtime %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-MEMTAG-MINIMAL
+// CHECK-MEMTAG-MINIMAL: "-fsanitize=memtag"
+// CHECK-MEMTAG-MINIMAL: "-fsanitize-minimal-runtime"
+
 // RUN: %clang -target x86_64-linux-gnu -fsanitize=undefined -fsanitize=function -fsanitize-minimal-runtime %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-UBSAN-FUNCTION-MINIMAL
 // CHECK-UBSAN-FUNCTION-MINIMAL: error: invalid argument '-fsanitize=function' not allowed with '-fsanitize-minimal-runtime'
 
@@ -789,6 +813,10 @@
 // RUN: %clang -target x86_64-linux-gnu -fsanitize=shadow-call-stack -fsanitize-minimal-runtime %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SCS-MINIMAL
 // CHECK-SCS-MINIMAL: "-fsanitize=shadow-call-stack"
 // CHECK-SCS-MINIMAL: "-fsanitize-minimal-runtime"
+
+// RUN: %clang -target aarch64 -fsanitize=shadow-call-stack -ffixed-x18 %s -### 2>&1 | FileCheck %s --check-prefix=AARCH64-SCS
+// RUN: %clang -target aarch64_be -fsanitize=shadow-call-stack -ffixed-x18 %s -### 2>&1 | FileCheck %s --check-prefix=AARCH64-SCS
+// AARCH64-SCS: "-fsanitize=shadow-call-stack"
 
 // RUN: %clang -target aarch64-linux-gnu -fsanitize=scudo %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SCUDO
 // RUN: %clang -target arm-linux-androideabi -fsanitize=scudo %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SCUDO

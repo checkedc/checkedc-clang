@@ -36,7 +36,7 @@ std::string computeName(const FormatToken *NamespaceTok) {
   const FormatToken *Tok = NamespaceTok->getNextNonComment();
   if (NamespaceTok->is(TT_NamespaceMacro)) {
     // Collects all the non-comment tokens between opening parenthesis
-    // and closing parenthesis or comma
+    // and closing parenthesis or comma.
     assert(Tok && Tok->is(tok::l_paren) && "expected an opening parenthesis");
     Tok = Tok->getNextNonComment();
     while (Tok && !Tok->isOneOf(tok::r_paren, tok::comma)) {
@@ -44,9 +44,21 @@ std::string computeName(const FormatToken *NamespaceTok) {
       Tok = Tok->getNextNonComment();
     }
   } else {
-    // Collects all the non-comment tokens between 'namespace' and '{'.
+    // For `namespace [[foo]] A::B::inline C {` or
+    // `namespace MACRO1 MACRO2 A::B::inline C {`, returns "A::B::inline C".
+    // Peek for the first '::' (or '{') and then return all tokens from one
+    // token before that up until the '{'.
+    const FormatToken *FirstNSTok = Tok;
+    while (Tok && !Tok->is(tok::l_brace) && !Tok->is(tok::coloncolon)) {
+      FirstNSTok = Tok;
+      Tok = Tok->getNextNonComment();
+    }
+
+    Tok = FirstNSTok;
     while (Tok && !Tok->is(tok::l_brace)) {
       name += Tok->TokenText;
+      if (Tok->is(tok::kw_inline))
+        name += " ";
       Tok = Tok->getNextNonComment();
     }
   }
@@ -80,24 +92,24 @@ bool validEndComment(const FormatToken *RBraceTok, StringRef NamespaceName,
 
   // Matches a valid namespace end comment.
   // Valid namespace end comments don't need to be edited.
-  static llvm::Regex *const NamespaceCommentPattern =
-      new llvm::Regex("^/[/*] *(end (of )?)? *(anonymous|unnamed)? *"
-                      "namespace( +([a-zA-Z0-9:_]+))?\\.? *(\\*/)?$",
-                      llvm::Regex::IgnoreCase);
-  static llvm::Regex *const NamespaceMacroCommentPattern =
-      new llvm::Regex("^/[/*] *(end (of )?)? *(anonymous|unnamed)? *"
-                      "([a-zA-Z0-9_]+)\\(([a-zA-Z0-9:_]*)\\)\\.? *(\\*/)?$",
-                      llvm::Regex::IgnoreCase);
+  static const llvm::Regex NamespaceCommentPattern =
+      llvm::Regex("^/[/*] *(end (of )?)? *(anonymous|unnamed)? *"
+                  "namespace( +([a-zA-Z0-9:_]+))?\\.? *(\\*/)?$",
+                  llvm::Regex::IgnoreCase);
+  static const llvm::Regex NamespaceMacroCommentPattern =
+      llvm::Regex("^/[/*] *(end (of )?)? *(anonymous|unnamed)? *"
+                  "([a-zA-Z0-9_]+)\\(([a-zA-Z0-9:_]*)\\)\\.? *(\\*/)?$",
+                  llvm::Regex::IgnoreCase);
 
   SmallVector<StringRef, 8> Groups;
   if (NamespaceTok->is(TT_NamespaceMacro) &&
-      NamespaceMacroCommentPattern->match(Comment->TokenText, &Groups)) {
+      NamespaceMacroCommentPattern.match(Comment->TokenText, &Groups)) {
     StringRef NamespaceTokenText = Groups.size() > 4 ? Groups[4] : "";
     // The name of the macro must be used.
     if (NamespaceTokenText != NamespaceTok->TokenText)
       return false;
   } else if (NamespaceTok->isNot(tok::kw_namespace) ||
-             !NamespaceCommentPattern->match(Comment->TokenText, &Groups)) {
+             !NamespaceCommentPattern.match(Comment->TokenText, &Groups)) {
     // Comment does not match regex.
     return false;
   }
@@ -109,7 +121,25 @@ bool validEndComment(const FormatToken *RBraceTok, StringRef NamespaceName,
   // Named namespace comments must not mention anonymous namespace.
   if (!NamespaceName.empty() && !AnonymousInComment.empty())
     return false;
-  return NamespaceNameInComment == NamespaceName;
+  if (NamespaceNameInComment == NamespaceName)
+    return true;
+
+  // Has namespace comment flowed onto the next line.
+  // } // namespace
+  //   // verylongnamespacenamethatdidnotfitonthepreviouscommentline
+  if (!(Comment->Next && Comment->Next->is(TT_LineComment)))
+    return false;
+
+  static const llvm::Regex CommentPattern = llvm::Regex(
+      "^/[/*] *( +([a-zA-Z0-9:_]+))?\\.? *(\\*/)?$", llvm::Regex::IgnoreCase);
+
+  // Pull out just the comment text.
+  if (!CommentPattern.match(Comment->Next->TokenText, &Groups)) {
+    return false;
+  }
+  NamespaceNameInComment = Groups.size() > 2 ? Groups[2] : "";
+
+  return (NamespaceNameInComment == NamespaceName);
 }
 
 void addEndComment(const FormatToken *RBraceTok, StringRef EndCommentText,
@@ -175,6 +205,23 @@ std::pair<tooling::Replacements, unsigned> NamespaceEndCommentsFixer::analyze(
   const SourceManager &SourceMgr = Env.getSourceManager();
   AffectedRangeMgr.computeAffectedLines(AnnotatedLines);
   tooling::Replacements Fixes;
+
+  // Spin through the lines and ensure we have balanced braces.
+  int Braces = 0;
+  for (size_t I = 0, E = AnnotatedLines.size(); I != E; ++I) {
+    FormatToken *Tok = AnnotatedLines[I]->First;
+    while (Tok) {
+      Braces += Tok->is(tok::l_brace) ? 1 : Tok->is(tok::r_brace) ? -1 : 0;
+      Tok = Tok->Next;
+    }
+  }
+  // Don't attempt to comment unbalanced braces or this can
+  // lead to comments being placed on the closing brace which isn't
+  // the matching brace of the namespace. (occurs during incomplete editing).
+  if (Braces != 0) {
+    return {Fixes, 0};
+  }
+
   std::string AllNamespaceNames = "";
   size_t StartLineIndex = SIZE_MAX;
   StringRef NamespaceTokenText;

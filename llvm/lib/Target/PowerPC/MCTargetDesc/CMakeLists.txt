@@ -1,4 +1,4 @@
-add_llvm_library(LLVMPowerPCDesc
+add_llvm_component_library(LLVMPowerPCDesc
   PPCAsmBackend.cpp
   PPCInstPrinter.cpp
   PPCMCTargetDesc.cpp
@@ -6,7 +6,7 @@ add_llvm_library(LLVMPowerPCDesc
   PPCMCCodeEmitter.cpp
   PPCMCExpr.cpp
   PPCPredicates.cpp
-  PPCMachObjectWriter.cpp
   PPCELFObjectWriter.cpp
   PPCXCOFFObjectWriter.cpp
+  PPCELFStreamer.cpp
   )

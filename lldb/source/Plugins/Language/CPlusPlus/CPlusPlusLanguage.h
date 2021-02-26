@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_CPlusPlusLanguage_h_
-#define liblldb_CPlusPlusLanguage_h_
+#ifndef LLDB_SOURCE_PLUGINS_LANGUAGE_CPLUSPLUS_CPLUSPLUSLANGUAGE_H
+#define LLDB_SOURCE_PLUGINS_LANGUAGE_CPLUSPLUS_CPLUSPLUSLANGUAGE_H
 
 #include <set>
 #include <vector>
@@ -101,7 +101,7 @@ public:
 
   static lldb_private::ConstString GetPluginNameStatic();
 
-  static bool IsCPPMangledName(const char *name);
+  static bool IsCPPMangledName(llvm::StringRef name);
 
   // Extract C++ context and identifier from a string using heuristic matching
   // (as opposed to
@@ -133,4 +133,4 @@ public:
 
 } // namespace lldb_private
 
-#endif // liblldb_CPlusPlusLanguage_h_
+#endif // LLDB_SOURCE_PLUGINS_LANGUAGE_CPLUSPLUS_CPLUSPLUSLANGUAGE_H

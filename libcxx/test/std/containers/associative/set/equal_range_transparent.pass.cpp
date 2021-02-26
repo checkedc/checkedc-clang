@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
 
 // <set>
 
@@ -24,7 +24,7 @@
 #include <utility>
 
 #include "min_allocator.h"
-#include "private_constructor.hpp"
+#include "private_constructor.h"
 #include "test_macros.h"
 
 struct Comp {

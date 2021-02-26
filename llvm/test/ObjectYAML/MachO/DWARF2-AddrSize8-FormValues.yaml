@@ -189,18 +189,6 @@ LoadCommands:
         reserved1:       0x00000000
         reserved2:       0x00000000
         reserved3:       0x00000000
-      - sectname:        __debug_aranges
-        segname:         __DWARF
-        addr:            0x0000000100003083
-        size:            48
-        offset:          0x00002083
-        align:           0
-        reloff:          0x00000000
-        nreloc:          0
-        flags:           0x00000000
-        reserved1:       0x00000000
-        reserved2:       0x00000000
-        reserved3:       0x00000000
       - sectname:        __debug_info
         segname:         __DWARF
         addr:            0x00000001000030B3
@@ -216,7 +204,7 @@ LoadCommands:
       - sectname:        __debug_abbrev
         segname:         __DWARF
         addr:            0x000000010000312C
-        size:            84
+        size:            86
         offset:          0x00002167
         align:           0
         reloff:          0x00000000
@@ -229,7 +217,7 @@ LoadCommands:
         segname:         __DWARF
         addr:            0x0000000100003178
         size:            83
-        offset:          0x000021BB
+        offset:          0x000021BC
         align:           0
         reloff:          0x00000000
         nreloc:          0
@@ -346,8 +334,7 @@ DWARF:
         - Attribute:       0x201A
           Form:            DW_FORM_addr
   debug_info:      
-    - Length:          
-        TotalLength:     168
+    - Length:          168
       Version:         2
       AbbrOffset:      0
       AddrSize:        8
@@ -428,8 +415,7 @@ DWARF:
 ...
 
 #CHECK:   debug_info:      
-#CHECK:     - Length:          
-#CHECK:         TotalLength:     168
+#CHECK:     - Length:          168
 #CHECK:       Version:         2
 #CHECK:       AbbrOffset:      0
 #CHECK:       AddrSize:        8
@@ -438,53 +424,17 @@ DWARF:
 #CHECK:           Values:          
 #CHECK:             - Value:           0x0123456789ABCDEF
 #CHECK:             - Value:           0x000000000000000A
-#CHECK:               BlockData:       
-#CHECK:                 - 0x01
-#CHECK:                 - 0x02
-#CHECK:                 - 0x03
-#CHECK:                 - 0x04
-#CHECK:                 - 0x05
-#CHECK:                 - 0x06
-#CHECK:                 - 0x07
-#CHECK:                 - 0x08
-#CHECK:                 - 0x09
-#CHECK:                 - 0x00
+#CHECK:               BlockData:       [ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+#CHECK:                                  0x08, 0x09, 0x00 ]
 #CHECK:             - Value:           0x000000000000000A
-#CHECK:               BlockData:       
-#CHECK:                 - 0x01
-#CHECK:                 - 0x02
-#CHECK:                 - 0x03
-#CHECK:                 - 0x04
-#CHECK:                 - 0x05
-#CHECK:                 - 0x06
-#CHECK:                 - 0x07
-#CHECK:                 - 0x08
-#CHECK:                 - 0x09
-#CHECK:                 - 0x00
+#CHECK:               BlockData:       [ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+#CHECK:                                  0x08, 0x09, 0x00 ]
 #CHECK:             - Value:           0x000000000000000A
-#CHECK:               BlockData:       
-#CHECK:                 - 0x01
-#CHECK:                 - 0x02
-#CHECK:                 - 0x03
-#CHECK:                 - 0x04
-#CHECK:                 - 0x05
-#CHECK:                 - 0x06
-#CHECK:                 - 0x07
-#CHECK:                 - 0x08
-#CHECK:                 - 0x09
-#CHECK:                 - 0x00
+#CHECK:               BlockData:       [ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+#CHECK:                                  0x08, 0x09, 0x00 ]
 #CHECK:             - Value:           0x000000000000000A
-#CHECK:               BlockData:       
-#CHECK:                 - 0x01
-#CHECK:                 - 0x02
-#CHECK:                 - 0x03
-#CHECK:                 - 0x04
-#CHECK:                 - 0x05
-#CHECK:                 - 0x06
-#CHECK:                 - 0x07
-#CHECK:                 - 0x08
-#CHECK:                 - 0x09
-#CHECK:                 - 0x00
+#CHECK:               BlockData:       [ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+#CHECK:                                  0x08, 0x09, 0x00 ]
 #CHECK:             - Value:           0x0000000000000001
 #CHECK:             - Value:           0x0000000000002345
 #CHECK:             - Value:           0x000000006789ABCD

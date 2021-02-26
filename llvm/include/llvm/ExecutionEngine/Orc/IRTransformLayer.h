@@ -22,10 +22,13 @@ namespace llvm {
 class Module;
 namespace orc {
 
+/// A layer that applies a transform to emitted modules.
+/// The transform function is responsible for locking the ThreadSafeContext
+/// before operating on the module.
 class IRTransformLayer : public IRLayer {
 public:
   using TransformFunction = std::function<Expected<ThreadSafeModule>(
-      ThreadSafeModule, const MaterializationResponsibility &R)>;
+      ThreadSafeModule, MaterializationResponsibility &R)>;
 
   IRTransformLayer(ExecutionSession &ES, IRLayer &BaseLayer,
                    TransformFunction Transform = identityTransform);
@@ -36,9 +39,8 @@ public:
 
   void emit(MaterializationResponsibility R, ThreadSafeModule TSM) override;
 
-  static ThreadSafeModule
-  identityTransform(ThreadSafeModule TSM,
-                    const MaterializationResponsibility &R) {
+  static ThreadSafeModule identityTransform(ThreadSafeModule TSM,
+                                            MaterializationResponsibility &R) {
     return TSM;
   }
 

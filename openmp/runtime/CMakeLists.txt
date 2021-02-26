@@ -30,7 +30,7 @@ if(${OPENMP_STANDALONE_BUILD})
   # If adding a new architecture, take a look at cmake/LibompGetArchitecture.cmake
   libomp_get_architecture(LIBOMP_DETECTED_ARCH)
   set(LIBOMP_ARCH ${LIBOMP_DETECTED_ARCH} CACHE STRING
-    "The architecture to build for (x86_64/i386/arm/ppc64/ppc64le/aarch64/mic/mips/mips64).")
+    "The architecture to build for (x86_64/i386/arm/ppc64/ppc64le/aarch64/mic/mips/mips64/riscv64).")
   # Should assertions be enabled?  They are on by default.
   set(LIBOMP_ENABLE_ASSERTIONS TRUE CACHE BOOL
     "enable assertions?")
@@ -58,18 +58,20 @@ else() # Part of LLVM build
     set(LIBOMP_ARCH aarch64)
   elseif(LIBOMP_NATIVE_ARCH MATCHES "arm")
     set(LIBOMP_ARCH arm)
+  elseif(LIBOMP_NATIVE_ARCH MATCHES "riscv64")
+    set(LIBOMP_ARCH riscv64)
   else()
     # last ditch effort
     libomp_get_architecture(LIBOMP_ARCH)
   endif ()
   set(LIBOMP_ENABLE_ASSERTIONS ${LLVM_ENABLE_ASSERTIONS})
 endif()
-libomp_check_variable(LIBOMP_ARCH 32e x86_64 32 i386 arm ppc64 ppc64le aarch64 mic mips mips64)
+libomp_check_variable(LIBOMP_ARCH 32e x86_64 32 i386 arm ppc64 ppc64le aarch64 mic mips mips64 riscv64)
 
 set(LIBOMP_LIB_TYPE normal CACHE STRING
   "Performance,Profiling,Stubs library (normal/profile/stubs)")
 libomp_check_variable(LIBOMP_LIB_TYPE normal profile stubs)
-# Set the OpenMP Year and Month assiociated with version
+# Set the OpenMP Year and Month associated with version
 set(LIBOMP_OMP_YEAR_MONTH 201611)
 set(LIBOMP_MIC_ARCH knc CACHE STRING
   "Intel(R) Many Integrated Core Architecture (Intel(R) MIC Architecture) (knf/knc).  Ignored if not Intel(R) MIC Architecture build.")
@@ -95,8 +97,6 @@ if(NOT DEFINED CMAKE_MACOSX_RPATH)
 endif()
 
 # User specified flags.  These are appended to the configured flags.
-set(LIBOMP_CFLAGS "" CACHE STRING
-  "Appended user specified C compiler flags.")
 set(LIBOMP_CXXFLAGS "" CACHE STRING
   "Appended user specified C++ compiler flags.")
 set(LIBOMP_CPPFLAGS "" CACHE STRING
@@ -142,6 +142,7 @@ set(PPC64 FALSE)
 set(MIC FALSE)
 set(MIPS64 FALSE)
 set(MIPS FALSE)
+set(RISCV64 FALSE)
 if("${LIBOMP_ARCH}" STREQUAL "i386" OR "${LIBOMP_ARCH}" STREQUAL "32")    # IA-32 architecture
   set(IA32 TRUE)
 elseif("${LIBOMP_ARCH}" STREQUAL "x86_64" OR "${LIBOMP_ARCH}" STREQUAL "32e") # Intel(R) 64 architecture
@@ -162,6 +163,8 @@ elseif("${LIBOMP_ARCH}" STREQUAL "mips") # MIPS architecture
     set(MIPS TRUE)
 elseif("${LIBOMP_ARCH}" STREQUAL "mips64") # MIPS64 architecture
     set(MIPS64 TRUE)
+  elseif("${LIBOMP_ARCH}" STREQUAL "riscv64") # RISCV64 architecture
+    set(RISCV64 TRUE)
 endif()
 
 # Set some flags based on build_type
@@ -377,3 +380,7 @@ endif()
 
 add_subdirectory(src)
 add_subdirectory(test)
+
+# make these variables available for tools:
+set(LIBOMP_LIBRARY_DIR ${LIBOMP_LIBRARY_DIR} PARENT_SCOPE)
+set(LIBOMP_INCLUDE_DIR ${LIBOMP_INCLUDE_DIR} PARENT_SCOPE)

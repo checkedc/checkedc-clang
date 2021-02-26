@@ -13,7 +13,7 @@
 #include "clang/3C/3CGlobalOptions.h"
 #include "clang/3C/ConstraintResolver.h"
 #include "clang/3C/Utils.h"
-#include <clang/Tooling/Refactoring/SourceCode.h>
+#include <clang/Tooling/Transformer/SourceCode.h>
 
 using namespace clang;
 
@@ -115,7 +115,7 @@ void CastPlacementVisitor::surroundByCast(const std::string &CastPrefix,
       auto CRA = CharSourceRange::getTokenRange(E->getSourceRange());
       auto NewCRA = clang::Lexer::makeFileCharRange(
           CRA, Context->getSourceManager(), Context->getLangOpts());
-      std::string SrcText = clang::tooling::getText(CRA, *Context);
+      std::string SrcText(clang::tooling::getText(CRA, *Context));
       // Only insert if there is anything to write.
       if (!SrcText.empty())
         Writer.ReplaceText(NewCRA, "(" + CastPrefix + SrcText + ")");

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 // UNSUPPORTED: libcpp-no-deduction-guides
 
 // GCC's implementation of class template deduction is still immature and runs
@@ -26,7 +26,7 @@
 #include <cassert>
 
 #include "test_macros.h"
-#include "archetypes.hpp"
+#include "archetypes.h"
 
 
 // Overloads

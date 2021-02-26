@@ -25,10 +25,11 @@ WebAssemblyTTIImpl::getPopcntSupport(unsigned TyWidth) const {
   return TargetTransformInfo::PSK_FastHardware;
 }
 
-unsigned WebAssemblyTTIImpl::getNumberOfRegisters(bool Vector) {
-  unsigned Result = BaseT::getNumberOfRegisters(Vector);
+unsigned WebAssemblyTTIImpl::getNumberOfRegisters(unsigned ClassID) const {
+  unsigned Result = BaseT::getNumberOfRegisters(ClassID);
 
   // For SIMD, use at least 16 registers, as a rough guess.
+  bool Vector = (ClassID == 1);
   if (Vector)
     Result = std::max(Result, 16u);
 
@@ -43,12 +44,14 @@ unsigned WebAssemblyTTIImpl::getRegisterBitWidth(bool Vector) const {
 }
 
 unsigned WebAssemblyTTIImpl::getArithmeticInstrCost(
-    unsigned Opcode, Type *Ty, TTI::OperandValueKind Opd1Info,
+    unsigned Opcode, Type *Ty, TTI::TargetCostKind CostKind,
+    TTI::OperandValueKind Opd1Info,
     TTI::OperandValueKind Opd2Info, TTI::OperandValueProperties Opd1PropInfo,
-    TTI::OperandValueProperties Opd2PropInfo, ArrayRef<const Value *> Args) {
+    TTI::OperandValueProperties Opd2PropInfo, ArrayRef<const Value *> Args,
+    const Instruction *CxtI) {
 
   unsigned Cost = BasicTTIImplBase<WebAssemblyTTIImpl>::getArithmeticInstrCost(
-      Opcode, Ty, Opd1Info, Opd2Info, Opd1PropInfo, Opd2PropInfo);
+      Opcode, Ty, CostKind, Opd1Info, Opd2Info, Opd1PropInfo, Opd2PropInfo);
 
   if (auto *VTy = dyn_cast<VectorType>(Ty)) {
     switch (Opcode) {
@@ -60,10 +63,11 @@ unsigned WebAssemblyTTIImpl::getArithmeticInstrCost(
       // approxmation.
       if (Opd2Info != TTI::OK_UniformValue &&
           Opd2Info != TTI::OK_UniformConstantValue)
-        Cost = VTy->getNumElements() *
-               (TargetTransformInfo::TCC_Basic +
-                getArithmeticInstrCost(Opcode, VTy->getElementType()) +
-                TargetTransformInfo::TCC_Basic);
+        Cost =
+            cast<FixedVectorType>(VTy)->getNumElements() *
+            (TargetTransformInfo::TCC_Basic +
+             getArithmeticInstrCost(Opcode, VTy->getElementType(), CostKind) +
+             TargetTransformInfo::TCC_Basic);
       break;
     }
   }

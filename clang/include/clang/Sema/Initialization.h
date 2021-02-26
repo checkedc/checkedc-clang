@@ -704,6 +704,9 @@ public:
     return Context >= IC_StaticCast;
   }
 
+  /// Determine whether this initialization is a static cast.
+  bool isStaticCast() const { return Context == IC_StaticCast; }
+
   /// Determine whether this initialization is a C-style cast.
   bool isCStyleOrFunctionalCast() const {
     return Context >= IC_CStyleCast;
@@ -1013,6 +1016,9 @@ public:
 
     /// Non-const lvalue reference binding to a vector element.
     FK_NonConstLValueReferenceBindingToVectorElement,
+
+    /// Non-const lvalue reference binding to a matrix element.
+    FK_NonConstLValueReferenceBindingToMatrixElement,
 
     /// Non-const lvalue reference binding to an lvalue of unrelated
     /// type.

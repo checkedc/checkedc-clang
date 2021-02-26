@@ -7,11 +7,14 @@ static_library("JITLink") {
   ]
   sources = [
     "EHFrameSupport.cpp",
+    "ELF.cpp",
+    "ELF_x86_64.cpp",
     "JITLink.cpp",
     "JITLinkGeneric.cpp",
     "JITLinkMemoryManager.cpp",
     "MachO.cpp",
-    "MachOAtomGraphBuilder.cpp",
+    "MachOLinkGraphBuilder.cpp",
+    "MachO_arm64.cpp",
     "MachO_x86_64.cpp",
   ]
 }

@@ -2,9 +2,11 @@
 
 ; RUN: opt < %s -mtriple=x86_64-apple-macosx10.10.0 -instrprof -S | FileCheck %s --check-prefixes=POSIX,MACHO
 ; RUN: opt < %s -mtriple=x86_64-unknown-linux -instrprof -S | FileCheck %s --check-prefixes=POSIX,LINUX
+; RUN: opt < %s -mtriple=x86_64-unknown-fuchsia -instrprof -S | FileCheck %s --check-prefixes=POSIX,LINUX
 ; RUN: opt < %s  -mtriple=x86_64-pc-win32-coff -instrprof -S | FileCheck %s --check-prefixes=COFF
 ; RUN: opt < %s -mtriple=x86_64-apple-macosx10.10.0 -passes=instrprof -S | FileCheck %s --check-prefixes=POSIX,MACHO
 ; RUN: opt < %s -mtriple=x86_64-unknown-linux -passes=instrprof -S | FileCheck %s --check-prefixes=POSIX,LINUX
+; RUN: opt < %s -mtriple=x86_64-unknown-fuchsia -passes=instrprof -S | FileCheck %s --check-prefixes=POSIX,LINUX
 ; RUN: opt < %s  -mtriple=x86_64-pc-win32-coff -passes=instrprof -S | FileCheck %s --check-prefixes=COFF
 
 ; MACHO: @__llvm_profile_runtime = external global i32
@@ -53,12 +55,12 @@ define linkonce_odr void @foo_inline() {
   ret void
 }
 
-; LINUX: @__profc_foo_extern = linkonce_odr hidden global {{.*}}section "__llvm_prf_cnts", comdat($__profv_foo_extern), align 8
-; LINUX: @__profd_foo_extern = linkonce_odr hidden global {{.*}}section "__llvm_prf_data", comdat($__profv_foo_extern), align 8
+; LINUX: @__profc_foo_extern = linkonce_odr hidden global {{.*}}section "__llvm_prf_cnts", comdat, align 8
+; LINUX: @__profd_foo_extern = linkonce_odr hidden global {{.*}}section "__llvm_prf_data", comdat, align 8
 ; MACHO: @__profc_foo_extern = linkonce_odr hidden global
 ; MACHO: @__profd_foo_extern = linkonce_odr hidden global
-; COFF: @__profc_foo_extern = linkonce_odr dso_local global {{.*}}section ".lprfc$M", comdat, align 8
-; COFF: @__profd_foo_extern = internal global {{.*}}section ".lprfd$M", comdat($__profc_foo_extern), align 8
+; COFF: @__profc_foo_extern = linkonce_odr hidden global {{.*}}section ".lprfc$M", comdat, align 8
+; COFF: @__profd_foo_extern = linkonce_odr hidden global {{.*}}section ".lprfd$M", comdat, align 8
 define available_externally void @foo_extern() {
   call void @llvm.instrprof.increment(i8* getelementptr inbounds ([10 x i8], [10 x i8]* @__profn_foo_extern, i32 0, i32 0), i64 0, i32 1, i32 0)
   ret void

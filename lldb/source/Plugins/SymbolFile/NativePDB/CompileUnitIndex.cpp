@@ -1,4 +1,4 @@
-//===-- CompileUnitIndex.cpp ------------------------------------*- C++ -*-===//
+//===-- CompileUnitIndex.cpp ----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -130,7 +130,7 @@ CompilandIndexItem &CompileUnitIndex::GetOrCreateCompiland(uint16_t modi) {
 
   if (!stream_data) {
     llvm::pdb::ModuleDebugStreamRef debug_stream(descriptor, nullptr);
-    cci = llvm::make_unique<CompilandIndexItem>(PdbCompilandId{ modi }, debug_stream, std::move(descriptor));
+    cci = std::make_unique<CompilandIndexItem>(PdbCompilandId{ modi }, debug_stream, std::move(descriptor));
     return *cci;
   }
 
@@ -139,7 +139,7 @@ CompilandIndexItem &CompileUnitIndex::GetOrCreateCompiland(uint16_t modi) {
 
   cantFail(debug_stream.reload());
 
-  cci = llvm::make_unique<CompilandIndexItem>(
+  cci = std::make_unique<CompilandIndexItem>(
       PdbCompilandId{modi}, std::move(debug_stream), std::move(descriptor));
   ParseExtendedInfo(m_index, *cci);
 
@@ -154,7 +154,7 @@ CompilandIndexItem &CompileUnitIndex::GetOrCreateCompiland(uint16_t modi) {
   // name until we find it, and we can cache that one since the memory is backed
   // by a contiguous chunk inside the mapped PDB.
   llvm::SmallString<64> main_file = GetMainSourceFile(*cci);
-  std::string s = main_file.str();
+  std::string s = std::string(main_file.str());
   llvm::sys::path::native(main_file);
 
   uint32_t file_count = modules.getSourceFileCount(modi);

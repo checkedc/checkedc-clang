@@ -131,9 +131,13 @@ using ::putc;
 using ::ungetc;
 using ::fread;
 using ::fwrite;
+#ifndef _LIBCPP_HAS_NO_FGETPOS_FSETPOS
 using ::fgetpos;
+#endif
 using ::fseek;
+#ifndef _LIBCPP_HAS_NO_FGETPOS_FSETPOS
 using ::fsetpos;
+#endif
 using ::ftell;
 using ::rewind;
 using ::clearerr;
@@ -152,7 +156,7 @@ using ::tmpnam;
 
 #ifndef _LIBCPP_HAS_NO_STDIN
 using ::getchar;
-#if _LIBCPP_STD_VER <= 11 && !defined(_LIBCPP_MSVCRT)
+#if _LIBCPP_STD_VER <= 11 && !defined(_LIBCPP_C_HAS_NO_GETS)
 using ::gets;
 #endif
 using ::scanf;

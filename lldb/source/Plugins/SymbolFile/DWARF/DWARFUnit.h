@@ -6,12 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SymbolFileDWARF_DWARFUnit_h_
-#define SymbolFileDWARF_DWARFUnit_h_
+#ifndef LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFUNIT_H
+#define LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFUNIT_H
 
 #include "DWARFDIE.h"
 #include "DWARFDebugInfoEntry.h"
 #include "lldb/lldb-enumerations.h"
+#include "lldb/Utility/XcodeSDK.h"
 #include "llvm/Support/RWMutex.h"
 #include <atomic>
 
@@ -39,6 +40,9 @@ class DWARFUnitHeader {
   dw_offset_t m_length = 0;
   uint16_t m_version = 0;
   dw_offset_t m_abbr_offset = 0;
+
+  const llvm::DWARFUnitIndex::Entry *m_index_entry = nullptr;
+
   uint8_t m_unit_type = 0;
   uint8_t m_addr_size = 0;
 
@@ -56,6 +60,9 @@ public:
   dw_offset_t GetLength() const { return m_length; }
   dw_offset_t GetAbbrOffset() const { return m_abbr_offset; }
   uint8_t GetUnitType() const { return m_unit_type; }
+  const llvm::DWARFUnitIndex::Entry *GetIndexEntry() const {
+    return m_index_entry;
+  }
   uint64_t GetTypeHash() const { return m_type_hash; }
   dw_offset_t GetTypeOffset() const { return m_type_offset; }
   bool IsTypeUnit() const {
@@ -65,7 +72,7 @@ public:
 
   static llvm::Expected<DWARFUnitHeader>
   extract(const lldb_private::DWARFDataExtractor &data, DIERef::Section section,
-          lldb::offset_t *offset_ptr);
+          lldb::offset_t *offset_ptr, const llvm::DWARFUnitIndex *index);
 };
 
 class DWARFUnit : public lldb_private::UserID {
@@ -76,8 +83,11 @@ public:
   static llvm::Expected<DWARFUnitSP>
   extract(SymbolFileDWARF &dwarf2Data, lldb::user_id_t uid,
           const lldb_private::DWARFDataExtractor &debug_info,
-          DIERef::Section section, lldb::offset_t *offset_ptr);
+          DIERef::Section section, lldb::offset_t *offset_ptr,
+          const llvm::DWARFUnitIndex *index);
   virtual ~DWARFUnit();
+
+  bool IsDWOUnit() { return m_is_dwo; }
 
   void ExtractUnitDIEIfNeeded();
   void ExtractDIEsIfNeeded();
@@ -88,15 +98,14 @@ public:
     bool m_clear_dies = false;
     ScopedExtractDIEs(DWARFUnit &cu);
     ~ScopedExtractDIEs();
-    DISALLOW_COPY_AND_ASSIGN(ScopedExtractDIEs);
+    ScopedExtractDIEs(const ScopedExtractDIEs &) = delete;
+    const ScopedExtractDIEs &operator=(const ScopedExtractDIEs &) = delete;
     ScopedExtractDIEs(ScopedExtractDIEs &&rhs);
     ScopedExtractDIEs &operator=(ScopedExtractDIEs &&rhs);
   };
   ScopedExtractDIEs ExtractDIEsScoped();
 
   DWARFDIE LookupAddress(const dw_addr_t address);
-  size_t AppendDIEsWithTag(const dw_tag_t tag, std::vector<DWARFDIE> &dies,
-                           uint32_t depth = UINT32_MAX) const;
   bool Verify(lldb_private::Stream *s) const;
   virtual void Dump(lldb_private::Stream *s) const = 0;
   /// Get the data that contains the DIE information for this unit.
@@ -147,13 +156,12 @@ public:
   dw_addr_t GetRangesBase() const { return m_ranges_base; }
   dw_addr_t GetStrOffsetsBase() const { return m_str_offsets_base; }
   void SetAddrBase(dw_addr_t addr_base);
+  void SetLoclistsBase(dw_addr_t loclists_base);
   void SetRangesBase(dw_addr_t ranges_base);
   void SetStrOffsetsBase(dw_offset_t str_offsets_base);
   virtual void BuildAddressRangeTable(DWARFDebugAranges *debug_aranges) = 0;
 
   lldb::ByteOrder GetByteOrder() const;
-
-  lldb_private::TypeSystem *GetTypeSystem();
 
   const DWARFDebugAranges &GetFunctionAranges();
 
@@ -191,9 +199,7 @@ public:
 
   uint32_t GetProducerVersionUpdate();
 
-  static lldb::LanguageType LanguageTypeFromDWARF(uint64_t val);
-
-  lldb::LanguageType GetLanguageType();
+  uint64_t GetDWARFLanguageType();
 
   bool GetIsOptimized();
 
@@ -202,7 +208,7 @@ public:
   lldb_private::FileSpec GetFile(size_t file_idx);
   lldb_private::FileSpec::Style GetPathStyle();
 
-  SymbolFileDWARFDwo *GetDwoSymbolFile() const;
+  SymbolFileDWARFDwo *GetDwoSymbolFile();
 
   die_iterator_range dies() {
     ExtractDIEsIfNeeded();
@@ -214,20 +220,50 @@ public:
   uint8_t GetUnitType() const { return m_header.GetUnitType(); }
   bool IsTypeUnit() const { return m_header.IsTypeUnit(); }
 
+  llvm::Optional<uint64_t> GetStringOffsetSectionItem(uint32_t index) const;
+
   /// Return a list of address ranges resulting from a (possibly encoded)
   /// range list starting at a given offset in the appropriate ranges section.
-  llvm::Expected<DWARFRangeList> FindRnglistFromOffset(dw_offset_t offset) const;
+  llvm::Expected<DWARFRangeList> FindRnglistFromOffset(dw_offset_t offset);
 
   /// Return a list of address ranges retrieved from an encoded range
   /// list whose offset is found via a table lookup given an index (DWARF v5
   /// and later).
-  llvm::Expected<DWARFRangeList> FindRnglistFromIndex(uint32_t index) const;
+  llvm::Expected<DWARFRangeList> FindRnglistFromIndex(uint32_t index);
+
+  /// Return a rangelist's offset based on an index. The index designates
+  /// an entry in the rangelist table's offset array and is supplied by
+  /// DW_FORM_rnglistx.
+  llvm::Optional<uint64_t> GetRnglistOffset(uint32_t Index) const {
+    if (!m_rnglist_table)
+      return llvm::None;
+    if (llvm::Optional<uint64_t> off = m_rnglist_table->getOffsetEntry(Index))
+      return *off + m_ranges_base;
+    return llvm::None;
+  }
+
+  llvm::Optional<uint64_t> GetLoclistOffset(uint32_t Index) {
+    if (!m_loclist_table_header)
+      return llvm::None;
+
+    llvm::Optional<uint64_t> Offset =  m_loclist_table_header->getOffsetEntry(Index);
+    if (!Offset)
+      return llvm::None;
+    return *Offset + m_loclists_base;
+  }
+
+  /// Return the location table for parsing the given location list data. The
+  /// format is chosen according to the unit type. Never returns null.
+  std::unique_ptr<llvm::DWARFLocationTable>
+  GetLocationTable(const lldb_private::DataExtractor &data) const;
+
+  lldb_private::DWARFDataExtractor GetLocationData() const;
 
 protected:
   DWARFUnit(SymbolFileDWARF &dwarf, lldb::user_id_t uid,
             const DWARFUnitHeader &header,
             const DWARFAbbreviationDeclarationSet &abbrevs,
-            DIERef::Section section);
+            DIERef::Section section, bool is_dwo);
 
   llvm::Error ExtractHeader(SymbolFileDWARF &dwarf,
                             const lldb_private::DWARFDataExtractor &data,
@@ -252,7 +288,7 @@ protected:
   }
 
   SymbolFileDWARF &m_dwarf;
-  std::unique_ptr<SymbolFileDWARFDwo> m_dwo_symbol_file;
+  std::shared_ptr<DWARFUnit> m_dwo;
   DWARFUnitHeader m_header;
   const DWARFAbbreviationDeclarationSet *m_abbrevs = nullptr;
   void *m_user_data = nullptr;
@@ -277,18 +313,24 @@ protected:
   uint32_t m_producer_version_major = 0;
   uint32_t m_producer_version_minor = 0;
   uint32_t m_producer_version_update = 0;
-  lldb::LanguageType m_language_type = lldb::eLanguageTypeUnknown;
+  llvm::Optional<uint64_t> m_language_type;
   lldb_private::LazyBool m_is_optimized = lldb_private::eLazyBoolCalculate;
   llvm::Optional<lldb_private::FileSpec> m_comp_dir;
   llvm::Optional<lldb_private::FileSpec> m_file_spec;
-  dw_addr_t m_addr_base = 0;   // Value of DW_AT_addr_base
-  dw_addr_t m_ranges_base = 0; // Value of DW_AT_ranges_base
+  dw_addr_t m_addr_base = 0;     ///< Value of DW_AT_addr_base.
+  dw_addr_t m_loclists_base = 0; ///< Value of DW_AT_loclists_base.
+  dw_addr_t m_ranges_base = 0;   ///< Value of DW_AT_rnglists_base.
 
   /// Value of DW_AT_stmt_list.
   dw_offset_t m_line_table_offset = DW_INVALID_OFFSET;
 
   dw_offset_t m_str_offsets_base = 0; // Value of DW_AT_str_offsets_base.
+
+  llvm::Optional<llvm::DWARFDebugRnglistTable> m_rnglist_table;
+  llvm::Optional<llvm::DWARFListTableHeader> m_loclist_table_header;
+
   const DIERef::Section m_section;
+  bool m_is_dwo;
 
 private:
   void ParseProducerInfo();
@@ -296,11 +338,13 @@ private:
   void ClearDIEsRWLocked();
 
   void AddUnitDIE(const DWARFDebugInfoEntry &cu_die);
+  void SetDwoStrOffsetsBase();
 
   void ComputeCompDirAndGuessPathStyle();
   void ComputeAbsolutePath();
 
-  DISALLOW_COPY_AND_ASSIGN(DWARFUnit);
+  DWARFUnit(const DWARFUnit &) = delete;
+  const DWARFUnit &operator=(const DWARFUnit &) = delete;
 };
 
-#endif // SymbolFileDWARF_DWARFUnit_h_
+#endif // LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFUNIT_H

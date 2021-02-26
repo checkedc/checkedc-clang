@@ -50,11 +50,10 @@ int main() {
 }
 
 // CHECK: define internal void [[OUTLINED]](
-// CHECK: [[GID:%.+]] = {{.*}}call i32 @__kmpc_global_thread_num(%struct.ident_t* {{.*}}@0)
 // CHECK: invoke void @{{.+}}foo
 // CHECK: [[CATCHSWITCH:%.+]] = catchswitch within none
 // CHECK: [[CATCHPAD:%.+]] = catchpad within [[CATCHSWITCH]]
-// CHECK: call void @__kmpc_critical(%struct.ident_t* {{.*}}@0, i32 [[GID]],
+// CHECK: call void @__kmpc_critical(%struct.ident_t* {{.*}}@0, i32 [[GID:%.+]],
 // CHECK: invoke void @{{.+}}bar
 // CHECK: call void @__kmpc_end_critical(%struct.ident_t* {{.*}}@0, i32 [[GID]],
 // CHECK: catchret from [[CATCHPAD]] to
@@ -62,9 +61,9 @@ int main() {
 // CHECK-NEXT: call void @__kmpc_end_critical(%struct.ident_t* {{.*}}@0, i32 [[GID]],
 // CHECK-NEXT: cleanupret from {{.*}} unwind label %[[CATCHTERM:[^ ]+]]
 // CHECK:      cleanuppad within none []
-// CHECK-NEXT: call void @"?terminate@@YAXXZ"() #5 [ "funclet"(token %{{.*}}) ]
+// CHECK-NEXT: call void @"?terminate@@YAXXZ"() #{{[0-9]+}} [ "funclet"(token %{{.*}}) ]
 // CHECK-NEXT: unreachable
 // CHECK:      [[CATCHTERM]]
 // CHECK-NEXT: cleanuppad within [[CATCHPAD]] []
-// CHECK-NEXT: call void @"?terminate@@YAXXZ"() #5 [ "funclet"(token %{{.*}}) ]
+// CHECK-NEXT: call void @"?terminate@@YAXXZ"() #{{[0-9]+}} [ "funclet"(token %{{.*}}) ]
 // CHECK-NEXT: unreachable

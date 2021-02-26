@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Tooling/Inclusions/HeaderIncludes.h"
+#include "clang/Basic/FileManager.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
 #include "llvm/ADT/Optional.h"
@@ -184,6 +185,10 @@ IncludeCategoryManager::IncludeCategoryManager(const IncludeStyle &Style,
                FileName.endswith(".cpp") || FileName.endswith(".c++") ||
                FileName.endswith(".cxx") || FileName.endswith(".m") ||
                FileName.endswith(".mm");
+  if (!Style.IncludeIsMainSourceRegex.empty()) {
+    llvm::Regex MainFileRegex(Style.IncludeIsMainSourceRegex);
+    IsMainFile |= MainFileRegex.match(FileName);
+  }
 }
 
 int IncludeCategoryManager::getIncludePriority(StringRef IncludeName,
@@ -199,6 +204,20 @@ int IncludeCategoryManager::getIncludePriority(StringRef IncludeName,
   return Ret;
 }
 
+int IncludeCategoryManager::getSortIncludePriority(StringRef IncludeName,
+                                                   bool CheckMainHeader) const {
+  int Ret = INT_MAX;
+  for (unsigned i = 0, e = CategoryRegexs.size(); i != e; ++i)
+    if (CategoryRegexs[i].match(IncludeName)) {
+      Ret = Style.IncludeCategories[i].SortPriority;
+      if (Ret == 0)
+        Ret = Style.IncludeCategories[i].Priority;
+      break;
+    }
+  if (CheckMainHeader && IsMainFile && Ret > 0 && isMainHeader(IncludeName))
+    Ret = 0;
+  return Ret;
+}
 bool IncludeCategoryManager::isMainHeader(StringRef IncludeName) const {
   if (!IncludeName.startswith("\""))
     return false;
@@ -301,7 +320,7 @@ HeaderIncludes::insert(llvm::StringRef IncludeName, bool IsAngled) const {
           (!IsAngled && StringRef(Inc.Name).startswith("\"")))
         return llvm::None;
   std::string Quoted =
-      llvm::formatv(IsAngled ? "<{0}>" : "\"{0}\"", IncludeName);
+      std::string(llvm::formatv(IsAngled ? "<{0}>" : "\"{0}\"", IncludeName));
   StringRef QuotedName = Quoted;
   int Priority = Categories.getIncludePriority(
       QuotedName, /*CheckMainHeader=*/FirstIncludeOffset < 0);
@@ -318,7 +337,8 @@ HeaderIncludes::insert(llvm::StringRef IncludeName, bool IsAngled) const {
     }
   }
   assert(InsertOffset <= Code.size());
-  std::string NewInclude = llvm::formatv("#include {0}\n", QuotedName);
+  std::string NewInclude =
+      std::string(llvm::formatv("#include {0}\n", QuotedName));
   // When inserting headers at end of the code, also append '\n' to the code
   // if it does not end with '\n'.
   // FIXME: when inserting multiple #includes at the end of code, only one
@@ -349,7 +369,6 @@ tooling::Replacements HeaderIncludes::remove(llvm::StringRef IncludeName,
   }
   return Result;
 }
-
 
 } // namespace tooling
 } // namespace clang

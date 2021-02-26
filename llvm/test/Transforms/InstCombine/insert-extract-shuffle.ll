@@ -203,7 +203,6 @@ define double @pr26354(<2 x double>* %tmp, i1 %B) {
 ; CHECK-LABEL: @pr26354(
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[LD:%.*]] = load <2 x double>, <2 x double>* [[TMP:%.*]], align 16
-; CHECK-NEXT:    [[E1:%.*]] = extractelement <2 x double> [[LD]], i32 0
 ; CHECK-NEXT:    br i1 [[B:%.*]], label [[IF:%.*]], label [[END:%.*]]
 ; CHECK:       if:
 ; CHECK-NEXT:    [[E2:%.*]] = extractelement <2 x double> [[LD]], i32 1
@@ -211,6 +210,7 @@ define double @pr26354(<2 x double>* %tmp, i1 %B) {
 ; CHECK-NEXT:    br label [[END]]
 ; CHECK:       end:
 ; CHECK-NEXT:    [[PH:%.*]] = phi <4 x double> [ undef, [[ENTRY:%.*]] ], [ [[I1]], [[IF]] ]
+; CHECK-NEXT:    [[E1:%.*]] = extractelement <2 x double> [[LD]], i32 0
 ; CHECK-NEXT:    [[E3:%.*]] = extractelement <4 x double> [[PH]], i32 1
 ; CHECK-NEXT:    [[MU:%.*]] = fmul double [[E1]], [[E3]]
 ; CHECK-NEXT:    ret double [[MU]]
@@ -570,5 +570,166 @@ define <4 x float> @insert_in_nonsplat2(float %x, <4 x float> %y) {
   %xv = insertelement <4 x float> %y, float %x, i32 0
   %splat = shufflevector <4 x float> %xv, <4 x float> undef, <4 x i32> <i32 undef, i32 0, i32 1, i32 undef>
   %r = insertelement <4 x float> %splat, float %x, i32 3
+  ret <4 x float> %r
+}
+
+define <4 x i8> @shuf_identity_padding(<2 x i8> %x, i8 %y) {
+; CHECK-LABEL: @shuf_identity_padding(
+; CHECK-NEXT:    [[V1:%.*]] = shufflevector <2 x i8> [[X:%.*]], <2 x i8> undef, <4 x i32> <i32 0, i32 1, i32 undef, i32 undef>
+; CHECK-NEXT:    [[V2:%.*]] = insertelement <4 x i8> [[V1]], i8 [[Y:%.*]], i32 2
+; CHECK-NEXT:    ret <4 x i8> [[V2]]
+;
+  %v0 = shufflevector <2 x i8> %x, <2 x i8> undef, <4 x i32> <i32 0, i32 1, i32 undef, i32 undef>
+  %x1 = extractelement <2 x i8> %x, i32 1
+  %v1 = insertelement <4 x i8> %v0, i8 %x1, i32 1
+  %v2 = insertelement <4 x i8> %v1, i8 %y, i32 2
+  ret <4 x i8> %v2
+}
+
+define <3 x i8> @shuf_identity_extract(<4 x i8> %x, i8 %y) {
+; CHECK-LABEL: @shuf_identity_extract(
+; CHECK-NEXT:    [[V1:%.*]] = shufflevector <4 x i8> [[X:%.*]], <4 x i8> undef, <3 x i32> <i32 0, i32 1, i32 undef>
+; CHECK-NEXT:    [[V2:%.*]] = insertelement <3 x i8> [[V1]], i8 [[Y:%.*]], i32 2
+; CHECK-NEXT:    ret <3 x i8> [[V2]]
+;
+  %v0 = shufflevector <4 x i8> %x, <4 x i8> undef, <3 x i32> <i32 0, i32 undef, i32 undef>
+  %x1 = extractelement <4 x i8> %x, i32 1
+  %v1 = insertelement <3 x i8> %v0, i8 %x1, i32 1
+  %v2 = insertelement <3 x i8> %v1, i8 %y, i32 2
+  ret <3 x i8> %v2
+}
+
+define <4 x float> @shuf_identity_extract_extra_use(<6 x float> %x, float %y) {
+; CHECK-LABEL: @shuf_identity_extract_extra_use(
+; CHECK-NEXT:    [[V0:%.*]] = shufflevector <6 x float> [[X:%.*]], <6 x float> undef, <4 x i32> <i32 0, i32 undef, i32 undef, i32 3>
+; CHECK-NEXT:    call void @use(<4 x float> [[V0]])
+; CHECK-NEXT:    [[V1:%.*]] = shufflevector <6 x float> [[X]], <6 x float> undef, <4 x i32> <i32 0, i32 undef, i32 2, i32 3>
+; CHECK-NEXT:    [[V2:%.*]] = insertelement <4 x float> [[V1]], float [[Y:%.*]], i32 1
+; CHECK-NEXT:    ret <4 x float> [[V2]]
+;
+  %v0 = shufflevector <6 x float> %x, <6 x float> undef, <4 x i32> <i32 0, i32 undef, i32 undef, i32 3>
+  call void @use(<4 x float> %v0)
+  %x1 = extractelement <6 x float> %x, i32 2
+  %v1 = insertelement <4 x float> %v0, float %x1, i32 2
+  %v2 = insertelement <4 x float> %v1, float %y, i32 1
+  ret <4 x float> %v2
+}
+
+; Negative test - can't map variable index to shuffle mask.
+
+define <4 x i8> @shuf_identity_padding_variable_index(<2 x i8> %x, i8 %y, i32 %index) {
+; CHECK-LABEL: @shuf_identity_padding_variable_index(
+; CHECK-NEXT:    [[V0:%.*]] = shufflevector <2 x i8> [[X:%.*]], <2 x i8> undef, <4 x i32> <i32 0, i32 1, i32 undef, i32 undef>
+; CHECK-NEXT:    [[X1:%.*]] = extractelement <2 x i8> [[X]], i32 [[INDEX:%.*]]
+; CHECK-NEXT:    [[V1:%.*]] = insertelement <4 x i8> [[V0]], i8 [[X1]], i32 [[INDEX]]
+; CHECK-NEXT:    [[V2:%.*]] = insertelement <4 x i8> [[V1]], i8 [[Y:%.*]], i32 2
+; CHECK-NEXT:    ret <4 x i8> [[V2]]
+;
+  %v0 = shufflevector <2 x i8> %x, <2 x i8> undef, <4 x i32> <i32 0, i32 1, i32 undef, i32 undef>
+  %x1 = extractelement <2 x i8> %x, i32 %index
+  %v1 = insertelement <4 x i8> %v0, i8 %x1, i32 %index
+  %v2 = insertelement <4 x i8> %v1, i8 %y, i32 2
+  ret <4 x i8> %v2
+}
+
+; Negative test - don't create arbitrary shuffle masks.
+
+define <4 x i8> @shuf_identity_padding_wrong_source_vec(<2 x i8> %x, i8 %y, <2 x i8> %other) {
+; CHECK-LABEL: @shuf_identity_padding_wrong_source_vec(
+; CHECK-NEXT:    [[V0:%.*]] = shufflevector <2 x i8> [[X:%.*]], <2 x i8> undef, <4 x i32> <i32 0, i32 undef, i32 undef, i32 undef>
+; CHECK-NEXT:    [[X1:%.*]] = extractelement <2 x i8> [[OTHER:%.*]], i32 1
+; CHECK-NEXT:    [[V1:%.*]] = insertelement <4 x i8> [[V0]], i8 [[X1]], i32 1
+; CHECK-NEXT:    [[V2:%.*]] = insertelement <4 x i8> [[V1]], i8 [[Y:%.*]], i32 2
+; CHECK-NEXT:    ret <4 x i8> [[V2]]
+;
+  %v0 = shufflevector <2 x i8> %x, <2 x i8> undef, <4 x i32> <i32 0, i32 1, i32 undef, i32 undef>
+  %x1 = extractelement <2 x i8> %other, i32 1
+  %v1 = insertelement <4 x i8> %v0, i8 %x1, i32 1
+  %v2 = insertelement <4 x i8> %v1, i8 %y, i32 2
+  ret <4 x i8> %v2
+}
+
+; Negative test - don't create arbitrary shuffle masks.
+
+define <4 x i8> @shuf_identity_padding_wrong_index(<2 x i8> %x, i8 %y) {
+; CHECK-LABEL: @shuf_identity_padding_wrong_index(
+; CHECK-NEXT:    [[V0:%.*]] = shufflevector <2 x i8> [[X:%.*]], <2 x i8> undef, <4 x i32> <i32 0, i32 1, i32 undef, i32 undef>
+; CHECK-NEXT:    [[X1:%.*]] = extractelement <2 x i8> [[X]], i32 1
+; CHECK-NEXT:    [[V1:%.*]] = insertelement <4 x i8> [[V0]], i8 [[X1]], i32 2
+; CHECK-NEXT:    [[V2:%.*]] = insertelement <4 x i8> [[V1]], i8 [[Y:%.*]], i32 3
+; CHECK-NEXT:    ret <4 x i8> [[V2]]
+;
+  %v0 = shufflevector <2 x i8> %x, <2 x i8> undef, <4 x i32> <i32 0, i32 1, i32 undef, i32 undef>
+  %x1 = extractelement <2 x i8> %x, i32 1
+  %v1 = insertelement <4 x i8> %v0, i8 %x1, i32 2
+  %v2 = insertelement <4 x i8> %v1, i8 %y, i32 3
+  ret <4 x i8> %v2
+}
+
+define <4 x float> @insert_undemanded_element_op0(<4 x float> %x, <4 x float> %y) {
+; CHECK-LABEL: @insert_undemanded_element_op0(
+; CHECK-NEXT:    [[INS:%.*]] = insertelement <4 x float> [[X:%.*]], float 4.200000e+01, i32 3
+; CHECK-NEXT:    call void @use(<4 x float> [[INS]])
+; CHECK-NEXT:    [[S:%.*]] = shufflevector <4 x float> [[X]], <4 x float> [[Y:%.*]], <4 x i32> <i32 0, i32 7, i32 1, i32 4>
+; CHECK-NEXT:    ret <4 x float> [[S]]
+;
+  %ins = insertelement <4 x float> %x, float 42.0, i32 3
+  call void @use(<4 x float> %ins)
+  %s = shufflevector <4 x float> %ins, <4 x float> %y, <4 x i32> <i32 0, i32 7, i32 1, i32 4>
+  ret <4 x float> %s
+}
+
+define <4 x float> @insert_undemanded_element_op1(<4 x float> %x, <4 x float> %y) {
+; CHECK-LABEL: @insert_undemanded_element_op1(
+; CHECK-NEXT:    [[INS:%.*]] = insertelement <4 x float> [[X:%.*]], float 4.200000e+01, i32 3
+; CHECK-NEXT:    call void @use(<4 x float> [[INS]])
+; CHECK-NEXT:    [[S:%.*]] = shufflevector <4 x float> [[Y:%.*]], <4 x float> [[X]], <4 x i32> <i32 3, i32 2, i32 1, i32 4>
+; CHECK-NEXT:    ret <4 x float> [[S]]
+;
+  %ins = insertelement <4 x float> %x, float 42.0, i32 3
+  call void @use(<4 x float> %ins)
+  %s = shufflevector <4 x float> %y, <4 x float> %ins, <4 x i32> <i32 3, i32 2, i32 1, i32 4>
+  ret <4 x float> %s
+}
+
+; Negative test - shuffle chooses the inserted constant.
+
+define <4 x float> @insert_demanded_element_op0(<4 x float> %x, <4 x float> %y) {
+; CHECK-LABEL: @insert_demanded_element_op0(
+; CHECK-NEXT:    [[INS:%.*]] = insertelement <4 x float> [[X:%.*]], float 4.200000e+01, i32 3
+; CHECK-NEXT:    call void @use(<4 x float> [[INS]])
+; CHECK-NEXT:    [[S:%.*]] = shufflevector <4 x float> [[INS]], <4 x float> [[Y:%.*]], <4 x i32> <i32 3, i32 2, i32 1, i32 4>
+; CHECK-NEXT:    ret <4 x float> [[S]]
+;
+  %ins = insertelement <4 x float> %x, float 42.0, i32 3
+  call void @use(<4 x float> %ins)
+  %s = shufflevector <4 x float> %ins, <4 x float> %y, <4 x i32> <i32 3, i32 2, i32 1, i32 4>
+  ret <4 x float> %s
+}
+
+; Negative test - shuffle chooses the inserted constant.
+
+define <4 x float> @insert_demanded_element_op1(<4 x float> %x, <4 x float> %y) {
+; CHECK-LABEL: @insert_demanded_element_op1(
+; CHECK-NEXT:    [[INS:%.*]] = insertelement <4 x float> [[X:%.*]], float 4.300000e+01, i32 3
+; CHECK-NEXT:    call void @use(<4 x float> [[INS]])
+; CHECK-NEXT:    [[S:%.*]] = shufflevector <4 x float> [[Y:%.*]], <4 x float> [[INS]], <4 x i32> <i32 0, i32 7, i32 1, i32 4>
+; CHECK-NEXT:    ret <4 x float> [[S]]
+;
+  %ins = insertelement <4 x float> %x, float 43.0, i32 3
+  call void @use(<4 x float> %ins)
+  %s = shufflevector <4 x float> %y, <4 x float> %ins, <4 x i32> <i32 0, i32 7, i32 1, i32 4>
+  ret <4 x float> %s
+}
+
+define <4 x float> @splat_constant(<4 x float> %x) {
+; CHECK-LABEL: @splat_constant(
+; CHECK-NEXT:    [[INS3:%.*]] = insertelement <4 x float> [[X:%.*]], float 3.000000e+00, i32 3
+; CHECK-NEXT:    [[R:%.*]] = fadd <4 x float> [[INS3]], <float 3.000000e+00, float 3.000000e+00, float 3.000000e+00, float 3.000000e+00>
+; CHECK-NEXT:    ret <4 x float> [[R]]
+;
+  %ins3 = insertelement <4 x float> %x, float 3.0, i32 3
+  %splat3 = shufflevector <4 x float> %ins3, <4 x float> undef, <4 x i32> <i32 3, i32 3, i32 3, i32 3>
+  %r = fadd <4 x float> %ins3, %splat3
   ret <4 x float> %r
 }

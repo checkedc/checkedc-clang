@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -14,13 +14,13 @@
 // bool is_fifo(path const& p);
 // bool is_fifo(path const& p, std::error_code& ec) noexcept;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 using namespace fs;
 
@@ -62,7 +62,8 @@ TEST_CASE(is_fifo_status_test)
 
 TEST_CASE(test_exist_not_found)
 {
-    const path p = StaticEnv::DNE;
+    static_test_env static_env;
+    const path p = static_env.DNE;
     TEST_CHECK(is_fifo(p) == false);
 }
 

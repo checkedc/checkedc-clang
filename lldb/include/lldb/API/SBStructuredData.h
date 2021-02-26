@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SBStructuredData_h
-#define SBStructuredData_h
+#ifndef LLDB_API_SBSTRUCTUREDDATA_H
+#define LLDB_API_SBSTRUCTUREDDATA_H
 
 #include "lldb/API/SBDefines.h"
 #include "lldb/API/SBModule.h"
@@ -91,9 +91,15 @@ protected:
   friend class SBTraceOptions;
   friend class SBDebugger;
   friend class SBTarget;
+  friend class SBProcess;
+  friend class SBThread;
+  friend class SBThreadPlan;
+  friend class SBBreakpoint;
+  friend class SBBreakpointLocation;
+  friend class SBBreakpointName;
 
   StructuredDataImplUP m_impl_up;
 };
 } // namespace lldb
 
-#endif /* SBStructuredData_h */
+#endif // LLDB_API_SBSTRUCTUREDDATA_H

@@ -1,7 +1,7 @@
 # RUN: llvm-mc -triple riscv32 -riscv-no-aliases < %s -show-encoding \
 # RUN:     | FileCheck -check-prefix=CHECK-FIXUP %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 < %s \
-# RUN:     | llvm-objdump -riscv-no-aliases -d - \
+# RUN:     | llvm-objdump -M no-aliases -d - \
 # RUN:     | FileCheck -check-prefix=CHECK-INSTR %s
 # RUN: llvm-mc -filetype=obj -triple=riscv32 %s \
 # RUN:     | llvm-readobj -r | FileCheck %s -check-prefix=CHECK-REL
@@ -60,7 +60,7 @@ addi zero, zero, 0
 
 # CHECK-REL-NOT: R_RISCV
 
-# Testing the function call offset could resovled by assembler
+# Testing the function call offset could resolved by assembler
 # when the function and the callsite within the same compile unit
 # and the linker relaxation is disabled.
 func:

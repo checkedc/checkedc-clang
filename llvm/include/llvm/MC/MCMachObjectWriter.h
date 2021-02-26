@@ -16,6 +16,7 @@
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCSection.h"
 #include "llvm/MC/StringTableBuilder.h"
+#include "llvm/Support/EndianStream.h"
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -28,7 +29,9 @@ class MachObjectWriter;
 class MCMachObjectTargetWriter : public MCObjectTargetWriter {
   const unsigned Is64Bit : 1;
   const uint32_t CPUType;
-  const uint32_t CPUSubtype;
+protected:
+  uint32_t CPUSubtype;
+public:
   unsigned LocalDifference_RIT;
 
 protected:
@@ -42,7 +45,7 @@ protected:
 public:
   virtual ~MCMachObjectTargetWriter();
 
-  virtual Triple::ObjectFormatType getFormat() const { return Triple::MachO; }
+  Triple::ObjectFormatType getFormat() const override { return Triple::MachO; }
   static bool classof(const MCObjectTargetWriter *W) {
     return W->getFormat() == Triple::MachO;
   }

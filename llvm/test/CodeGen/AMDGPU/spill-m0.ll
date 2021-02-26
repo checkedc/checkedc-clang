@@ -1,14 +1,11 @@
 ; RUN: llc -O0 -amdgpu-spill-sgpr-to-vgpr=1 -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefix=TOVGPR -check-prefix=GCN %s
-; RUN: llc -O0 -amdgpu-spill-sgpr-to-vgpr=1 -amdgpu-spill-sgpr-to-smem=0 -march=amdgcn -mcpu=tonga  -verify-machineinstrs < %s | FileCheck -check-prefix=TOVGPR -check-prefix=GCN %s
+; RUN: llc -O0 -amdgpu-spill-sgpr-to-vgpr=1 -march=amdgcn -mcpu=tonga  -verify-machineinstrs < %s | FileCheck -check-prefix=TOVGPR -check-prefix=GCN %s
 ; RUN: llc -O0 -amdgpu-spill-sgpr-to-vgpr=0 -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefix=TOVMEM -check-prefix=GCN %s
-; RUN: llc -O0 -amdgpu-spill-sgpr-to-vgpr=0 -amdgpu-spill-sgpr-to-smem=0 -march=amdgcn -mcpu=tonga -verify-machineinstrs < %s | FileCheck -check-prefix=TOVMEM -check-prefix=GCN %s
-; RUN: llc -O0 -amdgpu-spill-sgpr-to-vgpr=0 -amdgpu-spill-sgpr-to-smem=1 -march=amdgcn -mcpu=tonga -verify-machineinstrs < %s | FileCheck -check-prefix=TOSMEM -check-prefix=GCN %s
+; RUN: llc -O0 -amdgpu-spill-sgpr-to-vgpr=0 -march=amdgcn -mcpu=tonga -verify-machineinstrs < %s | FileCheck -check-prefix=TOVMEM -check-prefix=GCN %s
 
 ; XXX - Why does it like to use vcc?
 
 ; GCN-LABEL: {{^}}spill_m0:
-; TOSMEM: s_mov_b32 s[[LO:[0-9]+]], SCRATCH_RSRC_DWORD0
-; TOSMEM: s_mov_b32 s[[HI:[0-9]+]], 0xe80000
 
 ; GCN-DAG: s_cmp_lg_u32
 
@@ -16,13 +13,8 @@
 ; TOVGPR: v_writelane_b32 [[SPILL_VREG:v[0-9]+]], [[M0_COPY]], 2
 
 ; TOVMEM-DAG: s_mov_b32 [[M0_COPY:s[0-9]+]], m0
-; TOVMEM-DAG: v_mov_b32_e32 [[SPILL_VREG:v[0-9]+]], [[M0_COPY]]
-; TOVMEM: buffer_store_dword [[SPILL_VREG]], off, s{{\[[0-9]+:[0-9]+\]}}, s{{[0-9]+}} offset:12 ; 4-byte Folded Spill
-
-; TOSMEM-DAG: s_mov_b32 [[M0_COPY:s[0-9]+]], m0
-; TOSMEM: s_add_u32 m0, s3, 0x300{{$}}
-; TOSMEM-NOT: [[M0_COPY]]
-; TOSMEM: s_buffer_store_dword [[M0_COPY]], s{{\[}}[[LO]]:[[HI]]], m0 ; 4-byte Folded Spill
+; TOVMEM-DAG: v_writelane_b32 [[SPILL_VREG:v[0-9]+]], [[M0_COPY]], 0
+; TOVMEM: buffer_store_dword [[SPILL_VREG]], off, s{{\[[0-9]+:[0-9]+\]}}, 0 offset:12 ; 4-byte Folded Spill
 
 ; GCN: s_cbranch_scc1 [[ENDIF:BB[0-9]+_[0-9]+]]
 
@@ -30,15 +22,10 @@
 ; TOVGPR: v_readlane_b32 [[M0_RESTORE:s[0-9]+]], [[SPILL_VREG]], 2
 ; TOVGPR: s_mov_b32 m0, [[M0_RESTORE]]
 
-; TOVMEM: buffer_load_dword [[RELOAD_VREG:v[0-9]+]], off, s{{\[[0-9]+:[0-9]+\]}}, s{{[0-9]+}} offset:12 ; 4-byte Folded Reload
+; TOVMEM: buffer_load_dword [[RELOAD_VREG:v[0-9]+]], off, s{{\[[0-9]+:[0-9]+\]}}, 0 offset:12 ; 4-byte Folded Reload
 ; TOVMEM: s_waitcnt vmcnt(0)
-; TOVMEM: v_readfirstlane_b32 [[M0_RESTORE:s[0-9]+]], [[RELOAD_VREG]]
+; TOVMEM: v_readlane_b32 [[M0_RESTORE:s[0-9]+]], [[RELOAD_VREG]], 0
 ; TOVMEM: s_mov_b32 m0, [[M0_RESTORE]]
-
-; TOSMEM: s_add_u32 m0, s3, 0x300{{$}}
-; TOSMEM: s_buffer_load_dword [[M0_RESTORE:s[0-9]+]], s{{\[}}[[LO]]:[[HI]]], m0 ; 4-byte Folded Reload
-; TOSMEM-NOT: [[M0_RESTORE]]
-; TOSMEM: s_mov_b32 m0, [[M0_RESTORE]]
 
 ; GCN: s_add_i32 s{{[0-9]+}}, m0, 1
 define amdgpu_kernel void @spill_m0(i32 %cond, i32 addrspace(1)* %out) #0 {
@@ -63,26 +50,6 @@ endif:
 ; GCN-LABEL: {{^}}spill_kill_m0_lds:
 ; GCN: s_mov_b32 m0, s6
 ; GCN: v_interp_mov_f32
-
-; TOSMEM-NOT: s_m0
-; TOSMEM: s_add_u32 m0, s7, 0x100
-; TOSMEM-NEXT: s_buffer_store_dwordx2 s{{\[[0-9]+:[0-9]+\]}}, s{{\[[0-9]+:[0-9]+\]}}, m0 ; 8-byte Folded Spill
-; FIXME: RegScavenger::isRegUsed() always returns true if m0 is reserved, so we have to save and restore it
-; FIXME-TOSMEM-NOT: m0
-
-; FIXME-TOSMEM-NOT: m0
-; TOSMEM: s_add_u32 m0, s7, 0x300
-; TOSMEM: s_buffer_store_dword s{{[0-9]+}}, s{{\[[0-9]+:[0-9]+\]}}, m0 ; 4-byte Folded Spill
-; FIXME-TOSMEM-NOT: m0
-
-; TOSMEM: s_mov_b64 exec,
-; TOSMEM: s_cbranch_execz
-; TOSMEM: s_branch
-
-; TOSMEM: BB{{[0-9]+_[0-9]+}}:
-; TOSMEM: s_add_u32 m0, s7, 0x500
-; TOSMEM-NEXT: s_buffer_load_dwordx2 s{{\[[0-9]+:[0-9]+\]}}, s{{\[[0-9]+:[0-9]+\]}}, m0 ; 8-byte Folded Reload
-
 
 ; GCN-NOT: v_readlane_b32 m0
 ; GCN-NOT: s_buffer_store_dword m0
@@ -115,7 +82,7 @@ endif:                                            ; preds = %else, %if
 
 ; GCN: ; def m0, 1
 
-; GCN: s_mov_b32 m0, s2
+; GCN: s_mov_b32 m0, s0
 ; GCN: v_interp_mov_f32
 
 ; GCN: ; clobber m0
@@ -171,21 +138,21 @@ endif:
 
 ; TOSMEM: s_mov_b32 m0, -1
 
-; TOSMEM: s_mov_b32 s0, m0
+; TOSMEM: s_mov_b32 s2, m0
 ; TOSMEM: s_add_u32 m0, s3, 0x200
 ; TOSMEM: s_buffer_load_dwordx2 s{{\[[0-9]+:[0-9]+\]}}, s[88:91], m0 ; 8-byte Folded Reload
-; TOSMEM: s_mov_b32 m0, s0
+; TOSMEM: s_mov_b32 m0, s2
 ; TOSMEM: s_waitcnt lgkmcnt(0)
 
 ; TOSMEM: ds_write_b64
 
 ; FIXME-TOSMEM-NOT: m0
 ; TOSMEM: s_add_u32 m0, s3, 0x100
-; TOSMEM: s_buffer_load_dword s0, s[88:91], m0 ; 4-byte Folded Reload
+; TOSMEM: s_buffer_load_dword s2, s[88:91], m0 ; 4-byte Folded Reload
 ; FIXME-TOSMEM-NOT: m0
 ; TOSMEM: s_waitcnt lgkmcnt(0)
 ; TOSMEM-NOT: m0
-; TOSMEM: s_mov_b32 m0, s0
+; TOSMEM: s_mov_b32 m0, s2
 ; TOSMEM: ; use m0
 
 ; TOSMEM: s_dcache_wb

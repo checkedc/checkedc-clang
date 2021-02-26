@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Language_h_
-#define liblldb_Language_h_
+#ifndef LLDB_TARGET_LANGUAGE_H
+#define LLDB_TARGET_LANGUAGE_H
 
 #include <functional>
 #include <memory>
@@ -20,6 +20,7 @@
 #include "lldb/DataFormatters/DumpValueObjectOptions.h"
 #include "lldb/DataFormatters/FormatClasses.h"
 #include "lldb/DataFormatters/StringPrinter.h"
+#include "lldb/Symbol/TypeSystem.h"
 #include "lldb/lldb-private.h"
 #include "lldb/lldb-public.h"
 
@@ -175,16 +176,9 @@ public:
   virtual HardcodedFormatters::HardcodedSyntheticFinder
   GetHardcodedSynthetics();
 
-  virtual HardcodedFormatters::HardcodedValidatorFinder
-  GetHardcodedValidators();
-
   virtual std::vector<ConstString>
   GetPossibleFormattersMatches(ValueObject &valobj,
                                lldb::DynamicValueType use_dynamic);
-
-  virtual lldb_private::formatters::StringPrinter::EscapingHelper
-      GetStringPrinterEscapingHelper(
-          lldb_private::formatters::StringPrinter::GetPrintableElementType);
 
   virtual std::unique_ptr<TypeScavenger> GetTypeScavenger();
 
@@ -266,12 +260,9 @@ public:
 
   static std::set<lldb::LanguageType> GetSupportedLanguages();
 
-  static void GetLanguagesSupportingTypeSystems(
-      std::set<lldb::LanguageType> &languages,
-      std::set<lldb::LanguageType> &languages_for_expressions);
-
-  static void
-  GetLanguagesSupportingREPLs(std::set<lldb::LanguageType> &languages);
+  static LanguageSet GetLanguagesSupportingTypeSystems();
+  static LanguageSet GetLanguagesSupportingTypeSystemsForExpressions();
+  static LanguageSet GetLanguagesSupportingREPLs();
 
 protected:
   // Classes that inherit from Language can see and modify these
@@ -279,9 +270,10 @@ protected:
   Language();
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(Language);
+  Language(const Language &) = delete;
+  const Language &operator=(const Language &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_Language_h_
+#endif // LLDB_TARGET_LANGUAGE_H

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Thread_h_
-#define liblldb_Thread_h_
+#ifndef LLDB_TARGET_THREAD_H
+#define LLDB_TARGET_THREAD_H
 
 #include <memory>
 #include <mutex>
@@ -27,6 +27,8 @@
 #define LLDB_THREAD_MAX_STOP_EXC_DATA 8
 
 namespace lldb_private {
+
+class ThreadPlanStack;
 
 class ThreadProperties : public Properties {
 public:
@@ -111,7 +113,8 @@ public:
     lldb::ThreadSP m_thread_sp;
     StackID m_stack_id;
 
-    DISALLOW_COPY_AND_ASSIGN(ThreadEventData);
+    ThreadEventData(const ThreadEventData &) = delete;
+    const ThreadEventData &operator=(const ThreadEventData &) = delete;
   };
 
   struct ThreadStateCheckpoint {
@@ -119,7 +122,7 @@ public:
                            // bit of data.
     lldb::StopInfoSP stop_info_sp; // You have to restore the stop info or you
                                    // might continue with the wrong signals.
-    std::vector<lldb::ThreadPlanSP> m_completed_plan_stack;
+    size_t m_completed_plan_checkpoint;
     lldb::RegisterCheckpointSP
         register_backup_sp; // You need to restore the registers, of course...
     uint32_t current_inlined_depth;
@@ -127,10 +130,6 @@ public:
   };
 
   /// Constructor
-  ///
-  /// \param [in] process
-  ///
-  /// \param [in] tid
   ///
   /// \param [in] use_invalid_index_id
   ///     Optional parameter, defaults to false.  The only subclass that
@@ -181,8 +180,6 @@ public:
   /// to force the thread to run (e.g. the "thread continue" command, or are
   /// resetting the state
   /// (e.g. in SBThread::Resume()), then pass true to override_suspend.
-  /// \return
-  ///    The User resume state for this thread.
   void SetResumeState(lldb::StateType state, bool override_suspend = false) {
     if (m_resume_state == lldb::eStateSuspended && !override_suspend)
       return;
@@ -219,6 +216,12 @@ public:
   virtual void DidStop();
 
   virtual void RefreshStateAfterStop() = 0;
+
+  void SelectMostRelevantFrame();
+
+  std::string GetStopDescription();
+
+  std::string GetStopDescriptionRaw();
 
   void WillStop();
 
@@ -760,6 +763,8 @@ public:
   ///    \b true if we will stop other threads while we single step this one.
   ///
   /// \param[in] stop_vote
+  ///    See standard meanings for the stop & run votes in ThreadPlan.h.
+  ///
   /// \param[in] run_vote
   ///    See standard meanings for the stop & run votes in ThreadPlan.h.
   ///
@@ -807,11 +812,13 @@ public:
   ///    \b true if we will stop other threads while we single step this one.
   ///
   /// \param[in] stop_vote
+  ///    See standard meanings for the stop & run votes in ThreadPlan.h.
   ///
   /// \param[in] run_vote
   ///    See standard meanings for the stop & run votes in ThreadPlan.h.
   ///
   /// \param[in] frame_idx
+  ///     The fame index.
   ///
   /// \param[out] status
   ///     A status with an error if queuing failed.
@@ -899,6 +906,7 @@ public:
 
   virtual lldb::ThreadPlanSP
   QueueThreadPlanForStepScripted(bool abort_other_plans, const char *class_name,
+                                 StructuredData::ObjectSP extra_args_sp,
                                  bool stop_other_threads, Status &status);
 
   // Thread Plan accessors:
@@ -907,7 +915,7 @@ public:
   ///
   /// \return
   ///     A pointer to the next executed plan.
-  ThreadPlan *GetCurrentPlan();
+  ThreadPlan *GetCurrentPlan() const;
 
   /// Unwinds the thread stack for the innermost expression plan currently
   /// on the thread plan stack.
@@ -922,14 +930,14 @@ public:
   ///
   /// \return
   ///     A pointer to the last completed plan.
-  lldb::ThreadPlanSP GetCompletedPlan();
+  lldb::ThreadPlanSP GetCompletedPlan() const;
 
   /// Gets the outer-most return value from the completed plans
   ///
   /// \return
   ///     A ValueObjectSP, either empty if there is no return value,
   ///     or containing the return value.
-  lldb::ValueObjectSP GetReturnValueObject();
+  lldb::ValueObjectSP GetReturnValueObject() const;
 
   /// Gets the outer-most expression variable from the completed plans
   ///
@@ -937,7 +945,7 @@ public:
   ///     A ExpressionVariableSP, either empty if there is no
   ///     plan completed an expression during the current stop
   ///     or the expression variable that was made for the completed expression.
-  lldb::ExpressionVariableSP GetExpressionVariable();
+  lldb::ExpressionVariableSP GetExpressionVariable() const;
 
   ///  Checks whether the given plan is in the completed plans for this
   ///  stop.
@@ -948,7 +956,7 @@ public:
   /// \return
   ///     Returns true if the input plan is in the completed plan stack,
   ///     false otherwise.
-  bool IsThreadPlanDone(ThreadPlan *plan);
+  bool IsThreadPlanDone(ThreadPlan *plan) const;
 
   ///  Checks whether the given plan is in the discarded plans for this
   ///  stop.
@@ -959,14 +967,14 @@ public:
   /// \return
   ///     Returns true if the input plan is in the discarded plan stack,
   ///     false otherwise.
-  bool WasThreadPlanDiscarded(ThreadPlan *plan);
+  bool WasThreadPlanDiscarded(ThreadPlan *plan) const;
 
   /// Check if we have completed plan to override breakpoint stop reason
   ///
   /// \return
   ///     Returns true if completed plan stack is not empty
   ///     false otherwise.
-  bool CompletedPlanOverridesBreakpoint();
+  bool CompletedPlanOverridesBreakpoint() const;
 
   /// Queues a generic thread plan.
   ///
@@ -1003,7 +1011,7 @@ public:
   /// including the plan in that matches \a thread_index counting only
   /// the non-Private plans.
   ///
-  /// \param[in] up_to_plan_sp
+  /// \param[in] thread_index
   ///   Discard all plans up to and including this user plan given by this
   ///   index.
   ///
@@ -1011,16 +1019,6 @@ public:
   ///    \b true if there was a thread plan with that user index, \b false
   ///    otherwise.
   bool DiscardUserThreadPlansUpToIndex(uint32_t thread_index);
-
-  /// Prints the current plan stack.
-  ///
-  /// \param[in] s
-  ///    The stream to which to dump the plan stack info.
-  ///
-  void DumpThreadPlans(
-      Stream *s,
-      lldb::DescriptionLevel desc_level = lldb::eDescriptionLevelVerbose,
-      bool include_internal = true, bool ignore_boring = false) const;
 
   virtual bool CheckpointThreadState(ThreadStateCheckpoint &saved_state);
 
@@ -1102,6 +1100,17 @@ public:
   // with what you might have calculated.
   virtual lldb::StopInfoSP GetPrivateStopInfo();
 
+  // Calculate the stop info that will be shown to lldb clients.  For instance,
+  // a "step out" is implemented by running to a breakpoint on the function
+  // return PC, so the process plugin initially sets the stop info to a
+  // StopInfoBreakpoint. But once we've run the ShouldStop machinery, we
+  // discover that there's a completed ThreadPlanStepOut, and that's really
+  // the StopInfo we want to show.  That will happen naturally the next
+  // time GetStopInfo is called, but if you want to force the replacement,
+  // you can call this.
+
+  void CalculatePublicStopInfo();
+
   // Ask the thread subclass to set its stop info.
   //
   // Thread subclasses should call Thread::SetStopInfo(...) with the reason the
@@ -1139,7 +1148,7 @@ public:
   /// Some Thread subclasses may maintain a token to help with providing
   /// an extended backtrace.  The SystemRuntime plugin will set/request this.
   ///
-  /// \param [in] token
+  /// \param [in] token The extended backtrace token.
   virtual void SetExtendedBacktraceToken(uint64_t token) {}
 
   /// Gets the extended backtrace token for this thread
@@ -1169,17 +1178,17 @@ protected:
   // be called by classes that derive from Thread in their destructor.
   virtual void DestroyThread();
 
-  void PushPlan(lldb::ThreadPlanSP &plan_sp);
+  ThreadPlanStack &GetPlans() const;
+
+  void PushPlan(lldb::ThreadPlanSP plan_sp);
 
   void PopPlan();
 
   void DiscardPlan();
 
-  ThreadPlan *GetPreviousPlan(ThreadPlan *plan);
+  ThreadPlan *GetPreviousPlan(ThreadPlan *plan) const;
 
-  typedef std::vector<lldb::ThreadPlanSP> plan_stack;
-
-  virtual lldb_private::Unwind *GetUnwinder();
+  virtual Unwind &GetUnwinder();
 
   // Check to see whether the thread is still at the last breakpoint hit that
   // stopped it.
@@ -1203,7 +1212,7 @@ protected:
     m_temporary_resume_state = new_state;
   }
 
-  void FunctionOptimizationWarning(lldb_private::StackFrame *frame);
+  void FrameSelectedCallback(lldb_private::StackFrame *frame);
 
   // Classes that inherit from Process can see and modify these
   lldb::ProcessWP m_process_wp;    ///< The process that owns this thread.
@@ -1222,13 +1231,6 @@ protected:
   lldb::StateType m_state;                  ///< The state of our process.
   mutable std::recursive_mutex
       m_state_mutex;       ///< Multithreaded protection for m_state.
-  plan_stack m_plan_stack; ///< The stack of plans this thread is executing.
-  plan_stack m_completed_plan_stack; ///< Plans that have been completed by this
-                                     ///stop.  They get deleted when the thread
-                                     ///resumes.
-  plan_stack m_discarded_plan_stack; ///< Plans that have been discarded by this
-                                     ///stop.  They get deleted when the thread
-                                     ///resumes.
   mutable std::recursive_mutex
       m_frame_mutex; ///< Multithreaded protection for m_state.
   lldb::StackFrameListSP m_curr_frames_sp; ///< The stack frames that get lazily
@@ -1249,20 +1251,19 @@ protected:
   bool m_destroy_called; // This is used internally to make sure derived Thread
                          // classes call DestroyThread.
   LazyBool m_override_should_notify;
+  mutable std::unique_ptr<ThreadPlanStack> m_null_plan_stack_up;
 
 private:
   bool m_extended_info_fetched; // Have we tried to retrieve the m_extended_info
                                 // for this thread?
   StructuredData::ObjectSP m_extended_info; // The extended info for this thread
 
-private:
-  bool PlanIsBasePlan(ThreadPlan *plan_ptr);
-
   void BroadcastSelectedFrameChange(StackID &new_frame_id);
 
-  DISALLOW_COPY_AND_ASSIGN(Thread);
+  Thread(const Thread &) = delete;
+  const Thread &operator=(const Thread &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_Thread_h_
+#endif // LLDB_TARGET_THREAD_H

@@ -2873,6 +2873,35 @@ POST_SYSCALL(rt_sigaction)(long res, long signum,
     POST_WRITE(oldact, oldact_sz);
   }
 }
+
+PRE_SYSCALL(getrandom)(void *buf, uptr count, long flags) {
+  if (buf) {
+    PRE_WRITE(buf, count);
+  }
+}
+
+POST_SYSCALL(getrandom)(long res, void *buf, uptr count, long flags) {
+  if (res > 0 && buf) {
+    POST_WRITE(buf, res);
+  }
+}
+
+PRE_SYSCALL(sigaltstack)(const void *ss, void *oss) {
+  if (ss != nullptr) {
+    PRE_READ(ss, struct_stack_t_sz);
+  }
+  if (oss != nullptr) {
+    PRE_WRITE(oss, struct_stack_t_sz);
+  }
+}
+
+POST_SYSCALL(sigaltstack)(long res, void *ss, void *oss) {
+  if (res == 0) {
+    if (oss != nullptr) {
+      POST_WRITE(oss, struct_stack_t_sz);
+    }
+  }
+}
 }  // extern "C"
 
 #undef PRE_SYSCALL

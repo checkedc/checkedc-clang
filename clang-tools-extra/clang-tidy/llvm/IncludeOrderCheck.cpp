@@ -53,7 +53,7 @@ private:
 void IncludeOrderCheck::registerPPCallbacks(const SourceManager &SM,
                                             Preprocessor *PP,
                                             Preprocessor *ModuleExpanderPP) {
-  PP->addPPCallbacks(::llvm::make_unique<IncludeOrderPPCallbacks>(*this, SM));
+  PP->addPPCallbacks(::std::make_unique<IncludeOrderPPCallbacks>(*this, SM));
 }
 
 static int getPriority(StringRef Filename, bool IsAngled, bool IsMainModule) {
@@ -81,7 +81,8 @@ void IncludeOrderPPCallbacks::InclusionDirective(
     SrcMgr::CharacteristicKind FileType) {
   // We recognize the first include as a special main module header and want
   // to leave it in the top position.
-  IncludeDirective ID = {HashLoc, FilenameRange, FileName, IsAngled, false};
+  IncludeDirective ID = {HashLoc, FilenameRange, std::string(FileName),
+                         IsAngled, false};
   if (LookForMainModule && !IsAngled) {
     ID.IsMainModule = true;
     LookForMainModule = false;

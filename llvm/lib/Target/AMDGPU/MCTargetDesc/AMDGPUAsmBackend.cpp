@@ -17,6 +17,7 @@
 #include "llvm/MC/MCFixupKindInfo.h"
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCValue.h"
+#include "llvm/Support/EndianStream.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "Utils/AMDGPUBaseInfo.h"
 
@@ -39,8 +40,8 @@ public:
                             const MCRelaxableFragment *DF,
                             const MCAsmLayout &Layout) const override;
 
-  void relaxInstruction(const MCInst &Inst, const MCSubtargetInfo &STI,
-                        MCInst &Res) const override;
+  void relaxInstruction(MCInst &Inst,
+                        const MCSubtargetInfo &STI) const override;
 
   bool mayNeedRelaxation(const MCInst &Inst,
                          const MCSubtargetInfo &STI) const override;
@@ -53,12 +54,13 @@ public:
 
 } //End anonymous namespace
 
-void AMDGPUAsmBackend::relaxInstruction(const MCInst &Inst,
-                                        const MCSubtargetInfo &STI,
-                                        MCInst &Res) const {
+void AMDGPUAsmBackend::relaxInstruction(MCInst &Inst,
+                                        const MCSubtargetInfo &STI) const {
+  MCInst Res;
   unsigned RelaxedOpcode = AMDGPU::getSOPPWithRelaxation(Inst.getOpcode());
   Res.setOpcode(RelaxedOpcode);
   Res.addOperand(Inst.getOperand(0));
+  Inst = std::move(Res);
   return;
 }
 
@@ -109,7 +111,7 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
                                  MCContext *Ctx) {
   int64_t SignedValue = static_cast<int64_t>(Value);
 
-  switch (static_cast<unsigned>(Fixup.getKind())) {
+  switch (Fixup.getTargetKind()) {
   case AMDGPU::fixup_si_sopp_br: {
     int64_t BrImm = (SignedValue - 4) / 4;
 

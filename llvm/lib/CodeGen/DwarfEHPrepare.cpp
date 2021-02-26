@@ -17,7 +17,6 @@
 #include "llvm/Analysis/CFG.h"
 #include "llvm/Analysis/EHPersonalities.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
-#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/CodeGen/RuntimeLibcalls.h"
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
@@ -30,9 +29,11 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/Transforms/Utils/Local.h"
 #include <cstddef>
 
 using namespace llvm;
@@ -47,6 +48,7 @@ namespace {
     // RewindFunction - _Unwind_Resume or the target equivalent.
     FunctionCallee RewindFunction = nullptr;
 
+    CodeGenOpt::Level OptLevel;
     DominatorTree *DT = nullptr;
     const TargetLowering *TLI = nullptr;
 
@@ -60,7 +62,8 @@ namespace {
   public:
     static char ID; // Pass identification, replacement for typeid.
 
-    DwarfEHPrepare() : FunctionPass(ID) {}
+    DwarfEHPrepare(CodeGenOpt::Level OptLevel = CodeGenOpt::Default)
+      : FunctionPass(ID), OptLevel(OptLevel) {}
 
     bool runOnFunction(Function &Fn) override;
 
@@ -88,12 +91,15 @@ INITIALIZE_PASS_DEPENDENCY(TargetTransformInfoWrapperPass)
 INITIALIZE_PASS_END(DwarfEHPrepare, DEBUG_TYPE,
                     "Prepare DWARF exceptions", false, false)
 
-FunctionPass *llvm::createDwarfEHPass() { return new DwarfEHPrepare(); }
+FunctionPass *llvm::createDwarfEHPass(CodeGenOpt::Level OptLevel) {
+  return new DwarfEHPrepare(OptLevel);
+}
 
 void DwarfEHPrepare::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetPassConfig>();
   AU.addRequired<TargetTransformInfoWrapperPass>();
-  AU.addRequired<DominatorTreeWrapperPass>();
+  if (OptLevel != CodeGenOpt::None)
+    AU.addRequired<DominatorTreeWrapperPass>();
 }
 
 /// GetExceptionObject - Return the exception object from the value passed into
@@ -201,7 +207,10 @@ bool DwarfEHPrepare::InsertUnwindResumeCalls(Function &Fn) {
 
   LLVMContext &Ctx = Fn.getContext();
 
-  size_t ResumesLeft = pruneUnreachableResumes(Fn, Resumes, CleanupLPads);
+  size_t ResumesLeft = Resumes.size();
+  if (OptLevel != CodeGenOpt::None)
+    ResumesLeft = pruneUnreachableResumes(Fn, Resumes, CleanupLPads);
+
   if (ResumesLeft == 0)
     return true; // We pruned them all.
 
@@ -258,7 +267,8 @@ bool DwarfEHPrepare::InsertUnwindResumeCalls(Function &Fn) {
 bool DwarfEHPrepare::runOnFunction(Function &Fn) {
   const TargetMachine &TM =
       getAnalysis<TargetPassConfig>().getTM<TargetMachine>();
-  DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
+  DT = OptLevel != CodeGenOpt::None
+      ? &getAnalysis<DominatorTreeWrapperPass>().getDomTree() : nullptr;
   TLI = TM.getSubtargetImpl(Fn)->getTargetLowering();
   bool Changed = InsertUnwindResumeCalls(Fn);
   DT = nullptr;

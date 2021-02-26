@@ -31,6 +31,7 @@
 #include "lld/Common/Strings.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Object/ELF.h"
+#include "llvm/Support/TimeProfiler.h"
 #include <functional>
 #include <vector>
 
@@ -38,7 +39,6 @@ using namespace llvm;
 using namespace llvm::ELF;
 using namespace llvm::object;
 using namespace llvm::support::endian;
-
 using namespace lld;
 using namespace lld::elf;
 
@@ -165,9 +165,11 @@ static bool isReserved(InputSectionBase *sec) {
   switch (sec->type) {
   case SHT_FINI_ARRAY:
   case SHT_INIT_ARRAY:
-  case SHT_NOTE:
   case SHT_PREINIT_ARRAY:
     return true;
+  case SHT_NOTE:
+    // SHT_NOTE sections in a group are subject to garbage collection.
+    return !sec->nextInSectionGroup;
   default:
     StringRef s = sec->name;
     return s.startswith(".ctors") || s.startswith(".dtors") ||
@@ -217,10 +219,9 @@ template <class ELFT> void MarkLive<ELFT>::run() {
 
   // Preserve externally-visible symbols if the symbols defined by this
   // file can interrupt other ELF file's symbols at runtime.
-  symtab->forEachSymbol([&](Symbol *sym) {
+  for (Symbol *sym : symtab->symbols())
     if (sym->includeInDynsym() && sym->partition == partition)
       markSymbol(sym);
-  });
 
   // If this isn't the main partition, that's all that we need to preserve.
   if (partition != 1) {
@@ -283,6 +284,10 @@ template <class ELFT> void MarkLive<ELFT>::mark() {
 
     for (InputSectionBase *isec : sec.dependentSections)
       enqueue(isec, 0);
+
+    // Mark the next group member.
+    if (sec.nextInSectionGroup)
+      enqueue(sec.nextInSectionGroup, 0);
   }
 }
 
@@ -291,6 +296,10 @@ template <class ELFT> void MarkLive<ELFT>::mark() {
 // GOT, which means that the ifunc must be available when the main partition is
 // loaded) and TLS symbols (because we only know how to correctly process TLS
 // relocations for the main partition).
+//
+// We also need to move sections whose names are C identifiers that are referred
+// to from __start_/__stop_ symbols because there will only be one set of
+// symbols for the whole program.
 template <class ELFT> void MarkLive<ELFT>::moveToMain() {
   for (InputFile *file : objectFiles)
     for (Symbol *s : file->getSymbols())
@@ -299,6 +308,14 @@ template <class ELFT> void MarkLive<ELFT>::moveToMain() {
             d->section->isLive())
           markSymbol(s);
 
+  for (InputSectionBase *sec : inputSections) {
+    if (!sec->isLive() || !isValidCIdentifier(sec->name))
+      continue;
+    if (symtab->find(("__start_" + sec->name).str()) ||
+        symtab->find(("__stop_" + sec->name).str()))
+      enqueue(sec, 0);
+  }
+
   mark();
 }
 
@@ -306,21 +323,21 @@ template <class ELFT> void MarkLive<ELFT>::moveToMain() {
 // input sections. This function make some or all of them on
 // so that they are emitted to the output file.
 template <class ELFT> void elf::markLive() {
+  llvm::TimeTraceScope timeScope("markLive");
   // If -gc-sections is not given, no sections are removed.
   if (!config->gcSections) {
     for (InputSectionBase *sec : inputSections)
       sec->markLive();
 
     // If a DSO defines a symbol referenced in a regular object, it is needed.
-    symtab->forEachSymbol([](Symbol *sym) {
+    for (Symbol *sym : symtab->symbols())
       if (auto *s = dyn_cast<SharedSymbol>(sym))
         if (s->isUsedInRegularObj && !s->isWeak())
           s->getFile().isNeeded = true;
-    });
     return;
   }
 
-  // Otheriwse, do mark-sweep GC.
+  // Otherwise, do mark-sweep GC.
   //
   // The -gc-sections option works only for SHF_ALLOC sections
   // (sections that are memory-mapped at runtime). So we can
@@ -341,12 +358,19 @@ template <class ELFT> void elf::markLive() {
   // or -emit-reloc were given. And they are subject of garbage
   // collection because, if we remove a text section, we also
   // remove its relocation section.
+  //
+  // Note on nextInSectionGroup: The ELF spec says that group sections are
+  // included or omitted as a unit. We take the interpretation that:
+  //
+  // - Group members (nextInSectionGroup != nullptr) are subject to garbage
+  //   collection.
+  // - Groups members are retained or discarded as a unit.
   for (InputSectionBase *sec : inputSections) {
     bool isAlloc = (sec->flags & SHF_ALLOC);
     bool isLinkOrder = (sec->flags & SHF_LINK_ORDER);
     bool isRel = (sec->type == SHT_REL || sec->type == SHT_RELA);
 
-    if (!isAlloc && !isLinkOrder && !isRel)
+    if (!isAlloc && !isLinkOrder && !isRel && !sec->nextInSectionGroup)
       sec->markLive();
   }
 

@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class year_month_day;
@@ -41,7 +41,7 @@ void RunTheExample()
 
     static_assert(year_month_day{local_days{year{2017}/January/0}}  == year{2016}/December/31);
     static_assert(year_month_day{local_days{year{2017}/January/31}} == year{2017}/January/31);
-    static_assert(year_month_day{local_days{year{2017}/January/32}} == year{2017}/February/1);  
+    static_assert(year_month_day{local_days{year{2017}/January/32}} == year{2017}/February/1);
 }
 
 int main(int, char**)

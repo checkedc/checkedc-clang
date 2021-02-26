@@ -1,9 +1,12 @@
 // Test target codegen - host bc file has to be created first.
 // RUN: %clang_cc1 -verify -fopenmp -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-ppc-host.bc
-// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o - | FileCheck %s --check-prefix CHECK --check-prefix CHECK-64
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o - | FileCheck %s --check-prefix CHECK --check-prefix CHECK-64 --check-prefix SEQ
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o - -fopenmp-cuda-parallel-target-regions | FileCheck %s --check-prefix CHECK --check-prefix CHECK-64 --check-prefix  PAR
 // RUN: %clang_cc1 -verify -fopenmp -x c++ -triple i386-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -emit-llvm-bc %s -o %t-x86-host.bc
-// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple nvptx-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-x86-host.bc -o - | FileCheck %s --check-prefix CHECK --check-prefix CHECK-32
-// RUN: %clang_cc1 -verify -fopenmp -fexceptions -fcxx-exceptions -x c++ -triple nvptx-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -fopenmp-cuda-teams-reduction-recs-num=2048 -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-x86-host.bc -o - | FileCheck %s --check-prefix CHECK --check-prefix CHECK-32
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple nvptx-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-x86-host.bc -o - | FileCheck %s --check-prefix CHECK --check-prefix CHECK-32 --check-prefix SEQ
+// RUN: %clang_cc1 -verify -fopenmp -fexceptions -fcxx-exceptions -x c++ -triple nvptx-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -fopenmp-cuda-teams-reduction-recs-num=2048 -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-x86-host.bc -o - | FileCheck %s --check-prefix CHECK --check-prefix CHECK-32 --check-prefix SEQ
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple nvptx-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-x86-host.bc -o - -fopenmp-cuda-parallel-target-regions | FileCheck %s --check-prefix CHECK --check-prefix CHECK-32 --check-prefix PAR
+// RUN: %clang_cc1 -verify -fopenmp -fexceptions -fcxx-exceptions -x c++ -triple nvptx-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -fopenmp-cuda-teams-reduction-recs-num=2048 -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-x86-host.bc -o - -fopenmp-cuda-parallel-target-regions | FileCheck %s --check-prefix CHECK --check-prefix CHECK-32 --check-prefix PAR
 // expected-no-diagnostics
 #ifndef HEADER
 #define HEADER
@@ -12,21 +15,21 @@
 // CHECK-DAG: [[TEAM2_REDUCE_TY:%.+]] = type { [{{1024|2048}} x i8], [{{1024|2048}} x float] }
 // CHECK-DAG: [[TEAM3_REDUCE_TY:%.+]] = type { [{{1024|2048}} x i32], [{{1024|2048}} x i16] }
 // CHECK-DAG: [[TEAMS_REDUCE_UNION_TY:%.+]] = type { [[TEAM1_REDUCE_TY]] }
-// CHECK-DAG: [[MAP_TY:%.+]] = type { [128 x i8] }
+// SEQ-DAG: [[MAP_TY:%.+]] = type { [128 x i8] }
 
-// CHECK-DAG: [[KERNEL_PTR:@.+]] = internal addrspace(3) global i8* null
-// CHECK-DAG: [[KERNEL_SHARED1:@.+]] = internal unnamed_addr constant i16 1
-// CHECK-DAG: [[KERNEL_SHARED2:@.+]] = internal unnamed_addr constant i16 1
-// CHECK-DAG: [[KERNEL_SIZE1:@.+]] = internal unnamed_addr constant i{{64|32}} {{16|8}}
-// CHECK-DAG: [[KERNEL_SIZE2:@.+]] = internal unnamed_addr constant i{{64|32}} 16
+// SEQ-DAG: [[KERNEL_PTR:@.+]] = internal addrspace(3) global i8* null
+// SEQ-DAG: [[KERNEL_SHARED1:@.+]] = internal unnamed_addr constant i16 1
+// SEQ-DAG: [[KERNEL_SHARED2:@.+]] = internal unnamed_addr constant i16 1
+// SEQ-DAG: [[KERNEL_SIZE1:@.+]] = internal unnamed_addr constant i{{64|32}} {{16|8}}
+// SEQ-DAG: [[KERNEL_SIZE2:@.+]] = internal unnamed_addr constant i{{64|32}} 16
 
 // Check for the data transfer medium in shared memory to transfer the reduction list to the first warp.
 // CHECK-DAG: [[TRANSFER_STORAGE:@.+]] = common addrspace([[SHARED_ADDRSPACE:[0-9]+]]) global [32 x i32]
 
 // Check that the execution mode of 2 target regions is set to Non-SPMD and the 3rd is in SPMD.
-// CHECK-DAG: {{@__omp_offloading_.+l41}}_exec_mode = weak constant i8 1
-// CHECK-DAG: {{@__omp_offloading_.+l47}}_exec_mode = weak constant i8 1
-// CHECK-DAG: {{@__omp_offloading_.+l54}}_exec_mode = weak constant i8 0
+// CHECK-DAG: {{@__omp_offloading_.+l44}}_exec_mode = weak constant i8 1
+// CHECK-DAG: {{@__omp_offloading_.+l50}}_exec_mode = weak constant i8 1
+// CHECK-DAG: {{@__omp_offloading_.+l57}}_exec_mode = weak constant i8 0
 
 // CHECK-DAG: [[TEAMS_RED_BUFFER:@.+]] = internal global [[TEAMS_REDUCE_UNION_TY]] zeroinitializer
 
@@ -70,9 +73,9 @@ int bar(int n){
   return a;
 }
 
-  // CHECK-LABEL: define {{.*}}void {{@__omp_offloading_.+template.+l41}}_worker()
+  // CHECK-LABEL: define {{.*}}void {{@__omp_offloading_.+template.+l44}}_worker()
 
-  // CHECK: define {{.*}}void [[T1:@__omp_offloading_.+template.+l41]](
+  // CHECK: define {{.*}}void [[T1:@__omp_offloading_.+template.+l44]](
   //
   // CHECK: {{call|invoke}} void [[T1]]_worker()
   //
@@ -104,7 +107,7 @@ int bar(int n){
 
   //
   // Reduction function
-  // CHECK: define internal void [[REDUCTION_FUNC:@.+]](i8*, i8*)
+  // CHECK: define internal void [[REDUCTION_FUNC:@.+]](i8* %0, i8* %1)
   // CHECK: [[VAR_RHS_REF:%.+]] = getelementptr inbounds [1 x i8*], [1 x i8*]* [[RED_LIST_RHS:%.+]], i{{32|64}} 0, i{{32|64}} 0
   // CHECK: [[VAR_RHS_VOID:%.+]] = load i8*, i8** [[VAR_RHS_REF]],
   // CHECK: [[VAR_RHS:%.+]] = bitcast i8* [[VAR_RHS_VOID]] to double*
@@ -121,7 +124,7 @@ int bar(int n){
 
   //
   // Shuffle and reduce function
-  // CHECK: define internal void [[SHUFFLE_AND_REDUCE]](i8*, i16 {{.*}}, i16 {{.*}}, i16 {{.*}})
+  // CHECK: define internal void [[SHUFFLE_AND_REDUCE]](i8* %0, i16 {{.*}}, i16 {{.*}}, i16 {{.*}})
   // CHECK: [[REMOTE_RED_LIST:%.+]] = alloca [1 x i8*], align
   // CHECK: [[REMOTE_ELT:%.+]] = alloca double
   //
@@ -198,7 +201,7 @@ int bar(int n){
 
   //
   // Inter warp copy function
-  // CHECK: define internal void [[INTER_WARP_COPY]](i8*, i32)
+  // CHECK: define internal void [[INTER_WARP_COPY]](i8* %0, i32 %1)
   // CHECK-DAG: [[LANEID:%.+]] = and i32 {{.+}}, 31
   // CHECK-DAG: [[WARPID:%.+]] = ashr i32 {{.+}}, 5
   // CHECK-DAG: [[RED_LIST:%.+]] = bitcast i8* {{.+}} to [1 x i8*]*
@@ -253,7 +256,7 @@ int bar(int n){
   // CHECK: br label
   // CHECK: ret
 
-  // CHECK: define internal void [[RED_LIST_TO_GLOBAL_COPY]](i8*, i32, i8*)
+  // CHECK: define internal void [[RED_LIST_TO_GLOBAL_COPY]](i8* %0, i32 %1, i8* %2)
   // CHECK: [[GLOBAL_PTR:%.+]] = alloca i8*,
   // CHECK: [[IDX_PTR:%.+]] = alloca i32,
   // CHECK: [[RL_PTR:%.+]] = alloca i8*,
@@ -274,7 +277,7 @@ int bar(int n){
   // CHECK: store double [[LOC_RED1]], double* [[GLOBAL_RED1_IDX_PTR]],
   // CHECK: ret void
 
-  // CHECK: define internal void [[RED_LIST_TO_GLOBAL_RED]](i8*, i32, i8*)
+  // CHECK: define internal void [[RED_LIST_TO_GLOBAL_RED]](i8* %0, i32 %1, i8* %2)
   // CHECK: [[GLOBAL_PTR:%.+]] = alloca i8*,
   // CHECK: [[IDX_PTR:%.+]] = alloca i32,
   // CHECK: [[RL_PTR:%.+]] = alloca i8*,
@@ -295,7 +298,7 @@ int bar(int n){
   // CHECK: call void [[REDUCTION_FUNC]](i8* [[LOCAL_RL_BC]], i8* [[RL_BC]])
   // CHECK: ret void
 
-  // CHECK: define internal void [[GLOBAL_TO_RED_LIST_COPY]](i8*, i32, i8*)
+  // CHECK: define internal void [[GLOBAL_TO_RED_LIST_COPY]](i8* %0, i32 %1, i8* %2)
   // CHECK: [[GLOBAL_PTR:%.+]] = alloca i8*,
   // CHECK: [[IDX_PTR:%.+]] = alloca i32,
   // CHECK: [[RL_PTR:%.+]] = alloca i8*,
@@ -316,7 +319,7 @@ int bar(int n){
   // CHECK: store double [[GLOBAL_RED1]], double* [[RL_RED1]],
   // CHECK: ret void
 
-  // CHECK: define internal void [[GLOBAL_TO_RED_LIST_RED]](i8*, i32, i8*)
+  // CHECK: define internal void [[GLOBAL_TO_RED_LIST_RED]](i8* %0, i32 %1, i8* %2)
   // CHECK: [[GLOBAL_PTR:%.+]] = alloca i8*,
   // CHECK: [[IDX_PTR:%.+]] = alloca i32,
   // CHECK: [[RL_PTR:%.+]] = alloca i8*,
@@ -337,9 +340,9 @@ int bar(int n){
   // CHECK: call void [[REDUCTION_FUNC]](i8* [[RL_BC]], i8* [[LOCAL_RL_BC]])
   // CHECK: ret void
 
-  // CHECK-LABEL: define {{.*}}void {{@__omp_offloading_.+template.+l47}}_worker()
+  // CHECK-LABEL: define {{.*}}void {{@__omp_offloading_.+template.+l50}}_worker()
 
-  // CHECK: define {{.*}}void [[T2:@__omp_offloading_.+template.+l47]](
+  // CHECK: define {{.*}}void [[T2:@__omp_offloading_.+template.+l50]](
   //
   // CHECK: {{call|invoke}} void [[T2]]_worker()
 
@@ -386,7 +389,7 @@ int bar(int n){
 
   //
   // Reduction function
-  // CHECK: define internal void [[REDUCTION_FUNC:@.+]](i8*, i8*)
+  // CHECK: define internal void [[REDUCTION_FUNC:@.+]](i8* %0, i8* %1)
   // CHECK: [[VAR1_RHS_REF:%.+]] = getelementptr inbounds [2 x i8*], [2 x i8*]* [[RED_LIST_RHS:%.+]], i{{32|64}} 0, i{{32|64}} 0
   // CHECK: [[VAR1_RHS:%.+]] = load i8*, i8** [[VAR1_RHS_REF]],
   //
@@ -417,7 +420,7 @@ int bar(int n){
 
   //
   // Shuffle and reduce function
-  // CHECK: define internal void [[SHUFFLE_AND_REDUCE]](i8*, i16 {{.*}}, i16 {{.*}}, i16 {{.*}})
+  // CHECK: define internal void [[SHUFFLE_AND_REDUCE]](i8* %0, i16 {{.*}}, i16 {{.*}}, i16 {{.*}})
   // CHECK: [[REMOTE_RED_LIST:%.+]] = alloca [2 x i8*], align
   // CHECK: [[REMOTE_ELT1:%.+]] = alloca i8
   // CHECK: [[REMOTE_ELT2:%.+]] = alloca float
@@ -516,7 +519,7 @@ int bar(int n){
 
   //
   // Inter warp copy function
-  // CHECK: define internal void [[INTER_WARP_COPY]](i8*, i32)
+  // CHECK: define internal void [[INTER_WARP_COPY]](i8* %0, i32 %1)
   // CHECK-DAG: [[LANEID:%.+]] = and i32 {{.+}}, 31
   // CHECK-DAG: [[WARPID:%.+]] = ashr i32 {{.+}}, 5
   // CHECK-DAG: [[RED_LIST:%.+]] = bitcast i8* {{.+}} to [2 x i8*]*
@@ -600,7 +603,7 @@ int bar(int n){
   // CHECK: [[READ_CONT]]
   // CHECK: ret
 
-  // CHECK: define internal void [[RED_LIST_TO_GLOBAL_COPY]](i8*, i32, i8*)
+  // CHECK: define internal void [[RED_LIST_TO_GLOBAL_COPY]](i8* %0, i32 %1, i8* %2)
   // CHECK: [[GLOBAL_PTR:%.+]] = alloca i8*,
   // CHECK: [[IDX_PTR:%.+]] = alloca i32,
   // CHECK: [[RL_PTR:%.+]] = alloca i8*,
@@ -627,7 +630,7 @@ int bar(int n){
   // CHECK: store float [[LOC_RED1]], float* [[GLOBAL_RED1_IDX_PTR]],
   // CHECK: ret void
 
-  // CHECK: define internal void [[RED_LIST_TO_GLOBAL_RED]](i8*, i32, i8*)
+  // CHECK: define internal void [[RED_LIST_TO_GLOBAL_RED]](i8* %0, i32 %1, i8* %2)
   // CHECK: [[GLOBAL_PTR:%.+]] = alloca i8*,
   // CHECK: [[IDX_PTR:%.+]] = alloca i32,
   // CHECK: [[RL_PTR:%.+]] = alloca i8*,
@@ -652,7 +655,7 @@ int bar(int n){
   // CHECK: call void [[REDUCTION_FUNC]](i8* [[LOCAL_RL_BC]], i8* [[RL_BC]])
   // CHECK: ret void
 
-  // CHECK: define internal void [[GLOBAL_TO_RED_LIST_COPY]](i8*, i32, i8*)
+  // CHECK: define internal void [[GLOBAL_TO_RED_LIST_COPY]](i8* %0, i32 %1, i8* %2)
   // CHECK: [[GLOBAL_PTR:%.+]] = alloca i8*,
   // CHECK: [[IDX_PTR:%.+]] = alloca i32,
   // CHECK: [[RL_PTR:%.+]] = alloca i8*,
@@ -679,7 +682,7 @@ int bar(int n){
   // CHECK: store float [[GLOBAL_RED1]], float* [[RL_RED1]],
   // CHECK: ret void
 
-  // CHECK: define internal void [[GLOBAL_TO_RED_LIST_RED]](i8*, i32, i8*)
+  // CHECK: define internal void [[GLOBAL_TO_RED_LIST_RED]](i8* %0, i32 %1, i8* %2)
   // CHECK: [[GLOBAL_PTR:%.+]] = alloca i8*,
   // CHECK: [[IDX_PTR:%.+]] = alloca i32,
   // CHECK: [[RL_PTR:%.+]] = alloca i8*,
@@ -704,13 +707,14 @@ int bar(int n){
   // CHECK: call void [[REDUCTION_FUNC]](i8* [[RL_BC]], i8* [[LOCAL_RL_BC]])
   // CHECK: ret void
 
-  // CHECK-LABEL: define {{.*}}void {{@__omp_offloading_.+template.+l54}}(
+  // CHECK-LABEL: define {{.*}}void {{@__omp_offloading_.+template.+l57}}(
   //
   // CHECK: call void @__kmpc_spmd_kernel_init(
   // CHECK: call void @__kmpc_data_sharing_init_stack_spmd()
   // CHECK: call void @__kmpc_spmd_kernel_deinit_v2(i16 1)
 
-  // CHECK-NOT: call void @__kmpc_get_team_static_memory
+  // CHECK-NOT: call void @{{__kmpc_get_team_static_memory|__kmpc_data_sharing_push_stack}}
+  // CHECK: store i32 0,
   // CHECK: store i32 0,
   // CHECK: store i32 0, i32* [[A_ADDR:%.+]], align
   // CHECK: store i16 -32768, i16* [[B_ADDR:%.+]], align
@@ -755,7 +759,7 @@ int bar(int n){
   //
   // CHECK: [[EXIT]]
 
-  // CHECK: define internal void [[OUTLINED]](i32* noalias %{{.+}}, i32* noalias %{{.+}}, i32* dereferenceable{{.+}}, i16* dereferenceable{{.+}})
+  // CHECK: define internal void [[OUTLINED]](i32* noalias %{{.+}}, i32* noalias %{{.+}}, i32* nonnull align {{[0-9]+}} dereferenceable{{.+}}, i16* nonnull align {{[0-9]+}} dereferenceable{{.+}})
   //
   // CHECK: store i32 0, i32* [[A:%.+]], align
   // CHECK: store i16 -32768, i16* [[B:%.+]], align
@@ -821,7 +825,7 @@ int bar(int n){
 
   //
   // Reduction function
-  // CHECK: define internal void [[PAR_REDUCTION_FUNC:@.+]](i8*, i8*)
+  // CHECK: define internal void [[PAR_REDUCTION_FUNC:@.+]](i8* %0, i8* %1)
   // CHECK: [[VAR1_RHS_REF:%.+]] = getelementptr inbounds [[RLT]], [[RLT]]* [[RED_LIST_RHS:%.+]], i[[SZ]] 0, i[[SZ]] 0
   // CHECK: [[VAR1_RHS_VOID:%.+]] = load i8*, i8** [[VAR1_RHS_REF]],
   // CHECK: [[VAR1_RHS:%.+]] = bitcast i8* [[VAR1_RHS_VOID]] to i32*
@@ -865,7 +869,7 @@ int bar(int n){
   // CHECK: ret void
   //
   // Shuffle and reduce function
-  // CHECK: define internal void [[PAR_SHUFFLE_REDUCE_FN]](i8*, i16 {{.*}}, i16 {{.*}}, i16 {{.*}})
+  // CHECK: define internal void [[PAR_SHUFFLE_REDUCE_FN]](i8* %0, i16 {{.*}}, i16 {{.*}}, i16 {{.*}})
   // CHECK: [[REMOTE_RED_LIST:%.+]] = alloca [[RLT]], align
   // CHECK: [[REMOTE_ELT1:%.+]] = alloca i32
   // CHECK: [[REMOTE_ELT2:%.+]] = alloca i16
@@ -966,7 +970,7 @@ int bar(int n){
 
   //
   // Inter warp copy function
-  // CHECK: define internal void [[PAR_WARP_COPY_FN]](i8*, i32)
+  // CHECK: define internal void [[PAR_WARP_COPY_FN]](i8* %0, i32 %1)
   // CHECK-DAG: [[LANEID:%.+]] = and i32 {{.+}}, 31
   // CHECK-DAG: [[WARPID:%.+]] = ashr i32 {{.+}}, 5
   // CHECK-DAG: [[RED_LIST:%.+]] = bitcast i8* {{.+}} to [[RLT]]*
@@ -1053,7 +1057,7 @@ int bar(int n){
 
   //
   // Reduction function
-  // CHECK: define internal void [[REDUCTION_FUNC:@.+]](i8*, i8*)
+  // CHECK: define internal void [[REDUCTION_FUNC:@.+]](i8* %0, i8* %1)
   // CHECK: [[VAR1_RHS_REF:%.+]] = getelementptr inbounds [2 x i8*], [2 x i8*]* [[RED_LIST_RHS:%.+]], i[[SZ]] 0, i[[SZ]] 0
   // CHECK: [[VAR1_RHS_VOID:%.+]] = load i8*, i8** [[VAR1_RHS_REF]],
   // CHECK: [[VAR1_RHS:%.+]] = bitcast i8* [[VAR1_RHS_VOID]] to i32*
@@ -1098,7 +1102,7 @@ int bar(int n){
 
   //
   // Shuffle and reduce function
-  // CHECK: define internal void [[SHUFFLE_AND_REDUCE]](i8*, i16 {{.*}}, i16 {{.*}}, i16 {{.*}})
+  // CHECK: define internal void [[SHUFFLE_AND_REDUCE]](i8* %0, i16 {{.*}}, i16 {{.*}}, i16 {{.*}})
   // CHECK: [[REMOTE_RED_LIST:%.+]] = alloca [2 x i8*], align
   // CHECK: [[REMOTE_ELT1:%.+]] = alloca i32
   // CHECK: [[REMOTE_ELT2:%.+]] = alloca i16
@@ -1199,7 +1203,7 @@ int bar(int n){
 
   //
   // Inter warp copy function
-  // CHECK: define internal void [[INTER_WARP_COPY]](i8*, i32)
+  // CHECK: define internal void [[INTER_WARP_COPY]](i8* %0, i32 %1)
   // CHECK-DAG: [[LANEID:%.+]] = and i32 {{.+}}, 31
   // CHECK-DAG: [[WARPID:%.+]] = ashr i32 {{.+}}, 5
   // CHECK-DAG: [[RED_LIST:%.+]] = bitcast i8* {{.+}} to [[RLT]]*
@@ -1285,7 +1289,7 @@ int bar(int n){
   // CHECK: [[READ_CONT]]
   // CHECK: ret
 
-  // CHECK: define internal void [[RED_LIST_TO_GLOBAL_COPY]](i8*, i32, i8*)
+  // CHECK: define internal void [[RED_LIST_TO_GLOBAL_COPY]](i8* %0, i32 %1, i8* %2)
   // CHECK: [[GLOBAL_PTR:%.+]] = alloca i8*,
   // CHECK: [[IDX_PTR:%.+]] = alloca i32,
   // CHECK: [[RL_PTR:%.+]] = alloca i8*,
@@ -1313,7 +1317,7 @@ int bar(int n){
   // CHECK: store i16 [[LOC_RED1]], i16* [[GLOBAL_RED1_IDX_PTR]],
   // CHECK: ret void
 
-  // CHECK: define internal void [[RED_LIST_TO_GLOBAL_RED]](i8*, i32, i8*)
+  // CHECK: define internal void [[RED_LIST_TO_GLOBAL_RED]](i8* %0, i32 %1, i8* %2)
   // CHECK: [[GLOBAL_PTR:%.+]] = alloca i8*,
   // CHECK: [[IDX_PTR:%.+]] = alloca i32,
   // CHECK: [[RL_PTR:%.+]] = alloca i8*,
@@ -1339,7 +1343,7 @@ int bar(int n){
   // CHECK: call void [[REDUCTION_FUNC]](i8* [[LOCAL_RL_BC]], i8* [[RL_BC]])
   // CHECK: ret void
 
-  // CHECK: define internal void [[GLOBAL_TO_RED_LIST_COPY]](i8*, i32, i8*)
+  // CHECK: define internal void [[GLOBAL_TO_RED_LIST_COPY]](i8* %0, i32 %1, i8* %2)
   // CHECK: [[GLOBAL_PTR:%.+]] = alloca i8*,
   // CHECK: [[IDX_PTR:%.+]] = alloca i32,
   // CHECK: [[RL_PTR:%.+]] = alloca i8*,
@@ -1367,7 +1371,7 @@ int bar(int n){
   // CHECK: store i16 [[GLOBAL_RED1]], i16* [[RL_RED1]],
   // CHECK: ret void
 
-  // CHECK: define internal void [[GLOBAL_TO_RED_LIST_RED]](i8*, i32, i8*)
+  // CHECK: define internal void [[GLOBAL_TO_RED_LIST_RED]](i8* %0, i32 %1, i8* %2)
   // CHECK: [[GLOBAL_PTR:%.+]] = alloca i8*,
   // CHECK: [[IDX_PTR:%.+]] = alloca i32,
   // CHECK: [[RL_PTR:%.+]] = alloca i8*,

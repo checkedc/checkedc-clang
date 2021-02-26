@@ -15,6 +15,7 @@
 
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Type.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Transforms/Utils.h"
 using namespace llvm;
@@ -41,7 +42,7 @@ namespace {
 
         for (Instruction &I : BB)
           if (!I.hasName() && !I.getType()->isVoidTy())
-            I.setName("tmp");
+            I.setName("i");
       }
       return true;
     }

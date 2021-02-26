@@ -72,6 +72,9 @@ static cl::opt<bool>
 ForceFastISel("arm-force-fast-isel",
                cl::init(false), cl::Hidden);
 
+static cl::opt<bool> EnableSubRegLiveness("arm-enable-subreg-liveness",
+                                          cl::init(false), cl::Hidden);
+
 /// initializeSubtargetDependencies - Initializes using a CPU and feature string
 /// so that we can use initializer lists for subtarget initialization.
 ARMSubtarget &ARMSubtarget::initializeSubtargetDependencies(StringRef CPU,
@@ -125,7 +128,7 @@ const CallLowering *ARMSubtarget::getCallLowering() const {
   return CallLoweringInfo.get();
 }
 
-const InstructionSelector *ARMSubtarget::getInstructionSelector() const {
+InstructionSelector *ARMSubtarget::getInstructionSelector() const {
   return InstSelector.get();
 }
 
@@ -180,7 +183,7 @@ void ARMSubtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
     if (!ArchFS.empty())
       ArchFS = (Twine(ArchFS) + "," + FS).str();
     else
-      ArchFS = FS;
+      ArchFS = std::string(FS);
   }
   ParseSubtargetFeatures(CPUString, ArchFS);
 
@@ -205,9 +208,9 @@ void ARMSubtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
     NoARM = true;
 
   if (isAAPCS_ABI())
-    stackAlignment = 8;
+    stackAlignment = Align(8);
   if (isTargetNaCl() || isAAPCS16_ABI())
-    stackAlignment = 16;
+    stackAlignment = Align(16);
 
   // FIXME: Completely disable sibcall for Thumb1 since ThumbRegisterInfo::
   // emitEpilogue is not ready for them. Thumb tail calls also use t2B, as
@@ -253,6 +256,10 @@ void ARMSubtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
   if (isRWPI())
     ReserveR9 = true;
 
+  // If MVEVectorCostFactor is still 0 (has not been set to anything else), default it to 2
+  if (MVEVectorCostFactor == 0)
+    MVEVectorCostFactor = 2;
+
   // FIXME: Teach TableGen to deal with these instead of doing it manually here.
   switch (ARMProcFamily) {
   case Others:
@@ -285,23 +292,28 @@ void ARMSubtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
   case CortexA73:
   case CortexA75:
   case CortexA76:
+  case CortexA77:
+  case CortexA78:
   case CortexR4:
   case CortexR4F:
   case CortexR5:
   case CortexR7:
   case CortexM3:
   case CortexR52:
+  case CortexX1:
     break;
   case Exynos:
     LdStMultipleTiming = SingleIssuePlusExtras;
     MaxInterleaveFactor = 4;
     if (!isThumb())
-      PrefLoopAlignment = 3;
+      PrefLoopLogAlignment = 3;
     break;
   case Kryo:
     break;
   case Krait:
     PreISelOperandLatencyAdjustment = 1;
+    break;
+  case NeoverseN1:
     break;
   case Swift:
     MaxInterleaveFactor = 2;
@@ -373,11 +385,23 @@ bool ARMSubtarget::enableMachineScheduler() const {
   return useMachineScheduler();
 }
 
+bool ARMSubtarget::enableSubRegLiveness() const { return EnableSubRegLiveness; }
+
 // This overrides the PostRAScheduler bit in the SchedModel for any CPU.
 bool ARMSubtarget::enablePostRAScheduler() const {
+  if (enableMachineScheduler())
+    return false;
   if (disablePostRAScheduler())
     return false;
-  // Don't reschedule potential IT blocks.
+  // Thumb1 cores will generally not benefit from post-ra scheduling
+  return !isThumb1Only();
+}
+
+bool ARMSubtarget::enablePostRAMachineScheduler() const {
+  if (!enableMachineScheduler())
+    return false;
+  if (disablePostRAScheduler())
+    return false;
   return !isThumb1Only();
 }
 

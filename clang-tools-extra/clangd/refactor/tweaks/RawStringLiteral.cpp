@@ -5,10 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include "ClangdUnit.h"
-#include "Logger.h"
+#include "ParsedAST.h"
 #include "SourceCode.h"
 #include "refactor/Tweak.h"
+#include "support/Logger.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
@@ -83,15 +83,16 @@ bool RawStringLiteral::prepare(const Selection &Inputs) {
     return false;
   Str = dyn_cast_or_null<StringLiteral>(N->ASTNode.get<Stmt>());
   return Str &&
-         isNormalString(*Str, Inputs.Cursor, Inputs.AST.getSourceManager()) &&
+         isNormalString(*Str, Inputs.Cursor, Inputs.AST->getSourceManager()) &&
          needsRaw(Str->getBytes()) && canBeRaw(Str->getBytes());
 }
 
 Expected<Tweak::Effect> RawStringLiteral::apply(const Selection &Inputs) {
-  return Effect::applyEdit(tooling::Replacements(
-      tooling::Replacement(Inputs.AST.getSourceManager(), Str,
-                           ("R\"(" + Str->getBytes() + ")\"").str(),
-                           Inputs.AST.getASTContext().getLangOpts())));
+  auto &SM = Inputs.AST->getSourceManager();
+  auto Reps = tooling::Replacements(
+      tooling::Replacement(SM, Str, ("R\"(" + Str->getBytes() + ")\"").str(),
+                           Inputs.AST->getLangOpts()));
+  return Effect::mainFileEdit(SM, std::move(Reps));
 }
 
 } // namespace

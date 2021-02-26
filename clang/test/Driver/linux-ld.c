@@ -769,6 +769,21 @@
 // CHECK-FEDORA-21-AARCH64: "{{.*}}/usr/lib/gcc/aarch64-redhat-linux/4.9.0{{/|\\\\}}crtend.o"
 // CHECK-FEDORA-21-AARCH64: "{{.*}}/usr/lib/gcc/aarch64-redhat-linux/4.9.0/../../../../lib64{{/|\\\\}}crtn.o"
 //
+// Check Fedora 31 on riscv64.
+// RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
+// RUN:     --target=riscv64-redhat-linux -rtlib=platform \
+// RUN:     --gcc-toolchain="" \
+// RUN:     --sysroot=%S/Inputs/fedora_31_riscv64_tree \
+// RUN:   | FileCheck --check-prefix=CHECK-FEDORA-31-RISCV64 %s
+// CHECK-FEDORA-31-RISCV64: "{{.*}}ld{{(.exe)?}}" "--sysroot=[[SYSROOT:[^"]+]]"
+// CHECK-FEDORA-31-RISCV64: "{{.*}}/usr/lib/gcc/riscv64-redhat-linux/9/../../../../lib64{{/|\\\\}}crt1.o"
+// CHECK-FEDORA-31-RISCV64: "{{.*}}/usr/lib/gcc/riscv64-redhat-linux/9{{/|\\\\}}crti.o"
+// CHECK-FEDORA-31-RISCV64: "{{.*}}/usr/lib/gcc/riscv64-redhat-linux/9{{/|\\\\}}crtbegin.o"
+// CHECK-FEDORA-31-RISCV64: "-L[[SYSROOT]]/usr/lib/gcc/riscv64-redhat-linux/9"
+// CHECK-FEDORA-31-RISCV64: "-L[[SYSROOT]]/usr/lib/gcc/riscv64-redhat-linux/9/../../../../lib64"
+// CHECK-FEDORA-31-RISCV64: "{{.*}}/usr/lib/gcc/riscv64-redhat-linux/9{{/|\\\\}}crtend.o"
+// CHECK-FEDORA-31-RISCV64: "{{.*}}/usr/lib/gcc/riscv64-redhat-linux/9{{/|\\\\}}crtn.o"
+//
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
 // RUN:     --target=arm-unknown-linux-gnueabi -rtlib=platform \
 // RUN:     --gcc-toolchain="" \
@@ -858,6 +873,41 @@
 // CHECK-OPENSUSE-TW-ARMV7HL: "-L[[SYSROOT]]/usr/lib/gcc/armv7hl-suse-linux-gnueabi/5/../../../../lib"
 // CHECK-OPENSUSE-TW-ARMV7HL: "{{.*}}/usr/lib/gcc/armv7hl-suse-linux-gnueabi/5{{/|\\\\}}crtend.o"
 // CHECK-OPENSUSE-TW-ARMV7HL: "{{.*}}/usr/lib/gcc/armv7hl-suse-linux-gnueabi/5/../../../../lib{{/|\\\\}}crtn.o"
+//
+// Check openSUSE Tumbleweed on riscv64
+// RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
+// RUN:     --target=riscv64-suse-linux -rtlib=platform \
+// RUN:     --gcc-toolchain="" \
+// RUN:     --sysroot=%S/Inputs/opensuse_tumbleweed_riscv64_tree \
+// RUN:   | FileCheck --check-prefix=CHECK-OPENSUSE-TW-RISCV64 %s
+// RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
+// RUN:     --target=riscv64-suse-linux -rtlib=platform \
+// RUN:     --gcc-toolchain="" \
+// RUN:     --sysroot=%S/Inputs/opensuse_tumbleweed_riscv64_tree \
+// RUN:   | FileCheck --check-prefix=CHECK-OPENSUSE-TW-RISCV64 %s
+// CHECK-OPENSUSE-TW-RISCV64: "{{.*}}ld{{(.exe)?}}" "--sysroot=[[SYSROOT:[^"]+]]"
+// CHECK-OPENSUSE-TW-RISCV64: "{{.*}}/usr/lib64/gcc/riscv64-suse-linux/9/../../../../lib64{{/|\\\\}}crt1.o"
+// CHECK-OPENSUSE-TW-RISCV64: "{{.*}}/usr/lib64/gcc/riscv64-suse-linux/9/../../../../lib64{{/|\\\\}}crti.o"
+// CHECK-OPENSUSE-TW-RISCV64: "{{.*}}/usr/lib64/gcc/riscv64-suse-linux/9{{/|\\\\}}crtbegin.o"
+// CHECK-OPENSUSE-TW-RISCV64: "-L[[SYSROOT]]/usr/lib64/gcc/riscv64-suse-linux/9"
+// CHECK-OPENSUSE-TW-RISCV64: "-L[[SYSROOT]]/usr/lib64/gcc/riscv64-suse-linux/9/../../../../lib64"
+// CHECK-OPENSUSE-TW-RISCV64: "{{.*}}/usr/lib64/gcc/riscv64-suse-linux/9{{/|\\\\}}crtend.o"
+// CHECK-OPENSUSE-TW-RISCV64: "{{.*}}/usr/lib64/gcc/riscv64-suse-linux/9/../../../../lib64{{/|\\\\}}crtn.o"
+//
+// Check openSUSE Tumbleweed on ppc
+// RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
+// RUN:     --target=powerpc-unknown-linux-gnu -rtlib=platform \
+// RUN:     --gcc-toolchain="" \
+// RUN:     --sysroot=%S/Inputs/opensuse_tumbleweed_ppc_tree \
+// RUN:   | FileCheck --check-prefix=CHECK-OPENSUSE-TW-PPC %s
+// CHECK-OPENSUSE-TW-PPC: "{{.*}}ld{{(.exe)?}}" "--sysroot=[[SYSROOT:[^"]+]]"
+// CHECK-OPENSUSE-TW-PPC: "{{.*}}/usr/lib/gcc/powerpc64-suse-linux/9/../../..{{/|\\\\}}crt1.o"
+// CHECK-OPENSUSE-TW-PPC: "{{.*}}/usr/lib/gcc/powerpc64-suse-linux/9/../../..{{/|\\\\}}crti.o"
+// CHECK-OPENSUSE-TW-PPC: "{{.*}}/usr/lib/gcc/powerpc64-suse-linux/9{{/|\\\\}}crtbegin.o"
+// CHECK-OPENSUSE-TW-PPC: "-L[[SYSROOT]]/usr/lib/gcc/powerpc64-suse-linux/9"
+// CHECK-OPENSUSE-TW-PPC: "-L[[SYSROOT]]/usr/lib/gcc/powerpc64-suse-linux/9/../../.."
+// CHECK-OPENSUSE-TW-PPC: "{{.*}}/usr/lib/gcc/powerpc64-suse-linux/9{{/|\\\\}}crtend.o"
+// CHECK-OPENSUSE-TW-PPC: "{{.*}}/usr/lib/gcc/powerpc64-suse-linux/9/../../..{{/|\\\\}}crtn.o"
 //
 // Check dynamic-linker for different archs
 // RUN: %clang %s -### -o %t.o 2>&1 \

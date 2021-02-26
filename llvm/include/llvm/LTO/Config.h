@@ -14,9 +14,12 @@
 #ifndef LLVM_LTO_CONFIG_H
 #define LLVM_LTO_CONFIG_H
 
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/IR/DiagnosticInfo.h"
+#include "llvm/IR/GlobalValue.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/CodeGen.h"
-#include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 
 #include <functional>
@@ -38,10 +41,11 @@ struct Config {
   std::string CPU;
   TargetOptions Options;
   std::vector<std::string> MAttrs;
+  std::vector<std::string> PassPlugins;
   Optional<Reloc::Model> RelocModel = Reloc::PIC_;
   Optional<CodeModel::Model> CodeModel = None;
   CodeGenOpt::Level CGOptLevel = CodeGenOpt::Default;
-  TargetMachine::CodeGenFileType CGFileType = TargetMachine::CGFT_ObjectFile;
+  CodeGenFileType CGFileType = CGFT_ObjectFile;
   unsigned OptLevel = 2;
   bool DisableVerify = false;
 
@@ -57,6 +61,15 @@ struct Config {
 
   /// Run PGO context sensitive IR instrumentation.
   bool RunCSIRInstr = false;
+
+  /// Asserts whether we can assume whole program visibility during the LTO
+  /// link.
+  bool HasWholeProgramVisibility = false;
+
+  /// Always emit a Regular LTO object even when it is empty because no Regular
+  /// LTO modules were linked. This option is useful for some build system which
+  /// want to know a priori all possible output files.
+  bool AlwaysEmitRegularLTOObj = false;
 
   /// If this field is set, the set of passes run in the middle-end optimizer
   /// will be the one specified by the string. Only works with the new pass
@@ -117,6 +130,15 @@ struct Config {
   /// Statistics output file path.
   std::string StatsFile;
 
+  /// Specific thinLTO modules to compile.
+  std::vector<std::string> ThinLTOModulesToCompile;
+
+  /// Time trace enabled.
+  bool TimeTraceEnabled = false;
+
+  /// Time trace granularity.
+  unsigned TimeTraceGranularity = 500;
+
   bool ShouldDiscardValueNames = true;
   DiagnosticHandlerFunction DiagHandler;
 
@@ -125,6 +147,9 @@ struct Config {
   /// used for testing and for running the LTO pipeline outside of the linker
   /// with llvm-lto2.
   std::unique_ptr<raw_ostream> ResolutionFile;
+
+  /// Tunable parameters for passes in the default pipelines.
+  PipelineTuningOptions PTO;
 
   /// The following callbacks deal with tasks, which normally represent the
   /// entire optimization and code generation pipeline for what will become a
@@ -183,8 +208,9 @@ struct Config {
   ///
   /// It is called regardless of whether the backend is in-process, although it
   /// is not called from individual backend processes.
-  using CombinedIndexHookFn =
-      std::function<bool(const ModuleSummaryIndex &Index)>;
+  using CombinedIndexHookFn = std::function<bool(
+      const ModuleSummaryIndex &Index,
+      const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbols)>;
   CombinedIndexHookFn CombinedIndexHook;
 
   /// This is a convenience function that configures this Config object to write
@@ -226,7 +252,7 @@ struct LTOLLVMContext : LLVMContext {
     setDiscardValueNames(C.ShouldDiscardValueNames);
     enableDebugTypeODRUniquing();
     setDiagnosticHandler(
-        llvm::make_unique<LTOLLVMDiagnosticHandler>(&DiagHandler), true);
+        std::make_unique<LTOLLVMDiagnosticHandler>(&DiagHandler), true);
   }
   DiagnosticHandlerFunction DiagHandler;
 };

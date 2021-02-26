@@ -21,6 +21,7 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Scalar.h"
@@ -78,7 +79,7 @@ static bool isSafeToMove(Instruction *Inst, AliasAnalysis &AA,
   if (auto *Call = dyn_cast<CallBase>(Inst)) {
     // Convergent operations cannot be made control-dependent on additional
     // values.
-    if (Call->hasFnAttr(Attribute::Convergent))
+    if (Call->isConvergent())
       return false;
 
     for (Instruction *S : Stores)
@@ -165,8 +166,8 @@ static bool SinkInstruction(Instruction *Inst,
   // dominated by one of the successors.
   // Look at all the dominated blocks and see if we can sink it in one.
   DomTreeNode *DTN = DT.getNode(Inst->getParent());
-  for (DomTreeNode::iterator I = DTN->begin(), E = DTN->end();
-      I != E && SuccToSinkTo == nullptr; ++I) {
+  for (auto I = DTN->begin(), E = DTN->end(); I != E && SuccToSinkTo == nullptr;
+       ++I) {
     BasicBlock *Candidate = (*I)->getBlock();
     // A node always immediate-dominates its children on the dominator
     // tree.

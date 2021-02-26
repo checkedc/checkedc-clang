@@ -384,7 +384,7 @@ void downcast_pointer(B *b) {
   // CHECK-NEXT: br i1 [[AND]]
 }
 
-// CHECK-LABEL: define void @_Z18downcast_referenceR1B(%class.B* dereferenceable({{[0-9]+}}) %b)
+// CHECK-LABEL: define void @_Z18downcast_referenceR1B(%class.B* nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) %b)
 void downcast_reference(B &b) {
   (void) static_cast<C&>(b);
   // Alignment check from EmitTypeCheck(TCK_DowncastReference, ...)
@@ -424,6 +424,25 @@ void indirect_function_call(void (*p)(int)) {
   // CHECK-NEXT: br i1 [[RTTICMP]]
 
   p(42);
+}
+
+namespace VBaseObjectSize {
+  // Note: C is laid out such that offsetof(C, B) + sizeof(B) extends outside
+  // the C object.
+  struct alignas(16) A { void *a1, *a2; };
+  struct B : virtual A { void *b; };
+  struct C : virtual A, virtual B {};
+  // CHECK-LABEL: define {{.*}} @_ZN15VBaseObjectSize1fERNS_1BE(
+  B &f(B &b) {
+    // Size check: check for nvsize(B) == 16 (do not require size(B) == 32)
+    // CHECK: [[SIZE:%.+]] = call i{{32|64}} @llvm.objectsize.i64.p0i8(
+    // CHECK: icmp uge i{{32|64}} [[SIZE]], 16,
+
+    // Alignment check: check for nvalign(B) == 8 (do not require align(B) == 16)
+    // CHECK: [[PTRTOINT:%.+]] = ptrtoint {{.*}} to i64,
+    // CHECK: and i64 [[PTRTOINT]], 7,
+    return b;
+  }
 }
 
 namespace FunctionSanitizerVirtualCalls {

@@ -1,4 +1,4 @@
-# RUN: yaml2obj %s > %t.o
+# RUN: yaml2obj %s -o %t.o
 # RUN: llvm-objcopy %t.o %t.2.o
 # RUN: llvm-readelf --elf-section-groups --sections %t.o | FileCheck %s --check-prefix=IN
 # RUN: llvm-readelf --elf-section-groups --sections %t.2.o | FileCheck %s --check-prefix=OUT
@@ -8,12 +8,12 @@
 # aren't purely sorting based on offsets (it gets moved to the beginning
 # despite having a larger offset).
 
-# IN:      There are 7 section headers, starting at offset 0x40:
+# IN:      There are 7 section headers, starting at offset 0x160:
 # IN:        [Nr] Name              Type            Address          Off    Size
 # IN-NEXT:   [ 0]                   NULL            0000000000000000 000000 000000
-# IN-NEXT:   [ 1] .foo              PROGBITS        0000000000000000 000200 000040
-# IN-NEXT:   [ 2] .group            GROUP           0000000000000000 000240 000008
-# IN-NEXT:   [ 3] .bar              PROGBITS        0000000000000000 000248 000040
+# IN-NEXT:   [ 1] .foo              PROGBITS        0000000000000000 000040 000040
+# IN-NEXT:   [ 2] .group            GROUP           0000000000000000 000080 000008
+# IN-NEXT:   [ 3] .bar              PROGBITS        0000000000000000 000088 000040
 
 # IN:      COMDAT group section [    2] `.group' [bar] contains 1 sections:
 # IN-NEXT:    [Index]    Name

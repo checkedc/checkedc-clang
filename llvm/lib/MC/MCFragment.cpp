@@ -48,6 +48,25 @@ bool MCAsmLayout::isFragmentValid(const MCFragment *F) const {
   return F->getLayoutOrder() <= LastValid->getLayoutOrder();
 }
 
+bool MCAsmLayout::canGetFragmentOffset(const MCFragment *F) const {
+  MCSection *Sec = F->getParent();
+  MCSection::iterator I;
+  if (MCFragment *LastValid = LastValidFragment[Sec]) {
+    // Fragment already valid, offset is available.
+    if (F->getLayoutOrder() <= LastValid->getLayoutOrder())
+      return true;
+    I = ++MCSection::iterator(LastValid);
+  } else
+    I = Sec->begin();
+
+  // A fragment ordered before F is currently being laid out.
+  const MCFragment *FirstInvalidFragment = &*I;
+  if (FirstInvalidFragment->IsBeingLaidOut)
+    return false;
+
+  return true;
+}
+
 void MCAsmLayout::invalidateFragmentsFrom(MCFragment *F) {
   // If this fragment wasn't already valid, we don't need to do anything.
   if (!isFragmentValid(F))
@@ -232,13 +251,11 @@ uint64_t llvm::computeBundlePadding(const MCAssembler &Assembler,
 
 void ilist_alloc_traits<MCFragment>::deleteNode(MCFragment *V) { V->destroy(); }
 
-MCFragment::~MCFragment() = default;
-
 MCFragment::MCFragment(FragmentType Kind, bool HasInstructions,
                        MCSection *Parent)
-    : Kind(Kind), HasInstructions(HasInstructions), LayoutOrder(0),
-      Parent(Parent), Atom(nullptr), Offset(~UINT64_C(0)) {
-  if (Parent && !isDummy())
+    : Parent(Parent), Atom(nullptr), Offset(~UINT64_C(0)), LayoutOrder(0),
+      Kind(Kind), IsBeingLaidOut(false), HasInstructions(HasInstructions) {
+  if (Parent && !isa<MCDummyFragment>(*this))
     Parent->getFragmentList().push_back(this);
 }
 
@@ -277,8 +294,8 @@ void MCFragment::destroy() {
     case FT_LEB:
       delete cast<MCLEBFragment>(this);
       return;
-    case FT_Padding:
-      delete cast<MCPaddingFragment>(this);
+    case FT_BoundaryAlign:
+      delete cast<MCBoundaryAlignFragment>(this);
       return;
     case FT_SymbolId:
       delete cast<MCSymbolIdFragment>(this);
@@ -324,7 +341,7 @@ LLVM_DUMP_METHOD void MCFragment::dump() const {
   case MCFragment::FT_Dwarf: OS << "MCDwarfFragment"; break;
   case MCFragment::FT_DwarfFrame: OS << "MCDwarfCallFrameFragment"; break;
   case MCFragment::FT_LEB:   OS << "MCLEBFragment"; break;
-  case MCFragment::FT_Padding: OS << "MCPaddingFragment"; break;
+  case MCFragment::FT_BoundaryAlign: OS<<"MCBoundaryAlignFragment"; break;
   case MCFragment::FT_SymbolId:    OS << "MCSymbolIdFragment"; break;
   case MCFragment::FT_CVInlineLines: OS << "MCCVInlineLineTableFragment"; break;
   case MCFragment::FT_CVDefRange: OS << "MCCVDefRangeTableFragment"; break;
@@ -333,13 +350,13 @@ LLVM_DUMP_METHOD void MCFragment::dump() const {
 
   OS << "<MCFragment " << (const void *)this << " LayoutOrder:" << LayoutOrder
      << " Offset:" << Offset << " HasInstructions:" << hasInstructions();
-  if (const MCEncodedFragment *EF = dyn_cast<MCEncodedFragment>(this))
+  if (const auto *EF = dyn_cast<MCEncodedFragment>(this))
     OS << " BundlePadding:" << static_cast<unsigned>(EF->getBundlePadding());
   OS << ">";
 
   switch (getKind()) {
   case MCFragment::FT_Align: {
-    const MCAlignFragment *AF = cast<MCAlignFragment>(this);
+    const auto *AF = cast<MCAlignFragment>(this);
     if (AF->hasEmitNops())
       OS << " (emit nops)";
     OS << "\n       ";
@@ -349,7 +366,7 @@ LLVM_DUMP_METHOD void MCFragment::dump() const {
     break;
   }
   case MCFragment::FT_Data:  {
-    const MCDataFragment *DF = cast<MCDataFragment>(this);
+    const auto *DF = cast<MCDataFragment>(this);
     OS << "\n       ";
     OS << " Contents:[";
     const SmallVectorImpl<char> &Contents = DF->getContents();
@@ -372,7 +389,7 @@ LLVM_DUMP_METHOD void MCFragment::dump() const {
     break;
   }
   case MCFragment::FT_CompactEncodedInst: {
-    const MCCompactEncodedInstFragment *CEIF =
+    const auto *CEIF =
       cast<MCCompactEncodedInstFragment>(this);
     OS << "\n       ";
     OS << " Contents:[";
@@ -385,60 +402,56 @@ LLVM_DUMP_METHOD void MCFragment::dump() const {
     break;
   }
   case MCFragment::FT_Fill:  {
-    const MCFillFragment *FF = cast<MCFillFragment>(this);
+    const auto *FF = cast<MCFillFragment>(this);
     OS << " Value:" << static_cast<unsigned>(FF->getValue())
        << " ValueSize:" << static_cast<unsigned>(FF->getValueSize())
        << " NumValues:" << FF->getNumValues();
     break;
   }
   case MCFragment::FT_Relaxable:  {
-    const MCRelaxableFragment *F = cast<MCRelaxableFragment>(this);
+    const auto *F = cast<MCRelaxableFragment>(this);
     OS << "\n       ";
     OS << " Inst:";
     F->getInst().dump_pretty(OS);
+    OS << " (" << F->getContents().size() << " bytes)";
     break;
   }
   case MCFragment::FT_Org:  {
-    const MCOrgFragment *OF = cast<MCOrgFragment>(this);
+    const auto *OF = cast<MCOrgFragment>(this);
     OS << "\n       ";
     OS << " Offset:" << OF->getOffset()
        << " Value:" << static_cast<unsigned>(OF->getValue());
     break;
   }
   case MCFragment::FT_Dwarf:  {
-    const MCDwarfLineAddrFragment *OF = cast<MCDwarfLineAddrFragment>(this);
+    const auto *OF = cast<MCDwarfLineAddrFragment>(this);
     OS << "\n       ";
     OS << " AddrDelta:" << OF->getAddrDelta()
        << " LineDelta:" << OF->getLineDelta();
     break;
   }
   case MCFragment::FT_DwarfFrame:  {
-    const MCDwarfCallFrameFragment *CF = cast<MCDwarfCallFrameFragment>(this);
+    const auto *CF = cast<MCDwarfCallFrameFragment>(this);
     OS << "\n       ";
     OS << " AddrDelta:" << CF->getAddrDelta();
     break;
   }
   case MCFragment::FT_LEB: {
-    const MCLEBFragment *LF = cast<MCLEBFragment>(this);
+    const auto *LF = cast<MCLEBFragment>(this);
     OS << "\n       ";
     OS << " Value:" << LF->getValue() << " Signed:" << LF->isSigned();
     break;
   }
-  case MCFragment::FT_Padding: {
-    const MCPaddingFragment *F = cast<MCPaddingFragment>(this);
+  case MCFragment::FT_BoundaryAlign: {
+    const auto *BF = cast<MCBoundaryAlignFragment>(this);
     OS << "\n       ";
-    OS << " PaddingPoliciesMask:" << F->getPaddingPoliciesMask()
-       << " IsInsertionPoint:" << F->isInsertionPoint()
-       << " Size:" << F->getSize();
-    OS << "\n       ";
-    OS << " Inst:";
-    F->getInst().dump_pretty(OS);
-    OS << " InstSize:" << F->getInstSize();
-    OS << "\n       ";
+    OS << " BoundarySize:" << BF->getAlignment().value()
+       << " LastFragment:" << BF->getLastFragment()
+       << " Size:" << BF->getSize();
     break;
   }
   case MCFragment::FT_SymbolId: {
-    const MCSymbolIdFragment *F = cast<MCSymbolIdFragment>(this);
+    const auto *F = cast<MCSymbolIdFragment>(this);
     OS << "\n       ";
     OS << " Sym:" << F->getSymbol();
     break;

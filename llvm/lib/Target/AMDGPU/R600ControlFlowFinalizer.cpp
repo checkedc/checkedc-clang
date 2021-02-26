@@ -159,8 +159,7 @@ unsigned CFStack::getSubEntrySize(CFStack::StackItem Item) {
 }
 
 void CFStack::updateMaxStackSize() {
-  unsigned CurrentStackSize =
-      CurrentEntries + (alignTo(CurrentSubEntries, 4) / 4);
+  unsigned CurrentStackSize = CurrentEntries + divideCeil(CurrentSubEntries, 4);
   MaxStackSize = std::max(CurrentStackSize, MaxStackSize);
 }
 
@@ -303,21 +302,21 @@ private:
       if (!MO.isReg())
         continue;
       if (MO.isDef()) {
-        unsigned Reg = MO.getReg();
+        Register Reg = MO.getReg();
         if (R600::R600_Reg128RegClass.contains(Reg))
           DstMI = Reg;
         else
           DstMI = TRI->getMatchingSuperReg(Reg,
-              AMDGPURegisterInfo::getSubRegFromChannel(TRI->getHWRegChan(Reg)),
+              R600RegisterInfo::getSubRegFromChannel(TRI->getHWRegChan(Reg)),
               &R600::R600_Reg128RegClass);
       }
       if (MO.isUse()) {
-        unsigned Reg = MO.getReg();
+        Register Reg = MO.getReg();
         if (R600::R600_Reg128RegClass.contains(Reg))
           SrcMI = Reg;
         else
           SrcMI = TRI->getMatchingSuperReg(Reg,
-              AMDGPURegisterInfo::getSubRegFromChannel(TRI->getHWRegChan(Reg)),
+              R600RegisterInfo::getSubRegFromChannel(TRI->getHWRegChan(Reg)),
               &R600::R600_Reg128RegClass);
       }
     }

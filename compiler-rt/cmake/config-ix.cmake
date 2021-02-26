@@ -1,6 +1,7 @@
 include(CMakePushCheckState)
 include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
+include(CheckIncludeFiles)
 include(CheckLibraryExists)
 include(CheckSymbolExists)
 include(TestBigEndian)
@@ -15,7 +16,7 @@ endfunction()
 check_library_exists(c fopen "" COMPILER_RT_HAS_LIBC)
 if (COMPILER_RT_USE_BUILTINS_LIBRARY)
   include(HandleCompilerRT)
-  find_compiler_rt_library(builtins COMPILER_RT_BUILTINS_LIBRARY)
+  find_compiler_rt_library(builtins "" COMPILER_RT_BUILTINS_LIBRARY)
 else()
   if (ANDROID)
     check_library_exists(gcc __gcc_personality_v0 "" COMPILER_RT_HAS_GCC_LIB)
@@ -67,9 +68,12 @@ check_cxx_compiler_flag(-fvisibility=hidden  COMPILER_RT_HAS_FVISIBILITY_HIDDEN_
 check_cxx_compiler_flag(-frtti               COMPILER_RT_HAS_FRTTI_FLAG)
 check_cxx_compiler_flag(-fno-rtti            COMPILER_RT_HAS_FNO_RTTI_FLAG)
 check_cxx_compiler_flag("-Werror -fno-function-sections" COMPILER_RT_HAS_FNO_FUNCTION_SECTIONS_FLAG)
-check_cxx_compiler_flag(-std=c++11           COMPILER_RT_HAS_STD_CXX11_FLAG)
+check_cxx_compiler_flag(-std=c++14           COMPILER_RT_HAS_STD_CXX14_FLAG)
 check_cxx_compiler_flag(-ftls-model=initial-exec COMPILER_RT_HAS_FTLS_MODEL_INITIAL_EXEC)
 check_cxx_compiler_flag(-fno-lto             COMPILER_RT_HAS_FNO_LTO_FLAG)
+check_cxx_compiler_flag(-fno-profile-generate COMPILER_RT_HAS_FNO_PROFILE_GENERATE_FLAG)
+check_cxx_compiler_flag(-fno-profile-instr-generate COMPILER_RT_HAS_FNO_PROFILE_INSTR_GENERATE_FLAG)
+check_cxx_compiler_flag(-fno-profile-instr-use COMPILER_RT_HAS_FNO_PROFILE_INSTR_USE_FLAG)
 check_cxx_compiler_flag("-Werror -msse3" COMPILER_RT_HAS_MSSE3_FLAG)
 check_cxx_compiler_flag("-Werror -msse4.2"   COMPILER_RT_HAS_MSSE4_2_FLAG)
 check_cxx_compiler_flag(--sysroot=.          COMPILER_RT_HAS_SYSROOT_FLAG)
@@ -116,6 +120,9 @@ check_cxx_compiler_flag(/wd4800 COMPILER_RT_HAS_WD4800_FLAG)
 # Symbols.
 check_symbol_exists(__func__ "" COMPILER_RT_HAS_FUNC_SYMBOL)
 
+# Includes.
+check_include_files("sys/auxv.h" COMPILER_RT_HAS_AUXV)
+
 # Libraries.
 check_library_exists(dl dlopen "" COMPILER_RT_HAS_LIBDL)
 check_library_exists(rt shm_open "" COMPILER_RT_HAS_LIBRT)
@@ -146,6 +153,7 @@ check_library_exists(stdc++ __cxa_throw "" COMPILER_RT_HAS_LIBSTDCXX)
 
 # Linker flags.
 check_linker_flag("-Wl,-z,text" COMPILER_RT_HAS_Z_TEXT)
+check_linker_flag("-fuse-ld=lld" COMPILER_RT_HAS_FUSE_LD_LLD_FLAG)
 
 if(ANDROID)
   check_linker_flag("-Wl,-z,global" COMPILER_RT_HAS_Z_GLOBAL)
@@ -208,6 +216,44 @@ macro(get_test_cc_for_arch arch cc_out cflags_out)
   endif()
 endmacro()
 
+# Returns CFLAGS that should be used to run tests for the
+# specific apple platform and architecture.
+function(get_test_cflags_for_apple_platform platform arch cflags_out)
+  is_valid_apple_platform("${platform}" is_valid_platform)
+  if (NOT is_valid_platform)
+    message(FATAL_ERROR "\"${platform}\" is not a valid apple platform")
+  endif()
+  set(test_cflags "")
+  get_target_flags_for_arch(${arch} test_cflags)
+  list(APPEND test_cflags ${DARWIN_${platform}_CFLAGS})
+  string(REPLACE ";" " " test_cflags_str "${test_cflags}")
+  string(APPEND test_cflags_str "${COMPILER_RT_TEST_COMPILER_CFLAGS}")
+  set(${cflags_out} "${test_cflags_str}" PARENT_SCOPE)
+endfunction()
+
+function(get_capitalized_apple_platform platform platform_capitalized)
+  # TODO(dliew): Remove uses of this function. It exists to preserve needlessly complex
+  # directory naming conventions used by the Sanitizer lit test suites.
+  is_valid_apple_platform("${platform}" is_valid_platform)
+  if (NOT is_valid_platform)
+    message(FATAL_ERROR "\"${platform}\" is not a valid apple platform")
+  endif()
+  string(TOUPPER "${platform}" platform_upper)
+  string(REGEX REPLACE "OSSIM$" "OSSim" platform_upper_capitalized "${platform_upper}")
+  set(${platform_capitalized} "${platform_upper_capitalized}" PARENT_SCOPE)
+endfunction()
+
+function(is_valid_apple_platform platform is_valid_out)
+  set(is_valid FALSE)
+  if ("${platform}" STREQUAL "")
+    message(FATAL_ERROR "platform cannot be empty")
+  endif()
+  if ("${platform}" MATCHES "^(osx|((ios|watchos|tvos)(sim)?))$")
+    set(is_valid TRUE)
+  endif()
+  set(${is_valid_out} ${is_valid} PARENT_SCOPE)
+endfunction()
+
 set(ARM64 aarch64)
 set(ARM32 arm armhf)
 set(HEXAGON hexagon)
@@ -230,11 +276,11 @@ if(APPLE)
   set(X86_64 x86_64 x86_64h)
 endif()
 
-set(ALL_SANITIZER_COMMON_SUPPORTED_ARCH ${X86} ${X86_64} ${PPC64}
+set(ALL_SANITIZER_COMMON_SUPPORTED_ARCH ${X86} ${X86_64} ${PPC64} ${RISCV64}
     ${ARM32} ${ARM64} ${MIPS32} ${MIPS64} ${S390X} ${SPARC} ${SPARCV9})
 set(ALL_ASAN_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64}
     ${MIPS32} ${MIPS64} ${PPC64} ${S390X} ${SPARC} ${SPARCV9})
-set(ALL_CRT_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64})
+set(ALL_CRT_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64} ${RISCV32} ${RISCV64})
 set(ALL_DFSAN_SUPPORTED_ARCH ${X86_64} ${MIPS64} ${ARM64})
 
 if(ANDROID)
@@ -245,6 +291,10 @@ endif()
 
 if(OS_NAME MATCHES "Linux")
   set(ALL_FUZZER_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM64})
+elseif (OS_NAME MATCHES "Windows")
+  set(ALL_FUZZER_SUPPORTED_ARCH ${X86} ${X86_64})
+elseif(OS_NAME MATCHES "Android")
+  set(ALL_FUZZER_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64})
 else()
   set(ALL_FUZZER_SUPPORTED_ARCH ${X86_64} ${ARM64})
 endif()
@@ -253,14 +303,14 @@ set(ALL_GWP_ASAN_SUPPORTED_ARCH ${X86} ${X86_64})
 if(APPLE)
   set(ALL_LSAN_SUPPORTED_ARCH ${X86} ${X86_64} ${MIPS64} ${ARM64})
 else()
-  set(ALL_LSAN_SUPPORTED_ARCH ${X86} ${X86_64} ${MIPS64} ${ARM64} ${ARM32} ${PPC64})
+  set(ALL_LSAN_SUPPORTED_ARCH ${X86} ${X86_64} ${MIPS64} ${ARM64} ${ARM32} ${PPC64} ${S390X})
 endif()
-set(ALL_MSAN_SUPPORTED_ARCH ${X86_64} ${MIPS64} ${ARM64} ${PPC64})
+set(ALL_MSAN_SUPPORTED_ARCH ${X86_64} ${MIPS64} ${ARM64} ${PPC64} ${S390X})
 set(ALL_HWASAN_SUPPORTED_ARCH ${X86_64} ${ARM64})
 set(ALL_PROFILE_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64} ${PPC64}
     ${MIPS32} ${MIPS64} ${S390X} ${SPARC} ${SPARCV9})
 set(ALL_TSAN_SUPPORTED_ARCH ${X86_64} ${MIPS64} ${ARM64} ${PPC64})
-set(ALL_UBSAN_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64}
+set(ALL_UBSAN_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64} ${RISCV64}
     ${MIPS32} ${MIPS64} ${PPC64} ${S390X} ${SPARC} ${SPARCV9})
 set(ALL_SAFESTACK_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM64} ${MIPS32} ${MIPS64})
 set(ALL_CFI_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64} ${MIPS64})
@@ -285,6 +335,7 @@ if(APPLE)
   find_darwin_sdk_dir(DARWIN_tvos_SYSROOT appletvos)
 
   if(NOT DARWIN_osx_SYSROOT)
+    message(WARNING "Could not determine OS X sysroot, trying /usr/include")
     if(EXISTS /usr/include)
       set(DARWIN_osx_SYSROOT /)
     else()
@@ -294,45 +345,61 @@ if(APPLE)
 
   if(COMPILER_RT_ENABLE_IOS)
     list(APPEND DARWIN_EMBEDDED_PLATFORMS ios)
+    set(DARWIN_ios_MIN_VER 9.0)
     set(DARWIN_ios_MIN_VER_FLAG -miphoneos-version-min)
     set(DARWIN_ios_SANITIZER_MIN_VER_FLAG
-      ${DARWIN_ios_MIN_VER_FLAG}=8.0)
+      ${DARWIN_ios_MIN_VER_FLAG}=${DARWIN_ios_MIN_VER})
+    set(DARWIN_iossim_MIN_VER_FLAG -mios-simulator-version-min)
+    set(DARWIN_iossim_SANITIZER_MIN_VER_FLAG
+      ${DARWIN_iossim_MIN_VER_FLAG}=${DARWIN_ios_MIN_VER})
   endif()
   if(COMPILER_RT_ENABLE_WATCHOS)
     list(APPEND DARWIN_EMBEDDED_PLATFORMS watchos)
+    set(DARWIN_watchos_MIN_VER 2.0)
     set(DARWIN_watchos_MIN_VER_FLAG -mwatchos-version-min)
     set(DARWIN_watchos_SANITIZER_MIN_VER_FLAG
-      ${DARWIN_watchos_MIN_VER_FLAG}=2.0)
+      ${DARWIN_watchos_MIN_VER_FLAG}=${DARWIN_watchos_MIN_VER})
+    set(DARWIN_watchossim_MIN_VER_FLAG -mwatchos-simulator-version-min)
+    set(DARWIN_watchossim_SANITIZER_MIN_VER_FLAG
+      ${DARWIN_watchossim_MIN_VER_FLAG}=${DARWIN_watchos_MIN_VER})
   endif()
   if(COMPILER_RT_ENABLE_TVOS)
     list(APPEND DARWIN_EMBEDDED_PLATFORMS tvos)
+    set(DARWIN_tvos_MIN_VER 9.0)
     set(DARWIN_tvos_MIN_VER_FLAG -mtvos-version-min)
     set(DARWIN_tvos_SANITIZER_MIN_VER_FLAG
-      ${DARWIN_tvos_MIN_VER_FLAG}=9.0)
+      ${DARWIN_tvos_MIN_VER_FLAG}=${DARWIN_tvos_MIN_VER})
+    set(DARWIN_tvossim_MIN_VER_FLAG -mtvos-simulator-version-min)
+    set(DARWIN_tvossim_SANITIZER_MIN_VER_FLAG
+      ${DARWIN_tvossim_MIN_VER_FLAG}=${DARWIN_tvos_MIN_VER})
   endif()
 
-  # Note: In order to target x86_64h on OS X the minimum deployment target must
-  # be 10.8 or higher.
   set(SANITIZER_COMMON_SUPPORTED_OS osx)
   set(PROFILE_SUPPORTED_OS osx)
   set(TSAN_SUPPORTED_OS osx)
   set(XRAY_SUPPORTED_OS osx)
+  set(FUZZER_SUPPORTED_OS osx)
+
+  # Note: In order to target x86_64h on OS X the minimum deployment target must
+  # be 10.8 or higher.
+  set(DEFAULT_SANITIZER_MIN_OSX_VERSION 10.10)
+  set(DARWIN_osx_MIN_VER_FLAG "-mmacosx-version-min")
   if(NOT SANITIZER_MIN_OSX_VERSION)
-    string(REGEX MATCH "-mmacosx-version-min=([.0-9]+)"
+    string(REGEX MATCH "${DARWIN_osx_MIN_VER_FLAG}=([.0-9]+)"
            MACOSX_VERSION_MIN_FLAG "${CMAKE_CXX_FLAGS}")
     if(MACOSX_VERSION_MIN_FLAG)
       set(SANITIZER_MIN_OSX_VERSION "${CMAKE_MATCH_1}")
     elseif(CMAKE_OSX_DEPLOYMENT_TARGET)
       set(SANITIZER_MIN_OSX_VERSION ${CMAKE_OSX_DEPLOYMENT_TARGET})
     else()
-      set(SANITIZER_MIN_OSX_VERSION 10.9)
+      set(SANITIZER_MIN_OSX_VERSION ${DEFAULT_SANITIZER_MIN_OSX_VERSION})
     endif()
     if(SANITIZER_MIN_OSX_VERSION VERSION_LESS "10.7")
       message(FATAL_ERROR "macOS deployment target '${SANITIZER_MIN_OSX_VERSION}' is too old.")
     endif()
-    if(SANITIZER_MIN_OSX_VERSION VERSION_GREATER "10.9")
-      message(WARNING "macOS deployment target '${SANITIZER_MIN_OSX_VERSION}' is too new, setting to '10.9' instead.")
-      set(SANITIZER_MIN_OSX_VERSION 10.9)
+    if(SANITIZER_MIN_OSX_VERSION VERSION_GREATER ${DEFAULT_SANITIZER_MIN_OSX_VERSION})
+      message(WARNING "macOS deployment target '${SANITIZER_MIN_OSX_VERSION}' is too new, setting to '${DEFAULT_SANITIZER_MIN_OSX_VERSION}' instead.")
+      set(SANITIZER_MIN_OSX_VERSION ${DEFAULT_SANITIZER_MIN_OSX_VERSION})
     endif()
   endif()
 
@@ -352,10 +419,10 @@ if(APPLE)
 
   set(DARWIN_osx_CFLAGS
     ${DARWIN_COMMON_CFLAGS}
-    -mmacosx-version-min=${SANITIZER_MIN_OSX_VERSION})
+    ${DARWIN_osx_MIN_VER_FLAG}=${SANITIZER_MIN_OSX_VERSION})
   set(DARWIN_osx_LINK_FLAGS
     ${DARWIN_COMMON_LINK_FLAGS}
-    -mmacosx-version-min=${SANITIZER_MIN_OSX_VERSION})
+    ${DARWIN_osx_MIN_VER_FLAG}=${SANITIZER_MIN_OSX_VERSION})
 
   if(DARWIN_osx_SYSROOT)
     list(APPEND DARWIN_osx_CFLAGS -isysroot ${DARWIN_osx_SYSROOT})
@@ -380,11 +447,11 @@ if(APPLE)
       if(DARWIN_${platform}sim_SYSROOT)
         set(DARWIN_${platform}sim_CFLAGS
           ${DARWIN_COMMON_CFLAGS}
-          ${DARWIN_${platform}_SANITIZER_MIN_VER_FLAG}
+          ${DARWIN_${platform}sim_SANITIZER_MIN_VER_FLAG}
           -isysroot ${DARWIN_${platform}sim_SYSROOT})
         set(DARWIN_${platform}sim_LINK_FLAGS
           ${DARWIN_COMMON_LINK_FLAGS}
-          ${DARWIN_${platform}_SANITIZER_MIN_VER_FLAG}
+          ${DARWIN_${platform}sim_SANITIZER_MIN_VER_FLAG}
           -isysroot ${DARWIN_${platform}sim_SYSROOT})
 
         set(DARWIN_${platform}sim_SKIP_CC_KEXT On)
@@ -396,6 +463,7 @@ if(APPLE)
           list(APPEND SANITIZER_COMMON_SUPPORTED_OS ${platform}sim)
           list(APPEND PROFILE_SUPPORTED_OS ${platform}sim)
           list(APPEND TSAN_SUPPORTED_OS ${platform}sim)
+          list(APPEND FUZZER_SUPPORTED_OS ${platform}sim)
         endif()
         foreach(arch ${DARWIN_${platform}sim_ARCHS})
           list(APPEND COMPILER_RT_SUPPORTED_ARCH ${arch})
@@ -425,6 +493,7 @@ if(APPLE)
           if(DARWIN_${platform}_TSAN_ARCHS)
             list(APPEND TSAN_SUPPORTED_OS ${platform})
           endif()
+          list(APPEND FUZZER_SUPPORTED_OS ${platform})
         endif()
         foreach(arch ${DARWIN_${platform}_ARCHS})
           list(APPEND COMPILER_RT_SUPPORTED_ARCH ${arch})
@@ -433,6 +502,10 @@ if(APPLE)
       endif()
     endforeach()
   endif()
+
+  # Explictly disable unsupported Sanitizer configurations.
+  list(REMOVE_ITEM FUZZER_SUPPORTED_OS "watchos")
+  list(REMOVE_ITEM FUZZER_SUPPORTED_OS "watchossim")
 
   # for list_intersect
   include(CompilerRTUtils)
@@ -577,7 +650,7 @@ endif()
 
 # TODO: Add builtins support.
 
-if (CRT_SUPPORTED_ARCH AND OS_NAME MATCHES "Linux")
+if (CRT_SUPPORTED_ARCH AND OS_NAME MATCHES "Linux" AND NOT LLVM_USE_SANITIZER)
   set(COMPILER_RT_HAS_CRT TRUE)
 else()
   set(COMPILER_RT_HAS_CRT FALSE)
@@ -591,7 +664,7 @@ else()
 endif()
 
 if (COMPILER_RT_HAS_SANITIZER_COMMON AND LSAN_SUPPORTED_ARCH AND
-    OS_NAME MATCHES "Darwin|Linux|NetBSD")
+    OS_NAME MATCHES "Darwin|Linux|NetBSD|Fuchsia")
   set(COMPILER_RT_HAS_LSAN TRUE)
 else()
   set(COMPILER_RT_HAS_LSAN FALSE)
@@ -653,7 +726,8 @@ else()
 endif()
 
 #TODO(kostyak): add back Android & Fuchsia when the code settles a bit.
-if (SCUDO_STANDALONE_SUPPORTED_ARCH AND OS_NAME MATCHES "Linux")
+if (SCUDO_STANDALONE_SUPPORTED_ARCH AND OS_NAME MATCHES "Linux" AND
+    COMPILER_RT_HAS_AUXV)
   set(COMPILER_RT_HAS_SCUDO_STANDALONE TRUE)
 else()
   set(COMPILER_RT_HAS_SCUDO_STANDALONE FALSE)

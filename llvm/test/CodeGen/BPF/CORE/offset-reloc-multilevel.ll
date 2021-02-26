@@ -1,5 +1,7 @@
 ; RUN: llc -march=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
 ; RUN: llc -march=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -march=bpfel -mattr=+alu32 -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -march=bpfeb -mattr=+alu32 -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
 ; Source code:
 ;   struct net_device {
 ;     int dev_id;
@@ -80,7 +82,7 @@ define dso_local i32 @bpf_prog(%struct.sk_buff*) local_unnamed_addr #0 !dbg !15 
 ; CHECK-NEXT:        .long   44
 ; CHECK-NEXT:        .long   1
 ; CHECK-NEXT:        .long   48                      # BTF_KIND_FUNC(id = 6)
-; CHECK-NEXT:        .long   201326592               # 0xc000000
+; CHECK-NEXT:        .long   201326593               # 0xc000001
 ; CHECK-NEXT:        .long   5
 ; CHECK-NEXT:        .byte   0                       # string offset=0
 ; CHECK-NEXT:        .ascii  "sk_buff"               # string offset=1
@@ -111,23 +113,22 @@ define dso_local i32 @bpf_prog(%struct.sk_buff*) local_unnamed_addr #0 !dbg !15 
 ; CHECK-NEXT:        .short  60319                   # 0xeb9f
 ; CHECK-NEXT:        .byte   1
 ; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .long   40
+; CHECK-NEXT:        .long   32
 ; CHECK-NEXT:        .long   0
 ; CHECK-NEXT:        .long   20
 ; CHECK-NEXT:        .long   20
-; CHECK-NEXT:        .long   76
-; CHECK-NEXT:        .long   96
-; CHECK-NEXT:        .long   24
-; CHECK-NEXT:        .long   120
-; CHECK-NEXT:        .long   0
+; CHECK-NEXT:        .long   {{[0-9]+}}
+; CHECK-NEXT:        .long   {{[0-9]+}}
+; CHECK-NEXT:        .long   28
 ; CHECK-NEXT:        .long   8                       # FuncInfo
 
-; CHECK:             .long   12                      # OffsetReloc
-; CHECK-NEXT:        .long   57                      # Offset reloc section string offset=57
+; CHECK:             .long   16                      # FieldReloc
+; CHECK-NEXT:        .long   57                      # Field reloc section string offset=57
 ; CHECK-NEXT:        .long   1
-; CHECK-NEXT:        .long   .Ltmp2
+; CHECK-NEXT:        .long   .Ltmp{{[0-9]+}}
 ; CHECK-NEXT:        .long   2
 ; CHECK-NEXT:        .long   100
+; CHECK-NEXT:        .long   0
 
 ; Function Attrs: argmemonly nounwind
 declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #1
@@ -144,7 +145,7 @@ declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #1
 ; Function Attrs: nounwind readnone speculatable
 declare void @llvm.dbg.value(metadata, metadata, metadata) #3
 
-attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind }
 attributes #2 = { nounwind readnone }
 attributes #3 = { nounwind readnone speculatable }

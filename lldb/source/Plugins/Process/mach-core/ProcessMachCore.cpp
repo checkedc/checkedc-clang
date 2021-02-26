@@ -1,5 +1,4 @@
-//===-- ProcessMachCore.cpp ------------------------------------------*- C++
-//-*-===//
+//===-- ProcessMachCore.cpp -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -44,6 +43,8 @@
 
 using namespace lldb;
 using namespace lldb_private;
+
+LLDB_PLUGIN_DEFINE(ProcessMachCore)
 
 ConstString ProcessMachCore::GetPluginNameStatic() {
   static ConstString g_name("mach-o-core");
@@ -160,10 +161,10 @@ bool ProcessMachCore::GetDynamicLoaderAddress(lldb::addr_t addr) {
     case llvm::MachO::MH_DYLINKER:
       // printf("0x%16.16" PRIx64 ": file_type = MH_DYLINKER\n", vaddr);
       // Address of dyld "struct mach_header" in the core file
-      if (log)
-        log->Printf("ProcessMachCore::GetDynamicLoaderAddress found a user "
-                    "process dyld binary image at 0x%" PRIx64,
-                    addr);
+      LLDB_LOGF(log,
+                "ProcessMachCore::GetDynamicLoaderAddress found a user "
+                "process dyld binary image at 0x%" PRIx64,
+                addr);
       m_dyld_addr = addr;
       return true;
 
@@ -172,10 +173,10 @@ bool ProcessMachCore::GetDynamicLoaderAddress(lldb::addr_t addr) {
       // Check MH_EXECUTABLE file types to see if the dynamic link object flag
       // is NOT set. If it isn't, then we have a mach_kernel.
       if ((header.flags & llvm::MachO::MH_DYLDLINK) == 0) {
-        if (log)
-          log->Printf("ProcessMachCore::GetDynamicLoaderAddress found a mach "
-                      "kernel binary image at 0x%" PRIx64,
-                      addr);
+        LLDB_LOGF(log,
+                  "ProcessMachCore::GetDynamicLoaderAddress found a mach "
+                  "kernel binary image at 0x%" PRIx64,
+                  addr);
         // Address of the mach kernel "struct mach_header" in the core file.
         m_mach_kernel_addr = addr;
         return true;
@@ -286,9 +287,10 @@ Status ProcessMachCore::DoLoadCore() {
     {
         m_mach_kernel_addr = objfile_binary_addr;
         found_main_binary_definitively = true;
-        if (log)
-            log->Printf ("ProcessMachCore::DoLoadCore: using kernel address 0x%" PRIx64
-                         " from LC_NOTE 'main bin spec' load command.", m_mach_kernel_addr);
+        LLDB_LOGF(log,
+                  "ProcessMachCore::DoLoadCore: using kernel address 0x%" PRIx64
+                  " from LC_NOTE 'main bin spec' load command.",
+                  m_mach_kernel_addr);
     }
   }
   
@@ -317,11 +319,11 @@ Status ProcessMachCore::DoLoadCore() {
     if (uuid.IsValid() && addr != LLDB_INVALID_ADDRESS) {
       m_mach_kernel_addr = addr;
       found_main_binary_definitively = true;
-      if (log)
-        log->Printf(
-            "ProcessMachCore::DoLoadCore: Using the kernel address 0x%" PRIx64
-            " from LC_IDENT/LC_NOTE 'kern ver str' string: '%s'",
-            addr, corefile_identifier.c_str());
+      LLDB_LOGF(
+          log,
+          "ProcessMachCore::DoLoadCore: Using the kernel address 0x%" PRIx64
+          " from LC_IDENT/LC_NOTE 'kern ver str' string: '%s'",
+          addr, corefile_identifier.c_str());
     }
   }
   if (found_main_binary_definitively == false 
@@ -333,49 +335,48 @@ Status ProcessMachCore::DoLoadCore() {
           uuid.SetFromStringRef(uuid_str);
       }
       if (uuid.IsValid()) {
-        if (log)
-          log->Printf("ProcessMachCore::DoLoadCore: Using the EFI "
-                      "from LC_IDENT/LC_NOTE 'kern ver str' string: '%s'", 
-                      corefile_identifier.c_str());
+        LLDB_LOGF(log,
+                  "ProcessMachCore::DoLoadCore: Using the EFI "
+                  "from LC_IDENT/LC_NOTE 'kern ver str' string: '%s'",
+                  corefile_identifier.c_str());
 
-          // We're only given a UUID here, not a load address.
-          // But there are python scripts in the EFI binary's dSYM which
-          // know how to relocate the binary to the correct load address.
-          // lldb only needs to locate & load the binary + dSYM.
-          ModuleSpec module_spec;
-          module_spec.GetUUID() = uuid;
-          module_spec.GetArchitecture() = GetTarget().GetArchitecture();
+        // We're only given a UUID here, not a load address.
+        // But there are python scripts in the EFI binary's dSYM which
+        // know how to relocate the binary to the correct load address.
+        // lldb only needs to locate & load the binary + dSYM.
+        ModuleSpec module_spec;
+        module_spec.GetUUID() = uuid;
+        module_spec.GetArchitecture() = GetTarget().GetArchitecture();
 
-          // Lookup UUID locally, before attempting dsymForUUID like action
-          FileSpecList search_paths =
-              Target::GetDefaultDebugFileSearchPaths();
-          module_spec.GetSymbolFileSpec() =
-              Symbols::LocateExecutableSymbolFile(module_spec, search_paths);
-          if (module_spec.GetSymbolFileSpec()) {
-            ModuleSpec executable_module_spec =
-                Symbols::LocateExecutableObjectFile(module_spec);
-            if (FileSystem::Instance().Exists(executable_module_spec.GetFileSpec())) {
-              module_spec.GetFileSpec() =
-                  executable_module_spec.GetFileSpec();
-            }
+        // Lookup UUID locally, before attempting dsymForUUID like action
+        FileSpecList search_paths = Target::GetDefaultDebugFileSearchPaths();
+        module_spec.GetSymbolFileSpec() =
+            Symbols::LocateExecutableSymbolFile(module_spec, search_paths);
+        if (module_spec.GetSymbolFileSpec()) {
+          ModuleSpec executable_module_spec =
+              Symbols::LocateExecutableObjectFile(module_spec);
+          if (FileSystem::Instance().Exists(
+                  executable_module_spec.GetFileSpec())) {
+            module_spec.GetFileSpec() = executable_module_spec.GetFileSpec();
           }
+        }
 
-          // Force a a dsymForUUID lookup, if that tool is available.
-          if (!module_spec.GetSymbolFileSpec())
-            Symbols::DownloadObjectAndSymbolFile(module_spec, true);
+        // Force a a dsymForUUID lookup, if that tool is available.
+        if (!module_spec.GetSymbolFileSpec())
+          Symbols::DownloadObjectAndSymbolFile(module_spec, true);
 
-          if (FileSystem::Instance().Exists(module_spec.GetFileSpec())) {
-            ModuleSP module_sp(new Module(module_spec));
-            if (module_sp.get() && module_sp->GetObjectFile()) {
-              // Get the current target executable
-              ModuleSP exe_module_sp(GetTarget().GetExecutableModule());
+        if (FileSystem::Instance().Exists(module_spec.GetFileSpec())) {
+          ModuleSP module_sp(new Module(module_spec));
+          if (module_sp.get() && module_sp->GetObjectFile()) {
+            // Get the current target executable
+            ModuleSP exe_module_sp(GetTarget().GetExecutableModule());
 
-              // Make sure you don't already have the right module loaded
-              // and they will be uniqued
-              if (exe_module_sp.get() != module_sp.get())
-                GetTarget().SetExecutableModule(module_sp, eLoadDependentsNo);
-            }
+            // Make sure you don't already have the right module loaded
+            // and they will be uniqued
+            if (exe_module_sp.get() != module_sp.get())
+              GetTarget().SetExecutableModule(module_sp, eLoadDependentsNo);
           }
+        }
       }
   }
 
@@ -433,9 +434,8 @@ Status ProcessMachCore::DoLoadCore() {
     m_dyld_addr = saved_user_dyld_addr;
 
     if (better_kernel_address != LLDB_INVALID_ADDRESS) {
-      if (log)
-        log->Printf("ProcessMachCore::DoLoadCore: Using the kernel address "
-                    "from DynamicLoaderDarwinKernel");
+      LLDB_LOGF(log, "ProcessMachCore::DoLoadCore: Using the kernel address "
+                     "from DynamicLoaderDarwinKernel");
       m_mach_kernel_addr = better_kernel_address;
     }
   }
@@ -444,30 +444,30 @@ Status ProcessMachCore::DoLoadCore() {
   // decide which to prefer.
   if (GetCorefilePreference() == eKernelCorefile) {
     if (m_mach_kernel_addr != LLDB_INVALID_ADDRESS) {
-      if (log)
-        log->Printf("ProcessMachCore::DoLoadCore: Using kernel corefile image "
-                    "at 0x%" PRIx64,
-                    m_mach_kernel_addr);
+      LLDB_LOGF(log,
+                "ProcessMachCore::DoLoadCore: Using kernel corefile image "
+                "at 0x%" PRIx64,
+                m_mach_kernel_addr);
       m_dyld_plugin_name = DynamicLoaderDarwinKernel::GetPluginNameStatic();
     } else if (m_dyld_addr != LLDB_INVALID_ADDRESS) {
-      if (log)
-        log->Printf("ProcessMachCore::DoLoadCore: Using user process dyld "
-                    "image at 0x%" PRIx64,
-                    m_dyld_addr);
+      LLDB_LOGF(log,
+                "ProcessMachCore::DoLoadCore: Using user process dyld "
+                "image at 0x%" PRIx64,
+                m_dyld_addr);
       m_dyld_plugin_name = DynamicLoaderMacOSXDYLD::GetPluginNameStatic();
     }
   } else {
     if (m_dyld_addr != LLDB_INVALID_ADDRESS) {
-      if (log)
-        log->Printf("ProcessMachCore::DoLoadCore: Using user process dyld "
-                    "image at 0x%" PRIx64,
-                    m_dyld_addr);
+      LLDB_LOGF(log,
+                "ProcessMachCore::DoLoadCore: Using user process dyld "
+                "image at 0x%" PRIx64,
+                m_dyld_addr);
       m_dyld_plugin_name = DynamicLoaderMacOSXDYLD::GetPluginNameStatic();
     } else if (m_mach_kernel_addr != LLDB_INVALID_ADDRESS) {
-      if (log)
-        log->Printf("ProcessMachCore::DoLoadCore: Using kernel corefile image "
-                    "at 0x%" PRIx64,
-                    m_mach_kernel_addr);
+      LLDB_LOGF(log,
+                "ProcessMachCore::DoLoadCore: Using kernel corefile image "
+                "at 0x%" PRIx64,
+                m_mach_kernel_addr);
       m_dyld_plugin_name = DynamicLoaderDarwinKernel::GetPluginNameStatic();
     }
   }
@@ -477,7 +477,7 @@ Status ProcessMachCore::DoLoadCore() {
     // segments are usually meaningless, they may be just "read", because we're
     // dealing with kernel coredumps or early startup coredumps and the dumper
     // is grabbing pages of memory without knowing what they are.  If they
-    // aren't marked as "exeuctable", that can break the unwinder which will
+    // aren't marked as "executable", that can break the unwinder which will
     // check a pc value to see if it is in an executable segment and stop the
     // backtrace early if it is not ("executable" and "unknown" would both be
     // fine, but "not executable" will break the unwinder).

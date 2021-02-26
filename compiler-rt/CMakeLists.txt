@@ -35,6 +35,8 @@ option(COMPILER_RT_BUILD_BUILTINS "Build builtins" ON)
 mark_as_advanced(COMPILER_RT_BUILD_BUILTINS)
 option(COMPILER_RT_BUILD_CRT "Build crtbegin.o/crtend.o" ON)
 mark_as_advanced(COMPILER_RT_BUILD_CRT)
+option(COMPILER_RT_CRT_USE_EH_FRAME_REGISTRY "Use eh_frame in crtbegin.o/crtend.o" ON)
+mark_as_advanced(COMPILER_RT_CRT_USE_EH_FRAME_REGISTRY)
 option(COMPILER_RT_BUILD_SANITIZERS "Build sanitizers" ON)
 mark_as_advanced(COMPILER_RT_BUILD_SANITIZERS)
 option(COMPILER_RT_BUILD_XRAY "Build xray" ON)
@@ -79,13 +81,34 @@ if (COMPILER_RT_STANDALONE_BUILD)
     set_target_properties(intrinsics_gen PROPERTIES FOLDER "Compiler-RT Misc")
   endif()
 
-  # Find Python interpreter.
-  set(Python_ADDITIONAL_VERSIONS 2.7 2.6 2.5)
-  include(FindPythonInterp)
-  if(NOT PYTHONINTERP_FOUND)
-    message(FATAL_ERROR "
-      Unable to find Python interpreter required testing. Please install Python
-      or specify the PYTHON_EXECUTABLE CMake variable.")
+  if(CMAKE_VERSION VERSION_LESS 3.12)
+    # Find Python interpreter.
+    include(FindPythonInterp)
+    if(NOT PYTHONINTERP_FOUND)
+      message(FATAL_ERROR "
+        Unable to find Python interpreter required testing. Please install Python
+        or specify the PYTHON_EXECUTABLE CMake variable.")
+    endif()
+
+    add_executable(Python3::Interpreter IMPORTED)
+    set_target_properties(Python3::Interpreter PROPERTIES
+      IMPORTED_LOCATION ${PYTHON_EXECUTABLE})
+    set(Python3_EXECUTABLE ${PYTHON_EXECUTABLE})
+  else()
+    find_package(Python3 COMPONENTS Interpreter)
+    if(NOT Python3_Interpreter_FOUND)
+      message(WARNING "Python3 not found, using python2 as a fallback")
+      find_package(Python2 COMPONENTS Interpreter REQUIRED)
+      if(Python2_VERSION VERSION_LESS 2.7)
+        message(SEND_ERROR "Python 2.7 or newer is required")
+      endif()
+
+      # Treat python2 as python3
+      add_executable(Python3::Interpreter IMPORTED)
+      set_target_properties(Python3::Interpreter PROPERTIES
+        IMPORTED_LOCATION ${Python2_EXECUTABLE})
+      set(Python3_EXECUTABLE ${Python2_EXECUTABLE})
+    endif()
   endif()
 
   # Ensure that fat libraries are built correctly on Darwin
@@ -255,7 +278,7 @@ if(COMPILER_RT_ENABLE_WERROR)
   append_string_if(COMPILER_RT_HAS_WX_FLAG /WX CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
 endif()
 
-append_string_if(COMPILER_RT_HAS_STD_CXX11_FLAG -std=c++11 CMAKE_CXX_FLAGS)
+append_string_if(COMPILER_RT_HAS_STD_CXX14_FLAG -std=c++14 CMAKE_CXX_FLAGS)
 
 # Emulate C99 and C++11's __func__ for MSVC prior to 2013 CTP.
 if(NOT COMPILER_RT_HAS_FUNC_SYMBOL)
@@ -280,12 +303,28 @@ if(NOT COMPILER_RT_HAS_FVISIBILITY_HIDDEN_FLAG)
 endif()
 append_list_if(COMPILER_RT_HAS_FNO_LTO_FLAG -fno-lto SANITIZER_COMMON_CFLAGS)
 
+# By default do not instrument or use profdata for compiler-rt.
+if(NOT COMPILER_RT_ENABLE_PGO)
+  if(LLVM_PROFDATA_FILE AND COMPILER_RT_HAS_FNO_PROFILE_INSTR_USE_FLAG)
+    list(APPEND SANITIZER_COMMON_CFLAGS "-fno-profile-instr-use")
+  endif()
+  if(LLVM_BUILD_INSTRUMENTED MATCHES IR AND COMPILER_RT_HAS_FNO_PROFILE_GENERATE_FLAG)
+    list(APPEND SANITIZER_COMMON_CFLAGS "-fno-profile-generate")
+  elseif(LLVM_BUILD_INSTRUMENTED AND COMPILER_RT_HAS_FNO_PROFILE_INSTR_GENERATE_FLAG)
+    list(APPEND SANITIZER_COMMON_CFLAGS "-fno-profile-instr-generate")
+  endif()
+endif()
+
 # The following is a workaround for powerpc64le. This is the only architecture
 # that requires -fno-function-sections to work properly. If lacking, the ASan
-# Linux test function-sections-are-bad.cc fails with the following error:
+# Linux test function-sections-are-bad.cpp fails with the following error:
 # 'undefined symbol: __sanitizer_unaligned_load32'.
 if(DEFINED TARGET_powerpc64le_CFLAGS)
-  append_list_if(COMPILER_RT_HAS_FNO_FUNCTION_SECTIONS_FLAG -fno-function-sections TARGET_powerpc64le_CFLAGS)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "XL")
+    append("-qnofuncsect" TARGET_powerpc64le_CFLAGS)
+  else()
+    append_list_if(COMPILER_RT_HAS_FNO_FUNCTION_SECTIONS_FLAG -fno-function-sections TARGET_powerpc64le_CFLAGS)
+  endif()
 endif()
 
 # The following is a workaround for s390x.  This avoids creation of "partial
@@ -314,12 +353,11 @@ if(MSVC)
   endif()
   append_list_if(COMPILER_RT_HAS_Oy_FLAG /Oy- SANITIZER_COMMON_CFLAGS)
   append_list_if(COMPILER_RT_HAS_GS_FLAG /GS- SANITIZER_COMMON_CFLAGS)
-  # VS 2015 (version 1900) added support for thread safe static initialization.
-  # However, ASan interceptors run before CRT initialization, which causes the
-  # new thread safe code to crash. Disable this feature for now.
-  if (MSVC_VERSION GREATER 1899 OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
-    list(APPEND SANITIZER_COMMON_CFLAGS /Zc:threadSafeInit-)
-  endif()
+
+  # Disable thread safe initialization for static locals. ASan shouldn't need
+  # it. Thread safe initialization assumes that the CRT has already been
+  # initialized, but ASan initializes before the CRT.
+  list(APPEND SANITIZER_COMMON_CFLAGS /Zc:threadSafeInit-)
 endif()
 
 append_list_if(COMPILER_RT_DEBUG -DSANITIZER_DEBUG=1 SANITIZER_COMMON_CFLAGS)
@@ -337,12 +375,12 @@ if (NOT MSVC)
 endif()
 
 # Determine if we should restrict stack frame sizes.
-# Stack frames on PowerPC and Mips and in debug biuld can be much larger than
+# Stack frames on PowerPC, Mips, SystemZ and in debug build can be much larger than
 # anticipated.
 # FIXME: Fix all sanitizers and add -Wframe-larger-than to
 # SANITIZER_COMMON_FLAGS
 if(COMPILER_RT_HAS_WFRAME_LARGER_THAN_FLAG AND NOT COMPILER_RT_DEBUG
-   AND NOT ${COMPILER_RT_DEFAULT_TARGET_ARCH} MATCHES "powerpc|mips")
+   AND NOT ${COMPILER_RT_DEFAULT_TARGET_ARCH} MATCHES "powerpc|mips|s390x")
   set(SANITIZER_LIMIT_FRAME_SIZE TRUE)
 else()
   set(SANITIZER_LIMIT_FRAME_SIZE FALSE)
@@ -397,7 +435,6 @@ append_list_if(COMPILER_RT_HAS_NODEFAULTLIBS_FLAG -nodefaultlibs SANITIZER_COMMO
 append_list_if(COMPILER_RT_HAS_Z_TEXT -Wl,-z,text SANITIZER_COMMON_LINK_FLAGS)
 
 if (COMPILER_RT_USE_BUILTINS_LIBRARY)
-  list(APPEND SANITIZER_COMMON_LINK_LIBS ${COMPILER_RT_BUILTINS_LIBRARY})
   string(REPLACE "-Wl,-z,defs" "" CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}")
 else()
   if (ANDROID)
@@ -465,24 +502,30 @@ add_subdirectory(include)
 option(COMPILER_RT_USE_LIBCXX
   "Enable compiler-rt to use libc++ from the source tree" ON)
 if(COMPILER_RT_USE_LIBCXX)
-  foreach(path IN ITEMS ${LLVM_MAIN_SRC_DIR}/projects/libcxx
-                        ${LLVM_MAIN_SRC_DIR}/runtimes/libcxx
-                        ${LLVM_MAIN_SRC_DIR}/../libcxx
-                        ${LLVM_EXTERNAL_LIBCXX_SOURCE_DIR})
-    if(IS_DIRECTORY ${path})
-      set(COMPILER_RT_LIBCXX_PATH ${path})
-      break()
-    endif()
-  endforeach()
-  foreach(path IN ITEMS ${LLVM_MAIN_SRC_DIR}/projects/libcxxabi
-                        ${LLVM_MAIN_SRC_DIR}/runtimes/libcxxabi
-                        ${LLVM_MAIN_SRC_DIR}/../libcxxabi
-                        ${LLVM_EXTERNAL_LIBCXXABI_SOURCE_DIR})
-    if(IS_DIRECTORY ${path})
-      set(COMPILER_RT_LIBCXXABI_PATH ${path})
-      break()
-    endif()
-  endforeach()
+  if(LLVM_ENABLE_PROJECTS_USED)
+    # Don't use libcxx if LLVM_ENABLE_PROJECTS does not enable it.
+    set(COMPILER_RT_LIBCXX_PATH ${LLVM_EXTERNAL_LIBCXX_SOURCE_DIR})
+    set(COMPILER_RT_LIBCXXABI_PATH ${LLVM_EXTERNAL_LIBCXXABI_SOURCE_DIR})
+  else()
+    foreach(path IN ITEMS ${LLVM_MAIN_SRC_DIR}/projects/libcxx
+                          ${LLVM_MAIN_SRC_DIR}/runtimes/libcxx
+                          ${LLVM_MAIN_SRC_DIR}/../libcxx
+                          ${LLVM_EXTERNAL_LIBCXX_SOURCE_DIR})
+      if(IS_DIRECTORY ${path})
+        set(COMPILER_RT_LIBCXX_PATH ${path})
+        break()
+      endif()
+    endforeach()
+    foreach(path IN ITEMS ${LLVM_MAIN_SRC_DIR}/projects/libcxxabi
+                          ${LLVM_MAIN_SRC_DIR}/runtimes/libcxxabi
+                          ${LLVM_MAIN_SRC_DIR}/../libcxxabi
+                          ${LLVM_EXTERNAL_LIBCXXABI_SOURCE_DIR})
+      if(IS_DIRECTORY ${path})
+        set(COMPILER_RT_LIBCXXABI_PATH ${path})
+        break()
+      endif()
+    endforeach()
+  endif()
 endif()
 
 set(COMPILER_RT_LLD_PATH ${LLVM_MAIN_SRC_DIR}/tools/lld)
@@ -492,8 +535,6 @@ else()
   set(COMPILER_RT_LLD_PATH ${LLVM_MAIN_SRC_DIR}/../lld)
   if(EXISTS ${COMPILER_RT_LLD_PATH}/ AND LLVM_TOOL_LLD_BUILD)
     set(COMPILER_RT_HAS_LLD TRUE)
-  else()
-    set(COMPILER_RT_HAS_LLD FALSE)
   endif()
 endif()
 pythonize_bool(COMPILER_RT_HAS_LLD)
@@ -508,6 +549,8 @@ if(COMPILER_RT_INCLUDE_TESTS)
     # The user can still choose to have the check targets *use* a different lit
     # by specifying -DLLVM_EXTERNAL_LIT, but we generate it regardless.
     if (EXISTS ${LLVM_MAIN_SRC_DIR}/utils/llvm-lit)
+      # Needed for lit support in standalone builds.
+      include(AddLLVM)
       add_subdirectory(${LLVM_MAIN_SRC_DIR}/utils/llvm-lit ${CMAKE_CURRENT_BINARY_DIR}/llvm-lit)
     elseif(NOT EXISTS ${LLVM_EXTERNAL_LIT})
       message(WARNING "Could not find LLVM source directory and LLVM_EXTERNAL_LIT does not"
@@ -515,3 +558,5 @@ if(COMPILER_RT_INCLUDE_TESTS)
     endif()
   endif()
 endif()
+
+add_subdirectory(tools)

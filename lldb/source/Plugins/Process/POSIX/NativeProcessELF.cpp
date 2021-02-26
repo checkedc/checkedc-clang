@@ -1,4 +1,4 @@
-//===-- NativeProcessELF.cpp ---------------------------------- -*- C++ -*-===//
+//===-- NativeProcessELF.cpp ----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -21,7 +21,7 @@ NativeProcessELF::GetAuxValue(enum AuxVector::EntryType type) {
     DataExtractor auxv_data(buffer_or_error.get()->getBufferStart(),
                             buffer_or_error.get()->getBufferSize(),
                             GetByteOrder(), GetAddressByteSize());
-    m_aux_vector = llvm::make_unique<AuxVector>(auxv_data);
+    m_aux_vector = std::make_unique<AuxVector>(auxv_data);
   }
 
   return m_aux_vector->GetAuxValue(type);
@@ -105,6 +105,79 @@ lldb::addr_t NativeProcessELF::GetELFImageInfoAddress() {
   }
 
   return LLDB_INVALID_ADDRESS;
+}
+
+template lldb::addr_t NativeProcessELF::GetELFImageInfoAddress<
+    llvm::ELF::Elf32_Ehdr, llvm::ELF::Elf32_Phdr, llvm::ELF::Elf32_Dyn>();
+template lldb::addr_t NativeProcessELF::GetELFImageInfoAddress<
+    llvm::ELF::Elf64_Ehdr, llvm::ELF::Elf64_Phdr, llvm::ELF::Elf64_Dyn>();
+
+template <typename T>
+llvm::Expected<SVR4LibraryInfo>
+NativeProcessELF::ReadSVR4LibraryInfo(lldb::addr_t link_map_addr) {
+  ELFLinkMap<T> link_map;
+  size_t bytes_read;
+  auto error =
+      ReadMemory(link_map_addr, &link_map, sizeof(link_map), bytes_read);
+  if (!error.Success())
+    return error.ToError();
+
+  char name_buffer[PATH_MAX];
+  llvm::Expected<llvm::StringRef> string_or_error = ReadCStringFromMemory(
+      link_map.l_name, &name_buffer[0], sizeof(name_buffer), bytes_read);
+  if (!string_or_error)
+    return string_or_error.takeError();
+
+  SVR4LibraryInfo info;
+  info.name = string_or_error->str();
+  info.link_map = link_map_addr;
+  info.base_addr = link_map.l_addr;
+  info.ld_addr = link_map.l_ld;
+  info.next = link_map.l_next;
+
+  return info;
+}
+
+llvm::Expected<std::vector<SVR4LibraryInfo>>
+NativeProcessELF::GetLoadedSVR4Libraries() {
+  // Address of DT_DEBUG.d_ptr which points to r_debug
+  lldb::addr_t info_address = GetSharedLibraryInfoAddress();
+  if (info_address == LLDB_INVALID_ADDRESS)
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "Invalid shared library info address");
+  // Address of r_debug
+  lldb::addr_t address = 0;
+  size_t bytes_read;
+  auto status =
+      ReadMemory(info_address, &address, GetAddressByteSize(), bytes_read);
+  if (!status.Success())
+    return status.ToError();
+  if (address == 0)
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "Invalid r_debug address");
+  // Read r_debug.r_map
+  lldb::addr_t link_map = 0;
+  status = ReadMemory(address + GetAddressByteSize(), &link_map,
+                      GetAddressByteSize(), bytes_read);
+  if (!status.Success())
+    return status.ToError();
+  if (address == 0)
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "Invalid link_map address");
+
+  std::vector<SVR4LibraryInfo> library_list;
+  while (link_map) {
+    llvm::Expected<SVR4LibraryInfo> info =
+        GetAddressByteSize() == 8 ? ReadSVR4LibraryInfo<uint64_t>(link_map)
+                                  : ReadSVR4LibraryInfo<uint32_t>(link_map);
+    if (!info)
+      return info.takeError();
+    if (!info->name.empty() && info->base_addr != 0)
+      library_list.push_back(*info);
+    link_map = info->next;
+  }
+
+  return library_list;
 }
 
 } // namespace lldb_private

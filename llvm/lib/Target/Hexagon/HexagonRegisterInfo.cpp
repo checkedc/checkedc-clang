@@ -73,6 +73,9 @@ HexagonRegisterInfo::getCallerSavedRegs(const MachineFunction *MF,
   static const MCPhysReg VecDbl[] = {
     W0, W1, W2, W3, W4, W5, W6, W7, W8, W9, W10, W11, W12, W13, W14, W15, 0
   };
+  static const MCPhysReg VecPred[] = {
+    Q0, Q1, Q2, Q3, 0
+  };
 
   switch (RC->getID()) {
     case IntRegsRegClassID:
@@ -85,6 +88,8 @@ HexagonRegisterInfo::getCallerSavedRegs(const MachineFunction *MF,
       return VecSgl;
     case HvxWRRegClassID:
       return VecDbl;
+    case HvxQRRegClassID:
+      return VecPred;
     default:
       break;
   }
@@ -167,6 +172,13 @@ BitVector HexagonRegisterInfo::getReservedRegs(const MachineFunction &MF)
   Reserved.set(Hexagon::C8);
   Reserved.set(Hexagon::USR_OVF);
 
+  // Leveraging these registers will require more work to recognize
+  // the new semantics posed, Hi/LoVec patterns, etc.
+  // Note well: if enabled, they should be restricted to only
+  // where `HST.useHVXOps() && HST.hasV67Ops()` is true.
+  for (auto Reg : Hexagon_MC::GetVectRegRev())
+    Reserved.set(Reg);
+
   if (MF.getSubtarget<HexagonSubtarget>().hasReservedR19())
     Reserved.set(Hexagon::R19);
 
@@ -191,7 +203,7 @@ void HexagonRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   auto &HII = *HST.getInstrInfo();
   auto &HFI = *HST.getFrameLowering();
 
-  unsigned BP = 0;
+  Register BP;
   int FI = MI.getOperand(FIOp).getIndex();
   // Select the base pointer (BP) and calculate the actual offset from BP
   // to the beginning of the object at index FI.
@@ -217,7 +229,7 @@ void HexagonRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     // If the offset is not valid, calculate the address in a temporary
     // register and use it with offset 0.
     auto &MRI = MF.getRegInfo();
-    unsigned TmpR = MRI.createVirtualRegister(&Hexagon::IntRegsRegClass);
+    Register TmpR = MRI.createVirtualRegister(&Hexagon::IntRegsRegClass);
     const DebugLoc &DL = MI.getDebugLoc();
     BuildMI(MB, II, DL, HII.get(Hexagon::A2_addi), TmpR)
       .addReg(BP)
@@ -249,8 +261,8 @@ bool HexagonRegisterInfo::shouldCoalesce(MachineInstr *MI,
   if (!SmallSrc && !SmallDst)
     return true;
 
-  unsigned DstReg = MI->getOperand(0).getReg();
-  unsigned SrcReg = MI->getOperand(1).getReg();
+  Register DstReg = MI->getOperand(0).getReg();
+  Register SrcReg = MI->getOperand(1).getReg();
   const SlotIndexes &Indexes = *LIS.getSlotIndexes();
   auto HasCall = [&Indexes] (const LiveInterval::Segment &S) {
     for (SlotIndex I = S.start.getBaseIndex(), E = S.end.getBaseIndex();

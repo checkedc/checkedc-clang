@@ -128,8 +128,8 @@ class SubtargetEmitter {
 
 public:
   SubtargetEmitter(RecordKeeper &R, CodeGenTarget &TGT)
-    : TGT(TGT), Records(R), SchedModels(TGT.getSchedModels()),
-      Target(TGT.getName()) {}
+      : TGT(TGT), Records(R), SchedModels(TGT.getSchedModels()),
+        Target(TGT.getName()) {}
 
   void run(raw_ostream &o);
 };
@@ -396,8 +396,8 @@ EmitStageAndOperandCycleData(raw_ostream &OS,
        << "namespace " << Name << "FU {\n";
 
     for (unsigned j = 0, FUN = FUs.size(); j < FUN; ++j)
-      OS << "  const unsigned " << FUs[j]->getName()
-         << " = 1 << " << j << ";\n";
+      OS << "  const InstrStage::FuncUnits " << FUs[j]->getName()
+         << " = 1ULL << " << j << ";\n";
 
     OS << "} // end namespace " << Name << "FU\n";
 
@@ -460,7 +460,8 @@ EmitStageAndOperandCycleData(raw_ostream &OS,
       std::string ItinStageString;
       unsigned NStages = 0;
       if (ItinData)
-        FormItineraryStageString(Name, ItinData, ItinStageString, NStages);
+        FormItineraryStageString(std::string(Name), ItinData, ItinStageString,
+                                 NStages);
 
       // Get string and operand cycle count
       std::string ItinOperandCycleString;
@@ -470,7 +471,7 @@ EmitStageAndOperandCycleData(raw_ostream &OS,
         FormItineraryOperandCycleString(ItinData, ItinOperandCycleString,
                                         NOperandCycles);
 
-        FormItineraryBypassString(Name, ItinData, ItinBypassString,
+        FormItineraryBypassString(std::string(Name), ItinData, ItinBypassString,
                                   NOperandCycles);
       }
 
@@ -1057,6 +1058,7 @@ void SubtargetEmitter::GenSchedClassTables(const CodeGenProcModel &ProcModel,
         LLVM_DEBUG(dbgs() << ProcModel.ModelName
                           << " does not have resources for class " << SC.Name
                           << '\n');
+        SCDesc.NumMicroOps = MCSchedClassDesc::InvalidNumMicroOps;
       }
     }
     // Sum resources across all operand writes.
@@ -1728,7 +1730,7 @@ void SubtargetEmitter::emitGenMCSubtargetInfo(raw_ostream &OS) {
      << "    const MCInst *MI, unsigned CPUID) {\n";
   emitSchedModelHelpersImpl(OS, /* OnlyExpandMCPredicates */ true);
   OS << "}\n";
-  OS << "} // end of namespace " << Target << "_MC\n\n";
+  OS << "} // end namespace " << Target << "_MC\n\n";
 
   OS << "struct " << Target
      << "GenMCSubtargetInfo : public MCSubtargetInfo {\n";
@@ -1746,7 +1748,10 @@ void SubtargetEmitter::emitGenMCSubtargetInfo(raw_ostream &OS) {
      << "    return " << Target << "_MC"
      << "::resolveVariantSchedClassImpl(SchedClass, MI, CPUID); \n";
   OS << "  }\n";
+  if (TGT.getHwModes().getNumModeIds() > 1)
+    OS << "  unsigned getHwMode() const override;\n";
   OS << "};\n";
+  EmitHwModeCheck(Target + "GenMCSubtargetInfo", OS);
 }
 
 void SubtargetEmitter::EmitMCInstrAnalysisPredicateFunctions(raw_ostream &OS) {
@@ -1858,7 +1863,7 @@ void SubtargetEmitter::run(raw_ostream &OS) {
   OS << "namespace " << Target << "_MC {\n"
      << "unsigned resolveVariantSchedClassImpl(unsigned SchedClass,"
      << " const MCInst *MI, unsigned CPUID);\n"
-     << "}\n\n";
+     << "} // end namespace " << Target << "_MC\n\n";
   OS << "struct " << ClassName << " : public TargetSubtargetInfo {\n"
      << "  explicit " << ClassName << "(const Triple &TT, StringRef CPU, "
      << "StringRef FS);\n"
