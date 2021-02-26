@@ -23,7 +23,8 @@
 // RUN: cd %t.base && 3c -addcr -verify canwrite_constraints_symlink.c --
 
 // expected-error@base_subdir_partial_defn.h:1 {{3C internal error: 3C generated changes to this file even though it is not allowed to write to the file}}
-// expected-note@base_subdir_partial_defn.h:1 {{-dump-unwritable-changes}}
+// expected-note@*:* {{-dump-unwritable-changes}}
+// expected-note@*:* {{-allow-unwritable-changes}}
 
 void
 #include "base_subdir_partial_defn.h"

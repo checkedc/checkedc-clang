@@ -162,13 +162,26 @@ void rewriteSourceRange(Rewriter &R, const CharSourceRange &Range,
   // crashing with an assert fail.
   if (!RewriteSuccess) {
     clang::DiagnosticsEngine &DE = R.getSourceMgr().getDiagnostics();
-    unsigned ErrorId =
-      DE.getCustomDiagID(
-        ErrFail ? DiagnosticsEngine::Error : DiagnosticsEngine::Warning,
-        "Unable to rewrite converted source range. Intended rewriting: \"%0\"");
-    auto ErrorBuilder = DE.Report(Range.getBegin(), ErrorId);
-    ErrorBuilder.AddSourceRange(R.getSourceMgr().getExpansionRange(Range));
-    ErrorBuilder.AddString(NewText);
+    bool ReportError = ErrFail && !AllowRewriteFailures;
+    {
+      // Put this in a block because Clang only allows one DiagnosticBuilder to
+      // exist at a time.
+      unsigned ErrorId = DE.getCustomDiagID(
+          ReportError ? DiagnosticsEngine::Error : DiagnosticsEngine::Warning,
+          "Unable to rewrite converted source range. Intended rewriting: \"%0\"");
+      auto ErrorBuilder = DE.Report(Range.getBegin(), ErrorId);
+      ErrorBuilder.AddSourceRange(R.getSourceMgr().getExpansionRange(Range));
+      ErrorBuilder.AddString(NewText);
+    }
+    if (ReportError) {
+      unsigned NoteId = DE.getCustomDiagID(
+          DiagnosticsEngine::Note,
+          "you can use the -allow-rewrite-failures option to temporarily "
+          "downgrade this error to a warning");
+      // If we pass the location here, the macro call stack gets dumped again,
+      // which looks silly.
+      DE.Report(NoteId);
+    }
   }
 }
 
@@ -187,18 +200,28 @@ static void emit(Rewriter &R, ASTContext &C) {
       DiagnosticsEngine::Level UnwritableChangeDiagnosticLevel =
           AllowUnwritableChanges ? DiagnosticsEngine::Warning
                                  : DiagnosticsEngine::Error;
-      auto MaybeDumpUnwritableChange = [&]() {
+      auto PrintExtraUnwritableChangeInfo = [&]() {
+        DiagnosticsEngine &DE = C.getDiagnostics();
+        // With -dump-unwritable-changes and not -allow-unwritable-changes, we
+        // want the -allow-unwritable-changes note before the dump.
+        if (!DumpUnwritableChanges) {
+          unsigned DumpNoteId = DE.getCustomDiagID(
+              DiagnosticsEngine::Note,
+              "use the -dump-unwritable-changes option to see the new version "
+              "of the file");
+          DE.Report(DumpNoteId);
+        }
+        if (!AllowUnwritableChanges) {
+          unsigned AllowNoteId = DE.getCustomDiagID(
+              DiagnosticsEngine::Note,
+              "you can use the -allow-unwritable-changes option to temporarily "
+              "downgrade this error to a warning");
+          DE.Report(AllowNoteId);
+        }
         if (DumpUnwritableChanges) {
           errs() << "=== Beginning of new version of " << FE->getName() << " ===\n";
           Buffer->second.write(errs());
           errs() << "=== End of new version of " << FE->getName() << " ===\n";
-        } else {
-          DiagnosticsEngine &DE = C.getDiagnostics();
-          unsigned ID = DE.getCustomDiagID(
-              DiagnosticsEngine::Note,
-              "use the -dump-unwritable-changes option to see the new version "
-              "of the file");
-          DE.Report(SM.translateFileLineCol(FE, 1, 1), ID);
         }
       };
 
@@ -213,7 +236,7 @@ static void emit(Rewriter &R, ASTContext &C) {
             "is not allowed to write to the file "
             "(https://github.com/correctcomputation/checkedc-clang/issues/387)");
         DE.Report(SM.translateFileLineCol(FE, 1, 1), ID);
-        MaybeDumpUnwritableChange();
+        PrintExtraUnwritableChangeInfo();
         continue;
       }
 
@@ -230,7 +253,7 @@ static void emit(Rewriter &R, ASTContext &C) {
               "but is not the main file and thus cannot be written in stdout "
               "mode");
           DE.Report(SM.translateFileLineCol(FE, 1, 1), ID);
-          MaybeDumpUnwritableChange();
+          PrintExtraUnwritableChangeInfo();
         }
         continue;
       }

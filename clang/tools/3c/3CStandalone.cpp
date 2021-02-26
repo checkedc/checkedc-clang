@@ -226,6 +226,18 @@ static cl::opt<bool> OptAllowUnwritableChanges(
              "may be removed in the future."),
     cl::init(false), cl::cat(_3CCategory));
 
+static cl::opt<bool> OptAllowRewriteFailures(
+    "allow-rewrite-failures",
+    cl::desc("When 3c fails to make a rewrite to a source file (typically "
+             "because of macros), issue a warning instead of an error. This "
+             "option is intended to be used temporarily until you change your "
+             "code to allow 3c to work or you report the problem to the 3C "
+             "team to get it fixed; the option may be removed in the future. "
+             "Note that some kinds of rewrite failures currently generate "
+             "warnings regardless of this option, due to known bugs that "
+             "affect common use cases."),
+    cl::init(false), cl::cat(_3CCategory));
+
 #ifdef FIVE_C
 static cl::opt<bool> OptRemoveItypes(
     "remove-itypes",
@@ -272,6 +284,7 @@ int main(int argc, const char **argv) {
   CcOptions.VerifyDiagnosticOutput = OptVerifyDiagnosticOutput;
   CcOptions.DumpUnwritableChanges = OptDumpUnwritableChanges;
   CcOptions.AllowUnwritableChanges = OptAllowUnwritableChanges;
+  CcOptions.AllowRewriteFailures = OptAllowRewriteFailures;
 
 #ifdef FIVE_C
   CcOptions.RemoveItypes = OptRemoveItypes;
@@ -335,7 +348,7 @@ int main(int argc, const char **argv) {
 
   // Write all the converted files back.
   if (!_3CInterface.writeAllConvertedFilesToDisk()) {
-    errs() << "Failure occurred while trying to rewrite converted files back."
+    errs() << "Failure occurred while trying to rewrite converted files back. "
               "Exiting.\n";
     return 1;
   }

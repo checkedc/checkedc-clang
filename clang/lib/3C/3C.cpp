@@ -58,6 +58,7 @@ std::set<std::string> FilePaths;
 bool VerifyDiagnosticOutput;
 bool DumpUnwritableChanges;
 bool AllowUnwritableChanges;
+bool AllowRewriteFailures;
 
 #ifdef FIVE_C
 bool RemoveItypes;
@@ -235,6 +236,7 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
   VerifyDiagnosticOutput = CCopt.VerifyDiagnosticOutput;
   DumpUnwritableChanges = CCopt.DumpUnwritableChanges;
   AllowUnwritableChanges = CCopt.AllowUnwritableChanges;
+  AllowRewriteFailures = CCopt.AllowRewriteFailures;
 
 #ifdef FIVE_C
   RemoveItypes = CCopt.RemoveItypes;

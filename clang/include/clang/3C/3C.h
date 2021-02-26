@@ -75,6 +75,8 @@ struct _3COptions {
 
   bool DumpUnwritableChanges;
   bool AllowUnwritableChanges;
+
+  bool AllowRewriteFailures;
 };
 
 // The main interface exposed by the 3C to interact with the tool.
