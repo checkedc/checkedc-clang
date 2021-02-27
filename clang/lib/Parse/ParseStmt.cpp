@@ -2651,22 +2651,30 @@ WhereClause *Parser::ParseWhereClause() {
     return nullptr;
   }
 
-  WhereClause *WClause = Actions.ActOnWhereClause(WhereLoc);
-  if (!WClause)
-    return nullptr;
-
   // Parse each where clause fact. We want to issue diagnostics for as many
   // parsing errors a possible. So we do not break on the first error.
   bool IsError = false;
+  FactListTy Facts;
+
   do {
     WhereClauseFact *Fact = ParseWhereClauseFact();
-    if (!Fact)
+    if (Fact)
+      Facts.push_back(Fact);
+    else {
       IsError = true;
-    else
-      WClause->addFact(Fact);
+      delete Fact;
+    }
   } while (TryConsumeToken(tok::kw__And));
 
   if (IsError)
     return nullptr;
+
+  WhereClause *WClause = Actions.ActOnWhereClause(WhereLoc);
+  if (!WClause)
+    return nullptr;
+
+  for (auto *Fact : Facts)
+    WClause->addFact(Fact);
+
   return WClause;
 }

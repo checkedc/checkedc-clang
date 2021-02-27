@@ -7152,6 +7152,8 @@ private:
 public:
   WhereClauseFact(FactKind Kind, SourceLocation Loc)
     : Kind(Kind), Loc(Loc) {}
+
+  ~WhereClauseFact() = default;
 };
 
 /// \brief Represents a Checked C where clause bounds decl fact.
@@ -7163,6 +7165,8 @@ public:
   BoundsDeclFact(VarDecl *Var, BoundsExpr *Bounds, SourceLocation Loc)
     : WhereClauseFact(FactKind::BoundsDeclFact, Loc),
       Var(Var), Bounds(Bounds) {}
+
+  ~BoundsDeclFact() = default;
 
   static bool classof(const WhereClauseFact *Fact) {
     return Fact->Kind == FactKind::BoundsDeclFact;
@@ -7177,6 +7181,8 @@ public:
   EqualityOpFact(BinaryOperator *EqualityOp, SourceLocation Loc)
     : WhereClauseFact(FactKind::EqualityOpFact, Loc),
       EqualityOp(EqualityOp) {}
+
+  ~EqualityOpFact() = default;
 
   static bool classof(const WhereClauseFact *Fact) {
     return Fact->Kind == FactKind::EqualityOpFact;
