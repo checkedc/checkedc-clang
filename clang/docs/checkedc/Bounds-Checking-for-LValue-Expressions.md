@@ -167,17 +167,35 @@ inferred bounds of `(*a).f` will not update the inferred bounds of `a->f`
 since `(*a).f` and `a->f` are distinct expressions in the Clang AST.
 Therefore, a different type is needed for the `ObservedBounds` keys.
 
-To support the new keys for `ObservedBounds`, we introduce an AbstractSet API.
-Given an lvalue expression `e`, the API should return a representation of the
-set containing all lvalue expressions that are identical to `e`. This
-representation will be the key in `ObservedBounds` that maps to the inferred
-bounds of `e` (as well as all other lvalue expressions that are identical to
-`e`).
+To support the new keys for `ObservedBounds`, we introduce the AbstractSet
+class. Given an lvalue expression `e`, an AbstractSet represents all lvalue
+lvalue expressions that are identical to `e`. This representation will be
+the key in `ObservedBounds` that maps to the inferred bounds of `e` (as well
+as all other lvalue expressions that are identical to `e`).
 
-The AbstractSet representation of an lvalue expression `e` may use a canonical
-form of `e`. For example, the canonical form of `(*a).f` may be `a->f`. This
-canonicalization may use the
-[PreorderAST](https://github.com/microsoft/checkedc-clang/blob/master/clang/include/clang/AST/PreorderAST.h).
+The AbstractSet class is an abstraction of memory. If two lvalue expressions
+`e1` and `e2` both belong to an AbstractSet `A`, then `e1` and `e2` are in
+the set of lvalue expressions that point to the same contiguous memory
+location.
+
+### AbstractSet Implementation
+
+The AbstractSet class contains the following members:
+
+- CanonicalForm
+  - Type: `PreorderAST`
+  - Description: canonical representation of expressions within the set.
+    For example, if the expressions `a->f` and `*a.f` belong to the set,
+    then CanonicalForm may be a PreorderAST representation of `a->f`.
+    This will be used to determine which AbstractSet a new lvalue expression
+    `e` belongs to, by comparing the canonical PreorderAST for `e` to
+    CanonicalForm. This PreorderAST can be created from the first expression
+    that is used to create the AbstractSet.
+- We considered an alternative design for determining the target bounds for
+  all lvalue expressions that belong to an AbstractSet. This involves adding
+  a TargetBounds member to the AbstractSet class (of type `BoundsExpr *`) that
+  stores the target bounds for all lvalue expressions in the set. This member
+  would be set during `GetOrCreateAbstractSet` by calling `GetLValueTargetBounds`.
 
 ## Work Item Overview
 
