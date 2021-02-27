@@ -73,6 +73,51 @@ for tracking, updating, and using the inferred bounds:
   and `UpdateAfterAssignment` methods.
 - **Using:** the `ValidateBoundsContext` and `RValueCastBounds` methods.
 
+## Design: Data Structures and Methods
+
+The proposed design for lvalue generalization involves the following data
+structures and methods:
+
+- AbstractSet class
+  - This data structure represents an equivalence class of expressions,
+    where lvalue expressions `e1` and `e2` belong to the same AbstractSet
+    if and only if `e1` and `e2` are canonically equivalent. AbstractSets
+    themselves do not consider aliasing concerns (aliasing is handled by
+    the `AliasAnalysis` class).
+- AbstractSetExprs map
+  - This data structure maps an `Expr *` to the `AbstractSet *` to which
+    it belongs. It is used for efficiency in GetOrCreateAbstractSet and to
+    determine which expressions belong to a given AbstractSet.
+- GetOrCreateAbstractSet method
+  - This method returns the `AbstractSet *` for an `Expr * E` that is used
+    as the key in the `ObservedBounds` map to read and update the observed
+    bounds of `E`. It creates a new AbstractSet for `E` if necessary.
+- GetExprsInAbstractSet method
+  - This method returns the set of `Expr *` that belong to a given
+    `AbstractSet * A`. It uses the `AbstractSetExprs` map to determine the set
+    of expressions.
+- GetLValueTargetBounds method
+  - This method returns the normalized target bounds for an `Expr * E`. It is
+    used in ValidateBoundsContext to determine the target bounds for all lvalue
+    expressions in an `AbstractSet * A`, in order to prove or disprove that
+    `ObservedBounds[A]` imply the target bounds for `A`.
+- SynthesizeMemberExprs method
+  - This method takes a `MemberExpr * e` and creates a sets of MemberExprs
+    whose target bounds use the value of `e`. It then sets `ObservedBounds[m]`
+    to the target bounds of `m` for each expression `m` in the created set.
+- AliasAnalysis class
+  - This class performs dataflow analysis to determine aliasing relationships
+    between lvalue expressions. Given an AbstractSet `E` which contains an
+    lvalue expression `e`, AliasAnalysis determines:
+    - MustAlias: the set `S` of AbstractSets where, for each AbstractSet `A`
+      in `S`, each expression belonging to `A` must alias with each expression
+      that belongs to `E`.
+    - MayAlias: The set `S` of AbstractSets where, for each AbstractSet `A` in
+      `S`, each lvalue expression `a` that belongs to `A` obeys the following:
+      - `a` may alias with `e`, and:
+      - It is not the case that `a` must alias with `e`.
+    - Note: the results of MustAlias and MayAlias are disjoint sets.
+
 ## AbstractSet: LValue Expression Equality
 
 ### Requirements for Bounds Checking
