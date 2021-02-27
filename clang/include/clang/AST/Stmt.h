@@ -59,6 +59,7 @@ class SourceManager;
 class StringLiteral;
 class Token;
 class VarDecl;
+class WhereClause;
 
 //===----------------------------------------------------------------------===//
 // AST classes for statements.
@@ -1368,15 +1369,18 @@ public:
 /// NullStmt - This is the null statement ";": C99 6.8.3p3.
 ///
 class NullStmt : public Stmt {
+private:
+  WhereClause *WClause;
 public:
   NullStmt(SourceLocation L, bool hasLeadingEmptyMacro = false)
-      : Stmt(NullStmtClass) {
+      : Stmt(NullStmtClass), WClause(nullptr) {
     NullStmtBits.HasLeadingEmptyMacro = hasLeadingEmptyMacro;
     setSemiLoc(L);
   }
 
   /// Build an empty null statement.
-  explicit NullStmt(EmptyShell Empty) : Stmt(NullStmtClass, Empty) {}
+  explicit NullStmt(EmptyShell Empty) : Stmt(NullStmtClass, Empty),
+                                        WClause(nullptr) {}
 
   SourceLocation getSemiLoc() const { return NullStmtBits.SemiLoc; }
   void setSemiLoc(SourceLocation L) { NullStmtBits.SemiLoc = L; }
@@ -1399,6 +1403,9 @@ public:
   const_child_range children() const {
     return const_child_range(const_child_iterator(), const_child_iterator());
   }
+
+  void setWhereClause(WhereClause *WC) { WClause = WC; }
+  WhereClause *getWhereClause() const { return WClause; }
 };
 
   // The kind of Checked C checking to do in a scope.

@@ -4504,3 +4504,68 @@ StmtResult Sema::ActOnCapturedRegionEnd(Stmt *S) {
 
   return Res;
 }
+
+WhereClause *Sema::ActOnWhereClause(SourceLocation WhereLoc) {
+  return new (Context) WhereClause(WhereLoc);
+}
+
+BoundsDeclFact
+*Sema::ActOnBoundsDeclFact(IdentifierInfo *Id, Expr *E,
+                           Scope *CurScope,
+                           SourceLocation IdLoc,
+                           SourceLocation BoundsLoc) {
+  BoundsExpr *Bounds = dyn_cast<BoundsExpr>(E);
+  if (!Bounds) {
+    Diag(BoundsLoc, diag::err_expected_bounds_expr_for_member);
+    return nullptr;
+  }
+
+  LookupResult Lookup(*this, Id, IdLoc, Sema::LookupOrdinaryName);
+  LookupParsedName(Lookup, CurScope, nullptr, true);
+  if (Lookup.empty()) {
+    Diag(IdLoc, diag::err_undeclared_var_use) << Id->getName();
+    return nullptr;
+  }
+
+  VarDecl *VD = Lookup.getAsSingle<VarDecl>();
+  if (!VD) {
+    Diag(IdLoc, diag::err_undeclared_var_use) << Id->getName();
+    return nullptr;
+  }
+
+  return new (Context) BoundsDeclFact(VD, Bounds, IdLoc);
+}
+
+EqualityOpFact *Sema::ActOnEqualityOpFact(Expr *E, SourceLocation ExprLoc) {
+  // We define an equality-op fact in terms of equality-expressions as defined
+  // in section 6.5.9 of the C11 spec. Equality-op facts have an added
+  // constraint that the equality-expressions should be non-modifying
+  // expressions.
+
+  // Here, we are checking whether E is an equality expression defined as:
+  // equality-expression:
+  //   relational-expression
+  //   equality-expression == equality-expression
+  //   equality-expression != equality-expression
+
+  Lexicographic Lex(Context, nullptr);
+  Expr *TmpE = Lex.IgnoreValuePreservingOperations(Context, E);
+
+  // TODO: Handle equality-op facts joined by logical operators, like
+  // _Where equality-op-fact && equality-op-fact || equality-op-fact.
+
+  auto *BO = dyn_cast_or_null<BinaryOperator>(TmpE);
+
+  // isComparisonOp checks for equality and relational operators.
+  if (!BO || !BO->isComparisonOp()) {
+    Diag(ExprLoc, diag::err_expected_comparison_op_in_equality_expr);
+    return nullptr;
+  }
+
+  // CheckIsNonModifying issues a diagnostic if its argument is not
+  // non-modifying.
+  if (!CheckIsNonModifying(BO->getLHS()) ||
+      !CheckIsNonModifying(BO->getRHS()))
+    return nullptr;
+  return new (Context) EqualityOpFact(BO, ExprLoc);
+}

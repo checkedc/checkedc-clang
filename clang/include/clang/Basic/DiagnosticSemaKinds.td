@@ -10909,6 +10909,9 @@ def err_probability_out_of_range : Error<
    "probability argument to __builtin_expect_with_probability is outside the "
    "range [0.0, 1.0]">;
 
+def err_expected_comparison_op_in_equality_expr : Error<
+  "expected comparison operator in equality expression">;
+
 // Checked C diagnostic messages
 let CategoryName = "Checked C" in {
 
