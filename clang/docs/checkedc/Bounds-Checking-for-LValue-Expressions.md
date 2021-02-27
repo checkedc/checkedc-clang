@@ -176,7 +176,9 @@ as all other lvalue expressions that are identical to `e`).
 The AbstractSet class is an abstraction of memory. If two lvalue expressions
 `e1` and `e2` both belong to an AbstractSet `A`, then `e1` and `e2` are in
 the set of lvalue expressions that point to the same contiguous memory
-location.
+location. In addition, `e1` and `e2` must be canonically equivalent. The
+AliasAnalysis class determines, for AbstractSets `A1` and `A2`, whether
+the expressions in `A1` must or may alias with expressions in `A2`.
 
 ### AbstractSet Implementation
 
