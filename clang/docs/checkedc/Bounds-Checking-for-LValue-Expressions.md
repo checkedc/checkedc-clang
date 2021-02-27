@@ -30,18 +30,18 @@ bounds checking behavior is the same for all lvalue expressions.
 
 This document uses the following terms for two lvalue expressions `e1` and `e2`.
 
-`e1` and `e2` are **canonically equivalent** if and
-only if `e1` and `e2` have the same canonical form; that is, if the normalized
-PreorderASTs for `e1` and `e2` are equivalent. For example:
+`e1` and `e2` are **canonically equivalent** if and only if `e1` and `e2`
+have the same canonical form; that is, if the normalized PreorderASTs for
+`e1` and `e2` are equivalent. For example:
 
 - `a->f` and `*a.f` are canonically equivalent.
 - `*p` and `p[0]` are canonically equivalent.
 - `a->f` and `b->f` are not canonically equivalent.
 - `*p` and `*q` are not canonically equivalent.
 
-`e1` and `e2` are **identical** if and only if `e1`
-and `e2` both point to the same contiguous memory location, i.e. if `e1` and
-`e2` both point to the same location and range of memory.
+`e1` and `e2` are **identical** if and only if `e1` and `e2` both point to
+the same contiguous memory location, i.e. if `e1` and `e2` both point to
+the same location and range of memory.
 
 `e1` and `e2` **must alias** if it is guaranteed that `e1` and `e2` are
 identical.
@@ -54,8 +54,8 @@ identical.
 
 `e1` and `e2` **do not alias** if is not the case that `e1` and `e2` may alias.
 
-An lvalue expression `e` **belongs** to an AbstractSet `A` if and only if
-the canonical form (PreorderAST) `P` for `e` is equivalent to `A.CanonicalForm`.
+An lvalue expression `e` **belongs** to an AbstractSet `A` if and only if the
+canonical form (PreorderAST) `P` for `e` is equivalent to `A.CanonicalForm`.
 If `e` belongs to `A`, then `A` **contains** `e`.
 
 The bounds for expressions belonging to an AbstractSet `A` are **killed**
