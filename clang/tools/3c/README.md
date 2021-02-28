@@ -5,8 +5,13 @@ conversion of C code to Checked C. See the [3C
 readme](../../docs/checkedc/3C/README.md) (for general information
 about 3C) and the [build
 instructions](../../docs/checkedc/3C/INSTALL.md). This document
-describes how to use `3c`. It assumes that you have added the
-`build/bin` directory containing the `3c` executable to your `$PATH`.
+describes how to use `3c`.
+
+As mentioned in the build instructions, the `3c` executable is in the
+`build/bin` directory of your working tree. To use the commands below,
+either add that directory to your `$PATH` or replace `3c` with
+whatever other means you wish to use to run the executable (e.g., an
+absolute path or a wrapper script).
 
 ## Workflow
 
@@ -27,7 +32,8 @@ Checked C verify the safety of your existing code, edit your code to
 make its safety easier to verify, and/or mark parts of the code that
 you don't want to try to verify with Checked C (because you know they
 are beyond what Checked C can handle or verifying them just isn't
-worthwhile to you at the moment).
+worthwhile to you at the moment). Compile your program with the
+Checked C compiler (`clang`) to check your work.
 
 3. Repeat until you are satisfied.
 
@@ -53,45 +59,93 @@ of `.c` files and the options for each ([how to do this depends on the
 build system](../../docs/JSONCompilationDatabase.rst)), and then 3C
 reads this database.
 
-However, in a simpler setting, you can manually run `3c` on one or
-more source files, for example:
+For simple tests, you can run `3c` on one or more source files without
+a compilation database. For example, the following command will
+convert `foo.c` and print the new version to standard output:
 
 ```
-3c -alltypes -output-postfix=checked foo.c bar.c
+3c -addcr -alltypes foo.c --
 ```
 
-This will write the new version of each file `f.c` to `f.checked.c` in
-the same directory (or `f.h` to `f.checked.h`). If `f.checked.c` would
-be identical to `f.c`, it is not created.
+The `--` at the end of the command line indicates that you _do not_
+want to use a compilation database. This is important to ensure `3c`
+doesn't automatically detect a compilation database that you don't
+want to use. You can add compiler options that you want to use for all
+files after the `--`, such as `-I` for include directories, etc.
 
-The `-alltypes` option causes `3c` to try to infer array types. We
-want to make this the default but haven't done so yet because it
-breaks some things.
-
-## More about file handling and compiler options
-
-As an additional safeguard, `f.checked.c` or `f.checked.h` is not
-written if it is outside the _base directory_, which defaults to the
-working directory but can be overridden with the `-base-dir` option.
-This can help ensure that you don't unintentionally modify external
-libraries (though if their header files are not [annotated for Checked
-C](#annotated-headers), your ability to convert your own program to
-Checked C may be limited). However, there is a bug in the way the base
-directory check handles `..` path components in `-I` directories and
-`#include` paths (terrible, we know!), so until we can fix the bug,
-please avoid using `..` path components (e.g., use `-I` with an
-absolute path instead).
-
-You can ignore the errors about a compilation database not being
-found. You can specify a single set of compiler options to use for all
-files by prefixing them with `-extra-arg-before=`, for example:
+This "stdout mode" only supports a single source file. If you have
+multiple files, you must use one of the modes that writes the output
+to files. You can specify either a string to be inserted into the
+names of the new files or a directory under which they should be
+written. For example, this command:
 
 ```
-3c -alltypes -output-postfix=checked -extra-arg-before=-Isome/include/path foo.c bar.c
+3c -addcr -alltypes -output-postfix=checked foo.c bar.c --
 ```
 
-(If you were using a compilation database, such "extra" options would
-be added to any compiler options in the database.)
+will write the new versions to `foo.checked.c` and `bar.checked.c`. If
+one of these files is not created, it means the original file needs no
+changes. If `foo.c` includes a header file `foo.h`, then `3c` will
+automatically include it in the conversion and write the new version
+of it to `foo.checked.h` if there are changes; you don't need to
+specify header files separately on the command line, just as they
+wouldn't have their own entries in a compilation database.
+
+The `-output-postfix` mode may be convenient for running tools such as
+`diff` on individual files by hand. Alternatively, this command:
+
+```
+3c -addcr -alltypes -output-dir=/path/to/new foo.c bar.c --
+```
+
+will write the new versions to `/path/to/new/foo.c` and
+`/path/to/new/bar.c`. You can then run something like `diff -ru .
+/path/to/new` to diff all the files at once (_without_ the `-N` option
+because many files in your starting directory may not have new
+versions written out).
+
+We typically recommend using the `-addcr` and `-alltypes` options, as
+shown above. Here's what they mean:
+
+- `-addcr` makes 3C add _checked region_ annotations to your code,
+  which make it easier to visualize the parts where "unsafe"
+  operations are being performed; we plan to make it the default as
+  soon as it is stable enough.
+
+- By default, 3C tries to ensure that its output always passes the
+  Checked C compiler's type checker. The `-alltypes` option enables some 3C
+  features that try to generate annotations that are closer to what
+  you ultimately want but may not pass the type checker right away
+  without manual corrections. Currently, the only such feature is
+  inference of array types. 3C's determination of whether a pointer
+  points to an array is generally reliable, but it isn't always able
+  to infer correct bounds that will pass the type checker, so when
+  `-alltypes` is off, 3C will infer `_Ptr` types as normal but leave
+  array pointers unchecked. With `-alltypes`, 3C infers `_Array_ptr`
+  and `_Nt_array_ptr` types with its best guess of the bounds.
+
+## The base directory
+
+The source files you specify on the command line may transitively
+include many header files. You probably want `3c` to convert header
+files that are part of your project (indeed, you generally won't be
+able to convert program elements in your source files without also
+converting their declarations in your header files), but you probably
+_don't_ want `3c` to modify header files for libraries that are
+outside your control.
+
+To achieve this, `3c` uses the concept of a _base directory_: an
+ancestor directory that defines the set of files it is allowed to
+modify. The base directory defaults to the working directory and can
+be changed with the `-base-dir` option. All files specified on the
+command line must be under the base directory. Transitively included
+files that are under the base directory will be converted, whereas 3C
+tries to constrain its analysis to avoid needing to modify
+transitively included files that are outside the base directory.
+([Some unusual cases are not yet handled
+correctly](https://github.com/correctcomputation/checkedc-clang/issues/387),
+and if 3C tries to modify a file outside the base directory as a
+result, it reports an error.)
 
 ## Annotated headers
 
@@ -120,9 +174,10 @@ files](https://github.com/Microsoft/checkedc-clang/wiki/Checked-C-clang-user-man
 Currently, the annotated header files are named with a `_checked.h`
 suffix, e.g., `stdio_checked.h`, so that `stdio_checked.h` can
 `#include <stdio.h>` without causing infinite recursion. We hope to
-switch to `#include_next` and remove the suffix soon. In the meantime,
-you have to modify your code to `#include <stdio_checked.h>` instead
-of `stdio.h` and so forth. The
+[switch to `#include_next` and remove the
+suffix](https://github.com/microsoft/checkedc/issues/431) soon. In the
+meantime, you have to modify your code to `#include <stdio_checked.h>`
+instead of `stdio.h` and so forth. The
 `clang/tools/3c/utils/update-includes.py` tool will do this for you.
 It takes one argument: the name of a file containing a list of paths
 of `.c` and `.h` files to be updated. In the example of the previous
@@ -139,9 +194,10 @@ PATH/TO/clang/tools/3c/utils/update-includes.py list
 ## Useful 3C-specific options
 
 An incomplete list of useful options specific to `3c` (ordinary
-compiler options may be passed via `-extra-arg-before` as stated
-[above](#more-about-file-handling-and-compiler-options)):
+compiler options may be passed after the `--` as stated above):
 
 - `-warn-root-cause`: Show information about the _root causes_ that
   prevent `3c` from converting unsafe pointers (`T *`) to safe ones
   (`_Ptr<T>`, etc.).
+
+See `3c -help` for more.

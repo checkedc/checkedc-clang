@@ -1,9 +1,8 @@
 # Contributing to 3C
 
 Issues and pull requests related to 3C should be submitted to [CCI's
-repository](https://github.com/correctcomputation/checkedc-clang), not
-[Microsoft's Checked C
-repository](https://github.com/microsoft/checkedc-clang), except as
+`checkedc-clang` repository](https://github.com/correctcomputation/checkedc-clang), not
+[Microsoft's](https://github.com/microsoft/checkedc-clang), except as
 stated below.
 
 ## Issues
@@ -30,7 +29,7 @@ your version.
 
 If your contribution does not touch any 3C-specific code (or is a
 codebase-wide cleanup of low risk to 3C) and you can reasonably submit
-it to [Microsoft's Checked C
+it to [Microsoft's
 repository](https://github.com/microsoft/checkedc-clang) instead, we
 generally prefer that you do so. If such a contribution has particular
 benefit to 3C, feel free to let us know, and we may assist you in
@@ -38,11 +37,12 @@ getting your contribution accepted upstream and/or ensure it is merged
 quickly to CCI's repository.
 
 If the previous paragraph does not apply, just submit a pull request
-here. You must grant the same license on your contribution as the
-existing codebase. We do not have a formal contributor license
-agreement (CLA) process at this time, but we may set one up and
-require you to complete it before we accept your contribution. Also be
-aware that we need to keep 5C ([our proprietary extension of
+to CCI's repository. You must grant the same license on your
+contribution as the existing codebase. We do not have a formal
+contributor license agreement (CLA) process at this time, but we may
+set one up and require you to complete it before we accept your
+contribution. Also be aware that we need to keep 5C ([our proprietary
+extension of
 3C](README.md#what-3c-users-should-know-about-the-development-process))
 working, so you may have to wait for us to address 5C-specific
 problems arising from your 3C pull request and/or we may ask you to
@@ -58,7 +58,7 @@ an idea.) The easiest way to run it is to run the following in your
 build directory:
 
 ```
-ninja check-clang-3c
+ninja check-3c
 ```
 
 This command will build everything needed that hasn't already been
@@ -66,6 +66,32 @@ built, run the test suite, report success or failure (exit 0 or 1, so
 you can use it in scripts), and display some information about any
 failures, which may or may not be enough for you to understand what
 went wrong.
+
+For deeper troubleshooting, run the following in your build directory
+to build all dependencies of the test suite:
+
+```
+ninja check-3c-deps
+```
+
+Then run the following in the `clang/test/3C` directory:
+
+```
+llvm-lit -vv TEST.c
+```
+
+where `TEST.c` is the path of the test you want to run (you can also
+specify more than one test). This assumes you've put the `bin`
+subdirectory of your build directory on your `$PATH` or arranged some
+other means of running `llvm-lit` from there. The first `-v` makes
+`llvm-lit` display the stdout and stderr of failed tests; the second
+makes it display the `RUN` commands as they execute so you can tell
+which one failed.
+
+Every `.c` file under `clang/test/3C` is a test file. There are a few
+in subdirectories, so `*.c` will not pick up all of them; instead you
+can use `llvm-lit -vv .` to specify all test files under the current
+directory.
 
 ## Coding guidelines
 
@@ -88,6 +114,10 @@ in your code. Specifically:
 
 * Space before and after `:` in iterators, i.e., `for (auto &k : List)`
 
-All files should be formatted with `clang-format` and pass `clang-tidy` ([more
-information](clang-tidy.md)), and nonempty files should have a final newline
-(surprisingly, `clang-format` cannot enforce this).
+Our goal is that all files should be formatted with `clang-format` and
+pass `clang-tidy` ([more information](clang-tidy.md)), and nonempty
+files should have a final newline (surprisingly, `clang-format` cannot
+enforce this). However, until we have better automation, we decided it
+isn't reasonable to require contributors to manually run these tools
+and fix style nits in each change; instead, we periodically run the
+tools on the entire 3C codebase.
