@@ -13,8 +13,8 @@
 #ifndef LLVM_CLANG_3C_3CINTERACTIVEDATA_H
 #define LLVM_CLANG_3C_3CINTERACTIVEDATA_H
 
-#include "ConstraintVariables.h"
-#include "PersistentSourceLoc.h"
+#include "clang/3C/ConstraintVariables.h"
+#include "clang/3C/PersistentSourceLoc.h"
 
 // Source info and reason for each wild pointer.
 class WildPointerInferenceInfo {

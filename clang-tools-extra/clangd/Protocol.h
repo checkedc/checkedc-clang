@@ -860,6 +860,10 @@ bool fromJSON(const llvm::json::Value &, CodeActionParams &);
 #ifdef INTERACTIVE3C
 struct CodeLensParams {
   /// The document in which the command was invoked.
+  // These fields seem to be intentionally named after the JSON fields in spite
+  // of the LLVM naming guidelines. Does the rest of clangd just ignore the
+  // readability-identifier-naming warnings?
+  // NOLINTNEXTLINE(readability-identifier-naming)
   TextDocumentIdentifier textDocument;
 };
 

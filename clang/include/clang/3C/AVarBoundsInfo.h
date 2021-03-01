@@ -9,14 +9,15 @@
 // This file contains the bounds information about various ARR atoms.
 //
 //===----------------------------------------------------------------------===//
+
 #ifndef LLVM_CLANG_3C_AVARBOUNDSINFO_H
 #define LLVM_CLANG_3C_AVARBOUNDSINFO_H
 
-#include "ABounds.h"
-#include "AVarGraph.h"
-#include "ProgramVar.h"
+#include "clang/3C/ABounds.h"
+#include "clang/3C/AVarGraph.h"
 #include "clang/3C/ConstraintVariables.h"
 #include "clang/3C/PersistentSourceLoc.h"
+#include "clang/3C/ProgramVar.h"
 #include "clang/AST/Decl.h"
 
 class ProgramInfo;

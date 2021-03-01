@@ -1,7 +1,8 @@
 # Contributing to 3C
 
 Issues and pull requests related to 3C should be submitted to [CCI's
-`checkedc-clang` repository](https://github.com/correctcomputation/checkedc-clang), not
+`checkedc-clang`
+repository](https://github.com/correctcomputation/checkedc-clang), not
 [Microsoft's](https://github.com/microsoft/checkedc-clang), except as
 stated below.
 

@@ -134,7 +134,8 @@ bool canRewrite(Rewriter &R, const CharSourceRange &SR) {
 
 void rewriteSourceRange(Rewriter &R, const SourceRange &Range,
                         const std::string &NewText, bool ErrFail) {
-  rewriteSourceRange(R, CharSourceRange::getTokenRange(Range), NewText, ErrFail);
+  rewriteSourceRange(R, CharSourceRange::getTokenRange(Range), NewText,
+                     ErrFail);
 }
 
 void rewriteSourceRange(Rewriter &R, const CharSourceRange &Range,
@@ -149,9 +150,8 @@ void rewriteSourceRange(Rewriter &R, const CharSourceRange &Range,
   // false or because ReplaceText failed (returning true), try rewriting again
   // with the source range expanded to be outside any macros used in the range.
   if (!RewriteSuccess) {
-    CharSourceRange Expand = clang::Lexer::makeFileCharRange(Range,
-                                                             R.getSourceMgr(),
-                                                             R.getLangOpts());
+    CharSourceRange Expand = clang::Lexer::makeFileCharRange(
+        Range, R.getSourceMgr(), R.getLangOpts());
     if (canRewrite(R, Expand))
       RewriteSuccess = !R.ReplaceText(Expand, NewText);
   }
@@ -168,7 +168,8 @@ void rewriteSourceRange(Rewriter &R, const CharSourceRange &Range,
       // exist at a time.
       unsigned ErrorId = DE.getCustomDiagID(
           ReportError ? DiagnosticsEngine::Error : DiagnosticsEngine::Warning,
-          "Unable to rewrite converted source range. Intended rewriting: \"%0\"");
+          "Unable to rewrite converted source range. Intended rewriting: "
+          "\"%0\"");
       auto ErrorBuilder = DE.Report(Range.getBegin(), ErrorId);
       ErrorBuilder.AddSourceRange(R.getSourceMgr().getExpansionRange(Range));
       ErrorBuilder.AddString(NewText);
@@ -219,7 +220,8 @@ static void emit(Rewriter &R, ASTContext &C) {
           DE.Report(AllowNoteId);
         }
         if (DumpUnwritableChanges) {
-          errs() << "=== Beginning of new version of " << FE->getName() << " ===\n";
+          errs() << "=== Beginning of new version of " << FE->getName()
+                 << " ===\n";
           Buffer->second.write(errs());
           errs() << "=== End of new version of " << FE->getName() << " ===\n";
         }
@@ -230,11 +232,13 @@ static void emit(Rewriter &R, ASTContext &C) {
       getCanonicalFilePath(std::string(FE->getName()), FeAbsS);
       if (!canWrite(FeAbsS)) {
         DiagnosticsEngine &DE = C.getDiagnostics();
-        unsigned ID = DE.getCustomDiagID(
-            UnwritableChangeDiagnosticLevel,
-            "3C internal error: 3C generated changes to this file even though it "
-            "is not allowed to write to the file "
-            "(https://github.com/correctcomputation/checkedc-clang/issues/387)");
+        unsigned ID =
+            DE.getCustomDiagID(UnwritableChangeDiagnosticLevel,
+                               "3C internal error: 3C generated changes to "
+                               "this file even though it is not allowed to "
+                               "write to the file "
+                               "(https://github.com/correctcomputation/"
+                               "checkedc-clang/issues/387)");
         DE.Report(SM.translateFileLineCol(FE, 1, 1), ID);
         PrintExtraUnwritableChangeInfo();
         continue;
@@ -460,9 +464,8 @@ private:
   }
 };
 
-std::string
-ArrayBoundsRewriter::getBoundsString(const PVConstraint *PV, Decl *D,
-                                     bool Isitype) {
+std::string ArrayBoundsRewriter::getBoundsString(const PVConstraint *PV,
+                                                 Decl *D, bool Isitype) {
   auto &ABInfo = Info.getABoundsInfo();
 
   // Try to find a bounds key for the constraint variable. If we can't,

@@ -13,8 +13,8 @@
 #ifndef LLVM_CLANG_3C_AVARGRAPH_H
 #define LLVM_CLANG_3C_AVARGRAPH_H
 
-#include "ABounds.h"
-#include "ConstraintsGraph.h"
+#include "clang/3C/ABounds.h"
+#include "clang/3C/ConstraintsGraph.h"
 
 // Graph that keeps tracks of direct assignments between various variables.
 class AVarGraph : public DataGraph<BoundsKey> {

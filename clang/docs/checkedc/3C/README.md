@@ -42,22 +42,21 @@ Issues and pull requests related to 3C should be submitted to CCI's
 repository; see [CONTRIBUTING.md](CONTRIBUTING.md) for more
 information.
 
-As of March 2021, 3C is pre-alpha quality and we are just starting
-to establish its public presence and processes. CCI is also working on
-a proprietary extension of 3C called 5C ("**C**orrect
-**C**omputation's **C**hecked-**C**-**C**onvert"). Our current plan is
-that 3C will contain the core inference logic, while 5C will add
-features to enhance developer productivity. If you'd like more
-information about 5C, please contact us at
-info@correctcomputation.com.
+As of March 2021, 3C is pre-alpha quality and we are just starting to
+establish its public presence and processes. CCI is also working on a
+proprietary extension of 3C called 5C ("**C**orrect **C**omputation's
+**C**hecked-**C**-**C**onvert"). Our current plan is that 3C will
+contain the core inference logic, while 5C will add features to
+enhance developer productivity. If you'd like more information about
+5C, please contact us at info@correctcomputation.com.
 
 ### Which `checkedc-clang` repository to use?
 
 We typically recommend that serious 3C users use CCI's repository to
 get 3C fixes and enhancements sooner, but in some scenarios, you may
 be better off with Microsoft's repository. Here, in detail, are the
-factors we can think of that might affect your decision (as of
-March 2021):
+factors we can think of that might affect your decision (as of March
+2021):
 
 - CCI strives to merge changes reasonably quickly from Microsoft's
   repository to CCI's, but most 3C-specific changes are made first in
@@ -94,10 +93,10 @@ March 2021):
 - On the other hand, some CCI engineers work on Mac OS X and
   frequently run the regression tests and other manual tests on CCI's
   copy of 3C on Mac OS X, while we are unaware of any testing of
-  Microsoft's copy of 3C on Mac OS X. So you may be less
-  likely to encounter Mac-specific problems with CCI's repository. But
-  so far, when we've seen Mac-specific problems, we've usually gotten
-  a fix into Microsoft's repository reasonably quickly.
+  Microsoft's copy of 3C on Mac OS X. So you may be less likely to
+  encounter Mac-specific problems with CCI's repository. But so far,
+  when we've seen Mac-specific problems, we've usually gotten a fix
+  into Microsoft's repository reasonably quickly.
 
 As noted in the [setup instructions](INSTALL.md#basics), both 3C and
 the Checked C compiler depend on the Checked C system headers, which

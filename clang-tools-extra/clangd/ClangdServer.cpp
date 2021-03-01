@@ -170,9 +170,10 @@ ClangdServer::ClangdServer(const GlobalCompilationDatabase &CDB,
           std::make_unique<UpdateIndexCallbacks>(
               DynamicIdx.get(), Callbacks, Opts.TheiaSemanticHighlighting))
 #ifdef INTERACTIVE3C
-      , _3CInter(_3CInterface)
+      ,
+      _3CInter(_3CInterface)
 #endif
-  {
+{
   // Adds an index to the stack, at higher priority than existing indexes.
   auto AddIndex = [&](SymbolIndex *Idx) {
     if (this->Index != nullptr) {

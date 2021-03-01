@@ -11,7 +11,7 @@
 #ifndef LLVM_CLANG_3C_UTILS_H
 #define LLVM_CLANG_3C_UTILS_H
 
-#include "PersistentSourceLoc.h"
+#include "clang/3C/PersistentSourceLoc.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/Support/Casting.h"

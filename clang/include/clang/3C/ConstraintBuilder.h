@@ -11,8 +11,8 @@
 #ifndef LLVM_CLANG_3C_CONSTRAINTBUILDER_H
 #define LLVM_CLANG_3C_CONSTRAINTBUILDER_H
 
-#include "ProgramInfo.h"
-#include "TypeVariableAnalysis.h"
+#include "clang/3C/ProgramInfo.h"
+#include "clang/3C/TypeVariableAnalysis.h"
 #include "clang/AST/ASTConsumer.h"
 
 class ConstraintBuilderConsumer : public clang::ASTConsumer {

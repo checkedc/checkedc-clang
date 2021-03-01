@@ -9,13 +9,13 @@
 // visitors create constraints based on the AST of the program.
 //===----------------------------------------------------------------------===//
 
-#include <algorithm>
 #include "clang/3C/ConstraintBuilder.h"
 #include "clang/3C/3CGlobalOptions.h"
 #include "clang/3C/ArrayBoundsInferenceConsumer.h"
 #include "clang/3C/ConstraintResolver.h"
 #include "clang/3C/TypeVariableAnalysis.h"
-#include <clang/ASTMatchers/ASTMatchers.h>
+#include "clang/ASTMatchers/ASTMatchers.h"
+#include <algorithm>
 
 using namespace llvm;
 using namespace clang;
@@ -83,13 +83,13 @@ public:
     //      when alltypes is off, mark the VarDecl WILD in order to
     //                           ensure the converted program compiles.
     if (LastRecordDecl != nullptr) {
-      auto lastRecordLocation = LastRecordDecl->getBeginLoc();
+      auto LastRecordLocation = LastRecordDecl->getBeginLoc();
       auto BeginLoc = VD->getBeginLoc();
       auto EndLoc = VD->getEndLoc();
       auto VarTy = VD->getType();
       SourceManager &SM = Context->getSourceManager();
       bool IsInLineStruct =
-          SM.isPointWithin(lastRecordLocation, BeginLoc, EndLoc) &&
+          SM.isPointWithin(LastRecordLocation, BeginLoc, EndLoc) &&
           isPtrOrArrayType(VarTy);
       bool IsNamedInLineStruct =
           IsInLineStruct && LastRecordDecl->getNameAsString() != "";
@@ -132,7 +132,8 @@ class FunctionVisitor : public RecursiveASTVisitor<FunctionVisitor> {
 public:
   explicit FunctionVisitor(ASTContext *C, ProgramInfo &I, FunctionDecl *FD,
                            TypeVarInfo &TVI)
-      : Context(C), Info(I), Function(FD), CB(Info, Context), TVInfo(TVI), ISD() {}
+      : Context(C), Info(I), Function(FD), CB(Info, Context), TVInfo(TVI),
+        ISD() {}
 
   // T x = e
   bool VisitDeclStmt(DeclStmt *S) {
@@ -202,7 +203,7 @@ public:
     // must have the same type.
     if (FVCons.size() > 1) {
       PersistentSourceLoc PL =
-        PersistentSourceLoc::mkPSL(E->getCallee(), *Context);
+          PersistentSourceLoc::mkPSL(E->getCallee(), *Context);
       constrainConsVarGeq(FVCons, FVCons, Info.getConstraints(), &PL,
                           Same_to_Same, false, &Info);
     }
@@ -246,8 +247,10 @@ public:
             if (I < TargetFV->numParams()) {
               // Remove casts to void* on polymorphic types that are used
               // consistently.
-              const int TyIdx = TargetFV->getExternalParam(I)->getGenericIndex();
-              if (ConsistentTypeParams.find(TyIdx) != ConsistentTypeParams.end())
+              const int TyIdx =
+                  TargetFV->getExternalParam(I)->getGenericIndex();
+              if (ConsistentTypeParams.find(TyIdx) !=
+                  ConsistentTypeParams.end())
                 ArgumentConstraints =
                     CB.getExprConstraintVars(A->IgnoreImpCasts());
               else
@@ -428,50 +431,45 @@ private:
 };
 
 class PtrToStructDef : public RecursiveASTVisitor<PtrToStructDef> {
-  public:
-    explicit PtrToStructDef(TypedefDecl *TDT) : TDT(TDT) {}
+public:
+  explicit PtrToStructDef(TypedefDecl *TDT) : TDT(TDT) {}
 
-    bool VisitPointerType(clang::PointerType *PT) {
-      ispointer = true;
-      return true;
+  bool VisitPointerType(clang::PointerType *PT) {
+    IsPointer = true;
+    return true;
+  }
+
+  bool VisitRecordType(RecordType *RT) {
+    auto *Decl = RT->getDecl();
+    auto DeclRange = Decl->getSourceRange();
+    auto TypedefRange = TDT->getSourceRange();
+    bool DeclContained = (TypedefRange.getBegin() < DeclRange.getBegin()) &&
+                         !(TypedefRange.getEnd() < TypedefRange.getEnd());
+    if (DeclContained) {
+      StructDefInTD = true;
+      return false;
     }
+    return true;
+  }
 
-    bool VisitRecordType(RecordType *RT) {
-      auto decl = RT->getDecl();
-      auto declRange = decl->getSourceRange();
-      auto typedefRange = TDT->getSourceRange();
-      bool declContained = (typedefRange.getBegin() < declRange.getBegin())
-        && !(typedefRange.getEnd() < typedefRange.getEnd());
-      if (declContained) {
-        structDefInTD = true;
-        return false;
-      } else {
-        return true;
-      }
-    }
+  bool VisitFunctionProtoType(FunctionProtoType *FPT) {
+    IsPointer = true;
+    return true;
+  }
 
-    bool VisitFunctionProtoType(FunctionProtoType *FPT) {
-      ispointer = true;
-      return true;
-    }
+  bool getResult(void) { return StructDefInTD; }
 
-    bool getResult(void) {
-      return structDefInTD;
-    }
+  static bool containsPtrToStructDef(TypedefDecl *TDT) {
+    PtrToStructDef Traverser(TDT);
+    Traverser.TraverseDecl(TDT);
+    return Traverser.getResult();
+  }
 
-    static bool containsPtrToStructDef(TypedefDecl *TDT) {
-      PtrToStructDef traverser(TDT);
-      traverser.TraverseDecl(TDT);
-      return traverser.getResult();
-    }
-
-  private:
-    TypedefDecl* TDT = nullptr;
-    bool ispointer = false;
-    bool structDefInTD = false;
-
+private:
+  TypedefDecl *TDT = nullptr;
+  bool IsPointer = false;
+  bool StructDefInTD = false;
 };
-
 
 // This class visits a global declaration, generating constraints
 //   for functions, variables, types, etc. that are visited
@@ -481,18 +479,18 @@ public:
                                 TypeVarInfo &TVI)
       : Context(Context), Info(I), CB(Info, Context), TVInfo(TVI), ISD() {}
 
-  bool VisitTypedefDecl(TypedefDecl* TD) { 
-      CVarSet empty;
-      auto PSL = PersistentSourceLoc::mkPSL(TD, *Context);
-      // If we haven't seen this typedef before, initialize it's entry in the
-      // typedef map. If we have seen it before, and we need to preserve the
-      // constraints contained within it
-      if (!Info.seenTypedef(PSL))
-        // Add this typedef to the program info, if it contains a ptr to
-        // an anonymous struct we mark as not being rewritable
-        Info.addTypedef(PSL, !PtrToStructDef::containsPtrToStructDef(TD));
+  bool VisitTypedefDecl(TypedefDecl *TD) {
+    CVarSet Empty;
+    auto PSL = PersistentSourceLoc::mkPSL(TD, *Context);
+    // If we haven't seen this typedef before, initialize it's entry in the
+    // typedef map. If we have seen it before, and we need to preserve the
+    // constraints contained within it
+    if (!Info.seenTypedef(PSL))
+      // Add this typedef to the program info, if it contains a ptr to
+      // an anonymous struct we mark as not being rewritable
+      Info.addTypedef(PSL, !PtrToStructDef::containsPtrToStructDef(TD));
 
-      return true;
+    return true;
   }
 
   bool VisitVarDecl(VarDecl *G) {
@@ -566,8 +564,7 @@ private:
 class VariableAdderVisitor : public RecursiveASTVisitor<VariableAdderVisitor> {
 public:
   explicit VariableAdderVisitor(ASTContext *Context, ProgramVariableAdder &VA)
-    : Context(Context), VarAdder(VA) {}
-
+      : Context(Context), VarAdder(VA) {}
 
   bool VisitVarDecl(VarDecl *D) {
     FullSourceLoc FL = Context->getFullLoc(D->getBeginLoc());
@@ -618,7 +615,6 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
     else
       errs() << "Analyzing\n";
   }
-
 
   VariableAdderVisitor VAV = VariableAdderVisitor(&C, Info);
   TypeVarVisitor TV = TypeVarVisitor(&C, Info);

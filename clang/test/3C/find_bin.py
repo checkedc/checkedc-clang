@@ -32,4 +32,5 @@ elif lit.util.which('3c') is not None:
   # do unusual things?
   bin_path = ''
 else:
-  die('Could not find 3c via $LLVM_OBJ, the standard build directory, or $PATH.')
+  die('Could not find 3c via $LLVM_OBJ, the standard build directory, or '
+      '$PATH.')

@@ -17,8 +17,8 @@
 // RUN: cp %s %t.base/canwrite_constraints_symlink.c
 // RUN: ln -s %S/../base_subdir_partial_defn.h %t.base/base_subdir_partial_defn.h
 
-// Now 3C should know that it can't write to base_subdir_partial_defn.h because the symlink
-// goes out of the base dir.
+// Now 3C should know that it can't write to base_subdir_partial_defn.h because
+// the symlink goes out of the base dir.
 //
 // RUN: cd %t.base && 3c -addcr -verify canwrite_constraints_symlink.c --
 

@@ -12,7 +12,7 @@
 #ifndef LLVM_CLANG_3C_ARRAYBOUNDSINFERENCECONSUMER_H
 #define LLVM_CLANG_3C_ARRAYBOUNDSINFERENCECONSUMER_H
 
-#include "ProgramInfo.h"
+#include "clang/3C/ProgramInfo.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Analysis/Analyses/Dominators.h"

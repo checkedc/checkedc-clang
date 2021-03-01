@@ -16,8 +16,8 @@
 #ifndef LLVM_CLANG_3C_MAPPINGVISITOR_H
 #define LLVM_CLANG_3C_MAPPINGVISITOR_H
 
-#include "PersistentSourceLoc.h"
-#include "Utils.h"
+#include "clang/3C/PersistentSourceLoc.h"
+#include "clang/3C/Utils.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 

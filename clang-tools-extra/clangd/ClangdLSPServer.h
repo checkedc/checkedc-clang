@@ -39,7 +39,8 @@ class SymbolIndex;
 /// The server also supports $/cancelRequest (MessageHandler provides this).
 class ClangdLSPServer : private ClangdServer::Callbacks
 #ifdef INTERACTIVE3C
-                      , public _3CLSPCallBack
+    ,
+                        public _3CLSPCallBack
 #endif
 {
 public:
@@ -55,9 +56,10 @@ public:
                   llvm::Optional<OffsetEncoding> ForcedOffsetEncoding,
                   const ClangdServer::Options &Opts
 #ifdef INTERACTIVE3C
-                  , _3CInterface &Cinter
+                  ,
+                  _3CInterface &Cinter
 #endif
-                  );
+  );
   /// The destructor blocks on any outstanding background tasks.
   ~ClangdLSPServer();
 

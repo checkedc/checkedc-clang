@@ -13,7 +13,7 @@
 #ifndef LLVM_CLANG_3C_CHECKEDREGIONS_H
 #define LLVM_CLANG_3C_CHECKEDREGIONS_H
 
-#include "ProgramInfo.h"
+#include "clang/3C/ProgramInfo.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Stmt.h"

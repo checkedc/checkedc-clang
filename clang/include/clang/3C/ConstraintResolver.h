@@ -11,7 +11,7 @@
 #ifndef LLVM_CLANG_3C_CONSTRAINTRESOLVER_H
 #define LLVM_CLANG_3C_CONSTRAINTRESOLVER_H
 
-#include "ProgramInfo.h"
+#include "clang/3C/ProgramInfo.h"
 #include "clang/AST/ASTConsumer.h"
 
 using namespace llvm;

@@ -1485,7 +1485,8 @@ ClangdLSPServer::ClangdLSPServer(
     llvm::Optional<OffsetEncoding> ForcedOffsetEncoding,
     const ClangdServer::Options &Opts
 #ifdef INTERACTIVE3C
-    , _3CInterface &Cinter
+    ,
+    _3CInterface &Cinter
 #endif
     )
     : BackgroundContext(Context::current().clone()), Transp(Transp),
@@ -1496,9 +1497,10 @@ ClangdLSPServer::ClangdLSPServer(
       CompileCommandsDir(std::move(CompileCommandsDir)), ClangdServerOpts(Opts),
       NegotiatedOffsetEncoding(ForcedOffsetEncoding)
 #ifdef INTERACTIVE3C
-      , The3CInterface(Cinter)
+      ,
+      The3CInterface(Cinter)
 #endif
-  {
+{
   // clang-format off
 #ifdef INTERACTIVE3C
   // We only support these methods in Interactive 3C mode.

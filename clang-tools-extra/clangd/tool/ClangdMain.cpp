@@ -977,9 +977,10 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
       /*UseDirBasedCDB=*/CompileArgsFrom == FilesystemCompileArgs,
       OffsetEncodingFromFlag, Opts
 #ifdef INTERACTIVE3C
-      , _3CInterface
+      ,
+      _3CInterface
 #endif
-      );
+  );
   llvm::set_thread_name("clangd.main");
   int ExitCode = LSPServer.run()
                      ? 0

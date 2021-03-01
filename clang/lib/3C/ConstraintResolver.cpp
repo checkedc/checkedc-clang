@@ -270,8 +270,7 @@ CVarSet ConstraintResolver::getExprConstraintVars(Expr *E) {
           !isCastSafe(TypE, TmpE->getType())) {
         CVarSet Vars = getExprConstraintVars(TmpE);
         Ret = getInvalidCastPVCons(ECE);
-        constrainConsVarGeq(Vars, Ret, CS, nullptr, Safe_to_Wild, false,
-                            &Info);
+        constrainConsVarGeq(Vars, Ret, CS, nullptr, Safe_to_Wild, false, &Info);
         // NB: Expression ECE itself handled in
         // ConstraintBuilder::FunctionVisitor
       } else {
@@ -284,8 +283,8 @@ CVarSet ConstraintResolver::getExprConstraintVars(Expr *E) {
         // constraining GEQ these vars would be the cast always be WILD.
         if (!isNULLExpression(ECE, *Context)) {
           PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(ECE, *Context);
-          constrainConsVarGeq(P, Vars, Info.getConstraints(), &PL,
-                              Same_to_Same, false, &Info);
+          constrainConsVarGeq(P, Vars, Info.getConstraints(), &PL, Same_to_Same,
+                              false, &Info);
         }
       }
     }
@@ -609,7 +608,6 @@ CVarSet ConstraintResolver::getExprConstraintVars(Expr *E) {
       BoundsKey CBKey = ABInfo.getConstKey(Str->getByteLength());
       ABounds *NB = new CountBound(CBKey);
       ABInfo.replaceBounds(TmpKey, Declared, NB);
-
 
       T = {P};
 

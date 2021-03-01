@@ -862,8 +862,8 @@ void LengthVarInference::VisitArraySubscriptExpr(ArraySubscriptExpr *ASE) {
         if (!CDNodes.empty()) {
           // Next try to find all the nodes that the CurBB is
           // control dependent on.
-          // For each of the control dependent node, check if we are comparing the
-          // index variable with another variable.
+          // For each of the control dependent node, check if we are comparing
+          // the index variable with another variable.
           for (auto &CDGNode : CDNodes) {
             // Collect the possible length bounds keys.
             CV.TraverseStmt(CDGNode->getTerminatorStmt());

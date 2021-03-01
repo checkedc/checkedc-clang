@@ -19,7 +19,7 @@
 
 using namespace clang;
 // Macro for boolean implication
-#define IMPLIES(a,b) ((a) ? (b) : true)
+#define IMPLIES(a, b) ((a) ? (b) : true)
 
 static llvm::cl::OptionCategory OptimizationCategory("Optimization category");
 static llvm::cl::opt<bool>
@@ -49,8 +49,8 @@ PointerVariableConstraint *PointerVariableConstraint::getWildPVConstraint(
   VarAtom *VA =
       CS.createFreshGEQ("wildvar", VarAtom::V_Other, CS.getWild(), Rsn, PSL);
   CAtoms NewAtoms = {VA};
-  PVConstraint *WildPVC = new PVConstraint(NewAtoms, "unsigned", "wildvar",
-                                           nullptr, false, "");
+  PVConstraint *WildPVC =
+      new PVConstraint(NewAtoms, "unsigned", "wildvar", nullptr, false, "");
   return WildPVC;
 }
 
@@ -60,8 +60,8 @@ PointerVariableConstraint::getPtrPVConstraint(Constraints &CS) {
   if (GlobalPtrPV == nullptr) {
     CAtoms NewVA;
     NewVA.push_back(CS.getPtr());
-    GlobalPtrPV = new PVConstraint(NewVA, "unsigned", "ptrvar", nullptr, false,
-                                   "");
+    GlobalPtrPV =
+        new PVConstraint(NewVA, "unsigned", "ptrvar", nullptr, false, "");
   }
   return GlobalPtrPV;
 }
@@ -71,8 +71,8 @@ PointerVariableConstraint::getNonPtrPVConstraint(Constraints &CS) {
   static PointerVariableConstraint *GlobalNonPtrPV = nullptr;
   if (GlobalNonPtrPV == nullptr) {
     CAtoms NewVA; // empty -- represents a base type
-    GlobalNonPtrPV = new PVConstraint(NewVA, "unsigned", "basevar", nullptr,
-                                      false, "");
+    GlobalNonPtrPV =
+        new PVConstraint(NewVA, "unsigned", "basevar", nullptr, false, "");
   }
   return GlobalNonPtrPV;
 }
@@ -119,57 +119,52 @@ PointerVariableConstraint::PointerVariableConstraint(
 PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
                                                      ProgramInfo &I,
                                                      const ASTContext &C)
-    : PointerVariableConstraint(D->getType(), D, std::string(D->getName()),
-                                I, C) {}
-
+    : PointerVariableConstraint(D->getType(), D, std::string(D->getName()), I,
+                                C) {}
 
 // Simple recursive visitor for determining if a type contains a typedef
 // entrypoint is find()
 class TypedefLevelFinder : public RecursiveASTVisitor<TypedefLevelFinder> {
-  public:
+public:
+  static struct InternalTypedefInfo find(const QualType &QT) {
+    TypedefLevelFinder TLF;
+    QualType ToSearch;
+    // If the type is currently a typedef, desugar that.
+    // This is so we can see if the type _contains_ a typedef
+    if (const auto *TDT = dyn_cast<TypedefType>(QT))
+      ToSearch = TDT->desugar();
+    else
+      ToSearch = QT;
+    TLF.TraverseType(ToSearch);
+    // If we found a typedef the we need to have filled out the name field
+    assert(IMPLIES(TLF.HasTypedef, TLF.TDname != ""));
+    struct InternalTypedefInfo Info = {TLF.HasTypedef, TLF.TypedefLevel,
+                                       TLF.TDname};
+    return Info;
+  }
 
-    static struct InternalTypedefInfo find(const QualType &QT) {
-      TypedefLevelFinder TLF;
-      QualType tosearch;
-      // If the type is currently a typedef, desugar that.
-      // This is so we can see if the type _contains_ a typedef
-      if (auto TDT = dyn_cast<TypedefType>(QT))
-        tosearch = TDT->desugar();
-      else
-        tosearch = QT;
-      TLF.TraverseType(tosearch);
-      // If we found a typedef the we need to have filled out the name field
-      assert(IMPLIES(TLF.hastypedef, TLF.TDname != ""));
-      struct InternalTypedefInfo info = 
-      	{ TLF.hastypedef, TLF.typedeflevel, TLF.TDname };
-      return info;
-    }
+  bool VisitTypedefType(TypedefType *TT) {
+    HasTypedef = true;
+    auto *TDT = TT->getDecl();
+    TDname = TDT->getNameAsString();
+    return false;
+  }
 
-    bool VisitTypedefType(TypedefType *TT) {
-      hastypedef = true;
-      auto TDT = TT->getDecl();
-      TDname = TDT->getNameAsString();
-      return false;
-    }
+  bool VisitPointerType(PointerType *PT) {
+    TypedefLevel++;
+    return true;
+  }
 
-    bool VisitPointerType(PointerType *PT) {
-      typedeflevel++;
-      return true;
-    }
+  bool VisitArrayType(ArrayType *AT) {
+    TypedefLevel++;
+    return true;
+  }
 
-    bool VisitArrayType(ArrayType *AT) {
-      typedeflevel++;
-      return true;
-    }
-
-
-  private:
-    int typedeflevel = 0;
-    std::string TDname = "";
-    bool hastypedef = false;
-
+private:
+  int TypedefLevel = 0;
+  std::string TDname = "";
+  bool HasTypedef = false;
 };
-
 
 PointerVariableConstraint::PointerVariableConstraint(
     const QualType &QT, DeclaratorDecl *D, std::string N, ProgramInfo &I,
@@ -178,7 +173,7 @@ PointerVariableConstraint::PointerVariableConstraint(
     : ConstraintVariable(ConstraintVariable::PointerVariable,
                          tyToStr(QT.getTypePtr()), N),
       FV(nullptr), SrcHasItype(false), PartOfFuncPrototype(InFunc != nullptr),
-      Parent(nullptr)  {
+      Parent(nullptr) {
   QualType QTy = QT;
   const Type *Ty = QTy.getTypePtr();
   auto &CS = I.getConstraints();
@@ -262,7 +257,7 @@ PointerVariableConstraint::PointerVariableConstraint(
   // input type). It will be consumed to create atoms, so any code that needs
   // to be coordinated with the atoms should access it here first.
 
-  typedeflevelinfo = TypedefLevelFinder::find(QTy);
+  TypedefLevelInfo = TypedefLevelFinder::find(QTy);
 
   if (ForceGenericIndex >= 0) {
     GenericIndex = ForceGenericIndex;
@@ -275,7 +270,8 @@ PointerVariableConstraint::PointerVariableConstraint(
       auto *PtrTy = Ty->getPointeeType().getTypePtr();
       if (auto *TypdefTy = dyn_cast_or_null<TypedefType>(PtrTy)) {
         const auto *Tv = dyn_cast<TypeVariableType>(TypdefTy->desugar());
-        if (Tv) GenericIndex = Tv->GetIndex();
+        if (Tv)
+          GenericIndex = Tv->GetIndex();
       }
     }
   }
@@ -447,8 +443,8 @@ PointerVariableConstraint::PointerVariableConstraint(
   IsVoidPtr = isTypeHasVoid(QT);
   bool IsWild = !getIsGeneric() && (isVarArgType(BaseType) || IsVoidPtr);
   if (IsWild) {
-    std::string Rsn = IsVoidPtr ? "Default void* type"
-                                : "Default Var arg list type";
+    std::string Rsn =
+        IsVoidPtr ? "Default void* type" : "Default Var arg list type";
     // TODO: Github issue #61: improve handling of types for variable arguments.
     for (const auto &V : Vars)
       if (VarAtom *VA = dyn_cast<VarAtom>(V))
@@ -646,17 +642,13 @@ void PointerVariableConstraint::addArrayAnnotations(
   assert(CheckedArrs.empty());
 }
 
+bool PointerVariableConstraint::isTypedef(void) { return IsTypedef; }
 
-bool PointerVariableConstraint::isTypedef(void) {
-  return IsTypedef;
-}
-
-void PointerVariableConstraint::setTypedef(TypedefNameDecl* T, std::string s) {
+void PointerVariableConstraint::setTypedef(TypedefNameDecl *T, std::string S) {
   IsTypedef = true;
   TDT = T;
-  typedefString = s;
+  TypedefString = S;
 }
-
 
 // Mesh resolved constraints with the PointerVariableConstraints set of
 // variables and potentially nested function pointer declaration. Produces a
@@ -664,9 +656,11 @@ void PointerVariableConstraint::setTypedef(TypedefNameDecl* T, std::string s) {
 
 std::string PointerVariableConstraint::mkString(const EnvironmentMap &E,
                                                 bool EmitName, bool ForItype,
-                                                bool EmitPointee, bool UnmaskTypedef) const {
+                                                bool EmitPointee,
+                                                bool UnmaskTypedef) const {
   if (IsTypedef && !UnmaskTypedef) {
-    return typedefString + (EmitName && getName() != RETVAR ? (" " + getName()) : " ");
+    return TypedefString +
+           (EmitName && getName() != RETVAR ? (" " + getName()) : " ");
   }
 
   std::ostringstream Ss;
@@ -693,14 +687,16 @@ std::string PointerVariableConstraint::mkString(const EnvironmentMap &E,
   uint32_t TypeIdx = 0;
 
   auto It = Vars.begin();
-  auto i = 0;
+  auto I = 0;
   // Skip over first pointer level if only emitting pointee string.
   // This is needed when inserting type arguments.
   if (EmitPointee)
     ++It;
-  // Interate through the vars(), but if we have an internal typedef, then stop once you reach the
-  // typedef's level
-  for (; It != Vars.end() && IMPLIES(typedeflevelinfo.hasTypedef, i < typedeflevelinfo.typedefLevel); ++It, i++) {
+  // Interate through the vars(), but if we have an internal typedef, then stop
+  // once you reach the typedef's level
+  for (; It != Vars.end() && IMPLIES(TypedefLevelInfo.HasTypedef,
+                                     I < TypedefLevelInfo.TypedefLevel);
+       ++It, I++) {
     const auto &V = *It;
     ConstAtom *C = nullptr;
     if (ConstAtom *CA = dyn_cast<ConstAtom>(V)) {
@@ -823,9 +819,9 @@ std::string PointerVariableConstraint::mkString(const EnvironmentMap &E,
     // type.
     if (FV) {
       Ss << FV->mkString(E);
-    } else if (typedeflevelinfo.hasTypedef) {
-      auto name = typedeflevelinfo.typedefName;
-      Ss << name;
+    } else if (TypedefLevelInfo.HasTypedef) {
+      auto Name = TypedefLevelInfo.TypedefName;
+      Ss << Name;
     } else {
       Ss << BaseType;
     }
@@ -902,8 +898,8 @@ FunctionVariableConstraint::FunctionVariableConstraint(DeclaratorDecl *D,
                                                        const ASTContext &C)
     : FunctionVariableConstraint(
           D->getType().getTypePtr(), D,
-          (D->getDeclName().isIdentifier() ? std::string(D->getName()) : ""),
-          I, C) {}
+          (D->getDeclName().isIdentifier() ? std::string(D->getName()) : ""), I,
+          C) {}
 
 FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
                                                        DeclaratorDecl *D,
@@ -981,8 +977,8 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
           PName = std::string(PVD->getName());
         }
       }
-      auto ParamVar = FVComponentVariable(QT, ParmVD, PName, I, Ctx, &N,
-                                          ParamHasItype);
+      auto ParamVar =
+          FVComponentVariable(QT, ParmVD, PName, I, Ctx, &N, ParamHasItype);
       int GenericIdx = ParamVar.ExternalConstraint->getGenericIndex();
       if (GenericIdx >= 0)
         TypeParams = std::max(TypeParams, GenericIdx + 1);
@@ -1004,8 +1000,6 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   if (GenericIdx >= 0)
     TypeParams = std::max(TypeParams, GenericIdx + 1);
 }
-
-
 
 void FunctionVariableConstraint::constrainToWild(Constraints &CS,
                                                  const std::string &Rsn) const {
@@ -1269,13 +1263,15 @@ bool PointerVariableConstraint::hasSomeSizedArr() const {
   return false;
 }
 
-bool PointerVariableConstraint::solutionEqualTo(
-    Constraints &CS, const ConstraintVariable *CV, bool ComparePtyp) const {
+bool PointerVariableConstraint::solutionEqualTo(Constraints &CS,
+                                                const ConstraintVariable *CV,
+                                                bool ComparePtyp) const {
   bool Ret = false;
   if (CV != nullptr) {
     if (const auto *PV = dyn_cast<PVConstraint>(CV)) {
       auto &OthCVars = PV->Vars;
-      if (getIsGeneric() || PV->getIsGeneric() || Vars.size() == OthCVars.size()) {
+      if (getIsGeneric() || PV->getIsGeneric() ||
+          Vars.size() == OthCVars.size()) {
         Ret = true;
 
         auto I = Vars.begin();
@@ -1381,8 +1377,9 @@ bool FunctionVariableConstraint::srcHasBounds() const {
   return ReturnVar.ExternalConstraint->srcHasBounds();
 }
 
-bool FunctionVariableConstraint::solutionEqualTo(
-    Constraints &CS, const ConstraintVariable *CV, bool ComparePtyp) const {
+bool FunctionVariableConstraint::solutionEqualTo(Constraints &CS,
+                                                 const ConstraintVariable *CV,
+                                                 bool ComparePtyp) const {
   bool Ret = false;
   if (CV != nullptr) {
     if (const auto *OtherFV = dyn_cast<FVConstraint>(CV)) {
@@ -1924,8 +1921,7 @@ void FVComponentVariable::brainTransplant(FVComponentVariable *From,
   ExternalConstraint->brainTransplant(From->ExternalConstraint, I);
 }
 
-std::string
-FVComponentVariable::mkString(const EnvironmentMap &E) const {
+std::string FVComponentVariable::mkString(const EnvironmentMap &E) const {
   std::string Str;
   if (ExternalConstraint->anyChanges(E) && InternalConstraint->anyChanges(E))
     Str = ExternalConstraint->mkString(E);

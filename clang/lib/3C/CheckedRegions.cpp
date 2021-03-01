@@ -27,7 +27,6 @@
 using namespace llvm;
 using namespace clang;
 
-
 // If S is a function body, then return the FunctionDecl, otherwise return null.
 // Used in both visitors so abstracted to a function
 FunctionDecl *getFunctionDeclOfBody(ASTContext *Context, CompoundStmt *S) {
@@ -104,8 +103,6 @@ CheckedRegionAdder::findParentCompound(const ast_type_traits::DynTypedNode &N,
   return *Min;
 }
 
-
-
 bool CheckedRegionAdder::isParentChecked(
     const ast_type_traits::DynTypedNode &DTN) {
   if (const auto *Parent = findParentCompound(DTN).first) {
@@ -180,8 +177,8 @@ bool CheckedRegionFinder::VisitCompoundStmt(CompoundStmt *S) {
     }
 
     // Need to check return type
-    auto retType = FD->getReturnType().getTypePtr();
-    if (retType->isPointerType()) {
+    const auto *RetType = FD->getReturnType().getTypePtr();
+    if (RetType->isPointerType()) {
       CVarOption CV = Info.getVariable(FD, Context);
       Localwild |= isWild(CV) || containsUncheckedPtr(FD->getReturnType());
     }
@@ -228,9 +225,8 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
   } else {
     if (FD) {
       auto Type = FD->getReturnType();
-      Wild |=
-          (!(FD->hasPrototype() || FD->doesThisDeclarationHaveABody())) ||
-          containsUncheckedPtr(Type);
+      Wild |= (!(FD->hasPrototype() || FD->doesThisDeclarationHaveABody())) ||
+              containsUncheckedPtr(Type);
       auto *FV = Info.getFuncConstraint(FD, Context);
       for (unsigned I = 0; I < FV->numParams(); I++)
         Wild |= isWild(*FV->getExternalParam(I));

@@ -20,7 +20,7 @@
 #include <sstream>
 
 #ifdef FIVE_C
-#include <clang/3C/DeclRewriter_5C.h>
+#include "clang/3C/DeclRewriter_5C.h"
 #endif
 
 using namespace llvm;
@@ -51,19 +51,22 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
   for (const auto &D : Context.getTranslationUnitDecl()->decls()) {
     TRV->TraverseDecl(D);
     SVI.TraverseDecl(D);
-    if (const auto &TD  = dyn_cast<TypedefDecl>(D)) {
+    if (const auto &TD = dyn_cast<TypedefDecl>(D)) {
       auto PSL = PersistentSourceLoc::mkPSL(TD, Context);
-      if (!TD->getUnderlyingType()->isBuiltinType()) { // Don't rewrite base types like int
-        const auto pair = Info.lookupTypedef(PSL);
-        const auto VSet = pair.first;
+      // Don't rewrite base types like int
+      if (!TD->getUnderlyingType()->isBuiltinType()) {
+        const auto Pair = Info.lookupTypedef(PSL);
+        const auto VSet = Pair.first;
         if (!VSet.empty()) { // We ignore typedefs that are never used
           const auto Var = VSet.begin();
           const auto &Env = Info.getConstraints().getVariables();
           if ((*Var)->anyChanges(Env)) {
-            std::string newTy = getStorageQualifierString(D) +
-              (*Var)->mkString(Info.getConstraints().getVariables(),
-                               false, false, false, true) + " " + TD->getNameAsString();
-            RewriteThese.insert(new TypedefDeclReplacement(TD, nullptr, newTy));
+            std::string NewTy =
+                getStorageQualifierString(D) +
+                (*Var)->mkString(Info.getConstraints().getVariables(), false,
+                                 false, false, true) +
+                " " + TD->getNameAsString();
+            RewriteThese.insert(new TypedefDeclReplacement(TD, nullptr, NewTy));
           }
         }
       }
@@ -81,7 +84,7 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
   for (const auto &D : TUD->decls()) {
     MV.TraverseDecl(D);
     detectInlineStruct(D, Context.getSourceManager());
-    if(FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+    if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
       if (FD->hasBody() && FD->isThisDeclarationADefinition()) {
         for (auto &D : FD->decls()) {
           detectInlineStruct(D, Context.getSourceManager());
@@ -205,10 +208,10 @@ void DeclRewriter::rewriteParmVarDecl(ParmVarDeclReplacement *N) {
     }
 }
 
-void DeclRewriter::rewriteTypedefDecl(TypedefDeclReplacement *TDR, RSet &ToRewrite) {
+void DeclRewriter::rewriteTypedefDecl(TypedefDeclReplacement *TDR,
+                                      RSet &ToRewrite) {
   rewriteSingleDecl(TDR, ToRewrite);
 }
-
 
 template <typename DRType>
 void DeclRewriter::rewriteFieldOrVarDecl(DRType *N, RSet &ToRewrite) {
@@ -216,16 +219,15 @@ void DeclRewriter::rewriteFieldOrVarDecl(DRType *N, RSet &ToRewrite) {
                     std::is_same<DRType, VarDeclReplacement>::value,
                 "Method expects variable or field declaration replacement.");
 
-  if (InlineVarDecls.find(N->getDecl()) != InlineVarDecls.end()
-      && VisitedMultiDeclMembers.find(N) == VisitedMultiDeclMembers.end()) {
+  if (InlineVarDecls.find(N->getDecl()) != InlineVarDecls.end() &&
+      VisitedMultiDeclMembers.find(N) == VisitedMultiDeclMembers.end()) {
     std::vector<Decl *> SameLineDecls;
     getDeclsOnSameLine(N, SameLineDecls);
     if (std::find(SameLineDecls.begin(), SameLineDecls.end(),
                   VDToRDMap[N->getDecl()]) == SameLineDecls.end())
       SameLineDecls.insert(SameLineDecls.begin(), VDToRDMap[N->getDecl()]);
     rewriteMultiDecl(N, ToRewrite, SameLineDecls, true);
-  }
-  else if (isSingleDeclaration(N)) {
+  } else if (isSingleDeclaration(N)) {
     rewriteSingleDecl(N, ToRewrite);
   } else if (VisitedMultiDeclMembers.find(N) == VisitedMultiDeclMembers.end()) {
     std::vector<Decl *> SameLineDecls;
@@ -241,8 +243,9 @@ void DeclRewriter::rewriteFieldOrVarDecl(DRType *N, RSet &ToRewrite) {
 }
 
 void DeclRewriter::rewriteSingleDecl(DeclReplacement *N, RSet &ToRewrite) {
-  bool isSingleDecl = dyn_cast<TypedefDecl>(N->getDecl()) || isSingleDeclaration(N);
-  assert("Declaration is not a single declaration." && isSingleDecl);
+  bool IsSingleDecl =
+      dyn_cast<TypedefDecl>(N->getDecl()) || isSingleDeclaration(N);
+  assert("Declaration is not a single declaration." && IsSingleDecl);
   // This is the easy case, we can rewrite it locally, at the declaration.
   SourceRange TR = N->getDecl()->getSourceRange();
   doDeclRewrite(TR, N);
@@ -273,7 +276,6 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite,
   //         original decl was re-written, write that out instead. Existing
   //         initializers are preserved, any declarations that an initializer to
   //         be valid checked-c are given one.
-
 
   bool IsFirst = true;
   SourceLocation PrevEnd;
@@ -347,7 +349,6 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite,
       }
     }
 
-
     SourceRange End;
     // In the event that IsFirst was not set to false, that implies we are
     // separating the RecordDecl and VarDecl, so instead of searching for
@@ -376,7 +377,7 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite,
 // invoking the rewriter) is to add any required initializer expression.
 void DeclRewriter::doDeclRewrite(SourceRange &SR, DeclReplacement *N) {
   std::string Replacement = N->getReplacement();
-  if (dyn_cast<TypedefDecl>(N->getDecl()))
+  if (isa<TypedefDecl>(N->getDecl()))
     Replacement = "typedef " + Replacement;
   if (auto *VD = dyn_cast<VarDecl>(N->getDecl())) {
     if (VD->hasInit()) {
@@ -427,13 +428,13 @@ void DeclRewriter::detectInlineStruct(Decl *D, SourceManager &SM) {
     LastRecordDecl = RD;
   }
   if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
-    if(LastRecordDecl != nullptr) {
-      auto lastRecordLocation = LastRecordDecl->getBeginLoc();
+    if (LastRecordDecl != nullptr) {
+      auto LastRecordLocation = LastRecordDecl->getBeginLoc();
       auto Begin = VD->getBeginLoc();
       auto End = VD->getEndLoc();
-      bool IsInLineStruct = SM.isPointWithin(lastRecordLocation, Begin, End);
-      bool IsNamedInLineStruct = IsInLineStruct &&
-                                 LastRecordDecl->getNameAsString() != "";
+      bool IsInLineStruct = SM.isPointWithin(LastRecordLocation, Begin, End);
+      bool IsNamedInLineStruct =
+          IsInLineStruct && LastRecordDecl->getNameAsString() != "";
       if (IsNamedInLineStruct) {
         VDToRDMap[VD] = LastRecordDecl;
         InlineVarDecls.insert(VD);
@@ -671,11 +672,10 @@ void FunctionDeclBuilder::buildItypeDecl(PVConstraint *Defn,
 // the name) but the breakdown between Type and IType is not guaranteed. For a
 // return, Type will be what goes before the name and IType will be what goes
 // after the parentheses.
-void
-FunctionDeclBuilder::buildDeclVar(PVConstraint *IntCV, PVConstraint *ExtCV,
-                                  DeclaratorDecl *Decl, std::string &Type,
-                                  std::string &IType, bool &RewriteParm,
-                                  bool &RewriteRet) {
+void FunctionDeclBuilder::buildDeclVar(PVConstraint *IntCV, PVConstraint *ExtCV,
+                                       DeclaratorDecl *Decl, std::string &Type,
+                                       std::string &IType, bool &RewriteParm,
+                                       bool &RewriteRet) {
   const auto &Env = Info.getConstraints().getVariables();
   // If the external constraint variable is checked, then the parameter should
   // be advertised as checked to callers. This requires adding either an itype

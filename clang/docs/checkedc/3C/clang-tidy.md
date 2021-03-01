@@ -7,16 +7,11 @@ yet decided what to do about; please try to avoid adding more though.
 
 We're currently using version 11.0.0 due to bugs in older versions, so if you
 want to verify that our code is compliant with `clang-tidy`, you'll need to get
-a copy of that version. If it isn't available from your OS distribution, you may
-need to build it from source. This repository is currently based on a
-pre-release of LLVM 9.0.0, so you can't use its version of `clang-tidy`.
-However, Microsoft plans to upgrade it to LLVM 11.0.0 soon, at which point
-you'll have the option to use `clang-tidy` built from this repository. It's
-possible that using a newer, unstable version of `clang-tidy` (e.g., LLVM
-master) might avoid more bugs, saving us the trouble of researching them, but we
-doubt it's worth relying on a version that is unstable _and_ newer than what
-Microsoft is about to upgrade to. This calculus might change when LLVM 12 is
-released, expected around March 2021.
+a copy of that version. Now that this repository is based on a pre-release of
+LLVM 11, `clang-tidy` built from it is probably OK. But you probably want a
+release build of `clang-tidy` rather than a debug build (a release build is
+significantly faster), so if your main build from this repository is debug, it
+might be easier to get `clang-tidy` another way.
 
 This file maintains a list of issues we've run into that you should be aware of
 when using `clang-tidy`. Many of these could in principle be researched and (if
@@ -136,11 +131,29 @@ suppression.
   - Unwrapping an `else` branch may leave an unconditional return in an outer
     `if` branch that then makes it possible to unwrap the outer `else` branch.
 
-- `readability-identifier-naming` may fail to update a reference to an element
-  that it renamed. It turns out that the `--fix-errors` option not only makes
-  `clang-tidy` proceed in the presence of compile errors but also makes it fix
-  certain compile errors, including certain broken references, so a subsequent
-  `clang-tidy --fix-errors` pass may be helpful.
+- We've seen many cases in which `readability-identifier-naming` fails to update
+  some references to an element that it renamed. There may be several causes for
+  this; we haven't found a comprehensive list on the web, so it's hard to know
+  what the problem is in any given case.
+
+  The biggest cause seems to be elements that are defined in shared header files
+  and referenced in multiple translation units. Our understanding is that
+  `clang-tidy` processes each translation unit independently, so the
+  `readability-identifer-naming` check generates a warning at the definition and
+  a fix to rename all the references in _that_ translation unit. When
+  `clang-tidy` aggregates its warnings across translation units, it
+  [deduplicates them by
+  location](https://github.com/llvm/llvm-project/blob/5de09ef02e24d234d9fc0cd1c6dfe18a1bb784b0/clang-tools-extra/clang-tidy/ClangTidyDiagnosticConsumer.cpp#L732)
+  and retains the fix from an arbitrary one of the duplicate warnings rather
+  than merging the fixes. The result is that only the references to the element
+  in an arbitrary one of the translation units that includes its definition get
+  renamed: a fundamental design flaw.
+
+  The upshot is that you're probably better off excluding
+  `readability-identifier-naming` from your `clang-tidy --fix` pass, running a
+  second pass without `--fix`, and fixing the `readability-identifier-naming`
+  warnings with a tool that handles multiple translation units properly (such as
+  a `clangd`-based IDE) along with the warnings that don't come with fixes.
 
 - `readability-identifier-naming` may introduce a name collision. This may lead
   to an error on one of the colliding definitions, an error on a reference that

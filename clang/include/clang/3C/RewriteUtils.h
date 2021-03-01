@@ -12,7 +12,7 @@
 #ifndef LLVM_CLANG_3C_REWRITEUTILS_H
 #define LLVM_CLANG_3C_REWRITEUTILS_H
 
-#include "ProgramInfo.h"
+#include "clang/3C/ProgramInfo.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Stmt.h"
@@ -33,7 +33,13 @@ public:
   }
 
   // Discriminator for LLVM-style RTTI (dyn_cast<> et al.)
-  enum DRKind { DRK_VarDecl, DRK_ParmVarDecl, DRK_FunctionDecl, DRK_FieldDecl, DRK_TypedefDecl };
+  enum DRKind {
+    DRK_VarDecl,
+    DRK_ParmVarDecl,
+    DRK_FunctionDecl,
+    DRK_FieldDecl,
+    DRK_TypedefDecl
+  };
 
   DRKind getKind() const { return Kind; }
 
@@ -96,8 +102,7 @@ public:
       TypeLoc = getBaseTypeLoc(TSInfoLoc).getAs<clang::FunctionTypeLoc>();
     }
     if (!TSInfo || TypeLoc.isNull())
-      return SourceRange(Decl->getBeginLoc(),
-                         getFunctionDeclRParen(Decl, SM));
+      return SourceRange(Decl->getBeginLoc(), getFunctionDeclRParen(Decl, SM));
 
     // Function pointer are funky, and require special handling to rewrite the
     // return type.
@@ -225,12 +230,12 @@ class ArrayBoundsRewriter {
 public:
   ArrayBoundsRewriter(ProgramInfo &I) : Info(I) {}
   // Get the string representation of the bounds for the given variable.
-  std::string
-  getBoundsString(const PVConstraint *PV, Decl *D, bool Isitype = false);
+  std::string getBoundsString(const PVConstraint *PV, Decl *D,
+                              bool Isitype = false);
 
   // Check if the constraint variable has newly created bounds string.
-  bool
-  hasNewBoundsString(const PVConstraint *PV, Decl *D, bool Isitype = false);
+  bool hasNewBoundsString(const PVConstraint *PV, Decl *D,
+                          bool Isitype = false);
 
 private:
   ProgramInfo &Info;
@@ -255,7 +260,6 @@ private:
 };
 
 bool canRewrite(Rewriter &R, const SourceRange &SR);
-
 
 // Rewrites the given source range with fallbacks for when the SourceRange is
 // inside a macro. This should be preferred to direct calls to ReplaceText

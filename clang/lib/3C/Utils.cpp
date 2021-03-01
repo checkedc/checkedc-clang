@@ -152,7 +152,8 @@ bool isNULLExpression(clang::Expr *E, ASTContext &C) {
          E->isNullPointerConstant(C, Expr::NPC_ValueDependentIsNotNull);
 }
 
-std::error_code tryGetCanonicalFilePath(const std::string &FileName, std::string &AbsoluteFp) {
+std::error_code tryGetCanonicalFilePath(const std::string &FileName,
+                                        std::string &AbsoluteFp) {
   SmallString<255> AbsPath;
   std::error_code EC;
   if (FileName.empty()) {
@@ -169,7 +170,8 @@ std::error_code tryGetCanonicalFilePath(const std::string &FileName, std::string
   return EC;
 }
 
-void getCanonicalFilePath(const std::string &FileName, std::string &AbsoluteFp) {
+void getCanonicalFilePath(const std::string &FileName,
+                          std::string &AbsoluteFp) {
   std::error_code EC = tryGetCanonicalFilePath(FileName, AbsoluteFp);
   assert(!EC && "tryGetCanonicalFilePath failed");
 }
@@ -181,10 +183,10 @@ bool filePathStartsWith(const std::string &Path, const std::string &Prefix) {
   if (Prefix.empty() || Path == Prefix) {
     return true;
   }
-  StringRef separator = llvm::sys::path::get_separator();
+  StringRef Separator = llvm::sys::path::get_separator();
   std::string PrefixWithTrailingSeparator = Prefix;
-  if (!StringRef(Prefix).endswith(separator)) {
-    PrefixWithTrailingSeparator += separator;
+  if (!StringRef(Prefix).endswith(Separator)) {
+    PrefixWithTrailingSeparator += Separator;
   }
   return Path.substr(0, PrefixWithTrailingSeparator.size()) ==
          PrefixWithTrailingSeparator;

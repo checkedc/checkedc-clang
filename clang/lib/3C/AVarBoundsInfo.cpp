@@ -836,7 +836,7 @@ bool AvarBoundsInference::predictBounds(BoundsKey K,
           AllKeys.insert(S2.begin(), S2.end());
           // Also, add all constants as potential bounds so that we can pick
           // a constant with least value later.
-          for (auto CK: AllKeys) {
+          for (auto CK : AllKeys) {
             auto *CKVar = this->BI->getProgramVar(CK);
             if (CKVar != nullptr && CKVar->isNumConstant())
               TmpBKeys.insert(CK);

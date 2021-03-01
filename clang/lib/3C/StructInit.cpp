@@ -52,10 +52,11 @@ void StructVariableInitializer::insertVarDecl(VarDecl *VD, DeclStmt *S) {
       // Create replacement declaration text with an initializer.
       const clang::Type *Ty = VD->getType().getTypePtr();
       std::string TQ = VD->getType().getQualifiers().getAsString();
-      if (!TQ.empty()) { TQ += " "; }
-      std::string ToReplace =
-          getStorageQualifierString(VD) + TQ +
-          tyToStr(Ty) + " " + VD->getName().str() + " = {}";
+      if (!TQ.empty()) {
+        TQ += " ";
+      }
+      std::string ToReplace = getStorageQualifierString(VD) + TQ + tyToStr(Ty) +
+                              " " + VD->getName().str() + " = {}";
       RewriteThese.insert(new VarDeclReplacement(VD, S, ToReplace));
     }
   }

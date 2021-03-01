@@ -215,7 +215,7 @@ private:
   template <typename G> friend struct llvm::GraphTraits;
   friend class GraphVizOutputGraph;
   std::map<Data, std::set<Data>> BFSCache;
-  std::map<Data, NodeType*> NodeSet;
+  std::map<Data, NodeType *> NodeSet;
 
   void invalidateBFSCache() { BFSCache.clear(); }
 };
