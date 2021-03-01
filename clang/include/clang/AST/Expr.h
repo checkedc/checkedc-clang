@@ -7132,6 +7132,74 @@ private:
   friend class ASTStmtWriter;
 };
 
+/// \brief Represents a Checked C where clause fact.
+class WhereClauseFact {
+public:
+  enum class FactKind { BoundsDeclFact, EqualityOpFact };
+  FactKind Kind;
+
+private:
+  // For a BoundsDeclFact, Loc gives the location of the variable whose bounds
+  // are being redeclared in the where clause. For example, "_Where p :
+  // bounds(p, p + 1)".                                                     ^
+  // For an EqualityOpFact, Loc gives the location of the start of the equality
+  // expression. For example, "_Where a < 1".
+  //                                  ^
+  // TODO: Implement richer location information by capturing the start and end
+  // locations of where clause facts.
+  SourceLocation Loc;
+
+public:
+  WhereClauseFact(FactKind Kind, SourceLocation Loc)
+    : Kind(Kind), Loc(Loc) {}
+};
+
+/// \brief Represents a Checked C where clause bounds decl fact.
+class BoundsDeclFact : public WhereClauseFact {
+public:
+  VarDecl *Var;
+  BoundsExpr *Bounds;
+
+  BoundsDeclFact(VarDecl *Var, BoundsExpr *Bounds, SourceLocation Loc)
+    : WhereClauseFact(FactKind::BoundsDeclFact, Loc),
+      Var(Var), Bounds(Bounds) {}
+
+  static bool classof(const WhereClauseFact *Fact) {
+    return Fact->Kind == FactKind::BoundsDeclFact;
+  }
+};
+
+/// \brief Represents a Checked C relational operator fact.
+class EqualityOpFact : public WhereClauseFact {
+public:
+  BinaryOperator *EqualityOp;
+
+  EqualityOpFact(BinaryOperator *EqualityOp, SourceLocation Loc)
+    : WhereClauseFact(FactKind::EqualityOpFact, Loc),
+      EqualityOp(EqualityOp) {}
+
+  static bool classof(const WhereClauseFact *Fact) {
+    return Fact->Kind == FactKind::EqualityOpFact;
+  }
+};
+
+using FactListTy = llvm::SmallVector<WhereClauseFact *, 2>;
+
+/// \brief Represents a Checked C where clause.
+class WhereClause {
+private:
+  SourceLocation Loc;
+  FactListTy Facts;
+
+public:
+  WhereClause(SourceLocation Loc) : Loc(Loc) {}
+
+  void addFact(WhereClauseFact *Fact) { Facts.push_back(Fact); }
+  bool isInvalid() const { return Facts.size() == 0; }
+  FactListTy getFacts() { return Facts; }
+  static bool classof(const WhereClause *) { return true; }
+};
+
 } // end namespace clang
 
 #endif // LLVM_CLANG_AST_EXPR_H

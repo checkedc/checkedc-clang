@@ -4457,6 +4457,17 @@ public:
     void disable() { Active = false; }
   };
 
+  // Checked C: Perform semantic analysis on a where clause.
+  WhereClause *ActOnWhereClause(SourceLocation WhereLoc);
+
+  // Checked C: Perform semantic analysis on a where clause bounds decl fact.
+  BoundsDeclFact *ActOnBoundsDeclFact(IdentifierInfo *Id, Expr *E,
+                                      Scope *CurScope, SourceLocation IdLoc,
+                                      SourceLocation BoundsLoc);
+
+  // Checked C: Perform semantic analysis on a where clause equality-op fact.
+  EqualityOpFact *ActOnEqualityOpFact(Expr *E, SourceLocation ExprLoc);
+
   StmtResult ActOnDeclStmt(DeclGroupPtrTy Decl,
                                    SourceLocation StartLoc,
                                    SourceLocation EndLoc);

@@ -264,6 +264,26 @@ Retry:
     return Actions.ActOnNullStmt(ConsumeToken(), HasLeadingEmptyMacro);
   }
 
+  // Parse Checked C _Where token.
+  case tok::kw__Where: {
+    WhereClause *WClause = ParseWhereClause();
+    if (!WClause)
+      return StmtError();
+
+    StmtResult StmtRes = Actions.ActOnNullStmt(SourceLocation());
+    if (StmtRes.isInvalid() || !isa<NullStmt>(StmtRes.get()))
+      return StmtError();
+
+    auto *NS = dyn_cast<NullStmt>(StmtRes.get());
+    NS->setWhereClause(WClause);
+
+    // The where clause should end with a semicolon.
+    if (ExpectAndConsume(tok::semi))
+      return StmtError();
+
+    return StmtRes;
+  }
+
   case tok::kw_if:                  // C99 6.8.4.1: if-statement
     return ParseIfStatement(TrailingElseLoc);
   case tok::kw_switch:              // C99 6.8.4.2: switch-statement
@@ -2587,4 +2607,66 @@ bool Parser::ParseOpenCLUnrollHintAttribute(ParsedAttributes &Attrs) {
     return false;
   }
   return true;
+}
+
+WhereClauseFact *Parser::ParseWhereClauseFact() {
+  // TODO: Handle bounds expression surrounded by parentheses, like:
+  // _Where ((((p : bounds(p, p + 1))))).
+  // Equality expressions surrounded by parentheses are already handled by
+  // invoking IgnoreValuePreservingCasts in ActOnEqualityOpFact.
+
+  if (Tok.is(tok::identifier) && NextToken().is(tok::colon)) {
+    IdentifierInfo *VarName = Tok.getIdentifierInfo();
+
+    // Consume the identifier.
+    SourceLocation IdLoc = ConsumeToken();
+    // Consume the ':' token.
+    ConsumeToken();
+
+    // Get the location of the start of bounds expr.
+    SourceLocation BoundsLoc = Tok.getLocation();
+
+    // Parse a bounds decl expression.
+    ExprResult BoundsRes(ParseBoundsExpression());
+    if (BoundsRes.isInvalid())
+      return nullptr;
+    return Actions.ActOnBoundsDeclFact(VarName, BoundsRes.get(),
+                                       getCurScope(), IdLoc, BoundsLoc);
+  }
+
+  // Parse an equality expression.
+  SourceLocation ExprLoc = Tok.getLocation();
+  ExprResult ExprRes = Actions.CorrectDelayedTyposInExpr(ParseExpression());
+  if (ExprRes.isInvalid())
+    return nullptr;
+  return Actions.ActOnEqualityOpFact(ExprRes.get(), ExprLoc);
+}
+
+WhereClause *Parser::ParseWhereClause() {
+  SourceLocation WhereLoc = Tok.getLocation();
+
+  // Consume the "_Where" token.
+  if (ExpectAndConsume(tok::kw__Where)) {
+    SkipUntil(tok::semi, StopBeforeMatch);
+    return nullptr;
+  }
+
+  WhereClause *WClause = Actions.ActOnWhereClause(WhereLoc);
+  if (!WClause)
+    return nullptr;
+
+  // Parse each where clause fact. We want to issue diagnostics for as many
+  // parsing errors a possible. So we do not break on the first error.
+  bool IsError = false;
+  do {
+    WhereClauseFact *Fact = ParseWhereClauseFact();
+    if (!Fact)
+      IsError = true;
+    else
+      WClause->addFact(Fact);
+  } while (TryConsumeToken(tok::kw__And));
+
+  if (IsError)
+    return nullptr;
+  return WClause;
 }
