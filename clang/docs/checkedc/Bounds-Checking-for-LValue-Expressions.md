@@ -201,21 +201,17 @@ The AbstractSet class contains the following members:
 
 ## Work Item Overview
 
-1. Define the representation that the AbstractSet API returns. What will be
-   the type of the representation? What are some examples of the representation
-   for different kinds of expressions (`DeclRefExpr *`, `MemberExpr *`, etc.)?
-   (As described above, the representation may use the `PreorderAST` for
-   canonicalization. We may also consider using the comparison in
-   [CanonBounds.cpp](https://github.com/microsoft/checkedc-clang/blob/master/clang/lib/AST/CanonBounds.cpp)).
-2. Implement the AbstractSet API for `DeclRefExpr *`. This is necessary to
-   maintain the current behavior for checking variable bounds.
-3. Replace the current `VarDecl *` keys in `ObservedBounds` with the
-   AbstractSet representation. This should result in no changes in compiler
-   behavior (since only `DeclRefExpr *` have AbstractSet representations).
-4. Implement AbstractSet representations for other kinds of lvalue
-   expressions (see below for the suggested prioritized expression kinds).
-   This should result in the compiler behavior for the implemented lvalue
-   expressions to be identical to the current behavior for variables.
+1. Implement the AbstractSet class and GetOrCreateAbstractSet method as
+   described above.
+2. Implement lexicographic ordering for PreorderASTs. This is necessary
+   to avoid an expensive linear search in GetOrCreateAbstractSet.
+3. Replace the current `VarDecl *` keys in `ObservedBounds` with `AbstractSet *`.
+   This should result in no changes in compiler behavior (since only
+   `DeclRefExpr *` will have an AbstractSet representation).
+4. Implement PreorderAST canonicalization for other kinds of lvalue expressions
+   (see below for the suggested prioritized expression kinds). This should
+   result in the compiler behavior for the implemented lvalue expressions
+   to be identical to the current behavior for variables.
 5. For each lvalue expression kind that has an AbstractSet representation,
    remove the current bounds checking behavior that deals with lvalue
    expressions that are not a `DeclRefExpr *`. For example, the
