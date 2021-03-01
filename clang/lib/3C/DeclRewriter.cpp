@@ -53,11 +53,11 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
     SVI.TraverseDecl(D);
     if (const auto &TD = dyn_cast<TypedefDecl>(D)) {
       auto PSL = PersistentSourceLoc::mkPSL(TD, Context);
-      // Don't rewrite base types like int
+      // Don't rewrite base types like int.
       if (!TD->getUnderlyingType()->isBuiltinType()) {
         const auto Pair = Info.lookupTypedef(PSL);
         const auto VSet = Pair.first;
-        if (!VSet.empty()) { // We ignore typedefs that are never used
+        if (!VSet.empty()) { // We ignore typedefs that are never used.
           const auto Var = VSet.begin();
           const auto &Env = Info.getConstraints().getVariables();
           if ((*Var)->anyChanges(Env)) {
@@ -281,7 +281,7 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite,
   SourceLocation PrevEnd;
   for (const auto &DL : SameLineDecls) {
     std::string ReplaceText = ";\n";
-    // Find the declaration replacement object for the current declaration
+    // Find the declaration replacement object for the current declaration.
     DeclReplacement *SameLineReplacement;
     bool Found = false;
     for (const auto &NLT : RewritesForThisDecl)
@@ -352,7 +352,7 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite,
     SourceRange End;
     // In the event that IsFirst was not set to false, that implies we are
     // separating the RecordDecl and VarDecl, so instead of searching for
-    // the next comma, we simply specify the end of the RecordDecl
+    // the next comma, we simply specify the end of the RecordDecl.
     if (IsFirst) {
       IsFirst = false;
       End = DL->getEndLoc();
@@ -411,10 +411,10 @@ void DeclRewriter::rewriteFunctionDecl(FunctionDeclReplacement *N) {
 
 // A function to detect the presence of inline struct declarations
 // by tracking VarDecls and RecordDecls and populating data structures
-// later used in rewriting
+// later used in rewriting.
 
-// These variables are duplicated in the header file and here because
-// static vars need to be initialized in the cpp file where the class is defined
+// These variables are duplicated in the header file and here because static
+// vars need to be initialized in the cpp file where the class is defined.
 /*static*/ RecordDecl *DeclRewriter::LastRecordDecl = nullptr;
 /*static*/ std::map<Decl *, Decl *> DeclRewriter::VDToRDMap;
 /*static*/ std::set<Decl *> DeclRewriter::InlineVarDecls;
@@ -554,7 +554,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   bool RewriteParams = false;
   bool RewriteReturn = false;
 
-  // Get rewritten parameter variable declarations
+  // Get rewritten parameter variable declarations.
   std::vector<std::string> ParmStrs;
   for (unsigned I = 0; I < Defnc->numParams(); ++I) {
     PVConstraint *ExtCV = Defnc->getExternalParam(I);
@@ -574,7 +574,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
       RewriteParams = true;
   }
 
-  // Get rewritten return variable
+  // Get rewritten return variable.
   std::string ReturnVar, ItypeStr;
   this->buildDeclVar(Defnc->getInternalReturn(), Defnc->getExternalReturn(), FD,
                      ReturnVar, ItypeStr, RewriteParams, RewriteReturn);

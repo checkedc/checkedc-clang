@@ -334,7 +334,7 @@ static bool castCheck(clang::QualType DstType, clang::QualType SrcType) {
   if (SrcPtrTypePtr || DstPtrTypePtr)
     return false;
 
-  // Check function cast by comparing parameter and return types individually
+  // Check function cast by comparing parameter and return types individually.
   const auto *SrcFnType = dyn_cast<clang::FunctionProtoType>(SrcTypePtr);
   const auto *DstFnType = dyn_cast<clang::FunctionProtoType>(DstTypePtr);
   if (SrcFnType && DstFnType) {

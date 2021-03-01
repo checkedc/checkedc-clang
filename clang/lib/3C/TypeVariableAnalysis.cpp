@@ -100,7 +100,7 @@ bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
       // into the type variable binding map.
       unsigned int I = 0;
       for (auto *const A : CE->arguments()) {
-        // This can happen with varargs
+        // This can happen with varargs.
         if (I >= FVCon->numParams())
           break;
         const int TyIdx = FVCon->getExternalParam(I)->getGenericIndex();
@@ -153,7 +153,7 @@ void TypeVarVisitor::insertBinding(CallExpr *CE, const int TyIdx,
     TypeVariableEntry TVEntry = TypeVariableEntry(Ty, CVs);
     CallTypeVarMap[TyIdx] = TVEntry;
   } else {
-    // Otherwise, update entry with new type and constraints
+    // Otherwise, update entry with new type and constraints.
     CallTypeVarMap[TyIdx].updateEntry(Ty, CVs);
   }
 }

@@ -48,11 +48,11 @@ private:
   ArrayBoundsRewriter ABRewriter;
   std::set<Expr *> &ExprsWithCast;
 
-  // Enumeration indicating what type of cast is required at a call site
+  // Enumeration indicating what type of cast is required at a call site.
   enum CastNeeded {
-    NO_CAST = 0,     // No casting required
-    CAST_TO_CHECKED, // A CheckedC bounds cast required (wild -> checked)
-    CAST_TO_WILD     // A standard C explicit cast required (checked -> wild)
+    NO_CAST = 0,     // No casting required.
+    CAST_TO_CHECKED, // A CheckedC bounds cast required (wild -> checked).
+    CAST_TO_WILD     // A standard C explicit cast required (checked -> wild).
   };
 
   CastNeeded needCasting(ConstraintVariable *SrcInt, ConstraintVariable *SrcExt,

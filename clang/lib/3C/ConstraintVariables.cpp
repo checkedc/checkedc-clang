@@ -18,7 +18,7 @@
 #include <sstream>
 
 using namespace clang;
-// Macro for boolean implication
+// Macro for boolean implication.
 #define IMPLIES(a, b) ((a) ? (b) : true)
 
 static llvm::cl::OptionCategory OptimizationCategory("Optimization category");
@@ -70,7 +70,7 @@ PointerVariableConstraint *
 PointerVariableConstraint::getNonPtrPVConstraint(Constraints &CS) {
   static PointerVariableConstraint *GlobalNonPtrPV = nullptr;
   if (GlobalNonPtrPV == nullptr) {
-    CAtoms NewVA; // empty -- represents a base type
+    CAtoms NewVA; // Empty -- represents a base type.
     GlobalNonPtrPV =
         new PVConstraint(NewVA, "unsigned", "basevar", nullptr, false, "");
   }
@@ -80,7 +80,7 @@ PointerVariableConstraint::getNonPtrPVConstraint(Constraints &CS) {
 PointerVariableConstraint *
 PointerVariableConstraint::getNamedNonPtrPVConstraint(StringRef Name,
                                                       Constraints &CS) {
-  CAtoms NewVA; // empty -- represents a base type
+  CAtoms NewVA; // Empty -- represents a base type.
   return new PVConstraint(NewVA, "unsigned", std::string(Name), nullptr, false,
                           "");
 }
@@ -123,20 +123,20 @@ PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
                                 C) {}
 
 // Simple recursive visitor for determining if a type contains a typedef
-// entrypoint is find()
+// entrypoint is find().
 class TypedefLevelFinder : public RecursiveASTVisitor<TypedefLevelFinder> {
 public:
   static struct InternalTypedefInfo find(const QualType &QT) {
     TypedefLevelFinder TLF;
     QualType ToSearch;
     // If the type is currently a typedef, desugar that.
-    // This is so we can see if the type _contains_ a typedef
+    // This is so we can see if the type _contains_ a typedef.
     if (const auto *TDT = dyn_cast<TypedefType>(QT))
       ToSearch = TDT->desugar();
     else
       ToSearch = QT;
     TLF.TraverseType(ToSearch);
-    // If we found a typedef the we need to have filled out the name field
+    // If we found a typedef then we need to have filled out the name field.
     assert(IMPLIES(TLF.HasTypedef, TLF.TDname != ""));
     struct InternalTypedefInfo Info = {TLF.HasTypedef, TLF.TypedefLevel,
                                        TLF.TDname};
@@ -265,7 +265,7 @@ PointerVariableConstraint::PointerVariableConstraint(
     GenericIndex = -1;
     // This makes a lot of assumptions about how the AST will look, and limits
     // it to one level.
-    // TODO: Enhance TypedefLevelFinder to get this info
+    // TODO: Enhance TypedefLevelFinder to get this info.
     if (Ty->isPointerType()) {
       auto *PtrTy = Ty->getPointeeType().getTypePtr();
       if (auto *TypdefTy = dyn_cast_or_null<TypedefType>(PtrTy)) {
@@ -693,7 +693,7 @@ std::string PointerVariableConstraint::mkString(const EnvironmentMap &E,
   if (EmitPointee)
     ++It;
   // Interate through the vars(), but if we have an internal typedef, then stop
-  // once you reach the typedef's level
+  // once you reach the typedef's level.
   for (; It != Vars.end() && IMPLIES(TypedefLevelInfo.HasTypedef,
                                      I < TypedefLevelInfo.TypedefLevel);
        ++It, I++) {
@@ -836,7 +836,7 @@ std::string PointerVariableConstraint::mkString(const EnvironmentMap &E,
   if (!EmittedName)
     Ss << " " << getName();
 
-  // Final array dropping
+  // Final array dropping.
   if (!CheckedArrs.empty()) {
     std::deque<std::string> ArrStrs;
     addArrayAnnotations(CheckedArrs, ArrStrs);
@@ -844,7 +844,7 @@ std::string PointerVariableConstraint::mkString(const EnvironmentMap &E,
       Ss << Str;
   }
 
-  //TODO remove comparison to RETVAR
+  // TODO Remove comparison to RETVAR.
   if (getName() == RETVAR && !ForItype)
     Ss << " ";
 
@@ -916,7 +916,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   IsFunctionPtr = true;
   TypeParams = 0;
 
-  // Metadata about function
+  // Metadata about function.
   FunctionDecl *FD = nullptr;
   if (D)
     FD = dyn_cast<FunctionDecl>(D);
@@ -937,7 +937,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   }
 
   bool ReturnHasItype = false;
-  // ConstraintVariables for the parameters
+  // ConstraintVariables for the parameters.
   if (Ty->isFunctionPointerType()) {
     // Is this a function pointer definition?
     llvm_unreachable("should not hit this case");
@@ -960,7 +960,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     for (unsigned J = 0; J < FT->getNumParams(); J++) {
       // Same conditional as we had for the return type. If we don't have a
       // function declaration then the itype for the parameter is used as if it
-      // were the parameters primary type.
+      // were the parameter's primary type.
       QualType QT;
       bool ParamHasItype = FT->getParamAnnots(J).getInteropTypeExpr();
       if (!FD && ParamHasItype)
@@ -994,7 +994,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     llvm_unreachable("don't know what to do");
   }
 
-  // ConstraintVariable for the return
+  // ConstraintVariable for the return.
   ReturnVar = FVComponentVariable(RT, D, RETVAR, I, Ctx, &N, ReturnHasItype);
   int GenericIdx = ReturnVar.ExternalConstraint->getGenericIndex();
   if (GenericIdx >= 0)
@@ -1131,12 +1131,12 @@ void PointerVariableConstraint::constrainOuterTo(Constraints &CS, ConstAtom *C,
         if (*CA < *C) {
           llvm::errs() << "Warning: " << CA->getStr() << " not less than "
                        << C->getStr() << "\n";
-          //assert(CA == CS.getWild()); // definitely bogus if not
+          //assert(CA == CS.getWild()); // Definitely bogus if not.
         }
       } else if (*C < *CA) {
         llvm::errs() << "Warning: " << C->getStr() << " not less than "
                      << CA->getStr() << "\n";
-        //assert(CA == CS.getWild()); // definitely bogus if not
+        //assert(CA == CS.getWild()); // Definitely bogus if not.
       }
     }
   }
@@ -1427,8 +1427,8 @@ std::string FunctionVariableConstraint::mkString(const EnvironmentMap &E,
   return Ret + Itype;
 }
 
-// Reverses the direction of CA for function subtyping
-//   TODO: function pointers forced to be equal right now
+// Reverses the direction of CA for function subtyping.
+//   TODO: Function pointers forced to be equal right now.
 //static ConsAction neg(ConsAction CA) {
 //  switch (CA) {
 //  case Safe_to_Wild: return Wild_to_Safe;
@@ -1461,12 +1461,12 @@ static void createAtomGeq(Constraints &CS, Atom *L, Atom *R, std::string &Rsn,
     // way that violates these relationships, it is possible for a user of 3C
     // to manually modify their code so that it does while still having valid
     // CheckedC code.
-    //if (DoEqType) { // check equality, no matter the atom
+    //if (DoEqType) { // Check equality, no matter the atom.
     //  assert(*CAR == *CAL && "Invalid: RHS ConstAtom != LHS ConstAtom");
     //} else {
-    //  if (CAL != Wild && CAR != Wild) { // pType atom, disregard CAct
+    //  if (CAL != Wild && CAR != Wild) { // pType atom, disregard CAct.
     //    assert(!(*CAL < *CAR) && "Invalid: LHS ConstAtom < RHS ConstAtom");
-    //  } else { // checked atom (Wild/Ptr); respect CAct
+    //  } else { // Checked atom (Wild/Ptr); respect CAct.
     //    switch (CAct) {
     //    case Same_to_Same:
     //      assert(*CAR == *CAL && "Invalid: RHS ConstAtom != LHS ConstAtom");
@@ -1585,7 +1585,7 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
         FCRHS->equateArgumentConstraints(*Info);
 
         // Constrain the return values covariantly.
-        // FIXME: Make neg(CA) here? Function pointers equated
+        // FIXME: Make neg(CA) here? Function pointers equated.
         constrainConsVarGeq(FCLHS->getExternalReturn(),
                             FCRHS->getExternalReturn(), CS, PL, Same_to_Same,
                             DoEqType, Info, HandleBoundsKey);
@@ -1598,7 +1598,7 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
           for (unsigned I = 0; I < FCLHS->numParams(); I++) {
             ConstraintVariable *LHSV = FCLHS->getExternalParam(I);
             ConstraintVariable *RHSV = FCRHS->getExternalParam(I);
-            // FIXME: Make neg(CA) here? Now: Function pointers equated
+            // FIXME: Make neg(CA) here? Now: Function pointers equated.
             constrainConsVarGeq(RHSV, LHSV, CS, PL, Same_to_Same, DoEqType,
                                 Info, HandleBoundsKey);
 
@@ -1844,9 +1844,9 @@ void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
 void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
                                                   ProgramInfo &I,
                                                   std::string &ReasonFailed) {
-  // `this`: is the declaration the tool saw first
+  // `this`: is the declaration the tool saw first.
   // `FromCV`: is the declaration seen second, it cannot have defered
-  // constraints
+  // constraints.
   FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
   assert(From != nullptr);
   assert(From->getDeferredParams().size() == 0);
@@ -1858,14 +1858,14 @@ void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
   }
 
   if (From->numParams() == 0) {
-    // From is an untyped declaration, and adds no information
+    // From is an untyped declaration, and adds no information.
     return;
   }
   if (this->numParams() == 0) {
-    // This is an untyped declaration, we need to perform a transplant
+    // This is an untyped declaration, we need to perform a transplant.
     From->brainTransplant(this, I);
   } else {
-    // Standard merge
+    // Standard merge.
     if (this->numParams() != From->numParams()) {
       ReasonFailed = "differing number of arguments";
       return;

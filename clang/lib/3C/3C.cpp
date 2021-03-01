@@ -494,7 +494,7 @@ bool _3CInterface::writeAllConvertedFilesToDisk() {
 
   ClangTool &Tool = getGlobalClangTool();
 
-  // Rewrite the input files
+  // Rewrite the input files.
   std::unique_ptr<ToolAction> RewriteTool =
       newFrontendActionFactoryA<RewriteAction<RewriteConsumer, ProgramInfo>>(
           GlobalProgramInfo, VerifyDiagnosticOutput);

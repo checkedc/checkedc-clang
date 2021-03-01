@@ -46,7 +46,7 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *CE) {
   if (Info.hasTypeParamBindings(CE, Context))
     TypeVars = Info.getTypeParamBindings(CE, Context);
 
-  // Cast on arguments
+  // Cast on arguments.
   unsigned PIdx = 0;
   for (const auto &A : CE->arguments()) {
     if (PIdx < FV->numParams()) {

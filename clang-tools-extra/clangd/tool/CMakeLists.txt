@@ -1,7 +1,7 @@
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/..)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/..)
 
-# Same idea as add_clangDaemon_target in ../CMakeLists.txt
+# Same idea as add_clangDaemon_target in ../CMakeLists.txt.
 function(add_clangd_target_part1 target_name)
 add_clang_tool(${target_name}
   ClangdMain.cpp

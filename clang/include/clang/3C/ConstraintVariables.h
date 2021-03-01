@@ -83,7 +83,7 @@ public:
   // The 'emitName' parameter is true when the generated string should include
   // the name of the variable, false for just the type.
   // The 'forIType' parameter is true when the generated string is expected
-  // to be used inside an itype
+  // to be used inside an itype.
   virtual std::string mkString(const EnvironmentMap &E, bool EmitName = true,
                                bool ForItype = false, bool EmitPointee = false,
                                bool UnmaskTypedef = false) const = 0;
@@ -186,7 +186,7 @@ class FunctionVariableConstraint;
 // We need to store the level inside the type AST at which the first
 // typedef occurs. This allows us to stop rewriting once we hit the
 // first typedef. (All subsequent typedefs will not be rewritten, as
-// rewriting will stop)
+// rewriting will stop.)
 struct InternalTypedefInfo {
   bool HasTypedef;
   int TypedefLevel;
@@ -489,7 +489,7 @@ private:
   // Flag to indicate whether this is a function pointer or not.
   bool IsFunctionPtr;
 
-  // Count of type parameters from `_Itype_for_any(...)`
+  // Count of type parameters from `_Itype_for_any(...)`.
   int TypeParams;
 
   void equateFVConstraintVars(ConstraintVariable *CV, ProgramInfo &Info) const;

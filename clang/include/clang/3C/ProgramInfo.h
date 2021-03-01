@@ -125,12 +125,12 @@ private:
   // analysis from compilation unit to compilation unit.
   VariableMap Variables;
 
-  // Map storing constraint information for typedefed types
-  // The set contains all the constraint variables that also use this tyepdef
-  // TODO this could be replaced w/ a signle CVar
+  // Map storing constraint information for typedefed types,
+  // The set contains all the constraint variables that also use this typedef.
+  // TODO this could be replaced w/ a single CVar.
   // The bool informs the rewriter whether or not this typedef should be
   // rewritten. It will be false for typedefs we don't support rewritting,
-  // such as typedefs that are pointers to anonymous structs
+  // such as typedefs that are pointers to anonymous structs.
   std::map<PersistentSourceLoc, std::pair<CVarSet, bool>> TypedefVars;
 
   // Map with the same purpose as the Variables map, this stores constraint
@@ -153,7 +153,7 @@ private:
   // has been seen before.
   std::map<std::string, bool> ExternGVars;
 
-  // Maps for global/static functions, global variables
+  // Maps for global/static functions, global variables.
   ExternalFunctionMapType ExternalFunctionFVCons;
   StaticFunctionMapType StaticFunctionFVCons;
   std::map<std::string, std::set<PVConstraint *>> GlobalVariableSymbols;

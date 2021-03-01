@@ -32,7 +32,7 @@ public:
 
   // Returns a set of ConstraintVariables which represent the result of
   // evaluating the expression E. Will explore E recursively, but will
-  // ignore parts of it that do not contribute to the final result
+  // ignore parts of it that do not contribute to the final result.
   CVarSet getExprConstraintVars(Expr *E);
 
   CVarSet getCalleeConstraintVars(CallExpr *CE);

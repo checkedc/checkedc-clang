@@ -811,10 +811,10 @@ bool AvarBoundsInference::predictBounds(BoundsKey K,
   }
 
   if (!InferredNBnds.empty()) {
-    // All the possible inferred bounds for K
+    // All the possible inferred bounds for K.
     InferredKBnds.clear();
     std::set<BoundsKey> TmpBKeys, AllKeys;
-    // TODO: Figure out if there is a discrepency and try to implement
+    // TODO: Figure out if there is a discrepancy and try to implement
     // root-cause analysis.
 
     // Find intersection of all bounds from neighbours.
@@ -1056,7 +1056,7 @@ void AVarBoundsInfo::computerArrPointers(ProgramInfo *PI,
       if (hasArray(PI->getVarMap().at(PSL), CS)) {
         ArrPointers.insert(Bkey);
       }
-      // Does this array belongs to a valid program variable?
+      // Does this array belong to a valid program variable?
       if (isInSrcArray(PI->getVarMap().at(PSL), CS)) {
         InProgramArrPtrBoundsKeys.insert(Bkey);
       }
@@ -1081,7 +1081,7 @@ void AVarBoundsInfo::computerArrPointers(ProgramInfo *PI,
       if (hasArray(FV->getExternalParam(ParmNum), CS)) {
         ArrPointers.insert(Bkey);
       }
-      // Does this array belongs to a valid program variable?
+      // Does this array belong to a valid program variable?
       if (isInSrcArray(FV->getExternalParam(ParmNum), CS)) {
         InProgramArrPtrBoundsKeys.insert(Bkey);
       }

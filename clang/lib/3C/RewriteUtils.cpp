@@ -193,7 +193,7 @@ static void emit(Rewriter &R, ASTContext &C) {
   bool StdoutMode = (OutputPostfix == "-" && OutputDir.empty());
   bool StdoutModeSawMainFile = false;
   SourceManager &SM = C.getSourceManager();
-  // Iterate over each modified rewrite buffer
+  // Iterate over each modified rewrite buffer.
   for (auto Buffer = R.buffer_begin(); Buffer != R.buffer_end(); ++Buffer) {
     if (const FileEntry *FE = SM.getFileEntryForID(Buffer->first)) {
       assert(FE->isValid());
@@ -375,7 +375,7 @@ private:
            }));
 
     for (auto *CV : CVSingleton)
-      // Replace the original type with this new one if the type has changed
+      // Replace the original type with this new one if the type has changed.
       if (CV->anyChanges(Vars))
         rewriteSourceRange(Writer, Range, CV->mkString(Vars, false));
   }

@@ -32,7 +32,7 @@ public:
     return getDecl()->getSourceRange();
   }
 
-  // Discriminator for LLVM-style RTTI (dyn_cast<> et al.)
+  // Discriminator for LLVM-style RTTI (dyn_cast<> et al.).
   enum DRKind {
     DRK_VarDecl,
     DRK_ParmVarDecl,

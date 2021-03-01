@@ -28,7 +28,7 @@ using namespace llvm;
 using namespace clang;
 
 // If S is a function body, then return the FunctionDecl, otherwise return null.
-// Used in both visitors so abstracted to a function
+// Used in both visitors so abstracted to a function.
 FunctionDecl *getFunctionDeclOfBody(ASTContext *Context, CompoundStmt *S) {
   const auto &Parents = Context->getParents(*S);
   if (Parents.empty()) {
@@ -172,11 +172,11 @@ bool CheckedRegionFinder::VisitCompoundStmt(CompoundStmt *S) {
       //
       // Currently, it's OK to perform this check only at the function level
       // because a function is normally in a single file and 3C doesn't add
-      // checked annotations at higher levels (e.g., `#pragma CHECKED_SCOPE`)
+      // checked annotations at higher levels (e.g., `#pragma CHECKED_SCOPE`).
       return false;
     }
 
-    // Need to check return type
+    // Need to check return type.
     const auto *RetType = FD->getReturnType().getTypePtr();
     if (RetType->isPointerType()) {
       CVarOption CV = Info.getVariable(FD, Context);
@@ -184,7 +184,7 @@ bool CheckedRegionFinder::VisitCompoundStmt(CompoundStmt *S) {
     }
   }
 
-  // Visit all subblocks, find all unchecked types
+  // Visit all subblocks, find all unchecked types.
   for (const auto &SubStmt : S->children()) {
     CheckedRegionFinder Sub(Context, Writer, Info, Seen, Map, EmitWarnings);
     Sub.TraverseStmt(SubStmt);

@@ -344,7 +344,7 @@ bool ProgramInfo::link() {
       }
     }
   }
-  // repeat for static functions
+  // Repeat for static functions.
   //
   // Static functions that don't have a body will always cause a linking
   // error during compilation. They may still be useful as code is developed,
@@ -417,7 +417,7 @@ void ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
         NewC->brainTransplant(OldC, *this);
         Map[FuncName] = NewC;
       } else {
-        // if the current FV constraint is not a definition?
+        // If the current FV constraint is not a definition?
         // then merge.
         std::string ReasonFailed = "";
         OldC->mergeDeclaration(NewC, *this, ReasonFailed);
@@ -434,10 +434,10 @@ void ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
           DiagBuilder.AddString(ReasonFailed);
         }
         if (MergingFailed) {
-          // Kill the process and stop conversion
+          // Kill the process and stop conversion.
           // Without this code here, 3C simply ignores this pair of functions
           // and converts the rest of the files as it will (in semi-compliance
-          // with Mike's (2) listed on the original issue (#283)
+          // with Mike's (2) listed on the original issue (#283)).
           exit(1);
         }
       }
@@ -473,11 +473,11 @@ void ProgramInfo::insertNewFVConstraint(FunctionDecl *FD, FVConstraint *FVCon,
                                         ASTContext *C) {
   std::string FuncName = FD->getNameAsString();
   if (FD->isGlobal()) {
-    // external method.
+    // External method.
     insertIntoExternalFunctionMap(ExternalFunctionFVCons, FuncName, FVCon, FD,
                                   C);
   } else {
-    // static method
+    // Static method.
     auto Psl = PersistentSourceLoc::mkPSL(FD, *C);
     std::string FuncFileName = Psl.getFileName();
     insertIntoStaticFunctionMap(StaticFunctionFVCons, FuncName, FuncFileName,
@@ -500,7 +500,7 @@ void ProgramInfo::specialCaseVarIntros(ValueDecl *D, ASTContext *Context) {
     IsGeneric = PVC && PVC->getIsGeneric();
   if (isVarArgType(D->getType().getAsString()) ||
       (hasVoidType(D) && !IsGeneric)) {
-    // set the reason for making this variable WILD.
+    // Set the reason for making this variable WILD.
     std::string Rsn = "Variable type void.";
     PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(D, *Context);
     if (!D->getType()->isVoidType())
@@ -592,7 +592,8 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       // constrain to WILD even if we don't end up storing this in the map.
       constrainWildIfMacro(PVExternal, PVD->getLocation());
       specialCaseVarIntros(PVD, AstContext);
-      // It is possible to have a parameter delc in a macro when function is not
+      // It is possible to have a parameter decl in a macro when the function is
+      // not.
       if (Variables.find(PSL) != Variables.end())
         continue;
       Variables[PSL] = PVInternal;
@@ -608,13 +609,13 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       std::string VarName(VD->getName());
       unifyIfTypedef(Ty, *AstContext, VD, P);
       if (VD->hasGlobalStorage()) {
-        // if we see a definition for this global variable, indicate so in
-        // ExternGVars
+        // If we see a definition for this global variable, indicate so in
+        // ExternGVars.
         if (VD->hasDefinition() || VD->hasDefinition(*AstContext)) {
           ExternGVars[VarName] = true;
         }
-        // if we don't, check that we haven't seen one before before setting to
-        // false
+        // If we don't, check that we haven't seen one before before setting to
+        // false.
         else if (!ExternGVars[VarName]) {
           ExternGVars[VarName] = false;
         }

@@ -21,7 +21,7 @@ using namespace llvm;
 using namespace clang;
 
 // This class is intended to locate inline struct definitions
-// in order to mark them wild or signal a warning as appropriate
+// in order to mark them wild or signal a warning as appropriate.
 class InlineStructDetector {
 public:
   explicit InlineStructDetector() : LastRecordDecl(nullptr) {}
@@ -37,7 +37,7 @@ public:
         FileID FID = FL.getFileID();
         const FileEntry *FE = SM.getFileEntryForID(FID);
 
-        //detect whether this RecordDecl is part of an inline struct
+        // Detect whether this RecordDecl is part of an inline struct.
         bool IsInLineStruct = false;
         Decl *D = Declaration->getNextDeclInContext();
         if (VarDecl *VD = dyn_cast_or_null<VarDecl>(D)) {
@@ -56,10 +56,10 @@ public:
           for (const auto &F : Definition->fields()) {
             auto FieldTy = F->getType();
             // If the RecordDecl is a union or in a system header
-            // and this field is a pointer, we need to mark it wild;
+            // and this field is a pointer, we need to mark it wild.
             bool FieldInUnionOrSysHeader =
                 (FL.isInSystemHeader() || Definition->isUnion());
-            // mark field wild if the above is true and the field is a pointer
+            // Mark field wild if the above is true and the field is a pointer.
             if (isPtrOrArrayType(FieldTy) &&
                 (FieldInUnionOrSysHeader || IsInLineStruct)) {
               std::string Rsn = "Union or external struct field encountered";
@@ -76,11 +76,11 @@ public:
                       ConstraintResolver CB) {
     // If the last seen RecordDecl is non-null and coincides with the current
     // VarDecl (i.e. via an inline struct), we proceed as follows:
-    // if the struct is named, do nothing
-    // if the struct is anonymous:
-    //      when alltypes is on, do nothing, but signal a warning to
-    //                           the user indicating its presence
-    //      when alltypes is off, mark the VarDecl WILD in order to
+    // If the struct is named, do nothing.
+    // If the struct is anonymous:
+    //      When alltypes is on, do nothing, but signal a warning to
+    //                           the user indicating its presence.
+    //      When alltypes is off, mark the VarDecl WILD in order to
     //                           ensure the converted program compiles.
     if (LastRecordDecl != nullptr) {
       auto LastRecordLocation = LastRecordDecl->getBeginLoc();
@@ -261,7 +261,7 @@ public:
             if (CallUntyped) {
               Deferred.push_back(ArgumentConstraints);
             } else if (I < TargetFV->numParams()) {
-              // constrain the arg CV to the param CV
+              // Constrain the arg CV to the param CV.
               ConstraintVariable *ParameterDC = TargetFV->getExternalParam(I);
 
               // Do not handle bounds key here because we will be
@@ -472,7 +472,7 @@ private:
 };
 
 // This class visits a global declaration, generating constraints
-//   for functions, variables, types, etc. that are visited
+// for functions, variables, types, etc. that are visited.
 class ConstraintGenVisitor : public RecursiveASTVisitor<ConstraintGenVisitor> {
 public:
   explicit ConstraintGenVisitor(ASTContext *Context, ProgramInfo &I,
@@ -484,10 +484,10 @@ public:
     auto PSL = PersistentSourceLoc::mkPSL(TD, *Context);
     // If we haven't seen this typedef before, initialize it's entry in the
     // typedef map. If we have seen it before, and we need to preserve the
-    // constraints contained within it
+    // constraints contained within it.
     if (!Info.seenTypedef(PSL))
       // Add this typedef to the program info, if it contains a ptr to
-      // an anonymous struct we mark as not being rewritable
+      // an anonymous struct we mark as not being rewritable.
       Info.addTypedef(PSL, !PtrToStructDef::containsPtrToStructDef(TD));
 
     return true;
