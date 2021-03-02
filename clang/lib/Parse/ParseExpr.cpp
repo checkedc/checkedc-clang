@@ -686,8 +686,12 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
                                        isTypeCast,
                                        isVectorLiteral,
                                        NotPrimaryExpression);
-  if (NotCastExpr)
-    Diag(Tok, diag::err_expected_expression);
+  if (NotCastExpr) {
+    if (getCurScope()->isWhereClauseScope())
+      Diag(Tok, diag::err_expected_expr_in_where_clause);
+    else
+      Diag(Tok, diag::err_expected_expression);
+  }
   return Res;
 }
 

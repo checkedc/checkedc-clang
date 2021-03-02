@@ -267,6 +267,7 @@ Retry:
   // Parse Checked C _Where token.
   case tok::kw__Where: {
     WhereClause *WClause = ParseWhereClause();
+
     if (!WClause)
       return StmtError();
 
@@ -2643,6 +2644,13 @@ WhereClauseFact *Parser::ParseWhereClauseFact() {
 }
 
 WhereClause *Parser::ParseWhereClause() {
+  EnterScope(getCurScope()->getFlags() | Scope::WhereClauseScope);
+  WhereClause *WClause = ParseWhereClauseHelper();
+  ExitScope();
+  return WClause;
+}
+
+WhereClause *Parser::ParseWhereClauseHelper() {
   SourceLocation WhereLoc = Tok.getLocation();
 
   // Consume the "_Where" token.

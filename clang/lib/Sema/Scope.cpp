@@ -170,6 +170,7 @@ void Scope::dumpImpl(raw_ostream &OS) const {
       {CatchScope, "CatchScope"},
       {ForanyScope, "ForanyScope"},
       {ItypeforanyScope, "ITypeForanyScope"},
+      {WhereClauseScope, "WhereClauseScope"},
   };
 
   for (auto Info : FlagInfo) {
