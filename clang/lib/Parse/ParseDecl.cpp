@@ -1885,12 +1885,17 @@ void Parser::AttachWhereClause(Decl *D) {
   if (!getLangOpts().CheckedC || !Tok.is(tok::kw__Where))
     return;
 
+  if (!D)
+    llvm_unreachable("invalid where clause on empty Decl");
+
   WhereClause *WClause = ParseWhereClause();
   if (!WClause)
     return;
 
-  if (auto *VD = dyn_cast_or_null<VarDecl>(D))
+  if (auto *VD = dyn_cast<VarDecl>(D))
     VD->setWhereClause(WClause);
+  else if (auto *PD = dyn_cast<ParmVarDecl>(D))
+    PD->setWhereClause(WClause);
 }
 
 /// ParseDeclGroup - Having concluded that this is either a function
@@ -2073,6 +2078,7 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
   D.complete(FirstDecl);
   if (FirstDecl) {
     DeclsInGroup.push_back(FirstDecl);
+    // If a where clause is declared, attached it to the variable declaration.
     AttachWhereClause(FirstDecl);
   }
 
@@ -2121,6 +2127,8 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
       D.complete(ThisDecl);
       if (ThisDecl) {
         DeclsInGroup.push_back(ThisDecl);
+        // If a where clause is declared, attached it to the variable
+        // declaration.
         AttachWhereClause(ThisDecl);
       }
     }
@@ -7294,6 +7302,10 @@ void Parser::ParseParameterDeclarationClause(
           }
         }
       }
+
+      // If a where clause is declared, attached it to the parameter
+      // declaration.
+      AttachWhereClause(Param);
 
       ParamInfo.push_back(DeclaratorChunk::ParamInfo(ParmII,
                                           ParmDeclarator.getIdentifierLoc(),
