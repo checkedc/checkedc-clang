@@ -2637,7 +2637,19 @@ WhereClauseFact *Parser::ParseWhereClauseFact() {
 
   // Parse an equality expression.
   SourceLocation ExprLoc = Tok.getLocation();
-  ExprResult ExprRes = Actions.CorrectDelayedTyposInExpr(ParseExpression());
+
+  // ParseExpression parses expressions including top-level commas. So
+  // declarations like the following are not parsed correctly.
+  // int a _Where a == 1, b;
+  // If fails because it parses "a == 1, b" as one expression.
+
+  // ParseAssignmentExpression parses an expression not including top-level
+  // commas. So the above declaration is parsed correctly. This is also useful
+  // for parsing multiple comma-separated declarations each having its own
+  // where clause as follows:
+  // int a _Where a < 1, b _Where b > 1, c, d, e _Where e == 1;
+
+  ExprResult ExprRes = ParseAssignmentExpression();
   if (ExprRes.isInvalid())
     return nullptr;
   return Actions.ActOnEqualityOpFact(ExprRes.get(), ExprLoc);
