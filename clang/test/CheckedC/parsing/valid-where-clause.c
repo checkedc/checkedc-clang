@@ -61,3 +61,12 @@ _Nt_array_ptr<char> p1 : count(0) = "" _Where p1 : bounds(p1, p1 + 1);
 // Test where clauses on function parameters.
 void f1(int a _Where a < 0, int b, int c _Where c < 0, int *d : itype(_Ptr<int>) _Where d == 0) {}
 void f2(int a _Where a < 0, int b, int c _Where c < 0, int *d : itype(_Ptr<int>) _Where d == 0);
+
+// Test where clauses on ExprStmts.
+void f3(_Nt_array_ptr<char> p, int a) {
+  int b;
+  a = 0 _Where a < 1 _And a >= 0;
+  b = a _Where a > b _And a != b;
+  p = 0 _Where p : bounds(p, p + 1) _And a < 1;
+L1: a = 0 _Where a > 1;
+}

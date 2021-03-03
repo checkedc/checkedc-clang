@@ -496,9 +496,28 @@ StmtResult Parser::ParseExprStatement(ParsedStmtContext StmtCtx) {
     return ParseCaseStatement(StmtCtx, /*MissingCase=*/true, Expr);
   }
 
+  // Parse where clause on an ExprStmt, if it exists.
+  WhereClause *WClause = nullptr;
+  if (getLangOpts().CheckedC && Tok.is(tok::kw__Where)) {
+    WClause = ParseWhereClause();
+    if (!WClause)
+      return StmtError();
+  }
+
   // Otherwise, eat the semicolon.
   ExpectAndConsumeSemi(diag::err_expected_semi_after_expr);
-  return handleExprStmt(Expr, StmtCtx);
+  StmtResult StmtRes = handleExprStmt(Expr, StmtCtx);
+  if (StmtRes.isInvalid() || !WClause)
+    return StmtRes;
+
+  ValueStmt *VS = dyn_cast<ValueStmt>(StmtRes.get());
+  if (!VS) {
+    Diag(Tok, diag::err_invalid_stmt_where_clause);
+    return StmtError();
+  }
+
+  VS->setWhereClause(WClause);
+  return StmtRes;
 }
 
 /// ParseSEHTryBlockCommon

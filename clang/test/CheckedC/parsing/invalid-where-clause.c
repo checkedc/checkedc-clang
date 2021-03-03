@@ -42,3 +42,7 @@ void invalid_cases_decl(_Nt_array_ptr<char> p) {
 }
 
 void f1(int a _Where a, _Nt_array_ptr<int> p : count(0) _Where p :); // expected-error {{expected comparison operator in equality expression}} expected-error {{expected bounds expression}}
+
+void f2(int a, _Nt_array_ptr<int> p) {
+  a = 0 _Where a _And p : _And q : count(0) _And x _Where d = 1 _And f() < 0 _And; // expected-error {{expected comparison operator in equality expression}} expected-error {{expected bounds expression}} expected-error {{use of undeclared identifier q}} expected-error {{expected comparison operator in equality expression}} expected-error {{use of undeclared identifier 'd'}} expected-error {{call expression not allowed in expression}} expected-error {{expected bounds declaration or equality expression in where clause}} expected-error {{use of undeclared identifier 'x'}}
+}
