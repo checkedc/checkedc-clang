@@ -97,18 +97,23 @@ structures and methods:
     `AbstractSet * A`. It uses the `AbstractSetExprs` map to determine the set
     of expressions.
 - GetLValueTargetBounds method
-  - This method returns the normalized target bounds for an `Expr * E`. It is
-    used in ValidateBoundsContext to determine the target bounds for all lvalue
+  - This method returns the target bounds for an lvalue `Expr * E`. It is used
+    in ValidateBoundsContext to determine the target bounds for all lvalue
     expressions in an `AbstractSet * A`, in order to prove or disprove that
     `ObservedBounds[A]` imply the target bounds for `A`.
+  - Note: the target bounds that GetLValueTargetBounds returns are normalized
+    (if possible) to a `RangeBoundsExpr *`. For example, for the `DeclRefExpr *`
+    `p` which has declared bounds of `count(2)` (a `CountBoundsExpr *`),
+    GetLValueTargetBounds will return the `RangeBoundsExpr * bounds(p, p + 2)`.
 - SynthesizeMemberExprs method
-  - This method takes a `MemberExpr * e` and creates a sets of MemberExprs
-    whose target bounds use the value of `e`. It then sets `ObservedBounds[m]`
-    to the target bounds of `m` for each expression `m` in the created set.
+  - This method takes a `MemberExpr * e` and creates a set of MemberExprs
+    whose target bounds use the value of `e`. For each `MemberExpr * m` in
+    the resulting set of MemberExprs, `ObservedBounds[M]` are set to the
+    target bounds of `m`, where `M` is the `AbstractSet *` that contains `m`.
 - AliasAnalysis class
   - This class performs dataflow analysis to determine aliasing relationships
-    between lvalue expressions. Given an AbstractSet `E` which contains an
-    lvalue expression `e`, AliasAnalysis determines:
+    between lvalue expressions. For an AbstractSet `E` which contains an lvalue
+    expression `e`, the AliasAnalysis class supports queries for::
     - MustAlias: the set `S` of AbstractSets where, for each AbstractSet `A`
       in `S`, each expression belonging to `A` must alias with each expression
       that belongs to `E`.
@@ -238,8 +243,7 @@ the following kinds of lvalue expressions (in the `CheckLValue` method):
 - `CHKCBindTemporaryExpr *`. Examples: `TempBinding({ 0 })`.
 
 The following priorities are proposed for AbstractSet implementations for each
-kind of lvalue expression. Priority 0 and Priority 1 expressions should be
-implemented before the April release of the Checked C compiler.
+kind of lvalue expression.
 
 - Priority 0: `DeclRefExpr *`. This is necessary to maintain the current
   bounds checking behavior for variables. It will also serve to test the
