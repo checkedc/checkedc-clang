@@ -36,6 +36,9 @@ files.
  build environments.
  - The order in which the compiler driver searches the include paths must remain
  unaltered.
+ - The solution must be able to accommodate any clang-specific declarations in
+ system header files, if present (Ex.: inttypes.h).
+ - The Checked-C-specific declarations must live in checkedc repository.
 
 
 ## Details of the Existing Approach 
@@ -72,7 +75,11 @@ files.
      the build system.
      - **Cons**: 1) It violates the "opt-in" philosophy. 2) It does not provide
      fine-grained control to directly include a system header file and avoid
-     Checked-C-specific declarations. 
+     Checked-C-specific declarations. 3) While it is easy to accommodate
+     clang-specific declarations in system header files (Checked-C-specific
+     declarations can be added after the clang-specific declarations), this
+     solution will require some Checked-C-specific declarations to be part of
+     checkedc-clang repository.
 
  - Solution 2:
      - Have a different compiler driver to provide the facility for implicit
@@ -89,55 +96,84 @@ files.
      inclusion because they want to directly include some system header files in
      order to avoid Checked-C-specific declarations.
 
+ - Solution 3:
+     - Let `foo.h` be a system header file with its checked counterpart called
+       `foo_checked.h`. We add a new file called `foo.h` in the same directory
+       that contains `foo_checked.h`. In this new file, we add the following:
+
+             #ifdef IMPLICIT_INCLUDE_CHECKED_HDRS
+             #include <foo_checked.h>
+             #else
+             #include_next <foo.h>
+             #endif
+     - In `foo_checked.h`, we modify `#include <foo.h>` to
+       `#include_next <foo.h>`.
+
+     - The way this solution will work:
+        - If a program includes `foo.h`, clang will pick up either
+          `foo_checked.h` or the system `foo.h` depending on whether or not
+          `-DIMPLICIT_INCLUDE_CHECKED_HDRS` is specified on the compilation
+          commandline.  Therefore specifying this flag will cause the implicit
+          inclusion of the checked counterpart of `foo.h`, which will make it
+          convenient for automation. Not specifying the commandline flag will
+          not perform implicit inclusion, satisfying our "opt-in" philosophy.
+          Infinite recursion is avoided because of `#include_next`.
+        - If a program includes `foo_checked.h` current behavior will prevail.
+          The above flag has no effect on the explicit inclusion of checked
+          header files.
+
+     - **Pros**: 1) It satisfies the "opt-in" philosophy. 2) It is convenient
+       for automation. 3) It provides fine-grained control to directly include a
+       system header file. 4) The existing approach of explicit inclusion is
+       supported. 5) In most cases integration with the build system is easy:
+       the flag `-DIMPLICIT_INCLUDE_CHECKED_HDRS` is passed to the compilation
+       of all source files through the `CFLAGS` variable.
+
+     - **Cons**: 1) In some cases integration with the build system will be more
+       involved if the above flag needs to be passed to the compilation of most
+       source files and avoided for a few source files that may want to directly
+       include system header files in order to avoid Checked-C-specific
+       declarations. 2) It is difficult to accomodate clang-specific
+       declarations.
+
 ## Proposed Solution:
- - Let `foo.h` be a system header file with its checked counterpart called
-   `foo_checked.h`. We add a new file called `foo.h` in the same directory
-   that contains `foo_checked.h`. In this new file, we add the following:
 
-         #ifdef IMPLICIT_INCLUDE_CHECKED_HDRS
-         #include <foo_checked.h>
-         #else
-         #include_next <foo.h>
-         #endif
- - In `foo_checked.h`, we modify `#include <foo.h>` to `#include_next <foo.h>`.
+The proposed solution is as follows:
+  - Based on feedback from CCI, we implicitly include checked headers by
+    default. That is, the compilation flag gives a way to opt out of this
+    implicit inclusion. In accordance with this, we rename the compilation
+    flag to NO_IMPLICIT_INCLUDE_CHECKED_HDRS.
+  - For each system header file, say `foo.h`, that does not have clang-specific
+    declarations (there are 13 such header files at present), we add a new file
+    also called `foo.h` that will contain the following:
 
- - The way this solution will work:
-     - If a program includes `foo.h`, clang will pick up either 
-       `foo_checked.h` or the system `foo.h` depending on whether or not
-       `-DIMPLICIT_INCLUDE_CHECKED_HDRS` is specified on the compilation
-       commandline.  Therefore specifying this flag will cause the implicit
-       inclusion of the checked counterpart of `foo.h`, which will make it
-       convenient for automation. Not specifying the commandline flag will not
-       perform implicit inclusion, satisfying our "opt-in" philosophy.
-       Infinite recursion is avoided because of `#include_next`.
-     - If a program includes `foo_checked.h` current behavior will prevail.
-       The above flag has no effect on the explicit inclusion of checked
-       header files.
+          #ifdef NO_IMPLICIT_INCLUDE_CHECKED_HDRS
+          #include_next <foo.h>
+          #else
+          #include <foo_checked.h>
+          #endif
 
- - **Pros**: 1) It satisfies the "opt-in" philosophy. 2) It is convenient
-   for automation. 3) It provides fine-grained control to directly include a
-   system header file. 4) The existing approach of explicit inclusion is
-   supported. 5) In most cases integration with the build system is easy: the
-   flag `-DIMPLICIT_INCLUDE_CHECKED_HDRS` is passed to the compilation of all 
-   source files through the `CFLAGS` variable.
+    The file `foo_checked.h` will contain `#include_next <foo.h>` and the
+    Checked-C-specific declarations.
 
- - **Cons**: 1) In some cases integration with the build system will be more
-   involved when the above flag needs to be passed to the compilation of most
-   source files and avoided for a few source files that may want to directly
-   include system header files in order to avoid Checked-C-specific
-   declarations.
+  - In the case that a system header file, say `bar.h`, does have clang-specific
+    declarations (there is one such header file at present), the pre-existing
+    `bar.h` contains the following:
 
-## Final Solution:
+          #include_next <bar.h>
+          <currently existing clang-specific declarations>
 
- Based on feedback from CCI, the final solution will be the proposed solution
- above with one change: we implicitly include checked headers by default, and
- the compilation flag gives a way to opt out of this implicit inclusion. In
- accordance with this, we rename the compilation flag to
- NO_IMPLICIT_INCLUDE_CHECKED_HDRS and reverse its usage as follows:
- The new file `foo.h` will contain the following:
+    At the end of the pre-existing `bar.h`, we will add the following:
 
-      #ifdef NO_IMPLICIT_INCLUDE_CHECKED_HDRS
-      #include_next <foo.h>
-      #else
-      #include <foo_checked.h>
-      #endif
+          #ifndef NO_IMPLICIT_INCLUDE_CHECKED_HDRS
+          #include <bar_checked_internal.h>
+          #endif
+
+    The file `bar_checked.h` will contain just the following:
+
+          // Force the inclusion of Checked-C-specific declarations
+          #undef NO_IMPLICIT_INCLUDE_CHECKED_HDRS
+          #include <bar.h>
+
+    All the Checked-C-specific declarations will be moved to
+    `bar_checked_internal.h`.
