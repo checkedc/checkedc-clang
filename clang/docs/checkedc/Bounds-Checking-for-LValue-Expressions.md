@@ -210,6 +210,8 @@ The AbstractSet class contains the following members:
    described above.
 2. Implement lexicographic ordering for PreorderASTs. This is necessary
    to avoid an expensive linear search in GetOrCreateAbstractSet.
+   Lexicographic ordering for PreorderASTs leverages the ordering implemented
+   in [CanonBounds.cpp](https://github.com/microsoft/checkedc-clang/blob/master/clang/lib/AST/CanonBounds.cpp).
 3. Replace the current `VarDecl *` keys in `ObservedBounds` with `AbstractSet *`.
    This should result in no changes in compiler behavior (since only
    `DeclRefExpr *` will have an AbstractSet representation).
