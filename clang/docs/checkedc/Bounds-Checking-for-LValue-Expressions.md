@@ -210,8 +210,6 @@ The AbstractSet class contains the following members:
    described above.
 2. Implement lexicographic ordering for PreorderASTs. This is necessary
    to avoid an expensive linear search in GetOrCreateAbstractSet.
-   Lexicographic ordering for PreorderASTs leverages the ordering implemented
-   in [CanonBounds.cpp](https://github.com/microsoft/checkedc-clang/blob/master/clang/lib/AST/CanonBounds.cpp).
 3. Replace the current `VarDecl *` keys in `ObservedBounds` with `AbstractSet *`.
    This should result in no changes in compiler behavior (since only
    `DeclRefExpr *` will have an AbstractSet representation).
@@ -258,3 +256,21 @@ kind of lvalue expression.
   likely than `MemberExpr *` to have unknown target bounds.
 - Priority 3: `ImplicitCastExpr *` and `CHKCBindTemporaryExpr *`. These kinds
   are less common in example code.
+
+## Lexicographic Ordering for PreorderASTs
+
+Lexicographic ordering for PreorderASTs leverages the ordering implemented in
+[CanonBounds.cpp](https://github.com/microsoft/checkedc-clang/blob/master/clang/lib/AST/CanonBounds.cpp).
+particularly the CompareExpr method.
+
+For two leaf nodes `N1` and `N2` of a PreorderAST, the result of
+lexicographically comparing `N1` and `N2` is `CompareExpr(E1, E1)` for the
+underlying expressions `E1` and `E2` of `N1` and `N2`.
+
+As a possible future optimization, the PreorderAST class can maintain a set
+of VarDecls that identify the set of variables that it uses. This can be used
+to more quickly order two PreorderASTs `P1` and `P2` by comparing the set of
+variables involved in `P1` and `P2`. This can help avoid expensive comparisons
+for deeply nested PreorderASTs that differ only in the last expression.
+For example, `P1` may be constructed from the expression `a->b->c->d` and
+`P2` may be constructed from the expression `a->b->c->d->e`.
