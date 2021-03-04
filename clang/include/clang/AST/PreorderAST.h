@@ -138,11 +138,12 @@ namespace clang {
     bool GetDerefOffset(Node *UpperExpr, Node *DerefExpr,
                         llvm::APSInt &Offset);
 
-    // Check if the two AST nodes N1 and N2 are equal.
+    // Lexicographically compare two AST nodes N1 and N2.
     // @param[in] N1 is the first node.
     // @param[in] N2 is the second node.
-    // @return Returns a boolean indicating whether N1 and N2 are equal.
-    bool IsEqual(Node *N1, Node *N2);
+    // @return Returns a Lexicographic::Result indicating the comparison
+    // of N1 and N2.
+    Result Compare(Node *N1, Node *N2);
 
     // Set Error in case an error occurs during transformation of the AST.
     void SetError() { Error = true; }
@@ -178,13 +179,14 @@ namespace clang {
       return GetDerefOffset(/*UpperExpr*/ Root, /*DerefExpr*/ P.Root, Offset);
     }
 
-    // Check if the two ASTs are equal. This is intended to be called from
-    // outside this class and invokes IsEqual on the root nodes of the two ASTs
-    // to recursively compare the AST nodes.
+    // Lexicographically compare the two ASTs. This is intended to be called
+    // from outside this class and invokes Compare on the root nodes of the two
+    // ASTs to recursively compare the AST nodes.
     // @param[in] this is the first AST.
     // @param[in] P is the second AST.
-    // @return Returns a bool indicating whether the two ASTs are equal.
-    bool IsEqual(PreorderAST &P) { return IsEqual(Root, P.Root); }
+    // @return Returns a Lexicographic::Result indicating the comparison between
+    // the two ASTs.
+    Result Compare(PreorderAST &P) { return Compare(Root, P.Root); }
 
     // Check if an error has occurred during transformation of the AST. This
     // is intended to be called from outside this class to check if an error
