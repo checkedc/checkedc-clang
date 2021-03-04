@@ -427,8 +427,8 @@ Result PreorderAST::Compare(Node *N1, Node *N2) {
     if (O1->Opc > O2->Opc)
       return Result::GreaterThan;
 
-    unsigned ChildCount1 = O1->Children.size(),
-             ChildCount2 = O2->Children.size();
+    size_t ChildCount1 = O1->Children.size(),
+           ChildCount2 = O2->Children.size();
 
     // If the number of children of the two nodes mismatch.
     if (ChildCount1 < ChildCount2)
