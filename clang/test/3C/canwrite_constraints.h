@@ -14,6 +14,15 @@ inline void foo(int *p) {}
 int *foo_var = ((void *)0);
 // CHECK_HIGHER: _Ptr<int> foo_var = ((void *)0);
 
+// Make sure we don't allow the types of casts in non-writable files to be
+// changed. This problem was seen with the inline definition of `atol(p)` as
+// `strtol(p, (char **) NULL, 10)` in the system headers.
+void strtol_like(int *p : itype(_Ptr<int>));
+void atol_like() {
+  // expected-warning@+1 {{Expression in non-writable file}}
+  strtol_like((int *) 0);
+}
+
 // Make sure we do not add checked regions in non-writable files. This happened
 // incidentally in system headers in some other regression tests, but this is a
 // dedicated test for it.

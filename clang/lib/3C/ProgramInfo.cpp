@@ -700,6 +700,10 @@ void ProgramInfo::storePersistentConstraints(Expr *E, const CVarSet &Vars,
   // visited before. To avoid this, the expression is not cached and instead is
   // recomputed each time it's needed.
   if (PSL.valid() && Rewriter::isRewritable(E->getBeginLoc())) {
+    if (!canWrite(PSL.getFileName())) {
+      for (ConstraintVariable *CVar : Vars)
+        CVar->constrainToWild(CS, "Expression in non-writable file", &PSL);
+    }
     auto &ExprMap = isa<ImplicitCastExpr>(E) ? ImplicitCastConstraintVars
                                              : ExprConstraintVars;
     ExprMap[PSL].insert(Vars.begin(), Vars.end());
