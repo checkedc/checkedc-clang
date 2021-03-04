@@ -358,7 +358,7 @@ bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
     auto *Child1 = O1->Children[I];
     auto *Child2 = O2->Children[I];
 
-    if (IsEqual(Child1, Child2))
+    if (Compare(Child1, Child2) == Result::Equal)
       continue;
 
     // If the children are not equal we require that they be integer constant
@@ -403,51 +403,62 @@ bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
   return true;
 }
 
-bool PreorderAST::IsEqual(Node *N1, Node *N2) {
+Result PreorderAST::Compare(Node *N1, Node *N2) {
   // If both the nodes are null.
   if (!N1 && !N2)
-    return true;
+    return Result::Equal;
 
   // If only one of the nodes is null.
-  if ((N1 && !N2) || (!N1 && N2))
-    return false;
+  if (!N1 && N2)
+    return Result::LessThan;
+  if (N1 && !N2)
+    return Result::GreaterThan;
 
   if (const auto *O1 = dyn_cast<OperatorNode>(N1)) {
-    // If the types of the nodes mismatch.
+    // OperatorNode > LeafNode.
     if (!isa<OperatorNode>(N2))
-      return false;
+      return Result::GreaterThan;
 
     const auto *O2 = dyn_cast<OperatorNode>(N2);
 
     // If the Opcodes mismatch.
-    if (O1->Opc != O2->Opc)
-      return false;
+    if (O1->Opc < O2->Opc)
+      return Result::LessThan;
+    if (O1->Opc > O2->Opc)
+      return Result::GreaterThan;
+
+    unsigned ChildCount1 = O1->Children.size(),
+             ChildCount2 = O2->Children.size();
 
     // If the number of children of the two nodes mismatch.
-    if (O1->Children.size() != O2->Children.size())
-      return false;
+    if (ChildCount1 < ChildCount2)
+      return Result::LessThan;
+    if (ChildCount1 > ChildCount2)
+      return Result::GreaterThan;
 
     // Match each child of the two nodes.
-    for (size_t I = 0; I != O1->Children.size(); ++I) {
+    for (size_t I = 0; I != ChildCount1; ++I) {
       auto *Child1 = O1->Children[I];
       auto *Child2 = O2->Children[I];
 
+      Result ChildComparison = Compare(Child1, Child2);
+
       // If any child differs between the two nodes.
-      if (!IsEqual(Child1, Child2))
-        return false;
+      if (ChildComparison != Result::Equal)
+        return ChildComparison;
     }
   }
 
   if (const auto *L1 = dyn_cast<LeafExprNode>(N1)) {
-    // If the expr differs between the two nodes.
+    // Compare the exprs for two leaf nodes.
     if (const auto *L2 = dyn_cast<LeafExprNode>(N2))
-      return Lex.CompareExpr(L1->E, L2->E) == Result::Equal;
+      return Lex.CompareExpr(L1->E, L2->E);
 
-    // Else if the types of the nodes mismatch.
-    return false;
+    // LeafNode < OperatorNode.
+    return Result::LessThan;
   }
 
-  return true;
+  return Result::Equal;
 }
 
 void PreorderAST::Normalize() {
