@@ -4557,7 +4557,8 @@ EqualityOpFact *Sema::ActOnEqualityOpFact(Expr *E, SourceLocation ExprLoc) {
   auto *BO = dyn_cast_or_null<BinaryOperator>(TmpE);
 
   if (!BO) {
-    Diag(ExprLoc, diag::err_invalid_expr_in_where_clause);
+    if (getCurScope()->isWhereClauseScope())
+      Diag(ExprLoc, diag::err_invalid_expr_in_where_clause);
     return nullptr;
   }
 
