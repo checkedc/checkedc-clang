@@ -323,7 +323,19 @@ int main(int argc, const char **argv) {
   _3CInterface &_3CInterface = *_3CInterfacePtr;
 
   if (OptVerbose)
+    errs() << "Adding variables to database.\n";
+
+  // First add variables.
+  if (!_3CInterface.addVariables()) {
+    errs() << "Failure occurred while trying to add variables. Exiting.\n";
+    return 1;
+  }
+
+  if (OptVerbose) {
+    errs() << "Finished adding variables.\n";
     errs() << "Calling Library to building Constraints.\n";
+  }
+
   // First build constraints.
   if (!_3CInterface.buildInitialConstraints()) {
     errs() << "Failure occurred while trying to build constraints. Exiting.\n";

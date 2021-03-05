@@ -269,7 +269,7 @@ public:
               constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
                                   Wild_to_Safe, false, &Info, false);
 
-              if (AllTypes && TFD != nullptr) {
+              if (AllTypes && TFD != nullptr && I < TFD->getNumParams()) {
                 auto *PVD = TFD->getParamDecl(I);
                 auto &ABI = Info.getABoundsInfo();
                 // Here, we need to handle context-sensitive assignment.
@@ -479,20 +479,6 @@ public:
                                 TypeVarInfo &TVI)
       : Context(Context), Info(I), CB(Info, Context), TVInfo(TVI), ISD() {}
 
-  bool VisitTypedefDecl(TypedefDecl *TD) {
-    CVarSet Empty;
-    auto PSL = PersistentSourceLoc::mkPSL(TD, *Context);
-    // If we haven't seen this typedef before, initialize it's entry in the
-    // typedef map. If we have seen it before, and we need to preserve the
-    // constraints contained within it.
-    if (!Info.seenTypedef(PSL))
-      // Add this typedef to the program info, if it contains a ptr to
-      // an anonymous struct we mark as not being rewritable.
-      Info.addTypedef(PSL, !PtrToStructDef::containsPtrToStructDef(TD));
-
-    return true;
-  }
-
   bool VisitVarDecl(VarDecl *G) {
 
     if (G->hasGlobalStorage() && isPtrOrArrayType(G->getType())) {
@@ -564,7 +550,22 @@ private:
 class VariableAdderVisitor : public RecursiveASTVisitor<VariableAdderVisitor> {
 public:
   explicit VariableAdderVisitor(ASTContext *Context, ProgramVariableAdder &VA)
-      : Context(Context), VarAdder(VA) {}
+    : Context(Context), VarAdder(VA) {}
+
+
+  bool VisitTypedefDecl(TypedefDecl* TD) {
+    CVarSet empty;
+    auto PSL = PersistentSourceLoc::mkPSL(TD, *Context);
+    // If we haven't seen this typedef before, initialize it's entry in the
+    // typedef map. If we have seen it before, and we need to preserve the
+    // constraints contained within it
+    if (!VarAdder.seenTypedef(PSL))
+      // Add this typedef to the program info, if it contains a ptr to
+      // an anonymous struct we mark as not being rewritable
+      VarAdder.addTypedef(PSL, !PtrToStructDef::containsPtrToStructDef(TD));
+
+    return true;
+  }
 
   bool VisitVarDecl(VarDecl *D) {
     FullSourceLoc FL = Context->getFullLoc(D->getBeginLoc());
@@ -604,7 +605,7 @@ private:
   }
 };
 
-void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
+void VariableAdderConsumer::HandleTranslationUnit(ASTContext &C) {
   Info.enterCompilationUnit(C);
   if (Verbose) {
     SourceManager &SM = C.getSourceManager();
@@ -617,19 +618,45 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
   }
 
   VariableAdderVisitor VAV = VariableAdderVisitor(&C, Info);
+  TranslationUnitDecl *TUD = C.getTranslationUnitDecl();
+  // Collect Variables.
+  for (const auto &D : TUD->decls()) {
+    VAV.TraverseDecl(D);
+  }
+
+  if (Verbose)
+    errs() << "Done analyzing\n";
+
+  Info.exitCompilationUnit();
+  return;
+}
+
+void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
+  Info.enterCompilationUnit(C);
+  if (Verbose) {
+    SourceManager &SM = C.getSourceManager();
+    FileID MainFileId = SM.getMainFileID();
+    const FileEntry *FE = SM.getFileEntryForID(MainFileId);
+    if (FE != nullptr)
+      errs() << "Analyzing file " << FE->getName() << "\n";
+    else
+      errs() << "Analyzing\n";
+  }
+
+
   TypeVarVisitor TV = TypeVarVisitor(&C, Info);
   ConstraintResolver CSResolver(Info, &C);
   ContextSensitiveBoundsKeyVisitor CSBV =
       ContextSensitiveBoundsKeyVisitor(&C, Info);
   ConstraintGenVisitor GV = ConstraintGenVisitor(&C, Info, TV);
   TranslationUnitDecl *TUD = C.getTranslationUnitDecl();
+
   // Generate constraints.
   for (const auto &D : TUD->decls()) {
-    // The order of these traversals CANNOT be changed because both the type
-    // variable and constraint gen visitor require that variables have been
-    // added to ProgramInfo, and the constraint gen visitor requires the type
-    // variable information gathered in the type variable traversal.
-    VAV.TraverseDecl(D);
+    // The order of these traversals CANNOT be changed because the constraint
+    // gen visitor requires the type variable information gathered in the type
+    // variable traversal.
+
     CSBV.TraverseDecl(D);
     TV.TraverseDecl(D);
     GV.TraverseDecl(D);

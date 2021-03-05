@@ -345,13 +345,33 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
   CurrCompDB = CompDB;
 }
 
+bool _3CInterface::addVariables() {
+
+  std::lock_guard<std::mutex> Lock(InterfaceMutex);
+
+  ClangTool &Tool = getGlobalClangTool();
+
+  // 1a. Add Variables.
+  std::unique_ptr<ToolAction> AdderTool = newFrontendActionFactoryA<
+      GenericAction<VariableAdderConsumer, ProgramInfo>>(GlobalProgramInfo);
+
+  if (AdderTool) {
+    int ToolExitCode = Tool.run(AdderTool.get());
+    if (ToolExitCode != 0)
+      return false;
+  } else
+    llvm_unreachable("No action");
+
+  return true;
+}
+
 bool _3CInterface::buildInitialConstraints() {
 
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
 
   ClangTool &Tool = getGlobalClangTool();
 
-  // 1. Gather constraints.
+  // 1b. Gather constraints.
   std::unique_ptr<ToolAction> ConstraintTool = newFrontendActionFactoryA<
       GenericAction<ConstraintBuilderConsumer, ProgramInfo>>(GlobalProgramInfo);
 

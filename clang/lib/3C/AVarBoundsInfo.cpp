@@ -481,14 +481,6 @@ ProgramVar *AVarBoundsInfo::getProgramVar(BoundsKey VK) {
   return Ret;
 }
 
-void AVarBoundsInfo::brainTransplant(BoundsKey NewBK, BoundsKey OldBK) {
-  // Here, we use the ProgramVar of NewBK and use it for OldBK.
-  if (NewBK != OldBK) {
-    ProgramVar *NewPVar = getProgramVar(NewBK);
-    insertProgramVar(OldBK, NewPVar);
-  }
-}
-
 bool AVarBoundsInfo::hasVarKey(PersistentSourceLoc &PSL) {
   return DeclVarMap.left().find(PSL) != DeclVarMap.left().end();
 }

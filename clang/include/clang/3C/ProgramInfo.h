@@ -31,6 +31,11 @@ public:
     getABoundsInfo().insertVariable(D);
   }
 
+  virtual bool seenTypedef(PersistentSourceLoc PSL) = 0;
+
+  virtual void addTypedef(PersistentSourceLoc PSL, bool ShouldCheck) = 0;
+
+
 protected:
   virtual AVarBoundsInfo &getABoundsInfo() = 0;
 };
@@ -166,41 +171,20 @@ private:
   // For each call to a generic function, remember how the type parameters were
   // instantiated so they can be inserted during rewriting.
   TypeParamBindingsT TypeParamBindings;
-
-  // Insert the given FVConstraint* set into the provided Map.
-  void insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
-                                     const std::string &FuncName,
-                                     FVConstraint *NewC, FunctionDecl *FD,
-                                     ASTContext *C);
-
-  // Inserts the given FVConstraint* set into the provided static map.
-  void insertIntoStaticFunctionMap(StaticFunctionMapType &Map,
-                                   const std::string &FuncName,
-                                   const std::string &FileName,
-                                   FVConstraint *ToIns, FunctionDecl *FD,
-                                   ASTContext *C);
-
+  
   // Special-case handling for decl introductions. For the moment this covers:
   //  * void-typed variables
   //  * va_list-typed variables
   void specialCaseVarIntros(ValueDecl *D, ASTContext *Context);
 
   // Inserts the given FVConstraint set into the extern or static function map.
-  // Note: This can trigger a brainTransplant from an existing FVConstraint into
-  // the argument FVConstraint. The brainTransplant copies the atoms of the
-  // existing FVConstraint into the argument. This effectively throws out any
-  // constraints that may been applied to the argument FVConstraint, so do not
-  // call this function any time other than immediately after constructing an
-  // FVConstraint.
-  void insertNewFVConstraint(FunctionDecl *FD, FVConstraint *FVCon,
-                             ASTContext *C);
+  // Returns the merged version if it was a redeclaration, or the constraint
+  // parameter if it was new.
+  FunctionVariableConstraint *
+  insertNewFVConstraint(FunctionDecl *FD, FVConstraint *FVCon, ASTContext *C);
 
   // Retrieves a FVConstraint* from a Decl (which could be static, or global)
   FVConstraint *getFuncFVConstraint(FunctionDecl *FD, ASTContext *C);
-
-  // For each pointer type in the declaration of D, add a variable to the
-  // constraint system for that pointer type.
-  void addVariable(clang::DeclaratorDecl *D, clang::ASTContext *AstContext);
 
   void insertIntoPtrSourceMap(const PersistentSourceLoc *PSL,
                               ConstraintVariable *CV);
@@ -209,6 +193,11 @@ private:
 
   void insertCVAtoms(ConstraintVariable *CV,
                      std::map<ConstraintKey, ConstraintVariable *> &AtomMap);
+
+  // For each pointer type in the declaration of D, add a variable to the
+  // constraint system for that pointer type.
+  void addVariable(clang::DeclaratorDecl *D, clang::ASTContext *AstContext);
+
 };
 
 #endif

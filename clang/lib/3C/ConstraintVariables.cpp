@@ -1720,30 +1720,6 @@ bool isAValidPVConstraint(const ConstraintVariable *C) {
   return false;
 }
 
-// Replace CVars and ArgumentConstraints with those in [FromCV].
-void PointerVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
-                                                ProgramInfo &I) {
-  PVConstraint *From = dyn_cast<PVConstraint>(FromCV);
-  assert(From != nullptr);
-  CAtoms CFrom = From->getCvars();
-  assert(Vars.size() == CFrom.size());
-  if (From->hasBoundsKey()) {
-    // If this has bounds key!? Then do brain transplant of
-    // bound keys as well.
-    if (hasBoundsKey())
-      I.getABoundsInfo().brainTransplant(getBoundsKey(), From->getBoundsKey());
-
-    ValidBoundsKey = From->hasBoundsKey();
-    BKey = From->getBoundsKey();
-  }
-  Vars = CFrom; // FIXME: structural copy? By reference?
-  ArgumentConstraints = From->getArgumentConstraints();
-  if (FV) {
-    assert(From->FV);
-    FV->brainTransplant(From->FV, I);
-  }
-}
-
 void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
                                                  ProgramInfo &Info,
                                                  std::string &ReasonFailed) {
@@ -1753,7 +1729,7 @@ void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
   CAtoms::iterator I = Vars.begin();
   CAtoms::iterator J = CFrom.begin();
   if (CFrom.size() != Vars.size()) {
-    ReasonFailed = "conflicting types ";
+    ReasonFailed = "transplanting between pointers with different depths";
     return;
   }
   while (I != Vars.end()) {
@@ -1781,7 +1757,8 @@ void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
     ++I;
     ++J;
   }
-  assert(Vars.size() == NewVatoms.size() && "Merging Failed");
+  assert(Vars.size() == NewVatoms.size() &&
+         "Merging error, pointer depth change");
   Vars = NewVatoms;
   SrcHasItype = SrcHasItype || From->SrcHasItype;
   if (!From->ItypeStr.empty())
@@ -1793,6 +1770,10 @@ void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
   if (FV) {
     assert(From->FV);
     FV->mergeDeclaration(From->FV, Info, ReasonFailed);
+    if (ReasonFailed != "") {
+      ReasonFailed += " within the referenced function";
+      return;
+    }
   }
 }
 
@@ -1812,35 +1793,6 @@ Atom *PointerVariableConstraint::getAtom(unsigned AtomIdx, Constraints &CS) {
   return nullptr;
 }
 
-// Brain Transplant params and returns in [FromCV], recursively.
-void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
-                                                 ProgramInfo &I) {
-  FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
-  assert(From != nullptr);
-  // Transplant returns.
-  ReturnVar.brainTransplant(&From->ReturnVar, I);
-  // Transplant params.
-  if (numParams() == From->numParams()) {
-    for (unsigned J = 0; J < From->numParams(); J++)
-      ParamVars[J].brainTransplant(&From->ParamVars[J], I);
-  } else if (numParams() != 0 && From->numParams() == 0) {
-    auto &CS = I.getConstraints();
-    const std::vector<ParamDeferment> &Defers = From->getDeferredParams();
-    assert(getDeferredParams().size() == 0);
-    for (auto Deferred : Defers) {
-      assert(numParams() == Deferred.PS.size());
-      for (unsigned J = 0; J < Deferred.PS.size(); J++) {
-        ConstraintVariable *ParamDC = getExternalParam(J);
-        CVarSet ArgDC = Deferred.PS[J];
-        constrainConsVarGeq(ParamDC, ArgDC, CS, &(Deferred.PL), Wild_to_Safe,
-                            false, &I);
-      }
-    }
-  } else {
-    llvm_unreachable("Brain Transplant on empty params");
-  }
-}
-
 void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
                                                   ProgramInfo &I,
                                                   std::string &ReasonFailed) {
@@ -1853,7 +1805,7 @@ void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
   // Transplant returns.
   ReturnVar.mergeDeclaration(&From->ReturnVar, I, ReasonFailed);
   if (ReasonFailed != "") {
-    ReasonFailed += "for return value";
+    ReasonFailed += " for return value";
     return;
   }
 
@@ -1862,8 +1814,9 @@ void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
     return;
   }
   if (this->numParams() == 0) {
-    // This is an untyped declaration, we need to perform a transplant.
-    From->brainTransplant(this, I);
+    // This is an untyped declaration, we need to switch to the other
+    assert(false && "This merge should happen in reverse");
+    From->mergeDeclaration(this, I, ReasonFailed);
   } else {
     // Standard merge.
     if (this->numParams() != From->numParams()) {
@@ -1873,7 +1826,7 @@ void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
     for (unsigned J = 0; J < From->numParams(); J++) {
       ParamVars[J].mergeDeclaration(&From->ParamVars[J], I, ReasonFailed);
       if (ReasonFailed != "") {
-        ReasonFailed += "for parameter " + std::to_string(J);
+        ReasonFailed += " for parameter " + std::to_string(J);
         return;
       }
     }
@@ -1893,7 +1846,8 @@ bool FunctionVariableConstraint::getIsOriginallyChecked() const {
 void FVComponentVariable::mergeDeclaration(FVComponentVariable *From,
                                            ProgramInfo &I,
                                            std::string &ReasonFailed) {
-  if (InternalConstraint == ExternalConstraint) {
+  if (InternalConstraint == ExternalConstraint
+      && From->InternalConstraint != From->ExternalConstraint) {
     // Special handling for merging declarations where the original declaration
     // was allocated using the same constraint variable for internal and
     // external constraints but a subsequent declaration allocated separate
@@ -1906,22 +1860,16 @@ void FVComponentVariable::mergeDeclaration(FVComponentVariable *From,
     InternalConstraint->mergeDeclaration(From->InternalConstraint, I,
                                          ReasonFailed);
   }
+  if (ReasonFailed != ""){
+    ReasonFailed += " during internal merge";
+    return;
+  }
   ExternalConstraint->mergeDeclaration(From->ExternalConstraint, I,
                                        ReasonFailed);
 }
 
-void FVComponentVariable::brainTransplant(FVComponentVariable *From,
-                                          ProgramInfo &I) {
-  // As in mergeDeclaration, special handling is required if the original
-  // declaration did not allocate split constraint variables.
-  if (InternalConstraint == ExternalConstraint)
-    InternalConstraint = From->InternalConstraint;
-  else
-    InternalConstraint->brainTransplant(From->InternalConstraint, I);
-  ExternalConstraint->brainTransplant(From->ExternalConstraint, I);
-}
-
-std::string FVComponentVariable::mkString(const EnvironmentMap &E) const {
+std::string
+FVComponentVariable::mkString(const EnvironmentMap &E) const {
   std::string Str;
   if (ExternalConstraint->anyChanges(E) && InternalConstraint->anyChanges(E))
     Str = ExternalConstraint->mkString(E);
