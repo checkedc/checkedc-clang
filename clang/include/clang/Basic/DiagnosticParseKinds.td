@@ -1511,4 +1511,7 @@ def err_pragma_checked_scope_invalid_argument : Error<
   "unexpected argument '%0' to '#pragma CHECKED_SCOPE'; "
   "expected 'on','off', '_Bounds_only', 'push', or 'pop'">;
 
+def err_expected_expr_in_where_clause : Error<
+  "expected bounds declaration or equality expression in where clause">;
+
 } // end of Parser diagnostics

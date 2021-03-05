@@ -10912,6 +10912,9 @@ def err_probability_out_of_range : Error<
 def err_expected_comparison_op_in_equality_expr : Error<
   "expected comparison operator in equality expression">;
 
+def err_invalid_expr_in_where_clause : Error<
+  "invalid expression in where clause, expected bounds declaration or equality expression">;
+
 // Checked C diagnostic messages
 let CategoryName = "Checked C" in {
 
