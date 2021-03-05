@@ -2668,7 +2668,8 @@ WhereClauseFact *Parser::ParseWhereClauseFact() {
   // where clause as follows:
   // int a _Where a < 1, b _Where b > 1, c, d, e _Where e == 1;
 
-  ExprResult ExprRes = ParseAssignmentExpression();
+  ExprResult ExprRes =
+    Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
   if (ExprRes.isInvalid())
     return nullptr;
   return Actions.ActOnEqualityOpFact(ExprRes.get(), ExprLoc);

@@ -2109,8 +2109,8 @@ private:
   /// Parse a Checked C where clause fact.
   WhereClauseFact *ParseWhereClauseFact();
 
-  /// Attach a where clause to a Decl.
-  void AttachWhereClause(Decl *D);
+  /// Parse a where clause occurring on a declaration.
+  void ParseWhereClauseOnDecl(Decl *D);
 
   //===--------------------------------------------------------------------===//
   // clang Expressions

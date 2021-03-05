@@ -1881,7 +1881,7 @@ void Parser::ExitQuantifiedTypeScope(DeclSpec &DS) {
   }
 }
 
-void Parser::AttachWhereClause(Decl *D) {
+void Parser::ParseWhereClauseOnDecl(Decl *D) {
   if (!getLangOpts().CheckedC || !Tok.is(tok::kw__Where))
     return;
 
@@ -2078,8 +2078,8 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
   D.complete(FirstDecl);
   if (FirstDecl) {
     DeclsInGroup.push_back(FirstDecl);
-    // If a where clause is declared, attached it to the variable declaration.
-    AttachWhereClause(FirstDecl);
+    // Parse a where clause occurring on the variable declaration.
+    ParseWhereClauseOnDecl(FirstDecl);
   }
 
   bool ExpectSemi = Context != DeclaratorContext::ForContext;
@@ -2127,9 +2127,8 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
       D.complete(ThisDecl);
       if (ThisDecl) {
         DeclsInGroup.push_back(ThisDecl);
-        // If a where clause is declared, attached it to the variable
-        // declaration.
-        AttachWhereClause(ThisDecl);
+        // Parse a where clause occurring on the variable declaration.
+        ParseWhereClauseOnDecl(ThisDecl);
       }
     }
   }
@@ -7303,9 +7302,8 @@ void Parser::ParseParameterDeclarationClause(
         }
       }
 
-      // If a where clause is declared, attached it to the parameter
-      // declaration.
-      AttachWhereClause(Param);
+      // Parse a where clause occurring on the parameter declaration.
+      ParseWhereClauseOnDecl(Param);
 
       ParamInfo.push_back(DeclaratorChunk::ParamInfo(ParmII,
                                           ParmDeclarator.getIdentifierLoc(),
