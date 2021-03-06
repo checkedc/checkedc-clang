@@ -643,6 +643,9 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
       errs() << "Analyzing\n";
   }
 
+  auto &PStats = Info.getPerfStats();
+
+  PStats.startConstraintBuilderTime();
 
   TypeVarVisitor TV = TypeVarVisitor(&C, Info);
   ConstraintResolver CSResolver(Info, &C);
@@ -667,6 +670,8 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
 
   if (Verbose)
     errs() << "Done analyzing\n";
+
+  PStats.endConstraintBuilderTime();
 
   Info.exitCompilationUnit();
   return;

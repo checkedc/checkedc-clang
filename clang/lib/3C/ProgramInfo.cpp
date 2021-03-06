@@ -17,6 +17,63 @@
 
 using namespace clang;
 
+void PerformanceStats::startCompileTime() {
+  CompileTimeSt = clock();
+}
+
+void PerformanceStats::endCompileTime() {
+  CompileTime += getTimeSpentInSeconds(CompileTimeSt);
+}
+
+void PerformanceStats::startConstraintBuilderTime() {
+  ConstraintBuilderTimeSt = clock();
+}
+
+void PerformanceStats::endConstraintBuilderTime() {
+  ConstraintBuilderTime += getTimeSpentInSeconds(ConstraintBuilderTimeSt);
+}
+
+void PerformanceStats::startConstraintSolverTime() {
+  ConstraintSolverTimeSt = clock();
+}
+
+void PerformanceStats::endConstraintSolverTime() {
+  ConstraintSolverTime += getTimeSpentInSeconds(ConstraintSolverTimeSt);
+}
+
+void PerformanceStats::startArrayBoundsInferenceTime() {
+  ArrayBoundsInferenceTimeSt = clock();
+}
+
+void PerformanceStats::endArrayBoundsInferenceTime() {
+  ArrayBoundsInferenceTime += getTimeSpentInSeconds(ArrayBoundsInferenceTimeSt);
+}
+
+void PerformanceStats::startRewritingTime() {
+  RewritingTimeSt = clock();
+}
+
+void PerformanceStats::endRewritingTime() {
+  RewritingTime += getTimeSpentInSeconds(RewritingTimeSt);
+}
+
+void PerformanceStats::startTotalTime() {
+  TotalTimeSt = clock();
+}
+
+void PerformanceStats::endTotalTime() {
+  TotalTime += getTimeSpentInSeconds(TotalTimeSt);
+}
+
+void PerformanceStats::printPerformanceStats(raw_ostream &O) {
+  O << "{\"TotalTime\":" << TotalTime;
+  O << ", \"ConstraintBuilderTime\":" << ConstraintBuilderTime;
+  O << ", \"ConstraintSolverTime\":" << ConstraintSolverTime;
+  O << ", \"ArrayBoundsInferenceTime\":" << ArrayBoundsInferenceTime;
+  O << ", \"RewritingTime\":" << RewritingTime;
+  O << "}";
+}
+
 ProgramInfo::ProgramInfo() : Persisted(true) {
   ExternalFunctionFVCons.clear();
   StaticFunctionFVCons.clear();
@@ -274,6 +331,9 @@ void ProgramInfo::printStats(const std::set<std::string> &F, raw_ostream &O,
   }
 
   if (JsonFormat) {
+    O << ",";
+    O << "\"TimingStats\":";
+    PerfS.printPerformanceStats(O);
     O << "}}";
   }
 }

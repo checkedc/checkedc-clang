@@ -546,6 +546,8 @@ void RewriteConsumer::emitRootCauseDiagnostics(ASTContext &Context) {
 void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   Info.enterCompilationUnit(Context);
 
+  Info.getPerfStats().startRewritingTime();
+
   if (WarnRootCause)
     emitRootCauseDiagnostics(Context);
 
@@ -584,6 +586,8 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
 
   // Output files.
   emit(R, Context);
+
+  Info.getPerfStats().endRewritingTime();
 
   Info.exitCompilationUnit();
   return;
