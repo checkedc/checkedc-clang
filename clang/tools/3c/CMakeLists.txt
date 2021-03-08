@@ -1,11 +1,19 @@
-set( LLVM_LINK_COMPONENTS
+set(LLVM_LINK_COMPONENTS
   ${LLVM_TARGETS_TO_BUILD}
   Option
   Support
   )
+
+# Copy the FIVE_C variable from clang/lib/3C. This relies on
+# clang/lib/3C/CMakeLists.txt running before clang/tools/3c/CMakeLists.txt,
+# which it does: clang/CMakeLists.txt does add_subdirectory(lib) before
+# add_subdirectory(tools).
+get_directory_property(FIVE_C DIRECTORY ../../lib/3C DEFINITION FIVE_C)
+
 if (FIVE_C)
   add_compile_definitions(FIVE_C)
 endif()
+
 add_clang_executable(3c
   3CStandalone.cpp
   )
@@ -21,7 +29,6 @@ target_link_libraries(3c
   clangStaticAnalyzerFrontend
   clangTooling
   )
-target_include_directories(3c PUBLIC)
 
 # Based on clang/tools/driver/CMakeLists.txt.
 add_dependencies(3c clang-resource-headers)
