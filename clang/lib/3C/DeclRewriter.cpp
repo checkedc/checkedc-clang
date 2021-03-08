@@ -53,21 +53,19 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
     SVI.TraverseDecl(D);
     if (const auto &TD = dyn_cast<TypedefDecl>(D)) {
       auto PSL = PersistentSourceLoc::mkPSL(TD, Context);
-      // Don't rewrite base types like int.
-      if (!TD->getUnderlyingType()->isBuiltinType()) {
-        const auto Pair = Info.lookupTypedef(PSL);
-        const auto VSet = Pair.first;
-        if (!VSet.empty()) { // We ignore typedefs that are never used.
-          const auto Var = VSet.begin();
+      if (!TD->getUnderlyingType()->isBuiltinType()) { // Don't rewrite base types like int
+        const auto O = Info.lookupTypedef(PSL);
+        if (O.hasValue()) {
+          const auto &Var = O.getValue();
           const auto &Env = Info.getConstraints().getVariables();
-          if ((*Var)->anyChanges(Env)) {
-            std::string NewTy =
-                getStorageQualifierString(D) +
-                (*Var)->mkString(Info.getConstraints().getVariables(), false,
-                                 false, false, true) +
-                " " + TD->getNameAsString();
-            RewriteThese.insert(new TypedefDeclReplacement(TD, nullptr, NewTy));
-          }
+          if (Var.anyChanges(Env)) {
+            std::string newTy =
+                  getStorageQualifierString(D) +
+                  Var.mkString(Info.getConstraints().getVariables(), true,
+                                   false, false, true);
+              RewriteThese.insert(
+                  new TypedefDeclReplacement(TD, nullptr, newTy));
+            }
         }
       }
     }
@@ -208,8 +206,8 @@ void DeclRewriter::rewriteParmVarDecl(ParmVarDeclReplacement *N) {
     }
 }
 
-void DeclRewriter::rewriteTypedefDecl(TypedefDeclReplacement *TDR,
-                                      RSet &ToRewrite) {
+
+void DeclRewriter::rewriteTypedefDecl(TypedefDeclReplacement *TDR, RSet &ToRewrite) {
   rewriteSingleDecl(TDR, ToRewrite);
 }
 

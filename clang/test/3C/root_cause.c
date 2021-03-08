@@ -41,3 +41,8 @@ void test1() {
 extern int *glob; // expected-warning {{External global variable glob has no definition}}
 
 void (*f)(void *); // expected-warning {{Default void* type}}
+
+typedef struct {
+  int x;
+  float f;
+} A, *PA; // expected-warning {{Unable to rewrite a typedef with multiple names}}

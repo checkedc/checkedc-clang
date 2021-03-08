@@ -81,8 +81,8 @@ public:
 
   virtual bool seenTypedef(PersistentSourceLoc PSL) = 0;
 
-  virtual void addTypedef(PersistentSourceLoc PSL, bool ShouldCheck) = 0;
-
+  virtual void addTypedef(PersistentSourceLoc PSL, bool CanRewriteDef,
+                          TypedefDecl *TD, ASTContext &C) = 0;
 
 protected:
   virtual AVarBoundsInfo &getABoundsInfo() = 0;
@@ -170,11 +170,12 @@ public:
   void unifyIfTypedef(const clang::Type *, clang::ASTContext &,
                       clang::DeclaratorDecl *, PVConstraint *);
 
-  std::pair<CVarSet, bool> lookupTypedef(PersistentSourceLoc PSL);
+  CVarOption lookupTypedef(PersistentSourceLoc PSL);
 
   bool seenTypedef(PersistentSourceLoc PSL);
 
-  void addTypedef(PersistentSourceLoc PSL, bool ShouldCheck);
+  void addTypedef(PersistentSourceLoc PSL, bool CanRewriteDef, TypedefDecl *TD,
+                  ASTContext& C);
 
 private:
   // List of constraint variables for declarations, indexed by their location in
@@ -182,13 +183,10 @@ private:
   // analysis from compilation unit to compilation unit.
   VariableMap Variables;
 
-  // Map storing constraint information for typedefed types,
-  // The set contains all the constraint variables that also use this typedef.
-  // TODO this could be replaced w/ a single CVar.
-  // The bool informs the rewriter whether or not this typedef should be
-  // rewritten. It will be false for typedefs we don't support rewritting,
-  // such as typedefs that are pointers to anonymous structs.
-  std::map<PersistentSourceLoc, std::pair<CVarSet, bool>> TypedefVars;
+  // Map storing constraint information for typedefed types
+  // The set contains all the constraint variables that also use this tyepdef
+  // rewritten.
+  std::map<PersistentSourceLoc, CVarOption> TypedefVars;
 
   // Map with the same purpose as the Variables map, this stores constraint
   // variables for non-declaration expressions.

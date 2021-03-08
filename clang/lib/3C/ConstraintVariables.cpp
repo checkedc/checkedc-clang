@@ -654,12 +654,18 @@ void PointerVariableConstraint::setTypedef(TypedefNameDecl *T, std::string S) {
 // variables and potentially nested function pointer declaration. Produces a
 // string that can be replaced in the source code.
 
+std::string PointerVariableConstraint::gatherQualStrings(void) const {
+  std::ostringstream S;
+  getQualString(0, S);
+  return S.str();
+}
+
 std::string PointerVariableConstraint::mkString(const EnvironmentMap &E,
                                                 bool EmitName, bool ForItype,
                                                 bool EmitPointee,
                                                 bool UnmaskTypedef) const {
   if (IsTypedef && !UnmaskTypedef) {
-    return TypedefString +
+    return gatherQualStrings() + TypedefString +
            (EmitName && getName() != RETVAR ? (" " + getName()) : " ");
   }
 
@@ -814,14 +820,16 @@ std::string PointerVariableConstraint::mkString(const EnvironmentMap &E,
     EndStrs.push_front(" " + getName());
   }
 
-  if (EmittedBase == false) {
+  if (!EmittedBase) {
     // If we have a FV pointer, then our "base" type is a function pointer.
     // type.
     if (FV) {
       Ss << FV->mkString(E);
     } else if (TypedefLevelInfo.HasTypedef) {
+      std::ostringstream Buf;
+      getQualString(TypedefLevelInfo.TypedefLevel, Buf);
       auto Name = TypedefLevelInfo.TypedefName;
-      Ss << Name;
+      Ss << Buf.str() << Name;
     } else {
       Ss << BaseType;
     }
@@ -1407,6 +1415,9 @@ std::string FunctionVariableConstraint::mkString(const EnvironmentMap &E,
                                                  bool UnmaskTypedef) const {
   std::string Ret = ReturnVar.mkTypeStr(E);
   std::string Itype = ReturnVar.mkItypeStr(E);
+  // This is done to rewrite the typedef of a function proto
+  if (UnmaskTypedef && EmitName)
+    Ret += Name;
   Ret = Ret + "(";
   std::vector<std::string> ParmStrs;
   for (const auto &I : this->ParamVars)
@@ -1420,10 +1431,8 @@ std::string FunctionVariableConstraint::mkString(const EnvironmentMap &E,
     Ss << ParmStrs.back();
 
     Ret = Ret + Ss.str() + ")";
-  } else {
+  } else
     Ret = Ret + "void)";
-  }
-
   return Ret + Itype;
 }
 

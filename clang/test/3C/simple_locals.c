@@ -200,8 +200,8 @@ void dfnk(int a, int b) {
 }
 //CHECK: void dfnk(int a, int b) {
 //CHECK-NEXT: A j;
-//CHECK-NEXT: _Ptr<struct _A>  k = &j;
-//CHECK-NEXT: _Ptr<_Ptr<struct _A>>  u = &k;
+//CHECK-NEXT: PA k = &j;
+//CHECK-NEXT: PPA  u = &k;
 
 void adsfse(void) {
   int a = 0;

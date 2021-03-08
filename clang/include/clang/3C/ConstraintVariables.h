@@ -316,7 +316,7 @@ public:
   bool hasSomeSizedArr() const;
 
   bool isTypedef(void);
-  void setTypedef(TypedefNameDecl *TypedefType, std::string);
+  void setTypedef(TypedefNameDecl *T, std::string S);
 
   // Return true if this constraint had an itype in the original source code.
   bool srcHasItype() const override {
@@ -386,6 +386,8 @@ public:
   static bool classof(const ConstraintVariable *S) {
     return S->getKind() == PointerVariable;
   }
+
+  std::string gatherQualStrings(void) const;
 
   std::string mkString(const EnvironmentMap &E, bool EmitName = true,
                        bool ForItype = false, bool EmitPointee = false,

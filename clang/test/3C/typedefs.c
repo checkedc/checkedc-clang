@@ -31,6 +31,8 @@ intptr bar(intptr x) {
 	return x;
 }
 
+typedef int* integer;
+//CHECK: typedef _Ptr<int> integer;
 int foo(void) { 
     //CHECK: int foo(void) {
     int x = 3;
@@ -43,6 +45,14 @@ int foo(void) {
     bad b = (int*) 3;
     //CHECK: bad b = (int*) 3;
     badP b2 = (intptr*) 3;
+    typedef int nat;
+    const nat z = 3;
+    const nat* cnstp = &z;
+    //CHECK: _Ptr<const nat> cnstp = &z;
+    int w = 34;
+    const integer c = &w;
+    //CHECK: const integer c = &w;
+
 
     return *p;
 }
@@ -65,7 +75,18 @@ void barfoo(intptr x) {
 	  *x = 5;
 }
 
+#define MYDECL typedef int* ZZZ;
+MYDECL
+void zzz(void) {
+  int x = 3;
+  ZZZ z = &x;
+}
 
+typedef int * * const a;
+//CHECK: typedef const _Ptr<_Ptr<int>> a;
+void xxx(void) {
+  a b;
+}
 
 
 

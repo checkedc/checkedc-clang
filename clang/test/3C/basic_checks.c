@@ -39,7 +39,7 @@ void mut_pa(PA p) {
   p->a = 0;
   p->b = 1;
 }
-//CHECK: void mut_pa(_Ptr<struct _A> p) {
+//CHECK: void mut_pa(PA p) {
 
 void pa_driver(void) {
   A a = {0};
@@ -49,7 +49,7 @@ void pa_driver(void) {
 }
 //CHECK: void pa_driver(void) {
 //CHECK-NEXT: A a = {0};
-//CHECK-NEXT: _Ptr<struct _A> b = &a;
+//CHECK-NEXT: PA b = &a;
 
 int *id(int *a) {
   return a;

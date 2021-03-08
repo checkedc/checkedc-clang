@@ -562,8 +562,8 @@ public:
     if (!VarAdder.seenTypedef(PSL))
       // Add this typedef to the program info, if it contains a ptr to
       // an anonymous struct we mark as not being rewritable
-      VarAdder.addTypedef(PSL, !PtrToStructDef::containsPtrToStructDef(TD));
-
+      VarAdder.addTypedef(PSL, !PtrToStructDef::containsPtrToStructDef(TD),
+                          TD, *Context);
     return true;
   }
 
