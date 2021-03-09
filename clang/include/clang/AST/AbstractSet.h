@@ -10,9 +10,15 @@
 namespace clang {
   using Result = Lexicographic::Result;
 
+  // The AbstractSet class represents an abstraction of memory. If two lvalue
+  // expressions e1 and e2 belong to the same AbstractSet, then e1 and e2
+  // point to the same contiguous memory location (i.e. e1 and e2 point to
+  // the same location and range in memory).
   class AbstractSet {
   private:
     // Canonical form of all lvalue expressions that belong to this AbstractSet.
+    // Two lvalue expressions e1 and e2 belong to the same AbstractSet if and
+    // only if e1 and e2 have the same canonical form.
     PreorderAST CanonicalForm;
 
     // LValue expression that is a representative of all lvalue expressions that
