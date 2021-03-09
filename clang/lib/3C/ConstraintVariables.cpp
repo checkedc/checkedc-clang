@@ -1806,12 +1806,12 @@ void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
                                                   ProgramInfo &I,
                                                   std::string &ReasonFailed) {
   // `this`: is the declaration the tool saw first.
-  // `FromCV`: is the declaration seen second, it cannot have defered
-  // constraints.
+  // `FromCV`: is the declaration seen second
+
   FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
   assert(From != nullptr);
-  assert(From->getDeferredParams().size() == 0);
-  // Transplant returns.
+
+  // Merge returns.
   ReturnVar.mergeDeclaration(&From->ReturnVar, I, ReasonFailed);
   if (ReasonFailed != "") {
     ReasonFailed += " for return value";
@@ -1840,12 +1840,6 @@ void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
       }
     }
   }
-}
-
-void FunctionVariableConstraint::addDeferredParams(PersistentSourceLoc PL,
-                                                   std::vector<CVarSet> Ps) {
-  ParamDeferment P = {PL, Ps};
-  DeferredParams.push_back(P);
 }
 
 bool FunctionVariableConstraint::getIsOriginallyChecked() const {

@@ -431,11 +431,6 @@ typedef PointerVariableConstraint PVConstraint;
 // Name for function return, for debugging
 #define RETVAR "$ret"
 
-typedef struct {
-  PersistentSourceLoc PL;
-  std::vector<CVarSet> PS;
-} ParamDeferment;
-
 // This class contains a pair of PVConstraints that represent an internal and
 // external view of a variable for use as the parameter and return constraints
 // of FunctionVariableConstraints. The internal constraint represents how the
@@ -479,8 +474,6 @@ private:
   // K parameters accepted by the function.
   std::vector<FVComponentVariable> ParamVars;
 
-  // Storing of parameters in the case of untyped prototypes
-  std::vector<ParamDeferment> DeferredParams;
   // File name in which this declaration is found.
   std::string FileName;
   bool Hasproto;
@@ -514,12 +507,6 @@ public:
   PVConstraint *getInternalReturn() const {
     return ReturnVar.InternalConstraint;
   }
-
-  const std::vector<ParamDeferment> &getDeferredParams() const {
-    return DeferredParams;
-  }
-
-  void addDeferredParams(PersistentSourceLoc PL, std::vector<CVarSet> Ps);
 
   size_t numParams() const { return ParamVars.size(); }
 
