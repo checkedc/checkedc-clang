@@ -5881,6 +5881,99 @@ namespace {
       return cast<BoundsExpr>(PruneTemporaryBindings(S, Bounds, CSS));
     }
 
+    // Infer bounds for the target of an lvalue expression.
+    // Values assigned through the lvalue must satisfy the target bounds.
+    // Values read through the lvalue will meet the target bounds.
+    BoundsExpr *GetLValueTargetBounds(Expr *E, CheckedScopeSpecifier CSS) {
+      switch (E->getStmtClass()) {
+        case Expr::DeclRefExprClass:
+          return DeclRefExprTargetBounds(cast<DeclRefExpr>(E), CSS);
+        case Expr::UnaryOperatorClass:
+          return UnaryOperatorTargetBounds(cast<UnaryOperator>(E), CSS);
+        case Expr::ArraySubscriptExprClass:
+          return ArraySubscriptExprTargetBounds(cast<ArraySubscriptExpr>(E),
+                                                CSS);
+        case Expr::MemberExprClass:
+          return MemberExprTargetBounds(cast<MemberExpr>(E), CSS);
+        case Expr::ImplicitCastExprClass:
+          return LValueCastTargetBounds(cast<ImplicitCastExpr>(E), CSS);
+        case Expr::CHKCBindTemporaryExprClass:
+          return LValueTempBindingTargetBounds(cast<CHKCBindTemporaryExpr>(E),
+                                               CSS);
+        default:
+          return CreateBoundsInferenceError();
+      }
+    }
+
+    // Infer bounds for the target of a variable.
+    // A variable is an lvalue.
+    BoundsExpr *DeclRefExprTargetBounds(DeclRefExpr *DRE,
+                                        CheckedScopeSpecifier CSS) {
+      VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl());
+      BoundsExpr *B = nullptr;
+      InteropTypeExpr *IT = nullptr;
+      if (VD) {
+        B = VD->getBoundsExpr();
+        IT = VD->getInteropTypeExpr();
+      }
+
+      // Variables with array type do not have target bounds.
+      if (DRE->getType()->isArrayType())
+        return CreateBoundsAlwaysUnknown();
+
+      // Infer target bounds for variables without array type.
+
+      bool IsParam = isa<ParmVarDecl>(DRE->getDecl());
+      if (DRE->getType()->isCheckedPointerPtrType())
+        return CreateTypeBasedBounds(DRE, DRE->getType(), IsParam, false);
+
+      if (!VD)
+        return CreateBoundsInferenceError();
+
+      if (!B && IT)
+        return CreateTypeBasedBounds(DRE, IT->getType(), IsParam, true);
+
+      if (!B || B->isUnknown())
+        return CreateBoundsAlwaysUnknown();
+
+      Expr *Base = CreateImplicitCast(DRE->getType(),
+                                      CastKind::CK_LValueToRValue, DRE);
+      return ExpandToRange(Base, B);
+    }
+
+    // Infer bounds for the target of a unary operator.
+    // A unary operator may be an lvalue.
+    BoundsExpr *UnaryOperatorTargetBounds(UnaryOperator *UO,
+                                          CheckedScopeSpecifier CSS) {
+      if (UO->getOpcode() == UnaryOperatorKind::UO_Deref) {
+        // Currently, we don't know the target bounds of a pointer stored in a
+        // pointer dereference, unless it is a _Ptr type or an _Nt_array_ptr.
+        if (UO->getType()->isCheckedPointerPtrType() ||
+            UO->getType()->isCheckedPointerNtArrayType())
+          return CreateTypeBasedBounds(UO, UO->getType(),
+                                                  false, false);
+        else
+          return CreateBoundsUnknown();
+      }
+
+      // Unary operators other than pointer dereferences do not have lvalue
+      // target bounds.
+      return CreateBoundsInferenceError();
+    }
+
+    // Infer target bounds for an array subscript expression.
+    // An array subscript is an lvalue.
+    BoundsExpr *ArraySubscriptExprTargetBounds(ArraySubscriptExpr *ASE,
+                                               CheckedScopeSpecifier CSS) {
+      // Currently, we don't know the target bounds of a pointer returned by a
+      // subscripting operation, unless it is a _Ptr type or an _Nt_array_ptr.
+      if (ASE->getType()->isCheckedPointerPtrType() ||
+          ASE->getType()->isCheckedPointerNtArrayType())
+        return CreateTypeBasedBounds(ASE, ASE->getType(), false, false);
+      else
+        return CreateBoundsAlwaysUnknown();
+    }
+
     // Infer the bounds for the target of a member expression.
     // A member expression is an lvalue.
     //
@@ -5930,6 +6023,27 @@ namespace {
       }
 
       return cast<BoundsExpr>(PruneTemporaryBindings(S, B, CSS));
+    }
+
+    // Infer bounds for the target of a cast expression.
+    // A cast expression may be an lvalue.
+    BoundsExpr *LValueCastTargetBounds(CastExpr *CE, CheckedScopeSpecifier CSS) {
+      // An LValueBitCast adjusts the type of the lvalue.  The bounds are not
+      // changed, except that their relative alignment may change (the bounds 
+      // may only cover a partial object).  TODO: When we add relative
+      // alignment support to the compiler, adjust the relative alignment.
+      if (CE->getCastKind() == CastKind::CK_LValueBitCast)
+        return GetLValueTargetBounds(CE->getSubExpr(), CSS);
+
+      // Cast kinds other than LValueBitCast do not have lvalue target bounds.
+      return CreateBoundsAlwaysUnknown();
+    }
+
+    // Infer bounds for the target of a temporary binding expression.
+    // A temporary binding may be an lvalue.
+    BoundsExpr *LValueTempBindingTargetBounds(CHKCBindTemporaryExpr *Temp,
+                                              CheckedScopeSpecifier CSS) {
+      return CreateBoundsAlwaysUnknown();
     }
 
     // Given a Ptr type or a bounds-safe interface type, create the bounds
