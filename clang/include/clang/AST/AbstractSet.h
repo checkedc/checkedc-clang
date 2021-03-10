@@ -12,8 +12,8 @@ namespace clang {
 
   // The AbstractSet class represents an abstraction of memory. If two lvalue
   // expressions e1 and e2 belong to the same AbstractSet, then e1 and e2
-  // point to the same contiguous memory location (i.e. e1 and e2 point to
-  // the same location and range in memory).
+  // point to the same contiguous block of memory locations (i.e. e1 and e2
+  // point to the same location and range in memory).
   class AbstractSet {
   private:
     // Canonical form of all lvalue expressions that belong to this AbstractSet.
@@ -29,6 +29,9 @@ namespace clang {
     //    or disprove that the inferred bounds for the expressions in this
     //    AbstractSet imply the target bounds. All lvalue expressions in this
     //    AbstractSet have the same target bounds as the representative.
+    //    Bounds validation must use existing bounds checking methods in the
+    //    CheckBoundsDeclarations class to compute the target bounds for the
+    //    representative expression.
     Expr *Representative;
 
   public:
