@@ -41,7 +41,7 @@ namespace clang {
       Representative = E;
     }
 
-    Expr *GetRepresentative() {
+    Expr *GetRepresentative() const {
       return Representative;
     }
 
