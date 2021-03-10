@@ -3079,7 +3079,6 @@ namespace {
 
       E = E->IgnoreParens();
 
-      OutTargetBounds = CreateBoundsAlwaysUnknown();
       BoundsExpr *Bounds = CreateBoundsAlwaysUnknown();
 
       switch (E->getStmtClass()) {
@@ -3111,13 +3110,6 @@ namespace {
           CheckChildren(E, CSS, State);
           break;
       }
-
-      // The type for inferring the target bounds cannot ever be an array
-      // type, as these are dealt with by an array conversion, not an lvalue
-      // conversion. The bounds for an array conversion are the same as the
-      // lvalue bounds of the array-typed expression.
-      if (E->getType()->isArrayType())
-        OutTargetBounds = CreateBoundsInferenceError();
 
       return Bounds;
     }
@@ -4082,9 +4074,6 @@ namespace {
       }
 
       if (E->getType()->isArrayType()) {
-        // Variables with array type do not have target bounds.
-        OutTargetBounds = CreateBoundsAlwaysUnknown();
-
         if (!VD) {
           llvm_unreachable("declref with array type not a vardecl");
           return CreateBoundsInferenceError();
@@ -4112,25 +4101,6 @@ namespace {
         return ArrayExprBounds(E);
       }
 
-      // Infer the target bounds of e.
-      // e only has target bounds if e does not have array type.
-      bool IsParam = isa<ParmVarDecl>(E->getDecl());
-      if (E->getType()->isCheckedPointerPtrType())
-        OutTargetBounds = CreateTypeBasedBounds(E, E->getType(),
-                                                IsParam, false);
-      else if (!VD)
-        OutTargetBounds = CreateBoundsInferenceError();
-      else if (!B && IT)
-        OutTargetBounds = CreateTypeBasedBounds(E, IT->getType(),
-                                                IsParam, true);
-      else if (!B || B->isUnknown())
-        OutTargetBounds = CreateBoundsAlwaysUnknown();
-      else {
-        Expr *Base = CreateImplicitCast(E->getType(),
-                                        CastKind::CK_LValueToRValue, E);
-        OutTargetBounds = ExpandToRange(Base, B);
-      }
-
       if (E->getType()->isFunctionType()) {
         // Only function decl refs should have function type.
         assert(isa<FunctionDecl>(E->getDecl()));
@@ -4152,15 +4122,6 @@ namespace {
       BoundsExpr *SubExprBounds = Check(E->getSubExpr(), CSS, State);
 
       if (E->getOpcode() == UnaryOperatorKind::UO_Deref) {
-        // Currently, we don't know the target bounds of a pointer stored in a
-        // pointer dereference, unless it is a _Ptr type or an _Nt_array_ptr.
-        if (E->getType()->isCheckedPointerPtrType() ||
-            E->getType()->isCheckedPointerNtArrayType())
-          OutTargetBounds = CreateTypeBasedBounds(E, E->getType(),
-                                                  false, false);
-        else
-          OutTargetBounds = CreateBoundsUnknown();
-
         // SameValue is empty for pointer dereferences.
         State.SameValue.clear();
 
@@ -4168,7 +4129,6 @@ namespace {
         return SubExprBounds;
       }
 
-      OutTargetBounds = CreateBoundsInferenceError();
       return CreateBoundsInferenceError();
     }
 
@@ -4178,14 +4138,6 @@ namespace {
                                         CheckedScopeSpecifier CSS,
                                         BoundsExpr *&OutTargetBounds,
                                         CheckingState &State) {
-      // Currently, we don't know the target bounds of a pointer returned by a
-      // subscripting operation, unless it is a _Ptr type or an _Nt_array_ptr.
-      if (E->getType()->isCheckedPointerPtrType() ||
-          E->getType()->isCheckedPointerNtArrayType())
-        OutTargetBounds = CreateTypeBasedBounds(E, E->getType(), false, false);
-      else
-        OutTargetBounds = CreateBoundsAlwaysUnknown();
-
       // e1[e2] is a synonym for *(e1 + e2).  The bounds are
       // the bounds of e1 + e2, which reduces to the bounds
       // of whichever subexpression has pointer type.
@@ -4211,10 +4163,9 @@ namespace {
     BoundsExpr *CheckMemberExpr(MemberExpr *E, CheckedScopeSpecifier CSS,
                                 BoundsExpr *&OutTargetBounds,
                                 CheckingState &State) {
-      // The lvalue and target bounds must be inferred before
-      // performing any side effects on the base, since
-      // inferring these bounds may call PruneTemporaryBindings.
-      OutTargetBounds = MemberExprTargetBounds(E, CSS);
+      // The lvalue bounds must be inferred before performing any side
+      // effects on the base, since inferring these bounds may call
+      // PruneTemporaryBindings.
       BoundsExpr *Bounds = MemberExprBounds(E, CSS);
 
       // Infer the lvalue or rvalue bounds of the base.
@@ -4251,9 +4202,7 @@ namespace {
 
       CheckChildren(E, CSS, State);
 
-      // Cast kinds other than LValueBitCast
-      // do not have lvalue or target bounds.
-      OutTargetBounds = CreateBoundsAlwaysUnknown();
+      // Cast kinds other than LValueBitCast do not have lvalue bounds.
       return CreateBoundsAlwaysUnknown();
     }
 
@@ -4264,8 +4213,6 @@ namespace {
                                        CheckedScopeSpecifier CSS,
                                        BoundsExpr *&OutTargetBounds,
                                        CheckingState &State) {
-      OutTargetBounds = CreateBoundsAlwaysUnknown();
-
       CheckChildren(E, CSS, State);
 
       Expr *SubExpr = E->getSubExpr()->IgnoreParens();
@@ -5885,6 +5832,13 @@ namespace {
     // Values assigned through the lvalue must satisfy the target bounds.
     // Values read through the lvalue will meet the target bounds.
     BoundsExpr *GetLValueTargetBounds(Expr *E, CheckedScopeSpecifier CSS) {
+      // The type for inferring the target bounds cannot ever be an array
+      // type, as these are dealt with by an array conversion, not an lvalue
+      // conversion. The bounds for an array conversion are the same as the
+      // lvalue bounds of the array-typed expression.
+      if (E->getType()->isArrayType())
+        return CreateBoundsInferenceError();
+
       switch (E->getStmtClass()) {
         case Expr::DeclRefExprClass:
           return DeclRefExprTargetBounds(cast<DeclRefExpr>(E), CSS);
