@@ -5812,12 +5812,17 @@ namespace {
     // Values assigned through the lvalue must satisfy the target bounds.
     // Values read through the lvalue will meet the target bounds.
     BoundsExpr *GetLValueTargetBounds(Expr *E, CheckedScopeSpecifier CSS) {
+      if (!E->isLValue())
+        return CreateBoundsInferenceError();
+
       // The type for inferring the target bounds cannot ever be an array
       // type, as these are dealt with by an array conversion, not an lvalue
       // conversion. The bounds for an array conversion are the same as the
       // lvalue bounds of the array-typed expression.
       if (E->getType()->isArrayType())
         return CreateBoundsInferenceError();
+
+      E = E->IgnoreParens();
 
       switch (E->getStmtClass()) {
         case Expr::DeclRefExprClass:
