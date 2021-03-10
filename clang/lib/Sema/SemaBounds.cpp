@@ -2973,8 +2973,7 @@ namespace {
         E = E->IgnoreParens();
         S = E;
         if (E->isLValue()) {
-          BoundsExpr *TargetBounds = nullptr;
-          CheckLValue(E, CSS, TargetBounds, State);
+          CheckLValue(E, CSS, State);
           return CreateBoundsAlwaysUnknown();
         }
       }
@@ -3053,14 +3052,11 @@ namespace {
       return ResultBounds;
     }
 
-    // Infer the bounds for an lvalue and the bounds for the target
-    // of the lvalue.
+    // Infer the bounds for an lvalue.
     //
     // The lvalue bounds determine whether it is valid to access memory
     // using the lvalue.  The bounds should be the range of an object in
     // memory or a subrange of an object.
-    // Values assigned through the lvalue must satisfy the target bounds.
-    // Values read through the lvalue will meet the target bounds.
     //
     // The returned bounds expressions may contain a modifying expression within
     // them. It is the caller's responsibility to validate that the bounds
@@ -3072,46 +3068,32 @@ namespace {
     //
     // State is an out parameter that holds the result of Check.
     BoundsExpr *CheckLValue(Expr *E, CheckedScopeSpecifier CSS,
-                            BoundsExpr *&OutTargetBounds,
                             CheckingState &State) {
       if (!E->isLValue())
         return CreateBoundsInferenceError();
 
       E = E->IgnoreParens();
 
-      BoundsExpr *Bounds = CreateBoundsAlwaysUnknown();
-
       switch (E->getStmtClass()) {
         case Expr::DeclRefExprClass:
-          Bounds = CheckDeclRefExpr(cast<DeclRefExpr>(E),
-                                    CSS, OutTargetBounds, State);
-          break;
+          return CheckDeclRefExpr(cast<DeclRefExpr>(E), CSS, State);
         case Expr::UnaryOperatorClass:
-          Bounds = CheckUnaryLValue(cast<UnaryOperator>(E),
-                                    CSS, OutTargetBounds, State);
-          break;
+          return CheckUnaryLValue(cast<UnaryOperator>(E), CSS, State);
         case Expr::ArraySubscriptExprClass:
-          Bounds = CheckArraySubscriptExpr(cast<ArraySubscriptExpr>(E),
-                                           CSS, OutTargetBounds, State);
-          break;
+          return CheckArraySubscriptExpr(cast<ArraySubscriptExpr>(E),
+                                           CSS, State);
         case Expr::MemberExprClass:
-          Bounds = CheckMemberExpr(cast<MemberExpr>(E),
-                                   CSS, OutTargetBounds, State);
-          break;
+          return CheckMemberExpr(cast<MemberExpr>(E), CSS, State);
         case Expr::ImplicitCastExprClass:
-          Bounds = CheckCastLValue(cast<CastExpr>(E),
-                                   CSS, OutTargetBounds, State);
-          break;
+          return CheckCastLValue(cast<CastExpr>(E), CSS, State);
         case Expr::CHKCBindTemporaryExprClass:
-          Bounds = CheckTempBindingLValue(cast<CHKCBindTemporaryExpr>(E),
-                                          CSS, OutTargetBounds, State);
-          break;
-        default:
+          return CheckTempBindingLValue(cast<CHKCBindTemporaryExpr>(E),
+                                          CSS, State);
+        default: {
           CheckChildren(E, CSS, State);
-          break;
+          return CreateBoundsAlwaysUnknown();
+        }
       }
-
-      return Bounds;
     }
 
     // CheckChildren recursively checks and performs any side effects on the
@@ -3175,11 +3157,13 @@ namespace {
       Expr *RHS = E->getRHS();
       ExprEqualMapTy SubExprSameValueSets;
 
+      // Infer the bounds for the target of the LHS.
+      BoundsExpr *LHSTargetBounds = GetLValueTargetBounds(LHS, CSS);
+
       // Infer the lvalue or rvalue bounds of the LHS, saving the set
       // SameValue of expressions that produce the same value as the LHS.
-      BoundsExpr *LHSTargetBounds, *LHSLValueBounds, *LHSBounds;
-      InferBounds(LHS, CSS, LHSTargetBounds,
-                  LHSLValueBounds, LHSBounds, State);
+      BoundsExpr *LHSLValueBounds, *LHSBounds;
+      InferBounds(LHS, CSS, LHSLValueBounds, LHSBounds, State);
       SubExprSameValueSets[LHS] = State.SameValue;
 
       // Infer the rvalue bounds of the RHS, saving the set SameValue
@@ -3549,11 +3533,13 @@ namespace {
       bool PreviousIncludeNullTerminator = IncludeNullTerminator;
       IncludeNullTerminator = IncludeNullTerm;
 
+      // Infer the bounds for the target of the subexpression e1.
+      BoundsExpr *SubExprTargetBounds = GetLValueTargetBounds(SubExpr, CSS);
+
       // Infer the lvalue or rvalue bounds of the subexpression e1,
       // setting State to contain the results for e1.
-      BoundsExpr *SubExprTargetBounds, *SubExprLValueBounds, *SubExprBounds;
-      InferBounds(SubExpr, CSS, SubExprTargetBounds,
-                  SubExprLValueBounds, SubExprBounds, State);
+      BoundsExpr *SubExprLValueBounds, *SubExprBounds;
+      InferBounds(SubExpr, CSS, SubExprLValueBounds, SubExprBounds, State);
 
       IncludeNullTerminator = PreviousIncludeNullTerminator;
 
@@ -3687,11 +3673,13 @@ namespace {
       UnaryOperatorKind Op = E->getOpcode();
       Expr *SubExpr = E->getSubExpr();
 
+      // Infer the bounds for the target of the subexpression e1.
+      BoundsExpr *SubExprTargetBounds = GetLValueTargetBounds(SubExpr, CSS);
+
       // Infer the lvalue or rvalue bounds of the subexpression e1,
       // setting State to contain the results for e1.
-      BoundsExpr *SubExprTargetBounds, *SubExprLValueBounds, *SubExprBounds;
-      InferBounds(SubExpr, CSS, SubExprTargetBounds,
-                  SubExprLValueBounds, SubExprBounds, State);
+      BoundsExpr *SubExprLValueBounds, *SubExprBounds;
+      InferBounds(SubExpr, CSS, SubExprLValueBounds, SubExprBounds, State);
 
       if (Op == UO_AddrOf)
         S.CheckAddressTakenMembers(E);
@@ -4060,7 +4048,6 @@ namespace {
     // CheckDeclRefExpr returns the lvalue and target bounds of e.
     // e is an lvalue.
     BoundsExpr *CheckDeclRefExpr(DeclRefExpr *E, CheckedScopeSpecifier CSS,
-                                 BoundsExpr *&OutTargetBounds,
                                  CheckingState &State) {
       CheckChildren(E, CSS, State);
       State.SameValue.clear();
@@ -4117,7 +4104,6 @@ namespace {
     // lvalue and target bounds of e.
     // If e is an rvalue, CheckUnaryOperator should be called instead.
     BoundsExpr *CheckUnaryLValue(UnaryOperator *E, CheckedScopeSpecifier CSS,
-                                 BoundsExpr *&OutTargetBounds,
                                  CheckingState &State) {
       BoundsExpr *SubExprBounds = Check(E->getSubExpr(), CSS, State);
 
@@ -4136,7 +4122,6 @@ namespace {
     // e is an lvalue.
     BoundsExpr *CheckArraySubscriptExpr(ArraySubscriptExpr *E,
                                         CheckedScopeSpecifier CSS,
-                                        BoundsExpr *&OutTargetBounds,
                                         CheckingState &State) {
       // e1[e2] is a synonym for *(e1 + e2).  The bounds are
       // the bounds of e1 + e2, which reduces to the bounds
@@ -4161,7 +4146,6 @@ namespace {
     // (lvalue, lvalue + 1).   The lvalue is interpreted as a pointer to T,
     // where T is the type of the member.
     BoundsExpr *CheckMemberExpr(MemberExpr *E, CheckedScopeSpecifier CSS,
-                                BoundsExpr *&OutTargetBounds,
                                 CheckingState &State) {
       // The lvalue bounds must be inferred before performing any side
       // effects on the base, since inferring these bounds may call
@@ -4170,9 +4154,8 @@ namespace {
 
       // Infer the lvalue or rvalue bounds of the base.
       Expr *Base = E->getBase();
-      BoundsExpr *BaseTargetBounds, *BaseLValueBounds, *BaseBounds;
-      InferBounds(Base, CSS, BaseTargetBounds,
-                  BaseLValueBounds, BaseBounds, State);
+      BoundsExpr *BaseLValueBounds, *BaseBounds;
+      InferBounds(Base, CSS, BaseLValueBounds, BaseBounds, State);
 
       // Clear State.SameValue to avoid adding false equality information.
       // TODO: implement updating state for member expressions.
@@ -4191,14 +4174,13 @@ namespace {
     // lvalue and target bounds of e.
     // If e is an rvalue, CheckCastExpr should be called instead.
     BoundsExpr *CheckCastLValue(CastExpr *E, CheckedScopeSpecifier CSS,
-                                BoundsExpr *&OutTargetBounds,
                                 CheckingState &State) {
       // An LValueBitCast adjusts the type of the lvalue.  The bounds are not
       // changed, except that their relative alignment may change (the bounds 
       // may only cover a partial object).  TODO: When we add relative
       // alignment support to the compiler, adjust the relative alignment.
       if (E->getCastKind() == CastKind::CK_LValueBitCast)
-        return CheckLValue(E->getSubExpr(), CSS, OutTargetBounds, State);
+        return CheckLValue(E->getSubExpr(), CSS, State);
 
       CheckChildren(E, CSS, State);
 
@@ -4211,7 +4193,6 @@ namespace {
     // If e is an rvalue, CheckTemporaryBinding should be called instead.
     BoundsExpr *CheckTempBindingLValue(CHKCBindTemporaryExpr *E,
                                        CheckedScopeSpecifier CSS,
-                                       BoundsExpr *&OutTargetBounds,
                                        CheckingState &State) {
       CheckChildren(E, CSS, State);
 
@@ -4397,16 +4378,15 @@ namespace {
     BoundsAnalysis getBoundsAnalyzer() { return BoundsAnalyzer; }
 
   private:
-    // Sets the bounds expressions based on
-    // whether e is an lvalue or an rvalue.
+    // Sets the bounds expressions based on whether e is an lvalue or an
+    // rvalue expression.
     void InferBounds(Expr *E, CheckedScopeSpecifier CSS,
-                     BoundsExpr *&TargetBounds, BoundsExpr *&LValueBounds,
-                     BoundsExpr *&RValueBounds, CheckingState &State) {
-      TargetBounds = CreateBoundsUnknown();
+                     BoundsExpr *&LValueBounds, BoundsExpr *&RValueBounds,
+                     CheckingState &State) {
       LValueBounds = CreateBoundsUnknown();
       RValueBounds = CreateBoundsUnknown();
       if (E->isLValue())
-        LValueBounds = CheckLValue(E, CSS, TargetBounds, State);
+        LValueBounds = CheckLValue(E, CSS, State);
       else if (E->isRValue())
         RValueBounds = Check(E, CSS, State);
     }
