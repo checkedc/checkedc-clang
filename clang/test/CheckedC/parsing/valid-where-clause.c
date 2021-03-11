@@ -4,8 +4,9 @@
 
 // expected-no-diagnostics
 
-void valid_cases(_Nt_array_ptr<char> p, _Nt_array_ptr<char> q,
-                 int a, int b) {
+// Test where clauses on null statements.
+void valid_cases_nullstmt(_Nt_array_ptr<char> p, _Nt_array_ptr<char> q,
+                          int a, int b) {
   _Where a < 0;
   _Where a > 0;
   _Where a <= 0;
@@ -30,3 +31,37 @@ void valid_cases(_Nt_array_ptr<char> p, _Nt_array_ptr<char> q,
   _Where (((((a == 0)))));
   _Where (a == 0) _And ((a == 0)) _And (((a == 0)));
 }
+
+int f();
+// Test where clauses on variable declarations inside a function.
+void valid_cases_decl(_Nt_array_ptr<char> p, _Nt_array_ptr<char> q) {
+  int a _Where a == 0 _And a != 0 _And p : bounds(p, p + a);
+  int b = 0 _Where b != 0 _And p : count(b);
+  int c = f() _Where p : bounds(p, p + c) _And c < 0;
+  int d _Where p : bounds(p, p + d) _And q : count(d) _And d == 0;
+  int e, f _Where e == 0 _And f == 0;
+  int g _Where g == 0, h, i, j _Where j < 0;
+  int k _Where k != 0 _And p : count(k), m, n, o _Where q : bounds(q, q + 1), r, s;
+  int arr1[3] = {1, 2, 3} _Where 0 < 1, arr2[2] = {1, 2} _Where 1 > 0;
+  _Nt_array_ptr<char> p1 : count(0) = "" _Where p1 : bounds(p1, p1 + 1);
+}
+
+// Test where clauses on variable declarations outside a function.
+_Nt_array_ptr<char> p;
+_Nt_array_ptr<char> q;
+int a _Where a == 0 _And a != 0 _And p : bounds(p, p + a);
+int b = 0 _Where b != 0 _And p : count(b);
+int c _Where p : bounds(p, p + c) _And q : count(c) _And c == 0;
+int d, e _Where e == 0 _And d != 0;
+int g _Where g == 0, h, i, j _Where j < 0;
+int k _Where k != 0 _And p : count(k), m, n, o _Where q : bounds(q, q + 1), r, s;
+int arr1[3] = {1, 2, 3} _Where 0 < 1, arr2[2] = {1, 2} _Where 1 > 0;
+_Nt_array_ptr<char> p1 : count(0) = "" _Where p1 : bounds(p1, p1 + 1);
+
+// Test where clauses on function parameters.
+void f1(int a _Where a < 0, int b, int c _Where c < 0, int *d : itype(_Ptr<int>) _Where d == 0) {}
+void f2(_Nt_array_ptr<char> p _Where p : bounds(p, p + n) _And n > 0, int n);
+void f3(_Nt_array_ptr<char> p : count(n) _Where n > 0 _And p : count(n), int n) {}
+void f4(_Nt_array_ptr<char> p : count(n) _Where p : count(n) _And p : count(n), int n);
+void f5(_Nt_array_ptr<char> p : count(n), int a _Where p : count(n) _And n > 0 _And a < 0, int n) {}
+void f6(int *p : itype(_Ptr<int>) _Where p == 0 _And n > 0, int n);

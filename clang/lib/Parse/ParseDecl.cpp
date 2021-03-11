@@ -1881,6 +1881,23 @@ void Parser::ExitQuantifiedTypeScope(DeclSpec &DS) {
   }
 }
 
+void Parser::ParseWhereClauseOnDecl(Decl *D) {
+  if (!StartsWhereClause(Tok))
+    return;
+
+  if (!D)
+    llvm_unreachable("invalid where clause on empty Decl");
+
+  WhereClause *WClause = ParseWhereClause();
+  if (!WClause)
+    return;
+
+  if (auto *PD = dyn_cast<ParmVarDecl>(D))
+    PD->setWhereClause(WClause);
+  else if (auto *VD = dyn_cast<VarDecl>(D))
+    VD->setWhereClause(WClause);
+}
+
 /// ParseDeclGroup - Having concluded that this is either a function
 /// definition or a group of object declarations, actually parse the
 /// result.
@@ -2059,8 +2076,11 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
   if (LateParsedAttrs.size() > 0)
     ParseLexedAttributeList(LateParsedAttrs, FirstDecl, true, false);
   D.complete(FirstDecl);
-  if (FirstDecl)
+  if (FirstDecl) {
     DeclsInGroup.push_back(FirstDecl);
+    // Parse a where clause occurring on the variable declaration.
+    ParseWhereClauseOnDecl(FirstDecl);
+  }
 
   bool ExpectSemi = Context != DeclaratorContext::ForContext;
 
@@ -2105,8 +2125,11 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
         ParseTrailingRequiresClause(D);
       Decl *ThisDecl = ParseDeclarationAfterDeclarator(D);
       D.complete(ThisDecl);
-      if (ThisDecl)
+      if (ThisDecl) {
         DeclsInGroup.push_back(ThisDecl);
+        // Parse a where clause occurring on the variable declaration.
+        ParseWhereClauseOnDecl(ThisDecl);
+      }
     }
   }
 
@@ -7079,6 +7102,11 @@ void Parser::ParseParameterDeclarationClause(
   // We are guessing that most functions take 4 or fewer parameters with
   // bounds expressions on them.
   SmallVector<BoundsExprInfo, 4> deferredBoundsExpressions;
+
+  using WhereClauseInfo = std::pair<ParmVarDecl *,
+                                    std::unique_ptr<CachedTokens>>;
+  SmallVector<WhereClauseInfo, 4> deferredWhereClauses;
+
   do {
     // FIXME: Issue a diagnostic if we parsed an attribute-specifier-seq
     // before deciding this was a parameter-declaration-clause.
@@ -7195,7 +7223,20 @@ void Parser::ParseParameterDeclarationClause(
       ParmVarDecl *Param = Actions.ActOnParamDeclarator(getCurScope(), ParmDeclarator);
       // Handle Checked C bounds expression or bounds-safe interface type annotation.
       if (getLangOpts().CheckedC) {
-        if (!Tok.is(tok::colon))
+
+        // Defer parse a parameter having a where clause because the where
+        // clause may refer to parameters which come after this one.
+        if (Tok.is(tok::kw__Where)) {
+          std::unique_ptr<CachedTokens> DeferredWhereClauseToks { new CachedTokens };
+          if (!ConsumeAndStoreWhereClause(*DeferredWhereClauseToks) ||
+               DeferredWhereClauseToks->empty()) {
+            SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
+            Param->setInvalidDecl();
+          } else
+            deferredWhereClauses.emplace_back(
+              Param, std::move(DeferredWhereClauseToks));
+
+        } else if (!Tok.is(tok::colon))
           // There is no bounds expression or type annotation.  Set the default
           // bounds expression, if any.
           Actions.ActOnEmptyBoundsDecl(Param);
@@ -7318,16 +7359,29 @@ void Parser::ParseParameterDeclarationClause(
     // If the next token is a comma, consume it and keep reading arguments.
   } while (TryConsumeToken(tok::comma));
 
-  // Now parse the deferred bounds expressions
+  // Now parse the deferred bounds expressions.
   for (auto &Tuple : deferredBoundsExpressions) {
     ParmVarDecl *Param = std::get<0>(Tuple);
     Declarator &D = std::get<1>(Tuple);
     std::unique_ptr<CachedTokens> Tokens = std::move(std::get<2>(Tuple));
     BoundsAnnotations Annots;
-    if (DeferredParseBoundsExpression(std::move(Tokens), Annots, D))
+    if (DeferredParseBoundsExpression(std::move(Tokens), Annots, D, Param))
       Actions.ActOnInvalidBoundsDecl(Param);
     else
       Actions.ActOnBoundsDecl(Param, Annots, true);
+  }
+
+  // Parse the deferred where clauses.
+  for (auto &Pair : deferredWhereClauses) {
+    ParmVarDecl *Param = Pair.first;
+    std::unique_ptr<CachedTokens> Tokens = std::move(Pair.second);
+
+    Tokens->push_back(Tok); // Save the current token at the end of the new
+                            // tokens so it isn't lost.
+    PP.EnterTokenStream(*std::move(Tokens), true, /*IsReinject=*/false);
+    ConsumeAnyToken();      // Skip past the current token to the new tokens.
+
+    ParseWhereClauseOnDecl(Param);
   }
 }
 

@@ -4,7 +4,7 @@
 
 int f();
 
-void invalid_cases(_Nt_array_ptr<char> p, int a, int b) {
+void invalid_cases_nullstmt(_Nt_array_ptr<char> p, int a, int b) {
   _Where ; // expected-error {{expected bounds declaration or equality expression in where clause}}
   _Where ;;;;; // expected-error {{expected bounds declaration or equality expression in where clause}}
   _Where _Where; // expected-error {{expected bounds declaration or equality expression in where clause}} expected-error {{expected bounds declaration or equality expression in where clause}}
@@ -36,3 +36,7 @@ void invalid_cases(_Nt_array_ptr<char> p, int a, int b) {
   _Where a++ < 1; // expected-error {{increment expression not allowed in expression}}
   _Where a _And p : _And q : count(0) _And x _And a = 1 _And f() < 0 _And; // expected-error {{invalid expression in where clause, expected bounds declaration or equality expression}} expected-error {{expected bounds expression}} expected-error {{use of undeclared identifier q}} expected-error {{use of undeclared identifier 'x'}} expected-error {{expected comparison operator in equality expression}} expected-error {{call expression not allowed in expression}} expected-error {{expected bounds declaration or equality expression in where clause}}
 }
+
+void f1(int a _Where a, _Nt_array_ptr<int> p : count(0) _Where p :); // expected-error {{invalid expression in where clause, expected bounds declaration or equality expression}} expected-error {{expected bounds expression}}
+
+void f2(int *p : itype(_Ptr<int>) _Where p, int n); // expected-error {{invalid expression in where clause, expected bounds declaration or equality expression}}

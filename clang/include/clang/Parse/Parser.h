@@ -2053,6 +2053,8 @@ private:
 
   bool StartsRelativeBoundsClause(Token &tok);
 
+  bool StartsWhereClause(const Token &tok);
+
   bool ParseRelativeBoundsClauseForDecl(ExprResult &Expr);
 
   RelativeBoundsClause *ParseRelativeBoundsClause(bool &isError,
@@ -2077,11 +2079,14 @@ private:
                               SourceLocation ColonLoc,
                               BoundsAnnotations &Result,
                               std::unique_ptr<CachedTokens> *DeferredToks = nullptr,
-                              bool IsReturn=false);
+                              bool IsReturn=false,
+                              Decl *ThisDecl = nullptr);
   bool ConsumeAndStoreBoundsExpression(CachedTokens &Toks);
+  bool ConsumeAndStoreWhereClause(CachedTokens &Toks);
   bool DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,
                                      BoundsAnnotations &Result,
-                                     const Declarator &D);
+                                     const Declarator &D,
+                                     Decl *ThisDecl = nullptr);
 
   // Delay parse a return bounds expression in Toks.  Used to parse return
   // bounds after the return type has been constructed.  Stores the bounds
@@ -2108,6 +2113,9 @@ private:
 
   /// Parse a Checked C where clause fact.
   WhereClauseFact *ParseWhereClauseFact();
+
+  /// Parse a where clause occurring on a declaration.
+  void ParseWhereClauseOnDecl(Decl *D);
 
   //===--------------------------------------------------------------------===//
   // clang Expressions

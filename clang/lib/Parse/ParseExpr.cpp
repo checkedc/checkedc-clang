@@ -3551,6 +3551,10 @@ bool Parser::StartsRelativeBoundsClause(Token &T) {
   return false;
 }
 
+bool Parser::StartsWhereClause(const Token &T) {
+  return getLangOpts().CheckedC && Tok.is(tok::kw__Where);
+}
+
 ExprResult Parser::ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn) {
   if (StartsInteropTypeAnnotation(Tok)) {
     IdentifierInfo *Ident = Tok.getIdentifierInfo();
@@ -3604,7 +3608,8 @@ bool Parser::ParseBoundsAnnotations(const Declarator &D,
                                     SourceLocation ColonLoc,
                                     BoundsAnnotations &Result,
                                     std::unique_ptr<CachedTokens> *DeferredToks,
-                                    bool IsReturn) {
+                                    bool IsReturn,
+                                    Decl *ThisDecl) {
   bool Error = false;
   Result = BoundsAnnotations();
   BoundsExpr *Bounds = nullptr;
@@ -3613,7 +3618,8 @@ bool Parser::ParseBoundsAnnotations(const Declarator &D,
   bool parsedDeferredBounds = false;
 
   while (StartsBoundsExpression(Tok) ||
-         StartsInteropTypeAnnotation(Tok)) {
+         StartsInteropTypeAnnotation(Tok) ||
+         StartsWhereClause(Tok)) {
     parsedSomething = true;
     if (StartsBoundsExpression(Tok)) {
       if (DeferredToks) {
@@ -3650,7 +3656,7 @@ bool Parser::ParseBoundsAnnotations(const Declarator &D,
             llvm_unreachable("unexpected case failure");
       }
       }
-    } else {
+    } else if (StartsInteropTypeAnnotation(Tok)) {
       ExprResult ER = ParseInteropTypeAnnotation(D, IsReturn);
       if (ER.isInvalid())
         Error = true;
@@ -3664,7 +3670,14 @@ bool Parser::ParseBoundsAnnotations(const Declarator &D,
            Diag(NewAnnotation->getBeginLoc(), diag::err_single_itype_expr_allowed);
         }
       }
-     }
+    } else if (StartsWhereClause(Tok)) {
+      if (DeferredToks)
+        Error = !ConsumeAndStoreWhereClause(**DeferredToks);
+      else if (!ThisDecl)
+        Error = true;
+      else
+        ParseWhereClauseOnDecl(ThisDecl);
+    }
   }
 
   if (!parsedSomething) {
@@ -3990,6 +4003,59 @@ ExprResult Parser::ParseBoundsCastExpression() {
   return Result;
 }
 
+bool Parser::ConsumeAndStoreWhereClause(CachedTokens &Toks) {
+  if (!StartsWhereClause(Tok))
+    return false;
+
+  // Consume and store _Where.
+  Toks.push_back(Tok);
+  ConsumeToken();
+
+  do {
+    if (Tok.is(tok::identifier) && NextToken().is(tok::colon)) {
+      // Consume and store the identifier.
+      Toks.push_back(Tok);
+      ConsumeToken();
+
+      // Consume and store the colon.
+      Toks.push_back(Tok);
+      ConsumeToken();
+
+      // Consume and store the rest of the bounds expression.
+      if (!ConsumeAndStoreBoundsExpression(Toks)) {
+        Diag(Tok, diag::err_expected_bounds_expr);
+        return false;
+      }
+
+    } else if (Tok.is(tok::l_paren)) {
+      // On a left paren '(' consume and store everything until the matching
+      // right paren ')'.
+      ConsumeParen();
+      if (!ConsumeAndStoreUntil(tok::r_paren, Toks, /*StopAtSemi=*/true))
+        return false;
+
+    } else if (Tok.is(tok::r_paren)) {
+      // A right paren ')' signals the end of the function param declaration.
+      break;
+
+    } else if (Tok.is(tok::semi)) {
+      // It is an error if we encounter a semicolon without a closing right
+      // paren.
+      return false;
+
+    } else {
+      // Else consume and store all other tokens.
+      Toks.push_back(Tok);
+      ConsumeToken();
+    }
+
+  // A comma signals the end of where clause for the current function
+  // parameter.
+  } while (Tok.isNot(tok::comma));
+
+  return true;
+}
+
 /// Consume and store tokens for an expression shaped like a bounds expression
 /// in the passed token container. Returns \c true if it reached the end of
 /// something bounds-expression shaped, \c false if a parsing error occurred,
@@ -4034,7 +4100,8 @@ bool Parser::ConsumeAndStoreBoundsExpression(CachedTokens &Toks) {
 bool
 Parser::DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,
                                       BoundsAnnotations &Result,
-                                      const Declarator &D) {
+                                      const Declarator &D,
+                                      Decl *ThisDecl) {
   Token LastBoundsExprToken = Toks->back();
   Token BoundsExprEnd;
   BoundsExprEnd.startToken();
@@ -4047,7 +4114,8 @@ Parser::DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,
                        // so it isn't lost.
   PP.EnterTokenStream(*Toks, true, /*IsReinject=*/false);
   ConsumeAnyToken();   // Skip past the current token to the new tokens.
-  bool Error = ParseBoundsAnnotations(D, SourceLocation(), Result);
+  bool Error = ParseBoundsAnnotations(D, SourceLocation(), Result,
+                                      nullptr, false, ThisDecl);
 
   // There could be leftover tokens because of an error.
   // Skip through them until we reach the eof token.
