@@ -198,6 +198,20 @@ namespace clang {
     // from outside this class and invokes Cleanup on the root node which
     // recursively deletes the AST.
     void Cleanup() { Cleanup(Root); }
+
+    bool operator<(PreorderAST &Other) {
+      return Compare(Other) == Result::LessThan;
+    }
+    bool operator==(PreorderAST &Other) {
+      return Compare(Other) == Result::Equal;
+    }
+  };
+
+  // This comparison allows PreorderASTs to be sorted lexicographically.
+  struct PreorderASTComparer {
+    bool operator()(PreorderAST *A, PreorderAST *B) const {
+      return *A < *B;
+    }
   };
 
 } // end namespace clang

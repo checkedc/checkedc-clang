@@ -69,10 +69,17 @@ namespace clang {
 
   class AbstractSetManager {
   private:
-    // Maintain a sorted set of AbstractSets that have been created while
+    // Maintain a sorted set of PreorderASTs that have been created while
     // traversing a function. A binary search in this set is used to determine
-    // whether an lvalue expression belongs to an existing AbstractSet.
-    static std::set<AbstractSet *, AbstractSetComparer> SortedAbstractSets;
+    // whether an lvalue expression belongs to an existing AbstractSet (an
+    // AbstractSet whose CanonicalForm is in the SortedPreorderASTs set).
+    static std::set<PreorderAST *, PreorderASTComparer> SortedPreorderASTs;
+
+    // Map each PreorderAST P that has been created while traversing a function
+    // to the AbstractSet whose CanonicalForm is P. This is used to retrieve
+    // the AbstractSet whose CanonicalForm already exists in SortedPreorderASTs
+    // (if any).
+    static llvm::DenseMap<PreorderAST *, AbstractSet *> PreorderASTAbstractSetMap;
 
   public:
     // Returns the AbstractSet that contains the lvalue expression E. If
