@@ -20,7 +20,7 @@ AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(Expr *E, ASTContext &Ctx
     // one that contains E.
     auto It = PreorderASTAbstractSetMap.find(ExistingCanonicalForm);
     if (It != PreorderASTAbstractSetMap.end()) {
-      return MapIt->second;
+      return It->second;
     }
   }
 
