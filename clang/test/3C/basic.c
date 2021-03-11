@@ -93,7 +93,8 @@ void sum_numbers(int count) {
     }
     free(ptr);
 }
-//CHECK: int *ptr = (int*) malloc<int>(n * sizeof(int));
+//CHECK_NOALL: int *ptr = (int*) malloc<int>(n * sizeof(int));
+//CHECK_ALL: _Array_ptr<int> ptr : count(n) = (_Array_ptr<int>) malloc<int>(n * sizeof(int));
 
 
 void basic_calloc(int count) {
@@ -120,7 +121,8 @@ void basic_calloc(int count) {
     printf("Sum = %d", sum);
     free(ptr);
 }
-//CHECK: int *ptr = (int*) calloc<int>(n, sizeof(int));
+//CHECK_NOALL: int *ptr = (int*) calloc<int>(n, sizeof(int));
+//CHECK_ALL: _Array_ptr<int> ptr : count(n) = (_Array_ptr<int>) calloc<int>(n, sizeof(int));
 
 void basic_realloc(int count) {
     int i , n1, n2;
@@ -145,7 +147,8 @@ void basic_realloc(int count) {
 
     free(ptr);
 }
-//CHECK: int *ptr = (int*) malloc<int>(n1 * sizeof(int));
+//CHECK_NOALL: int *ptr = (int*) malloc<int>(n1 * sizeof(int));
+//CHECK_ALL: _Array_ptr<int> ptr : count(n1) = (_Array_ptr<int>) malloc<int>(n1 * sizeof(int));
 
 struct student
 {

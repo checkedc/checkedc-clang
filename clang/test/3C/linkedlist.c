@@ -32,7 +32,7 @@ struct node {
   int data;
 
   struct node * next;
-	//CHECK: struct node * next;
+	//CHECK: _Ptr<struct node> next;
 
 };
 
@@ -46,12 +46,12 @@ struct list {
 
 
 Node * createnode(int data);
-	//CHECK: Node *createnode(int data) : itype(_Ptr<Node>);
+	//CHECK: _Ptr<Node>  createnode(int data);
 
 
 
 Node * createnode(int data){
-	//CHECK: Node *createnode(int data) : itype(_Ptr<Node>){
+	//CHECK: _Ptr<Node>  createnode(int data){
 
   Node * newNode = malloc(sizeof(Node));
 	//CHECK: _Ptr<Node> newNode =  malloc<Node>(sizeof(Node));
