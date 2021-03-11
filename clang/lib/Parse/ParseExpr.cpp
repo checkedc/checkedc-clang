@@ -3671,12 +3671,20 @@ bool Parser::ParseBoundsAnnotations(const Declarator &D,
         }
       }
     } else if (StartsWhereClause(Tok)) {
+      // We come here if we encounter where clauses on function parameters in
+      // the following cases:
+      // 1. Where clause after bounds declaration, like:
+      // void f(_Nt_array_ptr<int> p : count(n) _Where p : count(n), int n);
+
+      // 2. Where clause after bounds-safe interfaces, like:
+      // void f(int *p : itype(_Ptr<int>) _Where p == n, int n);
+
+      // If we are currently deferring tokens, also defer any where clauses.
       if (DeferredToks)
         Error = !ConsumeAndStoreWhereClause(**DeferredToks);
-      else if (!ThisDecl)
-        Error = true;
+      // Else parse any where clauses that we had previously deferred.
       else
-        ParseWhereClauseOnDecl(ThisDecl);
+        Error = ParseWhereClauseOnDecl(ThisDecl);
     }
   }
 
@@ -4004,6 +4012,8 @@ ExprResult Parser::ParseBoundsCastExpression() {
 }
 
 bool Parser::ConsumeAndStoreWhereClause(CachedTokens &Toks) {
+  // Returns false on error, true otherwise.
+
   if (!StartsWhereClause(Tok))
     return false;
 

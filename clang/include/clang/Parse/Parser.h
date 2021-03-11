@@ -2115,7 +2115,8 @@ private:
   WhereClauseFact *ParseWhereClauseFact();
 
   /// Parse a where clause occurring on a declaration.
-  void ParseWhereClauseOnDecl(Decl *D);
+  /// Returns false on error, true otherwise.
+  bool ParseWhereClauseOnDecl(Decl *D);
 
   //===--------------------------------------------------------------------===//
   // clang Expressions

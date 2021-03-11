@@ -1881,21 +1881,27 @@ void Parser::ExitQuantifiedTypeScope(DeclSpec &DS) {
   }
 }
 
-void Parser::ParseWhereClauseOnDecl(Decl *D) {
+bool Parser::ParseWhereClauseOnDecl(Decl *D) {
   if (!StartsWhereClause(Tok))
-    return;
+    return true;
 
-  if (!D)
-    llvm_unreachable("invalid where clause on empty Decl");
+  if (!D) {
+    Diag(Tok, diag::err_invalid_decl_where_clause);
+    return false;
+  }
 
   WhereClause *WClause = ParseWhereClause();
   if (!WClause)
-    return;
+    return false;
 
   if (auto *PD = dyn_cast<ParmVarDecl>(D))
     PD->setWhereClause(WClause);
   else if (auto *VD = dyn_cast<VarDecl>(D))
     VD->setWhereClause(WClause);
+  else
+    return false;
+
+  return true;
 }
 
 /// ParseDeclGroup - Having concluded that this is either a function
@@ -2078,7 +2084,8 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
   D.complete(FirstDecl);
   if (FirstDecl) {
     DeclsInGroup.push_back(FirstDecl);
-    // Parse a where clause occurring on the variable declaration.
+    // Parse a where clause occurring on a variable declaration, like:
+    // int a _Where a > 0;
     ParseWhereClauseOnDecl(FirstDecl);
   }
 
@@ -2127,7 +2134,8 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
       D.complete(ThisDecl);
       if (ThisDecl) {
         DeclsInGroup.push_back(ThisDecl);
-        // Parse a where clause occurring on the variable declaration.
+        // Parse a where clause occurring on a variable declaration, like
+        // int a, b, c _Where a > 0;
         ParseWhereClauseOnDecl(ThisDecl);
       }
     }
@@ -7229,10 +7237,9 @@ void Parser::ParseParameterDeclarationClause(
         if (Tok.is(tok::kw__Where)) {
           std::unique_ptr<CachedTokens> DeferredWhereClauseToks { new CachedTokens };
           if (!ConsumeAndStoreWhereClause(*DeferredWhereClauseToks) ||
-               DeferredWhereClauseToks->empty()) {
-            SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
+               DeferredWhereClauseToks->empty())
             Param->setInvalidDecl();
-          } else
+          else
             deferredWhereClauses.emplace_back(
               Param, std::move(DeferredWhereClauseToks));
 
@@ -7371,7 +7378,9 @@ void Parser::ParseParameterDeclarationClause(
       Actions.ActOnBoundsDecl(Param, Annots, true);
   }
 
-  // Parse the deferred where clauses.
+  // Parse the deferred where clauses. These are where clauses on variable
+  // declarations, like:
+  // void f(int a _Where a > 0);
   for (auto &Pair : deferredWhereClauses) {
     ParmVarDecl *Param = Pair.first;
     std::unique_ptr<CachedTokens> Tokens = std::move(Pair.second);
@@ -7381,7 +7390,8 @@ void Parser::ParseParameterDeclarationClause(
     PP.EnterTokenStream(*std::move(Tokens), true, /*IsReinject=*/false);
     ConsumeAnyToken();      // Skip past the current token to the new tokens.
 
-    ParseWhereClauseOnDecl(Param);
+    if (ParseWhereClauseOnDecl(Param))
+      Param->setInvalidDecl();
   }
 }
 

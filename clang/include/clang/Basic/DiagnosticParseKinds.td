@@ -1514,4 +1514,7 @@ def err_pragma_checked_scope_invalid_argument : Error<
 def err_expected_expr_in_where_clause : Error<
   "expected bounds declaration or equality expression in where clause">;
 
+def err_invalid_decl_where_clause : Error<
+  "where clause on invalid decl">;
+
 } // end of Parser diagnostics
