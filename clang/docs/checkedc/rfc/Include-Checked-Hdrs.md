@@ -139,41 +139,49 @@ files.
 ## Proposed Solution:
 
 The proposed solution is as follows:
-  - Based on feedback from CCI, we implicitly include checked headers by
-    default. That is, the compilation flag gives a way to opt out of this
-    implicit inclusion. In accordance with this, we rename the compilation
-    flag to NO_IMPLICIT_INCLUDE_CHECKED_HDRS.
-  - For each system header file, say `foo.h`, that does not have clang-specific
-    declarations (there are 13 such header files at present), we add a new file
-    also called `foo.h` that will contain the following:
+  - It is a hybrid solution based on ideas in Solutions 3 and 1 that
+    handles the presence of both clang-specific and Checked-C-specific
+    declarations in header files. It also incorporates the feedback from CCI to
+    make implicit inclusion of checked header files as default.
+  - We primarily adopt Solution 3 for header files that do not have
+    clang-specific declarations, but have Checked-C-specific declarations (there
+    are 13 such header files at present). To implicitly include checked headers
+    by default, the compilation flag (as proposed in Solution 3) now gives a way
+    to **opt out** of implicit inclusion. Accordingly, it is renamed to
+    NO_IMPLICIT_INCLUDE_CHECKED_HDRS.
+      - For each system header file, say `foo.h`, that does not have
+        clang-specific declarations but has Checked-C-specific declarations, we
+        will add a new file also called `foo.h` that will contain the following:
 
-          #ifdef NO_IMPLICIT_INCLUDE_CHECKED_HDRS
-          #include_next <foo.h>
-          #else
-          #include <foo_checked.h>
-          #endif
+            #ifdef NO_IMPLICIT_INCLUDE_CHECKED_HDRS
+            #include_next <foo.h>
+            #else
+            #include <foo_checked.h>
+            #endif
 
-    The file `foo_checked.h` will contain `#include_next <foo.h>` and the
-    Checked-C-specific declarations.
+      - The file `foo_checked.h` will contain `#include_next <foo.h>` and the
+        Checked-C-specific declarations.
 
-  - In the case that a system header file, say `bar.h`, does have clang-specific
-    declarations (there is one such header file at present), the pre-existing
-    `bar.h` contains the following:
+  - For a system header file that contains clang-specific declarations and also
+    Checked-C-specific declarations (there is one such header file at present),
+    we will do the following:
+      - Let `bar.h` be such a header file. Then there already 
+        exists a file called `bar.h` in the `clang/lib/Headers` directory,
+        which contains clang-specific declarations in the following format:
 
-          #include_next <bar.h>
-          <currently existing clang-specific declarations>
+            #include_next <bar.h>
+            <currently existing clang-specific declarations>
 
-    At the end of the pre-existing `bar.h`, we will add the following:
+        At the end of this pre-existing `bar.h`, we will add the following:
 
-          #ifndef NO_IMPLICIT_INCLUDE_CHECKED_HDRS
-          #include <bar_checked_internal.h>
-          #endif
+            #ifndef NO_IMPLICIT_INCLUDE_CHECKED_HDRS
+            #include <bar_checked_internal.h>
+            #endif
 
-    The file `bar_checked.h` will contain just the following:
+      - All the Checked-C-specific declarations (that are currently present in
+        `bar_checked.h`) will be moved to `bar_checked_internal.h`. The file
+        `bar_checked.h` will be modified to contain just the following:
 
-          // Force the inclusion of Checked-C-specific declarations
-          #undef NO_IMPLICIT_INCLUDE_CHECKED_HDRS
-          #include <bar.h>
-
-    All the Checked-C-specific declarations will be moved to
-    `bar_checked_internal.h`.
+            // Force the inclusion of Checked-C-specific declarations
+            #undef NO_IMPLICIT_INCLUDE_CHECKED_HDRS
+            #include <bar.h>   
