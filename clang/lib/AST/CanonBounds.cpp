@@ -279,7 +279,7 @@ bool Lexicographic::CompareExprSemantically(const Expr *Arg1,
      return CompareExpr(Arg1, Arg2) == Result::Equal;
    }
 
-  bool Res = P1.IsEqual(P2);
+  bool Res = P1.Compare(P2) == Result::Equal;
   P1.Cleanup();
   P2.Cleanup();
   return Res;
