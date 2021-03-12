@@ -59,14 +59,6 @@ namespace clang {
     }
   };
 
-  // Custom comparison for SortedAbstractSets so that the AbstractSets are
-  // sorted lexicographically by their CanonicalForms.
-  struct AbstractSetComparer {
-    bool operator()(AbstractSet *A, AbstractSet *B) const {
-      return *A < *B;
-    }
-  };
-
   class AbstractSetManager {
   private:
     // Maintain a sorted set of PreorderASTs that have been created while
