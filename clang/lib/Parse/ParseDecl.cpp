@@ -7110,11 +7110,6 @@ void Parser::ParseParameterDeclarationClause(
   // We are guessing that most functions take 4 or fewer parameters with
   // bounds expressions on them.
   SmallVector<BoundsExprInfo, 4> deferredBoundsExpressions;
-
-  using WhereClauseInfo = std::pair<ParmVarDecl *,
-                                    std::unique_ptr<CachedTokens>>;
-  SmallVector<WhereClauseInfo, 4> deferredWhereClauses;
-
   do {
     // FIXME: Issue a diagnostic if we parsed an attribute-specifier-seq
     // before deciding this was a parameter-declaration-clause.
@@ -7229,19 +7224,20 @@ void Parser::ParseParameterDeclarationClause(
       // Inform the actions module about the parameter declarator, so it gets
       // added to the current scope.
       ParmVarDecl *Param = Actions.ActOnParamDeclarator(getCurScope(), ParmDeclarator);
-      // Handle Checked C bounds expression or bounds-safe interface type annotation.
+      // Handle Checked C where clause, bounds expression or bounds-safe
+      // interface type annotation.
       if (getLangOpts().CheckedC) {
+        std::unique_ptr<CachedTokens> DeferredBoundsToks { new CachedTokens };
 
         // Defer parse a parameter having a where clause because the where
         // clause may refer to parameters which come after this one.
         if (Tok.is(tok::kw__Where)) {
-          std::unique_ptr<CachedTokens> DeferredWhereClauseToks { new CachedTokens };
-          if (!ConsumeAndStoreWhereClause(*DeferredWhereClauseToks) ||
-               DeferredWhereClauseToks->empty())
+          if (!ConsumeAndStoreWhereClause(*DeferredBoundsToks) ||
+               DeferredBoundsToks->empty())
             Param->setInvalidDecl();
           else
-            deferredWhereClauses.emplace_back(
-              Param, std::move(DeferredWhereClauseToks));
+            deferredBoundsExpressions.emplace_back(
+              Param, ParmDeclarator, std::move(DeferredBoundsToks));
 
         } else if (!Tok.is(tok::colon))
           // There is no bounds expression or type annotation.  Set the default
@@ -7253,7 +7249,6 @@ void Parser::ParseParameterDeclarationClause(
           BoundsAnnotations Annots;
           // Bounds expressions are delay parsed because they can refer to
           // parameters declared after this one.
-          std::unique_ptr<CachedTokens> DeferredBoundsToks { new CachedTokens };
           if (ParseBoundsAnnotations(ParmDeclarator, BoundsColonLoc, Annots, &DeferredBoundsToks)) {
             SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
             Param->setInvalidDecl();
@@ -7371,27 +7366,23 @@ void Parser::ParseParameterDeclarationClause(
     ParmVarDecl *Param = std::get<0>(Tuple);
     Declarator &D = std::get<1>(Tuple);
     std::unique_ptr<CachedTokens> Tokens = std::move(std::get<2>(Tuple));
+    bool IsWhereClause = StartsWhereClause(Tokens->front());
+
     BoundsAnnotations Annots;
-    if (DeferredParseBoundsExpression(std::move(Tokens), Annots, D, Param))
-      Actions.ActOnInvalidBoundsDecl(Param);
-    else
-      Actions.ActOnBoundsDecl(Param, Annots, true);
-  }
-
-  // Parse the deferred where clauses. These are where clauses on variable
-  // declarations, like:
-  // void f(int a _Where a > 0);
-  for (auto &Pair : deferredWhereClauses) {
-    ParmVarDecl *Param = Pair.first;
-    std::unique_ptr<CachedTokens> Tokens = std::move(Pair.second);
-
-    Tokens->push_back(Tok); // Save the current token at the end of the new
-                            // tokens so it isn't lost.
-    PP.EnterTokenStream(*std::move(Tokens), true, /*IsReinject=*/false);
-    ConsumeAnyToken();      // Skip past the current token to the new tokens.
-
-    if (ParseWhereClauseOnDecl(Param))
-      Param->setInvalidDecl();
+    if (DeferredParseBoundsExpression(std::move(Tokens), Annots, D, Param)) {
+      if (IsWhereClause)
+        Param->setInvalidDecl();
+      else
+        Actions.ActOnInvalidBoundsDecl(Param);
+    } else {
+      if (IsWhereClause)
+        // Parse the deferred where clauses. These are where clauses on
+        // variable declarations, like:
+        // void f(int a _Where a > 0);
+        ParseWhereClauseOnDecl(Param);
+      else
+        Actions.ActOnBoundsDecl(Param, Annots, true);
+    }
   }
 }
 
