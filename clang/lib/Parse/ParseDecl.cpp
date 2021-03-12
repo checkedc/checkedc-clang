@@ -7361,19 +7361,11 @@ void Parser::ParseParameterDeclarationClause(
 
     BoundsAnnotations Annots;
     if (DeferredParseBoundsExpression(std::move(Tokens), Annots, D, Param)) {
-      if (IsWhereClause)
-        Param->setInvalidDecl();
-      else
+      if (!IsWhereClause)
         Actions.ActOnInvalidBoundsDecl(Param);
     } else {
-      if (IsWhereClause)
-        // Parse the deferred where clauses. These are where clauses on
-        // variable declarations, like:
-        // void f(int a _Where a > 0);
-        ParseWhereClauseOnDecl(Param);
-      else
+      if (!IsWhereClause)
         Actions.ActOnBoundsDecl(Param, Annots, true);
-    }
   }
 }
 
