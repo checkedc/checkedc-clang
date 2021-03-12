@@ -96,6 +96,9 @@ bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
     if (FDef == nullptr)
       FDef = FD;
     if (auto *FVCon = Info.getFuncConstraint(FDef, Context)) {
+      // if we need to rewrite it but can't (macro, etc), it isn't safe
+      bool ForcedInconsistent = !typeArgsProvided(CE)
+                                && !Rewriter::isRewritable(CE->getExprLoc());
       // Visit each function argument, and if it use a type variable, insert it
       // into the type variable binding map.
       unsigned int I = 0;
@@ -107,7 +110,8 @@ bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
         if (TyIdx >= 0) {
           Expr *Uncast = A->IgnoreImpCasts();
           std::set<ConstraintVariable *> CVs = CR.getExprConstraintVars(Uncast);
-          insertBinding(CE, TyIdx, Uncast->getType(), CVs);
+          insertBinding(CE, TyIdx, Uncast->getType(),
+                        CVs, ForcedInconsistent);
         }
         ++I;
       }
@@ -144,13 +148,14 @@ bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
 // the exact type variable is identified by the call expression where it is
 // used and the index of the type variable type in the function declaration.
 void TypeVarVisitor::insertBinding(CallExpr *CE, const int TyIdx,
-                                   clang::QualType Ty, CVarSet &CVs) {
+                                   clang::QualType Ty, CVarSet &CVs,
+                                   bool ForceInconsistent) {
   assert(TyIdx >= 0 &&
          "Creating a type variable binding without a type variable.");
   auto &CallTypeVarMap = TVMap[CE];
   if (CallTypeVarMap.find(TyIdx) == CallTypeVarMap.end()) {
     // If the type variable hasn't been seen before, add it to the map.
-    TypeVariableEntry TVEntry = TypeVariableEntry(Ty, CVs);
+    TypeVariableEntry TVEntry = TypeVariableEntry(Ty, CVs, ForceInconsistent);
     CallTypeVarMap[TyIdx] = TVEntry;
   } else {
     // Otherwise, update entry with new type and constraints.
@@ -174,21 +179,41 @@ void TypeVarVisitor::getConsistentTypeParams(CallExpr *CE,
 // during rewriting.
 void TypeVarVisitor::setProgramInfoTypeVars() {
   for (const auto &TVEntry : TVMap) {
-    bool AllInconsistent = true;
+    // Add each type variable into the map in ProgramInfo. Inconsistent
+    // variables are mapped to null.
     for (auto TVCallEntry : TVEntry.second)
-      AllInconsistent &= !TVCallEntry.second.getIsConsistent();
-    // If they're all inconsistent type variables, ignore the call expression
-    if (!AllInconsistent) {
-      // Add each type variable into the map in ProgramInfo. Inconsistent
-      // variables are mapped to null.
-      for (auto TVCallEntry : TVEntry.second)
-        if (TVCallEntry.second.getIsConsistent())
-          Info.setTypeParamBinding(TVEntry.first, TVCallEntry.first,
-                                   TVCallEntry.second.getTypeParamConsVar(),
-                                   Context);
-        else
-          Info.setTypeParamBinding(TVEntry.first, TVCallEntry.first, nullptr,
-                                   Context);
-    }
+      if (TVCallEntry.second.getIsConsistent())
+        Info.setTypeParamBinding(TVEntry.first, TVCallEntry.first,
+                                 TVCallEntry.second.getTypeParamConsVar(),
+                                 Context);
+      else
+        Info.setTypeParamBinding(TVEntry.first, TVCallEntry.first, nullptr,
+                                 Context);
   }
+}
+
+// Check if type arguments have already been provided for this function
+// call so that we don't mess with anything already there.
+bool typeArgsProvided(CallExpr *Call) {
+  Expr *Callee = Call->getCallee()->IgnoreImpCasts();
+  if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(Callee)) {
+    // ArgInfo is null if there are no type arguments anywhere in the program
+    if (auto *ArgInfo = DRE->GetTypeArgumentInfo())
+      for (auto Arg : ArgInfo->typeArgumentss()) {
+        if (!Arg.typeName->isVoidType()) {
+          // Found a non-void type argument. No doubt type args are provided.
+          return true;
+        }
+        if (Arg.sourceInfo->getTypeLoc().getSourceRange().isValid()) {
+          // The type argument is void, but with a valid source range. This
+          // means an explict void type argument was provided.
+          return true;
+        }
+        // A void type argument without a source location. The type argument
+        // is implicit so, we're good to insert a new one.
+      }
+    return false;
+  }
+  // We only handle direct calls, so there must be a DeclRefExpr.
+  llvm_unreachable("Callee of function call is not DeclRefExpr.");
 }

@@ -261,6 +261,8 @@ private:
 
 bool canRewrite(Rewriter &R, const SourceRange &SR);
 
+bool canRewrite(clang::Expr &D, ASTContext &Context);
+
 // Rewrites the given source range with fallbacks for when the SourceRange is
 // inside a macro. This should be preferred to direct calls to ReplaceText
 // because this function will automatically expand macros where it needs to and

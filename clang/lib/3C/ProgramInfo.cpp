@@ -1071,10 +1071,13 @@ void ProgramInfo::setTypeParamBinding(CallExpr *CE, unsigned int TypeVarIdx,
 
   auto PSL = PersistentSourceLoc::mkPSL(CE, *C);
   auto CallMap = TypeParamBindings[PSL];
-  assert("Attempting to overwrite type param binding in ProgramInfo." &&
-         CallMap.find(TypeVarIdx) == CallMap.end());
-
-  TypeParamBindings[PSL][TypeVarIdx] = CV;
+  if (CallMap.find(TypeVarIdx) == CallMap.end()) {
+    TypeParamBindings[PSL][TypeVarIdx] = CV;
+  } else {
+    // If this CE/idx is at the same location, it's in a macro,
+    // so mark it as inconsistent.
+    TypeParamBindings[PSL][TypeVarIdx] = nullptr;
+  }
 }
 
 bool ProgramInfo::hasTypeParamBindings(CallExpr *CE, ASTContext *C) const {

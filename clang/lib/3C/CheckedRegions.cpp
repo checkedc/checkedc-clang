@@ -224,6 +224,9 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
     Map[ID] = isInStatementPosition(C) ? IS_CONTAINED : IS_UNCHECKED;
   } else {
     if (FD) {
+      if (Info.hasTypeParamBindings(C,Context))
+        for (auto Entry : Info.getTypeParamBindings(C, Context))
+          Wild |= (Entry.second == nullptr);
       auto Type = FD->getReturnType();
       Wild |= (!(FD->hasPrototype() || FD->doesThisDeclarationHaveABody())) ||
               containsUncheckedPtr(Type);
