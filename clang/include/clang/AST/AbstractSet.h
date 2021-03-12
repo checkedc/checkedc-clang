@@ -65,6 +65,10 @@ namespace clang {
     // traversing a function. A binary search in this set is used to determine
     // whether an lvalue expression belongs to an existing AbstractSet (an
     // AbstractSet whose CanonicalForm is in the SortedPreorderASTs set).
+    // An std::set is used for this set since std::sets are sorted by default.
+    // Here, the PreorderASTComparer is used to sort the PreorderASTs
+    // lexicographically. This avoids the need for a linear search through
+    // SortedPreorderASTs in GetOrCreateAbstractSet.
     static std::set<PreorderAST *, PreorderASTComparer> SortedPreorderASTs;
 
     // Map each PreorderAST P that has been created while traversing a function
