@@ -7360,12 +7360,15 @@ void Parser::ParseParameterDeclarationClause(
     bool IsWhereClause = StartsWhereClause(Tokens->front());
 
     BoundsAnnotations Annots;
-    if (DeferredParseBoundsExpression(std::move(Tokens), Annots, D, Param)) {
-      if (!IsWhereClause)
+    bool Error = DeferredParseBoundsExpression(std::move(Tokens),
+                                               Annots, D, Param);
+
+    if (!IsWhereClause) {
+      if (Error)
         Actions.ActOnInvalidBoundsDecl(Param);
-    } else {
-      if (!IsWhereClause)
+      else
         Actions.ActOnBoundsDecl(Param, Annots, true);
+    }
   }
 }
 

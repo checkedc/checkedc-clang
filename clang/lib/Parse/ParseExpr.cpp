@@ -3679,6 +3679,10 @@ bool Parser::ParseBoundsAnnotations(const Declarator &D,
       // 2. Where clause after bounds-safe interfaces, like:
       // void f(int *p : itype(_Ptr<int>) _Where p == n, int n);
 
+      // 3. Where clause on parameters without any bounds declaration or
+      // bounds-safe interface, like:
+      // void f(int a _Where a > 0);
+
       // If we are currently deferring tokens, also defer any where clauses.
       if (DeferredToks)
         Error = !ConsumeAndStoreWhereClause(**DeferredToks);
