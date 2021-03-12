@@ -7227,29 +7227,20 @@ void Parser::ParseParameterDeclarationClause(
       // Handle Checked C where clause, bounds expression or bounds-safe
       // interface type annotation.
       if (getLangOpts().CheckedC) {
-        std::unique_ptr<CachedTokens> DeferredBoundsToks { new CachedTokens };
-
-        // Defer parse a parameter having a where clause because the where
-        // clause may refer to parameters which come after this one.
-        if (Tok.is(tok::kw__Where)) {
-          if (!ConsumeAndStoreWhereClause(*DeferredBoundsToks) ||
-               DeferredBoundsToks->empty())
-            Param->setInvalidDecl();
-          else
-            deferredBoundsExpressions.emplace_back(
-              Param, ParmDeclarator, std::move(DeferredBoundsToks));
-
-        } else if (!Tok.is(tok::colon))
-          // There is no bounds expression or type annotation.  Set the default
-          // bounds expression, if any.
+        if (!Tok.isOneOf(tok::colon, tok::kw__Where))
+	  // There is no bounds expression, type annotation or where clause.
+	  // Set the default bounds expression, if any.
           Actions.ActOnEmptyBoundsDecl(Param);
         else {
           SourceLocation BoundsColonLoc = Tok.getLocation();
-          ConsumeToken();
+          if (!StartsWhereClause(Tok))
+            ConsumeToken();
           BoundsAnnotations Annots;
           // Bounds expressions are delay parsed because they can refer to
           // parameters declared after this one.
-          if (ParseBoundsAnnotations(ParmDeclarator, BoundsColonLoc, Annots, &DeferredBoundsToks)) {
+          std::unique_ptr<CachedTokens> DeferredBoundsToks { new CachedTokens };
+          if (ParseBoundsAnnotations(ParmDeclarator, BoundsColonLoc,
+                                     Annots, &DeferredBoundsToks)) {
             SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
             Param->setInvalidDecl();
           }
