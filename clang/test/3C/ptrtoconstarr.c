@@ -6,15 +6,17 @@
 // RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s --
 // RUN: 3c -base-dir=%t.checked -alltypes %t.checked/ptrtoconstarr.c -- | diff %t.checked/ptrtoconstarr.c -
 
-extern _Unchecked unsigned long strlen(const char * restrict src : itype(restrict _Nt_array_ptr<const char>));
+extern _Unchecked unsigned long
+strlen(const char *restrict src
+       : itype(restrict _Nt_array_ptr<const char>));
 
-int bar(void) { 
+int bar(void) {
   //CHECK_ALL: int bar(void) _Checked {
   //CHECK_NOALL: int bar(void) {
   int local[10];
   //CHECK_ALL: int local _Checked[10];
   //CHECK_NOALL: int local[10];
-  int (*coef)[10] = &local;
+  int(*coef)[10] = &local;
   //CHECK_ALL: _Ptr<int _Checked[10]> coef = &local;
   //CHECK_NOALL: _Ptr<int *> coef = &local;
 
@@ -41,7 +43,7 @@ int foo(void) {
   //CHECK_ALL: int local _Checked[10];
   //CHECK_NOALL: int local[10];
   int y = 2;
-  struct ex e = { 3, &y, &local };
+  struct ex e = {3, &y, &local};
   y += (*e.ca)[3];
   return *e.ptr;
 }
@@ -52,7 +54,7 @@ int baz(void) {
   char local[5] = "test";
   //CHECK_ALL: char local _Nt_checked[5] =  "test";
   //CHECK_NOALL: char local[5] = "test";
-  char (*ptr)[5] = &local;
+  char(*ptr)[5] = &local;
   //CHECK_ALL: _Ptr<char _Nt_checked[5]> ptr = &local;
   //CHECK_NOALL: _Ptr<char *> ptr = &local;
 
@@ -69,7 +71,7 @@ int sum10pairs(struct pair (*pairs)[10]) {
   //CHECK_NOALL: int sum10pairs(_Ptr<struct pair *> pairs) {
   int sum = 0;
 
-  for(int i = 0; i < 10; i++) {
+  for (int i = 0; i < 10; i++) {
     struct pair this = (*pairs)[i];
     sum += this.fst + this.snd;
   }
@@ -77,20 +79,18 @@ int sum10pairs(struct pair (*pairs)[10]) {
   return sum;
 }
 
-typedef int (*compl)[5];
+typedef int (*compl )[5];
 //CHECK_ALL: typedef _Ptr<int _Checked[5]> compl;
 
-int example(void) { 
-  int local[5] = { 0 };
-  //CHECK_ALL: int local _Checked[5] = { 0 };
-  //CHECK_NOALL int local[5] = { 0 };
+int example(void) {
+  int local[5] = {0};
+  //CHECK_ALL: int local _Checked[5] = {0};
+  //CHECK_NOALL: int local[5] = {0};
   compl t = &local;
   //CHECK_ALL: compl t = &local;
-  //CHECK_NOALL _Ptr<int *> t = &local;
+  // The following CHECK comment was malformed (missing the colon after
+  // CHECK_NOALL) and thus didn't execute. When I tried to enable it, it failed.
+  // So comment it out for now. ~ Matt 2021-03-10
+  //COM: CHECK_NOALL: _Ptr<int *> t = &local;
   return (*t)[2];
 }
-
-
-
-
-

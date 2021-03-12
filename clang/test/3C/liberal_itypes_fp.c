@@ -31,10 +31,10 @@ void fp_caller() {
   // CHECK: j(l);
 }
 
-void fp_test2(int *i) { }
-// CHECK: void fp_test2(_Ptr<int> i) _Checked { }
-void fp_test3(int *i) { }
-// CHECK: void fp_test3(_Ptr<int> i) _Checked { }
+void fp_test2(int *i) {}
+// CHECK: void fp_test2(_Ptr<int> i) _Checked {}
+void fp_test3(int *i) {}
+// CHECK: void fp_test3(_Ptr<int> i) _Checked {}
 
 void fp_unsafe_caller() {
   void (*a)(int *);
@@ -75,34 +75,34 @@ void fp_unsafe_return() {
 }
 
 void f_ptr_arg(int (*f)()) {
-// CHECK: void f_ptr_arg(int (*f)()) {
+  // CHECK: void f_ptr_arg(int (*f)()) {
   f = 1;
 }
 
-void fpnc0(void (*fptr)(void *)) { }
-// CHECK: void fpnc0(_Ptr<void (void *)> fptr) { }
-void fpnc1(void* p1) {}
-// CHECK: void fpnc1(void* p1) {}
+void fpnc0(void (*fptr)(void *)) {}
+// CHECK: void fpnc0(_Ptr<void (void *)> fptr) {}
+void fpnc1(void *p1) {}
+// CHECK: void fpnc1(void *p1) {}
 void fpnc2() { fpnc0(fpnc1); }
 // CHECK: void fpnc2() { fpnc0(fpnc1); }
 void fpnc3(void (*fptr)(void *)) { fptr = 1; }
 // CHECK: void fpnc3(void (*fptr)(void *)) { fptr = 1; }
-void fpnc4(void* p1) {}
-// CHECK: void fpnc4(void* p1) {}
+void fpnc4(void *p1) {}
+// CHECK: void fpnc4(void *p1) {}
 void fpnc5() { fpnc3(fpnc4); }
 // CHECK: void fpnc5() { fpnc3(fpnc4); }
 
-int fptr_itype(void ((*f)(int *)) : itype(_Ptr<void (_Ptr<int>)>));
-//CHECK: int fptr_itype(void ((*f)(int *)) : itype(_Ptr<void (_Ptr<int>)>));
+int fptr_itype(void((*f)(int *)) : itype(_Ptr<void(_Ptr<int>)>));
+//CHECK: int fptr_itype(void((*f)(int *)) : itype(_Ptr<void(_Ptr<int>)>));
 
 void fptr_itype_test(void) {
-    _Ptr<int (_Ptr<int>)> fptr1 = ((void *)0);
-    //CHECK: _Ptr<int (_Ptr<int>)> fptr1 = ((void *)0);
-    baz(fptr1);
-    //CHECK: baz(fptr1);
+  _Ptr<int(_Ptr<int>)> fptr1 = ((void *)0);
+  //CHECK: _Ptr<int(_Ptr<int>)> fptr1 = ((void *)0);
+  baz(fptr1);
+  //CHECK: baz(fptr1);
 
-    int (*fptr2)(int *);
-    //CHECK: _Ptr<int (_Ptr<int> )> fptr2 = ((void *)0);
-    baz(fptr2);
-    //CHECK: baz(fptr2);
+  int (*fptr2)(int *);
+  //CHECK: _Ptr<int (_Ptr<int> )> fptr2 = ((void *)0);
+  baz(fptr2);
+  //CHECK: baz(fptr2);
 }

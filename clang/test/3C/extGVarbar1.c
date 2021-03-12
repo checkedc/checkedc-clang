@@ -5,15 +5,13 @@
 
 // This test cannot use pipes because it requires multiple output files
 
-extern int *x; 
+extern int *x;
 /*y will be defined in bar2.c*/
-extern int *y;  
+extern int *y;
 
-//CHECK: extern int *x; 
+//CHECK: extern int *x;
 //CHECK: extern _Ptr<int> y;
 
 /*trivial conversion guarantee*/
-void g(int *y) { 
-
-}
-//CHECK: void g(_Ptr<int> y) { 
+void g(int *y) {}
+//CHECK: void g(_Ptr<int> y) {}

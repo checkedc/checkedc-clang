@@ -6,8 +6,9 @@
 // RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s --
 // RUN: 3c -base-dir=%t.checked -alltypes %t.checked/partial_checked_arr.c -- | diff %t.checked/partial_checked_arr.c -
 
-int strcmp(const char *src1 : itype(_Nt_array_ptr<const char>),
-           const char *src2 : itype(_Nt_array_ptr<const char>));
+int strcmp(const char *src1
+           : itype(_Nt_array_ptr<const char>), const char *src2
+           : itype(_Nt_array_ptr<const char>));
 
 void test0() {
   _Ptr<int *> a = 0;
@@ -33,8 +34,7 @@ void test0() {
 
   _Nt_array_ptr<char **> e;
   // CHECK: _Nt_array_ptr<_Ptr<_Ptr<char>>> e = ((void *)0);
-  
-  
+
   _Ptr<char *> f;
   _Ptr<char *> g;
   // CHECK_ALL: _Ptr<_Nt_array_ptr<char>> f = ((void *)0);
@@ -46,8 +46,8 @@ void test0() {
 }
 
 _Ptr<char *> test1(_Ptr<char *> d) {
-// CHECK_ALL: _Ptr<_Array_ptr<char>> test1(_Ptr<_Array_ptr<char>> d) _Checked {
-// CHECK_NOALL: _Ptr<char *> test1(_Ptr<char *> d : itype(_Ptr<_Ptr<char>>)) {
+  // CHECK_ALL: _Ptr<_Array_ptr<char>> test1(_Ptr<_Array_ptr<char>> d) _Checked {
+  // CHECK_NOALL: _Ptr<char *> test1(_Ptr<char *> d : itype(_Ptr<_Ptr<char>>)) {
   (*d)[0] = 0;
   return d;
 }

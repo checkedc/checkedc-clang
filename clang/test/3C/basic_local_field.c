@@ -36,5 +36,5 @@ int main() {
   foo2 obj2 = {};
   obj2.b = &b;
   foo3 obj3 = {};
-  obj3.p = (int*)0xcafebabe;
+  obj3.p = (int *)0xcafebabe;
 }

@@ -11,12 +11,12 @@ static int funcvar;
 static int funcdecvar;
 // we test propagation with and without function
 // declaration.
-static int* funcdecl(int *ptr, int *iptr, int *wild);
-static int* funcdecl(int *ptr, int *iptr, int *wild) {
-  if(ptr != 0) {
+static int *funcdecl(int *ptr, int *iptr, int *wild);
+static int *funcdecl(int *ptr, int *iptr, int *wild) {
+  if (ptr != 0) {
     *ptr = 0;
   }
-  wild = (int*)0xdeadbeef;
+  wild = (int *)0xdeadbeef;
   return &funcdecvar;
 }
 //CHECK: static _Ptr<int> funcdecl(_Ptr<int> ptr, _Ptr<int> iptr, int *wild : itype(_Ptr<int>));
@@ -25,11 +25,11 @@ static int* funcdecl(int *ptr, int *iptr, int *wild) {
 // ptr is a regular _Ptr
 // iptr will be itype
 // wild will be a wild ptr.
-static int* func(int *ptr, int *iptr, int *wild) {
-  if(ptr != 0) {
+static int *func(int *ptr, int *iptr, int *wild) {
+  if (ptr != 0) {
     *ptr = 0;
   }
-  wild = (int*)0xdeadbeef;
+  wild = (int *)0xdeadbeef;
   return &funcvar;
 }
 //CHECK: static _Ptr<int> func(_Ptr<int> ptr, _Ptr<int> iptr, int *wild : itype(_Ptr<int>)) {
@@ -43,10 +43,9 @@ int main() {
   int *bp1 = 0;
   int *cp1 = 0;
 
-
   ap1 = ap = &a;
   // we will make this pointer wild.
-  bp1 = bp = (int*)0xcafeba;
+  bp1 = bp = (int *)0xcafeba;
   cp = &c;
   cp1 = &c;
   // we are passing cp

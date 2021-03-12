@@ -5,17 +5,15 @@
 
 // This test cannot use pipes because it requires multiple output files
 
-extern int *x; 
+extern int *x;
 //CHECK: extern int *x;
 
-int w = 4; 
+int w = 4;
 int *y = &w;
-//CHECK: _Ptr<int> y =  &w; 
+//CHECK: _Ptr<int> y = &w;
 
-extern int *z; 
+extern int *z;
 //CHECK: extern _Ptr<int> z;
 
-int * h(int *x) { 
-    return z;
-} 
-//CHECK: _Ptr<int> h(_Ptr<int> x) {
+int *h(int *x) { return z; }
+//CHECK: _Ptr<int> h(_Ptr<int> x) { return z; }

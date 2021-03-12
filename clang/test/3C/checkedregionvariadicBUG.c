@@ -5,14 +5,14 @@
 #include <stdarg.h>
 #include <stddef.h>
 
-void sum(int *ptr, int count, ...) { 
+void sum(int *ptr, int count, ...) {
   //CHECK: void sum(_Ptr<int> ptr, int count, ...) {
   va_list ap;
   int sum = 0;
 
   va_start(ap, count);
 
-  for(int i = 0; i < count; i++) 
+  for (int i = 0; i < count; i++)
     sum += va_arg(ap, int);
 
   *ptr = sum;
@@ -20,16 +20,16 @@ void sum(int *ptr, int count, ...) {
   return;
 }
 
-void bad_sum(int **ptr, int count, ...) { 
+void bad_sum(int **ptr, int count, ...) {
   //CHECK: void bad_sum(_Ptr<int*> ptr, int count, ...) {
   va_list ap;
   int sum = 0;
 
-  *ptr = (int*) 3;
+  *ptr = (int *)3;
 
   va_start(ap, count);
 
-  for(int i = 0; i < count; i++) 
+  for (int i = 0; i < count; i++)
     sum += va_arg(ap, int);
 
   **ptr = sum;
@@ -40,20 +40,20 @@ void bad_sum(int **ptr, int count, ...) {
 int foo(int *ptr) {
   //CHECK: int foo(_Ptr<int> ptr) _Checked {
   *ptr += 2;
-  sum(ptr,1,2,3);
+  sum(ptr, 1, 2, 3);
   //CHECK: _Unchecked { sum(ptr,1,2,3); };
   return *ptr;
 }
 
 int bar(int *ptr) {
-  //CHECK: int bar(int *ptr) { 
+  //CHECK: int bar(int *ptr) {
   *ptr += 2;
-  bad_sum(&ptr,1,2,3);
+  bad_sum(&ptr, 1, 2, 3);
   //CHECK: bad_sum(((int **)&ptr),1,2,3);
   return *ptr;
 }
 
-void baz(void) { 
+void baz(void) {
   //CHECK: void baz(void) {
   sum(NULL, 3, 1, 2, 3);
   //CHECK: sum(NULL, 3, 1, 2, 3);

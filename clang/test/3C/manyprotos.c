@@ -5,18 +5,18 @@
 int foo();
 //CHECK: int foo(_Array_ptr<int> x : count(y), int y);
 
-int bar(int *x, int c) { 
-//CHECK: int bar(_Array_ptr<int> x : count(c), int c) { 
+int bar(int *x, int c) {
+  //CHECK: int bar(_Array_ptr<int> x : count(c), int c) {
   return foo(x, c) + 3;
 }
 
 int foo(int *x, int y);
 //CHECK: int foo(_Array_ptr<int> x : count(y), int y);
 
-int foo(int *x, int y) { 
-//CHECK: int foo(_Array_ptr<int> x : count(y), int y) { 
+int foo(int *x, int y) {
+  //CHECK: int foo(_Array_ptr<int> x : count(y), int y) {
   int sum = 0;
-  for(int i = 0; i < y; i++) { 
+  for (int i = 0; i < y; i++) {
     sum += x[i];
   }
   return sum;
@@ -25,18 +25,18 @@ int foo(int *x, int y) {
 int foo2(int *x, int y);
 //CHECK: int foo2(_Array_ptr<int> x : count(y), int y);
 
-int bar2(int *x, int c) { 
-//CHECK: int bar2(_Array_ptr<int> x : count(c), int c) { 
+int bar2(int *x, int c) {
+  //CHECK: int bar2(_Array_ptr<int> x : count(c), int c) {
   return foo(x, c) + 3;
 }
 
 int foo2();
 //CHECK: int foo2(_Array_ptr<int> x : count(y), int y);
 
-int foo2(int *x, int y) { 
-//CHECK: int foo2(_Array_ptr<int> x : count(y), int y) { 
+int foo2(int *x, int y) {
+  //CHECK: int foo2(_Array_ptr<int> x : count(y), int y) {
   int sum = 0;
-  for(int i = 0; i < y; i++) { 
+  for (int i = 0; i < y; i++) {
     sum += x[i];
   }
   return sum;
@@ -53,4 +53,3 @@ void call(void) {
   //CHECK: _Ptr<int> x = 0;
   f(x);
 }
-

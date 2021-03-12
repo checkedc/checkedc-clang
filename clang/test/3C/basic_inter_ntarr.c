@@ -6,8 +6,10 @@
 // RUN: 3c -base-dir=%S -alltypes %s -- | FileCheck -match-full-lines %s
 // RUN: 3c -base-dir=%S -alltypes %s -- | %clang -c -f3c-tool -fcheckedc-extension -x c -o %t1.unused -
 //
-char *strstr(const char *s1 : itype(_Nt_array_ptr<const char>),
-             const char *s2 : itype(_Nt_array_ptr<const char>)) : itype(_Nt_array_ptr<char>);
+char *strstr(const char *s1
+             : itype(_Nt_array_ptr<const char>), const char *s2
+             : itype(_Nt_array_ptr<const char>))
+    : itype(_Nt_array_ptr<char>);
 // here we test the propagation of constraints
 // between functions.
 
@@ -16,10 +18,10 @@ char *strstr(const char *s1 : itype(_Nt_array_ptr<const char>),
 // here, ntiptr will be an itype(Nt_ptr)
 int funcdecl(char *ntiptr, int *iptr, int *wild);
 int funcdecl(char *ntiptr, int *iptr, int *wild) {
-  if(ntiptr != 0) {
+  if (ntiptr != 0) {
     ntiptr = strstr("Hello", "world");
   }
-  wild = (int*)0xdeadbeef;
+  wild = (int *)0xdeadbeef;
   return 0;
 }
 //CHECK: int funcdecl(_Ptr<char> ntiptr, _Ptr<int> iptr, int *wild : itype(_Ptr<int>));
@@ -29,10 +31,10 @@ int funcdecl(char *ntiptr, int *iptr, int *wild) {
 // iptr will be itype
 // wild will be a wild ptr.
 int func(int *ptr, int *iptr, int *wild) {
-  if(ptr != 0) {
+  if (ptr != 0) {
     ptr[0] = 1;
   }
-  wild = (int*)0xdeadbeef;
+  wild = (int *)0xdeadbeef;
   return 0;
 }
 //CHECK: int func(_Array_ptr<int> ptr, _Ptr<int> iptr, int *wild : itype(_Ptr<int>)) {
@@ -46,16 +48,15 @@ int main() {
   int *bp1 = 0;
   int *cp1 = 0;
 
-
   //ap1 = &a;
   ap = &a;
   // we will make this pointer wild.
-  bp1 = bp = (int*)0xcafeba;
+  bp1 = bp = (int *)0xcafeba;
   cp = &c;
   cp1 = &c;
   // we will make this wild in
   // main.
-  ap1 = (char*)0xdeadbe;
+  ap1 = (char *)0xdeadbe;
   // although, we are passing cp
   // to a paramter that will be
   // treated as WILD in func
@@ -74,5 +75,3 @@ int main() {
 //CHECK-NEXT: char *ap1 = 0;
 //CHECK-NEXT: int *bp1 = 0;
 //CHECK-NEXT: _Ptr<int> cp1 = 0;
-
-

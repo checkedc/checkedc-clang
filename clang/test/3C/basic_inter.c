@@ -9,10 +9,10 @@
 
 int funcdecl(int *ptr, int *iptr, int *wild);
 int funcdecl(int *ptr, int *iptr, int *wild) {
-  if(ptr != 0) {
+  if (ptr != 0) {
     *ptr = 0;
   }
-  wild = (int*)0xdeadbeef;
+  wild = (int *)0xdeadbeef;
   return 0;
 }
 //CHECK: int funcdecl(_Ptr<int> ptr, _Ptr<int> iptr, int *wild : itype(_Ptr<int>));
@@ -22,10 +22,10 @@ int funcdecl(int *ptr, int *iptr, int *wild) {
 // iptr will be itype
 // wild will be a wild ptr.
 int func(int *ptr, int *iptr, int *wild) {
-  if(ptr != 0) {
+  if (ptr != 0) {
     *ptr = 0;
   }
-  wild = (int*)0xdeadbeef;
+  wild = (int *)0xdeadbeef;
   return 0;
 }
 //CHECK: int func(_Ptr<int> ptr, _Ptr<int> iptr, int *wild : itype(_Ptr<int>)) {
@@ -42,7 +42,7 @@ int main() {
 
   ap1 = ap = &a;
   // we will make this pointer wild.
-  bp1 = bp = (int*)0xcafeba;
+  bp1 = bp = (int *)0xcafeba;
   cp = &c;
   cp1 = &c;
   // we are passing cp and cp1
