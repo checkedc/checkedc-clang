@@ -203,6 +203,84 @@ static void getVarsFromConstraint(ConstraintVariable *V, CAtoms &R) {
   }
 }
 
+// Print aggregate stats
+void ProgramInfo::print_aggregate_stats(const std::set<std::string> &F,
+                                        llvm::raw_ostream &O) {
+  std::set<Atom *> AllAtoms;
+  CAtoms FoundVars;
+
+  unsigned int totP, totNt, totA, totWi;
+  totP = totNt = totA = totWi = 0;
+
+  CVarSet ArrPtrs, NtArrPtrs;
+  ConstraintVariable *Tmp = nullptr;
+
+  for (auto &I : Variables) {
+    ConstraintVariable *C = I.second;
+    std::string FileName = I.first.getFileName();
+    if (F.count(FileName) || FileName.find(BaseDir) != std::string::npos) {
+      if (C->isForValidDecl()) {
+        FoundVars.clear();
+        getVarsFromConstraint(C, FoundVars);
+        AllAtoms.insert(FoundVars.begin(), FoundVars.end());
+        Tmp = C;
+        if (FVConstraint *FV = dyn_cast<FVConstraint>(C)) {
+          Tmp = FV->getExternalReturn();
+        }
+        // If this is a var atom?
+        if (!FoundVars.empty() && dyn_cast_or_null<VarAtom>(*FoundVars.begin())) {
+          if (Tmp->hasNtArr(CS.getVariables(), 0)) {
+            NtArrPtrs.insert(Tmp);
+          } else if (Tmp->hasArr(CS.getVariables(), 0)) {
+            ArrPtrs.insert(Tmp);
+          }
+        }
+      }
+    }
+  }
+
+  for (const auto &N : AllAtoms) {
+    ConstAtom *CA = CS.getAssignment(N);
+    switch (CA->getKind()) {
+      case Atom::A_Arr:
+        totA += 1;
+        break;
+      case Atom::A_NTArr:
+        totNt += 1;
+        break;
+      case Atom::A_Ptr:
+        totP += 1;
+        break;
+      case Atom::A_Wild:
+        totWi += 1;
+        break;
+      case Atom::A_Var:
+      case Atom::A_Const:
+        llvm_unreachable("bad constant in environment map");
+    }
+  }
+
+  O << "{\"AggregateStats\":[";
+  O << "{\"" << "TotalStats" << "\":{";
+  O << "\"constraints\":" << AllAtoms.size() << ",";
+  O << "\"ptr\":" << totP << ",";
+  O << "\"ntarr\":" << totNt << ",";
+  O << "\"arr\":" << totA << ",";
+  O << "\"wild\":" << totWi;
+  O << "}},";
+  O << "{\"ArrBoundsStats\":";
+  ArrBInfo.printStats(O, ArrPtrs, true);
+  O << "},";
+  O << "{\"NtArrBoundsStats\":";
+  ArrBInfo.printStats(O, NtArrPtrs, true);
+  O << "},";
+  O << "{\"TimingStats\":";
+  PerfS.printPerformanceStats(O);
+  O << "}";
+  O<<"]}";
+
+}
+
 // Print out statistics of constraint variables on a per-file basis.
 void ProgramInfo::printStats(const std::set<std::string> &F, raw_ostream &O,
                              bool OnlySummary, bool JsonFormat) {
@@ -218,7 +296,7 @@ void ProgramInfo::printStats(const std::set<std::string> &F, raw_ostream &O,
   // First, build the map and perform the aggregation.
   for (auto &I : Variables) {
     std::string FileName = I.first.getFileName();
-    if (F.count(FileName)) {
+    if (F.count(FileName) || FileName.find(BaseDir) != std::string::npos) {
       int VarC = 0;
       int PC = 0;
       int NtaC = 0;
@@ -713,21 +791,35 @@ bool ProgramInfo::hasPersistentConstraints(Expr *E, ASTContext *C) const {
   bool HasImpCastConstraint = isa<ImplicitCastExpr>(E) &&
                               ImplicitCastConstraintVars.find(PSL) !=
                                   ImplicitCastConstraintVars.end() &&
-                              !ImplicitCastConstraintVars.at(PSL).empty();
+                              !ImplicitCastConstraintVars.at(PSL).first.empty();
   bool HasExprConstraint =
       !isa<ImplicitCastExpr>(E) &&
       ExprConstraintVars.find(PSL) != ExprConstraintVars.end() &&
-      !ExprConstraintVars.at(PSL).empty();
+      !ExprConstraintVars.at(PSL).first.empty();
   // Has constraints only if the PSL is valid.
   return PSL.valid() && (HasExprConstraint || HasImpCastConstraint);
 }
 
-// Get the set of constraint variables for an expression that will persist
-// between the constraint generation and rewriting pass. If the expression
-// already has a set of persistent constraints, this set is returned. Otherwise,
-// the set provided in the arguments is stored persistent and returned. This is
-// required for correct cast insertion.
-const CVarSet &ProgramInfo::getPersistentConstraints(Expr *E,
+const CVarSet &ProgramInfo::getPersistentConstraintsSet(clang::Expr *E,
+                                                        ASTContext *C) const {
+  return getPersistentConstraints(E, C).first;
+}
+
+void ProgramInfo::storePersistentConstraints(clang::Expr *E,
+                                             const CVarSet &Vars,
+                                             ASTContext *C) {
+  BKeySet EmptySet;
+  EmptySet.clear();
+  storePersistentConstraints(E, std::make_pair(Vars, EmptySet), C);
+}
+
+// Get the pair of set of constraint variables and set of bounds key
+// for an expression that will persist between the constraint generation
+// and rewriting pass. If the expression already has a set of persistent
+// constraints, this set is returned. Otherwise, the set provided in the
+// arguments is stored persistent and returned. This is required for
+// correct cast insertion.
+const CSetBkeyPair &ProgramInfo::getPersistentConstraints(Expr *E,
                                                      ASTContext *C) const {
   assert(hasPersistentConstraints(E, C) &&
          "Persistent constraints not present.");
@@ -737,7 +829,7 @@ const CVarSet &ProgramInfo::getPersistentConstraints(Expr *E,
   return ExprConstraintVars.at(PLoc);
 }
 
-void ProgramInfo::storePersistentConstraints(Expr *E, const CVarSet &Vars,
+void ProgramInfo::storePersistentConstraints(Expr *E, const CSetBkeyPair &Vars,
                                              ASTContext *C) {
   // Store only if the PSL is valid.
   auto PSL = PersistentSourceLoc::mkPSL(E, *C);
@@ -750,12 +842,13 @@ void ProgramInfo::storePersistentConstraints(Expr *E, const CVarSet &Vars,
   // recomputed each time it's needed.
   if (PSL.valid() && Rewriter::isRewritable(E->getBeginLoc())) {
     if (!canWrite(PSL.getFileName())) {
-      for (ConstraintVariable *CVar : Vars)
+      for (ConstraintVariable *CVar : Vars.first)
         CVar->constrainToWild(CS, "Expression in non-writable file", &PSL);
     }
     auto &ExprMap = isa<ImplicitCastExpr>(E) ? ImplicitCastConstraintVars
                                              : ExprConstraintVars;
-    ExprMap[PSL].insert(Vars.begin(), Vars.end());
+    ExprMap[PSL].first.insert(Vars.first.begin(), Vars.first.end());
+    ExprMap[PSL].second.insert(Vars.second.begin(), Vars.second.end());
   }
 }
 
@@ -895,11 +988,12 @@ bool ProgramInfo::computeInterimConstraintState(
   // in one of the files being compiled.
   CAtoms ValidVarsVec;
   std::set<Atom *> AllValidVars;
+  CAtoms Tmp;
   for (const auto &I : Variables) {
     std::string FileName = I.first.getFileName();
     ConstraintVariable *C = I.second;
     if (C->isForValidDecl()) {
-      CAtoms Tmp;
+      Tmp.clear();
       getVarsFromConstraint(C, Tmp);
       AllValidVars.insert(Tmp.begin(), Tmp.end());
       if (canWrite(FileName))
@@ -942,17 +1036,24 @@ bool ProgramInfo::computeInterimConstraintState(
       ImpMap[Pre->getLHS()].insert(Con->getLHS());
     }
 
+  CVars TmpCGrp;
+  CVars OnlyIndirect;
   for (auto *A : DirectWildVarAtoms) {
     auto *VA = dyn_cast<VarAtom>(A);
     if (VA == nullptr)
       continue;
 
-    CVars TmpCGrp;
+    TmpCGrp.clear();
+    OnlyIndirect.clear();
+
     auto BFSVisitor = [&](Atom *SearchAtom) {
       auto *SearchVA = dyn_cast<VarAtom>(SearchAtom);
       if (SearchVA && AllValidVars.find(SearchVA) != AllValidVars.end()) {
         CState.RCMap[SearchVA->getLoc()].insert(VA->getLoc());
         TmpCGrp.insert(SearchVA->getLoc());
+        if (DirectWildVarAtoms.find(SearchVA) == DirectWildVarAtoms.end()) {
+          OnlyIndirect.insert(SearchVA->getLoc());
+        }
       }
     };
     CS.getChkCG().visitBreadthFirst(VA, BFSVisitor);
@@ -961,7 +1062,7 @@ bool ProgramInfo::computeInterimConstraintState(
         if (isa<VarAtom>(ImpA))
           CS.getChkCG().visitBreadthFirst(ImpA, BFSVisitor);
 
-    CState.TotalNonDirectWildAtoms.insert(TmpCGrp.begin(), TmpCGrp.end());
+    CState.TotalNonDirectWildAtoms.insert(OnlyIndirect.begin(), OnlyIndirect.end());
     // Should we consider only pointers which with in the source files or
     // external pointers that affected pointers within the source files.
     CState.AllWildAtoms.insert(VA->getLoc());
@@ -975,7 +1076,7 @@ bool ProgramInfo::computeInterimConstraintState(
   for (const auto &I : Variables)
     insertIntoPtrSourceMap(&(I.first), I.second);
   for (const auto &I : ExprConstraintVars)
-    for (auto *J : I.second)
+    for (auto *J : I.second.first)
       insertIntoPtrSourceMap(&(I.first), J);
 
   auto &WildPtrsReason = CState.RootWildAtomsWithReason;

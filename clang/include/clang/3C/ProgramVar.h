@@ -23,6 +23,8 @@
 // which could serve as bounds
 typedef uint32_t BoundsKey;
 
+typedef std::set<BoundsKey> BKeySet;
+
 // Class representing scope of a program variable.
 class ProgramVarScope {
 public:
@@ -35,6 +37,8 @@ public:
     CtxFunctionArgScopeKind,
     // Struct scope.
     StructScopeKind,
+    // Context sensitive struct scope
+    CtxStructScopeKind,
     // Global scope.
     GlobalScopeKind,
   };
@@ -123,11 +127,80 @@ public:
 
   std::string getStr() const { return "Struct_" + StName; }
 
+  std::string getSName() const {
+    return this->StName;
+  }
+
   static const StructScope *getStructScope(std::string StName);
 
-private:
+protected:
   std::string StName;
+private:
   static std::set<StructScope, PVSComp> AllStScopes;
+};
+
+class CtxStructScope : public StructScope {
+public:
+  CtxStructScope(const std::string &SN, const std::string &AS,
+                 bool &IsGlobal) :
+    StructScope(SN), ASKey(AS), IsG(IsGlobal) {
+    this->Kind = CtxStructScopeKind;
+  }
+
+  virtual ~CtxStructScope() { }
+
+  static bool classof(const ProgramVarScope *S) {
+    return S->getKind() == CtxStructScopeKind;
+  }
+
+  bool operator==(const ProgramVarScope &O) const {
+    if (auto *CS = clang::dyn_cast<CtxStructScope>(&O)) {
+      return CS->StName == StName &&
+             CS->ASKey == ASKey &&
+             CS->IsG == IsG;
+    }
+    return false;
+  }
+
+  bool operator!=(const ProgramVarScope &O) const {
+    return !(*this == O);
+  }
+
+  bool operator<(const ProgramVarScope &O) const {
+    if (clang::isa<GlobalScope>(&O) ||
+        clang::isa<StructScope>(&O)) {
+      return true;
+    }
+
+    if (auto *CS = clang::dyn_cast<CtxStructScope>(&O)) {
+      if (this->ASKey != CS->ASKey) {
+        return ASKey < CS->ASKey;
+      }
+      if (this->StName != CS->StName) {
+        return StName < CS->StName;
+      }
+      if (this->IsG != CS->IsG) {
+        return IsG < CS->IsG;
+      }
+      return false;
+    }
+
+    return false;
+  }
+
+  std::string getStr() const {
+    return "CtxStruct_" + ASKey + "_" +StName +
+           "_" + std::to_string(IsG);
+  }
+
+  static const CtxStructScope *getCtxStructScope(const StructScope *SS,
+                                                 std::string AS,
+                                                 bool IsGlobal);
+
+private:
+  std::string ASKey;
+  bool IsG;
+  static std::set<CtxStructScope, PVSComp> AllCtxStScopes;
 };
 
 class FunctionParamScope : public ProgramVarScope {

@@ -88,6 +88,8 @@ protected:
   virtual AVarBoundsInfo &getABoundsInfo() = 0;
 };
 
+typedef std::pair<CVarSet, BKeySet> CSetBkeyPair;
+
 class ProgramInfo : public ProgramVariableAdder {
 public:
   // This map holds similar information as the type variable map in
@@ -110,6 +112,9 @@ public:
   void printStats(const std::set<std::string> &F, llvm::raw_ostream &O,
                   bool OnlySummary = false, bool JsonFormat = false);
 
+  void print_aggregate_stats(const std::set<std::string> &F,
+                             llvm::raw_ostream &O);
+
   // Populate Variables, VarDeclToStatement, RVariables, and DepthMap with
   // AST data structures that correspond do the data stored in PDMap and
   // ReversePDMap.
@@ -121,7 +126,13 @@ public:
   void exitCompilationUnit();
 
   bool hasPersistentConstraints(clang::Expr *E, ASTContext *C) const;
-  const CVarSet &getPersistentConstraints(clang::Expr *E, ASTContext *C) const;
+  const CSetBkeyPair &getPersistentConstraints(clang::Expr *E, ASTContext *C) const;
+  void storePersistentConstraints(clang::Expr *E, const CSetBkeyPair &Vars,
+                                  ASTContext *C);
+  // Get only constraint vars from the persistent contents of the
+  // expression E.
+  const CVarSet &getPersistentConstraintsSet(clang::Expr *E, ASTContext *C) const;
+  // Store CVarSet with an empty set of BoundsKey into persistent contents.
   void storePersistentConstraints(clang::Expr *E, const CVarSet &Vars,
                                   ASTContext *C);
 
@@ -188,15 +199,15 @@ private:
   // rewritten.
   std::map<PersistentSourceLoc, CVarOption> TypedefVars;
 
-  // Map with the same purpose as the Variables map, this stores constraint
-  // variables for non-declaration expressions.
-  std::map<PersistentSourceLoc, CVarSet> ExprConstraintVars;
+  // Map with the similar purpose as the Variables map, this stores constraint
+  // variables and set of bounds key for non-declaration expressions.
+  std::map<PersistentSourceLoc, CSetBkeyPair> ExprConstraintVars;
 
   // Implicit casts do not physically exist in the source code, so their source
   // location can collide with the source location of another expression. Since
   // we need to look up constraint variables for implicit casts for the cast
   // placement, the variables are stored in this separate map.
-  std::map<PersistentSourceLoc, CVarSet> ImplicitCastConstraintVars;
+  std::map<PersistentSourceLoc, CSetBkeyPair> ImplicitCastConstraintVars;
 
   //Performance stats
   PerformanceStats PerfS;

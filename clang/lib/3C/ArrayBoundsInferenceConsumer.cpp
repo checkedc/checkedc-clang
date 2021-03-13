@@ -107,7 +107,7 @@ static bool needNTArrayBounds(const ConstraintVariable *CV,
 
 static bool needArrayBounds(Expr *E, ProgramInfo &Info, ASTContext *C) {
   ConstraintResolver CR(Info, C);
-  CVarSet ConsVar = CR.getExprConstraintVars(E);
+  CVarSet ConsVar = CR.getExprConstraintVarsSet(E);
   const auto &EnvMap = Info.getConstraints().getVariables();
   for (auto *CurrCVar : ConsVar) {
     if (needArrayBounds(CurrCVar, EnvMap) ||
@@ -152,13 +152,15 @@ static std::string getCalledFunctionName(const Expr *E) {
   return "";
 }
 
-bool tryGetBoundsKeyVar(Expr *E, BoundsKey &BK, ProgramInfo &Info,
+/*bool tryGetBoundsKeyVar(Expr *E, BoundsKey &BK, ProgramInfo &Info,
                         ASTContext *Context) {
   ConstraintResolver CR(Info, Context);
-  CVarSet CVs = CR.getExprConstraintVars(E);
+  CVarSet CVs = CR.getExprConstraintVarsSet(E);
   auto &ABInfo = Info.getABoundsInfo();
-  return CR.resolveBoundsKey(CVs, BK) || ABInfo.tryGetVariable(E, *Context, BK);
-}
+  return CR.resolveBoundsKey(CVs, BK) ||
+         ABInfo.tryGetVariable(E, *Context, BK);
+
+}*/
 
 bool tryGetBoundsKeyVar(Decl *D, BoundsKey &BK, ProgramInfo &Info,
                         ASTContext *Context) {
@@ -166,6 +168,26 @@ bool tryGetBoundsKeyVar(Decl *D, BoundsKey &BK, ProgramInfo &Info,
   CVarOption CV = Info.getVariable(D, Context);
   auto &ABInfo = Info.getABoundsInfo();
   return CR.resolveBoundsKey(CV, BK) || ABInfo.tryGetVariable(D, BK);
+}
+
+bool tryGetValidBoundsKey(Expr *E, BoundsKey &BK,
+                          ProgramInfo &I, ASTContext *C) {
+  bool Ret = false;
+  ConstraintResolver CR(I, C);
+  auto BCVars = CR.getExprConstraintVars(E);
+  auto &ABI = I.getABoundsInfo();
+  if (CR.containsValidCons(BCVars.first) ||
+      !BCVars.second.empty()) {
+    if (!BCVars.second.empty()) {
+      BK = *BCVars.second.begin();
+      Ret = true;
+    } else if (CR.resolveBoundsKey(BCVars.first, BK)) {
+      Ret = true;
+    }
+  } else if (ABI.tryGetVariable(E, *C, BK)) {
+    Ret = true;
+  }
+  return Ret;
 }
 
 // Check if the provided expression E is a call to one of the known
@@ -187,21 +209,21 @@ static bool isAllocatorCall(Expr *E, std::string &FName, ProgramInfo &I,
         std::vector<Expr *> BaseExprs;
         BaseExprs.clear();
         for (auto Pidx : AllocatorSizeAssoc[FName]) {
-          Expr *PExpr = CE->getArg(Pidx)->IgnoreParenCasts();
-          BinaryOperator *BO = dyn_cast<BinaryOperator>(PExpr);
-          UnaryExprOrTypeTraitExpr *UExpr =
-              dyn_cast<UnaryExprOrTypeTraitExpr>(PExpr);
-          if (BO && BO->isMultiplicativeOp()) {
-            BaseExprs.push_back(BO->getLHS());
-            BaseExprs.push_back(BO->getRHS());
-          } else if (UExpr && UExpr->getKind() == UETT_SizeOf) {
-            BaseExprs.push_back(UExpr);
-          } else if (tryGetBoundsKeyVar(PExpr, Tmp, I, C)) {
-            BaseExprs.push_back(PExpr);
-          } else {
-            RetVal = false;
-            break;
-          }
+         Expr *PExpr = CE->getArg(Pidx)->IgnoreParenCasts();
+         BinaryOperator *BO = dyn_cast<BinaryOperator>(PExpr);
+         UnaryExprOrTypeTraitExpr *UExpr =
+             dyn_cast<UnaryExprOrTypeTraitExpr>(PExpr);
+         if (BO && BO->isMultiplicativeOp()) {
+           BaseExprs.push_back(BO->getLHS());
+           BaseExprs.push_back(BO->getRHS());
+         } else if (UExpr && UExpr->getKind() == UETT_SizeOf) {
+           BaseExprs.push_back(UExpr);
+         } else if (tryGetValidBoundsKey(PExpr, Tmp, I, C)) {
+           BaseExprs.push_back(PExpr);
+         } else {
+           RetVal = false;
+           break;
+         }
         }
 
         // Check if each of the expression is either sizeof or a DeclRefExpr
@@ -211,7 +233,7 @@ static bool isAllocatorCall(Expr *E, std::string &FName, ProgramInfo &I,
             UnaryExprOrTypeTraitExpr *UExpr =
                 dyn_cast<UnaryExprOrTypeTraitExpr>(TmpE);
             if ((UExpr && UExpr->getKind() == UETT_SizeOf) ||
-                tryGetBoundsKeyVar(TmpE, Tmp, I, C)) {
+                 tryGetValidBoundsKey(TmpE, Tmp, I, C)) {
               ArgVals.push_back(TmpE);
             } else {
               RetVal = false;
@@ -249,7 +271,7 @@ static void handleAllocatorCall(QualType LHSType, BoundsKey LK, Expr *E,
           FoundSingleKeyInAllocExpr = false;
           break;
         }
-      } else if (tryGetBoundsKeyVar(TmpE, RK, Info, Context)) {
+      } else if (tryGetValidBoundsKey(TmpE, RK, Info, Context)) {
         // Is this variable?
         if (!FoundSingleKeyInAllocExpr) {
           FoundSingleKeyInAllocExpr = true;
@@ -554,7 +576,7 @@ bool LocalVarABVisitor::handleBinAssign(BinaryOperator *O) {
   BoundsKey LK;
   // is the RHS expression a call to allocator function?
   if (needArrayBounds(LHS, Info, Context) &&
-      tryGetBoundsKeyVar(LHS, LK, Info, Context)) {
+      tryGetValidBoundsKey(LHS, LK, Info, Context)) {
     handleAssignment(LK, LHS->getType(), RHS);
   }
 
@@ -706,42 +728,32 @@ public:
     if (BO->getOpcode() == BO_LT || BO->getOpcode() == BO_GE) {
       Expr *LHS = BO->getLHS()->IgnoreParenCasts();
       Expr *RHS = BO->getRHS()->IgnoreParenCasts();
-      auto LHSCVars = CR->getExprConstraintVars(LHS);
-      auto RHSCVars = CR->getExprConstraintVars(RHS);
-
-      if (!CR->containsValidCons(LHSCVars) &&
-          !CR->containsValidCons(RHSCVars)) {
-        BoundsKey LKey, RKey;
-        auto &ABI = I.getABoundsInfo();
-        if ((CR->resolveBoundsKey(LHSCVars, LKey) ||
-             ABI.tryGetVariable(LHS, *C, LKey)) &&
-            (CR->resolveBoundsKey(RHSCVars, RKey) ||
-             ABI.tryGetVariable(RHS, *C, RKey))) {
-
-          // If this the left hand side of a < comparison and
-          // the LHS is the index used in array indexing operation?
-          // Then add the RHS to the possible bounds key.
-          bool IsRKeyBound = (LKey == IndxBKey);
-          if (BO->getOpcode() == BO_GE) {
-            // If we have: x >= y, then this has to be an IfStmt to
-            // consider Y as upper bound.
-            // Why? This is to distinguish between following cases:
-            // In the following case, we should not
-            // consider y as the bound.
-            // for (i=n-1; i >= y; i--) {
-            //      arr[i] = ..
-            // }
-            // Where as the following is a valid case. MAX_LEN is the bound.
-            // if (i >= MAX_LEN) {
-            //     return -1;
-            //  }
-            //  arr[i] = ..
-            IsRKeyBound &= (CurrStmt != nullptr && isa<IfStmt>(CurrStmt));
-          }
-
-          if (IsRKeyBound)
-            PB.insert(RKey);
+      BoundsKey LKey, RKey;
+      if (tryGetValidBoundsKey(LHS, LKey, I, C) &&
+          tryGetValidBoundsKey(RHS, RKey, I, C)) {
+        // If this the left hand side of a < comparison and
+        // the LHS is the index used in array indexing operation?
+        // Then add the RHS to the possible bounds key.
+        bool IsRKeyBound = (LKey == IndxBKey);
+        if (BO->getOpcode() == BO_GE) {
+          // If we have: x >= y, then this has to be an IfStmt to
+          // consider Y as upper bound.
+          // Why? This is to distinguish between following cases:
+          // In the following case, we should not
+          // consider y as the bound.
+          // for (i=n-1; i >= y; i--) {
+          //      arr[i] = ..
+          // }
+          // Where as the following is a valid case. MAX_LEN is the bound.
+          // if (i >= MAX_LEN) {
+          //     return -1;
+          //  }
+          //  arr[i] = ..
+          IsRKeyBound &= (CurrStmt != nullptr && isa<IfStmt>(CurrStmt));
         }
+
+        if (IsRKeyBound)
+          PB.insert(RKey);
       }
     }
     return true;
@@ -835,49 +847,45 @@ void LengthVarInference::VisitStmt(Stmt *St) {
 // (or any assignments of X to the variables of the same scope as arr) to be
 // the size of arr.
 void LengthVarInference::VisitArraySubscriptExpr(ArraySubscriptExpr *ASE) {
-  if (CurBB != nullptr) {
-    // First, get the BoundsKey for the base.
-    Expr *BE = ASE->getBase()->IgnoreParenCasts();
+  //assert (CurBB != nullptr && "Array dereference does not belong "
+  //                            "to any basic block");
+  // If this does not belong to any BB, ignore.
+  if (CurBB == nullptr)
+    return;
+  // First, get the BoundsKey for the base.
+  Expr *BE = ASE->getBase()->IgnoreParenCasts();
 
-    // If this is a multi-level array dereference i.e., a[i][j],
-    // then try-processing the base ASE i.e., a[i].
-    if (ArraySubscriptExpr *SubASE = dyn_cast_or_null<ArraySubscriptExpr>(BE)) {
-      VisitArraySubscriptExpr(SubASE);
-      return;
-    }
-    auto BaseCVars = CR->getExprConstraintVars(BE);
-    // Next get the index used.
-    Expr *IdxExpr = ASE->getIdx()->IgnoreParenCasts();
-    auto IdxCVars = CR->getExprConstraintVars(IdxExpr);
+  // If this is a multi-level array dereference i.e., a[i][j],
+  // then try-processing the base ASE i.e., a[i].
+  if (ArraySubscriptExpr *SubASE = dyn_cast_or_null<ArraySubscriptExpr>(BE)) {
+    VisitArraySubscriptExpr(SubASE);
+    return;
+  }
+  //auto BaseCVars = CR->getExprConstraintVars(BE);
+  // Next get the index used.
+  Expr *IdxExpr = ASE->getIdx()->IgnoreParenCasts();
+  //auto IdxCVars = CR->getExprConstraintVars(IdxExpr);
+  BoundsKey BasePtr, IdxKey;
+  auto &ABI = I.getABoundsInfo();
 
-    // Get the bounds key of the base and index.
-    if (CR->containsValidCons(BaseCVars) && !CR->containsValidCons(IdxCVars)) {
-      BoundsKey BasePtr, IdxKey;
-      auto &ABI = I.getABoundsInfo();
-      if (CR->resolveBoundsKey(BaseCVars, BasePtr) &&
-          (CR->resolveBoundsKey(IdxCVars, IdxKey) ||
-           ABI.tryGetVariable(IdxExpr, *C, IdxKey))) {
-        std::set<BoundsKey> PossibleLens;
-        PossibleLens.clear();
-        ComparisionVisitor CV(I, C, IdxKey, PossibleLens);
-        auto &CDNodes = CDG->getControlDependencies(CurBB);
-        if (!CDNodes.empty()) {
-          // Next try to find all the nodes that the CurBB is
-          // control dependent on.
-          // For each of the control dependent node, check if we are comparing
-          // the index variable with another variable.
-          for (auto &CDGNode : CDNodes) {
-            // Collect the possible length bounds keys.
-            CV.TraverseStmt(CDGNode->getTerminatorStmt());
-          }
-          ABI.updatePotentialCountBounds(BasePtr, PossibleLens);
-        }
+  // Get the bounds key of the base and index.
+  if (tryGetValidBoundsKey(BE, BasePtr, I, C) &&
+      tryGetValidBoundsKey(IdxExpr, IdxKey, I, C)) {
+    std::set<BoundsKey> PossibleLens;
+    PossibleLens.clear();
+    ComparisionVisitor CV(I, C, IdxKey, PossibleLens);
+    auto &CDNodes = CDG->getControlDependencies(CurBB);
+    if (!CDNodes.empty()) {
+      // Next try to find all the nodes that the CurBB is
+      // control dependent on.
+      // For each of the control dependent node, check if we are comparing the
+      // index variable with another variable.
+      for (auto &CDGNode : CDNodes) {
+        // Collect the possible length bounds keys.
+        CV.TraverseStmt(CDGNode->getTerminatorStmt());
       }
+      ABI.updatePotentialCountBounds(BasePtr, PossibleLens);
     }
-  } else {
-    llvm::dbgs() << "Array dereference";
-    ASE->dump(llvm::dbgs(), *C);
-    llvm::dbgs() << " does not belong to any basic block.\n";
   }
 }
 

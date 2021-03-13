@@ -61,7 +61,7 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *CE) {
           ArgExpr = ArgExpr->IgnoreImpCasts();
       }
 
-      CVarSet ArgConstraints = CR.getExprConstraintVars(ArgExpr);
+      CVarSet ArgConstraints = CR.getExprConstraintVarsSet(ArgExpr);
       for (auto *ArgC : ArgConstraints) {
         CastNeeded CastKind = needCasting(
             ArgC, ArgC, FV->getInternalParam(PIdx), FV->getExternalParam(PIdx));
@@ -82,7 +82,7 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *CE) {
   // eventually assigned to a variable or passed as a function argument will
   // be cached in the persistent constraint set.
   if (Info.hasPersistentConstraints(CE, Context)) {
-    CVarSet DestinationConstraints = CR.getExprConstraintVars(CE);
+    CVarSet DestinationConstraints = CR.getExprConstraintVarsSet(CE);
     for (auto *DstC : DestinationConstraints) {
       // Order of ParameterC and ArgumentC is reversed from when inserting
       // parameter casts because assignment now goes from returned to its

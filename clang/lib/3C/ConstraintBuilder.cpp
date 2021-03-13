@@ -158,7 +158,7 @@ public:
     for (const auto &D : S->decls()) {
       if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
         Expr *InitE = VD->getInit();
-        CB.constrainLocalAssign(S, VD, InitE);
+        CB.constrainLocalAssign(S, VD, InitE, Same_to_Same);
       }
     }
 
@@ -171,9 +171,9 @@ public:
     QualType SrcT = C->getSubExpr()->getType();
     QualType DstT = C->getType();
     if (!isCastSafe(DstT, SrcT) && !Info.hasPersistentConstraints(C, Context)) {
-      auto CVs = CB.getExprConstraintVars(C->getSubExpr());
-      std::string Rsn =
-          "Cast from " + SrcT.getAsString() + " to " + DstT.getAsString();
+      auto CVs = CB.getExprConstraintVarsSet(C->getSubExpr());
+      std::string Rsn = "Cast from " + SrcT.getAsString() +  " to " +
+                        DstT.getAsString();
       CB.constraintAllCVarsToWild(CVs, Rsn, C);
     }
     return true;
@@ -237,7 +237,7 @@ public:
         if (FVConstraint *TargetFV = dyn_cast<FVConstraint>(TmpC)) {
           unsigned I = 0;
           for (const auto &A : E->arguments()) {
-            CVarSet ArgumentConstraints;
+            CSetBkeyPair ArgumentConstraints;
             if (I < TargetFV->numParams()) {
               // Remove casts to void* on polymorphic types that are used
               // consistently.
@@ -258,20 +258,22 @@ public:
 
               // Do not handle bounds key here because we will be
               // doing context-sensitive assignment next.
-              constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
+              constrainConsVarGeq(ParameterDC, ArgumentConstraints.first, CS, &PL,
                                   Wild_to_Safe, false, &Info, false);
 
               if (AllTypes && TFD != nullptr && I < TFD->getNumParams()) {
                 auto *PVD = TFD->getParamDecl(I);
-                auto &ABI = Info.getABoundsInfo();
+                auto &CSBI = Info.getABoundsInfo().getCtxSensBoundsHandler();
                 // Here, we need to handle context-sensitive assignment.
-                ABI.handleContextSensitiveAssignment(
-                    E, PVD, ParameterDC, A, ArgumentConstraints, Context, &CB);
+                CSBI.handleContextSensitiveAssignment(PL, PVD, ParameterDC, A,
+                                                      ArgumentConstraints.first,
+                                                      ArgumentConstraints.second,
+                                                      Context, &CB);
               }
             } else {
               // The argument passed to a function ith varargs; make it wild
               if (HandleVARARGS) {
-                CB.constraintAllCVarsToWild(ArgumentConstraints,
+                CB.constraintAllCVarsToWild(ArgumentConstraints.first,
                                             "Passing argument to a function "
                                             "accepting var args.",
                                             E);
@@ -308,7 +310,7 @@ public:
     // of the function.
     Expr *RetExpr = S->getRetValue();
 
-    CVarSet RconsVar = CB.getExprConstraintVars(RetExpr);
+    CVarSet RconsVar = CB.getExprConstraintVarsSet(RetExpr);
     // Constrain the return type of the function
     // to the type of the return expression.
     if (CVOpt.hasValue()) {
@@ -367,8 +369,8 @@ private:
   }
 
   // Constraint helpers.
-  void constraintInBodyVariable(Expr *E, ConstAtom *CAtom) {
-    CVarSet Var = CB.getExprConstraintVars(E);
+  void constraintInBodyVariable(Expr *e, ConstAtom *CAtom) {
+    CVarSet Var = CB.getExprConstraintVarsSet(e);
     constrainVarsTo(Var, CAtom);
   }
 
@@ -379,7 +381,7 @@ private:
     for (const auto &A : E->arguments()) {
       // Get constraint from within the function body
       // of the caller.
-      CVarSet ParameterEC = CB.getExprConstraintVars(A);
+      CVarSet ParameterEC = CB.getExprConstraintVarsSet(A);
 
       // Assign WILD to each of the constraint variables.
       FunctionDecl *FD = E->getDirectCallee();
@@ -402,7 +404,7 @@ private:
   // is WILD.
   void constraintPointerArithmetic(Expr *E, bool ModifyingExpr = true) {
     if (E->getType()->isFunctionPointerType()) {
-      CVarSet Var = CB.getExprConstraintVars(E);
+      CVarSet Var = CB.getExprConstraintVarsSet(E);
       std::string Rsn = "Pointer arithmetic performed on a function pointer.";
       CB.constraintAllCVarsToWild(Var, Rsn, E);
     } else {
@@ -473,7 +475,7 @@ public:
 
     if (G->hasGlobalStorage() && isPtrOrArrayType(G->getType())) {
       if (G->hasInit()) {
-        CB.constrainLocalAssign(nullptr, G, G->getInit());
+        CB.constrainLocalAssign(nullptr, G, G->getInit(), Same_to_Same);
       }
       ISD.processVarDecl(G, Info, Context, CB);
     }
@@ -482,6 +484,7 @@ public:
 
   bool VisitInitListExpr(InitListExpr *E) {
     if (E->getType()->isStructureType()) {
+      E = E->getSemanticForm();
       const RecordDecl *Definition =
           E->getType()->getAsStructureType()->getDecl()->getDefinition();
 
@@ -490,7 +493,7 @@ public:
       for (auto It = Fields.begin();
            InitIdx < E->getNumInits() && It != Fields.end(); InitIdx++, It++) {
         Expr *InitExpr = E->getInit(InitIdx);
-        CB.constrainLocalAssign(nullptr, *It, InitExpr);
+        CB.constrainLocalAssign(nullptr, *It, InitExpr, Same_to_Same, true);
       }
     }
     return true;
@@ -640,7 +643,7 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
   TypeVarVisitor TV = TypeVarVisitor(&C, Info);
   ConstraintResolver CSResolver(Info, &C);
   ContextSensitiveBoundsKeyVisitor CSBV =
-      ContextSensitiveBoundsKeyVisitor(&C, Info);
+      ContextSensitiveBoundsKeyVisitor(&C, Info, &CSResolver);
   ConstraintGenVisitor GV = ConstraintGenVisitor(&C, Info, TV);
   TranslationUnitDecl *TUD = C.getTranslationUnitDecl();
 
@@ -660,6 +663,8 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
 
   if (Verbose)
     errs() << "Done analyzing\n";
+
+  PStats.endConstraintBuilderTime();
 
   PStats.endConstraintBuilderTime();
 

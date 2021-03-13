@@ -39,6 +39,7 @@ add_clang_library(clang3C
   Constraints.cpp
   ConstraintsGraph.cpp
   ConstraintVariables.cpp
+  CtxSensAVarBounds.cpp
   DeclRewriter.cpp
   IntermediateToolHook.cpp
   MappingVisitor.cpp
