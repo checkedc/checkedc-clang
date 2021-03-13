@@ -4324,7 +4324,8 @@ void Parser::ParseStructDeclaration(
           StartsInteropTypeAnnotation(Tok))) {
         BoundsAnnotations BA;
         std::unique_ptr<CachedTokens> BoundsExprTokens(new CachedTokens);
-        if (ParseBoundsAnnotations(DeclaratorInfo.D, Loc, BA, &BoundsExprTokens, false))
+        if (ParseBoundsAnnotations(DeclaratorInfo.D, Loc, BA,
+                                   &BoundsExprTokens, false))
           SkipUntil(tok::semi, StopBeforeMatch);
         assert(BA.getBoundsExpr() == nullptr);
         DeclaratorInfo.InteropType = BA.getInteropTypeExpr();
@@ -4534,7 +4535,8 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
     FieldDecl *FieldDecl = Pair.first;
     std::unique_ptr<CachedTokens> Tokens = std::move(Pair.second);
     BoundsAnnotations Annots;
-    if (DeferredParseBoundsExpression(std::move(Tokens), Annots, DeclaratorsInfo.D))
+    if (DeferredParseBoundsAnnotations(std::move(Tokens),
+                                       Annots, DeclaratorsInfo.D))
       Actions.ActOnInvalidBoundsDecl(FieldDecl);
     else
       Actions.ActOnBoundsDecl(FieldDecl, Annots,/*MergeDeferredBounds=*/true);
@@ -4545,8 +4547,8 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
   // A member declaration in a checked scope cannot use unchecked types, unless
   // there is a bounds-safe interface,
 
-  // TODO: this should be invoked as part of semantic checking of struct defnitions,
-  // not directly by the parser.
+  // TODO: this should be invoked as part of semantic checking of struct
+  // definitions, not directly by the parser.
   if (getLangOpts().CheckedC) {
     for (ArrayRef<Decl *>::iterator i = FieldDecls.begin(),
                                   end = FieldDecls.end();
@@ -7360,8 +7362,8 @@ void Parser::ParseParameterDeclarationClause(
     bool IsWhereClause = StartsWhereClause(Tokens->front());
 
     BoundsAnnotations Annots;
-    bool Error = DeferredParseBoundsExpression(std::move(Tokens),
-                                               Annots, D, Param);
+    bool Error = DeferredParseBoundsAnnotations(std::move(Tokens),
+                                                Annots, D, Param);
 
     if (!IsWhereClause) {
       if (Error)

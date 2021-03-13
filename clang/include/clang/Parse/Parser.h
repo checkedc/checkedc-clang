@@ -2081,12 +2081,12 @@ private:
                               std::unique_ptr<CachedTokens> *DeferredToks = nullptr,
                               bool IsReturn=false,
                               Decl *ThisDecl = nullptr);
+  bool DeferredParseBoundsAnnotations(std::unique_ptr<CachedTokens> Toks,
+                                      BoundsAnnotations &Result,
+                                      const Declarator &D,
+                                      Decl *ThisDecl = nullptr);
   bool ConsumeAndStoreBoundsExpression(CachedTokens &Toks);
   bool ConsumeAndStoreWhereClause(CachedTokens &Toks);
-  bool DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,
-                                     BoundsAnnotations &Result,
-                                     const Declarator &D,
-                                     Decl *ThisDecl = nullptr);
 
   // Delay parse a return bounds expression in Toks.  Used to parse return
   // bounds after the return type has been constructed.  Stores the bounds

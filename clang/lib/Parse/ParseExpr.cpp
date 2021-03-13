@@ -4107,15 +4107,15 @@ bool Parser::ConsumeAndStoreBoundsExpression(CachedTokens &Toks) {
 
 /// Given a list of tokens that have the same shape as a bounds
 /// expression, parse them to create a bounds expression.  Delete
-/// the list of tokens at the end.
-///
+/// the list of tokens at the end. Also parses where clause occurring on a
+/// decl.
 /// Return true if there was an error; false otherwise.  The resulting
 /// bounds expression is stored in Result.
 bool
-Parser::DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,
-                                      BoundsAnnotations &Result,
-                                      const Declarator &D,
-                                      Decl *ThisDecl) {
+Parser::DeferredParseBoundsAnnotations(std::unique_ptr<CachedTokens> Toks,
+                                       BoundsAnnotations &Result,
+                                       const Declarator &D,
+                                       Decl *ThisDecl) {
   Token LastBoundsExprToken = Toks->back();
   Token BoundsExprEnd;
   BoundsExprEnd.startToken();
@@ -4164,7 +4164,8 @@ bool Parser::ParseBoundsCallback(void *P,
 
   ParseScope PrototypeScope(TheParser, PrototypeScopeFlag);
   TheParser->Actions.ActOnSetupParametersAgain(TheParser->Actions.CurScope, Params);
-  bool Err = TheParser->DeferredParseBoundsExpression(std::move(Toks), Result, D);
+  bool Err = TheParser->DeferredParseBoundsAnnotations(std::move(Toks),
+                                                       Result, D);
   PrototypeScope.Exit();
   return Err;
 }
