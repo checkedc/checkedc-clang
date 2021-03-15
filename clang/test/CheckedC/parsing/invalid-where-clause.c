@@ -49,10 +49,10 @@ void f5(int a _Where a,a); // expected-error {{redefinition of parameter 'a'}} e
 
 void f6(_Where 1 == 0); // expected-error {{expected parameter declarator}} expected-error {{expected ')'}} expected-note {{to match this '('}}
 
-void f10(_Nt_array_ptr<int> p : count(n) _Where p : count(n)), int n); // expected-error {{use of undeclared identifier 'n'}} expected-error {{use of undeclared identifier 'n'}} expected-error {{expected identifier or '('}} expected-error {{expected ';' after top level declarator}} expected-error {{extraneous ')' before ';'}}
+void f7(_Nt_array_ptr<int> p : count(n) _Where p : count(n)), int n); // expected-error {{use of undeclared identifier 'n'}} expected-error {{use of undeclared identifier 'n'}} expected-error {{expected identifier or '('}} expected-error {{expected ';' after top level declarator}} expected-error {{extraneous ')' before ';'}}
 
-void f7(int a _Where (1 == 0); // expected-error {{expected ')'}} expected-note {{to match this '('}}
+void f8(int a _Where (1 == 0); // expected-error {{expected ')'}} expected-note {{to match this '('}}
 
-void f8(int a _Where (1 == 0))); // expected-error {{expected function body after function declarator}}
+void f9(int a _Where (1 == 0))); // expected-error {{expected function body after function declarator}}
 
-void f9(int a _Where ((((1 == 0); // expected-error {{expected ')'}} expected-note {{to match this '('}} // expected-error {{expected function body after function declarator}}
+void f10(int a _Where ((((1 == 0); // expected-error {{expected ')'}} expected-note {{to match this '('}} // expected-error {{expected function body after function declarator}}
