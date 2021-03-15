@@ -12,6 +12,7 @@
 #include "clang/3C/3CGlobalOptions.h"
 #include "clang/3C/ConstraintVariables.h"
 #include "llvm/Support/Path.h"
+#include <errno.h>
 
 using namespace llvm;
 using namespace clang;
@@ -56,7 +57,16 @@ FunctionDecl *getDefinition(FunctionDecl *FD) {
   return nullptr;
 }
 
-SourceLocation getFunctionDeclarationEnd(FunctionDecl *FD, SourceManager &S) {
+// Get the source location for the right paren of a function declaration
+// using the source character data buffer. Because this uses the character
+// buffer directly, it sees character data prior to preprocessing. This
+// means characters that are in comments, macros or otherwise not part of the
+// final preprocessed source code are seen and can cause this function to give
+// an incorrect result. This should only be used as a fall back for when the
+// clang library function FunctionTypeLoc::getRParenLoc cannot be called due to
+// a null FunctionTypeLoc or for when the function returns an invalid source
+// location.
+SourceLocation getFunctionDeclRParen(FunctionDecl *FD, SourceManager &S) {
   const FunctionDecl *OFd = nullptr;
 
   if (FD->hasBody(OFd) && OFd == FD) {
@@ -142,13 +152,44 @@ bool isNULLExpression(clang::Expr *E, ASTContext &C) {
          E->isNullPointerConstant(C, Expr::NPC_ValueDependentIsNotNull);
 }
 
-bool getAbsoluteFilePath(std::string FileName, std::string &AbsoluteFp) {
-  // Get absolute path of the provided file
-  // returns true if successful else false.
-  SmallString<255> AbsPath(FileName);
-  llvm::sys::fs::make_absolute(BaseDir, AbsPath);
+std::error_code tryGetCanonicalFilePath(const std::string &FileName,
+                                        std::string &AbsoluteFp) {
+  SmallString<255> AbsPath;
+  std::error_code EC;
+  if (FileName.empty()) {
+    // Strangely, llvm::sys::fs::real_path successfully returns the empty string
+    // in this case. Return ENOENT, as realpath(3) would.
+    EC = std::error_code(ENOENT, std::generic_category());
+  } else {
+    EC = llvm::sys::fs::real_path(FileName, AbsPath);
+  }
+  if (EC) {
+    return EC;
+  }
   AbsoluteFp = std::string(AbsPath.str());
-  return true;
+  return EC;
+}
+
+void getCanonicalFilePath(const std::string &FileName,
+                          std::string &AbsoluteFp) {
+  std::error_code EC = tryGetCanonicalFilePath(FileName, AbsoluteFp);
+  assert(!EC && "tryGetCanonicalFilePath failed");
+}
+
+bool filePathStartsWith(const std::string &Path, const std::string &Prefix) {
+  // If the path exactly equals the prefix, don't ruin it by appending a
+  // separator to the prefix. (This may never happen in 3C, but let's get it
+  // right.)
+  if (Prefix.empty() || Path == Prefix) {
+    return true;
+  }
+  StringRef Separator = llvm::sys::path::get_separator();
+  std::string PrefixWithTrailingSeparator = Prefix;
+  if (!StringRef(Prefix).endswith(Separator)) {
+    PrefixWithTrailingSeparator += Separator;
+  }
+  return Path.substr(0, PrefixWithTrailingSeparator.size()) ==
+         PrefixWithTrailingSeparator;
 }
 
 bool functionHasVarArgs(clang::FunctionDecl *FD) {
@@ -185,9 +226,14 @@ bool isStructOrUnionType(clang::VarDecl *VD) {
          VD->getType().getTypePtr()->isUnionType();
 }
 
-std::string tyToStr(const clang::Type *T) {
-  QualType QT(T, 0);
-  return QT.getAsString();
+std::string qtyToStr(clang::QualType QT, const std::string &Name) {
+  std::string S = Name;
+  QT.getAsStringInternal(S, LangOptions());
+  return S;
+}
+
+std::string tyToStr(const clang::Type *T, const std::string &Name) {
+  return qtyToStr(QualType(T, 0), Name);
 }
 
 Expr *removeAuxillaryCasts(Expr *E) {
@@ -288,6 +334,20 @@ static bool castCheck(clang::QualType DstType, clang::QualType SrcType) {
   if (SrcPtrTypePtr || DstPtrTypePtr)
     return false;
 
+  // Check function cast by comparing parameter and return types individually.
+  const auto *SrcFnType = dyn_cast<clang::FunctionProtoType>(SrcTypePtr);
+  const auto *DstFnType = dyn_cast<clang::FunctionProtoType>(DstTypePtr);
+  if (SrcFnType && DstFnType) {
+    if (SrcFnType->getNumParams() != DstFnType->getNumParams())
+      return false;
+
+    for (unsigned I = 0; I < SrcFnType->getNumParams(); I++)
+      if (!castCheck(SrcFnType->getParamType(I), DstFnType->getParamType(I)))
+        return false;
+
+    return castCheck(SrcFnType->getReturnType(), DstFnType->getReturnType());
+  }
+
   // If both are not scalar types? Then the types must be exactly same.
   if (!(SrcTypePtr->isScalarType() && DstTypePtr->isScalarType()))
     return SrcTypePtr == DstTypePtr;
@@ -318,9 +378,7 @@ bool canWrite(const std::string &FilePath) {
     return true;
   // Get the absolute path of the file and check that
   // the file path starts with the base directory.
-  std::string FileAbsPath = FilePath;
-  getAbsoluteFilePath(FilePath, FileAbsPath);
-  return FileAbsPath.rfind(BaseDir, 0) == 0;
+  return filePathStartsWith(FilePath, BaseDir);
 }
 
 bool isInSysHeader(clang::Decl *D) {
@@ -351,21 +409,6 @@ unsigned longestCommonSubsequence(const char *Str1, const char *Str2,
     return 1 + longestCommonSubsequence(Str1, Str2, Str1Len - 1, Str2Len - 1);
   return std::max(longestCommonSubsequence(Str1, Str2, Str1Len, Str2Len - 1),
                   longestCommonSubsequence(Str1, Str2, Str1Len - 1, Str2Len));
-}
-
-// Get the type variable used in a parameter declaration, or return null if no
-// type variable is used.
-const TypeVariableType *getTypeVariableType(DeclaratorDecl *Decl) {
-  // This makes a lot of assumptions about how the AST will look.
-  if (auto *ITy = Decl->getInteropTypeExpr()) {
-    const auto *Ty = ITy->getType().getTypePtr();
-    if (Ty && Ty->isPointerType()) {
-      auto *PtrTy = Ty->getPointeeType().getTypePtr();
-      if (auto *TypdefTy = dyn_cast_or_null<TypedefType>(PtrTy))
-        return dyn_cast<TypeVariableType>(TypdefTy->desugar());
-    }
-  }
-  return nullptr;
 }
 
 bool isTypeAnonymous(const clang::Type *T) {
@@ -417,4 +460,14 @@ TypeLoc getBaseTypeLoc(TypeLoc T) {
           T.getTypePtr()->isPointerType() || T.getTypePtr()->isArrayType()))
     T = T.getNextTypeLoc();
   return T;
+}
+
+Expr *ignoreCheckedCImplicit(Expr *E) {
+  Expr *Old = nullptr;
+  Expr *New = E;
+  while (Old != New) {
+    Old = New;
+    New = Old->IgnoreExprTmp()->IgnoreImplicit();
+  }
+  return New;
 }

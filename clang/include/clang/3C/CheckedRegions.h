@@ -13,7 +13,7 @@
 #ifndef LLVM_CLANG_3C_CHECKEDREGIONS_H
 #define LLVM_CLANG_3C_CHECKEDREGIONS_H
 
-#include "ProgramInfo.h"
+#include "clang/3C/ProgramInfo.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Stmt.h"
@@ -42,7 +42,6 @@ private:
   findParentCompound(const clang::DynTypedNode &N, int);
   bool isParentChecked(const clang::DynTypedNode &N);
   bool isWrittenChecked(const clang::CompoundStmt *);
-  bool isFunctionBody(clang::CompoundStmt *S);
   clang::ASTContext *Context;
   clang::Rewriter &Writer;
   std::map<llvm::FoldingSetNodeID, AnnotationNeeded> &Map;

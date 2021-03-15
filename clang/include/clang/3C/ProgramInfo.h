@@ -12,11 +12,11 @@
 #ifndef LLVM_CLANG_3C_PROGRAMINFO_H
 #define LLVM_CLANG_3C_PROGRAMINFO_H
 
-#include "3CInteractiveData.h"
-#include "AVarBoundsInfo.h"
-#include "ConstraintVariables.h"
-#include "PersistentSourceLoc.h"
-#include "Utils.h"
+#include "clang/3C/3CInteractiveData.h"
+#include "clang/3C/AVarBoundsInfo.h"
+#include "clang/3C/ConstraintVariables.h"
+#include "clang/3C/PersistentSourceLoc.h"
+#include "clang/3C/Utils.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Frontend/CompilerInstance.h"
@@ -81,9 +81,6 @@ public:
   FVConstraint *getStaticFuncConstraint(std::string FuncName,
                                         std::string FileName) const;
 
-  // Check if the given function is an extern function.
-  bool isAnExternFunction(const std::string &FName);
-
   // Called when we are done adding constraints and visiting ASTs.
   // Links information about global symbols together and adds
   // constraints where appropriate.
@@ -113,28 +110,50 @@ public:
   void constrainWildIfMacro(ConstraintVariable *CV, SourceLocation Location,
                             PersistentSourceLoc *PSL = nullptr);
 
+  void unifyIfTypedef(const clang::Type *, clang::ASTContext &,
+                      clang::DeclaratorDecl *, PVConstraint *);
+
+  std::pair<CVarSet, bool> lookupTypedef(PersistentSourceLoc PSL);
+
+  bool seenTypedef(PersistentSourceLoc PSL);
+
+  void addTypedef(PersistentSourceLoc PSL, bool ShouldCheck);
+
 private:
   // List of constraint variables for declarations, indexed by their location in
   // the source. This information persists across invocations of the constraint
   // analysis from compilation unit to compilation unit.
   VariableMap Variables;
 
+  // Map storing constraint information for typedefed types,
+  // The set contains all the constraint variables that also use this typedef.
+  // TODO this could be replaced w/ a single CVar.
+  // The bool informs the rewriter whether or not this typedef should be
+  // rewritten. It will be false for typedefs we don't support rewritting,
+  // such as typedefs that are pointers to anonymous structs.
+  std::map<PersistentSourceLoc, std::pair<CVarSet, bool>> TypedefVars;
+
   // Map with the same purpose as the Variables map, this stores constraint
   // variables for non-declaration expressions.
   std::map<PersistentSourceLoc, CVarSet> ExprConstraintVars;
+
+  // Implicit casts do not physically exist in the source code, so their source
+  // location can collide with the source location of another expression. Since
+  // we need to look up constraint variables for implicit casts for the cast
+  // placement, the variables are stored in this separate map.
+  std::map<PersistentSourceLoc, CVarSet> ImplicitCastConstraintVars;
 
   // Constraint system.
   Constraints CS;
   // Is the ProgramInfo persisted? Only tested in asserts. Starts at true.
   bool Persisted;
 
-  // Map of global decls for which we don't have a body, the keys are
-  // names of external functions/vars, the value is whether the body/def
+  // Map of global decls for which we don't have a definition, the keys are
+  // names of external vars, the value is whether the def
   // has been seen before.
-  std::map<std::string, bool> ExternFunctions;
   std::map<std::string, bool> ExternGVars;
 
-  // Maps for global/static functions, global variables
+  // Maps for global/static functions, global variables.
   ExternalFunctionMapType ExternalFunctionFVCons;
   StaticFunctionMapType StaticFunctionFVCons;
   std::map<std::string, std::set<PVConstraint *>> GlobalVariableSymbols;
@@ -148,30 +167,32 @@ private:
   // instantiated so they can be inserted during rewriting.
   TypeParamBindingsT TypeParamBindings;
 
-  // Function to check if an external symbol is okay to leave constrained.
-  bool isExternOkay(const std::string &Ext);
-
   // Insert the given FVConstraint* set into the provided Map.
-  // Returns true if successful else false.
-  bool insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
+  void insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
                                      const std::string &FuncName,
-                                     FVConstraint *ToIns);
+                                     FVConstraint *NewC, FunctionDecl *FD,
+                                     ASTContext *C);
 
   // Inserts the given FVConstraint* set into the provided static map.
-  // Returns true if successful else false.
-  bool insertIntoStaticFunctionMap(StaticFunctionMapType &Map,
+  void insertIntoStaticFunctionMap(StaticFunctionMapType &Map,
                                    const std::string &FuncName,
                                    const std::string &FileName,
-                                   FVConstraint *ToIns);
+                                   FVConstraint *ToIns, FunctionDecl *FD,
+                                   ASTContext *C);
 
   // Special-case handling for decl introductions. For the moment this covers:
   //  * void-typed variables
   //  * va_list-typed variables
   void specialCaseVarIntros(ValueDecl *D, ASTContext *Context);
 
-  // Inserts the given FVConstraint* set into the global map, depending
-  // on whether static or not; returns true on success
-  bool insertNewFVConstraint(FunctionDecl *FD, FVConstraint *FVCon,
+  // Inserts the given FVConstraint set into the extern or static function map.
+  // Note: This can trigger a brainTransplant from an existing FVConstraint into
+  // the argument FVConstraint. The brainTransplant copies the atoms of the
+  // existing FVConstraint into the argument. This effectively throws out any
+  // constraints that may been applied to the argument FVConstraint, so do not
+  // call this function any time other than immediately after constructing an
+  // FVConstraint.
+  void insertNewFVConstraint(FunctionDecl *FD, FVConstraint *FVCon,
                              ASTContext *C);
 
   // Retrieves a FVConstraint* from a Decl (which could be static, or global)

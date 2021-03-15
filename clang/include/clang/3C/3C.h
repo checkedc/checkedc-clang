@@ -15,10 +15,10 @@
 #ifndef LLVM_CLANG_3C_3C_H
 #define LLVM_CLANG_3C_3C_H
 
-#include "3CInteractiveData.h"
-#include "ConstraintVariables.h"
-#include "PersistentSourceLoc.h"
-#include "ProgramInfo.h"
+#include "clang/3C/3CInteractiveData.h"
+#include "clang/3C/ConstraintVariables.h"
+#include "clang/3C/PersistentSourceLoc.h"
+#include "clang/3C/ProgramInfo.h"
 #include "clang/Tooling/CommonOptionsParser.h"
 #include <mutex>
 
@@ -32,6 +32,7 @@ struct _3COptions {
   bool Verbose;
 
   std::string OutputPostfix;
+  std::string OutputDir;
 
   std::string ConstraintOutputJson;
 
@@ -50,6 +51,7 @@ struct _3COptions {
   bool EnablePropThruIType;
 
   std::string BaseDir;
+  bool AllowSourcesOutsideBaseDir;
 
   bool EnableAllTypes;
 
@@ -65,6 +67,16 @@ struct _3COptions {
   bool RemoveItypes;
   bool ForceItypes;
 #endif
+
+  // Currently applies only to the rewriting phase (because it is the only phase
+  // that generates diagnostics, except for the declaration merging diagnostics
+  // that are currently fatal) and uses the default "expected" prefix.
+  bool VerifyDiagnosticOutput;
+
+  bool DumpUnwritableChanges;
+  bool AllowUnwritableChanges;
+
+  bool AllowRewriteFailures;
 };
 
 // The main interface exposed by the 3C to interact with the tool.
@@ -78,18 +90,27 @@ public:
   // Mutex for this interface.
   std::mutex InterfaceMutex;
 
-  _3CInterface(const struct _3COptions &CCopt,
-               const std::vector<std::string> &SourceFileList,
-               clang::tooling::CompilationDatabase *CompDB);
+  // If the parameters are invalid, this function prints an error message to
+  // stderr and returns null.
+  //
+  // There's no way for a constructor to report failure (we do not use
+  // exceptions), so use a factory method instead. Ideally we'd use an
+  // "optional" datatype that doesn't force heap allocation, but the only such
+  // datatype that is accepted in our codebase
+  // (https://llvm.org/docs/ProgrammersManual.html#fallible-constructors) seems
+  // too unwieldy to use right now.
+  static std::unique_ptr<_3CInterface>
+  create(const struct _3COptions &CCopt,
+         const std::vector<std::string> &SourceFileList,
+         clang::tooling::CompilationDatabase *CompDB);
 
   // Constraint Building.
 
   // Build initial constraints.
   bool buildInitialConstraints();
 
-  // Constraint Solving. The flag: ComputeInterimState requests to compute
-  // interim constraint solver state.
-  bool solveConstraints(bool ComputeInterimState = false);
+  // Constraint Solving.
+  bool solveConstraints();
 
   // Interactivity.
 
@@ -114,6 +135,10 @@ public:
   bool writeConvertedFileToDisk(const std::string &FilePath);
 
 private:
+  _3CInterface(const struct _3COptions &CCopt,
+               const std::vector<std::string> &SourceFileList,
+               clang::tooling::CompilationDatabase *CompDB, bool &Failed);
+
   // Are constraints already built?
   bool ConstraintsBuilt;
   void invalidateAllConstraintsWithReason(Constraint *ConstraintToRemove);

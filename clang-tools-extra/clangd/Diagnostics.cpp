@@ -396,7 +396,6 @@ void toLSPDiags(
     Main.range = It->Range;
   }
 
-  clangd::Diagnostic Main = FillBasicFields(D);
 #ifdef INTERACTIVE3C
   Main.code = D.Code;
 #else

@@ -11,7 +11,7 @@
 #ifndef LLVM_CLANG_3C_UTILS_H
 #define LLVM_CLANG_3C_UTILS_H
 
-#include "PersistentSourceLoc.h"
+#include "clang/3C/PersistentSourceLoc.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/Support/Casting.h"
@@ -104,7 +104,19 @@ bool hasFunctionBody(clang::Decl *D);
 
 std::string getStorageQualifierString(clang::Decl *D);
 
-bool getAbsoluteFilePath(std::string FileName, std::string &AbsoluteFp);
+// Use this version for user input that has not yet been validated.
+std::error_code tryGetCanonicalFilePath(const std::string &FileName,
+                                        std::string &AbsoluteFp);
+
+// This version asserts success. It may be used for convenience for files we are
+// already accessing and thus believe should exist, modulo race conditions and
+// the like.
+void getCanonicalFilePath(const std::string &FileName, std::string &AbsoluteFp);
+
+// This compares entire path components: it's smart enough to know that "foo.c"
+// does not start with "foo". It's not smart about anything else, so you should
+// probably put both paths through getCanonicalFilePath first.
+bool filePathStartsWith(const std::string &Path, const std::string &Prefix);
 
 bool isNULLExpression(clang::Expr *E, clang::ASTContext &C);
 
@@ -130,11 +142,16 @@ bool isVarArgType(const std::string &TypeName);
 bool isStructOrUnionType(clang::VarDecl *VD);
 
 // Helper method to print a Type in a way that can be represented in the source.
-std::string tyToStr(const clang::Type *T);
+// If Name is given, it is included as the variable name (which otherwise isn't
+// trivial to do with function pointers, etc.).
+std::string tyToStr(const clang::Type *T, const std::string &Name = "");
+
+// Same as tyToStr with a QualType.
+std::string qtyToStr(clang::QualType QT, const std::string &Name = "");
 
 // Get the end source location of the end of the provided function.
-clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD,
-                                                clang::SourceManager &S);
+clang::SourceLocation getFunctionDeclRParen(clang::FunctionDecl *FD,
+                                            clang::SourceManager &S);
 
 // Remove auxillary casts from the provided expression.
 clang::Expr *removeAuxillaryCasts(clang::Expr *SrcExpr);
@@ -147,6 +164,9 @@ bool isCastSafe(clang::QualType DstType, clang::QualType SrcType);
 
 // Check if the provided file path belongs to the input project
 // and can be rewritten.
+//
+// For accurate results, the path must have gone through getCanonicalFilePath.
+// Note that the file name of a PersistentSourceLoc is always canonical.
 bool canWrite(const std::string &FilePath);
 
 // Check if the provided variable has void as one of its type.
@@ -164,8 +184,6 @@ std::string getSourceText(const clang::SourceRange &SR,
 unsigned longestCommonSubsequence(const char *Str1, const char *Str2,
                                   unsigned long Str1Len, unsigned long Str2Len);
 
-const clang::TypeVariableType *getTypeVariableType(clang::DeclaratorDecl *Decl);
-
 bool isTypeAnonymous(const clang::Type *T);
 
 // Find the index of parameter PV in the parameter list of function FD.
@@ -181,6 +199,10 @@ bool evaluateToInt(clang::Expr *E, const clang::ASTContext &C, int &Result);
 bool isZeroBoundsExpr(clang::BoundsExpr *BE, const clang::ASTContext &C);
 
 // Find the range in the source code for the base type of a type location.
-// The base type is the type after removing all
+// The base type is the type after removing all.
 clang::TypeLoc getBaseTypeLoc(clang::TypeLoc T);
+
+// Ignore all CheckedC temporary and clang implicit expression on E. This
+// combines the behavior of IgnoreExprTmp and IgnoreImplicit.
+clang::Expr *ignoreCheckedCImplicit(clang::Expr *E);
 #endif

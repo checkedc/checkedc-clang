@@ -2,8 +2,8 @@
 //
 // Tests properties about arr constraints propagation.
 //
-// RUN: 3c %s -- | FileCheck -match-full-lines %s
-// RUN: 3c %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
+// RUN: 3c -base-dir=%S %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -base-dir=%S %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
 // expected-no-diagnostics
 //
 // This tests the propagation of constraints
@@ -18,19 +18,19 @@ typedef struct {
 
 foo obj1 = {};
 
-int* func(int *ptr, char *arrptr) {
+int *func(int *ptr, char *arrptr) {
   obj1.ptr = ptr;
   arrptr++;
   obj1.arrptr = arrptr;
   return ptr;
 }
-//CHECK: _Ptr<int> func(_Ptr<int> ptr, char *arrptr) {
+//CHECK: _Ptr<int> func(_Ptr<int> ptr, char *arrptr : itype(_Ptr<char>)) {
 
 int main() {
   int a;
   int *b = 0;
   char *wil = 0;
-  wil = (char*)0xdeadbeef;
+  wil = (char *)0xdeadbeef;
   b = func(&a, wil);
   return 0;
 }

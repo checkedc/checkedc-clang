@@ -1,136 +1,147 @@
-// RUN: 3c -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/ptrTOptrsafemulti2.c
-// RUN: 3c -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/ptrTOptrsafemulti2.c
-// RUN: %clang -c %S/ptrTOptrsafemulti1.checkedNOALL.c %S/ptrTOptrsafemulti2.checkedNOALL.c
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/ptrTOptrsafemulti1.checkedNOALL.c %s
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/ptrTOptrsafemulti1.checkedALL.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=checked %S/ptrTOptrsafemulti2.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=convert_again %S/ptrTOptrsafemulti1.checked.c %S/ptrTOptrsafemulti2.checked.c
-// RUN: test ! -f %S/ptrTOptrsafemulti1.checked.convert_again.c
-// RUN: test ! -f %S/ptrTOptrsafemulti2.checked.convert_again.c
-// RUN: rm %S/ptrTOptrsafemulti1.checkedALL.c %S/ptrTOptrsafemulti2.checkedALL.c
-// RUN: rm %S/ptrTOptrsafemulti1.checkedNOALL.c %S/ptrTOptrsafemulti2.checkedNOALL.c
-// RUN: rm %S/ptrTOptrsafemulti1.checked.c %S/ptrTOptrsafemulti2.checked.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checkedALL %s %S/ptrTOptrsafemulti2.c --
+// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checkedNOALL %s %S/ptrTOptrsafemulti2.c --
+// RUN: %clang -working-directory=%t.checkedNOALL -c ptrTOptrsafemulti1.c ptrTOptrsafemulti2.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %t.checkedNOALL/ptrTOptrsafemulti1.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %t.checkedALL/ptrTOptrsafemulti1.c %s
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %S/ptrTOptrsafemulti2.c %s --
+// RUN: 3c -base-dir=%t.checked -alltypes -output-dir=%t.convert_again %t.checked/ptrTOptrsafemulti1.c %t.checked/ptrTOptrsafemulti2.c --
+// RUN: test ! -f %t.convert_again/ptrTOptrsafemulti1.c
+// RUN: test ! -f %t.convert_again/ptrTOptrsafemulti2.c
 
-
-/*********************************************************************************/
+/******************************************************************************/
 
 /*This file tests three functions: two callers bar and foo, and a callee sus*/
 /*In particular, this file tests: having a pointer to a pointer*/
-/*For robustness, this test is identical to ptrTOptrprotosafe.c and ptrTOptrsafe.c except in that
+/*For robustness, this test is identical to
+ptrTOptrprotosafe.c and ptrTOptrsafe.c except in that
 the callee and callers are split amongst two files to see how
 the tool performs conversions*/
 /*In this test, foo, bar, and sus will all treat their return values safely*/
 
-/*********************************************************************************/
-
+/******************************************************************************/
 
 #include <stddef.h>
-extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
-extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
-extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
-extern _Itype_for_any(T) void *realloc(void *pointer : itype(_Array_ptr<T>) byte_count(1), size_t size) : itype(_Array_ptr<T>) byte_count(size);
-extern int printf(const char * restrict format : itype(restrict _Nt_array_ptr<const char>), ...);
-extern _Unchecked char *strcpy(char * restrict dest, const char * restrict src : itype(restrict _Nt_array_ptr<const char>));
+extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size)
+    : itype(_Array_ptr<T>) byte_count(nmemb * size);
+extern _Itype_for_any(T) void free(void *pointer
+                                   : itype(_Array_ptr<T>) byte_count(0));
+extern _Itype_for_any(T) void *malloc(size_t size)
+    : itype(_Array_ptr<T>) byte_count(size);
+extern _Itype_for_any(T) void *realloc(void *pointer
+                                       : itype(_Array_ptr<T>) byte_count(1),
+                                         size_t size)
+    : itype(_Array_ptr<T>) byte_count(size);
+extern int printf(const char *restrict format
+                  : itype(restrict _Nt_array_ptr<const char>), ...);
+extern _Unchecked char *strcpy(char *restrict dest, const char *restrict src
+                               : itype(restrict _Nt_array_ptr<const char>));
 
-struct general { 
-    int data; 
-    struct general *next;
-	//CHECK: _Ptr<struct general> next;
+struct general {
+  int data;
+  struct general *next;
+  //CHECK: _Ptr<struct general> next;
 };
 
-struct warr { 
-    int data1[5];
-	//CHECK_NOALL: int data1[5];
-	//CHECK_ALL: int data1 _Checked[5];
-    char *name;
-	//CHECK: _Ptr<char> name;
+struct warr {
+  int data1[5];
+  //CHECK_NOALL: int data1[5];
+  //CHECK_ALL: int data1 _Checked[5];
+  char *name;
+  //CHECK: _Ptr<char> name;
 };
 
-struct fptrarr { 
-    int *values; 
-	//CHECK: _Ptr<int> values; 
-    char *name;
-	//CHECK: _Ptr<char> name;
-    int (*mapper)(int);
-	//CHECK: _Ptr<int (int )> mapper;
+struct fptrarr {
+  int *values;
+  //CHECK: _Ptr<int> values;
+  char *name;
+  //CHECK: _Ptr<char> name;
+  int (*mapper)(int);
+  //CHECK: _Ptr<int (int )> mapper;
 };
 
-struct fptr { 
-    int *value; 
-	//CHECK: _Ptr<int> value; 
-    int (*func)(int);
-	//CHECK: _Ptr<int (int )> func;
-};  
-
-struct arrfptr { 
-    int args[5]; 
-	//CHECK_NOALL: int args[5]; 
-	//CHECK_ALL: int args _Checked[5]; 
-    int (*funcs[5]) (int);
-	//CHECK_NOALL: int (*funcs[5]) (int);
-	//CHECK_ALL: _Ptr<int (int )> funcs _Checked[5];
+struct fptr {
+  int *value;
+  //CHECK: _Ptr<int> value;
+  int (*func)(int);
+  //CHECK: _Ptr<int (int )> func;
 };
 
-int add1(int x) { 
-	//CHECK: int add1(int x) _Checked { 
-    return x+1;
-} 
+struct arrfptr {
+  int args[5];
+  //CHECK_NOALL: int args[5];
+  //CHECK_ALL: int args _Checked[5];
+  int (*funcs[5])(int);
+  //CHECK_NOALL: int (*funcs[5])(int);
+  //CHECK_ALL: _Ptr<int (int )> funcs _Checked[5];
+};
 
-int sub1(int x) { 
-	//CHECK: int sub1(int x) _Checked { 
-    return x-1; 
-} 
-
-int fact(int n) { 
-	//CHECK: int fact(int n) _Checked { 
-    if(n==0) { 
-        return 1;
-    } 
-    return n*fact(n-1);
-} 
-
-int fib(int n) { 
-	//CHECK: int fib(int n) _Checked { 
-    if(n==0) { return 0; } 
-    if(n==1) { return 1; } 
-    return fib(n-1) + fib(n-2);
-} 
-
-int zerohuh(int n) { 
-	//CHECK: int zerohuh(int n) _Checked { 
-    return !n;
+static int add1(int x) {
+  //CHECK: static int add1(int x) _Checked {
+  return x + 1;
 }
 
-int *mul2(int *x) { 
-	//CHECK: _Ptr<int> mul2(_Ptr<int> x) _Checked { 
-    *x *= 2; 
-    return x;
+static int sub1(int x) {
+  //CHECK: static int sub1(int x) _Checked {
+  return x - 1;
 }
 
-char *** sus(char * * *, char * * *);
-	//CHECK_NOALL: char *** sus(char * * *, _Ptr<_Ptr<_Ptr<char>>> y);
-	//CHECK_ALL: _Ptr<_Array_ptr<char *>> sus(char * * *, _Ptr<_Ptr<_Ptr<char>>> y);
+static int fact(int n) {
+  //CHECK: static int fact(int n) _Checked {
+  if (n == 0) {
+    return 1;
+  }
+  return n * fact(n - 1);
+}
 
-char *** foo() {
-	//CHECK_NOALL: char *** foo(void) {
-	//CHECK_ALL: _Ptr<_Array_ptr<char *>> foo(void) {
-        char * * * x = malloc(sizeof(char * *));
-	//CHECK: char * * * x = malloc<char **>(sizeof(char * *));
-        char * * * y = malloc(sizeof(char * *));
-	//CHECK: _Ptr<_Ptr<_Ptr<char>>> y = malloc<_Ptr<_Ptr<char>>>(sizeof(char * *));
-        char *** z = sus(x, y);
-	//CHECK_NOALL: char *** z = sus(x, y);
-	//CHECK_ALL: _Ptr<_Array_ptr<char *>> z = sus(x, y);
-return z; }
+static int fib(int n) {
+  //CHECK: static int fib(int n) _Checked {
+  if (n == 0) {
+    return 0;
+  }
+  if (n == 1) {
+    return 1;
+  }
+  return fib(n - 1) + fib(n - 2);
+}
 
-char *** bar() {
-	//CHECK_NOALL: char *** bar(void) {
-	//CHECK_ALL: _Ptr<_Array_ptr<char *>> bar(void) {
-        char * * * x = malloc(sizeof(char * *));
-	//CHECK: char * * * x = malloc<char **>(sizeof(char * *));
-        char * * * y = malloc(sizeof(char * *));
-	//CHECK: _Ptr<_Ptr<_Ptr<char>>> y = malloc<_Ptr<_Ptr<char>>>(sizeof(char * *));
-        char *** z = sus(x, y);
-	//CHECK_NOALL: char *** z = sus(x, y);
-	//CHECK_ALL: _Ptr<_Array_ptr<char *>> z = sus(x, y);
-return z; }
+static int zerohuh(int n) {
+  //CHECK: static int zerohuh(int n) _Checked {
+  return !n;
+}
+
+static int *mul2(int *x) {
+  //CHECK: static _Ptr<int> mul2(_Ptr<int> x) _Checked {
+  *x *= 2;
+  return x;
+}
+
+char ***sus(char ***, char ***);
+//CHECK_NOALL: char ***sus(char ***x : itype(_Ptr<_Ptr<_Ptr<char>>>), _Ptr<_Ptr<_Ptr<char>>> y) : itype(_Ptr<char **>);
+//CHECK_ALL: _Ptr<_Array_ptr<char *>> sus(char ***x : itype(_Ptr<_Ptr<_Ptr<char>>>), _Ptr<_Ptr<_Ptr<char>>> y);
+
+char ***foo() {
+  //CHECK_NOALL: _Ptr<char **> foo(void) {
+  //CHECK_ALL: _Ptr<_Array_ptr<char *>> foo(void) {
+  char ***x = malloc(sizeof(char **));
+  //CHECK: _Ptr<_Ptr<_Ptr<char>>> x = malloc<_Ptr<_Ptr<char>>>(sizeof(char **));
+  char ***y = malloc(sizeof(char **));
+  //CHECK: _Ptr<_Ptr<_Ptr<char>>> y = malloc<_Ptr<_Ptr<char>>>(sizeof(char **));
+  char ***z = sus(x, y);
+  //CHECK_NOALL: _Ptr<char **> z = sus(x, y);
+  //CHECK_ALL: _Ptr<_Array_ptr<char *>> z = sus(x, y);
+  return z;
+}
+
+char ***bar() {
+  //CHECK_NOALL: _Ptr<char **> bar(void) {
+  //CHECK_ALL: _Ptr<_Array_ptr<char *>> bar(void) {
+  char ***x = malloc(sizeof(char **));
+  //CHECK: _Ptr<_Ptr<_Ptr<char>>> x = malloc<_Ptr<_Ptr<char>>>(sizeof(char **));
+  char ***y = malloc(sizeof(char **));
+  //CHECK: _Ptr<_Ptr<_Ptr<char>>> y = malloc<_Ptr<_Ptr<char>>>(sizeof(char **));
+  char ***z = sus(x, y);
+  //CHECK_NOALL: _Ptr<char **> z = sus(x, y);
+  //CHECK_ALL: _Ptr<_Array_ptr<char *>> z = sus(x, y);
+  return z;
+}

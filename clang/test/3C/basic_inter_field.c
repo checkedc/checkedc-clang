@@ -2,8 +2,8 @@
 //
 // Tests properties about constraint propagation of structure fields
 // across functions
-// RUN: 3c %s -- | FileCheck -match-full-lines %s
-// RUN: 3c %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
+// RUN: 3c -base-dir=%S %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -base-dir=%S %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
 // expected-no-diagnostics
 //
 
@@ -17,7 +17,7 @@ typedef struct {
 
 foo obj1 = {};
 
-int* func(int *ptr, char *iwild) {
+int *func(int *ptr, char *iwild) {
   // both the arguments are pointers
   // within function body
   obj1.ptr = ptr;
@@ -25,13 +25,13 @@ int* func(int *ptr, char *iwild) {
   return ptr;
 }
 
-//CHECK: _Ptr<int> func(_Ptr<int> ptr, char *iwild : itype(_Ptr<char>)) {
+//CHECK: _Ptr<int> func(_Ptr<int> ptr, _Ptr<char> iwild) {
 
 int main() {
   int a;
   int *b = 0;
   char *wil;
-  wil = (char*)0xdeadbeef;
+  wil = (char *)0xdeadbeef;
   b = func(&a, wil);
   return 0;
 }
@@ -39,5 +39,3 @@ int main() {
 //CHECK: int main() {
 //CHECK-NEXT: int a;
 //CHECK-NEXT: _Ptr<int> b =  0;
-
-

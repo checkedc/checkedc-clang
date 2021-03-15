@@ -1,14 +1,15 @@
-//RUN: 3c -base-dir=%S -output-postfix=checked2 %s %S/extGVarbar1.c
-//RUN: FileCheck -match-full-lines --input-file %S/extGVarbar2.checked2.c %s
-//RUN: rm %S/extGVarbar1.checked2.c %S/extGVarbar2.checked2.c
+//RUN: rm -rf %t*
+//RUN: 3c -base-dir=%S -output-dir=%t.checked2 %s %S/extGVarbar1.c --
+//RUN: FileCheck -match-full-lines --input-file %t.checked2/extGVarbar2.c %s
+//RUN: %clang -c %t.checked2/extGVarbar2.c %t.checked2/extGVarbar1.c
 
-/*second of the bar files*/ 
+// This test cannot use pipes because it requires multiple output files
 
 int w = 2;
-int *y = &w; 
-//CHECK: _Ptr<int> y =  &w; 
+int *y = &w;
+//CHECK: _Ptr<int> y =  &w;
 
-void f(int *e) { 
-    //ensure trivial conversion
+void f(int *e) {
+  //ensure trivial conversion
 }
 //CHECK: void f(_Ptr<int> e) {

@@ -136,14 +136,12 @@ ClangdServer::Options::operator TUScheduler::Options() const {
 }
 
 ClangdServer::ClangdServer(const GlobalCompilationDatabase &CDB,
-                           const ThreadsafeFS &TFS,
+                           const ThreadsafeFS &TFS, const Options &Opts,
 #ifdef INTERACTIVE3C
                            // See
                            // clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
                            // NOLINTNEXTLINE(readability-identifier-naming)
-                           const Options &Opts, _3CInterface &_3CInterface,
-#else
-                           const Options &Opts,
+                           _3CInterface &_3CInterface,
 #endif
                            Callbacks *Callbacks)
     : ConfigProvider(Opts.ConfigProvider), TFS(TFS),
@@ -170,11 +168,12 @@ ClangdServer::ClangdServer(const GlobalCompilationDatabase &CDB,
             return O;
           }(),
           std::make_unique<UpdateIndexCallbacks>(
-              DynamicIdx.get(), Callbacks, Opts.TheiaSemanticHighlighting),
+              DynamicIdx.get(), Callbacks, Opts.TheiaSemanticHighlighting))
 #ifdef INTERACTIVE3C
-          _3CInter(_3CInterface)
+      ,
+      _3CInter(_3CInterface)
 #endif
-              ) {
+{
   // Adds an index to the stack, at higher priority than existing indexes.
   auto AddIndex = [&](SymbolIndex *Idx) {
     if (this->Index != nullptr) {
@@ -253,7 +252,9 @@ void ClangdServer::_3CCollectAndBuildInitialConstraints(
     _3CDiagInfo.clearAllDiags();
     ConvCB->send3CMessage("Running 3C for first time.");
     _3CInter.buildInitialConstraints();
-    _3CInter.solveConstraints(true);
+    // NOTE: If and when we revive clangd3c, revisit this to make sure
+    // computeInterimConstraintState gets called if clangd3c needs it.
+    _3CInter.solveConstraints();
     ConvCB->send3CMessage("Finished running 3C.");
     log("3C: Built initial constraints successfully.\n");
     auto &WildPtrsInfo = _3CInter.getWildPtrsInfo();
@@ -264,7 +265,7 @@ void ClangdServer::_3CCollectAndBuildInitialConstraints(
     ConvCB->send3CMessage("3C: Finished updating problems.");
     log("3C: Updated the diag information.\n");
   };
-  WorkScheduler.run("3C: Running Initial Constraints", Task);
+  WorkScheduler.run("3C: Running Initial Constraints", "", Task);
 }
 
 void ClangdServer::execute3CCommand(ExecuteCommandParams Params,
@@ -292,7 +293,7 @@ void ClangdServer::execute3CCommand(ExecuteCommandParams Params,
       ConvCB->send3CMessage("3C contraint key already removed.");
     }
   };
-  WorkScheduler.run("Applying on demand ptr modifications", Task);
+  WorkScheduler.run("Applying on demand ptr modifications", "", Task);
 }
 
 void ClangdServer::_3CCloseDocument(std::string FileName) {
@@ -306,10 +307,10 @@ void ClangdServer::_3CCloseDocument(std::string FileName) {
           FileName);
     }
   };
-  WorkScheduler.run("3C: Writing back file.", Task);
+  WorkScheduler.run("3C: Writing back file.", "", Task);
 }
-
 #endif
+
 void ClangdServer::removeDocument(PathRef File) { WorkScheduler.remove(File); }
 
 void ClangdServer::codeComplete(PathRef File, Position Pos,

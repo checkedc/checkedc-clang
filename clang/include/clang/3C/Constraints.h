@@ -18,7 +18,7 @@
 #ifndef LLVM_CLANG_3C_CONSTRAINTS_H
 #define LLVM_CLANG_3C_CONSTRAINTS_H
 
-#include "Utils.h"
+#include "clang/3C/Utils.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/raw_ostream.h"

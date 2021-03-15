@@ -13,9 +13,9 @@
 #ifndef LLVM_CLANG_3C_ABOUNDS_H
 #define LLVM_CLANG_3C_ABOUNDS_H
 
-#include "ProgramVar.h"
-#include <clang/AST/Decl.h>
-#include <clang/AST/Expr.h>
+#include "clang/3C/ProgramVar.h"
+#include "clang/AST/Decl.h"
+#include "clang/AST/Expr.h"
 
 using namespace clang;
 

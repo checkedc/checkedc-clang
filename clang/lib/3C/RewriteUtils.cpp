@@ -128,27 +128,148 @@ GlobalVariableGroups::~GlobalVariableGroups() {
 // Note that R.getRangeSize will return -1 if SR is within
 // a macro as well. This means that we can't re-write any
 // text that occurs within a macro.
-bool canRewrite(Rewriter &R, SourceRange &SR) {
+bool canRewrite(Rewriter &R, const CharSourceRange &SR) {
   return SR.isValid() && (R.getRangeSize(SR) != -1);
 }
 
-static void emit(Rewriter &R, ASTContext &C, std::string &OutputPostfix) {
+void rewriteSourceRange(Rewriter &R, const SourceRange &Range,
+                        const std::string &NewText, bool ErrFail) {
+  rewriteSourceRange(R, CharSourceRange::getTokenRange(Range), NewText,
+                     ErrFail);
+}
+
+void rewriteSourceRange(Rewriter &R, const CharSourceRange &Range,
+                        const std::string &NewText, bool ErrFail) {
+  // Attempt to rewrite the source range. First use the source range directly
+  // from the parameter.
+  bool RewriteSuccess = false;
+  if (canRewrite(R, Range))
+    RewriteSuccess = !R.ReplaceText(Range, NewText);
+
+  // If initial rewriting attempt failed (either because canRewrite returned
+  // false or because ReplaceText failed (returning true), try rewriting again
+  // with the source range expanded to be outside any macros used in the range.
+  if (!RewriteSuccess) {
+    CharSourceRange Expand = clang::Lexer::makeFileCharRange(
+        Range, R.getSourceMgr(), R.getLangOpts());
+    if (canRewrite(R, Expand))
+      RewriteSuccess = !R.ReplaceText(Expand, NewText);
+  }
+
+  // Emit an error if we were unable to rewrite the source range. This is more
+  // likely to be a bug in 3C than an issue with the input, but emitting a
+  // diagnostic here with the intended rewriting is much more useful than
+  // crashing with an assert fail.
+  if (!RewriteSuccess) {
+    clang::DiagnosticsEngine &DE = R.getSourceMgr().getDiagnostics();
+    bool ReportError = ErrFail && !AllowRewriteFailures;
+    {
+      // Put this in a block because Clang only allows one DiagnosticBuilder to
+      // exist at a time.
+      unsigned ErrorId = DE.getCustomDiagID(
+          ReportError ? DiagnosticsEngine::Error : DiagnosticsEngine::Warning,
+          "Unable to rewrite converted source range. Intended rewriting: "
+          "\"%0\"");
+      auto ErrorBuilder = DE.Report(Range.getBegin(), ErrorId);
+      ErrorBuilder.AddSourceRange(R.getSourceMgr().getExpansionRange(Range));
+      ErrorBuilder.AddString(NewText);
+    }
+    if (ReportError) {
+      unsigned NoteId = DE.getCustomDiagID(
+          DiagnosticsEngine::Note,
+          "you can use the -allow-rewrite-failures option to temporarily "
+          "downgrade this error to a warning");
+      // If we pass the location here, the macro call stack gets dumped again,
+      // which looks silly.
+      DE.Report(NoteId);
+    }
+  }
+}
+
+static void emit(Rewriter &R, ASTContext &C) {
   if (Verbose)
     errs() << "Writing files out\n";
 
-  // Check if we are outputing to stdout or not, if we are, just output the
-  // main file ID to stdout.
+  bool StdoutMode = (OutputPostfix == "-" && OutputDir.empty());
+  bool StdoutModeSawMainFile = false;
   SourceManager &SM = C.getSourceManager();
-  if (OutputPostfix == "-") {
-    if (const RewriteBuffer *B = R.getRewriteBufferFor(SM.getMainFileID()))
-      B->write(outs());
-  } else {
-    // Iterate over each modified rewrite buffer
-    for (auto Buffer = R.buffer_begin(); Buffer != R.buffer_end(); ++Buffer) {
-      if (const FileEntry *FE = SM.getFileEntryForID(Buffer->first)) {
-        assert(FE->isValid());
+  // Iterate over each modified rewrite buffer.
+  for (auto Buffer = R.buffer_begin(); Buffer != R.buffer_end(); ++Buffer) {
+    if (const FileEntry *FE = SM.getFileEntryForID(Buffer->first)) {
+      assert(FE->isValid());
 
-        // Produce a path/file name for the rewritten source file.
+      DiagnosticsEngine::Level UnwritableChangeDiagnosticLevel =
+          AllowUnwritableChanges ? DiagnosticsEngine::Warning
+                                 : DiagnosticsEngine::Error;
+      auto PrintExtraUnwritableChangeInfo = [&]() {
+        DiagnosticsEngine &DE = C.getDiagnostics();
+        // With -dump-unwritable-changes and not -allow-unwritable-changes, we
+        // want the -allow-unwritable-changes note before the dump.
+        if (!DumpUnwritableChanges) {
+          unsigned DumpNoteId = DE.getCustomDiagID(
+              DiagnosticsEngine::Note,
+              "use the -dump-unwritable-changes option to see the new version "
+              "of the file");
+          DE.Report(DumpNoteId);
+        }
+        if (!AllowUnwritableChanges) {
+          unsigned AllowNoteId = DE.getCustomDiagID(
+              DiagnosticsEngine::Note,
+              "you can use the -allow-unwritable-changes option to temporarily "
+              "downgrade this error to a warning");
+          DE.Report(AllowNoteId);
+        }
+        if (DumpUnwritableChanges) {
+          errs() << "=== Beginning of new version of " << FE->getName()
+                 << " ===\n";
+          Buffer->second.write(errs());
+          errs() << "=== End of new version of " << FE->getName() << " ===\n";
+        }
+      };
+
+      // Check whether we are allowed to write this file.
+      std::string FeAbsS = "";
+      getCanonicalFilePath(std::string(FE->getName()), FeAbsS);
+      if (!canWrite(FeAbsS)) {
+        DiagnosticsEngine &DE = C.getDiagnostics();
+        unsigned ID =
+            DE.getCustomDiagID(UnwritableChangeDiagnosticLevel,
+                               "3C internal error: 3C generated changes to "
+                               "this file even though it is not allowed to "
+                               "write to the file "
+                               "(https://github.com/correctcomputation/"
+                               "checkedc-clang/issues/387)");
+        DE.Report(SM.translateFileLineCol(FE, 1, 1), ID);
+        PrintExtraUnwritableChangeInfo();
+        continue;
+      }
+
+      if (StdoutMode) {
+        if (Buffer->first == SM.getMainFileID()) {
+          // This is the new version of the main file. Print it to stdout.
+          Buffer->second.write(outs());
+          StdoutModeSawMainFile = true;
+        } else {
+          DiagnosticsEngine &DE = C.getDiagnostics();
+          unsigned ID = DE.getCustomDiagID(
+              UnwritableChangeDiagnosticLevel,
+              "3C generated changes to this file, which is under the base dir "
+              "but is not the main file and thus cannot be written in stdout "
+              "mode");
+          DE.Report(SM.translateFileLineCol(FE, 1, 1), ID);
+          PrintExtraUnwritableChangeInfo();
+        }
+        continue;
+      }
+
+      // Produce a path/file name for the rewritten source file.
+      std::string NFile;
+      std::error_code EC;
+      // We now know that we are using either OutputPostfix or OutputDir mode
+      // because stdout mode is handled above. OutputPostfix defaults to "-"
+      // when it's not provided, so any other value means that we should use
+      // OutputPostfix. Otherwise, we must be in OutputDir mode.
+      if (OutputPostfix != "-") {
         // That path should be the same as the old one, with a
         // suffix added between the file name and the extension.
         // For example \foo\bar\a.c should become \foo\bar\a.checked.c
@@ -158,31 +279,54 @@ static void emit(Rewriter &R, ASTContext &C, std::string &OutputPostfix) {
         std::string FileName = sys::path::remove_leading_dotslash(PfName).str();
         std::string Ext = sys::path::extension(FileName).str();
         std::string Stem = sys::path::stem(FileName).str();
-        std::string NFile = Stem + "." + OutputPostfix + Ext;
+        NFile = Stem + "." + OutputPostfix + Ext;
         if (!DirName.empty())
           NFile = DirName + sys::path::get_separator().str() + NFile;
-
-        // Write this file if it was specified as a file on the command line.
-        std::string FeAbsS = "";
-        if (getAbsoluteFilePath(std::string(FE->getName()), FeAbsS))
-          FeAbsS = std::string(sys::path::remove_leading_dotslash(FeAbsS));
-
-        if (canWrite(FeAbsS)) {
-          std::error_code EC;
-          raw_fd_ostream Out(NFile, EC, sys::fs::F_None);
-
-          if (!EC) {
-            if (Verbose)
-              outs() << "writing out " << NFile << "\n";
-            Buffer->second.write(Out);
-          } else
-            errs() << "could not open file " << NFile << "\n";
-          // This is awkward. What to do? Since we're iterating, we could have
-          // created other files successfully. Do we go back and erase them? Is
-          // that surprising? For now, let's just keep going.
+      } else {
+        assert(!OutputDir.empty());
+        // If this does not hold when OutputDir is set, it should have been a
+        // fatal error in the _3CInterface constructor.
+        assert(filePathStartsWith(FeAbsS, BaseDir));
+        // replace_path_prefix is not smart about separators, but this should be
+        // OK because getCanonicalFilePath should ensure that neither BaseDir
+        // nor OutputDir has a trailing separator.
+        SmallString<255> Tmp(FeAbsS);
+        llvm::sys::path::replace_path_prefix(Tmp, BaseDir, OutputDir);
+        NFile = std::string(Tmp.str());
+        EC = llvm::sys::fs::create_directories(sys::path::parent_path(NFile));
+        if (EC) {
+          DiagnosticsEngine &DE = C.getDiagnostics();
+          unsigned ID = DE.getCustomDiagID(
+              DiagnosticsEngine::Error,
+              "failed to create parent directory of output file \"%0\"");
+          auto DiagBuilder = DE.Report(SM.translateFileLineCol(FE, 1, 1), ID);
+          DiagBuilder.AddString(NFile);
+          continue;
         }
       }
+
+      raw_fd_ostream Out(NFile, EC, sys::fs::F_None);
+
+      if (!EC) {
+        if (Verbose)
+          errs() << "writing out " << NFile << "\n";
+        Buffer->second.write(Out);
+      } else {
+        DiagnosticsEngine &DE = C.getDiagnostics();
+        unsigned ID = DE.getCustomDiagID(DiagnosticsEngine::Error,
+                                         "failed to write output file \"%0\"");
+        auto DiagBuilder = DE.Report(SM.translateFileLineCol(FE, 1, 1), ID);
+        DiagBuilder.AddString(NFile);
+        // This is awkward. What to do? Since we're iterating, we could have
+        // created other files successfully. Do we go back and erase them? Is
+        // that surprising? For now, let's just keep going.
+      }
     }
+  }
+
+  if (StdoutMode && !StdoutModeSawMainFile) {
+    // The main file is unchanged. Write out its original content.
+    outs() << SM.getBuffer(SM.getMainFileID())->getBuffer();
   }
 }
 
@@ -231,12 +375,9 @@ private:
            }));
 
     for (auto *CV : CVSingleton)
-      // Only rewrite if the type has changed.
-      if (CV->anyChanges(Vars)) {
-        // Replace the original type with this new one
-        if (canRewrite(Writer, Range))
-          Writer.ReplaceText(Range, CV->mkString(Vars, false));
-      }
+      // Replace the original type with this new one if the type has changed.
+      if (CV->anyChanges(Vars))
+        rewriteSourceRange(Writer, Range, CV->mkString(Vars, false));
   }
 };
 
@@ -323,8 +464,8 @@ private:
   }
 };
 
-std::string ArrayBoundsRewriter::getBoundsString(PVConstraint *PV, Decl *D,
-                                                 bool Isitype) {
+std::string ArrayBoundsRewriter::getBoundsString(const PVConstraint *PV,
+                                                 Decl *D, bool Isitype) {
   auto &ABInfo = Info.getABoundsInfo();
 
   // Try to find a bounds key for the constraint variable. If we can't,
@@ -349,17 +490,17 @@ std::string ArrayBoundsRewriter::getBoundsString(PVConstraint *PV, Decl *D,
         BString = Pfix + BString;
     }
   }
-  if (BString.empty() && PV->hasBoundsStr()) {
+  if (BString.empty() && PV->srcHasBounds()) {
     BString = Pfix + PV->getBoundsStr();
   }
   return BString;
 }
 
-bool ArrayBoundsRewriter::hasNewBoundsString(PVConstraint *PV, Decl *D,
+bool ArrayBoundsRewriter::hasNewBoundsString(const PVConstraint *PV, Decl *D,
                                              bool Isitype) {
   std::string BStr = getBoundsString(PV, D, Isitype);
   // There is a bounds string but has nothing declared?
-  return !BStr.empty() && !PV->hasBoundsStr();
+  return !BStr.empty() && !PV->srcHasBounds();
 }
 
 std::set<PersistentSourceLoc> RewriteConsumer::EmittedDiagnostics;
@@ -417,13 +558,14 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   std::map<llvm::FoldingSetNodeID, AnnotationNeeded> NodeMap;
   CheckedRegionFinder CRF(&Context, R, Info, Seen, NodeMap, WarnRootCause);
   CheckedRegionAdder CRA(&Context, R, NodeMap);
-  CastPlacementVisitor ECPV(&Context, Info, R);
+  CastLocatorVisitor CLV(&Context);
+  CastPlacementVisitor ECPV(&Context, Info, R, CLV.getExprsWithCast());
   TypeExprRewriter TER(&Context, Info, R);
   TypeArgumentAdder TPA(&Context, Info, R);
   TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
   for (const auto &D : TUD->decls()) {
     if (AddCheckedRegions) {
-      // Adding checked regions enabled!?
+      // Adding checked regions enabled?
       // TODO: Should checked region finding happen somewhere else? This is
       //       supposed to be rewriting.
       CRF.TraverseDecl(D);
@@ -433,12 +575,15 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
     // Cast placement must happen after type expression rewriting (i.e. cast and
     // compound literal) so that casts to unchecked pointer on itype function
     // calls can override rewritings of casts to checked types.
+    // The cast locator must also run before the cast placement visitor so that
+    // the cast placement visitor is aware of all existing cast expressions.
+    CLV.TraverseDecl(D);
     ECPV.TraverseDecl(D);
     TPA.TraverseDecl(D);
   }
 
   // Output files.
-  emit(R, Context, OutputPostfix);
+  emit(R, Context);
 
   Info.exitCompilationUnit();
   return;

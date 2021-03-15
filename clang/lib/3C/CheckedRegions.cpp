@@ -27,6 +27,16 @@
 using namespace llvm;
 using namespace clang;
 
+// If S is a function body, then return the FunctionDecl, otherwise return null.
+// Used in both visitors so abstracted to a function.
+FunctionDecl *getFunctionDeclOfBody(ASTContext *Context, CompoundStmt *S) {
+  const auto &Parents = Context->getParents(*S);
+  if (Parents.empty()) {
+    return nullptr;
+  }
+  return const_cast<FunctionDecl *>(Parents[0].get<FunctionDecl>());
+}
+
 // CheckedRegionAdder
 
 bool CheckedRegionAdder::VisitCompoundStmt(CompoundStmt *S) {
@@ -36,7 +46,7 @@ bool CheckedRegionAdder::VisitCompoundStmt(CompoundStmt *S) {
   S->Profile(Id, *Context, true);
   switch (Map[Id]) {
   case IS_UNCHECKED:
-    if (isParentChecked(DTN) && !isFunctionBody(S)) {
+    if (isParentChecked(DTN) && getFunctionDeclOfBody(Context, S) == nullptr) {
       auto Loc = S->getBeginLoc();
       Writer.InsertTextBefore(Loc, "_Unchecked ");
     }
@@ -93,14 +103,6 @@ CheckedRegionAdder::findParentCompound(const ast_type_traits::DynTypedNode &N,
   return *Min;
 }
 
-bool CheckedRegionAdder::isFunctionBody(CompoundStmt *S) {
-  const auto &Parents = Context->getParents(*S);
-  if (Parents.empty()) {
-    return false;
-  }
-  return Parents[0].get<FunctionDecl>();
-}
-
 bool CheckedRegionAdder::isParentChecked(
     const ast_type_traits::DynTypedNode &DTN) {
   if (const auto *Parent = findParentCompound(DTN).first) {
@@ -154,8 +156,35 @@ bool CheckedRegionFinder::VisitDoStmt(DoStmt *S) {
 }
 
 bool CheckedRegionFinder::VisitCompoundStmt(CompoundStmt *S) {
-  // Visit all subblocks, find all unchecked types
-  bool Localwild = 0;
+  bool Localwild = false;
+
+  // Is this compound statement the body of a function?
+  FunctionDecl *FD = getFunctionDeclOfBody(Context, S);
+  if (FD != nullptr) {
+    auto PSL = PersistentSourceLoc::mkPSL(FD, *Context);
+    if (!canWrite(PSL.getFileName())) {
+      // The "location" of the function is in an unwritable file. Processing it
+      // might result in modifying an unwritable file, so skip it completely.
+      // This check could have both false positives and false negatives if the
+      // code uses `#include` to assemble a function definition from multiple
+      // files, some writable and some not, but that would be "unusual c code -
+      // low priority".
+      //
+      // Currently, it's OK to perform this check only at the function level
+      // because a function is normally in a single file and 3C doesn't add
+      // checked annotations at higher levels (e.g., `#pragma CHECKED_SCOPE`).
+      return false;
+    }
+
+    // Need to check return type.
+    const auto *RetType = FD->getReturnType().getTypePtr();
+    if (RetType->isPointerType()) {
+      CVarOption CV = Info.getVariable(FD, Context);
+      Localwild |= isWild(CV) || containsUncheckedPtr(FD->getReturnType());
+    }
+  }
+
+  // Visit all subblocks, find all unchecked types.
   for (const auto &SubStmt : S->children()) {
     CheckedRegionFinder Sub(Context, Writer, Info, Seen, Map, EmitWarnings);
     Sub.TraverseStmt(SubStmt);
@@ -196,13 +225,11 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
   } else {
     if (FD) {
       auto Type = FD->getReturnType();
-      Wild |=
-          (!(FD->hasPrototype() || FD->doesThisDeclarationHaveABody())) ||
-          containsUncheckedPtr(Type) ||
-          (std::any_of(FD->param_begin(), FD->param_end(), [this](Decl *Param) {
-            CVarOption CV = Info.getVariable(Param, Context);
-            return isWild(CV);
-          }));
+      Wild |= (!(FD->hasPrototype() || FD->doesThisDeclarationHaveABody())) ||
+              containsUncheckedPtr(Type);
+      auto *FV = Info.getFuncConstraint(FD, Context);
+      for (unsigned I = 0; I < FV->numParams(); I++)
+        Wild |= isWild(*FV->getExternalParam(I));
     }
     handleChildren(C->children());
     Map[ID] = Wild ? IS_UNCHECKED : IS_CHECKED;
@@ -247,9 +274,9 @@ bool CheckedRegionFinder::VisitDeclRefExpr(DeclRefExpr *DR) {
   if (auto *FD = dyn_cast<FunctionDecl>(D)) {
     auto *FV = Info.getFuncConstraint(FD, Context);
     IW |= FV->hasWild(Info.getConstraints().getVariables());
-    for (const auto &Param : FD->parameters()) {
-      CVarOption CV = Info.getVariable(Param, Context);
-      IW |= isWild(CV);
+    for (unsigned I = 0; I < FV->numParams(); I++) {
+      PVConstraint *ParamCV = FV->getExternalParam(I);
+      IW |= isWild(*ParamCV);
     }
   }
 
@@ -347,9 +374,6 @@ bool CheckedRegionFinder::containsUncheckedPtrAcc(QualType Qt,
     return false;
   }
   if (Ct->isVoidPointerType()) {
-    return true;
-  }
-  if (Ct->isVoidType()) {
     return true;
   }
   if (Ct->isPointerType()) {

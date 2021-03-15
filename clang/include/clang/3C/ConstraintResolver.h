@@ -11,7 +11,7 @@
 #ifndef LLVM_CLANG_3C_CONSTRAINTRESOLVER_H
 #define LLVM_CLANG_3C_CONSTRAINTRESOLVER_H
 
-#include "ProgramInfo.h"
+#include "clang/3C/ProgramInfo.h"
 #include "clang/AST/ASTConsumer.h"
 
 using namespace llvm;
@@ -32,8 +32,10 @@ public:
 
   // Returns a set of ConstraintVariables which represent the result of
   // evaluating the expression E. Will explore E recursively, but will
-  // ignore parts of it that do not contribute to the final result
+  // ignore parts of it that do not contribute to the final result.
   CVarSet getExprConstraintVars(Expr *E);
+
+  CVarSet getCalleeConstraintVars(CallExpr *CE);
 
   // Handle assignment of RHS expression to LHS expression using the
   // given action.
