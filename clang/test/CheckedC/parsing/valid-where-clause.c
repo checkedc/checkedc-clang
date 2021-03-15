@@ -65,3 +65,4 @@ void f3(_Nt_array_ptr<char> p : count(n) _Where n > 0 _And p : count(n), int n) 
 void f4(_Nt_array_ptr<char> p : count(n) _Where p : count(n) _And p : count(n), int n);
 void f5(_Nt_array_ptr<char> p : count(n), int a _Where p : count(n) _And n > 0 _And a < 0, int n) {}
 void f6(int *p : itype(_Ptr<int>) _Where p == 0 _And n > 0, int n);
+void f7(int a _Where (((((a == 0))))));
