@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 Given the path to the project and 3c binary,
 this script runs 3c on all the files.
@@ -52,8 +54,16 @@ def parseTheArg():
     parser.add_argument("-p", "--prog_name", dest='prog_name', type=str, default=_3c_bin,
                         help='Program name to run. i.e., path to 3c')
 
+    parser.add_argument("--extra-3c-arg", dest='extra_3c_args', type=str, default=[], nargs='*',
+                        help=('Extra argument to pass to 3c. '
+                              'Multiple -extra-3c-arg options can be used.'))
+
     parser.add_argument("-pr", "--project_path", dest='project_path', type=str, required=True,
                         help='Path to the folder containing all project sources.')
+
+    parser.add_argument("--build_dir", dest='build_dir', type=str,
+                        help='Path to the folder containing compile_commands.json. '
+                        'Default: same as --project_path.')
 
     parser.add_argument("--skip", dest='skip_paths', action='append', type=str, default=[],
                         help='Relative path to source files that should be skipped.')
@@ -78,6 +88,13 @@ def parseTheArg():
         logging.error("Provided argument: {} is not a directory.".format(args.project_path))
         sys.exit()
 
+    if not args.build_dir:
+        args.build_dir = args.project_path
+    if not os.path.isdir(args.build_dir):
+        logging.error("Error: --build_dir argument must be the name of a directory.")
+        logging.error("Provided argument: {} is not a directory.".format(args.build_dir))
+        sys.exit()
+
     return args
 
 
@@ -85,10 +102,10 @@ if __name__ == "__main__":
     # get the args
     progArgs = parseTheArg()
     # check compile_commands.json file.
-    compileCmdsJson = os.path.join(progArgs.project_path, "compile_commands.json")
+    compileCmdsJson = os.path.join(progArgs.build_dir, "compile_commands.json")
     if not os.path.exists(compileCmdsJson):
-        logging.error("Error: Project folder does not contain compile_commands.json.")
-        logging.error("compile_commands.json file: {} is not a directory.".format(compileCmdsJson))
+        logging.error("Error: Build directory does not contain compile_commands.json.")
+        logging.error("compile_commands.json file: {} does not exist.".format(compileCmdsJson))
         sys.exit()
     # replace include files
     logging.info("Updating include lines of all the source files.")
@@ -96,8 +113,9 @@ if __name__ == "__main__":
     logging.info("Finished updating project files.")
 
     logging.info("Trying to convert all the source files to header files")
-    run3C(progArgs.prog_name, compileCmdsJson, progArgs.includeDir,
-                       progArgs.skip_paths, progArgs.skip_exec)
+    run3C(progArgs.prog_name, progArgs.extra_3c_args,
+          progArgs.project_path, compileCmdsJson, progArgs.includeDir,
+          progArgs.skip_paths, progArgs.skip_exec)
     logging.info("Finished converting all the files to checkedc files.")
 
 

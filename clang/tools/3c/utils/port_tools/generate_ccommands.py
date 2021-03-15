@@ -18,8 +18,8 @@ TOTAL_COMMANDS_FILE = os.path.realpath("convert_all.sh")
 VSCODE_SETTINGS_JSON = os.path.realpath("settings.json")
 
 # to separate multiple commands in a line
-CMD_SEP = " &"
-DEFAULT_ARGS = ["-dump-stats", "-output-postfix=checked", "-dump-intermediate"]
+CMD_SEP = " &&"
+DEFAULT_ARGS = ["-dump-stats", "-dump-intermediate"]
 if os.name == "nt":
     DEFAULT_ARGS.append("-extra-arg-before=--driver-mode=cl")
     CMD_SEP = " ;"
@@ -89,7 +89,9 @@ def tryFixUp(s):
     return
 
 
-def run3C(checkedc_bin, compile_commands_json, checkedc_include_dir, skip_paths,
+def run3C(checkedc_bin, extra_3c_args,
+          compilation_base_dir, compile_commands_json,
+          checkedc_include_dir, skip_paths,
           skip_running=False, run_individual=False):
     global INDIVIDUAL_COMMANDS_FILE
     global TOTAL_COMMANDS_FILE
@@ -140,15 +142,6 @@ def run3C(checkedc_bin, compile_commands_json, checkedc_include_dir, skip_paths,
             all_files.append(file_to_add)
             s.add((frozenset(compiler_x_args), target_directory, file_to_add))
 
-    # get the common path of the files as the base directory
-    compilation_base_dir = os.path.commonprefix(all_files)
-    # if this is not a directory? get the directory
-    # this can happen when we have files like: /a/b/c1.c, /a/b/c2.c
-    # the common prefix will be /a/b/c which is not correct, what we need is:
-    # /a/b
-    if len(all_files) > 0 and \
-            not os.path.exists(os.path.join(compilation_base_dir, os.path.basename(all_files[0]))):
-        compilation_base_dir = os.path.dirname(compilation_base_dir)
     prog_name = checkedc_bin
     f = open(INDIVIDUAL_COMMANDS_FILE, 'w')
     f.write("#!/bin/bash\n")
@@ -166,6 +159,7 @@ def run3C(checkedc_bin, compile_commands_json, checkedc_include_dir, skip_paths,
             args.extend(list(compiler_args))
         args.append('-base-dir="' + compilation_base_dir + '"')
         args.extend(DEFAULT_ARGS)
+        args.extend(extra_3c_args)
         args.append(src_file)
         # run individual commands.
         if run_individual:
@@ -190,10 +184,14 @@ def run3C(checkedc_bin, compile_commands_json, checkedc_include_dir, skip_paths,
     args = []
     args.append(prog_name)
     args.extend(DEFAULT_ARGS)
+    args.extend(extra_3c_args)
     args.extend(list(set(total_x_args)))
     vcodewriter.addClangdArg("-log=verbose")
     vcodewriter.addClangdArg(args[1:])
     args.append('-base-dir="' + compilation_base_dir + '"')
+    # Try to choose a name unlikely to collide with anything in any real
+    # project.
+    args.append('-output-dir="' + compilation_base_dir + '/out.checked"')
     vcodewriter.addClangdArg('-base-dir=' + compilation_base_dir)
     args.extend(list(set(all_files)))
     vcodewriter.addClangdArg(list(set(all_files)))
