@@ -78,6 +78,7 @@ class TypeLoc;
 class UnresolvedSetImpl;
 class VarTemplateDecl;
 class TypedefDecl;
+class WhereClause;
 
 /// The top declaration context.
 class TranslationUnitDecl : public Decl, public DeclContext {
@@ -1006,6 +1007,8 @@ private:
   };
   enum { NumVarDeclBits = 8 };
 
+  WhereClause *WClause;
+
 protected:
   enum { NumParameterIndexBits = 8 };
 
@@ -1664,6 +1667,9 @@ public:
   // Implement isa/cast/dyncast/etc.
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
   static bool classofKind(Kind K) { return K >= firstVar && K <= lastVar; }
+
+  void setWhereClause(WhereClause *WC) { WClause = WC; }
+  WhereClause *getWhereClause() const { return WClause; }
 };
 
 class ImplicitParamDecl : public VarDecl {
