@@ -4534,12 +4534,18 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
     EnterMemberBoundsExprRAII MemberBoundsContext(Actions);
     FieldDecl *FieldDecl = Pair.first;
     std::unique_ptr<CachedTokens> Tokens = std::move(Pair.second);
+    bool IsWhereClause = StartsWhereClause(Tokens->front());
+
     BoundsAnnotations Annots;
-    if (DeferredParseBoundsAnnotations(std::move(Tokens),
-                                       Annots, DeclaratorsInfo.D))
-      Actions.ActOnInvalidBoundsDecl(FieldDecl);
-    else
-      Actions.ActOnBoundsDecl(FieldDecl, Annots,/*MergeDeferredBounds=*/true);
+    bool Error = DeferredParseBoundsAnnotations(std::move(Tokens), Annots,
+                                                DeclaratorsInfo.D);
+    if (!IsWhereClause) {
+      if (Error)
+        Actions.ActOnInvalidBoundsDecl(FieldDecl);
+      else
+        Actions.ActOnBoundsDecl(FieldDecl, Annots,
+                                /*MergeDeferredBounds=*/true);
+    }
   }
 
   // For Checked C, check type restrictions on declarations in checked scopes.

@@ -4105,12 +4105,12 @@ bool Parser::ConsumeAndStoreBoundsExpression(CachedTokens &Toks) {
   return result;
 }
 
-/// Given a list of tokens that have the same shape as a bounds
-/// expression, parse them to create a bounds expression.  Delete
-/// the list of tokens at the end. Also parses where clause occurring on a
-/// decl.
-/// Return true if there was an error; false otherwise.  The resulting
-/// bounds expression is stored in Result.
+/// Given a list of tokens that have the same shape as a bounds expression or
+/// a where clause parse them to create a bounds expression or a where clause
+/// respectively. Delete the list of tokens at the end. Return true if there
+/// was an error; false otherwise.
+/// If a bounds expression is parsed it is stored in Result.
+/// If a where clause is parsed it is attached to ThisDecl.
 bool
 Parser::DeferredParseBoundsAnnotations(std::unique_ptr<CachedTokens> Toks,
                                        BoundsAnnotations &Result,
