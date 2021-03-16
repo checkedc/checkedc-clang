@@ -19,7 +19,7 @@ VSCODE_SETTINGS_JSON = os.path.realpath("settings.json")
 
 # to separate multiple commands in a line
 CMD_SEP = " &&"
-DEFAULT_ARGS = ["-dump-stats", "-dump-intermediate"]
+DEFAULT_ARGS = ["-dump-stats"]
 if os.name == "nt":
     DEFAULT_ARGS.append("-extra-arg-before=--driver-mode=cl")
     CMD_SEP = " ;"
