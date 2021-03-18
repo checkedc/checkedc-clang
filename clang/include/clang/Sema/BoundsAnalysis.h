@@ -71,7 +71,7 @@ namespace clang {
 
   // BoundsExprMapTy denotes the widened bounds expression of an ntptr. Given
   // VarDecl V with declared bounds (low, high), and an unsigned integer offset
-  // I by which the declared upper bound should be widened the widened bounds
+  // I by which the declared upper bounds should be widened the widened bounds
   // of V are denoted as bounds (low, high + I).
   using BoundsExprMapTy = llvm::MapVector<const VarDecl *, BoundsExpr *>;
 
@@ -204,7 +204,8 @@ namespace clang {
     // should be widened in block B.
     BoundsMapTy GetWidenedBoundsOffsets(const CFGBlock *B);
 
-    // Are bounds widened but not killed in block B.
+    // Are bounds widened but not killed in block B? This function is invoked
+    // from SemaBounds.cpp and is used to control the emission of diagnostics.
     // @param[in] B is the block for which the widened bounds are checked.
     // @param[in] St is the statement for which the killed bounds are checked.
     // @param[in] V is the variable for which we need to determine whether
