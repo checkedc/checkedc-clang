@@ -123,18 +123,6 @@ void bounds_call(void *p) {
    // CHECK: bounds_fn(p);
 }
 
-#define macro_cast(x) macro_cast_fn(x)
-
-void macro_cast_fn(int *y) { }
-// CHECK: void macro_cast_fn(_Ptr<int> y) _Checked { }
-
-void macro_cast_caller() {
-  int *z = 1;
-  // CHECK: int *z = 1;
-  macro_cast(z);
-  // CHECK: macro_cast(_Assume_bounds_cast<_Ptr<int>>(z));
-}
-
 char *unused_return_unchecked();
 char *unused_return_checked() {return 0;}
 char *unused_return_itype() {return 1;}

@@ -256,10 +256,17 @@ public:
               // Constrain the arg CV to the param CV.
               ConstraintVariable *ParameterDC = TargetFV->getExternalParam(I);
 
+              // We cannot insert a cast if the source location of a call
+              // expression is not writable. By using Same_to_Same for calls at
+              // unwritable source locations, we ensure that we will not need to
+              // insert a cast because this unifies the checked type for the
+              // parameter and the argument.
+              ConsAction CA = Rewriter::isRewritable(A->getExprLoc())
+                              ? Wild_to_Safe : Same_to_Same;
               // Do not handle bounds key here because we will be
               // doing context-sensitive assignment next.
-              constrainConsVarGeq(ParameterDC, ArgumentConstraints.first, CS, &PL,
-                                  Wild_to_Safe, false, &Info, false);
+              constrainConsVarGeq(ParameterDC, ArgumentConstraints.first, CS,
+                                  &PL, CA, false, &Info, false);
 
               if (AllTypes && TFD != nullptr && I < TFD->getNumParams()) {
                 auto *PVD = TFD->getParamDecl(I);

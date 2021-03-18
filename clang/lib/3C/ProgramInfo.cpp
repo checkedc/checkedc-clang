@@ -786,18 +786,18 @@ void ProgramInfo::unifyIfTypedef(const Type* Ty, ASTContext& Context, Declarator
   }
 }
 
+
+ProgramInfo::IDAndTranslationUnit
+ProgramInfo::getExprKey(Expr *E, ASTContext *C) const {
+  // TODO: Main file name can be shared by multiple translation units if on file
+  //       is compiled multiple times with different defines
+  std::string Name = C->getSourceManager().getFileEntryForID(
+    C->getSourceManager().getMainFileID())->getName().str();
+  return std::make_pair(E->getID(*C), Name);
+}
+
 bool ProgramInfo::hasPersistentConstraints(Expr *E, ASTContext *C) const {
-  auto PSL = PersistentSourceLoc::mkPSL(E, *C);
-  bool HasImpCastConstraint = isa<ImplicitCastExpr>(E) &&
-                              ImplicitCastConstraintVars.find(PSL) !=
-                                  ImplicitCastConstraintVars.end() &&
-                              !ImplicitCastConstraintVars.at(PSL).first.empty();
-  bool HasExprConstraint =
-      !isa<ImplicitCastExpr>(E) &&
-      ExprConstraintVars.find(PSL) != ExprConstraintVars.end() &&
-      !ExprConstraintVars.at(PSL).first.empty();
-  // Has constraints only if the PSL is valid.
-  return PSL.valid() && (HasExprConstraint || HasImpCastConstraint);
+  return ExprConstraintVars.find(getExprKey(E, C)) != ExprConstraintVars.end();
 }
 
 const CVarSet &ProgramInfo::getPersistentConstraintsSet(clang::Expr *E,
@@ -823,33 +823,22 @@ const CSetBkeyPair &ProgramInfo::getPersistentConstraints(Expr *E,
                                                      ASTContext *C) const {
   assert(hasPersistentConstraints(E, C) &&
          "Persistent constraints not present.");
-  PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(E, *C);
-  if (isa<ImplicitCastExpr>(E))
-    return ImplicitCastConstraintVars.at(PLoc);
-  return ExprConstraintVars.at(PLoc);
+  return ExprConstraintVars.at(getExprKey(E, C));
 }
 
 void ProgramInfo::storePersistentConstraints(Expr *E, const CSetBkeyPair &Vars,
                                              ASTContext *C) {
-  // Store only if the PSL is valid.
-  auto PSL = PersistentSourceLoc::mkPSL(E, *C);
-  // The check Rewrite::isRewritable is needed here to ensure that the
-  // expression is not inside a macro. If the expression is in a macro, then it
-  // is possible for there to be multiple expressions that map to the same PSL.
-  // This could make it look like the constraint variables for an expression
-  // have been computed and cached when the expression has not in fact been
-  // visited before. To avoid this, the expression is not cached and instead is
-  // recomputed each time it's needed.
-  if (PSL.valid() && Rewriter::isRewritable(E->getBeginLoc())) {
-    if (!canWrite(PSL.getFileName())) {
-      for (ConstraintVariable *CVar : Vars.first)
-        CVar->constrainToWild(CS, "Expression in non-writable file", &PSL);
-    }
-    auto &ExprMap = isa<ImplicitCastExpr>(E) ? ImplicitCastConstraintVars
-                                             : ExprConstraintVars;
-    ExprMap[PSL].first.insert(Vars.first.begin(), Vars.first.end());
-    ExprMap[PSL].second.insert(Vars.second.begin(), Vars.second.end());
-  }
+  assert(!hasPersistentConstraints(E, C) &&
+         "Persistent constraints already present.");
+
+   auto PSL = PersistentSourceLoc::mkPSL(E, *C);
+   if (PSL.valid() && !canWrite(PSL.getFileName()))
+     for (ConstraintVariable *CVar : Vars.first)
+       CVar->constrainToWild(CS, "Expression in non-writable file", &PSL);
+
+  IDAndTranslationUnit Key = getExprKey(E, C);
+  ExprConstraintVars[Key] = Vars;
+  ExprLocations[Key] = PSL;
 }
 
 // The Rewriter won't let us re-write things that are in macros. So, we
@@ -1075,9 +1064,11 @@ bool ProgramInfo::computeInterimConstraintState(
 
   for (const auto &I : Variables)
     insertIntoPtrSourceMap(&(I.first), I.second);
-  for (const auto &I : ExprConstraintVars)
+  for (const auto &I : ExprConstraintVars) {
+    PersistentSourceLoc *PSL = &ExprLocations[I.first];
     for (auto *J : I.second.first)
-      insertIntoPtrSourceMap(&(I.first), J);
+      insertIntoPtrSourceMap(PSL, J);
+  }
 
   auto &WildPtrsReason = CState.RootWildAtomsWithReason;
   for (auto *CurrC : CS.getConstraints()) {

@@ -199,15 +199,19 @@ private:
   // rewritten.
   std::map<PersistentSourceLoc, CVarOption> TypedefVars;
 
-  // Map with the similar purpose as the Variables map, this stores constraint
-  // variables and set of bounds key for non-declaration expressions.
-  std::map<PersistentSourceLoc, CSetBkeyPair> ExprConstraintVars;
+  // A pair containing an AST node ID and the name of the main file in the
+  // translation unit. Used as a key to index expression in the following maps.
+  typedef std::pair<int64_t, std::string> IDAndTranslationUnit;
+  IDAndTranslationUnit getExprKey(clang::Expr *E, clang::ASTContext *C) const;
 
-  // Implicit casts do not physically exist in the source code, so their source
-  // location can collide with the source location of another expression. Since
-  // we need to look up constraint variables for implicit casts for the cast
-  // placement, the variables are stored in this separate map.
-  std::map<PersistentSourceLoc, CSetBkeyPair> ImplicitCastConstraintVars;
+  // Map with the similar purpose as the Variables map. This stores a set of
+  // constraint variables and bounds key for non-declaration expressions.
+  std::map<IDAndTranslationUnit, CSetBkeyPair> ExprConstraintVars;
+
+  // For each expr stored in the ExprConstraintVars, also store the source
+  // location for the expression. This is used to emit diagnostics. It is
+  // expected that multiple entries will map to the same source location.
+  std::map<IDAndTranslationUnit, PersistentSourceLoc> ExprLocations;
 
   //Performance stats
   PerformanceStats PerfS;
