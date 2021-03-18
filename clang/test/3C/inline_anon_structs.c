@@ -109,6 +109,8 @@ void foo2(int *x) {
   /*if it have an initializer, the rewriter won't have trouble*/ 
   struct { int * c; } b = {};
 	//CHECK: struct { _Ptr<int> c; } b = {};
+  struct {int *i;} *f;
+  struct {int *il} *g, *h, *i;
 } 
 
 
