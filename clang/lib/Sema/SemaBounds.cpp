@@ -41,6 +41,7 @@
 #include "clang/Analysis/CFG.h"
 #include "clang/Analysis/Analyses/PostOrderCFGView.h"
 #include "clang/AST/CanonBounds.h"
+#include "clang/AST/ExprUtils.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Sema/AvailableFactsAnalysis.h"
 #include "clang/Sema/BoundsAnalysis.h"
@@ -110,64 +111,6 @@ public:
       return I;
   }
 };
-}
-
-namespace {
-  class ExprCreatorUtil {
-    public:
-      // If Op is not a compound operator, CreateBinaryOperator returns a
-      // binary operator LHS Op RHS.  If Op is a compound operator @=,
-      // CreateBinaryOperator returns a binary operator LHS @ RHS.
-      // LHS and RHS are cast to rvalues if necessary.
-      static BinaryOperator *CreateBinaryOperator(Sema &SemaRef,
-                                                  Expr *LHS, Expr *RHS,
-                                                  BinaryOperatorKind Op) {
-        assert(LHS && "expected LHS to exist");
-        assert(RHS && "expected RHS to exist");
-        LHS = EnsureRValue(SemaRef, LHS);
-        RHS = EnsureRValue(SemaRef, RHS);
-        if (BinaryOperator::isCompoundAssignmentOp(Op))
-          Op = BinaryOperator::getOpForCompoundAssignment(Op);
-        return BinaryOperator::Create(SemaRef.Context, LHS, RHS, Op,
-                                      LHS->getType(), LHS->getValueKind(),
-                                      LHS->getObjectKind(), SourceLocation(),
-                                      FPOptionsOverride());
-      }
-
-      // Create an unsigned integer literal.
-      static IntegerLiteral *CreateUnsignedInt(Sema &SemaRef, unsigned Value) {
-        QualType T = SemaRef.Context.UnsignedIntTy;
-        llvm::APInt Val(SemaRef.Context.getIntWidth(T), Value);
-        return IntegerLiteral::Create(SemaRef.Context, Val,
-                                      T, SourceLocation());
-      }
-
-      // Create an implicit cast expression.
-      static ImplicitCastExpr *CreateImplicitCast(Sema &SemaRef, Expr *E,
-                                                  CastKind CK, QualType T) {
-        return ImplicitCastExpr::Create(SemaRef.Context, T,
-                                        CK, E, nullptr,
-                                        ExprValueKind::VK_RValue);
-      }
-
-      // If e is an rvalue, EnsureRValue returns e.  Otherwise, EnsureRValue
-      // returns a cast of e to an rvalue, based on the type of e.
-      static Expr *EnsureRValue(Sema &SemaRef, Expr *E) {
-        if (E->isRValue())
-          return E;
-
-        CastKind Kind;
-        QualType TargetTy;
-        if (E->getType()->isArrayType()) {
-          Kind = CK_ArrayToPointerDecay;
-          TargetTy = SemaRef.getASTContext().getArrayDecayedType(E->getType());
-        } else {
-          Kind = CK_LValueToRValue;
-          TargetTy = E->getType();
-        }
-        return CreateImplicitCast(SemaRef, E, Kind, TargetTy);
-      }
-  };
 }
 
 namespace {
@@ -2760,7 +2703,8 @@ namespace {
        if (RangeBoundsExpr *RBE = dyn_cast<RangeBoundsExpr>(Bounds)) {
          const llvm::APInt
            APIntOff(Context.getTargetInfo().getPointerWidth(0), Offset);
-         IntegerLiteral *WidenedOffset = CreateIntegerLiteral(APIntOff);
+         IntegerLiteral *WidenedOffset =
+           ExprCreatorUtil::CreateIntegerLiteral(Context, APIntOff);
 
          Expr *Lower = RBE->getLowerExpr();
          Expr *Upper = RBE->getUpperExpr();
@@ -3711,7 +3655,8 @@ namespace {
         // Only use the RHS `e1 +/1 ` of the implied assignment to update
         // the checking state if the integer constant 1 can be created, which
         // is only true if `e1` has integer or pointer type.
-        IntegerLiteral *One = CreateIntegerLiteral(1, SubExpr->getType());
+        IntegerLiteral *One = ExprCreatorUtil::CreateIntegerLiteral(
+                                Context, 1, SubExpr->getType());
         Expr *RHS = nullptr;
         if (One) {
           BinaryOperatorKind RHSOp = UnaryOperator::isIncrementOp(Op) ?
@@ -4258,7 +4203,8 @@ namespace {
         assert(size.uge(1) && "must have at least one element");
         size = size - 1;
       }
-      IntegerLiteral *Size = CreateIntegerLiteral(size);
+      IntegerLiteral *Size =
+        ExprCreatorUtil::CreateIntegerLiteral(Context, size);
       CountBoundsExpr *CBE =
           new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
                                         Size, SourceLocation(),
@@ -5655,75 +5601,6 @@ namespace {
                                    FPOptionsOverride());
     }
 
-    // Determine if the mathemtical value of I (an unsigned integer) fits within
-    // the range of Ty, a signed integer type.  APInt requires that bitsizes
-    // match exactly, so if I does fit, return an APInt via Result with
-    // exactly the bitsize of Ty.
-    bool Fits(QualType Ty, const llvm::APInt &I, llvm::APInt &Result) {
-      assert(Ty->isSignedIntegerType());
-      unsigned bitSize = Context.getTypeSize(Ty);
-      if (bitSize < I.getBitWidth()) {
-        if (bitSize < I.getActiveBits())
-         // Number of bits in use exceeds bitsize
-         return false;
-        else Result = I.trunc(bitSize);
-      } else if (bitSize > I.getBitWidth())
-        Result = I.zext(bitSize);
-      else
-        Result = I;
-      return Result.isNonNegative();
-    }
-
-    // Create an integer literal from I.  I is interpreted as an
-    // unsigned integer.
-    IntegerLiteral *CreateIntegerLiteral(const llvm::APInt &I) {
-      QualType Ty;
-      // Choose the type of an integer constant following the rules in
-      // Section 6.4.4 of the C11 specification: the smallest integer
-      // type chosen from int, long int, long long int, unsigned long long
-      // in which the integer fits.
-      llvm::APInt ResultVal;
-      if (Fits(Context.IntTy, I, ResultVal))
-        Ty = Context.IntTy;
-      else if (Fits(Context.LongTy, I, ResultVal))
-        Ty = Context.LongTy;
-      else if (Fits(Context.LongLongTy, I, ResultVal))
-        Ty = Context.LongLongTy;
-      else {
-        assert(I.getBitWidth() <=
-               Context.getIntWidth(Context.UnsignedLongLongTy));
-        ResultVal = I;
-        Ty = Context.UnsignedLongLongTy;
-      }
-      IntegerLiteral *Lit = IntegerLiteral::Create(Context, ResultVal, Ty,
-                                                   SourceLocation());
-      return Lit;
-    }
-
-    // If Ty is a pointer type, CreateIntegerLiteral returns an integer
-    // literal with a target-dependent bit width.
-    // If Ty is an integer type (char, unsigned int, int, etc.),
-    // CreateIntegerLiteral returns an integer literal with Ty type.
-    // Otherwise, it returns nullptr.
-    IntegerLiteral *CreateIntegerLiteral(int Value, QualType Ty) {
-      if (Ty->isPointerType()) {
-        const llvm::APInt
-          ResultVal(Context.getTargetInfo().getPointerWidth(0), Value);
-        return CreateIntegerLiteral(ResultVal);
-      }
-
-      if (!Ty->isIntegerType())
-        return nullptr;
-
-      unsigned BitSize = Context.getTypeSize(Ty);
-      unsigned IntWidth = Context.getIntWidth(Ty);
-      if (BitSize != IntWidth)
-        return nullptr;
-
-      const llvm::APInt ResultVal(BitSize, Value);
-      return IntegerLiteral::Create(Context, ResultVal, Ty, SourceLocation());
-    }
-
     // Infer bounds for string literals.
     BoundsExpr *InferBoundsForStringLiteral(Expr *E, StringLiteral *SL,
                                             CHKCBindTemporaryExpr *Binding) {
@@ -5734,7 +5611,8 @@ namespace {
       // could be used to overwrite the null terminator.  We need to prevent
       // this because literal strings may be shared and writeable, depending on
       // the C implementation.
-      auto *Size = CreateIntegerLiteral(llvm::APInt(64, SL->getLength()));
+      auto *Size = ExprCreatorUtil::CreateIntegerLiteral(Context,
+                     llvm::APInt(64, SL->getLength()));
       auto *CBE =
         new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
                                       Size, SourceLocation(),
