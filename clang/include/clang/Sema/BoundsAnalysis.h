@@ -204,15 +204,13 @@ namespace clang {
     // should be widened in block B.
     BoundsMapTy GetWidenedBoundsOffsets(const CFGBlock *B);
 
-    // Are bounds widened but not killed in block B? This function is invoked
-    // from SemaBounds.cpp and is used to control the emission of diagnostics.
+    // Get the set variables whose bounds widened but not killed in block B?
+    // This function is invoked from SemaBounds.cpp and is used to control the
+    // emission of diagnostics.
     // @param[in] B is the block for which the widened bounds are checked.
     // @param[in] St is the statement for which the killed bounds are checked.
-    // @param[in] V is the variable for which we need to determine whether
-    // widened bounds are killed.
-    // @return True if the bounds are widened but not killed.
-    bool AreBoundsWidenedAndNotKilled(const CFGBlock *B, const Stmt *St,
-                                      const VarDecl *V);
+    // @return A set of variables whose bounds are widened and not killed.
+    DeclSetTy GetBoundsWidenedAndNotKilled(const CFGBlock *B, const Stmt *St);
 
     // Get the set of variables killed by the statement St in the block B.
     // Note: This method is intended to be invoked from CheckBoundsDeclaration

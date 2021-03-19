@@ -4324,6 +4324,10 @@ namespace {
           EquivExprs.push_back({Target, Src});
       }
 
+      BoundsAnalysis &BA = getBoundsAnalyzer();
+      DeclSetTy BoundsWidenedAndNotKilled =
+        BA.GetBoundsWidenedAndNotKilled(Block, S);
+
       for (auto const &Pair : State.ObservedBounds) {
         const VarDecl *V = Pair.first;
         BoundsExpr *ObservedBounds = Pair.second;
@@ -4332,9 +4336,16 @@ namespace {
           continue;
         if (ObservedBounds->isUnknown())
           DiagnoseUnknownObservedBounds(S, V, DeclaredBounds, State);
-        else
+        else {
+          // We should issue diagnostics for observed bounds if the variable V
+          // is not in the set BoundsWidenedAndNotKilled which represents
+          // variables whose bounds are widened in this block and not killed by
+          // statement S.
+          bool DiagnoseObservedBounds = BoundsWidenedAndNotKilled.find(V) ==
+                                        BoundsWidenedAndNotKilled.end();
           CheckObservedBounds(S, V, DeclaredBounds, ObservedBounds, State,
-                              &EquivExprs, CSS, Block);
+                              &EquivExprs, CSS, Block, DiagnoseObservedBounds);
+        }
       }
     }
 
@@ -4388,7 +4399,8 @@ namespace {
                              BoundsExpr *ObservedBounds, CheckingState State,
                              EquivExprSets *EquivExprs,
                              CheckedScopeSpecifier CSS,
-                             const CFGBlock *Block) {
+                             const CFGBlock *Block,
+                             bool DiagnoseObservedBounds) {
       ProofFailure Cause;
       FreeVariableListTy FreeVars;
       ProofResult Result = ProveBoundsDeclValidity(
@@ -4407,8 +4419,7 @@ namespace {
       // observed upper bound (p + 0) + 1.
       // TODO: checkedc-clang issue #867: the widened bounds of a variable
       // should provably imply the declared bounds of a variable.
-      BoundsAnalysis &BA = getBoundsAnalyzer();
-      if (BA.AreBoundsWidenedAndNotKilled(Block, St, V))
+      if (!DiagnoseObservedBounds)
         return;
       
       // Which diagnostic message to print?

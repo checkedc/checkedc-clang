@@ -615,15 +615,20 @@ BoundsExprMapTy BoundsAnalysis::GetWidenedBounds(const CFGBlock *B) {
   return Result;
 }
 
-bool BoundsAnalysis::AreBoundsWidenedAndNotKilled(const CFGBlock *B,
-                                                  const Stmt *St,
-                                                  const VarDecl *V) {
-  BoundsExprMapTy WidenedBounds = GetWidenedBounds(B);
-  if (WidenedBounds.find(V) != WidenedBounds.end()) {
-    DeclSetTy KilledBounds = GetKilledBounds(B, St);
-    return KilledBounds.find(V) == KilledBounds.end();
-  }
-  return false;
+DeclSetTy BoundsAnalysis::GetBoundsWidenedAndNotKilled(const CFGBlock *B,
+                                                       const Stmt *St) {
+  BoundsMapTy WidenedBounds = GetWidenedBoundsOffsets(B);
+  if (!WidenedBounds.size())
+    return DeclSetTy();
+
+  DeclSetTy KilledBounds = GetKilledBounds(B, St);
+
+  DeclSetTy Vars;
+  // WidenedBounds ∧ ~KilledBounds = WidenedBounds - KilledBounds.
+  for (auto item : Difference(WidenedBounds, KilledBounds))
+    Vars.insert(item.first);
+
+  return Vars;
 }
 
 Expr *BoundsAnalysis::GetTerminatorCondition(const Expr *E) const {
