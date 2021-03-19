@@ -54,25 +54,14 @@
 #include <string.h>
 #endif
 // CHECK: string.h
-#if __has_include (<threads.h>)
-#include <threads.h>
-#endif
-// CHECK: threads.h
 #if __has_include (<time.h>)
 #include <time.h>
 #endif
 // CHECK: time.h
-#if __has_include (<unistd.h>)
-#include <unistd.h>
-#endif
-// CHECK: unistd.h
-#if __has_include (<sys/socket.h>)
-#include <sys/socket.h>
-#endif
-// CHECK: sys/socket.h
-#if __has_include (<arpa/inet.h>)
-#include <arpa/inet.h>
-#endif
-// CHECK: arpa/inet.h
+
+// The following four files: threads.h unistd.h sys/socket.h arpa/inet.h
+// cannot be added here in this test case because a #if __has_include_next
+// guard is already present in each of these files to account for the
+// potential absence of the corresponding system header file.
 
 #endif
