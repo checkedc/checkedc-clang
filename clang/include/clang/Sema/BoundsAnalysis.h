@@ -71,7 +71,7 @@ namespace clang {
 
   // BoundsExprMapTy denotes the widened bounds expression of an ntptr. Given
   // VarDecl V with declared bounds (low, high), and an unsigned integer offset
-  // I by which the declared upper bounds should be widened the widened bounds
+  // I by which the declared upper bound should be widened, the widened bounds
   // of V are denoted as bounds (low, high + I).
   using BoundsExprMapTy = llvm::MapVector<const VarDecl *, BoundsExpr *>;
 
