@@ -24,6 +24,15 @@ const char *lua_pushfstring (lua_State *L, const char *fmt, ...) {
   lua_unlock(L);
   return ret;
 }
+
+void foo(int i, ...) {
+  va_list ap;
+  va_start(ap, i);
+  char * c = (char*) va_arg(ap,char*);
+  //CHECK: char * c = (char*) va_arg(ap,char*);
+  va_end(ap);
+}
+
 /*force output*/
 int *p;
 	//CHECK: _Ptr<int> p = ((void *)0);

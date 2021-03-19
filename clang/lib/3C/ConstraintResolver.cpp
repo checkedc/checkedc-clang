@@ -639,6 +639,18 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
       if (Expr *ESE = dyn_cast<Expr>(Res)) {
         return getExprConstraintVars(ESE);
       }
+    } else if (VAArgExpr *VarArg = dyn_cast<VAArgExpr>(E)) {
+      // Use of VarArg parameters are assumed to be unsafe even though CheckedC
+      // will accept them with checked pointer types. If we want to support
+      // VarArgs with checked pointer types, we can remove the constraint to
+      // WILD here. We would then need to update TypeExprRewriter to rewrite the
+      // type in these expression.
+      auto *P = new PVConstraint(VarArg->getType(), nullptr, "VAArgExpr", Info,
+                                 *Context);
+      PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(E, *Context);
+      std::string Rsn = "Accessing VarArg parameter";
+      P->constrainToWild(Info.getConstraints(), Rsn, &PL);
+      Ret = pairWithEmptyBkey({P});
     } else {
       if (Verbose) {
         llvm::errs() << "WARNING! Initialization expression ignored: ";
