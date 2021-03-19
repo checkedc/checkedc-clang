@@ -153,6 +153,10 @@ std::string qtyToStr(clang::QualType QT, const std::string &Name = "");
 clang::SourceLocation getFunctionDeclRParen(clang::FunctionDecl *FD,
                                             clang::SourceManager &S);
 
+clang::SourceLocation locationPrecedingChar(clang::SourceLocation SL,
+                                            clang::SourceManager &S,
+                                            char C);
+
 // Remove auxillary casts from the provided expression.
 clang::Expr *removeAuxillaryCasts(clang::Expr *SrcExpr);
 
@@ -205,4 +209,13 @@ clang::TypeLoc getBaseTypeLoc(clang::TypeLoc T);
 // Ignore all CheckedC temporary and clang implicit expression on E. This
 // combines the behavior of IgnoreExprTmp and IgnoreImplicit.
 clang::Expr *ignoreCheckedCImplicit(clang::Expr *E);
+
+// Get a FunctionTypeLoc object from the declaration/type location. This is a
+// little complicated due to various clang wrapper types that come from
+// parenthesised types and function attributes.
+clang::FunctionTypeLoc getFunctionTypeLoc(clang::TypeLoc TLoc);
+clang::FunctionTypeLoc getFunctionTypeLoc(clang::DeclaratorDecl *Decl);
+
+bool isKAndRFunctionDecl(clang::FunctionDecl *FD);
+
 #endif

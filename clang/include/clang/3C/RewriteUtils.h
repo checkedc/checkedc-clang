@@ -94,79 +94,17 @@ public:
            (RewriteReturn || RewriteParams));
   }
 
-  SourceRange getSourceRange(SourceManager &SM) const override {
-    TypeSourceInfo *TSInfo = Decl->getTypeSourceInfo();
-    FunctionTypeLoc TypeLoc;
-    if (TSInfo) {
-      auto TSInfoLoc = TSInfo->getTypeLoc();
-      TypeLoc = getBaseTypeLoc(TSInfoLoc).getAs<clang::FunctionTypeLoc>();
-    }
-    if (!TSInfo || TypeLoc.isNull())
-      return SourceRange(Decl->getBeginLoc(), getFunctionDeclRParen(Decl, SM));
-
-    // Function pointer are funky, and require special handling to rewrite the
-    // return type.
-    if (Decl->getReturnType()->isFunctionPointerType()) {
-      if (RewriteParams && RewriteReturn) {
-        auto T =
-            getBaseTypeLoc(TypeLoc.getReturnLoc()).getAs<FunctionTypeLoc>();
-        if (!T.isNull())
-          return SourceRange(Decl->getBeginLoc(), T.getRParenLoc());
-      }
-      // Fall through to standard handling when only rewriting param decls
-    }
-
-    // If rewriting the return, then the range starts at the begining of the
-    // decl. Otherwise, skip to the left parenthesis of parameters.
-    SourceLocation Begin =
-        RewriteReturn ? Decl->getBeginLoc() : TypeLoc.getLParenLoc();
-
-    // If rewriting Parameters, stop at the right parenthesis of the parameters.
-    // Otherwise, stop after the return type.
-    SourceLocation End;
-    if (RewriteParams) {
-      // When there are no bounds or itypes on a function, the declaration ends
-      // at the right paren of the declaration parameter list.
-      End = TypeLoc.getRParenLoc();
-
-      // If there's a bounds expression, this comes after the right paren of the
-      // function declaration parameter list.
-      if (auto *BoundsE = Decl->getBoundsExpr()) {
-        SourceLocation BoundsEnd = BoundsE->getEndLoc();
-        if (BoundsEnd.isValid())
-          End = BoundsEnd;
-      }
-
-      // If there's an itype, this also comes after the right paren. In the case
-      // that there is both a bounds expression and an itype, we need check
-      // which is later in the file and use that as the declaration end.
-      if (auto *InteropE = Decl->getInteropTypeExpr()) {
-        SourceLocation InteropEnd = InteropE->getEndLoc();
-        if (InteropEnd.isValid() &&
-            (!End.isValid() || SM.isBeforeInTranslationUnit(End, InteropEnd)))
-          End = InteropEnd;
-      }
-
-      // SourceLocations are weird and turn up invalid for reasons I don't
-      // understand. Fallback to extracting r paren location from source
-      // character buffer.
-      if (!End.isValid())
-        End = getFunctionDeclRParen(Decl, SM);
-    } else {
-      End = Decl->getReturnTypeSourceRange().getEnd();
-    }
-
-    assert("Invalid FunctionDeclReplacement SourceRange!" && Begin.isValid() &&
-           End.isValid());
-
-    return SourceRange(Begin, End);
-  }
+  SourceRange getSourceRange(SourceManager &SM) const override;
 
 private:
   // This determines if the full declaration or the return will be replaced.
   bool RewriteReturn;
-
   bool RewriteParams;
+
+  SourceLocation getDeclBegin(SourceManager &SM) const;
+  SourceLocation getParamBegin(SourceManager &SM) const;
+  SourceLocation getReturnEnd(SourceManager &SM) const;
+  SourceLocation getDeclEnd(SourceManager &SM) const;
 };
 
 // Compare two DeclReplacement values. The algorithm for comparing them relates

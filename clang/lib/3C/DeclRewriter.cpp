@@ -719,7 +719,7 @@ void FunctionDeclBuilder::buildDeclVar(PVConstraint *IntCV, PVConstraint *ExtCV,
   ParmVarDecl *PVD = dyn_cast<ParmVarDecl>(Decl);
   if (PVD) {
     SourceRange Range = PVD->getSourceRange();
-    if (Range.isValid()) {
+    if (Range.isValid() && !inParamMultiDecl(PVD) ) {
       Type = getSourceText(Range, *Context);
       if (!Type.empty()) {
         // Great, we got the original source including any itype and bounds.
@@ -777,6 +777,22 @@ bool FunctionDeclBuilder::hasDeclWithTypedef(const FunctionDecl *FD) {
         FDIter->dump();
       }
     }
+  }
+  return false;
+}
+
+// K&R style function declarations can declare multiple parameter variables in
+// a single declaration statement. The source ranges for these parameters
+// overlap, so we cannot copy the declaration from source code to output code
+bool FunctionDeclBuilder::inParamMultiDecl(const ParmVarDecl *PVD) {
+  const DeclContext *DCtx = PVD->getDeclContext();
+  if (DCtx) {
+    SourceRange SR = PVD->getSourceRange();
+    SourceManager &SM = Context->getSourceManager();
+    for (auto *D : DCtx->decls())
+      if (D != PVD && D->getBeginLoc().isValid() &&
+          SM.isPointWithin(D->getBeginLoc(), SR.getBegin(), SR.getEnd()))
+        return true;
   }
   return false;
 }

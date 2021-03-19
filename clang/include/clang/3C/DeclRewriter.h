@@ -124,6 +124,8 @@ protected:
                       bool &RewriteRet);
 
   bool hasDeclWithTypedef(const FunctionDecl *FD);
+
+  bool inParamMultiDecl(const ParmVarDecl *PVD);
 };
 
 class FieldFinder : public RecursiveASTVisitor<FieldFinder> {
