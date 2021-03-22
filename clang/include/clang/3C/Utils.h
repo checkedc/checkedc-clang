@@ -139,7 +139,7 @@ bool isPtrOrArrayType(const clang::QualType &QT);
 bool isVarArgType(const std::string &TypeName);
 
 // Check if the variable is of a structure or union type.
-bool isStructOrUnionType(clang::VarDecl *VD);
+bool isStructOrUnionType(clang::DeclaratorDecl *VD);
 
 // Helper method to print a Type in a way that can be represented in the source.
 // If Name is given, it is included as the variable name (which otherwise isn't

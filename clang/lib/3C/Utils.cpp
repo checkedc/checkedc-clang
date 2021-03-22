@@ -224,9 +224,9 @@ bool isPtrOrArrayType(const clang::QualType &QT) {
   return QT->isPointerType() || QT->isArrayType();
 }
 
-bool isStructOrUnionType(clang::VarDecl *VD) {
-  return VD->getType().getTypePtr()->isStructureType() ||
-         VD->getType().getTypePtr()->isUnionType();
+bool isStructOrUnionType(clang::DeclaratorDecl *DD) {
+  return DD->getType().getTypePtr()->isStructureType() ||
+         DD->getType().getTypePtr()->isUnionType();
 }
 
 std::string qtyToStr(clang::QualType QT, const std::string &Name) {

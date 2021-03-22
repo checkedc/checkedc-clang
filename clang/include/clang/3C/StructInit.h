@@ -37,7 +37,7 @@ public:
   bool VisitDeclStmt(DeclStmt *S);
 
 private:
-  bool variableNeedsInitializer(VarDecl *VD);
+  bool hasCheckedMembers(DeclaratorDecl *DD);
   void insertVarDecl(VarDecl *VD, DeclStmt *S);
 
   ASTContext *Context;
