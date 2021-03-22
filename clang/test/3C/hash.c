@@ -35,7 +35,7 @@ vsf_sysutil_memclr(void* p_dest : itype(_Array_ptr<T>) byte_count(size), unsigne
 }
 
 typedef unsigned int (*hashfunc_t)(unsigned int, void*);
-//CHECK_ALL: typedef _Ptr<unsigned int (unsigned int , void *)> hashfunc_t;
+//CHECK_ALL: typedef _Ptr<unsigned int (unsigned int, void*)> hashfunc_t;
 
 struct hash* hash_alloc(unsigned int buckets, unsigned int key_size,
                         unsigned int value_size, hashfunc_t hash_func);

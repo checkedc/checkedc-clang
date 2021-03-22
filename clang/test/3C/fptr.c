@@ -15,7 +15,7 @@ char* bar(int x) {
 int f(char c) { 
   //CHECK: int f(char c) _Checked {
   int (*x)(char*) = &foo;
-  //CHECK: _Ptr<int (char * : itype(_Ptr<char>))> x = &foo;
+  //CHECK: _Ptr<int (char* : itype(_Ptr<char>))> x = &foo;
 
   return 0;
 }

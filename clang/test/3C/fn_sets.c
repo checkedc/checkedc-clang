@@ -72,7 +72,7 @@ int *e() {
 	//CHECK: return (int*) 1;
 }
 int *i() {
-	//CHECK: _Ptr<int> i(void) _Checked  {
+	//CHECK: _Ptr<int> i(void) _Checked {
   return 0;
 }
 

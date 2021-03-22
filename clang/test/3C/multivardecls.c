@@ -77,7 +77,7 @@ void test2() {
 
   int h, (*i)(int), *j, (*k)(int);
 // CHECK: int h;
-// CHECK: _Ptr<int (int )> i = ((void *)0);
+// CHECK: _Ptr<int (int)> i = ((void *)0);
 // CHECK: _Ptr<int> j = ((void *)0);
 // CHECK: int (*k)(int);
 

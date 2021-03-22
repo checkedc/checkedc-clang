@@ -72,7 +72,7 @@ void fret_driver(void) {
 //CHECK-NEXT: int *d = fry();
 
 typedef int *(*fooptr)(int*, int);
-//CHECK: typedef _Ptr<_Ptr<int> (_Ptr<int> , int )> fooptr;
+//CHECK: typedef _Ptr<_Ptr<int> (_Ptr<int> , int)> fooptr;
 
 int *good_mut(int *a, int b) {
   *a = b;

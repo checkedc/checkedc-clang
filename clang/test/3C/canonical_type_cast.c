@@ -32,11 +32,11 @@ int add1(int a){
 void h() {
 	//CHECK: void h() _Checked {
   int (*x)(int) = add1;
-	//CHECK: _Ptr<int (int )> x = add1;
+	//CHECK: _Ptr<int (int)> x = add1;
 }
 
 void i() {
 	//CHECK: void i() _Checked {
   int (*x)(int) = (int(*)(int))add1;
-	//CHECK: _Ptr<int (int )> x = (_Ptr<int (int )>)add1;
+	//CHECK: _Ptr<int (int)> x = (_Ptr<int (int )>)add1;
 }

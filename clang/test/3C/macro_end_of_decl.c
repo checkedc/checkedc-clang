@@ -12,7 +12,7 @@
 # define OF(args) args
 typedef void (*alloc_func) OF((int, int, int));
 alloc_func zalloc;
-//CHECK: typedef _Ptr<void (int , int , int )> alloc_func;
+//CHECK: typedef _Ptr<void (int, int, int)> alloc_func;
 //CHECK: alloc_func zalloc = ((void *)0);
 
 // Some more contrived examples demonstrating the same issue.

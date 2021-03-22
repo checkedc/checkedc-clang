@@ -33,6 +33,20 @@ void foo(int i, ...) {
   va_end(ap);
 }
 
+// Test for issue 484. va_list should not be expanded to anything else.
+// Expanding it to struct __va_list_tag * causes compiler error on libtiff.
+// Expanding to __builtin_va_list doesn't cause an error, but va_list is still
+// preferable.
+
+void bar(va_list y, int *z) { }
+void (*baz)(va_list, int *);
+typedef void (*fiz)(va_list, int *);
+typedef void fuz(va_list, int *);
+//CHECK: void bar(va_list y, _Ptr<int> z) { }
+//CHECK: _Ptr<void (va_list, _Ptr<int> )> baz = ((void *)0);
+//CHECK: typedef _Ptr<void (va_list, _Ptr<int> )> fiz;
+//CHECK: typedef void fuz(va_list, _Ptr<int> );
+
 /*force output*/
 int *p;
 	//CHECK: _Ptr<int> p = ((void *)0);

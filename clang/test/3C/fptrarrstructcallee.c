@@ -47,14 +47,14 @@ struct fptrarr {
     char *name;
 	//CHECK: char *name;
     int (*mapper)(int);
-	//CHECK: _Ptr<int (int )> mapper;
+	//CHECK: _Ptr<int (int)> mapper;
 };
 
 struct fptr { 
     int *value; 
 	//CHECK: _Ptr<int> value; 
     int (*func)(int);
-	//CHECK: _Ptr<int (int )> func;
+	//CHECK: _Ptr<int (int)> func;
 };  
 
 struct arrfptr { 
@@ -63,7 +63,7 @@ struct arrfptr {
 	//CHECK_ALL: int args _Checked[5]; 
     int (*funcs[5]) (int);
 	//CHECK_NOALL: int (*funcs[5]) (int);
-	//CHECK_ALL: _Ptr<int (int )> funcs _Checked[5];
+	//CHECK_ALL: _Ptr<int (int)> funcs _Checked[5];
 };
 
 int add1(int x) { 
