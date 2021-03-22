@@ -106,6 +106,10 @@ namespace clang {
   // StmtSet denotes a set of Stmts.
   using StmtSet = llvm::SmallPtrSet<const Stmt *, 16>;
 
+  // The BoundsAnalysis class represents the dataflow analysis for bounds
+  // widening. The In, Out, Gen and Kill sets used in the dataflow analysis are
+  // members of this class. It also has methods that act on these sets to
+  // perform the actual analysis.
   class BoundsAnalysis {
   private:
     Sema &S;
