@@ -32,9 +32,6 @@ const AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(Expr *E) {
 
 const AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(const VarDecl *V) {
   VarDecl *D = const_cast<VarDecl *>(V);
-  DeclRefExpr *VarUse =
-    DeclRefExpr::Create(S.getASTContext(), NestedNameSpecifierLoc(),
-                        SourceLocation(), D, false, SourceLocation(),
-                        D->getType(), ExprValueKind::VK_LValue);
+  DeclRefExpr *VarUse = ExprCreatorUtil::CreateVarUse(S, D);
   return GetOrCreateAbstractSet(VarUse);
 }
