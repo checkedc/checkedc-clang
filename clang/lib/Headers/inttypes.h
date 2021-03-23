@@ -104,7 +104,8 @@
 #endif
 
 #if defined __checkedc && !defined NO_IMPLICIT_INCLUDE_CHECKED_HDRS
-// Compiling for Checked C and implicit inclusion of checked headers is enabled
+// If compiling for Checked C and if implicit inclusion of checked headers is
+// enabled.
 #include <inttypes_checked_internal.h>
 #endif
 

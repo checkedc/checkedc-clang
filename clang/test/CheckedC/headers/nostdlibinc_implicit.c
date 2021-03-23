@@ -13,7 +13,7 @@
 //      includes (via #include_next), is not found.
 // The -MM -MG preprocessor options list the header files not found.
 //
-// RUN: %clang -target x86_64-unknown-unknown -nostdlibinc -ffreestanding -MM -MG %s | FileCheck -check-prefix=CHECK %s
+// RUN: %clang -target x86_64-unknown-unknown -nostdlibinc -ffreestanding -MM -MG %s | FileCheck %s
 
 
 #if defined(__has_include)
