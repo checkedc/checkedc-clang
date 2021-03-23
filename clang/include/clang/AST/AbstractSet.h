@@ -86,6 +86,8 @@ namespace clang {
     // AbstractSet for E.
     AbstractSet *GetOrCreateAbstractSet(Expr *E);
 
+    // Returns the AbstractSet that contains a use of the VarDecl.
+    AbstractSet *GetOrCreateAbstractSet(const VarDecl *V);
   };
 } // end namespace clang
 
