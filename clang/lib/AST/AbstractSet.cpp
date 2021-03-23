@@ -2,12 +2,10 @@
 
 using namespace clang;
 
-std::set<PreorderAST *, PreorderASTComparer> AbstractSetManager::SortedPreorderASTs;
-llvm::DenseMap<PreorderAST *, AbstractSet *> AbstractSetManager::PreorderASTAbstractSetMap;
 
-AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(Expr *E, ASTContext &Ctx) {
+AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(Expr *E) {
   // Create a canonical form for E.
-  PreorderAST *P = new PreorderAST(Ctx, E);
+  PreorderAST *P = new PreorderAST(S.getASTContext(), E);
   P->Normalize();
 
   // Search for an existing PreorderAST that is equivalent to the canonical
@@ -26,14 +24,10 @@ AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(Expr *E, ASTContext &Ctx
 
   // If there is no existing AbstractSet that contains E, create a new
   // AbstractSet that contains E.
-  AbstractSet *A = new AbstractSet(*P);
-  A->SetRepresentative(E);
+  AbstractSet *A = new AbstractSet(*P, E);
   SortedPreorderASTs.emplace(P);
   PreorderASTAbstractSetMap[P] = A;
   return A;
 }
 
-void AbstractSetManager::Clear(void) {
-  SortedPreorderASTs.clear();
-  PreorderASTAbstractSetMap.clear();
 }
