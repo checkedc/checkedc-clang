@@ -2665,57 +2665,24 @@ namespace {
       }
    }
 
-   void ResetKilledBounds(StmtDeclSetTy &KilledBounds, Stmt *St,
-                          CheckingState &State) {
-     auto I = KilledBounds.find(St);
-     if (I == KilledBounds.end())
-       return;
+   void UpdateWidenedBounds(BoundsAnalysis &BA, const CFGBlock *Block,
+                            CheckingState &State) {
+     for (const auto item : BA.GetWidenedBounds(Block)) {
+       const VarDecl *V = item.first;
+       BoundsExpr *Bounds = item.second;
 
-     // KilledBounds stores a mapping of statements to all variables whose
-     // bounds are killed by each statement. Here we reset the bounds of all
-     // variables that are in scope at the statement S and whose bounds are
-     // killed by S to the normalized declared bounds.
-     for (const VarDecl *V : I->second) {
-       if (State.ObservedBounds.find(V) != State.ObservedBounds.end()) {
-         if (BoundsExpr *Bounds = S.NormalizeBounds(V))
-           State.ObservedBounds[V] = Bounds;
-       }
+       auto I = State.ObservedBounds.find(V);
+       if (I != State.ObservedBounds.end())
+         I->second = Bounds;
      }
    }
 
-   void UpdateCtxWithWidenedBounds(BoundsMapTy &WidenedBounds,
-                                   CheckingState &State) {
-     // WidenedBounds contains the mapping from _Nt_array_ptr to the offset by
-     // which its declared bounds should be widened. In this function we apply
-     // the offset to the declared bounds of the _Nt_array_ptr and update its
-     // bounds in ObservedBounds.
-
-     for (const auto item : WidenedBounds) {
-       const VarDecl *V = item.first;
-       unsigned Offset = item.second;
-
-       // We normalize the declared bounds to RangeBoundsExpr here so that we
-       // can easily apply the offset to the upper bound.
-       BoundsExpr *Bounds = S.NormalizeBounds(V);
-       if (RangeBoundsExpr *RBE = dyn_cast<RangeBoundsExpr>(Bounds)) {
-         const llvm::APInt
-           APIntOff(Context.getTargetInfo().getPointerWidth(0), Offset);
-         IntegerLiteral *WidenedOffset =
-           ExprCreatorUtil::CreateIntegerLiteral(Context, APIntOff);
-
-         Expr *Lower = RBE->getLowerExpr();
-         Expr *Upper = RBE->getUpperExpr();
-
-         // WidenedUpperBound = UpperBound + WidenedOffset.
-         Expr *WidenedUpper = ExprCreatorUtil::CreateBinaryOperator(
-                                S, Upper, WidenedOffset,
-                                BinaryOperatorKind::BO_Add);
-
-         RangeBoundsExpr *R =
-           new (Context) RangeBoundsExpr(Lower, WidenedUpper,
-                                         SourceLocation(), SourceLocation());
-         State.ObservedBounds[V] = R;
-       }
+   void ResetKilledBounds(BoundsAnalysis &BA, const CFGBlock *Block,
+                          const Stmt *St, CheckingState &State) {
+     for (const VarDecl *V : BA.GetKilledBounds(Block, St)) {
+       auto I = State.ObservedBounds.find(V);
+       if (I != State.ObservedBounds.end())
+         I->second = S.NormalizeBounds(V);
      }
    }
 
@@ -2757,7 +2724,7 @@ namespace {
      IdentifyChecked(Body, MemoryCheckedStmts, BoundsCheckedStmts, CheckedScopeSpecifier::CSS_Unchecked);
 
      // Run the bounds widening analysis on this function.
-     BoundsAnalysis BA = getBoundsAnalyzer();
+     BoundsAnalysis &BA = getBoundsAnalyzer();
      BA.WidenBounds(FD, NestedElements);
      if (S.getLangOpts().DumpWidenedBounds)
        BA.DumpWidenedBounds(FD);
@@ -2768,14 +2735,8 @@ namespace {
        AFA.GetFacts(Facts);
        CheckingState BlockState = GetIncomingBlockState(Block, BlockStates);
 
-       // Get the widened bounds for the current block as computed by the
-       // bounds widening analysis invoked by WidenBounds above.
-       BoundsMapTy WidenedBounds = BA.GetWidenedBounds(Block);
-       // Also get the bounds killed (if any) by each statement in the current
-       // block.
-       StmtDeclSetTy KilledBounds = BA.GetKilledBounds(Block);
        // Update the observed bounds with the widened bounds calculated above.
-       UpdateCtxWithWidenedBounds(WidenedBounds, BlockState);
+       UpdateWidenedBounds(BA, Block, BlockState);
 
        for (CFGElement Elem : *Block) {
          if (Elem.getKind() == CFGElement::Statement) {
@@ -2822,8 +2783,7 @@ namespace {
 
             // For each variable v in ObservedBounds, check that the
             // observed bounds of v imply the declared bounds of v.
-            ValidateBoundsContext(S, BlockState, WidenedBounds,
-                                  KilledBounds, CSS);
+            ValidateBoundsContext(S, BlockState, CSS, Block);
 
             // The observed bounds that were updated after checking S should
             // only be used to check that the updated observed bounds imply
@@ -2837,7 +2797,7 @@ namespace {
             // Resetting the widened bounds killed by S should be the last
             // thing done as part of traversing S.  The widened bounds of each
             // variable should be in effect until the very end of traversing S.
-            ResetKilledBounds(KilledBounds, S, BlockState);
+            ResetKilledBounds(BA, Block, S, BlockState);
          }
        }
        if (Block->getBlockID() != Cfg->getEntry().getBlockID())
@@ -3928,12 +3888,8 @@ namespace {
         StateFalseArm.ObservedBounds = FalseBounds;
 
         // Validate the bounds that were updated in either arm.
-        BoundsMapTy WidenedBounds;
-        StmtDeclSetTy KilledBounds;
-        ValidateBoundsContext(E->getTrueExpr(), StateTrueArm, WidenedBounds,
-                              KilledBounds, CSS);
-        ValidateBoundsContext(E->getFalseExpr(), StateFalseArm, WidenedBounds,
-                              KilledBounds, CSS);
+        ValidateBoundsContext(E->getTrueExpr(), StateTrueArm, CSS);
+        ValidateBoundsContext(E->getFalseExpr(), StateFalseArm, CSS);
 
         // For each variable v whose bounds were updated in the true or false arm,
         // reset the observed bounds of v to the declared bounds of v.
@@ -4315,7 +4271,7 @@ namespace {
       return ExpandToRange(Base, BE);
     }
 
-    BoundsAnalysis getBoundsAnalyzer() { return BoundsAnalyzer; }
+    BoundsAnalysis &getBoundsAnalyzer() { return BoundsAnalyzer; }
 
   private:
     // Sets the bounds expressions based on whether e is an lvalue or an
@@ -4337,9 +4293,8 @@ namespace {
     // statement S, for each variable v in the checking state observed bounds
     // context, the observed bounds of v imply the declared bounds of v.
     void ValidateBoundsContext(Stmt *S, CheckingState State,
-                               BoundsMapTy WidenedBounds,
-                               StmtDeclSetTy KilledBounds,
-                               CheckedScopeSpecifier CSS) {
+                               CheckedScopeSpecifier CSS,
+                               const CFGBlock *Block = nullptr) {
       // Construct a set of sets of equivalent expressions that contains all
       // the equality facts in State.EquivExprs, as well as any equality facts
       // implied by State.TargetSrcEquality.  These equality facts will only
@@ -4363,6 +4318,10 @@ namespace {
           EquivExprs.push_back({Target, Src});
       }
 
+      BoundsAnalysis &BA = getBoundsAnalyzer();
+      DeclSetTy BoundsWidenedAndNotKilled =
+        BA.GetBoundsWidenedAndNotKilled(Block, S);
+
       for (auto const &Pair : State.ObservedBounds) {
         const VarDecl *V = Pair.first;
         BoundsExpr *ObservedBounds = Pair.second;
@@ -4371,9 +4330,16 @@ namespace {
           continue;
         if (ObservedBounds->isUnknown())
           DiagnoseUnknownObservedBounds(S, V, DeclaredBounds, State);
-        else
+        else {
+          // We should issue diagnostics for observed bounds if the variable V
+          // is not in the set BoundsWidenedAndNotKilled which represents
+          // variables whose bounds are widened in this block and not killed by
+          // statement S.
+          bool DiagnoseObservedBounds = BoundsWidenedAndNotKilled.find(V) ==
+                                        BoundsWidenedAndNotKilled.end();
           CheckObservedBounds(S, V, DeclaredBounds, ObservedBounds, State,
-                              &EquivExprs, WidenedBounds, KilledBounds, CSS);
+                              &EquivExprs, CSS, Block, DiagnoseObservedBounds);
+        }
       }
     }
 
@@ -4426,9 +4392,9 @@ namespace {
                              BoundsExpr *DeclaredBounds,
                              BoundsExpr *ObservedBounds, CheckingState State,
                              EquivExprSets *EquivExprs,
-                             BoundsMapTy WidenedBounds,
-                             StmtDeclSetTy KilledBounds,
-                             CheckedScopeSpecifier CSS) {
+                             CheckedScopeSpecifier CSS,
+                             const CFGBlock *Block,
+                             bool DiagnoseObservedBounds) {
       ProofFailure Cause;
       FreeVariableListTy FreeVars;
       ProofResult Result = ProveBoundsDeclValidity(
@@ -4447,13 +4413,8 @@ namespace {
       // observed upper bound (p + 0) + 1.
       // TODO: checkedc-clang issue #867: the widened bounds of a variable
       // should provably imply the declared bounds of a variable.
-      if (WidenedBounds.find(V) != WidenedBounds.end()) {
-        auto I = KilledBounds.find(St);
-        if (I == KilledBounds.end())
-          return;
-        if (I->second.find(V) == I->second.end())
-          return;
-      }
+      if (!DiagnoseObservedBounds)
+        return;
       
       // Which diagnostic message to print?
       unsigned DiagId =
