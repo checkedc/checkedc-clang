@@ -609,11 +609,9 @@ ProgramInfo::insertNewFVConstraint(FunctionDecl *FD, FVConstraint *NewC,
     DiagBuilder.AddTaggedVal(Pointer, Kind);
     DiagBuilder.AddString(ReasonFailed);
   }
-  // Kill the process and stop conversion
-  // Without this code here, 3C simply ignores this pair of functions
-  // and converts the rest of the files as it will (in semi-compliance
-  // with Mike's (2) listed on the original issue (#283)
-  exit(1);
+  // A failed merge will provide poor data, but the diagnostic error report
+  // will cause the program to terminate after the variable adder step.
+  return (*Map)[FuncName];
 }
 
 void ProgramInfo::specialCaseVarIntros(ValueDecl *D, ASTContext *Context) {

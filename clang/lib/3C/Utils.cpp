@@ -173,12 +173,6 @@ std::error_code tryGetCanonicalFilePath(const std::string &FileName,
   return EC;
 }
 
-void getCanonicalFilePath(const std::string &FileName,
-                          std::string &AbsoluteFp) {
-  std::error_code EC = tryGetCanonicalFilePath(FileName, AbsoluteFp);
-  assert(!EC && "tryGetCanonicalFilePath failed");
-}
-
 bool filePathStartsWith(const std::string &Path, const std::string &Prefix) {
   // If the path exactly equals the prefix, don't ruin it by appending a
   // separator to the prefix. (This may never happen in 3C, but let's get it

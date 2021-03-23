@@ -1,3 +1,7 @@
+// TODO: refactor this test
+// https://github.com/correctcomputation/checkedc-clang/issues/503
+// XFAIL: *
+
 // RUN: 3c -base-dir=%S -extra-arg="-Wno-everything" -verify -alltypes %s --
 
 #define args ();

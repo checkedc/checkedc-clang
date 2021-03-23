@@ -104,7 +104,10 @@ public:
          const std::vector<std::string> &SourceFileList,
          clang::tooling::CompilationDatabase *CompDB);
 
-  // Constraint Building.
+  // Call clang to provide the data
+  bool parseASTs();
+
+  // Constraints
 
   // Create ConstraintVariables to hold constraints
   bool addVariables();
@@ -134,13 +137,14 @@ public:
   // Write all converted versions of the files in the source file list
   // to disk
   bool writeAllConvertedFilesToDisk();
-  // Write the current converted state of the provided file.
-  bool writeConvertedFileToDisk(const std::string &FilePath);
 
 private:
   _3CInterface(const struct _3COptions &CCopt,
                const std::vector<std::string> &SourceFileList,
                clang::tooling::CompilationDatabase *CompDB, bool &Failed);
+
+  // saved ASTs
+  std::vector< std::unique_ptr< ASTUnit >> ASTs;
 
   // Are constraints already built?
   bool ConstraintsBuilt;
