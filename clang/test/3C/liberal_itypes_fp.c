@@ -106,3 +106,11 @@ void fptr_itype_test(void) {
     baz(fptr2);
     //CHECK: baz(fptr2);
 }
+
+void fn_ptrptr(int **a) { *a = 1; }
+void fptr_ptrptr_test() {
+  void (*fn)(int **) = &fn_ptrptr;
+}
+//CHECK: void fn_ptrptr(int **a : itype(_Ptr<_Ptr<int>>)) { *a = 1; }
+//CHECK: void fptr_ptrptr_test() _Checked {
+//CHECK:   _Ptr<void (int ** : itype(_Ptr<_Ptr<int>>))> fn = &fn_ptrptr;

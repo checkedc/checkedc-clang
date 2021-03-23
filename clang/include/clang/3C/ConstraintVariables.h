@@ -84,7 +84,7 @@ public:
   // the name of the variable, false for just the type.
   // The 'forIType' parameter is true when the generated string is expected
   // to be used inside an itype.
-  virtual std::string mkString(const EnvironmentMap &E, bool EmitName = true,
+  virtual std::string mkString(Constraints &CS, bool EmitName = true,
                                bool ForItype = false, bool EmitPointee = false,
                                bool UnmaskTypedef = false) const = 0;
 
@@ -399,7 +399,7 @@ public:
 
   std::string gatherQualStrings(void) const;
 
-  std::string mkString(const EnvironmentMap &E, bool EmitName = true,
+  std::string mkString(Constraints &CS, bool EmitName = true,
                        bool ForItype = false, bool EmitPointee = false,
                        bool UnmaskTypedef = false) const override;
 
@@ -470,9 +470,15 @@ public:
 
   void mergeDeclaration(FVComponentVariable *From, ProgramInfo &I,
                         std::string &ReasonFailed);
-  std::string mkItypeStr(const EnvironmentMap &E) const;
-  std::string mkTypeStr(const EnvironmentMap &E, bool EmitName) const;
-  std::string mkString(const EnvironmentMap &E) const;
+  std::string mkItypeStr(Constraints &CS) const;
+  std::string mkTypeStr(Constraints &CS, bool EmitName) const;
+  std::string mkString(Constraints &CS) const;
+
+  bool hasItypeSolution(Constraints &CS) const;
+  bool hasCheckedSolution(Constraints &CS) const;
+
+  PVConstraint *getInternal() const { return InternalConstraint; }
+  PVConstraint *getExternal() const { return ExternalConstraint; }
 };
 
 // Constraints on a function type. Also contains a 'name' parameter for
@@ -524,6 +530,10 @@ public:
     return ReturnVar.InternalConstraint;
   }
 
+  const FVComponentVariable *getCombineReturn() const {
+    return &ReturnVar;
+  }
+
   size_t numParams() const { return ParamVars.size(); }
 
   bool hasProtoType() const { return Hasproto; }
@@ -548,6 +558,11 @@ public:
     return ParamVars.at(I).InternalConstraint;
   }
 
+  const FVComponentVariable *getCombineParam(unsigned I) const {
+    assert(I < ParamVars.size());
+    return &ParamVars.at(I);
+  }
+
   bool srcHasItype() const override;
   bool srcHasBounds() const override;
 
@@ -558,7 +573,7 @@ public:
   bool solutionEqualTo(Constraints &CS, const ConstraintVariable *CV,
                        bool ComparePtyp = true) const override;
 
-  std::string mkString(const EnvironmentMap &E, bool EmitName = true,
+  std::string mkString(Constraints &CS, bool EmitName = true,
                        bool ForItype = false, bool EmitPointee = false,
                        bool UnmaskTypedef = false) const override;
   void print(llvm::raw_ostream &O) const override;

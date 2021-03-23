@@ -378,7 +378,8 @@ private:
     for (auto *CV : CVSingleton)
       // Replace the original type with this new one if the type has changed.
       if (CV->anyChanges(Vars))
-        rewriteSourceRange(Writer, Range, CV->mkString(Vars, false));
+        rewriteSourceRange(Writer, Range,
+                           CV->mkString(Info.getConstraints(), false));
   }
 };
 
@@ -406,7 +407,7 @@ public:
           if (Entry.second != nullptr) {
             AllInconsistent = false;
             std::string TyStr = Entry.second->mkString(
-                Info.getConstraints().getVariables(), false, false, true);
+                Info.getConstraints(), false, false, true);
             if (TyStr.back() == ' ')
               TyStr.pop_back();
             TypeParamString += TyStr + ",";
