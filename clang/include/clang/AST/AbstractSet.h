@@ -47,14 +47,14 @@ namespace clang {
 
     // The comparison between two AbstractSets is the same as the
     // lexicographic comparison between their CanonicalForms.
-    Result Compare(AbstractSet &Other) {
+    Result Compare(AbstractSet &Other) const {
       return CanonicalForm.Compare(Other.CanonicalForm);
     }
 
-    bool operator<(AbstractSet &Other) {
+    bool operator<(AbstractSet &Other) const {
       return Compare(Other) == Result::LessThan;
     }
-    bool operator==(AbstractSet &Other) {
+    bool operator==(AbstractSet &Other) const {
       return Compare(Other) == Result::Equal;
     }
   };
