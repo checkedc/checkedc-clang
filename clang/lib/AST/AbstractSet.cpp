@@ -1,4 +1,5 @@
 #include "clang/AST/AbstractSet.h"
+#include "clang/AST/ExprUtils.h"
 
 using namespace clang;
 
