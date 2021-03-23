@@ -74,4 +74,13 @@ void valid_cases_exprstmt(_Nt_array_ptr<char> p, int a) {
   b = a _Where a > b _And a != b;
   p = 0 _Where p : bounds(p, p + 1) _And a < 1;
 L1: a = 0 _Where a > 1;
+
+  // For an ExprStmt with commas, a where clause can be attached at the end of
+  // the ExprStmt. This is because the entire expression including commas is
+  // parsed as one ExprStmt. Hence a where clause can only be attached at the
+  // end of this ExprStmt.
+  int x, y, z;
+  x = 1, y = 2, z = 3 _Where x > 0 _And y > 1 _And z > 2;
+
+  for (int i = 0 _Where i != 0; i > 0; i ++) {}
 }

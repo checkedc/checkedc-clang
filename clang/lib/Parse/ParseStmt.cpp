@@ -514,10 +514,8 @@ StmtResult Parser::ParseExprStatement(ParsedStmtContext StmtCtx) {
     return StmtRes;
 
   ValueStmt *VS = dyn_cast<ValueStmt>(StmtRes.get());
-  if (!VS) {
-    Diag(Tok, diag::err_invalid_stmt_where_clause);
-    return StmtError();
-  }
+  if (!VS)
+    llvm_unreachable("where clause on invalid statement");
 
   VS->setWhereClause(WClause);
   return StmtRes;
