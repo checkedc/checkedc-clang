@@ -75,7 +75,7 @@ namespace clang {
     // to the AbstractSet whose CanonicalForm is P. This is used to retrieve
     // the AbstractSet whose CanonicalForm already exists in SortedPreorderASTs
     // (if any).
-    llvm::DenseMap<PreorderAST *, AbstractSet *> PreorderASTAbstractSetMap;
+    llvm::DenseMap<PreorderAST *, const AbstractSet *> PreorderASTAbstractSetMap;
 
   public:
     AbstractSetManager(Sema &S) : S(S) {}
@@ -84,10 +84,10 @@ namespace clang {
     // there is an AbstractSet A in SortedAbstractSets that contains E,
     // GetOrCreateAbstractSet returns A. Otherwise, it creates a new
     // AbstractSet for E.
-    AbstractSet *GetOrCreateAbstractSet(Expr *E);
+    const AbstractSet *GetOrCreateAbstractSet(Expr *E);
 
     // Returns the AbstractSet that contains a use of the VarDecl.
-    AbstractSet *GetOrCreateAbstractSet(const VarDecl *V);
+    const AbstractSet *GetOrCreateAbstractSet(const VarDecl *V);
   };
 } // end namespace clang
 

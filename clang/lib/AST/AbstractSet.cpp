@@ -3,7 +3,7 @@
 using namespace clang;
 
 
-AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(Expr *E) {
+const AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(Expr *E) {
   // Create a canonical form for E.
   PreorderAST *P = new PreorderAST(S.getASTContext(), E);
   P->Normalize();
@@ -24,13 +24,13 @@ AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(Expr *E) {
 
   // If there is no existing AbstractSet that contains E, create a new
   // AbstractSet that contains E.
-  AbstractSet *A = new AbstractSet(*P, E);
+  const AbstractSet *A = new AbstractSet(*P, E);
   SortedPreorderASTs.emplace(P);
   PreorderASTAbstractSetMap[P] = A;
   return A;
 }
 
-AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(const VarDecl *V) {
+const AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(const VarDecl *V) {
   VarDecl *D = const_cast<VarDecl *>(V);
   DeclRefExpr *VarUse =
     DeclRefExpr::Create(S.getASTContext(), NestedNameSpecifierLoc(),
