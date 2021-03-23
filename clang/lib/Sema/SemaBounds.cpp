@@ -2413,10 +2413,7 @@ namespace {
       if (Temp ||  S.CheckIsNonModifying(Src, Sema::NonModifyingContext::NMC_Unknown,
                                          Sema::NonModifyingMessage::NMM_None)) {
         // TODO: make sure variable being initialized isn't read by Src.
-        DeclRefExpr *TargetDeclRef =
-          DeclRefExpr::Create(S.getASTContext(), NestedNameSpecifierLoc(),
-                              SourceLocation(), D, false, SourceLocation(),
-                              D->getType(), ExprValueKind::VK_LValue);
+        DeclRefExpr *TargetDeclRef = ExprCreatorUtil::CreateVarUse(S, D);
         CastKind Kind;
         QualType TargetTy;
         if (D->getType()->isArrayType()) {
@@ -3756,10 +3753,7 @@ namespace {
 
         // Create an rvalue expression for v. v could be an array or
         // non-array variable.
-        DeclRefExpr *TargetDeclRef =
-          DeclRefExpr::Create(S.getASTContext(), NestedNameSpecifierLoc(),
-                              SourceLocation(), D, false, SourceLocation(),
-                              D->getType(), ExprValueKind::VK_LValue);
+        DeclRefExpr *TargetDeclRef = ExprCreatorUtil::CreateVarUse(S, D);
         CastKind Kind;
         QualType TargetTy;
         if (D->getType()->isArrayType()) {
