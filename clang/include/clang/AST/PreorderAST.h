@@ -143,7 +143,7 @@ namespace clang {
     // @param[in] N2 is the second node.
     // @return Returns a Lexicographic::Result indicating the comparison
     // of N1 and N2.
-    Result Compare(Node *N1, Node *N2) const;
+    Result Compare(const Node *N1, const Node *N2) const;
 
     // Set Error in case an error occurs during transformation of the AST.
     void SetError() { Error = true; }
@@ -186,7 +186,7 @@ namespace clang {
     // @param[in] P is the second AST.
     // @return Returns a Lexicographic::Result indicating the comparison between
     // the two ASTs.
-    Result Compare(PreorderAST &P) const { return Compare(Root, P.Root); }
+    Result Compare(const PreorderAST P) const { return Compare(Root, P.Root); }
 
     // Check if an error has occurred during transformation of the AST. This
     // is intended to be called from outside this class to check if an error

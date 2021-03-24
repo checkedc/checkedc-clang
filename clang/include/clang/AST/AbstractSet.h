@@ -47,7 +47,7 @@ namespace clang {
 
     // The comparison between two AbstractSets is the same as the
     // lexicographic comparison between their CanonicalForms.
-    Result Compare(AbstractSet &Other) const {
+    Result Compare(const AbstractSet Other) const {
       return CanonicalForm.Compare(Other.CanonicalForm);
     }
 
