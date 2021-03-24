@@ -37,6 +37,9 @@ public:
   static ImplicitCastExpr *CreateImplicitCast(Sema &SemaRef, Expr *E,
                                               CastKind CK, QualType T);
 
+  // Create a use of a VarDecl.
+  static DeclRefExpr *CreateVarUse(Sema &SemaRef, VarDecl *V);
+
   // If e is an rvalue, EnsureRValue returns e. Otherwise, EnsureRValue
   // returns a cast of e to an rvalue, based on the type of e.
   static Expr *EnsureRValue(Sema &SemaRef, Expr *E);

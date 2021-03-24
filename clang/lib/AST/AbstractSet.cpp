@@ -1,13 +1,12 @@
 #include "clang/AST/AbstractSet.h"
+#include "clang/AST/ExprUtils.h"
 
 using namespace clang;
 
-std::set<PreorderAST *, PreorderASTComparer> AbstractSetManager::SortedPreorderASTs;
-llvm::DenseMap<PreorderAST *, AbstractSet *> AbstractSetManager::PreorderASTAbstractSetMap;
 
-AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(Expr *E, ASTContext &Ctx) {
+const AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(Expr *E) {
   // Create a canonical form for E.
-  PreorderAST *P = new PreorderAST(Ctx, E);
+  PreorderAST *P = new PreorderAST(S.getASTContext(), E);
   P->Normalize();
 
   // Search for an existing PreorderAST that is equivalent to the canonical
@@ -26,14 +25,14 @@ AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(Expr *E, ASTContext &Ctx
 
   // If there is no existing AbstractSet that contains E, create a new
   // AbstractSet that contains E.
-  AbstractSet *A = new AbstractSet(*P);
-  A->SetRepresentative(E);
+  const AbstractSet *A = new AbstractSet(*P, E);
   SortedPreorderASTs.emplace(P);
   PreorderASTAbstractSetMap[P] = A;
   return A;
 }
 
-void AbstractSetManager::Clear(void) {
-  SortedPreorderASTs.clear();
-  PreorderASTAbstractSetMap.clear();
+const AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(const VarDecl *V) {
+  VarDecl *D = const_cast<VarDecl *>(V);
+  DeclRefExpr *VarUse = ExprCreatorUtil::CreateVarUse(S, D);
+  return GetOrCreateAbstractSet(VarUse);
 }
