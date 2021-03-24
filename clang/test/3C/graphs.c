@@ -4,7 +4,6 @@
 // RUN: 3c -output-postfix=checked -alltypes %s
 // RUN: 3c -alltypes %S/graphs.checked.c -- | count 0
 // RUN: rm %S/graphs.checked.c
-// UNSUPPORTED: system-windows
 
 #include <stdio.h>
 

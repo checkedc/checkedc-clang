@@ -1,7 +1,6 @@
 // RUN: 3c -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
 // RUN: 3c %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
 // RUN: 3c %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
-// UNSUPPORTED: system-windows
 
 #include <stdio.h>
 #include <stdlib.h>

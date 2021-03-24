@@ -4,7 +4,6 @@
 // RUN: 3c -output-postfix=checked -alltypes %s
 // RUN: 3c -alltypes %S/linkedlist.checked.c -- | count 0
 // RUN: rm %S/linkedlist.checked.c
-// UNSUPPORTED: system-windows
 
 #include <stdio.h>
 

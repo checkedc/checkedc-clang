@@ -4,7 +4,6 @@
 // RUN: 3c -output-postfix=checked -alltypes %s
 // RUN: 3c -alltypes %S/3d-allocation.checked.c -- | count 0
 // RUN: rm %S/3d-allocation.checked.c
-// UNSUPPORTED: system-windows
 
 #include <stdio.h>
 #include <stdlib.h>
