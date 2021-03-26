@@ -5993,8 +5993,8 @@ namespace {
         // associated temporary would also need to be recorded.
         Sema::NonModifyingMessage Message =
           (CSS == CheckedScopeSpecifier::CSS_Unchecked) ?
-          Message = Sema::NonModifyingMessage::NMM_None :
-          Message = Sema::NonModifyingMessage::NMM_Error;
+          Sema::NonModifyingMessage::NMM_None :
+          Sema::NonModifyingMessage::NMM_Error;
         ReturnBounds =
           S.ConcretizeFromFunctionTypeWithArgs(FunBounds, ArgExprs,
                        Sema::NonModifyingContext::NMC_Function_Return, Message);
