@@ -3,7 +3,6 @@
 
 using namespace clang;
 
-
 const AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(Expr *E) {
   // Create a canonical form for E.
   PreorderAST *P = new PreorderAST(S.getASTContext(), E);
@@ -18,9 +17,8 @@ const AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(Expr *E) {
     // is equivalent to ExistingCanonicalForm, then that AbstractSet is the
     // one that contains E.
     auto It = PreorderASTAbstractSetMap.find(ExistingCanonicalForm);
-    if (It != PreorderASTAbstractSetMap.end()) {
+    if (It != PreorderASTAbstractSetMap.end())
       return It->second;
-    }
   }
 
   // If there is no existing AbstractSet that contains E, create a new
