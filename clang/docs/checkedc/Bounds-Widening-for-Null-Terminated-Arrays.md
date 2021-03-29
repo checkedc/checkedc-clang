@@ -13,120 +13,186 @@ terminator. This gives rise to the following observation:
 **The bounds of a null-terminated array can be widened based on the number of
 elements read.**
 
+The bounds of a null-terminated array can also be widened using a where clause.
+In the example below the bounds of the null-terminated-array `p` are widened to
+`bounds(p, p + x)`.
+```
+  void f(_Nt_array_ptr<char> p) {
+    int x = strlen(p) _Where p : bounds(p, p + x);
+  }
+```
+
 In the next sections we describe a dataflow analysis to widen bounds for
 null-terminated arrays.
 
 ## Dataflow Analysis Properties
-The key properties of the dataflow analysis are described below:
+The properties of the dataflow analysis are described below:
 
-1. **Forward:** The basic blocks of the function are traversed in reverse
+1. **Notations:** We use `V` to denote a null-terminated array, `X` to denote a
+widened bounds offset, `S` to denote a statement, and `B` and `B'` to denote basic
+blocks.
+
+2. **Universal Set:** The universal set `U` for the dataflow analysis is the
+set pairs `Uv:Ux` such that `Uv` is the set of all null-terminated arrays in
+the function and `Ux` is the union of all integer constants and all integer
+variables in the function.
+
+3. **Dataflow Facts:** The dataflow facts that flow through the analysis are a
+set of pairs `V:X` such that `V` is the set of null-terminated arrays and `X`
+is the widened bounds offset for each null-terminated array.
+
+4. **Forward:** The basic blocks of the function are traversed in reverse
 post-order. In other words, a basic block is visited before its successors.
 
-2. **Path-sensitive:** Path-sensitivity means that the dataflow analysis
+5. **Path-sensitive:** Path-sensitivity means that the dataflow analysis
 generates different facts on the `then` and `else` branches.
 
-3. **Flow-sensitive:** Flow-sensitivity means that the sequence of instructions
+6. **Flow-sensitive:** Flow-sensitivity means that the sequence of instructions
 in a basic block is taken into consideration when performing the analysis.
 
-4. **Intra-procedural:** The analysis is done on one function at a time.
+7. **Intra-procedural:** The analysis is done on one function at a time.
 
 ## Dataflow Analysis Details
-For every basic block, we compute the following sets: `In` and `Kill`. The `In`
-set for basic block `B` is denoted as `In[B]` and the `Kill` set is denoted as
-`Kill[B]`.
+For every basic block `B`, we compute the sets `In[B]` and `Out[B]`.
 
-For every edge, we compute the following sets: `Out` and `Gen`. The `Out` set on
-edge `Bi->Bj` is denoted as `Out[Bi][Bj]` and the `Gen` set is denoted as
-`Gen[Bi][Bj]`.
+For every statement `S`, we compute the sets `Gen[S]`, `Kill[S]`, `StmtIn[S]`
+and `StmtOut[S]`.
+
+Only the sets `In[B]` and `Out[B]` are part of the fixed-point computation. The
+sets `Gen[S]` and `Kill[S]` are computed **before** the fixed-point computation
+while the sets `StmtIn[S]` and `StmtOut[S]` are computed **after** the
+fixed-point computation.
+
+The widened bounds offset `X` could either be an integer constant or a integer
+variable. If the bounds of a null-terminated array `V` are `bounds(V + Low, V +
+High)` then `X` represents the widened bounds offset such that the widened
+bounds for `V` are `bounds(V + Low, V + High + X)`.
+
+### Gen[S]
+`Gen[S]` denotes the mapping between null-terminated arrays and widened bounds
+offsets such that at statement `S` the bounds of the null-terminated array `V`
+should be widened by the offset `X`.
+
+Dataflow equation:
+```
+If S is the terminating condition for block B:
+  If S dereferences at (upper_bound(V) + X) ∧ X is an integer constant:
+    Gen[S] = Gen[S] ∪ {V:X}
+
+Else if W is a where_clause ∧ W annotates S ∧ W declares V : bounds(V, V + X):
+  Gen[S] = Gen[S] ∪ {V:X}
+```
+
+### Kill[S]
+`Kill[S]` denotes the set of null-terminated arrays whose bounds are killed by
+the statement `S`.
+
+Dataflow equation:
+```
+If S assigns to V ∨
+   S assigns to Z ∧ Z is a variable ∧ Z is used in bounds(V) ∨
+   W is a where_clause ∧ W annotates S ∧ W declares bounds(V):
+  Kill[S] = Kill[S] ∪ {V}
+```
 
 ### In[B]
-`In[B]` stores the mapping between an `_Nt_array_ptr` and its widened bounds
-inside block `B`. For example, given `_Nt_array_ptr V` with declared bounds
-`(V + low, V + high)`, `In[B]` would store the mapping `{V:i}`, where `i` is an
-unsigned integer implying that the bounds of `V` should be widened to
-`(V + low, V + high + i)`.
+`In[B]` denotes the mapping between null-terminated arrays and their widened
+bounds offsets upon entry to block `B`. The `In` set for a block `B` is
+computed as the intersection of the `Out` sets of all the predecessor blocks of
+`B`.
+
+For basic blocks `Bi` and `Bj`, where `Out[Bi] = {V:Xi, W:Y}` and `Out[Bj] =
+{V:Xj, U:Z}` we define the intersection of the `Out` sets as follows:
+
+```
+Out[Bi] ∩ Out[Bj] = {V:min(Xi, Xj)}, if both Xi and Xj are integer constants
+                  = ∅, if either Xi or Xj is not an integer constant
+```
 
 Dataflow equation:
-`In[B] = ∩ Out[B'][B], where B' ∈ preds(B)`.
-
-### Kill[B]
-In block `B`, the bounds for an `_Nt_array_ptr V` are said to be killed by a
-statement `S` if:
-1. `V` is assigned to in `S`, or
-2. a variable used in the declared bounds of `V` is assigned to in `S`.
-Thus, `Kill[B]` stores the mapping between a statement `S` and `_Nt_array_ptr's`
-whose bounds are killed in `S`.
-
-### Gen[Bi][Bj]
-Given `_Nt_array_ptr V` with declared bounds `(V + low, V + high)`, the bounds
-of `V` can be widened by 1 if `V` is dereferenced at its current upper bound.
-This means that if there is an edge `Bi->Bj` which is the "True" edge for the
-condition `if (*(V + high + i))`, where `i` is an unsigned integer offset, the
-widened bounds `{V:i+1}` can be added to `Gen[Bi][Bj]`, provided we have
-already tested for pointer access of the form `if (*(V + high + (i - 1)))`.
-
-Note: For this dataflow analysis the actual value at the upper bound does not
-matter and we don't explicitly check that value as part of the analysis. The
-actual value is determined at runtime. Accordingly, if the value at the upper
-bound is non-null then we would widen the bounds on the true edge of an `if`
-condition.
-
-For example:
 ```
-_Nt_array_ptr<T> V : bounds (V + low, V + high);
-if (*V) { // Ptr dereference is NOT at the current upper bound. No bounds widening.
-  if (*(V + high)) { // Ptr dereference is at the current upper bound. Widen bounds by 1. New bounds for V are (V + low, V + high + 1).
-    if (*(V + high + 1)) { // Ptr dereference is at the current upper bound. Widen bounds by 1. New bounds for V are (V + low, V + high + 2).
-      if (*(V + high + 3)) { // Ptr dereference is NOT at the current upper bound. No bounds widening. Flag an error!
+∀ B' ∈ pred(B),
+If S is the terminating condition for block B' ∧ S dereferences V at upper_bound(V):
+  If element at upper_bound(V) is provably non-null:
+    In[B] = In[B] ∩ Out[B']
+  Else:
+    In[B] = In[B] ∩ (Out[B'] - Gen[S])
 ```
 
-### Out[Bi][Bj]
-`Out[Bi][Bj]` denotes the bounds widened by block `Bi` on edge `Bi->Bj`.
+### Out[B]
+`Out[B]` denotes the mapping between null-terminated arrays and their widened
+bounds offsets at the end of block `B`.
 
 Dataflow equation:
-`Out[Bi][Bj] = (In[Bi] - Kill[Bi]) ∪ Gen[Bi][Bj], where Bj ∈ succ(Bi)`.
-
-### Initial values of In and Out sets
-
-To compute `In[B]`, we compute the intersection of `Out[B'][B]`, where `B'` are
-all preds of block `B`. When there is a back edge from block `B'` to `B` (for
-example in the case of loops), the `Out` set for block `B'` will be empty. As a
-result, the intersection operation would always result in an empty set `In[B]`.
-
-So to handle this, we initialize the `In` and `Out` sets for all blocks to
-`Top`. `Top` represents the union of the `Gen` sets of all edges. We have
-chosen the offsets of ptr variables in `Top` to be `UINT_MAX`. The reason
-behind this is that in order to compute the actual `In` sets for blocks we are
-going to intersect the `Out` sets on all the incoming edges of the block. And
-in that case we would always pick the ptr with the smaller offset. Choosing
-`UINT_MAX` also makes handling `Top` much easier as we do not need to
-explicitly store edge info.
-
-Thus, we have the following two equations for `Top`:
 ```
-Top = ∪ Gen[Bi][Bj]
-Top[V] = ∞
+∀ statements S ∈ B, i ∈ {1,...,n},
+let Kill[B] = ∪ Kill[Si]
+let Gen[B] = ∪ Gen[Si]
+
+Out[B] = (In[B] - Kill[B]) ∪ Gen[B]
 ```
 
-And the following initial values for all blocks:
+### StmtIn[S]
+`StmtIn[S]` denotes the mapping between null-terminated arrays and their widened
+bounds offsets at the start of statement `S`.
+
+Dataflow equation:
 ```
-In[B] = Top
-Out[Bi][Bj] = Top, where Bj ∈ succ(Bi)
+If S is first_statement(B):
+  StmtIn[S] = In[B]
+Else:
+  StmtIn[S] = StmtOut[S'], where S' ∈ pred(S)
+```
+
+### StmtOut[S]
+`StmtOut[S]` denotes the mapping between null-terminated arrays and their
+widened bounds offsets at the end of statement `S`.
+
+Dataflow equation:
+```
+StmtOut[S] = (StmtIn[S] - Kill[S]) ∪ Gen[S]
+```
+
+### Initial values of `In[B]` and `Out[B]`
+From the dataflow equations defined above, we know that:
+```
+In[B] = In[B] ∩ Out[B'], ∀ B' ∈ pred(B)
+```
+
+But what are the initial values of the `In[B]` and `Out[B]`? If their initial
+values are `∅` then the intersection would always produce an empty set and we
+would not be able to propagate the widened bounds for any null-terminated
+array.
+
+So we initialize the initial values of `In[B]` and `Out[B]` to `Gen[B]` that
+denotes the union of the `Gen` sets for all statements in a block.
+```
+∀ statements S ∈ B, i ∈ {1,...,n},
+Gen[B] = Gen[B] ∪ Gen[Si]
+```
+
+We define the union operation used above as follows:
+```
+For statements Si and Sj, let Gen[Si] = {V:Xi, W:Y} and Gen[Sj] = {V:Xj, U:Z},
+If Xi > Xj:
+  Gen[Si] ∪ Gen[Sj] = {V:Xi, W:Y, U:Z}
+Else:
+  Gen[Si] ∪ Gen[Sj] = {V:Xj, W:Y, U:Z}
+```
+
+Thus, for all blocks we have the following initial values for `In[B]` and
+`Out[B]`:
+```
+In[B] = Out[B] = Gen[B]
 ```
 
 Now, we also need to handle the case where there is an unconditional jump into
 a block (for example, as a result of a `goto`). In this case, we cannot widen
-the bounds because we would not have tested the ptr dereference on the
-unconditional edge. So in this case we want the intersection (and hence the
-`In` set) to result in an empty set.
+the bounds because we cannot provably infer that the element at upper_bound(V) is non-null on the unconditional edge. So in this case we want the intersection (and hence the `In` set) to be an empty set. To handle this case we initialize the `In` and `Out` sets of the `Entry` block to `∅`.
 
-So we initialize the `In` and `Out` sets of all blocks to `Top`, except the
-`Entry` block.
-
-Thus, we have the following initial values for the `Entry` block:
+Thus, we have the following initial values for `In[Entry]` and `Out[Entry]`:
 ```
-In[Entry] = ∅
-Out[Entry][B'] = ∅, where B' ∈ succs(Entry)
+In[Entry] = Out[Entry] = ∅
 ```
 
 ## Implementation Details
