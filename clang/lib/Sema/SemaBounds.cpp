@@ -924,28 +924,28 @@ namespace {
         OS << "{ }\n";
       else {
         // The keys in an llvm::DenseMap are unordered.  Create a set of
-        // variable declarations in the context ordered first by name,
-        // then by location in order to guarantee a deterministic output
-        // so that printing the bounds context can be tested.
-        std::vector<const VarDecl *> OrderedDecls;
+        // abstract sets in the context sorted lexicographically in order
+        // to guarantee a deterministic output so that printing the bounds
+        // context can be tested.
+        std::vector<const AbstractSet *> OrderedSets;
         for (auto const &Pair : BoundsContext)
-          OrderedDecls.push_back(Pair.first);
-        llvm::sort(OrderedDecls.begin(), OrderedDecls.end(),
-             [] (const VarDecl *A, const VarDecl *B) {
-               if (A->getNameAsString() == B->getNameAsString())
-                 return A->getLocation() < B->getLocation();
-               else
-                 return A->getNameAsString() < B->getNameAsString();
+          OrderedSets.push_back(Pair.first);
+        llvm::sort(OrderedSets.begin(), OrderedSets.end(),
+             [] (const AbstractSet *A, const AbstractSet *B) {
+               return *A < *B;
              });
 
         OS << "{\n";
-        for (auto I = OrderedDecls.begin(); I != OrderedDecls.end(); ++I) {
-          const VarDecl *Variable = *I;
-          auto It = BoundsContext.find(Variable);
+        for (auto I = OrderedSets.begin(); I != OrderedSets.end(); ++I) {
+          const AbstractSet *A = *I;
+          auto It = BoundsContext.find(A);
           if (It == BoundsContext.end())
             continue;
+          const VarDecl *V = A->GetVarDecl();
+          if (!V)
+            continue;
           OS << "Variable:\n";
-          Variable->dump(OS);
+          V->dump(OS);
           OS << "Bounds:\n";
           It->second->dump(OS, Context);
         }
