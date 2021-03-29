@@ -2806,14 +2806,14 @@ namespace {
             if (DumpState)
               DumpCheckingState(llvm::outs(), S, BlockState);
 
-            // For each variable v in ObservedBounds, check that the
-            // observed bounds of v imply the declared bounds of v.
+            // For each AbstractSet A in ObservedBounds, check that the
+            // observed bounds of A imply the declared bounds of A.
             ValidateBoundsContext(S, BlockState, CSS, Block);
 
             // The observed bounds that were updated after checking S should
             // only be used to check that the updated observed bounds imply
             // the declared variable bounds.  After checking the observed and
-            // declared bounds, the observed bounds for each variable should
+            // declared bounds, the observed bounds for each AbstractSet should
             // be reset to their observed bounds from before checking S.
             BlockState.ObservedBounds = InitialObservedBounds;
 
