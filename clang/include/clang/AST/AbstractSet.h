@@ -49,10 +49,10 @@ namespace clang {
       return CanonicalForm.Compare(Other.CanonicalForm);
     }
 
-    bool operator<(AbstractSet &Other) const {
+    bool operator<(const AbstractSet Other) const {
       return Compare(Other) == Result::LessThan;
     }
-    bool operator==(AbstractSet &Other) const {
+    bool operator==(const AbstractSet Other) const {
       return Compare(Other) == Result::Equal;
     }
   };
