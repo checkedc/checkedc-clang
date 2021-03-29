@@ -4643,31 +4643,34 @@ namespace {
       // Determine whether V has declared bounds.
       VarDecl *VariableDecl = dyn_cast_or_null<VarDecl>(V->getDecl());
       BoundsExpr *DeclaredBounds;
+      const AbstractSet *VariableAbstractSet = nullptr;
       if (VariableDecl)
         DeclaredBounds = VariableDecl->getBoundsExpr();
 
       // If V has declared bounds, set ObservedBounds[V] to SrcBounds.
-      if (DeclaredBounds)
-        State.ObservedBounds[VariableDecl] = SrcBounds;
+      if (DeclaredBounds) {
+        VariableAbstractSet = AbstractSetMgr.GetOrCreateAbstractSet(V);
+        State.ObservedBounds[VariableAbstractSet] = SrcBounds;
+      }
 
       // If Src initially has unknown bounds (before making any variable
       // replacements), use Src to explain bounds checking errors that
       // can occur when validating the bounds context.
       if (DeclaredBounds) {
         if (SrcBounds->isUnknown())
-          State.UnknownSrcBounds[VariableDecl].push_back(Src);
+          State.UnknownSrcBounds[VariableAbstractSet].push_back(Src);
       }
 
       // Adjust ObservedBounds to account for any uses of V in the bounds.
       for (auto const &Pair : State.ObservedBounds) {
-        const VarDecl *W = Pair.first;
+        const AbstractSet *W = Pair.first;
         BoundsExpr *Bounds = Pair.second;
         BoundsExpr *AdjustedBounds = ReplaceVariableInBounds(Bounds, V, OriginalValue, CSS);
         if (!Bounds->isUnknown() && AdjustedBounds->isUnknown())
           State.LostVariables[W] = std::make_pair(Bounds, V);
 
-        // If E modifies the bounds of W, add the pair to BlameAssignments.  We
-        // can check this cheaply by comparing the pointer values of
+        // If E modifies the bounds of W, add the pair to BlameAssignments.
+        // We can check this cheaply by comparing the pointer values of
         // AdjustedBounds and Bounds because ReplaceVariableInBounds returns
         // Bounds as AdjustedBounds if Bounds is not adjusted.
         if (AdjustedBounds != Bounds)
@@ -4679,18 +4682,18 @@ namespace {
       // bounds, record the updated observed bounds for V.
       BoundsExpr *AdjustedSrcBounds = ReplaceVariableInBounds(SrcBounds, V, OriginalValue, CSS);
       if (DeclaredBounds)
-        State.ObservedBounds[VariableDecl] = AdjustedSrcBounds;
+        State.ObservedBounds[VariableAbstractSet] = AdjustedSrcBounds;
 
-      // Record that E updates the observed bounds of VariableDecl.
+      // Record that E updates the observed bounds of V.
       if (DeclaredBounds)
-        State.BlameAssignments[VariableDecl] = E;
+        State.BlameAssignments[VariableAbstractSet] = E;
 
       // If the initial source bounds were not unknown, but they are unknown
       // after replacing uses of V, then the assignment to V caused the
       // source bounds (which are the observed bounds for V) to be unknown.
       if (DeclaredBounds) {
         if (!SrcBounds->isUnknown() && AdjustedSrcBounds->isUnknown())
-          State.LostVariables[VariableDecl] = std::make_pair(SrcBounds, V);
+          State.LostVariables[VariableAbstractSet] = std::make_pair(SrcBounds, V);
       }
 
       // Adjust EquivExprs to account for any uses of V in PrevState.EquivExprs.
