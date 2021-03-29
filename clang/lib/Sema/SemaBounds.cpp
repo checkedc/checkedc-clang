@@ -3034,6 +3034,42 @@ namespace {
       }
     }
 
+    // Infer bounds for the target of an lvalue expression.
+    // Values assigned through the lvalue must satisfy the target bounds.
+    // Values read through the lvalue will meet the target bounds.
+    BoundsExpr *GetLValueTargetBounds(Expr *E, CheckedScopeSpecifier CSS) {
+      if (!E->isLValue())
+        return CreateBoundsInferenceError();
+
+      // The type for inferring the target bounds cannot ever be an array
+      // type, as these are dealt with by an array conversion, not an lvalue
+      // conversion. The bounds for an array conversion are the same as the
+      // lvalue bounds of the array-typed expression.
+      if (E->getType()->isArrayType())
+        return CreateBoundsInferenceError();
+
+      E = E->IgnoreParens();
+
+      switch (E->getStmtClass()) {
+        case Expr::DeclRefExprClass:
+          return DeclRefExprTargetBounds(cast<DeclRefExpr>(E), CSS);
+        case Expr::UnaryOperatorClass:
+          return UnaryOperatorTargetBounds(cast<UnaryOperator>(E), CSS);
+        case Expr::ArraySubscriptExprClass:
+          return ArraySubscriptExprTargetBounds(cast<ArraySubscriptExpr>(E),
+                                                CSS);
+        case Expr::MemberExprClass:
+          return MemberExprTargetBounds(cast<MemberExpr>(E), CSS);
+        case Expr::ImplicitCastExprClass:
+          return LValueCastTargetBounds(cast<ImplicitCastExpr>(E), CSS);
+        case Expr::CHKCBindTemporaryExprClass:
+          return LValueTempBindingTargetBounds(cast<CHKCBindTemporaryExpr>(E),
+                                               CSS);
+        default:
+          return CreateBoundsInferenceError();
+      }
+    }
+
     // CheckChildren recursively checks and performs any side effects on the
     // children of a statement or expression, throwing away the resulting
     // bounds.
@@ -5705,42 +5741,6 @@ namespace {
       Expr *AddrOf = CreateAddressOfOperator(ME);
       BoundsExpr* Bounds = CreateSingleElementBounds(AddrOf);
       return cast<BoundsExpr>(PruneTemporaryBindings(S, Bounds, CSS));
-    }
-
-    // Infer bounds for the target of an lvalue expression.
-    // Values assigned through the lvalue must satisfy the target bounds.
-    // Values read through the lvalue will meet the target bounds.
-    BoundsExpr *GetLValueTargetBounds(Expr *E, CheckedScopeSpecifier CSS) {
-      if (!E->isLValue())
-        return CreateBoundsInferenceError();
-
-      // The type for inferring the target bounds cannot ever be an array
-      // type, as these are dealt with by an array conversion, not an lvalue
-      // conversion. The bounds for an array conversion are the same as the
-      // lvalue bounds of the array-typed expression.
-      if (E->getType()->isArrayType())
-        return CreateBoundsInferenceError();
-
-      E = E->IgnoreParens();
-
-      switch (E->getStmtClass()) {
-        case Expr::DeclRefExprClass:
-          return DeclRefExprTargetBounds(cast<DeclRefExpr>(E), CSS);
-        case Expr::UnaryOperatorClass:
-          return UnaryOperatorTargetBounds(cast<UnaryOperator>(E), CSS);
-        case Expr::ArraySubscriptExprClass:
-          return ArraySubscriptExprTargetBounds(cast<ArraySubscriptExpr>(E),
-                                                CSS);
-        case Expr::MemberExprClass:
-          return MemberExprTargetBounds(cast<MemberExpr>(E), CSS);
-        case Expr::ImplicitCastExprClass:
-          return LValueCastTargetBounds(cast<ImplicitCastExpr>(E), CSS);
-        case Expr::CHKCBindTemporaryExprClass:
-          return LValueTempBindingTargetBounds(cast<CHKCBindTemporaryExpr>(E),
-                                               CSS);
-        default:
-          return CreateBoundsInferenceError();
-      }
     }
 
     // Infer bounds for the target of a variable.
