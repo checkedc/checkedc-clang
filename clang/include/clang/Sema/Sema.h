@@ -5737,6 +5737,11 @@ public:
   // will expand it to a range bounds expression.
   BoundsExpr *ExpandBoundsToRange(const VarDecl *D, const BoundsExpr *B);
 
+  // Returns the declared bounds for the lvalue expression E. Assignments
+  // to E must satisfy these bounds. After checking a top-level statement,
+  // the inferred bounds of E must imply these declared bounds.
+  BoundsExpr *GetLValueDeclaredBounds(Expr *E);
+
   //
   // Track variables that in-scope bounds declarations depend upon.
   // TODO: generalize this to other lvalue expressions.

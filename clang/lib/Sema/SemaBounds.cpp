@@ -6649,3 +6649,17 @@ BoundsExpr *Sema::ExpandBoundsToRange(const VarDecl *D, const BoundsExpr *B) {
   return CBD.ExpandToRange(const_cast<VarDecl *>(D),
                            const_cast<BoundsExpr *>(B));
 }
+
+// Returns the declared bounds for the lvalue expression E. Assignments
+// to E must satisfy these bounds. After checking a top-level statement,
+// the inferred bounds of E must imply these declared bounds.
+BoundsExpr *Sema::GetLValueDeclaredBounds(Expr *E) {
+  if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
+    if (const VarDecl *V = dyn_cast_or_null<VarDecl>(DRE->getDecl()))
+      return NormalizeBounds(V);
+  }
+
+  std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
+  CheckBoundsDeclarations CBD(*this, EmptyFacts);
+  return CBD.GetLValueTargetBounds(E, CheckedScopeSpecifier::CSS_Unchecked);
+}
