@@ -43,6 +43,20 @@ namespace clang {
       return Representative;
     }
 
+    // Returns the VarDecl, if any, associated with the Representative
+    // expression for this AbstractSet.
+    // This VarDecl is used by bounds declaration checking to emit
+    // diagnostics for statements that invalidate the inferred bounds of
+    // the lvalue expressions in the AbstractSet.
+    const VarDecl *GetVarDecl() const {
+      if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(Representative)) {
+        if (const VarDecl *V = dyn_cast<VarDecl>(DRE->getDecl()))
+          return V;
+        return nullptr;
+      }
+      return nullptr;
+    }
+
     // The comparison between two AbstractSets is the same as the
     // lexicographic comparison between their CanonicalForms.
     Result Compare(const AbstractSet Other) const {
