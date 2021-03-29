@@ -5983,9 +5983,12 @@ namespace {
           // This also accounts for variables that have widened bounds.
           if (DeclRefExpr *V = GetRValueVariable(E)) {
             if (const VarDecl *D = dyn_cast_or_null<VarDecl>(V->getDecl())) {
-              auto It = State.ObservedBounds.find(D);
-              if (It != State.ObservedBounds.end())
-                return It->second;
+              if (D->hasBoundsExpr()) {
+                const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
+                auto It = State.ObservedBounds.find(A);
+                if (It != State.ObservedBounds.end())
+                  return It->second;
+              }
             }
           }
           // If an lvalue to rvalue cast e is not the value of a variable
@@ -6000,9 +6003,12 @@ namespace {
           // widened bounds.
           if (DeclRefExpr *V = GetRValueVariable(E)) {
             if (const VarDecl *D = dyn_cast_or_null<VarDecl>(V->getDecl())) {
-              auto It = State.ObservedBounds.find(D);
-              if (It != State.ObservedBounds.end())
-                return It->second;
+              if (D->hasBoundsExpr()) {
+                const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
+                auto It = State.ObservedBounds.find(A);
+                if (It != State.ObservedBounds.end())
+                  return It->second;
+              }
             }
           }
           // If an array to pointer cast e is not the value of a variable
