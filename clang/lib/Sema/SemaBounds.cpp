@@ -2673,21 +2673,33 @@ namespace {
    }
 
    void UpdateWidenedBounds(BoundsAnalysis &BA, const CFGBlock *Block,
+                            AbstractSetManager AbstractSetMgr,
                             CheckingState &State) {
      for (const auto item : BA.GetWidenedBounds(Block)) {
        const VarDecl *V = item.first;
        BoundsExpr *Bounds = item.second;
 
-       auto I = State.ObservedBounds.find(V);
+       // BoundsAnalysis currently uses VarDecls as keys in the widened
+       // bounds data structure, so we create an AbstractSet for each 
+       // VarDecl in the widened bounds. TODO: use AbstractSets as keys
+       // in BoundsAnalysis (checkedc-clang issue #1015).
+       const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
+       auto I = State.ObservedBounds.find(A);
        if (I != State.ObservedBounds.end())
          I->second = Bounds;
      }
    }
 
    void ResetKilledBounds(BoundsAnalysis &BA, const CFGBlock *Block,
-                          const Stmt *St, CheckingState &State) {
+                          const Stmt *St, AbstractSetManager AbstractSetMgr,
+                          CheckingState &State) {
      for (const VarDecl *V : BA.GetKilledBounds(Block, St)) {
-       auto I = State.ObservedBounds.find(V);
+       // BoundsAnalysis currently uses VarDecls as keys in the killed
+       // bounds data structure, so we create an AbstractSet for each
+       // VarDecl in the killed bounds. TODO: use AbstractSets as keys
+       // in BoundsAnalysis (checkedc-clang issue #1015).
+       const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
+       auto I = State.ObservedBounds.find(A);
        if (I != State.ObservedBounds.end())
          I->second = S.NormalizeBounds(V);
      }
@@ -2749,7 +2761,7 @@ namespace {
        CheckingState BlockState = GetIncomingBlockState(Block, BlockStates);
 
        // Update the observed bounds with the widened bounds calculated above.
-       UpdateWidenedBounds(BA, Block, BlockState);
+       UpdateWidenedBounds(BA, Block, AbstractSetMgr, BlockState);
 
        for (CFGElement Elem : *Block) {
          if (Elem.getKind() == CFGElement::Statement) {
@@ -2810,7 +2822,7 @@ namespace {
             // Resetting the widened bounds killed by S should be the last
             // thing done as part of traversing S.  The widened bounds of each
             // variable should be in effect until the very end of traversing S.
-            ResetKilledBounds(BA, Block, S, BlockState);
+            ResetKilledBounds(BA, Block, S, AbstractSetMgr, BlockState);
          }
        }
        if (Block->getBlockID() != Cfg->getEntry().getBlockID())
