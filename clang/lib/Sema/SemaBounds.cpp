@@ -5301,24 +5301,25 @@ namespace {
       return BlockState;
     }
 
-    // ContextDifference returns a bounds context containing all variables
-    // v in Context1 where Context1[v] != Context2[v].
+    // ContextDifference returns a bounds context containing all AbstractSets
+    // A in Context1 where Context1[A] != Context2[A].
     BoundsContextTy ContextDifference(BoundsContextTy Context1,
                                       BoundsContextTy Context2) {
       BoundsContextTy Difference;
       for (const auto &Pair : Context1) {
-        const VarDecl *V = Pair.first;
+        const AbstractSet *A = Pair.first;
         BoundsExpr *B = Pair.second;
-        auto It = Context2.find(V);
+        auto It = Context2.find(A);
         if (It == Context2.end() || !EqualValue(Context, B, It->second, nullptr)) {
-          Difference[V] = B;
+          Difference[A] = B;
         }
       }
       return Difference;
     }
 
     // EqualContexts returns true if Context1 and Context2 contain the same
-    // sets of variables, and for each variable v, Context1[v] == Context2[v].
+    // sets of AbstractSets as keys, and for each key AbstractSet A,
+    // Context1[A] == Context2[A].
     bool EqualContexts(BoundsContextTy Context1, BoundsContextTy Context2) {
       if (Context1.size() != Context2.size())
         return false;
@@ -5337,21 +5338,21 @@ namespace {
     // IntersectBoundsContexts returns a bounds context resulting from taking
     // the intersection of the contexts Context1 and Context2.
     //
-    // For each variable declaration v that is in both Context1 and Contex2,
-    // the intersected context maps v to its normalized declared bounds.
-    // Context1 or Context2 may map v to widened bounds, but those bounds
+    // For each AbstractSet A that is in both Context1 and Context2, the
+    // intersected context maps A to its normalized declared bounds.
+    // Context1 or Context2 may map A to widened bounds, but those bounds
     // should not persist across CFG blocks.  The observed bounds for each
-    // in-scope variable should be reset to its normalized declared bounds
+    // in-scope AbstractSet should be reset to its normalized declared bounds
     // at the beginning of a block, before widening the bounds in the block.
     BoundsContextTy IntersectBoundsContexts(BoundsContextTy Context1,
                                             BoundsContextTy Context2) {
       BoundsContextTy IntersectedContext;
       for (auto const &Pair : Context1) {
-        const VarDecl *D = Pair.first;
-        if (!Pair.second || !Context2.count(D))
+        const AbstractSet *A = Pair.first;
+        if (!Pair.second || !Context2.count(A))
           continue;
-        if (BoundsExpr *B = S.NormalizeBounds(D))
-          IntersectedContext[D] = B;
+        if (BoundsExpr *B = S.GetLValueDeclaredBounds(A->GetRepresentative()))
+          IntersectedContext[A] = B;
       }
       return IntersectedContext;
     }
