@@ -645,9 +645,9 @@ namespace {
 }
 
 namespace {
-  // BoundsContextTy denotes a map of a variable declaration to the bounds
-  // that are currently known to be valid for the variable.
-  using BoundsContextTy = llvm::DenseMap<const VarDecl *, BoundsExpr *>;
+  // BoundsContextTy denotes a map of an AbstractSet to the bounds that
+  // are currently known to be valid for the lvalue expressions in the set.
+  using BoundsContextTy = llvm::DenseMap<const AbstractSet *, BoundsExpr *>;
 
   // ExprSetTy denotes a set of expressions.
   using ExprSetTy = SmallVector<Expr *, 4>;
@@ -675,7 +675,7 @@ namespace {
   // and are updated while checking individual expressions.
   class CheckingState {
     public:
-      // ObservedBounds maps variables to their current known bounds as
+      // ObservedBounds maps AbstractSets to their current known bounds as
       // inferred by bounds checking.  These bounds are updated after
       // assignments to variables.
       //
@@ -703,37 +703,37 @@ namespace {
       // SameValue is named G in the Checked C spec.
       ExprSetTy SameValue;
 
-      // LostVariables maps a variable declaration V whose observed bounds
-      // are unknown to a pair <B, W>, where the initial observed bounds B
-      // of V have been set to unknown due to an assignment to the variable W,
-      // where W had no original value.
+      // LostVariables maps an AbstractSet A whose observed bounds are unknown
+      // to a pair <B, W>, where the initial observed bounds B of A have been
+      // set to unknown due to an assignment to the variable W, where W had no
+      // original value.
       //
       // LostVariables is used to emit notes to provide more context to the
       // user when diagnosing unknown bounds errors.
-      llvm::DenseMap<const VarDecl *, std::pair<BoundsExpr *, DeclRefExpr *>> LostVariables;
+      llvm::DenseMap<const AbstractSet *, std::pair<BoundsExpr *, DeclRefExpr *>> LostVariables;
 
-      // UnknownSrcBounds maps a variable declaration V whose observed bounds
-      // are unknown to a set of expressions with unknown bounds that have
-      // been assigned to V.
+      // UnknownSrcBounds maps an AbstractSet A whose observed bounds are
+      // unknown to a set of expressions with unknown bounds that have been
+      // assigned to A.
       //
       // UnknownSrcBounds is used to emit notes to provide more context to the
       // user when diagnosing unknown bounds errors.
-      llvm::DenseMap<const VarDecl *, SmallVector<Expr *, 4>> UnknownSrcBounds;
+      llvm::DenseMap<const AbstractSet *, SmallVector<Expr *, 4>> UnknownSrcBounds;
 
-      // BlameAssignments maps a variable declaration V to an expression in a
-      // top-level CFG statement that last updates any variable used in the
-      // declared bounds of V.
+      // BlameAssignments maps an AbstractSet A to an expression in a top-level
+      // CFG statement that last updates any variable used in the declared
+      // bounds of A.
       //
       // BlameAssignments is used to provide more context for two types of
       // diagnostic messages:
       //   1. The compiler cannot prove or can disprove the declared bounds for
-      //   V are valid after an assignment to a variable in the bounds of V; and
-      //   2. The inferred bounds of V become unknown after an assignment to a
-      //   variable in the bounds of V.
+      //   A are valid after an assignment to a variable in the bounds of A; and
+      //   2. The inferred bounds of A become unknown after an assignment to a
+      //   variable in the bounds of A.
       //
       // BlameAssignments is updated in UpdateAfterAssignment and reset after
       // checking each top-level CFG statement.
-      llvm::DenseMap<const VarDecl *, Expr *> BlameAssignments;
+      llvm::DenseMap<const AbstractSet *, Expr *> BlameAssignments;
 
       // TargetSrcEquality maps a target expression V to the most recent
       // expression Src that has been assigned to V within the current
