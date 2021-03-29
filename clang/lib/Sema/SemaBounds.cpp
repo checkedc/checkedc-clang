@@ -759,11 +759,11 @@ namespace {
     private:
       Sema &SemaRef;
       BoundsContextTy &BoundsContextRef;
-      AbstractSetManager AbstractSetMgr;
+      AbstractSetManager &AbstractSetMgr;
 
     public:
       DeclaredBoundsHelper(Sema &SemaRef, BoundsContextTy &Context,
-                           AbstractSetManager AbstractSetMgr) :
+                           AbstractSetManager &AbstractSetMgr) :
         SemaRef(SemaRef),
         BoundsContextRef(Context),
         AbstractSetMgr(AbstractSetMgr) {}
@@ -783,8 +783,10 @@ namespace {
           return true;
         // The bounds expressions in the bounds context should be normalized
         // to range bounds.
-        if (BoundsExpr *Bounds = SemaRef.NormalizeBounds(D))
-          BoundsContextRef[D] = Bounds;
+        if (BoundsExpr *Bounds = SemaRef.NormalizeBounds(D)) {
+          const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(D);
+          BoundsContextRef[A] = Bounds;
+        }
         return true;
       }
   };
@@ -792,7 +794,7 @@ namespace {
   // GetDeclaredBounds modifies the bounds context to map any variables
   // declared in S to their declared bounds (if any).
   void GetDeclaredBounds(Sema &SemaRef, BoundsContextTy &Context, Stmt *S,
-                         AbstractSetManager AbstractSetMgr) {
+                         AbstractSetManager &AbstractSetMgr) {
     DeclaredBoundsHelper Declared(SemaRef, Context, AbstractSetMgr);
     Declared.TraverseStmt(S);
   }
