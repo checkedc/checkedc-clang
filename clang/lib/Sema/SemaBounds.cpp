@@ -2719,8 +2719,10 @@ namespace {
        ParmVarDecl *Param = *I;
        if (!Param->hasBoundsExpr())
          continue;
-       if (BoundsExpr *Bounds = S.NormalizeBounds(Param))
-         ParamsState.ObservedBounds[Param] = Bounds;
+       if (BoundsExpr *Bounds = S.NormalizeBounds(Param)) {
+         const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(Param);
+         ParamsState.ObservedBounds[A] = Bounds;
+       }
      }
 
      // Store a checking state for each CFG block in order to track
