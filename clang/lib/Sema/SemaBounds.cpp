@@ -3791,6 +3791,8 @@ namespace {
 
       Expr *Init = D->getInit();
       BoundsExpr *InitBounds = nullptr;
+      const AbstractSet *A = nullptr;
+
       // If there is an initializer, check it, and update the state to record
       // expression equality implied by initialization. After checking Init,
       // State.SameValue will contain non-modifying expressions that produce
@@ -3801,6 +3803,7 @@ namespace {
         // Create an rvalue expression for v. v could be an array or
         // non-array variable.
         DeclRefExpr *TargetDeclRef = ExprCreatorUtil::CreateVarUse(S, D);
+        A = AbstractSetMgr.GetOrCreateAbstractSet(TargetDeclRef);
         CastKind Kind;
         QualType TargetTy;
         if (D->getType()->isArrayType()) {
@@ -3844,7 +3847,7 @@ namespace {
       if (Init && D->getType()->isScalarType()) {
         assert(D->getInitStyle() == VarDecl::InitializationStyle::CInit);
         InitBounds = S.CheckNonModifyingBounds(InitBounds, Init);
-        State.ObservedBounds[D] = InitBounds;
+        State.ObservedBounds[A] = InitBounds;
         if (InitBounds->isUnknown()) {
           if (CheckBounds)
             // TODO: need some place to record the initializer bounds
