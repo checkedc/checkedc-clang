@@ -3962,24 +3962,24 @@ namespace {
                                         StateFalseArm.ObservedBounds,
                                         State.ObservedBounds);
 
-        // For any variable v whose bounds were updated in the false arm
-        // but not in the true arm, the bounds of v in the true arm should
+        // For any AbstractSet A whose bounds were updated in the false arm
+        // but not in the true arm, the bounds of A in the true arm should
         // be validated as well. These bounds may be invalid, e.g. if the
-        // bounds of v were updated in the condition `e1`.
+        // bounds of A were updated in the condition `e1`.
         for (const auto &Pair : FalseBounds) {
-          const VarDecl *V = Pair.first;
-          if (TrueBounds.find(V) == TrueBounds.end())
-            TrueBounds[V] = StateTrueArm.ObservedBounds[V];
+          const AbstractSet *A = Pair.first;
+          if (TrueBounds.find(A) == TrueBounds.end())
+            TrueBounds[A] = StateTrueArm.ObservedBounds[A];
         }
         StateTrueArm.ObservedBounds = TrueBounds;
 
-        // For any variable v whose bounds were updated in the true arm
-        // but not in the false arm, the bounds of v in the false arm should
+        // For any variable A whose bounds were updated in the true arm
+        // but not in the false arm, the bounds of A in the false arm should
         // be validated as well.
         for (const auto &Pair : TrueBounds) {
-          const VarDecl *V = Pair.first;
-          if (FalseBounds.find(V) == FalseBounds.end())
-            FalseBounds[V] = StateFalseArm.ObservedBounds[V];
+          const AbstractSet *A = Pair.first;
+          if (FalseBounds.find(A) == FalseBounds.end())
+            FalseBounds[A] = StateFalseArm.ObservedBounds[A];
         }
         StateFalseArm.ObservedBounds = FalseBounds;
 
@@ -3990,14 +3990,16 @@ namespace {
         // For each variable v whose bounds were updated in the true or false arm,
         // reset the observed bounds of v to the declared bounds of v.
         for (const auto &Pair : StateTrueArm.ObservedBounds) {
-          const VarDecl *V = Pair.first;
-          BoundsExpr *DeclaredBounds = S.NormalizeBounds(V);
-          State.ObservedBounds[V] = DeclaredBounds;
+          const AbstractSet *A = Pair.first;
+          BoundsExpr *DeclaredBounds =
+            S.GetLValueDeclaredBounds(A->GetRepresentative());
+          State.ObservedBounds[A] = DeclaredBounds;
         }
         for (const auto &Pair : StateFalseArm.ObservedBounds) {
-          const VarDecl *V = Pair.first;
-          BoundsExpr *DeclaredBounds = S.NormalizeBounds(V);
-          State.ObservedBounds[V] = DeclaredBounds;
+          const AbstractSet *A = Pair.first;
+          BoundsExpr *DeclaredBounds =
+            S.GetLValueDeclaredBounds(A->GetRepresentative());
+          State.ObservedBounds[A] = DeclaredBounds;
         }
       }
 
