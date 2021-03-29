@@ -4429,13 +4429,17 @@ namespace {
         BA.GetBoundsWidenedAndNotKilled(Block, S);
 
       for (auto const &Pair : State.ObservedBounds) {
-        const VarDecl *V = Pair.first;
+        const AbstractSet *A = Pair.first;
+        const VarDecl *V = A->GetVarDecl();
+        if (!V)
+          continue;
         BoundsExpr *ObservedBounds = Pair.second;
-        BoundsExpr *DeclaredBounds = this->S.NormalizeBounds(V);
+        BoundsExpr *DeclaredBounds =
+          this->S.GetLValueDeclaredBounds(A->GetRepresentative());
         if (!DeclaredBounds || DeclaredBounds->isUnknown())
           continue;
         if (ObservedBounds->isUnknown())
-          DiagnoseUnknownObservedBounds(S, V, DeclaredBounds, State);
+          DiagnoseUnknownObservedBounds(S, A, DeclaredBounds, State);
         else {
           // We should issue diagnostics for observed bounds if the variable V
           // is not in the set BoundsWidenedAndNotKilled which represents
@@ -4443,30 +4447,34 @@ namespace {
           // statement S.
           bool DiagnoseObservedBounds = BoundsWidenedAndNotKilled.find(V) ==
                                         BoundsWidenedAndNotKilled.end();
-          CheckObservedBounds(S, V, DeclaredBounds, ObservedBounds, State,
+          CheckObservedBounds(S, A, DeclaredBounds, ObservedBounds, State,
                               &EquivExprs, CSS, Block, DiagnoseObservedBounds);
         }
       }
     }
 
-    // DiagnoseUnknownObservedBounds emits an error message for a variable v
-    // whose observed bounds are unknown after checking the top-level CFG
+    // DiagnoseUnknownObservedBounds emits an error message for an AbstractSet
+    // A whose observed bounds are unknown after checking the top-level CFG
     // statement St.
     //
     // State contains information that is used to provide more context in
     // the diagnostic messages.
-    void DiagnoseUnknownObservedBounds(Stmt *St, const VarDecl *V,
+    void DiagnoseUnknownObservedBounds(Stmt *St, const AbstractSet *A,
                                        BoundsExpr *DeclaredBounds,
                                        CheckingState State) {
-      BlameAssignmentWithinStmt(St, V, State,
+      const VarDecl *V = A->GetVarDecl();
+      if (!V)
+        return;
+
+      BlameAssignmentWithinStmt(St, A, State,
                                 diag::err_unknown_inferred_bounds);
       S.Diag(V->getLocation(), diag::note_declared_bounds)
         << DeclaredBounds << DeclaredBounds->getSourceRange();
 
-      // The observed bounds of v are unknown because the original observed
-      // bounds B of v used a variable w, and there was an assignment to w
+      // The observed bounds of A are unknown because the original observed
+      // bounds B of A used a variable w, and there was an assignment to w
       // where w had no original value.
-      auto LostVarIt = State.LostVariables.find(V);
+      auto LostVarIt = State.LostVariables.find(A);
       if (LostVarIt != State.LostVariables.end()) {
         std::pair<BoundsExpr *, DeclRefExpr *> Lost = LostVarIt->second;
         BoundsExpr *InitialObservedBounds = Lost.first;
@@ -4475,9 +4483,9 @@ namespace {
           << LostVar << InitialObservedBounds << V << LostVar->getSourceRange();
       }
 
-      // The observed bounds of v are unknown because at least one expression
-      // e with unknown bounds was assigned to v.
-      auto BlameSrcIt = State.UnknownSrcBounds.find(V);
+      // The observed bounds of A are unknown because at least one expression
+      // e with unknown bounds was assigned to an lvalue expression in A.
+      auto BlameSrcIt = State.UnknownSrcBounds.find(A);
       if (BlameSrcIt != State.UnknownSrcBounds.end()) {
         SmallVector<Expr *, 4> UnknownSources = BlameSrcIt->second;
         for (auto I = UnknownSources.begin(); I != UnknownSources.end(); ++I) {
@@ -4494,13 +4502,14 @@ namespace {
     //
     // EquivExprs contains all equality facts contained in State.EquivExprs,
     // as well as any equality facts implied by State.TargetSrcEquality.
-    void CheckObservedBounds(Stmt *St, const VarDecl *V,
+    void CheckObservedBounds(Stmt *St, const AbstractSet *A,
                              BoundsExpr *DeclaredBounds,
                              BoundsExpr *ObservedBounds, CheckingState State,
                              EquivExprSets *EquivExprs,
                              CheckedScopeSpecifier CSS,
                              const CFGBlock *Block,
                              bool DiagnoseObservedBounds) {
+      const VarDecl *V = A->GetVarDecl();
       ProofFailure Cause;
       FreeVariableListTy FreeVars;
       ProofResult Result = ProveBoundsDeclValidity(
@@ -4532,7 +4541,7 @@ namespace {
                      ? diag::warn_checked_scope_bounds_declaration_invalid
                      : diag::warn_bounds_declaration_invalid);
 
-      SourceLocation Loc = BlameAssignmentWithinStmt(St, V, State, DiagId);
+      SourceLocation Loc = BlameAssignmentWithinStmt(St, A, State, DiagId);
       if (Result == ProofResult::False)
         ExplainProofFailure(Loc, Cause, ProofStmtKind::BoundsDeclaration);
       
@@ -4551,10 +4560,12 @@ namespace {
     // or not provably valid.  If St is a DeclStmt, St itself and V are
     // highlighted.  BlameAssignmentWithinStmt returns the source location of
     // the blamed assignment.
-    SourceLocation BlameAssignmentWithinStmt(Stmt *St, const VarDecl *V,
+    SourceLocation BlameAssignmentWithinStmt(Stmt *St, const AbstractSet *A,
                                              CheckingState State,
                                              unsigned DiagId) const {
       assert(St);
+      const VarDecl *V = A->GetVarDecl();
+      assert(V);
       SourceRange SrcRange = St->getSourceRange();
       auto BDCType = Sema::BoundsDeclarationCheck::BDC_Statement;
 
@@ -4572,7 +4583,7 @@ namespace {
 
       // If not a declaration, find the assignment (if it exists) in St to blame
       // for the error or warning.
-      auto It = State.BlameAssignments.find(V);
+      auto It = State.BlameAssignments.find(A);
       if (It != State.BlameAssignments.end()) {
         Expr *BlameExpr = It->second;
         Loc = BlameExpr->getBeginLoc();
