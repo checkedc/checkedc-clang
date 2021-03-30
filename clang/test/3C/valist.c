@@ -30,7 +30,7 @@ void foo(int i, ...) {
   va_list ap;
   va_start(ap, i);
   char *c = (char *)va_arg(ap, char *);
-  //CHECK: char * c = (char*) va_arg(ap,char*);
+  //CHECK: char *c = (char *)va_arg(ap, char *);
   va_end(ap);
 }
 
@@ -40,12 +40,12 @@ void foo(int i, ...) {
 // preferable.
 
 void bar(va_list y, int *z) {}
+//CHECK: void bar(va_list y, _Ptr<int> z) {}
 void (*baz)(va_list, int *);
-typedef void (*fiz)(va_list, int *);
-typedef void fuz(va_list, int *);
-//CHECK: void bar(va_list y, _Ptr<int> z) { }
 //CHECK: _Ptr<void (va_list, _Ptr<int> )> baz = ((void *)0);
+typedef void (*fiz)(va_list, int *);
 //CHECK: typedef _Ptr<void (va_list, _Ptr<int> )> fiz;
+typedef void fuz(va_list, int *);
 //CHECK: typedef void fuz(va_list, _Ptr<int> );
 
 /*force output*/
