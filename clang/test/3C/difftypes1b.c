@@ -4,4 +4,4 @@
 
 // The desired behavior in this case is to fail, so other checks are omitted
 
-int * foo(int, char *);
+int *foo(int, char *);

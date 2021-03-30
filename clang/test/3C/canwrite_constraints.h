@@ -20,7 +20,7 @@ int *foo_var = ((void *)0);
 void strtol_like(int *p : itype(_Ptr<int>));
 void atol_like() {
   // expected-warning@+1 {{Expression in non-writable file}}
-  strtol_like((int *) 0);
+  strtol_like((int *)0);
 }
 
 // Make sure we do not add checked regions in non-writable files. This happened
@@ -32,7 +32,7 @@ inline void no_op() {}
 // In the lower case, this should stay wild
 // In the higher case, this should solve to checked
 // expected-warning@+1 {{Declaration in non-writable file}}
-typedef int* intptr;
+typedef int *intptr;
 // CHECK_HIGHER: typedef _Ptr<int> intptr;
 // Test the unwritable cast internal warning
 // (https://github.com/correctcomputation/checkedc-clang/issues/454) using the

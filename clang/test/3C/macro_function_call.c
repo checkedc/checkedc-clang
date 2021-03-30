@@ -17,10 +17,8 @@
 // Unsafe call in macro. This would require an _Assume_bounds_cast, but we
 // can't insert it.  Constraints are generated so that the cast isn't needed.
 
-#define macro0 \
-  void caller0(int *a) {\
-    fn0(a);\
-  }
+#define macro0                                                                 \
+  void caller0(int *a) { fn0(a); }
 void fn0(int *b) {}
 macro0
 
@@ -31,15 +29,20 @@ macro0
 //CHECK: void fn0(int *b) {}
 //CHECK: macro0
 
+// clang-format messes up this part of the file because it mistakes macro
+// references for other syntactic constructs.
+// clang-format off
 
-// Same as above, but the cast is requried on the return.
+// Same as above, but the cast is required on the return.
 
 #define macro1 fn1();
 int *fn1(void) { return 0; }
 void caller1() {
-  int *a = (int *) 1;
+  int *a = (int *)1;
   a = macro1
 }
+
+// clang-format on
 
 //CHECK: #define macro1 fn1();
 //CHECK: int *fn1(void) { return 0; }
@@ -53,22 +56,19 @@ void caller1() {
 
 #define macro2 fn2(a);
 void fn2(int *b) {}
-void caller2(int *a) {
-  macro2
-}
+void caller2(int *a) { macro2 }
 //CHECK: #define macro2 fn2(a);
 //CHECK: void fn2(_Ptr<int> b) _Checked {}
 //CHECK: void caller2(_Ptr<int> a) _Checked {
 //CHECK:   macro2
 //CHECK: }
 
-
 // Like the first test case, but pointer to a pointer.
 
 #define macro3 fn3(a);
 void fn3(int **g) {}
 void caller3() {
-  int **a = (int **) 1;
+  int **a = (int **)1;
   macro3
 }
 //CHECK: #define macro3 fn3(a);
@@ -83,8 +83,8 @@ void caller3() {
 void fn4a(int *g) {}
 void fn4b(int *g) {}
 void caller4() {
-  int *a = (int *) 1;
-  void (*fn)(int *) =  fn4a;
+  int *a = (int *)1;
+  void (*fn)(int *) = fn4a;
   if (0)
     fn = fn4b;
   macro4

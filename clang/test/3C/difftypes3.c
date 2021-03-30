@@ -11,4 +11,3 @@ void foo(char **y) {
 }
 
 void foo(char *x);
-

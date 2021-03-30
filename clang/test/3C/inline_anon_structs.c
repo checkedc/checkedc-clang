@@ -135,6 +135,10 @@ void foo2(int *x) {
   //CHECK:      struct {
   //CHECK-NEXT:   _Ptr<int> c;
   //CHECK-NEXT: } b = {};
-  struct {int *i;} *f;
-  struct {int *il} *g, *h, *i;
+  struct {
+    int *i;
+  } * f;
+  struct {
+    int *il
+  } * g, *h, *i;
 }

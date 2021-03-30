@@ -4,8 +4,9 @@
 // RUN: 3c -base-dir=%S -output-dir=%t.checked -alltypes %s --
 // RUN: 3c -base-dir=%t.checked -alltypes %t.checked/overconstrained_merge.c -- | diff %t.checked/overconstrained_merge.c -
 
-// Test checks for merging a function after the generics code adds a constraint
-// The merge succeeds because it happens earlier in the codebase than the addition
+// Test checks for merging a function after the generics code adds a constraint.
+// The merge succeeds because it happens earlier in the codebase than the
+// addition.
 
 // This test only uses -alltypes because of the use of _Array_ptr in the example
 // (to distinguish from the _Ptr that will be added).

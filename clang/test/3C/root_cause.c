@@ -50,4 +50,5 @@ void (*f)(void *); // expected-warning {{Default void* type}}
 typedef struct {
   int x;
   float f;
-} A, *PA; // expected-warning {{Unable to rewrite a typedef with multiple names}}
+} A, *PA;
+// expected-warning@-1 {{Unable to rewrite a typedef with multiple names}}

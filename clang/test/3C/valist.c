@@ -29,7 +29,7 @@ const char *lua_pushfstring(lua_State *L, const char *fmt, ...) {
 void foo(int i, ...) {
   va_list ap;
   va_start(ap, i);
-  char * c = (char*) va_arg(ap,char*);
+  char *c = (char *)va_arg(ap, char *);
   //CHECK: char * c = (char*) va_arg(ap,char*);
   va_end(ap);
 }
@@ -39,7 +39,7 @@ void foo(int i, ...) {
 // Expanding to __builtin_va_list doesn't cause an error, but va_list is still
 // preferable.
 
-void bar(va_list y, int *z) { }
+void bar(va_list y, int *z) {}
 void (*baz)(va_list, int *);
 typedef void (*fiz)(va_list, int *);
 typedef void fuz(va_list, int *);
