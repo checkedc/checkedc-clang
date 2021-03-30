@@ -1,17 +1,24 @@
 // RUN: %clang_cc1 -fsyntax-only -verify %s
 
-// Various cases that currently do not support where clauses.
+// Various cases that currently do not support where clauses. We are choosing
+// not to support these in order to strike a balance between extensive support
+// for where clauses and the resulting usefulness but not because we need to
+// handle them separately.
 
 void f(int i, int j, int k);
+unsigned g(_Nt_array_ptr<char> p);
 
-void unsupported_cases(int i, int j, int k) {
-  // According to the C11 spec, the conditionals of an if-statement, while-loop
-  // and do-while-loop are expressions which evaluate to a scalar and are not
-  // processed as ExprStmts. So we need separate handling of where clauses
-  // inside these conditionals.
+void unsupported_cases(int i, int j, int k, _Nt_array_ptr<char> p) {
+  // According to the C11 spec, the conditionals of selection-statements (like
+  // if and switch) and iteration-statements (like while, do-while and for) are
+  // expressions (and not expression-statements) and they evaluate to a scalar.
+  // So we need separate handling of where clauses inside these conditionals.
+
   if (i _Where i > 0) {} // expected-error {{expected ')'}} expected-note {{to match this '('}}
   if (i = 0 _Where i > 0) {} // expected-error {{expected ')'}} expected-note {{to match this '('}} expected-warning {{using the result of an assignment as a condition without parentheses}} expected-note {{place parentheses around the assignment to silence this warning}} expected-note {{use '==' to turn this assignment into an equality comparison}}
   if (i == 0 _Where i > 0) {} // expected-error {{expected ')'}} expected-note {{to match this '('}}
+
+  if ((i = g(p) _Where p : bounds(p, p + i)) > 0) {} // expected-error {{expected ')'}} expected-note {{to match this '('}}
 
   while (i _Where i > 0) {} // expected-error {{expected ')'}} expected-note {{to match this '('}}
 
@@ -23,6 +30,8 @@ void unsupported_cases(int i, int j, int k) {
 
   // Where clauses on struct members are currently not supported.
   struct S { int a _Where a != 0; }; // expected-error {{expected ';' at end of declaration list}}
+
+  for (; p < p + 1 && *p; p _Where p : bounds(p, p + 1)) {} // expected-error {{expected ')'}} expected-note {{to match this '('}} expected-warning {{expression result unused}}
 
   // The initializer of a for-loop is processed as part of processing the
   // for-loop itself (and not as part of processing an ExprStmt). So we need
