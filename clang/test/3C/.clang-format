@@ -1,0 +1,11 @@
+# There is currently no inheritance (see clang/lib/3C/.clang-format), so
+# duplicate clang/test/.clang-format .
+BasedOnStyle: LLVM
+
+# We generally follow the 80-column limit except for RUN, CHECK, etc. comments.
+# clang/test/.clang-format turns off ColumnLimit completely with the commit
+# message citing these special comments as justification, but people may have
+# started to rely on the lack of the limit for other things. A better approach
+# is to just turn off ReflowComments, which we also want for normal comments
+# (see clang/lib/3C/.clang-format).
+ReflowComments: false

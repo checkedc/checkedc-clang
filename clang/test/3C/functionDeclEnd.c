@@ -5,7 +5,6 @@
 // RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s --
 // RUN: 3c -base-dir=%t.checked -alltypes %t.checked/functionDeclEnd.c -- | diff %t.checked/functionDeclEnd.c -
 
-
 // Tests for issue 392. When rewriting function prototypes sometimes code
 // falling between the start of the definition and the end of the prototype
 // could be deleted.
@@ -25,7 +24,7 @@ void test0(int *a)
 // CHECK: void test0(int *a)
 // CHECK: #endif
 {
-// CHECK: _Checked {
+  // CHECK: _Checked {
   return;
 }
 
@@ -39,7 +38,7 @@ int *test1()
 // CHECK: int *test1()
 // CHECK: #endif
 {
-// CHECK: _Checked {
+  // CHECK: _Checked {
   return 0;
 }
 
@@ -53,57 +52,65 @@ int *test2()
 // CHECK: int *test2()
 // CHECK: #endif
 {
-// CHECK: {
+  // CHECK: {
   int *a = 1;
   return a;
 }
-
 
 // These test for rewriting with existing itype and bounds expression are
 // particularly important because they break the simplest fix where
 // getRParenLoc is always used.
 
 #ifdef FOO
-int *test3(int *a, int l) : itype(_Array_ptr<int>) count(l)
+int *test3(int *a, int l)
+    : itype(_Array_ptr<int>) count(l)
 // CHECK: int *test3(_Ptr<int> a, int l) : itype(_Array_ptr<int>) count(l)
 #else
-int *test3(int *a, int l) : itype(_Array_ptr<int>) count(l)
+int *test3(int *a, int l)
+    : itype(_Array_ptr<int>) count(l)
 #endif
 // CHECK: #else
-// CHECK: int *test3(int *a, int l) : itype(_Array_ptr<int>) count(l)
+// CHECK: int *test3(int *a, int l)
+// CHECK:     : itype(_Array_ptr<int>) count(l)
 // CHECK: #endif
 {
-// CHECK: {
+  // CHECK: {
   int *b = 1;
   return b;
 }
 
 #ifdef FOO
-int *test4(int *a) : itype(_Ptr<int>)
+int *test4(int *a)
+    : itype(_Ptr<int>)
 // CHECK: int *test4(_Ptr<int> a) : itype(_Ptr<int>)
 #else
-int *test4(int *a) : itype(_Ptr<int>)
+int *test4(int *a)
+    : itype(_Ptr<int>)
 #endif
 // CHECK: #else
-// CHECK: int *test4(int *a) : itype(_Ptr<int>)
+// CHECK: int *test4(int *a)
+// CHECK:     : itype(_Ptr<int>)
 // CHECK: #endif
 {
-// CHECK: {
+  // CHECK: {
   int *b = 1;
   return b;
 }
 
 #ifdef FOO
-_Array_ptr<int> test5(int *a, int l) : count(l)
+_Array_ptr<int> test5(int *a, int l)
+    : count(l)
 // CHECK: _Array_ptr<int> test5(_Ptr<int> a, int l) : count(l)
 #else
-_Array_ptr<int> test5(int *a, int l) : count(l)
+_Array_ptr<int> test5(int *a, int l)
+    : count(l)
 #endif
 // CHECK: #else
-// CHECK: _Array_ptr<int> test5(int *a, int l) : count(l)
+// CHECK: _Array_ptr<int> test5(int *a, int l)
+// CHECK:     : count(l)
 // CHECK: #endif
 {
-// CHECK: _Checked {
+  // CHECK: _Checked {
   return 0;
 }
 
@@ -116,21 +123,24 @@ void test6(int *a)
 }
 
 #ifdef FOO
-int *test7(int *a) : count(10)
+int *test7(int *a)
+    : count(10)
 //CHECK_NOALL: int *test7(int *a : itype(_Ptr<int>)) : count(10)
 //CHECK_ALL: int *test7(_Array_ptr<int> a) : count(10)
 #else
-int *test7(int *a) : count(10)
+int *test7(int *a)
+    : count(10)
 #endif
-;
+          ;
 //CHECK: #else
-//CHECK: int *test7(int *a) : count(10)
+//CHECK: int *test7(int *a)
+//CHECK:     : count(10)
 //CHECK: #endif
 //CHECK: ;
 
 int *test7(int *a) : count(10) {
-//CHECK_ALL: int *test7(_Array_ptr<int> a) : count(10) _Checked {
-//CHECK_NOALL: int *test7(int *a : itype(_Ptr<int>)) : count(10) {
+  //CHECK_ALL: int *test7(_Array_ptr<int> a) : count(10) _Checked {
+  //CHECK_NOALL: int *test7(int *a : itype(_Ptr<int>)) : count(10) {
   return a;
 }
 
@@ -139,16 +149,19 @@ int *test7(int *a) : count(10) {
 // rewriting. This isn't great since it's an unnecessary change to the code,
 // but it is still valid.
 #ifdef FOO
-int *test8(int *a, int l) : count(l) itype(_Array_ptr<int>)
+int *test8(int *a, int l)
+    : count(l) itype(_Array_ptr<int>)
 // CHECK: int *test8(_Ptr<int> a, int l) : itype(_Array_ptr<int>) count(l)
 #else
-int *test8(int *a, int l) : count(l) itype(_Array_ptr<int>)
+int *test8(int *a, int l)
+    : count(l) itype(_Array_ptr<int>)
 #endif
 // CHECK: #else
-// CHECK: int *test8(int *a, int l) : count(l) itype(_Array_ptr<int>)
+// CHECK: int *test8(int *a, int l)
+// CHECK:     : count(l) itype(_Array_ptr<int>)
 // CHECK: #endif
 {
-// CHECK: {
+  // CHECK: {
   int *b = 1;
   return b;
 }

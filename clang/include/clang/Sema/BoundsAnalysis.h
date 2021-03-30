@@ -17,6 +17,7 @@
 #define LLVM_CLANG_BOUNDS_ANALYSIS_H
 
 #include "clang/AST/CanonBounds.h"
+#include "clang/AST/ExprUtils.h"
 #include "clang/Analysis/Analyses/PostOrderCFGView.h"
 #include "clang/Sema/Sema.h"
 #include <queue>
@@ -63,10 +64,16 @@ namespace clang {
   // Note: We use the shorthand "ntptr" to denote _Nt_array_ptr. We extract the
   // declaration of an ntptr as a VarDecl from a DeclRefExpr.
 
-  // BoundsMapTy denotes the widened bounds of an ntptr. Given VarDecl V with
-  // declared bounds (low, high), the bounds of V have been widened to (low,
-  // high + the unsigned integer).
+  // BoundsMapTy denotes the unsigned integer offset I by which the bounds of
+  // an ntptr should be widened. Given VarDecl V with declared bounds as bounds
+  // (low, high), the bounds of V should be widened to bounds (low, high + I).
   using BoundsMapTy = llvm::MapVector<const VarDecl *, unsigned>;
+
+  // BoundsExprMapTy denotes the widened bounds expression of an ntptr. Given
+  // VarDecl V with declared bounds (low, high), and an unsigned integer offset
+  // I by which the declared upper bound should be widened, the widened bounds
+  // of V are denoted as bounds (low, high + I).
+  using BoundsExprMapTy = llvm::MapVector<const VarDecl *, BoundsExpr *>;
 
   // For each edge B1->B2, EdgeBoundsTy denotes the Gen and Out sets.
   using EdgeBoundsTy = llvm::DenseMap<const CFGBlock *, BoundsMapTy>;
@@ -99,6 +106,10 @@ namespace clang {
   // StmtSet denotes a set of Stmts.
   using StmtSet = llvm::SmallPtrSet<const Stmt *, 16>;
 
+  // The BoundsAnalysis class represents the dataflow analysis for bounds
+  // widening. The In, Out, Gen and Kill sets used in the dataflow analysis are
+  // members of this class. It also has methods that act on these sets to
+  // perform the actual analysis.
   class BoundsAnalysis {
   private:
     Sema &S;
@@ -189,10 +200,41 @@ namespace clang {
     // nested in another top-level statement.
     void WidenBounds(FunctionDecl *FD, StmtSet NestedStmts);
 
-    // Get the widened bounds for block B.
-    // @param[in] B is the block for which the widened bounds are needed.
-    // @return Widened bounds for ntptrs in block B.
-    BoundsMapTy GetWidenedBounds(const CFGBlock *B);
+    // Get a mapping of variables to the offsets by which their bounds should
+    // be widened in block B.
+    // @param[in] B is the block for which the widened bounds offsets are
+    // needed.
+    // @return A mapping of variables to the offsets by which their bounds
+    // should be widened in block B.
+    BoundsMapTy GetWidenedBoundsOffsets(const CFGBlock *B);
+
+    // Get the set of variables whose bounds are widened but not killed in
+    // block B. This function is invoked from SemaBounds.cpp and is used to
+    // control the emission of diagnostics.
+    // @param[in] B is the block for which the widened bounds are checked.
+    // @param[in] St is the statement for which the killed bounds are checked.
+    // @return A set of variables whose bounds are widened and not killed.
+    DeclSetTy GetBoundsWidenedAndNotKilled(const CFGBlock *B, const Stmt *St);
+
+    // Get the set of variables killed by the statement St in the block B.
+    // Note: This method is intended to be invoked from CheckBoundsDeclaration
+    // or a similar place which does bounds inference/checking.
+    // @param[in] B is the current CFGBlock.
+    // @param[in] St is the current statement in block B.
+    // return A set of variables whose bounds are killed by the statement St in
+    // block B.
+    DeclSetTy GetKilledBounds(const CFGBlock *B, const Stmt *St);
+
+    // Get a mapping of variables to their widened bounds expressions in block
+    // B. This function calls GetWidenedBoundsOffsets to get the offsets by
+    // which the bounds of each variable should be widened. It then applies
+    // these offsets to the declared upper bounds and creates an updated
+    // BoundsExpr for each variable in the block.
+    // @param[in] B is the block for which the widened bounds expressions are
+    // needed.
+    // @return A mapping of variables to their widened bounds expressions in
+    // block B.
+    BoundsExprMapTy GetWidenedBounds(const CFGBlock *B);
 
     // Pretty print the widen bounds analysis.
     // printing.

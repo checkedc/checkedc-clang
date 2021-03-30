@@ -18,7 +18,7 @@ typedef struct {
 
 foo obj1 = {};
 
-int* func(int *ptr, char *arrptr) {
+int *func(int *ptr, char *arrptr) {
   obj1.ptr = ptr;
   arrptr++;
   obj1.arrptr = arrptr;
@@ -30,7 +30,7 @@ int main() {
   int a;
   int *b = 0;
   char *wil = 0;
-  wil = (char*)0xdeadbeef;
+  wil = (char *)0xdeadbeef;
   b = func(&a, wil);
   return 0;
 }

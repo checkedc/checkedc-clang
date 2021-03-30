@@ -227,3 +227,87 @@ void f105(int len, _Array_ptr<int> p : count(len), int i) {
     len += 1, p = alloc(len * sizeof(int));
 }
 
+extern int memcmp_test(const void *src1 : byte_count(n),
+                       const void *src2 :byte_count(n), unsigned int n);
+extern void *memchr_test(const void *s : byte_count(n), int c, unsigned int n) :
+            bounds(s, (_Array_ptr<char>) s + n);
+extern _Itype_for_any(T) void *malloc_test(unsigned int size) :
+                              itype(_Array_ptr<T>) byte_count(size);
+
+// Checked pointers in checked scope
+void f106()
+_Checked
+{
+  int len = 4;
+  _Nt_array_ptr<char> p : count(5) = "hello";
+  int i = memcmp_test(p, "hello", ++len); // expected-error {{increment expression not allowed in argument for parameter used in function parameter bounds expression}} \
+                                          // expected-error {{increment expression not allowed in argument for parameter used in function parameter bounds expression}}
+}
+
+// Checked pointers in unchecked scope
+void f106_u1()
+{
+  int len = 4;
+  _Nt_array_ptr<char> p : count(5) = "hello";
+  int i = memcmp_test(p, "hello", ++len); // expected-error {{increment expression not allowed in argument for parameter used in function parameter bounds expression}}
+}
+
+// Unchecked pointers in unchecked scope
+void f106_u2()
+{
+  int len = 4;
+  char *p  = "hello";
+  int i = memcmp_test(p, "hello", ++len);
+}
+
+// Checked pointers in checked scope
+void f107()
+_Checked
+{
+  int len = 4;
+  int p _Checked [5] = {'h', 'e', 'l', 'l', 'o'};
+  _Array_ptr<int> pos = memchr_test(p, 'l', ++len); // expected-error {{increment expression not allowed in argument for parameter used in function return bounds expression}} \
+                                                    // expected-error {{increment expression not allowed in argument for parameter used in function parameter bounds expression}}
+}
+
+// Checked pointers in unchecked scope
+void f107_u1()
+{
+  int len = 4;
+  int p _Checked [5] = {'h', 'e', 'l', 'l', 'o'};
+  // Ideally, there should be an error for modifying expressions
+  // used in the return bounds expression also.
+  _Array_ptr<int> pos = memchr_test(p, 'l', ++len); // expected-error {{increment expression not allowed in argument for parameter used in function parameter bounds expression}}
+}
+
+// Unchecked pointers in unchecked scope
+void f107_u2()
+{
+  int len = 4;
+  int p[5] = {'h', 'e', 'l', 'l', 'o'};
+  int *pos = memchr_test(p, 'l', ++len);
+}
+
+// Checked pointers in checked scope
+void f108()
+_Checked
+{
+  int len = 5;
+  _Array_ptr<char> p = malloc_test<char>(++len); // expected-error {{increment expression not allowed in argument for parameter used in function return bounds expression}}
+}
+
+// Checked pointers in unchecked scope
+void f108_u1()
+{
+  int len = 5;
+  // Ideally, there should be an error for modifying expressions
+  // used in the return bounds expression also.
+  _Array_ptr<char> p = malloc_test<char>(++len);
+}
+
+// Unchecked pointers in unchecked scope
+void f108_u2()
+{
+  int len = 5;
+  char *p = malloc_test(++len);
+}

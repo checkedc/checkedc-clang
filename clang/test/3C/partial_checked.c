@@ -5,19 +5,19 @@
 // RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s --
 // RUN: 3c -base-dir=%t.checked -alltypes %t.checked/partial_checked.c -- | diff %t.checked/partial_checked.c -
 
-void test0(_Ptr<int *> a) { }
-// CHECK: void test0(_Ptr<_Ptr<int>> a) _Checked { }
+void test0(_Ptr<int *> a) {}
+// CHECK: void test0(_Ptr<_Ptr<int>> a) _Checked {}
 
-void test1(_Ptr<int **> a) { }
-// CHECK: void test1(_Ptr<_Ptr<_Ptr<int>>> a) _Checked { }
+void test1(_Ptr<int **> a) {}
+// CHECK: void test1(_Ptr<_Ptr<_Ptr<int>>> a) _Checked {}
 
-void test2(_Ptr<int **> a) { 
-// CHECK: void test2(_Ptr<int **> a : itype(_Ptr<_Ptr<_Ptr<int>>>)) { 
+void test2(_Ptr<int **> a) {
+  // CHECK: void test2(_Ptr<int **> a : itype(_Ptr<_Ptr<_Ptr<int>>>)) {
   **a = 1;
 }
 
 void test3(_Ptr<int *> a) {
-// CHECK: void test3(_Ptr<int *> a : itype(_Ptr<_Ptr<int>>)) {
+  // CHECK: void test3(_Ptr<int *> a : itype(_Ptr<_Ptr<int>>)) {
   *a = 1;
 }
 
@@ -48,8 +48,7 @@ void test4() {
   // CHECK: _Ptr<_Ptr<_Ptr<int>>> i _Checked[1] = {((void *)0)};
   **h = 1;
 
-
-  _Ptr<void (int*)> j = 0;
+  _Ptr<void(int *)> j = 0;
   // CHECK: _Ptr<void (_Ptr<int> )> j = 0;
 
   _Ptr<int *(void)> k = 0;
@@ -59,25 +58,25 @@ void test4() {
   // CHECK: _Ptr<_Ptr<int> (void)> l = 0;
 
   _Ptr<int *(void)> m = 0, n = 0;
-  // CHECK:_Ptr<_Ptr<int> (void)> m = 0;
-  // CHECK:_Ptr<_Ptr<int> (void)> n = 0;
+  // CHECK: _Ptr<_Ptr<int> (void)> m = 0;
+  // CHECK: _Ptr<_Ptr<int> (void)> n = 0;
 }
 
 void test5(_Ptr<int *> a, _Ptr<int *> b, _Ptr<_Ptr<int>> c, int **d) {
-// CHECK: void test5(_Ptr<_Ptr<int>> a, _Ptr<int *> b : itype(_Ptr<_Ptr<int>>), _Ptr<_Ptr<int>> c, _Ptr<_Ptr<int>> d) {
-  *b  = 1;
+  // CHECK: void test5(_Ptr<_Ptr<int>> a, _Ptr<int *> b : itype(_Ptr<_Ptr<int>>), _Ptr<_Ptr<int>> c, _Ptr<_Ptr<int>> d) {
+  *b = 1;
 }
 
-struct s0  {
-  _Ptr<int *> a,b;
+struct s0 {
+  _Ptr<int *> a, b;
   _Ptr<_Ptr<int *>> c;
   _Ptr<_Ptr<int>> d;
-  int * e _Checked[1];
-// CHECK:  _Ptr<_Ptr<int>> a;
-// CHECK:  _Ptr<_Ptr<int>> b;
-// CHECK:  _Ptr<_Ptr<_Ptr<int>>> c;
-// CHECK:  _Ptr<_Ptr<int>> d;
-// CHECK:  _Ptr<int> e _Checked[1];
+  int *e _Checked[1];
+  // CHECK: _Ptr<_Ptr<int>> a;
+  // CHECK: _Ptr<_Ptr<int>> b;
+  // CHECK: _Ptr<_Ptr<_Ptr<int>>> c;
+  // CHECK: _Ptr<_Ptr<int>> d;
+  // CHECK: _Ptr<int> e _Checked[1];
 };
 
 extern void thing(_Ptr<int *> a);

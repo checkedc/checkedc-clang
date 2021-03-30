@@ -12,7 +12,8 @@
 // RUN: 3c -base-dir=%S -alltypes %s -- | FileCheck -match-full-lines %s
 
 #include <stddef.h>
-_Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
+_Itype_for_any(T) void *malloc(size_t size)
+    : itype(_Array_ptr<T>) byte_count(size);
 
 #include <stdint.h>
 #ifdef __SIZEOF_INT128__

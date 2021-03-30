@@ -9,35 +9,29 @@
 // RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checked %s --
 // RUN: 3c -base-dir=%t.checked -addcr -alltypes %t.checked/placements.c -- | diff %t.checked/placements.c -
 // expected-no-diagnostics
-void what(const char *s, int q); 
+void what(const char *s, int q);
 //CHECK_NOALL: void what(const char *s : itype(_Ptr<const char>), int q);
 //CHECK_ALL: void what(_Array_ptr<const char> s : count(q), int q);
 
-void what(const char *s, int q) {
-  char v = s[5];
-}
-//CHECK_NOALL: void what(const char *s : itype(_Ptr<const char>), int q) {
-//CHECK_ALL: void what(_Array_ptr<const char> s : count(q), int q) _Checked {
+void what(const char *s, int q) { char v = s[5]; }
+//CHECK_NOALL: void what(const char *s : itype(_Ptr<const char>), int q) { char v = s[5]; }
+//CHECK_ALL: void what(_Array_ptr<const char> s : count(q), int q) _Checked { char v = s[5]; }
 
-void foo(_Ptr<int> a) {
-  *a = 0;
-}
-//CHECK: void foo(_Ptr<int> a) _Checked {
+void foo(_Ptr<int> a) { *a = 0; }
+//CHECK: void foo(_Ptr<int> a) _Checked { *a = 0; }
 
 void foo2(_Ptr<int> a) {
   _Ptr<int> b = a;
   *b = 0;
 }
-//CHECK: void foo2(_Ptr<int> a) _Checked { 
+//CHECK: void foo2(_Ptr<int> a) _Checked {
 //CHECK-NEXT: _Ptr<int> b = a;
 
-void bar(int *a : itype(_Ptr<int>) ) {
-  *a = 0;
-}
-//CHECK: void bar(int *a : itype(_Ptr<int>) ) _Checked {
+void bar(int *a : itype(_Ptr<int>)) { *a = 0; }
+//CHECK: void bar(int *a : itype(_Ptr<int>)) _Checked { *a = 0; }
 
-extern int* baz(void) : itype(_Ptr<int>);
-//CHECK: extern int*  baz(void) : itype(_Ptr<int>);
+extern int *baz(void) : itype(_Ptr<int>);
+//CHECK: extern int *baz(void) : itype(_Ptr<int>);
 
 // force output
 int *p;

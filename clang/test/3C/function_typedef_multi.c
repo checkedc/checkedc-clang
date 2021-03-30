@@ -8,6 +8,4 @@
 // included in this file. Including it prevented the assertion fail even
 // without the changes in PR #436.
 
-int foo(int a, int b[1]) {
-  return 0;
-}
+int foo(int a, int b[1]) { return 0; }
