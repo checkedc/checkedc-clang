@@ -23,9 +23,7 @@ void fn0(int *b) {}
 macro0
 
 //CHECK: #define macro0 \
-//CHECK:   void caller0(int *a) {\
-//CHECK:     fn0(a);\
-//CHECK:   }
+//CHECK:   void caller0(int *a) { fn0(a); }
 //CHECK: void fn0(int *b) {}
 //CHECK: macro0
 
@@ -47,7 +45,7 @@ void caller1() {
 //CHECK: #define macro1 fn1();
 //CHECK: int *fn1(void) { return 0; }
 //CHECK: void caller1() {
-//CHECK:   int *a = (int *) 1;
+//CHECK:   int *a = (int *)1;
 //CHECK:   a = macro1
 //CHECK: }
 
@@ -59,9 +57,7 @@ void fn2(int *b) {}
 void caller2(int *a) { macro2 }
 //CHECK: #define macro2 fn2(a);
 //CHECK: void fn2(_Ptr<int> b) _Checked {}
-//CHECK: void caller2(_Ptr<int> a) _Checked {
-//CHECK:   macro2
-//CHECK: }
+//CHECK: void caller2(_Ptr<int> a) _Checked { macro2 }
 
 // Like the first test case, but pointer to a pointer.
 
@@ -74,7 +70,7 @@ void caller3() {
 //CHECK: #define macro3 fn3(a);
 //CHECK: void fn3(int **g) {}
 //CHECK: void caller3() {
-//CHECK:   int **a = (int **) 1;
+//CHECK:   int **a = (int **)1;
 //CHECK:   macro3
 //CHECK: }
 
@@ -93,7 +89,7 @@ void caller4() {
 //CHECK: void fn4a(int *g) {}
 //CHECK: void fn4b(int *g) {}
 //CHECK: void caller4() {
-//CHECK:   int *a = (int *) 1;
+//CHECK:   int *a = (int *)1;
 //CHECK:   _Ptr<void (int *)> fn = fn4a;
 //CHECK:   if (0)
 //CHECK:     fn = fn4b;

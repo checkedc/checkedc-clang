@@ -32,7 +32,7 @@ int *test3(a)
   int *a;
 { return a; }
 //CHECK: _Ptr<int> test3(_Ptr<int> a)
-//CHECK: _Checked {return a;}
+//CHECK: _Checked { return a; }
 
 void test4(a)
   int *a;

@@ -8,8 +8,8 @@
 struct foo {};
 struct bar {
   int *a;
+  //CHECK: _Ptr<int> a;
 };
-//CHECK: struct bar { _Ptr<int> a; };
 struct fiz {
   int *a;
 };
