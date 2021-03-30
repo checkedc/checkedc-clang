@@ -671,7 +671,7 @@ std::string PointerVariableConstraint::gatherQualStrings(void) const {
   return S.str();
 }
 
-std::string PointerVariableConstraint::mkString(const EnvironmentMap &E,
+std::string PointerVariableConstraint::mkString(Constraints &CS,
                                                 bool EmitName, bool ForItype,
                                                 bool EmitPointee,
                                                 bool UnmaskTypedef) const {
@@ -722,7 +722,7 @@ std::string PointerVariableConstraint::mkString(const EnvironmentMap &E,
       VarAtom *VA = dyn_cast<VarAtom>(V);
       assert(VA != nullptr && "Constraint variable can "
                               "be either constant or VarAtom.");
-      C = E.at(VA).first;
+      C = CS.getVariables().at(VA).first;
     }
     assert(C != nullptr);
 
@@ -801,7 +801,7 @@ std::string PointerVariableConstraint::mkString(const EnvironmentMap &E,
         assert(BaseType.size() > 0);
         EmittedBase = true;
         if (FV) {
-          Ss << FV->mkString(E);
+          Ss << FV->mkString(CS);
         } else {
           Ss << BaseType << " *";
         }
@@ -835,7 +835,7 @@ std::string PointerVariableConstraint::mkString(const EnvironmentMap &E,
     // If we have a FV pointer, then our "base" type is a function pointer.
     // type.
     if (FV) {
-      Ss << FV->mkString(E);
+      Ss << FV->mkString(CS);
     } else if (TypedefLevelInfo.HasTypedef) {
       std::ostringstream Buf;
       getQualString(TypedefLevelInfo.TypedefLevel, Buf);
@@ -1431,19 +1431,19 @@ bool FunctionVariableConstraint::solutionEqualTo(Constraints &CS,
   return Ret;
 }
 
-std::string FunctionVariableConstraint::mkString(const EnvironmentMap &E,
+std::string FunctionVariableConstraint::mkString(Constraints &CS,
                                                  bool EmitName, bool ForItype,
                                                  bool EmitPointee,
                                                  bool UnmaskTypedef) const {
-  std::string Ret = ReturnVar.mkTypeStr(E, false);
-  std::string Itype = ReturnVar.mkItypeStr(E);
+  std::string Ret = ReturnVar.mkTypeStr(CS, false);
+  std::string Itype = ReturnVar.mkItypeStr(CS);
   // This is done to rewrite the typedef of a function proto
   if (UnmaskTypedef && EmitName)
     Ret += Name;
   Ret = Ret + "(";
   std::vector<std::string> ParmStrs;
   for (const auto &I : this->ParamVars)
-    ParmStrs.push_back(I.mkString(E));
+    ParmStrs.push_back(I.mkString(CS));
 
   if (ParmStrs.size() > 0) {
     std::ostringstream Ss;
@@ -1896,23 +1896,43 @@ void FVComponentVariable::mergeDeclaration(FVComponentVariable *From,
 }
 
 std::string
-FVComponentVariable::mkString(const EnvironmentMap &E) const {
-  return mkTypeStr(E, true) + mkItypeStr(E);
+FVComponentVariable::mkString(Constraints &CS) const {
+  return mkTypeStr(CS, true) + mkItypeStr(CS);
 }
 
 std::string
-FVComponentVariable::mkTypeStr(const EnvironmentMap &E, bool EmitName) const {
-  if (ExternalConstraint->anyChanges(E) && InternalConstraint->anyChanges(E))
-    return ExternalConstraint->mkString(E, EmitName);
+FVComponentVariable::mkTypeStr(Constraints &CS, bool EmitName) const {
+  if (hasCheckedSolution(CS))
+    return ExternalConstraint->mkString(CS, EmitName);
   if (!SourceDeclaration.empty())
     return SourceDeclaration;
   return ExternalConstraint->getRewritableOriginalTy();
 }
 
-std::string FVComponentVariable::mkItypeStr(const EnvironmentMap &E) const {
-  if (ExternalConstraint->anyChanges(E) && !InternalConstraint->anyChanges(E))
-    return " : itype(" + ExternalConstraint->mkString(E, false, true) + ")";
+std::string FVComponentVariable::mkItypeStr(Constraints &CS) const {
+  if (hasItypeSolution(CS))
+    return " : itype(" + ExternalConstraint->mkString(CS, false, true) + ")";
   return "";
+}
+
+bool FVComponentVariable::hasCheckedSolution(Constraints &CS) const {
+  // If the external constraint variable is checked, then the variable should
+  // be advertised as checked to callers. If the internal and external
+  // constraint variables solve to the same type, then they are both checked and
+  // we can use a _Ptr type.
+  return ExternalConstraint->isChecked(CS.getVariables()) &&
+         ExternalConstraint->anyChanges(CS.getVariables()) &&
+         InternalConstraint->solutionEqualTo(CS, ExternalConstraint);
+}
+
+bool FVComponentVariable::hasItypeSolution(Constraints &CS) const {
+  // As in hasCheckedSolution, we want the variable to be advertised as checked
+  // if the external variable is checked. If the external is checked, but the
+  // internal is not equal to the external, then the internal is unchecked, so
+  // have to use an itype instead of a _Ptr type.
+  return ExternalConstraint->isChecked(CS.getVariables()) &&
+         ExternalConstraint->anyChanges(CS.getVariables()) &&
+         !InternalConstraint->solutionEqualTo(CS, ExternalConstraint);
 }
 
 FVComponentVariable::FVComponentVariable(const QualType &QT,

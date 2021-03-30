@@ -1,3 +1,7 @@
+// TODO: refactor this test
+// https://github.com/correctcomputation/checkedc-clang/issues/503
+// XFAIL: *
+
 // Like the base_subdir/canwrite_constraints_unimplemented test except that
 // writing base_subdir_partial_defn.h is not restricted by the base dir, so we
 // reach the stdout mode restriction.

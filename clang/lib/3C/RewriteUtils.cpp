@@ -199,11 +199,11 @@ static void emit(Rewriter &R, ASTContext &C) {
     if (const FileEntry *FE = SM.getFileEntryForID(Buffer->first)) {
       assert(FE->isValid());
 
+      DiagnosticsEngine &DE = C.getDiagnostics();
       DiagnosticsEngine::Level UnwritableChangeDiagnosticLevel =
           AllowUnwritableChanges ? DiagnosticsEngine::Warning
                                  : DiagnosticsEngine::Error;
       auto PrintExtraUnwritableChangeInfo = [&]() {
-        DiagnosticsEngine &DE = C.getDiagnostics();
         // With -dump-unwritable-changes and not -allow-unwritable-changes, we
         // want the -allow-unwritable-changes note before the dump.
         if (!DumpUnwritableChanges) {
@@ -229,10 +229,56 @@ static void emit(Rewriter &R, ASTContext &C) {
       };
 
       // Check whether we are allowed to write this file.
+      //
+      // In our testing as of 2021-03-15, the file path returned by
+      // FE->tryGetRealPathName() was canonical, but be safe against unusual
+      // situations or possible future changes to Clang before we actually write
+      // a file. We can't use FE->getName() because it seems it may be relative
+      // to the `directory` field of the compilation database, which (now that
+      // we no longer use `ClangTool::run`) is not guaranteed to match 3C's
+      // working directory.
+      std::string ToConv = FE->tryGetRealPathName().str();
       std::string FeAbsS = "";
-      getCanonicalFilePath(std::string(FE->getName()), FeAbsS);
+      std::error_code EC = tryGetCanonicalFilePath(ToConv, FeAbsS);
+      if (EC) {
+        unsigned ErrorId = DE.getCustomDiagID(
+            UnwritableChangeDiagnosticLevel,
+            "3C internal error: not writing the new version of this file due "
+            "to failure to re-canonicalize the file path provided by Clang");
+        DE.Report(SM.translateFileLineCol(FE, 1, 1), ErrorId);
+        {
+          // Put this in a block because Clang only allows one DiagnosticBuilder
+          // to exist at a time and the call to PrintExtraUnwritableChangeInfo
+          // below may create more DiagnosticBuilders.
+          unsigned NoteId =
+              DE.getCustomDiagID(DiagnosticsEngine::Note,
+                                 "file path from Clang was %0; error was: %1");
+          auto ErrorBuilder = DE.Report(NoteId);
+          ErrorBuilder.AddString(ToConv);
+          ErrorBuilder.AddString(EC.message());
+        }
+        PrintExtraUnwritableChangeInfo();
+        continue;
+      }
+      if (FeAbsS != ToConv) {
+        unsigned ErrorId = DE.getCustomDiagID(
+            UnwritableChangeDiagnosticLevel,
+            "3C internal error: not writing the new version of this file "
+            "because the file path provided by Clang was not canonical");
+        DE.Report(SM.translateFileLineCol(FE, 1, 1), ErrorId);
+        {
+          // Ditto re the block.
+          unsigned NoteId = DE.getCustomDiagID(
+              DiagnosticsEngine::Note, "file path from Clang was %0; "
+                                       "re-canonicalized file path is %1");
+          auto ErrorBuilder = DE.Report(NoteId);
+          ErrorBuilder.AddString(ToConv);
+          ErrorBuilder.AddString(FeAbsS);
+        }
+        PrintExtraUnwritableChangeInfo();
+        continue;
+      }
       if (!canWrite(FeAbsS)) {
-        DiagnosticsEngine &DE = C.getDiagnostics();
         unsigned ID =
             DE.getCustomDiagID(UnwritableChangeDiagnosticLevel,
                                "3C internal error: 3C generated changes to "
@@ -251,7 +297,6 @@ static void emit(Rewriter &R, ASTContext &C) {
           Buffer->second.write(outs());
           StdoutModeSawMainFile = true;
         } else {
-          DiagnosticsEngine &DE = C.getDiagnostics();
           unsigned ID = DE.getCustomDiagID(
               UnwritableChangeDiagnosticLevel,
               "3C generated changes to this file, which is under the base dir "
@@ -265,7 +310,6 @@ static void emit(Rewriter &R, ASTContext &C) {
 
       // Produce a path/file name for the rewritten source file.
       std::string NFile;
-      std::error_code EC;
       // We now know that we are using either OutputPostfix or OutputDir mode
       // because stdout mode is handled above. OutputPostfix defaults to "-"
       // when it's not provided, so any other value means that we should use
@@ -289,14 +333,13 @@ static void emit(Rewriter &R, ASTContext &C) {
         // fatal error in the _3CInterface constructor.
         assert(filePathStartsWith(FeAbsS, BaseDir));
         // replace_path_prefix is not smart about separators, but this should be
-        // OK because getCanonicalFilePath should ensure that neither BaseDir
+        // OK because tryGetCanonicalFilePath should ensure that neither BaseDir
         // nor OutputDir has a trailing separator.
         SmallString<255> Tmp(FeAbsS);
         llvm::sys::path::replace_path_prefix(Tmp, BaseDir, OutputDir);
         NFile = std::string(Tmp.str());
         EC = llvm::sys::fs::create_directories(sys::path::parent_path(NFile));
         if (EC) {
-          DiagnosticsEngine &DE = C.getDiagnostics();
           unsigned ID = DE.getCustomDiagID(
               DiagnosticsEngine::Error,
               "failed to create parent directory of output file \"%0\"");
@@ -313,7 +356,6 @@ static void emit(Rewriter &R, ASTContext &C) {
           errs() << "writing out " << NFile << "\n";
         Buffer->second.write(Out);
       } else {
-        DiagnosticsEngine &DE = C.getDiagnostics();
         unsigned ID = DE.getCustomDiagID(DiagnosticsEngine::Error,
                                          "failed to write output file \"%0\"");
         auto DiagBuilder = DE.Report(SM.translateFileLineCol(FE, 1, 1), ID);
@@ -378,7 +420,8 @@ private:
     for (auto *CV : CVSingleton)
       // Replace the original type with this new one if the type has changed.
       if (CV->anyChanges(Vars))
-        rewriteSourceRange(Writer, Range, CV->mkString(Vars, false));
+        rewriteSourceRange(Writer, Range,
+                           CV->mkString(Info.getConstraints(), false));
   }
 };
 
@@ -406,7 +449,7 @@ public:
           if (Entry.second != nullptr) {
             AllInconsistent = false;
             std::string TyStr = Entry.second->mkString(
-                Info.getConstraints().getVariables(), false, false, true);
+                Info.getConstraints(), false, false, true);
             if (TyStr.back() == ' ')
               TyStr.pop_back();
             TypeParamString += TyStr + ",";

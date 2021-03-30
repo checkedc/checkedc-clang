@@ -323,9 +323,20 @@ int main(int argc, const char **argv) {
   _3CInterface &_3CInterface = *_3CInterfacePtr;
 
   if (OptVerbose)
-    errs() << "Adding variables to database.\n";
+    errs() << "Parsing source files.\n";
 
-  // First add variables.
+  // Build AST from source.
+  if (!_3CInterface.parseASTs()) {
+    errs() << "Failure occurred while parsing source files. Exiting.\n";
+    return 1;
+  }
+
+  if (OptVerbose) {
+    errs() << "Finished parsing sources.\n";
+    errs() << "Adding Top-level Constraint Variables.\n";
+  }
+
+  // Add variables.
   if (!_3CInterface.addVariables()) {
     errs() << "Failure occurred while trying to add variables. Exiting.\n";
     return 1;
@@ -333,10 +344,10 @@ int main(int argc, const char **argv) {
 
   if (OptVerbose) {
     errs() << "Finished adding variables.\n";
-    errs() << "Calling Library to building Constraints.\n";
+    errs() << "Calling Library to build Constraints.\n";
   }
 
-  // First build constraints.
+  // Build constraints.
   if (!_3CInterface.buildInitialConstraints()) {
     errs() << "Failure occurred while trying to build constraints. Exiting.\n";
     return 1;
@@ -347,7 +358,7 @@ int main(int argc, const char **argv) {
     errs() << "Trying to solve Constraints.\n";
   }
 
-  // Next solve the constraints.
+  // Solve the constraints.
   if (!_3CInterface.solveConstraints()) {
     errs() << "Failure occurred while trying to solve constraints. Exiting.\n";
     return 1;

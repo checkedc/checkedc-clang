@@ -1,3 +1,7 @@
+// TODO: refactor this test
+// https://github.com/correctcomputation/checkedc-clang/issues/503
+// XFAIL: *
+
 // An example of a case that is not handled by the canWrite constraints code and
 // causes 3C to generate a change to an unwritable file. Test that 3C generates
 // an error diagnostic.

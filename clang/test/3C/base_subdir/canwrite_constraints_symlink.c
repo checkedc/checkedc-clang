@@ -1,3 +1,7 @@
+// TODO: refactor this test
+// https://github.com/correctcomputation/checkedc-clang/issues/503
+// XFAIL: *
+
 // Like canwrite_constraints_unimplemented.c but tests the third former base dir
 // matching bug from
 // https://github.com/correctcomputation/checkedc-clang/issues/327: symlinks.

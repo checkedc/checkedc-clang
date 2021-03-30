@@ -62,8 +62,7 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
           if (Var.anyChanges(Env)) {
             std::string newTy =
                   getStorageQualifierString(D) +
-                  Var.mkString(Info.getConstraints().getVariables(), true,
-                                   false, false, true);
+                  Var.mkString(Info.getConstraints(), true, false, false, true);
               RewriteThese.insert(
                   new TypedefDeclReplacement(TD, nullptr, newTy));
             }
@@ -118,7 +117,7 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
           DS = VDLToStmtMap[D];
 
         std::string NewTy = getStorageQualifierString(D) +
-                            PV->mkString(Info.getConstraints().getVariables()) +
+                            PV->mkString(Info.getConstraints()) +
                             ABRewriter.getBoundsString(PV, D);
         if (auto *VD = dyn_cast<VarDecl>(D))
           RewriteThese.insert(new VarDeclReplacement(VD, DS, NewTy));
@@ -573,12 +572,10 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   // Get rewritten parameter variable declarations.
   std::vector<std::string> ParmStrs;
   for (unsigned I = 0; I < Defnc->numParams(); ++I) {
-    PVConstraint *ExtCV = Defnc->getExternalParam(I);
-    PVConstraint *IntCV = Defnc->getInternalParam(I);
     ParmVarDecl *PVDecl = Definition->getParamDecl(I);
+    const FVComponentVariable *CV = Defnc->getCombineParam(I);
     std::string Type, IType;
-    this->buildDeclVar(IntCV, ExtCV, PVDecl, Type, IType, RewriteParams,
-                       RewriteReturn);
+    this->buildDeclVar(CV, PVDecl, Type, IType, RewriteParams, RewriteReturn);
     ParmStrs.push_back(Type + IType);
   }
 
@@ -592,8 +589,8 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
 
   // Get rewritten return variable.
   std::string ReturnVar, ItypeStr;
-  this->buildDeclVar(Defnc->getInternalReturn(), Defnc->getExternalReturn(), FD,
-                     ReturnVar, ItypeStr, RewriteParams, RewriteReturn);
+  this->buildDeclVar(Defnc->getCombineReturn(), FD, ReturnVar, ItypeStr,
+                     RewriteParams, RewriteReturn);
 
   // If the return is a function pointer, we need to rewrite the whole
   // declaration even if no actual changes were made to the parameters because
@@ -661,7 +658,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
 void FunctionDeclBuilder::buildCheckedDecl(
     PVConstraint *Defn, DeclaratorDecl *Decl, std::string &Type,
     std::string &IType, bool &RewriteParm, bool &RewriteRet) {
-  Type = Defn->mkString(Info.getConstraints().getVariables());
+  Type = Defn->mkString(Info.getConstraints());
   IType = getExistingIType(Defn);
   IType += ABRewriter.getBoundsString(Defn, Decl, !IType.empty());
   RewriteParm |= !IType.empty() || isa<ParmVarDecl>(Decl);
@@ -677,7 +674,7 @@ void FunctionDeclBuilder::buildItypeDecl(PVConstraint *Defn,
   if (isa<ParmVarDecl>(Decl))
     Type += Defn->getName();
   IType = " : itype(" +
-          Defn->mkString(Info.getConstraints().getVariables(), false, true) +
+          Defn->mkString(Info.getConstraints(), false, true) +
           ")" + ABRewriter.getBoundsString(Defn, Decl, true);
   RewriteParm = true;
   RewriteRet |= isa<FunctionDecl>(Decl);
@@ -688,26 +685,21 @@ void FunctionDeclBuilder::buildItypeDecl(PVConstraint *Defn,
 // the name) but the breakdown between Type and IType is not guaranteed. For a
 // return, Type will be what goes before the name and IType will be what goes
 // after the parentheses.
-void FunctionDeclBuilder::buildDeclVar(PVConstraint *IntCV, PVConstraint *ExtCV,
+void FunctionDeclBuilder::buildDeclVar(const FVComponentVariable *CV,
                                        DeclaratorDecl *Decl, std::string &Type,
                                        std::string &IType, bool &RewriteParm,
                                        bool &RewriteRet) {
-  const auto &Env = Info.getConstraints().getVariables();
-  // If the external constraint variable is checked, then the parameter should
-  // be advertised as checked to callers. This requires adding either an itype
-  // or a checked type. If the constraint variable type did not change, then
-  // the type does not need to be rewritten. The type in the source is correct.
-  if (isAValidPVConstraint(ExtCV) && ExtCV->isChecked(Env) &&
-      ExtCV->anyChanges(Env)) {
-    // If the internal and external constraint variables solve to the same type,
-    // then they are both checked and we can use a _Ptr type. Otherwise, an
-    // itype is used.
-    if (IntCV->solutionEqualTo(Info.getConstraints(), ExtCV))
-      buildCheckedDecl(ExtCV, Decl, Type, IType, RewriteParm, RewriteRet);
-    else
-      buildItypeDecl(ExtCV, Decl, Type, IType, RewriteParm, RewriteRet);
+  if (CV->hasCheckedSolution(Info.getConstraints())) {
+    buildCheckedDecl(CV->getExternal(), Decl, Type, IType, RewriteParm,
+                     RewriteRet);
     return;
   }
+  if (CV->hasItypeSolution(Info.getConstraints())) {
+    buildItypeDecl(CV->getExternal(), Decl, Type, IType, RewriteParm,
+                   RewriteRet);
+    return;
+  }
+
   // Variables that do not need to be rewritten fall through to here.
   // For parameter variables, we try to extract the declaration from the source
   // code. This preserves macros and other formatting. This isn't possible for
@@ -732,10 +724,10 @@ void FunctionDeclBuilder::buildDeclVar(PVConstraint *IntCV, PVConstraint *ExtCV,
     // TODO: Do we care about `register` or anything else this doesn't handle?
     Type = qtyToStr(PVD->getOriginalType(), PVD->getNameAsString());
   } else {
-    Type = ExtCV->getOriginalTy() + " ";
+    Type = CV->getExternal()->getOriginalTy() + " ";
   }
-  IType = getExistingIType(ExtCV);
-  IType += ABRewriter.getBoundsString(ExtCV, Decl, !IType.empty());
+  IType = getExistingIType(CV->getExternal());
+  IType += ABRewriter.getBoundsString(CV->getExternal(), Decl, !IType.empty());
 }
 
 std::string FunctionDeclBuilder::getExistingIType(ConstraintVariable *DeclC) {

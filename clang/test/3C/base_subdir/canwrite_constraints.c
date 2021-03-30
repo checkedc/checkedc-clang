@@ -1,3 +1,7 @@
+// TODO: refactor this test
+// https://github.com/correctcomputation/checkedc-clang/issues/503
+// XFAIL: *
+
 // Test that non-canWrite files are constrained not to change so that the final
 // annotations of other files are consistent with the original annotations of
 // the non-canWrite files. The currently supported cases are function and

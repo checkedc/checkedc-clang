@@ -133,7 +133,6 @@ CastPlacementVisitor::CastNeeded CastPlacementVisitor::needCasting(
 std::pair<std::string, std::string>
 CastPlacementVisitor::getCastString(ConstraintVariable *Dst,
                                     CastNeeded CastKind) {
-  const auto &E = Info.getConstraints().getVariables();
   switch (CastKind) {
   case CAST_TO_WILD:
     return std::make_pair("((" + Dst->getRewritableOriginalTy() + ")", ")");
@@ -161,7 +160,8 @@ CastPlacementVisitor::getCastString(ConstraintVariable *Dst,
       }
     }
     return std::make_pair(
-        "_Assume_bounds_cast<" + Dst->mkString(E, false) + ">(", Suffix);
+      "_Assume_bounds_cast<" + Dst->mkString(Info.getConstraints(), false) +
+      ">(", Suffix);
   }
   default:
     llvm_unreachable("No casting needed");
