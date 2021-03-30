@@ -186,6 +186,13 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
 
   ConstraintsBuilt = false;
 
+  if (VerifyDiagnosticOutput) {
+    errs() << "3C initialization error: Diagnostic verification is currently "
+              "unsupported.\n";
+    Failed = true;
+    return;
+  }
+
   if (OutputPostfix != "-" && !OutputDir.empty()) {
     errs() << "3C initialization error: Cannot use both -output-postfix and "
               "-output-dir\n";
@@ -287,6 +294,9 @@ bool _3CInterface::parseASTs() {
 
   auto *Tool = new ClangTool(*CurrCompDB, SourceFiles);
   Tool->appendArgumentsAdjuster(getIgnoreCheckedPointerAdjuster());
+  // NOTE: This code is currently unreachable because VerifyDiagnosticOutput is
+  // rejected in the _3CInterface constructor.
+  //
   // TODO: This currently only enables compiler diagnostic verification.
   // see https://github.com/correctcomputation/checkedc-clang/issues/425
   // for status.
