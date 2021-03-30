@@ -59,7 +59,7 @@ namespace clang {
     bool Trace;
 
     template <typename T>
-    Lexicographic::Result Compare(const Expr *Raw1, const Expr *Raw2) {
+    Lexicographic::Result Compare(const Expr *Raw1, const Expr *Raw2) const {
       const T *E1 = dyn_cast<T>(Raw1);
       const T *E2 = dyn_cast<T>(Raw2);
       if (!E1 || !E2) {
@@ -70,47 +70,47 @@ namespace clang {
 
     // See if E1 and E2 are considered equivalent using EquivExprs.  If
     // they are not, return Current.
-    Result CheckEquivExprs(Result Current, const Expr *E1, const Expr *E2);
+    Result CheckEquivExprs(Result Current, const Expr *E1, const Expr *E2) const;
 
     Result CompareInteger(signed I1, signed I2) const;
     Result CompareInteger(unsigned I1, unsigned I2) const;
     Result CompareRelativeBoundsClause(const RelativeBoundsClause *RC1,
-                                       const RelativeBoundsClause *RC2);
+                                       const RelativeBoundsClause *RC2) const;
     Result CompareScope(const DeclContext *DC1, const DeclContext *DC2) const;
 
-    Result CompareImpl(const PredefinedExpr *E1, const PredefinedExpr *E2);
-    Result CompareImpl(const DeclRefExpr *E1, const DeclRefExpr *E2);
-    Result CompareImpl(const ConstantExpr *E1, const ConstantExpr *E2);
-    Result CompareImpl(const IntegerLiteral *E1, const IntegerLiteral *E2);
-    Result CompareImpl(const FloatingLiteral *E1, const FloatingLiteral *E2);
-    Result CompareImpl(const StringLiteral *E1, const StringLiteral *E2);
-    Result CompareImpl(const CharacterLiteral *E1, const CharacterLiteral *E2);
-    Result CompareImpl(const UnaryOperator *E1, const UnaryOperator *E2);
-    Result CompareImpl(const OffsetOfExpr *E1, const OffsetOfExpr *E2);
+    Result CompareImpl(const PredefinedExpr *E1, const PredefinedExpr *E2) const;
+    Result CompareImpl(const DeclRefExpr *E1, const DeclRefExpr *E2) const;
+    Result CompareImpl(const ConstantExpr *E1, const ConstantExpr *E2) const;
+    Result CompareImpl(const IntegerLiteral *E1, const IntegerLiteral *E2) const;
+    Result CompareImpl(const FloatingLiteral *E1, const FloatingLiteral *E2) const;
+    Result CompareImpl(const StringLiteral *E1, const StringLiteral *E2) const;
+    Result CompareImpl(const CharacterLiteral *E1, const CharacterLiteral *E2) const;
+    Result CompareImpl(const UnaryOperator *E1, const UnaryOperator *E2) const;
+    Result CompareImpl(const OffsetOfExpr *E1, const OffsetOfExpr *E2) const;
     Result CompareImpl(const UnaryExprOrTypeTraitExpr *E1,
-                   const UnaryExprOrTypeTraitExpr *E2);
-    Result CompareImpl(const MemberExpr *E1, const MemberExpr *E2);
-    Result CompareImpl(const BinaryOperator *E1, const BinaryOperator *E2);
+                   const UnaryExprOrTypeTraitExpr *E2) const;
+    Result CompareImpl(const MemberExpr *E1, const MemberExpr *E2) const;
+    Result CompareImpl(const BinaryOperator *E1, const BinaryOperator *E2) const;
     Result CompareImpl(const CompoundAssignOperator *E1,
-                   const CompoundAssignOperator *E2);
-    Result CompareImpl(const CastExpr *E1, const CastExpr *E2);
+                   const CompoundAssignOperator *E2) const;
+    Result CompareImpl(const CastExpr *E1, const CastExpr *E2) const;
     Result CompareImpl(const CompoundLiteralExpr *E1,
-                   const CompoundLiteralExpr *E2);
+                   const CompoundLiteralExpr *E2) const;
     Result CompareImpl(const GenericSelectionExpr *E1,
-                   const GenericSelectionExpr *E2);
+                   const GenericSelectionExpr *E2) const;
     Result CompareImpl(const NullaryBoundsExpr *E1,
-                       const NullaryBoundsExpr *E2);
-    Result CompareImpl(const CountBoundsExpr *E1, const CountBoundsExpr *E2);
-    Result CompareImpl(const RangeBoundsExpr *E1, const RangeBoundsExpr *E2);
-    Result CompareImpl(const InteropTypeExpr *E1, const InteropTypeExpr *E2);
+                       const NullaryBoundsExpr *E2) const;
+    Result CompareImpl(const CountBoundsExpr *E1, const CountBoundsExpr *E2) const;
+    Result CompareImpl(const RangeBoundsExpr *E1, const RangeBoundsExpr *E2) const;
+    Result CompareImpl(const InteropTypeExpr *E1, const InteropTypeExpr *E2) const;
     Result CompareImpl(const PositionalParameterExpr *E1,
-                   const PositionalParameterExpr *E2);
-    Result CompareImpl(const BoundsCastExpr *E1, const BoundsCastExpr *E2);
+                   const PositionalParameterExpr *E2) const;
+    Result CompareImpl(const BoundsCastExpr *E1, const BoundsCastExpr *E2) const;
     Result CompareImpl(const CHKCBindTemporaryExpr *E1,
-                       const CHKCBindTemporaryExpr *E2);
-    Result CompareImpl(const BoundsValueExpr *E1, const BoundsValueExpr *E2);
-    Result CompareImpl(const AtomicExpr *E1, const AtomicExpr *E2);
-    Result CompareImpl(const BlockExpr *E1, const BlockExpr *E2);
+                       const CHKCBindTemporaryExpr *E2) const;
+    Result CompareImpl(const BoundsValueExpr *E1, const BoundsValueExpr *E2) const;
+    Result CompareImpl(const AtomicExpr *E1, const AtomicExpr *E2) const;
+    Result CompareImpl(const BlockExpr *E1, const BlockExpr *E2) const;
 
 
   public:
@@ -118,17 +118,17 @@ namespace clang {
 
     /// \brief Lexicographic comparison of expressions that can occur in
     /// bounds expressions.
-    Result CompareExpr(const Expr *E1, const Expr *E2);
+    Result CompareExpr(const Expr *E1, const Expr *E2) const;
     /// \brief Semantic comparison of expressions that can occur in
     /// bounds expressions. A return value of true indicates that the two
     /// expressions are equivalent semantically.
-    bool CompareExprSemantically(const Expr *E1, const Expr *E2);
+    bool CompareExprSemantically(const Expr *E1, const Expr *E2) const;
 
     /// \brief Given the upper bound expr and the dereference expr for an
     /// _Nt_array_ptr gets the offset by which the pointer is dereferenced.
     /// The boolean return value indicates whether a valid offset exists.
     bool GetDerefOffset(const Expr *UpperExpr, const Expr *DerefExpr,
-                        llvm::APSInt &Offset);
+                        llvm::APSInt &Offset) const;
 
     /// \brief Compare declarations that may be used by expressions or
     /// or types.
@@ -139,7 +139,7 @@ namespace clang {
     Result CompareTypeLexicographically(QualType QT1, QualType QT2) const;
 
     Result CompareAPInt(const llvm::APInt &I1, const llvm::APInt &I2) const;
-    Expr *IgnoreValuePreservingOperations(ASTContext &Ctx, Expr *E);
+    Expr *IgnoreValuePreservingOperations(ASTContext &Ctx, Expr *E) const;
   };
 }  // end namespace clang
 

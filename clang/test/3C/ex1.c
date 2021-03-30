@@ -8,9 +8,10 @@
 void foo() {
   int m = 2;
   int *s = &m;
-	//CHECK: _Ptr<int> s = &m;
-  int q[5] = { 0 };
+  //CHECK: _Ptr<int> s = &m;
+  int q[5] = {0};
+  //CHECK: int q[5] = {0};
   int *p = (int *)5;
-	//CHECK: int *p = (int *)5;
+  //CHECK: int *p = (int *)5;
   p = q + 3;
 }

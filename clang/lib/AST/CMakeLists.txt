@@ -14,6 +14,7 @@ clang_tablegen(Opcodes.inc
   TARGET Opcodes)
 
 add_clang_library(clangAST
+  AbstractSet.cpp
   APValue.cpp
   ASTConcept.cpp
   ASTConsumer.cpp
@@ -54,6 +55,7 @@ add_clang_library(clangAST
   ExprConstant.cpp
   ExprCXX.cpp
   ExprObjC.cpp
+  ExprUtils.cpp
   ExternalASTMerger.cpp
   ExternalASTSource.cpp
   FormatString.cpp

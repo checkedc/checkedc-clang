@@ -3,8 +3,8 @@
 // Tests properties about type re-writing and replacement, and simple function
 // return value stuff.
 //
-// RUN: 3c -base-dir=%S -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK","CHECK_NEXT" %s
-// RUN: 3c -base-dir=%S %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK","CHECK-NEXT" %s
+// RUN: 3c -base-dir=%S -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: 3c -base-dir=%S %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
 // RUN: 3c -base-dir=%S %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
 // expected-no-diagnostics
 //
@@ -18,7 +18,7 @@ void typd_driver(void) {
 
   *a = 0;
 
-  *(b+4) = 0;
+  *(b + 4) = 0;
 }
 //CHECK: void typd_driver(void) {
 //CHECK_NOALL: wchar_t buf[10];
@@ -28,7 +28,6 @@ void typd_driver(void) {
 //CHECK_ALL: wchar_t buf _Checked[10];
 //CHECK_ALL: _Ptr<wchar_t> a = &buf[0];
 //CHECK_ALL: _Array_ptr<wchar_t> b : count(10) = &buf[0];
-
 
 typedef struct _A {
   int a;
@@ -51,10 +50,8 @@ void pa_driver(void) {
 //CHECK-NEXT: A a = {0};
 //CHECK-NEXT: PA b = &a;
 
-int *id(int *a) {
-  return a;
-}
-//CHECK: _Ptr<int> id(_Ptr<int> a) {
+int *id(int *a) { return a; }
+//CHECK: _Ptr<int> id(_Ptr<int> a) { return a; }
 
 extern int *fry(void);
 //CHECK: extern int *fry(void);
@@ -71,7 +68,7 @@ void fret_driver(void) {
 //CHECK-NEXT: _Ptr<int> c = id(b);
 //CHECK-NEXT: int *d = fry();
 
-typedef int *(*fooptr)(int*, int);
+typedef int *(*fooptr)(int *, int);
 //CHECK: typedef _Ptr<_Ptr<int> (_Ptr<int> , int)> fooptr;
 
 int *good_mut(int *a, int b) {
@@ -92,7 +89,7 @@ void fooptr_driver(void) {
 //CHECK-NEXT: _Ptr<int> b = &a;
 //CHECK-NEXT: _Ptr<int> c = f(b, 1);
 
-#define launder(x) (char*) x
+#define launder(x) (char *)x
 
 void launder_driver(void) {
   int a = 0;
@@ -120,12 +117,12 @@ typedef struct _E {
   int a;
 } E;
 
-#define launder1(x) ((E*) x->a)
+#define launder1(x) ((E *)x->a)
 
 void launder_driver2(void) {
   D d;
   D *pd = &d;
-  E *pe = launder1(pd); 
+  E *pe = launder1(pd);
 }
 //CHECK: void launder_driver2(void) {
 //CHECK-NEXT: D d;

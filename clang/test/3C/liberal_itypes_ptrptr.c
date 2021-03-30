@@ -56,7 +56,7 @@ void ptrptr_wild_caller() {
 }
 
 void ptrptr_itype(int **a) {
-//CHECK: void ptrptr_itype(int **a : itype(_Ptr<int *>)) {
+  //CHECK: void ptrptr_itype(int **a : itype(_Ptr<int *>)) {
   a = 1;
 
   int **b = a;
@@ -106,7 +106,7 @@ void ptrptr_other() {
   *b = 1;
 
   int **c = ptrptr_ret_bad();
-  //CHECK :_Ptr<int *> c = ptrptr_ret_bad();
+  //CHECK: _Ptr<int *> c = ptrptr_ret_bad();
 
   int *d = *ptrptr_ret_bad();
   //CHECK: int *d = *ptrptr_ret_bad();
@@ -117,7 +117,7 @@ int *nested_callee(char *k) { return 0; }
 int **nested_callee_ptrptr(char **k) { return 0; }
 //CHECK: _Ptr<int *> nested_callee_ptrptr(_Ptr<char *> k) { return 0; }
 void nested_caller(void) {
-//CHECK: void nested_caller(void) {
+  //CHECK: void nested_caller(void) {
   char *a = 1;
   nested_callee(nested_callee(a));
   //CHECK: nested_callee(_Assume_bounds_cast<_Ptr<char>>(nested_callee(_Assume_bounds_cast<_Ptr<char>>(a))));
@@ -126,8 +126,8 @@ void nested_caller(void) {
   //CHECK: nested_callee_ptrptr(_Assume_bounds_cast<_Ptr<char *>>(nested_callee_ptrptr(_Assume_bounds_cast<_Ptr<char *>>(1))));
 }
 
-void itype_defined_ptrptr(int **p : itype(_Ptr<_Ptr<int>>)) { }
-//CHECK: void itype_defined_ptrptr(int **p : itype(_Ptr<_Ptr<int>>)) _Checked { }
+void itype_defined_ptrptr(int **p : itype(_Ptr<_Ptr<int>>)) {}
+//CHECK: void itype_defined_ptrptr(int **p : itype(_Ptr<_Ptr<int>>)) _Checked {}
 
 void itype_defined_caller() {
   int **c = 1;

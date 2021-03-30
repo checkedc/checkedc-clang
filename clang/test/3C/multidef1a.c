@@ -4,8 +4,8 @@
 
 // The desired behavior in this case is to fail, so other checks are omitted
 
-_Ptr<int> foo(int x, char * y) { 
-    x = x + 4; 
-    int *z = &x; 
-    return z;
+_Ptr<int> foo(int x, char *y) {
+  x = x + 4;
+  int *z = &x;
+  return z;
 }

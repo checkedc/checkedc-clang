@@ -8,5 +8,5 @@
 // When this file is first it fails.
 
 // possible assert failure - nothing should merge into undeclared params
-int * primary_merge(int * (*secondary_merge)());
+int *primary_merge(int *(*secondary_merge)());
 // CHECK: _Ptr<int> primary_merge(_Ptr<_Ptr<int> (int *)> secondary_merge);

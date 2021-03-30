@@ -5,6 +5,10 @@
 // RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s --
 // RUN: 3c -base-dir=%t.checked -alltypes %t.checked/k_and_r.c -- | diff %t.checked/k_and_r.c -
 
+// clang-format doesn't seem to understand K&R function declarations and makes a
+// mess.
+// clang-format off
+
 void test0(a)
   int *a;
 {}
@@ -26,9 +30,9 @@ void test2(a, b)
 
 int *test3(a)
   int *a;
-{return a;}
+{ return a; }
 //CHECK: _Ptr<int> test3(_Ptr<int> a)
-//CHECK: _Checked {return a;}
+//CHECK: _Checked { return a; }
 
 void test4(a)
   int *a;
@@ -55,9 +59,9 @@ void test5(a, b, c, d, e, f, g, h)
 struct yy_buffer_state {};
 typedef struct yy_buffer_state *YY_BUFFER_STATE;
 #ifdef YY_USE_PROTOS
-void yy_init_buffer( YY_BUFFER_STATE b, FILE *file )
+void yy_init_buffer(YY_BUFFER_STATE b, FILE *file)
 #else
-void yy_init_buffer( b, file )
+void yy_init_buffer(b, file)
 YY_BUFFER_STATE b;
 int *file;
 //CHECK: void yy_init_buffer(YY_BUFFER_STATE b, _Ptr<int> file)
@@ -73,4 +77,6 @@ void compress_block(s, ltree, dtree)
     const ct_data *ltree;
     const ct_data *dtree;
 //CHECK: void compress_block(_Ptr<deflate_state> s, _Ptr<const ct_data> ltree, _Ptr<const ct_data> dtree)
- { }
+{}
+
+// clang-format on

@@ -8,8 +8,10 @@
 //
 
 unsigned long strlen(const char *s : itype(_Nt_array_ptr<const char>));
-char *strstr(const char *s1 : itype(_Nt_array_ptr<const char>),
-             const char *s2 : itype(_Nt_array_ptr<const char>)) : itype(_Nt_array_ptr<char>);
+char *strstr(const char *s1
+             : itype(_Nt_array_ptr<const char>), const char *s2
+             : itype(_Nt_array_ptr<const char>))
+    : itype(_Nt_array_ptr<char>);
 
 // basic test
 // just create a NT pointer
@@ -23,7 +25,7 @@ int main() {
   // this will make C as PTR
   c = strstr("Hello", "World");
   // this should mark d as WILD.
-  d = (int*)0xdeadbeef;
+  d = (int *)0xdeadbeef;
   return 0;
 }
 

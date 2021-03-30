@@ -11,18 +11,18 @@
 // expected-no-diagnostics
 
 void f1(void) {
-    int b = 0;
-    int *a = &b;
-    *a = 1;
+  int b = 0;
+  int *a = &b;
+  *a = 1;
 }
 // CHECK: void f1(void) _Checked {
 // CHECK-NEXT: int b = 0;
 // CHECK-NEXT: _Ptr<int> a = &b;
 
 void f2(void) {
-    char b = 'a';
-    char *a = &b;
-    *a = 'b';
+  char b = 'a';
+  char *a = &b;
+  *a = 'b';
 }
 //CHECK: void f2(void) _Checked {
 //CHECK-NEXT: char b = 'a';
@@ -35,20 +35,12 @@ typedef struct _BarRec {
   int *d;
 } BarRec;
 
-void upd(BarRec *P, int a) {
-  P->a = a;
-}
-//CHECK: void upd(_Ptr<BarRec> P, int a) _Checked {
-//CHECK-NEXT: P->a = a;
-//CHECK-NEXT: }
+void upd(BarRec *P, int a) { P->a = a; }
+//CHECK: void upd(_Ptr<BarRec> P, int a) _Checked { P->a = a; }
 
-void canthelp(int *a, int b, int c) {
-  *(a + b) = c;
-}
-//CHECK_NOALL: void canthelp(int *a : itype(_Ptr<int>), int b, int c) {
-//CHECK_ALL: void canthelp(_Array_ptr<int> a : count(b), int b, int c) _Checked {
-//CHECK:  *(a + b) = c;
-//CHECK-NEXT: }
+void canthelp(int *a, int b, int c) { *(a + b) = c; }
+//CHECK_NOALL: void canthelp(int *a : itype(_Ptr<int>), int b, int c) { *(a + b) = c; }
+//CHECK_ALL: void canthelp(_Array_ptr<int> a : count(b), int b, int c) _Checked { *(a + b) = c; }
 
 void partialhelp(int *a, int b, int c) {
   int *d = a;
@@ -60,13 +52,13 @@ void partialhelp(int *a, int b, int c) {
 //CHECK_NOALL: int *d = a;
 //CHECK_ALL: _Ptr<int> d = a;
 //CHECK: *d = 0;
-//CHECK-NEXT:  *(a + b) = c;
+//CHECK-NEXT: *(a + b) = c;
 //CHECK-NEXT: }
 
 void g(void) {
-    int a = 0;
-    int *b = &a;
-    *b = 1;
+  int a = 0;
+  int *b = &a;
+  *b = 1;
 }
 //CHECK: void g(void) _Checked {
 //CHECK-NEXT: int a = 0;
@@ -109,12 +101,8 @@ int foo(int a, int b) {
 //CHECK-NEXT: return tmp + b + *tmp2;
 //CHECK-NEXT: }
 
-int bar(int a, int b) {
-  return a + b;
-}
-//CHECK: int bar(int a, int b) _Checked {
-//CHECK-NEXT: return a + b;
-//CHECK-NEXT: }
+int bar(int a, int b) { return a + b; }
+//CHECK: int bar(int a, int b) _Checked { return a + b; }
 
 int baz(int *a, int b, int c) {
   int tmp = b + c;
@@ -128,21 +116,13 @@ int baz(int *a, int b, int c) {
 //CHECK-NEXT: *aa = tmp;
 //CHECK-NEXT: return tmp;
 
-int arrcheck(int *a, int b) {
-  return a[b];
-} 
-//CHECK_ALL: int arrcheck(_Array_ptr<int> a : count(b), int b) _Checked {
-//CHECK_NOALL: int arrcheck(int *a : itype(_Ptr<int>), int b) {
-//CHECK: return a[b];
-//CHECK-NEXT: }
+int arrcheck(int *a, int b) { return a[b]; }
+//CHECK_ALL: int arrcheck(_Array_ptr<int> a : count(b), int b) _Checked { return a[b]; }
+//CHECK_NOALL: int arrcheck(int *a : itype(_Ptr<int>), int b) { return a[b]; }
 
-int badcall(int *a, int b) {
-  return arrcheck(a, b);
-}
-//CHECK_ALL: int badcall(_Array_ptr<int> a : count(b), int b) _Checked {
-//CHECK_NOALL: int badcall(_Ptr<int> a, int b) _Checked {
-//CHECK: return arrcheck(a, b); 
-//CHECK-NEXT: }
+int badcall(int *a, int b) { return arrcheck(a, b); }
+//CHECK_ALL: int badcall(_Array_ptr<int> a : count(b), int b) _Checked { return arrcheck(a, b); }
+//CHECK_NOALL: int badcall(_Ptr<int> a, int b) _Checked { return arrcheck(a, b); }
 
 void pullit(char *base, char *out, int *index) {
   char tmp = base[*index];
@@ -155,7 +135,7 @@ void pullit(char *base, char *out, int *index) {
 //CHECK_NOALL: void pullit(char *base : itype(_Ptr<char>), _Ptr<char> out, _Ptr<int> index) {
 
 void driver() {
-  char buf[10] = { 0 };
+  char buf[10] = {0};
   int index = 0;
   char v;
 
@@ -224,7 +204,6 @@ void dknbhd(void) {
 
   **c = 1;
 
-
   *(d + 4) = 4;
 }
 //CHECK: void dknbhd(void) {
@@ -251,7 +230,7 @@ void cvxqqef(void) {
 
 // Check that constraints involving arrays work.
 void ptrarr(void) {
-  int *vals[4] = { 0 };
+  int *vals[4] = {0};
   int a = 0;
   int b = 0;
   int c = 0;
@@ -264,6 +243,6 @@ void ptrarr(void) {
 
   return;
 }
-//CHECK_ALL: void ptrarr(void) _Checked { 
-//CHECK_NOALL: int *vals[4] = { 0 };
-//CHECK_ALL: _Ptr<int> vals _Checked[4] =  { 0 };
+//CHECK_ALL: void ptrarr(void) _Checked {
+//CHECK_NOALL: int *vals[4] = {0};
+//CHECK_ALL: _Ptr<int> vals _Checked[4] = {0};

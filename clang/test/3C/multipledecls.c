@@ -10,7 +10,7 @@
 // expected-no-diagnostics
 
 void gmtime(long *q);
-void gmtime(long *q1:itype(_Ptr<long>));
+void gmtime(long *q1 : itype(_Ptr<long>));
 void foo() {
   long *p;
   long *p1;

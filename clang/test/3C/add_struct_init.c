@@ -5,15 +5,27 @@
 // RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s --
 // RUN: 3c -base-dir=%t.checked -alltypes %t.checked/add_struct_init.c -- | diff %t.checked/add_struct_init.c -
 
-
 struct foo {};
-struct bar { int *a; };
-//CHECK: struct bar { _Ptr<int> a; };
-struct fiz { int *a; };
-struct buz { struct bar a; };
-struct baz { struct buz a; };
-struct fuz { struct baz a; struct fiz b; };
-struct biz { struct fiz b; };
+struct bar {
+  int *a;
+  //CHECK: _Ptr<int> a;
+};
+struct fiz {
+  int *a;
+};
+struct buz {
+  struct bar a;
+};
+struct baz {
+  struct buz a;
+};
+struct fuz {
+  struct baz a;
+  struct fiz b;
+};
+struct biz {
+  struct fiz b;
+};
 
 void test() {
   struct foo a;

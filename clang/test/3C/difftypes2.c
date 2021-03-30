@@ -11,4 +11,3 @@ void foo(char *x);
 void foo(char **y) {
   // this is the body
 }
-

@@ -6,7 +6,6 @@
 // RUN: 3c -base-dir=%t.checked -alltypes %t.checked/i2.c -- | diff %t.checked/i2.c -
 
 static int *f(int *x) {
-	//CHECK: static _Ptr<int> f(_Ptr<int> x) _Checked {
+  //CHECK: static _Ptr<int> f(_Ptr<int> x) _Checked {
   return x;
 }
-

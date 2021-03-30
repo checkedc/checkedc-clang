@@ -7,7 +7,8 @@
 // This test is unusual in that it checks for the errors in the code
 
 #include <stddef.h>
-extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
+extern _Itype_for_any(T) void *malloc(size_t size)
+    : itype(_Array_ptr<T>) byte_count(size);
 
 void *x; // expected-warning {{Default void* type}}
 
@@ -17,12 +18,11 @@ void test0() {
   a = b; // expected-warning {{Cast from char * to int *}}
 
   int *c;
-  (char*) c; // expected-warning {{Cast from int * to char *}}
+  (char *)c; // expected-warning {{Cast from int * to char *}}
 
-  
   int *e;
   char *f;
-  f = (char*) e; // expected-warning {{Cast from int * to char *}}
+  f = (char *)e; // expected-warning {{Cast from int * to char *}}
 }
 
 void test1() {
@@ -42,11 +42,13 @@ void test1() {
   int *d = malloc(1); // expected-warning {{Unsafe call to allocator function}}
 }
 
-extern int *glob; // expected-warning {{External global variable glob has no definition}}
+extern int *
+    glob; // expected-warning {{External global variable glob has no definition}}
 
 void (*f)(void *); // expected-warning {{Default void* type}}
 
 typedef struct {
   int x;
   float f;
-} A, *PA; // expected-warning {{Unable to rewrite a typedef with multiple names}}
+} A, *PA;
+// expected-warning@-1 {{Unable to rewrite a typedef with multiple names}}

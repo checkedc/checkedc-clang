@@ -8,9 +8,11 @@
 
 #define baz foo<int>(i);
 #define buz foo(i);
-#define buzzy foo(i); foo(j);
+#define buzzy                                                                  \
+  foo(i);                                                                      \
+  foo(j);
 
-_Itype_for_any(T) void foo(void *x  : itype(_Ptr<T>));
+_Itype_for_any(T) void foo(void *x : itype(_Ptr<T>));
 
 void test_none() {
   int *i = 0;
@@ -45,4 +47,3 @@ void test_two() {
 // CHECK:  int *i = 0;
 // CHECK:  int *j = 0;
 // CHECK:  buzzy
-

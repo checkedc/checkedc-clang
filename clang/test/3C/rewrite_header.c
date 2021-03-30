@@ -8,6 +8,6 @@
 
 #include "rewrite_header.h"
 int *foo(int *x) {
-// CHECK: _Ptr<int> foo(_Ptr<int> x) _Checked {
+  // CHECK: _Ptr<int> foo(_Ptr<int> x) _Checked {
   return x;
 }

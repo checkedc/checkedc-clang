@@ -6,10 +6,10 @@
 // This test cannot use pipes because it requires multiple output files
 
 int w = 2;
-int *y = &w; 
-//CHECK: _Ptr<int> y =  &w; 
+int *y = &w;
+//CHECK: _Ptr<int> y =  &w;
 
-void f(int *e) { 
-    //ensure trivial conversion
+void f(int *e) {
+  //ensure trivial conversion
 }
 //CHECK: void f(_Ptr<int> e) {

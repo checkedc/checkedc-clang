@@ -9,11 +9,11 @@
 
 #include "dont_rewrite_header.h"
 int *foo(int *x) {
-// CHECK: _Ptr<int> foo(_Ptr<int> x) _Checked {
+  // CHECK: _Ptr<int> foo(_Ptr<int> x) _Checked {
   return x;
 }
 
 int bar(int *x : itype(_Ptr<int>)) {
-  x = (int*) 1;
+  x = (int *)1;
   return 0;
 }

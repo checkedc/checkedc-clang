@@ -144,7 +144,10 @@ public:
     /// Checked C - Scope for an existential type
     /// e.g. when we write '_Exists(T, struct Foo<T>)', T's scope is exactly the
     /// type 'struct Foo<T>'.
-    ExistentialTypeScope = 0x8000000
+    ExistentialTypeScope = 0x8000000,
+
+    /// Checked C - Where clause scope.
+    WhereClauseScope = 0x10000000
   };
 
 private:
@@ -373,6 +376,11 @@ public:
 
   /// isExistentialTypeScope - Return true if this scope corresponds to an existential type.
   bool isExistentialTypeScope() const { return (getFlags() & Scope::ExistentialTypeScope); }
+
+  /// isWhereClauseScope - Return true if this scope is _Where scope.
+  bool isWhereClauseScope() const {
+    return getFlags() & Scope::WhereClauseScope;
+  }
 
   /// isInCXXInlineMethodScope - Return true if this scope is a C++ inline
   /// method scope or is inside one.

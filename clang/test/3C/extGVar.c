@@ -5,12 +5,11 @@
 // RUN: 3c -base-dir=%S -output-dir=%t.checked -alltypes %s --
 // RUN: 3c -base-dir=%t.checked -alltypes %t.checked/extGVar.c -- | diff %t.checked/extGVar.c -
 
-/*what we're interested in*/ 
-extern int *x; 
+/*what we're interested in*/
+extern int *x;
 
-/*safe filler to ensure that conversion happens*/ 
-void g(int *y) { 
-	//CHECK: void g(_Ptr<int> y) _Checked { 
-	*y = 2;
+/*safe filler to ensure that conversion happens*/
+void g(int *y) {
+  //CHECK: void g(_Ptr<int> y) _Checked {
+  *y = 2;
 }
-
