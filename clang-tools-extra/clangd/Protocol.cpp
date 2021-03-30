@@ -624,16 +624,18 @@ bool fromJSON(const llvm::json::Value &Params, _3CManualFix &CCM) {
 llvm::json::Value toJSON(const _3CManualFix &WE) {
   return llvm::json::Object{{"PtrId", std::move(WE.PtrId)}};
 }
+#endif
 
+const llvm::StringLiteral ExecuteCommandParams::CLANGD_APPLY_FIX_COMMAND =
+    "clangd.applyFix";
+const llvm::StringLiteral ExecuteCommandParams::CLANGD_APPLY_TWEAK =
+    "clangd.applyTweak";
+#ifdef INTERACTIVE3C
 const llvm::StringLiteral ExecuteCommandParams::_3C_APPLY_ONLY_FOR_THIS =
     "3c.onlyThisPtr";
 const llvm::StringLiteral ExecuteCommandParams::_3C_APPLY_FOR_ALL =
     "3c.applyAllPtr";
 #endif
-const llvm::StringLiteral ExecuteCommandParams::CLANGD_APPLY_FIX_COMMAND =
-    "clangd.applyFix";
-const llvm::StringLiteral ExecuteCommandParams::CLANGD_APPLY_TWEAK =
-    "clangd.applyTweak";
 
 bool fromJSON(const llvm::json::Value &Params, ExecuteCommandParams &R) {
   llvm::json::ObjectMapper O(Params);

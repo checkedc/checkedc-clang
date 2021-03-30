@@ -17,6 +17,8 @@
 
 extern bool Verbose;
 extern bool DumpIntermediate;
+extern std::string OutputPostfix;
+extern std::string OutputDir;
 extern bool HandleVARARGS;
 extern bool SeperateMultipleFuncDecls;
 extern bool EnablePropThruIType;
@@ -28,6 +30,9 @@ extern std::vector<std::string> AllocatorFunctions;
 extern bool AddCheckedRegions;
 extern bool WarnRootCause;
 extern bool WarnAllRootCause;
+extern bool DumpUnwritableChanges;
+extern bool AllowUnwritableChanges;
+extern bool AllowRewriteFailures;
 
 #ifdef FIVE_C
 extern bool RemoveItypes;

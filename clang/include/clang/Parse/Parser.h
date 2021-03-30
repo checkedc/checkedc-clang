@@ -2053,6 +2053,8 @@ private:
 
   bool StartsRelativeBoundsClause(Token &tok);
 
+  bool StartsWhereClause(const Token &tok);
+
   bool ParseRelativeBoundsClauseForDecl(ExprResult &Expr);
 
   RelativeBoundsClause *ParseRelativeBoundsClause(bool &isError,
@@ -2077,11 +2079,14 @@ private:
                               SourceLocation ColonLoc,
                               BoundsAnnotations &Result,
                               std::unique_ptr<CachedTokens> *DeferredToks = nullptr,
-                              bool IsReturn=false);
+                              bool IsReturn=false,
+                              Decl *ThisDecl = nullptr);
+  bool DeferredParseBoundsAnnotations(std::unique_ptr<CachedTokens> Toks,
+                                      BoundsAnnotations &Result,
+                                      const Declarator &D,
+                                      Decl *ThisDecl = nullptr);
   bool ConsumeAndStoreBoundsExpression(CachedTokens &Toks);
-  bool DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,
-                                     BoundsAnnotations &Result,
-                                     const Declarator &D);
+  bool ConsumeAndStoreWhereClause(CachedTokens &Toks);
 
   // Delay parse a return bounds expression in Toks.  Used to parse return
   // bounds after the return type has been constructed.  Stores the bounds
@@ -2099,11 +2104,19 @@ private:
   /// Parse a pack expression of the form '_Pack(expr, existential_type, substitution_type)'.
   ExprResult ParsePackExpression();
 
-  /// Parse a Checked C where clause.
+  /// Enters and exits WhereClause scope. Invokes ParseWhereClauseHelper to parse a where
+  /// clause.
   WhereClause *ParseWhereClause();
+
+  /// Parse a Checked C where clause.
+  WhereClause *ParseWhereClauseHelper();
 
   /// Parse a Checked C where clause fact.
   WhereClauseFact *ParseWhereClauseFact();
+
+  /// Parse a where clause occurring on a declaration.
+  /// Returns false on error, true otherwise.
+  bool ParseWhereClauseOnDecl(Decl *D);
 
   //===--------------------------------------------------------------------===//
   // clang Expressions

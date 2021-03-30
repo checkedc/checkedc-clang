@@ -38,6 +38,7 @@ static cl::opt<bool>
 bool DumpIntermediate;
 bool Verbose;
 std::string OutputPostfix;
+std::string OutputDir;
 std::string ConstraintOutputJson;
 std::vector<std::string> AllocatorFunctions;
 bool DumpStats;
@@ -54,6 +55,10 @@ bool DisableCCTypeChecker;
 bool WarnRootCause;
 bool WarnAllRootCause;
 std::set<std::string> FilePaths;
+bool VerifyDiagnosticOutput;
+bool DumpUnwritableChanges;
+bool AllowUnwritableChanges;
+bool AllowRewriteFailures;
 
 #ifdef FIVE_C
 bool RemoveItypes;
@@ -86,7 +91,7 @@ public:
 
   virtual std::unique_ptr<ASTConsumer>
   CreateASTConsumer(CompilerInstance &Compiler, StringRef InFile) {
-    return std::unique_ptr<ASTConsumer>(new T(Info, OutputPostfix));
+    return std::unique_ptr<ASTConsumer>(new T(Info));
   }
 
 private:
@@ -95,21 +100,41 @@ private:
 
 template <typename T>
 std::unique_ptr<FrontendActionFactory>
-newFrontendActionFactoryA(ProgramInfo &I) {
+newFrontendActionFactoryA(ProgramInfo &I, bool VerifyTheseDiagnostics = false) {
   class ArgFrontendActionFactory : public FrontendActionFactory {
   public:
-    explicit ArgFrontendActionFactory(ProgramInfo &I) : Info(I) {}
+    explicit ArgFrontendActionFactory(ProgramInfo &I,
+                                      bool VerifyTheseDiagnostics)
+        : Info(I), VerifyTheseDiagnostics(VerifyTheseDiagnostics) {}
 
-    std::unique_ptr<FrontendAction> create() override { 
+    std::unique_ptr<FrontendAction> create() override {
       return std::unique_ptr<FrontendAction>(new T(Info));
+    }
+
+    bool runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
+                       FileManager *Files,
+                       std::shared_ptr<PCHContainerOperations> PCHContainerOps,
+                       DiagnosticConsumer *DiagConsumer) override {
+      if (VerifyTheseDiagnostics) {
+        // Mirroring the logic of clang::ParseDiagnosticArgs in
+        // clang/lib/Frontend/CompilerInvocation.cpp. In particular, note that
+        // VerifyPrefixes is assumed to be sorted, in case we add more in the
+        // future.
+        DiagnosticOptions &DiagOpts = Invocation->getDiagnosticOpts();
+        DiagOpts.VerifyDiagnostics = true;
+        DiagOpts.VerifyPrefixes.push_back("expected");
+      }
+      return FrontendActionFactory::runInvocation(
+          Invocation, Files, PCHContainerOps, DiagConsumer);
     }
 
   private:
     ProgramInfo &Info;
+    bool VerifyTheseDiagnostics;
   };
 
   return std::unique_ptr<FrontendActionFactory>(
-      new ArgFrontendActionFactory(I));
+      new ArgFrontendActionFactory(I, VerifyTheseDiagnostics));
 }
 
 ArgumentsAdjuster getIgnoreCheckedPointerAdjuster() {
@@ -173,13 +198,29 @@ void runSolver(ProgramInfo &Info, std::set<std::string> &SourceFiles) {
   }
 }
 
+std::unique_ptr<_3CInterface>
+_3CInterface::create(const struct _3COptions &CCopt,
+                     const std::vector<std::string> &SourceFileList,
+                     CompilationDatabase *CompDB) {
+  bool Failed = false;
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  std::unique_ptr<_3CInterface> _3CInter(
+      new _3CInterface(CCopt, SourceFileList, CompDB, Failed));
+  if (Failed) {
+    return nullptr;
+  }
+  return _3CInter;
+}
+
 _3CInterface::_3CInterface(const struct _3COptions &CCopt,
                            const std::vector<std::string> &SourceFileList,
-                           CompilationDatabase *CompDB) {
+                           CompilationDatabase *CompDB, bool &Failed) {
 
   DumpIntermediate = CCopt.DumpIntermediate;
   Verbose = CCopt.Verbose;
   OutputPostfix = CCopt.OutputPostfix;
+  OutputDir = CCopt.OutputDir;
   ConstraintOutputJson = CCopt.ConstraintOutputJson;
   StatsOutputJson = CCopt.StatsOutputJson;
   WildPtrInfoJson = CCopt.WildPtrInfoJson;
@@ -194,6 +235,10 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
   AllocatorFunctions = CCopt.AllocatorFunctions;
   WarnRootCause = CCopt.WarnRootCause || CCopt.WarnAllRootCause;
   WarnAllRootCause = CCopt.WarnAllRootCause;
+  VerifyDiagnosticOutput = CCopt.VerifyDiagnosticOutput;
+  DumpUnwritableChanges = CCopt.DumpUnwritableChanges;
+  AllowUnwritableChanges = CCopt.AllowUnwritableChanges;
+  AllowRewriteFailures = CCopt.AllowRewriteFailures;
 
 #ifdef FIVE_C
   RemoveItypes = CCopt.RemoveItypes;
@@ -207,35 +252,97 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
 
   ConstraintsBuilt = false;
 
-  // Get the absolute path of the base directory.
-  std::string TmpPath = BaseDir;
-  getAbsoluteFilePath(BaseDir, TmpPath);
-  BaseDir = TmpPath;
+  if (OutputPostfix != "-" && !OutputDir.empty()) {
+    errs() << "3C initialization error: Cannot use both -output-postfix and "
+              "-output-dir\n";
+    Failed = true;
+    return;
+  }
+  if (OutputPostfix == "-" && OutputDir.empty() && SourceFileList.size() > 1) {
+    errs() << "3C initialization error: Cannot specify more than one input "
+              "file when output is to stdout\n";
+    Failed = true;
+    return;
+  }
+
+  std::string TmpPath;
+  std::error_code EC;
 
   if (BaseDir.empty()) {
-    SmallString<256> Cp;
-    if (std::error_code Ec = sys::fs::current_path(Cp)) {
-      errs() << "could not get current working dir\n";
-      assert(false && "Unable to get determine working directory.");
-    }
+    BaseDir = ".";
+  }
 
-    BaseDir = std::string(Cp.str());
+  // Get the canonical path of the base directory.
+  TmpPath = BaseDir;
+  EC = tryGetCanonicalFilePath(BaseDir, TmpPath);
+  if (EC) {
+    errs() << "3C initialization error: Failed to canonicalize base directory "
+           << "\"" << BaseDir << "\": " << EC.message() << "\n";
+    Failed = true;
+    return;
+  }
+  BaseDir = TmpPath;
+
+  if (!OutputDir.empty()) {
+    // tryGetCanonicalFilePath will fail if the output dir doesn't exist yet, so
+    // create it first.
+    EC = llvm::sys::fs::create_directories(OutputDir);
+    if (EC) {
+      errs() << "3C initialization error: Failed to create output directory \""
+             << OutputDir << "\": " << EC.message() << "\n";
+      Failed = true;
+      return;
+    }
+    TmpPath = OutputDir;
+    EC = tryGetCanonicalFilePath(OutputDir, TmpPath);
+    if (EC) {
+      errs() << "3C initialization error: Failed to canonicalize output "
+             << "directory \"" << OutputDir << "\": " << EC.message() << "\n";
+      Failed = true;
+      return;
+    }
+    OutputDir = TmpPath;
   }
 
   SourceFiles = SourceFileList;
 
+  bool SawInputOutsideBaseDir = false;
   for (const auto &S : SourceFiles) {
     std::string AbsPath;
-    if (getAbsoluteFilePath(S, AbsPath))
-      FilePaths.insert(AbsPath);
+    EC = tryGetCanonicalFilePath(S, AbsPath);
+    if (EC) {
+      errs() << "3C initialization error: Failed to canonicalize source file "
+             << "path \"" << S << "\": " << EC.message() << "\n";
+      Failed = true;
+      continue;
+    }
+    FilePaths.insert(AbsPath);
+    if (!filePathStartsWith(AbsPath, BaseDir)) {
+      errs()
+          << "3C initialization "
+          << (OutputDir != "" || !CCopt.AllowSourcesOutsideBaseDir ? "error"
+                                                                   : "warning")
+          << ": File \"" << AbsPath
+          << "\" specified on the command line is outside the base directory\n";
+      SawInputOutsideBaseDir = true;
+    }
+  }
+  if (SawInputOutsideBaseDir) {
+    errs() << "The base directory is currently \"" << BaseDir
+           << "\" and can be changed with the -base-dir option.\n";
+    if (OutputDir != "") {
+      Failed = true;
+      errs() << "When using -output-dir, input files outside the base "
+                "directory cannot be handled because there is no way to "
+                "compute their output paths.\n";
+    } else if (!CCopt.AllowSourcesOutsideBaseDir) {
+      Failed = true;
+      errs() << "You can use the -allow-sources-outside-base-dir option to "
+                "temporarily downgrade this error to a warning.\n";
+    }
   }
 
   CurrCompDB = CompDB;
-
-  if (OutputPostfix == "-" && FilePaths.size() > 1) {
-    errs() << "If rewriting more than one , can't output to stdout\n";
-    assert(false && "Rewriting more than one files requires OutputPostfix");
-  }
 }
 
 bool _3CInterface::buildInitialConstraints() {
@@ -248,9 +355,11 @@ bool _3CInterface::buildInitialConstraints() {
   std::unique_ptr<ToolAction> ConstraintTool = newFrontendActionFactoryA<
       GenericAction<ConstraintBuilderConsumer, ProgramInfo>>(GlobalProgramInfo);
 
-  if (ConstraintTool)
-    Tool.run(ConstraintTool.get());
-  else
+  if (ConstraintTool) {
+    int ToolExitCode = Tool.run(ConstraintTool.get());
+    if (ToolExitCode != 0)
+      return false;
+  } else
     llvm_unreachable("No action");
 
   if (!GlobalProgramInfo.link()) {
@@ -263,13 +372,13 @@ bool _3CInterface::buildInitialConstraints() {
   return true;
 }
 
-bool _3CInterface::solveConstraints(bool ComputeInterimState) {
+bool _3CInterface::solveConstraints() {
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
   assert(ConstraintsBuilt && "Constraints not yet built. We need to call "
                              "build constraint before trying to solve them.");
   // 2. Solve constraints.
   if (Verbose)
-    outs() << "Solving constraints\n";
+    errs() << "Solving constraints\n";
 
   if (DumpIntermediate)
     GlobalProgramInfo.dump();
@@ -277,9 +386,9 @@ bool _3CInterface::solveConstraints(bool ComputeInterimState) {
   runSolver(GlobalProgramInfo, FilePaths);
 
   if (Verbose)
-    outs() << "Constraints solved\n";
+    errs() << "Constraints solved\n";
 
-  if (ComputeInterimState)
+  if (WarnRootCause)
     GlobalProgramInfo.computeInterimConstraintState(FilePaths);
 
   if (DumpIntermediate)
@@ -299,9 +408,11 @@ bool _3CInterface::solveConstraints(bool ComputeInterimState) {
     std::unique_ptr<ToolAction> ABInfTool = newFrontendActionFactoryA<
         GenericAction<AllocBasedBoundsInference, ProgramInfo>>(
         GlobalProgramInfo);
-    if (ABInfTool)
-      Tool.run(ABInfTool.get());
-    else
+    if (ABInfTool) {
+      int ToolExitCode = Tool.run(ABInfTool.get());
+      if (ToolExitCode != 0)
+        return false;
+    } else
       llvm_unreachable("No Action");
 
     // Propagate the information from allocator bounds.
@@ -312,9 +423,11 @@ bool _3CInterface::solveConstraints(bool ComputeInterimState) {
   // after constraint solving but before rewriting.
   std::unique_ptr<ToolAction> IMTool = newFrontendActionFactoryA<
       GenericAction<IntermediateToolHook, ProgramInfo>>(GlobalProgramInfo);
-  if (IMTool)
-    Tool.run(IMTool.get());
-  else
+  if (IMTool) {
+    int ToolExitCode = Tool.run(IMTool.get());
+    if (ToolExitCode != 0)
+      return false;
+  } else
     llvm_unreachable("No Action");
 
   if (AllTypes) {
@@ -364,10 +477,13 @@ bool _3CInterface::writeConvertedFileToDisk(const std::string &FilePath) {
     Tool.appendArgumentsAdjuster(getIgnoreCheckedPointerAdjuster());
     std::unique_ptr<ToolAction> RewriteTool =
         newFrontendActionFactoryA<RewriteAction<RewriteConsumer, ProgramInfo>>(
-            GlobalProgramInfo);
+            GlobalProgramInfo, VerifyDiagnosticOutput);
 
-    if (RewriteTool)
-      Tool.run(RewriteTool.get());
+    if (RewriteTool) {
+      int ToolExitCode = Tool.run(RewriteTool.get());
+      if (ToolExitCode != 0)
+        return false;
+    }
     return true;
   }
   return false;
@@ -378,13 +494,15 @@ bool _3CInterface::writeAllConvertedFilesToDisk() {
 
   ClangTool &Tool = getGlobalClangTool();
 
-  // Rewrite the input files
+  // Rewrite the input files.
   std::unique_ptr<ToolAction> RewriteTool =
       newFrontendActionFactoryA<RewriteAction<RewriteConsumer, ProgramInfo>>(
-          GlobalProgramInfo);
-  if (RewriteTool)
-    Tool.run(RewriteTool.get());
-  else
+          GlobalProgramInfo, VerifyDiagnosticOutput);
+  if (RewriteTool) {
+    int ToolExitCode = Tool.run(RewriteTool.get());
+    if (ToolExitCode != 0)
+      return false;
+  } else
     llvm_unreachable("No action");
 
   return true;

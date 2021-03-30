@@ -1,26 +1,26 @@
-// RUN: 3c -alltypes %s -- | FileCheck -match-full-lines %s
-// RUN: 3c -alltypes %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
-// RUN: 3c -alltypes %s -- | %clang_cc1  -fno-builtin -verify -fcheckedc-extension -x c -
-// RUN: 3c -output-postfix=checked -alltypes %s 
-// RUN: 3c -alltypes %S/struct_init_list.checked.c -- | count 0
-// RUN: rm %S/struct_init_list.checked.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -alltypes %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -base-dir=%S -alltypes %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c -base-dir=%S -alltypes %s -- | %clang_cc1  -fno-builtin -verify -fcheckedc-extension -x c -
+// RUN: 3c -base-dir=%S -output-dir=%t.checked -alltypes %s --
+// RUN: 3c -base-dir=%t.checked -alltypes %t.checked/struct_init_list.c -- | diff %t.checked/struct_init_list.c -
 // expected-no-diagnostics
 
 struct foo {
-  int (*fp)(int *p); 
-  // CHECK:  _Ptr<int (int *)> fp;
+  int (*fp)(int *p);
+  // CHECK: _Ptr<int (int *)> fp;
 };
 
 extern int xfunc(int *arg);
 
 int func(int *q) {
-// CHECK: int func(int *q) {
+  // CHECK: int func(int *q) {
   return *q;
 }
 
 void bar(void) {
-  struct foo f = { &xfunc };
-  struct foo g = { &func };
+  struct foo f = {&xfunc};
+  struct foo g = {&func};
 }
 
 struct buz {
@@ -30,7 +30,7 @@ struct buz {
 
 void buz_test() {
   int x = 0;
-  struct buz bar = { (int*) 1};
+  struct buz bar = {(int *)1};
   bar.x = &x;
 }
 
@@ -68,19 +68,11 @@ struct c {
   struct b b;
 };
 
-void nested_test(int *a, int *b){
-// void nested_test(_Ptr<int> a, int *b){
-  struct c test = {
-    .p = b,
-    .a = {
-      .x = a,
-      .y = b},
-    .b = {
-      .j = a,
-      .a = {
-        .x = a,
-       	.y = (int*) 1}, 
-      .k = b}};
+void nested_test(int *a, int *b) {
+  // void nested_test(_Ptr<int> a, int *b){
+  struct c test = {.p = b,
+                   .a = {.x = a, .y = b},
+                   .b = {.j = a, .a = {.x = a, .y = (int *)1}, .k = b}};
 }
 
 struct good {
@@ -95,5 +87,5 @@ struct bad {
 
 void arr_in_struct(int *a, int *b, int *c) {
   struct good test_good = {{a, b}};
-  struct bad test_bad = {{c, (int*)5}};
+  struct bad test_bad = {{c, (int *)5}};
 }

@@ -12,7 +12,7 @@
 #ifndef LLVM_CLANG_3C_REWRITEUTILS_H
 #define LLVM_CLANG_3C_REWRITEUTILS_H
 
-#include "ProgramInfo.h"
+#include "clang/3C/ProgramInfo.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Stmt.h"
@@ -32,8 +32,14 @@ public:
     return getDecl()->getSourceRange();
   }
 
-  // Discriminator for LLVM-style RTTI (dyn_cast<> et al.)
-  enum DRKind { DRK_VarDecl, DRK_ParmVarDecl, DRK_FunctionDecl, DRK_FieldDecl };
+  // Discriminator for LLVM-style RTTI (dyn_cast<> et al.).
+  enum DRKind {
+    DRK_VarDecl,
+    DRK_ParmVarDecl,
+    DRK_FunctionDecl,
+    DRK_FieldDecl,
+    DRK_TypedefDecl
+  };
 
   DRKind getKind() const { return Kind; }
 
@@ -73,6 +79,8 @@ typedef DeclReplacementTempl<ParmVarDecl, DeclReplacement::DRK_ParmVarDecl>
     ParmVarDeclReplacement;
 typedef DeclReplacementTempl<FieldDecl, DeclReplacement::DRK_FieldDecl>
     FieldDeclReplacement;
+typedef DeclReplacementTempl<TypedefDecl, DeclReplacement::DRK_TypedefDecl>
+    TypedefDeclReplacement;
 
 class FunctionDeclReplacement
     : public DeclReplacementTempl<FunctionDecl,
@@ -94,8 +102,7 @@ public:
       TypeLoc = getBaseTypeLoc(TSInfoLoc).getAs<clang::FunctionTypeLoc>();
     }
     if (!TSInfo || TypeLoc.isNull())
-      return SourceRange(Decl->getBeginLoc(),
-                         getFunctionDeclarationEnd(Decl, SM));
+      return SourceRange(Decl->getBeginLoc(), getFunctionDeclRParen(Decl, SM));
 
     // Function pointer are funky, and require special handling to rewrite the
     // return type.
@@ -116,11 +123,38 @@ public:
 
     // If rewriting Parameters, stop at the right parenthesis of the parameters.
     // Otherwise, stop after the return type.
-    // Note: getFunctionDeclarationEnd is used instead of getRParenLoc so that
-    // itypes are deleted correctly when --remove-itypes is used.
-    SourceLocation End = RewriteParams
-                             ? getFunctionDeclarationEnd(Decl, SM)
-                             : Decl->getReturnTypeSourceRange().getEnd();
+    SourceLocation End;
+    if (RewriteParams) {
+      // When there are no bounds or itypes on a function, the declaration ends
+      // at the right paren of the declaration parameter list.
+      End = TypeLoc.getRParenLoc();
+
+      // If there's a bounds expression, this comes after the right paren of the
+      // function declaration parameter list.
+      if (auto *BoundsE = Decl->getBoundsExpr()) {
+        SourceLocation BoundsEnd = BoundsE->getEndLoc();
+        if (BoundsEnd.isValid())
+          End = BoundsEnd;
+      }
+
+      // If there's an itype, this also comes after the right paren. In the case
+      // that there is both a bounds expression and an itype, we need check
+      // which is later in the file and use that as the declaration end.
+      if (auto *InteropE = Decl->getInteropTypeExpr()) {
+        SourceLocation InteropEnd = InteropE->getEndLoc();
+        if (InteropEnd.isValid() &&
+            (!End.isValid() || SM.isBeforeInTranslationUnit(End, InteropEnd)))
+          End = InteropEnd;
+      }
+
+      // SourceLocations are weird and turn up invalid for reasons I don't
+      // understand. Fallback to extracting r paren location from source
+      // character buffer.
+      if (!End.isValid())
+        End = getFunctionDeclRParen(Decl, SM);
+    } else {
+      End = Decl->getReturnTypeSourceRange().getEnd();
+    }
 
     assert("Invalid FunctionDeclReplacement SourceRange!" && Begin.isValid() &&
            End.isValid());
@@ -196,9 +230,12 @@ class ArrayBoundsRewriter {
 public:
   ArrayBoundsRewriter(ProgramInfo &I) : Info(I) {}
   // Get the string representation of the bounds for the given variable.
-  std::string getBoundsString(PVConstraint *PV, Decl *D, bool Isitype = false);
+  std::string getBoundsString(const PVConstraint *PV, Decl *D,
+                              bool Isitype = false);
+
   // Check if the constraint variable has newly created bounds string.
-  bool hasNewBoundsString(PVConstraint *PV, Decl *D, bool Isitype = false);
+  bool hasNewBoundsString(const PVConstraint *PV, Decl *D,
+                          bool Isitype = false);
 
 private:
   ProgramInfo &Info;
@@ -206,15 +243,13 @@ private:
 
 class RewriteConsumer : public ASTConsumer {
 public:
-  explicit RewriteConsumer(ProgramInfo &I, std::string &OPostfix)
-      : Info(I), OutputPostfix(OPostfix) {}
+  explicit RewriteConsumer(ProgramInfo &I) : Info(I) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context);
 
 private:
   ProgramInfo &Info;
   static std::map<std::string, std::string> ModifiedFuncSignatures;
-  std::string &OutputPostfix;
 
   // A single header file can be included in multiple translations units. This
   // set ensures that the diagnostics for a header file are not emitted each
@@ -224,6 +259,19 @@ private:
   void emitRootCauseDiagnostics(ASTContext &Context);
 };
 
-bool canRewrite(Rewriter &R, SourceRange &SR);
+bool canRewrite(Rewriter &R, const SourceRange &SR);
+
+// Rewrites the given source range with fallbacks for when the SourceRange is
+// inside a macro. This should be preferred to direct calls to ReplaceText
+// because this function will automatically expand macros where it needs to and
+// emits an error if it cannot rewrite even after expansion. If there is a
+// rewriting that is known to fail in circumstances where we want to maintain
+// a zero exit code, ErrFail can be set to false. This downgrades rewrite
+// failures to a warning.
+void rewriteSourceRange(Rewriter &R, const CharSourceRange &Range,
+                        const std::string &NewText, bool ErrFail = true);
+
+void rewriteSourceRange(Rewriter &R, const SourceRange &Range,
+                        const std::string &NewText, bool ErrFail = true);
 
 #endif // LLVM_CLANG_3C_REWRITEUTILS_H

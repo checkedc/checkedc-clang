@@ -25,8 +25,8 @@
 #ifndef LLVM_CLANG_3C_CONSTRAINTVARIABLES_H
 #define LLVM_CLANG_3C_CONSTRAINTVARIABLES_H
 
-#include "Constraints.h"
-#include "ProgramVar.h"
+#include "clang/3C/Constraints.h"
+#include "clang/3C/ProgramVar.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/Lex/Lexer.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -83,17 +83,19 @@ public:
   // The 'emitName' parameter is true when the generated string should include
   // the name of the variable, false for just the type.
   // The 'forIType' parameter is true when the generated string is expected
-  // to be used inside an itype
+  // to be used inside an itype.
   virtual std::string mkString(const EnvironmentMap &E, bool EmitName = true,
-                               bool ForItype = false,
-                               bool EmitPointee = false) const = 0;
+                               bool ForItype = false, bool EmitPointee = false,
+                               bool UnmaskTypedef = false) const = 0;
 
   // Debug printing of the constraint variable.
   virtual void print(llvm::raw_ostream &O) const = 0;
   virtual void dump() const = 0;
   virtual void dumpJson(llvm::raw_ostream &O) const = 0;
 
-  virtual bool hasItype() const = 0;
+  virtual bool srcHasItype() const = 0;
+  virtual bool srcHasBounds() const = 0;
+
   bool hasBoundsKey() const { return ValidBoundsKey; }
   BoundsKey getBoundsKey() const {
     assert(ValidBoundsKey && "No valid Bkey");
@@ -104,8 +106,8 @@ public:
     BKey = NK;
   }
 
-  virtual bool solutionEqualTo(Constraints &,
-                               const ConstraintVariable *) const = 0;
+  virtual bool solutionEqualTo(Constraints &, const ConstraintVariable *,
+                               bool ComparePtyp = true) const = 0;
 
   virtual void constrainToWild(Constraints &CS,
                                const std::string &Rsn) const = 0;
@@ -136,7 +138,8 @@ public:
 
   // Update this CV with information from duplicate declaration CVs
   virtual void brainTransplant(ConstraintVariable *, ProgramInfo &) = 0;
-  virtual void mergeDeclaration(ConstraintVariable *, ProgramInfo &) = 0;
+  virtual void mergeDeclaration(ConstraintVariable *, ProgramInfo &,
+                                std::string &ReasonFailed) = 0;
 
   std::string getOriginalTy() const { return OriginalType; }
   // Get the original type string that can be directly
@@ -180,6 +183,16 @@ bool isAValidPVConstraint(const ConstraintVariable *C);
 class PointerVariableConstraint;
 class FunctionVariableConstraint;
 
+// We need to store the level inside the type AST at which the first
+// typedef occurs. This allows us to stop rewriting once we hit the
+// first typedef. (All subsequent typedefs will not be rewritten, as
+// rewriting will stop.)
+struct InternalTypedefInfo {
+  bool HasTypedef;
+  int TypedefLevel;
+  std::string TypedefName;
+};
+
 // Represents an individual constraint on a pointer variable.
 // This could contain a reference to a FunctionVariableConstraint
 // in the case of a function pointer declaration.
@@ -214,9 +227,14 @@ private:
   // If for all U in arrSizes, any U -> (a,b) where a = O_SizedArray or
   // O_UnSizedArray, arrPresent is true.
   bool ArrPresent;
-  // Is there an itype associated with this constraint? If there is, how was it
-  // originally stored in the program?
+
+  // True if this variable has an itype in the original source code.
+  bool SrcHasItype;
+  // The string representation of the itype of in the original source. This
+  // string is empty if the variable did not have an itype OR if the itype was
+  // implicitly declared by a bounds declaration on an unchecked pointer.
   std::string ItypeStr;
+
   // Get the qualifier string (e.g., const, etc) for the provided
   // pointer type into the provided string stream (ss).
   void getQualString(uint32_t TypeIdx, std::ostringstream &Ss) const;
@@ -256,11 +274,11 @@ private:
   // String representing declared bounds expression.
   std::string BoundsAnnotationStr;
 
-  // Does this variable represent a generic type?
+  // Does this variable represent a generic type? Which one (or -1 for none)?
   // Generic types can be used with fewer restrictions, so this field is used
-  // stop assignments wth generic variables from forcing constraint variables
+  // stop assignments with generic variables from forcing constraint variables
   // to be wild.
-  bool IsGeneric;
+  int GenericIndex;
 
   // Empty array pointers are represented the same as standard pointers. This
   // lets pointers be passed to functions expecting a zero width array. This
@@ -268,15 +286,26 @@ private:
   // pointers.
   bool IsZeroWidthArray;
 
+  bool IsTypedef = false;
+  TypedefNameDecl *TDT;
+  std::string TypedefString;
+  // Does the type internally contain a typedef, and if so: at what level and
+  // what is it's name?
+  struct InternalTypedefInfo TypedefLevelInfo;
+
+  // Is this a pointer to void? Possibly with multiple levels of indirection.
+  bool IsVoidPtr;
+
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CAtoms V, std::string T, std::string Name,
                             FunctionVariableConstraint *F, bool IsArr,
-                            bool IsItype, std::string Is, bool Generic = false)
+                            std::string Is, int Generic = -1)
       : ConstraintVariable(PointerVariable, "" /*not used*/, Name), BaseType(T),
-        Vars(V), FV(F), ArrPresent(IsArr), ItypeStr(Is),
-        PartOfFuncPrototype(false), Parent(nullptr), BoundsAnnotationStr(""),
-        IsGeneric(Generic), IsZeroWidthArray(false) {}
+        Vars(V), FV(F), ArrPresent(IsArr), SrcHasItype(!Is.empty()),
+        ItypeStr(Is), PartOfFuncPrototype(false), Parent(nullptr),
+        BoundsAnnotationStr(""), GenericIndex(Generic), IsZeroWidthArray(false),
+        IsVoidPtr(false) {}
 
   std::string getTy() const { return BaseType; }
   bool getArrPresent() const { return ArrPresent; }
@@ -285,23 +314,39 @@ public:
   // Check if any of the pointers is either a sized or unsized arr.
   bool hasSomeSizedArr() const;
 
-  // Is an itype present for this constraint? If yes,
-  // what is the text of that itype?
-  bool hasItype() const override { return ItypeStr.size() > 0; }
+  bool isTypedef(void);
+  void setTypedef(TypedefNameDecl *TypedefType, std::string);
+
+  // Return true if this constraint had an itype in the original source code.
+  bool srcHasItype() const override {
+    assert(!SrcHasItype || !ItypeStr.empty() || !BoundsAnnotationStr.empty());
+    return SrcHasItype;
+  }
+
+  // Return the string representation of the itype for this constraint if an
+  // itype was present in the original source code. Returns empty string
+  // otherwise.
   std::string getItype() const { return ItypeStr; }
   // Check if this variable has bounds annotation.
-  bool hasBoundsStr() const { return !BoundsAnnotationStr.empty(); }
+  bool srcHasBounds() const override { return !BoundsAnnotationStr.empty(); }
   // Get bounds annotation.
   std::string getBoundsStr() const { return BoundsAnnotationStr; }
 
-  bool getIsGeneric() const { return IsGeneric; }
+  bool getIsGeneric() const { return GenericIndex >= 0; }
+  int getGenericIndex() const { return GenericIndex; }
 
+  // Was this variable a checked pointer in the input program?
+  // This is important for two reasons: (1) externs that are checked should be
+  // kept that way during solving, (2) nothing that was originally checked
+  // should be modified during rewriting.
   bool getIsOriginallyChecked() const override {
     return llvm::any_of(Vars, [](Atom *A) { return isa<ConstAtom>(A); });
   }
 
-  bool solutionEqualTo(Constraints &CS,
-                       const ConstraintVariable *CV) const override;
+  bool isVoidPtr() const { return IsVoidPtr; }
+
+  bool solutionEqualTo(Constraints &CS, const ConstraintVariable *CV,
+                       bool ComparePtyp = true) const override;
 
   // Construct a PVConstraint when the variable is generated by a specific
   // declaration (D). This constructor calls the next constructor below with
@@ -321,27 +366,29 @@ public:
   //          that all constructor calls will take the same global objects here.
   // inFunc: If this variable is part of a function prototype, this string is
   //         the name of the function. nullptr otherwise.
-  // IsGeneric: CheckedC supports generic types (_Itype_for_any) which need less
-  //            restrictive constraints. Set to true to indicate that this
-  //            variable is generic.
+  // ForceGenericIndex: CheckedC supports generic types (_Itype_for_any) which
+  //                    need less restrictive constraints. Set >= 0 to indicate
+  //                    that this variable should be considered generic.
   PointerVariableConstraint(const clang::QualType &QT, clang::DeclaratorDecl *D,
                             std::string N, ProgramInfo &I,
                             const clang::ASTContext &C,
                             std::string *InFunc = nullptr,
-                            bool IsGeneric = false);
+                            int ForceGenericIndex = -1,
+                            bool VarAtomForChecked = false);
 
   const CAtoms &getCvars() const { return Vars; }
 
   void brainTransplant(ConstraintVariable *From, ProgramInfo &I) override;
-  void mergeDeclaration(ConstraintVariable *From, ProgramInfo &I) override;
+  void mergeDeclaration(ConstraintVariable *From, ProgramInfo &I,
+                        std::string &ReasonFailed) override;
 
   static bool classof(const ConstraintVariable *S) {
     return S->getKind() == PointerVariable;
   }
 
   std::string mkString(const EnvironmentMap &E, bool EmitName = true,
-                       bool ForItype = false,
-                       bool EmitPointee = false) const override;
+                       bool ForItype = false, bool EmitPointee = false,
+                       bool UnmaskTypedef = false) const override;
 
   FunctionVariableConstraint *getFV() const { return FV; }
 
@@ -386,16 +433,51 @@ typedef struct {
   std::vector<CVarSet> PS;
 } ParamDeferment;
 
+// This class contains a pair of PVConstraints that represent an internal and
+// external view of a variable for use as the parameter and return constraints
+// of FunctionVariableConstraints. The internal constraint represents how the
+// variable is used inside the function. The external constraint represents
+// how it can be used by callers to the function. For example, when a variable
+// is used unsafely inside the function, the internal constraint variable will
+// solve to an unchecked type, but the external constraint variable will still
+// be checked. The rewriting of the function then gives it an itype, allowing
+// callers to use the external checked type.
+class FVComponentVariable {
+private:
+  friend class FunctionVariableConstraint;
+  PVConstraint *InternalConstraint;
+  PVConstraint *ExternalConstraint;
+
+public:
+  FVComponentVariable()
+      : InternalConstraint(nullptr), ExternalConstraint(nullptr) {}
+
+  FVComponentVariable(FVComponentVariable *Ot, Constraints &CS);
+  FVComponentVariable(const clang::QualType &QT, clang::DeclaratorDecl *D,
+                      std::string N, ProgramInfo &I, const clang::ASTContext &C,
+                      std::string *InFunc, bool HasItype);
+
+  void mergeDeclaration(FVComponentVariable *From, ProgramInfo &I,
+                        std::string &ReasonFailed);
+  void brainTransplant(FVComponentVariable *From, ProgramInfo &I);
+
+  std::string mkItypeStr(const EnvironmentMap &E) const;
+  std::string mkTypeStr(const EnvironmentMap &E) const;
+  std::string mkString(const EnvironmentMap &E) const;
+};
+
 // Constraints on a function type. Also contains a 'name' parameter for
 // when a re-write of a function pointer is needed.
 class FunctionVariableConstraint : public ConstraintVariable {
 private:
   FunctionVariableConstraint(FunctionVariableConstraint *Ot, Constraints &CS);
+
   // N constraints on the return value of the function.
-  PVConstraint *ReturnVar;
+  FVComponentVariable ReturnVar;
   // A vector of K sets of N constraints on the parameter values, for
   // K parameters accepted by the function.
-  std::vector<PVConstraint *> ParamVars;
+  std::vector<FVComponentVariable> ParamVars;
+
   // Storing of parameters in the case of untyped prototypes
   std::vector<ParamDeferment> DeferredParams;
   // File name in which this declaration is found.
@@ -406,6 +488,9 @@ private:
   FunctionVariableConstraint *Parent;
   // Flag to indicate whether this is a function pointer or not.
   bool IsFunctionPtr;
+
+  // Count of type parameters from `_Itype_for_any(...)`.
+  int TypeParams;
 
   void equateFVConstraintVars(ConstraintVariable *CV, ProgramInfo &Info) const;
 
@@ -421,7 +506,13 @@ public:
                              std::string N, ProgramInfo &I,
                              const clang::ASTContext &C);
 
-  PVConstraint *getReturnVar() const { return ReturnVar; }
+  PVConstraint *getExternalReturn() const {
+    return ReturnVar.ExternalConstraint;
+  }
+
+  PVConstraint *getInternalReturn() const {
+    return ReturnVar.InternalConstraint;
+  }
 
   const std::vector<ParamDeferment> &getDeferredParams() const {
     return DeferredParams;
@@ -440,20 +531,32 @@ public:
   }
 
   void brainTransplant(ConstraintVariable *From, ProgramInfo &I) override;
-  void mergeDeclaration(ConstraintVariable *FromCV, ProgramInfo &I) override;
+  void mergeDeclaration(ConstraintVariable *FromCV, ProgramInfo &I,
+                        std::string &ReasonFailed) override;
 
-  PVConstraint *getParamVar(unsigned I) const {
+  PVConstraint *getExternalParam(unsigned I) const {
     assert(I < ParamVars.size());
-    return ParamVars.at(I);
+    return ParamVars.at(I).ExternalConstraint;
   }
 
-  bool hasItype() const override;
-  bool solutionEqualTo(Constraints &CS,
-                       const ConstraintVariable *CV) const override;
+  PVConstraint *getInternalParam(unsigned I) const {
+    assert(I < ParamVars.size());
+    return ParamVars.at(I).InternalConstraint;
+  }
+
+  bool srcHasItype() const override;
+  bool srcHasBounds() const override;
+
+  int getGenericIndex() const {
+    return ReturnVar.ExternalConstraint->getGenericIndex();
+  }
+
+  bool solutionEqualTo(Constraints &CS, const ConstraintVariable *CV,
+                       bool ComparePtyp = true) const override;
 
   std::string mkString(const EnvironmentMap &E, bool EmitName = true,
-                       bool ForItype = false,
-                       bool EmitPointee = false) const override;
+                       bool ForItype = false, bool EmitPointee = false,
+                       bool UnmaskTypedef = false) const override;
   void print(llvm::raw_ostream &O) const override;
   void dump() const override { print(llvm::errs()); }
   void dumpJson(llvm::raw_ostream &O) const override;

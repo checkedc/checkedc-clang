@@ -2,12 +2,16 @@
 //
 // Tests rewriting of Nt_array_ptrs within structure fields
 
-// RUN: 3c -alltypes %s -- | FileCheck -match-full-lines %s
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -alltypes %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -base-dir=%S -alltypes %s -- | %clang -c -f3c-tool -fcheckedc-extension -x c -o %t1.unused -
 //
 
-unsigned long strlen(const char *s : itype(_Nt_array_ptr<const char>)) ;
-char *strstr(const char *s1 : itype(_Nt_array_ptr<const char>),
-             const char *s2 : itype(_Nt_array_ptr<const char>)) : itype(_Nt_array_ptr<char>);
+unsigned long strlen(const char *s : itype(_Nt_array_ptr<const char>));
+char *strstr(const char *s1
+             : itype(_Nt_array_ptr<const char>), const char *s2
+             : itype(_Nt_array_ptr<const char>))
+    : itype(_Nt_array_ptr<char>);
 // This tests the propagation of constraints
 // within the fields of structure.
 typedef struct {
@@ -20,7 +24,7 @@ typedef struct {
 
 foo obj1 = {};
 
-int* func(int *ptr, char *ntptr) {
+int *func(int *ptr, char *ntptr) {
   obj1.ptr = ptr;
   obj1.ntptr = strstr(ntptr, "world");
   strstr(obj1.ntptr, "world");

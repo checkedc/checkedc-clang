@@ -1881,6 +1881,29 @@ void Parser::ExitQuantifiedTypeScope(DeclSpec &DS) {
   }
 }
 
+bool Parser::ParseWhereClauseOnDecl(Decl *D) {
+  if (!StartsWhereClause(Tok))
+    return true;
+
+  if (!D) {
+    Diag(Tok, diag::err_invalid_decl_where_clause);
+    return false;
+  }
+
+  WhereClause *WClause = ParseWhereClause();
+  if (!WClause)
+    return false;
+
+  if (auto *PD = dyn_cast<ParmVarDecl>(D))
+    PD->setWhereClause(WClause);
+  else if (auto *VD = dyn_cast<VarDecl>(D))
+    VD->setWhereClause(WClause);
+  else
+    return false;
+
+  return true;
+}
+
 /// ParseDeclGroup - Having concluded that this is either a function
 /// definition or a group of object declarations, actually parse the
 /// result.
@@ -2059,8 +2082,12 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
   if (LateParsedAttrs.size() > 0)
     ParseLexedAttributeList(LateParsedAttrs, FirstDecl, true, false);
   D.complete(FirstDecl);
-  if (FirstDecl)
+  if (FirstDecl) {
     DeclsInGroup.push_back(FirstDecl);
+    // Parse a where clause occurring on a variable declaration, like:
+    // int a _Where a > 0;
+    ParseWhereClauseOnDecl(FirstDecl);
+  }
 
   bool ExpectSemi = Context != DeclaratorContext::ForContext;
 
@@ -2105,8 +2132,12 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
         ParseTrailingRequiresClause(D);
       Decl *ThisDecl = ParseDeclarationAfterDeclarator(D);
       D.complete(ThisDecl);
-      if (ThisDecl)
+      if (ThisDecl) {
         DeclsInGroup.push_back(ThisDecl);
+        // Parse a where clause occurring on a variable declaration, like
+        // int a, b, c _Where a > 0;
+        ParseWhereClauseOnDecl(ThisDecl);
+      }
     }
   }
 
@@ -4293,7 +4324,8 @@ void Parser::ParseStructDeclaration(
           StartsInteropTypeAnnotation(Tok))) {
         BoundsAnnotations BA;
         std::unique_ptr<CachedTokens> BoundsExprTokens(new CachedTokens);
-        if (ParseBoundsAnnotations(DeclaratorInfo.D, Loc, BA, &BoundsExprTokens, false))
+        if (ParseBoundsAnnotations(DeclaratorInfo.D, Loc, BA,
+                                   &BoundsExprTokens, false))
           SkipUntil(tok::semi, StopBeforeMatch);
         assert(BA.getBoundsExpr() == nullptr);
         DeclaratorInfo.InteropType = BA.getInteropTypeExpr();
@@ -4502,11 +4534,18 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
     EnterMemberBoundsExprRAII MemberBoundsContext(Actions);
     FieldDecl *FieldDecl = Pair.first;
     std::unique_ptr<CachedTokens> Tokens = std::move(Pair.second);
+    bool IsWhereClause = StartsWhereClause(Tokens->front());
+
     BoundsAnnotations Annots;
-    if (DeferredParseBoundsExpression(std::move(Tokens), Annots, DeclaratorsInfo.D))
-      Actions.ActOnInvalidBoundsDecl(FieldDecl);
-    else
-      Actions.ActOnBoundsDecl(FieldDecl, Annots,/*MergeDeferredBounds=*/true);
+    bool Error = DeferredParseBoundsAnnotations(std::move(Tokens), Annots,
+                                                DeclaratorsInfo.D);
+    if (!IsWhereClause) {
+      if (Error)
+        Actions.ActOnInvalidBoundsDecl(FieldDecl);
+      else
+        Actions.ActOnBoundsDecl(FieldDecl, Annots,
+                                /*MergeDeferredBounds=*/true);
+    }
   }
 
   // For Checked C, check type restrictions on declarations in checked scopes.
@@ -4514,8 +4553,8 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
   // A member declaration in a checked scope cannot use unchecked types, unless
   // there is a bounds-safe interface,
 
-  // TODO: this should be invoked as part of semantic checking of struct defnitions,
-  // not directly by the parser.
+  // TODO: this should be invoked as part of semantic checking of struct
+  // definitions, not directly by the parser.
   if (getLangOpts().CheckedC) {
     for (ArrayRef<Decl *>::iterator i = FieldDecls.begin(),
                                   end = FieldDecls.end();
@@ -7193,20 +7232,23 @@ void Parser::ParseParameterDeclarationClause(
       // Inform the actions module about the parameter declarator, so it gets
       // added to the current scope.
       ParmVarDecl *Param = Actions.ActOnParamDeclarator(getCurScope(), ParmDeclarator);
-      // Handle Checked C bounds expression or bounds-safe interface type annotation.
+      // Handle Checked C where clause, bounds expression or bounds-safe
+      // interface type annotation.
       if (getLangOpts().CheckedC) {
-        if (!Tok.is(tok::colon))
-          // There is no bounds expression or type annotation.  Set the default
-          // bounds expression, if any.
+        if (!Tok.isOneOf(tok::colon, tok::kw__Where))
+	  // There is no bounds expression, type annotation or where clause.
+	  // Set the default bounds expression, if any.
           Actions.ActOnEmptyBoundsDecl(Param);
         else {
           SourceLocation BoundsColonLoc = Tok.getLocation();
-          ConsumeToken();
+          if (!StartsWhereClause(Tok))
+            ConsumeToken();
           BoundsAnnotations Annots;
           // Bounds expressions are delay parsed because they can refer to
           // parameters declared after this one.
           std::unique_ptr<CachedTokens> DeferredBoundsToks { new CachedTokens };
-          if (ParseBoundsAnnotations(ParmDeclarator, BoundsColonLoc, Annots, &DeferredBoundsToks)) {
+          if (ParseBoundsAnnotations(ParmDeclarator, BoundsColonLoc,
+                                     Annots, &DeferredBoundsToks)) {
             SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
             Param->setInvalidDecl();
           }
@@ -7318,16 +7360,23 @@ void Parser::ParseParameterDeclarationClause(
     // If the next token is a comma, consume it and keep reading arguments.
   } while (TryConsumeToken(tok::comma));
 
-  // Now parse the deferred bounds expressions
+  // Now parse the deferred bounds expressions.
   for (auto &Tuple : deferredBoundsExpressions) {
     ParmVarDecl *Param = std::get<0>(Tuple);
     Declarator &D = std::get<1>(Tuple);
     std::unique_ptr<CachedTokens> Tokens = std::move(std::get<2>(Tuple));
+    bool IsWhereClause = StartsWhereClause(Tokens->front());
+
     BoundsAnnotations Annots;
-    if (DeferredParseBoundsExpression(std::move(Tokens), Annots, D))
-      Actions.ActOnInvalidBoundsDecl(Param);
-    else
-      Actions.ActOnBoundsDecl(Param, Annots, true);
+    bool Error = DeferredParseBoundsAnnotations(std::move(Tokens),
+                                                Annots, D, Param);
+
+    if (!IsWhereClause) {
+      if (Error)
+        Actions.ActOnInvalidBoundsDecl(Param);
+      else
+        Actions.ActOnBoundsDecl(Param, Annots, true);
+    }
   }
 }
 

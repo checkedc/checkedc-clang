@@ -11,9 +11,9 @@
 #ifndef LLVM_CLANG_3C_TYPEVARIABLEANALYSIS_H
 #define LLVM_CLANG_3C_TYPEVARIABLEANALYSIS_H
 
-#include "ConstraintResolver.h"
-#include "ConstraintVariables.h"
-#include "ProgramInfo.h"
+#include "clang/3C/ConstraintResolver.h"
+#include "clang/3C/ConstraintVariables.h"
+#include "clang/3C/ProgramInfo.h"
 #include <set>
 
 class TypeVariableEntry {
@@ -93,7 +93,6 @@ private:
   ConstraintResolver CR;
   TypeVariableMapT TVMap;
 
-  void insertBinding(CallExpr *CE, const TypeVariableType *TyV, QualType Ty,
-                     CVarSet &CVs);
+  void insertBinding(CallExpr *CE, const int TyIdx, QualType Ty, CVarSet &CVs);
 };
 #endif

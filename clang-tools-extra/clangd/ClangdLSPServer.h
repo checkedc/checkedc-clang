@@ -37,11 +37,12 @@ class SymbolIndex;
 /// MessageHandler binds the implemented LSP methods (e.g. onInitialize) to
 /// corresponding JSON-RPC methods ("initialize").
 /// The server also supports $/cancelRequest (MessageHandler provides this).
+class ClangdLSPServer : private ClangdServer::Callbacks
 #ifdef INTERACTIVE3C
-class ClangdLSPServer : private ClangdServer::Callbacks, public _3CLSPCallBack {
-#else
-class ClangdLSPServer : private ClangdServer::Callbacks {
+    ,
+                        public _3CLSPCallBack
 #endif
+{
 public:
   /// If \p CompileCommandsDir has a value, compile_commands.json will be
   /// loaded only from \p CompileCommandsDir. Otherwise, clangd will look
@@ -53,12 +54,12 @@ public:
                   const clangd::RenameOptions &RenameOpts,
                   llvm::Optional<Path> CompileCommandsDir, bool UseDirBasedCDB,
                   llvm::Optional<OffsetEncoding> ForcedOffsetEncoding,
+                  const ClangdServer::Options &Opts
 #ifdef INTERACTIVE3C
-                  const ClangdServer::Options &Opts, _3CInterface &Cinter);
-#else
-                  const ClangdServer::Options &Opts);
+                  ,
+                  _3CInterface &Cinter
 #endif
-
+  );
   /// The destructor blocks on any outstanding background tasks.
   ~ClangdLSPServer();
 

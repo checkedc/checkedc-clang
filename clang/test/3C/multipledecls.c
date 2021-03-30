@@ -2,15 +2,15 @@
 //
 // Checks handling of multiple declarations.
 //
-// RUN: 3c -addcr %s -- | FileCheck -match-full-lines %s
-// RUN: 3c -addcr %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
-// RUN: 3c -addcr -output-postfix=checked %s 
-// RUN: 3c -addcr %S/multipledecls.checked.c -- | count 0
-// RUN: rm %S/multipledecls.checked.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -addcr %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -base-dir=%S -addcr %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
+// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checked %s --
+// RUN: 3c -base-dir=%t.checked -addcr %t.checked/multipledecls.c -- | diff %t.checked/multipledecls.c -
 // expected-no-diagnostics
 
 void gmtime(long *q);
-void gmtime(long *q1:itype(_Ptr<long>));
+void gmtime(long *q1 : itype(_Ptr<long>));
 void foo() {
   long *p;
   long *p1;

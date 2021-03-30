@@ -2,8 +2,8 @@
 //
 // Tests properties about type re-writing and replacement of structure members
 //
-// RUN: 3c %s -- | FileCheck -match-full-lines %s
-// RUN: 3c %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
+// RUN: 3c -base-dir=%S %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -base-dir=%S %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
 // expected-no-diagnostics
 //
 
@@ -36,5 +36,5 @@ int main() {
   foo2 obj2 = {};
   obj2.b = &b;
   foo3 obj3 = {};
-  obj3.p = (int*)0xcafebabe;
+  obj3.p = (int *)0xcafebabe;
 }

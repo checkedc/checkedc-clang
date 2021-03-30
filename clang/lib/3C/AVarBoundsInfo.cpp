@@ -601,11 +601,13 @@ void AvarBoundsInference::mergeReachableProgramVars(
         if (!TmpB->isNumConstant()) {
           // We give preference to non-constant lengths.
           BVar = TmpB;
-        } else if (!this->BI->areSameProgramVar(BVar->getKey(),
-                                                TmpB->getKey())) {
-          // If both are different constants?
-          BVar = nullptr;
-          break;
+        } else {
+          // If we need to merge two constants? Pick the lesser value.
+          int CVal = std::stoi(BVar->getVarName());
+          int TmpVal = std::stoi(TmpB->getVarName());
+          if (TmpVal < CVal) {
+            BVar = TmpB;
+          }
         }
       } else if (!TmpB->isNumConstant() && BVar->getKey() != TmpB->getKey()) {
         // If they are different variables?
@@ -737,22 +739,6 @@ bool AvarBoundsInference::getRelevantBounds(BoundsKey BK,
   return HasBounds;
 }
 
-// Variable comparison. Comparator implementation: where given two BoundsKey
-// they are checked to see if they correspond to the same program variable.
-struct BVarCmp {
-public:
-  BVarCmp(AVarBoundsInfo *ABI) { this->ABInfo = ABI; }
-  bool operator()(BoundsKey A, BoundsKey B) const {
-    if (this->ABInfo != nullptr && this->ABInfo->areSameProgramVar(A, B)) {
-      return false;
-    }
-    return A < B;
-  };
-
-private:
-  AVarBoundsInfo *ABInfo;
-};
-
 bool AvarBoundsInference::areDeclaredBounds(
     BoundsKey K,
     const std::pair<ABounds::BoundsKind, std::set<BoundsKey>> &Bnds) {
@@ -825,10 +811,10 @@ bool AvarBoundsInference::predictBounds(BoundsKey K,
   }
 
   if (!InferredNBnds.empty()) {
-    // All the possible inferred bounds for K
+    // All the possible inferred bounds for K.
     InferredKBnds.clear();
-    std::set<BoundsKey> TmpBKeys;
-    // TODO: Figure out if there is a discrepency and try to implement
+    std::set<BoundsKey> TmpBKeys, AllKeys;
+    // TODO: Figure out if there is a discrepancy and try to implement
     // root-cause analysis.
 
     // Find intersection of all bounds from neighbours.
@@ -838,16 +824,23 @@ bool AvarBoundsInference::predictBounds(BoundsKey K,
           InferredKBnds[INB.first] = INB.second;
         } else {
           TmpBKeys.clear();
-          // Here, we should use intersection by taking care of comparing
-          // bounds key that correspond to the same constant.
-          // Note, DO NOT use findIntersection here, as we need to take
-          // care of comparing bounds key that correspond to the same
-          // constant.
+          AllKeys.clear();
+          // Find intersection between the current bounds and the
+          // bounds propagated from current neighbour, i.e., INB.first.
           auto &S1 = InferredKBnds[INB.first];
           auto &S2 = INB.second;
-          std::set_intersection(S1.begin(), S1.end(), S2.begin(), S2.end(),
-                                std::inserter(TmpBKeys, TmpBKeys.begin()),
-                                BVarCmp(this->BI));
+          // Find intersection of bounds propagated from all neighbours.
+          findIntersection(S1, S2, TmpBKeys);
+
+          AllKeys = S1;
+          AllKeys.insert(S2.begin(), S2.end());
+          // Also, add all constants as potential bounds so that we can pick
+          // a constant with least value later.
+          for (auto CK : AllKeys) {
+            auto *CKVar = this->BI->getProgramVar(CK);
+            if (CKVar != nullptr && CKVar->isNumConstant())
+              TmpBKeys.insert(CK);
+          }
           InferredKBnds[INB.first] = TmpBKeys;
         }
       }
@@ -993,9 +986,9 @@ bool AVarBoundsInfo::contextualizeCVar(CallExpr *CE, const CVarSet &CSet,
     // If this is a FV Constraint the contextualize its returns and
     // parameters.
     if (FVConstraint *FV = dyn_cast_or_null<FVConstraint>(CV)) {
-      contextualizeCVar(CE, {FV->getReturnVar()}, C);
+      contextualizeCVar(CE, {FV->getExternalReturn()}, C);
       for (unsigned I = 0; I < FV->numParams(); I++) {
-        contextualizeCVar(CE, {FV->getParamVar(I)}, C);
+        contextualizeCVar(CE, {FV->getExternalParam(I)}, C);
       }
     }
 
@@ -1063,7 +1056,7 @@ void AVarBoundsInfo::computerArrPointers(ProgramInfo *PI,
       if (hasArray(PI->getVarMap().at(PSL), CS)) {
         ArrPointers.insert(Bkey);
       }
-      // Does this array belongs to a valid program variable?
+      // Does this array belong to a valid program variable?
       if (isInSrcArray(PI->getVarMap().at(PSL), CS)) {
         InProgramArrPtrBoundsKeys.insert(Bkey);
       }
@@ -1085,11 +1078,11 @@ void AVarBoundsInfo::computerArrPointers(ProgramInfo *PI,
         FV = PI->getExtFuncDefnConstraint(FuncName);
       }
 
-      if (hasArray(FV->getParamVar(ParmNum), CS)) {
+      if (hasArray(FV->getExternalParam(ParmNum), CS)) {
         ArrPointers.insert(Bkey);
       }
-      // Does this array belongs to a valid program variable?
-      if (isInSrcArray(FV->getParamVar(ParmNum), CS)) {
+      // Does this array belong to a valid program variable?
+      if (isInSrcArray(FV->getExternalParam(ParmNum), CS)) {
         InProgramArrPtrBoundsKeys.insert(Bkey);
       }
 
@@ -1113,11 +1106,11 @@ void AVarBoundsInfo::computerArrPointers(ProgramInfo *PI,
         FV = getOnly(Tmp);
       }
 
-      if (hasArray(FV->getReturnVar(), CS)) {
+      if (hasArray(FV->getExternalReturn(), CS)) {
         ArrPointers.insert(Bkey);
       }
       // Does this array belongs to a valid program variable?
-      if (isInSrcArray(FV->getReturnVar(), CS)) {
+      if (isInSrcArray(FV->getExternalReturn(), CS)) {
         InProgramArrPtrBoundsKeys.insert(Bkey);
       }
       continue;
@@ -1132,20 +1125,18 @@ void AVarBoundsInfo::computerArrPointers(ProgramInfo *PI,
   // counterparts.
   std::set<BoundsKey> CtxSensBKeys;
   CtxSensBKeys.clear();
-  std::set<BoundsKey> TmpBKeys, TmpBKeysF;
+  std::set<BoundsKey> TmpBKeys;
   for (auto BK : ArrPointers) {
-    TmpBKeys.clear();
-    ProgVarGraph.getPredecessors(BK, TmpBKeys);
-    TmpBKeysF.insert(TmpBKeys.begin(), TmpBKeys.end());
-    TmpBKeys.clear();
-    ProgVarGraph.getSuccessors(BK, TmpBKeys);
-    TmpBKeysF.insert(TmpBKeys.begin(), TmpBKeys.end());
-    for (auto TBK : TmpBKeysF) {
-      ProgramVar *TmpPVar = getProgramVar(TBK);
-      if (TmpPVar != nullptr) {
-        if (isa<CtxFunctionArgScope>(TmpPVar->getScope())) {
-          CtxSensBKeys.insert(TBK);
-        }
+    CtxSensProgVarGraph.getSuccessors(BK, TmpBKeys, true);
+    CtxSensProgVarGraph.getPredecessors(BK, TmpBKeys, true);
+    RevCtxSensProgVarGraph.getSuccessors(BK, TmpBKeys, true);
+    RevCtxSensProgVarGraph.getPredecessors(BK, TmpBKeys, true);
+  }
+  for (auto TBK : TmpBKeys) {
+    ProgramVar *TmpPVar = getProgramVar(TBK);
+    if (TmpPVar != nullptr) {
+      if (isa<CtxFunctionArgScope>(TmpPVar->getScope())) {
+        CtxSensBKeys.insert(TBK);
       }
     }
   }
@@ -1193,6 +1184,10 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
   // Repopulate array bounds key.
   ArrPointerBoundsKey.clear();
   ArrPointerBoundsKey.insert(ArrPointers.begin(), ArrPointers.end());
+  // All BoundsKey that has bounds are also array pointers.
+  for (auto &T : this->BInfo) {
+    ArrPointerBoundsKey.insert(T.first);
+  }
 
   // Keep only highest priority bounds.
   // Any thing changed? which means bounds of a variable changed

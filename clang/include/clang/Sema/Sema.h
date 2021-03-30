@@ -5667,7 +5667,8 @@ public:
   BoundsExpr *MakeMemberBoundsConcrete(Expr *MemberBase, bool IsArrow,
                                        BoundsExpr *Bounds);
   BoundsExpr *ConcretizeFromFunctionTypeWithArgs(BoundsExpr *Bounds, ArrayRef<Expr *> Args,
-                                                 NonModifyingContext ErrorKind);
+                                                 NonModifyingContext ErrorKind,
+                                                 NonModifyingMessage Message);
 
   /// ConvertToFullyCheckedType: convert an expression E to a fully checked type. This
   /// is used to retype declrefs and member exprs in checked scopes with bounds-safe
