@@ -498,7 +498,8 @@ void AVarBoundsInfo::insertDeclaredBounds(clang::Decl *D, ABounds *B) {
 bool AVarBoundsInfo::tryGetVariable(clang::Decl *D, BoundsKey &R) {
   if (isValidBoundVariable(D)) {
     if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D)) {
-      R = getVariable(PD);
+      if (PD->getParentFunctionOrMethod())
+        R = getVariable(PD);
     } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
       R = getVariable(VD);
     } else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
