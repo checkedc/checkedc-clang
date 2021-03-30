@@ -759,11 +759,11 @@ namespace {
     private:
       Sema &SemaRef;
       BoundsContextTy &BoundsContextRef;
-      AbstractSetManager &AbstractSetMgr;
+      AbstractSetManager *AbstractSetMgr;
 
     public:
       DeclaredBoundsHelper(Sema &SemaRef, BoundsContextTy &Context,
-                           AbstractSetManager &AbstractSetMgr) :
+                           AbstractSetManager *AbstractSetMgr) :
         SemaRef(SemaRef),
         BoundsContextRef(Context),
         AbstractSetMgr(AbstractSetMgr) {}
@@ -790,7 +790,7 @@ namespace {
         // The bounds expressions in the bounds context should be normalized
         // to range bounds.
         if (BoundsExpr *Bounds = SemaRef.NormalizeBounds(D)) {
-          const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(D);
+          const AbstractSet *A = AbstractSetMgr->GetOrCreateAbstractSet(D);
           BoundsContextRef[A] = Bounds;
         }
         return true;
@@ -800,7 +800,7 @@ namespace {
   // GetDeclaredBounds modifies the bounds context to map any variables
   // declared in S to their declared bounds (if any).
   void GetDeclaredBounds(Sema &SemaRef, BoundsContextTy &Context, Stmt *S,
-                         AbstractSetManager &AbstractSetMgr) {
+                         AbstractSetManager *AbstractSetMgr) {
     DeclaredBoundsHelper Declared(SemaRef, Context, AbstractSetMgr);
     Declared.TraverseStmt(S);
   }
@@ -2679,7 +2679,7 @@ namespace {
    }
 
    void UpdateWidenedBounds(BoundsAnalysis &BA, const CFGBlock *Block,
-                            AbstractSetManager AbstractSetMgr,
+                            AbstractSetManager *AbstractSetMgr,
                             CheckingState &State) {
      for (const auto item : BA.GetWidenedBounds(Block)) {
        const VarDecl *V = item.first;
@@ -2689,7 +2689,7 @@ namespace {
        // bounds data structure, so we create an AbstractSet for each 
        // VarDecl in the widened bounds. TODO: use AbstractSets as keys
        // in BoundsAnalysis (checkedc-clang issue #1015).
-       const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
+       const AbstractSet *A = AbstractSetMgr->GetOrCreateAbstractSet(V);
        auto I = State.ObservedBounds.find(A);
        if (I != State.ObservedBounds.end())
          I->second = Bounds;
@@ -2697,14 +2697,14 @@ namespace {
    }
 
    void ResetKilledBounds(BoundsAnalysis &BA, const CFGBlock *Block,
-                          const Stmt *St, AbstractSetManager AbstractSetMgr,
+                          const Stmt *St, AbstractSetManager *AbstractSetMgr,
                           CheckingState &State) {
      for (const VarDecl *V : BA.GetKilledBounds(Block, St)) {
        // BoundsAnalysis currently uses VarDecls as keys in the killed
        // bounds data structure, so we create an AbstractSet for each
        // VarDecl in the killed bounds. TODO: use AbstractSets as keys
        // in BoundsAnalysis (checkedc-clang issue #1015).
-       const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
+       const AbstractSet *A = AbstractSetMgr->GetOrCreateAbstractSet(V);
        auto I = State.ObservedBounds.find(A);
        if (I != State.ObservedBounds.end())
          I->second = S.NormalizeBounds(V);
@@ -2726,7 +2726,7 @@ namespace {
 
      // Create an AbstractSetManager to store and create AbstractSets for
      // the lvalues in this function.
-     AbstractSetManager AbstractSetMgr(S);
+     AbstractSetManager *AbstractSetMgr = new AbstractSetManager(S);
 
      // Map each function parameter to its declared bounds (if any),
      // normalized to range bounds, before checking the body of the function.
@@ -2738,7 +2738,7 @@ namespace {
        if (!Param->hasBoundsExpr())
          continue;
        if (BoundsExpr *Bounds = S.NormalizeBounds(Param)) {
-         const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(Param);
+         const AbstractSet *A = AbstractSetMgr->GetOrCreateAbstractSet(Param);
          ParamsState.ObservedBounds[A] = Bounds;
        }
      }
@@ -2835,6 +2835,8 @@ namespace {
          BlockStates[Block->getBlockID()] = BlockState;
        AFA.Next();
      }
+
+     delete AbstractSetMgr;
     }
 
   // Methods for inferring bounds expressions for C expressions.
@@ -2875,7 +2877,7 @@ namespace {
 
   public:
     BoundsExpr *Check(Stmt *S, CheckedScopeSpecifier CSS,
-                      AbstractSetManager AbstractSetMgr) {
+                      AbstractSetManager *AbstractSetMgr) {
       CheckingState State;
       BoundsExpr *Bounds = Check(S, CSS, AbstractSetMgr, State);
       if (DumpState)
@@ -2899,7 +2901,7 @@ namespace {
     //
     // State is an out parameter that holds the result of Check.
     BoundsExpr *Check(Stmt *S, CheckedScopeSpecifier CSS,
-                      AbstractSetManager AbstractSetMgr,
+                      AbstractSetManager *AbstractSetMgr,
                       CheckingState &State) {
       if (!S)
         return CreateBoundsEmpty();
@@ -3007,7 +3009,7 @@ namespace {
     //
     // State is an out parameter that holds the result of Check.
     BoundsExpr *CheckLValue(Expr *E, CheckedScopeSpecifier CSS,
-                            AbstractSetManager AbstractSetMgr,
+                            AbstractSetManager *AbstractSetMgr,
                             CheckingState &State) {
       if (!E->isLValue())
         return CreateBoundsInferenceError();
@@ -3080,7 +3082,7 @@ namespace {
     // children of a statement or expression, throwing away the resulting
     // bounds.
     void CheckChildren(Stmt *S, CheckedScopeSpecifier CSS,
-                       AbstractSetManager AbstractSetMgr,
+                       AbstractSetManager *AbstractSetMgr,
                        CheckingState &State) {
       ExprEqualMapTy SubExprSameValueSets;
       auto Begin = S->child_begin(), End = S->child_end();
@@ -3107,9 +3109,10 @@ namespace {
     // initializer, it will be traversed in CheckVarDecl.
     void TraverseTopLevelVarDecl(VarDecl *VD, CheckedScopeSpecifier CSS) {
       ResetFacts();
-      AbstractSetManager AbstractSetMgr(S);
+      AbstractSetManager *AbstractSetMgr = new AbstractSetManager(S);
       CheckingState State;
       CheckVarDecl(VD, CSS, AbstractSetMgr, State, /*CheckBounds=*/true);
+      delete AbstractSetMgr;
     }
 
     void ResetFacts() {
@@ -3134,7 +3137,7 @@ namespace {
     // e is an rvalue.
     BoundsExpr *CheckBinaryOperator(BinaryOperator *E,
                                     CheckedScopeSpecifier CSS,
-                                    AbstractSetManager AbstractSetMgr,
+                                    AbstractSetManager *AbstractSetMgr,
                                     CheckingState &State) {
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
@@ -3318,7 +3321,7 @@ namespace {
             if (LHSVar && RightBounds->isInvalid()) {
               VarDecl *V = dyn_cast_or_null<VarDecl>(LHSVar->getDecl());
               if (V) {
-                const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
+                const AbstractSet *A = AbstractSetMgr->GetOrCreateAbstractSet(V);
                 State.ObservedBounds[A] = RightBounds;
               }
             }
@@ -3362,7 +3365,7 @@ namespace {
     // CheckCallExpr returns the bounds for the value produced by e.
     // e is an rvalue.
     BoundsExpr *CheckCallExpr(CallExpr *E, CheckedScopeSpecifier CSS,
-                              AbstractSetManager AbstractSetMgr,
+                              AbstractSetManager *AbstractSetMgr,
                               CheckingState &State,
                               CHKCBindTemporaryExpr *Binding = nullptr) {
       BoundsExpr *ResultBounds = CallExprBounds(E, Binding);
@@ -3507,7 +3510,7 @@ namespace {
     // should be called instead).
     // This includes both ImplicitCastExprs and CStyleCastExprs.
     BoundsExpr *CheckCastExpr(CastExpr *E, CheckedScopeSpecifier CSS,
-                              AbstractSetManager AbstractSetMgr,
+                              AbstractSetManager *AbstractSetMgr,
                               CheckingState &State) {
       // If the rvalue bounds for e cannot be determined,
       // e may be an lvalue (or may have unknown rvalue bounds).
@@ -3659,7 +3662,7 @@ namespace {
     // the value produced by e.
     // If e is an lvalue, CheckUnaryLValue should be called instead.
     BoundsExpr *CheckUnaryOperator(UnaryOperator *E, CheckedScopeSpecifier CSS,
-                                   AbstractSetManager AbstractSetMgr,
+                                   AbstractSetManager *AbstractSetMgr,
                                    CheckingState &State) {
       UnaryOperatorKind Op = E->getOpcode();
       Expr *SubExpr = E->getSubExpr();
@@ -3791,7 +3794,7 @@ namespace {
 
     // CheckVarDecl returns empty bounds.
     BoundsExpr *CheckVarDecl(VarDecl *D, CheckedScopeSpecifier CSS,
-                             AbstractSetManager AbstractSetMgr,
+                             AbstractSetManager *AbstractSetMgr,
                              CheckingState &State, bool CheckBounds = false) {
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
 
@@ -3809,7 +3812,7 @@ namespace {
         // Create an rvalue expression for v. v could be an array or
         // non-array variable.
         DeclRefExpr *TargetDeclRef = ExprCreatorUtil::CreateVarUse(S, D);
-        A = AbstractSetMgr.GetOrCreateAbstractSet(TargetDeclRef);
+        A = AbstractSetMgr->GetOrCreateAbstractSet(TargetDeclRef);
         CastKind Kind;
         QualType TargetTy;
         if (D->getType()->isArrayType()) {
@@ -3874,7 +3877,7 @@ namespace {
 
     // CheckReturnStmt returns empty bounds.
     BoundsExpr *CheckReturnStmt(ReturnStmt *RS, CheckedScopeSpecifier CSS,
-                                AbstractSetManager AbstractSetMgr,
+                                AbstractSetManager *AbstractSetMgr,
                                 CheckingState &State) {
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
 
@@ -3902,7 +3905,7 @@ namespace {
     // If e is an lvalue, CheckTempBindingLValue should be called instead.
     BoundsExpr *CheckTemporaryBinding(CHKCBindTemporaryExpr *E,
                                       CheckedScopeSpecifier CSS,
-                                      AbstractSetManager AbstractSetMgr,
+                                      AbstractSetManager *AbstractSetMgr,
                                       CheckingState &State) {
       Expr *Child = E->getSubExpr();
 
@@ -3920,7 +3923,7 @@ namespace {
     // e is an rvalue.
     BoundsExpr *CheckBoundsValueExpr(BoundsValueExpr *E,
                                      CheckedScopeSpecifier CSS,
-                                     AbstractSetManager AbstractSetMgr,
+                                     AbstractSetManager *AbstractSetMgr,
                                      CheckingState &State) {
       Expr *Binding = E->getTemporaryBinding();
       return Check(Binding, CSS, AbstractSetMgr, State);
@@ -3930,7 +3933,7 @@ namespace {
     // e is an rvalue of the form `e1 ? e2 : e3`.
     BoundsExpr *CheckConditionalOperator(AbstractConditionalOperator *E,
                                          CheckedScopeSpecifier CSS,
-                                         AbstractSetManager AbstractSetMgr,
+                                         AbstractSetManager *AbstractSetMgr,
                                          CheckingState &State) {
       // Check the condition `e1`.
       Check(E->getCond(), CSS, AbstractSetMgr, State);
@@ -4047,7 +4050,7 @@ namespace {
     // CheckDeclRefExpr returns the lvalue and target bounds of e.
     // e is an lvalue.
     BoundsExpr *CheckDeclRefExpr(DeclRefExpr *E, CheckedScopeSpecifier CSS,
-                                 AbstractSetManager AbstractSetMgr,
+                                 AbstractSetManager *AbstractSetMgr,
                                  CheckingState &State) {
       CheckChildren(E, CSS, AbstractSetMgr, State);
       State.SameValue.clear();
@@ -4104,7 +4107,7 @@ namespace {
     // lvalue and target bounds of e.
     // If e is an rvalue, CheckUnaryOperator should be called instead.
     BoundsExpr *CheckUnaryLValue(UnaryOperator *E, CheckedScopeSpecifier CSS,
-                                 AbstractSetManager AbstractSetMgr,
+                                 AbstractSetManager *AbstractSetMgr,
                                  CheckingState &State) {
       BoundsExpr *SubExprBounds = Check(E->getSubExpr(), CSS, AbstractSetMgr,
                                         State);
@@ -4124,7 +4127,7 @@ namespace {
     // e is an lvalue.
     BoundsExpr *CheckArraySubscriptExpr(ArraySubscriptExpr *E,
                                         CheckedScopeSpecifier CSS,
-                                        AbstractSetManager AbstractSetMgr,
+                                        AbstractSetManager *AbstractSetMgr,
                                         CheckingState &State) {
       // e1[e2] is a synonym for *(e1 + e2).  The bounds are
       // the bounds of e1 + e2, which reduces to the bounds
@@ -4149,7 +4152,7 @@ namespace {
     // (lvalue, lvalue + 1).   The lvalue is interpreted as a pointer to T,
     // where T is the type of the member.
     BoundsExpr *CheckMemberExpr(MemberExpr *E, CheckedScopeSpecifier CSS,
-                                AbstractSetManager AbstractSetMgr,
+                                AbstractSetManager *AbstractSetMgr,
                                 CheckingState &State) {
       // The lvalue bounds must be inferred before performing any side
       // effects on the base, since inferring these bounds may call
@@ -4179,7 +4182,7 @@ namespace {
     // lvalue and target bounds of e.
     // If e is an rvalue, CheckCastExpr should be called instead.
     BoundsExpr *CheckCastLValue(CastExpr *E, CheckedScopeSpecifier CSS,
-                                AbstractSetManager AbstractSetMgr,
+                                AbstractSetManager *AbstractSetMgr,
                                 CheckingState &State) {
       // An LValueBitCast adjusts the type of the lvalue.  The bounds are not
       // changed, except that their relative alignment may change (the bounds 
@@ -4199,7 +4202,7 @@ namespace {
     // If e is an rvalue, CheckTemporaryBinding should be called instead.
     BoundsExpr *CheckTempBindingLValue(CHKCBindTemporaryExpr *E,
                                        CheckedScopeSpecifier CSS,
-                                       AbstractSetManager AbstractSetMgr,
+                                       AbstractSetManager *AbstractSetMgr,
                                        CheckingState &State) {
       CheckChildren(E, CSS, AbstractSetMgr, State);
 
@@ -4389,7 +4392,7 @@ namespace {
     // Sets the bounds expressions based on whether e is an lvalue or an
     // rvalue expression.
     void InferBounds(Expr *E, CheckedScopeSpecifier CSS,
-                     AbstractSetManager AbstractSetMgr,
+                     AbstractSetManager *AbstractSetMgr,
                      BoundsExpr *&LValueBounds,
                      BoundsExpr *&RValueBounds,
                      CheckingState &State) {
@@ -4636,7 +4639,7 @@ namespace {
     BoundsExpr *UpdateAfterAssignment(DeclRefExpr *V, Expr *E, Expr *Target,
                                       Expr *Src, BoundsExpr *SrcBounds,
                                       CheckedScopeSpecifier CSS,
-                                      AbstractSetManager AbstractSetMgr,
+                                      AbstractSetManager *AbstractSetMgr,
                                       const CheckingState PrevState,
                                       CheckingState &State) {
       // Get the original value (if any) of V before the assignment, and
@@ -4655,7 +4658,7 @@ namespace {
 
       // If V has declared bounds, set ObservedBounds[V] to SrcBounds.
       if (DeclaredBounds) {
-        VariableAbstractSet = AbstractSetMgr.GetOrCreateAbstractSet(V);
+        VariableAbstractSet = AbstractSetMgr->GetOrCreateAbstractSet(V);
         State.ObservedBounds[VariableAbstractSet] = SrcBounds;
       }
 
@@ -5971,7 +5974,7 @@ namespace {
                                  BoundsExpr *TargetBounds,
                                  BoundsExpr *LValueBounds,
                                  BoundsExpr *RValueBounds,
-                                 AbstractSetManager AbstractSetMgr,
+                                 AbstractSetManager *AbstractSetMgr,
                                  CheckingState State) {
       switch (E->getCastKind()) {
         case CastKind::CK_BitCast:
@@ -5991,7 +5994,7 @@ namespace {
           if (DeclRefExpr *V = GetRValueVariable(E)) {
             if (const VarDecl *D = dyn_cast_or_null<VarDecl>(V->getDecl())) {
               if (D->hasBoundsExpr()) {
-                const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
+                const AbstractSet *A = AbstractSetMgr->GetOrCreateAbstractSet(V);
                 auto It = State.ObservedBounds.find(A);
                 if (It != State.ObservedBounds.end())
                   return It->second;
@@ -6011,7 +6014,7 @@ namespace {
           if (DeclRefExpr *V = GetRValueVariable(E)) {
             if (const VarDecl *D = dyn_cast_or_null<VarDecl>(V->getDecl())) {
               if (D->hasBoundsExpr()) {
-                const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
+                const AbstractSet *A = AbstractSetMgr->GetOrCreateAbstractSet(V);
                 auto It = State.ObservedBounds.find(A);
                 if (It != State.ObservedBounds.end())
                   return It->second;
@@ -6486,8 +6489,9 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
     // __finally or may encounter a malformed AST.  Fall back on to non-flow 
     // based analysis.  The CSS parameter is ignored because the checked
     // scope information is obtained from Body, which is a compound statement.
-    AbstractSetManager AbstractSetMgr(*this);
+    AbstractSetManager *AbstractSetMgr = new AbstractSetManager(*this);
     Checker.Check(Body, CheckedScopeSpecifier::CSS_Unchecked, AbstractSetMgr);
+    delete AbstractSetMgr;
   }
 
 #if TRACE_CFG
