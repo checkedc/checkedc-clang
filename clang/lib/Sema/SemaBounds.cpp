@@ -781,6 +781,12 @@ namespace {
           return true;
         if (!D->hasBoundsExpr())
           return true;
+        // Parameters declared within a statement (e.g. in a function pointer
+        // declaration) should not be added to the bounds context. Parameters
+        // to the current function will be added to the bounds context in
+        // TraverseCFG.
+        if (isa<ParmVarDecl>(D))
+          return true;
         // The bounds expressions in the bounds context should be normalized
         // to range bounds.
         if (BoundsExpr *Bounds = SemaRef.NormalizeBounds(D)) {
