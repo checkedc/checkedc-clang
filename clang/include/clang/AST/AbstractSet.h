@@ -102,6 +102,12 @@ namespace clang {
 
     // Returns the AbstractSet that contains a use of the VarDecl.
     const AbstractSet *GetOrCreateAbstractSet(const VarDecl *V);
+
+    // Clears the storage of the PreorderASTs and AbstractSets.
+    void Clear() {
+      SortedPreorderASTs.clear();
+      PreorderASTAbstractSetMap.clear();
+    }
   };
 } // end namespace clang
 
