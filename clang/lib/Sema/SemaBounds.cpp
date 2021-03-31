@@ -944,7 +944,7 @@ namespace {
           OrderedSets.push_back(Pair.first);
         llvm::sort(OrderedSets.begin(), OrderedSets.end(),
              [] (const AbstractSet *A, const AbstractSet *B) {
-               return *A < *B;
+               return *(const_cast<AbstractSet *>(A)) < *(const_cast<AbstractSet *>(B));
              });
 
         OS << "{\n";
