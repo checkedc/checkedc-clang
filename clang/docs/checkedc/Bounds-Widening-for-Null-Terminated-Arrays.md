@@ -23,15 +23,13 @@ In the example below the bounds of the null-terminated-array `p` are widened to
 ```
 
 In the next section we describe a dataflow analysis to widen bounds for
-null-terminated arrays.
+null-terminated arrays. The dataflow analysis is forward, path-sensitive,
+flow-sensitive and intra-procedural.
 
 ## Dataflow Analysis for Widening the Bounds of Null-terminated Arrays
 We use `V` to denote a null-terminated array variable, `X` to denote a widened
 bounds offset, `S` to denote a statement, and `B` and `B'` to denote basic
 blocks.
-
-The dataflow analysis for widening the bounds of null-terminated arrays is
-forward, path-sensitive, flow-sensitive and intra-procedural.
 
 The dataflow analysis tracks all null-terminated array variables in a function
 along with their widened bounds. The dataflow facts that flow through the
