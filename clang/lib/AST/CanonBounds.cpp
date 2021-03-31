@@ -249,7 +249,7 @@ Lexicographic::CompareDecl(const NamedDecl *D1Arg, const NamedDecl *D2Arg) const
   Current = D2->getNextDeclInContext();
   while (Current != nullptr) {
     if (Current == D1)
-      return Result::LessThan;
+      return Result::GreaterThan;
     Current = Current->getNextDeclInContext();
   }
   llvm_unreachable("unable to order declarations in same context");
