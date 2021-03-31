@@ -1,6 +1,7 @@
 """
 
 """
+from typing import List
 import re
 import os
 import sys
@@ -8,6 +9,8 @@ import json
 import traceback
 import subprocess
 import logging
+from common import TranslationUnitInfo
+from expand_macros import expandMacros, ExpandMacrosOptions
 
 SLASH = os.sep
 # file in which the individual commands will be stored
@@ -49,31 +52,44 @@ class VSCodeJsonWriter():
         fp.write("}")
         fp.close()
 
-def getCheckedCArgs(argument_list, checkedc_include_dir, work_dir):
+def getCheckedCArgs(argument_list):
     """
-      Convert the compilation arguments (include folder and #defines)
-      to checked C format.
+      Adjust the compilation arguments. This is now used only by
+      expand_macros_before_conversion since 3c takes the arguments directly from
+      the compilation database. Thus, we no longer use -extra-arg-before here.
+
     :param argument_list: list of compiler argument.
-    :param checkedc_include_dir: Directory in which Checked C header files are located.
-    :param work_dir: Path to the working directory from which
-                     the compilation command was run.
-    :return: checked c args
+    :return: (checked c args, output filename)
     """
+    # New approach: Rather than keeping only specific flags, try keeping
+    # everything except `-c` (because we will add `-E` if we preprocess the
+    # translation unit) and the source file name (assumed to be the last
+    # argument) because it's hard to know what flags different benchmarks might
+    # be using that might affect the default preprocessor state. We rely on
+    # setting the working directory instead of trying to recognize all paths
+    # that might need to be made absolute here.
     clang_x_args = []
-    new_arg_list = []
-    new_arg_list.extend(argument_list)
-    new_arg_list.append("-I" + checkedc_include_dir)
-    for curr_arg in new_arg_list:
-        if curr_arg.startswith("-D") or curr_arg.startswith("-I"):
-            if curr_arg.startswith("-I"):
-                # if this is relative path,
-                # convert into absolute path
-                if not os.path.isabs(curr_arg[2:]):
-                    curr_arg = "-I" + os.path.abspath(os.path.join(work_dir, curr_arg[2:]))
-            clang_x_args.append('-extra-arg-before=' + curr_arg)
-    # disable all warnings.
-    clang_x_args.append('-extra-arg-before=-w')
-    return clang_x_args
+    source_filename = argument_list[-1]
+    assert source_filename.endswith('.c')
+    # By default; may be overwritten below.
+    output_filename = source_filename[:-len('.c')] + '.o'
+    idx = 0
+    while idx < len(argument_list) - 1:
+        arg = argument_list[idx]
+        idx += 1
+        if arg == '-c':
+            pass
+        elif arg == '-o':
+            # Remove the output filename from the argument list and save it
+            # separately.
+            output_filename = argument_list[idx]
+            idx += 1
+        else:
+            clang_x_args.append(arg)
+    # Disable all Clang warnings. Generally, we don't want to do anything about
+    # them and they are just distracting.
+    clang_x_args.append('-w')
+    return (clang_x_args, output_filename)
 
 
 def tryFixUp(s):
@@ -89,9 +105,12 @@ def tryFixUp(s):
     return
 
 
+# We no longer take the checkedc_include_dir here because we assume the working
+# tree is set up so that the Checked C headers get used automatically by 3c.
 def run3C(checkedc_bin, extra_3c_args,
           compilation_base_dir, compile_commands_json,
-          checkedc_include_dir, skip_paths,
+          skip_paths,
+          expand_macros_opts: ExpandMacrosOptions,
           skip_running=False, run_individual=False):
     global INDIVIDUAL_COMMANDS_FILE
     global TOTAL_COMMANDS_FILE
@@ -112,12 +131,14 @@ def run3C(checkedc_bin, extra_3c_args,
         logging.error("failed to get commands from compile commands json:" + compile_commands_json)
         return
 
-    s = set()
-    total_x_args = []
+    translation_units: List[TranslationUnitInfo] = []
     all_files = []
+    absolute_include_dirs = set()
     for i in cmds:
         file_to_add = i['file']
+        compiler_path = None  # XXX Clean this up
         compiler_x_args = []
+        output_filename = None
         target_directory = ""
         if file_to_add.endswith(".cpp"):
             continue  # Checked C extension doesn't support cpp files yet
@@ -128,9 +149,9 @@ def run3C(checkedc_bin, extra_3c_args,
         if 'arguments' in i and not 'command' in i:
             # BEAR. Need to add directory.
             file_to_add = i['directory'] + SLASH + file_to_add
-            # get the 3c and compiler arguments
-            compiler_x_args = getCheckedCArgs(i["arguments"], checkedc_include_dir, i['directory'])
-            total_x_args.extend(compiler_x_args)
+            compiler_path = i['arguments'][0]
+            # get the compiler arguments
+            (compiler_x_args, output_filename) = getCheckedCArgs(i["arguments"][1:])
             # get the directory used during compilation.
             target_directory = i['directory']
         file_to_add = os.path.realpath(file_to_add)
@@ -140,14 +161,23 @@ def run3C(checkedc_bin, extra_3c_args,
                 matched = True
         if not matched:
             all_files.append(file_to_add)
-            s.add((frozenset(compiler_x_args), target_directory, file_to_add))
+            tu = TranslationUnitInfo(compiler_path, compiler_x_args,
+                                     target_directory, file_to_add,
+                                     output_filename)
+            translation_units.append(tu)
+            for arg in compiler_x_args:
+                if arg.startswith('-I'):
+                    absolute_include_dirs.add(tu.realpath(arg[len('-I'):]))
+
+    expandMacros(expand_macros_opts, compilation_base_dir, translation_units)
 
     prog_name = checkedc_bin
     f = open(INDIVIDUAL_COMMANDS_FILE, 'w')
     f.write("#!/bin/bash\n")
-    for compiler_args, target_directory, src_file in s:
+    for tu in translation_units:
         args = []
         # get the command to change the working directory
+        target_directory = tu.target_directory
         change_dir_cmd = ""
         if len(target_directory) > 0:
             change_dir_cmd = "cd " + target_directory + CMD_SEP
@@ -155,12 +185,17 @@ def run3C(checkedc_bin, extra_3c_args,
             # default working directory
             target_directory = os.getcwd()
         args.append(prog_name)
-        if len(compiler_args) > 0:
-            args.extend(list(compiler_args))
-        args.append('-base-dir="' + compilation_base_dir + '"')
         args.extend(DEFAULT_ARGS)
         args.extend(extra_3c_args)
-        args.append(src_file)
+        # Even when we run 3c on a single file, we can let it read the compiler
+        # options from the compilation database.
+        args.append('-p')
+        args.append(compile_commands_json)
+        # ...but we need to add -w, as in getCheckedCArgs.
+        args.append('-extra-arg=-w')
+        args.append('-base-dir="' + compilation_base_dir + '"')
+        args.append('-output-dir="' + compilation_base_dir + '/out.checked"')
+        args.append(tu.input_filename)
         # run individual commands.
         if run_individual:
             logging.debug("Running:" + ' '.join(args))
@@ -185,14 +220,22 @@ def run3C(checkedc_bin, extra_3c_args,
     args.append(prog_name)
     args.extend(DEFAULT_ARGS)
     args.extend(extra_3c_args)
-    args.extend(list(set(total_x_args)))
+    args.append('-p')
+    args.append(compile_commands_json)
+    args.append('-extra-arg=-w')
+    # This is a workaround for a bug in Clang LibTooling that affects the use of
+    # relative paths with -I when different translation units have different
+    # working directories. For details, see
+    # https://github.com/correctcomputation/checkedc-clang/issues/515 .
+    for dir in absolute_include_dirs:
+        args.append('-extra-arg-before=-I' + dir)
     vcodewriter.addClangdArg("-log=verbose")
     vcodewriter.addClangdArg(args[1:])
     args.append('-base-dir="' + compilation_base_dir + '"')
+    vcodewriter.addClangdArg('-base-dir=' + compilation_base_dir)
     # Try to choose a name unlikely to collide with anything in any real
     # project.
     args.append('-output-dir="' + compilation_base_dir + '/out.checked"')
-    vcodewriter.addClangdArg('-base-dir=' + compilation_base_dir)
     args.extend(list(set(all_files)))
     vcodewriter.addClangdArg(list(set(all_files)))
     vcodewriter.writeJsonFile(VSCODE_SETTINGS_JSON)
