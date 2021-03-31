@@ -260,14 +260,17 @@ namespace {
     const ArrayRef<Expr *> Arguments;
     llvm::SmallBitVector VisitedArgs;
     Sema::NonModifyingContext ErrorKind;
+    Sema::NonModifyingMessage Message;
     bool ModifyingArg;
   public:
     CheckForModifyingArgs(Sema &SemaRef, ArrayRef<Expr *> Args,
-                          Sema::NonModifyingContext ErrorKind) :
+                          Sema::NonModifyingContext ErrorKind,
+                          Sema::NonModifyingMessage Message) :
       SemaRef(SemaRef),
       Arguments(Args),
       VisitedArgs(Args.size()),
       ErrorKind(ErrorKind),
+      Message(Message),
       ModifyingArg(false) {}
 
     bool FoundModifyingArg() {
@@ -278,8 +281,7 @@ namespace {
       unsigned index = E->getIndex();
       if (index < Arguments.size() && !VisitedArgs[index]) {
         VisitedArgs.set(index);
-        if (!SemaRef.CheckIsNonModifying(Arguments[index], ErrorKind,
-                                         Sema::NonModifyingMessage::NMM_Error)) {
+        if (!SemaRef.CheckIsNonModifying(Arguments[index], ErrorKind, Message)) {
           ModifyingArg = true;
         }
       }
@@ -314,11 +316,11 @@ namespace {
 
 BoundsExpr *Sema::ConcretizeFromFunctionTypeWithArgs(
   BoundsExpr *Bounds, ArrayRef<Expr *> Args,
-  NonModifyingContext ErrorKind) {
+  NonModifyingContext ErrorKind, NonModifyingMessage Message) {
   if (!Bounds || Bounds->isInvalid())
     return Bounds;
 
-  auto CheckArgs = CheckForModifyingArgs(*this, Args, ErrorKind);
+  auto CheckArgs = CheckForModifyingArgs(*this, Args, ErrorKind, Message);
   CheckArgs.TraverseStmt(Bounds);
   if (CheckArgs.FoundModifyingArg())
     return nullptr;
@@ -3368,7 +3370,7 @@ namespace {
                               AbstractSetManager *AbstractSetMgr,
                               CheckingState &State,
                               CHKCBindTemporaryExpr *Binding = nullptr) {
-      BoundsExpr *ResultBounds = CallExprBounds(E, Binding);
+      BoundsExpr *ResultBounds = CallExprBounds(E, Binding, CSS);
 
       QualType CalleeType = E->getCallee()->getType();
       // Extract the pointee type.  The caller type could be a regular pointer
@@ -3456,7 +3458,8 @@ namespace {
           S.ConcretizeFromFunctionTypeWithArgs(
             const_cast<BoundsExpr *>(ParamBounds),
             ArgExprs,
-            Sema::NonModifyingContext::NMC_Function_Parameter);
+            Sema::NonModifyingContext::NMC_Function_Parameter,
+            Sema::NonModifyingMessage::NMM_Error);
 
         if (!SubstParamBounds)
           continue;
@@ -6040,7 +6043,8 @@ namespace {
     // If ResultName is non-null, it is a temporary variable where the result
     // of the call expression is stored immediately upon return from the call.
     BoundsExpr *CallExprBounds(const CallExpr *CE,
-                               CHKCBindTemporaryExpr *ResultName) {
+                               CHKCBindTemporaryExpr *ResultName,
+                               CheckedScopeSpecifier CSS) {
       BoundsExpr *ReturnBounds = nullptr;
       if (CE->getType()->isCheckedPointerPtrType()) {
         if (CE->getType()->isVoidPointerType())
@@ -6067,7 +6071,7 @@ namespace {
         BoundsExpr *FunBounds = FunReturnAnnots.getBoundsExpr();
         InteropTypeExpr *IType =FunReturnAnnots.getInteropTypeExpr();
         // If there is no return bounds and there is an interop type
-        // annotation, use the bounds impied by the interop type
+        // annotation, use the bounds implied by the interop type
         // annotation.
         if (!FunBounds && IType)
           FunBounds = CreateTypeBasedBounds(nullptr, IType->getType(),
@@ -6082,10 +6086,22 @@ namespace {
                               CE->getNumArgs());
 
         // Concretize Call Bounds with argument expressions.
-        // We can only do this if the argument expressions are non-modifying
+        // We can only do this if the argument expressions are non-modifying.
+        // For argument expressions that are modifying, we issue an error
+        // message only in checked scope because the argument expressions may
+        // be re-evaluated during bounds validation.
+        // TODO: The long-term solution is to introduce temporaries for
+        // modifying argument expressions whose corresponding formals are used
+        // in return or parameter bounds expressions.
+        // Equality between the value computed by an argument expression and its
+        // associated temporary would also need to be recorded.
+        Sema::NonModifyingMessage Message =
+          (CSS == CheckedScopeSpecifier::CSS_Unchecked) ?
+          Sema::NonModifyingMessage::NMM_None :
+          Sema::NonModifyingMessage::NMM_Error;
         ReturnBounds =
           S.ConcretizeFromFunctionTypeWithArgs(FunBounds, ArgExprs,
-                            Sema::NonModifyingContext::NMC_Function_Return);
+                       Sema::NonModifyingContext::NMC_Function_Return, Message);
         // If concretization failed, this means we tried to substitute with
         // a non-modifying expression, which is not allowed by the
         // specification.
