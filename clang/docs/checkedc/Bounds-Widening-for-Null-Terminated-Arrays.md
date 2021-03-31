@@ -1,6 +1,6 @@
 # Bounds Widening for Null-terminated Arrays
 
-## Null-terminated Arrays
+## What are Null-terminated Arrays?
 A null-terminated array is a sequence of elements in memory that ends with a
 null terminator. Checked C adds the type `_Nt_array_ptr<T>` to represent
 pointers to these kinds of arrays. These arrays can be divided into two parts:
@@ -22,37 +22,22 @@ In the example below the bounds of the null-terminated-array `p` are widened to
   }
 ```
 
-In the next sections we describe a dataflow analysis to widen bounds for
+In the next section we describe a dataflow analysis to widen bounds for
 null-terminated arrays.
 
-## Dataflow Analysis Properties
-The properties of the dataflow analysis are described below:
-
-1. **Notations:** We use `V` to denote a null-terminated array, `X` to denote a
-widened bounds offset, `S` to denote a statement, and `B` and `B'` to denote basic
+## Dataflow Analysis for Widening the Bounds of Null-terminated Arrays
+We use `V` to denote a null-terminated array variable, `X` to denote a widened
+bounds offset, `S` to denote a statement, and `B` and `B'` to denote basic
 blocks.
 
-2. **Universal Set:** The universal set `U` for the dataflow analysis is the
-set pairs `Uv:Ux` such that `Uv` is the set of all null-terminated arrays in
-the function and `Ux` is the union of all integer constants and all integer
-variables in the function.
+The dataflow analysis for widening the bounds of null-terminated arrays is
+forward, path-sensitive, flow-sensitive and intra-procedural.
 
-3. **Dataflow Facts:** The dataflow facts that flow through the analysis are a
-set of pairs `V:X` such that `V` is the set of null-terminated arrays and `X`
-is the widened bounds offset for each null-terminated array.
+The dataflow analysis tracks all null-terminated array variables in a function
+along with their widened bounds. The dataflow facts that flow through the
+analysis are a set of pairs `V:X` such that `V` is a null-terminated array
+variable and `X` is the widened bounds offset for `V`.
 
-4. **Forward:** The basic blocks of the function are traversed in reverse
-post-order. In other words, a basic block is visited before its successors.
-
-5. **Path-sensitive:** Path-sensitivity means that the dataflow analysis
-generates different facts on the `then` and `else` branches.
-
-6. **Flow-sensitive:** Flow-sensitivity means that the sequence of instructions
-in a basic block is taken into consideration when performing the analysis.
-
-7. **Intra-procedural:** The analysis is done on one function at a time.
-
-## Dataflow Analysis Details
 For every basic block `B`, we compute the sets `In[B]` and `Out[B]`.
 
 For every statement `S`, we compute the sets `Gen[S]`, `Kill[S]`, `StmtIn[S]`
@@ -69,9 +54,8 @@ High)` then `X` represents the widened bounds offset such that the widened
 bounds for `V` are `bounds(V + Low, V + High + X)`.
 
 ### Gen[S]
-`Gen[S]` denotes the mapping between null-terminated arrays and widened bounds
-offsets such that at statement `S` the bounds of the null-terminated array `V`
-should be widened by the offset `X`.
+`Gen[S]` maps each null-terminated array variable `V` that occurs in statement
+`S` to the bounds offset to which `V` might be possibly may be widened.
 
 Dataflow equation:
 ```
@@ -96,27 +80,37 @@ If S assigns to V ∨
 ```
 
 ### In[B]
-`In[B]` denotes the mapping between null-terminated arrays and their widened
-bounds offsets upon entry to block `B`. The `In` set for a block `B` is
+`In[B]` denotes the mapping between null-terminated array variables and their
+widened bounds offsets upon entry to block `B`. The `In` set for a block `B` is
 computed as the intersection of the `Out` sets of all the predecessor blocks of
 `B`.
 
-For basic blocks `Bi` and `Bj`, where `Out[Bi] = {V:Xi, W:Y}` and `Out[Bj] =
-{V:Xj, U:Z}` we define the intersection of the `Out` sets as follows:
-
+We define the intersection of the `Out` sets as follows:
 ```
-Out[Bi] ∩ Out[Bj] = {V:min(Xi, Xj)}, if both Xi and Xj are integer constants
-                  = ∅, if either Xi or Xj is not an integer constant
+For basic blocks Bi and Bj, let Out[Bi] ∩ Out[Bj] = ∅, then
+∀ V:Xi ∈ Out[Bi] ∧ V:Xj ∈ Out[Bj],
+  If both Xi and Xj are integer constants:
+    Out[Bi] ∩ Out[Bj] = Out[Bi] ∩ Out[Bj] ∪ {V:min(Xi, Xj)}
+  Else:
+    Out[Bi] ∩ Out[Bj] = Out[Bi] ∩ Out[Bj]
+```
+
+Alternate definition of intersection:
+```
+For basic blocks Bi and Bj,
+∀ V:Xi ∈ Out[Bi] ∧ V:Xj ∈ Out[Bj],
+  If both Xi and Xj are integer constants:
+    V:min(Xi, Xj) ∈ Out[Bi] ∩ Out[Bj]
 ```
 
 Dataflow equation:
 ```
 ∀ B' ∈ pred(B),
-If S is the terminating condition for block B' ∧ S dereferences V at upper_bound(V):
-  If element at upper_bound(V) is provably non-null:
-    In[B] = In[B] ∩ Out[B']
-  Else:
-    In[B] = In[B] ∩ (Out[B'] - Gen[S])
+  If S is the terminating condition for block B' ∧ S dereferences V at upper_bound(V):
+    If element at upper_bound(V) is provably non-null:
+      In[B] = In[B] ∩ Out[B']
+    Else:
+      In[B] = In[B] ∩ (Out[B'] - Gen[S])
 ```
 
 ### Out[B]
@@ -126,10 +120,10 @@ bounds offsets at the end of block `B`.
 Dataflow equation:
 ```
 ∀ statements S ∈ B, i ∈ {1,...,n},
-let Kill[B] = ∪ Kill[Si]
-let Gen[B] = ∪ Gen[Si]
+  let Kill[B] = ∪ Kill[Si]
+  let Gen[B] = ∪ Gen[Si]
 
-Out[B] = (In[B] - Kill[B]) ∪ Gen[B]
+  Out[B] = (In[B] - Kill[B]) ∪ Gen[B]
 ```
 
 ### StmtIn[S]
@@ -156,7 +150,8 @@ StmtOut[S] = (StmtIn[S] - Kill[S]) ∪ Gen[S]
 ### Initial values of `In[B]` and `Out[B]`
 From the dataflow equations defined above, we know that:
 ```
-In[B] = In[B] ∩ Out[B'], ∀ B' ∈ pred(B)
+∀ B' ∈ pred(B),
+  In[B] = In[B] ∩ Out[B']
 ```
 
 But what are the initial values of the `In[B]` and `Out[B]`? If their initial
