@@ -58,7 +58,8 @@ char *basic2(int temp) {
     return 0;
   }
 }
-//CHECK: char *basic2(int temp) : itype(_Ptr<char>) {
+//CHECK_ALL: char *basic2(int temp) : itype(_Nt_array_ptr<char>) {
+//CHECK_NOALL: char *basic2(int temp) : itype(_Ptr<char>) {
 //CHECK_ALL: char data _Nt_checked[17] =  "abcdefghijklmnop";
 //CHECK_ALL: char data2 _Nt_checked[65] =
 //CHECK: char *buffer = malloc<char>(8);
@@ -95,7 +96,8 @@ void sum_numbers(int count) {
   }
   free(ptr);
 }
-//CHECK: int *ptr = (int *)malloc<int>(n * sizeof(int));
+//CHECK_NOALL: int *ptr = (int *)malloc<int>(n * sizeof(int));
+//CHECK_ALL: _Array_ptr<int> ptr : count(n) = (_Array_ptr<int>)malloc<int>(n * sizeof(int));
 
 void basic_calloc(int count) {
   int n, i, sum = 0;
@@ -119,7 +121,8 @@ void basic_calloc(int count) {
   printf("Sum = %d", sum);
   free(ptr);
 }
-//CHECK: int *ptr = (int *)calloc<int>(n, sizeof(int));
+//CHECK_NOALL: int *ptr = (int *)calloc<int>(n, sizeof(int));
+//CHECK_ALL: _Array_ptr<int> ptr : count(n) = (_Array_ptr<int>)calloc<int>(n, sizeof(int));
 
 void basic_realloc(int count) {
   int i, n1, n2;
@@ -144,7 +147,8 @@ void basic_realloc(int count) {
 
   free(ptr);
 }
-//CHECK: int *ptr = (int *)malloc<int>(n1 * sizeof(int));
+//CHECK_NOALL: int *ptr = (int *)malloc<int>(n1 * sizeof(int));
+//CHECK_ALL: _Array_ptr<int> ptr : count(n1) = (_Array_ptr<int>)malloc<int>(n1 * sizeof(int));
 
 struct student {
   char name[30];

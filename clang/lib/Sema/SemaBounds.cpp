@@ -259,14 +259,17 @@ namespace {
     const ArrayRef<Expr *> Arguments;
     llvm::SmallBitVector VisitedArgs;
     Sema::NonModifyingContext ErrorKind;
+    Sema::NonModifyingMessage Message;
     bool ModifyingArg;
   public:
     CheckForModifyingArgs(Sema &SemaRef, ArrayRef<Expr *> Args,
-                          Sema::NonModifyingContext ErrorKind) :
+                          Sema::NonModifyingContext ErrorKind,
+                          Sema::NonModifyingMessage Message) :
       SemaRef(SemaRef),
       Arguments(Args),
       VisitedArgs(Args.size()),
       ErrorKind(ErrorKind),
+      Message(Message),
       ModifyingArg(false) {}
 
     bool FoundModifyingArg() {
@@ -277,8 +280,7 @@ namespace {
       unsigned index = E->getIndex();
       if (index < Arguments.size() && !VisitedArgs[index]) {
         VisitedArgs.set(index);
-        if (!SemaRef.CheckIsNonModifying(Arguments[index], ErrorKind,
-                                         Sema::NonModifyingMessage::NMM_Error)) {
+        if (!SemaRef.CheckIsNonModifying(Arguments[index], ErrorKind, Message)) {
           ModifyingArg = true;
         }
       }
@@ -313,11 +315,11 @@ namespace {
 
 BoundsExpr *Sema::ConcretizeFromFunctionTypeWithArgs(
   BoundsExpr *Bounds, ArrayRef<Expr *> Args,
-  NonModifyingContext ErrorKind) {
+  NonModifyingContext ErrorKind, NonModifyingMessage Message) {
   if (!Bounds || Bounds->isInvalid())
     return Bounds;
 
-  auto CheckArgs = CheckForModifyingArgs(*this, Args, ErrorKind);
+  auto CheckArgs = CheckForModifyingArgs(*this, Args, ErrorKind, Message);
   CheckArgs.TraverseStmt(Bounds);
   if (CheckArgs.FoundModifyingArg())
     return nullptr;
@@ -2413,10 +2415,7 @@ namespace {
       if (Temp ||  S.CheckIsNonModifying(Src, Sema::NonModifyingContext::NMC_Unknown,
                                          Sema::NonModifyingMessage::NMM_None)) {
         // TODO: make sure variable being initialized isn't read by Src.
-        DeclRefExpr *TargetDeclRef =
-          DeclRefExpr::Create(S.getASTContext(), NestedNameSpecifierLoc(),
-                              SourceLocation(), D, false, SourceLocation(),
-                              D->getType(), ExprValueKind::VK_LValue);
+        DeclRefExpr *TargetDeclRef = ExprCreatorUtil::CreateVarUse(S, D);
         CastKind Kind;
         QualType TargetTy;
         if (D->getType()->isArrayType()) {
@@ -2668,57 +2667,24 @@ namespace {
       }
    }
 
-   void ResetKilledBounds(StmtDeclSetTy &KilledBounds, Stmt *St,
-                          CheckingState &State) {
-     auto I = KilledBounds.find(St);
-     if (I == KilledBounds.end())
-       return;
+   void UpdateWidenedBounds(BoundsAnalysis &BA, const CFGBlock *Block,
+                            CheckingState &State) {
+     for (const auto item : BA.GetWidenedBounds(Block)) {
+       const VarDecl *V = item.first;
+       BoundsExpr *Bounds = item.second;
 
-     // KilledBounds stores a mapping of statements to all variables whose
-     // bounds are killed by each statement. Here we reset the bounds of all
-     // variables that are in scope at the statement S and whose bounds are
-     // killed by S to the normalized declared bounds.
-     for (const VarDecl *V : I->second) {
-       if (State.ObservedBounds.find(V) != State.ObservedBounds.end()) {
-         if (BoundsExpr *Bounds = S.NormalizeBounds(V))
-           State.ObservedBounds[V] = Bounds;
-       }
+       auto I = State.ObservedBounds.find(V);
+       if (I != State.ObservedBounds.end())
+         I->second = Bounds;
      }
    }
 
-   void UpdateCtxWithWidenedBounds(BoundsMapTy &WidenedBounds,
-                                   CheckingState &State) {
-     // WidenedBounds contains the mapping from _Nt_array_ptr to the offset by
-     // which its declared bounds should be widened. In this function we apply
-     // the offset to the declared bounds of the _Nt_array_ptr and update its
-     // bounds in ObservedBounds.
-
-     for (const auto item : WidenedBounds) {
-       const VarDecl *V = item.first;
-       unsigned Offset = item.second;
-
-       // We normalize the declared bounds to RangeBoundsExpr here so that we
-       // can easily apply the offset to the upper bound.
-       BoundsExpr *Bounds = S.NormalizeBounds(V);
-       if (RangeBoundsExpr *RBE = dyn_cast<RangeBoundsExpr>(Bounds)) {
-         const llvm::APInt
-           APIntOff(Context.getTargetInfo().getPointerWidth(0), Offset);
-         IntegerLiteral *WidenedOffset =
-           ExprCreatorUtil::CreateIntegerLiteral(Context, APIntOff);
-
-         Expr *Lower = RBE->getLowerExpr();
-         Expr *Upper = RBE->getUpperExpr();
-
-         // WidenedUpperBound = UpperBound + WidenedOffset.
-         Expr *WidenedUpper = ExprCreatorUtil::CreateBinaryOperator(
-                                S, Upper, WidenedOffset,
-                                BinaryOperatorKind::BO_Add);
-
-         RangeBoundsExpr *R =
-           new (Context) RangeBoundsExpr(Lower, WidenedUpper,
-                                         SourceLocation(), SourceLocation());
-         State.ObservedBounds[V] = R;
-       }
+   void ResetKilledBounds(BoundsAnalysis &BA, const CFGBlock *Block,
+                          const Stmt *St, CheckingState &State) {
+     for (const VarDecl *V : BA.GetKilledBounds(Block, St)) {
+       auto I = State.ObservedBounds.find(V);
+       if (I != State.ObservedBounds.end())
+         I->second = S.NormalizeBounds(V);
      }
    }
 
@@ -2760,7 +2726,7 @@ namespace {
      IdentifyChecked(Body, MemoryCheckedStmts, BoundsCheckedStmts, CheckedScopeSpecifier::CSS_Unchecked);
 
      // Run the bounds widening analysis on this function.
-     BoundsAnalysis BA = getBoundsAnalyzer();
+     BoundsAnalysis &BA = getBoundsAnalyzer();
      BA.WidenBounds(FD, NestedElements);
      if (S.getLangOpts().DumpWidenedBounds)
        BA.DumpWidenedBounds(FD);
@@ -2771,14 +2737,8 @@ namespace {
        AFA.GetFacts(Facts);
        CheckingState BlockState = GetIncomingBlockState(Block, BlockStates);
 
-       // Get the widened bounds for the current block as computed by the
-       // bounds widening analysis invoked by WidenBounds above.
-       BoundsMapTy WidenedBounds = BA.GetWidenedBounds(Block);
-       // Also get the bounds killed (if any) by each statement in the current
-       // block.
-       StmtDeclSetTy KilledBounds = BA.GetKilledBounds(Block);
        // Update the observed bounds with the widened bounds calculated above.
-       UpdateCtxWithWidenedBounds(WidenedBounds, BlockState);
+       UpdateWidenedBounds(BA, Block, BlockState);
 
        for (CFGElement Elem : *Block) {
          if (Elem.getKind() == CFGElement::Statement) {
@@ -2825,8 +2785,7 @@ namespace {
 
             // For each variable v in ObservedBounds, check that the
             // observed bounds of v imply the declared bounds of v.
-            ValidateBoundsContext(S, BlockState, WidenedBounds,
-                                  KilledBounds, CSS);
+            ValidateBoundsContext(S, BlockState, CSS, Block);
 
             // The observed bounds that were updated after checking S should
             // only be used to check that the updated observed bounds imply
@@ -2840,7 +2799,7 @@ namespace {
             // Resetting the widened bounds killed by S should be the last
             // thing done as part of traversing S.  The widened bounds of each
             // variable should be in effect until the very end of traversing S.
-            ResetKilledBounds(KilledBounds, S, BlockState);
+            ResetKilledBounds(BA, Block, S, BlockState);
          }
        }
        if (Block->getBlockID() != Cfg->getEntry().getBlockID())
@@ -3322,7 +3281,7 @@ namespace {
     BoundsExpr *CheckCallExpr(CallExpr *E, CheckedScopeSpecifier CSS,
                               CheckingState &State,
                               CHKCBindTemporaryExpr *Binding = nullptr) {
-      BoundsExpr *ResultBounds = CallExprBounds(E, Binding);
+      BoundsExpr *ResultBounds = CallExprBounds(E, Binding, CSS);
 
       QualType CalleeType = E->getCallee()->getType();
       // Extract the pointee type.  The caller type could be a regular pointer
@@ -3410,7 +3369,8 @@ namespace {
           S.ConcretizeFromFunctionTypeWithArgs(
             const_cast<BoundsExpr *>(ParamBounds),
             ArgExprs,
-            Sema::NonModifyingContext::NMC_Function_Parameter);
+            Sema::NonModifyingContext::NMC_Function_Parameter,
+            Sema::NonModifyingMessage::NMM_Error);
 
         if (!SubstParamBounds)
           continue;
@@ -3756,10 +3716,7 @@ namespace {
 
         // Create an rvalue expression for v. v could be an array or
         // non-array variable.
-        DeclRefExpr *TargetDeclRef =
-          DeclRefExpr::Create(S.getASTContext(), NestedNameSpecifierLoc(),
-                              SourceLocation(), D, false, SourceLocation(),
-                              D->getType(), ExprValueKind::VK_LValue);
+        DeclRefExpr *TargetDeclRef = ExprCreatorUtil::CreateVarUse(S, D);
         CastKind Kind;
         QualType TargetTy;
         if (D->getType()->isArrayType()) {
@@ -3934,12 +3891,8 @@ namespace {
         StateFalseArm.ObservedBounds = FalseBounds;
 
         // Validate the bounds that were updated in either arm.
-        BoundsMapTy WidenedBounds;
-        StmtDeclSetTy KilledBounds;
-        ValidateBoundsContext(E->getTrueExpr(), StateTrueArm, WidenedBounds,
-                              KilledBounds, CSS);
-        ValidateBoundsContext(E->getFalseExpr(), StateFalseArm, WidenedBounds,
-                              KilledBounds, CSS);
+        ValidateBoundsContext(E->getTrueExpr(), StateTrueArm, CSS);
+        ValidateBoundsContext(E->getFalseExpr(), StateFalseArm, CSS);
 
         // For each variable v whose bounds were updated in the true or false arm,
         // reset the observed bounds of v to the declared bounds of v.
@@ -4321,7 +4274,7 @@ namespace {
       return ExpandToRange(Base, BE);
     }
 
-    BoundsAnalysis getBoundsAnalyzer() { return BoundsAnalyzer; }
+    BoundsAnalysis &getBoundsAnalyzer() { return BoundsAnalyzer; }
 
   private:
     // Sets the bounds expressions based on whether e is an lvalue or an
@@ -4343,9 +4296,8 @@ namespace {
     // statement S, for each variable v in the checking state observed bounds
     // context, the observed bounds of v imply the declared bounds of v.
     void ValidateBoundsContext(Stmt *S, CheckingState State,
-                               BoundsMapTy WidenedBounds,
-                               StmtDeclSetTy KilledBounds,
-                               CheckedScopeSpecifier CSS) {
+                               CheckedScopeSpecifier CSS,
+                               const CFGBlock *Block = nullptr) {
       // Construct a set of sets of equivalent expressions that contains all
       // the equality facts in State.EquivExprs, as well as any equality facts
       // implied by State.TargetSrcEquality.  These equality facts will only
@@ -4369,6 +4321,10 @@ namespace {
           EquivExprs.push_back({Target, Src});
       }
 
+      BoundsAnalysis &BA = getBoundsAnalyzer();
+      DeclSetTy BoundsWidenedAndNotKilled =
+        BA.GetBoundsWidenedAndNotKilled(Block, S);
+
       for (auto const &Pair : State.ObservedBounds) {
         const VarDecl *V = Pair.first;
         BoundsExpr *ObservedBounds = Pair.second;
@@ -4377,9 +4333,16 @@ namespace {
           continue;
         if (ObservedBounds->isUnknown())
           DiagnoseUnknownObservedBounds(S, V, DeclaredBounds, State);
-        else
+        else {
+          // We should issue diagnostics for observed bounds if the variable V
+          // is not in the set BoundsWidenedAndNotKilled which represents
+          // variables whose bounds are widened in this block and not killed by
+          // statement S.
+          bool DiagnoseObservedBounds = BoundsWidenedAndNotKilled.find(V) ==
+                                        BoundsWidenedAndNotKilled.end();
           CheckObservedBounds(S, V, DeclaredBounds, ObservedBounds, State,
-                              &EquivExprs, WidenedBounds, KilledBounds, CSS);
+                              &EquivExprs, CSS, Block, DiagnoseObservedBounds);
+        }
       }
     }
 
@@ -4432,9 +4395,9 @@ namespace {
                              BoundsExpr *DeclaredBounds,
                              BoundsExpr *ObservedBounds, CheckingState State,
                              EquivExprSets *EquivExprs,
-                             BoundsMapTy WidenedBounds,
-                             StmtDeclSetTy KilledBounds,
-                             CheckedScopeSpecifier CSS) {
+                             CheckedScopeSpecifier CSS,
+                             const CFGBlock *Block,
+                             bool DiagnoseObservedBounds) {
       ProofFailure Cause;
       FreeVariableListTy FreeVars;
       ProofResult Result = ProveBoundsDeclValidity(
@@ -4453,13 +4416,8 @@ namespace {
       // observed upper bound (p + 0) + 1.
       // TODO: checkedc-clang issue #867: the widened bounds of a variable
       // should provably imply the declared bounds of a variable.
-      if (WidenedBounds.find(V) != WidenedBounds.end()) {
-        auto I = KilledBounds.find(St);
-        if (I == KilledBounds.end())
-          return;
-        if (I->second.find(V) == I->second.end())
-          return;
-      }
+      if (!DiagnoseObservedBounds)
+        return;
       
       // Which diagnostic message to print?
       unsigned DiagId =
@@ -5981,7 +5939,8 @@ namespace {
     // If ResultName is non-null, it is a temporary variable where the result
     // of the call expression is stored immediately upon return from the call.
     BoundsExpr *CallExprBounds(const CallExpr *CE,
-                               CHKCBindTemporaryExpr *ResultName) {
+                               CHKCBindTemporaryExpr *ResultName,
+                               CheckedScopeSpecifier CSS) {
       BoundsExpr *ReturnBounds = nullptr;
       if (CE->getType()->isCheckedPointerPtrType()) {
         if (CE->getType()->isVoidPointerType())
@@ -6008,7 +5967,7 @@ namespace {
         BoundsExpr *FunBounds = FunReturnAnnots.getBoundsExpr();
         InteropTypeExpr *IType =FunReturnAnnots.getInteropTypeExpr();
         // If there is no return bounds and there is an interop type
-        // annotation, use the bounds impied by the interop type
+        // annotation, use the bounds implied by the interop type
         // annotation.
         if (!FunBounds && IType)
           FunBounds = CreateTypeBasedBounds(nullptr, IType->getType(),
@@ -6023,10 +5982,22 @@ namespace {
                               CE->getNumArgs());
 
         // Concretize Call Bounds with argument expressions.
-        // We can only do this if the argument expressions are non-modifying
+        // We can only do this if the argument expressions are non-modifying.
+        // For argument expressions that are modifying, we issue an error
+        // message only in checked scope because the argument expressions may
+        // be re-evaluated during bounds validation.
+        // TODO: The long-term solution is to introduce temporaries for
+        // modifying argument expressions whose corresponding formals are used
+        // in return or parameter bounds expressions.
+        // Equality between the value computed by an argument expression and its
+        // associated temporary would also need to be recorded.
+        Sema::NonModifyingMessage Message =
+          (CSS == CheckedScopeSpecifier::CSS_Unchecked) ?
+          Sema::NonModifyingMessage::NMM_None :
+          Sema::NonModifyingMessage::NMM_Error;
         ReturnBounds =
           S.ConcretizeFromFunctionTypeWithArgs(FunBounds, ArgExprs,
-                            Sema::NonModifyingContext::NMC_Function_Return);
+                       Sema::NonModifyingContext::NMC_Function_Return, Message);
         // If concretization failed, this means we tried to substitute with
         // a non-modifying expression, which is not allowed by the
         // specification.

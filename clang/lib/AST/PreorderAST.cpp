@@ -403,7 +403,7 @@ bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
   return true;
 }
 
-Result PreorderAST::Compare(Node *N1, Node *N2) {
+Result PreorderAST::Compare(const Node *N1, const Node *N2) const {
   // If both the nodes are null.
   if (!N1 && !N2)
     return Result::Equal;

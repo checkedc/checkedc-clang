@@ -47,6 +47,12 @@ ImplicitCastExpr *ExprCreatorUtil::CreateImplicitCast(Sema &SemaRef, Expr *E,
                                   ExprValueKind::VK_RValue);
 }
 
+DeclRefExpr *ExprCreatorUtil::CreateVarUse(Sema &SemaRef, VarDecl *V) {
+  return DeclRefExpr::Create(SemaRef.getASTContext(), NestedNameSpecifierLoc(),
+                             SourceLocation(), V, false, SourceLocation(),
+                             V->getType(), ExprValueKind::VK_LValue);
+}
+
 Expr *ExprCreatorUtil::EnsureRValue(Sema &SemaRef, Expr *E) {
   if (E->isRValue())
     return E;

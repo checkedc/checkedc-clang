@@ -6,6 +6,7 @@
 #include "clang/AST/CanonBounds.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/PreorderAST.h"
+#include "clang/Sema/Sema.h"
 
 namespace clang {
   using Result = Lexicographic::Result;
@@ -35,11 +36,8 @@ namespace clang {
     Expr *Representative;
 
   public:
-    AbstractSet(PreorderAST P) : CanonicalForm(P) {}
-
-    void SetRepresentative(Expr *E) {
-      Representative = E;
-    }
+    AbstractSet(PreorderAST P, Expr *Rep) :
+      CanonicalForm(P), Representative(Rep) {}
 
     Expr *GetRepresentative() const {
       return Representative;
@@ -47,20 +45,22 @@ namespace clang {
 
     // The comparison between two AbstractSets is the same as the
     // lexicographic comparison between their CanonicalForms.
-    Result Compare(AbstractSet &Other) {
+    Result Compare(const AbstractSet Other) const {
       return CanonicalForm.Compare(Other.CanonicalForm);
     }
 
-    bool operator<(AbstractSet &Other) {
+    bool operator<(AbstractSet &Other) const {
       return Compare(Other) == Result::LessThan;
     }
-    bool operator==(AbstractSet &Other) {
+    bool operator==(AbstractSet &Other) const {
       return Compare(Other) == Result::Equal;
     }
   };
 
   class AbstractSetManager {
   private:
+    Sema &S;
+
     // Maintain a sorted set of PreorderASTs that have been created while
     // traversing a function. A binary search in this set is used to determine
     // whether an lvalue expression belongs to an existing AbstractSet (an
@@ -69,24 +69,25 @@ namespace clang {
     // Here, the PreorderASTComparer is used to sort the PreorderASTs
     // lexicographically. This avoids the need for a linear search through
     // SortedPreorderASTs in GetOrCreateAbstractSet.
-    static std::set<PreorderAST *, PreorderASTComparer> SortedPreorderASTs;
+    std::set<PreorderAST *, PreorderASTComparer> SortedPreorderASTs;
 
     // Map each PreorderAST P that has been created while traversing a function
     // to the AbstractSet whose CanonicalForm is P. This is used to retrieve
     // the AbstractSet whose CanonicalForm already exists in SortedPreorderASTs
     // (if any).
-    static llvm::DenseMap<PreorderAST *, AbstractSet *> PreorderASTAbstractSetMap;
+    llvm::DenseMap<PreorderAST *, const AbstractSet *> PreorderASTAbstractSetMap;
 
   public:
+    AbstractSetManager(Sema &S) : S(S) {}
+
     // Returns the AbstractSet that contains the lvalue expression E. If
     // there is an AbstractSet A in SortedAbstractSets that contains E,
     // GetOrCreateAbstractSet returns A. Otherwise, it creates a new
     // AbstractSet for E.
-    static AbstractSet *GetOrCreateAbstractSet(Expr *E, ASTContext &Ctx);
+    const AbstractSet *GetOrCreateAbstractSet(Expr *E);
 
-    // Clears the contents of the AbstractSetManager, since storage of the
-    // AbstractSets should not persist across functions.
-    static void Clear(void);
+    // Returns the AbstractSet that contains a use of the VarDecl.
+    const AbstractSet *GetOrCreateAbstractSet(const VarDecl *V);
   };
 } // end namespace clang
 
