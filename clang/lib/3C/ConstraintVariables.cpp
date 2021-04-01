@@ -241,7 +241,7 @@ PointerVariableConstraint::PointerVariableConstraint(
           OrigType = FD->getType().getTypePtr();
         }
         if (OrigType->isFunctionProtoType()) {
-          const FunctionProtoType *FPT = dyn_cast<FunctionProtoType>(OrigType);
+          const FunctionProtoType *FPT = OrigType->getAs<FunctionProtoType>();
           AnalyzeITypeExpr = (FPT->getReturnType() == QT);
         }
       }

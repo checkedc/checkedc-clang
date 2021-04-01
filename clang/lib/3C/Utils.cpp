@@ -192,7 +192,7 @@ bool filePathStartsWith(const std::string &Path, const std::string &Prefix) {
 bool functionHasVarArgs(clang::FunctionDecl *FD) {
   if (FD && FD->getFunctionType()->isFunctionProtoType()) {
     const FunctionProtoType *SrcType =
-        dyn_cast<FunctionProtoType>(FD->getFunctionType());
+        FD->getFunctionType()->getAs<FunctionProtoType>();
     return SrcType->isVariadic();
   }
   return false;
