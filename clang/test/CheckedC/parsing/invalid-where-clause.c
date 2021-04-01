@@ -37,6 +37,17 @@ void invalid_cases_nullstmt(_Nt_array_ptr<char> p, int a, int b) {
   _Where a _And p : _And q : count(0) _And x _And a = 1 _And f() < 0 _And; // expected-error {{invalid expression in where clause, expected bounds declaration or equality expression}} expected-error {{expected bounds expression}} expected-error {{use of undeclared identifier q}} expected-error {{use of undeclared identifier 'x'}} expected-error {{expected comparison operator in equality expression}} expected-error {{call expression not allowed in expression}} expected-error {{expected bounds declaration or equality expression in where clause}}
 }
 
+void invalid_cases_exprstmt(_Nt_array_ptr<char> p, int a) {
+  a = 0 _Where a _And p : _And q : count(0) _And x _Where b = 1 _And f() < 0 _And; // expected-error {{invalid expression in where clause, expected bounds declaration or equality expression}} expected-error {{expected bounds expression}} expected-error {{use of undeclared identifier q}} expected-error {{use of undeclared identifier 'x'}} expected-error {{use of undeclared identifier 'b'}} expected-error {{call expression not allowed in expression}} expected-error {{expected bounds declaration or equality expression in where clause}}
+
+  int x, y;
+  // For an ExprStmt with commas, a where clause cannot be attached after each
+  // comma. This is because the entire expression including commas is parsed as
+  // one ExprStmt. Hence a where clause can only be attached at the end of the
+  // entire ExprStmt.
+  x = 1 _Where x > 0, y = 2 _Where y > 1; // expected-error {{expected ';' after expression}}
+}
+
 void f1(int a _Where a, _Nt_array_ptr<int> p : count(0) _Where p :); // expected-error {{invalid expression in where clause, expected bounds declaration or equality expression}} expected-error {{expected bounds expression}}
 
 void f2(int *p : itype(_Ptr<int>) _Where p, int n); // expected-error {{invalid expression in where clause, expected bounds declaration or equality expression}}
