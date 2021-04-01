@@ -953,11 +953,8 @@ namespace {
           auto It = BoundsContext.find(A);
           if (It == BoundsContext.end())
             continue;
-          const VarDecl *V = A->GetVarDecl();
-          if (!V)
-            continue;
-          OS << "Variable:\n";
-          V->dump(OS);
+          OS << "LValue Expression:\n";
+          A->GetRepresentative()->dump(OS, Context);
           OS << "Bounds:\n";
           It->second->dump(OS, Context);
         }
