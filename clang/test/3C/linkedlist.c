@@ -26,14 +26,14 @@ void display(List *list);
 void reverse(List *list);
 //CHECK: void reverse(_Ptr<List> list);
 void destroy(List *list);
-//CHECK: void destroy(List *list : itype(_Ptr<List>));
+//CHECK: void destroy(_Ptr<List> list);
 
 struct node {
 
   int data;
 
   struct node *next;
-  //CHECK: struct node *next;
+  //CHECK: _Ptr<struct node> next;
 };
 
 struct list {
@@ -48,7 +48,7 @@ Node *createnode(int data) {
   //CHECK: _Ptr<Node> createnode(int data) {
 
   Node *newNode = malloc(sizeof(Node));
-  //CHECK: _Ptr<Node> newNode = malloc<Node>(sizeof(Node));
+  //CHECK: _Ptr<Node> newNode =  malloc<Node>(sizeof(Node));
 
   if (!newNode) {
 
@@ -169,7 +169,7 @@ void reverse(List *list) {
 }
 
 void destroy(List *list) {
-  //CHECK: void destroy(List *list : itype(_Ptr<List>)) {
+  //CHECK: void destroy(_Ptr<List> list) { 
 
   Node *current = list->head;
 
