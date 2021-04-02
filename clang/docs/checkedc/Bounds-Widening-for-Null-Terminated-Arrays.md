@@ -77,6 +77,37 @@ If S assigns to V ∨
   Kill[S] = Kill[S] ∪ {V}
 ```
 
+### StmtIn[S]
+`StmtIn[S]` denotes the mapping between null-terminated array variables and
+their widened bounds offsets at the start of statement `S`.
+
+Dataflow equation:
+```
+If S is first_statement(B):
+  StmtIn[S] = In[B]
+Else:
+  StmtIn[S] = StmtOut[S'], where S' ∈ pred(S)
+```
+
+### StmtOut[S]
+`StmtOut[S]` denotes the mapping between null-terminated array variables and
+their widened bounds offsets at the end of statement `S`.
+
+Dataflow equation:
+```
+StmtOut[S] = (StmtIn[S] - Kill[S]) ∪ Gen[S]
+```
+
+### Out[B]
+`Out[B]` denotes the mapping between null-terminated array variables and their
+widened bounds offsets at the end of block `B`.
+
+Dataflow equation:
+```
+Let S be the last statement in block B.
+Out[B] = StmtOut[S]
+```
+
 ### In[B]
 `In[B]` denotes the mapping between null-terminated array variables and their
 widened bounds offsets upon entry to block `B`. The `In` set for a block `B` is
@@ -111,37 +142,6 @@ Dataflow equation:
       In[B] = In[B] ∩ (Out[B'] - Gen[S])
   Else:
     In[B] = In[B] ∩ Out[B']
-```
-
-### Out[B]
-`Out[B]` denotes the mapping between null-terminated array variables and their
-widened bounds offsets at the end of block `B`.
-
-Dataflow equation:
-```
-Let S be the last statement in block B.
-Out[B] = StmtOut[S]
-```
-
-### StmtIn[S]
-`StmtIn[S]` denotes the mapping between null-terminated array variables and
-their widened bounds offsets at the start of statement `S`.
-
-Dataflow equation:
-```
-If S is first_statement(B):
-  StmtIn[S] = In[B]
-Else:
-  StmtIn[S] = StmtOut[S'], where S' ∈ pred(S)
-```
-
-### StmtOut[S]
-`StmtOut[S]` denotes the mapping between null-terminated array variables and
-their widened bounds offsets at the end of statement `S`.
-
-Dataflow equation:
-```
-StmtOut[S] = (StmtIn[S] - Kill[S]) ∪ Gen[S]
 ```
 
 ### Initial values of `In[B]` and `Out[B]`
