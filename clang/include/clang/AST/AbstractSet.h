@@ -75,6 +75,12 @@ namespace clang {
   private:
     Sema &S;
 
+    // VarUses maps a VarDecl with a bounds expression to the DeclRefExpr
+    // (if any) that is the first use of the VarDecl.  If a VarDecl V has
+    // an entry in VarUses, the DeclRefExpr for V is used to get or create
+    // the AbstractSet for V.
+    Sema::VarDeclUsage &VarUses;
+
     // Maintain a sorted set of PreorderASTs that have been created while
     // traversing a function. A binary search in this set is used to determine
     // whether an lvalue expression belongs to an existing AbstractSet (an
@@ -92,7 +98,8 @@ namespace clang {
     llvm::DenseMap<PreorderAST *, const AbstractSet *> PreorderASTAbstractSetMap;
 
   public:
-    AbstractSetManager(Sema &S) : S(S) {}
+    AbstractSetManager(Sema &S, Sema::VarDeclUsage &VarUses) :
+      S(S), VarUses(VarUses) {}
 
     // Returns the AbstractSet that contains the lvalue expression E. If
     // there is an AbstractSet A in SortedAbstractSets that contains E,
