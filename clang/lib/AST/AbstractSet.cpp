@@ -32,7 +32,25 @@ const AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(Expr *E) {
 }
 
 const AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(const VarDecl *V) {
-  VarDecl *D = const_cast<VarDecl *>(V);
-  DeclRefExpr *VarUse = ExprCreatorUtil::CreateVarUse(S, D);
+  // Compute the DeclRefExpr that is a use of V. This DeclRefExpr is needed
+  // in order to get or create the AbstractSet that contains V.
+  // The VarUses map not contain a key for V if V is never used in the
+  // body of a function. However, we still need to create an AbstractSet
+  // for V so that its bounds can be checked. For example, consider:
+  // void f(_Array_ptr<int> unused : count(i), unsigned i) {
+  //   i = 0;
+  // }
+  // The parameter declaration `unused` does not have a DeclRefExpr in the
+  // VarUses map, but the statement i = 0 invalidates the observed bounds
+  // of V.
+  DeclRefExpr *VarUse = nullptr;
+  auto It = VarUses.find(V);
+  if (It != VarUses.end()) {
+    VarUse = It->second;
+  } else {
+    VarDecl *D = const_cast<VarDecl *>(V);
+    VarUse = ExprCreatorUtil::CreateVarUse(S, D);
+    VarUses[V] = VarUse;
+  }
   return GetOrCreateAbstractSet(VarUse);
 }
