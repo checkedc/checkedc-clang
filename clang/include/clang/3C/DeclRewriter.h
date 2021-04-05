@@ -51,12 +51,6 @@ private:
   // declaration in the containing multi-decl is visited.
   RSet VisitedMultiDeclMembers;
 
-  // TODO: I don't like having this be static, but it needs to be static in
-  //       order to pass information between different translation units. A
-  //       new instance of this class (and the RewriteConsumer class) is created
-  //       for each translation unit.
-  static std::map<std::string, std::string> NewFuncSig;
-
   // Visit each Decl in ToRewrite and apply the appropriate pointer type
   // to that Decl. ToRewrite is the set of all declarations to rewrite.
   void rewrite(RSet &ToRewrite);
@@ -87,10 +81,9 @@ private:
 class FunctionDeclBuilder : public RecursiveASTVisitor<FunctionDeclBuilder> {
 public:
   explicit FunctionDeclBuilder(ASTContext *C, ProgramInfo &I, RSet &DR,
-                               std::map<std::string, std::string> &NewFuncSig,
                                ArrayBoundsRewriter &ArrRewriter)
       : Context(C), Info(I), RewriteThese(DR), ABRewriter(ArrRewriter),
-        VisitedSet(), ModifiedFuncSignatures(NewFuncSig) {}
+        VisitedSet() {}
 
   bool VisitFunctionDecl(FunctionDecl *);
   bool isFunctionVisited(std::string FuncName);
@@ -105,19 +98,16 @@ protected:
   // Used to ensure the new signature is only computed once for each function.
   std::set<std::string> VisitedSet;
 
-  // This is a map from functions (the string representation of their names) to
-  // their function signature in the rewritten program.
-  std::map<std::string, std::string> &ModifiedFuncSignatures;
-
   // Get existing itype string from constraint variables.
   std::string getExistingIType(ConstraintVariable *DeclC);
 
   virtual void buildDeclVar(const FVComponentVariable *CV,
                             DeclaratorDecl *Decl, std::string &Type,
-                            std::string &IType, bool &RewriteParm,
-                            bool &RewriteRet);
+                            std::string &IType, std::string UseName,
+                            bool &RewriteParm, bool &RewriteRet);
   void buildCheckedDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
                         std::string &Type, std::string &IType,
+                        std::string UseName,
                         bool &RewriteParm, bool &RewriteRet);
   void buildItypeDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
                       std::string &Type, std::string &IType, bool &RewriteParm,

@@ -570,29 +570,19 @@ ProgramInfo::insertNewFVConstraint(FunctionDecl *FD, FVConstraint *NewC,
 
   // Resolve conflicts
 
-  // We need to keep the version with a body, if it exists,
-  // so branch based on it
   auto *OldC = (*Map)[FuncName];
-  bool NewHasBody = NewC->hasBody();
-  bool OldHasBody = OldC->hasBody();
   std::string ReasonFailed = "";
+  int OldCount = OldC->numParams();
+  int NewCount = NewC->numParams();
 
-  if (OldHasBody && NewHasBody) {
-    // Two separate bodies for a function is irreconcilable
-    ReasonFailed = "multiple function bodies";
-  } else if (OldHasBody && !NewHasBody) {
-    OldC->mergeDeclaration(NewC, *this, ReasonFailed);
-  } else if (!OldHasBody && NewHasBody) {
+  // merge short parameter lists into long ones
+  // Choose number of params, but favor definitions if available
+  if ((OldCount < NewCount) || (OldCount == NewCount &&
+                                !OldC->hasBody() && NewC->hasBody())) {
     NewC->mergeDeclaration(OldC, *this, ReasonFailed);
     (*Map)[FuncName] = NewC;
-  } else if (!OldHasBody && !NewHasBody) {
-    // lacking bodies, we favor declared params
-    if (OldC->numParams() == 0 && NewC->numParams() != 0) {
-      NewC->mergeDeclaration(OldC, *this, ReasonFailed);
-      (*Map)[FuncName] = NewC;
-    } else {
-      OldC->mergeDeclaration(NewC, *this, ReasonFailed);
-    }
+  } else {
+    OldC->mergeDeclaration(NewC, *this, ReasonFailed);
   }
 
   // If successful, we're done and can skip error reporting
@@ -670,6 +660,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
 
   if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     // Function Decls have FVConstraints.
+    std::string FuncName = FD->getNameAsString();
     FVConstraint *F = new FVConstraint(D, *this, *AstContext);
     F->setValidDecl();
 
@@ -719,8 +710,12 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       // constrain to WILD even if we don't end up storing this in the map.
       constrainWildIfMacro(PVExternal, PVD->getLocation());
       specialCaseVarIntros(PVD, AstContext);
-      // It is possible to have a parameter decl in a macro when the function is
-      // not.
+      // If this is "main", constrain its argv parameter to a nested arr
+      if (AllTypes && FuncName == "main" && FD->isGlobal() && I == 1) {
+        PVInternal->constrainOuterTo(CS, CS.getArr());
+        PVInternal->constrainIdxTo(CS, CS.getNTArr(), 1);
+      }
+      // It is possible to have a param decl in a macro when the function is not.
       if (Variables.find(PSL) != Variables.end())
         continue;
       Variables[PSL] = PVInternal;

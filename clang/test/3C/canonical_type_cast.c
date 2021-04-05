@@ -37,5 +37,5 @@ void h() {
 void i() {
   //CHECK: void i() _Checked {
   int (*x)(int) = (int (*)(int))add1;
-  //CHECK: _Ptr<int (int)> x = (_Ptr<int (int )>)add1;
+  //CHECK: _Ptr<int (int)> x = (_Ptr<int (int)>)add1;
 }

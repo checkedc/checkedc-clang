@@ -33,9 +33,9 @@ int f(int *x) {
 
 void baz(void) {
   int (*fp)(int *) = f;
-  //CHECK: _Ptr<int (_Ptr<int> )> fp = f;
+  //CHECK: _Ptr<int (_Ptr<int>)> fp = f;
   int (*fp2)(int *) = &f;
-  //CHECK: _Ptr<int (_Ptr<int> )> fp2 = &f;
+  //CHECK: _Ptr<int (_Ptr<int>)> fp2 = &f;
   f((void *)0);
 }
 

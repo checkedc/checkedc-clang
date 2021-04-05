@@ -674,10 +674,19 @@ std::string PointerVariableConstraint::gatherQualStrings(void) const {
 std::string PointerVariableConstraint::mkString(Constraints &CS,
                                                 bool EmitName, bool ForItype,
                                                 bool EmitPointee,
-                                                bool UnmaskTypedef) const {
+                                                bool UnmaskTypedef,
+                                                std::string UseName) const {
+
+  // The name field encodes if this variable is the return type for a function.
+  // TODO: store this information in a separate field.
+  bool IsReturn = getName() == RETVAR;
+
+  if (UseName.empty())
+    UseName = getName();
+
   if (IsTypedef && !UnmaskTypedef) {
     return gatherQualStrings() + TypedefString +
-           (EmitName && getName() != RETVAR ? (" " + getName()) : " ");
+           (EmitName && !IsReturn ? (" " + UseName) : " ");
   }
 
   std::ostringstream Ss;
@@ -699,7 +708,7 @@ std::string PointerVariableConstraint::mkString(Constraints &CS,
   bool AllArrays = true;
   // Are we in a sequence of arrays
   bool ArrayRun = false;
-  if (!EmitName || getName() == RETVAR)
+  if (!EmitName || IsReturn)
     EmittedName = true;
   uint32_t TypeIdx = 0;
 
@@ -736,7 +745,7 @@ std::string PointerVariableConstraint::mkString(Constraints &CS,
     if (PrevArr && ArrSizes.at(TypeIdx).first != O_SizedArray && !EmittedName) {
       EmittedName = true;
       addArrayAnnotations(CheckedArrs, EndStrs);
-      EndStrs.push_front(" " + getName());
+      EndStrs.push_front(" " + UseName);
     }
     PrevArr = ((K == Atom::A_Arr || K == Atom::A_NTArr) && ArrPresent &&
                ArrSizes.at(TypeIdx).first == O_SizedArray);
@@ -801,7 +810,9 @@ std::string PointerVariableConstraint::mkString(Constraints &CS,
         assert(BaseType.size() > 0);
         EmittedBase = true;
         if (FV) {
-          Ss << FV->mkString(CS);
+          Ss << FV->mkString(CS, EmitName, ForItype,
+                             EmitPointee, UnmaskTypedef, UseName);
+          EmittedName |= EmitName;
         } else {
           Ss << BaseType << " *";
         }
@@ -828,14 +839,14 @@ std::string PointerVariableConstraint::mkString(Constraints &CS,
   // the the stack array type.
   if (PrevArr && !EmittedName && AllArrays) {
     EmittedName = true;
-    EndStrs.push_front(" " + getName());
+    EndStrs.push_front(" " + UseName);
   }
 
   if (!EmittedBase) {
     // If we have a FV pointer, then our "base" type is a function pointer.
     // type.
     if (FV) {
-      Ss << FV->mkString(CS);
+      Ss << FV->mkString(CS, false);
     } else if (TypedefLevelInfo.HasTypedef) {
       std::ostringstream Buf;
       getQualString(TypedefLevelInfo.TypedefLevel, Buf);
@@ -852,8 +863,8 @@ std::string PointerVariableConstraint::mkString(Constraints &CS,
   }
 
   // No space after itype.
-  if (!EmittedName)
-    Ss << " " << getName();
+  if (!EmittedName && !UseName.empty())
+    Ss << " " << UseName;
 
   // Final array dropping.
   if (!CheckedArrs.empty()) {
@@ -863,8 +874,7 @@ std::string PointerVariableConstraint::mkString(Constraints &CS,
       Ss << Str;
   }
 
-  // TODO Remove comparison to RETVAR.
-  if (getName() == RETVAR && !ForItype)
+  if (IsReturn && !ForItype)
     Ss << " ";
 
   return Ss.str();
@@ -1145,12 +1155,12 @@ void PointerVariableConstraint::constrainToWild(Constraints &CS,
     FV->constrainToWild(CS, Rsn, PL);
 }
 
-void PointerVariableConstraint::constrainOuterTo(Constraints &CS, ConstAtom *C,
-                                                 bool DoLB) {
+void PointerVariableConstraint::constrainIdxTo(Constraints &CS, ConstAtom *C,
+                                               unsigned int Idx, bool DoLB) {
   assert(C == CS.getPtr() || C == CS.getArr() || C == CS.getNTArr());
 
-  if (Vars.size() > 0) {
-    Atom *A = *Vars.begin();
+  if (Vars.size() > Idx) {
+    Atom *A = Vars[Idx];
     if (VarAtom *VA = dyn_cast<VarAtom>(A)) {
       if (DoLB)
         CS.addConstraint(CS.createGeq(VA, C, false));
@@ -1170,6 +1180,11 @@ void PointerVariableConstraint::constrainOuterTo(Constraints &CS, ConstAtom *C,
       }
     }
   }
+}
+
+void PointerVariableConstraint::constrainOuterTo(Constraints &CS, ConstAtom *C,
+                                                 bool DoLB) {
+  constrainIdxTo(CS,C,0,DoLB);
 }
 
 bool PointerVariableConstraint::anyArgumentIsWild(const EnvironmentMap &E) {
@@ -1434,12 +1449,19 @@ bool FunctionVariableConstraint::solutionEqualTo(Constraints &CS,
 std::string FunctionVariableConstraint::mkString(Constraints &CS,
                                                  bool EmitName, bool ForItype,
                                                  bool EmitPointee,
-                                                 bool UnmaskTypedef) const {
+                                                 bool UnmaskTypedef,
+                                                 std::string UseName) const {
+  if (UseName.empty())
+    UseName = Name;
   std::string Ret = ReturnVar.mkTypeStr(CS, false);
   std::string Itype = ReturnVar.mkItypeStr(CS);
-  // This is done to rewrite the typedef of a function proto
-  if (UnmaskTypedef && EmitName)
-    Ret += Name;
+  if (EmitName) {
+    if (UnmaskTypedef)
+      // This is done to rewrite the typedef of a function proto
+      Ret += UseName;
+    else
+      Ret += "(*" + UseName + ")";
+  }
   Ret = Ret + "(";
   std::vector<std::string> ParmStrs;
   for (const auto &I : this->ParamVars)
@@ -1793,6 +1815,8 @@ void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
   assert(Vars.size() == NewVatoms.size() &&
          "Merging error, pointer depth change");
   Vars = NewVatoms;
+  if (Name.empty())
+    Name = From->Name;
   SrcHasItype = SrcHasItype || From->SrcHasItype;
   if (!From->ItypeStr.empty())
     ItypeStr = From->ItypeStr;
@@ -1834,6 +1858,12 @@ void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
 
   FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
   assert(From != nullptr);
+  assert("this should have more params" &&
+         this->numParams() >= From->numParams());
+
+  // transferable basic info
+  Hasbody |= From->Hasbody;
+  if (Name.empty()) Name = From->Name;
 
   // Merge returns.
   ReturnVar.mergeDeclaration(&From->ReturnVar, I, ReasonFailed);
@@ -1842,26 +1872,12 @@ void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
     return;
   }
 
-  if (From->numParams() == 0) {
-    // From is an untyped declaration, and adds no information.
-    return;
-  }
-  if (this->numParams() == 0) {
-    // This is an untyped declaration, we need to switch to the other
-    assert(false && "This merge should happen in reverse");
-    From->mergeDeclaration(this, I, ReasonFailed);
-  } else {
-    // Standard merge.
-    if (this->numParams() != From->numParams()) {
-      ReasonFailed = "differing number of arguments";
+  // Merge params.
+  for (unsigned J = 0; J < From->numParams(); J++) {
+    ParamVars[J].mergeDeclaration(&From->ParamVars[J], I, ReasonFailed);
+    if (ReasonFailed != "") {
+      ReasonFailed += " for parameter " + std::to_string(J);
       return;
-    }
-    for (unsigned J = 0; J < From->numParams(); J++) {
-      ParamVars[J].mergeDeclaration(&From->ParamVars[J], I, ReasonFailed);
-      if (ReasonFailed != "") {
-        ReasonFailed += " for parameter " + std::to_string(J);
-        return;
-      }
     }
   }
 }
@@ -1896,16 +1912,28 @@ void FVComponentVariable::mergeDeclaration(FVComponentVariable *From,
 }
 
 std::string
-FVComponentVariable::mkString(Constraints &CS) const {
-  return mkTypeStr(CS, true) + mkItypeStr(CS);
+FVComponentVariable::mkString(Constraints &CS, bool EmitName) const {
+  return mkTypeStr(CS, EmitName) + mkItypeStr(CS);
 }
 
 std::string
-FVComponentVariable::mkTypeStr(Constraints &CS, bool EmitName) const {
-  if (hasCheckedSolution(CS))
-    return ExternalConstraint->mkString(CS, EmitName);
+FVComponentVariable::mkTypeStr(Constraints &CS, bool EmitName,
+                               std::string UseName) const {
+  // if checked or given new name, generate type
+  if (hasCheckedSolution(CS) || (EmitName && !UseName.empty()))
+    return ExternalConstraint->mkString(CS, EmitName, false,
+                                        false, false, UseName);
+  // if no need to generate type, try to use source
   if (!SourceDeclaration.empty())
     return SourceDeclaration;
+  // if no source and no name, generate nameless type
+  if (EmitName && ExternalConstraint->getName().empty())
+    return ExternalConstraint->getOriginalTy();
+  // if no source and a have a needed name, generate named type
+  if (EmitName)
+    return ExternalConstraint->getRewritableOriginalTy()
+           + ExternalConstraint->getName();
+  // if no source and don't need a name, generate type ready for one
   return ExternalConstraint->getRewritableOriginalTy();
 }
 

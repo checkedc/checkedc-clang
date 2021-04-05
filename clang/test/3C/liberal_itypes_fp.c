@@ -38,7 +38,7 @@ void fp_test3(int *i) {}
 
 void fp_unsafe_caller() {
   void (*a)(int *);
-  // CHECK: _Ptr<void (_Ptr<int> )> a = ((void *)0);
+  // CHECK: _Ptr<void (_Ptr<int>)> a = ((void *)0);
   if (0) {
     a = fp_test2;
   } else {
@@ -102,7 +102,7 @@ void fptr_itype_test(void) {
   //CHECK: baz(fptr1);
 
   int (*fptr2)(int *);
-  //CHECK: _Ptr<int (_Ptr<int> )> fptr2 = ((void *)0);
+  //CHECK: _Ptr<int (_Ptr<int>)> fptr2 = ((void *)0);
   baz(fptr2);
   //CHECK: baz(fptr2);
 }

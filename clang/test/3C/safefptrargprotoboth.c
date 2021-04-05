@@ -116,8 +116,8 @@ int *mul2(int *x) {
 }
 
 int *sus(int (*)(int), int (*)(int));
-//CHECK_NOALL: int *sus(int (*x)(int), _Ptr<int (int )> y) : itype(_Ptr<int>);
-//CHECK_ALL: _Array_ptr<int> sus(int (*x)(int), _Ptr<int (int )> y);
+//CHECK_NOALL: int *sus(int (*x)(int), _Ptr<int (int)> y) : itype(_Ptr<int>);
+//CHECK_ALL: _Array_ptr<int> sus(int (*x)(int), _Ptr<int (int)> y);
 
 int *foo() {
   //CHECK_NOALL: _Ptr<int> foo(void) {
@@ -151,8 +151,8 @@ int *bar() {
 }
 
 int *sus(int (*x)(int), int (*y)(int)) {
-  //CHECK_NOALL: int *sus(int (*x)(int), _Ptr<int (int )> y) : itype(_Ptr<int>) {
-  //CHECK_ALL: _Array_ptr<int> sus(int (*x)(int), _Ptr<int (int )> y) {
+  //CHECK_NOALL: int *sus(int (*x)(int), _Ptr<int (int)> y) : itype(_Ptr<int>) {
+  //CHECK_ALL: _Array_ptr<int> sus(int (*x)(int), _Ptr<int (int)> y) {
 
   x = (int (*)(int))5;
   //CHECK: x = (int (*)(int))5;

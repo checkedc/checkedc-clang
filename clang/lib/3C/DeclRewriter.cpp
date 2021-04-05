@@ -39,12 +39,12 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
 
   FunctionDeclBuilder *TRV = nullptr;
 #ifdef FIVE_C
-  auto TRV5C = FunctionDeclBuilder5C(&Context, Info, RewriteThese, NewFuncSig,
+  auto TRV5C = FunctionDeclBuilder5C(&Context, Info, RewriteThese,
                                      ABRewriter);
   TRV = &TRV5C;
 #else
   auto TRV3C =
-      FunctionDeclBuilder(&Context, Info, RewriteThese, NewFuncSig, ABRewriter);
+      FunctionDeclBuilder(&Context, Info, RewriteThese, ABRewriter);
   TRV = &TRV3C;
 #endif
   StructVariableInitializer SVI =
@@ -107,7 +107,6 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
     if (Decl *D = std::get<1>(PSLMap[PLoc])) {
       ConstraintVariable *CV = V.second;
       PVConstraint *PV = dyn_cast<PVConstraint>(CV);
-      FVConstraint *FV = dyn_cast<FVConstraint>(CV);
 
       if (PV && PV->anyChanges(Info.getConstraints().getVariables()) &&
           !PV->isPartOfFunctionPrototype()) {
@@ -127,16 +126,6 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
           RewriteThese.insert(new ParmVarDeclReplacement(PD, DS, NewTy));
         else
           llvm_unreachable("Unrecognized declaration type.");
-      } else if (FV && NewFuncSig.find(FV->getName()) != NewFuncSig.end() &&
-                 !TRV->isFunctionVisited(FV->getName())) {
-        auto *FD = cast<FunctionDecl>(D);
-        // TODO: I don't think this branch is ever reached. Either remove it or
-        //       add a test case that reaches it.
-        // If this function already has a modified signature? and it is not
-        // visited by our cast placement visitor then rewrite it.
-        std::string NewSig = NewFuncSig[FV->getName()];
-        RewriteThese.insert(
-            new FunctionDeclReplacement(FD, NewSig, true, true));
       }
     }
   }
@@ -520,10 +509,6 @@ void DeclRewriter::getDeclsOnSameLine(DeclReplacement *N,
          }));
 }
 
-// Note: This is variable declared static in the header file in order to pass
-// information between different invocations on different translation units.
-std::map<std::string, std::string> DeclRewriter::NewFuncSig;
-
 // This function checks how to re-write a function declaration.
 bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
 
@@ -540,24 +525,13 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
 
   auto FuncName = FD->getNameAsString();
 
-  // Do we have a definition for this function?
-  FunctionDecl *Definition = getDefinition(FD);
-  if (Definition == nullptr)
-    Definition = FD;
-
-  // Make sure we haven't visited this function name before, and that we
-  // only visit it once.
-  if (isFunctionVisited(FuncName))
-    return true;
-  VisitedSet.insert(FuncName);
-
-  FVConstraint *Defnc = Info.getFuncConstraint(Definition, Context);
-  if (!Defnc)
+  FVConstraint *FDConstraint = Info.getFuncConstraint(FD, Context);
+  if (!FDConstraint)
     return true;
 
   // If this is an external function, there is no need to rewrite the
   // declaration. We cannot change the signature of external functions.
-  if (!Defnc->hasBody())
+  if (!FDConstraint->hasBody())
     return true;
 
   // RewriteParams and RewriteReturn track if we will need to rewrite the
@@ -569,28 +543,67 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   bool RewriteParams = false;
   bool RewriteReturn = false;
 
-  // Get rewritten parameter variable declarations.
-  std::vector<std::string> ParmStrs;
-  for (unsigned I = 0; I < Defnc->numParams(); ++I) {
-    ParmVarDecl *PVDecl = Definition->getParamDecl(I);
-    const FVComponentVariable *CV = Defnc->getCombineParam(I);
-    std::string Type, IType;
-    this->buildDeclVar(CV, PVDecl, Type, IType, RewriteParams, RewriteReturn);
-    ParmStrs.push_back(Type + IType);
+  bool DeclIsTypedef = false;
+  if (TypeSourceInfo *TS = FD->getTypeSourceInfo()) {
+    // This still could possibly be a typedef type if TS was NULL.
+    // TypeSourceInfo is null for implicit function declarations, so if a
+    // implicit declaration uses a typedef, it will be missed. That's fine
+    // since an implicit declaration can't be rewritten anyways.
+    // There might be other ways it can be null that I'm not aware of.
+    DeclIsTypedef = isa<TypedefType>(TS->getType());
   }
 
-  if (Defnc->numParams() == 0) {
+  // Get rewritten parameter variable declarations. Try to use
+  // the source for as much as possible.
+  std::vector<std::string> ParmStrs;
+
+  // Typedefs must be expanded for now, so allow interpret them as rewritable
+  // by ignoring their special case code.
+  // See the FIXME below for more info.
+//  if (DeclIsTypedef) {
+//    // typedef: don't rewrite
+//  } else
+  if (FD->getParametersSourceRange().isValid()) {
+    // has its own params: alter them as necessary
+    for (unsigned I = 0; I < FD->getNumParams(); ++I) {
+      ParmVarDecl *PVDecl = FD->getParamDecl(I);
+      const FVComponentVariable *CV = FDConstraint->getCombineParam(I);
+      std::string Type, IType;
+      this->buildDeclVar(CV, PVDecl, Type, IType,
+                         PVDecl->getQualifiedNameAsString(),
+                         RewriteParams, RewriteReturn);
+      ParmStrs.push_back(Type + IType);
+    }
+  } else if (FDConstraint->numParams() != 0) {
+    // lacking params but the constraint has them: mirror the constraint
+    for (unsigned I = 0; I < FDConstraint->numParams(); ++I) {
+      ParmVarDecl *PVDecl = nullptr;
+      const FVComponentVariable *CV = FDConstraint->getCombineParam(I);
+      std::string Type, IType;
+      this->buildDeclVar(CV, PVDecl, Type, IType, "",
+                         RewriteParams, RewriteReturn);
+      ParmStrs.push_back(Type + IType);
+      // FIXME: when the above FIXME is changed this condition will always
+      // be true. This is correct, always rewrite if there were no params
+      // in source but they exist in the constraint variable.
+      if (!DeclIsTypedef)
+        RewriteParams = true;
+    }
+  } else {
+    // No params and no param source: make explicit
     ParmStrs.push_back("void");
     QualType ReturnTy = FD->getReturnType();
-    QualType Ty = FD->getType();
+    QualType Ty = FD->getTypeSourceInfo()->getType();
     if (!Ty->isFunctionProtoType() && ReturnTy->isPointerType())
       RewriteParams = true;
   }
 
   // Get rewritten return variable.
-  std::string ReturnVar, ItypeStr;
-  this->buildDeclVar(Defnc->getCombineReturn(), FD, ReturnVar, ItypeStr,
-                     RewriteParams, RewriteReturn);
+  std::string ReturnVar = "", ItypeStr = "";
+  // For now we still need to check if this needs rewriting, see FIXME below
+  // if (!DeclIsTypedef)
+    this->buildDeclVar(FDConstraint->getCombineReturn(), FD, ReturnVar, ItypeStr,
+                     "", RewriteParams, RewriteReturn);
 
   // If the return is a function pointer, we need to rewrite the whole
   // declaration even if no actual changes were made to the parameters because
@@ -609,19 +622,20 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   //        separate rewriting of return type and parameters on the
   //        corresponding definition.
   //        https://github.com/correctcomputation/checkedc-clang/issues/437
-  if ((RewriteReturn || RewriteParams) && hasDeclWithTypedef(FD)) {
+  if ((RewriteReturn || RewriteParams) && DeclIsTypedef) {
     RewriteParams = true;
     RewriteReturn = true;
   }
+
 
   // Combine parameter and return variables rewritings into a single rewriting
   // for the entire function declaration.
   std::string NewSig = "";
   if (RewriteReturn)
-    NewSig = getStorageQualifierString(Definition) + ReturnVar;
+    NewSig = getStorageQualifierString(FD) + ReturnVar;
 
   if (RewriteReturn && RewriteParams)
-    NewSig += Defnc->getName();
+    NewSig += FDConstraint->getName();
 
   if (RewriteParams && !ParmStrs.empty()) {
     // Gather individual parameter strings into a single buffer
@@ -632,7 +646,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
 
     NewSig += "(" + ConcatParamStr.str();
     // Add varargs.
-    if (functionHasVarArgs(Definition))
+    if (functionHasVarArgs(FD))
       NewSig += ", ...";
     NewSig += ")";
   }
@@ -641,15 +655,8 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
 
   // Add new declarations to RewriteThese if it has changed
   if (RewriteReturn || RewriteParams) {
-    for (auto *const RD : Definition->redecls())
-      RewriteThese.insert(new FunctionDeclReplacement(RD, NewSig, RewriteReturn,
+    RewriteThese.insert(new FunctionDeclReplacement(FD, NewSig, RewriteReturn,
                                                       RewriteParams));
-    // Save the modified function signature.
-    if (FD->isStatic()) {
-      auto FileName = PersistentSourceLoc::mkPSL(FD, *Context).getFileName();
-      FuncName = FileName + "::" + FuncName;
-    }
-    ModifiedFuncSignatures[FuncName] = NewSig;
   }
 
   return true;
@@ -657,13 +664,14 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
 
 void FunctionDeclBuilder::buildCheckedDecl(
     PVConstraint *Defn, DeclaratorDecl *Decl, std::string &Type,
-    std::string &IType, bool &RewriteParm, bool &RewriteRet) {
-  Type = Defn->mkString(Info.getConstraints());
+    std::string &IType, std::string UseName,
+    bool &RewriteParm, bool &RewriteRet) {
+  Type = Defn->mkString(Info.getConstraints(),true,false,
+                        false,false,UseName);
   IType = getExistingIType(Defn);
   IType += ABRewriter.getBoundsString(Defn, Decl, !IType.empty());
-  RewriteParm |= !IType.empty() || isa<ParmVarDecl>(Decl);
-  RewriteRet |= isa<FunctionDecl>(Decl);
-  return;
+  RewriteParm |= !IType.empty() || isa_and_nonnull<ParmVarDecl>(Decl);
+  RewriteRet |= isa_and_nonnull<FunctionDecl>(Decl);
 }
 
 void FunctionDeclBuilder::buildItypeDecl(PVConstraint *Defn,
@@ -671,14 +679,21 @@ void FunctionDeclBuilder::buildItypeDecl(PVConstraint *Defn,
                                          std::string &Type, std::string &IType,
                                          bool &RewriteParm, bool &RewriteRet) {
   Type = Defn->getRewritableOriginalTy();
-  if (isa<ParmVarDecl>(Decl))
-    Type += Defn->getName();
+  if (isa_and_nonnull<ParmVarDecl>(Decl)) {
+    if (Decl->getName().empty())
+      Type += Defn->getName();
+    else
+      Type += Decl->getQualifiedNameAsString();
+  } else {
+    std::string Name = Defn->getName();
+    if (Name != RETVAR)
+      Type += Name;
+  }
   IType = " : itype(" +
           Defn->mkString(Info.getConstraints(), false, true) +
           ")" + ABRewriter.getBoundsString(Defn, Decl, true);
   RewriteParm = true;
-  RewriteRet |= isa<FunctionDecl>(Decl);
-  return;
+  RewriteRet |= isa_and_nonnull<FunctionDecl>(Decl);
 }
 
 // Note: For a parameter, Type + IType will give the full declaration (including
@@ -687,34 +702,28 @@ void FunctionDeclBuilder::buildItypeDecl(PVConstraint *Defn,
 // after the parentheses.
 void FunctionDeclBuilder::buildDeclVar(const FVComponentVariable *CV,
                                        DeclaratorDecl *Decl, std::string &Type,
-                                       std::string &IType, bool &RewriteParm,
-                                       bool &RewriteRet) {
+                                       std::string &IType, std::string UseName,
+                                       bool &RewriteParm, bool &RewriteRet) {
   if (CV->hasCheckedSolution(Info.getConstraints())) {
-    buildCheckedDecl(CV->getExternal(), Decl, Type, IType, RewriteParm,
-                     RewriteRet);
+    buildCheckedDecl(CV->getExternal(), Decl, Type, IType, UseName,
+                     RewriteParm, RewriteRet);
     return;
   }
   if (CV->hasItypeSolution(Info.getConstraints())) {
-    buildItypeDecl(CV->getExternal(), Decl, Type, IType, RewriteParm,
-                   RewriteRet);
+    buildItypeDecl(CV->getExternal(), Decl, Type, IType,
+                   RewriteParm, RewriteRet);
     return;
   }
 
   // Variables that do not need to be rewritten fall through to here.
-  // For parameter variables, we try to extract the declaration from the source
-  // code. This preserves macros and other formatting. This isn't possible for
-  // return variables because the itype on returns is located after the
-  // parameter list. Sometimes we cannot get the original source for a parameter
-  // declaration, for example if a function prototype is declared using a
-  // typedef or the parameter declaration is inside a macro. For these cases, we
-  // just fall back to reconstructing the declaration from the PVConstraint.
-  ParmVarDecl *PVD = dyn_cast<ParmVarDecl>(Decl);
-  if (PVD) {
+  // Try to use the source.
+  ParmVarDecl *PVD = dyn_cast_or_null<ParmVarDecl>(Decl);
+  if (PVD && !PVD->getName().empty()) {
     SourceRange Range = PVD->getSourceRange();
     if (Range.isValid() && !inParamMultiDecl(PVD) ) {
       Type = getSourceText(Range, *Context);
       if (!Type.empty()) {
-        // Great, we got the original source including any itype and bounds.
+      // Great, we got the original source including any itype and bounds.
         IType = "";
         return;
       }
@@ -724,7 +733,8 @@ void FunctionDeclBuilder::buildDeclVar(const FVComponentVariable *CV,
     // TODO: Do we care about `register` or anything else this doesn't handle?
     Type = qtyToStr(PVD->getOriginalType(), PVD->getNameAsString());
   } else {
-    Type = CV->getExternal()->getOriginalTy() + " ";
+    Type = CV->mkTypeStr(Info.getConstraints(),true,
+                         CV->getExternal()->getName());
   }
   IType = getExistingIType(CV->getExternal());
   IType += ABRewriter.getBoundsString(CV->getExternal(), Decl, !IType.empty());
@@ -740,37 +750,6 @@ std::string FunctionDeclBuilder::getExistingIType(ConstraintVariable *DeclC) {
 // Check if the function is handled by this visitor.
 bool FunctionDeclBuilder::isFunctionVisited(std::string FuncName) {
   return VisitedSet.find(FuncName) != VisitedSet.end();
-}
-
-// Given a function declaration figure out if this declaration or any other
-// declaration of the same function is declared using a typedefed function type.
-bool FunctionDeclBuilder::hasDeclWithTypedef(const FunctionDecl *FD) {
-  for (FunctionDecl *FDIter : FD->redecls()) {
-    // If the declaration type is TypedefType, then this is definitely declared
-    // using a typedef. This only happens when the typedefed declaration is the
-    // first declaration of a function.
-    if (isa_and_nonnull<TypedefType>(FDIter->getType().getTypePtrOrNull()))
-      return true;
-    // Next look for a TypeDefTypeLoc. This is present on the typedefed
-    // declaration even when it is not the first declaration.
-    TypeSourceInfo *TSI = FDIter->getTypeSourceInfo();
-    if (TSI) {
-      if (!TSI->getTypeLoc().getAs<TypedefTypeLoc>().isNull())
-        return true;
-    } else {
-      // This still could possibly be a typedef type if TSI was NULL.
-      // TypeSourceInfo is null for implicit function declarations, so if a
-      // implicit declaration uses a typedef, it will be missed. That's fine
-      // since an implicit declaration can't be rewritten anyways.
-      // There might be other ways it can be null that I'm not aware of.
-      if (Verbose) {
-        llvm::errs() << "Unable to conclusively determine if a function "
-                     << "declaration uses a typedef.\n";
-        FDIter->dump();
-      }
-    }
-  }
-  return false;
 }
 
 // K&R style function declarations can declare multiple parameter variables in

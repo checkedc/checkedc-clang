@@ -86,7 +86,8 @@ public:
   // to be used inside an itype.
   virtual std::string mkString(Constraints &CS, bool EmitName = true,
                                bool ForItype = false, bool EmitPointee = false,
-                               bool UnmaskTypedef = false) const = 0;
+                               bool UnmaskTypedef = false,
+                               std::string UseName = "") const = 0;
 
   // Debug printing of the constraint variable.
   virtual void print(llvm::raw_ostream &O) const = 0;
@@ -401,7 +402,8 @@ public:
 
   std::string mkString(Constraints &CS, bool EmitName = true,
                        bool ForItype = false, bool EmitPointee = false,
-                       bool UnmaskTypedef = false) const override;
+                       bool UnmaskTypedef = false,
+                       std::string UseName = "") const override;
 
   FunctionVariableConstraint *getFV() const { return FV; }
 
@@ -413,6 +415,8 @@ public:
   void constrainToWild(Constraints &CS, const std::string &Rsn,
                        PersistentSourceLoc *PL) const override;
   void constrainOuterTo(Constraints &CS, ConstAtom *C, bool DoLB = false);
+  void constrainIdxTo(Constraints &CS, ConstAtom *C,
+                      unsigned int Idx, bool DoLB = false);
   bool anyChanges(const EnvironmentMap &E) const override;
   bool anyArgumentIsWild(const EnvironmentMap &E);
   bool hasWild(const EnvironmentMap &E, int AIdx = -1) const override;
@@ -471,8 +475,9 @@ public:
   void mergeDeclaration(FVComponentVariable *From, ProgramInfo &I,
                         std::string &ReasonFailed);
   std::string mkItypeStr(Constraints &CS) const;
-  std::string mkTypeStr(Constraints &CS, bool EmitName) const;
-  std::string mkString(Constraints &CS) const;
+  std::string mkTypeStr(Constraints &CS, bool EmitName,
+                        std::string UseName = "") const;
+  std::string mkString(Constraints &CS, bool EmitName = true) const;
 
   bool hasItypeSolution(Constraints &CS) const;
   bool hasCheckedSolution(Constraints &CS) const;
@@ -575,7 +580,8 @@ public:
 
   std::string mkString(Constraints &CS, bool EmitName = true,
                        bool ForItype = false, bool EmitPointee = false,
-                       bool UnmaskTypedef = false) const override;
+                       bool UnmaskTypedef = false,
+                       std::string UseName = "") const override;
   void print(llvm::raw_ostream &O) const override;
   void dump() const override { print(llvm::errs()); }
   void dumpJson(llvm::raw_ostream &O) const override;

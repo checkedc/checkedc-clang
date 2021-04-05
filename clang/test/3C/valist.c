@@ -42,11 +42,11 @@ void foo(int i, ...) {
 void bar(va_list y, int *z) {}
 //CHECK: void bar(va_list y, _Ptr<int> z) {}
 void (*baz)(va_list, int *);
-//CHECK: _Ptr<void (va_list, _Ptr<int> )> baz = ((void *)0);
+//CHECK: _Ptr<void (va_list, _Ptr<int>)> baz = ((void *)0);
 typedef void (*fiz)(va_list, int *);
-//CHECK: typedef _Ptr<void (va_list, _Ptr<int> )> fiz;
+//CHECK: typedef _Ptr<void (va_list, _Ptr<int>)> fiz;
 typedef void fuz(va_list, int *);
-//CHECK: typedef void fuz(va_list, _Ptr<int> );
+//CHECK: typedef void fuz(va_list, _Ptr<int>);
 
 /*force output*/
 int *p;

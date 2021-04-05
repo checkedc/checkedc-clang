@@ -34,7 +34,7 @@ int main(int argc, char **argv) {
   ctx_(&po, &po2);
   return 0;
 }
-//CHECK: int main(int argc, _Array_ptr<_Ptr<char>> argv : count(argc)) {
+//CHECK: int main(int argc, _Array_ptr<_Nt_array_ptr<char>> argv : count(argc)) {
 //CHECK: _Ptr<char> PN = argv[0];
 //CHECK:    struct foo po = {};
 //CHECK: struct foo po2 = {};

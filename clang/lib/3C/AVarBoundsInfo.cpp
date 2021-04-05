@@ -470,11 +470,11 @@ bool AvarBoundsInference::inferBounds(BoundsKey K, AVarGraph &BKGraph, bool From
 
 bool AVarBoundsInfo::isValidBoundVariable(clang::Decl *D) {
   // All parameters, return, and field values are valid bound variables.
-  if (isa<ParmVarDecl>(D) || isa<FunctionDecl>(D) || isa<FieldDecl>(D))
+  if (D && (isa<ParmVarDecl>(D) || isa<FunctionDecl>(D) || isa<FieldDecl>(D)))
     return true;
  
   // For VarDecls, check if these are are not dummy and have a name.
-  if (auto *VD = dyn_cast<VarDecl>(D))
+  if (auto *VD = dyn_cast_or_null<VarDecl>(D))
     return !VD->getNameAsString().empty();
 
   return false;

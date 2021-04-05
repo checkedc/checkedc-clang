@@ -128,7 +128,7 @@ int **sus(int *x, int *y) {
   //CHECK_NOALL: int **z = calloc<int *>(5, sizeof(int *));
   //CHECK_ALL: _Array_ptr<_Ptr<int>> z = calloc<_Ptr<int>>(5, sizeof(int *));
   int *(*mul2ptr)(int *) = mul2;
-  //CHECK: _Ptr<_Ptr<int> (_Ptr<int> )> mul2ptr = mul2;
+  //CHECK: _Ptr<_Ptr<int> (_Ptr<int>)> mul2ptr = mul2;
   int i;
   for (i = 0; i < 5; i++) {
     //CHECK_NOALL: for (i = 0; i < 5; i++) {

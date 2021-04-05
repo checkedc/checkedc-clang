@@ -149,8 +149,8 @@ int *foo() {
     curr->next->data = i + 1;
   }
   int *(*sus_ptr)(struct general *, struct general *) = sus;
-  //CHECK_NOALL: _Ptr<int *(struct general * : itype(_Ptr<struct general>), _Ptr<struct general> ) : itype(_Ptr<int>)> sus_ptr = sus;
-  //CHECK_ALL: _Ptr<_Array_ptr<int> (struct general * : itype(_Ptr<struct general>), _Ptr<struct general> )> sus_ptr = sus;
+  //CHECK_NOALL: _Ptr<int *(struct general * : itype(_Ptr<struct general>), _Ptr<struct general>) : itype(_Ptr<int>)> sus_ptr = sus;
+  //CHECK_ALL: _Ptr<_Array_ptr<int> (struct general * : itype(_Ptr<struct general>), _Ptr<struct general>)> sus_ptr = sus;
   int *z = sus_ptr(x, y);
   //CHECK_NOALL: _Ptr<int> z = sus_ptr(x, y);
   //CHECK_ALL: _Array_ptr<int> z = sus_ptr(x, y);
@@ -175,8 +175,8 @@ int *bar() {
     curr->next->data = i + 1;
   }
   int *(*sus_ptr)(struct general *, struct general *) = sus;
-  //CHECK_NOALL: _Ptr<int *(struct general * : itype(_Ptr<struct general>), _Ptr<struct general> ) : itype(_Ptr<int>)> sus_ptr = sus;
-  //CHECK_ALL: _Ptr<_Array_ptr<int> (struct general * : itype(_Ptr<struct general>), _Ptr<struct general> )> sus_ptr = sus;
+  //CHECK_NOALL: _Ptr<int *(struct general * : itype(_Ptr<struct general>), _Ptr<struct general>) : itype(_Ptr<int>)> sus_ptr = sus;
+  //CHECK_ALL: _Ptr<_Array_ptr<int> (struct general * : itype(_Ptr<struct general>), _Ptr<struct general>)> sus_ptr = sus;
   int *z = sus_ptr(x, y);
   //CHECK_NOALL: int *z = sus_ptr(x, y);
   //CHECK_ALL: _Array_ptr<int> z = sus_ptr(x, y);
