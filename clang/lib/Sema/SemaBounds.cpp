@@ -3305,11 +3305,8 @@ namespace {
             // observed bounds to be InvalidBounds to avoid extraneous errors
             // during bounds declaration validation.
             if (LHSVar && RightBounds->isInvalid()) {
-              VarDecl *V = dyn_cast_or_null<VarDecl>(LHSVar->getDecl());
-              if (V) {
-                const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
-                State.ObservedBounds[A] = RightBounds;
-              }
+              const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(LHSVar);
+              State.ObservedBounds[A] = RightBounds;
             }
 
             // Check bounds declarations for assignments to a non-variable.
