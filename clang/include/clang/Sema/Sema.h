@@ -5818,12 +5818,16 @@ public:
    DependentBounds Tracker;
   };
 
+  // Map a VarDecl to its first use.
+  typedef llvm::DenseMap<const VarDecl *, DeclRefExpr *> VarDeclUsage;
+
   /// \brief Compute a mapping from statements that modify lvalues to
   /// in-scope bounds declarations that depend on those lvalues.
   /// FD is the function being declared and Body is the body of the
   /// function.   They are passed in separately because Body hasn't
   /// been attached to FD yet.
   void ComputeBoundsDependencies(ModifiedBoundsDependencies &Tracker,
+                                 VarDeclUsage &VarUses,
                                  FunctionDecl *FD, Stmt *Body);
 
   /// \brief RAII class used to indicate that we are substituting an expression
