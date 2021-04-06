@@ -18,6 +18,7 @@ const AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(Expr *E) {
     // one that contains E.
     auto It = PreorderASTAbstractSetMap.find(ExistingCanonicalForm);
     if (It != PreorderASTAbstractSetMap.end()) {
+      P->Cleanup();
       delete P;
       return It->second;
     }
