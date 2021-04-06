@@ -5819,7 +5819,7 @@ public:
   };
 
   // Map a VarDecl to its first use.
-  typedef llvm::DenseMap<const VarDecl *, DeclRefExpr *> VarDeclUsage;
+  using VarDeclUsage = llvm::DenseMap<const VarDecl *, DeclRefExpr *>;
 
   /// \brief Compute a mapping from statements that modify lvalues to
   /// in-scope bounds declarations that depend on those lvalues.
