@@ -76,9 +76,11 @@ namespace clang {
     Sema &S;
 
     // VarUses maps a VarDecl with a bounds expression to the DeclRefExpr
-    // (if any) that is the first use of the VarDecl.  If a VarDecl V has
+    // (if any) that is the first use of the VarDecl. If a VarDecl V has
     // an entry in VarUses, the DeclRefExpr for V is used to get or create
     // the AbstractSet for V.
+    // In order to get or create the AbstractSet for V, any use of V would
+    // be sufficient. We choose the first use of V.
     Sema::VarDeclUsage &VarUses;
 
     // Maintain a sorted set of PreorderASTs that have been created while

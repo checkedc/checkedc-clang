@@ -34,7 +34,7 @@ const AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(Expr *E) {
 const AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(const VarDecl *V) {
   // Compute the DeclRefExpr that is a use of V. This DeclRefExpr is needed
   // in order to get or create the AbstractSet that contains V.
-  // The VarUses map not contain a key for V if V is never used in the
+  // The VarUses map does not contain a key for V if V is never used in the
   // body of a function. However, we still need to create an AbstractSet
   // for V so that its bounds can be checked. For example, consider:
   // void f(_Array_ptr<int> unused : count(i), unsigned i) {

@@ -5826,6 +5826,9 @@ public:
   /// FD is the function being declared and Body is the body of the
   /// function.   They are passed in separately because Body hasn't
   /// been attached to FD yet.
+  /// ComputeBoundsDependencies also computes a mapping from VarDecls with
+  /// bounds expressions to the DeclRefExpr (if any) that is the first use
+  /// of the VarDecl.
   void ComputeBoundsDependencies(ModifiedBoundsDependencies &Tracker,
                                  VarDeclUsage &VarUses,
                                  FunctionDecl *FD, Stmt *Body);
