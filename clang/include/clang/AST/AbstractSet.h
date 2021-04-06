@@ -106,6 +106,13 @@ namespace clang {
     AbstractSetManager(Sema &S, Sema::VarDeclUsage &VarUses) :
       S(S), VarUses(VarUses) {}
 
+    ~AbstractSetManager() {
+      for (const auto &P : SortedPreorderASTs) {
+        P->Cleanup();
+        delete P;
+      }
+    }
+
     // Returns the AbstractSet that contains the lvalue expression E. If
     // there is an AbstractSet A in SortedAbstractSets that contains E,
     // GetOrCreateAbstractSet returns A. Otherwise, it creates a new
