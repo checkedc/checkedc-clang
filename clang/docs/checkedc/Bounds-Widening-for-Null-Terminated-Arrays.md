@@ -27,17 +27,20 @@ In the next section we describe a dataflow analysis to widen bounds for
 null-terminated arrays. The dataflow analysis is **forward**,
 **path-sensitive**, **flow-sensitive** and **intra-procedural**.
 
+Note: This analysis uses the bounds declarations in where clauses as facts and
+assumes that they have already been proven.
+
 ## Dataflow Analysis for Widening the Bounds of Null-terminated Arrays
 We use `V` to denote a null-terminated array variable, `bounds(Lower, Upper)`
 to denote the bounds expression for `V`, `S` to denote a statement, and `B` and
 `B'` to denote basic blocks.
 
-Note: Two variables having the same name but different declarations are treated
-distinctly by the analysis.
+Note: The analysis treats two variables having the same name but different
+declarations are treated as distinct from each other.
 
-The dataflow analysis tracks all null-terminated array variables in a function
-along with their bounds expressions. The dataflow facts that flow through the
-analysis are sets of pairs `V:bounds(Lower, Upper)`.
+The dataflow analysis tracks all null-terminated array variables local to a
+function along with their bounds expressions. The dataflow facts that flow
+through the analysis are sets of pairs `V:bounds(Lower, Upper)`.
 
 For every basic block `B`, we compute the sets `In[B]` and `Out[B]`.
 
@@ -70,20 +73,24 @@ Else if W is a where_clause ∧
         W declares bounds(Lower, Upper) as bounds of V:
   Gen[S] = Gen[S] ∪ {V:bounds(Lower, Upper)}
 ```
+Note: Currently, we only look at where clauses that annotate calls to `strlen`
+and `strnlen`.
+
 For each variable `Z` we maintain a set of all the null-terminated array
 variables in whose bounds expressions `Z` occurs. This is used in the
 computation of the `Kill` sets.
 ```
-Let the initial value of BoundsVars[Z] be ∅.
+∀ variables Z, let the initial value of BoundsVars[Z] be ∅.
 
-∀ V:bounds(Lower, Upper) ∈ Gen[S],
-  ∀ variables Z occurring in Lower or Upper,
-    BoundsVars[Z] = BoundsVars[Z] ∪ {V}
+∀ statements S,
+  If V:bounds(Lower, Upper) ∈ Gen[S]:
+    ∀ variables Z occurring in Lower or Upper,
+      BoundsVars[Z] = BoundsVars[Z] ∪ {V}
 ```
 
 ### Kill[S]
-`Kill[S]` denotes the set of null-terminated arrays whose bounds are killed by
-the statement `S`.
+`Kill[S]` denotes the set of null-terminated array variables whose bounds are
+killed by the statement `S`.
 
 Dataflow equation:
 ```
@@ -102,7 +109,7 @@ their widened bounds expressions at the start of statement `S`.
 
 Dataflow equation:
 ```
-If S is the first statement of B:
+If S is the first statement in block B:
   StmtIn[S] = In[B]
 Else:
   StmtIn[S] = StmtOut[S'], where S' ∈ pred(S)
@@ -139,18 +146,16 @@ blocks of `B`.
 We define the intersection operation on sets of dataflow facts as follows:
 ```
 For two sets of dataflow facts D1 and D2,
-∀ V:bounds(Li, Ui) ∈ D1 ∧ V:bounds(Lj, Uj) ∈ D2,
-
-  If bounds(Li, Ui) is Top:
-    V:bounds(Lj, Uj) ∈ D1 ∩ D2
-  Else if bounds(Lj, Uj) is Top:
-    V:bounds(Li, Ui) ∈ D1 ∩ D2
-  Else if range(Li, Ui) is a subrange of range(Lj, Uj):
-    V:bounds(Li, Ui) ∈ D1 ∩ D2
-  Else if range(Lj, Uj) is a subrange of range(Li, Ui):
-    V:bounds(Lj, Uj) ∈ D1 ∩ D2
+  If V:bounds(Li, Ui) ∈ D1 ∧ V:bounds(Lj, Uj) ∈ D2:
+    If bounds(Li, Ui) is Top:
+      V:bounds(Lj, Uj) ∈ D1 ∩ D2
+    Else if bounds(Lj, Uj) is Top:
+      V:bounds(Li, Ui) ∈ D1 ∩ D2
+    Else if range(Li, Ui) is a subrange of range(Lj, Uj):
+      V:bounds(Li, Ui) ∈ D1 ∩ D2
+    Else if range(Lj, Uj) is a subrange of range(Li, Ui):
+      V:bounds(Lj, Uj) ∈ D1 ∩ D2
 ```
-
 Note: `Top` is defined later in this document.
 
 Dataflow equation:
@@ -162,7 +167,7 @@ Dataflow equation:
     Let bounds(Lower, Upper) be the the bounds of V in StmtIn[S].
     
     If S dereferences V at Upper ∧ edge(B',B) is a true edge:
-      // Only on a true edge we know that the element dereferenced at Upper is
+      // On a true edge, we can infer that the element dereferenced at Upper is
       // non-null.
       In[B] = In[B] ∩ Out[B']
     Else:
@@ -196,10 +201,10 @@ Let the initial value of AllVars be ∅.
   AllVars = AllVars ∪ {V}
 ```
 
-Thus, we initialize `In[B]` and `Out[B]` to `{AllVars:Top}`.
+Thus, we initialize `In[B]` and `Out[B]` as follows:
 ```
 ∀ blocks B,
-  In[B] = Out[B] = {AllVars:Top | Top is a special bounds expression}
+  In[B] = Out[B] = {V:Top | V ∈ AllVars ∧ Top is a special bounds expression}
 ```
 
 Now, we also need to handle the case where there is an unconditional jump into
@@ -214,14 +219,17 @@ void f(_Nt_array_ptr<char> p, int x) {
 }
 ```
 
-Thus, the `Out` set of the `Entry` block is propagated to all blocks whose
-predecessors do not widen the bounds of **any** null-terminated array. So in
-this case we want the intersection of `Out` blocks to be an empty set. To
-handle this case we initialize the `In` and `Out` sets of the `Entry` block to
-`∅`.
+Thus, the `Out` set of the `Entry` block is propagated to all blocks that have
+at least one predecessor that does not widen the bounds of **any**
+null-terminated array. So in this case we want the intersection of `Out` blocks
+to be an empty set. To handle this case we initialize the `In` and `Out` sets
+of the `Entry` block to `∅`.
 ```
 In[Entry] = Out[Entry] = ∅
 ```
+
+We also initialize the `In` and `Out` sets of all unreachable basic blocks to
+`∅`.
 
 ### Testing the analysis
 For quick reference, we reproduce here the dataflow equation for the
