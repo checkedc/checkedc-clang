@@ -96,6 +96,31 @@ ArgumentsAdjuster addVerifyAdjuster() {
     return AdjustedArgs;
   };
 }
+ArgumentsAdjuster canonicalizeSourceFilePathAdjuster() {
+  return [](const CommandLineArguments &Args, StringRef FileName) {
+    std::string AbsoluteFp;
+    std::error_code EC = tryGetCanonicalFilePath(std::string(FileName), AbsoluteFp);
+    assert(!EC && "We canonicalized the source file path during 3C "
+                  "initialization; doing it again in "
+                  "canonicalizeSourceFilePathAdjuster shouldn't fail.");
+    CommandLineArguments AdjustedArgs;
+    for (auto Arg : Args) {
+      if (Arg == FileName) {
+        // XXX We are assuming that any occurrence of the source file path as an
+        // argument should be replaced with the canonical file path. It might be
+        // safer to only match the argument that represents the input file.
+        // Unfortunately, it's hard to do here short of reimplementing compiler
+        // command line parsing. It would be better to adjust the parsed option
+        // data structures instead
+        // (https://github.com/correctcomputation/checkedc-clang/issues/536).
+        AdjustedArgs.push_back(AbsoluteFp);
+      } else {
+        AdjustedArgs.push_back(Arg);
+      }
+    }
+    return AdjustedArgs;
+  };
+}
 
 void dumpConstraintOutputJson(const std::string &PostfixStr,
                               ProgramInfo &Info) {
@@ -302,6 +327,14 @@ bool _3CInterface::parseASTs() {
   // for status.
   if (VerifyDiagnosticOutput)
     Tool->appendArgumentsAdjuster(addVerifyAdjuster());
+  // We canonicalize source file paths in the _3CInterface constructor, but the
+  // compilation database may override the path with a relative or otherwise
+  // non-canonical path, which may then affect the presumed filename, which is
+  // used in the PersistentSourceLoc. Since we need PersistentSourceLocs to be
+  // unambiguous, we canonicalize the source file path again here. We may still
+  // get relative presumed filenames from relative -I paths, though
+  // convert_project tries to change the -I options to avoid this.
+  Tool->appendArgumentsAdjuster(canonicalizeSourceFilePathAdjuster());
 
   // load the ASTs
   if (Tool->buildASTs(ASTs))

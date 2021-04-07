@@ -227,6 +227,10 @@ def run3C(checkedc_bin, extra_3c_args,
     # relative paths with -I when different translation units have different
     # working directories. For details, see
     # https://github.com/correctcomputation/checkedc-clang/issues/515 .
+    #
+    # Even if the above issue were fixed, we may still need this in some cases
+    # to ensure that PersistentSourceLoc filenames are unambiguous: see the
+    # comment in _3CInterface::parseASTs in clang/lib/3C/3C.cpp .
     for dir in absolute_include_dirs:
         args.append('-extra-arg-before=-I' + dir)
     vcodewriter.addClangdArg("-log=verbose")
