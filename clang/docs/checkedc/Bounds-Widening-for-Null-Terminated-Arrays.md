@@ -48,7 +48,7 @@ For every statement `S`, we compute the sets `Gen[S]`, `Kill[S]`, `StmtIn[S]`
 and `StmtOut[S]`.
 
 The sets `In[B]`, `Out[B]`, `StmtIn[S]` and `StmtOut[S]` are part of the
-fixed-point computation whereas the sets `Gen[S]` and `Kill[S]` are computed
+fixed-point computation, whereas the sets `Gen[S]` and `Kill[S]` are computed
 **before** the fixed-point computation.
 
 ### Gen[S]
@@ -68,17 +68,16 @@ Else if S is the terminating condition for block B:
   If S dereferences V at E:
     Gen[S] = Gen[S] ∪ {V:bounds(Lower, E + 1)}
 
-Else if W is a where_clause ∧
-        W annotates S ∧
+Else if W is a where_clause ∧ W annotates S ∧
         W declares bounds(Lower, Upper) as bounds of V:
   Gen[S] = Gen[S] ∪ {V:bounds(Lower, Upper)}
 ```
 Note: Currently, we only look at where clauses that annotate calls to `strlen`
 and `strnlen`.
 
-For each variable `Z` we maintain a set of all the null-terminated array
+For each variable `Z`, we maintain a set of all the null-terminated array
 variables in whose bounds expressions `Z` occurs. This is used in the
-computation of the `Kill` sets.
+computation of `Kill` sets.
 ```
 ∀ variables Z, let the initial value of BoundsVars[Z] be ∅.
 
@@ -180,20 +179,19 @@ Dataflow equation:
 As we saw above, `In[B]` is computed as the intersection of all the predecessor
 blocks of `B`. If the initial values of `In[B]` and `Out[B]` are `∅` then the
 intersection would always produce an empty set and we would not be able to
-propagate the widened bounds expression for any null-terminated array. For
-example:
+propagate the widened bounds for any null-terminated array. For example:
 ```
 void f(_Nt_array_ptr<char> p) {
-  // If the Out set for back edge of the loop is ∅, then the In set of the loop
-  // will always be ∅.
+  // If the Out set for the back edge of the loop is ∅, then the In set of the
+  // loop will always be ∅.
   while (*p) {
     // do something
   }
 }
 ```
 
-We maintain a set of all null-terminated array variables in the function and
-use it to initialize the `In` and `Out` sets for blocks.
+So we maintain the set of all null-terminated array variables in the function
+and use it to initialize the `In` and `Out` sets for blocks.
 ```
 Let the initial value of AllVars be ∅.
 
@@ -244,7 +242,7 @@ various conditions of the equation and refer to them in the test cases below.
     
     If S dereferences V at Upper ∧ // II
        edge(B',B) is a true edge:  // III
-      // Only on a true edge we know that the element dereferenced at Upper is
+      // On a true edge, we can infer that the element dereferenced at Upper is
       // non-null.
       In[B] = In[B] ∩ Out[B']
     Else:                          // IV
