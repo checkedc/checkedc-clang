@@ -203,6 +203,8 @@ public:
                         const std::set<BoundsKey> &CSRKeys,
                         ASTContext *C, ConstraintResolver *CR);
 
+  void mergeBoundsKey(BoundsKey To, BoundsKey From);
+
   // Handle the arithmetic expression. This is required to adjust bounds
   // for pointers that has pointer arithmetic performed on them.
   void recordArithmeticOperation(clang::Expr *E, ConstraintResolver *CR);

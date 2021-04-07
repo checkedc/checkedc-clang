@@ -88,9 +88,6 @@ int example(void) {
   //CHECK_NOALL: int local[5] = {0};
   compl t = &local;
   //CHECK_ALL: compl t = &local;
-  // The following CHECK comment was malformed (missing the colon after
-  // CHECK_NOALL) and thus didn't execute. When I tried to enable it, it failed.
-  // So comment it out for now. ~ Matt 2021-03-10
-  //COM: CHECK_NOALL: _Ptr<int *> t = &local;
+  //CHECK_NOALL: compl t = &local;
   return (*t)[2];
 }

@@ -874,6 +874,15 @@ AVarBoundsInfo::handlePointerAssignment(clang::Stmt *St, clang::Expr *L,
 }
 
 void
+AVarBoundsInfo::mergeBoundsKey(BoundsKey To, BoundsKey From) {
+  if (InvalidBounds.find(To) != InvalidBounds.end() ||
+      InvalidBounds.find(From) != InvalidBounds.end()) {
+    InvalidBounds.insert(To);
+    InvalidBounds.insert(From);
+  }
+}
+
+void
 AVarBoundsInfo::recordArithmeticOperation(clang::Expr *E,
                                           ConstraintResolver *CR) {
   CVarSet CSet = CR->getExprConstraintVarsSet(E);

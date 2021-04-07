@@ -1820,8 +1820,13 @@ void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
   SrcHasItype = SrcHasItype || From->SrcHasItype;
   if (!From->ItypeStr.empty())
     ItypeStr = From->ItypeStr;
+
+  // Merge Bounds Related information.
+  if (hasBoundsKey() && From->hasBoundsKey())
+    Info.getABoundsInfo().mergeBoundsKey(getBoundsKey(), From->getBoundsKey());
   if (!From->BoundsAnnotationStr.empty())
     BoundsAnnotationStr = From->BoundsAnnotationStr;
+
   if (From->GenericIndex >= 0)
     GenericIndex = From->GenericIndex;
   if (FV) {
