@@ -107,10 +107,7 @@ namespace clang {
       S(S), VarUses(VarUses) {}
 
     ~AbstractSetManager() {
-      for (const auto &P : SortedPreorderASTs) {
-        P->Cleanup();
-        delete P;
-      }
+      Clear();
     }
 
     // Returns the AbstractSet that contains the lvalue expression E. If
@@ -124,6 +121,11 @@ namespace clang {
 
     // Clears the storage of the PreorderASTs and AbstractSets.
     void Clear() {
+      for (const auto &Pair : PreorderASTAbstractSetMap) {
+        Pair.first->Cleanup();
+        delete Pair.first;
+        delete Pair.second;
+      }
       SortedPreorderASTs.clear();
       PreorderASTAbstractSetMap.clear();
     }
