@@ -1,7 +1,6 @@
 # Bounds Widening for Null-terminated Arrays
 
 ## Null-terminated Arrays
-
 A null-terminated array is a sequence of elements in memory that ends with a
 null element. Checked C adds the type `_Nt_array_ptr<T>` to represent
 pointers to these kinds of arrays. Each such array can be divided into two
@@ -29,7 +28,6 @@ null-terminated arrays. The dataflow analysis is **forward**,
 **path-sensitive**, **flow-sensitive** and **intra-procedural**.
 
 ## Dataflow Analysis for Widening the Bounds of Null-terminated Arrays
-
 We use `V` to denote a null-terminated array variable, `bounds(Lower, Upper)`
 to denote the bounds expression for `V`, `S` to denote a statement, and `B` and
 `B'` to denote basic blocks.
