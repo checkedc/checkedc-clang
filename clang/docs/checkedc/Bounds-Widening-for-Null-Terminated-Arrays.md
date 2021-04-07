@@ -36,7 +36,7 @@ to denote the bounds expression for `V`, `S` to denote a statement, and `B` and
 `B'` to denote basic blocks.
 
 Note: The analysis treats two variables having the same name but different
-declarations are treated as distinct from each other.
+declarations as distinct from each other.
 
 The dataflow analysis tracks all null-terminated array variables local to a
 function along with their bounds expressions. The dataflow facts that flow
