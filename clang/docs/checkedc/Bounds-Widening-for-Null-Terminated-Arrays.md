@@ -52,7 +52,7 @@ the sets `Gen[S]` and `Kill[S]` are computed **before** the fixed-point
 computation.
 
 ### Gen[S]
-`Gen[S]` maps each null-terminated array variable `V` that occurs before and in
+`Gen[S]` maps each null-terminated array variable `V` that occurs before or in
 statement `S` to a bounds expression comprising a lower bound, and an upper
 bound to which `V` may potentially be widened.
 
