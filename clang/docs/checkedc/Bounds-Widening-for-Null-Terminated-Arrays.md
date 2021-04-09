@@ -17,6 +17,7 @@ The bounds of a null-terminated array can also be widened when the initial
 elements of the sequence are implicitly read (for example via call to `strlen`
 function). In the example below the bounds of the null-terminated-array `p` are
 widened to `bounds(p, p + x)`.
+
 ```
   void f(_Nt_array_ptr<char> p) {
     int x = strlen(p) _Where p : bounds(p, p + x);
@@ -44,21 +45,23 @@ through the analysis are sets of pairs `V:bounds(Lower, Upper)`.
 
 For every basic block `B`, we compute the sets `In[B]` and `Out[B]`.
 
-For every statement `S`, we compute the sets `Gen[S]`, `Kill[S]`, `StmtIn[S]`
-and `StmtOut[S]`.
+For every statement `S`, we compute the sets `Gen[S]` and `Kill[S]`.
 
-The sets `In[B]`, `Out[B]`, `StmtIn[S]` and `StmtOut[S]` are part of the
-fixed-point computation, whereas the sets `Gen[S]` and `Kill[S]` are computed
-**before** the fixed-point computation.
+The sets `In[B]` and `Out[B]` are part of the fixed-point computation, whereas
+the sets `Gen[S]` and `Kill[S]` are computed **before** the fixed-point
+computation.
 
 ### Gen[S]
-`Gen[S]` maps each null-terminated array variable `V` that occurs in statement
-`S` to a bounds expression comprising a lower bound, and an upper bound to
-which `V` may potentially be widened.
+`Gen[S]` maps each null-terminated array variable `V` that occurs before and in
+statement `S` to a bounds expression comprising a lower bound, and an upper
+bound to which `V` may potentially be widened.
 
 Dataflow equation:
 ```
-Let the initial value of Gen[S] be ∅.
+If S is the first statement in block B:
+  Let the initial value of Gen[S] be ∅
+Else:
+  Let the initial value of Gen[S] be (Gen[S'] - {V:_ | V ∈ Kill[S']}), where S' is pred(S).
 
 If S declares bounds(Lower, Upper) as bounds of V:
   Gen[S] = Gen[S] ∪ {V:bounds(Lower, Upper)}
@@ -68,60 +71,33 @@ Else if S is the terminating condition for block B:
   If S dereferences V at E:
     Gen[S] = Gen[S] ∪ {V:bounds(Lower, E + 1)}
 
-Else if W is a where_clause ∧ W annotates S ∧
+Else if W is a where_clause and W annotates S and
         W declares bounds(Lower, Upper) as bounds of V:
   Gen[S] = Gen[S] ∪ {V:bounds(Lower, Upper)}
 ```
 Note: Currently, we only look at where clauses that annotate calls to `strlen`
 and `strnlen`.
 
-For each variable `Z`, we maintain a set of all the null-terminated array
-variables in whose bounds expressions `Z` occurs. This is used in the
-computation of `Kill` sets.
-```
-∀ variables Z, let the initial value of BoundsVars[Z] be ∅.
-
-∀ statements S,
-  If V:bounds(Lower, Upper) ∈ Gen[S]:
-    ∀ variables Z occurring in Lower or Upper,
-      BoundsVars[Z] = BoundsVars[Z] ∪ {V}
-```
-
 ### Kill[S]
 `Kill[S]` denotes the set of null-terminated array variables whose bounds are
-killed by the statement `S`.
-
-Dataflow equation:
-```
-Let the initial value of Kill[S] be ∅.
-
-If V:bounds(Lower, Upper) ∈ Gen[S]:
-  Kill[S] = Kill[S] ∪ {V}
-
-If S assigns to Z ∧ Z is a variable ∧ Z ∈ keys(BoundsVars):
-  Kill[S] = Kill[S] ∪ BoundsVars[Z]
-```
-
-### StmtIn[S]
-`StmtIn[S]` denotes the mapping between null-terminated array variables and
-their widened bounds expressions at the start of statement `S`.
+killed by the statement `S` or any statement before `S`.
 
 Dataflow equation:
 ```
 If S is the first statement in block B:
-  StmtIn[S] = In[B]
+  Let the initial value of Kill[S] be ∅
 Else:
-  StmtIn[S] = StmtOut[S'], where S' ∈ pred(S)
-```
+  Let the initial value of Kill[S] be Kill[S']
 
-### StmtOut[S]
-`StmtOut[S]` denotes the mapping between null-terminated array variables and
-their widened bounds expressions at the end of statement `S`.
+If V:bounds(Lower, Upper) ∈ Gen[S] or
+   S assigns to V or
+   S assigns to Z and Z is a variable and Z occurs in bounds expression of V belonging to Gen[S]:
+  Kill[S] = Kill[S] ∪ {V}
+```
+Note 1: The `Gen` and `Kill` sets are computed in lockstep.
 
-Dataflow equation:
-```
-StmtOut[S] = (StmtIn[S] - Kill[S]) ∪ Gen[S]
-```
+Note 2: We are currently only tracking assignments to variables that occur in
+        bounds expressions local to a basic block.
 
 ### Out[B]
 `Out[B]` denotes the mapping between null-terminated array variables and their
@@ -131,7 +107,7 @@ Dataflow equation:
 ```
 If block B contains one or more statements:
   Let S be the last statement in block B.
-  Out[B] = StmtOut[S]
+  Out[B] = (In[B] - {V:_ | V ∈ Kill[S]}) ∪ Gen[S]
 Else:
   Out[B] = In[B]
 ```
@@ -145,7 +121,7 @@ blocks of `B`.
 We define the intersection operation on sets of dataflow facts as follows:
 ```
 For two sets of dataflow facts D1 and D2,
-  If V:bounds(Li, Ui) ∈ D1 ∧ V:bounds(Lj, Uj) ∈ D2:
+  If V:bounds(Li, Ui) ∈ D1 and V:bounds(Lj, Uj) ∈ D2:
     If bounds(Li, Ui) is Top:
       V:bounds(Lj, Uj) ∈ D1 ∩ D2
     Else if bounds(Lj, Uj) is Top:
@@ -162,16 +138,23 @@ Dataflow equation:
 ∀ B' ∈ pred(B),
   Let S be the terminating condition for block B'.
 
-  If S dereferences V:
+  If S dereferences V:                           // Case A
+    If S is the only statement in block B':
+      StmtIn[S] = In[B']
+    Else:
+      StmtIn[S] = (In[B'] - {V:_ | V ∈ Kill[S']}) ∪ Gen[S'], where S' is pred(S)
+
     Let bounds(Lower, Upper) be the the bounds of V in StmtIn[S].
-    
-    If S dereferences V at Upper ∧ edge(B',B) is a true edge:
+
+    If S dereferences V at Upper and            // Case B
+       edge(B', B) is a true edge:              // Case C
       // On a true edge, we can infer that the element dereferenced at Upper is
       // non-null.
       In[B] = In[B] ∩ Out[B']
-    Else:
-      In[B] = In[B] ∩ ((Out[B'] - Gen[S]) ∪ StmtIn[S])
-  Else:
+    Else:                                       // Case D
+      Let V:X ∈ Out[B'] and V:X' ∈ StmtIn[S] 
+      In[B] = In[B] ∩ ((Out[B'] - {V:X}) ∪ {V:X'}
+  Else:                                         // Case E
     In[B] = In[B] ∩ Out[B']
 ```
 
@@ -202,7 +185,7 @@ Let the initial value of AllVars be ∅.
 Thus, we initialize `In[B]` and `Out[B]` as follows:
 ```
 ∀ blocks B,
-  In[B] = Out[B] = {V:Top | V ∈ AllVars ∧ Top is a special bounds expression}
+  In[B] = Out[B] = {V:Top | V ∈ AllVars and Top is a special bounds expression}
 ```
 
 Now, we also need to handle the case where there is an unconditional jump into
@@ -230,74 +213,65 @@ We also initialize the `In` and `Out` sets of all unreachable basic blocks to
 `∅`.
 
 ### Testing the analysis
-For quick reference, we reproduce here the dataflow equation for the
-computation of the `In` sets for basic blocks. We annotate (as comments) the
-various conditions of the equation and refer to them in the test cases below.
-```
-∀ B' ∈ pred(B),
-  Let S be the terminating condition for block B'.
-
-  If S dereferences V:             // I
-    Let bounds(Lower, Upper) be the the bounds of V in StmtIn[S].
-    
-    If S dereferences V at Upper ∧ // II
-       edge(B',B) is a true edge:  // III
-      // On a true edge, we can infer that the element dereferenced at Upper is
-      // non-null.
-      In[B] = In[B] ∩ Out[B']
-    Else:                          // IV
-      In[B] = In[B] ∩ ((Out[B'] - Gen[S]) u StmtIn[S])
-  Else:                            // V
-    In[B] = In[B] ∩ Out[B']
-```
+In the test cases below, we test the conditions that are part of dataflow
+equation of the `In` set.
 
 #### Test Cases
 ```
 _Nt_array_ptr<char> p : bounds(p, p + 1);
 int x = strlen(p) _Where p : bounds(p, p + x);
-if (1) {               // Tests V
-} else if (*(p + 1)) { // Tests I, IV
-} else if (*(p + x)) { // Tests I, II, III
-} else {               // Tests I, IV
+if (1) {                                     // Tests cases E
+} else if (*(p + 1)) {                       // Tests cases A, D
+} else if (*(p + x)) {                       // Tests cases A, B, C
+} else {                                     // Tests cases A, D
 }
 
 _Nt_array_ptr<char> p : bounds(p, p + 1);
 int x = strlen(p) _Where p : bounds(p, p + x);
-if (*(p + x)) {        // Tests I, II, III
-  if (*(p + x + 1)) {  // Tests I, II, III
+if (*(p + x)) {                              // Tests cases A, B, C
+  if (*(p + x + 1)) {                        // Tests cases A, B, C
   }
 }
 
 _Nt_array_ptr<char> p : bounds(p, p + 1);
 int x = strlen(p) _Where p : bounds(p, p + x);
-if (*(p + x)) {        // Tests I, II, III
+if (*(p + x)) {                              // Tests cases A, B, C
   x = 10;
-  if (*(p + x + 1)) {  // Tests I, IV
+  if (*(p + x + 1)) {                        // Tests cases A, D
   }
 }
 
 _Nt_array_ptr<char> p : bounds(p, p);
-if (*p) {           // Tests I, II, III
-  if (*(p + 1)) {   // Tests I, II, III
+if (*p) {                                    // Tests cases A, B, C
+  if (*(p + 1)) {                            // Tests cases A, B, C
     p = 0;
-    if (*(p + 2)) { // Tests I, IV
+    if (*(p + 2)) {                          // Tests cases A, D
     }
   }
 }
 
 _Nt_array_ptr<char> p : bounds(p, p);
-if (*p) { // Tests I, II, III
-}
-
-_Nt_array_ptr<char> p : bounds(p, p + 1);
-if (*(p + 1)) { // Tests I, II, III
+if (*p) {                                    // Tests cases A, B, C
+  if (*(p + 1)) {                            // Tests cases A, B, C
+    p = 0;
+    if (*(p + 2)) {                          // Tests cases A, D
+    }
+  }
 }
 
 _Nt_array_ptr<char> p : bounds(p, p);
-if (*(p + 1)) { // Tests I, IV
+if (*p) {                                    // Tests cases A, B, C
 }
 
 _Nt_array_ptr<char> p : bounds(p, p + 1);
-if (*p) { // Tests I, IV
+if (*(p + 1)) {                              // Tests cases A, B, C
+}
+
+_Nt_array_ptr<char> p : bounds(p, p);
+if (*(p + 1)) {                              // Tests cases A, D
+}
+
+_Nt_array_ptr<char> p : bounds(p, p + 1);
+if (*p) {                                    // Tests cases A, D
 }
 ```
