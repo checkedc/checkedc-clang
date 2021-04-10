@@ -25,6 +25,9 @@ void PreorderAST::AddNode(Node *N, Node *Parent) {
   // Add the current node to the list of children of its parent.
   if (auto *O = dyn_cast_or_null<OperatorNode>(Parent))
     O->Children.push_back(N);
+  // Set the current node as the child of its parent.
+  else if (auto *I = dyn_cast_or_null<ImplicitCastNode>(Parent))
+    I->Child = N;
 }
 
 bool PreorderAST::CanCoalesceNode(OperatorNode *O) {
@@ -152,6 +155,10 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
     Create(LHS, /*Parent*/ N);
     Create(RHS, /*Parent*/ N);
 
+  } else if (auto *ICE = dyn_cast<ImplicitCastExpr>(E)) {
+    auto *N = new ImplicitCastNode(ICE->getCastKind(), Parent);
+    AddNode(N, Parent);
+    Create(ICE->getSubExpr(), /*Parent*/ N);
   } else {
     auto *N = new LeafExprNode(E, Parent);
     AddNode(N, Parent);
@@ -162,24 +169,59 @@ void PreorderAST::Coalesce(Node *N, bool &Changed) {
   if (Error)
     return;
 
-  auto *O = dyn_cast_or_null<OperatorNode>(N);
-  if (!O)
+  if (!N)
     return;
 
-  // Coalesce the children first.
-  for (auto *Child : O->Children)
-    if (isa<OperatorNode>(Child))
-      Coalesce(Child, Changed);
+  switch (N->Kind) {
+    case Node::NodeKind::OperatorNode: {
+      auto *O = dyn_cast<OperatorNode>(N);
 
-  if (CanCoalesceNode(O)) {
-    CoalesceNode(O);
-    Changed = true;
+      // Coalesce the children first.
+      for (auto *Child : O->Children)
+        Coalesce(Child, Changed);
+
+      if (CanCoalesceNode(O)) {
+        CoalesceNode(O);
+        Changed = true;
+      }
+      break;
+    }
+    case Node::NodeKind::ImplicitCastNode: {
+      auto *I = dyn_cast<ImplicitCastNode>(N);
+      Coalesce(I->Child, Changed);
+      break;
+    }
+    default:
+      break;
   }
 }
 
 bool PreorderAST::CompareNodes(const Node *N1, const Node *N2) {
-  if (const auto *L1 = dyn_cast<LeafExprNode>(N1)) {
-    if (const auto *L2 = dyn_cast<LeafExprNode>(N2)) {
+  // OperatorNode < ImplicitCastNode < LeafExprNode.
+  if (N1->Kind != N2->Kind)
+    return N1->Kind < N2->Kind;
+
+  switch (N1->Kind) {
+    case Node::NodeKind::OperatorNode: {
+      const auto *O1 = dyn_cast<OperatorNode>(N1);
+      const auto *O2 = dyn_cast<OperatorNode>(N2);
+    
+      if (O1->Opc != O2->Opc)
+        return O1->Opc < O2->Opc;
+      return O1->Children.size() < O2->Children.size();
+    }
+
+    case Node::NodeKind::ImplicitCastNode: {
+      const auto *I1 = dyn_cast<ImplicitCastNode>(N1);
+      const auto *I2 = dyn_cast<ImplicitCastNode>(N2);
+
+      if (I1->CK != I2->CK)
+        return I1->CK < I2->CK;
+      return CompareNodes(I1->Child, I2->Child);
+    }
+    case Node::NodeKind::LeafExprNode: {
+      const auto *L1 = dyn_cast<LeafExprNode>(N1);
+      const auto *L2 = dyn_cast<LeafExprNode>(N2);
       // If L1 is a UnaryOperatorExpr and L2 is not, then
       // 1. If L1 contains an integer constant then sorted order is (L2, L1)
       // 2. Else sorted order is (L1, L2).
@@ -195,43 +237,63 @@ bool PreorderAST::CompareNodes(const Node *N1, const Node *N2) {
       // If both nodes are LeafExprNodes compare the exprs.
       return Lex.CompareExpr(L1->E, L2->E) == Result::LessThan;
     }
-
-    // N2:OperatorNodeExpr < N1:LeafExprNode.
-    return false;
   }
-
-  // N1:OperatorNodeExpr < N2:LeafExprNode.
-  if (isa<LeafExprNode>(N2))
-    return true;
-
-  // Compare N1:OperatorNode and N2:OperatorNode.
-  const auto *O1 = dyn_cast<OperatorNode>(N1);
-  const auto *O2 = dyn_cast<OperatorNode>(N2);
-
-  if (O1->Opc != O2->Opc)
-    return O1->Opc < O2->Opc;
-  return O1->Children.size() < O2->Children.size();
 }
 
 void PreorderAST::Sort(Node *N) {
-  auto *O = dyn_cast_or_null<OperatorNode>(N);
-  if (!O)
+  if (!N)
     return;
 
-  // Sort the children first.
-  for (auto *Child : O->Children)
-    if (isa<OperatorNode>(Child))
-      Sort(Child);
+  switch (N->Kind) {
+    case Node::NodeKind::OperatorNode: {
+      auto *O = dyn_cast<OperatorNode>(N);
 
-  // We can only sort if the operator is commutative and associative.
-  if (!O->IsOpCommutativeAndAssociative())
+      // Sort the children first.
+      for (auto *Child : O->Children)
+        Sort(Child);
+
+      // We can only sort if the operator is commutative and associative.
+      if (!O->IsOpCommutativeAndAssociative())
+        return;
+
+      // Sort the children.
+      llvm::sort(O->Children.begin(), O->Children.end(),
+                [&](const Node *N1, const Node *N2) {
+                  return CompareNodes(N1, N2);
+                });
+      break;
+    }
+    case Node::NodeKind::ImplicitCastNode: {
+      auto *I = dyn_cast<ImplicitCastNode>(N);
+      Sort(I->Child);
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+void PreorderAST::ConstantFold(Node *N, bool &Changed) {
+  if (Error)
     return;
 
-  // Sort the children.
-  llvm::sort(O->Children.begin(), O->Children.end(),
-             [&](const Node *N1, const Node *N2) {
-               return CompareNodes(N1, N2);
-            });
+  if (!N)
+    return;
+
+  switch (N->Kind) {
+    case Node::NodeKind::OperatorNode: {
+      auto *O = dyn_cast<OperatorNode>(N);
+      ConstantFoldOperator(O, Changed);
+      break;
+    }
+    case Node::NodeKind::ImplicitCastNode: {
+      auto *I = dyn_cast<ImplicitCastNode>(N);
+      ConstantFold(I->Child, Changed);
+      break;
+    }
+    default:
+      break;
+  }
 }
 
 void PreorderAST::ConstantFoldOperator(OperatorNode *O, bool &Changed) {
@@ -420,48 +482,63 @@ Result PreorderAST::Compare(const Node *N1, const Node *N2) const {
   if (N1 && !N2)
     return Result::GreaterThan;
 
-  if (const auto *O1 = dyn_cast<OperatorNode>(N1)) {
-    // OperatorNode > LeafNode.
-    if (!isa<OperatorNode>(N2))
-      return Result::GreaterThan;
+  // LeafExprNode < ImplicitCastNode < OperatorNode.
+  if (N1->Kind != N2->Kind)
+    return N1->Kind > N2->Kind ? Result::LessThan : Result::GreaterThan;
 
-    const auto *O2 = dyn_cast<OperatorNode>(N2);
+  switch (N1->Kind) {
+    case Node::NodeKind::OperatorNode: {
+      const auto *O1 = dyn_cast<OperatorNode>(N1);
+      const auto *O2 = dyn_cast<OperatorNode>(N2);
 
-    // If the Opcodes mismatch.
-    if (O1->Opc < O2->Opc)
-      return Result::LessThan;
-    if (O1->Opc > O2->Opc)
-      return Result::GreaterThan;
+      // If the Opcodes mismatch.
+      if (O1->Opc < O2->Opc)
+        return Result::LessThan;
+      if (O1->Opc > O2->Opc)
+        return Result::GreaterThan;
 
-    size_t ChildCount1 = O1->Children.size(),
-           ChildCount2 = O2->Children.size();
+      size_t ChildCount1 = O1->Children.size(),
+             ChildCount2 = O2->Children.size();
 
-    // If the number of children of the two nodes mismatch.
-    if (ChildCount1 < ChildCount2)
-      return Result::LessThan;
-    if (ChildCount1 > ChildCount2)
-      return Result::GreaterThan;
+      // If the number of children of the two nodes mismatch.
+      if (ChildCount1 < ChildCount2)
+        return Result::LessThan;
+      if (ChildCount1 > ChildCount2)
+        return Result::GreaterThan;
 
-    // Match each child of the two nodes.
-    for (size_t I = 0; I != ChildCount1; ++I) {
-      auto *Child1 = O1->Children[I];
-      auto *Child2 = O2->Children[I];
+      // Match each child of the two nodes.
+      for (size_t I = 0; I != ChildCount1; ++I) {
+        auto *Child1 = O1->Children[I];
+        auto *Child2 = O2->Children[I];
 
-      Result ChildComparison = Compare(Child1, Child2);
+        Result ChildComparison = Compare(Child1, Child2);
 
-      // If any child differs between the two nodes.
-      if (ChildComparison != Result::Equal)
-        return ChildComparison;
+        // If any child differs between the two nodes.
+        if (ChildComparison != Result::Equal)
+          return ChildComparison;
+      }
+      return Result::Equal;
     }
-  }
 
-  if (const auto *L1 = dyn_cast<LeafExprNode>(N1)) {
-    // Compare the exprs for two leaf nodes.
-    if (const auto *L2 = dyn_cast<LeafExprNode>(N2))
+
+    case Node::NodeKind::ImplicitCastNode: {
+      const auto *I1 = dyn_cast<ImplicitCastNode>(N1);
+      const auto *I2 = dyn_cast<ImplicitCastNode>(N2);
+
+      // If the cast kinds mismatch.
+      if (I1->CK < I2->CK)
+        return Result::LessThan;
+      if (I1->CK > I2->CK)
+        return Result::GreaterThan;
+
+      return Compare(I1->Child, I2->Child);
+    }
+    case Node::NodeKind::LeafExprNode: {
+      // Compare the exprs for two leaf nodes.
+      const auto *L1 = dyn_cast<LeafExprNode>(N1);
+      const auto *L2 = dyn_cast<LeafExprNode>(N2);
       return Lex.CompareExpr(L1->E, L2->E);
-
-    // LeafNode < OperatorNode.
-    return Result::LessThan;
+    }
   }
 
   return Result::Equal;
@@ -495,8 +572,10 @@ void PreorderAST::PrettyPrint(Node *N) {
 
     for (auto *Child : O->Children)
       PrettyPrint(Child);
-  }
-  else if (const auto *L = dyn_cast_or_null<LeafExprNode>(N))
+  } else if (const auto *I = dyn_cast_or_null<ImplicitCastNode>(N)) {
+    OS << CastExpr::getCastKindName(I->CK) << "\n";
+    PrettyPrint(I->Child);
+  } else if (const auto *L = dyn_cast_or_null<LeafExprNode>(N))
     L->E->dump(OS, Ctx);
 }
 

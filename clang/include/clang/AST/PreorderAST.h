@@ -27,7 +27,13 @@ namespace clang {
 
   class Node {
   public:
-    enum class NodeKind { OperatorNode, LeafExprNode };
+    // Nodes with two different kinds are sorted according to the order in
+    // which their kinds appear in this enum.
+    enum class NodeKind {
+      OperatorNode,
+      ImplicitCastNode,
+      LeafExprNode
+    };
 
     NodeKind Kind;
     Node *Parent;
@@ -54,6 +60,20 @@ namespace clang {
     // Is the operator commutative and associative?
     bool IsOpCommutativeAndAssociative() {
       return Opc == BO_Add || Opc == BO_Mul;
+    }
+  };
+
+  class ImplicitCastNode : public Node {
+  public:
+    CastKind CK;
+    Node *Child;
+
+    ImplicitCastNode(CastKind CK, Node *Parent) :
+      Node(NodeKind::ImplicitCastNode, Parent),
+      CK(CK) {}
+
+    static bool classof(const Node *N) {
+      return N->Kind == NodeKind::ImplicitCastNode;
     }
   };
 
