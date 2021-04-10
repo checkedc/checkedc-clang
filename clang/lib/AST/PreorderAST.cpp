@@ -773,6 +773,15 @@ void PreorderAST::Cleanup(Node *N) {
     for (auto *Child : O->Children)
       Cleanup(Child);
 
+  if (auto *U = dyn_cast_or_null<UnaryOperatorNode>(N))
+    Cleanup(U->Child);
+
+  if (auto *M = dyn_cast_or_null<MemberNode>(N))
+    Cleanup(M->Base);
+
+  if (auto *I = dyn_cast_or_null<ImplicitCastNode>(N))
+    Cleanup(I->Child);
+
   if (N)
     delete N;
 }
