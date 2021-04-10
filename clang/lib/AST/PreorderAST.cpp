@@ -306,7 +306,7 @@ void PreorderAST::Coalesce(Node *N, bool &Changed) {
 }
 
 bool PreorderAST::CompareNodes(const Node *N1, const Node *N2) {
-  // OperatorNode < UnaryOperatorNode < ImplicitCastNode < LeafExprNode.
+  // OperatorNode < UnaryOperatorNode < MemberNode < ImplicitCastNode < LeafExprNode.
   if (N1->Kind != N2->Kind)
     return N1->Kind < N2->Kind;
 
@@ -370,6 +370,8 @@ bool PreorderAST::CompareNodes(const Node *N1, const Node *N2) {
       return Lex.CompareExpr(L1->E, L2->E) == Result::LessThan;
     }
   }
+
+  return true;
 }
 
 void PreorderAST::Sort(Node *N) {
@@ -634,7 +636,7 @@ Result PreorderAST::Compare(const Node *N1, const Node *N2) const {
   if (N1 && !N2)
     return Result::GreaterThan;
 
-  // LeafExprNode < ImplicitCastNode < UnaryOperatorNode < OperatorNode.
+  // LeafExprNode < ImplicitCastNode < MemberNode < UnaryOperatorNode < OperatorNode.
   if (N1->Kind != N2->Kind)
     return N1->Kind > N2->Kind ? Result::LessThan : Result::GreaterThan;
 
