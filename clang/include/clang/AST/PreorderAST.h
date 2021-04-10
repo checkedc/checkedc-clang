@@ -32,6 +32,7 @@ namespace clang {
     enum class NodeKind {
       OperatorNode,
       UnaryOperatorNode,
+      MemberNode,
       ImplicitCastNode,
       LeafExprNode
     };
@@ -75,6 +76,21 @@ namespace clang {
 
     static bool classof(const Node *N) {
       return N->Kind == NodeKind::UnaryOperatorNode;
+    }
+  };
+
+  class MemberNode : public Node {
+  public:
+    Node *Base = nullptr;
+    ValueDecl *Field = nullptr;
+    bool IsArrow;
+
+    MemberNode(ValueDecl *Field, bool IsArrow, Node *Parent) :
+      Node(NodeKind::MemberNode, Parent),
+      Field(Field), IsArrow(IsArrow) {}
+
+    static bool classof(const Node *N) {
+      return N->Kind == NodeKind::MemberNode;
     }
   };
 

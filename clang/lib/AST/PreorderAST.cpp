@@ -28,6 +28,9 @@ void PreorderAST::AddNode(Node *N, Node *Parent) {
   // Set the current node as the child of its parent.
   else if (auto *U = dyn_cast_or_null<UnaryOperatorNode>(Parent))
     U->Child = N;
+  // Set the current node as the base of its parent.
+  else if (auto *M = dyn_cast_or_null<MemberNode>(Parent))
+    M->Base = N;
   // Set the current node as the child of its parent.
   else if (auto *I = dyn_cast_or_null<ImplicitCastNode>(Parent))
     I->Child = N;
@@ -158,6 +161,54 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
     Create(LHS, /*Parent*/ N);
     Create(RHS, /*Parent*/ N);
 
+  } else if (const auto *ME = dyn_cast<MemberExpr>(E)) {
+    Expr *Base = Lex.IgnoreValuePreservingOperations(Ctx, ME->getBase()->IgnoreParens());
+    ValueDecl *Field = ME->getMemberDecl();
+
+    // Expressions such as a->f, (*a).f, and a[0].f should have the same
+    // canonical form: a MemberNode with a Base node of + [a, 0] and a
+    // Field of f. Here, we determine whether the expression E is of one of
+    // the forms a->f, (*a).f, etc. and create the base expression a.
+    Expr *ArrowBase = nullptr;
+    if (ME->isArrow()) {
+      ArrowBase = Base;
+    } else {
+      if (const auto *UO = dyn_cast<UnaryOperator>(Base)) {
+        if (UO->getOpcode() == UnaryOperatorKind::UO_Deref)
+          ArrowBase = UO->getSubExpr();
+      } else if (auto *AE = dyn_cast<ArraySubscriptExpr>(Base)) {
+        ArrowBase = BinaryOperator::Create(Ctx, AE->getBase(), AE->getIdx(),
+                                           BinaryOperatorKind::BO_Add, AE->getType(),
+                                           AE->getValueKind(), AE->getObjectKind(),
+                                           AE->getExprLoc(), FPOptionsOverride());
+      }
+    }
+
+    // If ArrowBase exists, then E is of the form a->f, (*a).f, etc. ArrowBase
+    // must be a binary operator so that (*a).f has the same canonical form as
+    // (*(a + 0)).f.
+    if (ArrowBase) {
+      ArrowBase = Lex.IgnoreValuePreservingOperations(Ctx, ArrowBase->IgnoreParens());
+      if (!isa<BinaryOperator>(ArrowBase)) {
+        llvm::APInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
+        auto *ZeroLiteral = new (Ctx) IntegerLiteral(Ctx, Zero, Ctx.IntTy,
+                                                     SourceLocation());
+        ArrowBase =
+          BinaryOperator::Create(Ctx, ArrowBase, ZeroLiteral,
+                                 BinaryOperatorKind::BO_Add, ArrowBase->getType(),
+                                 ArrowBase->getValueKind(), ArrowBase->getObjectKind(),
+                                 ArrowBase->getExprLoc(), FPOptionsOverride());
+      }
+      auto *N = new MemberNode(Field, /*IsArrow*/ true, Parent);
+      AddNode(N, Parent);
+      Create(ArrowBase, /*Parent*/ N);
+    }
+    // If no ArrowBase exists, then E is of the form a.f.
+    else {
+      auto *N = new MemberNode(Field, /*IsArrow*/ false, Parent);
+      AddNode(N, Parent);
+      Create(Base, /*Parent*/ N);
+    }
   } else if (auto *UO = dyn_cast<UnaryOperator>(E)) {
     UnaryOperatorKind Op = UO->getOpcode();
     if (Op == UnaryOperatorKind::UO_Deref) {
@@ -239,6 +290,11 @@ void PreorderAST::Coalesce(Node *N, bool &Changed) {
       Coalesce(U->Child, Changed);
       break;
     }
+    case Node::NodeKind::MemberNode: {
+      auto *M = dyn_cast<MemberNode>(N);
+      Coalesce(M->Base, Changed);
+      break;
+    }
     case Node::NodeKind::ImplicitCastNode: {
       auto *I = dyn_cast<ImplicitCastNode>(N);
       Coalesce(I->Child, Changed);
@@ -270,6 +326,22 @@ bool PreorderAST::CompareNodes(const Node *N1, const Node *N2) {
       if (U1->Opc != U2->Opc)
         return U1->Opc < U2->Opc;
       return CompareNodes(U1->Child, U2->Child);
+    }
+    case Node::NodeKind::MemberNode: {
+      const auto *M1 = dyn_cast<MemberNode>(N1);
+      const auto *M2 = dyn_cast<MemberNode>(N2);
+
+      // If M1 is an arrow member expression and M2 is not,
+      // then sorted order is (M1, M2).
+      // If M2 is an arrow member expression and M1 is not,
+      // then sorted order is (M2, M1).
+      if (M1->IsArrow != M2->IsArrow)
+        return M1->IsArrow;
+
+      Result FieldCompare = Lex.CompareDecl(M1->Field, M2->Field);
+      if (FieldCompare != Result::Equal)
+        return FieldCompare == Result::LessThan;
+      return CompareNodes(M1->Base, M2->Base);
     }
     case Node::NodeKind::ImplicitCastNode: {
       const auto *I1 = dyn_cast<ImplicitCastNode>(N1);
@@ -328,6 +400,11 @@ void PreorderAST::Sort(Node *N) {
       Sort(U->Child);
       break;
     }
+    case Node::NodeKind::MemberNode: {
+      auto *M = dyn_cast<MemberNode>(N);
+      Sort(M->Base);
+      break;
+    }
     case Node::NodeKind::ImplicitCastNode: {
       auto *I = dyn_cast<ImplicitCastNode>(N);
       Sort(I->Child);
@@ -354,6 +431,11 @@ void PreorderAST::ConstantFold(Node *N, bool &Changed) {
     case Node::NodeKind::UnaryOperatorNode: {
       auto *U = dyn_cast<UnaryOperatorNode>(N);
       ConstantFold(U->Child, Changed);
+      break;
+    }
+    case Node::NodeKind::MemberNode: {
+      auto *M = dyn_cast<MemberNode>(N);
+      ConstantFold(M->Base, Changed);
       break;
     }
     case Node::NodeKind::ImplicitCastNode: {
@@ -601,7 +683,23 @@ Result PreorderAST::Compare(const Node *N1, const Node *N2) const {
 
       return Compare(U1->Child, U2->Child);
     }
+    case Node::NodeKind::MemberNode: {
+      const auto *M1 = dyn_cast<MemberNode>(N1);
+      const auto *M2 = dyn_cast<MemberNode>(N2);
 
+      // If the arrow flags mismatch.
+      if (M1->IsArrow && !M2->IsArrow)
+        return Result::LessThan;
+      if (!M1->IsArrow && M2->IsArrow)
+        return Result::GreaterThan;
+
+      // If the fields mismatch.
+      Result FieldCompare = Lex.CompareDecl(M1->Field, M2->Field);
+      if (FieldCompare != Result::Equal)
+        return FieldCompare;
+
+      return Compare(M1->Base, M2->Base);
+    }
     case Node::NodeKind::ImplicitCastNode: {
       const auto *I1 = dyn_cast<ImplicitCastNode>(N1);
       const auto *I2 = dyn_cast<ImplicitCastNode>(N2);
@@ -656,6 +754,13 @@ void PreorderAST::PrettyPrint(Node *N) {
   } else if (const auto *U = dyn_cast_or_null<UnaryOperatorNode>(N)) {
     OS << UnaryOperator::getOpcodeStr(U->Opc) << "\n";
     PrettyPrint(U->Child);
+  } else if (const auto *M = dyn_cast_or_null<MemberNode>(N)) {
+    if (M->IsArrow)
+      OS << "->\n";
+    else
+      OS << ".\n";
+    PrettyPrint(M->Base);
+    M->Field->dump(OS);
   } else if (const auto *I = dyn_cast_or_null<ImplicitCastNode>(N)) {
     OS << CastExpr::getCastKindName(I->CK) << "\n";
     PrettyPrint(I->Child);
