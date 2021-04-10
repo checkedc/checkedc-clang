@@ -234,14 +234,13 @@ void PreorderAST::Sort(Node *N) {
             });
 }
 
-void PreorderAST::ConstantFold(Node *N, bool &Changed) {
+void PreorderAST::ConstantFoldOperator(OperatorNode *O, bool &Changed) {
   // Note: This function assumes that the children of each OperatorNode of the
   // preorder AST have already been sorted.
 
   if (Error)
     return;
 
-  auto *O = dyn_cast_or_null<OperatorNode>(N);
   if (!O)
     return;
 
@@ -252,8 +251,8 @@ void PreorderAST::ConstantFold(Node *N, bool &Changed) {
   for (size_t I = 0; I != O->Children.size(); ++I) {
     auto *Child = O->Children[I];
 
-    // Recursively constant fold the children of a OperatorNode.
-    if (isa<OperatorNode>(Child)) {
+    // Recursively constant fold the non-leaf children of a OperatorNode.
+    if (!isa<LeafExprNode>(Child)) {
       ConstantFold(Child, Changed);
       continue;
     }

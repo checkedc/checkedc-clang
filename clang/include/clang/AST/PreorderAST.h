@@ -126,6 +126,12 @@ namespace clang {
     // this to control when to stop recursive constant folding.
     void ConstantFold(Node *N, bool &Changed);
 
+    // Constant fold integer expressions within an operator node.
+    // @param[in] N is current node of the AST.
+    // @param[in] Changed indicates whether constant folding was done. We need
+    // this to control when to stop recursive constant folding.
+    void ConstantFoldOperator(OperatorNode *N, bool &Changed);
+
     // Get the deref offset from the DerefExpr. The offset represents the
     // possible amount by which the bounds of an ntptr could be widened.
     // @param[in] UpperExpr is the upper bounds expr for the ntptr.
