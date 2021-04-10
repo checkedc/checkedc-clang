@@ -31,6 +31,7 @@ namespace clang {
     // which their kinds appear in this enum.
     enum class NodeKind {
       OperatorNode,
+      UnaryOperatorNode,
       ImplicitCastNode,
       LeafExprNode
     };
@@ -60,6 +61,20 @@ namespace clang {
     // Is the operator commutative and associative?
     bool IsOpCommutativeAndAssociative() {
       return Opc == BO_Add || Opc == BO_Mul;
+    }
+  };
+
+  class UnaryOperatorNode : public Node {
+  public:
+    UnaryOperator::Opcode Opc;
+    Node *Child;
+
+    UnaryOperatorNode(UnaryOperator::Opcode Opc, Node *Parent) :
+      Node(NodeKind::UnaryOperatorNode, Parent),
+      Opc(Opc) {}
+
+    static bool classof(const Node *N) {
+      return N->Kind == NodeKind::UnaryOperatorNode;
     }
   };
 

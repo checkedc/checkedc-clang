@@ -26,6 +26,9 @@ void PreorderAST::AddNode(Node *N, Node *Parent) {
   if (auto *O = dyn_cast_or_null<OperatorNode>(Parent))
     O->Children.push_back(N);
   // Set the current node as the child of its parent.
+  else if (auto *U = dyn_cast_or_null<UnaryOperatorNode>(Parent))
+    U->Child = N;
+  // Set the current node as the child of its parent.
   else if (auto *I = dyn_cast_or_null<ImplicitCastNode>(Parent))
     I->Child = N;
 }
@@ -155,6 +158,51 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
     Create(LHS, /*Parent*/ N);
     Create(RHS, /*Parent*/ N);
 
+  } else if (auto *UO = dyn_cast<UnaryOperator>(E)) {
+    UnaryOperatorKind Op = UO->getOpcode();
+    if (Op == UnaryOperatorKind::UO_Deref) {
+      Expr *SubExpr = Lex.IgnoreValuePreservingOperations(Ctx, UO->getSubExpr()->IgnoreParens());
+      // The child of a dereference operator must be a binary operator so that
+      // *e and *(e + 0) have the same canonical form.
+      if (isa<BinaryOperator>(SubExpr)) {
+        auto *N = new UnaryOperatorNode(Op, Parent);
+        AddNode(N, Parent);
+        Create(UO->getSubExpr(), /*Parent */ N);
+      } else {
+        llvm::APInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
+        auto *ZeroLiteral = new (Ctx) IntegerLiteral(Ctx, Zero, Ctx.IntTy,
+                                                     SourceLocation());
+        auto *ChildPlusZero = BinaryOperator::Create(Ctx, SubExpr, ZeroLiteral,
+                                                     BinaryOperatorKind::BO_Add,
+                                                     SubExpr->getType(),
+                                                     SubExpr->getValueKind(),
+                                                     SubExpr->getObjectKind(),
+                                                     SubExpr->getExprLoc(),
+                                                     FPOptionsOverride());
+        auto *N = new UnaryOperatorNode(Op, Parent);
+        AddNode(N, Parent);
+        Create(ChildPlusZero, /*Parent*/ N);
+      }
+    } else if (Op == UnaryOperatorKind::UO_Plus ||
+               Op == UnaryOperatorKind::UO_Minus) {
+      // For expressions such as +e and -e, we create a LeafExprNode
+      // so that these expressions can be constant folded.
+      auto *N = new LeafExprNode(E, Parent);
+      AddNode(N, Parent);
+    } else {
+      auto *N = new UnaryOperatorNode(Op, Parent);
+      AddNode(N, Parent);
+      Create(UO->getSubExpr(), /*Parent */ N);
+    }
+  } else if (auto *AE = dyn_cast<ArraySubscriptExpr>(E)) {
+    // e1[e2] has the same canonical form as *(e1 + e2).
+    auto DerefExpr = BinaryOperator::Create(Ctx, AE->getBase(), AE->getIdx(),
+                                            BinaryOperatorKind::BO_Add, AE->getType(),
+                                            AE->getValueKind(), AE->getObjectKind(),
+                                            AE->getExprLoc(), FPOptionsOverride());
+    auto *N = new UnaryOperatorNode(UnaryOperatorKind::UO_Deref, Parent);
+    AddNode(N, Parent);
+    Create(DerefExpr, /*Parent*/ N);
   } else if (auto *ICE = dyn_cast<ImplicitCastExpr>(E)) {
     auto *N = new ImplicitCastNode(ICE->getCastKind(), Parent);
     AddNode(N, Parent);
@@ -186,6 +234,11 @@ void PreorderAST::Coalesce(Node *N, bool &Changed) {
       }
       break;
     }
+    case Node::NodeKind::UnaryOperatorNode: {
+      auto *U = dyn_cast<UnaryOperatorNode>(N);
+      Coalesce(U->Child, Changed);
+      break;
+    }
     case Node::NodeKind::ImplicitCastNode: {
       auto *I = dyn_cast<ImplicitCastNode>(N);
       Coalesce(I->Child, Changed);
@@ -197,7 +250,7 @@ void PreorderAST::Coalesce(Node *N, bool &Changed) {
 }
 
 bool PreorderAST::CompareNodes(const Node *N1, const Node *N2) {
-  // OperatorNode < ImplicitCastNode < LeafExprNode.
+  // OperatorNode < UnaryOperatorNode < ImplicitCastNode < LeafExprNode.
   if (N1->Kind != N2->Kind)
     return N1->Kind < N2->Kind;
 
@@ -210,7 +263,14 @@ bool PreorderAST::CompareNodes(const Node *N1, const Node *N2) {
         return O1->Opc < O2->Opc;
       return O1->Children.size() < O2->Children.size();
     }
+    case Node::NodeKind::UnaryOperatorNode: {
+      const auto *U1 = dyn_cast<UnaryOperatorNode>(N1);
+      const auto *U2 = dyn_cast<UnaryOperatorNode>(N2);
 
+      if (U1->Opc != U2->Opc)
+        return U1->Opc < U2->Opc;
+      return CompareNodes(U1->Child, U2->Child);
+    }
     case Node::NodeKind::ImplicitCastNode: {
       const auto *I1 = dyn_cast<ImplicitCastNode>(N1);
       const auto *I2 = dyn_cast<ImplicitCastNode>(N2);
@@ -263,6 +323,11 @@ void PreorderAST::Sort(Node *N) {
                 });
       break;
     }
+    case Node::NodeKind::UnaryOperatorNode: {
+      auto *U = dyn_cast<UnaryOperatorNode>(N);
+      Sort(U->Child);
+      break;
+    }
     case Node::NodeKind::ImplicitCastNode: {
       auto *I = dyn_cast<ImplicitCastNode>(N);
       Sort(I->Child);
@@ -284,6 +349,11 @@ void PreorderAST::ConstantFold(Node *N, bool &Changed) {
     case Node::NodeKind::OperatorNode: {
       auto *O = dyn_cast<OperatorNode>(N);
       ConstantFoldOperator(O, Changed);
+      break;
+    }
+    case Node::NodeKind::UnaryOperatorNode: {
+      auto *U = dyn_cast<UnaryOperatorNode>(N);
+      ConstantFold(U->Child, Changed);
       break;
     }
     case Node::NodeKind::ImplicitCastNode: {
@@ -482,7 +552,7 @@ Result PreorderAST::Compare(const Node *N1, const Node *N2) const {
   if (N1 && !N2)
     return Result::GreaterThan;
 
-  // LeafExprNode < ImplicitCastNode < OperatorNode.
+  // LeafExprNode < ImplicitCastNode < UnaryOperatorNode < OperatorNode.
   if (N1->Kind != N2->Kind)
     return N1->Kind > N2->Kind ? Result::LessThan : Result::GreaterThan;
 
@@ -519,7 +589,18 @@ Result PreorderAST::Compare(const Node *N1, const Node *N2) const {
       }
       return Result::Equal;
     }
+    case Node::NodeKind::UnaryOperatorNode: {
+      const auto *U1 = dyn_cast<UnaryOperatorNode>(N1);
+      const auto *U2 = dyn_cast<UnaryOperatorNode>(N2);
 
+      // If the Opcodes mismatch.
+      if (U1->Opc < U2->Opc)
+        return Result::LessThan;
+      if (U1->Opc > U2->Opc)
+        return Result::GreaterThan;
+
+      return Compare(U1->Child, U2->Child);
+    }
 
     case Node::NodeKind::ImplicitCastNode: {
       const auto *I1 = dyn_cast<ImplicitCastNode>(N1);
@@ -572,6 +653,9 @@ void PreorderAST::PrettyPrint(Node *N) {
 
     for (auto *Child : O->Children)
       PrettyPrint(Child);
+  } else if (const auto *U = dyn_cast_or_null<UnaryOperatorNode>(N)) {
+    OS << UnaryOperator::getOpcodeStr(U->Opc) << "\n";
+    PrettyPrint(U->Child);
   } else if (const auto *I = dyn_cast_or_null<ImplicitCastNode>(N)) {
     OS << CastExpr::getCastKindName(I->CK) << "\n";
     PrettyPrint(I->Child);
