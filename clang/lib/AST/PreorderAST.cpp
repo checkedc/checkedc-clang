@@ -17,14 +17,14 @@
 
 using namespace clang;
 
-void PreorderAST::AddNode(Node *N, OperatorNode *Parent) {
+void PreorderAST::AddNode(Node *N, Node *Parent) {
   // If the root is null, make the current node the root.
   if (!Root)
     Root = N;
 
   // Add the current node to the list of children of its parent.
-  if (Parent)
-    Parent->Children.push_back(N);
+  if (auto *O = dyn_cast_or_null<OperatorNode>(Parent))
+    O->Children.push_back(N);
 }
 
 bool PreorderAST::CanCoalesceNode(OperatorNode *O) {
@@ -35,15 +35,17 @@ bool PreorderAST::CanCoalesceNode(OperatorNode *O) {
   // commutative and associative. This is because after coalescing we later
   // need to sort the nodes and if the operator is not commutative and
   // associative then sorting would be incorrect.
-  if (!O->IsOpCommutativeAndAssociative() ||
-      !O->Parent->IsOpCommutativeAndAssociative())
+  if (!O->IsOpCommutativeAndAssociative())
+    return false;
+  auto *OParent = dyn_cast_or_null<OperatorNode>(O->Parent);
+  if (!OParent || !OParent->IsOpCommutativeAndAssociative())
     return false;
 
   // We can coalesce in the following scenarios:
   // 1. The current and parent nodes have the same operator OR
   // 2. The current node is the only child of its operator node (maybe as a
   // result of constant folding).
-  return O->Opc == O->Parent->Opc || O->Children.size() == 1;
+  return O->Opc == OParent->Opc || O->Children.size() == 1;
 }
 
 void PreorderAST::CoalesceNode(OperatorNode *O) {
@@ -53,26 +55,31 @@ void PreorderAST::CoalesceNode(OperatorNode *O) {
     return;
   }
 
+  // If the current node can be coalesced, its parent must be an OperatorNode.
+  auto *OParent = dyn_cast_or_null<OperatorNode>(O->Parent);
+  if (!OParent)
+    return;
+
   // Remove the current node from the list of children of its parent.
-  for (auto I = O->Parent->Children.begin(),
-            E = O->Parent->Children.end(); I != E; ++I) {
+  for (auto I = OParent->Children.begin(),
+            E = OParent->Children.end(); I != E; ++I) {
     if (*I == O) {
-      O->Parent->Children.erase(I);
+      OParent->Children.erase(I);
       break;
     }
   }
 
   // Move all children of the current node to its parent.
   for (auto *Child : O->Children) {
-    Child->Parent = O->Parent;
-    O->Parent->Children.push_back(Child);
+    Child->Parent = OParent;
+    OParent->Children.push_back(Child);
   }
 
   // Delete the current node.
   delete O;
 }
 
-void PreorderAST::Create(Expr *E, OperatorNode *Parent) {
+void PreorderAST::Create(Expr *E, Node *Parent) {
   if (!E)
     return;
 

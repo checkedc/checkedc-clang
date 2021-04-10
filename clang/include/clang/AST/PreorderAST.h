@@ -30,9 +30,9 @@ namespace clang {
     enum class NodeKind { OperatorNode, LeafExprNode };
 
     NodeKind Kind;
-    OperatorNode *Parent;
+    Node *Parent;
 
-    Node(NodeKind Kind, OperatorNode *Parent) :
+    Node(NodeKind Kind, Node *Parent) :
       Kind(Kind), Parent(Parent) {}
   };
 
@@ -43,7 +43,7 @@ namespace clang {
     // an n-ary tree.
     llvm::SmallVector<Node *, 2> Children;
 
-    OperatorNode(BinaryOperator::Opcode Opc, OperatorNode *Parent) :
+    OperatorNode(BinaryOperator::Opcode Opc, Node *Parent) :
       Node(NodeKind::OperatorNode, Parent),
       Opc(Opc) {}
 
@@ -61,7 +61,7 @@ namespace clang {
   public:
     Expr *E;
 
-    LeafExprNode(Expr *E, OperatorNode *Parent) :
+    LeafExprNode(Expr *E, Node *Parent) :
       Node(NodeKind::LeafExprNode, Parent),
       E(E) {}
 
@@ -84,12 +84,12 @@ namespace clang {
     // Create a PreorderAST for the expression E.
     // @param[in] E is the sub expression to be added to a new node.
     // @param[in] Parent is the parent of the new node.
-    void Create(Expr *E, OperatorNode *Parent = nullptr);
+    void Create(Expr *E, Node *Parent = nullptr);
 
     // Add a new node to the AST.
     // @param[in] Node is the current node to be added.
     // @param[in] Parent is the parent of the node to be added.
-    void AddNode(Node *N, OperatorNode *Parent);
+    void AddNode(Node *N, Node *Parent);
 
     // Coalesce the OperatorNode O with its parent. This involves moving the
     // children (if any) of node O to its parent and then removing O.
@@ -102,14 +102,14 @@ namespace clang {
     // otherwise.
     bool CanCoalesceNode(OperatorNode *O);
 
-    // Recursively coalesce OperatoreNodes having the same commutative and
+    // Recursively coalesce OperatorNodes having the same commutative and
     // associative operator.
     // @param[in] N is current node of the AST. Initial value is Root.
     // @param[in] Changed indicates whether a node was coalesced. We need this
     // to control when to stop recursive coalescing.
     void Coalesce(Node *N, bool &Changed);
 
-    // Sort the children expressions in a OperatorNode of the AST.
+    // Sort the children expressions in a non-leaf Node of the AST.
     // @param[in] N is current node of the AST. Initial value is Root.
     void Sort(Node *N);
 
