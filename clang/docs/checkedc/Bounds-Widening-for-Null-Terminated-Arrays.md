@@ -51,6 +51,19 @@ The sets `In[B]` and `Out[B]` are part of the fixed-point computation, whereas
 the sets `Gen[S]` and `Kill[S]` are computed **before** the fixed-point
 computation.
 
+### Initial operations
+In function `F`, for each variable `Z` occurring in the bounds expressions of a
+null-terminated array variable `V` we maintain sets `{Z:V}`. These are used in
+the computation of the `Kill` sets.
+```
+∀ variables Z in function F, let the initial value of BoundsVars[Z] be ∅.
+
+∀ statements S,
+  If V:bounds(Lower, Upper) is either declared or specified as a where clause fact:
+    ∀ variables Z occurring in Lower or Upper,
+      BoundsVars[Z] = BoundsVars[Z] ∪ {V}
+```
+
 ### Gen[S]
 `Gen[S]` maps each null-terminated array variable `V` that occurs before or in
 statement `S` to a bounds expression comprising a lower bound, and an upper
@@ -89,10 +102,11 @@ If S is the first statement in block B:
 Else:
   Let the initial value of Kill[S] be Kill[S']
 
-If V:bounds(Lower, Upper) ∈ Gen[S] or
-   S assigns to V or
-   S assigns to Z and Z is a variable and Z occurs in bounds expression of V belonging to Gen[S]:
+If V:bounds(Lower, Upper) ∈ Gen[S]:
   Kill[S] = Kill[S] ∪ {V}
+
+If S assigns to Z ∧ Z is a variable ∧ Z ∈ keys(BoundsVars):
+  Kill[S] = Kill[S] ∪ BoundsVars[Z]
 ```
 Note 1: The `Gen` and `Kill` sets are computed in lockstep.
 
@@ -152,7 +166,7 @@ Dataflow equation:
       // non-null.
       In[B] = In[B] ∩ Out[B']
     Else:                                       // Case D
-      Let V:X ∈ Out[B'] and V:X' ∈ StmtIn[S] 
+      Let V:X ∈ Out[B'] and V:X' ∈ StmtIn[S]
       In[B] = In[B] ∩ ((Out[B'] - {V:X}) ∪ {V:X'}
   Else:                                         // Case E
     In[B] = In[B] ∩ Out[B']
