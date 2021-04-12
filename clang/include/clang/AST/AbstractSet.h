@@ -43,9 +43,23 @@ namespace clang {
       return Representative;
     }
 
+    // Returns the VarDecl, if any, associated with the Representative
+    // expression for this AbstractSet.
+    // This VarDecl is used by bounds declaration checking to emit
+    // diagnostics for statements that invalidate the inferred bounds of
+    // the lvalue expressions in the AbstractSet.
+    const VarDecl *GetVarDecl() const {
+      if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(Representative)) {
+        if (const VarDecl *V = dyn_cast<VarDecl>(DRE->getDecl()))
+          return V;
+        return nullptr;
+      }
+      return nullptr;
+    }
+
     // The comparison between two AbstractSets is the same as the
     // lexicographic comparison between their CanonicalForms.
-    Result Compare(const AbstractSet Other) const {
+    Result Compare(AbstractSet &Other) const {
       return CanonicalForm.Compare(Other.CanonicalForm);
     }
 
@@ -60,6 +74,17 @@ namespace clang {
   class AbstractSetManager {
   private:
     Sema &S;
+
+    // VarUses maps a VarDecl with a bounds expression to the DeclRefExpr
+    // (if any) that is the first use of the VarDecl. If a VarDecl V has
+    // an entry in VarUses, the DeclRefExpr for V is used to get or create
+    // the AbstractSet for V. Otherwise, a use of V is constructed and
+    // added to VarUses. This created use of V is currently not released.
+    // It should be rare that a use of V needs to be created, since this
+    // should only occur if V is unused within the body of a function.
+    // In order to get or create the AbstractSet for V, any use of V would
+    // be sufficient. We choose the first use of V.
+    Sema::VarDeclUsage &VarUses;
 
     // Maintain a sorted set of PreorderASTs that have been created while
     // traversing a function. A binary search in this set is used to determine
@@ -78,7 +103,12 @@ namespace clang {
     llvm::DenseMap<PreorderAST *, const AbstractSet *> PreorderASTAbstractSetMap;
 
   public:
-    AbstractSetManager(Sema &S) : S(S) {}
+    AbstractSetManager(Sema &S, Sema::VarDeclUsage &VarUses) :
+      S(S), VarUses(VarUses) {}
+
+    ~AbstractSetManager() {
+      Clear();
+    }
 
     // Returns the AbstractSet that contains the lvalue expression E. If
     // there is an AbstractSet A in SortedAbstractSets that contains E,
@@ -88,6 +118,17 @@ namespace clang {
 
     // Returns the AbstractSet that contains a use of the VarDecl.
     const AbstractSet *GetOrCreateAbstractSet(const VarDecl *V);
+
+    // Clears the storage of the PreorderASTs and AbstractSets.
+    void Clear() {
+      for (const auto &Pair : PreorderASTAbstractSetMap) {
+        Pair.first->Cleanup();
+        delete Pair.first;
+        delete Pair.second;
+      }
+      SortedPreorderASTs.clear();
+      PreorderASTAbstractSetMap.clear();
+    }
   };
 } // end namespace clang
 
