@@ -52,9 +52,9 @@ the sets `Gen[S]` and `Kill[S]` are computed **before** the fixed-point
 computation.
 
 ### Initial operations
-In function `F`, for each variable `Z` occurring in the bounds expressions of a
-null-terminated array variable `V` we maintain sets `{Z:V}`. These are used in
-the computation of the `Kill` sets.
+In each function, we map a variable `Z` to the set of all null-terminated array
+variables in whose bounds expressions `Z` occurs. We maintain this map only for
+variables that are mapped to non-empty sets.
 ```
 ∀ variables Z in function F, let the initial value of BoundsVars[Z] be ∅.
 
