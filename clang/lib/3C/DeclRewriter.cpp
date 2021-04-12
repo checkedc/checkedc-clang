@@ -107,9 +107,10 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
     if (Decl *D = std::get<1>(PSLMap[PLoc])) {
       ConstraintVariable *CV = V.second;
       PVConstraint *PV = dyn_cast<PVConstraint>(CV);
-
-      if (PV && PV->anyChanges(Info.getConstraints().getVariables()) &&
-          !PV->isPartOfFunctionPrototype()) {
+      bool PVChanged = PV &&
+                       (PV->anyChanges(Info.getConstraints().getVariables()) ||
+                        ABRewriter.hasNewBoundsString(PV, D));
+      if (PVChanged && !PV->isPartOfFunctionPrototype()) {
         // Rewrite a declaration, only if it is not part of function prototype.
         DeclStmt *DS = nullptr;
         if (VDLToStmtMap.find(D) != VDLToStmtMap.end())
@@ -715,6 +716,17 @@ void FunctionDeclBuilder::buildDeclVar(const FVComponentVariable *CV,
     return;
   }
 
+  // If the type of the pointer hasn't changed, then neither of the above
+  // branches will be taken, but it's still possible for the bounds of an array
+  // pointer to change.
+  if (ABRewriter.hasNewBoundsString(CV->getExternal(), Decl)) {
+    RewriteParm = true;
+    RewriteRet |= isa_and_nonnull<FunctionDecl>(Decl);
+  }
+  std::string BoundsStr =
+    ABRewriter.getBoundsString(CV->getExternal(), Decl,
+                               !getExistingIType(CV->getExternal()).empty());
+
   // Variables that do not need to be rewritten fall through to here.
   // Try to use the source.
   ParmVarDecl *PVD = dyn_cast_or_null<ParmVarDecl>(Decl);
@@ -723,8 +735,7 @@ void FunctionDeclBuilder::buildDeclVar(const FVComponentVariable *CV,
     if (Range.isValid() && !inParamMultiDecl(PVD) ) {
       Type = getSourceText(Range, *Context);
       if (!Type.empty()) {
-      // Great, we got the original source including any itype and bounds.
-        IType = "";
+        IType = getExistingIType(CV->getExternal()) + BoundsStr;
         return;
       }
     }
@@ -736,8 +747,7 @@ void FunctionDeclBuilder::buildDeclVar(const FVComponentVariable *CV,
     Type = CV->mkTypeStr(Info.getConstraints(),true,
                          CV->getExternal()->getName());
   }
-  IType = getExistingIType(CV->getExternal());
-  IType += ABRewriter.getBoundsString(CV->getExternal(), Decl, !IType.empty());
+  IType = getExistingIType(CV->getExternal()) + BoundsStr;
 }
 
 std::string FunctionDeclBuilder::getExistingIType(ConstraintVariable *DeclC) {
