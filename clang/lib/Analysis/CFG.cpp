@@ -2085,9 +2085,24 @@ void CFGBuilder::prependAutomaticObjLifetimeWithTerminator(
   if (!BuildOpts.AddLifetime)
     return;
   BumpVectorContext &C = cfg->getBumpVectorContext();
+
+  // Note that B is the LocalScope iterator associated with the backpatched
+  // jump and E is the LocalScope iterator associated with the jump target.
+  //
+  // To go from B to E, one first goes up the scopes from B
+  // to PofB, then sideways in one scope from PofB to PofE and then down
+  // the scopes from PofE to E.
+  // The lifetime of all objects between B and PofE end.
+  //
+  // Get E's ancestor that has the same LocalScope as one of B's ancestors.
+  LocalScope::const_iterator PofE = E.shared_parent(B);
+  int Dist = B.distance(PofE);
+  if (Dist <= 0)
+    return;
+
   CFGBlock::iterator InsertPos =
-      Blk->beginLifetimeEndsInsert(Blk->end(), B.distance(E), C);
-  for (LocalScope::const_iterator I = B; I != E; ++I) {
+      Blk->beginLifetimeEndsInsert(Blk->end(), Dist, C);
+  for (LocalScope::const_iterator I = B; I != PofE; ++I) {
     InsertPos =
         Blk->insertLifetimeEnds(InsertPos, *I, Blk->getTerminatorStmt());
   }
