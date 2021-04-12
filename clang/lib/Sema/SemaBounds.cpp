@@ -482,11 +482,11 @@ namespace {
   class VariableCountHelper : public RecursiveASTVisitor<VariableCountHelper> {
     private:
       Sema &SemaRef;
-      DeclRefExpr *V;
+      ValueDecl *V;
       int Count;
 
     public:
-      VariableCountHelper(Sema &SemaRef, DeclRefExpr *V) :
+      VariableCountHelper(Sema &SemaRef, ValueDecl *V) :
         SemaRef(SemaRef),
         V(V),
         Count(0) {}
@@ -494,8 +494,11 @@ namespace {
       int GetCount() { return Count; }
 
       bool VisitDeclRefExpr(DeclRefExpr *E) {
+        ValueDecl *D = E->getDecl();
+        if (!D)
+          return true;
         Lexicographic Lex(SemaRef.Context, nullptr);
-        if (Lex.CompareExpr(E, V) == Lexicographic::Result::Equal)
+        if (Lex.CompareDecl(D, V) == Lexicographic::Result::Equal)
           ++Count;
         return true;
       }
@@ -510,11 +513,20 @@ namespace {
       }
   };
 
-  // VariableOccurrenceCount returns the number of occurrences of V in E.
-  int VariableOccurrenceCount(Sema &SemaRef, DeclRefExpr *V, Expr *E) {
+  // VariableOccurrenceCount returns the number of occurrences of variable
+  // expressions in E whose Decls are equivalent to V.
+  int VariableOccurrenceCount(Sema &SemaRef, ValueDecl *V, Expr *E) {
+    if (!V)
+      return 0;
     VariableCountHelper Counter(SemaRef, V);
     Counter.TraverseStmt(E);
     return Counter.GetCount();
+  }
+
+  // VariableOccurrenceCount returns the number of occurrences of the Target
+  // variable expression in E.
+  int VariableOccurrenceCount(Sema &SemaRef, DeclRefExpr *Target, Expr *E) {
+    return VariableOccurrenceCount(SemaRef, Target->getDecl(), E);
   }
 }
 
