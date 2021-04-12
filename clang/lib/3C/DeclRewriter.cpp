@@ -665,13 +665,13 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
 
 void FunctionDeclBuilder::buildCheckedDecl(
     PVConstraint *Defn, DeclaratorDecl *Decl, std::string &Type,
-    std::string &IType, std::string UseName,
-    bool &RewriteParm, bool &RewriteRet) {
+    std::string &IType, std::string UseName, bool &RewriteParm, bool &RewriteRet) {
   Type = Defn->mkString(Info.getConstraints(),true,false,
                         false,false,UseName);
-  IType = getExistingIType(Defn);
-  IType += ABRewriter.getBoundsString(Defn, Decl, !IType.empty());
-  RewriteParm |= !IType.empty() || isa_and_nonnull<ParmVarDecl>(Decl);
+  //IType = getExistingIType(Defn);
+  IType = ABRewriter.getBoundsString(Defn, Decl, !IType.empty());
+  RewriteParm |= getExistingIType(Defn).empty() != IType.empty() ||
+                 isa_and_nonnull<ParmVarDecl>(Decl);
   RewriteRet |= isa_and_nonnull<FunctionDecl>(Decl);
 }
 
@@ -732,6 +732,8 @@ void FunctionDeclBuilder::buildDeclVar(const FVComponentVariable *CV,
   ParmVarDecl *PVD = dyn_cast_or_null<ParmVarDecl>(Decl);
   if (PVD && !PVD->getName().empty()) {
     SourceRange Range = PVD->getSourceRange();
+    if (PVD->hasBoundsExpr())
+      Range.setEnd(PVD->getBoundsExpr()->getEndLoc());
     if (Range.isValid() && !inParamMultiDecl(PVD) ) {
       Type = getSourceText(Range, *Context);
       if (!Type.empty()) {

@@ -21,7 +21,7 @@ void foo(int *p : itype(_Ptr<int>)) {
   *p = 0;
   return;
 }
-//CHECK: void foo(int *p : itype(_Ptr<int>)) _Checked {
+//CHECK: void foo(_Ptr<int> p) _Checked {
 
 int foo2(int *j) {
   int *a = baz();

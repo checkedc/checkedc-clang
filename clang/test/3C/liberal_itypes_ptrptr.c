@@ -126,8 +126,8 @@ void nested_caller(void) {
   //CHECK: nested_callee_ptrptr(_Assume_bounds_cast<_Ptr<char *>>(nested_callee_ptrptr(_Assume_bounds_cast<_Ptr<char *>>(1))));
 }
 
-void itype_defined_ptrptr(int **p : itype(_Ptr<_Ptr<int>>)) {}
-//CHECK: void itype_defined_ptrptr(int **p : itype(_Ptr<_Ptr<int>>)) _Checked {}
+void itype_defined_ptrptr(int **p : itype(_Ptr<_Ptr<int>>));
+//CHECK: void itype_defined_ptrptr(int **p : itype(_Ptr<_Ptr<int>>));
 
 void itype_defined_caller() {
   int **c = 1;
@@ -144,5 +144,5 @@ void itype_defined_caller() {
   *e = 1;
   itype_defined_ptrptr(e);
   //CHECK: _Ptr<int *> e = ((void *)0);
-  //CHECK: itype_defined_ptrptr(_Assume_bounds_cast<_Ptr<_Ptr<int>>>(e));
+  //CHECK: itype_defined_ptrptr(((int **)e));
 }

@@ -95,7 +95,7 @@ void itype_unsafe(int *i : itype(_Ptr<int>)) { i = 1; }
 // CHECK: void itype_unsafe(int *i : itype(_Ptr<int>)) { i = 1; }
 
 void itype_safe(int *i : itype(_Ptr<int>)) { i = 0; }
-// CHECK: void itype_safe(int *i : itype(_Ptr<int>)) _Checked { i = 0; }
+// CHECK: void itype_safe(_Ptr<int> i) _Checked { i = 0; }
 
 void void_ptr(void *p, void *q) {
   // CHECK: void void_ptr(void *p, void *q) {

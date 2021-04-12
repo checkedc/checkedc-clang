@@ -552,6 +552,12 @@ public:
   explicit VariableAdderVisitor(ASTContext *Context, ProgramVariableAdder &VA)
     : Context(Context), VarAdder(VA) {}
 
+  // Defining this function lets the visitor traverse implicit function
+  // declarations. Without this, we wouldn't see declarations for implicit
+  // functions. Instead, we would have to create a FVConstraint when we first
+  // encountered a call to the function. This became a problem when the call
+  // to ProgramInfo::link() was moved to before the ConstraintBuilder pass.
+  bool shouldVisitImplicitCode() const { return true; }
 
   bool VisitTypedefDecl(TypedefDecl* TD) {
     CVarSet empty;

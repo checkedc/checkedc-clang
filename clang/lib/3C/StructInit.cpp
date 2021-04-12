@@ -34,7 +34,7 @@ bool StructVariableInitializer::hasCheckedMembers(DeclaratorDecl *DD) {
         CVarOption CV = I.getVariable(D, Context);
         if (CV.hasValue()) {
           PVConstraint *PV = dyn_cast<PVConstraint>(&CV.getValue());
-          if (PV && PV->isChecked(I.getConstraints().getVariables())) {
+          if (PV && PV->isSolutionChecked(I.getConstraints().getVariables())) {
             // Ok this contains a pointer that is checked. Store it.
             RecordsWithCPointers.insert(Definition);
             return true;

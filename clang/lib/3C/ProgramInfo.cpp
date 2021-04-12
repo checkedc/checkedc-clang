@@ -460,28 +460,38 @@ bool ProgramInfo::link() {
   for (const auto &U : ExternalFunctionFVCons) {
     std::string FuncName = U.first;
     FVConstraint *G = U.second;
+
+    // Handle the cases where itype parameters should not be treated as their
+    // unchecked type.
+    G->equateWithItype(*this, !G->hasBody());
+
     // If we've seen this symbol, but never seen a body for it, constrain
     // everything about it.
     // Some global symbols we don't need to constrain to wild, like
     // malloc and free. Check those here and skip if we find them.
     if (!G->hasBody()) {
-
       // If there was a checked type on a variable in the input program, it
       // should stay that way. Otherwise, we shouldn't be adding a checked type
       // to an extern function.
       std::string Rsn =
           "Unchecked pointer in parameter or return of external function " +
           FuncName;
-      G->getInternalReturn()->constrainToWild(CS, Rsn);
-      if (!G->getExternalReturn()->getIsGeneric())
-        G->getExternalReturn()->constrainToWild(CS, Rsn);
+      const FVComponentVariable *Ret = G->getCombineReturn();
+      Ret->getInternal()->constrainToWild(CS, Rsn);
+      if (!Ret->getExternal()->srcHasItype() &&
+          !Ret->getExternal()->getIsGeneric())
+        Ret->getExternal()->constrainToWild(CS, Rsn);
+
       for (unsigned I = 0; I < G->numParams(); I++) {
-        G->getInternalParam(I)->constrainToWild(CS, Rsn);
-        if (!G->getExternalParam(I)->getIsGeneric())
-          G->getExternalParam(I)->constrainToWild(CS, Rsn);
+        const FVComponentVariable *Param = G->getCombineParam(I);
+        Param->getInternal()->constrainToWild(CS, Rsn);
+        if (!Param->getExternal()->srcHasItype() &&
+            !Param->getExternal()->getIsGeneric())
+          Param->getExternal()->constrainToWild(CS, Rsn);
       }
     }
   }
+
   // Repeat for static functions.
   //
   // Static functions that don't have a body will always cause a linking
@@ -494,6 +504,9 @@ bool ProgramInfo::link() {
       std::string FileName = U.first;
       std::string FuncName = V.first;
       FVConstraint *G = V.second;
+
+      G->equateWithItype(*this, !G->hasBody());
+
       if (!G->hasBody()) {
 
         std::string Rsn =
@@ -760,6 +773,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
 
   assert("We shouldn't be adding a null CV to Variables map." && NewCV);
   if (!canWrite(PLoc.getFileName())) {
+    NewCV->equateWithItype(*this, true);
     NewCV->constrainToWild(CS, "Declaration in non-writable file", &PLoc);
   }
   constrainWildIfMacro(NewCV, D->getLocation());

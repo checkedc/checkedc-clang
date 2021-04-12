@@ -28,7 +28,7 @@ void foo2(_Ptr<int> a) {
 //CHECK-NEXT: _Ptr<int> b = a;
 
 void bar(int *a : itype(_Ptr<int>)) { *a = 0; }
-//CHECK: void bar(int *a : itype(_Ptr<int>)) _Checked { *a = 0; }
+//CHECK: void bar(_Ptr<int> a) _Checked { *a = 0; }
 
 extern int *baz(void) : itype(_Ptr<int>);
 //CHECK: extern int *baz(void) : itype(_Ptr<int>);
