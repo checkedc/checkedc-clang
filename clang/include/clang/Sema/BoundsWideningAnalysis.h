@@ -39,9 +39,9 @@ namespace clang {
   using BoundsVarsTy = llvm::DenseMap<const VarDecl *, VarSetTy>; 
 
   // The BoundsWideningAnalysis class represents the dataflow analysis for
-  // bounds widening. The sets Gen, Kill, In and Out that are used in the
-  // dataflow analysis are members of this class. The class also has methods
-  // that act on these sets to perform the dataflow analysis.
+  // bounds widening. The sets In, Out, Gen and Kill that are used by the
+  // analysis are members of this class. The class also has methods that act on
+  // these sets to perform the dataflow analysis.
   class BoundsWideningAnalysis {
   private:
     Sema &S;
