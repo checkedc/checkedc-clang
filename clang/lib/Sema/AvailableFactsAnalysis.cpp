@@ -73,12 +73,14 @@ void AvailableFactsAnalysis::Analyze() {
   // Which blocks contain potential pointer assignments?
   std::vector<bool> PointerAssignmentInBlocks(Blocks.size(), false);
   for (unsigned int Index = 0; Index < Blocks.size(); Index++) {
-    for (CFGElement Elem : *(Blocks[Index]->Block))
-      if (const Expr *E = dyn_cast<Expr>(Elem.castAs<CFGStmt>().getStmt()))
-        if (ContainsPointerAssignment(E)) {
-          PointerAssignmentInBlocks[Index] = true;
-          break;
-        }
+    for (CFGElement Elem : *(Blocks[Index]->Block)) {
+      if (Elem.getKind() == CFGElement::Statement)
+        if (const Expr *E = dyn_cast<Expr>(Elem.castAs<CFGStmt>().getStmt()))
+          if (ContainsPointerAssignment(E)) {
+            PointerAssignmentInBlocks[Index] = true;
+            break;
+          }
+    }
   }
 
   // Compute Kill Sets

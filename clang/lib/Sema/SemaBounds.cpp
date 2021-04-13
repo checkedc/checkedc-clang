@@ -2726,6 +2726,35 @@ namespace {
      }
    }
 
+   // When a variable goes out of scope:
+   // 1) it has to be removed from ObservedBounds in the CheckingState
+   //    if it is a checked pointer variable because we no longer want
+   //    to validate its bounds, and
+   // 2) the expressions in EquivExprs that use it have to be removed
+   //    because the expressions are now undefined.
+   void UpdateStateForVariableOutOfScope(CheckingState &State, VarDecl *V) {
+     if (V->hasBoundsExpr()) {
+       const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
+       auto I = State.ObservedBounds.find(A);
+       if (I != State.ObservedBounds.end())
+         State.ObservedBounds.erase(A);
+     }
+
+     EquivExprSets CrntEquivExprs(State.EquivExprs);
+     State.EquivExprs.clear();
+     for (auto I = CrntEquivExprs.begin(); I != CrntEquivExprs.end(); ++I) {
+       ExprSetTy ExprList;
+       for (auto InnerList = (*I).begin(); InnerList != (*I).end();
+                                                         ++InnerList) {
+         Expr *E = *InnerList;
+         if (!VariableOccurrenceCount(S, V, E))
+           ExprList.push_back(E);
+       }
+       if (ExprList.size() > 1)
+         State.EquivExprs.push_back(ExprList);
+     }
+   }
+
    // Walk the CFG, traversing basic blocks in reverse post-oder.
    // For each element of a block, check bounds declarations.  Skip
    // CFG elements that are subexpressions of other CFG elements.
@@ -2844,6 +2873,14 @@ namespace {
             // thing done as part of traversing S.  The widened bounds of each
             // variable should be in effect until the very end of traversing S.
             ResetKilledBounds(BA, Block, S, BlockState);
+         }
+         else if (Elem.getKind() == CFGElement::LifetimeEnds) {
+            // Every variable going out of scope is indicated by a LifetimeEnds
+            // CFGElement. When a variable goes out of scope, ObservedBounds and
+            // EquivExprs in the CheckingState have to be updated.
+            CFGLifetimeEnds LE = Elem.castAs<CFGLifetimeEnds>();
+            VarDecl *V = const_cast<VarDecl *>(LE.getVarDecl());
+            UpdateStateForVariableOutOfScope(BlockState, V);
          }
        }
        if (Block->getBlockID() != Cfg->getEntry().getBlockID())
@@ -6467,7 +6504,9 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   // (if any) that is the first use of the VarDecl.
   ComputeBoundsDependencies(Tracker, VarUses, FD, Body);
   std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
-  std::unique_ptr<CFG> Cfg = CFG::buildCFG(nullptr, Body, &getASTContext(), CFG::BuildOptions());
+  CFG::BuildOptions BO;
+  BO.AddLifetime = true;
+  std::unique_ptr<CFG> Cfg = CFG::buildCFG(nullptr, Body, &getASTContext(), BO);
   CheckBoundsDeclarations Checker(*this, VarUses, Body, Cfg.get(), FD->getBoundsExpr(), EmptyFacts);
   if (Cfg != nullptr) {
     AvailableFactsAnalysis Collector(*this, Cfg.get());
