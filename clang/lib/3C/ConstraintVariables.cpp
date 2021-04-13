@@ -2110,7 +2110,7 @@ void FVComponentVariable::linkInternalExternal(ProgramInfo &I,
         // level. This is because CheckedC does not allow assignment from e.g.
         // a function return of type `int ** : itype(_Ptr<_Ptr<int>>)` to a
         // variable with type `int **`.
-        if (EquateChecked || (ExternalConstraint->getName() == RETVAR && J > 0))
+        if (DisableRDs || EquateChecked || (ExternalConstraint->getName() == RETVAR && J > 0))
           CS.addConstraint(CS.createGeq(ExternalA, InternalA, true));
       }
     }
