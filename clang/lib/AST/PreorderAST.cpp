@@ -102,15 +102,7 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
     // and add 0 as a LeafExprNode child of this OperatorNode. This helps us
     // compare expressions like "p" and "p + 1" by normalizing "p" to "p + 0".
 
-    auto *N = new OperatorNode(BO_Add, Parent);
-    AddNode(N, Parent);
-
-    llvm::APInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
-    auto *ZeroLiteral = new (Ctx) IntegerLiteral(Ctx, Zero, Ctx.IntTy,
-                                                 SourceLocation());
-    auto *L = new LeafExprNode(ZeroLiteral, N);
-    AddNode(L, /*Parent*/ N);
-    Create(E, /*Parent*/ N);
+    AddZero(E, Parent);
 
   } else if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
     BinaryOperator::Opcode BinOp = BO->getOpcode();
