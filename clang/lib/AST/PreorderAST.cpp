@@ -194,28 +194,14 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
   } else if (auto *UO = dyn_cast<UnaryOperator>(E)) {
     UnaryOperatorKind Op = UO->getOpcode();
     if (Op == UnaryOperatorKind::UO_Deref) {
-      Expr *SubExpr = Lex.IgnoreValuePreservingOperations(Ctx, UO->getSubExpr()->IgnoreParens());
       // The child of a dereference operator must be a binary operator so that
-      // *e and *(e + 0) have the same canonical form.
-      if (isa<BinaryOperator>(SubExpr)) {
-        auto *N = new UnaryOperatorNode(Op, Parent);
-        AddNode(N, Parent);
-        Create(UO->getSubExpr(), /*Parent */ N);
-      } else {
-        llvm::APInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
-        auto *ZeroLiteral = new (Ctx) IntegerLiteral(Ctx, Zero, Ctx.IntTy,
-                                                     SourceLocation());
-        auto *ChildPlusZero = BinaryOperator::Create(Ctx, SubExpr, ZeroLiteral,
-                                                     BinaryOperatorKind::BO_Add,
-                                                     SubExpr->getType(),
-                                                     SubExpr->getValueKind(),
-                                                     SubExpr->getObjectKind(),
-                                                     SubExpr->getExprLoc(),
-                                                     FPOptionsOverride());
-        auto *N = new UnaryOperatorNode(Op, Parent);
-        AddNode(N, Parent);
-        Create(ChildPlusZero, /*Parent*/ N);
-      }
+      // *e and *(e + 0) have the same canonical form. So for an expression of
+      // the form *e, we create a UnaryOperatorNode whose child is an
+      // OperatorNode e + 0.
+      auto *Child = UO->getSubExpr();
+      auto *N = new UnaryOperatorNode(Op, Parent);
+      AddNode(N, Parent);
+      AddZero(Child, /*Parent*/ N);
     } else if ((Op == UnaryOperatorKind::UO_Plus ||
                Op == UnaryOperatorKind::UO_Minus) &&
                E->isIntegerConstantExpr(Ctx)) {
