@@ -137,6 +137,13 @@ namespace clang {
     // @param[in] Parent is the parent of the new node.
     void Create(Expr *E, Node *Parent = nullptr);
 
+    // Create an OperatorNode with an addition operator and two children
+    // (E and 0), and add the created OperatorNode to the Parent node.
+    // @param[in] E is the expression that is one of the two children of
+    // the created OperatorNode (the other child is 0).
+    // @param[in] Parent is the parent of the created OperatorNode.
+    void AddZero(Expr *E, Node *Parent);
+
     // Add a new node to the AST.
     // @param[in] Node is the current node to be added.
     // @param[in] Parent is the parent of the node to be added.

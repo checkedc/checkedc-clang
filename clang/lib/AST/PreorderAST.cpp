@@ -264,6 +264,18 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
   }
 }
 
+void PreorderAST::AddZero(Expr *E, Node *Parent) {
+  auto *N = new OperatorNode(BO_Add, Parent);
+  AddNode(N, Parent);
+
+  llvm::APInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
+  auto *ZeroLiteral = new (Ctx) IntegerLiteral(Ctx, Zero, Ctx.IntTy,
+                                               SourceLocation());
+  auto *L = new LeafExprNode(ZeroLiteral, N);
+  AddNode(L, /*Parent*/ N);
+  Create(E, /*Parent*/ N);
+}
+
 void PreorderAST::Coalesce(Node *N, bool &Changed) {
   if (Error)
     return;
