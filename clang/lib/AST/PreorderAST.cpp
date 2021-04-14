@@ -235,10 +235,13 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
         AddNode(N, Parent);
         Create(ChildPlusZero, /*Parent*/ N);
       }
-    } else if (Op == UnaryOperatorKind::UO_Plus ||
-               Op == UnaryOperatorKind::UO_Minus) {
-      // For expressions such as +e and -e, we create a LeafExprNode
-      // so that these expressions can be constant folded.
+    } else if ((Op == UnaryOperatorKind::UO_Plus ||
+               Op == UnaryOperatorKind::UO_Minus) &&
+               E->isIntegerConstantExpr(Ctx)) {
+      // For integer constant expressions of the form +e or -e, we create a
+      // LeafExprNode rather than a UnaryOperatorNode so that these expressions
+      // can be constant folded. Constant folding only folds LeafExprNodes that
+      // are children of an OperatorNode.
       auto *N = new LeafExprNode(E, Parent);
       AddNode(N, Parent);
     } else {
