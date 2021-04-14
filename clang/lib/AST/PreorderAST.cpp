@@ -176,27 +176,16 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
       }
     }
 
-    // If ArrowBase exists, then E is of the form a->f, (*a).f, etc. ArrowBase
-    // must be a binary operator so that (*a).f has the same canonical form as
-    // (*(a + 0)).f.
     if (ArrowBase) {
-      ArrowBase = Lex.IgnoreValuePreservingOperations(Ctx, ArrowBase->IgnoreParens());
-      if (!isa<BinaryOperator>(ArrowBase)) {
-        llvm::APInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
-        auto *ZeroLiteral = new (Ctx) IntegerLiteral(Ctx, Zero, Ctx.IntTy,
-                                                     SourceLocation());
-        ArrowBase =
-          BinaryOperator::Create(Ctx, ArrowBase, ZeroLiteral,
-                                 BinaryOperatorKind::BO_Add, ArrowBase->getType(),
-                                 ArrowBase->getValueKind(), ArrowBase->getObjectKind(),
-                                 ArrowBase->getExprLoc(), FPOptionsOverride());
-      }
+      // If ArrowBase exists, then E is of the form ArrowBase->f,
+      // (*ArrowBase).f, etc. The Base of the MemberNode is ArrowBase + 0
+      // so that expressions such as a->f, (*a).f, (a + 0)->f, and a[0].f
+      // all have the same canonical form.
       auto *N = new MemberNode(Field, /*IsArrow*/ true, Parent);
       AddNode(N, Parent);
-      Create(ArrowBase, /*Parent*/ N);
-    }
-    // If no ArrowBase exists, then E is of the form a.f.
-    else {
+      AddZero(ArrowBase, /*Parent*/ N);
+    } else {
+      // If no ArrowBase exists, then E is of the form a.f.
       auto *N = new MemberNode(Field, /*IsArrow*/ false, Parent);
       AddNode(N, Parent);
       Create(Base, /*Parent*/ N);
