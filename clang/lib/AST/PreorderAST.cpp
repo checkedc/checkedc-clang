@@ -267,6 +267,8 @@ void PreorderAST::Coalesce(Node *N, bool &Changed) {
     return;
 
   switch (N->Kind) {
+    default:
+      break;
     case Node::NodeKind::BinaryOperatorNode: {
       auto *B = dyn_cast<BinaryOperatorNode>(N);
 
@@ -295,8 +297,6 @@ void PreorderAST::Coalesce(Node *N, bool &Changed) {
       Coalesce(I->Child, Changed);
       break;
     }
-    default:
-      break;
   }
 }
 
@@ -374,6 +374,8 @@ void PreorderAST::Sort(Node *N) {
     return;
 
   switch (N->Kind) {
+    default:
+      break;
     case Node::NodeKind::BinaryOperatorNode: {
       auto *B = dyn_cast<BinaryOperatorNode>(N);
 
@@ -407,8 +409,6 @@ void PreorderAST::Sort(Node *N) {
       Sort(I->Child);
       break;
     }
-    default:
-      break;
   }
 }
 
@@ -420,6 +420,8 @@ void PreorderAST::ConstantFold(Node *N, bool &Changed) {
     return;
 
   switch (N->Kind) {
+    default:
+      break;
     case Node::NodeKind::BinaryOperatorNode: {
       auto *B = dyn_cast<BinaryOperatorNode>(N);
       ConstantFoldOperator(B, Changed);
@@ -440,8 +442,6 @@ void PreorderAST::ConstantFold(Node *N, bool &Changed) {
       ConstantFold(I->Child, Changed);
       break;
     }
-    default:
-      break;
   }
 }
 
