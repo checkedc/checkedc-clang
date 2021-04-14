@@ -74,6 +74,17 @@ class SourceFileInfo:
         self.lines = collections.defaultdict(lambda: SourceLineInfo())
 
 
+# While text is normally assumed to be UTF-8 these days (and that's the default
+# for text I/O in Python 3), at least one benchmark (thttpd) uses a few
+# ISO-8859-1 characters, which we'd fail to read as UTF-8. Since we are agnostic
+# to the meaning of non-ASCII bytes in the source files, we just process them
+# all using an arbitrary single-byte encoding, namely ISO-8859-1. One could
+# argue for using binary I/O, but that would require switching to the "byte"
+# versions of all the string manipulation APIs, which is distracting, so we
+# won't do it now.
+BINARY_ENCODING = 'iso-8859-1'
+
+
 def preprocess(tu: TranslationUnitInfo,
                out_fname: str,
                custom_input_filename=None):
@@ -88,6 +99,16 @@ def expandMacros(opts: ExpandMacrosOptions, compilation_base_dir: str,
                  translation_units: List[TranslationUnitInfo]):
     if not opts.enable:
         return
+
+    # If this somehow happens (e.g., it happened in one build configuration of
+    # thttpd), fail up front rather than producing mysterious verification
+    # failures later.
+    tu_output_realpaths = set()
+    for tu in translation_units:
+        assert tu.output_realpath not in tu_output_realpaths, (
+            f'Multiple compilation database entries with output file '
+            f'{tu.output_realpath}: not supported by expand_macros')
+        tu_output_realpaths.add(tu.output_realpath)
 
     compilation_base_dir = realpath_cached(compilation_base_dir)
 
@@ -111,7 +132,7 @@ def expandMacros(opts: ExpandMacrosOptions, compilation_base_dir: str,
         # Construct a custom source file that we can use to preprocess this
         # translation unit with the given ExpandMacrosOptions.
         em_c_fname = tu.output_realpath + '.em.c'
-        with open(em_c_fname, 'w') as em_c_f:
+        with open(em_c_fname, 'w', encoding=BINARY_ENCODING) as em_c_f:
             for inc in opts.includes_before_undefs:
                 em_c_f.write(f'#include {inc}\n')
             for macro in opts.undef_macros:
@@ -121,7 +142,7 @@ def expandMacros(opts: ExpandMacrosOptions, compilation_base_dir: str,
         em_i_fname = tu.output_realpath + '.em.i'
         preprocess(tu, em_i_fname, em_c_fname)
 
-        with open(em_i_fname) as em_i_f:
+        with open(em_i_fname, 'r', encoding=BINARY_ENCODING) as em_i_f:
             src_fname, src_lineno = None, None
             for i_lineno0, i_line_content in enumerate(
                     l.rstrip('\n') for l in em_i_f.readlines()):
@@ -155,7 +176,10 @@ def expandMacros(opts: ExpandMacrosOptions, compilation_base_dir: str,
             continue
         logging.info(f'Updating source file {src_fname}...')
         src_fname_new = src_fname + '.new'
-        with open(src_fname) as src_f, open(src_fname_new, 'w') as src_f_new:
+        # There doesn't seem to be a better way to line-break a multi-`with`
+        # statement than backslash line continuation. :/
+        with open(src_fname, 'r', encoding=BINARY_ENCODING) as src_f, \
+             open(src_fname_new, 'w', encoding=BINARY_ENCODING) as src_f_new:
             in_preprocessor_directive = False
             for src_lineno0, src_line_content in enumerate(
                     l.rstrip('\n') for l in src_f.readlines()):
