@@ -23,14 +23,13 @@
 
 namespace clang {
   using Result = Lexicographic::Result;
-  class OperatorNode;
 
   class Node {
   public:
     // Nodes with two different kinds are sorted according to the order in
     // which their kinds appear in this enum.
     enum class NodeKind {
-      OperatorNode,
+      BinaryOperatorNode,
       UnaryOperatorNode,
       MemberNode,
       ImplicitCastNode,
@@ -44,19 +43,19 @@ namespace clang {
       Kind(Kind), Parent(Parent) {}
   };
 
-  class OperatorNode : public Node {
+  class BinaryOperatorNode : public Node {
   public:
     BinaryOperator::Opcode Opc;
-    // Note: An OperatorNode has a list of children because the preorder AST is
-    // an n-ary tree.
+    // Note: A BinaryOperatorNode has a list of children because the preorder
+    // AST is an n-ary tree.
     llvm::SmallVector<Node *, 2> Children;
 
-    OperatorNode(BinaryOperator::Opcode Opc, Node *Parent) :
-      Node(NodeKind::OperatorNode, Parent),
+    BinaryOperatorNode(BinaryOperator::Opcode Opc, Node *Parent) :
+      Node(NodeKind::BinaryOperatorNode, Parent),
       Opc(Opc) {}
 
     static bool classof(const Node *N) {
-      return N->Kind == NodeKind::OperatorNode;
+      return N->Kind == NodeKind::BinaryOperatorNode;
     }
 
     // Is the operator commutative and associative?
@@ -137,11 +136,11 @@ namespace clang {
     // @param[in] Parent is the parent of the new node.
     void Create(Expr *E, Node *Parent = nullptr);
 
-    // Create an OperatorNode with an addition operator and two children
-    // (E and 0), and add the created OperatorNode to the Parent node.
+    // Create a BinaryOperatorNode with an addition operator and two children
+    // (E and 0), and add the created BinaryOperatorNode to the Parent node.
     // @param[in] E is the expression that is one of the two children of
-    // the created OperatorNode (the other child is 0).
-    // @param[in] Parent is the parent of the created OperatorNode.
+    // the created BinaryOperatorNode (the other child is 0).
+    // @param[in] Parent is the parent of the created BinaryOperatorNode.
     void AddZero(Expr *E, Node *Parent);
 
     // Add a new node to the AST.
@@ -149,19 +148,19 @@ namespace clang {
     // @param[in] Parent is the parent of the node to be added.
     void AddNode(Node *N, Node *Parent);
 
-    // Coalesce the OperatorNode O with its parent. This involves moving the
-    // children (if any) of node O to its parent and then removing O.
-    // @param[in] O is the current node. O should be a OperatorNode.
-    void CoalesceNode(OperatorNode *O);
+    // Coalesce the BinaryOperatorNode B with its parent. This involves moving
+    // the children (if any) of node B to its parent and then removing B.
+    // @param[in] B is the current node. B should be a BinaryOperatorNode.
+    void CoalesceNode(BinaryOperatorNode *B);
 
-    // Determines if a OperatorNode could be coalesced into its parent.
-    // @param[in] O is the current node. O should be a OperatorNode.
-    // @return Return true if O can be coalesced into its parent, false
+    // Determines if a BinaryOperatorNode could be coalesced into its parent.
+    // @param[in] B is the current node. B should be a BinaryOperatorNode.
+    // @return Return true if B can be coalesced into its parent, false
     // otherwise.
-    bool CanCoalesceNode(OperatorNode *O);
+    bool CanCoalesceNode(BinaryOperatorNode *B);
 
-    // Recursively coalesce OperatorNodes having the same commutative and
-    // associative operator.
+    // Recursively coalesce BinaryOperatorNodes having the same commutative
+    // and associative operator.
     // @param[in] N is current node of the AST. Initial value is Root.
     // @param[in] Changed indicates whether a node was coalesced. We need this
     // to control when to stop recursive coalescing.
@@ -184,11 +183,11 @@ namespace clang {
     // this to control when to stop recursive constant folding.
     void ConstantFold(Node *N, bool &Changed);
 
-    // Constant fold integer expressions within an operator node.
+    // Constant fold integer expressions within a binary operator node.
     // @param[in] N is current node of the AST.
     // @param[in] Changed indicates whether constant folding was done. We need
     // this to control when to stop recursive constant folding.
-    void ConstantFoldOperator(OperatorNode *N, bool &Changed);
+    void ConstantFoldOperator(BinaryOperatorNode *N, bool &Changed);
 
     // Get the deref offset from the DerefExpr. The offset represents the
     // possible amount by which the bounds of an ntptr could be widened.
