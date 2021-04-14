@@ -355,7 +355,7 @@ static std::set<VarAtom *> findBounded(ConstraintsGraph &CG,
     Open.erase(Open.begin());
 
     std::set<Atom *> Neighbors;
-    CG.getNeighbors(Curr, Neighbors, Succs);
+    CG.getNeighbors(Curr, Neighbors, Succs, false, true);
     for (Atom *A : Neighbors) {
       VarAtom *VA = dyn_cast<VarAtom>(A);
       if (VA && Bounded.find(VA) == Bounded.end()) {
@@ -385,6 +385,7 @@ bool Constraints::graphBasedSolve() {
       if (G->constraintIsChecked())
         SolChkCG.addConstraint(G, *this);
       else
+        // Need to copy whether or not this constraint into the new graph
         SolPtrTypCG.addConstraint(G, *this);
     }
     // Save the implies to solve them later.
@@ -624,8 +625,9 @@ ConstraintsGraph &Constraints::getPtrTypCG() {
   return *PtrTypCG;
 }
 
-Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, bool IsCheckedConstraint) {
-  return new Geq(Lhs, Rhs, IsCheckedConstraint);
+Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, bool IsCheckedConstraint,
+                            bool Soft) {
+  return new Geq(Lhs, Rhs, IsCheckedConstraint, Soft);
 }
 
 Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, const std::string &Rsn,

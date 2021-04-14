@@ -575,6 +575,8 @@ public:
 
   bool VisitVarDecl(VarDecl *D) {
     FullSourceLoc FL = Context->getFullLoc(D->getBeginLoc());
+    // ParmVarDecls are skipped here, and are added in ProgramInfo::addVariable
+    // as it processes a function
     if (FL.isValid() && !isa<ParmVarDecl>(D))
       addVariable(D);
     return true;

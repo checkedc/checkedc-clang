@@ -129,6 +129,12 @@ bool isPointerType(clang::ValueDecl *VD);
 // Is this a pointer or array type?
 bool isPtrOrArrayType(const clang::QualType &QT);
 
+// Is this a type that can go inside an _Nt_array_ptr?
+bool isNullableType(const clang::QualType &QT);
+
+// Is this type capable of being an NT Array?
+bool canBeNtArray(const clang::QualType &QT);
+
 // Check if provided type is a var arg type?
 bool isVarArgType(const std::string &TypeName);
 

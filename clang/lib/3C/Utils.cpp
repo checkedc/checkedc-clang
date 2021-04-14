@@ -218,6 +218,22 @@ bool isPtrOrArrayType(const clang::QualType &QT) {
   return QT->isPointerType() || QT->isArrayType();
 }
 
+bool isNullableType(const clang::QualType &QT) {
+  if (QT.getTypePtrOrNull())
+      return QT->isPointerType() || QT->isArrayType() || QT->isIntegerType();
+  else
+    return false;
+}
+
+bool canBeNtArray(const clang::QualType &QT) {
+  if (const auto &Ptr = dyn_cast<clang::PointerType>(QT))
+    return isNullableType(Ptr->getPointeeType());
+  else if (const auto &Arr = dyn_cast<clang::ArrayType>(QT))
+    return isNullableType(Arr->getElementType());
+  else
+    return false;
+}
+
 bool isStructOrUnionType(clang::DeclaratorDecl *DD) {
   return DD->getType().getTypePtr()->isStructureType() ||
          DD->getType().getTypePtr()->isUnionType();

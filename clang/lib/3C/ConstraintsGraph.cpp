@@ -32,7 +32,7 @@ void ConstraintsGraph::addConstraint(Geq *C, const Constraints &CS) {
   if (auto *VA2 = clang::dyn_cast<VarAtom>(A2))
     assert(CS.getVar(VA2->getLoc()) == VA2);
 
-  addEdge(A2, A1);
+  addEdge(A2, A1, C->isSoft());
 }
 
 std::string llvm::DOTGraphTraits<GraphVizOutputGraph>::getNodeLabel(
@@ -54,6 +54,7 @@ std::string llvm::DOTGraphTraits<GraphVizOutputGraph>::getEdgeAttributes(
   // differentiate between multiple edges between the same pair of nodes.
   GraphVizEdge *GE = nullptr;
   auto EPair = std::make_pair(Node->getData(), (*T)->getData());
+  bool isSoft = false;
   for (auto *E : Edges) {
     if (E->Kind == GraphVizEdge::EK_Checked &&
         CG.DoneChecked.find(EPair) == CG.DoneChecked.end()) {
@@ -62,6 +63,7 @@ std::string llvm::DOTGraphTraits<GraphVizOutputGraph>::getEdgeAttributes(
                CG.DonePtyp.find(EPair) == CG.DonePtyp.end()) {
       GE = E;
     }
+    isSoft = E->IsSoft;
   }
   assert(GE != nullptr);
   if (GE->Kind == GraphVizEdge::EK_Checked)
@@ -70,7 +72,10 @@ std::string llvm::DOTGraphTraits<GraphVizOutputGraph>::getEdgeAttributes(
     CG.DonePtyp.insert(EPair);
 
   return "color=" + EdgeTypeColors[GE->Kind] + "," +
-         "dir=" + EdgeDirections[GE->IsBidirectional];
+         "dir=" + EdgeDirections[GE->IsBidirectional] +
+        (isSoft ? ",style=dotted" : "");
+
+
 }
 
 void GraphVizOutputGraph::mergeConstraintGraph(const ConstraintsGraph &Graph,
@@ -110,7 +115,7 @@ void GraphVizOutputGraph::mergeConstraintGraph(const ConstraintsGraph &Graph,
 
       if (!EdgeExists) {
         // Otherwise, we actually need to create a new edge.
-        GraphVizEdge *GE = new GraphVizEdge(*D, EK);
+        GraphVizEdge *GE = new GraphVizEdge(*D, EK, E->IsSoft);
         connect(*S, *D, *GE);
       }
     }

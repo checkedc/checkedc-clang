@@ -36,8 +36,9 @@ public:
 
   DataType getData() const { return Data; }
 
-  void connectTo(NodeType &Other) {
+  void connectTo(NodeType &Other, bool SoftEdge = false) {
     auto *BLR = new EdgeType(Other);
+    BLR->IsSoft = SoftEdge;
     this->addEdge(*BLR);
     auto *BRL = new EdgeType(*this);
     Other.addPredecessor(*BRL);
@@ -94,6 +95,7 @@ struct DataEdge : public llvm::DGEdge<DataNode<DataType>, DataEdge<DataType>> {
   typedef llvm::DGEdge<DataNode<DataType>, DataEdge<DataType>> SuperType;
   explicit DataEdge(DataNode<DataType> &Node) : SuperType(Node) {}
   DataEdge(const DataEdge &E) : SuperType(E) {}
+  bool IsSoft = false;
 };
 
 class GraphVizOutputGraph;
@@ -133,10 +135,10 @@ public:
     invalidateBFSCache();
   }
 
-  void addEdge(Data L, Data R) {
+  void addEdge(Data L, Data R, bool SoftEdge = false) {
     NodeType *BL = this->findOrCreateNode(L);
     NodeType *BR = this->findOrCreateNode(R);
-    BL->connectTo(*BR);
+    BL->connectTo(*BR, SoftEdge);
     invalidateBFSCache();
   }
 
@@ -151,7 +153,7 @@ public:
   }
 
   bool getNeighbors(Data D, std::set<Data> &DataSet, bool Succ,
-                    bool Append = false) {
+                    bool Append = false, bool IgnoreSoftEdges = false) {
     NodeType *N = this->findNode(D);
     if (N == nullptr)
       return false;
@@ -163,7 +165,8 @@ public:
     else
       Edges = N->getPredecessors();
     for (auto *E : Edges)
-      DataSet.insert(E->getTargetNode().getData());
+      if (!E->IsSoft || !IgnoreSoftEdges)
+        DataSet.insert(E->getTargetNode().getData());
     return !DataSet.empty();
   }
 
@@ -252,13 +255,16 @@ class GraphVizEdge
     : public llvm::DGEdge<DataNode<Atom *, GraphVizEdge>, GraphVizEdge> {
 public:
   enum EdgeKind { EK_Checked, EK_Ptype };
-  explicit GraphVizEdge(DataNode<Atom *, GraphVizEdge> &Node, EdgeKind Kind)
-      : DGEdge(Node), Kind(Kind), IsBidirectional(false) {}
+  explicit GraphVizEdge(DataNode<Atom *, GraphVizEdge> &Node, EdgeKind Kind,
+                        bool Soft)
+      : DGEdge(Node), Kind(Kind), IsBidirectional(false), IsSoft(Soft) {}
   GraphVizEdge(const GraphVizEdge &E)
-      : DGEdge(E), Kind(E.Kind), IsBidirectional(E.IsBidirectional) {}
+      : DGEdge(E), Kind(E.Kind), IsBidirectional(E.IsBidirectional),
+        IsSoft(E.IsSoft) {}
 
   EdgeKind Kind;
   bool IsBidirectional;
+  bool IsSoft;
 };
 
 // The graph subclass for graphviz output uses the specialized edge class to
