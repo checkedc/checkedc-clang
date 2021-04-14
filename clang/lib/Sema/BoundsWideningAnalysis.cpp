@@ -7,7 +7,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===---------------------------------------------------------------------===//
-//  This file implements a dataflow analysis for bounds widening.
+// This file implements a dataflow analysis for bounds widening as described in
+// https://github.com/microsoft/checkedc-clang/blob/master/clang/docs/checkedc/Bounds-Widening-for-Null-Terminated-Arrays.md
 //===---------------------------------------------------------------------===//
 
 #include "clang/Sema/BoundsWideningAnalysis.h"
