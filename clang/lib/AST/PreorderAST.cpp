@@ -219,13 +219,20 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
 
   } else if (auto *AE = dyn_cast<ArraySubscriptExpr>(E)) {
     // e1[e2] has the same canonical form as *(e1 + e2).
-    auto DerefExpr = BinaryOperator::Create(Ctx, AE->getBase(), AE->getIdx(),
-                                            BinaryOperatorKind::BO_Add, AE->getType(),
-                                            AE->getValueKind(), AE->getObjectKind(),
-                                            AE->getExprLoc(), FPOptionsOverride());
+    auto *DerefExpr = BinaryOperator::Create(Ctx, AE->getBase(), AE->getIdx(),
+                                             BinaryOperatorKind::BO_Add, AE->getType(),
+                                             AE->getValueKind(), AE->getObjectKind(),
+                                             AE->getExprLoc(), FPOptionsOverride());
     auto *N = new UnaryOperatorNode(UnaryOperatorKind::UO_Deref, Parent);
     AddNode(N, Parent);
-    Create(DerefExpr, /*Parent*/ N);
+    // Even though e1 + e2 is already a binary operator, the child of the
+    // UnaryOperatorNode should be e1 + e2 + 0. This enables expressions such
+    // as p[i + -(1 + 2)] to be constant folded. In order for an OperatorNode
+    // to be constant folded, it must have at least two LeafExprNode children
+    // whose expressions are integer constants. For example, i + -(1 + 2) + 0
+    // will be constant folded to i + -3, but i + -(1 + 2) will not be constant
+    // folded.
+    AddZero(DerefExpr, /*Parent*/ N);
 
   } else if (auto *ICE = dyn_cast<ImplicitCastExpr>(E)) {
     auto *N = new ImplicitCastNode(ICE->getCastKind(), Parent);
