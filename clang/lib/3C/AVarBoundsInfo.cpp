@@ -245,7 +245,7 @@ bool AvarBoundsInference::getReachableBoundKeys(const ProgramVarScope *DstScope,
       BKGraph.getPredecessors(CK, Pre);
       for (auto T : Pre) {
         auto *TVar = BI->getProgramVar(T);
-        if (TVar->isNumConstant()) {
+        if (TVar != nullptr && TVar->isNumConstant()) {
           ReachableCons.insert(T);
         }
       }
