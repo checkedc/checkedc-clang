@@ -30,8 +30,9 @@ namespace clang {
   // VarSetTy denotes a set of variables.
   using VarSetTy = llvm::DenseSet<const VarDecl *>;
 
-  // StmtVarSetTy denotes the set of null-terminated array variables whose
-  // bounds are killed by a statement.
+  // StmtVarSetTy denotes a set of null-terminated array variables that are
+  // associated with a statement. The set of variables whose bounds are killed
+  // by a statement has the type StmtVarSetTy.
   using StmtVarSetTy = llvm::DenseMap<const Stmt *, VarSetTy>;
 
   // BoundsVarsTy maps a variable Z to the set of all null-terminated array
