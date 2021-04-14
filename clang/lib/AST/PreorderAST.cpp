@@ -209,6 +209,7 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
       AddNode(N, Parent);
       Create(Base, /*Parent*/ N);
     }
+
   } else if (auto *UO = dyn_cast<UnaryOperator>(E)) {
     UnaryOperatorKind Op = UO->getOpcode();
     if (Op == UnaryOperatorKind::UO_Deref) {
@@ -243,8 +244,9 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
     } else {
       auto *N = new UnaryOperatorNode(Op, Parent);
       AddNode(N, Parent);
-      Create(UO->getSubExpr(), /*Parent */ N);
+      Create(UO->getSubExpr(), /*Parent*/ N);
     }
+
   } else if (auto *AE = dyn_cast<ArraySubscriptExpr>(E)) {
     // e1[e2] has the same canonical form as *(e1 + e2).
     auto DerefExpr = BinaryOperator::Create(Ctx, AE->getBase(), AE->getIdx(),
@@ -254,10 +256,12 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
     auto *N = new UnaryOperatorNode(UnaryOperatorKind::UO_Deref, Parent);
     AddNode(N, Parent);
     Create(DerefExpr, /*Parent*/ N);
+
   } else if (auto *ICE = dyn_cast<ImplicitCastExpr>(E)) {
     auto *N = new ImplicitCastNode(ICE->getCastKind(), Parent);
     AddNode(N, Parent);
     Create(ICE->getSubExpr(), /*Parent*/ N);
+
   } else {
     auto *N = new LeafExprNode(E, Parent);
     AddNode(N, Parent);
