@@ -188,7 +188,7 @@ namespace clang {
     // this to control when to stop recursive constant folding.
     void ConstantFold(Node *N, bool &Changed);
 
-    // Constant fold integer expressions within a binary operator node.
+    // Constant fold integer expressions within a BinaryOperatorNode.
     // @param[in] N is current node of the AST.
     // @param[in] Changed indicates whether constant folding was done. We need
     // this to control when to stop recursive constant folding.
