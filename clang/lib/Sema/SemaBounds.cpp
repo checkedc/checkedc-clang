@@ -4040,11 +4040,8 @@ namespace {
 
       VarDecl *VD = dyn_cast<VarDecl>(E->getDecl());
       BoundsExpr *B = nullptr;
-      InteropTypeExpr *IT = nullptr;
-      if (VD) {
+      if (VD)
         B = VD->getBoundsExpr();
-        IT = VD->getInteropTypeExpr();
-      }
 
       if (E->getType()->isArrayType()) {
         if (!VD) {
