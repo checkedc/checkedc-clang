@@ -18,6 +18,13 @@
 using namespace clang;
 
 void PreorderAST::AddNode(Node *N, Node *Parent) {
+  // A LeafExprNode cannot be the parent of any node.
+  if (Parent && isa<LeafExprNode>(Parent)) {
+    assert(0 && "Attempting to add a node to a LeafExprNode");
+    SetError();
+    return;
+  }
+
   // If the root is null, make the current node the root.
   if (!Root)
     Root = N;
