@@ -266,6 +266,8 @@ void PreorderAST::Coalesce(Node *N, bool &Changed) {
   if (!N)
     return;
 
+  // TODO: GitHub checkedc-clang issue #1032. Each kind of Node should have
+  // its own Coalesce method.
   switch (N->Kind) {
     default:
       break;
@@ -305,6 +307,8 @@ bool PreorderAST::CompareNodes(const Node *N1, const Node *N2) {
   if (N1->Kind != N2->Kind)
     return N1->Kind < N2->Kind;
 
+  // TODO: GitHub checkedc-clang issue #1032. Each kind of Node should have
+  // its own CompareNodes method.
   switch (N1->Kind) {
     case Node::NodeKind::BinaryOperatorNode: {
       const auto *B1 = dyn_cast<BinaryOperatorNode>(N1);
@@ -373,6 +377,8 @@ void PreorderAST::Sort(Node *N) {
   if (!N)
     return;
 
+  // TODO: GitHub checkedc-clang issue #1032. Each kind of Node should have
+  // its own Sort method.
   switch (N->Kind) {
     default:
       break;
@@ -419,6 +425,8 @@ void PreorderAST::ConstantFold(Node *N, bool &Changed) {
   if (!N)
     return;
 
+  // TODO: GitHub checkedc-clang issue #1032. Each kind of Node should have
+  // its own ConstantFold method.
   switch (N->Kind) {
     default:
       break;
@@ -445,6 +453,9 @@ void PreorderAST::ConstantFold(Node *N, bool &Changed) {
   }
 }
 
+// TODO: GitHub checkedc-clang issue #1032. Each kind of Node should have
+// its own ConstantFold method, so there should no longer be a need for
+// a separate ConstantFoldOperator method.
 void PreorderAST::ConstantFoldOperator(BinaryOperatorNode *B, bool &Changed) {
   // Note: This function assumes that the children of each BinaryOperatorNode
   // of the preorder AST have already been sorted.
@@ -635,6 +646,8 @@ Result PreorderAST::Compare(const Node *N1, const Node *N2) const {
   if (N1->Kind != N2->Kind)
     return N1->Kind > N2->Kind ? Result::LessThan : Result::GreaterThan;
 
+  // TODO: GitHub checkedc-clang issue #1032. Each kind of Node should have
+  // its own Compare method.
   switch (N1->Kind) {
     case Node::NodeKind::BinaryOperatorNode: {
       const auto *B1 = dyn_cast<BinaryOperatorNode>(N1);
