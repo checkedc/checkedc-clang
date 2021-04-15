@@ -23,6 +23,7 @@
 
 namespace clang {
   using Result = Lexicographic::Result;
+  class LeafExprNode;
 
   class Node {
   public:
@@ -40,7 +41,11 @@ namespace clang {
     Node *Parent;
 
     Node(NodeKind Kind, Node *Parent) :
-      Kind(Kind), Parent(Parent) {}
+      Kind(Kind), Parent(Parent) {
+        if (Parent)
+          assert(!isa<LeafExprNode>(Parent) &&
+                 "Parent node cannot be a LeafExprNode");
+      }
   };
 
   class BinaryOperatorNode : public Node {
