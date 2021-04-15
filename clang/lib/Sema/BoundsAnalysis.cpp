@@ -687,6 +687,8 @@ T BoundsAnalysis::Intersect(T &A, T &B) const {
     return Ret;
   }
 
+  // As the container iterated over by Ret is modified within the
+  // body of the loop, we need to evaluate Ret.end() each time.
   for (auto I = Ret.begin(); I != Ret.end();) {
     const auto *V = I->first;
 

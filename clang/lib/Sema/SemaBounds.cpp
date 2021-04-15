@@ -2742,7 +2742,8 @@ namespace {
 
      EquivExprSets CrntEquivExprs(State.EquivExprs);
      State.EquivExprs.clear();
-     for (auto I = CrntEquivExprs.begin(); I != CrntEquivExprs.end(); ++I) {
+     for (auto I = CrntEquivExprs.begin(), E = CrntEquivExprs.end();
+                                                         I != E; ++I) {
        ExprSetTy ExprList;
        for (auto InnerList = (*I).begin(); InnerList != (*I).end();
                                                          ++InnerList) {
@@ -2880,7 +2881,8 @@ namespace {
             // EquivExprs in the CheckingState have to be updated.
             CFGLifetimeEnds LE = Elem.castAs<CFGLifetimeEnds>();
             VarDecl *V = const_cast<VarDecl *>(LE.getVarDecl());
-            UpdateStateForVariableOutOfScope(BlockState, V);
+            if (V)
+              UpdateStateForVariableOutOfScope(BlockState, V);
          }
        }
        if (Block->getBlockID() != Cfg->getEntry().getBlockID())
