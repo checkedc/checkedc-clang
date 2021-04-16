@@ -218,4 +218,9 @@ clang::FunctionTypeLoc getFunctionTypeLoc(clang::DeclaratorDecl *Decl);
 
 bool isKAndRFunctionDecl(clang::FunctionDecl *FD);
 
+void getPrintfStringArgIndices(const clang::CallExpr *CE,
+                               const clang::FunctionDecl *Callee,
+                               const clang::ASTContext &Context,
+                               std::set<unsigned> &StringArgIndices);
+
 #endif

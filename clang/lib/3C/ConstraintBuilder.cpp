@@ -233,6 +233,10 @@ public:
           TmpC = PVC->getFV();
           assert(TmpC != nullptr && "Function pointer with null FVConstraint.");
         }
+        std::set<unsigned> PrintfStringArgIndices;
+        if (TFD != nullptr)
+          getPrintfStringArgIndices(E, TFD, *Context,
+                                    PrintfStringArgIndices);
         // and for each arg to the function ...
         if (FVConstraint *TargetFV = dyn_cast<FVConstraint>(TmpC)) {
           unsigned I = 0;
@@ -285,6 +289,13 @@ public:
                                             "accepting var args.",
                                             E);
               } else {
+                if (PrintfStringArgIndices.find(I) !=
+                    PrintfStringArgIndices.end()) {
+                  // In `printf("... %s ...", ...)`, the argument corresponding
+                  // to the `%s` should be an _Nt_array_ptr
+                  // (https://github.com/correctcomputation/checkedc-clang/issues/549).
+                  constrainVarsTo(ArgumentConstraints.first, CS.getNTArr());
+                }
                 if (Verbose) {
                   std::string FuncName = TargetFV->getName();
                   errs() << "Ignoring function as it contains varargs:"
