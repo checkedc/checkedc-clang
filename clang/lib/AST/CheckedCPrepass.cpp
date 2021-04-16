@@ -30,7 +30,7 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
 
     // We may modify the VarUses map when a DeclRefExpr is visited.
     bool VisitDeclRefExpr(DeclRefExpr *E) {
-      VarDecl *V = dyn_cast_or_null<VarDecl>(E->getDecl());
+      const VarDecl *V = dyn_cast_or_null<VarDecl>(E->getDecl());
       if (!V)
         return true;
       // We only add the V => E pair to the VarUses map if:
