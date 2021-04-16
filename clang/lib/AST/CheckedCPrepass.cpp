@@ -16,6 +16,8 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
       SemaRef(SemaRef), Info(Info) {}
 
     bool VisitVarDecl(VarDecl *V) {
+      if (V->isInvalidDecl())
+        return true;
       // If V has a bounds expression, traverse it so we visit the
       // DeclRefExprs within the bounds.
       if (V->hasBoundsExpr()) {
@@ -31,7 +33,7 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
     // We may modify the VarUses map when a DeclRefExpr is visited.
     bool VisitDeclRefExpr(DeclRefExpr *E) {
       const VarDecl *V = dyn_cast_or_null<VarDecl>(E->getDecl());
-      if (!V)
+      if (!V || V->isInvalidDecl())
         return true;
       // We only add the V => E pair to the VarUses map if:
       // 1. E is within a declared bounds expression, or:
