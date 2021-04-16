@@ -2089,20 +2089,20 @@ void CFGBuilder::prependAutomaticObjLifetimeWithTerminator(
   // Note that B is the LocalScope iterator associated with the backpatched
   // jump and E is the LocalScope iterator associated with the jump target.
   //
-  // To go from B to E, one first goes up the scopes from B
-  // to PofB, then sideways in one scope from PofB to PofE and then down
-  // the scopes from PofE to E.
-  // The lifetime of all objects between B and PofE end.
+  // To go from B to E, one first goes up the scopes from B to AncestorOfB,
+  // then sideways in one scope from AncestorOfB to AncestorOfE and then down
+  // the scopes from AncestorOfE to E.
+  // The lifetime of all objects between B and AncestorOfE end.
   //
-  // Get E's ancestor that has the same LocalScope as one of B's ancestors.
-  LocalScope::const_iterator PofE = E.shared_parent(B);
-  int Dist = B.distance(PofE);
+  // Get E's and B's nearest ancestors, both of which have the same LocalScope.
+  LocalScope::const_iterator AncestorOfE = E.shared_parent(B);
+  int Dist = B.distance(AncestorOfE);
   if (Dist <= 0)
     return;
 
   CFGBlock::iterator InsertPos =
       Blk->beginLifetimeEndsInsert(Blk->end(), Dist, C);
-  for (LocalScope::const_iterator I = B; I != PofE; ++I) {
+  for (LocalScope::const_iterator I = B; I != AncestorOfE; ++I) {
     InsertPos =
         Blk->insertLifetimeEnds(InsertPos, *I, Blk->getTerminatorStmt());
   }
