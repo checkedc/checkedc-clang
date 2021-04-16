@@ -6453,17 +6453,13 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   llvm::outs() << "Checking " << FD->getName() << "\n";
 #endif
   ModifiedBoundsDependencies Tracker;
-  VarDeclUsage VarUses;
   // Compute a mapping from expressions that modify lvalues to in-scope bounds
   // declarations that depend upon those expressions.  We plan to change
   // CheckBoundsDeclaration to traverse a function body in an order determined
   // by control flow.   The modification information depends on lexically-scoped
   // information that can't be computed easily when doing a control-flow
   // based traversal.
-  // While performing the traversal to compute the bounds dependencies, also
-  // compute a mapping from VarDecls with bounds expressions to the DeclRefExpr
-  // (if any) that is the first use of the VarDecl.
-  ComputeBoundsDependencies(Tracker, VarUses, FD, Body);
+  ComputeBoundsDependencies(Tracker, FD, Body);
 
   // Run a prepass traversal over the function before running bounds checking.
   // This traversal gathers information that is used during bounds checking,

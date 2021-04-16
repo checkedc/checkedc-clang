@@ -5819,19 +5819,12 @@ public:
    DependentBounds Tracker;
   };
 
-  // Map a VarDecl to its first use.
-  using VarDeclUsage = llvm::DenseMap<const VarDecl *, DeclRefExpr *>;
-
   /// \brief Compute a mapping from statements that modify lvalues to
   /// in-scope bounds declarations that depend on those lvalues.
   /// FD is the function being declared and Body is the body of the
   /// function.   They are passed in separately because Body hasn't
   /// been attached to FD yet.
-  /// ComputeBoundsDependencies also computes a mapping from VarDecls with
-  /// bounds expressions to the DeclRefExpr (if any) that is the first use
-  /// of the VarDecl.
   void ComputeBoundsDependencies(ModifiedBoundsDependencies &Tracker,
-                                 VarDeclUsage &VarUses,
                                  FunctionDecl *FD, Stmt *Body);
 
   /// \brief Traverse a function in order to gather information that is
