@@ -42,6 +42,7 @@
 #include "clang/Analysis/Analyses/PostOrderCFGView.h"
 #include "clang/AST/AbstractSet.h"
 #include "clang/AST/CanonBounds.h"
+#include "clang/AST/CheckedCPrepass.h"
 #include "clang/AST/ExprUtils.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Sema/AvailableFactsAnalysis.h"
@@ -2584,7 +2585,7 @@ namespace {
 
 
   public:
-    CheckBoundsDeclarations(Sema &SemaRef, Sema::VarDeclUsage &VarUses, Stmt *Body, CFG *Cfg, BoundsExpr *ReturnBounds, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
+    CheckBoundsDeclarations(Sema &SemaRef, PrepassInfo &Info, Stmt *Body, CFG *Cfg, BoundsExpr *ReturnBounds, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
       DumpState(SemaRef.getLangOpts().DumpCheckingState),
       PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
@@ -2594,10 +2595,10 @@ namespace {
       Context(SemaRef.Context),
       Facts(Facts),
       BoundsAnalyzer(BoundsAnalysis(SemaRef, Cfg)),
-      AbstractSetMgr(AbstractSetManager(SemaRef, VarUses)),
+      AbstractSetMgr(AbstractSetManager(SemaRef, Info.VarUses)),
       IncludeNullTerminator(false) {}
 
-    CheckBoundsDeclarations(Sema &SemaRef, Sema::VarDeclUsage &VarUses, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
+    CheckBoundsDeclarations(Sema &SemaRef, PrepassInfo &Info, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
       DumpState(SemaRef.getLangOpts().DumpCheckingState),
       PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
@@ -2607,7 +2608,7 @@ namespace {
       Context(SemaRef.Context),
       Facts(Facts),
       BoundsAnalyzer(BoundsAnalysis(SemaRef, nullptr)),
-      AbstractSetMgr(AbstractSetManager(SemaRef, VarUses)),
+      AbstractSetMgr(AbstractSetManager(SemaRef, Info.VarUses)),
       IncludeNullTerminator(false) {}
 
     void IdentifyChecked(Stmt *S, StmtSet &MemoryCheckedStmts, StmtSet &BoundsCheckedStmts, CheckedScopeSpecifier CSS) {
@@ -6399,9 +6400,9 @@ BoundsExpr *Sema::CheckNonModifyingBounds(BoundsExpr *B, Expr *E) {
 }
 
 BoundsExpr *Sema::CreateCountForArrayType(QualType QT) {
-  VarDeclUsage VarUses;
+  PrepassInfo Info;
   std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
-  return CheckBoundsDeclarations(*this, VarUses, EmptyFacts).CreateBoundsForArrayType(QT);
+  return CheckBoundsDeclarations(*this, Info, EmptyFacts).CreateBoundsForArrayType(QT);
 }
 
 Expr *Sema::MakeAssignmentImplicitCastExplicit(Expr *E) {
@@ -6439,9 +6440,9 @@ Expr *Sema::MakeAssignmentImplicitCastExplicit(Expr *E) {
   if (isUsualUnaryConversion)
     return E;
 
-  VarDeclUsage VarUses;
+  PrepassInfo Info;
   std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
-  return CheckBoundsDeclarations(*this, VarUses, EmptyFacts).CreateExplicitCast(TargetTy, CK, SE,
+  return CheckBoundsDeclarations(*this, Info, EmptyFacts).CreateExplicitCast(TargetTy, CK, SE,
                                                              ICE->isBoundsSafeInterface());
 }
 
@@ -6463,9 +6464,16 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   // compute a mapping from VarDecls with bounds expressions to the DeclRefExpr
   // (if any) that is the first use of the VarDecl.
   ComputeBoundsDependencies(Tracker, VarUses, FD, Body);
+
+  // Run a prepass traversal over the function before running bounds checking.
+  // This traversal gathers information that is used during bounds checking,
+  // as well as in other Checked C analyses.
+  PrepassInfo Info;
+  CheckedCPrepass(Info, FD, Body);
+
   std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
   std::unique_ptr<CFG> Cfg = CFG::buildCFG(nullptr, Body, &getASTContext(), CFG::BuildOptions());
-  CheckBoundsDeclarations Checker(*this, VarUses, Body, Cfg.get(), FD->getBoundsExpr(), EmptyFacts);
+  CheckBoundsDeclarations Checker(*this, Info, Body, Cfg.get(), FD->getBoundsExpr(), EmptyFacts);
   if (Cfg != nullptr) {
     AvailableFactsAnalysis Collector(*this, Cfg.get());
     Collector.Analyze();
@@ -6488,9 +6496,9 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
 
 void Sema::CheckTopLevelBoundsDecls(VarDecl *D) {
   if (!D->isLocalVarDeclOrParm()) {
+    PrepassInfo Info;
     std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
-    VarDeclUsage VarUses;
-    CheckBoundsDeclarations Checker(*this, VarUses, nullptr, nullptr, nullptr, EmptyFacts);
+    CheckBoundsDeclarations Checker(*this, Info, nullptr, nullptr, nullptr, EmptyFacts);
     Checker.TraverseTopLevelVarDecl(D, GetCheckedScopeInfo());
   }
 }
@@ -6669,9 +6677,9 @@ BoundsExpr *Sema::ExpandBoundsToRange(const VarDecl *D, const BoundsExpr *B) {
   if (B && isa<RangeBoundsExpr>(B))
     return const_cast<BoundsExpr *>(B);
 
-  VarDeclUsage VarUses;
+  PrepassInfo Info;
   std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
-  CheckBoundsDeclarations CBD = CheckBoundsDeclarations(*this, VarUses, EmptyFacts);
+  CheckBoundsDeclarations CBD = CheckBoundsDeclarations(*this, Info, EmptyFacts);
 
   if (D->getType()->isArrayType()) {
     ExprResult ER = BuildDeclRefExpr(const_cast<VarDecl *>(D), D->getType(),
@@ -6702,8 +6710,8 @@ BoundsExpr *Sema::GetLValueDeclaredBounds(Expr *E) {
       return NormalizeBounds(V);
   }
 
-  VarDeclUsage VarUses;
+  PrepassInfo Info;
   std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
-  CheckBoundsDeclarations CBD(*this, VarUses, EmptyFacts);
+  CheckBoundsDeclarations CBD(*this, Info, EmptyFacts);
   return CBD.GetLValueTargetBounds(E, CheckedScopeSpecifier::CSS_Unchecked);
 }
