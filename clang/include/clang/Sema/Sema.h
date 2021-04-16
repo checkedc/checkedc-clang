@@ -18,6 +18,7 @@
 #include "clang/AST/ASTFwd.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Availability.h"
+#include "clang/AST/CheckedCPrepass.h"
 #include "clang/AST/ComparisonCategories.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclarationName.h"
@@ -5832,6 +5833,11 @@ public:
   void ComputeBoundsDependencies(ModifiedBoundsDependencies &Tracker,
                                  VarDeclUsage &VarUses,
                                  FunctionDecl *FD, Stmt *Body);
+
+  /// \brief Traverse a function in order to gather information that is
+  /// used by different Checked C analyses such as bounds declaration
+  /// checking, bounds widening, etc.
+  void CheckedCPrepass(PrepassInfo &Info, FunctionDecl *FD, Stmt *Body);
 
   /// \brief RAII class used to indicate that we are substituting an expression
   /// into another expression during bounds checking.  We need to suppress 
