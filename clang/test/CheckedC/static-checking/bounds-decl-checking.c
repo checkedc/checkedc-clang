@@ -690,3 +690,14 @@ void f85(_Ptr<struct st_80_arr> arr, int b) {
     arr->c = b * b;
   }
 }
+
+// No error on the bounds of dest getting invalidated when len is
+// assigned to, because dest is no longer in scope.
+void f86(void) {
+  int arr _Checked[5];
+  int len = 5;
+  {
+    _Array_ptr<int> dest : count(len) = arr;
+  }
+  len = 4;
+}
