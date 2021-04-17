@@ -62,7 +62,7 @@ def parseTheArg():
     parser.add_argument("-p", "--prog_name", dest='prog_name', type=str, default=_3c_bin,
                         help='Program name to run. i.e., path to 3c')
 
-    parser.add_argument("--extra-3c-arg", dest='extra_3c_args', type=str, default=[], nargs='*',
+    parser.add_argument("--extra-3c-arg", dest='extra_3c_args', action='append', type=str, default=[],
                         help=('Extra argument to pass to 3c. '
                               'Multiple -extra-3c-arg options can be used.'))
 
