@@ -563,3 +563,29 @@ void getPrintfStringArgIndices(const CallExpr *CE, const FunctionDecl *Callee,
         Context.getTargetInfo(), false);
   }
 }
+
+int64_t getStmtIdWorkaround(const Stmt *St, const ASTContext &Context) {
+  // Stmt::getID uses Context.getAllocator().identifyKnownAlignedObject(St) to
+  // derive a unique ID for St from its pointer in a way that should be
+  // reproducible if the exact same source file is loaded in the exact same
+  // environment, since if AST building is deterministic, the sequence of memory
+  // allocations should be identical.
+  // Context.getAllocator().identifyKnownObject(St) generates an ID that is
+  // normally the offset of the Stmt object within the allocator's memory slabs,
+  // so it is divisible by alignof(Stmt). identifyKnownAlignedObject wraps
+  // identifyKnownObject to divide the ID by alignof(Stmt) (after asserting that
+  // it is divisible), probably in an effort to produce smaller IDs to make some
+  // data structures more efficient. However, if the Stmt is allocated in a
+  // custom-size slab because it exceeds the default slab size of 4096, then
+  // identifyKnownObject returns -1 minus the offset, which is _not_ divisible
+  // by alignof(Stmt) because of the -1. Unfortunately,
+  // identifyKnownAlignedObject doesn't account for this rare case, and its
+  // assertion fails (https://bugs.llvm.org/show_bug.cgi?id=49926).
+  //
+  // Since 3C doesn't currently use the ID in a data structure that benefits
+  // from smaller IDs, we may as well just use identifyKnownObject. If we wanted
+  // smaller IDs, the solution would probably be to have
+  // identifyKnownAlignedObject fix the alignment of negative IDs by subtracting
+  // (alignof(Stmt) - 1) before dividing.
+  return Context.getAllocator().identifyKnownObject(St);
+}

@@ -812,7 +812,7 @@ ProgramInfo::getExprKey(Expr *E, ASTContext *C) const {
   //       is compiled multiple times with different defines
   std::string Name = C->getSourceManager().getFileEntryForID(
     C->getSourceManager().getMainFileID())->getName().str();
-  return std::make_pair(E->getID(*C), Name);
+  return std::make_pair(getStmtIdWorkaround(E, *C), Name);
 }
 
 bool ProgramInfo::hasPersistentConstraints(Expr *E, ASTContext *C) const {

@@ -223,4 +223,9 @@ void getPrintfStringArgIndices(const clang::CallExpr *CE,
                                const clang::ASTContext &Context,
                                std::set<unsigned> &StringArgIndices);
 
+// Use instead of Stmt::getID since Stmt::getID fails an assertion on long
+// string literals (https://bugs.llvm.org/show_bug.cgi?id=49926).
+int64_t getStmtIdWorkaround(const clang::Stmt *St,
+                            const clang::ASTContext &Context);
+
 #endif
