@@ -81,10 +81,10 @@ namespace clang {
     // DeclRefExpr for V is used to get or create the AbstractSet for V.
     // Otherwise, a use of V is constructed and added to VarUses. This created
     // use of V is currently not released. It should be rare that a use of V
-    // needs to be created, since this should only if occur if:
-    // 1. V does not occur in any declared bounds expressions and V is unused
-    //    in the body of a function, or:
-    // 2. V does not have a declared bounds expression.
+    // needs to be created, since this should only occur if:
+    // V does not occur in any declared bounds expressions, and:
+    //  1. V is unused within the body of the function, or:
+    //  2. V does not have a declared bounds expression.
     // In order to get or create the AbstractSet for V, any use of V would
     // be sufficient. We choose the first use of V.
     VarUsageTy &VarUses;
