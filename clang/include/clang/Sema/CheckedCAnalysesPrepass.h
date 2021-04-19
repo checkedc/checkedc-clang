@@ -1,4 +1,4 @@
-//===------- CheckedCPrepass.h: Information used by Checked C analyses -------===//
+//===------- CheckedCAnalysesPrepass.h: Information used by Checked C analyses -------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -6,16 +6,16 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-------------------------------------------------------------------------===//
+//===---------------------------------------------------------------------------------===//
 //
 //  This file defines a set of information that is gathered in a single pass over
 //  a function. This information is used by different Checked C analyses such as
 //  bounds declaration checking, bounds widening, etc.
 //
-//===-------------------------------------------------------------------------===//
+//===---------------------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_CHECKEDC_PREPASS_H
-#define LLVM_CLANG_CHECKEDC_PREPASS_H
+#ifndef LLVM_CLANG_CHECKEDC_ANALYSES_PREPASS_H
+#define LLVM_CLANG_CHECKEDC_ANALYSES_PREPASS_H
 
 #include "clang/AST/Expr.h"
 #include "clang/AST/RecursiveASTVisitor.h"

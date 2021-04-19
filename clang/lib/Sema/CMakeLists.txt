@@ -26,6 +26,7 @@ add_clang_library(clangSema
   BoundsAnalysis.cpp
   BoundsWideningAnalysis.cpp
   CheckedCAlias.cpp
+  CheckedCAnalysesPrepass.cpp
   CheckedCInterop.cpp
   CheckedCSubst.cpp
   CodeCompleteConsumer.cpp

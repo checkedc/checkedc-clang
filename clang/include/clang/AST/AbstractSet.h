@@ -4,9 +4,9 @@
 #include <set>
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/CanonBounds.h"
-#include "clang/AST/CheckedCPrepass.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/PreorderAST.h"
+#include "clang/Sema/CheckedCAnalysesPrepass.h"
 #include "clang/Sema/Sema.h"
 
 namespace clang {

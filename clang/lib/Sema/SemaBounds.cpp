@@ -42,11 +42,11 @@
 #include "clang/Analysis/Analyses/PostOrderCFGView.h"
 #include "clang/AST/AbstractSet.h"
 #include "clang/AST/CanonBounds.h"
-#include "clang/AST/CheckedCPrepass.h"
 #include "clang/AST/ExprUtils.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Sema/AvailableFactsAnalysis.h"
 #include "clang/Sema/BoundsAnalysis.h"
+#include "clang/Sema/CheckedCAnalysesPrepass.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
@@ -6504,7 +6504,7 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   // This traversal gathers information that is used during bounds checking,
   // as well as in other Checked C analyses.
   PrepassInfo Info;
-  CheckedCPrepass(Info, FD, Body);
+  CheckedCAnalysesPrepass(Info, FD, Body);
 
   std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
   CFG::BuildOptions BO;

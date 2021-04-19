@@ -1,4 +1,4 @@
-#include "clang/AST/CheckedCPrepass.h"
+#include "clang/Sema/CheckedCAnalysesPrepass.h"
 #include "clang/Sema/Sema.h"
 
 using namespace clang;
@@ -49,7 +49,8 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
 
 // Traverse a function in order to gather information that is used by different
 // Checked C analyses such as bounds declaration checking, bounds widening, etc.
-void Sema::CheckedCPrepass(PrepassInfo &Info, FunctionDecl *FD, Stmt *Body) {
+void Sema::CheckedCAnalysesPrepass(PrepassInfo &Info, FunctionDecl *FD,
+                                   Stmt *Body) {
   PrepassHelper Prepass(*this, Info);
   for (auto I = FD->param_begin(); I != FD->param_end(); ++I) {
     ParmVarDecl *Param = *I;

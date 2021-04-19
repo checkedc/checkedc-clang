@@ -27,7 +27,6 @@ add_clang_library(clangAST
   ASTTypeTraits.cpp
   AttrImpl.cpp
   CanonBounds.cpp
-  CheckedCPrepass.cpp
   CXXInheritance.cpp
   Comment.cpp
   CommentBriefParser.cpp
