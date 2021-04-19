@@ -51,8 +51,10 @@ namespace clang {
   class BinaryOperatorNode : public Node {
   public:
     BinaryOperator::Opcode Opc;
-    // Note: A BinaryOperatorNode has a list of children because the preorder
-    // AST is an n-ary tree.
+    // A BinaryOperatorNode representing a commutative and associative binary
+    // operation may have more than two children because of coalescing.
+    // Ex: a + (b + c) will be represented by one BinaryOperatorNode for +
+    // with three children nodes for a, b and c after coalescing.
     llvm::SmallVector<Node *, 2> Children;
 
     BinaryOperatorNode(BinaryOperator::Opcode Opc, Node *Parent) :
@@ -142,7 +144,7 @@ namespace clang {
     void Create(Expr *E, Node *Parent = nullptr);
 
     // Create a BinaryOperatorNode with an addition operator and two children
-    // (E and 0), and add the created BinaryOperatorNode to the Parent node.
+    // (E and 0), and attach the created BinaryOperatorNode to the Parent node.
     // @param[in] E is the expression that is one of the two children of
     // the created BinaryOperatorNode (the other child is 0).
     // @param[in] Parent is the parent of the created BinaryOperatorNode.
@@ -171,7 +173,8 @@ namespace clang {
     // to control when to stop recursive coalescing.
     void Coalesce(Node *N, bool &Changed);
 
-    // Sort the children expressions in a non-leaf Node of the AST.
+    // Recursively descend the PreorderAST to sort the children of all
+    // BinaryOperatorNodes if the binary operator is commutative.
     // @param[in] N is current node of the AST. Initial value is Root.
     void Sort(Node *N);
 
