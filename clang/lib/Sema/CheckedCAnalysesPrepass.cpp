@@ -1,3 +1,19 @@
+//===--- CheckedCAnalysesPrepass.cpp: Data used by Checked C analyses ---===//
+//
+//                     The LLVM Compiler Infrastructure
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===---------------------------------------------------------------------===//
+//
+//  This file implements methods to traverse a function and gather different
+//  kinds of information. This information is used by different Checked C
+//  analyses such as bounds declaration checking, bounds widening, etc.
+//
+//===---------------------------------------------------------------------===//
+
 #include "clang/Sema/CheckedCAnalysesPrepass.h"
 #include "clang/Sema/Sema.h"
 
