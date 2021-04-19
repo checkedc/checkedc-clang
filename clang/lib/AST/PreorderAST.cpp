@@ -26,8 +26,19 @@ void PreorderAST::AddNode(Node *N, Node *Parent) {
   }
 
   // If the root is null, make the current node the root.
-  if (!Root)
+  if (!Root) {
+    if (!isa<BinaryOperatorNode>(N)) {
+      assert(0 && "The root of a PreorderAST must be a BinaryOperatorNode");
+      SetError();
+      return;
+    }
+    if (Parent) {
+      assert(0 && "Parent node must be null if the PreorderAST root is null");
+      SetError();
+      return;
+    }
     Root = N;
+  }
 
   // Add the current node to the list of children of its parent.
   if (auto *B = dyn_cast_or_null<BinaryOperatorNode>(Parent))
