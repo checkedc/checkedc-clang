@@ -150,10 +150,10 @@ namespace clang {
     // @param[in] Parent is the parent of the created BinaryOperatorNode.
     void AddZero(Expr *E, Node *Parent);
 
-    // Add a new node to the AST.
-    // @param[in] Node is the current node to be added.
-    // @param[in] Parent is the parent of the node to be added.
-    void AddNode(Node *N, Node *Parent);
+    // Attach a new node to the AST. The node N is attached to the Parent node.
+    // @param[in] N is the current node to be attached.
+    // @param[in] Parent is the parent of the node to be attached.
+    void AttachNode(Node *N, Node *Parent);
 
     // Coalesce the BinaryOperatorNode B with its parent. This involves moving
     // the children (if any) of node B to its parent and then removing B.

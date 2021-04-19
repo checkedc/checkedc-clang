@@ -17,7 +17,7 @@
 
 using namespace clang;
 
-void PreorderAST::AddNode(Node *N, Node *Parent) {
+void PreorderAST::AttachNode(Node *N, Node *Parent) {
   // A LeafExprNode cannot be the parent of any node.
   if (Parent && isa<LeafExprNode>(Parent)) {
     assert(0 && "Attempting to add a node to a LeafExprNode");
@@ -169,7 +169,7 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
     }
 
     auto *N = new BinaryOperatorNode(BinOp, Parent);
-    AddNode(N, Parent);
+    AttachNode(N, Parent);
 
     Create(LHS, /*Parent*/ N);
     Create(RHS, /*Parent*/ N);
@@ -203,12 +203,12 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
       // so that expressions such as a->f, (*a).f, (a + 0)->f, and a[0].f
       // all have the same canonical form.
       auto *N = new MemberNode(Field, /*IsArrow*/ true, Parent);
-      AddNode(N, Parent);
+      AttachNode(N, Parent);
       AddZero(ArrowBase, /*Parent*/ N);
     } else {
       // If no ArrowBase exists, then E is of the form a.f.
       auto *N = new MemberNode(Field, /*IsArrow*/ false, Parent);
-      AddNode(N, Parent);
+      AttachNode(N, Parent);
       Create(Base, /*Parent*/ N);
     }
 
@@ -221,7 +221,7 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
       // BinaryOperatorNode e + 0.
       auto *Child = UO->getSubExpr();
       auto *N = new UnaryOperatorNode(Op, Parent);
-      AddNode(N, Parent);
+      AttachNode(N, Parent);
       AddZero(Child, /*Parent*/ N);
     } else if ((Op == UnaryOperatorKind::UO_Plus ||
                Op == UnaryOperatorKind::UO_Minus) &&
@@ -231,10 +231,10 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
       // can be constant folded. Constant folding only folds LeafExprNodes that
       // are children of a BinaryOperatorNode.
       auto *N = new LeafExprNode(E, Parent);
-      AddNode(N, Parent);
+      AttachNode(N, Parent);
     } else {
       auto *N = new UnaryOperatorNode(Op, Parent);
-      AddNode(N, Parent);
+      AttachNode(N, Parent);
       Create(UO->getSubExpr(), /*Parent*/ N);
     }
 
@@ -245,7 +245,7 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
                                              AE->getValueKind(), AE->getObjectKind(),
                                              AE->getExprLoc(), FPOptionsOverride());
     auto *N = new UnaryOperatorNode(UnaryOperatorKind::UO_Deref, Parent);
-    AddNode(N, Parent);
+    AttachNode(N, Parent);
     // Even though e1 + e2 is already a binary operator, the child of the
     // UnaryOperatorNode should be e1 + e2 + 0. This enables expressions such
     // as p[i + -(1 + 2)] to be constant folded. In order for a
@@ -257,24 +257,24 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
 
   } else if (auto *ICE = dyn_cast<ImplicitCastExpr>(E)) {
     auto *N = new ImplicitCastNode(ICE->getCastKind(), Parent);
-    AddNode(N, Parent);
+    AttachNode(N, Parent);
     Create(ICE->getSubExpr(), /*Parent*/ N);
 
   } else {
     auto *N = new LeafExprNode(E, Parent);
-    AddNode(N, Parent);
+    AttachNode(N, Parent);
   }
 }
 
 void PreorderAST::AddZero(Expr *E, Node *Parent) {
   auto *N = new BinaryOperatorNode(BO_Add, Parent);
-  AddNode(N, Parent);
+  AttachNode(N, Parent);
 
   llvm::APInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
   auto *ZeroLiteral = new (Ctx) IntegerLiteral(Ctx, Zero, Ctx.IntTy,
                                                SourceLocation());
   auto *L = new LeafExprNode(ZeroLiteral, N);
-  AddNode(L, /*Parent*/ N);
+  AttachNode(L, /*Parent*/ N);
   Create(E, /*Parent*/ N);
 }
 
