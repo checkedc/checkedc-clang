@@ -77,8 +77,8 @@ namespace clang {
     Sema &S;
 
     // VarUses maps a VarDecl to the DeclRefExpr (if any) that is the first
-    // first use of the VarDecl. If a VarDecl V has an entry in VarUses,
-    // the DeclRefExpr for V is used to get or create the AbstractSet for V.
+    // use of the VarDecl. If a VarDecl V has an entry in VarUses, the
+    // DeclRefExpr for V is used to get or create the AbstractSet for V.
     // Otherwise, a use of V is constructed and added to VarUses. This created
     // use of V is currently not released. It should be rare that a use of V
     // needs to be created, since this should only if occur if:
