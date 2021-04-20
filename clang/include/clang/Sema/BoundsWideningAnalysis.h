@@ -16,6 +16,7 @@
 
 #include "clang/AST/CanonBounds.h"
 #include "clang/Analysis/Analyses/PostOrderCFGView.h"
+#include "clang/Sema/CheckedCAnalysesPrepass.h"
 #include "clang/Sema/Sema.h"
 
 namespace clang {
@@ -27,17 +28,10 @@ namespace clang {
   // statement to its bounds expression.
   using StmtBoundsMapTy = llvm::DenseMap<const Stmt *, BoundsMapTy>;
 
-  // VarSetTy denotes a set of variables.
-  using VarSetTy = llvm::DenseSet<const VarDecl *>;
-
   // StmtVarSetTy denotes a set of null-terminated array variables that are
   // associated with a statement. The set of variables whose bounds are killed
   // by a statement has the type StmtVarSetTy.
   using StmtVarSetTy = llvm::DenseMap<const Stmt *, VarSetTy>;
-
-  // BoundsVarsTy maps a variable Z to the set of all null-terminated array
-  // variables in whose bounds expressions Z occurs.
-  using BoundsVarsTy = llvm::DenseMap<const VarDecl *, VarSetTy>; 
 
   // The BoundsWideningAnalysis class represents the dataflow analysis for
   // bounds widening. The sets In, Out, Gen and Kill that are used by the
@@ -69,11 +63,6 @@ namespace clang {
       S(S), Cfg(Cfg), Ctx(S.Context),
       Lex(Lexicographic(Ctx, nullptr)),
       OS(llvm::outs()) {}
-
-    // A mapping of a variable Z to the set of all null-terminated array
-    // variables in whose bounds expressions Z occurs. We maintain this map
-    // only for variables that are mapped to non-empty sets.
-    BoundsVarsTy BoundsVars;
   };
 
 } // end namespace clang
