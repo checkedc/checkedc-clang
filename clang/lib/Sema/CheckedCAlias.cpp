@@ -504,13 +504,11 @@ namespace {
  private:
    Sema &SemaRef;
    Sema::ModifiedBoundsDependencies &Tracker;
-   Sema::VarDeclUsage &VarUses;
 
  public:
  ModifyingExprDependencies(Sema &SemaRef,
-                           Sema::ModifiedBoundsDependencies &Tracker,
-                           Sema::VarDeclUsage &VarUses) :
-   SemaRef(SemaRef), Tracker(Tracker), VarUses(VarUses) {}
+                           Sema::ModifiedBoundsDependencies &Tracker) :
+   SemaRef(SemaRef), Tracker(Tracker) {}
 
  // Statement to traverse.  This iterates recursively over a statement
  // and all of its children statements.
@@ -544,11 +542,6 @@ namespace {
          if (VarDecl *VD = dyn_cast<VarDecl>(D))
            VisitVarDecl(VD, Kind);
        }
-       break;
-     }
-     case Stmt::DeclRefExprClass: {
-       DeclRefExpr *DRE = cast<DeclRefExpr>(S);
-       VisitDeclRefExpr(DRE);
        break;
      }
      default:
@@ -614,24 +607,10 @@ namespace {
     Expr *LValue = Helper::SimplifyLValue(E->getLHS());
     RecordLValueUpdate(E, LValue, InCheckedScope);
   }
-
-  // VisitDeclRefExpr updates the VarUses map from D to E, where D is the
-  // declaration for E, if D has a bounds expression and E is the first
-  // use of D.
-  void VisitDeclRefExpr(DeclRefExpr *E) {
-    const VarDecl *D = dyn_cast_or_null<VarDecl>(E->getDecl());
-    if (!D)
-      return;
-    if (!D->hasBoundsExpr())
-      return;
-    if (VarUses.count(D) == 0)
-      VarUses[D] = E;
-  }
 };
 }
 
 void Sema::ComputeBoundsDependencies(ModifiedBoundsDependencies &Tracker,
-                                     VarDeclUsage &VarUses,
                                      FunctionDecl *FD, Stmt *Body) {
   if (!Body)
     return;
@@ -652,7 +631,7 @@ void Sema::ComputeBoundsDependencies(ModifiedBoundsDependencies &Tracker,
   BoundsDependencies.Dump(llvm::outs());
  #endif
 
-  ModifyingExprDependencies(*this, Tracker, VarUses).TraverseStmt(Body, false);
+  ModifyingExprDependencies(*this, Tracker).TraverseStmt(Body, false);
 
   // Stop tracking parameter bounds declaration dependencies.
   BoundsDependencies.ExitScope(CurrentBoundsScope);

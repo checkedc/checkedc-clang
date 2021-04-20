@@ -6,6 +6,7 @@
 #include "clang/AST/CanonBounds.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/PreorderAST.h"
+#include "clang/Sema/CheckedCAnalysesPrepass.h"
 #include "clang/Sema/Sema.h"
 
 namespace clang {
@@ -75,16 +76,18 @@ namespace clang {
   private:
     Sema &S;
 
-    // VarUses maps a VarDecl with a bounds expression to the DeclRefExpr
-    // (if any) that is the first use of the VarDecl. If a VarDecl V has
-    // an entry in VarUses, the DeclRefExpr for V is used to get or create
-    // the AbstractSet for V. Otherwise, a use of V is constructed and
-    // added to VarUses. This created use of V is currently not released.
-    // It should be rare that a use of V needs to be created, since this
-    // should only occur if V is unused within the body of a function.
+    // VarUses maps a VarDecl to the DeclRefExpr (if any) that is the first
+    // use of the VarDecl. If a VarDecl V has an entry in VarUses, the
+    // DeclRefExpr for V is used to get or create the AbstractSet for V.
+    // Otherwise, a use of V is constructed and added to VarUses. This created
+    // use of V is currently not released. It should be rare that a use of V
+    // needs to be created, since this should only occur if:
+    // V does not occur in any declared bounds expressions, and:
+    //  1. V is unused within the body of the function, or:
+    //  2. V does not have a declared bounds expression.
     // In order to get or create the AbstractSet for V, any use of V would
     // be sufficient. We choose the first use of V.
-    Sema::VarDeclUsage &VarUses;
+    VarUsageTy &VarUses;
 
     // Maintain a sorted set of PreorderASTs that have been created while
     // traversing a function. A binary search in this set is used to determine
@@ -103,7 +106,7 @@ namespace clang {
     llvm::DenseMap<PreorderAST *, const AbstractSet *> PreorderASTAbstractSetMap;
 
   public:
-    AbstractSetManager(Sema &S, Sema::VarDeclUsage &VarUses) :
+    AbstractSetManager(Sema &S, VarUsageTy &VarUses) :
       S(S), VarUses(VarUses) {}
 
     ~AbstractSetManager() {
