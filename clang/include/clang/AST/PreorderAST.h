@@ -23,32 +23,46 @@
 
 namespace clang {
   using Result = Lexicographic::Result;
-  class OperatorNode;
+  class LeafExprNode;
 
   class Node {
   public:
-    enum class NodeKind { OperatorNode, LeafExprNode };
+    // Nodes with two different kinds are sorted according to the order in
+    // which their kinds appear in this enum.
+    enum class NodeKind {
+      BinaryOperatorNode,
+      UnaryOperatorNode,
+      MemberNode,
+      ImplicitCastNode,
+      LeafExprNode
+    };
 
     NodeKind Kind;
-    OperatorNode *Parent;
+    Node *Parent;
 
-    Node(NodeKind Kind, OperatorNode *Parent) :
-      Kind(Kind), Parent(Parent) {}
+    Node(NodeKind Kind, Node *Parent) :
+      Kind(Kind), Parent(Parent) {
+        if (Parent)
+          assert(!isa<LeafExprNode>(Parent) &&
+                 "Parent node cannot be a LeafExprNode");
+      }
   };
 
-  class OperatorNode : public Node {
+  class BinaryOperatorNode : public Node {
   public:
     BinaryOperator::Opcode Opc;
-    // Note: An OperatorNode has a list of children because the preorder AST is
-    // an n-ary tree.
+    // A BinaryOperatorNode representing a commutative and associative binary
+    // operation may have more than two children because of coalescing.
+    // Ex: a + (b + c) will be represented by one BinaryOperatorNode for +
+    // with three children nodes for a, b and c after coalescing.
     llvm::SmallVector<Node *, 2> Children;
 
-    OperatorNode(BinaryOperator::Opcode Opc, OperatorNode *Parent) :
-      Node(NodeKind::OperatorNode, Parent),
+    BinaryOperatorNode(BinaryOperator::Opcode Opc, Node *Parent) :
+      Node(NodeKind::BinaryOperatorNode, Parent),
       Opc(Opc) {}
 
     static bool classof(const Node *N) {
-      return N->Kind == NodeKind::OperatorNode;
+      return N->Kind == NodeKind::BinaryOperatorNode;
     }
 
     // Is the operator commutative and associative?
@@ -57,11 +71,54 @@ namespace clang {
     }
   };
 
+  class UnaryOperatorNode : public Node {
+  public:
+    UnaryOperator::Opcode Opc;
+    Node *Child;
+
+    UnaryOperatorNode(UnaryOperator::Opcode Opc, Node *Parent) :
+      Node(NodeKind::UnaryOperatorNode, Parent),
+      Opc(Opc) {}
+
+    static bool classof(const Node *N) {
+      return N->Kind == NodeKind::UnaryOperatorNode;
+    }
+  };
+
+  class MemberNode : public Node {
+  public:
+    Node *Base = nullptr;
+    ValueDecl *Field = nullptr;
+    bool IsArrow;
+
+    MemberNode(ValueDecl *Field, bool IsArrow, Node *Parent) :
+      Node(NodeKind::MemberNode, Parent),
+      Field(Field), IsArrow(IsArrow) {}
+
+    static bool classof(const Node *N) {
+      return N->Kind == NodeKind::MemberNode;
+    }
+  };
+
+  class ImplicitCastNode : public Node {
+  public:
+    CastKind CK;
+    Node *Child;
+
+    ImplicitCastNode(CastKind CK, Node *Parent) :
+      Node(NodeKind::ImplicitCastNode, Parent),
+      CK(CK) {}
+
+    static bool classof(const Node *N) {
+      return N->Kind == NodeKind::ImplicitCastNode;
+    }
+  };
+
   class LeafExprNode : public Node {
   public:
     Expr *E;
 
-    LeafExprNode(Expr *E, OperatorNode *Parent) :
+    LeafExprNode(Expr *E, Node *Parent) :
       Node(NodeKind::LeafExprNode, Parent),
       E(E) {}
 
@@ -84,32 +141,40 @@ namespace clang {
     // Create a PreorderAST for the expression E.
     // @param[in] E is the sub expression to be added to a new node.
     // @param[in] Parent is the parent of the new node.
-    void Create(Expr *E, OperatorNode *Parent = nullptr);
+    void Create(Expr *E, Node *Parent = nullptr);
 
-    // Add a new node to the AST.
-    // @param[in] Node is the current node to be added.
-    // @param[in] Parent is the parent of the node to be added.
-    void AddNode(Node *N, OperatorNode *Parent);
+    // Create a BinaryOperatorNode with an addition operator and two children
+    // (E and 0), and attach the created BinaryOperatorNode to the Parent node.
+    // @param[in] E is the expression that is one of the two children of
+    // the created BinaryOperatorNode (the other child is 0).
+    // @param[in] Parent is the parent of the created BinaryOperatorNode.
+    void AddZero(Expr *E, Node *Parent);
 
-    // Coalesce the OperatorNode O with its parent. This involves moving the
-    // children (if any) of node O to its parent and then removing O.
-    // @param[in] O is the current node. O should be a OperatorNode.
-    void CoalesceNode(OperatorNode *O);
+    // Attach a new node to the AST. The node N is attached to the Parent node.
+    // @param[in] N is the current node to be attached.
+    // @param[in] Parent is the parent of the node to be attached.
+    void AttachNode(Node *N, Node *Parent);
 
-    // Determines if a OperatorNode could be coalesced into its parent.
-    // @param[in] O is the current node. O should be a OperatorNode.
-    // @return Return true if O can be coalesced into its parent, false
+    // Coalesce the BinaryOperatorNode B with its parent. This involves moving
+    // the children (if any) of node B to its parent and then removing B.
+    // @param[in] B is the current node. B should be a BinaryOperatorNode.
+    void CoalesceNode(BinaryOperatorNode *B);
+
+    // Determines if a BinaryOperatorNode could be coalesced into its parent.
+    // @param[in] B is the current node. B should be a BinaryOperatorNode.
+    // @return Return true if B can be coalesced into its parent, false
     // otherwise.
-    bool CanCoalesceNode(OperatorNode *O);
+    bool CanCoalesceNode(BinaryOperatorNode *B);
 
-    // Recursively coalesce OperatoreNodes having the same commutative and
-    // associative operator.
+    // Recursively coalesce BinaryOperatorNodes having the same commutative
+    // and associative operator.
     // @param[in] N is current node of the AST. Initial value is Root.
     // @param[in] Changed indicates whether a node was coalesced. We need this
     // to control when to stop recursive coalescing.
     void Coalesce(Node *N, bool &Changed);
 
-    // Sort the children expressions in a OperatorNode of the AST.
+    // Recursively descend the PreorderAST to sort the children of all
+    // BinaryOperatorNodes if the binary operator is commutative.
     // @param[in] N is current node of the AST. Initial value is Root.
     void Sort(Node *N);
 
@@ -125,6 +190,12 @@ namespace clang {
     // @param[in] Changed indicates whether constant folding was done. We need
     // this to control when to stop recursive constant folding.
     void ConstantFold(Node *N, bool &Changed);
+
+    // Constant fold integer expressions within a BinaryOperatorNode.
+    // @param[in] N is current node of the AST.
+    // @param[in] Changed indicates whether constant folding was done. We need
+    // this to control when to stop recursive constant folding.
+    void ConstantFoldOperator(BinaryOperatorNode *N, bool &Changed);
 
     // Get the deref offset from the DerefExpr. The offset represents the
     // possible amount by which the bounds of an ntptr could be widened.
