@@ -209,7 +209,7 @@ namespace clang {
       return N->Kind == NodeKind::LeafExprNode;
     }
 
-    Result Compare(Node *Other, Lexicographic Lex);
+    Result Compare(const Node *Other, Lexicographic Lex) const;
   };
 
 } // end namespace clang
