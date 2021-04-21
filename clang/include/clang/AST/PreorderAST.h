@@ -47,9 +47,35 @@ namespace clang {
                  "Parent node cannot be a LeafExprNode");
       }
 
+    // Recursively coalesce BinaryOperatorNodes having the same commutative
+    // and associative operator.
+    // @param[in] this is the current node of the AST.
+    // @param[in] Changed indicates whether a node was coalesced. We need this
+    // to control when to stop recursive coalescing.
+    // @param[in] Error indicates whether an error occurred during coalescing.
     virtual void Coalesce(bool &Changed, bool &Error) { }
+
+    // Recursively descend a Node to sort the children of all
+    // BinaryOperatorNodes if the binary operator is commutative.
+    // @param[in] this is the current node of the AST.
+    // @param[in] Lex is used to lexicographically compare Exprs and Decls
+    // that occur within nodes.
     virtual void Sort(Lexicographic Lex) { }
+
+    // Constant fold integer expressions.
+    // @param[in] this is the current node of the AST.
+    // @param[in] Changed indicates whether constant folding was done. We need
+    // this to control when to stop recursive constant folding.
+    // @param[in] Error indicates whether an error occurred during constant
+    // folding.
+    // @param[in] Ctx is used to create constant expressions.
     virtual void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx) { }
+
+    // Compare nodes according to their kind.
+    // @param[in] this is the current node of the AST.
+    // @param[in] Other is the node to compare to this.
+    // @return Returns a Lexicographic::Result indicating the comparison
+    // between this and Other according to their node kinds.
     Result CompareKinds(const Node *Other) const {
       if (Kind < Other->Kind)
         return Result::LessThan;
@@ -57,9 +83,20 @@ namespace clang {
         return Result::GreaterThan;
       return Result::Equal;
     }
+
+    // Compare two nodes lexicographically.
+    // @param[in] this is the current node of the AST.
+    // @param[in] Other the node to compare to this.
+    // @param[in] Lex is used to lexicographically compare Exprs and Decls
+    // that occur within nodes.
+    // @return Returns a Lexicographic::Result indicating the comparison
+    // between this and Other.
     virtual Result Compare(const Node *Other, Lexicographic Lex) const {
       return CompareKinds(Other);
     }
+
+    // Cleanup the memory consumed by this node.
+    // @param[in] this is the current node of the AST.
     virtual void Cleanup() {
       delete this;
     }
@@ -87,6 +124,10 @@ namespace clang {
       return Opc == BO_Add || Opc == BO_Mul;
     }
 
+    // Determines if the BinaryOperatorNode could be coalesced into its parent.
+    // @param[in] this is the current node.
+    // @return Returns true if this can be coalesced into its parent, false
+    // otherwise.
     bool CanCoalesce();
     void Coalesce(bool &Changed, bool &Error);
     void Sort(Lexicographic Lex);
