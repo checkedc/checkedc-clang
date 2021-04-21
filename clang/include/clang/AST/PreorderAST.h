@@ -46,6 +46,8 @@ namespace clang {
           assert(!isa<LeafExprNode>(Parent) &&
                  "Parent node cannot be a LeafExprNode");
       }
+
+    virtual void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx) { }
   };
 
   class BinaryOperatorNode : public Node {
@@ -69,6 +71,8 @@ namespace clang {
     bool IsOpCommutativeAndAssociative() {
       return Opc == BO_Add || Opc == BO_Mul;
     }
+
+    void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
   };
 
   class UnaryOperatorNode : public Node {
@@ -83,6 +87,8 @@ namespace clang {
     static bool classof(const Node *N) {
       return N->Kind == NodeKind::UnaryOperatorNode;
     }
+
+    void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
   };
 
   class MemberNode : public Node {
@@ -98,6 +104,8 @@ namespace clang {
     static bool classof(const Node *N) {
       return N->Kind == NodeKind::MemberNode;
     }
+
+    void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
   };
 
   class ImplicitCastNode : public Node {
@@ -112,6 +120,8 @@ namespace clang {
     static bool classof(const Node *N) {
       return N->Kind == NodeKind::ImplicitCastNode;
     }
+
+    void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
   };
 
   class LeafExprNode : public Node {
@@ -184,18 +194,6 @@ namespace clang {
     // @param[in] N2 is the second node to compare.
     // return A boolean indicating the relative ordering between N1 and N2.
     bool CompareNodes(const Node *N1, const Node *N2);
-
-    // Constant fold integer expressions.
-    // @param[in] N is current node of the AST. Initial value is Root.
-    // @param[in] Changed indicates whether constant folding was done. We need
-    // this to control when to stop recursive constant folding.
-    void ConstantFold(Node *N, bool &Changed);
-
-    // Constant fold integer expressions within a BinaryOperatorNode.
-    // @param[in] N is current node of the AST.
-    // @param[in] Changed indicates whether constant folding was done. We need
-    // this to control when to stop recursive constant folding.
-    void ConstantFoldOperator(BinaryOperatorNode *N, bool &Changed);
 
     // Get the deref offset from the DerefExpr. The offset represents the
     // possible amount by which the bounds of an ntptr could be widened.

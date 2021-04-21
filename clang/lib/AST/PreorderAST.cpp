@@ -437,70 +437,33 @@ void PreorderAST::Sort(Node *N) {
   }
 }
 
-void PreorderAST::ConstantFold(Node *N, bool &Changed) {
-  if (Error)
+
     return;
 
-  if (!N)
-    return;
-
-  // TODO: GitHub checkedc-clang issue #1032. Each kind of Node should have
-  // its own ConstantFold method.
-  switch (N->Kind) {
-    default:
-      break;
-    case Node::NodeKind::BinaryOperatorNode: {
-      auto *B = dyn_cast<BinaryOperatorNode>(N);
-      ConstantFoldOperator(B, Changed);
-      break;
-    }
-    case Node::NodeKind::UnaryOperatorNode: {
-      auto *U = dyn_cast<UnaryOperatorNode>(N);
-      ConstantFold(U->Child, Changed);
-      break;
-    }
-    case Node::NodeKind::MemberNode: {
-      auto *M = dyn_cast<MemberNode>(N);
-      ConstantFold(M->Base, Changed);
-      break;
-    }
-    case Node::NodeKind::ImplicitCastNode: {
-      auto *I = dyn_cast<ImplicitCastNode>(N);
-      ConstantFold(I->Child, Changed);
-      break;
-    }
-  }
 }
 
-// TODO: GitHub checkedc-clang issue #1032. Each kind of Node should have
-// its own ConstantFold method, so there should no longer be a need for
-// a separate ConstantFoldOperator method.
-void PreorderAST::ConstantFoldOperator(BinaryOperatorNode *B, bool &Changed) {
-  // Note: This function assumes that the children of each BinaryOperatorNode
-  // of the preorder AST have already been sorted.
 
+
+void BinaryOperatorNode::ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx) {
   if (Error)
-    return;
-
-  if (!B)
     return;
 
   size_t ConstStartIdx = 0;
   unsigned NumConsts = 0;
   llvm::APSInt ConstFoldedVal;
 
-  for (size_t I = 0; I != B->Children.size(); ++I) {
-    auto *Child = B->Children[I];
+  for (size_t I = 0; I != Children.size(); ++I) {
+    auto *Child = Children[I];
 
     // Recursively constant fold the non-leaf children of a BinaryOperatorNode.
     if (!isa<LeafExprNode>(Child)) {
-      ConstantFold(Child, Changed);
+      Child->ConstantFold(Changed, Error, Ctx);
       continue;
     }
 
     // We can only constant fold if the operator is commutative and
     // associative.
-    if (!B->IsOpCommutativeAndAssociative())
+    if (!IsOpCommutativeAndAssociative())
       continue;
 
     auto *ChildLeafNode = dyn_cast_or_null<LeafExprNode>(Child);
@@ -523,7 +486,7 @@ void PreorderAST::ConstantFoldOperator(BinaryOperatorNode *B, bool &Changed) {
     } else {
       // Constant fold based on the operator.
       bool Overflow;
-      switch(B->Opc) {
+      switch(Opc) {
         default: continue;
         case BO_Add:
           ConstFoldedVal = ConstFoldedVal.sadd_ov(CurrConstVal, Overflow);
@@ -535,7 +498,7 @@ void PreorderAST::ConstantFoldOperator(BinaryOperatorNode *B, bool &Changed) {
 
       // If we encounter an overflow during constant folding we cannot proceed.
       if (Overflow) {
-        SetError();
+        Error = true;
         return;
       }
     }
@@ -550,10 +513,10 @@ void PreorderAST::ConstantFoldOperator(BinaryOperatorNode *B, bool &Changed) {
   // erase the iterator automatically points to the new location of the element
   // following the one we just erased.
   llvm::SmallVector<Node *, 2>::iterator I =
-    B->Children.begin() + ConstStartIdx;
+    Children.begin() + ConstStartIdx;
   while (NumConsts--) {
     delete(*I);
-    B->Children.erase(I);
+    Children.erase(I);
   }
 
   llvm::APInt IntVal(Ctx.getTargetInfo().getIntWidth(),
@@ -564,14 +527,32 @@ void PreorderAST::ConstantFoldOperator(BinaryOperatorNode *B, bool &Changed) {
 
   // Add the constant folded expression to list of children of the current
   // BinaryOperatorNode.
-  B->Children.push_back(new LeafExprNode(ConstFoldedExpr, B));
+  Children.push_back(new LeafExprNode(ConstFoldedExpr, this));
 
   // If the constant folded expr is the only child of this BinaryOperatorNode
   // we can coalesce the node.
-  if (B->Children.size() == 1 && CanCoalesceNode(B))
-    CoalesceNode(B);
+  if (Children.size() == 1 && CanCoalesce())
+    Coalesce(Changed, Error);
 
   Changed = true;
+}
+
+void UnaryOperatorNode::ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx) {
+  if (Error)
+    return;
+  Child->ConstantFold(Changed, Error, Ctx);
+}
+
+void MemberNode::ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx) {
+  if (Error)
+    return;
+  Base->ConstantFold(Changed, Error, Ctx);
+}
+
+void ImplicitCastNode::ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx) {
+  if (Error)
+    return;
+  Child->ConstantFold(Changed, Error, Ctx);
 }
 
 bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
@@ -763,7 +744,7 @@ void PreorderAST::Normalize() {
     if (Error)
       break;
     Sort(Root);
-    ConstantFold(Root, Changed);
+    Root->ConstantFold(Changed, Error, Ctx);
     if (Error)
       break;
   }
