@@ -60,7 +60,7 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
 
   E = Lex.IgnoreValuePreservingOperations(Ctx, E->IgnoreParens());
 
-  if (!Parent) {
+  if (!Root) {
     // The invariant is that the root node must be a BinaryOperatorNode with an
     // addition operator. So for expressions like "if (*p)", we don't have a
     // BinaryOperator. So when we enter this function there is no root and the
