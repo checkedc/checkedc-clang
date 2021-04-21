@@ -318,7 +318,7 @@ void BinaryOperatorNode::Sort(Lexicographic Lex) {
 
   // Sort the children.
   llvm::sort(Children.begin(), Children.end(),
-            [&](Node *N1, Node *N2) {
+            [&](const Node *N1, const Node *N2) {
               return N1->Compare(N2, Lex) == Result::LessThan;
             });
 }
@@ -522,12 +522,15 @@ bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
   return true;
 }
 
-Result BinaryOperatorNode::Compare(Node *Other, Lexicographic Lex) {
+Result BinaryOperatorNode::Compare(const Node *Other, Lexicographic Lex) const {
   Result KindComparison = CompareKinds(Other);
   if (KindComparison != Result::Equal)
     return KindComparison;
 
-  BinaryOperatorNode *B = dyn_cast<BinaryOperatorNode>(Other);
+  const BinaryOperatorNode *B = dyn_cast<BinaryOperatorNode>(Other);
+  if (!B)
+    return Result::LessThan;
+
   // If the Opcodes mismatch.
   if (Opc < B->Opc)
     return Result::LessThan;
@@ -557,12 +560,14 @@ Result BinaryOperatorNode::Compare(Node *Other, Lexicographic Lex) {
   return Result::Equal;
 }
 
-Result UnaryOperatorNode::Compare(Node *Other, Lexicographic Lex) {
+Result UnaryOperatorNode::Compare(const Node *Other, Lexicographic Lex) const {
   Result KindComparison = CompareKinds(Other);
   if (KindComparison != Result::Equal)
     return KindComparison;
 
-  UnaryOperatorNode *U = dyn_cast<UnaryOperatorNode>(Other);
+  const UnaryOperatorNode *U = dyn_cast<UnaryOperatorNode>(Other);
+  if (!U)
+    return Result::LessThan;
 
   // If the Opcodes mismatch.
   if (Opc < U->Opc)
@@ -573,12 +578,14 @@ Result UnaryOperatorNode::Compare(Node *Other, Lexicographic Lex) {
   return Child->Compare(U->Child, Lex);
 }
 
-Result MemberNode::Compare(Node *Other, Lexicographic Lex) {
+Result MemberNode::Compare(const Node *Other, Lexicographic Lex) const {
   Result KindComparison = CompareKinds(Other);
   if (KindComparison != Result::Equal)
     return KindComparison;
 
-  MemberNode *M = dyn_cast<MemberNode>(Other);
+  const MemberNode *M = dyn_cast<MemberNode>(Other);
+  if (!M)
+    return Result::LessThan;
 
   // If the arrow flags mismatch.
   if (IsArrow && !M->IsArrow)
@@ -594,12 +601,14 @@ Result MemberNode::Compare(Node *Other, Lexicographic Lex) {
   return Base->Compare(M->Base, Lex);
 }
 
-Result ImplicitCastNode::Compare(Node *Other, Lexicographic Lex) {
+Result ImplicitCastNode::Compare(const Node *Other, Lexicographic Lex) const {
   Result KindComparison = CompareKinds(Other);
   if (KindComparison != Result::Equal)
     return KindComparison;
 
-  ImplicitCastNode *I = dyn_cast<ImplicitCastNode>(Other);
+  const ImplicitCastNode *I = dyn_cast<ImplicitCastNode>(Other);
+  if (!I)
+    return Result::LessThan;
 
   // If the cast kinds mismatch.
   if (CK < I->CK)
@@ -610,13 +619,16 @@ Result ImplicitCastNode::Compare(Node *Other, Lexicographic Lex) {
   return Child->Compare(I->Child, Lex);
 }
 
-Result LeafExprNode::Compare(Node *Other, Lexicographic Lex) {
+Result LeafExprNode::Compare(const Node *Other, Lexicographic Lex) const {
   Result KindComparison = CompareKinds(Other);
   if (KindComparison != Result::Equal)
     return KindComparison;
 
+  const LeafExprNode *L = dyn_cast<LeafExprNode>(Other);
+  if (!L)
+    return Result::LessThan;
+
   // Compare the exprs for two leaf nodes.
-  LeafExprNode *L = dyn_cast<LeafExprNode>(Other);
   return Lex.CompareExpr(E, L->E);
 }
 

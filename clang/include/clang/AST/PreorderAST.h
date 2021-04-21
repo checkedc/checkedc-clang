@@ -50,14 +50,14 @@ namespace clang {
     virtual void Coalesce(bool &Changed, bool &Error) { }
     virtual void Sort(Lexicographic Lex) { }
     virtual void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx) { }
-    Result CompareKinds(Node *Other) {
+    Result CompareKinds(const Node *Other) const {
       if (Kind < Other->Kind)
         return Result::LessThan;
       if (Kind > Other->Kind)
         return Result::GreaterThan;
       return Result::Equal;
     }
-    virtual Result Compare(Node *Other, Lexicographic Lex) {
+    virtual Result Compare(const Node *Other, Lexicographic Lex) const {
       return CompareKinds(Other);
     }
     virtual void Cleanup() {
@@ -91,7 +91,7 @@ namespace clang {
     void Coalesce(bool &Changed, bool &Error);
     void Sort(Lexicographic Lex);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
-    Result Compare(Node *Other, Lexicographic Lex);
+    Result Compare(const Node *Other, Lexicographic Lex) const;
     void Cleanup();
   };
 
@@ -111,7 +111,7 @@ namespace clang {
     void Coalesce(bool &Changed, bool &Error);
     void Sort(Lexicographic Lex);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
-    Result Compare(Node *Other, Lexicographic Lex);
+    Result Compare(const Node *Other, Lexicographic Lex) const;
     void Cleanup();
   };
 
@@ -132,7 +132,7 @@ namespace clang {
     void Coalesce(bool &Changed, bool &Error);
     void Sort(Lexicographic Lex);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
-    Result Compare(Node *Other, Lexicographic Lex);
+    Result Compare(const Node *Other, Lexicographic Lex) const;
     void Cleanup();
   };
 
@@ -152,7 +152,7 @@ namespace clang {
     void Coalesce(bool &Changed, bool &Error);
     void Sort(Lexicographic Lex);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
-    Result Compare(Node *Other, Lexicographic Lex);
+    Result Compare(const Node *Other, Lexicographic Lex) const;
     void Cleanup();
   };
 
@@ -280,7 +280,9 @@ namespace clang {
     // @param[in] P is the second AST.
     // @return Returns a Lexicographic::Result indicating the comparison between
     // the two ASTs.
-    Result Compare(const PreorderAST P) const { return Root->Compare(P.Root, Lex); }
+    Result Compare(const PreorderAST P) const {
+      return Root->Compare(P.Root, Lex);
+    }
 
     // Check if an error has occurred during transformation of the AST. This
     // is intended to be called from outside this class to check if an error
