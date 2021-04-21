@@ -64,7 +64,7 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
     // The invariant is that the root node must be a BinaryOperatorNode with an
     // addition operator. So for expressions like "if (*p)", we don't have a
     // BinaryOperator. So when we enter this function there is no root and the
-    // parent is null. So we create a new BinaryOperatorNode with + as the
+    // Root node is null. So we create a new BinaryOperatorNode with + as the
     // operator and add 0 as a LeafExprNode child of this BinaryOperatorNode.
     // This helps us compare expressions like "p" and "p + 1" by normalizing
     // "p" to "p + 0".

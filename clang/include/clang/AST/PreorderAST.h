@@ -268,6 +268,15 @@ namespace clang {
 
     // Create a BinaryOperatorNode with an addition operator and two children
     // (E and 0), and attach the created BinaryOperatorNode to the Parent node.
+    // This method is used to maintain an invariant that an expression `e` is
+    // equivalent to `e + 0`. This invariant must hold when:
+    // 1. `e` is the root expression that is used to create the PreorderAST.
+    // 2. `e` is the subexpression of a dereference expression. For example:
+    //   a. `*e` and `*(e + 0)` must have the same canonical form.
+    //   b. `e1[e2]` is equivalent to `*(e1 + e2)`, so `*(e1 + e2)` and
+    //       `*(e1 + e2 + 0)` must have the same canonical form.
+    //   c. `e->f`, `*e.f`, `(e + 0)->f`, `*(e + 0).f`, and `e[0].f` must have
+    //       the same canonical form.
     // @param[in] E is the expression that is one of the two children of
     // the created BinaryOperatorNode (the other child is 0).
     // @param[in] Parent is the parent of the created BinaryOperatorNode.
