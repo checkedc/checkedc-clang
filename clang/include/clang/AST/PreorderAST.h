@@ -187,6 +187,35 @@ namespace clang {
     // @param[in] Parent is the parent of the new node.
     void Create(Expr *E, Node *Parent = nullptr);
 
+    // Create a BinaryOperatorNode for the expression E.
+    // @param[in] E is the expression whose LHS and RHS subexpressions
+    // will be added to a new node.
+    // @param[in] Parent is the parent of the new node.
+    void CreateBinaryOperator(BinaryOperator *E, Node *Parent);
+
+    // Create a UnaryOperatorNode or a LeafExprNode for the expression E.
+    // @param[in] E is the expression that is used to create a new node.
+    // @param[in] Parent is the parent of the new node.
+    void CreateUnaryOperator(UnaryOperator *E, Node *Parent);
+
+    // Create a UnaryOperatorNode with the sub expression Child and the
+    // Deref unary operator.
+    // @param[in] Child is the expression that is the child of a new node.
+    // @param[in] Parent is the parent of the new node.
+    void CreateDereference(Expr *Child, Node *Parent);
+
+    // Create a MemberNode for the expression E.
+    // @param[in] E is the expression whose Base and Field will be added to
+    // a new node.
+    // @param[in] Parent is the parent of the new node.
+    void CreateMember(MemberExpr *E, Node *Parent);
+
+    // Create an ImplicitCastNode for the expression.
+    // @param[in] E is the expression whose CastKind and sub expression will
+    // be added to a new node.
+    // @param[in] Parent is the parent of the new node.
+    void CreateImplicitCast(ImplicitCastExpr *E, Node *Parent);
+
     // Create a BinaryOperatorNode with an addition operator and two children
     // (E and 0), and attach the created BinaryOperatorNode to the Parent node.
     // @param[in] E is the expression that is one of the two children of

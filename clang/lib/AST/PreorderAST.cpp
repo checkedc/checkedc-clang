@@ -71,118 +71,11 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
 
     AddZero(E, Parent);
 
-  } else if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
-    BinaryOperator::Opcode BinOp = BO->getOpcode();
-    Expr *LHS = BO->getLHS();
-    Expr *RHS = BO->getRHS();
-
-    // We can convert (e1 - e2) to (e1 + -e2) if -e2 does not overflow.  One
-    // instance where -e2 can overflow is if e2 is INT_MIN. Here, instead of
-    // specifically checking whether e2 is INT_MIN, we add a unary minus to e2
-    // and then check if the resultant expression -e2 overflows. If it
-    // overflows, we undo the unary minus operator.
-
-    // TODO: Currently, we can only prove that integer constant expressions do
-    // not overflow. We still need to handle proving that non-constant
-    // expressions do not overflow.
-    if (BO->getOpcode() == BO_Sub &&
-        RHS->isIntegerConstantExpr(Ctx)) {
-      Expr *UOMinusRHS =
-        UnaryOperator::Create(Ctx, RHS, UO_Minus, RHS->getType(),
-                              RHS->getValueKind(), RHS->getObjectKind(),
-                              SourceLocation(), /*CanOverflow*/ true,
-                              FPOptionsOverride());
-
-      SmallVector<PartialDiagnosticAt, 8> Diag;
-      UOMinusRHS->EvaluateKnownConstIntCheckOverflow(Ctx, &Diag);
-
-      bool Overflow = false;
-      for (auto &PD : Diag) {
-        if (PD.second.getDiagID() == diag::note_constexpr_overflow) {
-          Overflow = true;
-          break;
-        }
-      }
-
-      if (!Overflow) {
-        BinOp = BO_Add;
-        RHS = UOMinusRHS;
-      }
-
-      // TODO: In case of overflow we leak the memory allocated to UOMinusRHS.
-      // Whereas if there is no overflow we leak the memory initially allocated
-      // to RHS.
-    }
-
-    auto *N = new BinaryOperatorNode(BinOp, Parent);
-    AttachNode(N, Parent);
-
-    Create(LHS, /*Parent*/ N);
-    Create(RHS, /*Parent*/ N);
-
-  } else if (const auto *ME = dyn_cast<MemberExpr>(E)) {
-    Expr *Base = Lex.IgnoreValuePreservingOperations(Ctx, ME->getBase()->IgnoreParens());
-    ValueDecl *Field = ME->getMemberDecl();
-
-    // Expressions such as a->f, (*a).f, and a[0].f should have the same
-    // canonical form: a MemberNode with a Base node of + [a, 0] and a
-    // Field of f. Here, we determine whether the expression E is of one of
-    // the forms a->f, (*a).f, etc. and create the base expression a.
-    Expr *ArrowBase = nullptr;
-    if (ME->isArrow()) {
-      ArrowBase = Base;
-    } else {
-      if (const auto *UO = dyn_cast<UnaryOperator>(Base)) {
-        if (UO->getOpcode() == UnaryOperatorKind::UO_Deref)
-          ArrowBase = UO->getSubExpr();
-      } else if (auto *AE = dyn_cast<ArraySubscriptExpr>(Base)) {
-        ArrowBase = BinaryOperator::Create(Ctx, AE->getBase(), AE->getIdx(),
-                                           BinaryOperatorKind::BO_Add, AE->getType(),
-                                           AE->getValueKind(), AE->getObjectKind(),
-                                           AE->getExprLoc(), FPOptionsOverride());
-      }
-    }
-
-    if (ArrowBase) {
-      // If ArrowBase exists, then E is of the form ArrowBase->f,
-      // (*ArrowBase).f, etc. The Base of the MemberNode is ArrowBase + 0
-      // so that expressions such as a->f, (*a).f, (a + 0)->f, and a[0].f
-      // all have the same canonical form.
-      auto *N = new MemberNode(Field, /*IsArrow*/ true, Parent);
-      AttachNode(N, Parent);
-      AddZero(ArrowBase, /*Parent*/ N);
-    } else {
-      // If no ArrowBase exists, then E is of the form a.f.
-      auto *N = new MemberNode(Field, /*IsArrow*/ false, Parent);
-      AttachNode(N, Parent);
-      Create(Base, /*Parent*/ N);
-    }
+  } else if (auto *BO = dyn_cast<BinaryOperator>(E)) {
+    CreateBinaryOperator(BO, Parent);
 
   } else if (auto *UO = dyn_cast<UnaryOperator>(E)) {
-    UnaryOperatorKind Op = UO->getOpcode();
-    if (Op == UnaryOperatorKind::UO_Deref) {
-      // The child of a dereference operator must be a binary operator so that
-      // *e and *(e + 0) have the same canonical form. So for an expression of
-      // the form *e, we create a UnaryOperatorNode whose child is a
-      // BinaryOperatorNode e + 0.
-      auto *Child = UO->getSubExpr();
-      auto *N = new UnaryOperatorNode(Op, Parent);
-      AttachNode(N, Parent);
-      AddZero(Child, /*Parent*/ N);
-    } else if ((Op == UnaryOperatorKind::UO_Plus ||
-               Op == UnaryOperatorKind::UO_Minus) &&
-               E->isIntegerConstantExpr(Ctx)) {
-      // For integer constant expressions of the form +e or -e, we create a
-      // LeafExprNode rather than a UnaryOperatorNode so that these expressions
-      // can be constant folded. Constant folding only folds LeafExprNodes that
-      // are children of a BinaryOperatorNode.
-      auto *N = new LeafExprNode(E, Parent);
-      AttachNode(N, Parent);
-    } else {
-      auto *N = new UnaryOperatorNode(Op, Parent);
-      AttachNode(N, Parent);
-      Create(UO->getSubExpr(), /*Parent*/ N);
-    }
+    CreateUnaryOperator(UO, Parent);
 
   } else if (auto *AE = dyn_cast<ArraySubscriptExpr>(E)) {
     // e1[e2] has the same canonical form as *(e1 + e2).
@@ -190,26 +83,142 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
                                              BinaryOperatorKind::BO_Add, AE->getType(),
                                              AE->getValueKind(), AE->getObjectKind(),
                                              AE->getExprLoc(), FPOptionsOverride());
-    auto *N = new UnaryOperatorNode(UnaryOperatorKind::UO_Deref, Parent);
-    AttachNode(N, Parent);
-    // Even though e1 + e2 is already a binary operator, the child of the
-    // UnaryOperatorNode should be e1 + e2 + 0. This enables expressions such
-    // as p[i + -(1 + 2)] to be constant folded. In order for a
-    // BinaryOperatorNode to be constant folded, it must have at least two
-    // LeafExprNode children whose expressions are integer constants. For
-    // example, i + -(1 + 2) + 0 will be constant folded to i + -3, but
-    // i + -(1 + 2) will not be constant folded.
-    AddZero(DerefExpr, /*Parent*/ N);
+    CreateDereference(DerefExpr, Parent);
+
+  } else if (auto *ME = dyn_cast<MemberExpr>(E)) {
+    CreateMember(ME, Parent);
 
   } else if (auto *ICE = dyn_cast<ImplicitCastExpr>(E)) {
-    auto *N = new ImplicitCastNode(ICE->getCastKind(), Parent);
-    AttachNode(N, Parent);
-    Create(ICE->getSubExpr(), /*Parent*/ N);
+    CreateImplicitCast(ICE, Parent);
 
   } else {
     auto *N = new LeafExprNode(E, Parent);
     AttachNode(N, Parent);
   }
+}
+
+void PreorderAST::CreateBinaryOperator(BinaryOperator *E, Node *Parent) {
+  BinaryOperatorKind BinOp = E->getOpcode();
+  Expr *LHS = E->getLHS();
+  Expr *RHS = E->getRHS();
+
+  // We can convert (e1 - e2) to (e1 + -e2) if -e2 does not overflow.  One
+  // instance where -e2 can overflow is if e2 is INT_MIN. Here, instead of
+  // specifically checking whether e2 is INT_MIN, we add a unary minus to e2
+  // and then check if the resultant expression -e2 overflows. If it
+  // overflows, we undo the unary minus operator.
+
+  // TODO: Currently, we can only prove that integer constant expressions do
+  // not overflow. We still need to handle proving that non-constant
+  // expressions do not overflow.
+  if (BinOp == BO_Sub && RHS->isIntegerConstantExpr(Ctx)) {
+    Expr *UOMinusRHS =
+      UnaryOperator::Create(Ctx, RHS, UO_Minus, RHS->getType(),
+                            RHS->getValueKind(), RHS->getObjectKind(),
+                            SourceLocation(), /*CanOverflow*/ true,
+                            FPOptionsOverride());
+
+    SmallVector<PartialDiagnosticAt, 8> Diag;
+    UOMinusRHS->EvaluateKnownConstIntCheckOverflow(Ctx, &Diag);
+
+    bool Overflow = false;
+    for (auto &PD : Diag) {
+      if (PD.second.getDiagID() == diag::note_constexpr_overflow) {
+        Overflow = true;
+        break;
+      }
+    }
+
+    if (!Overflow) {
+      BinOp = BO_Add;
+      RHS = UOMinusRHS;
+    }
+
+    // TODO: In case of overflow we leak the memory allocated to UOMinusRHS.
+    // Whereas if there is no overflow we leak the memory initially allocated
+    // to RHS.
+  }
+
+  auto *N = new BinaryOperatorNode(BinOp, Parent);
+  AttachNode(N, Parent);
+
+  Create(LHS, /*Parent*/ N);
+  Create(RHS, /*Parent*/ N);
+}
+
+void PreorderAST::CreateUnaryOperator(UnaryOperator *E, Node *Parent) {
+  UnaryOperatorKind Op = E->getOpcode();
+  if (Op == UnaryOperatorKind::UO_Deref) {
+    CreateDereference(E->getSubExpr(), Parent);
+  } else if ((Op == UnaryOperatorKind::UO_Plus ||
+              Op == UnaryOperatorKind::UO_Minus) &&
+              E->isIntegerConstantExpr(Ctx)) {
+    // For integer constant expressions of the form +e or -e, we create a
+    // LeafExprNode rather than a UnaryOperatorNode so that these expressions
+    // can be constant folded. Constant folding only folds LeafExprNodes that
+    // are children of a BinaryOperatorNode.
+    auto *N = new LeafExprNode(E, Parent);
+    AttachNode(N, Parent);
+  } else {
+    auto *N = new UnaryOperatorNode(Op, Parent);
+    AttachNode(N, Parent);
+    Create(E->getSubExpr(), /*Parent*/ N);
+  }
+}
+
+void PreorderAST::CreateDereference(Expr *Child, Node *Parent) {
+  // The child of a dereference operator must be a binary operator so that
+  // *e and *(e + 0) have the same canonical form. So for an expression of
+  // the form *e, we create a UnaryOperatorNode whose child is a
+  // BinaryOperatorNode e + 0.
+  auto *N = new UnaryOperatorNode(UnaryOperatorKind::UO_Deref, Parent);
+  AttachNode(N, Parent);
+  AddZero(Child, /*Parent*/ N);
+}
+
+void PreorderAST::CreateMember(MemberExpr *E, Node *Parent) {
+  Expr *Base = Lex.IgnoreValuePreservingOperations(Ctx, E->getBase()->IgnoreParens());
+  ValueDecl *Field = E->getMemberDecl();
+
+  // Expressions such as a->f, (*a).f, and a[0].f should have the same
+  // canonical form: a MemberNode with a Base node of a + 0 and a Field
+  // of f. Here, we determine whether the expression E is of one of the
+  // forms a->f, (*a).f, etc. and create the base expression a.
+  Expr *ArrowBase = nullptr;
+  if (E->isArrow()) {
+    ArrowBase = Base;
+  } else {
+    if (const auto *UO = dyn_cast<UnaryOperator>(Base)) {
+      if (UO->getOpcode() == UnaryOperatorKind::UO_Deref)
+        ArrowBase = UO->getSubExpr();
+    } else if (auto *AE = dyn_cast<ArraySubscriptExpr>(Base)) {
+      ArrowBase = BinaryOperator::Create(Ctx, AE->getBase(), AE->getIdx(),
+                                         BinaryOperatorKind::BO_Add, AE->getType(),
+                                         AE->getValueKind(), AE->getObjectKind(),
+                                         AE->getExprLoc(), FPOptionsOverride());
+    }
+  }
+
+  if (ArrowBase) {
+    // If ArrowBase exists, then E is of the form ArrowBase->f,
+    // (*ArrowBase).f, etc. The Base of the MemberNode is ArrowBase + 0
+    // so that expressions such as a->f, (*a).f, (a + 0)->f, and a[0].f
+    // all have the same canonical form.
+    auto *N = new MemberNode(Field, /*IsArrow*/ true, Parent);
+    AttachNode(N, Parent);
+    AddZero(ArrowBase, /*Parent*/ N);
+  } else {
+    // If no ArrowBase exists, then E is of the form a.f.
+    auto *N = new MemberNode(Field, /*IsArrow*/ false, Parent);
+    AttachNode(N, Parent);
+    Create(Base, /*Parent*/ N);
+  }
+}
+
+void PreorderAST::CreateImplicitCast(ImplicitCastExpr *E, Node *Parent) {
+  auto *N = new ImplicitCastNode(E->getCastKind(), Parent);
+  AttachNode(N, Parent);
+  Create(E->getSubExpr(), /*Parent*/ N);
 }
 
 void PreorderAST::AddZero(Expr *E, Node *Parent) {
