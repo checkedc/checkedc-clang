@@ -335,7 +335,8 @@ void ImplicitCastNode::Sort(Lexicographic Lex) {
   Child->Sort(Lex);
 }
 
-void BinaryOperatorNode::ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx) {
+void BinaryOperatorNode::ConstantFold(bool &Changed, bool &Error,
+                                      ASTContext &Ctx) {
   if (Error)
     return;
 
@@ -428,7 +429,8 @@ void BinaryOperatorNode::ConstantFold(bool &Changed, bool &Error, ASTContext &Ct
   Changed = true;
 }
 
-void UnaryOperatorNode::ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx) {
+void UnaryOperatorNode::ConstantFold(bool &Changed, bool &Error,
+                                     ASTContext &Ctx) {
   if (Error)
     return;
   Child->ConstantFold(Changed, Error, Ctx);
@@ -440,7 +442,8 @@ void MemberNode::ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx) {
   Base->ConstantFold(Changed, Error, Ctx);
 }
 
-void ImplicitCastNode::ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx) {
+void ImplicitCastNode::ConstantFold(bool &Changed, bool &Error,
+                                    ASTContext &Ctx) {
   if (Error)
     return;
   Child->ConstantFold(Changed, Error, Ctx);
