@@ -298,57 +298,33 @@ void ImplicitCastNode::Coalesce(bool &Changed, bool &Error) {
   Child->Coalesce(Changed, Error);
 }
 
-void PreorderAST::Sort(Node *N) {
-  if (!N)
+void BinaryOperatorNode::Sort(Lexicographic Lex) {
+  // Sort the children first.
+  for (auto *Child : Children)
+    Child->Sort(Lex);
+
+  // We can only sort if the operator is commutative and associative.
+  if (!IsOpCommutativeAndAssociative())
     return;
 
-  // TODO: GitHub checkedc-clang issue #1032. Each kind of Node should have
-  // its own Sort method.
-  switch (N->Kind) {
-    default:
-      break;
-    case Node::NodeKind::BinaryOperatorNode: {
-      auto *B = dyn_cast<BinaryOperatorNode>(N);
-
-      // Sort the children first.
-      for (auto *Child : B->Children)
-        Sort(Child);
-
-      // We can only sort if the operator is commutative and associative.
-      if (!B->IsOpCommutativeAndAssociative())
-        return;
-
-      // Sort the children.
-      llvm::sort(B->Children.begin(), B->Children.end(),
-                [&](Node *N1, Node *N2) {
-                  return N1->Compare(N2, Lex) == Result::LessThan;
-                });
-      break;
-    }
-    case Node::NodeKind::UnaryOperatorNode: {
-      auto *U = dyn_cast<UnaryOperatorNode>(N);
-      Sort(U->Child);
-      break;
-    }
-    case Node::NodeKind::MemberNode: {
-      auto *M = dyn_cast<MemberNode>(N);
-      Sort(M->Base);
-      break;
-    }
-    case Node::NodeKind::ImplicitCastNode: {
-      auto *I = dyn_cast<ImplicitCastNode>(N);
-      Sort(I->Child);
-      break;
-    }
-  }
+  // Sort the children.
+  llvm::sort(Children.begin(), Children.end(),
+            [&](Node *N1, Node *N2) {
+              return N1->Compare(N2, Lex) == Result::LessThan;
+            });
 }
 
-
-    return;
-
+void UnaryOperatorNode::Sort(Lexicographic Lex) {
+  Child->Sort(Lex);
 }
 
+void MemberNode::Sort(Lexicographic Lex) {
+  Base->Sort(Lex);
+}
 
+void ImplicitCastNode::Sort(Lexicographic Lex) {
+  Child->Sort(Lex);
+}
 
 void BinaryOperatorNode::ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx) {
   if (Error)
@@ -645,7 +621,7 @@ void PreorderAST::Normalize() {
     Root->Coalesce(Changed, Error);
     if (Error)
       break;
-    Sort(Root);
+    Root->Sort(Lex);
     Root->ConstantFold(Changed, Error, Ctx);
     if (Error)
       break;

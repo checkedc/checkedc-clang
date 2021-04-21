@@ -48,6 +48,7 @@ namespace clang {
       }
 
     virtual void Coalesce(bool &Changed, bool &Error) { }
+    virtual void Sort(Lexicographic Lex) { }
     virtual void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx) { }
     Result CompareKinds(Node *Other) {
       if (Kind < Other->Kind)
@@ -85,6 +86,7 @@ namespace clang {
 
     bool CanCoalesce();
     void Coalesce(bool &Changed, bool &Error);
+    void Sort(Lexicographic Lex);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
     Result Compare(Node *Other, Lexicographic Lex);
   };
@@ -103,6 +105,7 @@ namespace clang {
     }
 
     void Coalesce(bool &Changed, bool &Error);
+    void Sort(Lexicographic Lex);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
     Result Compare(Node *Other, Lexicographic Lex);
   };
@@ -122,6 +125,7 @@ namespace clang {
     }
 
     void Coalesce(bool &Changed, bool &Error);
+    void Sort(Lexicographic Lex);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
     Result Compare(Node *Other, Lexicographic Lex);
   };
@@ -140,6 +144,7 @@ namespace clang {
     }
 
     void Coalesce(bool &Changed, bool &Error);
+    void Sort(Lexicographic Lex);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
     Result Compare(Node *Other, Lexicographic Lex);
   };
@@ -186,11 +191,6 @@ namespace clang {
     // @param[in] N is the current node to be attached.
     // @param[in] Parent is the parent of the node to be attached.
     void AttachNode(Node *N, Node *Parent);
-
-    // Recursively descend the PreorderAST to sort the children of all
-    // BinaryOperatorNodes if the binary operator is commutative.
-    // @param[in] N is current node of the AST. Initial value is Root.
-    void Sort(Node *N);
 
     // Get the deref offset from the DerefExpr. The offset represents the
     // possible amount by which the bounds of an ntptr could be widened.
