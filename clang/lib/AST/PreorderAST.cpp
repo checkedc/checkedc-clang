@@ -54,60 +54,6 @@ void PreorderAST::AttachNode(Node *N, Node *Parent) {
     I->Child = N;
 }
 
-bool PreorderAST::CanCoalesceNode(BinaryOperatorNode *B) {
-  if (!B || !isa<BinaryOperatorNode>(B) || !B->Parent)
-    return false;
-
-  // We can only coalesce if the operator of the current and parent node is
-  // commutative and associative. This is because after coalescing we later
-  // need to sort the nodes and if the operator is not commutative and
-  // associative then sorting would be incorrect.
-  if (!B->IsOpCommutativeAndAssociative())
-    return false;
-  auto *BParent = dyn_cast_or_null<BinaryOperatorNode>(B->Parent);
-  if (!BParent || !BParent->IsOpCommutativeAndAssociative())
-    return false;
-
-  // We can coalesce in the following scenarios:
-  // 1. The current and parent nodes have the same operator OR
-  // 2. The current node is the only child of its operator node (maybe as a
-  // result of constant folding).
-  return B->Opc == BParent->Opc || B->Children.size() == 1;
-}
-
-void PreorderAST::CoalesceNode(BinaryOperatorNode *B) {
-  if (!CanCoalesceNode(B)) {
-    assert(0 && "Attempting to coalesce invalid node");
-    SetError();
-    return;
-  }
-
-  // If the current node can be coalesced, its parent must be a
-  // BinaryOperatorNode.
-  auto *BParent = dyn_cast_or_null<BinaryOperatorNode>(B->Parent);
-  if (!BParent)
-    return;
-
-  // Remove the current node from the list of children of its parent.
-  // Since BParent is modified within the loop, we need to evaluate
-  // the loop end on each iteration.
-  for (auto I = BParent->Children.begin(); I != BParent->Children.end(); ++I) {
-    if (*I == B) {
-      BParent->Children.erase(I);
-      break;
-    }
-  }
-
-  // Move all children of the current node to its parent.
-  for (auto *Child : B->Children) {
-    Child->Parent = BParent;
-    BParent->Children.push_back(Child);
-  }
-
-  // Delete the current node.
-  delete B;
-}
-
 void PreorderAST::Create(Expr *E, Node *Parent) {
   if (!E)
     return;
@@ -278,56 +224,78 @@ void PreorderAST::AddZero(Expr *E, Node *Parent) {
   Create(E, /*Parent*/ N);
 }
 
-void PreorderAST::Coalesce(Node *N, bool &Changed) {
+bool BinaryOperatorNode::CanCoalesce() {
+  // We can only coalesce if the operator of the current and parent node is
+  // commutative and associative. This is because after coalescing we later
+  // need to sort the nodes and if the operator is not commutative and
+  // associative then sorting would be incorrect.
+  if (!IsOpCommutativeAndAssociative())
+    return false;
+  auto *BParent = dyn_cast_or_null<BinaryOperatorNode>(Parent);
+  if (!BParent || !BParent->IsOpCommutativeAndAssociative())
+    return false;
+
+  // We can coalesce in the following scenarios:
+  // 1. The current and parent nodes have the same operator OR
+  // 2. The current node is the only child of its operator node (maybe as a
+  // result of constant folding).
+  return Opc == BParent->Opc || Children.size() == 1;
+}
+
+void BinaryOperatorNode::Coalesce(bool &Changed, bool &Error) {
   if (Error)
     return;
 
-  if (!N)
+  // Coalesce the children first.
+  for (auto *Child : Children)
+    Child->Coalesce(Changed, Error);
+
+  if (!CanCoalesce())
     return;
 
-  // TODO: GitHub checkedc-clang issue #1032. Each kind of Node should have
-  // its own Coalesce method.
-  switch (N->Kind) {
-    default:
-      break;
-    case Node::NodeKind::BinaryOperatorNode: {
-      auto *B = dyn_cast<BinaryOperatorNode>(N);
+  // If the current node can be coalesced, its parent must be a
+  // BinaryOperatorNode.
+  auto *BParent = dyn_cast_or_null<BinaryOperatorNode>(Parent);
+  if (!BParent)
+    return;
 
-      // Coalesce the children first.
-      for (auto *Child : B->Children)
-        Coalesce(Child, Changed);
-
-      if (CanCoalesceNode(B)) {
-        CoalesceNode(B);
-        Changed = true;
-      }
-      break;
-    }
-    case Node::NodeKind::UnaryOperatorNode: {
-      auto *U = dyn_cast<UnaryOperatorNode>(N);
-      Coalesce(U->Child, Changed);
-      break;
-    }
-    case Node::NodeKind::MemberNode: {
-      auto *M = dyn_cast<MemberNode>(N);
-      Coalesce(M->Base, Changed);
-      break;
-    }
-    case Node::NodeKind::ImplicitCastNode: {
-      auto *I = dyn_cast<ImplicitCastNode>(N);
-      Coalesce(I->Child, Changed);
+  // Remove the current node from the list of children of its parent.
+  // Since BParent is modified within the loop, we need to evaluate
+  // the loop end on each iteration.
+  for (auto I = BParent->Children.begin(); I != BParent->Children.end(); ++I) {
+    if (*I == this) {
+      BParent->Children.erase(I);
       break;
     }
   }
+
+  // Move all children of the current node to its parent.
+  for (auto *Child : Children) {
+    Child->Parent = BParent;
+    BParent->Children.push_back(Child);
+  }
+
+  // Delete the current node.
+  delete this;
+  Changed = true;
 }
 
+void UnaryOperatorNode::Coalesce(bool &Changed, bool &Error) {
+  if (Error)
+    return;
+  Child->Coalesce(Changed, Error);
+}
 
+void MemberNode::Coalesce(bool &Changed, bool &Error) {
+  if (Error)
+    return;
+  Base->Coalesce(Changed, Error);
+}
 
-
-
-    }
-  }
-
+void ImplicitCastNode::Coalesce(bool &Changed, bool &Error) {
+  if (Error)
+    return;
+  Child->Coalesce(Changed, Error);
 }
 
 void PreorderAST::Sort(Node *N) {
@@ -674,7 +642,7 @@ void PreorderAST::Normalize() {
   bool Changed = true;
   while (Changed) {
     Changed = false;
-    Coalesce(Root, Changed);
+    Root->Coalesce(Changed, Error);
     if (Error)
       break;
     Sort(Root);

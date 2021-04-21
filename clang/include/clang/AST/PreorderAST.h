@@ -47,6 +47,7 @@ namespace clang {
                  "Parent node cannot be a LeafExprNode");
       }
 
+    virtual void Coalesce(bool &Changed, bool &Error) { }
     virtual void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx) { }
     Result CompareKinds(Node *Other) {
       if (Kind < Other->Kind)
@@ -82,6 +83,8 @@ namespace clang {
       return Opc == BO_Add || Opc == BO_Mul;
     }
 
+    bool CanCoalesce();
+    void Coalesce(bool &Changed, bool &Error);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
     Result Compare(Node *Other, Lexicographic Lex);
   };
@@ -99,6 +102,7 @@ namespace clang {
       return N->Kind == NodeKind::UnaryOperatorNode;
     }
 
+    void Coalesce(bool &Changed, bool &Error);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
     Result Compare(Node *Other, Lexicographic Lex);
   };
@@ -117,6 +121,7 @@ namespace clang {
       return N->Kind == NodeKind::MemberNode;
     }
 
+    void Coalesce(bool &Changed, bool &Error);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
     Result Compare(Node *Other, Lexicographic Lex);
   };
@@ -134,6 +139,7 @@ namespace clang {
       return N->Kind == NodeKind::ImplicitCastNode;
     }
 
+    void Coalesce(bool &Changed, bool &Error);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
     Result Compare(Node *Other, Lexicographic Lex);
   };
@@ -180,24 +186,6 @@ namespace clang {
     // @param[in] N is the current node to be attached.
     // @param[in] Parent is the parent of the node to be attached.
     void AttachNode(Node *N, Node *Parent);
-
-    // Coalesce the BinaryOperatorNode B with its parent. This involves moving
-    // the children (if any) of node B to its parent and then removing B.
-    // @param[in] B is the current node. B should be a BinaryOperatorNode.
-    void CoalesceNode(BinaryOperatorNode *B);
-
-    // Determines if a BinaryOperatorNode could be coalesced into its parent.
-    // @param[in] B is the current node. B should be a BinaryOperatorNode.
-    // @return Return true if B can be coalesced into its parent, false
-    // otherwise.
-    bool CanCoalesceNode(BinaryOperatorNode *B);
-
-    // Recursively coalesce BinaryOperatorNodes having the same commutative
-    // and associative operator.
-    // @param[in] N is current node of the AST. Initial value is Root.
-    // @param[in] Changed indicates whether a node was coalesced. We need this
-    // to control when to stop recursive coalescing.
-    void Coalesce(Node *N, bool &Changed);
 
     // Recursively descend the PreorderAST to sort the children of all
     // BinaryOperatorNodes if the binary operator is commutative.
