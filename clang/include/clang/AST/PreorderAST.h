@@ -60,6 +60,9 @@ namespace clang {
     virtual Result Compare(Node *Other, Lexicographic Lex) {
       return CompareKinds(Other);
     }
+    virtual void Cleanup() {
+      delete this;
+    }
   };
 
   class BinaryOperatorNode : public Node {
@@ -89,6 +92,7 @@ namespace clang {
     void Sort(Lexicographic Lex);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
     Result Compare(Node *Other, Lexicographic Lex);
+    void Cleanup();
   };
 
   class UnaryOperatorNode : public Node {
@@ -108,6 +112,7 @@ namespace clang {
     void Sort(Lexicographic Lex);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
     Result Compare(Node *Other, Lexicographic Lex);
+    void Cleanup();
   };
 
   class MemberNode : public Node {
@@ -128,6 +133,7 @@ namespace clang {
     void Sort(Lexicographic Lex);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
     Result Compare(Node *Other, Lexicographic Lex);
+    void Cleanup();
   };
 
   class ImplicitCastNode : public Node {
@@ -147,6 +153,7 @@ namespace clang {
     void Sort(Lexicographic Lex);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
     Result Compare(Node *Other, Lexicographic Lex);
+    void Cleanup();
   };
 
   class LeafExprNode : public Node {
@@ -211,9 +218,8 @@ namespace clang {
     // @param[in] N is the current node of the AST. Initial value is Root.
     void PrettyPrint(Node *N);
 
-    // Cleanup the memory consumed by node N.
-    // @param[in] N is the current node of the AST. Initial value is Root.
-    void Cleanup(Node *N);
+    // FOR DEBUGGING ONLY
+    std::string ToString(Node *N);
 
   public:
     PreorderAST(ASTContext &Ctx, Expr *E) :
@@ -256,7 +262,7 @@ namespace clang {
     // Cleanup the memory consumed by the AST. This is intended to be called
     // from outside this class and invokes Cleanup on the root node which
     // recursively deletes the AST.
-    void Cleanup() { Cleanup(Root); }
+    void Cleanup() { Root->Cleanup(); }
 
     bool operator<(PreorderAST &Other) const {
       return Compare(Other) == Result::LessThan;

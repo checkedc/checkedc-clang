@@ -656,20 +656,26 @@ void PreorderAST::PrettyPrint(Node *N) {
     L->E->dump(OS, Ctx);
 }
 
-void PreorderAST::Cleanup(Node *N) {
-  if (auto *B = dyn_cast_or_null<BinaryOperatorNode>(N))
-    for (auto *Child : B->Children)
-      Cleanup(Child);
 
-  if (auto *U = dyn_cast_or_null<UnaryOperatorNode>(N))
-    Cleanup(U->Child);
 
-  if (auto *M = dyn_cast_or_null<MemberNode>(N))
-    Cleanup(M->Base);
 
-  if (auto *I = dyn_cast_or_null<ImplicitCastNode>(N))
-    Cleanup(I->Child);
+void BinaryOperatorNode::Cleanup() {
+  for (auto *Child : Children)
+    Child->Cleanup();
+  delete this;
+}
 
-  if (N)
-    delete N;
+void UnaryOperatorNode::Cleanup() {
+  Child->Cleanup();
+  delete this;
+}
+
+void MemberNode::Cleanup() {
+  Base->Cleanup();
+  delete this;
+}
+
+void ImplicitCastNode::Cleanup() {
+  Child->Cleanup();
+  delete this;
 }
