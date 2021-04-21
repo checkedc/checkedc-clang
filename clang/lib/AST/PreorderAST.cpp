@@ -321,75 +321,13 @@ void PreorderAST::Coalesce(Node *N, bool &Changed) {
   }
 }
 
-bool PreorderAST::CompareNodes(const Node *N1, const Node *N2) {
-  // BinaryOperatorNode < UnaryOperatorNode < MemberNode < ImplicitCastNode < LeafExprNode.
-  if (N1->Kind != N2->Kind)
-    return N1->Kind < N2->Kind;
 
-  // TODO: GitHub checkedc-clang issue #1032. Each kind of Node should have
-  // its own CompareNodes method.
-  switch (N1->Kind) {
-    case Node::NodeKind::BinaryOperatorNode: {
-      const auto *B1 = dyn_cast<BinaryOperatorNode>(N1);
-      const auto *B2 = dyn_cast<BinaryOperatorNode>(N2);
-    
-      if (B1->Opc != B2->Opc)
-        return B1->Opc < B2->Opc;
-      return B1->Children.size() < B2->Children.size();
-    }
-    case Node::NodeKind::UnaryOperatorNode: {
-      const auto *U1 = dyn_cast<UnaryOperatorNode>(N1);
-      const auto *U2 = dyn_cast<UnaryOperatorNode>(N2);
 
-      if (U1->Opc != U2->Opc)
-        return U1->Opc < U2->Opc;
-      return CompareNodes(U1->Child, U2->Child);
-    }
-    case Node::NodeKind::MemberNode: {
-      const auto *M1 = dyn_cast<MemberNode>(N1);
-      const auto *M2 = dyn_cast<MemberNode>(N2);
 
-      // If M1 is an arrow member expression and M2 is not,
-      // then sorted order is (M1, M2).
-      // If M2 is an arrow member expression and M1 is not,
-      // then sorted order is (M2, M1).
-      if (M1->IsArrow != M2->IsArrow)
-        return M1->IsArrow;
 
-      Result FieldCompare = Lex.CompareDecl(M1->Field, M2->Field);
-      if (FieldCompare != Result::Equal)
-        return FieldCompare == Result::LessThan;
-      return CompareNodes(M1->Base, M2->Base);
-    }
-    case Node::NodeKind::ImplicitCastNode: {
-      const auto *I1 = dyn_cast<ImplicitCastNode>(N1);
-      const auto *I2 = dyn_cast<ImplicitCastNode>(N2);
-
-      if (I1->CK != I2->CK)
-        return I1->CK < I2->CK;
-      return CompareNodes(I1->Child, I2->Child);
-    }
-    case Node::NodeKind::LeafExprNode: {
-      const auto *L1 = dyn_cast<LeafExprNode>(N1);
-      const auto *L2 = dyn_cast<LeafExprNode>(N2);
-      // If L1 is a UnaryOperatorExpr and L2 is not, then
-      // 1. If L1 contains an integer constant then sorted order is (L2, L1)
-      // 2. Else sorted order is (L1, L2).
-      if (isa<UnaryOperator>(L1->E) && !isa<UnaryOperator>(L2->E))
-        return !L1->E->isIntegerConstantExpr(Ctx);
-
-      // If L2 is a UnaryOperatorExpr and L1 is not, then
-      // 1. If L2 contains an integer constant then sorted order is (L1, L2)
-      // 2. Else sorted order is (L2, L1).
-      if (!isa<UnaryOperator>(L1->E) && isa<UnaryOperator>(L2->E))
-        return L2->E->isIntegerConstantExpr(Ctx);
-
-      // If both nodes are LeafExprNodes compare the exprs.
-      return Lex.CompareExpr(L1->E, L2->E) == Result::LessThan;
     }
   }
 
-  return true;
 }
 
 void PreorderAST::Sort(Node *N) {
@@ -414,8 +352,8 @@ void PreorderAST::Sort(Node *N) {
 
       // Sort the children.
       llvm::sort(B->Children.begin(), B->Children.end(),
-                [&](const Node *N1, const Node *N2) {
-                  return CompareNodes(N1, N2);
+                [&](Node *N1, Node *N2) {
+                  return N1->Compare(N2, Lex) == Result::LessThan;
                 });
       break;
     }
@@ -586,7 +524,7 @@ bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
     auto *Child1 = B1->Children[I];
     auto *Child2 = B2->Children[I];
 
-    if (Compare(Child1, Child2) == Result::Equal)
+    if (Child1->Compare(Child2, Lex) == Result::Equal)
       continue;
 
     // If the children are not equal we require that they be integer constant
@@ -631,106 +569,102 @@ bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
   return true;
 }
 
-Result PreorderAST::Compare(const Node *N1, const Node *N2) const {
-  // If both the nodes are null.
-  if (!N1 && !N2)
-    return Result::Equal;
+Result BinaryOperatorNode::Compare(Node *Other, Lexicographic Lex) {
+  Result KindComparison = CompareKinds(Other);
+  if (KindComparison != Result::Equal)
+    return KindComparison;
 
-  // If only one of the nodes is null.
-  if (!N1 && N2)
+  BinaryOperatorNode *B = dyn_cast<BinaryOperatorNode>(Other);
+  // If the Opcodes mismatch.
+  if (Opc < B->Opc)
     return Result::LessThan;
-  if (N1 && !N2)
+  if (Opc > B->Opc)
     return Result::GreaterThan;
 
-  // LeafExprNode < ImplicitCastNode < MemberNode < UnaryOperatorNode < BinaryOperatorNode.
-  if (N1->Kind != N2->Kind)
-    return N1->Kind > N2->Kind ? Result::LessThan : Result::GreaterThan;
+  size_t ChildCount1 = Children.size(),
+         ChildCount2 = B->Children.size();
 
-  // TODO: GitHub checkedc-clang issue #1032. Each kind of Node should have
-  // its own Compare method.
-  switch (N1->Kind) {
-    case Node::NodeKind::BinaryOperatorNode: {
-      const auto *B1 = dyn_cast<BinaryOperatorNode>(N1);
-      const auto *B2 = dyn_cast<BinaryOperatorNode>(N2);
+  // If the number of children of the two nodes mismatch.
+  if (ChildCount1 < ChildCount2)
+    return Result::LessThan;
+  if (ChildCount1 > ChildCount2)
+    return Result::GreaterThan;
 
-      // If the Opcodes mismatch.
-      if (B1->Opc < B2->Opc)
-        return Result::LessThan;
-      if (B1->Opc > B2->Opc)
-        return Result::GreaterThan;
+  // Match each child of the two nodes.
+  for (size_t I = 0; I != ChildCount1; ++I) {
+    auto *Child1 = Children[I];
+    auto *Child2 = B->Children[I];
 
-      size_t ChildCount1 = B1->Children.size(),
-             ChildCount2 = B2->Children.size();
+    Result ChildComparison = Child1->Compare(Child2, Lex);
 
-      // If the number of children of the two nodes mismatch.
-      if (ChildCount1 < ChildCount2)
-        return Result::LessThan;
-      if (ChildCount1 > ChildCount2)
-        return Result::GreaterThan;
-
-      // Match each child of the two nodes.
-      for (size_t I = 0; I != ChildCount1; ++I) {
-        auto *Child1 = B1->Children[I];
-        auto *Child2 = B2->Children[I];
-
-        Result ChildComparison = Compare(Child1, Child2);
-
-        // If any child differs between the two nodes.
-        if (ChildComparison != Result::Equal)
-          return ChildComparison;
-      }
-      return Result::Equal;
-    }
-    case Node::NodeKind::UnaryOperatorNode: {
-      const auto *U1 = dyn_cast<UnaryOperatorNode>(N1);
-      const auto *U2 = dyn_cast<UnaryOperatorNode>(N2);
-
-      // If the Opcodes mismatch.
-      if (U1->Opc < U2->Opc)
-        return Result::LessThan;
-      if (U1->Opc > U2->Opc)
-        return Result::GreaterThan;
-
-      return Compare(U1->Child, U2->Child);
-    }
-    case Node::NodeKind::MemberNode: {
-      const auto *M1 = dyn_cast<MemberNode>(N1);
-      const auto *M2 = dyn_cast<MemberNode>(N2);
-
-      // If the arrow flags mismatch.
-      if (M1->IsArrow && !M2->IsArrow)
-        return Result::LessThan;
-      if (!M1->IsArrow && M2->IsArrow)
-        return Result::GreaterThan;
-
-      // If the fields mismatch.
-      Result FieldCompare = Lex.CompareDecl(M1->Field, M2->Field);
-      if (FieldCompare != Result::Equal)
-        return FieldCompare;
-
-      return Compare(M1->Base, M2->Base);
-    }
-    case Node::NodeKind::ImplicitCastNode: {
-      const auto *I1 = dyn_cast<ImplicitCastNode>(N1);
-      const auto *I2 = dyn_cast<ImplicitCastNode>(N2);
-
-      // If the cast kinds mismatch.
-      if (I1->CK < I2->CK)
-        return Result::LessThan;
-      if (I1->CK > I2->CK)
-        return Result::GreaterThan;
-
-      return Compare(I1->Child, I2->Child);
-    }
-    case Node::NodeKind::LeafExprNode: {
-      // Compare the exprs for two leaf nodes.
-      const auto *L1 = dyn_cast<LeafExprNode>(N1);
-      const auto *L2 = dyn_cast<LeafExprNode>(N2);
-      return Lex.CompareExpr(L1->E, L2->E);
-    }
+    // If any child differs between the two nodes.
+    if (ChildComparison != Result::Equal)
+      return ChildComparison;
   }
-
   return Result::Equal;
+}
+
+Result UnaryOperatorNode::Compare(Node *Other, Lexicographic Lex) {
+  Result KindComparison = CompareKinds(Other);
+  if (KindComparison != Result::Equal)
+    return KindComparison;
+
+  UnaryOperatorNode *U = dyn_cast<UnaryOperatorNode>(Other);
+
+  // If the Opcodes mismatch.
+  if (Opc < U->Opc)
+    return Result::LessThan;
+  if (Opc > U->Opc)
+    return Result::GreaterThan;
+
+  return Child->Compare(U->Child, Lex);
+}
+
+Result MemberNode::Compare(Node *Other, Lexicographic Lex) {
+  Result KindComparison = CompareKinds(Other);
+  if (KindComparison != Result::Equal)
+    return KindComparison;
+
+  MemberNode *M = dyn_cast<MemberNode>(Other);
+
+  // If the arrow flags mismatch.
+  if (IsArrow && !M->IsArrow)
+    return Result::LessThan;
+  if (!IsArrow && M->IsArrow)
+    return Result::GreaterThan;
+
+  // If the fields mismatch.
+  Result FieldCompare = Lex.CompareDecl(Field, M->Field);
+  if (FieldCompare != Result::Equal)
+    return FieldCompare;
+
+  return Base->Compare(M->Base, Lex);
+}
+
+Result ImplicitCastNode::Compare(Node *Other, Lexicographic Lex) {
+  Result KindComparison = CompareKinds(Other);
+  if (KindComparison != Result::Equal)
+    return KindComparison;
+
+  ImplicitCastNode *I = dyn_cast<ImplicitCastNode>(Other);
+
+  // If the cast kinds mismatch.
+  if (CK < I->CK)
+    return Result::LessThan;
+  if (CK > I->CK)
+    return Result::GreaterThan;
+
+  return Child->Compare(I->Child, Lex);
+}
+
+Result LeafExprNode::Compare(Node *Other, Lexicographic Lex) {
+  Result KindComparison = CompareKinds(Other);
+  if (KindComparison != Result::Equal)
+    return KindComparison;
+
+  // Compare the exprs for two leaf nodes.
+  LeafExprNode *L = dyn_cast<LeafExprNode>(Other);
+  return Lex.CompareExpr(E, L->E);
 }
 
 void PreorderAST::Normalize() {

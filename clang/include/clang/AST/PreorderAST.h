@@ -48,6 +48,16 @@ namespace clang {
       }
 
     virtual void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx) { }
+    Result CompareKinds(Node *Other) {
+      if (Kind < Other->Kind)
+        return Result::LessThan;
+      if (Kind > Other->Kind)
+        return Result::GreaterThan;
+      return Result::Equal;
+    }
+    virtual Result Compare(Node *Other, Lexicographic Lex) {
+      return CompareKinds(Other);
+    }
   };
 
   class BinaryOperatorNode : public Node {
@@ -73,6 +83,7 @@ namespace clang {
     }
 
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
+    Result Compare(Node *Other, Lexicographic Lex);
   };
 
   class UnaryOperatorNode : public Node {
@@ -89,6 +100,7 @@ namespace clang {
     }
 
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
+    Result Compare(Node *Other, Lexicographic Lex);
   };
 
   class MemberNode : public Node {
@@ -106,6 +118,7 @@ namespace clang {
     }
 
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
+    Result Compare(Node *Other, Lexicographic Lex);
   };
 
   class ImplicitCastNode : public Node {
@@ -122,6 +135,7 @@ namespace clang {
     }
 
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
+    Result Compare(Node *Other, Lexicographic Lex);
   };
 
   class LeafExprNode : public Node {
@@ -135,6 +149,8 @@ namespace clang {
     static bool classof(const Node *N) {
       return N->Kind == NodeKind::LeafExprNode;
     }
+
+    Result Compare(Node *Other, Lexicographic Lex);
   };
 
 } // end namespace clang
@@ -188,13 +204,6 @@ namespace clang {
     // @param[in] N is current node of the AST. Initial value is Root.
     void Sort(Node *N);
 
-    // Compare nodes N1 and N2 to sort them. This function is invoked by a
-    // lambda which is passed to the llvm::sort function.
-    // @param[in] N1 is the first node to compare.
-    // @param[in] N2 is the second node to compare.
-    // return A boolean indicating the relative ordering between N1 and N2.
-    bool CompareNodes(const Node *N1, const Node *N2);
-
     // Get the deref offset from the DerefExpr. The offset represents the
     // possible amount by which the bounds of an ntptr could be widened.
     // @param[in] UpperExpr is the upper bounds expr for the ntptr.
@@ -206,13 +215,6 @@ namespace clang {
     // False means a valid offset was not found.
     bool GetDerefOffset(Node *UpperExpr, Node *DerefExpr,
                         llvm::APSInt &Offset);
-
-    // Lexicographically compare two AST nodes N1 and N2.
-    // @param[in] N1 is the first node.
-    // @param[in] N2 is the second node.
-    // @return Returns a Lexicographic::Result indicating the comparison
-    // of N1 and N2.
-    Result Compare(const Node *N1, const Node *N2) const;
 
     // Set Error in case an error occurs during transformation of the AST.
     void SetError() { Error = true; }
@@ -255,7 +257,7 @@ namespace clang {
     // @param[in] P is the second AST.
     // @return Returns a Lexicographic::Result indicating the comparison between
     // the two ASTs.
-    Result Compare(const PreorderAST P) const { return Compare(Root, P.Root); }
+    Result Compare(const PreorderAST P) const { return Root->Compare(P.Root, Lex); }
 
     // Check if an error has occurred during transformation of the AST. This
     // is intended to be called from outside this class to check if an error
