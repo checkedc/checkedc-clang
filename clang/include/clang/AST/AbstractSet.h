@@ -1,3 +1,18 @@
+//===------- AbstractSet.h: An abstract representation of memory -------===//
+//
+//                     The LLVM Compiler Infrastructure
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===-------------------------------------------------------------------===//
+//
+//  This file defines the interface for a representation of sets of
+//  identical lvalue expressions that refer to the same memory location.
+//
+//===-------------------------------------------------------------------===//
+
 #ifndef LLVM_CLANG_ABSTRACT_SET_H
 #define LLVM_CLANG_ABSTRACT_SET_H
 
