@@ -95,6 +95,10 @@ namespace clang {
       return CompareKinds(Other);
     }
 
+    // Print the node.
+    // @param[in] this is the current node of the AST.
+    virtual void PrettyPrint(llvm::raw_ostream &OS, ASTContext &Ctx) const { }
+
     // Cleanup the memory consumed by this node.
     // @param[in] this is the current node of the AST.
     virtual void Cleanup() {
@@ -133,6 +137,7 @@ namespace clang {
     void Sort(Lexicographic Lex);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
     Result Compare(const Node *Other, Lexicographic Lex) const;
+    void PrettyPrint(llvm::raw_ostream &OS, ASTContext &Ctx) const;
     void Cleanup();
   };
 
@@ -153,6 +158,7 @@ namespace clang {
     void Sort(Lexicographic Lex);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
     Result Compare(const Node *Other, Lexicographic Lex) const;
+    void PrettyPrint(llvm::raw_ostream &OS, ASTContext &Ctx) const;
     void Cleanup();
   };
 
@@ -174,6 +180,7 @@ namespace clang {
     void Sort(Lexicographic Lex);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
     Result Compare(const Node *Other, Lexicographic Lex) const;
+    void PrettyPrint(llvm::raw_ostream &OS, ASTContext &Ctx) const;
     void Cleanup();
   };
 
@@ -194,6 +201,7 @@ namespace clang {
     void Sort(Lexicographic Lex);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
     Result Compare(const Node *Other, Lexicographic Lex) const;
+    void PrettyPrint(llvm::raw_ostream &OS, ASTContext &Ctx) const;
     void Cleanup();
   };
 
@@ -210,6 +218,7 @@ namespace clang {
     }
 
     Result Compare(const Node *Other, Lexicographic Lex) const;
+    void PrettyPrint(llvm::raw_ostream &OS, ASTContext &Ctx) const;
   };
 
 } // end namespace clang
@@ -283,13 +292,6 @@ namespace clang {
 
     // Set Error in case an error occurs during transformation of the AST.
     void SetError() { Error = true; }
-
-    // Print the PreorderAST.
-    // @param[in] N is the current node of the AST. Initial value is Root.
-    void PrettyPrint(Node *N);
-
-    // FOR DEBUGGING ONLY
-    std::string ToString(Node *N);
 
   public:
     PreorderAST(ASTContext &Ctx, Expr *E) :

@@ -652,36 +652,44 @@ void PreorderAST::Normalize() {
   }
 
   if (Ctx.getLangOpts().DumpPreorderAST) {
-    PrettyPrint(Root);
+    Root->PrettyPrint(OS, Ctx);
     OS << "--------------------------------------\n";
   }
 }
 
-void PreorderAST::PrettyPrint(Node *N) {
-  if (const auto *B = dyn_cast_or_null<BinaryOperatorNode>(N)) {
-    OS << BinaryOperator::getOpcodeStr(B->Opc) << "\n";
-
-    for (auto *Child : B->Children)
-      PrettyPrint(Child);
-  } else if (const auto *U = dyn_cast_or_null<UnaryOperatorNode>(N)) {
-    OS << UnaryOperator::getOpcodeStr(U->Opc) << "\n";
-    PrettyPrint(U->Child);
-  } else if (const auto *M = dyn_cast_or_null<MemberNode>(N)) {
-    if (M->IsArrow)
-      OS << "->\n";
-    else
-      OS << ".\n";
-    PrettyPrint(M->Base);
-    M->Field->dump(OS);
-  } else if (const auto *I = dyn_cast_or_null<ImplicitCastNode>(N)) {
-    OS << CastExpr::getCastKindName(I->CK) << "\n";
-    PrettyPrint(I->Child);
-  } else if (const auto *L = dyn_cast_or_null<LeafExprNode>(N))
-    L->E->dump(OS, Ctx);
+void BinaryOperatorNode::PrettyPrint(llvm::raw_ostream &OS,
+                                     ASTContext &Ctx) const {
+  OS << BinaryOperator::getOpcodeStr(Opc) << "\n";
+  for (auto *Child : Children)
+    Child->PrettyPrint(OS, Ctx);
 }
 
+void UnaryOperatorNode::PrettyPrint(llvm::raw_ostream &OS,
+                                    ASTContext &Ctx) const {
+  OS << UnaryOperator::getOpcodeStr(Opc) << "\n";
+  Child->PrettyPrint(OS, Ctx);
+}
 
+void MemberNode::PrettyPrint(llvm::raw_ostream &OS,
+                             ASTContext &Ctx) const {
+  if (IsArrow)
+    OS << "->\n";
+  else
+    OS << ".\n";
+  Base->PrettyPrint(OS, Ctx);
+  Field->dump(OS);
+}
 
+void ImplicitCastNode::PrettyPrint(llvm::raw_ostream &OS,
+                                   ASTContext &Ctx) const {
+  OS << CastExpr::getCastKindName(CK) << "\n";
+  Child->PrettyPrint(OS, Ctx);
+}
+
+void LeafExprNode::PrettyPrint(llvm::raw_ostream &OS,
+                               ASTContext &Ctx) const {
+  E->dump(OS, Ctx);
+}
 
 void BinaryOperatorNode::Cleanup() {
   for (auto *Child : Children)
