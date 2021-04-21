@@ -8,8 +8,8 @@
 //
 //===-------------------------------------------------------------------===//
 //
-//  This file defines the interface for a representation of a set of memory
-//  locations.
+//  This file defines the interface for a representation of sets of
+//  identical lvalue expressions that refer to the same memory location.
 //
 //===-------------------------------------------------------------------===//
 

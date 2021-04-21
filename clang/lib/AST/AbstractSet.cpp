@@ -8,8 +8,8 @@
 //
 //===---------------------------------------------------------------------===//
 //
-//  This file implements methods to get or create a representation of a set of
-//  memory locations.
+//  This file implements methods to get or create a representation of sets of
+//  identical lvalue expressions that refer to the same memory location.
 //
 //===---------------------------------------------------------------------===//
 
