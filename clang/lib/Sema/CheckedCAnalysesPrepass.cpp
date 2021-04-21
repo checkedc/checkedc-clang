@@ -49,8 +49,11 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
           VarWithBounds = nullptr;
         }
       }
-      // Process any where clause attached to this VarDecl. For example,
+      // Process any where clause attached to this VarDecl.
+      // Note: This also handles function parameters.
+      // For example,
       // int x = 1 _Where p : bounds(p, p + 1);
+      // void f(_Nt_array_ptr<char> p : bounds(p, p + 1) {}
       return ProcessWhereClause(V->getWhereClause());
     }
 
