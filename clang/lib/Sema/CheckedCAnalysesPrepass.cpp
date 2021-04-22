@@ -25,11 +25,19 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
     PrepassInfo &Info;
 
     // VarWithBounds is a variable that has a bounds expression. It is used to
-    // keep track of the following:
-    // 1. Whether the expressions being visited are within a declared bounds
-    // expression.
-    // 2. The variable with which a bounds declared by a where clause is
-    // associated.
+    // track:
+    // 1. Whether a visited expression is within a declared or a where clause
+    // bounds expression. For example, VarWithBounds tracks the expressions
+    // "lower" and "upper" in the following:
+    // _Nt_array_ptr<char> p : bounds(lower, upper);
+    // int x = 1 _Where p : bounds(lower, upper);
+
+    // 2. The variable with which a declared or a where clause bounds
+    // expression is associated. For example, VarWithBounds tracks the variable
+    // "p" in the following:
+    // _Nt_array_ptr<char> p : bounds(lower, upper);
+    // int x = 1 _Where p : bounds(lower, upper);
+
     VarDecl *VarWithBounds = nullptr;
     llvm::raw_ostream &OS;
 
@@ -52,8 +60,8 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
       // Process any where clause attached to this VarDecl.
       // Note: This also handles function parameters.
       // For example,
-      // int x = 1 _Where p : bounds(p, p + 1);
-      // void f(_Nt_array_ptr<char> p : bounds(p, p + 1) {}
+      // int x = 1 _Where p : bounds(lower, upper);
+      // void f(_Nt_array_ptr<char> p : bounds(lower, upper)) {}
       return ProcessWhereClause(V->getWhereClause());
     }
 
@@ -95,10 +103,10 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
           VarDecl *V = BDF->Var;
           BoundsExpr *B = BDF->Bounds;
 
-          VisitVarDecl(V);
+          VarDecl *OrigVarWithBounds = VarWithBounds;
           VarWithBounds = V;
           TraverseStmt(B);
-          VarWithBounds = nullptr;
+          VarWithBounds = OrigVarWithBounds;
         }
       }
 
@@ -107,13 +115,13 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
 
     bool VisitNullStmt(NullStmt *S) {
       // Process any where clause attached to a NullStmt. For example,
-      // _Where p : bounds(p, p + 1);
+      // _Where p : bounds(lower, upper);
       return ProcessWhereClause(S->getWhereClause());
     }
 
     bool VisitValueStmt(ValueStmt *S) {
       // Process any where clause attached to a ValueStmt. For example,
-      // x = 1 _Where p : bounds(p, p + 1);
+      // x = 1 _Where p : bounds(lower, upper);
       return ProcessWhereClause(S->getWhereClause());
     }
 

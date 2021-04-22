@@ -43,9 +43,14 @@ namespace clang {
 
     // BoundsVars maps each variable Z in a function to the set of all
     // variables in whose bounds expressions Z occurs. A variable Z can occur
-    // in the bounds expression of a V in the following conditions:
+    // in the bounds expression of a variable V if
     // 1. Z occurs in the declared bounds expression of V, or
     // 2. A where clause declares bounds B of V and Z occurs in B.
+
+    // Note: BoundsVarsTy is a map of keys to values which are sets. As a
+    // result, there is no defined iteration order for either its keys or its
+    // values. So in case we want to iterate BoundsVars and need a determinstic
+    // iteration order we must remember to sort the keys as well as the values.
     BoundsVarsTy BoundsVars;
   };
 } // end namespace clang

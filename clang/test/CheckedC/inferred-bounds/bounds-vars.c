@@ -35,7 +35,7 @@ void f1(_Array_ptr<char> param1 : bounds(param1, param1 + 1),
     y = 3 _Where param2 : bounds(param1, param1 + w);
   }
 
-// CHECK: In function: f1
+// CHECK-LABEL: In function: f1
 // CHECK: BoundsVars:
 // CHECK: a: { a }
 // CHECK: m: { m }
