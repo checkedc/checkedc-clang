@@ -45,7 +45,9 @@ namespace clang {
         if (Parent)
           assert(!isa<LeafExprNode>(Parent) &&
                  "Parent node cannot be a LeafExprNode");
-      }
+    }
+
+    virtual ~Node() { }
 
     // Recursively coalesce BinaryOperatorNodes having the same commutative
     // and associative operator.
