@@ -256,8 +256,12 @@ void BinaryOperatorNode::Coalesce(bool &Changed, bool &Error) {
     return;
 
   // Coalesce the children first.
-  for (auto *Child : Children)
+  // Since Children is modified within the loop, we need to evaluate
+  // the loop end on each iteration.
+  for (size_t I = 0; I != Children.size(); ++I) {
+    auto *Child = Children[I];
     Child->Coalesce(Changed, Error);
+  }
 
   if (!CanCoalesce())
     return;
