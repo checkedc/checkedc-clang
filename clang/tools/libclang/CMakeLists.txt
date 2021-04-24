@@ -68,7 +68,12 @@ endif ()
 
 if (HAVE_LIBDL)
   list(APPEND LIBS ${CMAKE_DL_LIBS})
-endif()
+elseif (CLANG_BUILT_STANDALONE)
+  find_library(DL_LIBRARY_PATH dl)
+  if (DL_LIBRARY_PATH)
+    list(APPEND LIBS dl)
+  endif ()
+endif ()
 
 option(LIBCLANG_BUILD_STATIC
   "Build libclang as a static library (in addition to a shared one)" OFF)
@@ -145,6 +150,7 @@ if(ENABLE_SHARED)
   else()
     set_target_properties(libclang
       PROPERTIES
+      SOVERSION ${LIBCLANG_LIBRARY_VERSION}
       VERSION ${LIBCLANG_LIBRARY_VERSION}
       DEFINE_SYMBOL _CINDEX_LIB_)
     # FIXME: _CINDEX_LIB_ affects dllexport/dllimport on Win32.

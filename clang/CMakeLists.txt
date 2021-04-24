@@ -121,6 +121,8 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   include(LLVMDistributionSupport)
 
   set(PACKAGE_VERSION "${LLVM_PACKAGE_VERSION}")
+  set(BUG_REPORT_URL "${LLVM_PACKAGE_BUGREPORT}" CACHE STRING
+    "Default URL where bug reports are to be submitted.")
 
   if (NOT DEFINED LLVM_INCLUDE_TESTS)
     set(LLVM_INCLUDE_TESTS ON)
@@ -507,7 +509,7 @@ set(CLANG_EXECUTABLE_VERSION
     "${CLANG_VERSION_MAJOR}" CACHE STRING
     "Major version number that will be appended to the clang executable name")
 set(LIBCLANG_LIBRARY_VERSION
-    "${CLANG_VERSION_MAJOR}" CACHE STRING
+    "${CLANG_VERSION_MAJOR}.${CLANG_VERSION_MINOR}" CACHE STRING
     "Major version number that will be appended to the libclang library")
 mark_as_advanced(CLANG_EXECUTABLE_VERSION LIBCLANG_LIBRARY_VERSION)
 

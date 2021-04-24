@@ -431,9 +431,14 @@ def PROBED_ALLOCA_64 : PPCCustomInserterPseudo<(outs g8rc:$result),
                          (ins g8rc:$negsize, memri:$fpsi), "#PROBED_ALLOCA_64",
                            [(set i64:$result,
                              (PPCprobedalloca i64:$negsize, iaddr:$fpsi))]>;
-def PREPARE_PROBED_ALLOCA_64 : PPCEmitTimePseudo<(outs g8rc:$fp,
-    g8rc:$sp),
+def PREPARE_PROBED_ALLOCA_64 : PPCEmitTimePseudo<(outs
+    g8rc:$fp, g8rc:$actual_negsize),
     (ins g8rc:$negsize, memri:$fpsi), "#PREPARE_PROBED_ALLOCA_64", []>;
+def PREPARE_PROBED_ALLOCA_NEGSIZE_SAME_REG_64 : PPCEmitTimePseudo<(outs
+    g8rc:$fp, g8rc:$actual_negsize),
+    (ins g8rc:$negsize, memri:$fpsi),
+    "#PREPARE_PROBED_ALLOCA_NEGSIZE_SAME_REG_64", []>,
+    RegConstraint<"$actual_negsize = $negsize">;
 def PROBED_STACKALLOC_64 : PPCEmitTimePseudo<(outs g8rc:$scratch, g8rc:$temp),
     (ins i64imm:$stacksize),
     "#PROBED_STACKALLOC_64", []>;
@@ -1021,8 +1026,8 @@ def : InstAlias<"mfamr $Rx", (MFSPR8 g8rc:$Rx, 29)>;
 foreach SPRG = 0-3 in {
   def : InstAlias<"mfsprg $RT, "#SPRG, (MFSPR8 g8rc:$RT, !add(SPRG, 272))>;
   def : InstAlias<"mfsprg"#SPRG#" $RT", (MFSPR8 g8rc:$RT, !add(SPRG, 272))>;
-  def : InstAlias<"mfsprg "#SPRG#", $RT", (MTSPR8 !add(SPRG, 272), g8rc:$RT)>;
-  def : InstAlias<"mfsprg"#SPRG#" $RT", (MTSPR8 !add(SPRG, 272), g8rc:$RT)>;
+  def : InstAlias<"mtsprg "#SPRG#", $RT", (MTSPR8 !add(SPRG, 272), g8rc:$RT)>;
+  def : InstAlias<"mtsprg"#SPRG#" $RT", (MTSPR8 !add(SPRG, 272), g8rc:$RT)>;
 }
 
 def : InstAlias<"mfasr $RT", (MFSPR8 g8rc:$RT, 280)>;
