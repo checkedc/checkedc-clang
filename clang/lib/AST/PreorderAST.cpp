@@ -273,9 +273,7 @@ void BinaryOperatorNode::Coalesce(bool &Changed, bool &Error) {
     return;
 
   // Remove the current node from the list of children of its parent.
-  // Since BParent is modified within the loop, we need to evaluate
-  // the loop end on each iteration.
-  for (auto I = BParent->Children.begin(); I != BParent->Children.end(); ++I) {
+  for (auto I = BParent->Children.begin(), E = BParent->Children.end(); I != E; ++I) {
     if (*I == this) {
       BParent->Children.erase(I);
       break;
