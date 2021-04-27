@@ -95,8 +95,9 @@ bool isInSrcArray(ConstraintVariable *CK, Constraints &CS) {
 class ScopeVisitor {
 public:
   ScopeVisitor(const ProgramVarScope *S, std::set<BoundsKey> &R,
+               std::set<BoundsKey> &VK,
                std::map<BoundsKey, ProgramVar *> &VarM,
-               std::set<BoundsKey> &P): TS(S), Res(R), VM(VarM)
+               std::set<BoundsKey> &P): TS(S), Res(R), VisibleKeys(VK), VM(VarM)
     , PtrAtoms(P) { }
   void visitBoundsKey(BoundsKey V) const {
     // If the variable is non-pointer?
@@ -106,12 +107,16 @@ public:
       if (S->isNumConstant() ||
           (*(TS) == *(S->getScope()))) {
         Res.insert(V);
+        VisibleKeys.insert(V);
+      } else if (TS->isInInnerScope(*(S->getScope()))) {
+        VisibleKeys.insert(V);
       }
     }
   }
 
   const ProgramVarScope *TS;
   std::set<BoundsKey> &Res;
+  std::set<BoundsKey> &VisibleKeys;
   std::map<BoundsKey, ProgramVar *> &VM;
   std::set<BoundsKey> &PtrAtoms;
 };
@@ -130,13 +135,16 @@ mergeReachableProgramVars(std::set<BoundsKey> &AllVars) {
     // non-constants if there are multiple non-constant variables,
     // we give up.
     for (auto *TmpB : AllProgVars) {
+      // First case.
       if (BVar == nullptr) {
         BVar = TmpB;
       } else if (BVar->isNumConstant()) {
+        // Case when one variable is constant and other is not.
         if (!TmpB->isNumConstant()) {
           // We give preference to non-constant lengths.
           BVar = TmpB;
         } else {
+          // Case when both are constants.
           // If we need to merge two constants? Pick the lesser value.
           int CVal = std::stoi(BVar->getVarName());
           int TmpVal = std::stoi(TmpB->getVarName());
@@ -144,10 +152,26 @@ mergeReachableProgramVars(std::set<BoundsKey> &AllVars) {
             BVar = TmpB;
           }
         }
-      } else if (!TmpB->isNumConstant() && BVar->getKey() != TmpB->getKey()) {
-        // If they are different variables?
-        BVar = nullptr;
-        break;
+      } else if (!TmpB->isNumConstant()) {
+        // Case when both are non-constant variables.
+        auto *BScope = BVar->getScope();
+        auto *TScope = TmpB->getScope();
+        if (*BScope != *TScope) {
+          // Is the new variable in inner scope (i.e., more close)?
+          if (TScope->isInInnerScope(*BScope)) {
+            BVar = TmpB;
+          } else if (!BScope->isInInnerScope(*TScope)) {
+            // Variables are in different scope and their visibilities are
+            // incomparable. We give up.
+            BVar = nullptr;
+            break;
+          }
+        } else if (BVar->getKey() != TmpB->getKey()) {
+          // The variables are in same scope, but are different variables.
+          // We give up.
+          BVar = nullptr;
+          break;
+        }
       }
     }
     AllVars.clear();
@@ -226,11 +250,21 @@ bool AvarBoundsInference::getReachableBoundKeys(const ProgramVarScope *DstScope,
   for (auto CurrVarK : AllFKeys) {
     // Find all the in scope variables reachable from the CurrVarK
     // bounds variable.
-    ScopeVisitor TV(DstScope, PotK, BI->PVarInfo,
+    std::set<BoundsKey> InScopeKeys;
+    std::set<BoundsKey> VisibleKeys;
+    if (DstScope->isInInnerScope(*BI->getProgramVar(CurrVarK)->getScope()))
+      VisibleKeys.insert(CurrVarK);
+    ScopeVisitor TV(DstScope, InScopeKeys, VisibleKeys, BI->PVarInfo,
                     BI->PointerBoundsKey);
     BKGraph.visitBreadthFirst(CurrVarK, [&TV](BoundsKey BK) {
       TV.visitBoundsKey(BK);
     });
+    // Prioritize in scope keys.
+    if (!InScopeKeys.empty()) {
+      PotK.insert(InScopeKeys.begin(), InScopeKeys.end());
+    } else {
+      PotK.insert(VisibleKeys.begin(), VisibleKeys.end());
+    }
   }
 
   // This is to get all the constants that are assigned to the variables

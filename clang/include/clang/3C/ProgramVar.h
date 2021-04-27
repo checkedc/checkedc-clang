@@ -54,6 +54,9 @@ public:
   virtual bool operator==(const ProgramVarScope &) const = 0;
   virtual bool operator!=(const ProgramVarScope &) const = 0;
   virtual bool operator<(const ProgramVarScope &) const = 0;
+  // Variables of scope x are all visible in y iff y.isInInnerScope(x)
+  // is true.
+  virtual bool isInInnerScope(const ProgramVarScope &) const = 0;
   virtual std::string getStr() const = 0;
 };
 
@@ -82,6 +85,8 @@ public:
   bool operator!=(const ProgramVarScope &O) const { return !(*this == O); }
 
   bool operator<(const ProgramVarScope &O) const { return false; }
+
+  bool isInInnerScope(const ProgramVarScope &O) const { return false; }
 
   std::string getStr() const { return "Global"; }
 
@@ -123,6 +128,11 @@ public:
     }
 
     return false;
+  }
+
+  bool isInInnerScope(const ProgramVarScope &O) const {
+    // only global variables are visible here.
+    return clang::isa<GlobalScope>(&O);
   }
 
   std::string getStr() const { return "Struct_" + StName; }
@@ -240,6 +250,11 @@ public:
     }
 
     return false;
+  }
+
+  bool isInInnerScope(const ProgramVarScope &O) const {
+    // only global variables are visible here.
+    return clang::isa<GlobalScope>(&O);
   }
 
   std::string getStr() const { return "FuncParm_" + FName; }
@@ -371,6 +386,8 @@ public:
     }
     return false;
   }
+
+  bool isInInnerScope(const ProgramVarScope &O) const;
 
   std::string getStr() const { return "InFunc_" + FName; }
 

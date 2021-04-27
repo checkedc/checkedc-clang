@@ -56,6 +56,22 @@ const FunctionParamScope *FunctionParamScope::getFunctionParamScope(
   return &FPS;
 }
 
+bool FunctionScope::isInInnerScope(const ProgramVarScope &O) const {
+  // Global variables and function parameters are visible here.
+  if (clang::isa<GlobalScope>(&O))
+    return true;
+
+  // Function parameters of the same function are also visible
+  // inside the function.
+  if (auto *FPS = clang::dyn_cast<FunctionParamScope>(&O)) {
+    if (this->FName == FPS->getFName() &&
+        this->IsStatic == FPS->getIsStatic()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 const CtxFunctionArgScope *
 CtxFunctionArgScope::getCtxFunctionParamScope(const FunctionParamScope *FPS,
                                               const PersistentSourceLoc &PSL) {
