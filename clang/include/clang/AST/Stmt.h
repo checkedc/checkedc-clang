@@ -1844,7 +1844,7 @@ protected:
   using Stmt::Stmt;
 
 private:
-  WhereClause *WClause;
+  WhereClause *WClause = nullptr;
 
 public:
   const Expr *getExprStmt() const;
