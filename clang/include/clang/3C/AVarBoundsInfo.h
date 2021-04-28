@@ -130,6 +130,11 @@ private:
 
   void mergeReachableProgramVars(BoundsKey TarBK,std::set<BoundsKey> &AllVars);
 
+  // Check if the pointer variable has impossible bounds.
+  bool hasImpossibleBounds(BoundsKey BK);
+  // Set the given pointer to have impossible bounds.
+  void setImpossibleBounds(BoundsKey BK);
+
   AVarBoundsInfo *BI;
 
   // Potential Bounds for each bounds key inferred for the current iteration.
@@ -274,6 +279,10 @@ private:
   // Set of BoundsKey that correspond to array pointers.
   std::set<BoundsKey> ArrPointerBoundsKey;
   std::set<BoundsKey> NtArrPointerBoundsKey;
+  // These are array and nt arr pointers which cannot have bounds.
+  // E.g., return value of strdup and in general any return value
+  // which is an nt array.
+  std::set<BoundsKey> PointersWithImpossibleBounds;
   // Set of BoundsKey that correspond to array pointers with in the program
   // being compiled i.e., it does not include array pointers that belong
   // to libraries.

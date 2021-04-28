@@ -225,6 +225,16 @@ AvarBoundsInference::convergeInferredBounds() {
   return FoundSome;
 }
 
+bool AvarBoundsInference::hasImpossibleBounds(BoundsKey BK) {
+  return this->BI->PointersWithImpossibleBounds.find(BK) !=
+         this->BI->PointersWithImpossibleBounds.end();
+}
+
+void AvarBoundsInference::setImpossibleBounds(BoundsKey BK) {
+  this->BI->PointersWithImpossibleBounds.insert(BK);
+  this->BI->removeBounds(BK);
+}
+
 // This function finds all the BoundsKeys (i.e., variables) in
 // scope `DstScope` that are reachable from `FromVarK` in the
 // graph `BKGraph`. All the reachable bounds key will be stored in `PotK`.
@@ -381,10 +391,16 @@ bool AvarBoundsInference::predictBounds(BoundsKey K,
         }
       }
     } else if (IsFuncRet ||
-               (BKsFailedFlowInference.find(NBK) != BKsFailedFlowInference.end())) {
+               (BKsFailedFlowInference.find(NBK) !=
+                BKsFailedFlowInference.end())) {
 
       // If this is a function return we should have bounds from all
       // neighbours.
+      ErrorOccurred = true;
+    } else if (hasImpossibleBounds(NBK)) {
+      // if the neighbour has impossible bounds?
+      // Consider that current pointer to also have impossible bounds.
+      setImpossibleBounds(K);
       ErrorOccurred = true;
     }
     if (ErrorOccurred) {
@@ -1114,8 +1130,13 @@ void AVarBoundsInfo::computerArrPointers(ProgramInfo *PI,
         InProgramArrPtrBoundsKeys.insert(Bkey);
       }
 
-      if (hasOnlyNtArray(FV->getInternalReturn(), CS)) {
+      if (hasOnlyNtArray(FV->getExternalReturn(), CS)) {
         NtArrPointerBoundsKey.insert(Bkey);
+        // If the return value is an nt array pointer
+        // and there are no declared bounds? Then, we cannot
+        // find bounds for this pointer.
+        if (getBounds(Bkey) == nullptr)
+          PointersWithImpossibleBounds.insert(Bkey);
       }
       continue;
     }
@@ -1162,6 +1183,9 @@ void AVarBoundsInfo::getBoundsNeededArrPointers(
   }
   // Also add arrays with invalid bounds.
   ArrWithBounds.insert(InvalidBounds.begin(), InvalidBounds.end());
+  // Also, add arrays with impossible bounds.
+  ArrWithBounds.insert(PointersWithImpossibleBounds.begin(),
+                       PointersWithImpossibleBounds.end());
 
   // This are the array atoms that need bounds.
   // i.e., AB = ArrPtrs - ArrPtrsWithBounds.

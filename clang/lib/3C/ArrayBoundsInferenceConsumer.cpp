@@ -533,7 +533,8 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         }
       }
 
-      for (auto &CurrNtArr : ParamNtArrays) {
+      // Do not use heuristics for param nt arrays.
+      /*for (auto &CurrNtArr : ParamNtArrays) {
         unsigned PIdx = CurrNtArr.first;
         BoundsKey PBKey = CurrNtArr.second.second;
         if (LengthParams.find(PIdx + 1) != LengthParams.end()) {
@@ -544,7 +545,7 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
             continue;
           }
         }
-      }
+      }*/
     }
   }
   return true;
