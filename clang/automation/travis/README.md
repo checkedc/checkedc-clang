@@ -1,7 +1,7 @@
 # Build System for Checked C
 
 Because Building Clang/LLVM is actually really complicated, we have
-this repository as a completely seperate space to build within.
+this repository as a completely separate space to build within.
 
 Effectively, we clone all the repos we want to build into the correct
 structure within this directory, and then build. This works because it means we can
@@ -35,8 +35,8 @@ All the following commands should be run within the current directory.
   checks out the correct branches for the build. It then uses cmake to make a build directory, installs lnt
   into the virtualenv that `install.sh` created. It's probably sensible to run this as `. ./checkout.sh` too.
 - Run `make -j${NPROC} --no-print-directory -C llvm.build`, which goes into the llvm.build directory
-  and builds all the executables, including clang. This is a seperate step to the next one on travis so
-  that the logs are kept seperate (this produces lots of logs, most of which are useless).
+  and builds all the executables, including clang. This is a separate step to the next one on travis so
+  that the logs are kept separate (this produces lots of logs, most of which are useless).
 - Run `make -j${NPROC} --no-print-directory -C llvm.build --keep-going check-checkedc check-clang`,
   which goes into llvm.build and runs the checkedc tests and clang regression tests
 - Run `./llvm.lnt.ve/bin/lnt runtest nt --sandbox ./llvm.lnt.sandbox --cc ./llvm.build/bin/clang --test-suite ./llvm-test-suite --cflags -fcheckedc-extension`,
