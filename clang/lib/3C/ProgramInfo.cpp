@@ -190,23 +190,27 @@ void ProgramInfo::dumpJson(llvm::raw_ostream &O) const {
 // of 'vars'. If it either has a function pointer, or V is
 // a function, then recurses on the return and parameter
 // constraints.
-static void getVarsFromConstraint(ConstraintVariable *V, CAtoms &R) {
-  if (auto *PVC = dyn_cast<PVConstraint>(V)) {
-    R.insert(R.begin(), PVC->getCvars().begin(), PVC->getCvars().end());
-    if (FVConstraint *FVC = PVC->getFV())
-      getVarsFromConstraint(FVC, R);
-  } else if (auto *FVC = dyn_cast<FVConstraint>(V)) {
-    if (FVC->getExternalReturn())
-      getVarsFromConstraint(FVC->getExternalReturn(), R);
-    for (unsigned I = 0; I < FVC->numParams(); I++)
-      getVarsFromConstraint(FVC->getExternalParam(I), R);
+static void getVarsFromConstraint(ConstraintVariable *V, CAtoms &R,
+                                  std::set<ConstraintVariable *> &Visited) {
+  if (Visited.find(V) == Visited.end()) {
+    Visited.insert(V);
+    if (auto *PVC = dyn_cast_or_null<PVConstraint>(V)) {
+      R.insert(R.begin(), PVC->getCvars().begin(), PVC->getCvars().end());
+      if (FVConstraint *FVC = PVC->getFV())
+        getVarsFromConstraint(FVC, R, Visited);
+    } else if (auto *FVC = dyn_cast_or_null<FVConstraint>(V)) {
+      getVarsFromConstraint(FVC->getInternalReturn(), R, Visited);
+      for (unsigned I = 0; I < FVC->numParams(); I++)
+        getVarsFromConstraint(FVC->getInternalParam(I), R, Visited);
+    }
   }
 }
 
 // Print aggregate stats
 void ProgramInfo::print_aggregate_stats(const std::set<std::string> &F,
                                         llvm::raw_ostream &O) {
-  std::set<Atom *> AllAtoms;
+  std::vector<Atom *> AllAtoms;
+  CVarSet Visited;
   CAtoms FoundVars;
 
   unsigned int totP, totNt, totA, totWi;
@@ -221,11 +225,12 @@ void ProgramInfo::print_aggregate_stats(const std::set<std::string> &F,
     if (F.count(FileName) || FileName.find(BaseDir) != std::string::npos) {
       if (C->isForValidDecl()) {
         FoundVars.clear();
-        getVarsFromConstraint(C, FoundVars);
-        AllAtoms.insert(FoundVars.begin(), FoundVars.end());
+        getVarsFromConstraint(C, FoundVars, Visited);
+        std::copy(FoundVars.begin(), FoundVars.end(),
+                  std::back_inserter(AllAtoms));
         Tmp = C;
         if (FVConstraint *FV = dyn_cast<FVConstraint>(C)) {
-          Tmp = FV->getExternalReturn();
+          Tmp = FV->getInternalReturn();
         }
         // If this is a var atom?
         if (!FoundVars.empty() && dyn_cast_or_null<VarAtom>(*FoundVars.begin())) {
@@ -289,7 +294,7 @@ void ProgramInfo::printStats(const std::set<std::string> &F, raw_ostream &O,
     O << "Sound handling of var args functions:" << HandleVARARGS << "\n";
   }
   std::map<std::string, std::tuple<int, int, int, int, int>> FilesToVars;
-  CVarSet InSrcCVars;
+  CVarSet InSrcCVars, Visited;
   unsigned int TotC, TotP, TotNt, TotA, TotWi;
   TotC = TotP = TotNt = TotA = TotWi = 0;
 
@@ -311,7 +316,7 @@ void ProgramInfo::printStats(const std::set<std::string> &F, raw_ostream &O,
       if (C->isForValidDecl()) {
         InSrcCVars.insert(C);
         CAtoms FoundVars;
-        getVarsFromConstraint(C, FoundVars);
+        getVarsFromConstraint(C, FoundVars, Visited);
 
         VarC += FoundVars.size();
         for (const auto &N : FoundVars) {
@@ -996,13 +1001,14 @@ bool ProgramInfo::computeInterimConstraintState(
   // in one of the files being compiled.
   CAtoms ValidVarsVec;
   std::set<Atom *> AllValidVars;
+  CVarSet Visited;
   CAtoms Tmp;
   for (const auto &I : Variables) {
     std::string FileName = I.first.getFileName();
     ConstraintVariable *C = I.second;
     if (C->isForValidDecl()) {
       Tmp.clear();
-      getVarsFromConstraint(C, Tmp);
+      getVarsFromConstraint(C, Tmp, Visited);
       AllValidVars.insert(Tmp.begin(), Tmp.end());
       if (canWrite(FileName))
         ValidVarsVec.insert(ValidVarsVec.begin(), Tmp.begin(), Tmp.end());
@@ -1123,12 +1129,12 @@ void ProgramInfo::insertIntoPtrSourceMap(const PersistentSourceLoc *PSL,
     // If the PVConstraint is a function pointer, create mappings for parameter
     // and return variables.
     if (auto *FV = PV->getFV()) {
-      insertIntoPtrSourceMap(PSL, FV->getExternalReturn());
+      insertIntoPtrSourceMap(PSL, FV->getInternalReturn());
       for (unsigned int I = 0; I < FV->numParams(); I++)
-        insertIntoPtrSourceMap(PSL, FV->getExternalParam(I));
+        insertIntoPtrSourceMap(PSL, FV->getInternalParam(I));
     }
   } else if (auto *FV = dyn_cast<FVConstraint>(CV)) {
-    insertIntoPtrSourceMap(PSL, FV->getExternalReturn());
+    insertIntoPtrSourceMap(PSL, FV->getInternalReturn());
   }
 }
 
@@ -1147,9 +1153,9 @@ void ProgramInfo::insertCVAtoms(
     if (FVConstraint *FVC = PVC->getFV())
       insertCVAtoms(FVC, AtomMap);
   } else if (auto *FVC = dyn_cast<FVConstraint>(CV)) {
-    insertCVAtoms(FVC->getExternalReturn(), AtomMap);
+    insertCVAtoms(FVC->getInternalReturn(), AtomMap);
     for (unsigned I = 0; I < FVC->numParams(); I++)
-      insertCVAtoms(FVC->getExternalParam(I), AtomMap);
+      insertCVAtoms(FVC->getInternalParam(I), AtomMap);
   } else {
     llvm_unreachable("Unknown kind of constraint variable.");
   }
