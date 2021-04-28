@@ -128,7 +128,7 @@ private:
   bool predictBounds(BoundsKey DstArrK, std::set<BoundsKey> &Neighbours,
                      AVarGraph &BKGraph);
 
-  void mergeReachableProgramVars(std::set<BoundsKey> &AllVars);
+  void mergeReachableProgramVars(BoundsKey TarBK,std::set<BoundsKey> &AllVars);
 
   AVarBoundsInfo *BI;
 

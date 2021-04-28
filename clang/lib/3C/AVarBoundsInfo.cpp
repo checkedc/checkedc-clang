@@ -123,7 +123,7 @@ public:
 
 void
 AvarBoundsInference::
-mergeReachableProgramVars(std::set<BoundsKey> &AllVars) {
+mergeReachableProgramVars(BoundsKey TarBK, std::set<BoundsKey> &AllVars) {
   if (AllVars.size() > 1) {
     // Convert the bounds key to corresponding program var.
     std::set<ProgramVar *> AllProgVars;
@@ -131,6 +131,8 @@ mergeReachableProgramVars(std::set<BoundsKey> &AllVars) {
       AllProgVars.insert(BI->getProgramVar(AV));
     }
     ProgramVar *BVar = nullptr;
+    bool IsTarNTArr = BI->NtArrPointerBoundsKey.find(TarBK) !=
+                      BI->NtArrPointerBoundsKey.end();
     // We want to merge all bounds vars. We give preference to
     // non-constants if there are multiple non-constant variables,
     // we give up.
@@ -144,11 +146,17 @@ mergeReachableProgramVars(std::set<BoundsKey> &AllVars) {
           // We give preference to non-constant lengths.
           BVar = TmpB;
         } else {
-          // Case when both are constants.
-          // If we need to merge two constants? Pick the lesser value.
+          // If we need to merge two constants?
           int CVal = std::stoi(BVar->getVarName());
           int TmpVal = std::stoi(TmpB->getVarName());
-          if (TmpVal < CVal) {
+          if (IsTarNTArr) {
+            // If this is an NTarr then the values should be same.
+            if (TmpVal != CVal) {
+              BVar = nullptr;
+              break;
+            }
+          } else if (TmpVal < CVal) {
+            // Else (if array), pick the lesser value.
             BVar = TmpB;
           }
         }
@@ -192,7 +200,7 @@ AvarBoundsInference::convergeInferredBounds() {
     if (AB == nullptr) {
       auto BTypeMap = CInfABnds.second;
       for (auto &TySet : BTypeMap) {
-        mergeReachableProgramVars(TySet.second);
+        mergeReachableProgramVars(CInfABnds.first, TySet.second);
       }
       // Order of preference: Count and Byte
       if (BTypeMap.find(ABounds::CountBoundKind) != BTypeMap.end() &&
