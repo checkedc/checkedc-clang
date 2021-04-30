@@ -55,14 +55,14 @@ namespace clang {
     // @param[in] Changed indicates whether a node was coalesced. We need this
     // to control when to stop recursive coalescing.
     // @param[in] Error indicates whether an error occurred during coalescing.
-    virtual void Coalesce(bool &Changed, bool &Error) { }
+    virtual void Coalesce(bool &Changed, bool &Error) = 0;
 
     // Recursively descend a Node to sort the children of all
     // BinaryOperatorNodes if the binary operator is commutative.
     // @param[in] this is the current node of the AST.
     // @param[in] Lex is used to lexicographically compare Exprs and Decls
     // that occur within nodes.
-    virtual void Sort(Lexicographic Lex) { }
+    virtual void Sort(Lexicographic Lex) = 0;
 
     // Constant fold integer expressions.
     // @param[in] this is the current node of the AST.
@@ -71,7 +71,7 @@ namespace clang {
     // @param[in] Error indicates whether an error occurred during constant
     // folding.
     // @param[in] Ctx is used to create constant expressions.
-    virtual void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx) { }
+    virtual void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx) = 0;
 
     // Compare nodes according to their kind.
     // @param[in] this is the current node of the AST.
@@ -93,19 +93,15 @@ namespace clang {
     // that occur within nodes.
     // @return Returns a Lexicographic::Result indicating the comparison
     // between this and Other.
-    virtual Result Compare(const Node *Other, Lexicographic Lex) const {
-      return CompareKinds(Other);
-    }
+    virtual Result Compare(const Node *Other, Lexicographic Lex) const = 0;
 
     // Print the node.
     // @param[in] this is the current node of the AST.
-    virtual void PrettyPrint(llvm::raw_ostream &OS, ASTContext &Ctx) const { }
+    virtual void PrettyPrint(llvm::raw_ostream &OS, ASTContext &Ctx) const = 0;
 
     // Cleanup the memory consumed by this node.
     // @param[in] this is the current node of the AST.
-    virtual void Cleanup() {
-      delete this;
-    }
+    virtual void Cleanup() = 0;
   };
 
   class BinaryOperatorNode : public Node {
@@ -219,8 +215,12 @@ namespace clang {
       return N->Kind == NodeKind::LeafExprNode;
     }
 
+    void Coalesce(bool &Changed, bool &Error);
+    void Sort(Lexicographic Lex);
+    void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
     Result Compare(const Node *Other, Lexicographic Lex) const;
     void PrettyPrint(llvm::raw_ostream &OS, ASTContext &Ctx) const;
+    void Cleanup();
   };
 
 } // end namespace clang

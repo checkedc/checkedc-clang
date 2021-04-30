@@ -309,6 +309,8 @@ void ImplicitCastNode::Coalesce(bool &Changed, bool &Error) {
   Child->Coalesce(Changed, Error);
 }
 
+void LeafExprNode::Coalesce(bool &Changed, bool &Error) { }
+
 void BinaryOperatorNode::Sort(Lexicographic Lex) {
   // Sort the children first.
   for (auto *Child : Children)
@@ -336,6 +338,8 @@ void MemberNode::Sort(Lexicographic Lex) {
 void ImplicitCastNode::Sort(Lexicographic Lex) {
   Child->Sort(Lex);
 }
+
+void LeafExprNode::Sort(Lexicographic Lex) { }
 
 void BinaryOperatorNode::ConstantFold(bool &Changed, bool &Error,
                                       ASTContext &Ctx) {
@@ -450,6 +454,9 @@ void ImplicitCastNode::ConstantFold(bool &Changed, bool &Error,
     return;
   Child->ConstantFold(Changed, Error, Ctx);
 }
+
+void LeafExprNode::ConstantFold(bool &Changed, bool &Error,
+                                ASTContext &Ctx) { }
 
 bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
 				 llvm::APSInt &Offset) {
@@ -711,5 +718,9 @@ void MemberNode::Cleanup() {
 
 void ImplicitCastNode::Cleanup() {
   Child->Cleanup();
+  delete this;
+}
+
+void LeafExprNode::Cleanup() {
   delete this;
 }
