@@ -52,10 +52,10 @@ namespace clang {
     // Recursively coalesce BinaryOperatorNodes having the same commutative
     // and associative operator.
     // @param[in] this is the current node of the AST.
-    // @param[in] Changed indicates whether a node was coalesced. We need this
-    // to control when to stop recursive coalescing.
     // @param[in] Error indicates whether an error occurred during coalescing.
-    virtual void Coalesce(bool &Changed, bool &Error) = 0;
+    // @return Returns true if this node was deleted. The node is deleted if
+    // it is coalesced into its parent.
+    virtual bool Coalesce(bool &Error) = 0;
 
     // Recursively descend a Node to sort the children of all
     // BinaryOperatorNodes if the binary operator is commutative.
@@ -133,7 +133,7 @@ namespace clang {
     // @return Returns true if this can be coalesced into its parent, false
     // otherwise.
     bool CanCoalesce();
-    void Coalesce(bool &Changed, bool &Error);
+    bool Coalesce(bool &Error);
     void Sort(Lexicographic Lex);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
     Result Compare(const Node *Other, Lexicographic Lex) const;
@@ -154,7 +154,7 @@ namespace clang {
       return N->Kind == NodeKind::UnaryOperatorNode;
     }
 
-    void Coalesce(bool &Changed, bool &Error);
+    bool Coalesce(bool &Error);
     void Sort(Lexicographic Lex);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
     Result Compare(const Node *Other, Lexicographic Lex) const;
@@ -176,7 +176,7 @@ namespace clang {
       return N->Kind == NodeKind::MemberNode;
     }
 
-    void Coalesce(bool &Changed, bool &Error);
+    bool Coalesce(bool &Error);
     void Sort(Lexicographic Lex);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
     Result Compare(const Node *Other, Lexicographic Lex) const;
@@ -197,7 +197,7 @@ namespace clang {
       return N->Kind == NodeKind::ImplicitCastNode;
     }
 
-    void Coalesce(bool &Changed, bool &Error);
+    bool Coalesce(bool &Error);
     void Sort(Lexicographic Lex);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
     Result Compare(const Node *Other, Lexicographic Lex) const;
@@ -217,7 +217,7 @@ namespace clang {
       return N->Kind == NodeKind::LeafExprNode;
     }
 
-    void Coalesce(bool &Changed, bool &Error);
+    bool Coalesce(bool &Error);
     void Sort(Lexicographic Lex);
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
     Result Compare(const Node *Other, Lexicographic Lex) const;

@@ -251,26 +251,32 @@ bool BinaryOperatorNode::CanCoalesce() {
   return Opc == BParent->Opc || Children.size() == 1;
 }
 
-void BinaryOperatorNode::Coalesce(bool &Changed, bool &Error) {
+bool BinaryOperatorNode::Coalesce(bool &Error) {
   if (Error)
-    return;
+    return false;
 
   // Coalesce the children first.
   // Since Children is modified within the loop, we need to evaluate
   // the loop end on each iteration.
-  for (size_t I = 0; I != Children.size(); ++I) {
+  size_t I = 0;
+  while (I != Children.size()) {
     auto *Child = Children[I];
-    Child->Coalesce(Changed, Error);
+    bool ChildCoalesced = Child->Coalesce(Error);
+    // If Child was not coalesced into this node, then we can increment I
+    // in order to coalesce the next child node. Otherwise, if Child was
+    // coalesced into this node, then Children[I] still needs to be coalesced.
+    if (!ChildCoalesced)
+      ++I;
   }
 
   if (!CanCoalesce())
-    return;
+    return false;
 
   // If the current node can be coalesced, its parent must be a
   // BinaryOperatorNode.
   auto *BParent = dyn_cast_or_null<BinaryOperatorNode>(Parent);
   if (!BParent)
-    return;
+    return false;
 
   // Remove the current node from the list of children of its parent.
   for (auto I = BParent->Children.begin(), E = BParent->Children.end(); I != E; ++I) {
@@ -288,28 +294,35 @@ void BinaryOperatorNode::Coalesce(bool &Changed, bool &Error) {
 
   // Delete the current node.
   delete this;
-  Changed = true;
+
+  // The current node was coalesced into its parent.
+  return true;
 }
 
-void UnaryOperatorNode::Coalesce(bool &Changed, bool &Error) {
+bool UnaryOperatorNode::Coalesce(bool &Error) {
   if (Error)
-    return;
-  Child->Coalesce(Changed, Error);
+    return false;
+  Child->Coalesce(Error);
+  return false;
 }
 
-void MemberNode::Coalesce(bool &Changed, bool &Error) {
+bool MemberNode::Coalesce(bool &Error) {
   if (Error)
-    return;
-  Base->Coalesce(Changed, Error);
+    return false;
+  Base->Coalesce(Error);
+  return false;
 }
 
-void ImplicitCastNode::Coalesce(bool &Changed, bool &Error) {
+bool ImplicitCastNode::Coalesce(bool &Error) {
   if (Error)
-    return;
-  Child->Coalesce(Changed, Error);
+    return false;
+  Child->Coalesce(Error);
+  return false;
 }
 
-void LeafExprNode::Coalesce(bool &Changed, bool &Error) { }
+bool LeafExprNode::Coalesce(bool &Error) {
+  return false;
+}
 
 void BinaryOperatorNode::Sort(Lexicographic Lex) {
   // Sort the children first.
