@@ -54,189 +54,28 @@ void PreorderAST::AttachNode(Node *N, Node *Parent) {
     I->Child = N;
 }
 
-bool PreorderAST::CanCoalesceNode(BinaryOperatorNode *B) {
-  if (!B || !isa<BinaryOperatorNode>(B) || !B->Parent)
-    return false;
-
-  // We can only coalesce if the operator of the current and parent node is
-  // commutative and associative. This is because after coalescing we later
-  // need to sort the nodes and if the operator is not commutative and
-  // associative then sorting would be incorrect.
-  if (!B->IsOpCommutativeAndAssociative())
-    return false;
-  auto *BParent = dyn_cast_or_null<BinaryOperatorNode>(B->Parent);
-  if (!BParent || !BParent->IsOpCommutativeAndAssociative())
-    return false;
-
-  // We can coalesce in the following scenarios:
-  // 1. The current and parent nodes have the same operator OR
-  // 2. The current node is the only child of its operator node (maybe as a
-  // result of constant folding).
-  return B->Opc == BParent->Opc || B->Children.size() == 1;
-}
-
-void PreorderAST::CoalesceNode(BinaryOperatorNode *B) {
-  if (!CanCoalesceNode(B)) {
-    assert(0 && "Attempting to coalesce invalid node");
-    SetError();
-    return;
-  }
-
-  // If the current node can be coalesced, its parent must be a
-  // BinaryOperatorNode.
-  auto *BParent = dyn_cast_or_null<BinaryOperatorNode>(B->Parent);
-  if (!BParent)
-    return;
-
-  // Remove the current node from the list of children of its parent.
-  // Since BParent is modified within the loop, we need to evaluate
-  // the loop end on each iteration.
-  for (auto I = BParent->Children.begin(); I != BParent->Children.end(); ++I) {
-    if (*I == B) {
-      BParent->Children.erase(I);
-      break;
-    }
-  }
-
-  // Move all children of the current node to its parent.
-  for (auto *Child : B->Children) {
-    Child->Parent = BParent;
-    BParent->Children.push_back(Child);
-  }
-
-  // Delete the current node.
-  delete B;
-}
-
 void PreorderAST::Create(Expr *E, Node *Parent) {
   if (!E)
     return;
 
   E = Lex.IgnoreValuePreservingOperations(Ctx, E->IgnoreParens());
 
-  if (!Parent) {
+  if (!Root) {
     // The invariant is that the root node must be a BinaryOperatorNode with an
     // addition operator. So for expressions like "if (*p)", we don't have a
     // BinaryOperator. So when we enter this function there is no root and the
-    // parent is null. So we create a new BinaryOperatorNode with + as the
+    // Root node is null. So we create a new BinaryOperatorNode with + as the
     // operator and add 0 as a LeafExprNode child of this BinaryOperatorNode.
     // This helps us compare expressions like "p" and "p + 1" by normalizing
     // "p" to "p + 0".
 
     AddZero(E, Parent);
 
-  } else if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
-    BinaryOperator::Opcode BinOp = BO->getOpcode();
-    Expr *LHS = BO->getLHS();
-    Expr *RHS = BO->getRHS();
-
-    // We can convert (e1 - e2) to (e1 + -e2) if -e2 does not overflow.  One
-    // instance where -e2 can overflow is if e2 is INT_MIN. Here, instead of
-    // specifically checking whether e2 is INT_MIN, we add a unary minus to e2
-    // and then check if the resultant expression -e2 overflows. If it
-    // overflows, we undo the unary minus operator.
-
-    // TODO: Currently, we can only prove that integer constant expressions do
-    // not overflow. We still need to handle proving that non-constant
-    // expressions do not overflow.
-    if (BO->getOpcode() == BO_Sub &&
-        RHS->isIntegerConstantExpr(Ctx)) {
-      Expr *UOMinusRHS =
-        UnaryOperator::Create(Ctx, RHS, UO_Minus, RHS->getType(),
-                              RHS->getValueKind(), RHS->getObjectKind(),
-                              SourceLocation(), /*CanOverflow*/ true,
-                              FPOptionsOverride());
-
-      SmallVector<PartialDiagnosticAt, 8> Diag;
-      UOMinusRHS->EvaluateKnownConstIntCheckOverflow(Ctx, &Diag);
-
-      bool Overflow = false;
-      for (auto &PD : Diag) {
-        if (PD.second.getDiagID() == diag::note_constexpr_overflow) {
-          Overflow = true;
-          break;
-        }
-      }
-
-      if (!Overflow) {
-        BinOp = BO_Add;
-        RHS = UOMinusRHS;
-      }
-
-      // TODO: In case of overflow we leak the memory allocated to UOMinusRHS.
-      // Whereas if there is no overflow we leak the memory initially allocated
-      // to RHS.
-    }
-
-    auto *N = new BinaryOperatorNode(BinOp, Parent);
-    AttachNode(N, Parent);
-
-    Create(LHS, /*Parent*/ N);
-    Create(RHS, /*Parent*/ N);
-
-  } else if (const auto *ME = dyn_cast<MemberExpr>(E)) {
-    Expr *Base = Lex.IgnoreValuePreservingOperations(Ctx, ME->getBase()->IgnoreParens());
-    ValueDecl *Field = ME->getMemberDecl();
-
-    // Expressions such as a->f, (*a).f, and a[0].f should have the same
-    // canonical form: a MemberNode with a Base node of + [a, 0] and a
-    // Field of f. Here, we determine whether the expression E is of one of
-    // the forms a->f, (*a).f, etc. and create the base expression a.
-    Expr *ArrowBase = nullptr;
-    if (ME->isArrow()) {
-      ArrowBase = Base;
-    } else {
-      if (const auto *UO = dyn_cast<UnaryOperator>(Base)) {
-        if (UO->getOpcode() == UnaryOperatorKind::UO_Deref)
-          ArrowBase = UO->getSubExpr();
-      } else if (auto *AE = dyn_cast<ArraySubscriptExpr>(Base)) {
-        ArrowBase = BinaryOperator::Create(Ctx, AE->getBase(), AE->getIdx(),
-                                           BinaryOperatorKind::BO_Add, AE->getType(),
-                                           AE->getValueKind(), AE->getObjectKind(),
-                                           AE->getExprLoc(), FPOptionsOverride());
-      }
-    }
-
-    if (ArrowBase) {
-      // If ArrowBase exists, then E is of the form ArrowBase->f,
-      // (*ArrowBase).f, etc. The Base of the MemberNode is ArrowBase + 0
-      // so that expressions such as a->f, (*a).f, (a + 0)->f, and a[0].f
-      // all have the same canonical form.
-      auto *N = new MemberNode(Field, /*IsArrow*/ true, Parent);
-      AttachNode(N, Parent);
-      AddZero(ArrowBase, /*Parent*/ N);
-    } else {
-      // If no ArrowBase exists, then E is of the form a.f.
-      auto *N = new MemberNode(Field, /*IsArrow*/ false, Parent);
-      AttachNode(N, Parent);
-      Create(Base, /*Parent*/ N);
-    }
+  } else if (auto *BO = dyn_cast<BinaryOperator>(E)) {
+    CreateBinaryOperator(BO, Parent);
 
   } else if (auto *UO = dyn_cast<UnaryOperator>(E)) {
-    UnaryOperatorKind Op = UO->getOpcode();
-    if (Op == UnaryOperatorKind::UO_Deref) {
-      // The child of a dereference operator must be a binary operator so that
-      // *e and *(e + 0) have the same canonical form. So for an expression of
-      // the form *e, we create a UnaryOperatorNode whose child is a
-      // BinaryOperatorNode e + 0.
-      auto *Child = UO->getSubExpr();
-      auto *N = new UnaryOperatorNode(Op, Parent);
-      AttachNode(N, Parent);
-      AddZero(Child, /*Parent*/ N);
-    } else if ((Op == UnaryOperatorKind::UO_Plus ||
-               Op == UnaryOperatorKind::UO_Minus) &&
-               E->isIntegerConstantExpr(Ctx)) {
-      // For integer constant expressions of the form +e or -e, we create a
-      // LeafExprNode rather than a UnaryOperatorNode so that these expressions
-      // can be constant folded. Constant folding only folds LeafExprNodes that
-      // are children of a BinaryOperatorNode.
-      auto *N = new LeafExprNode(E, Parent);
-      AttachNode(N, Parent);
-    } else {
-      auto *N = new UnaryOperatorNode(Op, Parent);
-      AttachNode(N, Parent);
-      Create(UO->getSubExpr(), /*Parent*/ N);
-    }
+    CreateUnaryOperator(UO, Parent);
 
   } else if (auto *AE = dyn_cast<ArraySubscriptExpr>(E)) {
     // e1[e2] has the same canonical form as *(e1 + e2).
@@ -244,26 +83,142 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
                                              BinaryOperatorKind::BO_Add, AE->getType(),
                                              AE->getValueKind(), AE->getObjectKind(),
                                              AE->getExprLoc(), FPOptionsOverride());
-    auto *N = new UnaryOperatorNode(UnaryOperatorKind::UO_Deref, Parent);
-    AttachNode(N, Parent);
-    // Even though e1 + e2 is already a binary operator, the child of the
-    // UnaryOperatorNode should be e1 + e2 + 0. This enables expressions such
-    // as p[i + -(1 + 2)] to be constant folded. In order for a
-    // BinaryOperatorNode to be constant folded, it must have at least two
-    // LeafExprNode children whose expressions are integer constants. For
-    // example, i + -(1 + 2) + 0 will be constant folded to i + -3, but
-    // i + -(1 + 2) will not be constant folded.
-    AddZero(DerefExpr, /*Parent*/ N);
+    CreateDereference(DerefExpr, Parent);
+
+  } else if (auto *ME = dyn_cast<MemberExpr>(E)) {
+    CreateMember(ME, Parent);
 
   } else if (auto *ICE = dyn_cast<ImplicitCastExpr>(E)) {
-    auto *N = new ImplicitCastNode(ICE->getCastKind(), Parent);
-    AttachNode(N, Parent);
-    Create(ICE->getSubExpr(), /*Parent*/ N);
+    CreateImplicitCast(ICE, Parent);
 
   } else {
     auto *N = new LeafExprNode(E, Parent);
     AttachNode(N, Parent);
   }
+}
+
+void PreorderAST::CreateBinaryOperator(BinaryOperator *E, Node *Parent) {
+  BinaryOperatorKind BinOp = E->getOpcode();
+  Expr *LHS = E->getLHS();
+  Expr *RHS = E->getRHS();
+
+  // We can convert (e1 - e2) to (e1 + -e2) if -e2 does not overflow.  One
+  // instance where -e2 can overflow is if e2 is INT_MIN. Here, instead of
+  // specifically checking whether e2 is INT_MIN, we add a unary minus to e2
+  // and then check if the resultant expression -e2 overflows. If it
+  // overflows, we undo the unary minus operator.
+
+  // TODO: Currently, we can only prove that integer constant expressions do
+  // not overflow. We still need to handle proving that non-constant
+  // expressions do not overflow.
+  if (BinOp == BO_Sub && RHS->isIntegerConstantExpr(Ctx)) {
+    Expr *UOMinusRHS =
+      UnaryOperator::Create(Ctx, RHS, UO_Minus, RHS->getType(),
+                            RHS->getValueKind(), RHS->getObjectKind(),
+                            SourceLocation(), /*CanOverflow*/ true,
+                            FPOptionsOverride());
+
+    SmallVector<PartialDiagnosticAt, 8> Diag;
+    UOMinusRHS->EvaluateKnownConstIntCheckOverflow(Ctx, &Diag);
+
+    bool Overflow = false;
+    for (auto &PD : Diag) {
+      if (PD.second.getDiagID() == diag::note_constexpr_overflow) {
+        Overflow = true;
+        break;
+      }
+    }
+
+    if (!Overflow) {
+      BinOp = BO_Add;
+      RHS = UOMinusRHS;
+    }
+
+    // TODO: In case of overflow we leak the memory allocated to UOMinusRHS.
+    // Whereas if there is no overflow we leak the memory initially allocated
+    // to RHS.
+  }
+
+  auto *N = new BinaryOperatorNode(BinOp, Parent);
+  AttachNode(N, Parent);
+
+  Create(LHS, /*Parent*/ N);
+  Create(RHS, /*Parent*/ N);
+}
+
+void PreorderAST::CreateUnaryOperator(UnaryOperator *E, Node *Parent) {
+  UnaryOperatorKind Op = E->getOpcode();
+  if (Op == UnaryOperatorKind::UO_Deref) {
+    CreateDereference(E->getSubExpr(), Parent);
+  } else if ((Op == UnaryOperatorKind::UO_Plus ||
+              Op == UnaryOperatorKind::UO_Minus) &&
+              E->isIntegerConstantExpr(Ctx)) {
+    // For integer constant expressions of the form +e or -e, we create a
+    // LeafExprNode rather than a UnaryOperatorNode so that these expressions
+    // can be constant folded. Constant folding only folds LeafExprNodes that
+    // are children of a BinaryOperatorNode.
+    auto *N = new LeafExprNode(E, Parent);
+    AttachNode(N, Parent);
+  } else {
+    auto *N = new UnaryOperatorNode(Op, Parent);
+    AttachNode(N, Parent);
+    Create(E->getSubExpr(), /*Parent*/ N);
+  }
+}
+
+void PreorderAST::CreateDereference(Expr *Child, Node *Parent) {
+  // The child of a dereference operator must be a binary operator so that
+  // *e and *(e + 0) have the same canonical form. So for an expression of
+  // the form *e, we create a UnaryOperatorNode whose child is a
+  // BinaryOperatorNode e + 0.
+  auto *N = new UnaryOperatorNode(UnaryOperatorKind::UO_Deref, Parent);
+  AttachNode(N, Parent);
+  AddZero(Child, /*Parent*/ N);
+}
+
+void PreorderAST::CreateMember(MemberExpr *E, Node *Parent) {
+  Expr *Base = Lex.IgnoreValuePreservingOperations(Ctx, E->getBase()->IgnoreParens());
+  ValueDecl *Field = E->getMemberDecl();
+
+  // Expressions such as a->f, (*a).f, and a[0].f should have the same
+  // canonical form: a MemberNode with a Base node of a + 0 and a Field
+  // of f. Here, we determine whether the expression E is of one of the
+  // forms a->f, (*a).f, etc. and create the base expression a.
+  Expr *ArrowBase = nullptr;
+  if (E->isArrow()) {
+    ArrowBase = Base;
+  } else {
+    if (const auto *UO = dyn_cast<UnaryOperator>(Base)) {
+      if (UO->getOpcode() == UnaryOperatorKind::UO_Deref)
+        ArrowBase = UO->getSubExpr();
+    } else if (auto *AE = dyn_cast<ArraySubscriptExpr>(Base)) {
+      ArrowBase = BinaryOperator::Create(Ctx, AE->getBase(), AE->getIdx(),
+                                         BinaryOperatorKind::BO_Add, AE->getType(),
+                                         AE->getValueKind(), AE->getObjectKind(),
+                                         AE->getExprLoc(), FPOptionsOverride());
+    }
+  }
+
+  if (ArrowBase) {
+    // If ArrowBase exists, then E is of the form ArrowBase->f,
+    // (*ArrowBase).f, etc. The Base of the MemberNode is ArrowBase + 0
+    // so that expressions such as a->f, (*a).f, (a + 0)->f, and a[0].f
+    // all have the same canonical form.
+    auto *N = new MemberNode(Field, /*IsArrow*/ true, Parent);
+    AttachNode(N, Parent);
+    AddZero(ArrowBase, /*Parent*/ N);
+  } else {
+    // If no ArrowBase exists, then E is of the form a.f.
+    auto *N = new MemberNode(Field, /*IsArrow*/ false, Parent);
+    AttachNode(N, Parent);
+    Create(Base, /*Parent*/ N);
+  }
+}
+
+void PreorderAST::CreateImplicitCast(ImplicitCastExpr *E, Node *Parent) {
+  auto *N = new ImplicitCastNode(E->getCastKind(), Parent);
+  AttachNode(N, Parent);
+  Create(E->getSubExpr(), /*Parent*/ N);
 }
 
 void PreorderAST::AddZero(Expr *E, Node *Parent) {
@@ -278,229 +233,135 @@ void PreorderAST::AddZero(Expr *E, Node *Parent) {
   Create(E, /*Parent*/ N);
 }
 
-void PreorderAST::Coalesce(Node *N, bool &Changed) {
+bool BinaryOperatorNode::CanCoalesce() {
+  // We can only coalesce if the operator of the current and parent node is
+  // commutative and associative. This is because after coalescing we later
+  // need to sort the nodes and if the operator is not commutative and
+  // associative then sorting would be incorrect.
+  if (!IsOpCommutativeAndAssociative())
+    return false;
+  auto *BParent = dyn_cast_or_null<BinaryOperatorNode>(Parent);
+  if (!BParent || !BParent->IsOpCommutativeAndAssociative())
+    return false;
+
+  // We can coalesce in the following scenarios:
+  // 1. The current and parent nodes have the same operator OR
+  // 2. The current node is the only child of its operator node (maybe as a
+  // result of constant folding).
+  return Opc == BParent->Opc || Children.size() == 1;
+}
+
+void BinaryOperatorNode::Coalesce(bool &Changed, bool &Error) {
   if (Error)
     return;
 
-  if (!N)
+  // Coalesce the children first.
+  // Since Children is modified within the loop, we need to evaluate
+  // the loop end on each iteration.
+  for (size_t I = 0; I != Children.size(); ++I) {
+    auto *Child = Children[I];
+    Child->Coalesce(Changed, Error);
+  }
+
+  if (!CanCoalesce())
     return;
 
-  // TODO: GitHub checkedc-clang issue #1032. Each kind of Node should have
-  // its own Coalesce method.
-  switch (N->Kind) {
-    default:
-      break;
-    case Node::NodeKind::BinaryOperatorNode: {
-      auto *B = dyn_cast<BinaryOperatorNode>(N);
-
-      // Coalesce the children first.
-      for (auto *Child : B->Children)
-        Coalesce(Child, Changed);
-
-      if (CanCoalesceNode(B)) {
-        CoalesceNode(B);
-        Changed = true;
-      }
-      break;
-    }
-    case Node::NodeKind::UnaryOperatorNode: {
-      auto *U = dyn_cast<UnaryOperatorNode>(N);
-      Coalesce(U->Child, Changed);
-      break;
-    }
-    case Node::NodeKind::MemberNode: {
-      auto *M = dyn_cast<MemberNode>(N);
-      Coalesce(M->Base, Changed);
-      break;
-    }
-    case Node::NodeKind::ImplicitCastNode: {
-      auto *I = dyn_cast<ImplicitCastNode>(N);
-      Coalesce(I->Child, Changed);
-      break;
-    }
-  }
-}
-
-bool PreorderAST::CompareNodes(const Node *N1, const Node *N2) {
-  // BinaryOperatorNode < UnaryOperatorNode < MemberNode < ImplicitCastNode < LeafExprNode.
-  if (N1->Kind != N2->Kind)
-    return N1->Kind < N2->Kind;
-
-  // TODO: GitHub checkedc-clang issue #1032. Each kind of Node should have
-  // its own CompareNodes method.
-  switch (N1->Kind) {
-    case Node::NodeKind::BinaryOperatorNode: {
-      const auto *B1 = dyn_cast<BinaryOperatorNode>(N1);
-      const auto *B2 = dyn_cast<BinaryOperatorNode>(N2);
-    
-      if (B1->Opc != B2->Opc)
-        return B1->Opc < B2->Opc;
-      return B1->Children.size() < B2->Children.size();
-    }
-    case Node::NodeKind::UnaryOperatorNode: {
-      const auto *U1 = dyn_cast<UnaryOperatorNode>(N1);
-      const auto *U2 = dyn_cast<UnaryOperatorNode>(N2);
-
-      if (U1->Opc != U2->Opc)
-        return U1->Opc < U2->Opc;
-      return CompareNodes(U1->Child, U2->Child);
-    }
-    case Node::NodeKind::MemberNode: {
-      const auto *M1 = dyn_cast<MemberNode>(N1);
-      const auto *M2 = dyn_cast<MemberNode>(N2);
-
-      // If M1 is an arrow member expression and M2 is not,
-      // then sorted order is (M1, M2).
-      // If M2 is an arrow member expression and M1 is not,
-      // then sorted order is (M2, M1).
-      if (M1->IsArrow != M2->IsArrow)
-        return M1->IsArrow;
-
-      Result FieldCompare = Lex.CompareDecl(M1->Field, M2->Field);
-      if (FieldCompare != Result::Equal)
-        return FieldCompare == Result::LessThan;
-      return CompareNodes(M1->Base, M2->Base);
-    }
-    case Node::NodeKind::ImplicitCastNode: {
-      const auto *I1 = dyn_cast<ImplicitCastNode>(N1);
-      const auto *I2 = dyn_cast<ImplicitCastNode>(N2);
-
-      if (I1->CK != I2->CK)
-        return I1->CK < I2->CK;
-      return CompareNodes(I1->Child, I2->Child);
-    }
-    case Node::NodeKind::LeafExprNode: {
-      const auto *L1 = dyn_cast<LeafExprNode>(N1);
-      const auto *L2 = dyn_cast<LeafExprNode>(N2);
-      // If L1 is a UnaryOperatorExpr and L2 is not, then
-      // 1. If L1 contains an integer constant then sorted order is (L2, L1)
-      // 2. Else sorted order is (L1, L2).
-      if (isa<UnaryOperator>(L1->E) && !isa<UnaryOperator>(L2->E))
-        return !L1->E->isIntegerConstantExpr(Ctx);
-
-      // If L2 is a UnaryOperatorExpr and L1 is not, then
-      // 1. If L2 contains an integer constant then sorted order is (L1, L2)
-      // 2. Else sorted order is (L2, L1).
-      if (!isa<UnaryOperator>(L1->E) && isa<UnaryOperator>(L2->E))
-        return L2->E->isIntegerConstantExpr(Ctx);
-
-      // If both nodes are LeafExprNodes compare the exprs.
-      return Lex.CompareExpr(L1->E, L2->E) == Result::LessThan;
-    }
-  }
-
-  return true;
-}
-
-void PreorderAST::Sort(Node *N) {
-  if (!N)
+  // If the current node can be coalesced, its parent must be a
+  // BinaryOperatorNode.
+  auto *BParent = dyn_cast_or_null<BinaryOperatorNode>(Parent);
+  if (!BParent)
     return;
 
-  // TODO: GitHub checkedc-clang issue #1032. Each kind of Node should have
-  // its own Sort method.
-  switch (N->Kind) {
-    default:
-      break;
-    case Node::NodeKind::BinaryOperatorNode: {
-      auto *B = dyn_cast<BinaryOperatorNode>(N);
-
-      // Sort the children first.
-      for (auto *Child : B->Children)
-        Sort(Child);
-
-      // We can only sort if the operator is commutative and associative.
-      if (!B->IsOpCommutativeAndAssociative())
-        return;
-
-      // Sort the children.
-      llvm::sort(B->Children.begin(), B->Children.end(),
-                [&](const Node *N1, const Node *N2) {
-                  return CompareNodes(N1, N2);
-                });
-      break;
-    }
-    case Node::NodeKind::UnaryOperatorNode: {
-      auto *U = dyn_cast<UnaryOperatorNode>(N);
-      Sort(U->Child);
-      break;
-    }
-    case Node::NodeKind::MemberNode: {
-      auto *M = dyn_cast<MemberNode>(N);
-      Sort(M->Base);
-      break;
-    }
-    case Node::NodeKind::ImplicitCastNode: {
-      auto *I = dyn_cast<ImplicitCastNode>(N);
-      Sort(I->Child);
+  // Remove the current node from the list of children of its parent.
+  for (auto I = BParent->Children.begin(), E = BParent->Children.end(); I != E; ++I) {
+    if (*I == this) {
+      BParent->Children.erase(I);
       break;
     }
   }
+
+  // Move all children of the current node to its parent.
+  for (auto *Child : Children) {
+    Child->Parent = BParent;
+    BParent->Children.push_back(Child);
+  }
+
+  // Delete the current node.
+  delete this;
+  Changed = true;
 }
 
-void PreorderAST::ConstantFold(Node *N, bool &Changed) {
+void UnaryOperatorNode::Coalesce(bool &Changed, bool &Error) {
   if (Error)
     return;
-
-  if (!N)
-    return;
-
-  // TODO: GitHub checkedc-clang issue #1032. Each kind of Node should have
-  // its own ConstantFold method.
-  switch (N->Kind) {
-    default:
-      break;
-    case Node::NodeKind::BinaryOperatorNode: {
-      auto *B = dyn_cast<BinaryOperatorNode>(N);
-      ConstantFoldOperator(B, Changed);
-      break;
-    }
-    case Node::NodeKind::UnaryOperatorNode: {
-      auto *U = dyn_cast<UnaryOperatorNode>(N);
-      ConstantFold(U->Child, Changed);
-      break;
-    }
-    case Node::NodeKind::MemberNode: {
-      auto *M = dyn_cast<MemberNode>(N);
-      ConstantFold(M->Base, Changed);
-      break;
-    }
-    case Node::NodeKind::ImplicitCastNode: {
-      auto *I = dyn_cast<ImplicitCastNode>(N);
-      ConstantFold(I->Child, Changed);
-      break;
-    }
-  }
+  Child->Coalesce(Changed, Error);
 }
 
-// TODO: GitHub checkedc-clang issue #1032. Each kind of Node should have
-// its own ConstantFold method, so there should no longer be a need for
-// a separate ConstantFoldOperator method.
-void PreorderAST::ConstantFoldOperator(BinaryOperatorNode *B, bool &Changed) {
-  // Note: This function assumes that the children of each BinaryOperatorNode
-  // of the preorder AST have already been sorted.
-
+void MemberNode::Coalesce(bool &Changed, bool &Error) {
   if (Error)
     return;
+  Base->Coalesce(Changed, Error);
+}
 
-  if (!B)
+void ImplicitCastNode::Coalesce(bool &Changed, bool &Error) {
+  if (Error)
+    return;
+  Child->Coalesce(Changed, Error);
+}
+
+void LeafExprNode::Coalesce(bool &Changed, bool &Error) { }
+
+void BinaryOperatorNode::Sort(Lexicographic Lex) {
+  // Sort the children first.
+  for (auto *Child : Children)
+    Child->Sort(Lex);
+
+  // We can only sort if the operator is commutative and associative.
+  if (!IsOpCommutativeAndAssociative())
+    return;
+
+  // Sort the children.
+  llvm::sort(Children.begin(), Children.end(),
+            [&](const Node *N1, const Node *N2) {
+              return N1->Compare(N2, Lex) == Result::LessThan;
+            });
+}
+
+void UnaryOperatorNode::Sort(Lexicographic Lex) {
+  Child->Sort(Lex);
+}
+
+void MemberNode::Sort(Lexicographic Lex) {
+  Base->Sort(Lex);
+}
+
+void ImplicitCastNode::Sort(Lexicographic Lex) {
+  Child->Sort(Lex);
+}
+
+void LeafExprNode::Sort(Lexicographic Lex) { }
+
+void BinaryOperatorNode::ConstantFold(bool &Changed, bool &Error,
+                                      ASTContext &Ctx) {
+  if (Error)
     return;
 
   size_t ConstStartIdx = 0;
   unsigned NumConsts = 0;
   llvm::APSInt ConstFoldedVal;
 
-  for (size_t I = 0; I != B->Children.size(); ++I) {
-    auto *Child = B->Children[I];
+  for (size_t I = 0; I != Children.size(); ++I) {
+    auto *Child = Children[I];
 
     // Recursively constant fold the non-leaf children of a BinaryOperatorNode.
     if (!isa<LeafExprNode>(Child)) {
-      ConstantFold(Child, Changed);
+      Child->ConstantFold(Changed, Error, Ctx);
       continue;
     }
 
     // We can only constant fold if the operator is commutative and
     // associative.
-    if (!B->IsOpCommutativeAndAssociative())
+    if (!IsOpCommutativeAndAssociative())
       continue;
 
     auto *ChildLeafNode = dyn_cast_or_null<LeafExprNode>(Child);
@@ -523,7 +384,7 @@ void PreorderAST::ConstantFoldOperator(BinaryOperatorNode *B, bool &Changed) {
     } else {
       // Constant fold based on the operator.
       bool Overflow;
-      switch(B->Opc) {
+      switch(Opc) {
         default: continue;
         case BO_Add:
           ConstFoldedVal = ConstFoldedVal.sadd_ov(CurrConstVal, Overflow);
@@ -535,7 +396,7 @@ void PreorderAST::ConstantFoldOperator(BinaryOperatorNode *B, bool &Changed) {
 
       // If we encounter an overflow during constant folding we cannot proceed.
       if (Overflow) {
-        SetError();
+        Error = true;
         return;
       }
     }
@@ -550,10 +411,10 @@ void PreorderAST::ConstantFoldOperator(BinaryOperatorNode *B, bool &Changed) {
   // erase the iterator automatically points to the new location of the element
   // following the one we just erased.
   llvm::SmallVector<Node *, 2>::iterator I =
-    B->Children.begin() + ConstStartIdx;
+    Children.begin() + ConstStartIdx;
   while (NumConsts--) {
     delete(*I);
-    B->Children.erase(I);
+    Children.erase(I);
   }
 
   llvm::APInt IntVal(Ctx.getTargetInfo().getIntWidth(),
@@ -564,15 +425,38 @@ void PreorderAST::ConstantFoldOperator(BinaryOperatorNode *B, bool &Changed) {
 
   // Add the constant folded expression to list of children of the current
   // BinaryOperatorNode.
-  B->Children.push_back(new LeafExprNode(ConstFoldedExpr, B));
+  Children.push_back(new LeafExprNode(ConstFoldedExpr, this));
 
   // If the constant folded expr is the only child of this BinaryOperatorNode
   // we can coalesce the node.
-  if (B->Children.size() == 1 && CanCoalesceNode(B))
-    CoalesceNode(B);
+  if (Children.size() == 1 && CanCoalesce())
+    Coalesce(Changed, Error);
 
   Changed = true;
 }
+
+void UnaryOperatorNode::ConstantFold(bool &Changed, bool &Error,
+                                     ASTContext &Ctx) {
+  if (Error)
+    return;
+  Child->ConstantFold(Changed, Error, Ctx);
+}
+
+void MemberNode::ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx) {
+  if (Error)
+    return;
+  Base->ConstantFold(Changed, Error, Ctx);
+}
+
+void ImplicitCastNode::ConstantFold(bool &Changed, bool &Error,
+                                    ASTContext &Ctx) {
+  if (Error)
+    return;
+  Child->ConstantFold(Changed, Error, Ctx);
+}
+
+void LeafExprNode::ConstantFold(bool &Changed, bool &Error,
+                                ASTContext &Ctx) { }
 
 bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
 				 llvm::APSInt &Offset) {
@@ -605,7 +489,7 @@ bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
     auto *Child1 = B1->Children[I];
     auto *Child2 = B2->Children[I];
 
-    if (Compare(Child1, Child2) == Result::Equal)
+    if (Child1->Compare(Child2, Lex) == Result::Equal)
       continue;
 
     // If the children are not equal we require that they be integer constant
@@ -650,106 +534,114 @@ bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
   return true;
 }
 
-Result PreorderAST::Compare(const Node *N1, const Node *N2) const {
-  // If both the nodes are null.
-  if (!N1 && !N2)
-    return Result::Equal;
+Result BinaryOperatorNode::Compare(const Node *Other, Lexicographic Lex) const {
+  Result KindComparison = CompareKinds(Other);
+  if (KindComparison != Result::Equal)
+    return KindComparison;
 
-  // If only one of the nodes is null.
-  if (!N1 && N2)
+  const BinaryOperatorNode *B = dyn_cast<BinaryOperatorNode>(Other);
+  if (!B)
     return Result::LessThan;
-  if (N1 && !N2)
+
+  // If the Opcodes mismatch.
+  if (Opc < B->Opc)
+    return Result::LessThan;
+  if (Opc > B->Opc)
     return Result::GreaterThan;
 
-  // LeafExprNode < ImplicitCastNode < MemberNode < UnaryOperatorNode < BinaryOperatorNode.
-  if (N1->Kind != N2->Kind)
-    return N1->Kind > N2->Kind ? Result::LessThan : Result::GreaterThan;
+  size_t ChildCount1 = Children.size(),
+         ChildCount2 = B->Children.size();
 
-  // TODO: GitHub checkedc-clang issue #1032. Each kind of Node should have
-  // its own Compare method.
-  switch (N1->Kind) {
-    case Node::NodeKind::BinaryOperatorNode: {
-      const auto *B1 = dyn_cast<BinaryOperatorNode>(N1);
-      const auto *B2 = dyn_cast<BinaryOperatorNode>(N2);
+  // If the number of children of the two nodes mismatch.
+  if (ChildCount1 < ChildCount2)
+    return Result::LessThan;
+  if (ChildCount1 > ChildCount2)
+    return Result::GreaterThan;
 
-      // If the Opcodes mismatch.
-      if (B1->Opc < B2->Opc)
-        return Result::LessThan;
-      if (B1->Opc > B2->Opc)
-        return Result::GreaterThan;
+  // Match each child of the two nodes.
+  for (size_t I = 0; I != ChildCount1; ++I) {
+    auto *Child1 = Children[I];
+    auto *Child2 = B->Children[I];
 
-      size_t ChildCount1 = B1->Children.size(),
-             ChildCount2 = B2->Children.size();
+    Result ChildComparison = Child1->Compare(Child2, Lex);
 
-      // If the number of children of the two nodes mismatch.
-      if (ChildCount1 < ChildCount2)
-        return Result::LessThan;
-      if (ChildCount1 > ChildCount2)
-        return Result::GreaterThan;
-
-      // Match each child of the two nodes.
-      for (size_t I = 0; I != ChildCount1; ++I) {
-        auto *Child1 = B1->Children[I];
-        auto *Child2 = B2->Children[I];
-
-        Result ChildComparison = Compare(Child1, Child2);
-
-        // If any child differs between the two nodes.
-        if (ChildComparison != Result::Equal)
-          return ChildComparison;
-      }
-      return Result::Equal;
-    }
-    case Node::NodeKind::UnaryOperatorNode: {
-      const auto *U1 = dyn_cast<UnaryOperatorNode>(N1);
-      const auto *U2 = dyn_cast<UnaryOperatorNode>(N2);
-
-      // If the Opcodes mismatch.
-      if (U1->Opc < U2->Opc)
-        return Result::LessThan;
-      if (U1->Opc > U2->Opc)
-        return Result::GreaterThan;
-
-      return Compare(U1->Child, U2->Child);
-    }
-    case Node::NodeKind::MemberNode: {
-      const auto *M1 = dyn_cast<MemberNode>(N1);
-      const auto *M2 = dyn_cast<MemberNode>(N2);
-
-      // If the arrow flags mismatch.
-      if (M1->IsArrow && !M2->IsArrow)
-        return Result::LessThan;
-      if (!M1->IsArrow && M2->IsArrow)
-        return Result::GreaterThan;
-
-      // If the fields mismatch.
-      Result FieldCompare = Lex.CompareDecl(M1->Field, M2->Field);
-      if (FieldCompare != Result::Equal)
-        return FieldCompare;
-
-      return Compare(M1->Base, M2->Base);
-    }
-    case Node::NodeKind::ImplicitCastNode: {
-      const auto *I1 = dyn_cast<ImplicitCastNode>(N1);
-      const auto *I2 = dyn_cast<ImplicitCastNode>(N2);
-
-      // If the cast kinds mismatch.
-      if (I1->CK < I2->CK)
-        return Result::LessThan;
-      if (I1->CK > I2->CK)
-        return Result::GreaterThan;
-
-      return Compare(I1->Child, I2->Child);
-    }
-    case Node::NodeKind::LeafExprNode: {
-      // Compare the exprs for two leaf nodes.
-      const auto *L1 = dyn_cast<LeafExprNode>(N1);
-      const auto *L2 = dyn_cast<LeafExprNode>(N2);
-      return Lex.CompareExpr(L1->E, L2->E);
-    }
+    // If any child differs between the two nodes.
+    if (ChildComparison != Result::Equal)
+      return ChildComparison;
   }
-
   return Result::Equal;
+}
+
+Result UnaryOperatorNode::Compare(const Node *Other, Lexicographic Lex) const {
+  Result KindComparison = CompareKinds(Other);
+  if (KindComparison != Result::Equal)
+    return KindComparison;
+
+  const UnaryOperatorNode *U = dyn_cast<UnaryOperatorNode>(Other);
+  if (!U)
+    return Result::LessThan;
+
+  // If the Opcodes mismatch.
+  if (Opc < U->Opc)
+    return Result::LessThan;
+  if (Opc > U->Opc)
+    return Result::GreaterThan;
+
+  return Child->Compare(U->Child, Lex);
+}
+
+Result MemberNode::Compare(const Node *Other, Lexicographic Lex) const {
+  Result KindComparison = CompareKinds(Other);
+  if (KindComparison != Result::Equal)
+    return KindComparison;
+
+  const MemberNode *M = dyn_cast<MemberNode>(Other);
+  if (!M)
+    return Result::LessThan;
+
+  // If the arrow flags mismatch.
+  if (IsArrow && !M->IsArrow)
+    return Result::LessThan;
+  if (!IsArrow && M->IsArrow)
+    return Result::GreaterThan;
+
+  // If the fields mismatch.
+  Result FieldCompare = Lex.CompareDecl(Field, M->Field);
+  if (FieldCompare != Result::Equal)
+    return FieldCompare;
+
+  return Base->Compare(M->Base, Lex);
+}
+
+Result ImplicitCastNode::Compare(const Node *Other, Lexicographic Lex) const {
+  Result KindComparison = CompareKinds(Other);
+  if (KindComparison != Result::Equal)
+    return KindComparison;
+
+  const ImplicitCastNode *I = dyn_cast<ImplicitCastNode>(Other);
+  if (!I)
+    return Result::LessThan;
+
+  // If the cast kinds mismatch.
+  if (CK < I->CK)
+    return Result::LessThan;
+  if (CK > I->CK)
+    return Result::GreaterThan;
+
+  return Child->Compare(I->Child, Lex);
+}
+
+Result LeafExprNode::Compare(const Node *Other, Lexicographic Lex) const {
+  Result KindComparison = CompareKinds(Other);
+  if (KindComparison != Result::Equal)
+    return KindComparison;
+
+  const LeafExprNode *L = dyn_cast<LeafExprNode>(Other);
+  if (!L)
+    return Result::LessThan;
+
+  // Compare the exprs for two leaf nodes.
+  return Lex.CompareExpr(E, L->E);
 }
 
 void PreorderAST::Normalize() {
@@ -759,58 +651,72 @@ void PreorderAST::Normalize() {
   bool Changed = true;
   while (Changed) {
     Changed = false;
-    Coalesce(Root, Changed);
+    Root->Coalesce(Changed, Error);
     if (Error)
       break;
-    Sort(Root);
-    ConstantFold(Root, Changed);
+    Root->Sort(Lex);
+    Root->ConstantFold(Changed, Error, Ctx);
     if (Error)
       break;
   }
 
   if (Ctx.getLangOpts().DumpPreorderAST) {
-    PrettyPrint(Root);
+    Root->PrettyPrint(OS, Ctx);
     OS << "--------------------------------------\n";
   }
 }
 
-void PreorderAST::PrettyPrint(Node *N) {
-  if (const auto *B = dyn_cast_or_null<BinaryOperatorNode>(N)) {
-    OS << BinaryOperator::getOpcodeStr(B->Opc) << "\n";
-
-    for (auto *Child : B->Children)
-      PrettyPrint(Child);
-  } else if (const auto *U = dyn_cast_or_null<UnaryOperatorNode>(N)) {
-    OS << UnaryOperator::getOpcodeStr(U->Opc) << "\n";
-    PrettyPrint(U->Child);
-  } else if (const auto *M = dyn_cast_or_null<MemberNode>(N)) {
-    if (M->IsArrow)
-      OS << "->\n";
-    else
-      OS << ".\n";
-    PrettyPrint(M->Base);
-    M->Field->dump(OS);
-  } else if (const auto *I = dyn_cast_or_null<ImplicitCastNode>(N)) {
-    OS << CastExpr::getCastKindName(I->CK) << "\n";
-    PrettyPrint(I->Child);
-  } else if (const auto *L = dyn_cast_or_null<LeafExprNode>(N))
-    L->E->dump(OS, Ctx);
+void BinaryOperatorNode::PrettyPrint(llvm::raw_ostream &OS,
+                                     ASTContext &Ctx) const {
+  OS << BinaryOperator::getOpcodeStr(Opc) << "\n";
+  for (auto *Child : Children)
+    Child->PrettyPrint(OS, Ctx);
 }
 
-void PreorderAST::Cleanup(Node *N) {
-  if (auto *B = dyn_cast_or_null<BinaryOperatorNode>(N))
-    for (auto *Child : B->Children)
-      Cleanup(Child);
+void UnaryOperatorNode::PrettyPrint(llvm::raw_ostream &OS,
+                                    ASTContext &Ctx) const {
+  OS << UnaryOperator::getOpcodeStr(Opc) << "\n";
+  Child->PrettyPrint(OS, Ctx);
+}
 
-  if (auto *U = dyn_cast_or_null<UnaryOperatorNode>(N))
-    Cleanup(U->Child);
+void MemberNode::PrettyPrint(llvm::raw_ostream &OS,
+                             ASTContext &Ctx) const {
+  if (IsArrow)
+    OS << "->\n";
+  else
+    OS << ".\n";
+  Base->PrettyPrint(OS, Ctx);
+  Field->dump(OS);
+}
 
-  if (auto *M = dyn_cast_or_null<MemberNode>(N))
-    Cleanup(M->Base);
+void ImplicitCastNode::PrettyPrint(llvm::raw_ostream &OS,
+                                   ASTContext &Ctx) const {
+  OS << CastExpr::getCastKindName(CK) << "\n";
+  Child->PrettyPrint(OS, Ctx);
+}
 
-  if (auto *I = dyn_cast_or_null<ImplicitCastNode>(N))
-    Cleanup(I->Child);
+void LeafExprNode::PrettyPrint(llvm::raw_ostream &OS,
+                               ASTContext &Ctx) const {
+  E->dump(OS, Ctx);
+}
 
-  if (N)
-    delete N;
+void BinaryOperatorNode::Cleanup() {
+  for (auto *Child : Children)
+    Child->Cleanup();
+  delete this;
+}
+
+void UnaryOperatorNode::Cleanup() {
+  Child->Cleanup();
+  delete this;
+}
+
+void MemberNode::Cleanup() {
+  Base->Cleanup();
+  delete this;
+}
+
+void ImplicitCastNode::Cleanup() {
+  Child->Cleanup();
+  delete this;
 }
