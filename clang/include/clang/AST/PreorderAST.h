@@ -101,7 +101,9 @@ namespace clang {
 
     // Cleanup the memory consumed by this node.
     // @param[in] this is the current node of the AST.
-    virtual void Cleanup() = 0;
+    virtual void Cleanup() {
+      delete this;
+    }
   };
 
   class BinaryOperatorNode : public Node {
@@ -220,7 +222,6 @@ namespace clang {
     void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
     Result Compare(const Node *Other, Lexicographic Lex) const;
     void PrettyPrint(llvm::raw_ostream &OS, ASTContext &Ctx) const;
-    void Cleanup();
   };
 
 } // end namespace clang

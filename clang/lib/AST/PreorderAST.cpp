@@ -720,7 +720,3 @@ void ImplicitCastNode::Cleanup() {
   Child->Cleanup();
   delete this;
 }
-
-void LeafExprNode::Cleanup() {
-  delete this;
-}
