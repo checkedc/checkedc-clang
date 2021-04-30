@@ -670,16 +670,10 @@ void PreorderAST::Normalize() {
   // TODO: Perform simple arithmetic optimizations/transformations on the
   // constants in the nodes.
 
-  bool Changed = true;
-  while (Changed) {
-    Changed = false;
-    Root->Coalesce(Changed, Error);
-    if (Error)
-      break;
+  Root->Coalesce(Error);
+  if (!Error) {
     Root->Sort(Lex);
-    Root->ConstantFold(Changed, Error, Ctx);
-    if (Error)
-      break;
+    Root->ConstantFold(Error, Ctx);
   }
 
   if (Ctx.getLangOpts().DumpPreorderAST) {
