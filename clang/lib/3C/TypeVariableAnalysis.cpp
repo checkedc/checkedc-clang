@@ -194,7 +194,7 @@ void TypeVarVisitor::setProgramInfoTypeVars() {
 // Check if type arguments have already been provided for this function
 // call so that we don't mess with anything already there.
 bool typeArgsProvided(CallExpr *Call) {
-  Expr *Callee = Call->getCallee()->IgnoreImpCasts();
+  Expr *Callee = Call->getCallee()->IgnoreParenImpCasts();
   if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(Callee)) {
     // ArgInfo is null if there are no type arguments anywhere in the program
     if (auto *ArgInfo = DRE->GetTypeArgumentInfo())
