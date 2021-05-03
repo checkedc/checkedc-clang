@@ -670,6 +670,23 @@ void PreorderAST::Normalize() {
   // TODO: Perform simple arithmetic optimizations/transformations on the
   // constants in the nodes.
 
+  // We only need one call to Coalesce, Sort and ConstantFold in order to
+  // normalize the tree, since:
+  // 1. For any Node N, calling N->Coalesce fully coalesces N and all children
+  //    of N.
+  // 2. For any Node N, calling N->Sort fully sorts N and all children of N.
+  // 3. For any Node N, calling N->ConstantFold fully constant folds N and all
+  //    children of N.
+  // 4. After calling Sort, there is no further coalescing to be done, since
+  //    Sort creates no new nodes.
+  // 5. After calling ConstantFold, there is no further coalescing to be done,
+  //    since ConstantFold does not create any new BinaryOperatorNodes. At
+  //    most, ConstantFold may create new LeafExprNodes.
+  // 6. After calling ConstantFold, there is no further sorting to be done,
+  //    since ConstantFold adds any newly created LeafExprNodes to the end of
+  //    the Children list. This may break sorting only among the constant
+  //    child nodes. The child nodes are sorted correctly when the Parent node
+  //    of the Children list is constant folded.
   Root->Coalesce(Error);
   if (!Error) {
     Root->Sort(Lex);
