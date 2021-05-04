@@ -376,5 +376,11 @@ int main(int argc, const char **argv) {
     return 1;
   }
 
+  // Write all the performance related stats.
+  if (!_3CInterface.dumpStats()) {
+    errs() << "Failure occurred while trying to write performance stats. "
+              "Exiting.\n";
+    return 1;
+  }
   return 0;
 }

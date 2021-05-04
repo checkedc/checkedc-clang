@@ -13,6 +13,7 @@
 #define LLVM_CLANG_3C_PROGRAMINFO_H
 
 #include "clang/3C/3CInteractiveData.h"
+#include "clang/3C/3CStats.h"
 #include "clang/3C/AVarBoundsInfo.h"
 #include "clang/3C/ConstraintVariables.h"
 #include "clang/3C/PersistentSourceLoc.h"
@@ -23,54 +24,6 @@
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Tooling/Tooling.h"
 
-class PerformanceStats {
-public:
-  double CompileTime;
-  double ConstraintBuilderTime;
-  double ConstraintSolverTime;
-  double ArrayBoundsInferenceTime;
-  double RewritingTime;
-  double TotalTime;
-
-  PerformanceStats() {
-    CompileTime = ConstraintBuilderTime = 0;
-    ConstraintSolverTime = ArrayBoundsInferenceTime = 0;
-    RewritingTime = TotalTime = 0;
-
-    CompileTimeSt = ConstraintBuilderTimeSt = 0;
-    ConstraintSolverTimeSt = ArrayBoundsInferenceTimeSt = 0;
-    RewritingTimeSt = TotalTimeSt = 0;
-  }
-
-  void startCompileTime();
-  void endCompileTime();
-
-  void startConstraintBuilderTime();
-  void endConstraintBuilderTime();
-
-  void startConstraintSolverTime();
-  void endConstraintSolverTime();
-
-  void startArrayBoundsInferenceTime();
-  void endArrayBoundsInferenceTime();
-
-  void startRewritingTime();
-  void endRewritingTime();
-
-  void startTotalTime();
-  void endTotalTime();
-
-  void printPerformanceStats(raw_ostream &O);
-
-private:
-  clock_t CompileTimeSt;
-  clock_t ConstraintBuilderTimeSt;
-  clock_t ConstraintSolverTimeSt;
-  clock_t ArrayBoundsInferenceTimeSt;
-  clock_t RewritingTimeSt;
-  clock_t TotalTimeSt;
-
-};
 class ProgramVariableAdder {
 public:
   virtual void addVariable(clang::DeclaratorDecl *D,

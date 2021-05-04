@@ -1,22 +1,5 @@
 // RUN: rm -rf %t*
-// RUN: 3c -dump-stats -base-dir=%S -alltypes -addcr %s -- 2>&1 | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-
-
-//CHECK: Summary
-//CHECK: TotalConstraints|TotalPtrs|TotalNTArr|TotalArr|TotalWild
-//CHECK: 18|14|0|1|3
-//CHECK: NumPointersNeedBounds:1,
-//CHECK: NumNTNoBounds:0,
-//CHECK: Details:
-//CHECK: Invalid:0
-//CHECK: ,BoundsFound:
-//CHECK: Array Bounds Inference Stats:
-//CHECK: NamePrefixMatch:0
-//CHECK: AllocatorMatch:0
-//CHECK: VariableNameMatch:0
-//CHECK: NeighbourParamMatch:0
-//CHECK: DataflowMatch:0
-//CHECK: Declared:1
+// RUN: 3c -dump-stats -base-dir=%S -alltypes -addcr %s -- 2>&1 | FileCheck -check-prefixes="CHECK_ALL","CHECK" %s
 
 
 #include <stdlib.h>
@@ -56,3 +39,33 @@ void j() {
   void (*fp)(int *) = i;
   //CHECK: _Ptr<void (int * : itype(_Ptr<int>))> fp = i;
 }
+
+//CHECK: Summary
+//CHECK: TotalConstraints|TotalPtrs|TotalNTArr|TotalArr|TotalWild
+//CHECK: 18|14|0|1|3
+//CHECK: NumPointersNeedBounds:1,
+//CHECK: NumNTNoBounds:0,
+//CHECK: Details:
+//CHECK: Invalid:0
+//CHECK: ,BoundsFound:
+//CHECK: Array Bounds Inference Stats:
+//CHECK: NamePrefixMatch:0
+//CHECK: AllocatorMatch:0
+//CHECK: VariableNameMatch:0
+//CHECK: NeighbourParamMatch:0
+//CHECK: DataflowMatch:0
+//CHECK: Declared:1
+//CHECK: TimeStats
+//CHECK: TotalTime:{.*}
+//CHECK: ConstraintBuilderTime:{.*}
+//CHECK: ConstraintSolverTime:{.*}
+//CHECK: ArrayBoundsInferenceTime:{.*}
+//CHECK: RewritingTime:{.*}
+//CHECK: ReWriteStats
+//CHECK: NumAssumeBoundsCasts:1
+//CHECK: NumCheckedCasts:0
+//CHECK: NumWildCasts:0
+//CHECK: NumFixedCasts:0
+//CHECK: NumITypes:0
+//CHECK: NumCheckedRegions:3
+//CHECK: NumUnCheckedRegions:0

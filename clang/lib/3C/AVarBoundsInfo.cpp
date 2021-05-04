@@ -43,6 +43,8 @@ void AVarBoundsStats::print(llvm::raw_ostream &O,
     O << "DataflowMatch:" << Tmp.size() << "\n";
     findIntersection(DeclaredBounds, *InSrcArrs, Tmp);
     O << "Declared:" << Tmp.size() << "\n";
+    findIntersection(DeclaredButNotHandled, *InSrcArrs, Tmp);
+    O << "DeclaredButNotHandled:" << Tmp.size() << "\n";
   } else {
     O << "\"ArrayBoundsInferenceStats\":{";
     findIntersection(NamePrefixMatch, *InSrcArrs, Tmp);
@@ -56,7 +58,9 @@ void AVarBoundsStats::print(llvm::raw_ostream &O,
     findIntersection(DataflowMatch, *InSrcArrs, Tmp);
     O << "\"DataflowMatch\":" << Tmp.size() << ",\n";
     findIntersection(DeclaredBounds, *InSrcArrs, Tmp);
-    O << "\"Declared\":" << Tmp.size() << "\n";
+    O << "\"Declared\":" << Tmp.size() << ",\n";
+    findIntersection(DeclaredButNotHandled, *InSrcArrs, Tmp);
+    O << "\"DeclaredButNotHandled\":" << Tmp.size() << "\n";
     O << "}";
   }
 }
@@ -550,6 +554,7 @@ void AVarBoundsInfo::insertDeclaredBounds(clang::Decl *D, ABounds *B) {
   } else {
     // Set bounds to be invalid.
     InvalidBounds.insert(BK);
+    BoundsInferStats.DeclaredButNotHandled.insert(BK);
   }
 }
 
@@ -1090,15 +1095,18 @@ void AVarBoundsInfo::computerArrPointers(ProgramInfo *PI,
         FV = PI->getExtFuncDefnConstraint(FuncName);
       }
 
-      if (hasArray(FV->getExternalParam(ParmNum), CS)) {
+      if (hasArray(FV->getExternalParam(ParmNum), CS) ||
+          hasArray(FV->getInternalParam(ParmNum), CS)) {
         ArrPointers.insert(Bkey);
       }
       // Does this array belong to a valid program variable?
-      if (isInSrcArray(FV->getExternalParam(ParmNum), CS)) {
+      if (isInSrcArray(FV->getExternalParam(ParmNum), CS) ||
+          isInSrcArray(FV->getInternalParam(ParmNum), CS)) {
         InProgramArrPtrBoundsKeys.insert(Bkey);
       }
 
-      if (hasOnlyNtArray(FV->getExternalParam(ParmNum), CS)) {
+      if (hasOnlyNtArray(FV->getExternalParam(ParmNum), CS) ||
+          hasOnlyNtArray(FV->getInternalParam(ParmNum), CS)) {
         NtArrPointerBoundsKey.insert(Bkey);
       }
 
@@ -1122,15 +1130,18 @@ void AVarBoundsInfo::computerArrPointers(ProgramInfo *PI,
         FV = getOnly(Tmp);
       }
 
-      if (hasArray(FV->getExternalReturn(), CS)) {
+      if (hasArray(FV->getExternalReturn(), CS) ||
+          hasArray(FV->getInternalReturn(), CS)) {
         ArrPointers.insert(Bkey);
       }
       // Does this array belongs to a valid program variable?
-      if (isInSrcArray(FV->getExternalReturn(), CS)) {
+      if (isInSrcArray(FV->getExternalReturn(), CS) ||
+          isInSrcArray(FV->getInternalReturn(), CS)) {
         InProgramArrPtrBoundsKeys.insert(Bkey);
       }
 
-      if (hasOnlyNtArray(FV->getExternalReturn(), CS)) {
+      if (hasOnlyNtArray(FV->getExternalReturn(), CS) ||
+          hasOnlyNtArray(FV->getInternalReturn(), CS)) {
         NtArrPointerBoundsKey.insert(Bkey);
         // If the return value is an nt array pointer
         // and there are no declared bounds? Then, we cannot

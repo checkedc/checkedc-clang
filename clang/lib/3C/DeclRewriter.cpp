@@ -680,6 +680,7 @@ void FunctionDeclBuilder::buildItypeDecl(PVConstraint *Defn,
                                          std::string &Type, std::string &IType,
                                          bool &RewriteParm, bool &RewriteRet) {
   Type = Defn->getRewritableOriginalTy();
+  auto &PStats = Info.getPerfStats();
   if (isa_and_nonnull<ParmVarDecl>(Decl)) {
     if (Decl->getName().empty())
       Type += Defn->getName();
@@ -693,6 +694,7 @@ void FunctionDeclBuilder::buildItypeDecl(PVConstraint *Defn,
   IType = " : itype(" +
           Defn->mkString(Info.getConstraints(), false, true) +
           ")" + ABRewriter.getBoundsString(Defn, Decl, true);
+  PStats.incrementNumITypes();
   RewriteParm = true;
   RewriteRet |= isa_and_nonnull<FunctionDecl>(Decl);
 }

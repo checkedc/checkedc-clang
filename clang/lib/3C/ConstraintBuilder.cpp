@@ -11,6 +11,7 @@
 
 #include "clang/3C/ConstraintBuilder.h"
 #include "clang/3C/3CGlobalOptions.h"
+#include "clang/3C/3CStats.h"
 #include "clang/3C/ArrayBoundsInferenceConsumer.h"
 #include "clang/3C/ConstraintResolver.h"
 #include "clang/3C/TypeVariableAnalysis.h"
@@ -672,6 +673,7 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
       ContextSensitiveBoundsKeyVisitor(&C, Info, &CSResolver);
   ConstraintGenVisitor GV = ConstraintGenVisitor(&C, Info, TV);
   TranslationUnitDecl *TUD = C.getTranslationUnitDecl();
+  StatsRecorder SR(&C, &Info);
 
   // Generate constraints.
   for (const auto &D : TUD->decls()) {
@@ -682,6 +684,7 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
     CSBV.TraverseDecl(D);
     TV.TraverseDecl(D);
     GV.TraverseDecl(D);
+    SR.TraverseDecl(D);
   }
 
   // Store type variable information for use in rewriting

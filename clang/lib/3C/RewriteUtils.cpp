@@ -402,6 +402,7 @@ private:
   Rewriter &Writer;
 
   void rewriteType(Expr *E, SourceRange &Range) {
+    auto &PState = Info.getPerfStats();
     if (!Info.hasPersistentConstraints(E, Context))
       return;
     const CVarSet &CVSingleton = Info.getPersistentConstraintsSet(E, Context);
@@ -419,9 +420,11 @@ private:
 
     for (auto *CV : CVSingleton)
       // Replace the original type with this new one if the type has changed.
-      if (CV->anyChanges(Vars))
+      if (CV->anyChanges(Vars)) {
         rewriteSourceRange(Writer, Range,
                            CV->mkString(Info.getConstraints(), false));
+        PState.incrementNumFixedCasts();
+      }
   }
 };
 
@@ -668,7 +671,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   std::set<llvm::FoldingSetNodeID> Seen;
   std::map<llvm::FoldingSetNodeID, AnnotationNeeded> NodeMap;
   CheckedRegionFinder CRF(&Context, R, Info, Seen, NodeMap, WarnRootCause);
-  CheckedRegionAdder CRA(&Context, R, NodeMap);
+  CheckedRegionAdder CRA(&Context, R, NodeMap, Info);
   CastLocatorVisitor CLV(&Context);
   CastPlacementVisitor ECPV(&Context, Info, R, CLV.getExprsWithCast());
   TypeExprRewriter TER(&Context, Info, R);

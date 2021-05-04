@@ -66,5 +66,6 @@ private:
 
   void surroundByCast(ConstraintVariable *Dst, CastNeeded CastKind, Expr *E);
   void reportCastInsertionFailure(Expr *E, const std::string &CastStr);
+  void updateRewriteStats(CastNeeded CastKind);
 };
 #endif // LLVM_CLANG_3C_CASTPLACEMENT_H

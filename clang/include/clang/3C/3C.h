@@ -138,6 +138,9 @@ public:
   // to disk
   bool writeAllConvertedFilesToDisk();
 
+  // Dump all stats related to performance.
+  bool dumpStats();
+
 private:
   _3CInterface(const struct _3COptions &CCopt,
                const std::vector<std::string> &SourceFileList,

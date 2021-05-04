@@ -41,6 +41,9 @@ public:
   std::set<BoundsKey> DataflowMatch;
   // These are bounds keys for which the bounds are declared.
   std::set<BoundsKey> DeclaredBounds;
+  // These are bounds key having bounds, but unfortunately cannot be handled
+  // by our inference.
+  std::set<BoundsKey> DeclaredButNotHandled;
   AVarBoundsStats() { clear(); }
   ~AVarBoundsStats() { clear(); }
 
@@ -73,6 +76,7 @@ private:
     NeighbourParamMatch.clear();
     DataflowMatch.clear();
     DeclaredBounds.clear();
+    DeclaredButNotHandled.clear();
   }
 };
 

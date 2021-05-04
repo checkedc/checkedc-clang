@@ -33,6 +33,7 @@ add_clang_library(clang3C
   CastPlacement.cpp
   3C.cpp
   3CInteractiveData.cpp
+  3CStats.cpp
   CheckedRegions.cpp
   ConstraintBuilder.cpp
   ConstraintResolver.cpp

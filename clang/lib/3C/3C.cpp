@@ -456,7 +456,64 @@ bool _3CInterface::solveConstraints() {
     // Propagate data-flow information for Array pointers.
     GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);
 
-    if (DebugArrSolver)
+    /*if (DebugArrSolver)
+      GlobalProgramInfo.getABoundsInfo().dumpAVarGraph("arr_bounds_final.dot");*/
+  }
+
+  /*if (DumpStats) {
+    GlobalProgramInfo.printStats(FilePaths, llvm::errs(), true);
+    GlobalProgramInfo.computeInterimConstraintState(FilePaths);
+    std::error_code Ec;
+    llvm::raw_fd_ostream OutputJson(StatsOutputJson, Ec);
+    if (!OutputJson.has_error()) {
+      GlobalProgramInfo.printStats(FilePaths, OutputJson, false, true);
+      OutputJson.close();
+    }
+    std::string AggregateStats = StatsOutputJson + ".aggregate.json";
+    llvm::raw_fd_ostream AggrJson(AggregateStats, Ec);
+    if (!AggrJson.has_error()) {
+      GlobalProgramInfo.print_aggregate_stats(FilePaths, AggrJson);
+      AggrJson.close();
+    }
+
+    llvm::raw_fd_ostream WildPtrInfo(WildPtrInfoJson, Ec);
+    if (!WildPtrInfo.has_error()) {
+      GlobalProgramInfo.getInterimConstraintState().printStats(WildPtrInfo);
+      WildPtrInfo.close();
+    }
+
+    llvm::raw_fd_ostream PerWildPtrInfo(PerWildPtrInfoJson, Ec);
+    if (!PerWildPtrInfo.has_error()) {
+      GlobalProgramInfo.getInterimConstraintState().printRootCauseStats(
+          PerWildPtrInfo, GlobalProgramInfo.getConstraints());
+      PerWildPtrInfo.close();
+    }
+  }*/
+
+  return true;
+}
+
+bool _3CInterface::writeAllConvertedFilesToDisk() {
+  std::lock_guard<std::mutex> Lock(InterfaceMutex);
+
+  // 6. Rewrite the input files.
+  RewriteConsumer RC = RewriteConsumer(GlobalProgramInfo);
+  unsigned int Errs = 0;
+  for (auto &TU : ASTs) {
+    TU->enableSourceFileDiagnostics();
+    RC.HandleTranslationUnit(TU->getASTContext());
+    TU->getDiagnostics().getClient()->EndSourceFile();
+    Errs += TU->getDiagnostics().getClient()->getNumErrors();
+  }
+  if (Errs > 0) return false;
+
+  GlobalProgramInfo.getPerfStats().endTotalTime();
+  GlobalProgramInfo.getPerfStats().startTotalTime();
+  return true;
+}
+
+bool _3CInterface::dumpStats() {
+  if (AllTypes && DebugArrSolver) {
       GlobalProgramInfo.getABoundsInfo().dumpAVarGraph("arr_bounds_final.dot");
   }
 
@@ -489,26 +546,6 @@ bool _3CInterface::solveConstraints() {
       PerWildPtrInfo.close();
     }
   }
-
-  return true;
-}
-
-bool _3CInterface::writeAllConvertedFilesToDisk() {
-  std::lock_guard<std::mutex> Lock(InterfaceMutex);
-
-  // 6. Rewrite the input files.
-  RewriteConsumer RC = RewriteConsumer(GlobalProgramInfo);
-  unsigned int Errs = 0;
-  for (auto &TU : ASTs) {
-    TU->enableSourceFileDiagnostics();
-    RC.HandleTranslationUnit(TU->getASTContext());
-    TU->getDiagnostics().getClient()->EndSourceFile();
-    Errs += TU->getDiagnostics().getClient()->getNumErrors();
-  }
-  if (Errs > 0) return false;
-
-  GlobalProgramInfo.getPerfStats().endTotalTime();
-  GlobalProgramInfo.getPerfStats().startTotalTime();
   return true;
 }
 

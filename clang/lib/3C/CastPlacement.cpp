@@ -220,6 +220,7 @@ void CastPlacementVisitor::surroundByCast(ConstraintVariable *Dst,
     // FIXME: This rewriting is known to fail on the benchmark programs.
     //        https://github.com/correctcomputation/checkedc-clang/issues/444
     rewriteSourceRange(Writer, CastTypeRange, CastStr, false);
+    updateRewriteStats(CastKind);
   } else {
     // First try to insert the cast prefix and suffix around the expression in
     // the source code.
@@ -228,6 +229,7 @@ void CastPlacementVisitor::surroundByCast(ConstraintVariable *Dst,
     if (FrontRewritable && EndRewritable) {
       bool BFail = Writer.InsertTextBefore(E->getBeginLoc(), CastStrs.first);
       bool EFail = Writer.InsertTextAfterToken(E->getEndLoc(), CastStrs.second);
+      updateRewriteStats(CastKind);
       assert("Locations were rewritable, fail should not be possible." &&
              !BFail && !EFail);
     } else {
@@ -242,11 +244,13 @@ void CastPlacementVisitor::surroundByCast(ConstraintVariable *Dst,
       // This doesn't always work either. We can't rewrite if the cast needs to
       // be placed fully inside a macro rather than around a macro or on an
       // argument to the macro.
-      if (!SrcText.empty())
+      if (!SrcText.empty()) {
         rewriteSourceRange(Writer, NewCRA,
                            CastStrs.first + SrcText + CastStrs.second);
-      else
+        updateRewriteStats(CastKind);
+      } else {
         reportCastInsertionFailure(E, CastStrs.first + CastStrs.second);
+      }
     }
   }
 }
@@ -264,6 +268,23 @@ void CastPlacementVisitor::reportCastInsertionFailure(
   ErrorBuilder.AddSourceRange(
       Context->getSourceManager().getExpansionRange(E->getSourceRange()));
   ErrorBuilder.AddString(CastStr);
+}
+
+void CastPlacementVisitor::updateRewriteStats(CastNeeded CastKind) {
+  auto &PStats = Info.getPerfStats();
+  switch (CastKind) {
+  case CAST_NT_ARRAY:
+    PStats.incrementNumCheckedCasts();
+    break;
+  case CAST_TO_WILD:
+    PStats.incrementNumWildCasts();
+    break;
+  case CAST_TO_CHECKED:
+    PStats.incrementNumAssumeBounds();
+    break;
+  default:
+    llvm_unreachable("Unhandled cast.");
+  }
 }
 
 bool CastLocatorVisitor::VisitCastExpr(CastExpr *C) {

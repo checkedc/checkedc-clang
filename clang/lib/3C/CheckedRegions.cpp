@@ -43,18 +43,21 @@ bool CheckedRegionAdder::VisitCompoundStmt(CompoundStmt *S) {
   llvm::FoldingSetNodeID Id;
   ast_type_traits::DynTypedNode DTN = ast_type_traits::DynTypedNode::create(*S);
 
+  auto &PState = Info.getPerfStats();
   S->Profile(Id, *Context, true);
   switch (Map[Id]) {
   case IS_UNCHECKED:
     if (isParentChecked(DTN) && getFunctionDeclOfBody(Context, S) == nullptr) {
       auto Loc = S->getBeginLoc();
       Writer.InsertTextBefore(Loc, "_Unchecked ");
+      PState.incrementNumUnCheckedRegions();
     }
     break;
   case IS_CHECKED:
     if (!isParentChecked(DTN)) {
       auto Loc = S->getBeginLoc();
       Writer.InsertTextBefore(Loc, "_Checked ");
+      PState.incrementNumCheckedRegions();
     }
     break;
   default:
@@ -68,6 +71,7 @@ bool CheckedRegionAdder::VisitCallExpr(CallExpr *C) {
   auto *FD = C->getDirectCallee();
   FoldingSetNodeID ID;
   ast_type_traits::DynTypedNode DTN = ast_type_traits::DynTypedNode::create(*C);
+  auto &PState = Info.getPerfStats();
 
   C->Profile(ID, *Context, true);
   if (FD && FD->isVariadic() && Map[ID] == IS_CONTAINED &&
@@ -76,6 +80,8 @@ bool CheckedRegionAdder::VisitCallExpr(CallExpr *C) {
     Writer.InsertTextBefore(Begin, "_Unchecked { ");
     auto End = C->getEndLoc();
     Writer.InsertTextAfterToken(End, "; }");
+    PState.incrementNumUnCheckedRegions();
+
   }
 
   return true;

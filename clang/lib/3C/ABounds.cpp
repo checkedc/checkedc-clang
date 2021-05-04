@@ -42,6 +42,8 @@ ABounds *ABounds::getBoundsInfo(AVarBoundsInfo *ABInfo, BoundsExpr *BExpr,
       }
     }
   }
+  // Disabling Range bounds as they are not currently supported!
+  /*
   if (BExpr->isRange() && RBE) {
     Expr *LHS = RBE->getLowerExpr()->IgnoreParenCasts();
     Expr *RHS = RBE->getUpperExpr()->IgnoreParenImpCasts();
@@ -50,7 +52,7 @@ ABounds *ABounds::getBoundsInfo(AVarBoundsInfo *ABInfo, BoundsExpr *BExpr,
         ABInfo->tryGetVariable(RHS, C, RV)) {
       Ret = new RangeBound(LV, RV);
     }
-  }
+  }*/
   return Ret;
 }
 
