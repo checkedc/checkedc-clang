@@ -6,23 +6,6 @@
 #include <string.h>
 
 #include <stddef.h>
-extern _Itype_for_any(T) void *malloc(size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
-extern _Itype_for_any(T) void *realloc(void *pointer
-                                       : itype(_Array_ptr<T>) byte_count(1),
-                                         size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
-extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size)
-    : itype(_Array_ptr<T>) byte_count(nmemb * size);
-
-// From string_checked.h
-#if _FORTIFY_SOURCE == 0 || _FORTIFY_SOURCE == 2 || !defined(strcpy)
-#undef strcpy
-// Dest is left unchecked intentionally. There is no bound on dest, so this
-// is always an unchecked function
-_Unchecked char *strcpy(char *restrict dest, const char *restrict src
-                        : itype(restrict _Nt_array_ptr<const char>));
-#endif
 
 void basic1() {
   char data[] = "abcdefghijklmnop";
