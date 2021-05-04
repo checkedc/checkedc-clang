@@ -19,8 +19,6 @@ void BoundsWideningAnalysis::WidenBounds(FunctionDecl *FD,
                                          StmtSetTy NestedStmts) {
   assert(Cfg && "expected CFG to exist");
 
-  WorkListTy WorkList;
-
   // Add each block to WorkList and create a mapping from CFGBlock to
   // ElevatedCFGBlock.
   // Note: By default, PostOrderCFGView iterates in reverse order. So we always
@@ -33,41 +31,32 @@ void BoundsWideningAnalysis::WidenBounds(FunctionDecl *FD,
       continue;
 
     auto EB = new ElevatedCFGBlock(B);
-    // Note: Since WorkList is a queue iterating it maintains the reverse post
-    // order.
-    WorkList.append(EB);
     BlockMap[B] = EB;
-  }
 
-  // Compute Gen and Kill sets for statements in each block.
-  ComputeGenKillSets();
+    // Compute Gen and Kill sets for statements in the block.
+    ComputeGenKillSets(EB);
+  }
 }
 
-void BoundsWideningAnalysis::ComputeGenKillSets() {
+void BoundsWideningAnalysis::ComputeGenKillSets(ElevatedCFGBlock *EB) {
   // Compute Gen and Kill sets for each statement in a block.
+  const Stmt *PrevS = nullptr;
 
-  for (const auto item : BlockMap) {
-    const CFGBlock *B = item.first;
-    ElevatedCFGBlock *EB = item.second;
+  for (auto I = EB->Block->begin(), E = EB->Block->end(); I != E; ++I) {
+    CFGElement Elem = *I;
+    if (Elem.getKind() == CFGElement::Statement) {
+      const Stmt *S = Elem.castAs<CFGStmt>().getStmt();
+      if (!S)
+        continue;
 
-    const Stmt *PrevS = nullptr;
+      bool IsLastStmt = I == E - 1;
+      ComputeGenSet(EB, S, PrevS, IsLastStmt);
 
-    for (auto I = B->begin(), E = B->end(); I != E; ++I) {
-      CFGElement Elem = *I;
-      if (Elem.getKind() == CFGElement::Statement) {
-        const Stmt *S = Elem.castAs<CFGStmt>().getStmt();
-        if (!S)
-          continue;
+      // TODO: Compute Kill sets only for top-level statements that are not
+      // nested in another top-level statement.
+      ComputeKillSet(EB, S, PrevS);
 
-        bool IsLastStmt = I == E - 1;
-        ComputeGenSet(EB, S, PrevS, IsLastStmt);
-
-        // TODO: Compute Kill sets only for top-level statements that are not
-        // nested in another top-level statement.
-        ComputeKillSet(EB, S, PrevS);
-
-        PrevS = S;
-      }
+      PrevS = S;
     }
   }
 }

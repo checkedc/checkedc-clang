@@ -73,18 +73,9 @@ namespace clang {
     // BlockMapTy denotes the mapping from CFGBlocks to ElevatedCFGBlocks.
     using BlockMapTy = llvm::DenseMap<const CFGBlock *, ElevatedCFGBlock *>;
 
-    // QueueSet is a queue of unique elements. It is used to process
-    // ElevatedCFGBlocks for the dataflow analysis.
-    using WorkListTy = QueueSet<ElevatedCFGBlock>;
-
     // BlockMap maps a CFGBlock to an ElevatedCFGBlock. Given a CFGBlock it is
     // used to lookup an ElevatedCFGBlock.
     BlockMapTy BlockMap;
-
-    // Top denotes the initial value of the In and Out sets for all basic
-    // blocks, except the Entry block. the In and Out sets for the Entry block
-    // are initialized to Bot.
-    BoundsMapTy Top, Bot;
   
   public:
     BoundsWideningAnalysis(Sema &SemaRef, CFG *Cfg, BoundsVarsTy &BoundsVars) :
@@ -103,7 +94,8 @@ namespace clang {
 
   private:
     // Compute the Gen and Kill sets for each statement in a block.
-    void ComputeGenKillSets();
+    // @param[in] EB is the current ElevatedCFGBlock.
+    void ComputeGenKillSets(ElevatedCFGBlock *EB);
 
     // Compute the Gen sets for all statements in a block.
     // @param[in] EB is the current ElevatedCFGBlock.
