@@ -583,7 +583,7 @@ void ASTDeclReader::VisitDecl(Decl *D) {
                            Reader.getContext());
   }
   D->setLocation(ThisDeclLoc);
-  D->setInvalidDecl(Record.readInt());
+  D->InvalidDecl = Record.readInt();
   if (Record.readInt()) { // hasAttrs
     AttrVec Attrs;
     Record.readAttributes(Attrs);
@@ -2920,9 +2920,11 @@ static bool isSameTemplateParameter(const NamedDecl *X,
       return false;
     if (TX->hasTypeConstraint() != TY->hasTypeConstraint())
       return false;
-    if (TX->hasTypeConstraint()) {
-      const TypeConstraint *TXTC = TX->getTypeConstraint();
-      const TypeConstraint *TYTC = TY->getTypeConstraint();
+    const TypeConstraint *TXTC = TX->getTypeConstraint();
+    const TypeConstraint *TYTC = TY->getTypeConstraint();
+    if (!TXTC != !TYTC)
+      return false;
+    if (TXTC && TYTC) {
       if (TXTC->getNamedConcept() != TYTC->getNamedConcept())
         return false;
       if (TXTC->hasExplicitTemplateArgs() != TYTC->hasExplicitTemplateArgs())
