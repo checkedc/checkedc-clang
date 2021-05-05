@@ -113,6 +113,7 @@ PointerVariableConstraint::PointerVariableConstraint(
                          Ot->Name),
       FV(nullptr), PartOfFuncPrototype(Ot->PartOfFuncPrototype) {
   this->ArrSizes = Ot->ArrSizes;
+  this->ArrSizeStrs = Ot->ArrSizeStrs;
   this->HasEqArgumentConstraints = Ot->HasEqArgumentConstraints;
   this->ValidBoundsKey = Ot->ValidBoundsKey;
   this->BKey = Ot->BKey;
@@ -341,6 +342,11 @@ PointerVariableConstraint::PointerVariableConstraint(
   }
 
   IsZeroWidthArray = false;
+
+  TypeLoc TLoc = TypeLoc();
+  if (D && D->getTypeSourceInfo())
+    TLoc = D->getTypeSourceInfo()->getTypeLoc();
+
   while (Ty->isPointerType() || Ty->isArrayType()) {
     // Is this a VarArg type?
     std::string TyName = tyToStr(Ty);
@@ -401,9 +407,19 @@ PointerVariableConstraint::PointerVariableConstraint(
         if (const TypedefType *TydTy = dyn_cast<TypedefType>(Ty)) {
           QTy = TydTy->desugar();
           Ty = QTy.getTypePtr();
+          if (!TLoc.isNull()) {
+            auto TDefTLoc = TLoc.getAs<TypedefTypeLoc>();
+            if (!TDefTLoc.isNull())
+              TLoc = TDefTLoc.getNextTypeLoc();
+          }
         } else if (const ParenType *ParenTy = dyn_cast<ParenType>(Ty)) {
           QTy = ParenTy->desugar();
           Ty = QTy.getTypePtr();
+          if (!TLoc.isNull()) {
+            auto ParenTLoc = TLoc.getAs<ParenTypeLoc>();
+            if (!ParenTLoc.isNull())
+              TLoc = ParenTLoc.getInnerLoc();
+          }
         } else {
           Boiling = false;
         }
@@ -413,6 +429,15 @@ PointerVariableConstraint::PointerVariableConstraint(
       if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(Ty)) {
         ArrSizes[TypeIdx] = std::pair<OriginalArrType, uint64_t>(
             O_SizedArray, CAT->getSize().getZExtValue());
+
+        if (!TLoc.isNull()) {
+          auto ArrTLoc = TLoc.getAs<ArrayTypeLoc>();
+          if (!ArrTLoc.isNull()) {
+            std::string SizeStr = getSourceText(ArrTLoc.getBracketsRange(), C);
+            if (!SizeStr.empty())
+              ArrSizeStrs[TypeIdx] = SizeStr;
+          }
+        }
 
         // If this is the top-most pointer variable?
         if (hasBoundsKey() && IsTopMost) {
@@ -469,6 +494,8 @@ PointerVariableConstraint::PointerVariableConstraint(
     VK = VarAtom::
         V_Other; // only the outermost pointer considered a param/return
     IsTopMost = false;
+    if (!TLoc.isNull())
+      TLoc = TLoc.getNextTypeLoc();
   }
   insertQualType(TypeIdx, QTy);
 
@@ -660,7 +687,18 @@ bool PointerVariableConstraint::emitArraySize(
     std::ostringstream SizeStr;
     if (Kind != Atom::A_Wild)
       SizeStr << (Kind == Atom::A_NTArr ? " _Nt_checked" : " _Checked");
-    SizeStr << "[" << Oas << "]";
+    if (ArrSizeStrs.find(TypeIdx) != ArrSizeStrs.end()) {
+      std::string SrcSizeStr = ArrSizeStrs.find(TypeIdx)->second;
+      assert(!SrcSizeStr.empty());
+      // In some weird edge cases the size of the array is defined by a macro
+      // where the macro also includes the brackets. We need to add a space
+      // between the _Checked annotation and this macro to ensure they aren't
+      // concatenated into a single token.
+      if (SrcSizeStr[0] != '[')
+        SizeStr << " ";
+      SizeStr << SrcSizeStr;
+    } else
+      SizeStr << "[" << Oas << "]";
     ConstSizeArrs.push(SizeStr.str());
     return true;
   }

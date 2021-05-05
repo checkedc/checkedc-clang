@@ -57,8 +57,7 @@ struct Stack
 
   int arr[MAX_SIZE];
   //CHECK_NOALL: int arr[MAX_SIZE];
-  //CHECK_ALL: int arr _Checked[40];
-
+  //CHECK_ALL: int arr _Checked[MAX_SIZE];
   int top;
 };
 

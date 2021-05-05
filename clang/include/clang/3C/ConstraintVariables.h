@@ -250,6 +250,10 @@ private:
   //  * An unsized array, then U -(a,b) , a = O_UnSizedArray, b has no meaning.
   std::map<uint32_t, std::pair<OriginalArrType, uint64_t>> ArrSizes;
 
+  // To help rewriting preserve macros and constant expressions in arrays size
+  // expressions, the source strings for bounds of arrays are also stored.
+  std::map<uint32_t, std::string> ArrSizeStrs;
+
   // True if this variable has an itype in the original source code.
   bool SrcHasItype;
   // The string representation of the itype of in the original source. This

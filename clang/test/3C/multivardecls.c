@@ -41,7 +41,7 @@ void test() {
   //CHECK: int o;
   //CHECK_ALL: int p _Checked[1];
   //CHECK_NOALL: int p[1];
-  //CHECK_ALL: int q _Checked[2] = {1, 2};
+  //CHECK_ALL: int q _Checked[] = {1, 2};
   //CHECK_NOALL: int q[] = {1, 2};
   //CHECK_ALL: int r _Checked[1] _Checked[1];
   //CHECK_NOALL: int r[1][1];

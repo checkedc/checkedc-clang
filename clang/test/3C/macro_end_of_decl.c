@@ -29,8 +29,8 @@ int d SIZE;
 int e SIZE[1];
 //CHECK_NOALL: int d SIZE;
 //CHECK_NOALL: int e SIZE[1];
-//CHECK_ALL: int d _Checked[1];
-//CHECK_ALL: int e _Checked[1] _Checked[1];
+//CHECK_ALL: int d _Checked SIZE;
+//CHECK_ALL: int e _Checked SIZE _Checked[1];
 
 #define EQ =
 int *f EQ 0;
@@ -39,7 +39,7 @@ int *f EQ 0;
 int(*g0) ARGS, g1 SIZE, *g2 EQ 0;
 //CHECK: _Ptr<int (void)> g0 = ((void *)0);
 //CHECK_NOALL: int g1[1];
-//CHECK_ALL: int g1 _Checked[1];
+//CHECK_ALL: int g1 _Checked SIZE;
 //CHECK: _Ptr<int> g2 = 0;
 
 #define RPAREN )
