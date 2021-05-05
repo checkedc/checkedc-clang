@@ -481,7 +481,7 @@ private:
   // Attempt to find the right spot to insert the type arguments. This should be
   // directly after the name of the function being called.
   SourceLocation getTypeArgLocation(CallExpr *Call) {
-    Expr *Callee = Call->getCallee()->IgnoreImpCasts();
+    Expr *Callee = Call->getCallee()->IgnoreParenImpCasts();
     if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(Callee)) {
       size_t NameLength = DRE->getNameInfo().getAsString().length();
       return Call->getBeginLoc().getLocWithOffset(NameLength);
