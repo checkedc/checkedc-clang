@@ -455,7 +455,7 @@ public:
     auto DeclRange = Decl->getSourceRange();
     auto TypedefRange = TDT->getSourceRange();
     bool DeclContained = (TypedefRange.getBegin() < DeclRange.getBegin()) &&
-                         !(TypedefRange.getEnd() < TypedefRange.getEnd());
+                         !(TypedefRange.getEnd() < DeclRange.getEnd());
     if (DeclContained) {
       StructDefInTD = true;
       return false;
