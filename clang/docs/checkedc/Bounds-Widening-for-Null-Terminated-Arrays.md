@@ -14,9 +14,9 @@ terminator. This gives rise to the following observation:
 elements read.**
 
 The bounds of a null-terminated array can also be widened when the initial
-elements of the sequence are implicitly read (for example via call to `strlen`
-function). In the example below the bounds of the null-terminated-array `p` are
-widened to `bounds(p, p + x)`.
+elements of the sequence are known to be read by a function call (for example
+via call to `strlen` function). In the example below the bounds of the
+null-terminated-array `p` are widened to `bounds(p, p + x)`.
 
 ```
   void f(_Nt_array_ptr<char> p) {
@@ -28,20 +28,21 @@ In the next section we describe a dataflow analysis to widen bounds for
 null-terminated arrays. The dataflow analysis is **forward**,
 **path-sensitive**, **flow-sensitive** and **intra-procedural**.
 
-Note: This analysis uses the bounds declarations in where clauses as facts and
-assumes that they have already been proven.
+Note: This analysis assumes that the bounds declarations in where clauses are
+valid. The validity needs to be proven elsewhere.
 
 ## Dataflow Analysis for Widening the Bounds of Null-terminated Arrays
-We use `V` to denote a null-terminated array variable, `bounds(Lower, Upper)`
-to denote the bounds expression for `V`, `S` to denote a statement, and `B` and
-`B'` to denote basic blocks.
+We use `V` to denote a variable that is a pointer to a null-terminated array,
+`bounds(Lower, Upper)` to denote the bounds expression for `V`, `S` to denote a
+statement, and `B` and `B'` to denote basic blocks.
 
 Note: The analysis treats two variables having the same name but different
 declarations as distinct from each other.
 
-The dataflow analysis tracks all null-terminated array variables local to a
-function along with their bounds expressions. The dataflow facts that flow
-through the analysis are sets of pairs `V:bounds(Lower, Upper)`.
+The dataflow analysis tracks all variables that are pointers to null-terminated
+arrays local to a function along with their bounds expressions. The dataflow
+facts that flow through the analysis are sets of pairs `V:bounds(Lower,
+Upper)`.
 
 For every basic block `B`, we compute the sets `In[B]` and `Out[B]`.
 
@@ -52,9 +53,9 @@ the sets `Gen[S]` and `Kill[S]` are computed **before** the fixed-point
 computation.
 
 ### Initial operations
-In each function, we map a variable `Z` to the set of all null-terminated array
-variables in whose bounds expressions `Z` occurs. We maintain this map only for
-variables that are mapped to non-empty sets.
+In each function, we map a variable `Z` to the set of all variables that are
+pointers to null-terminated arrays and in whose bounds expressions `Z` occurs.
+We maintain this map only for variables that are mapped to non-empty sets.
 ```
 ∀ variables Z in function F, let the initial value of BoundsVars[Z] be ∅.
 
@@ -64,18 +65,30 @@ variables that are mapped to non-empty sets.
       BoundsVars[Z] = BoundsVars[Z] ∪ {V}
 ```
 
-### Gen[S]
-`Gen[S]` maps each null-terminated array variable `V` that occurs before or in
-statement `S` to a bounds expression comprising a lower bound, and an upper
-bound to which `V` may potentially be widened.
+### Kill[S]
+`Kill[S]` denotes the set of variables that are pointers to null-terminated
+arrays and whose bounds are killed by statement `S`.
 
 Dataflow equation:
 ```
-If S is the first statement in block B:
-  Let the initial value of Gen[S] be ∅
-Else:
-  Let the initial value of Gen[S] be (Gen[S'] - {V:_ | V ∈ Kill[S']}), where S' is pred(S).
+If S declares bounds of V or
+   S is the terminating condition for block B and S dereferences V or
+   W is a where_clause and W annotates S and W declares bounds of V:
+  Kill[S] = Kill[S] ∪ {V}
 
+Else if S modifies Z and Z is a variable and Z ∈ keys(BoundsVars):
+  Kill[S] = Kill[S] ∪ BoundsVars[Z]
+```
+Note: We currently only track modifications to variables that occur in bounds
+expressions local to a basic block.
+
+### Gen[S]
+`Gen[S]` maps each variable that is a pointer to a null-terminated array `V`
+that occurs in statement `S` to a bounds expression comprising a lower bound,
+and an upper bound to which `V` may potentially be widened.
+
+Dataflow equation:
+```
 If S declares bounds(Lower, Upper) as bounds of V:
   Gen[S] = Gen[S] ∪ {V:bounds(Lower, Upper)}
 
@@ -91,46 +104,36 @@ Else if W is a where_clause and W annotates S and
 Note: Currently, we only look at where clauses that annotate calls to `strlen`
 and `strnlen`.
 
-### Kill[S]
-`Kill[S]` denotes the set of null-terminated array variables whose bounds are
-killed by the statement `S` or any statement before `S`.
+### StmtIn[S]
+In a basic block, `StmtIn[S_i]` denotes all bounds widened by statements `S_0`
+through `S_i-1`.
 
 Dataflow equation:
 ```
-If S is the first statement in block B:
-  Let the initial value of Kill[S] be ∅
-Else:
-  Let the initial value of Kill[S] be Kill[S']
+Let S_i denote the i^th statement in block B.
 
-If V:bounds(Lower, Upper) ∈ Gen[S]:
-  Kill[S] = Kill[S] ∪ {V}
+StmtIn[S_0] = In[B]
 
-If S assigns to Z ∧ Z is a variable ∧ Z ∈ keys(BoundsVars):
-  Kill[S] = Kill[S] ∪ BoundsVars[Z]
+StmtIn[S_i] = Gen[S_i-1] ∪ (Gen[S_i-2] - Kill[S_i-1]) ∪
+             (Gen[S_i-3] - Kill[S_i-2] - Kill[S_i-1]) ∪
+              ... ∪ (Gen[S_1] - Kill[S_2] - Kill[S_3] - ... - Kill[S_i-1])
 ```
-Note 1: The `Gen` and `Kill` sets are computed in lockstep.
-
-Note 2: We are currently only tracking assignments to variables that occur in
-        bounds expressions local to a basic block.
 
 ### Out[B]
-`Out[B]` denotes the mapping between null-terminated array variables and their
-widened bounds expressions at the end of block `B`.
+`Out[B]` denotes the mapping between variables that are pointers to
+null-terminated arrays and their widened bounds expressions at the end of block
+`B`.
 
 Dataflow equation:
 ```
-If block B contains one or more statements:
-  Let S be the last statement in block B.
-  Out[B] = (In[B] - {V:_ | V ∈ Kill[S]}) ∪ Gen[S]
-Else:
-  Out[B] = In[B]
+Out[B] = (StmtIn[S_n] - Kill[S_n]) ∪ Gen[S_n], where S_n is the last statement in block B
 ```
 
 ### In[B]
-`In[B]` denotes the mapping between null-terminated array variables and their
-widened bounds expressions upon entry to block `B`. The `In` set for a block
-`B` is computed as the intersection of the `Out` sets of all the predecessor
-blocks of `B`.
+`In[B]` denotes the mapping between variables that are pointers to
+null-terminated arrays and their widened bounds expressions upon entry to block
+`B`. The `In` set for a block `B` is computed as the intersection of the `Out`
+sets of all the predecessor blocks of `B`.
 
 We define the intersection operation on sets of dataflow facts as follows:
 ```
@@ -153,11 +156,6 @@ Dataflow equation:
   Let S be the terminating condition for block B'.
 
   If S dereferences V:                           // Case A
-    If S is the only statement in block B':
-      StmtIn[S] = In[B']
-    Else:
-      StmtIn[S] = (In[B'] - {V:_ | V ∈ Kill[S']}) ∪ Gen[S'], where S' is pred(S)
-
     Let bounds(Lower, Upper) be the the bounds of V in StmtIn[S].
 
     If S dereferences V at Upper and            // Case B
@@ -187,8 +185,9 @@ void f(_Nt_array_ptr<char> p) {
 }
 ```
 
-So we maintain the set of all null-terminated array variables in the function
-and use it to initialize the `In` and `Out` sets for blocks.
+So we maintain the set of all variables that are pointers to null-terminated
+arrays in the function and use it to initialize the `In` and `Out` sets for
+blocks.
 ```
 Let the initial value of AllVars be ∅.
 
