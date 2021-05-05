@@ -142,6 +142,15 @@ Lexicographic::CompareScope(const DeclContext *DC1, const DeclContext *DC2) cons
 }
 
 Result
+Lexicographic::CompareAddress(const Expr *E1, const Expr *E2) const {
+  if (E1 == E2)
+    return Result::Equal;
+  if (E1 < E2)
+    return Result::LessThan;
+  return Result::GreaterThan;
+}
+
+Result
 Lexicographic::CompareDecl(const CapturedDecl *CD1Arg,
                            const CapturedDecl *CD2Arg) const {
   const CapturedDecl *CD1 = dyn_cast<CapturedDecl>(CD1Arg->getCanonicalDecl());
