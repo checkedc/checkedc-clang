@@ -441,6 +441,14 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) const {
      // case Expr::MSPropertyRefExprClass:
      // case Expr::MSPropertySubscriptExprClass:
 
+     // Expressions which currently do not have ordering implementations,
+     // but which may need to be lexicographically ordered by some consumer
+     // of Lexicographic. These expressions are compared by their addresses.
+     // This comparison will be deterministic for one compiler run, but is
+     // not guaranteed to be deterministic across compiler runs.
+     case Expr::InitListExprClass:
+     case Expr::ImplicitValueInitExprClass: return CompareAddress(E1, E2);
+
      default:
        llvm_unreachable("unexpected expression kind");
    }
