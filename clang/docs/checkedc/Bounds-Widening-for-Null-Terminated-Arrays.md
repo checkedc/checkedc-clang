@@ -162,7 +162,7 @@ Note 3: `StmtIn[S]` is computed as follows:
 ```
 Let S_i denote the i^th statement in block B.
 
-StmtIn[S_0] = In[B]
+StmtIn[S_1] = In[B]
 
 StmtIn[S_i] = Gen[S_i-1] ∪ (Gen[S_i-2] - Kill[S_i-1]) ∪
              (Gen[S_i-3] - Kill[S_i-2] - Kill[S_i-1]) ∪
@@ -248,7 +248,7 @@ We also initialize the `In` and `Out` sets of all unreachable basic blocks to
 Below is an algorithm to determine the variables whose bounds may be
 potentially widened on a dereference expression of the form `if (*e)`. This is
 used in the computation of the `Gen[S]` and `Kill[S]` sets to determine `V` in
-the question "If S dereferences V at E".
+the condition `If S dereferences V at E`.
 ```
 1. Traverse the dereference expression and gather the set of variables (say A) that occur in the expression.
 2. For each variable V in set A:
