@@ -21,17 +21,18 @@
 #include "clang/Sema/Sema.h"
 
 namespace clang {
-  // BoundsMapTy maps a null-terminated array variable to its bounds
-  // expression.
+  // BoundsMapTy maps a variable that is a pointer to a null-terminated arra to
+  // its bounds expression.
   using BoundsMapTy = llvm::DenseMap<const VarDecl *, BoundsExpr *>;
 
-  // StmtBoundsMapTy maps each null-terminated array variable that occurs in a
-  // statement to its bounds expression.
+  // StmtBoundsMapTy maps each variable that is a pointer to a null-terminated
+  // array that occurs in a statement to its bounds expression.
   using StmtBoundsMapTy = llvm::DenseMap<const Stmt *, BoundsMapTy>;
 
-  // StmtVarSetTy denotes a set of null-terminated array variables that are
-  // associated with a statement. The set of variables whose bounds are killed
-  // by a statement has the type StmtVarSetTy.
+  // StmtVarSetTy denotes a set of variables that are pointers to
+  // null-terminated arrays and that are associated with a statement. The set
+  // of variables whose bounds are killed by a statement has the type
+  // StmtVarSetTy.
   using StmtVarSetTy = llvm::DenseMap<const Stmt *, VarSetTy>;
  
   // StmtSetTy denotes a set of statements.
@@ -59,12 +60,14 @@ namespace clang {
     class ElevatedCFGBlock {
     public:
       const CFGBlock *Block;
-      // The In and Out sets for a block.
-      BoundsMapTy In, Out;
-      // The Gen set for each statement in a block.
-      StmtBoundsMapTy Gen;
+      // The In, Out and Gen sets for a block.
+      BoundsMapTy In, Out, Gen;
+      // The Kill set for a block.
+      VarSetTy Kill;
+      // The In and Gen sets for each statement in a block.
+      StmtBoundsMapTy StmtIn, StmtGen;
       // The Kill set for each statement in a block.
-      StmtVarSetTy Kill;
+      StmtVarSetTy StmtKill;
 
       ElevatedCFGBlock(const CFGBlock *B) : Block(B) {}
     }; // end class ElevatedCFGBlock
@@ -87,51 +90,61 @@ namespace clang {
     // @param[in] FD is the current function.
     // @param[in] NestedStmts is a set of top-level statements that are
     // nested in another top-level statement.
-    // @param[in] BoundsVars is a map of each variable Z in the current
-    // function to the set of all variables in whose bounds expressions Z
-    // occurs.
     void WidenBounds(FunctionDecl *FD, StmtSetTy NestedStmts);
 
   private:
-    // Compute the Gen and Kill sets for each statement in a block.
+    // Compute the Kill and Gen sets for the block.
     // @param[in] EB is the current ElevatedCFGBlock.
     void ComputeGenKillSets(ElevatedCFGBlock *EB);
 
-    // Compute the Gen sets for all statements in a block.
+    // Compute the StmtGen and StmtKill sets for a statement in a block.
     // @param[in] EB is the current ElevatedCFGBlock.
     // @param[in] S is the current statement.
-    // @param[in] PrevS is the previous statement of S.
     // @param[in] IsLastStmt indicates whether S is the last statement in the
     // block.
-    void ComputeGenSet(ElevatedCFGBlock *EB, const Stmt *S,
-                       const Stmt *PrevS, bool IsLastStmt);
+    void ComputeStmtGenKillSets(ElevatedCFGBlock *EB, const Stmt *S,
+                                bool IsLastStmt);
 
-    // Fill Gen set with the bounds declared for a null-terminated array.
+    // Update the Gen and Kill sets for the block after computing the StmtGen
+    // and StmtKill for the current statement.
     // @param[in] EB is the current ElevatedCFGBlock.
     // @param[in] S is the current statement.
-    // @param[in] V is a null-terminated array variable.
-    void FillGenSetForBoundsDecl(ElevatedCFGBlock *EB, const Stmt *S,
-                                 const VarDecl *V);
+    void UpdateBlockGenKillSets(ElevatedCFGBlock *EB, const Stmt *S);
 
-    // Fill Gen set with the bounds declared in a where clause on a statement.
+    // Fill the StmtKill set when a variable occurring in the bounds expression
+    // of a null-terminated array is modified.
+    // @param[in] EB is the current ElevatedCFGBlock.
+    // @param[in] S is the current statement.
+    void FillStmtKillSetForModifiedVars(ElevatedCFGBlock *EB, const Stmt *S);
+
+    // Fill StmtGen and StmtKill sets for the bounds declaration of a
+    // null-terminated array.
+    // @param[in] EB is the current ElevatedCFGBlock.
+    // @param[in] S is the current statement.
+    // @param[in] V is a variable that is a pointer to a null-terminated array.
+    void FillStmtGenKillSetsForBoundsDecl(ElevatedCFGBlock *EB, const Stmt *S,
+                                          const VarDecl *V);
+
+    // Fill StmtGen and StmtKill sets for bounds declaration in a where clause.
     // @param[in] EB is the current ElevatedCFGBlock.
     // @param[in] S is the current statement.
     // @param[in] WC is the where clause that annotates S.
-    void FillGenSetForWhereClause(ElevatedCFGBlock *EB, const Stmt *S,
-                                  WhereClause *WC);
+    void FillStmtGenKillSetsForWhereClause(ElevatedCFGBlock *EB, const Stmt *S,
+                                           WhereClause *WC);
 
-    // Fill Gen set with V:bounds(lower, E + 1) if a statement dereferences a
+    // Fill StmtGen and StmtKill sets for dereference of a variable that is a
+    // pointer to a null-terminated array.
     // null-terminated array V at E.
     // @param[in] EB is the current ElevatedCFGBlock.
     // @param[in] S is the current statement.
-    void FillGenSetForPtrDeref(ElevatedCFGBlock *EB, const Stmt *S);
+    void FillStmtGenKillSetsForPtrDeref(ElevatedCFGBlock *EB, const Stmt *S);
 
-    // Compute the Kill sets for all statements in a block.
-    // @param[in] EB is the current ElevatedCFGBlock.
-    // @param[in] S is the current statement.
-    // @param[in] PrevS is the previous statement of S.
-    void ComputeKillSet(ElevatedCFGBlock *EB, const Stmt *S,
-                        const Stmt *PrevS);
+    // Get the set of variables that can be potentially widened in an
+    // expression E.
+    // @param[in] E is the given expression.
+    // @param[out] VarsToWiden is a set of variables that can be potentially
+    // widened in expression E.
+    void GetVarsToWiden(Expr *E, VarSetTy &VarsToWiden);
 
     // Get all variables modfied by statement S or statements nested in S.
     // @param[in] S is a given statement.
@@ -159,10 +172,10 @@ namespace clang {
     // @return Expression for the terminating condition of block B.
     Expr *GetTerminatorCondition(const CFGBlock *B) const;
 
-    // From the given expression get the dereferences expression. A dereference
+    // From the given expression get the dereference expression. A dereference
     // expression can be of the form "*(p + 1)" or "p[1]".
     // @param[in] E is the given expression.
-    // return Returns the dereference expression, if it exists.
+    // @return Returns the dereference expression, if it exists.
     Expr *GetDerefExpr(Expr *E) const;
 
     // Get the variables occurring in an expression.
@@ -177,7 +190,7 @@ namespace clang {
 
     // We do not want to run dataflow analysis on null blocks or the exit
     // block. So we skip them.
-    // @param[in] B is the block which may need to the skipped from dataflow
+    // @param[in] B is the block which may need to be skipped from dataflow
     // analysis.
     // @return Whether B should be skipped.
     bool SkipBlock(const CFGBlock *B) const;
@@ -198,6 +211,13 @@ namespace clang {
     // @param[in] B is a set.
     // @return The intersection of sets A and B.
     template<class T> T Intersect(T &A, T &B) const;
+
+    // Determine whether sets A and B are equal. Equality is determined by
+    // comparing each element in the two input sets.
+    // @param[in] A is a set.
+    // @param[in] B is a set.
+    // @return Whether sets A and B are equal.
+    template<class T> bool IsEqual(T &A, T &B) const;
 
   }; // end class BoundsWideningAnalysis
 
