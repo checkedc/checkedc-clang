@@ -44,13 +44,14 @@ arrays local to a function along with their bounds expressions. The dataflow
 facts that flow through the analysis are sets of pairs `V:bounds(Lower,
 Upper)`.
 
-For every basic block `B`, we compute the sets `In[B]` and `Out[B]`.
+For every basic block `B`, we compute the sets `Kill[B]`, `Gen[B]`, `In[B]` and
+`Out[B]`.
 
-For every statement `S`, we compute the sets `Gen[S]` and `Kill[S]`.
+For every statement `S`, we compute the sets `Kill[S]` and `Gen[S]`.
 
 The sets `In[B]` and `Out[B]` are part of the fixed-point computation, whereas
-the sets `Gen[S]` and `Kill[S]` are computed **before** the fixed-point
-computation.
+the sets `Kill[B]`, `Gen[B]`, `Kill[S]` and `Gen[S]` are computed **before**
+the fixed-point computation.
 
 ### Initial operations
 In each function, we map a variable `Z` to the set of all variables that are
@@ -101,22 +102,28 @@ Else if W is a where_clause and W annotates S and
         W declares bounds(Lower, Upper) as bounds of V:
   Gen[S] = Gen[S] ∪ {V:bounds(Lower, Upper)}
 ```
-Note: Currently, we only look at where clauses that annotate calls to `strlen`
+Note: Currently, we only consider where clauses that annotate calls to `strlen`
 and `strnlen`.
 
-### StmtIn[S]
-In a basic block, `StmtIn[S_i]` denotes all bounds widened by statements `S_0`
-through `S_i-1`.
+### Kill[B]
+`Kill[B]` denotes the set of variables that are pointers to null-terminated
+arrays and whose bounds are killed in block `B`.
 
 Dataflow equation:
 ```
-Let S_i denote the i^th statement in block B.
+Kill[B] = Kill[S_1] ∪ Kill[S_2] ∪ ... ∪ Kill[S_n]
+```
 
-StmtIn[S_0] = In[B]
+### Gen[B]
+`Gen[B]` maps all variables that are pointers to null-terminated arrays and
+that may potentially be widened in block `B`, to their widened bounds
+expressions.
 
-StmtIn[S_i] = Gen[S_i-1] ∪ (Gen[S_i-2] - Kill[S_i-1]) ∪
-             (Gen[S_i-3] - Kill[S_i-2] - Kill[S_i-1]) ∪
-              ... ∪ (Gen[S_1] - Kill[S_2] - Kill[S_3] - ... - Kill[S_i-1])
+Dataflow equation:
+```
+Gen[B] = Gen[S_n] ∪ (Gen[S_n-1] - Kill[S_n]) ∪
+        (Gen[S_n-2] - Kill[S_n-1] - Kill[S_n]) ∪
+        ... ∪ (Gen[S_1] - Kill[S_2] - Kill[S_3] - ... - Kill[S_n])
 ```
 
 ### Out[B]
@@ -126,7 +133,7 @@ null-terminated arrays and their widened bounds expressions at the end of block
 
 Dataflow equation:
 ```
-Out[B] = (StmtIn[S_n] - Kill[S_n]) ∪ Gen[S_n], where S_n is the last statement in block B
+Out[B] = (In[B] - Kill[B]) ∪ Gen[B]
 ```
 
 ### In[B]
@@ -135,7 +142,8 @@ null-terminated arrays and their widened bounds expressions upon entry to block
 `B`. The `In` set for a block `B` is computed as the intersection of the `Out`
 sets of all the predecessor blocks of `B`.
 
-We define the intersection operation on sets of dataflow facts as follows:
+Note 1: We define the intersection operation on sets of dataflow facts as
+follows:
 ```
 For two sets of dataflow facts D1 and D2,
   If V:bounds(Li, Ui) ∈ D1 and V:bounds(Lj, Uj) ∈ D2:
@@ -148,7 +156,18 @@ For two sets of dataflow facts D1 and D2,
     Else if range(Lj, Uj) is a subrange of range(Li, Ui):
       V:bounds(Lj, Uj) ∈ D1 ∩ D2
 ```
-Note: `Top` is defined later in this document.
+Note 2: `Top` is defined later in this document.
+
+Note 3: `StmtIn[S]` is computed as follows:
+```
+Let S_i denote the i^th statement in block B.
+
+StmtIn[S_0] = In[B]
+
+StmtIn[S_i] = Gen[S_i-1] ∪ (Gen[S_i-2] - Kill[S_i-1]) ∪
+             (Gen[S_i-3] - Kill[S_i-2] - Kill[S_i-1]) ∪
+              ... ∪ (Gen[S_1] - Kill[S_2] - Kill[S_3] - ... - Kill[S_i-1])
+```
 
 Dataflow equation:
 ```
@@ -224,6 +243,45 @@ In[Entry] = Out[Entry] = ∅
 
 We also initialize the `In` and `Out` sets of all unreachable basic blocks to
 `∅`.
+
+### Whose bounds may be widened by a dereference expression?
+Below is an algorithm to determine the variables whose bounds may be
+potentially widened on a dereference expression of the form `if (*e)`. This is
+used in the computation of the `Gen[S]` and `Kill[S]` sets to determine `V` in
+the question "If S dereferences V at E".
+```
+1. Traverse the dereference expression and gather the set of variables (say A) that occur in the expression.
+2. For each variable V in set A:
+  2.a. Gather the set of variables (say B) in whose upper bounds expressions V occurs.
+3. Compute the intersection of all sets Bi. Let's call the resultant set as C.
+4. For each variable W in set C:
+  4.a. Find the set of variables (say D) that occur in the upper bounds expression of W.
+  4.b. For each set Di:
+    4.b.1. If set Di equals set A, the variable W may potentially be widened.
+```
+Example:
+```
+void f(int x) {
+  Nt_array_ptr<T> p : bounds(p, p + x);
+  Nt_array_ptr<T> q : bounds(p, p + x + y);
+  
+  if (*(p + x)) // Whose bounds may be potentially widened here?
+}
+
+Algorithm:
+1. The set of variables that occur in the dereference expression "if (*(p + x))" is A = {p, x}.
+2. Traverse each variable in set A = {p, x}:
+   p occurs in the upper bounds expression of B1 = {p, q}.
+   x occurs in the upper bounds expression of B2 = {p, q}.
+3. The intersection of B1 and B2 is C = {p, q}.
+4. Traverse each variable in set C = {p, q}:
+   1. The set of variables that occur in the upper bounds expression of p is D1 = {p, x}
+      Set D1 == Set A:
+        The bounds of p may be potentially widened.
+   2. The set of variables that occur in the upper bounds expression of q is D2 = {p, x, y}
+      Set D2 != Set A:
+        The bounds of q may not be potentially widened.
+```
 
 ### Testing the analysis
 In the test cases below, we test the conditions that are part of dataflow
