@@ -66,11 +66,17 @@ We maintain this map only for variables that are mapped to non-empty sets.
       BoundsVars[Z] = BoundsVars[Z] ∪ {V}
 ```
 
-### Kill[S]
-`Kill[S]` denotes the set of variables that are pointers to null-terminated
-arrays and whose bounds are killed by statement `S`.
+### Kill[B]
+`Kill[B]` denotes the set of variables that are pointers to null-terminated
+arrays and whose bounds are killed in block `B`.
 
 Dataflow equation:
+```
+Kill[B] = Kill[S_1] ∪ Kill[S_2] ∪ ... ∪ Kill[S_n]
+```
+The `Kill` set for each statement `S` denotes the set of variables that are
+pointers to null-terminated arrays and whose bounds are killed by `S`.
+`Kill[S]` is computed as follows:
 ```
 If S declares bounds of V or
    S is the terminating condition for block B and S dereferences V or
@@ -83,12 +89,21 @@ Else if S modifies Z and Z is a variable and Z ∈ keys(BoundsVars):
 Note: We currently only track modifications to variables that occur in bounds
 expressions local to a basic block.
 
-### Gen[S]
-`Gen[S]` maps each variable that is a pointer to a null-terminated array `V`
-that occurs in statement `S` to a bounds expression comprising a lower bound,
-and an upper bound to which `V` may potentially be widened.
+### Gen[B]
+`Gen[B]` maps all variables that are pointers to null-terminated arrays and
+that may potentially be widened in block `B`, to their widened bounds
+expressions.
 
 Dataflow equation:
+```
+Gen[B] = Gen[S_n] ∪ (Gen[S_n-1] - Kill[S_n]) ∪
+        (Gen[S_n-2] - Kill[S_n-1] - Kill[S_n]) ∪
+        ... ∪ (Gen[S_1] - Kill[S_2] - Kill[S_3] - ... - Kill[S_n])
+```
+The `Gen` set for each statement `S` maps each variable that is a pointer to a
+null-terminated array `V` that occurs in `S` to a bounds expression comprising
+a lower bound, and an upper bound to which `V` may potentially be widened.
+`Gen[S]` is computed as follows:
 ```
 If S declares bounds(Lower, Upper) as bounds of V:
   Gen[S] = Gen[S] ∪ {V:bounds(Lower, Upper)}
@@ -104,27 +119,6 @@ Else if W is a where_clause and W annotates S and
 ```
 Note: Currently, we only consider where clauses that annotate calls to `strlen`
 and `strnlen`.
-
-### Kill[B]
-`Kill[B]` denotes the set of variables that are pointers to null-terminated
-arrays and whose bounds are killed in block `B`.
-
-Dataflow equation:
-```
-Kill[B] = Kill[S_1] ∪ Kill[S_2] ∪ ... ∪ Kill[S_n]
-```
-
-### Gen[B]
-`Gen[B]` maps all variables that are pointers to null-terminated arrays and
-that may potentially be widened in block `B`, to their widened bounds
-expressions.
-
-Dataflow equation:
-```
-Gen[B] = Gen[S_n] ∪ (Gen[S_n-1] - Kill[S_n]) ∪
-        (Gen[S_n-2] - Kill[S_n-1] - Kill[S_n]) ∪
-        ... ∪ (Gen[S_1] - Kill[S_2] - Kill[S_3] - ... - Kill[S_n])
-```
 
 ### Out[B]
 `Out[B]` denotes the mapping between variables that are pointers to
