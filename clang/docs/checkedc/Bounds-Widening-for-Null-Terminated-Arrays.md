@@ -90,9 +90,9 @@ Note: We currently only track modifications to variables that occur in bounds
 expressions local to a basic block.
 
 ### Gen[B]
-`Gen[B]` maps all variables that are pointers to null-terminated arrays and
-that may potentially be widened in block `B`, to their widened bounds
-expressions.
+`Gen[B]` denotes the mapping between variables that are pointers to
+null-terminated arrays whose bounds may potentially be widened in block `B`,
+and their widened bounds expressions.
 
 Dataflow equation:
 ```
@@ -110,7 +110,7 @@ If S declares bounds(Lower, Upper) as bounds of V:
 
 Else if S is the terminating condition for block B:
   Let V have declared bounds as bounds(Lower, Upper).
-  If S dereferences V at E:
+  If S dereferences V in an expression E:
     Gen[S] = Gen[S] ∪ {V:bounds(Lower, E + 1)}
 
 Else if W is a where_clause and W annotates S and
@@ -162,7 +162,6 @@ StmtIn[S_i] = Gen[S_i-1] ∪ (Gen[S_i-2] - Kill[S_i-1]) ∪
              (Gen[S_i-3] - Kill[S_i-2] - Kill[S_i-1]) ∪
               ... ∪ (Gen[S_1] - Kill[S_2] - Kill[S_3] - ... - Kill[S_i-1])
 ```
-
 Dataflow equation:
 ```
 ∀ B' ∈ pred(B),
@@ -181,6 +180,13 @@ Dataflow equation:
       In[B] = In[B] ∩ ((Out[B'] - {V:X}) ∪ {V:X'}
   Else:                                         // Case E
     In[B] = In[B] ∩ Out[B']
+```
+
+### Widened bounds at each statement
+Once the analysis reaches a fixpoint, we can get the widened bounds for each
+statement in a final pass over the function:
+```
+Widened bounds at statement S = (StmtIn[S] - Kill[S]) ∪ Gen[S]
 ```
 
 ### Initial values of `In[B]` and `Out[B]`
