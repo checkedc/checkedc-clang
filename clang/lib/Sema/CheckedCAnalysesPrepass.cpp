@@ -224,6 +224,11 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
       PrintDeclMap<const VarDecl *>(FD, "BoundsVars", Info.BoundsVars);
     }
 
+    void DumpBoundsSiblingFields(FunctionDecl *FD) {
+      PrintDeclMap<const FieldDecl *>(FD, "BoundsSiblingFields",
+                                      Info.BoundsSiblingFields);
+    }
+
     // Print a map from a key of type T to a set of elements of type T,
     // where T should inherit from NamedDecl.
     // This method can be used to print the BoundsVars and
@@ -294,4 +299,7 @@ void Sema::CheckedCAnalysesPrepass(PrepassInfo &Info, FunctionDecl *FD,
 
   if (getLangOpts().DumpBoundsVars)
     Prepass.DumpBoundsVars(FD);
+
+  if (getLangOpts().DumpBoundsSiblingFields)
+    Prepass.DumpBoundsSiblingFields(FD);
 }
