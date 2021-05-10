@@ -41,6 +41,17 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
 
     VarDecl *VarWithBounds = nullptr;
 
+    // GetRecordDecl returns the struct declaration, if any, that is
+    // associated with the given type. For example, if the given type is
+    // struct S, struct S *, _Ptr<struct S>, etc., GetRecordDecl will
+    // return the declaration of S.
+    RecordDecl *GetRecordDecl(const QualType Ty) {
+      const Type *T = Ty.getTypePtr();
+      if (T->isPointerType())
+        T = T->getPointeeOrArrayElementType();
+      return T->getAsRecordDecl();
+    }
+
   public:
     PrepassHelper(Sema &SemaRef, PrepassInfo &Info) :
       SemaRef(SemaRef), Info(Info), OS(llvm::outs()) {}
