@@ -41,6 +41,15 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
 
     VarDecl *VarWithBounds = nullptr;
 
+    // FieldWithBounds is a field that has a declared bounds expression.
+    // It is used to track the field with which a declared bounds expression
+    // is associated. For example, FieldWithBounds tracks the field "f" in
+    // the following:
+    // struct S {
+    //   _Array_ptr<int> f : bounds(lower, upper);
+    // };
+    FieldDecl *FieldWithBounds = nullptr;
+
     // GetRecordDecl returns the struct declaration, if any, that is
     // associated with the given type. For example, if the given type is
     // struct S, struct S *, _Ptr<struct S>, etc., GetRecordDecl will
@@ -50,6 +59,19 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
       if (T->isPointerType())
         T = T->getPointeeOrArrayElementType();
       return T->getAsRecordDecl();
+    }
+
+    // AddBoundsSiblingField adds FieldWithBounds to the set of fields in
+    // whose declared bounds F occurs.
+    void AddBoundsSiblingField(const FieldDecl *F) {
+      auto It = Info.BoundsSiblingFields.find(F);
+      if (It != Info.BoundsSiblingFields.end())
+        It->second.insert(FieldWithBounds);
+      else {
+        FieldSetTy Fields;
+        Fields.insert(FieldWithBounds);
+        Info.BoundsSiblingFields[F] = Fields;
+      }
     }
 
   public:
