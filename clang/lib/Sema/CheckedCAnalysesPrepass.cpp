@@ -50,6 +50,11 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
     // };
     FieldDecl *FieldWithBounds = nullptr;
 
+    // ProcessedStructs keeps tracks of the struct declarations whose fields
+    // have been traversed by the FillBoundsSiblingFields method. This avoids
+    // unnecessary duplicate traversals of struct fields.
+    llvm::SmallPtrSet<const RecordDecl *, 2> ProcessedStructs;
+
     // GetRecordDecl returns the struct declaration, if any, that is
     // associated with the given type. For example, if the given type is
     // struct S, struct S *, _Ptr<struct S>, etc., GetRecordDecl will
@@ -71,6 +76,45 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
         FieldSetTy Fields;
         Fields.insert(FieldWithBounds);
         Info.BoundsSiblingFields[F] = Fields;
+      }
+    }
+
+    // FillBoundsSiblingFields traverses the fields in a struct declaration S
+    // in order to map each field F in S to the fields in S in whose declared
+    // bounds F appears.
+    void FillBoundsSiblingFields(RecordDecl *S) {
+      // Do not traverse a struct declaration more than once.
+      // FillBoundsSiblingFields can be called more than once on a given
+      // struct declaration if a function declares multiple variables with
+      // the same struct type, or in case of recursive struct definitions.
+      if (ProcessedStructs.count(S))
+        return;
+
+      FieldWithBounds = nullptr;
+      ProcessedStructs.insert(S);
+      for (auto It = S->field_begin(), E = S->field_end(); It != E; ++It) {
+        auto *Field = *It;
+
+        // Recursively traverse the struct declarations of struct-typed fields.
+        if (RecordDecl *M = GetRecordDecl(Field->getType()))
+          FillBoundsSiblingFields(M);
+
+        // For fields with declared bounds expressions, get the sibling fields
+        // that implicitly or explicltly appear within the declared bounds.
+        if (BoundsExpr *FieldBounds = Field->getBoundsExpr()) {
+          FieldWithBounds = Field;
+          // Fields with count bounds implicitly occur in their own declared
+          // bounds. For example, if a field p has declared bounds count(1),
+          // then p occurs in the declared bounds of p.
+          if (isa<CountBoundsExpr>(FieldBounds))
+            AddBoundsSiblingField(Field);
+
+          // Traverse the declared bounds to visit the DeclRefExprs that
+          // explicitly occur in the declared bounds. These DeclRefExprs
+          // are the siblings of Field that appear in its declared bounds.
+          TraverseStmt(FieldBounds);
+          FieldWithBounds = nullptr;
+        }
       }
     }
 
