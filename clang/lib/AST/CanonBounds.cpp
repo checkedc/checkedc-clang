@@ -142,6 +142,15 @@ Lexicographic::CompareScope(const DeclContext *DC1, const DeclContext *DC2) cons
 }
 
 Result
+Lexicographic::CompareAddress(const Expr *E1, const Expr *E2) const {
+  if (E1 == E2)
+    return Result::Equal;
+  if (E1 < E2)
+    return Result::LessThan;
+  return Result::GreaterThan;
+}
+
+Result
 Lexicographic::CompareDecl(const CapturedDecl *CD1Arg,
                            const CapturedDecl *CD2Arg) const {
   const CapturedDecl *CD1 = dyn_cast<CapturedDecl>(CD1Arg->getCanonicalDecl());
@@ -431,6 +440,14 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) const {
      // TODO:
      // case Expr::MSPropertyRefExprClass:
      // case Expr::MSPropertySubscriptExprClass:
+
+     // Expressions which currently do not have ordering implementations,
+     // but which may need to be lexicographically ordered by some consumer
+     // of Lexicographic. These expressions are compared by their addresses.
+     // This comparison will be deterministic for one compiler run, but is
+     // not guaranteed to be deterministic across compiler runs.
+     case Expr::InitListExprClass:
+     case Expr::ImplicitValueInitExprClass: return CompareAddress(E1, E2);
 
      default:
        llvm_unreachable("unexpected expression kind");
