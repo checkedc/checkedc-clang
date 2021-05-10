@@ -125,6 +125,14 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
     bool VisitVarDecl(VarDecl *V) {
       if (!V || V->isInvalidDecl())
         return true;
+
+      // If V declares a variable with type struct S or struct S *, traverse
+      // the fields in the declaration of S in order map each field F in S
+      // to the fields in S in whose declared bounds F appears.
+      RecordDecl *StructDecl = GetRecordDecl(V->getType());
+      if (StructDecl)
+        FillBoundsSiblingFields(StructDecl);
+
       // If V has a bounds expression, traverse it so we visit the
       // DeclRefExprs within the bounds.
       if (V->hasBoundsExpr()) {
@@ -134,6 +142,7 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
           VarWithBounds = nullptr;
         }
       }
+
       // Process any where clause attached to this VarDecl.
       // Note: This also handles function parameters.
       // For example,
