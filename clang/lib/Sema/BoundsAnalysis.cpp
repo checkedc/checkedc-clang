@@ -687,13 +687,13 @@ T BoundsAnalysis::Intersect(T &A, T &B) const {
     return Ret;
   }
 
-  for (auto I = Ret.begin(), E = Ret.end(); I != E;) {
+  // As the container iterated over by Ret is modified within the
+  // body of the loop, we need to evaluate Ret.end() each time.
+  for (auto I = Ret.begin(); I != Ret.end();) {
     const auto *V = I->first;
 
     if (!B.count(V)) {
-      auto Next = std::next(I);
-      Ret.erase(I);
-      I = Next;
+      I = Ret.erase(I);
     } else {
       Ret[V] = std::min(Ret[V], B[V]);
       ++I;

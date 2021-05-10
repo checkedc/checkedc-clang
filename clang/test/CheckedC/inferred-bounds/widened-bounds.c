@@ -11,9 +11,9 @@ void f1() {
   if (*p) {}
 
 // CHECK: In function: f1
-// CHECK: [B2]
+// CHECK: [B3]
 // CHECK:   2: *p
-// CHECK: [B1]
+// CHECK: [B2]
 // CHECK: upper_bound(p) = 1
 }
 
@@ -26,15 +26,15 @@ void f2() {
   {}
 
 // CHECK: In function: f2
-// CHECK: [B4]
+// CHECK: [B5]
 // CHECK:   2: *p
-// CHECK: [B3]
+// CHECK: [B4]
 // CHECK:   1: *(p + 1)
 // CHECK: upper_bound(p) = 1
-// CHECK: [B2]
+// CHECK: [B3]
 // CHECK:   1: *(p + 2)
 // CHECK: upper_bound(p) = 2
-// CHECK: [B1]
+// CHECK: [B2]
 // CHECK: upper_bound(p) = 3
 }
 
@@ -48,12 +48,12 @@ void f3() {
   }
 
 // CHECK: In function: f3
-// CHECK: [B3]
+// CHECK: [B4]
 // CHECK:   3: *p
-// CHECK: [B2]
+// CHECK: [B3]
 // CHECK:   1: p = "a"
 // CHECK: upper_bound(p) = 1
-// CHECK: [B1]
+// CHECK: [B2]
 // CHECK-NOT: upper_bound(p) = 1
 }
 
@@ -61,22 +61,22 @@ void f4(_Nt_array_ptr<char> p : count(0)) {
   if (p[0]) {}
 
 // CHECK: In function: f4
-// CHECK: [B6]
+// CHECK: [B7]
 // CHECK:   1: p[0]
-// CHECK: [B5]
+// CHECK: [B6]
 // CHECK: upper_bound(p) = 1
 
   _Nt_array_ptr<char> q : count(0) = "a";
   if (0[q]) {}
-// CHECK: [B4]
+// CHECK: [B5]
 // CHECK:   2: 0[q]
-// CHECK: [B3]
+// CHECK: [B4]
 // CHECK: upper_bound(q) = 1
 
   if ((((q[0])))) {}
-// CHECK: [B2]
+// CHECK: [B3]
 // CHECK:   1: (((q[0])))
-// CHECK: [B1]
+// CHECK: [B2]
 // CHECK: upper_bound(q) = 1
 }
 
@@ -89,15 +89,15 @@ void f5() {
   {}
 
 // CHECK: In function: f5
-// CHECK: [B4]
+// CHECK: [B5]
 // CHECK:   2: p[0]
-// CHECK: [B3]
+// CHECK: [B4]
 // CHECK:   1: p[1]
 // CHECK: upper_bound(p) = 1
-// CHECK: [B2]
+// CHECK: [B3]
 // CHECK:   1: p[2]
 // CHECK: upper_bound(p) = 2
-// CHECK: [B1]
+// CHECK: [B2]
 // CHECK: upper_bound(p) = 3
 }
 
@@ -110,13 +110,13 @@ void f6(int i) {
   }
 
 // CHECK: In function: f6
-// CHECK: [B3]
+// CHECK: [B4]
 // CHECK:   2: p[0]
-// CHECK: [B2]
+// CHECK: [B3]
 // CHECK:   1: i = 0
 // CHECK:   2: p[1]
 // CHECK: upper_bound(p) = 1
-// CHECK: [B1]
+// CHECK: [B2]
 // CHECK-NOT: upper_bound(p)
 }
 
@@ -124,22 +124,22 @@ void f7(char p _Nt_checked[] : count(0)) {
   if (p[0]) {}
 
 // CHECK: In function: f7
-// CHECK: [B6]
+// CHECK: [B7]
 // CHECK:   1: p[0]
-// CHECK: [B5]
+// CHECK: [B6]
 // CHECK: upper_bound(p) = 1
 
   char q _Nt_checked[] : count(0) = "a";
   if (0[q]) {}
-// CHECK: [B4]
+// CHECK: [B5]
 // CHECK:   2: 0[q]
-// CHECK: [B3]
+// CHECK: [B4]
 // CHECK: upper_bound(q) = 1
 
   if ((((q[0])))) {}
-// CHECK: [B2]
+// CHECK: [B3]
 // CHECK:   1: (((q[0])))
-// CHECK: [B1]
+// CHECK: [B2]
 // CHECK: upper_bound(q) = 1
 }
 
@@ -153,18 +153,18 @@ void f8() {
   {}
 
 // CHECK: In function: f8
-// CHECK: [B5]
+// CHECK: [B6]
 // CHECK:   2: *p
-// CHECK: [B4]
+// CHECK: [B5]
 // CHECK:   1: *(p + 1)
 // CHECK-NOT: upper_bound(p)
-// CHECK: [B3]
+// CHECK: [B4]
 // CHECK:   1: *(p + 2)
 // CHECK-NOT: upper_bound(p)
-// CHECK: [B2]
+// CHECK: [B3]
 // CHECK:   1: *(p + 3)
 // CHECK: upper_bound(p) = 1
-// CHECK: [B1]
+// CHECK: [B2]
 // CHECK: upper_bound(p) = 2
 }
 
@@ -176,15 +176,15 @@ _Nt_array_ptr<char> p : bounds(p, p + i) = "a"; // expected-error {{it is not po
       if (*(p + i + 1)) {}
 
 // CHECK: In function: f9
-// CHECK: [B4]
+// CHECK: [B5]
 // CHECK:   2: *p
-// CHECK: [B3]
+// CHECK: [B4]
 // CHECK:   1: *(p + i)
 // CHECK-NOT: upper_bound(p)
-// CHECK: [B2]
+// CHECK: [B3]
 // CHECK:   1: *(p + i + 1)
 // CHECK: upper_bound(p) = 1
-// CHECK: [B1]
+// CHECK: [B2]
 // CHECK: upper_bound(p) = 2
 }
 
@@ -196,15 +196,15 @@ void f10(int i) {
       if (*(p + i + 9)) {}
 
 // CHECK: In function: f10
-// CHECK:  [B4]
+// CHECK: [B5]
 // CHECK:    2: *(i + p + 1 + 2 + 3)
-// CHECK:  [B3]
+// CHECK: [B4]
 // CHECK:    1: *(3 + p + i + 4)
 // CHECK: upper_bound(p) = 1
-// CHECK:  [B2]
+// CHECK: [B3]
 // CHECK:    1: *(p + i + 9)
 // CHECK: upper_bound(p) = 2
-// CHECK:  [B1]
+// CHECK: [B2]
 // CHECK: upper_bound(p) = 2
 }
 
@@ -217,13 +217,13 @@ void f11(int i, int j) {
   }
 
 // CHECK: In function: f11
-// CHECK:  [B6]
+// CHECK: [B7]
 // CHECK:    2: *(p + j)
-// CHECK:  [B5]
+// CHECK: [B6]
 // CHECK:    1: i = 0
 // CHECK:    2: *(p + j + 1)
 // CHECK: upper_bound(p) = 1
-// CHECK:  [B4]
+// CHECK: [B5]
 // CHECK-NOT: upper_bound(p)
 
   if (*(p + j)) {
@@ -231,13 +231,13 @@ void f11(int i, int j) {
     if (*(p + j + 1)) {}
   }
 
-// CHECK:  [B3]
+// CHECK: [B4]
 // CHECK:    1: *(p + j)
-// CHECK:  [B2]
+// CHECK: [B3]
 // CHECK:    1: j = 0
 // CHECK:    2: *(p + j + 1)
 // CHECK: upper_bound(p) = 1
-// CHECK:  [B1]
+// CHECK: [B2]
 // CHECK-NOT: upper_bound(p)
 }
 
@@ -249,15 +249,15 @@ void f12(int i, int j) {
       if (*((p + i + j) + 2)) {}
 
 // CHECK: In function: f12
-// CHECK:  [B4]
+// CHECK: [B5]
 // CHECK:    2: *(((p + i + j)))
-// CHECK:  [B3]
+// CHECK: [B4]
 // CHECK:    1: *((p) + (i) + (j) + (1))
 // CHECK: upper_bound(p) = 1
-// CHECK:  [B2]
+// CHECK: [B3]
 // CHECK:    1: *((p + i + j) + 2)
 // CHECK: upper_bound(p) = 2
-// CHECK:  [B1]
+// CHECK: [B2]
 // CHECK: upper_bound(p) = 3
 }
 
@@ -271,18 +271,18 @@ void f13() {
   {}
 
 // CHECK: In function: f13
-// CHECK:  [B5]
+// CHECK: [B6]
 // CHECK:    2: p[0]
-// CHECK:  [B4]
+// CHECK: [B5]
 // CHECK:    1: 1[p]
 // CHECK-NOT: upper_bound(p)
-// CHECK:  [B3]
+// CHECK: [B4]
 // CHECK:    1: p[2]
 // CHECK: upper_bound(p) = 1
-// CHECK:  [B2]
+// CHECK: [B3]
 // CHECK:    1: 3[p]
 // CHECK: upper_bound(p) = 2
-// CHECK:  [B1]
+// CHECK: [B2]
 // CHECK: upper_bound(p) = 3
 }
 
@@ -294,15 +294,15 @@ void f14(int i) {
       if ((1 + i)[p]) {}
 
 // CHECK: In function: f14
-// CHECK:  [B4]
+// CHECK: [B5]
 // CHECK:    2: (1 + i)[p]
-// CHECK:  [B3]
+// CHECK: [B4]
 // CHECK:    1: p[i]
 // CHECK-NOT: upper_bound(p)
-// CHECK:  [B2]
+// CHECK: [B3]
 // CHECK:    1: (1 + i)[p]
 // CHECK: upper_bound(p) = 1
-// CHECK:  [B1]
+// CHECK: [B2]
 // CHECK: upper_bound(p) = 2
 }
 
@@ -311,9 +311,9 @@ void f15(int i) {
   if (*(p - i)) {}
 
 // CHECK: In function: f15
-// CHECK:  [B9]
+// CHECK: [B10]
 // CHECK:    2: *(p - i)
-// CHECK:  [B8]
+// CHECK: [B9]
 // CHECK: upper_bound(p) = 1
 
   _Nt_array_ptr<char> q : count(0) = "a";
@@ -321,30 +321,30 @@ void f15(int i) {
     if (*(q - 1))
   {}
 
-// CHECK:  [B7]
+// CHECK: [B8]
 // CHECK:    2: *q
-// CHECK:  [B6]
+// CHECK: [B7]
 // CHECK:    1: *(q - 1)
 // CHECK: upper_bound(q) = 1
-// CHECK:  [B5]
+// CHECK: [B6]
 // CHECK: upper_bound(q) = 1
 
   _Nt_array_ptr<char> r : bounds(r, r + +1) = "a";
   if (*(r + +1))
   {}
 
-// CHECK:  [B4]
+// CHECK: [B5]
 // CHECK:    2: *(r + +1)
-// CHECK:  [B3]
+// CHECK: [B4]
 // CHECK: upper_bound(r) = 1
 
   _Nt_array_ptr<char> s : bounds(s, s + -1) = "a";
   if (*(s + -1)) // expected-error {{out-of-bounds memory access}}
   {}
 
-// CHECK:  [B2]
+// CHECK: [B3]
 // CHECK:    2: *(s + -1)
-// CHECK:  [B1]
+// CHECK: [B2]
 // CHECK: upper_bound(s) = 1
 }
 
@@ -357,13 +357,13 @@ void f16(_Nt_array_ptr<char> p : bounds(p, p)) {
   {}
 
 // CHECK: In function: f16
-// CHECK:  [B3]
+// CHECK: [B4]
 // CHECK:    3: *(p)
-// CHECK:  [B2]
+// CHECK: [B3]
 // CHECK:    1: *(p + 1)
 // CHECK: upper_bound(p) = 1
 // CHECK: upper_bound(q) = 1
-// CHECK:  [B1]
+// CHECK: [B2]
 // CHECK: upper_bound(p) = 2
 // CHECK: upper_bound(q) = 2
 // CHECK: upper_bound(r) = 1
@@ -378,12 +378,12 @@ void f17(char p _Nt_checked[] : count(1)) {
   {}
 
 // CHECK: In function: f17
-// CHECK:  [B3]
+// CHECK: [B4]
 // CHECK:    3: *(p)
-// CHECK:  [B2]
+// CHECK: [B3]
 // CHECK:    1: *(p + 1)
 // CHECK: upper_bound(r) = 1
-// CHECK:  [B1]
+// CHECK: [B2]
 // CHECK: upper_bound(p) = 1
 // CHECK: upper_bound(q) = 1
 // CHECK: upper_bound(r) = 2
@@ -400,11 +400,11 @@ void f18() {
   {}
 
 // CHECK: In function: f18
-// CHECK:  [B12]
+// CHECK: [B13]
 // CHECK:    5: p[0]
-// CHECK:  [B11]
+// CHECK: [B12]
 // CHECK:    1: p[1]
-// CHECK:  [B10]
+// CHECK: [B11]
 // CHECK: upper_bound(p) = 1
 
   if (q[0])
@@ -412,32 +412,32 @@ void f18() {
       if (q[2])
   {}
 
-// CHECK:  [B9]
+// CHECK: [B10]
 // CHECK:    1: q[0]
-// CHECK:  [B8]
+// CHECK: [B9]
 // CHECK:    1: q[1]
-// CHECK:  [B7]
+// CHECK: [B8]
 // CHECK:    1: q[2]
-// CHECK:  [B6]
+// CHECK: [B7]
 // CHECK: upper_bound(q) = 1
 
   if (r[0])
   {}
 
-// CHECK:  [B5]
+// CHECK: [B6]
 // CHECK:    1: r[0]
-// CHECK:  [B4]
+// CHECK: [B5]
 // CHECK: upper_bound(r) = 1
 
   if (s[0])
     if (s[1])
   {}
 
-// CHECK:  [B3]
+// CHECK: [B4]
 // CHECK:    1: s[0]
-// CHECK:  [B2]
+// CHECK: [B3]
 // CHECK:    1: s[1]
-// CHECK:  [B1]
+// CHECK: [B2]
 // CHECK: upper_bound(s) = 1
 }
 
@@ -451,18 +451,18 @@ void f19() {
   {}
 
 // CHECK: In function: f19
-// CHECK:  [B5]
+// CHECK: [B6]
 // CHECK:    2: *p
-// CHECK:  [B4]
+// CHECK: [B5]
 // CHECK:    1: *(p + 1)
 // CHECK: upper_bound(p) = 1
-// CHECK:  [B3]
+// CHECK: [B4]
 // CHECK:    1: *(p + 3)
 // CHECK: upper_bound(p) = 2
-// CHECK:  [B2]
+// CHECK: [B3]
 // CHECK:    1: *(p + 2)
 // CHECK: upper_bound(p) = 2
-// CHECK:  [B1]
+// CHECK: [B2]
 // CHECK: upper_bound(p) = 3
 }
 
@@ -473,9 +473,9 @@ void f20() {
   {}
 
 // CHECK: In function: f20
-// CHECK:  [B12]
+// CHECK: [B13]
 // CHECK:    2: *(p + {{.*}})
-// CHECK:  [B11]
+// CHECK: [B12]
 // CHECK: upper_bound(p) = 1
 
   // Declared bounds and deref offset are both INT_MIN. Valid widening.
@@ -483,9 +483,9 @@ void f20() {
   if (*(q + INT_MIN))                               // expected-error {{out-of-bounds memory access}}
   {}
 
-// CHECK:  [B10]
+// CHECK: [B11]
 // CHECK:    2: *(q + {{.*}})
-// CHECK:  [B9]
+// CHECK: [B10]
 // CHECK: upper_bound(q) = 1
 
   // Declared bounds (INT_MIN) and deref offset (INT_MAX - 1). No sequential deref tests. No widening.
@@ -498,9 +498,9 @@ void f20() {
   if (*(r + INT_MAX - 1))                               // expected-error {{out-of-bounds memory access}}
   {}
 
-// CHECK:  [B8]
+// CHECK: [B9]
 // CHECK:    2: *(r + {{.*}})
-// CHECK:  [B7]
+// CHECK: [B8]
 // CHECK-NOT: upper_bound(r)
 
   // Declared bounds and deref offset are both (INT_MAX + 1). Integer overflow. No widening.
@@ -508,9 +508,9 @@ void f20() {
   if (*(s + INT_MAX + 1))                           // expected-error {{out-of-bounds memory access}}
   {}
 
-// CHECK:  [B6]
+// CHECK: [B7]
 // CHECK:    2: *(s + {{.*}})
-// CHECK:  [B5]
+// CHECK: [B6]
 // CHECK-NOT: upper_bound(s)
 
   // Declared bounds and deref offset are both (INT_MIN + 1). Valid widening.
@@ -518,9 +518,9 @@ void f20() {
   if (*(t + INT_MIN + 1))                           // expected-error {{out-of-bounds memory access}}
   {}
 
-// CHECK:  [B4]
+// CHECK: [B5]
 // CHECK:    2: *(t + {{.*}})
-// CHECK:  [B3]
+// CHECK: [B4]
 // CHECK: upper_bound(t) = 1
 
   // Declared bounds and deref offset are both (INT_MIN + -1). Integer underflow. No widening.
@@ -528,9 +528,9 @@ void f20() {
   if (*(u + INT_MIN + -1))
   {}
 
-// CHECK:  [B2]
+// CHECK: [B3]
 // CHECK:    2: *(u + {{.*}})
-// CHECK:  [B1]
+// CHECK: [B2]
 // CHECK-NOT: upper_bound(u)
 }
 
@@ -543,19 +543,19 @@ void f21() {
   {}
 
 // CHECK: In function: f21
-// CHECK:  [B6]
+// CHECK: [B7]
 // CHECK:    1: p[0]
-// CHECK:  [B5]
+// CHECK: [B6]
 // CHECK:    1: p[1]
 // CHECK: upper_bound(p) = 1
-// CHECK:  [B4]
+// CHECK: [B5]
 // CHECK:    1: p[2]
 // CHECK: upper_bound(p) = 2
-// CHECK:  [B3]
+// CHECK: [B4]
 // CHECK: upper_bound(p) = 3
-// CHECK:  [B2]
+// CHECK: [B3]
 // CHECK: upper_bound(p) = 2
-// CHECK:  [B1]
+// CHECK: [B2]
 // CHECK: upper_bound(p) = 1
 }
 
@@ -568,17 +568,17 @@ void f22() {
   {}
 
 // CHECK: In function: f22
-// CHECK:  [B5]
+// CHECK: [B6]
 // CHECK:    2: *p
-// CHECK:  [B4]
+// CHECK: [B5]
 // CHECK:    1: *(p + 1)
 // CHECK: upper_bound(p) = 1
-// CHECK:  [B3]
+// CHECK: [B4]
 // CHECK:    1: *(p + 2)
 // CHECK: upper_bound(p) = 2
-// CHECK:  [B2]
+// CHECK: [B3]
 // CHECK: upper_bound(p) = 3
-// CHECK:  [B1]
+// CHECK: [B2]
 // CHECK: upper_bound(p) = 2
 }
 
@@ -595,19 +595,19 @@ B:  p;
     }
   }
 
-// CHECK:  [B14]
+// CHECK: [B15]
 // CHECK:    T: goto B;
-// CHECK:  [B13]
+// CHECK: [B14]
 // CHECK:    1: *p
 // CHECK:    T: while
-// CHECK:  [B12]
+// CHECK: [B13]
 // CHECK:   B:
 // CHECK:    1: p
 // CHECK-NOT: upper_bound(p)
-// CHECK:  [B11]
+// CHECK: [B12]
 // CHECK:    1: *(p + 1)
 // CHECK:    T: while
-// CHECK:  [B10]
+// CHECK: [B11]
 // CHECK:    1: p
 // CHECK-NOT: upper_bound(p)
 
@@ -619,23 +619,23 @@ C:    p;
   }
   goto C;
 
-// CHECK:  [B7]
+// CHECK: [B8]
 // CHECK:    1: *p
 // CHECK:    T: while
-// CHECK:  [B6]
+// CHECK: [B7]
 // CHECK:    1: p
 // CHECK: upper_bound(p) = 1
-// CHECK:  [B5]
+// CHECK: [B6]
 // CHECK:    1: *(p + 1)
 // CHECK:    T: while
 // CHECK-NOT: upper_bound(p)
-// CHECK:  [B4]
+// CHECK: [B5]
 // CHECK:   C:
 // CHECK:    1: p
 // CHECK-NOT: upper_bound(p)
-// CHECK:  [B2]
+// CHECK: [B3]
 // CHECK-NOT: upper_bound(p)
-// CHECK:  [B1]
+// CHECK: [B2]
 // CHECK:    T: goto C;
 }
 
@@ -650,16 +650,16 @@ void f24() {
   }
 
 // CHECK: In function: f24
-// CHECK:  [B6]
+// CHECK: [B7]
 // CHECK:    1: *p
 // CHECK:    T: while
-// CHECK:  [B5]
+// CHECK: [B6]
 // CHECK:    1: p++
 // CHECK: upper_bound(p) = 1
-// CHECK:  [B4]
+// CHECK: [B5]
 // CHECK:    1: *(p + 1)
 // CHECK:    T: while
-// CHECK:  [B3]
+// CHECK: [B4]
 // CHECK:    1: p
 // CHECK-NOT: upper_bound(p)
 }
@@ -680,31 +680,31 @@ void f25() {
     }
   }
 
-// CHECK:  [B22]
+// CHECK: [B23]
 // CHECK:    1: *p
 // CHECK:    T: for
-// CHECK:  [B21]
+// CHECK: [B22]
 // CHECK:    1: i = 0
 // CHECK: upper_bound(p) = 1
-// CHECK:  [B20]
+// CHECK: [B21]
 // CHECK:    1: *(p + 1)
 // CHECK:    T: for
 // CHECK: upper_bound(p) = 1
-// CHECK:  [B19]
+// CHECK: [B20]
 // CHECK:    1: i = 1
 // CHECK: upper_bound(p) = 2
-// CHECK:  [B18]
+// CHECK: [B19]
 // CHECK:    1: *(p + 2)
 // CHECK:    T: for
 // CHECK: upper_bound(p) = 2
-// CHECK:  [B17]
+// CHECK: [B18]
 // CHECK:    1: i = 2
 // CHECK: upper_bound(p) = 3
-// CHECK:  [B16]
+// CHECK: [B17]
 // CHECK: upper_bound(p) = 3
-// CHECK:  [B15]
+// CHECK: [B16]
 // CHECK: upper_bound(p) = 2
-// CHECK:  [B14]
+// CHECK: [B15]
 // CHECK: upper_bound(p) = 1
 
   for (; *p; ) {
@@ -715,20 +715,20 @@ D:  p;
   }
   goto D;
 
-// CHECK:  [B13]
+// CHECK: [B14]
 // CHECK:    1: *p
 // CHECK:    T: for
-// CHECK:  [B12]
+// CHECK: [B13]
 // CHECK:   D:
 // CHECK:    1: p
 // CHECK-NOT: upper_bound(p)
-// CHECK:  [B11]
+// CHECK: [B12]
 // CHECK:    1: *(p + 1)
 // CHECK:    T: for
-// CHECK:  [B10]
+// CHECK: [B11]
 // CHECK:    1: p
 // CHECK-NOT: upper_bound(p)
-// CHECK:  [B7]
+// CHECK: [B8]
 // CHECK:    T: goto D;
 
   for (; *p; ) {
@@ -738,16 +738,16 @@ D:  p;
     }
   }
 
-// CHECK:  [B6]
+// CHECK: [B7]
 // CHECK:    1: *p
 // CHECK:    T: for
-// CHECK:  [B5]
+// CHECK: [B6]
 // CHECK:    1: p++
 // CHECK: upper_bound(p) = 1
-// CHECK:  [B4]
+// CHECK: [B5]
 // CHECK:    1: *(p + 1)
 // CHECK:    T: for
-// CHECK:  [B3]
+// CHECK: [B4]
 // CHECK:    1: p
 // CHECK-NOT: upper_bound(p)
 }
@@ -884,10 +884,10 @@ void f28() {
 
       case 1: break;
     }
-// CHECK:  [B11]
+// CHECK: [B12]
 // CHECK:   case 1:
 // CHECK: upper_bound(p) = 1
-// CHECK:  [B10]
+// CHECK: [B11]
 // CHECK:   case 0:
 // CHECK-NOT: upper_bound(p)
   }
@@ -897,11 +897,11 @@ void f28() {
     switch (*(p + 1)) {
       case 2: break;
     }
-// CHECK:  [B8]
+// CHECK: [B9]
 // CHECK:   case 2:
 // CHECK:    T: break;
 // CHECK: upper_bound(p) = 2
-// CHECK:  [B7]
+// CHECK: [B8]
 // CHECK:   case 1:
 // CHECK:    1: *(p + 1)
 // CHECK:    T: switch
@@ -912,15 +912,15 @@ void f28() {
   case 1: do { a;
           } while (a);
   }
-// CHECK:  [B5]
+// CHECK: [B6]
 // CHECK:   case 1:
 // CHECK: upper_bound(p) = 1
-// CHECK:  [B4]
+// CHECK: [B5]
 // CHECK: upper_bound(p) = 1
-// CHECK:  [B3]
+// CHECK: [B4]
 // CHECK:    1: a
 // CHECK: upper_bound(p) = 1
-// CHECK:  [B2]
+// CHECK: [B3]
 // CHECK:    1: a
 // CHECK:    T: do ... while
 // CHECK: upper_bound(p) = 1
@@ -1235,9 +1235,9 @@ void f33() {
   if (*(((p + 1)))) {}
 
 // CHECK: In function: f33
-// CHECK: [B2]
+// CHECK: [B3]
 // CHECK:   2: *(((p + 1)))
-// CHECK: [B1]
+// CHECK: [B2]
 // CHECK: upper_bound(p) = 1
 }
 
@@ -1250,18 +1250,18 @@ void f34(_Nt_array_ptr<char> p : count(i), int i, int flag) {
   }
 
 // CHECK: In function: f34
-// CHECK:  [B6]
+// CHECK: [B6]
 // CHECK:    1: *(p + i)
-// CHECK:  [B5]
+// CHECK: [B5]
 // CHECK:    1: flag
 // CHECK: upper_bound(p) = 1
-// CHECK:  [B4]
+// CHECK: [B4]
 // CHECK:    1: i
 // CHECK: upper_bound(p) = 1
-// CHECK:  [B3]
+// CHECK: [B3]
 // CHECK:    1: i++
 // CHECK: upper_bound(p) = 1
-// CHECK:  [B2]
+// CHECK: [B2]
 // CHECK:    2: *(p + i + 1)
 // CHECK: upper_bound(p) = 1
 }
@@ -1278,18 +1278,18 @@ void f35(void) {
   }
 
 // CHECK: In function: f35
-// CHECK:  [B5]
+// CHECK: [B7]
 // CHECK:    1: int i;
 // CHECK:    2: int j;
-// CHECK:  [B4]
+// CHECK: [B6]
 // CHECK:    T: for (; ; )
-// CHECK:  [B3]
+// CHECK: [B5]
 // CHECK:    1: i = 1
 // CHECK:    2: j = 2
 // CHECK:    3: _Nt_array_ptr<char> p : count(i + j) = 0;
 // CHECK:    4: p[i + j] (ImplicitCastExpr, LValueToRValue, char)
-// CHECK:    T: if [B3.4]
-// CHECK:  [B2]
+// CHECK:    T: if [B5.4]
+// CHECK: [B4]
 // CHECK:    1: return;
 // CHECK: upper_bound(p) = 1
 }

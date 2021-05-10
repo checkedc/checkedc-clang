@@ -66,3 +66,21 @@ void f4(_Nt_array_ptr<char> p : count(n) _Where p : count(n) _And p : count(n), 
 void f5(_Nt_array_ptr<char> p : count(n), int a _Where p : count(n) _And n > 0 _And a < 0, int n) {}
 void f6(int *p : itype(_Ptr<int>) _Where p == 0 _And n > 0, int n);
 void f7(int a _Where (((((a == 0))))));
+
+// Test where clauses on ExprStmts.
+void valid_cases_exprstmt(_Nt_array_ptr<char> p, int a) {
+  int b;
+  a = 0 _Where a < 1 _And a >= 0;
+  b = a _Where a > b _And a != b;
+  p = 0 _Where p : bounds(p, p + 1) _And a < 1;
+L1: a = 0 _Where a > 1;
+
+  // For an ExprStmt with commas, a where clause can be attached at the end of
+  // the ExprStmt. This is because the entire expression including commas is
+  // parsed as one ExprStmt. Hence a where clause can only be attached at the
+  // end of this ExprStmt.
+  int x, y, z;
+  x = 1, y = 2, z = 3 _Where x > 0 _And y > 1 _And z > 2;
+
+  for (int i = 0 _Where i != 0; i > 0; i ++) {}
+}

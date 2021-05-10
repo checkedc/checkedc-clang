@@ -111,13 +111,13 @@ void f11(int i, int j) {
   {}
 
 // CHECK: In function: f11
-// CHECK:  [B3]
+// CHECK: [B4]
 // CHECK:    1: _Nt_array_ptr<char> p : bounds(p, p + i + j) = "a";
 // CHECK:    2: *(j + i + p)
-// CHECK:  [B2]
+// CHECK: [B3]
 // CHECK:    1: *(i + j + p - 1 - -4 + -2)
 // CHECK: upper_bound(p) = 1
-// CHECK:  [B1]
+// CHECK: [B2]
 // CHECK: upper_bound(p) = 2
 }
 
@@ -129,13 +129,13 @@ void f12() {
   {}
 
 // CHECK: In function: f12
-// CHECK:  [B3]
+// CHECK: [B4]
 // CHECK:    1: _Nt_array_ptr<char> p : bounds(p, p) = "a";
 // CHECK:    2: *(p + 0)
-// CHECK:  [B2]
+// CHECK: [B3]
 // CHECK:    1: *(p + 1 - 1 + -1 - +1 - -3)
 // CHECK: upper_bound(p) = 1
-// CHECK:  [B1]
+// CHECK: [B2]
 // CHECK: upper_bound(p) = 2
 }
 
@@ -147,13 +147,13 @@ void f13(int i, int j) {
   {}
 
 // CHECK: In function: f13
-// CHECK:  [B3]
+// CHECK: [B4]
 // CHECK:    1: _Nt_array_ptr<char> p : bounds(p, p + (i * j * 2 + 2 + 1)) = "a";
 // CHECK:    2: *(p + (i * j * 2 + 3))
-// CHECK:  [B2]
+// CHECK: [B3]
 // CHECK:    1: *(p + (i * j * 2 + 1 + 1 + 1) + 1)
 // CHECK: upper_bound(p) = 1
-// CHECK:  [B1]
+// CHECK: [B2]
 // CHECK: upper_bound(p) = 2
 }
 
@@ -164,7 +164,7 @@ void f14(int i) {
   {}
 
 // CHECK: In function: f14
-// CHECK:  [B1]
+// CHECK: [B2]
 // CHECK-NOT: upper_bound(p)
 }
 

@@ -20,45 +20,6 @@
 #include "clang/AST/ExprUtils.h"
 #include "clang/Analysis/Analyses/PostOrderCFGView.h"
 #include "clang/Sema/Sema.h"
-#include <queue>
-
-namespace clang {
-  // QueueSet is a queue backed by a set. The queue is useful for processing
-  // the items in a Topological sort order which means that if item1 is a
-  // predecessor of item2 then item1 is processed before item2. The set is
-  // useful for maintaining uniqueness of items added to the queue.
-
-  template <class T>
-  class QueueSet {
-  private:
-    std::queue<T *> _queue;
-    llvm::DenseSet<T *> _set;
-
-  public:
-    T *next() const {
-      return _queue.front();
-    }
-
-    void remove(T *B) {
-      if (_queue.empty())
-        return;
-      _queue.pop();
-      _set.erase(B);
-    }
-
-    void append(T *B) {
-      if (!_set.count(B)) {
-        _queue.push(B);
-        _set.insert(B);
-      }
-    }
-
-    bool empty() const {
-      return _queue.empty();
-    }
-  };
-
-} // end namespace clang
 
 namespace clang {
   // Note: We use the shorthand "ntptr" to denote _Nt_array_ptr. We extract the

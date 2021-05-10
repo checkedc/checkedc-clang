@@ -310,3 +310,29 @@ void f9(array_ptr<int [3]> arr : count(1), int i) {
   // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: { }
 }
+
+// Variables in equivalent expressions going out of scope
+void f10(void) {
+  char c = 'a';
+  {
+    int x = 6;
+    char d = c;
+  }
+  int marker = 0;
+  // CHECK: Statement S:
+  // CHECK:   VarDecl {{.*}}  marker 'int'
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK: ImplicitCastExpr {{.*}} 'char' <IntegralCast>
+  // CHECK-NEXT:   CharacterLiteral {{.*}} 'int' 97
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} 'char' <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'c' 'char'
+  // CHECK-NOT:    DeclRefExpr {{.*}} 'd' 'char'
+
+  // CHECK-NOT: IntegerLiteral {{.*}} 'int' 6
+  // CHECK-NOT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
+  // CHECK-NOT:   DeclRefExpr {{.*}} 'x' 'int'
+
+  // CHECK: IntegerLiteral {{.*}} 'int' 0
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'marker' 'int'
+}

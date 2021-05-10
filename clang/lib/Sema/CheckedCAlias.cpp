@@ -498,6 +498,8 @@ namespace {
 // Update mapping from expressions that modify lvalues (assignments,
 // increment/decrement expressions) to bounds expressions that use those
 // lvalues.
+// Also update a mapping from VarDecls with bounds expressions to the first
+// use of the VarDecl that occurs within a given statement.
  class ModifyingExprDependencies {
  private:
    Sema &SemaRef;

@@ -18,25 +18,25 @@ void fn_1(void) {
       b = c;
 
 // CHECK-LABEL: fn_1
+// CHECK-NEXT: Block #5: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
 // CHECK-NEXT: Block #4: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #3: {
-// CHECK-NEXT: In:
+// CHECK-NEXT: In: (b, c),
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #2: {
 // CHECK-NEXT: In: (b, c),
 // CHECK-NEXT: Kill:
-// CHECK-NEXT: }
-// CHECK-NEXT: Block #1: {
-// CHECK-NEXT: In: (b, c),
-// CHECK-NEXT: Kill:
 // CHECK-DAG: (b, c),
 // CHECK-DAG: (c, b),
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #0: {
+// CHECK-NEXT: Block #1: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
@@ -56,19 +56,23 @@ void fn_2(void) {
     q = n;
 
 // CHECK-LABEL: fn_2
+// CHECK-NEXT: Block #9: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
 // CHECK-NEXT: Block #8: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #7: {
-// CHECK-NEXT: In:
-// CHECK-NEXT: Kill:
-// CHECK-NEXT: }
-// CHECK-NEXT: Block #6: {
 // CHECK-NEXT: In: (e1, e2),
 // CHECK-NEXT: Kill:
 // CHECK-DAG: (b, c),
 // CHECK-DAG: (c, b),
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #6: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #5: {
 // CHECK-NEXT: In:
@@ -78,21 +82,17 @@ void fn_2(void) {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #3: {
-// CHECK-NEXT: In:
-// CHECK-NEXT: Kill:
-// CHECK-NEXT: }
-// CHECK-NEXT: Block #1: {
+// CHECK-NEXT: Block #2: {
 // CHECK-NEXT: In: (c, b),
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #2: {
+// CHECK-NEXT: Block #3: {
 // CHECK-NEXT: In: (b, c),
 // CHECK-NEXT: Kill:
 // CHECK-DAG: (b, c),
 // CHECK-DAG: (c, b),
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #0: {
+// CHECK-NEXT: Block #1: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
@@ -104,6 +104,10 @@ void fn_3(void) {
     a = b;
 
 // CHECK-LABEL: fn_3
+// CHECK-NEXT: Block #7: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
 // CHECK-NEXT: Block #6: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
@@ -125,10 +129,6 @@ void fn_3(void) {
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #1: {
-// CHECK-NEXT: In:
-// CHECK-NEXT: Kill:
-// CHECK-NEXT: }
-// CHECK-NEXT: Block #0: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
@@ -142,6 +142,10 @@ void fn_4(void) {
   }
 
 // CHECK-LABEL: fn_4
+// CHECK-NEXT: Block #7: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
 // CHECK-NEXT: Block #6: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
@@ -149,28 +153,28 @@ void fn_4(void) {
 // CHECK-NEXT: Block #5: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
-// CHECK-NEXT: }
-// CHECK-NEXT: Block #4: {
-// CHECK-NEXT: In:
-// CHECK-NEXT: Kill:
 // CHECK-DAG: (c, b),
 // CHECK-DAG: (b, c),
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #1: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #0: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #3: {
+// CHECK-NEXT: Block #4: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #2: {
+// CHECK-NEXT: Block #3: {
 // CHECK-NEXT: In: (c, b),
 // CHECK-NEXT: Kill:
 // CHECK-DAG: (c, b),
 // CHECK-DAG: (b, c),
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #1: {
+// CHECK-NEXT: Block #2: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
@@ -249,6 +253,10 @@ void fn_7(void) {
   }
 
 // CHECK-LABEL: fn_7
+// CHECK-NEXT: Block #9: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
 // CHECK-NEXT: Block #8: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
@@ -256,36 +264,36 @@ void fn_7(void) {
 // CHECK-NEXT: Block #7: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
-// CHECK-NEXT: }
-// CHECK-NEXT: Block #6: {
-// CHECK-NEXT: In:
-// CHECK-NEXT: Kill:
 // CHECK-DAG: (a, b),
 // CHECK-DAG: (b, a),
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #1: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #0: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #5: {
+// CHECK-NEXT: Block #6: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #4: {
+// CHECK-NEXT: Block #5: {
 // CHECK-NEXT: In: (a, b),
 // CHECK-NEXT: Kill:
 // CHECK-DAG: (c, b),
 // CHECK-DAG: (b, c),
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #3: {
+// CHECK-NEXT: Block #4: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #1: {
+// CHECK-NEXT: Block #2: {
 // CHECK-NEXT: In: (b, c),
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #2: {
+// CHECK-NEXT: Block #3: {
 // CHECK-NEXT: In: (c, b),
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
@@ -302,6 +310,10 @@ void fn_8(void) {
     c = a;
 
 // CHECK-LABEL: fn_8
+// CHECK-NEXT: Block #6: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
 // CHECK-NEXT: Block #5: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
@@ -319,10 +331,6 @@ void fn_8(void) {
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #1: {
-// CHECK-NEXT: In:
-// CHECK-NEXT: Kill:
-// CHECK-NEXT: }
-// CHECK-NEXT: Block #0: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
@@ -471,21 +479,21 @@ void fn_11(void) {
   }
 
 // CHECK-LABEL: fn_11
+// CHECK-NEXT: Block #4: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
 // CHECK-NEXT: Block #3: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #2: {
-// CHECK-NEXT: In:
-// CHECK-NEXT: Kill:
-// CHECK-NEXT: }
-// CHECK-NEXT: Block #1: {
 // CHECK-NEXT: In: (*p, a),
 // CHECK-NEXT: Kill:
 // CHECK-DAG: (*p, a),
 // CHECK-DAG: (a, *p),
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #0: {
+// CHECK-NEXT: Block #1: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
@@ -569,21 +577,29 @@ void fn_13(void) {
     _Unchecked { printf("\n"); }
 
 // CHECK-LABEL: fn_13
+// CHECK-NEXT: Block #8: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
 // CHECK-NEXT: Block #7: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #6: {
+// CHECK-NEXT: Block #5: {
 // CHECK-NEXT: In:
+// CHECK-DAG: (0, x),
+// CHECK-DAG: (x, 0),
 // CHECK-NEXT: Kill:
+// CHECK-DAG: (0, x),
+// CHECK-DAG: (x, 0),
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #4: {
 // CHECK-NEXT: In:
-// CHECK-DAG: (0, x),
-// CHECK-DAG: (x, 0),
 // CHECK-NEXT: Kill:
-// CHECK-DAG: (0, x),
-// CHECK-DAG: (x, 0),
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #1: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #3: {
 // CHECK-NEXT: In:
@@ -593,11 +609,7 @@ void fn_13(void) {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #1: {
-// CHECK-NEXT: In:
-// CHECK-NEXT: Kill:
-// CHECK-NEXT: }
-// CHECK-NEXT: Block #5: {
+// CHECK-NEXT: Block #6: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
@@ -629,21 +641,25 @@ void fn_14(void) {
   }
 
 // CHECK-LABEL: fn_14
-// CHECK-NEXT: Block #11: {
+// CHECK-NEXT: Block #12: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #10: {
+// CHECK-NEXT: Block #11: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-DAG: (arr1[c], a),
 // CHECK-DAG: (a, arr2[c]),
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #9: {
+// CHECK-NEXT: Block #10: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #3: {
+// CHECK-NEXT: Block #4: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #1: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
@@ -651,13 +667,17 @@ void fn_14(void) {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #2: {
+// CHECK-NEXT: Block #3: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-DAG: (arr1[c], a),
 // CHECK-DAG: (a, arr2[c]),
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #1: {
+// CHECK-NEXT: Block #2: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #9: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
@@ -665,25 +685,21 @@ void fn_14(void) {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #7: {
-// CHECK-NEXT: In:
-// CHECK-NEXT: Kill:
-// CHECK-NEXT: }
-// CHECK-NEXT: Block #5: {
-// CHECK-NEXT: In:
-// CHECK-NEXT: Kill:
-// CHECK-DAG: (arr1[c], a),
-// CHECK-DAG: (a, arr2[c]),
-// CHECK-NEXT: }
 // CHECK-NEXT: Block #6: {
 // CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-DAG: (arr1[c], a),
+// CHECK-DAG: (a, arr2[c]),
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #7: {
+// CHECK-NEXT: In:
 // CHECK-DAG: (arr1[c], a),
 // CHECK-DAG: (a, arr2[c]),
 // CHECK-NEXT: Kill:
 // CHECK-DAG: (arr1[c], a),
 // CHECK-DAG: (a, arr2[c]),
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #4: {
+// CHECK-NEXT: Block #5: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-DAG: (arr1[c], a),
@@ -838,19 +854,23 @@ void fn_16(_Ptr<struct st_80_arr> arr, int b) {
     arr->e = a;
   }
 // CHECK-LABEL: fn_16
+// CHECK-NEXT: Block #4: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
 // CHECK-NEXT: Block #3: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #2: {
-// CHECK-NEXT: In:
-// CHECK-NEXT: Kill:
-// CHECK-NEXT: }
-// CHECK-NEXT: Block #1: {
 // CHECK-NEXT: In: (arr->c, b),
 // CHECK-NEXT: Kill:
 // CHECK-DAG: (arr->c, b),
 // CHECK-DAG: (b, arr->c),
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #1: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #0: {
 // CHECK-NEXT: In:
@@ -865,6 +885,10 @@ void fn_17(void) {
       ((c))++;
   }
 // CHECK-LABEL: fn_17
+// CHECK-NEXT: Block #7: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
 // CHECK-NEXT: Block #6: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
@@ -872,28 +896,28 @@ void fn_17(void) {
 // CHECK-NEXT: Block #5: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
-// CHECK-NEXT: }
-// CHECK-NEXT: Block #4: {
-// CHECK-NEXT: In:
-// CHECK-NEXT: Kill:
 // CHECK-DAG: (c, b),
 // CHECK-DAG: (b, c),
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #1: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #0: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #3: {
+// CHECK-NEXT: Block #4: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #2: {
+// CHECK-NEXT: Block #3: {
 // CHECK-NEXT: In: (c, b),
 // CHECK-NEXT: Kill:
 // CHECK-DAG: (c, b),
 // CHECK-DAG: (b, c),
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #1: {
+// CHECK-NEXT: Block #2: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
