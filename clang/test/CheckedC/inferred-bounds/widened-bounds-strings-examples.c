@@ -16,7 +16,7 @@ int my_strlen(_Nt_array_ptr<char> p) {
   return i;
 
 // CHECK: In function: my_strlen
-// CHECK:  [B3]
+// CHECK:  [B4]
 // CHECK:    1: ++i
 // CHECK: upper_bound(s) = 1
 }
@@ -28,8 +28,7 @@ void squeeze(_Nt_array_ptr<char> p, char c) {
   // Create a temporary whose count of elements can
   // change.
   _Nt_array_ptr<char> s : count(i) = p;
-  for ( ; s[i]; i++) { // expected-error {{inferred bounds for 's' are unknown after increment}} \
-                       // expected-error {{inferred bounds for 'tmp' are unknown after increment}}
+  for ( ; s[i]; i++) { // expected-error {{inferred bounds for 's' are unknown after increment}}
     // We will widen the bounds of s so that we
     // can assign to s[j] when j == i.
     _Nt_array_ptr<char> tmp : count(i + 1) = s;
@@ -42,12 +41,12 @@ void squeeze(_Nt_array_ptr<char> p, char c) {
   s[j] = 0;
 
 // CHECK: In function: squeeze
-// CHECK:  [B4]
+// CHECK:  [B5]
 // CHECK:    1: _Nt_array_ptr<char> tmp : count(i + 1) = s;
 // CHECK:    2: tmp[i] != c
 // CHECK: upper_bound(s) = 1
 
-// CHECK:  [B3]
+// CHECK:  [B4]
 // CHECK:    1: tmp[j++] = tmp[i]
 // CHECK: upper_bound(s) = 1
 
@@ -72,7 +71,7 @@ void reverse(_Nt_array_ptr<char> p) {
   }
 
 // CHECK: In function: reverse
-// CHECK:  [B5]
+// CHECK:  [B6]
 // CHECK:    1: len++
 // CHECK: upper_bound(s) = 1
 }

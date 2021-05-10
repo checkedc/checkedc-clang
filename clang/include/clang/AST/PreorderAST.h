@@ -23,51 +23,205 @@
 
 namespace clang {
   using Result = Lexicographic::Result;
-  class OperatorNode;
+  class LeafExprNode;
 
   class Node {
   public:
-    enum class NodeKind { OperatorNode, LeafExprNode };
+    // Nodes with two different kinds are sorted according to the order in
+    // which their kinds appear in this enum.
+    enum class NodeKind {
+      BinaryOperatorNode,
+      UnaryOperatorNode,
+      MemberNode,
+      ImplicitCastNode,
+      LeafExprNode
+    };
 
     NodeKind Kind;
-    OperatorNode *Parent;
+    Node *Parent;
 
-    Node(NodeKind Kind, OperatorNode *Parent) :
-      Kind(Kind), Parent(Parent) {}
+    Node(NodeKind Kind, Node *Parent) :
+      Kind(Kind), Parent(Parent) {
+        if (Parent)
+          assert(!isa<LeafExprNode>(Parent) &&
+                 "Parent node cannot be a LeafExprNode");
+    }
+
+    virtual ~Node() { }
+
+    // Recursively coalesce BinaryOperatorNodes having the same commutative
+    // and associative operator.
+    // @param[in] this is the current node of the AST.
+    // @param[in] Changed indicates whether a node was coalesced. We need this
+    // to control when to stop recursive coalescing.
+    // @param[in] Error indicates whether an error occurred during coalescing.
+    virtual void Coalesce(bool &Changed, bool &Error) = 0;
+
+    // Recursively descend a Node to sort the children of all
+    // BinaryOperatorNodes if the binary operator is commutative.
+    // @param[in] this is the current node of the AST.
+    // @param[in] Lex is used to lexicographically compare Exprs and Decls
+    // that occur within nodes.
+    virtual void Sort(Lexicographic Lex) = 0;
+
+    // Constant fold integer expressions.
+    // @param[in] this is the current node of the AST.
+    // @param[in] Changed indicates whether constant folding was done. We need
+    // this to control when to stop recursive constant folding.
+    // @param[in] Error indicates whether an error occurred during constant
+    // folding.
+    // @param[in] Ctx is used to create constant expressions.
+    virtual void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx) = 0;
+
+    // Compare nodes according to their kind.
+    // @param[in] this is the current node of the AST.
+    // @param[in] Other is the node to compare to this.
+    // @return Returns a Lexicographic::Result indicating the comparison
+    // between this and Other according to their node kinds.
+    Result CompareKinds(const Node *Other) const {
+      if (Kind < Other->Kind)
+        return Result::LessThan;
+      if (Kind > Other->Kind)
+        return Result::GreaterThan;
+      return Result::Equal;
+    }
+
+    // Compare two nodes lexicographically.
+    // @param[in] this is the current node of the AST.
+    // @param[in] Other the node to compare to this.
+    // @param[in] Lex is used to lexicographically compare Exprs and Decls
+    // that occur within nodes.
+    // @return Returns a Lexicographic::Result indicating the comparison
+    // between this and Other.
+    virtual Result Compare(const Node *Other, Lexicographic Lex) const = 0;
+
+    // Print the node.
+    // @param[in] this is the current node of the AST.
+    virtual void PrettyPrint(llvm::raw_ostream &OS, ASTContext &Ctx) const = 0;
+
+    // Cleanup the memory consumed by this node.
+    // @param[in] this is the current node of the AST.
+    virtual void Cleanup() {
+      delete this;
+    }
   };
 
-  class OperatorNode : public Node {
+  class BinaryOperatorNode : public Node {
   public:
     BinaryOperator::Opcode Opc;
-    // Note: An OperatorNode has a list of children because the preorder AST is
-    // an n-ary tree.
+    // A BinaryOperatorNode representing a commutative and associative binary
+    // operation may have more than two children because of coalescing.
+    // Ex: a + (b + c) will be represented by one BinaryOperatorNode for +
+    // with three children nodes for a, b and c after coalescing.
     llvm::SmallVector<Node *, 2> Children;
 
-    OperatorNode(BinaryOperator::Opcode Opc, OperatorNode *Parent) :
-      Node(NodeKind::OperatorNode, Parent),
+    BinaryOperatorNode(BinaryOperator::Opcode Opc, Node *Parent) :
+      Node(NodeKind::BinaryOperatorNode, Parent),
       Opc(Opc) {}
 
     static bool classof(const Node *N) {
-      return N->Kind == NodeKind::OperatorNode;
+      return N->Kind == NodeKind::BinaryOperatorNode;
     }
 
     // Is the operator commutative and associative?
     bool IsOpCommutativeAndAssociative() {
       return Opc == BO_Add || Opc == BO_Mul;
     }
+
+    // Determines if the BinaryOperatorNode could be coalesced into its parent.
+    // @param[in] this is the current node.
+    // @return Returns true if this can be coalesced into its parent, false
+    // otherwise.
+    bool CanCoalesce();
+    void Coalesce(bool &Changed, bool &Error);
+    void Sort(Lexicographic Lex);
+    void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
+    Result Compare(const Node *Other, Lexicographic Lex) const;
+    void PrettyPrint(llvm::raw_ostream &OS, ASTContext &Ctx) const;
+    void Cleanup();
+  };
+
+  class UnaryOperatorNode : public Node {
+  public:
+    UnaryOperator::Opcode Opc;
+    Node *Child;
+
+    UnaryOperatorNode(UnaryOperator::Opcode Opc, Node *Parent) :
+      Node(NodeKind::UnaryOperatorNode, Parent),
+      Opc(Opc) {}
+
+    static bool classof(const Node *N) {
+      return N->Kind == NodeKind::UnaryOperatorNode;
+    }
+
+    void Coalesce(bool &Changed, bool &Error);
+    void Sort(Lexicographic Lex);
+    void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
+    Result Compare(const Node *Other, Lexicographic Lex) const;
+    void PrettyPrint(llvm::raw_ostream &OS, ASTContext &Ctx) const;
+    void Cleanup();
+  };
+
+  class MemberNode : public Node {
+  public:
+    Node *Base = nullptr;
+    ValueDecl *Field = nullptr;
+    bool IsArrow;
+
+    MemberNode(ValueDecl *Field, bool IsArrow, Node *Parent) :
+      Node(NodeKind::MemberNode, Parent),
+      Field(Field), IsArrow(IsArrow) {}
+
+    static bool classof(const Node *N) {
+      return N->Kind == NodeKind::MemberNode;
+    }
+
+    void Coalesce(bool &Changed, bool &Error);
+    void Sort(Lexicographic Lex);
+    void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
+    Result Compare(const Node *Other, Lexicographic Lex) const;
+    void PrettyPrint(llvm::raw_ostream &OS, ASTContext &Ctx) const;
+    void Cleanup();
+  };
+
+  class ImplicitCastNode : public Node {
+  public:
+    CastKind CK;
+    Node *Child;
+
+    ImplicitCastNode(CastKind CK, Node *Parent) :
+      Node(NodeKind::ImplicitCastNode, Parent),
+      CK(CK) {}
+
+    static bool classof(const Node *N) {
+      return N->Kind == NodeKind::ImplicitCastNode;
+    }
+
+    void Coalesce(bool &Changed, bool &Error);
+    void Sort(Lexicographic Lex);
+    void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
+    Result Compare(const Node *Other, Lexicographic Lex) const;
+    void PrettyPrint(llvm::raw_ostream &OS, ASTContext &Ctx) const;
+    void Cleanup();
   };
 
   class LeafExprNode : public Node {
   public:
     Expr *E;
 
-    LeafExprNode(Expr *E, OperatorNode *Parent) :
+    LeafExprNode(Expr *E, Node *Parent) :
       Node(NodeKind::LeafExprNode, Parent),
       E(E) {}
 
     static bool classof(const Node *N) {
       return N->Kind == NodeKind::LeafExprNode;
     }
+
+    void Coalesce(bool &Changed, bool &Error);
+    void Sort(Lexicographic Lex);
+    void ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx);
+    Result Compare(const Node *Other, Lexicographic Lex) const;
+    void PrettyPrint(llvm::raw_ostream &OS, ASTContext &Ctx) const;
   };
 
 } // end namespace clang
@@ -84,47 +238,57 @@ namespace clang {
     // Create a PreorderAST for the expression E.
     // @param[in] E is the sub expression to be added to a new node.
     // @param[in] Parent is the parent of the new node.
-    void Create(Expr *E, OperatorNode *Parent = nullptr);
+    void Create(Expr *E, Node *Parent = nullptr);
 
-    // Add a new node to the AST.
-    // @param[in] Node is the current node to be added.
-    // @param[in] Parent is the parent of the node to be added.
-    void AddNode(Node *N, OperatorNode *Parent);
+    // Create a BinaryOperatorNode for the expression E.
+    // @param[in] E is the expression whose LHS and RHS subexpressions
+    // will be added to a new node.
+    // @param[in] Parent is the parent of the new node.
+    void CreateBinaryOperator(BinaryOperator *E, Node *Parent);
 
-    // Coalesce the OperatorNode O with its parent. This involves moving the
-    // children (if any) of node O to its parent and then removing O.
-    // @param[in] O is the current node. O should be a OperatorNode.
-    void CoalesceNode(OperatorNode *O);
+    // Create a UnaryOperatorNode or a LeafExprNode for the expression E.
+    // @param[in] E is the expression that is used to create a new node.
+    // @param[in] Parent is the parent of the new node.
+    void CreateUnaryOperator(UnaryOperator *E, Node *Parent);
 
-    // Determines if a OperatorNode could be coalesced into its parent.
-    // @param[in] O is the current node. O should be a OperatorNode.
-    // @return Return true if O can be coalesced into its parent, false
-    // otherwise.
-    bool CanCoalesceNode(OperatorNode *O);
+    // Create a UnaryOperatorNode with the sub expression Child and the
+    // Deref unary operator.
+    // @param[in] Child is the expression that is the child of a new node.
+    // @param[in] Parent is the parent of the new node.
+    void CreateDereference(Expr *Child, Node *Parent);
 
-    // Recursively coalesce OperatoreNodes having the same commutative and
-    // associative operator.
-    // @param[in] N is current node of the AST. Initial value is Root.
-    // @param[in] Changed indicates whether a node was coalesced. We need this
-    // to control when to stop recursive coalescing.
-    void Coalesce(Node *N, bool &Changed);
+    // Create a MemberNode for the expression E.
+    // @param[in] E is the expression whose Base and Field will be added to
+    // a new node.
+    // @param[in] Parent is the parent of the new node.
+    void CreateMember(MemberExpr *E, Node *Parent);
 
-    // Sort the children expressions in a OperatorNode of the AST.
-    // @param[in] N is current node of the AST. Initial value is Root.
-    void Sort(Node *N);
+    // Create an ImplicitCastNode for the expression.
+    // @param[in] E is the expression whose CastKind and sub expression will
+    // be added to a new node.
+    // @param[in] Parent is the parent of the new node.
+    void CreateImplicitCast(ImplicitCastExpr *E, Node *Parent);
 
-    // Compare nodes N1 and N2 to sort them. This function is invoked by a
-    // lambda which is passed to the llvm::sort function.
-    // @param[in] N1 is the first node to compare.
-    // @param[in] N2 is the second node to compare.
-    // return A boolean indicating the relative ordering between N1 and N2.
-    bool CompareNodes(const Node *N1, const Node *N2);
+    // Create a BinaryOperatorNode with an addition operator and two children
+    // (E and 0), and attach the created BinaryOperatorNode to the Parent node.
+    // This method is used to maintain an invariant that an expression `e` is
+    // equivalent to `e + 0`. This invariant must hold when:
+    // 1. `e` is the root expression that is used to create the PreorderAST.
+    // 2. `e` is the subexpression of a dereference expression. For example:
+    //   a. `*e` and `*(e + 0)` must have the same canonical form.
+    //   b. `e1[e2]` is equivalent to `*(e1 + e2)`, so `*(e1 + e2)` and
+    //       `*(e1 + e2 + 0)` must have the same canonical form.
+    //   c. `e->f`, `*e.f`, `(e + 0)->f`, `*(e + 0).f`, and `e[0].f` must have
+    //       the same canonical form.
+    // @param[in] E is the expression that is one of the two children of
+    // the created BinaryOperatorNode (the other child is 0).
+    // @param[in] Parent is the parent of the created BinaryOperatorNode.
+    void AddZero(Expr *E, Node *Parent);
 
-    // Constant fold integer expressions.
-    // @param[in] N is current node of the AST. Initial value is Root.
-    // @param[in] Changed indicates whether constant folding was done. We need
-    // this to control when to stop recursive constant folding.
-    void ConstantFold(Node *N, bool &Changed);
+    // Attach a new node to the AST. The node N is attached to the Parent node.
+    // @param[in] N is the current node to be attached.
+    // @param[in] Parent is the parent of the node to be attached.
+    void AttachNode(Node *N, Node *Parent);
 
     // Get the deref offset from the DerefExpr. The offset represents the
     // possible amount by which the bounds of an ntptr could be widened.
@@ -138,23 +302,8 @@ namespace clang {
     bool GetDerefOffset(Node *UpperExpr, Node *DerefExpr,
                         llvm::APSInt &Offset);
 
-    // Lexicographically compare two AST nodes N1 and N2.
-    // @param[in] N1 is the first node.
-    // @param[in] N2 is the second node.
-    // @return Returns a Lexicographic::Result indicating the comparison
-    // of N1 and N2.
-    Result Compare(const Node *N1, const Node *N2) const;
-
     // Set Error in case an error occurs during transformation of the AST.
     void SetError() { Error = true; }
-
-    // Print the PreorderAST.
-    // @param[in] N is the current node of the AST. Initial value is Root.
-    void PrettyPrint(Node *N);
-
-    // Cleanup the memory consumed by node N.
-    // @param[in] N is the current node of the AST. Initial value is Root.
-    void Cleanup(Node *N);
 
   public:
     PreorderAST(ASTContext &Ctx, Expr *E) :
@@ -186,7 +335,9 @@ namespace clang {
     // @param[in] P is the second AST.
     // @return Returns a Lexicographic::Result indicating the comparison between
     // the two ASTs.
-    Result Compare(const PreorderAST P) const { return Compare(Root, P.Root); }
+    Result Compare(const PreorderAST P) const {
+      return Root->Compare(P.Root, Lex);
+    }
 
     // Check if an error has occurred during transformation of the AST. This
     // is intended to be called from outside this class to check if an error
@@ -197,7 +348,7 @@ namespace clang {
     // Cleanup the memory consumed by the AST. This is intended to be called
     // from outside this class and invokes Cleanup on the root node which
     // recursively deletes the AST.
-    void Cleanup() { Cleanup(Root); }
+    void Cleanup() { Root->Cleanup(); }
 
     bool operator<(PreorderAST &Other) const {
       return Compare(Other) == Result::LessThan;

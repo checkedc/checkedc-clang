@@ -1843,6 +1843,9 @@ class ValueStmt : public Stmt {
 protected:
   using Stmt::Stmt;
 
+private:
+  WhereClause *WClause = nullptr;
+
 public:
   const Expr *getExprStmt() const;
   Expr *getExprStmt() {
@@ -1854,6 +1857,9 @@ public:
     return T->getStmtClass() >= firstValueStmtConstant &&
            T->getStmtClass() <= lastValueStmtConstant;
   }
+
+  void setWhereClause(WhereClause *WC) { WClause = WC; }
+  WhereClause *getWhereClause() const { return WClause; }
 };
 
 /// LabelStmt - Represents a label, which has a substatement.  For example:

@@ -1,8 +1,22 @@
+//===------- AbstractSet.cpp: An abstract representation of memory -------===//
+//
+//                     The LLVM Compiler Infrastructure
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===---------------------------------------------------------------------===//
+//
+//  This file implements methods to get or create a representation of sets of
+//  identical lvalue expressions that refer to the same memory location.
+//
+//===---------------------------------------------------------------------===//
+
 #include "clang/AST/AbstractSet.h"
 #include "clang/AST/ExprUtils.h"
 
 using namespace clang;
-
 
 const AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(Expr *E) {
   // Create a canonical form for E.
@@ -19,6 +33,8 @@ const AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(Expr *E) {
     // one that contains E.
     auto It = PreorderASTAbstractSetMap.find(ExistingCanonicalForm);
     if (It != PreorderASTAbstractSetMap.end()) {
+      P->Cleanup();
+      delete P;
       return It->second;
     }
   }
@@ -32,7 +48,25 @@ const AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(Expr *E) {
 }
 
 const AbstractSet *AbstractSetManager::GetOrCreateAbstractSet(const VarDecl *V) {
-  VarDecl *D = const_cast<VarDecl *>(V);
-  DeclRefExpr *VarUse = ExprCreatorUtil::CreateVarUse(S, D);
+  // Compute the DeclRefExpr that is a use of V. This DeclRefExpr is needed
+  // in order to get or create the AbstractSet that contains V.
+  // The VarUses map may not contain a DeclRefExpr for V even if V has declared
+  // bounds. However, we still need to create an AbstractSet for V so that its
+  // bounds can be checked. For example, consider:
+  // void f(_Array_ptr<int> p : bounds(q, q + i), _Array_ptr<int> q, int i) {
+  //   i = 0;
+  // }
+  // The parameter declaration `p` does not have a DeclRefExpr in the
+  // VarUses map, but the statement `i = 0` invalidates the observed bounds
+  // of p.
+  DeclRefExpr *VarUse = nullptr;
+  auto It = VarUses.find(V);
+  if (It != VarUses.end()) {
+    VarUse = It->second;
+  } else {
+    VarDecl *D = const_cast<VarDecl *>(V);
+    VarUse = ExprCreatorUtil::CreateVarUse(S, D);
+    VarUses[V] = VarUse;
+  }
   return GetOrCreateAbstractSet(VarUse);
 }
