@@ -31,8 +31,6 @@ namespace clang {
   // expressions Z occurs.
   using BoundsVarsTy = llvm::DenseMap<const VarDecl *, VarSetTy>;
 
-  // VarListTy denotes a list of variables.
-  using VarListTy = llvm::SmallVector<const VarDecl *, 2>;
 
   struct PrepassInfo {
     // VarUses maps each VarDecl V in a function to the DeclRefExpr (if any)

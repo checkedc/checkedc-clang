@@ -126,44 +126,57 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
     }
 
     void DumpBoundsVars(FunctionDecl *FD) {
+      PrintDeclMap<const VarDecl *>(FD, "BoundsVars", Info.BoundsVars);
+    }
+
+    // Print a map from a key of type T to a set of elements of type T,
+    // where T should inherit from NamedDecl.
+    // This method can be used to print the BoundsVars and
+    // BoundsSiblingFields maps.
+    template<class T>
+    void PrintDeclMap(FunctionDecl *FD, const char *Message,
+                      llvm::DenseMap<T, llvm::SmallPtrSet<T, 2>> Map) {
       OS << "--------------------------------------\n"
          << "In function: " << FD->getName() << "\n"
-         << "BoundsVars:\n";
+         << Message << ":\n";
 
-      // Info.BoundsVars is a map of VarDecls (keys) to a set of VarDecls
-      // (values). So there is no defined iteration order for its keys or
-      // values. So we copy the keys to a vector, sort the vector and then
-      // iterate it. While iterating each key we also copy its value (which is
-      // a set of VarDecls) to a vector, sort the vector and iterate it.
-      VarListTy Vars;
-      for (const auto item : Info.BoundsVars)
-        Vars.push_back(item.first);
+      // Decls is a map of NamedDecls (keys) to a set of NamedDecls (values).
+      // So there is no defined iteration order for its keys or values.
+      // So we copy the keys to a vector, sort the vector and then iterate it.
+      // While iterating each key we also copy its value (which is a set of
+      // NamedDecls) to a vector, sort the vector and iterate it.
+      llvm::SmallVector<T, 2> Decls;
+      for (const auto item : Map)
+        Decls.push_back(item.first);
 
-      SortVars(Vars);
+      SortDecls(Decls);
 
-      for (const auto V : Vars) {
-        OS << V->getQualifiedNameAsString() << ": { ";
+      for (const auto D : Decls) {
+        OS << D->getQualifiedNameAsString() << ": { ";
 
-        VarListTy InnerVars;
-        for (const auto item : Info.BoundsVars[V])
-          InnerVars.push_back(item);
+        llvm::SmallVector<T, 2> InnerDecls;
+        for (const auto item : Map[D])
+          InnerDecls.push_back(item);
 
-        SortVars(InnerVars);
+        SortDecls(InnerDecls);
 
-        for (const auto InnerV : InnerVars)
-          OS << InnerV->getQualifiedNameAsString() << " ";
+        for (const auto InnerD : InnerDecls)
+          OS << InnerD->getQualifiedNameAsString() << " ";
         OS << "}\n";
       }
       OS << "--------------------------------------\n";
     }
 
-    void SortVars(VarListTy &Vars) {
-      // Sort variables by their name. If two variables in a function have the
-      // same name (for example, a variable in a nested scope that shadows a
-      // variable from an outer scope), then we sort them by their source
-      // locations.
-      llvm::sort(Vars.begin(), Vars.end(),
-                 [](const VarDecl *A, const VarDecl *B) {
+    // Sort a list of elements of type T, where T should inherit
+    // from NamedDecl.
+    template<class T>
+    void SortDecls(llvm::SmallVector<T, 2> &Decls) {
+      // Sort decls by their name. If two decls in a program have the same
+      // name (for example, a variable in a nested scope that shadows a
+      // variable from an outer scope, or fields from different structs that
+      // have the same name), then we sort them by their source locations.
+      llvm::sort(Decls.begin(), Decls.end(),
+                 [](T A, T B) {
                    int StrCompare = A->getQualifiedNameAsString().compare(
                                     B->getQualifiedNameAsString());
                    return StrCompare != 0 ?
