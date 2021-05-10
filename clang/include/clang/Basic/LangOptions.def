@@ -265,6 +265,7 @@ BENIGN_LANGOPT(DumpInferredBounds, 1, 0, "dump inferred Checked C bounds for ass
 BENIGN_LANGOPT(DumpExtractedComparisonFacts, 1, 0, "dump extracted comparison facts")
 BENIGN_LANGOPT(DumpWidenedBounds, 1, 0, "dump widened bounds")
 BENIGN_LANGOPT(DumpBoundsVars, 1, 0, "dump bounds vars")
+BENIGN_LANGOPT(DumpBoundsSiblingFields, 1, 0, "dump bounds sibling fields")
 BENIGN_LANGOPT(DumpPreorderAST, 1, 0, "dump the preorder AST")
 BENIGN_LANGOPT(DumpCheckingState, 1, 0, "dump the state during bounds checking")
 LANGOPT(InjectVerifierCalls, 1, 0, "Injects calls to VERIFIER_assume and VERIFIER_error in the bitcode")
