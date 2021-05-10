@@ -23,6 +23,7 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
   private:
     Sema &SemaRef;
     PrepassInfo &Info;
+    llvm::raw_ostream &OS;
 
     // VarWithBounds is a variable that has a bounds expression. It is used to
     // track:
@@ -39,7 +40,6 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
     // int x = 1 _Where p : bounds(lower, upper);
 
     VarDecl *VarWithBounds = nullptr;
-    llvm::raw_ostream &OS;
 
   public:
     PrepassHelper(Sema &SemaRef, PrepassInfo &Info) :
