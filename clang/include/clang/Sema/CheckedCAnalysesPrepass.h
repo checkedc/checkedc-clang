@@ -31,6 +31,12 @@ namespace clang {
   // expressions Z occurs.
   using BoundsVarsTy = llvm::DenseMap<const VarDecl *, VarSetTy>;
 
+  // FieldSetTy denotes a set of fields.
+  using FieldSetTy = llvm::SmallPtrSet<const FieldDecl *, 2>;
+
+  // BoundsSiblingFieldsTy maps a field F to the set of all sibling fields
+  // of F in whose declared bounds expressions F occurs.
+  using BoundsSiblingFieldsTy = llvm::DenseMap<const FieldDecl *, FieldSetTy>;
 
   struct PrepassInfo {
     // VarUses maps each VarDecl V in a function to the DeclRefExpr (if any)
@@ -50,6 +56,16 @@ namespace clang {
     // values. So in case we want to iterate BoundsVars and need a determinstic
     // iteration order we must remember to sort the keys as well as the values.
     BoundsVarsTy BoundsVars;
+
+    // BoundsSiblingFields maps each FieldDecl F in a struct declaration S to
+    // a set of fields in S in whose declared bounds F occurs.
+
+    // Note: BoundsSiblingFieldsTy is a map of keys to values which are sets.
+    // As a result, there is no defined iteration order for either its keys or
+    // its values. So in case we want to iterate BoundsVars and need a
+    // deterministic iteration order we must remember to sort the keys as well
+    // as the values.
+    BoundsSiblingFieldsTy BoundsSiblingFields;
   };
 } // end namespace clang
 #endif
