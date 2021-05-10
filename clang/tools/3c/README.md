@@ -161,35 +161,21 @@ In the future, we may have some scheme analogous to
 [DefinitelyTyped](https://definitelytyped.org/) to distribute Checked
 C headers for existing C libraries. In the meantime, the Checked C
 project maintains annotated versions of the most common "system"
-header files (`stdio.h`, etc.). The annotated header files do not
-include all elements, but they `#include` your system's original
-header files, so your program can still use unannotated elements
-(though it may have to use unsafe pointers to do so). If you followed
-the [build instructions](../../docs/checkedc/3C/INSTALL.md), the
-annotated header files should be present in
+header files (`stdio.h`, etc.). The annotated header files do not have
+declarations for all elements, but they `#include` your system's
+original header files, so your program can still use unannotated
+elements (though it may have to use unsafe pointers to do so). If you
+followed the [build instructions](../../docs/checkedc/3C/INSTALL.md),
+the annotated header files should be present in
 `llvm/projects/checkedc-wrapper/checkedc/include`. The Microsoft
 `checkedc-clang` wiki has [a bit more information about these header
 files](https://github.com/Microsoft/checkedc-clang/wiki/Checked-C-clang-user-manual#header-files).
 
-Currently, the annotated header files are named with a `_checked.h`
-suffix, e.g., `stdio_checked.h`, so that `stdio_checked.h` can
-`#include <stdio.h>` without causing infinite recursion. We hope to
-[switch to `#include_next` and remove the
-suffix](https://github.com/microsoft/checkedc/issues/431) soon. In the
-meantime, you have to modify your code to `#include <stdio_checked.h>`
-instead of `stdio.h` and so forth. The
-`clang/tools/3c/utils/update-includes.py` tool will do this for you.
-It takes one argument: the name of a file containing a list of paths
-of `.c` and `.h` files to be updated. In the example of the previous
-section, you would run:
-
-```
-cat >list <<EOL
-foo.c
-bar.c
-EOL
-PATH/TO/clang/tools/3c/utils/update-includes.py list
-```
+Since April 2021, a directive such as `#include <stdio.h>` will
+automatically include the Checked C header along with the system
+header, so you no longer need to modify your code to `#include
+<stdio_checked.h>`. Here is [more information about this
+feature](../../docs/checkedc/rfc/Include-Checked-Hdrs.md).
 
 ## Useful 3C-specific options
 

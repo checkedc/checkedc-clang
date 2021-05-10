@@ -17,7 +17,6 @@ import os
 import sys
 import argparse
 import logging
-from includes_updater import updateProjectIncludes
 from generate_ccommands import run3C
 from expand_macros import ExpandMacrosOptions
 
@@ -25,40 +24,15 @@ logging.basicConfig(format='%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %
                     datefmt='%Y-%m-%d %H:%M:%S',
                     level=logging.DEBUG)
 
-# This default value will be overwritten if an alternate path is provided
-# in an argument.
-CHECKEDC_INCLUDE_REL_PATH = "projects/checkedc-wrapper/checkedc/include"
-checkedcHeaderDir = os.path.abspath(
-    os.path.join("../../../../..",
-                 CHECKEDC_INCLUDE_REL_PATH))
-
 
 # If the arg is a valid filename, returns the absolute path to it
 def parseTheArg():
-    global CHECKEDC_INCLUDE_REL_PATH
-    global checkedcHeaderDir
-    # get the directory based on `LLVM_SRC` environment variable.
-    pathBasedDir = ""
-    if 'LLVM_SRC' in os.environ:
-        pathBasedDir = os.path.join(os.environ['LLVM_SRC'], CHECKEDC_INCLUDE_REL_PATH)
     _3c_bin = ""
     if 'LLVM_OBJ' in os.environ:
         _3c_bin = os.path.join(os.environ['LLVM_OBJ'], "bin/3c")
 
     parser = argparse.ArgumentParser(description='Convert the provided project into Checked C.')
 
-    parser.add_argument('--updateIncludes',
-                        dest='update_includes', action='store_true',
-                        default=False,
-                        help=('Update `#include <foo.h>` to `#include <foo_checked.h>` in '
-                              'source files before running 3c. Should normally no longer '
-                              'be needed with implicit checked header inclusion.'))
-    parser.add_argument('--includeDir',
-                        default=checkedcHeaderDir if os.path.exists(checkedcHeaderDir) else pathBasedDir,
-                        required=False,
-                        dest='includeDir',
-                        help=('Path to the checkedC headers, run from a checkedCclang repo '
-                              '(used only if --updateIncludes is on)'))
     parser.add_argument("-p", "--prog_name", dest='prog_name', type=str, default=_3c_bin,
                         help='Program name to run. i.e., path to 3c')
 
@@ -107,11 +81,6 @@ def parseTheArg():
         logging.error("Provided argument: {} is not a file.".format(args.prog_name))
         sys.exit()
 
-    if args.update_includes and (not args.includeDir or not os.path.isdir(args.includeDir)):
-        logging.error("Error: --includeDir argument must be the name of a directory.")
-        logging.error("Provided argument: {} is not a directory.".format(args.includeDir))
-        sys.exit()
-
     if not args.project_path or not os.path.isdir(args.project_path):
         logging.error("Error: --project_path argument must be the name of a directory.")
         logging.error("Provided argument: {} is not a directory.".format(args.project_path))
@@ -136,11 +105,6 @@ if __name__ == "__main__":
         logging.error("Error: Build directory does not contain compile_commands.json.")
         logging.error("compile_commands.json file: {} does not exist.".format(compileCmdsJson))
         sys.exit()
-    if progArgs.update_includes:
-        # replace include files
-        logging.info("Updating include lines of all the source files.")
-        updateProjectIncludes(progArgs.project_path, progArgs.includeDir)
-        logging.info("Finished updating project files.")
 
     logging.info("Trying to convert all the source files to header files")
     run3C(progArgs.prog_name, progArgs.extra_3c_args,
