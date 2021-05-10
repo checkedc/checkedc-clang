@@ -153,6 +153,15 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
 
     // We may modify the VarUses map when a DeclRefExpr is visited.
     bool VisitDeclRefExpr(DeclRefExpr *E) {
+      // If E is a use of a field declaration F, then we add FieldWithBounds
+      // to the set of all fields in whose bounds expressions F occurs.
+      if (FieldWithBounds) {
+        const FieldDecl *F = dyn_cast_or_null<FieldDecl>(E->getDecl());
+        if (F && !F->isInvalidDecl())
+          AddBoundsSiblingField(F);
+        return true;
+      }
+
       const VarDecl *V = dyn_cast_or_null<VarDecl>(E->getDecl());
       if (!V || V->isInvalidDecl())
         return true;
