@@ -21,8 +21,8 @@
 #include "clang/Sema/Sema.h"
 
 namespace clang {
-  // BoundsMapTy maps a variable that is a pointer to a null-terminated arra to
-  // its bounds expression.
+  // BoundsMapTy maps a variable that is a pointer to a null-terminated array
+  // to its bounds expression.
   using BoundsMapTy = llvm::DenseMap<const VarDecl *, BoundsExpr *>;
 
   // StmtBoundsMapTy maps each variable that is a pointer to a null-terminated
