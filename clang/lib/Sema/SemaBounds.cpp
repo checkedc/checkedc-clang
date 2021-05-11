@@ -4738,7 +4738,7 @@ namespace {
 
       // Update the checking state and result bounds if LValue is a
       // variable V.
-      DeclRefExpr *V = dyn_cast<DeclRefExpr>(LValue);
+      DeclRefExpr *V = GetLValueVariable(LValue);
       if (!V)
         return SrcBounds;
 
