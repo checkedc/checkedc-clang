@@ -532,6 +532,38 @@ namespace {
 }
 
 namespace {
+  class MemberCountHelper : public RecursiveASTVisitor<MemberCountHelper> {
+    private:
+      Sema &SemaRef;
+      MemberExpr *M;
+      int Count;
+
+    public:
+      MemberCountHelper(Sema &SemaRef, MemberExpr *M) :
+        SemaRef(SemaRef),
+        M(M),
+        Count(0) {}
+
+      int GetCount() { return Count; }
+
+      bool VisitMemberExpr(MemberExpr *E) {
+        Lexicographic Lex(SemaRef.Context, nullptr);
+        if (Lex.CompareExprSemantically(E, M))
+          ++Count;
+        return true;
+      }
+  };
+
+  // MemberOccurrenceCount returns the number of occurrences of the member
+  // expression M in E.
+  int MemberOccurrenceCount(Sema &SemaRef, MemberExpr *M, Expr *E) {
+    MemberCountHelper Counter(SemaRef, M);
+    Counter.TraverseStmt(E);
+    return Counter.GetCount();
+  }
+}
+
+namespace {
   using EqualExprTy = SmallVector<Expr *, 4>;
 
   // EqualExprsContainsExpr returns true if the set Exprs contains an
