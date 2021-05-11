@@ -3337,18 +3337,15 @@ namespace {
           UpdateSameValue(Src, SubExprSameValueSets, State.SameValue);
         }
 
-        // Update the checking state and result bounds for assignments to `e1`
-        // where `e1` is a variable.
-        if (LHSVar)
-          ResultBounds = UpdateAfterAssignment(LHSVar, E, Target, Src,
-                                               ResultBounds, CSS,
-                                               State, State);
-        // Update EquivExprs and SameValue for assignments where `e1` is not
-        // a variable.
-        else
-          // SameValue is empty for assignments to a non-variable.  This
-          // conservative approach avoids recording false equality facts for
-          // assignments where the LHS appears on the RHS, e.g. *p = *p + 1.
+        // Update the result bounds to reflect the assignment to `e1`.
+        // If `e1` is a variable, the checking state will also be updated.
+        ResultBounds = UpdateAfterAssignment(LHS, E, Target, Src, ResultBounds,
+                                             CSS, State, State);
+
+        // SameValue is empty for assignments to a non-variable. This
+        // conservative approach avoids recording false equality facts for
+        // assignments where the LHS appears on the RHS, e.g. *p = *p + 1.
+        if (!LHSVar)
           State.SameValue.clear();
       } else if (BinaryOperator::isLogicalOp(Op)) {
         // TODO: update State for logical operators `e1 && e2` and `e1 || e2`.
@@ -3783,20 +3780,21 @@ namespace {
           RHS = ExprCreatorUtil::CreateBinaryOperator(S, SubExpr, One, RHSOp);
         }
 
-        // Update the checking state and result bounds for inc/dec operators
-        // where `e1` is a variable.
+        // Update the checking state and result bounds.
+        BoundsExpr *RHSBounds = IncDecResultBounds;
         if (DeclRefExpr *V = GetLValueVariable(SubExpr)) {
           // Update SameValue to be the set of expressions that produce the
           // same value as the RHS `e1 +/- 1` (if the RHS could be created).
           UpdateSameValue(E, State.SameValue, State.SameValue, RHS);
           // The bounds of the RHS `e1 +/- 1` are the rvalue bounds of the
           // rvalue cast `e1`.
-          BoundsExpr *RHSBounds = RValueCastBounds(Target, SubExprTargetBounds,
-                                                   SubExprLValueBounds,
-                                                   SubExprBounds, State);
-          IncDecResultBounds = UpdateAfterAssignment(
-              V, E, Target, RHS, RHSBounds, CSS, State, State);
+          RHSBounds = RValueCastBounds(Target, SubExprTargetBounds,
+                                       SubExprLValueBounds,
+                                       SubExprBounds, State);
         }
+        IncDecResultBounds = UpdateAfterAssignment(SubExpr, E, Target,
+                                                   RHS, RHSBounds, CSS,
+                                                   State, State);
 
         // Update the set SameValue of expressions that produce the same
         // value as `e`.
