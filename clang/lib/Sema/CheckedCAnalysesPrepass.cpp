@@ -127,7 +127,7 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
         return true;
 
       // If V declares a variable with type struct S or struct S *, traverse
-      // the fields in the declaration of S in order map each field F in S
+      // the fields in the declaration of S in order map to each field F in S
       // to the fields in S in whose declared bounds F appears.
       RecordDecl *StructDecl = GetRecordDecl(V->getType());
       if (StructDecl)

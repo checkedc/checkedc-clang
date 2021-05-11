@@ -62,9 +62,9 @@ namespace clang {
 
     // Note: BoundsSiblingFieldsTy is a map of keys to values which are sets.
     // As a result, there is no defined iteration order for either its keys or
-    // its values. So in case we want to iterate BoundsVars and need a
-    // deterministic iteration order we must remember to sort the keys as well
-    // as the values.
+    // its values. So in case we want to iterate BoundsSiblingFields and need
+    // a deterministic iteration order we must remember to sort the keys as
+    // well as the values.
     BoundsSiblingFieldsTy BoundsSiblingFields;
   };
 } // end namespace clang
