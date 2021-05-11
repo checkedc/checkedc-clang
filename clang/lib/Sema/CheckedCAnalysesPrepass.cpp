@@ -83,10 +83,14 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
       }
     }
 
-    // FillBoundsSiblingFields traverses the fields in a record declaration S
-    // in order to map each field F in S to the fields in S in whose declared
-    // bounds F appears.
-    void FillBoundsSiblingFields(RecordDecl *S) {
+    // If the type T is associated with a record declaration S,
+    // FillBoundsSiblingFields traverses the fields in S in order to map each
+    // field F in S to the fields in S in whose declared bounds F appears.
+    void FillBoundsSiblingFields(const QualType T) {
+      RecordDecl *S = GetRecordDecl(T);
+      if (!S)
+        return;
+
       // Do not traverse a record declaration more than once.
       // FillBoundsSiblingFields can be called more than once on a given
       // record declaration if a function declares multiple variables with
@@ -101,8 +105,7 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
 
         // Recursively traverse the record declarations of struct or
         // union-typed fields.
-        if (RecordDecl *M = GetRecordDecl(Field->getType()))
-          FillBoundsSiblingFields(M);
+        FillBoundsSiblingFields(Field->getType());
 
         // For fields with declared bounds expressions, get the sibling fields
         // that implicitly or explicltly appear within the declared bounds.
@@ -135,8 +138,7 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
       // struct S *, etc.), traverse the fields in the declaration of S in
       // order to map to each field F in S to the fields in S in whose
       // declared bounds F appears.
-      if (RecordDecl *S = GetRecordDecl(V->getType()))
-        FillBoundsSiblingFields(S);
+      FillBoundsSiblingFields(V->getType());
 
       // If V has a bounds expression, traverse it so we visit the
       // DeclRefExprs within the bounds.
@@ -197,16 +199,14 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
     // For a temporary binding with a struct type (or pointer to a struct
     // type), fill in the bounds sibling fields for the record declaration.
     bool VisitCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
-      if (RecordDecl *S = GetRecordDecl(E->getType()))
-        FillBoundsSiblingFields(S);
+      FillBoundsSiblingFields(E->getType());
       return true;
     }
 
     // For a call expression with a struct type (or pointer to a struct
     // type), fill in the bounds sibling fields for the record declaration.
     bool VisitCallExpr(CallExpr *E) {
-      if (RecordDecl *S = GetRecordDecl(E->getType()))
-        FillBoundsSiblingFields(S);
+      FillBoundsSiblingFields(E->getType());
       return true;
     }
 
