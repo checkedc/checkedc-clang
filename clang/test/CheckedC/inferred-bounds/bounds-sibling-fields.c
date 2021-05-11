@@ -29,18 +29,18 @@ struct A {
 };
 
 void f1(struct A *a) {
-// CHECK-LABEL: In function: f1
-// CHECK: BoundsSiblingFields:
-// CHECK: A::b: { A::p }
-// CHECK: A::end: { A::q }
-// CHECK: A::i: { A::r }
-// CHECK: A::p: { A::p }
-// CHECK: A::q: { A::r }
-// CHECK: A::start: { A::q }
-// CHECK: B::c: { B::q }
-// CHECK: B::q: { B::q }
-// CHECK: C::len: { C::r }
-// CHECK: C::r: { C::r }
+  // CHECK-LABEL: In function: f1
+  // CHECK: BoundsSiblingFields:
+  // CHECK: A::b: { A::p }
+  // CHECK: A::end: { A::q }
+  // CHECK: A::i: { A::r }
+  // CHECK: A::p: { A::p }
+  // CHECK: A::q: { A::r }
+  // CHECK: A::start: { A::q }
+  // CHECK: B::c: { B::q }
+  // CHECK: B::q: { B::q }
+  // CHECK: C::len: { C::r }
+  // CHECK: C::r: { C::r }
 }
 
 struct Node {
@@ -98,5 +98,32 @@ void f4(_Ptr<struct S> s[3][4]) {
   // CHECK: R::q: { R::q }
   // CHECK: S::p: { S::p }
   // CHECK: S::r: { S::p }
+}
 
+void f5(void) {
+  ((struct A){ 0 }).i = 0;
+  // CHECK-LABEL: In function: f5
+  // CHECK: BoundsSiblingFields:
+  // CHECK: A::b: { A::p }
+  // CHECK: A::end: { A::q }
+  // CHECK: A::i: { A::r }
+  // CHECK: A::p: { A::p }
+  // CHECK: A::q: { A::r }
+  // CHECK: A::start: { A::q }
+  // CHECK: B::c: { B::q }
+  // CHECK: B::q: { B::q }
+  // CHECK: C::len: { C::r }
+  // CHECK: C::r: { C::r }
+}
+
+struct X *getX(void) { return 0; }
+
+void f6(void) {
+  getX()->len = 0;
+  // CHECK-LABEL: In function: f6
+  // CHECK: BoundsSiblingFields:
+  // CHECK: X::i: { X::q }
+  // CHECK: X::j: { X::q }
+  // CHECK: X::y: { X::q }
+  // CHECK: Y::x: { Y::p }
 }

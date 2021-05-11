@@ -131,12 +131,11 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
       if (!V || V->isInvalidDecl())
         return true;
 
-      // If V declares a variable with a struct or union type (e.g.struct S,
+      // If V declares a variable with a struct or union type (e.g. struct S,
       // struct S *, etc.), traverse the fields in the declaration of S in
-      // the declaration of S in order to map to each field F in S to the
-      // fields in S in whose declared bounds F appears.
-      RecordDecl *S = GetRecordDecl(V->getType());
-      if (S)
+      // order to map to each field F in S to the fields in S in whose
+      // declared bounds F appears.
+      if (RecordDecl *S = GetRecordDecl(V->getType()))
         FillBoundsSiblingFields(S);
 
       // If V has a bounds expression, traverse it so we visit the
@@ -192,6 +191,22 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
         }
       }
 
+      return true;
+    }
+
+    // For a temporary binding with a struct type (or pointer to a struct
+    // type), fill in the bounds sibling fields for the record declaration.
+    bool VisitCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
+      if (RecordDecl *S = GetRecordDecl(E->getType()))
+        FillBoundsSiblingFields(S);
+      return true;
+    }
+
+    // For a call expression with a struct type (or pointer to a struct
+    // type), fill in the bounds sibling fields for the record declaration.
+    bool VisitCallExpr(CallExpr *E) {
+      if (RecordDecl *S = GetRecordDecl(E->getType()))
+        FillBoundsSiblingFields(S);
       return true;
     }
 
