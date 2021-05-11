@@ -57,8 +57,22 @@ namespace clang {
     // iteration order we must remember to sort the keys as well as the values.
     BoundsVarsTy BoundsVars;
 
-    // BoundsSiblingFields maps each FieldDecl F in a struct declaration S to
-    // a set of fields in S in whose declared bounds F occurs.
+    // BoundsSiblingFields maps each FieldDecl F in a record declaration S to
+    // a set of fields in S in whose declared bounds F occurs. More precisely,
+    // if a function declares a variable with an associated record decl S,
+    // then for each field F in S, BoundsSiblingFields[F] will be a set of
+    // fields G in S, where:
+    // 1. The declared bounds of G use the value of a DeclRefExpr V, and:
+    // 2. The declaration of V is F.
+    // Note that this definition does not include G in S if G is accessed
+    // via a field of a MemberExpr. For example, in:
+    // struct S {
+    //   struct S *s;
+    //   int len;
+    //   _Array_ptr<int> p : count(s->len);
+    // };
+    // The field len will not be considered to occur in the declared bounds
+    // of p.
 
     // Note: BoundsSiblingFieldsTy is a map of keys to values which are sets.
     // As a result, there is no defined iteration order for either its keys or
