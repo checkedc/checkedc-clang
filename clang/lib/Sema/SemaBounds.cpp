@@ -717,6 +717,9 @@ namespace {
   using FreeVariableListTy =
       SmallVector<std::pair<Expr *, FreeVariablePosition>, 4>;
 
+  // AbstractSetSetTy denotes a set of AbstractSets.
+  using AbstractSetSetTy = llvm::SmallPtrSet<const AbstractSet *, 4>;
+
   // CheckingState stores the outputs of bounds checking methods.
   // These members represent the state during bounds checking
   // and are updated while checking individual expressions.
@@ -5653,6 +5656,84 @@ namespace {
         Pair.second = E1;
       }
       return Pair;
+    }
+
+    // SynthesizeMembers modifies the set AbstractSets to include AbstractSets
+    // for member expressions whose target bounds use the value of the member
+    // expression M that is being modified via an assignment.
+    void SynthesizeMembers(Expr *E, MemberExpr *M, CheckedScopeSpecifier CSS,
+                           AbstractSetSetTy &AbstractSets) {
+      if (!E)
+        return;
+      Lexicographic Lex(S.Context, nullptr);
+      E = Lex.IgnoreValuePreservingOperations(S.Context, E->IgnoreParens());
+
+      // Recursively synthesize AbstractSets for certain subexpressions of E.
+      switch (E->getStmtClass()) {
+        case Expr::MemberExprClass:
+          break;
+        case Expr::ImplicitCastExprClass:
+        case Expr::CStyleCastExprClass: {
+          CastExpr *CE = cast<CastExpr>(E);
+          SynthesizeMembers(CE->getSubExpr(), M, CSS, AbstractSets);
+          return;
+        }
+        case Expr::UnaryOperatorClass: {
+          UnaryOperator *UO = cast<UnaryOperator>(E);
+          SynthesizeMembers(UO->getSubExpr(), M, CSS, AbstractSets);
+          return;
+        }
+        case Expr::ArraySubscriptExprClass: {
+          ArraySubscriptExpr *AE = cast<ArraySubscriptExpr>(E);
+          SynthesizeMembers(AE->getBase(), M, CSS, AbstractSets);
+          return;
+        }
+        case Expr::BinaryOperatorClass: {
+          BinaryOperator *BO = cast<BinaryOperator>(E);
+          Expr *LHS = BO->getLHS();
+          Expr *RHS = BO->getRHS();
+          if (LHS->getType()->isPointerType())
+            SynthesizeMembers(LHS, M, CSS, AbstractSets);
+          if (RHS->getType()->isPointerType())
+            SynthesizeMembers(RHS, M, CSS, AbstractSets);
+          return;
+        }
+        default:
+          return;
+      }
+
+      MemberExpr *ME = dyn_cast<MemberExpr>(E);
+      if (!ME)
+        return;
+
+      // Synthesize AbstractSets for a member expression `Base->Field`
+      // or `Base.Field`.
+      Expr *Base = ME->getBase();
+      FieldDecl *Field = dyn_cast<FieldDecl>(ME->getMemberDecl());
+      if (!Field)
+        return;
+
+      RecordDecl *Parent = Field->getParent();
+      if (!Parent)
+        return;
+
+      // Iterate over each sibling field F of Field to check whether the
+      // target bounds of `Base->F` or `Base.F` use the value of M.
+      for (auto It = Parent->field_begin(), E = Parent->field_end(); It != E; ++It) {
+        auto *F = *It;
+        if (!F->hasBoundsExpr())
+          continue;
+        MemberExpr *BaseF =
+          ExprCreatorUtil::CreateMemberExpr(S, Base, F, ME->isArrow());
+        BoundsExpr *Bounds = MemberExprTargetBounds(BaseF, CSS);
+        int Count = MemberOccurrenceCount(S, M, Bounds);
+        if (Count > 0) {
+          const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(BaseF);
+          AbstractSets.insert(A);
+        }
+      }
+
+      SynthesizeMembers(Base, M, CSS, AbstractSets);
     }
 
     // CheckIsNonModifying suppresses diagnostics while checking
