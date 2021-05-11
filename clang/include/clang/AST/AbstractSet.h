@@ -73,6 +73,10 @@ namespace clang {
       return nullptr;
     }
 
+    void PrettyPrint(llvm::raw_ostream &OS, ASTContext &Ctx) const {
+      CanonicalForm.PrettyPrint(OS, Ctx);
+    }
+
     // The comparison between two AbstractSets is the same as the
     // lexicographic comparison between their CanonicalForms.
     Result Compare(AbstractSet &Other) const {
