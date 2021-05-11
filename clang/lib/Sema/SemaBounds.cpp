@@ -862,6 +862,7 @@ namespace {
     Sema &S;
     bool DumpBounds;
     bool DumpState;
+    bool DumpSynthesizedMembers;
     uint64_t PointerWidth;
     Stmt *Body;
     CFG *Cfg;
@@ -1018,6 +1019,32 @@ namespace {
         for (auto I = Exprs.begin(); I != Exprs.end(); ++I) {
           Expr *E = *I;
           E->dump(OS, Context);
+        }
+        OS << "}\n";
+      }
+    }
+
+    void DumpSynthesizedMemberAbstractSets(raw_ostream &OS,
+                                           AbstractSetSetTy AbstractSets) {
+      OS << "\nAbstractSets for member expressions:\n";
+      if (AbstractSets.size() == 0)
+        OS << "{ }\n";
+      else {
+        // The keys in an llvm::SmallPtrSet are unordered.  Create a set of
+        // abstract sets sorted lexicographically in order to guarantee a
+        // deterministic output so that printing the synthesized abstract
+        // sets can be tested.
+        std::vector<const AbstractSet *> OrderedSets;
+        for (auto It : AbstractSets)
+          OrderedSets.push_back(It);
+        llvm::sort(OrderedSets.begin(), OrderedSets.end(),
+             [] (const AbstractSet *A, const AbstractSet *B) {
+               return *(const_cast<AbstractSet *>(A)) < *(const_cast<AbstractSet *>(B));
+             });
+        OS << "{\n";
+        for (auto It : OrderedSets) {
+          It->PrettyPrint(OS, Context);
+          OS << "\n";
         }
         OS << "}\n";
       }
@@ -2623,6 +2650,7 @@ namespace {
     CheckBoundsDeclarations(Sema &SemaRef, PrepassInfo &Info, Stmt *Body, CFG *Cfg, BoundsExpr *ReturnBounds, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
       DumpState(SemaRef.getLangOpts().DumpCheckingState),
+      DumpSynthesizedMembers(SemaRef.getLangOpts().DumpSynthesizedMembers),
       PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
       Body(Body),
       Cfg(Cfg),
@@ -2636,6 +2664,7 @@ namespace {
     CheckBoundsDeclarations(Sema &SemaRef, PrepassInfo &Info, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
       DumpState(SemaRef.getLangOpts().DumpCheckingState),
+      DumpSynthesizedMembers(SemaRef.getLangOpts().DumpSynthesizedMembers),
       PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
       Body(nullptr),
       Cfg(nullptr),
@@ -4700,6 +4729,9 @@ namespace {
       if (ME) {
         AbstractSetSetTy AbstractSets;
         SynthesizeMembers(ME, ME, CSS, AbstractSets);
+
+        if (DumpSynthesizedMembers)
+          DumpSynthesizedMemberAbstractSets(llvm::outs(), AbstractSets);
 
         return SrcBounds;
       }
