@@ -61,6 +61,10 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
     // GetRecordDecl will return the declaration of S.
     RecordDecl *GetRecordDecl(const QualType Ty) {
       const Type *T = Ty.getTypePtr();
+      // If T is a pointer type T * or array type T[],
+      // getPointeeOrArrayElementType will return T, which itself may be a
+      // pointer or array type. Keep descending T until T is not a pointer
+      // or array type.
       while (T->isAnyPointerType() || T->isArrayType())
         T = T->getPointeeOrArrayElementType();
       return T->getAsRecordDecl();
