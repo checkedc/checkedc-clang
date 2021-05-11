@@ -4668,26 +4668,50 @@ namespace {
 
     // Methods to update the checking state.
 
-    // UpdateAfterAssignment updates the checking state after a variable V
-    // is updated in an assignment E of the form Target = Src, based on the
-    // state before the assignment.  It also returns updated bounds for Src.
+    // UpdateAfterAssignment updates the checking state after an lvalue
+    // expression LValue is updated in an assignment E of the form
+    // Target = Src, based on the state before the assignment.  It also
+    // returns updated bounds for Src.
     //
-    // If V has an original value, the original value is substituted for
-    // any uses of the value of V in the bounds in ObservedBounds and the
-    // expressions in EquivExprs and SameValue.
-    // If V does not have an original value, any bounds in ObservedBounds
-    // that use the value of V are set to bounds(unknown), and any expressions
-    // in EquivExprs and SameValue that use the value of V are removed from
+    // If LValue is a variable V and V has an original value, the original
+    // value is substituted for any uses of the value of V in the bounds
+    // in ObservedBounds and the expressions in EquivExprs and SameValue.
+    // If V does not have an original value, any bounds in ObservedBounds that
+    // use the value of V are set to bounds(unknown), and any expressions in
+    // EquivExprs and SameValue that use the value of V are removed from
     // EquivExprs and SameValue.
     //
     // SrcBounds are the original bounds for the source of the assignment.
     //
     // PrevState is the checking state that was true before the assignment.
-    BoundsExpr *UpdateAfterAssignment(DeclRefExpr *V, Expr *E, Expr *Target,
+    BoundsExpr *UpdateAfterAssignment(Expr *LValue, Expr *E, Expr *Target,
                                       Expr *Src, BoundsExpr *SrcBounds,
                                       CheckedScopeSpecifier CSS,
                                       const CheckingState PrevState,
                                       CheckingState &State) {
+      if (!LValue)
+        return SrcBounds;
+      LValue = LValue->IgnoreParens();
+
+      // If LValue is a member expression, get the set of AbstractSets
+      // whose target bounds use the value of LValue.
+      // TODO: update the checking state and result bounds if LValue
+      // is a member expression. Record the inferred rvalue bounds of
+      // each synthesized AbstractSet in ObservedBounds.
+      MemberExpr *ME = dyn_cast<MemberExpr>(LValue);
+      if (ME) {
+        AbstractSetSetTy AbstractSets;
+        SynthesizeMembers(ME, ME, CSS, AbstractSets);
+
+        return SrcBounds;
+      }
+
+      // Update the checking state and result bounds if LValue is a
+      // variable V.
+      DeclRefExpr *V = dyn_cast<DeclRefExpr>(LValue);
+      if (!V)
+        return SrcBounds;
+
       // Get the original value (if any) of V before the assignment, and
       // determine whether the original value uses the value of V.
       // OriginalValue is named OV in the Checked C spec.
