@@ -50,12 +50,12 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
     // };
     FieldDecl *FieldWithBounds = nullptr;
 
-    // ProcessedStructs keeps tracks of the struct declarations whose fields
+    // ProcessedRecords keeps tracks of the record declarations whose fields
     // have been traversed by the FillBoundsSiblingFields method. This avoids
-    // unnecessary duplicate traversals of struct fields.
-    llvm::SmallPtrSet<const RecordDecl *, 2> ProcessedStructs;
+    // unnecessary duplicate traversals of record fields.
+    llvm::SmallPtrSet<const RecordDecl *, 2> ProcessedRecords;
 
-    // GetRecordDecl returns the struct declaration, if any, that is
+    // GetRecordDecl returns the record declaration, if any, that is
     // associated with the given type. For example, if the given type is
     // struct S, struct S *, _Ptr<struct S>, etc., GetRecordDecl will
     // return the declaration of S.
@@ -79,23 +79,24 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
       }
     }
 
-    // FillBoundsSiblingFields traverses the fields in a struct declaration S
+    // FillBoundsSiblingFields traverses the fields in a record declaration S
     // in order to map each field F in S to the fields in S in whose declared
     // bounds F appears.
     void FillBoundsSiblingFields(RecordDecl *S) {
-      // Do not traverse a struct declaration more than once.
+      // Do not traverse a record declaration more than once.
       // FillBoundsSiblingFields can be called more than once on a given
-      // struct declaration if a function declares multiple variables with
-      // the same struct type, or in case of recursive struct definitions.
-      if (ProcessedStructs.count(S))
+      // record declaration if a function declares multiple variables with
+      // the same record type, or in case of recursive record definitions.
+      if (ProcessedRecords.count(S))
         return;
 
       FieldWithBounds = nullptr;
-      ProcessedStructs.insert(S);
+      ProcessedRecords.insert(S);
       for (auto It = S->field_begin(), E = S->field_end(); It != E; ++It) {
         auto *Field = *It;
 
-        // Recursively traverse the struct declarations of struct-typed fields.
+        // Recursively traverse the record declarations of struct or
+        // union-typed fields.
         if (RecordDecl *M = GetRecordDecl(Field->getType()))
           FillBoundsSiblingFields(M);
 
@@ -126,12 +127,13 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
       if (!V || V->isInvalidDecl())
         return true;
 
-      // If V declares a variable with type struct S or struct S *, traverse
-      // the fields in the declaration of S in order map to each field F in S
-      // to the fields in S in whose declared bounds F appears.
-      RecordDecl *StructDecl = GetRecordDecl(V->getType());
-      if (StructDecl)
-        FillBoundsSiblingFields(StructDecl);
+      // If V declares a variable with a struct or union type (e.g.struct S,
+      // struct S *, etc.), traverse the fields in the declaration of S in
+      // the declaration of S in order to map to each field F in S to the
+      // fields in S in whose declared bounds F appears.
+      RecordDecl *S = GetRecordDecl(V->getType());
+      if (S)
+        FillBoundsSiblingFields(S);
 
       // If V has a bounds expression, traverse it so we visit the
       // DeclRefExprs within the bounds.
