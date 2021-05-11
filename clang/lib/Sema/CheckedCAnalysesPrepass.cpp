@@ -57,11 +57,11 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
 
     // GetRecordDecl returns the record declaration, if any, that is
     // associated with the given type. For example, if the given type is
-    // struct S, struct S *, _Ptr<struct S>, etc., GetRecordDecl will
-    // return the declaration of S.
+    // struct S, struct S *, _Ptr<struct S>, struct S **, etc.,
+    // GetRecordDecl will return the declaration of S.
     RecordDecl *GetRecordDecl(const QualType Ty) {
       const Type *T = Ty.getTypePtr();
-      if (T->isPointerType())
+      while (T->isAnyPointerType() || T->isArrayType())
         T = T->getPointeeOrArrayElementType();
       return T->getAsRecordDecl();
     }

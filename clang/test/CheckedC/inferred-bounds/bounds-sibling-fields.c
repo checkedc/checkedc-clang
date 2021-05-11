@@ -80,3 +80,23 @@ void f3(struct X x) {
   // CHECK: X::y: { X::q }
   // CHECK: Y::x: { Y::p }
 }
+
+struct R {
+  int len;
+  _Array_ptr<int> q : count(len);
+};
+
+struct S {
+  _Array_ptr<_Ptr<struct R>> r;
+  _Array_ptr<int> p : count((*r)->len);
+};
+
+void f4(_Ptr<struct S> s[3][4]) {
+  // CHECK-LABEL: In function: f4
+  // CHECK: BoundsSiblingFields:
+  // CHECK: R::len: { R::q }
+  // CHECK: R::q: { R::q }
+  // CHECK: S::p: { S::p }
+  // CHECK: S::r: { S::p }
+
+}
