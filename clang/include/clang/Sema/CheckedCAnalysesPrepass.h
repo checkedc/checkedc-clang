@@ -41,17 +41,25 @@ namespace clang {
     // 2. V has a declared bounds expression.
     VarUsageTy VarUses;
 
-    // BoundsVars maps each variable Z in a function to the set of all
-    // variables in whose bounds expressions Z occurs. A variable Z can occur
-    // in the bounds expression of a variable V if
-    // 1. Z occurs in the declared bounds expression of V, or
-    // 2. A where clause declares bounds B of V and Z occurs in B.
-
     // Note: BoundsVarsTy is a map of keys to values which are sets. As a
     // result, there is no defined iteration order for either its keys or its
-    // values. So in case we want to iterate BoundsVars and need a determinstic
-    // iteration order we must remember to sort the keys as well as the values.
-    BoundsVarsTy BoundsVars;
+    // values. So in case we want to iterate BoundsVarsLower or BoundsVarsUpper
+    // and need a determinstic iteration order we must remember to sort the
+    // keys as well as the values.
+
+    // BoundsVarsLower maps each variable Z in a function to the set of all
+    // variables in whose lower bounds expressions Z occurs. A variable Z can
+    // occur in the lower bounds expression of a variable V if
+    // 1. Z occurs in the declared lower bounds expression of V, or
+    // 2. A where clause declares lower bounds B of V and Z occurs in B.
+    BoundsVarsTy BoundsVarsLower;
+
+    // BoundsVarsUpper maps each variable Z in a function to the set of all
+    // variables in whose upper bounds expressions Z occurs. A variable Z can
+    // occur in the upper bounds expression of a variable V if
+    // 1. Z occurs in the declared upper bounds expression of V, or
+    // 2. A where clause declares upper bounds B of V and Z occurs in B.
+    BoundsVarsTy BoundsVarsUpper;
   };
 } // end namespace clang
 #endif

@@ -36,7 +36,19 @@ void f1(_Array_ptr<char> param1 : bounds(param1, param1 + 1),
   }
 
 // CHECK-LABEL: In function: f1
-// CHECK: BoundsVars:
+// CHECK: BoundsVars Lower:
+// CHECK: a: { a }
+// CHECK: m: { m }
+// CHECK: p: { p }
+// CHECK: p: { p q }
+// CHECK: param1: { param1 param2 }
+// CHECK: param2: { param2 }
+// CHECK: q: { q }
+// CHECK: q: { m q }
+// CHECK: x: { p }
+
+// CHECK-LABEL: In function: f1
+// CHECK: BoundsVars Upper:
 // CHECK: a: { a }
 // CHECK: m: { m }
 // CHECK: p: { p }
@@ -46,7 +58,7 @@ void f1(_Array_ptr<char> param1 : bounds(param1, param1 + 1),
 // CHECK: q: { q }
 // CHECK: q: { m q }
 // CHECK: w: { a param2 }
-// CHECK: x: { a p param1 q }
+// CHECK: x: { a param1 q }
 // CHECK: y: { a p param1 param2 }
 // CHECK: z: { m p q }
 }
