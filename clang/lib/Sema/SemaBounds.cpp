@@ -1597,7 +1597,8 @@ namespace {
         }
 
         for (const auto &E : EquivSet) {
-          if (isa<IntegerLiteral>(E))
+          llvm::APSInt Val;
+          if (E->isIntegerConstantExpr(Val, S.Context))
             return true;
         }
 
