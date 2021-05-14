@@ -887,6 +887,10 @@ namespace {
     // AbstractSets for lvalue expressions while checking statements.
     AbstractSetManager AbstractSetMgr;
 
+    // Map a field F in a record declaration to the sibling fields of F
+    // in whose declared bounds F appears.
+    BoundsSiblingFieldsTy BoundsSiblingFields;
+
     // When this flag is set to true, include the null terminator in the
     // bounds of a null-terminated array.  This is used when calculating
     // physical sizes during casts to pointers to null-terminated arrays.
@@ -2667,6 +2671,7 @@ namespace {
       Facts(Facts),
       BoundsAnalyzer(BoundsAnalysis(SemaRef, Cfg)),
       AbstractSetMgr(AbstractSetManager(SemaRef, Info.VarUses)),
+      BoundsSiblingFields(Info.BoundsSiblingFields),
       IncludeNullTerminator(false) {}
 
     CheckBoundsDeclarations(Sema &SemaRef, PrepassInfo &Info, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
@@ -2681,6 +2686,7 @@ namespace {
       Facts(Facts),
       BoundsAnalyzer(BoundsAnalysis(SemaRef, nullptr)),
       AbstractSetMgr(AbstractSetManager(SemaRef, Info.VarUses)),
+      BoundsSiblingFields(Info.BoundsSiblingFields),
       IncludeNullTerminator(false) {}
 
     void IdentifyChecked(Stmt *S, StmtSet &MemoryCheckedStmts, StmtSet &BoundsCheckedStmts, CheckedScopeSpecifier CSS) {
@@ -5775,22 +5781,22 @@ namespace {
       if (!Field)
         return;
 
-      RecordDecl *Parent = Field->getParent();
-      if (!Parent)
-        return;
-
-      // Iterate over each sibling field F of Field to check whether the
-      // target bounds of `Base->F` or `Base.F` use the value of M.
-      for (auto It = Parent->field_begin(), E = Parent->field_end(); It != E; ++It) {
-        auto *F = *It;
-        if (!F->hasBoundsExpr())
-          continue;
-        MemberExpr *BaseF =
-          ExprCreatorUtil::CreateMemberExpr(S, Base, F, ME->isArrow());
-        BoundsExpr *Bounds = MemberExprTargetBounds(BaseF, CSS);
-        if (FindMemberExpr(S, M, Bounds)) {
-          const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(BaseF);
-          AbstractSets.insert(A);
+      // For each sibling field F of Field in whose declared bounds Field
+      // appears, check whether the concrete, expanded target bounds of
+      // `Base->F` or `Base.F` use the value of M.
+      auto I = BoundsSiblingFields.find(Field);
+      if (I != BoundsSiblingFields.end()) {
+        auto SiblingFields = I->second;
+        for (const FieldDecl *F : SiblingFields) {
+          if (!F->hasBoundsExpr())
+            continue;
+          MemberExpr *BaseF =
+            ExprCreatorUtil::CreateMemberExpr(S, Base, F, ME->isArrow());
+          BoundsExpr *Bounds = MemberExprTargetBounds(BaseF, CSS);
+          if (FindMemberExpr(S, M, Bounds)) {
+            const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(BaseF);
+            AbstractSets.insert(A);
+          }
         }
       }
 
