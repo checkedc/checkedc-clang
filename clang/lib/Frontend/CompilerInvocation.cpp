@@ -2849,6 +2849,9 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   if (Args.hasArg(OPT_fdump_boundsvars))
     Opts.DumpBoundsVars = true;
 
+  if (Args.hasArg(OPT_fdump_boundssiblingfields))
+    Opts.DumpBoundsSiblingFields = true;
+
   if (Args.hasArg(OPT_fdump_preorder_ast))
     Opts.DumpPreorderAST = true;
 

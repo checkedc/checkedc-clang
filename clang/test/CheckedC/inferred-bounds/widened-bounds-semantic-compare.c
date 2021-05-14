@@ -179,3 +179,15 @@ void f15(_Nt_array_ptr<char> p : count(6)) {
 //  [B1]
 // upper_bound(p) = 1
 }
+
+void f16(int i, int j) {
+  _Nt_array_ptr<char> p : bounds(p, p + i + j + 8) = "a";
+  if (*(p + (i + 3 * 2 + (j + 2)))) {}
+
+// CHECK: In function: f16
+//  [B2]
+//    1: _Nt_array_ptr<char> p : bounds(p, p + i + j + 8) = "a";
+//    2: *(p + (i + 3 * 2 + (j + 2)))
+//  [B1]
+// upper_bound(p) = 1
+}

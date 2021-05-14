@@ -251,26 +251,32 @@ bool BinaryOperatorNode::CanCoalesce() {
   return Opc == BParent->Opc || Children.size() == 1;
 }
 
-void BinaryOperatorNode::Coalesce(bool &Changed, bool &Error) {
+bool BinaryOperatorNode::Coalesce(bool &Error) {
   if (Error)
-    return;
+    return false;
 
   // Coalesce the children first.
   // Since Children is modified within the loop, we need to evaluate
   // the loop end on each iteration.
-  for (size_t I = 0; I != Children.size(); ++I) {
+  size_t I = 0;
+  while (I != Children.size()) {
     auto *Child = Children[I];
-    Child->Coalesce(Changed, Error);
+    bool ChildCoalesced = Child->Coalesce(Error);
+    // If Child was not coalesced into this node, then we can increment I
+    // in order to coalesce the next child node. Otherwise, if Child was
+    // coalesced into this node, then Children[I] still needs to be coalesced.
+    if (!ChildCoalesced)
+      ++I;
   }
 
   if (!CanCoalesce())
-    return;
+    return false;
 
   // If the current node can be coalesced, its parent must be a
   // BinaryOperatorNode.
   auto *BParent = dyn_cast_or_null<BinaryOperatorNode>(Parent);
   if (!BParent)
-    return;
+    return false;
 
   // Remove the current node from the list of children of its parent.
   for (auto I = BParent->Children.begin(), E = BParent->Children.end(); I != E; ++I) {
@@ -288,28 +294,35 @@ void BinaryOperatorNode::Coalesce(bool &Changed, bool &Error) {
 
   // Delete the current node.
   delete this;
-  Changed = true;
+
+  // The current node was coalesced into its parent.
+  return true;
 }
 
-void UnaryOperatorNode::Coalesce(bool &Changed, bool &Error) {
+bool UnaryOperatorNode::Coalesce(bool &Error) {
   if (Error)
-    return;
-  Child->Coalesce(Changed, Error);
+    return false;
+  Child->Coalesce(Error);
+  return false;
 }
 
-void MemberNode::Coalesce(bool &Changed, bool &Error) {
+bool MemberNode::Coalesce(bool &Error) {
   if (Error)
-    return;
-  Base->Coalesce(Changed, Error);
+    return false;
+  Base->Coalesce(Error);
+  return false;
 }
 
-void ImplicitCastNode::Coalesce(bool &Changed, bool &Error) {
+bool ImplicitCastNode::Coalesce(bool &Error) {
   if (Error)
-    return;
-  Child->Coalesce(Changed, Error);
+    return false;
+  Child->Coalesce(Error);
+  return false;
 }
 
-void LeafExprNode::Coalesce(bool &Changed, bool &Error) { }
+bool LeafExprNode::Coalesce(bool &Error) {
+  return false;
+}
 
 void BinaryOperatorNode::Sort(Lexicographic Lex) {
   // Sort the children first.
@@ -341,23 +354,30 @@ void ImplicitCastNode::Sort(Lexicographic Lex) {
 
 void LeafExprNode::Sort(Lexicographic Lex) { }
 
-void BinaryOperatorNode::ConstantFold(bool &Changed, bool &Error,
-                                      ASTContext &Ctx) {
+bool BinaryOperatorNode::ConstantFold(bool &Error, ASTContext &Ctx) {
   if (Error)
-    return;
+    return false;
 
   size_t ConstStartIdx = 0;
   unsigned NumConsts = 0;
   llvm::APSInt ConstFoldedVal;
 
-  for (size_t I = 0; I != Children.size(); ++I) {
-    auto *Child = Children[I];
+  size_t Idx = 0;
+  while (Idx != Children.size()) {
+    auto *Child = Children[Idx];
 
     // Recursively constant fold the non-leaf children of a BinaryOperatorNode.
     if (!isa<LeafExprNode>(Child)) {
-      Child->ConstantFold(Changed, Error, Ctx);
+      bool ChildDeleted = Child->ConstantFold(Error, Ctx);
+      // If Child was not deleted during constant folding, then we can
+      // increment Idx in order to process the next child node. Otherwise,
+      // if Child was deleted, then Children[Idx] still needs to be processed.
+      if (!ChildDeleted)
+        ++Idx;
       continue;
     }
+
+    ++Idx;
 
     // We can only constant fold if the operator is commutative and
     // associative.
@@ -378,7 +398,7 @@ void BinaryOperatorNode::ConstantFold(bool &Changed, bool &Error,
     if (NumConsts == 1) {
       // We will use ConstStartIdx later in this function to delete the
       // constant folded nodes.
-      ConstStartIdx = I;
+      ConstStartIdx = Idx - 1;
       ConstFoldedVal = CurrConstVal;
 
     } else {
@@ -397,14 +417,14 @@ void BinaryOperatorNode::ConstantFold(bool &Changed, bool &Error,
       // If we encounter an overflow during constant folding we cannot proceed.
       if (Overflow) {
         Error = true;
-        return;
+        return false;
       }
     }
   }
 
   // To fold constants we need at least 2 constants.
   if (NumConsts <= 1)
-    return;
+    return false;
 
   // Delete the folded constants and reclaim memory.
   // Note: We do not explicitly need to increment the iterator because after
@@ -428,35 +448,37 @@ void BinaryOperatorNode::ConstantFold(bool &Changed, bool &Error,
   Children.push_back(new LeafExprNode(ConstFoldedExpr, this));
 
   // If the constant folded expr is the only child of this BinaryOperatorNode
-  // we can coalesce the node.
+  // we can coalesce the node. This node may be deleted during coalescing.
   if (Children.size() == 1 && CanCoalesce())
-    Coalesce(Changed, Error);
+    return Coalesce(Error);
 
-  Changed = true;
+  return false;
 }
 
-void UnaryOperatorNode::ConstantFold(bool &Changed, bool &Error,
-                                     ASTContext &Ctx) {
+bool UnaryOperatorNode::ConstantFold(bool &Error, ASTContext &Ctx) {
   if (Error)
-    return;
-  Child->ConstantFold(Changed, Error, Ctx);
+    return false;
+  Child->ConstantFold(Error, Ctx);
+  return false;
 }
 
-void MemberNode::ConstantFold(bool &Changed, bool &Error, ASTContext &Ctx) {
+bool MemberNode::ConstantFold(bool &Error, ASTContext &Ctx) {
   if (Error)
-    return;
-  Base->ConstantFold(Changed, Error, Ctx);
+    return false;
+  Base->ConstantFold(Error, Ctx);
+  return false;
 }
 
-void ImplicitCastNode::ConstantFold(bool &Changed, bool &Error,
-                                    ASTContext &Ctx) {
+bool ImplicitCastNode::ConstantFold(bool &Error, ASTContext &Ctx) {
   if (Error)
-    return;
-  Child->ConstantFold(Changed, Error, Ctx);
+    return false;
+  Child->ConstantFold(Error, Ctx);
+  return false;
 }
 
-void LeafExprNode::ConstantFold(bool &Changed, bool &Error,
-                                ASTContext &Ctx) { }
+bool LeafExprNode::ConstantFold(bool &Error, ASTContext &Ctx) {
+  return false;
+}
 
 bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
 				 llvm::APSInt &Offset) {
@@ -648,16 +670,27 @@ void PreorderAST::Normalize() {
   // TODO: Perform simple arithmetic optimizations/transformations on the
   // constants in the nodes.
 
-  bool Changed = true;
-  while (Changed) {
-    Changed = false;
-    Root->Coalesce(Changed, Error);
-    if (Error)
-      break;
+  // We only need one call to Coalesce, Sort and ConstantFold in order to
+  // normalize the tree, since:
+  // 1. For any Node N, calling N->Coalesce fully coalesces N and all children
+  //    of N.
+  // 2. For any Node N, calling N->Sort fully sorts N and all children of N.
+  // 3. For any Node N, calling N->ConstantFold fully constant folds N and all
+  //    children of N.
+  // 4. After calling Sort, there is no further coalescing to be done, since
+  //    Sort creates no new nodes.
+  // 5. After calling ConstantFold, there is no further coalescing to be done,
+  //    since ConstantFold does not create any new BinaryOperatorNodes. At
+  //    most, ConstantFold may create new LeafExprNodes.
+  // 6. After calling ConstantFold, there is no further sorting to be done,
+  //    since ConstantFold adds any newly created LeafExprNodes to the end of
+  //    the Children list. This may break sorting only among the constant
+  //    child nodes. The child nodes are sorted correctly when the Parent node
+  //    of the Children list is constant folded.
+  Root->Coalesce(Error);
+  if (!Error) {
     Root->Sort(Lex);
-    Root->ConstantFold(Changed, Error, Ctx);
-    if (Error)
-      break;
+    Root->ConstantFold(Error, Ctx);
   }
 
   if (Ctx.getLangOpts().DumpPreorderAST) {

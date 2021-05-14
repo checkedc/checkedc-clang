@@ -149,6 +149,25 @@ void f4(void) {
                                        // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 2)'}}
 }
 
+// Variables that are equivalent to integer constant expressions are not free variables.
+void f5(_Array_ptr<int> p : count(0)) {
+  // i is equivalent to (unsigned int)0.
+  unsigned int i = 0;
+  _Array_ptr<int> q : count(i) = p;  // expected-warning {{cannot prove declared bounds for 'q' are valid after initialization}} \
+                                     // expected-note {{(expanded) declared bounds are 'bounds(q, q + i)'}} \
+                                     // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 0)'}}
+
+  unsigned int j = 1 + 2;
+  _Array_ptr<int> r : count(j) = p; // expected-warning {{cannot prove declared bounds for 'r' are valid after initialization}} \
+                                    // expected-note {{(expanded) declared bounds are 'bounds(r, r + j)'}} \
+                                    // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 0)'}}
+
+  unsigned int k = -(2 * 3) + (8 / 4);
+  _Array_ptr<int> s : count(k) = p; // expected-warning {{cannot prove declared bounds for 's' are valid after initialization}} \
+                                    // expected-note {{(expanded) declared bounds are 'bounds(s, s + k)'}} \
+                                    // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 0)'}}
+}
+
 void g(void) {
   int a, b, c, d, e;
   a = b = 0;
