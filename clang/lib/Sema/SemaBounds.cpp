@@ -535,19 +535,20 @@ namespace {
   class FindMemberHelper : public RecursiveASTVisitor<FindMemberHelper> {
     private:
       Sema &SemaRef;
+      Lexicographic Lex;
       MemberExpr *M;
       bool Found;
 
     public:
       FindMemberHelper(Sema &SemaRef, MemberExpr *M) :
         SemaRef(SemaRef),
+        Lex(Lexicographic(SemaRef.Context, nullptr)),
         M(M),
         Found(false) {}
 
       bool IsFound() { return Found; }
 
       bool VisitMemberExpr(MemberExpr *E) {
-        Lexicographic Lex(SemaRef.Context, nullptr);
         if (Lex.CompareExprSemantically(E, M))
           Found = true;
         return true;
