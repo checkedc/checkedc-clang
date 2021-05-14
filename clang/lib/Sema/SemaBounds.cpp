@@ -532,34 +532,40 @@ namespace {
 }
 
 namespace {
-  class MemberCountHelper : public RecursiveASTVisitor<MemberCountHelper> {
+  class FindMemberHelper : public RecursiveASTVisitor<FindMemberHelper> {
     private:
       Sema &SemaRef;
       MemberExpr *M;
-      int Count;
+      bool Found;
 
     public:
-      MemberCountHelper(Sema &SemaRef, MemberExpr *M) :
+      FindMemberHelper(Sema &SemaRef, MemberExpr *M) :
         SemaRef(SemaRef),
         M(M),
-        Count(0) {}
+        Found(false) {}
 
-      int GetCount() { return Count; }
+      bool IsFound() { return Found; }
 
       bool VisitMemberExpr(MemberExpr *E) {
         Lexicographic Lex(SemaRef.Context, nullptr);
         if (Lex.CompareExprSemantically(E, M))
-          ++Count;
+          Found = true;
         return true;
+      }
+
+      bool TraverseStmt(Stmt *S) {
+        if (Found)
+          return true;
+
+        return RecursiveASTVisitor<FindMemberHelper>::TraverseStmt(S);
       }
   };
 
-  // MemberOccurrenceCount returns the number of occurrences of the member
-  // expression M in E.
-  int MemberOccurrenceCount(Sema &SemaRef, MemberExpr *M, Expr *E) {
-    MemberCountHelper Counter(SemaRef, M);
-    Counter.TraverseStmt(E);
-    return Counter.GetCount();
+  // FindMemberExpr returns true if the member expression M occurs in E.
+  bool FindMemberExpr(Sema &SemaRef, MemberExpr *M, Expr *E) {
+    FindMemberHelper Finder(SemaRef, M);
+    Finder.TraverseStmt(E);
+    return Finder.IsFound();
   }
 }
 
@@ -5781,8 +5787,7 @@ namespace {
         MemberExpr *BaseF =
           ExprCreatorUtil::CreateMemberExpr(S, Base, F, ME->isArrow());
         BoundsExpr *Bounds = MemberExprTargetBounds(BaseF, CSS);
-        int Count = MemberOccurrenceCount(S, M, Bounds);
-        if (Count > 0) {
+        if (FindMemberExpr(S, M, Bounds)) {
           const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(BaseF);
           AbstractSets.insert(A);
         }
