@@ -43,7 +43,7 @@ public:
 
   // Create a member expression.
   static MemberExpr *CreateMemberExpr(Sema &SemaRef, Expr *Base,
-                                      FieldDecl *Field, bool IsArrow);
+                                      const FieldDecl *Field, bool IsArrow);
 
   // If e is an rvalue, EnsureRValue returns e. Otherwise, EnsureRValue
   // returns a cast of e to an rvalue, based on the type of e.
