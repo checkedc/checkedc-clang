@@ -15,11 +15,7 @@ instructions](INSTALL.md). The inference logic is implemented in the
 that can potentially be used in multiple contexts. As of November
 2020, the only way to use 3C is via the `3c` command line tool in the
 [`clang/tools/3c` directory](../../../tools/3c); its usage is
-documented in [the readme there](../../../tools/3c/README.md). There
-is also code for a custom build of `clangd` named `clangd3c` that can
-be used to interactively convert code from within an IDE, but it is
-currently unmaintained and believed not to work; we may revive it at
-some point.
+documented in [the readme there](../../../tools/3c/README.md).
 
 ## What 3C users should know about the development process
 
