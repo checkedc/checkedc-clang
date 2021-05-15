@@ -5792,10 +5792,12 @@ namespace {
             continue;
           MemberExpr *BaseF =
             ExprCreatorUtil::CreateMemberExpr(S, Base, F, ME->isArrow());
+          ++S.CheckedCStats.NumSynthesizedMemberExprs;
           BoundsExpr *Bounds = MemberExprTargetBounds(BaseF, CSS);
           if (FindMemberExpr(S, M, Bounds)) {
             const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(BaseF);
             AbstractSets.insert(A);
+            ++S.CheckedCStats.NumSynthesizedMemberAbstractSets;
           }
         }
       }
@@ -6931,4 +6933,16 @@ BoundsExpr *Sema::GetLValueDeclaredBounds(Expr *E) {
   std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
   CheckBoundsDeclarations CBD(*this, Info, EmptyFacts);
   return CBD.GetLValueTargetBounds(E, CheckedScopeSpecifier::CSS_Unchecked);
+}
+
+// Print Checked C profiling information.
+void Sema::PrintCheckedCStats() {
+  if (!getLangOpts().CheckedC)
+    return;
+
+  llvm::errs() << "\n*** Checked C Stats:\n";
+  llvm::errs() << "  " << CheckedCStats.NumSynthesizedMemberExprs
+               << " MemberExprs created while synthesizing members.\n";
+  llvm::errs() << "  " << CheckedCStats.NumSynthesizedMemberAbstractSets
+               << " AbstractSets created while synthesizing members.\n";
 }
