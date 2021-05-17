@@ -151,7 +151,13 @@ void PreorderAST::CreateBinaryOperator(BinaryOperator *E, Node *Parent) {
 void PreorderAST::CreateUnaryOperator(UnaryOperator *E, Node *Parent) {
   UnaryOperatorKind Op = E->getOpcode();
   if (Op == UnaryOperatorKind::UO_Deref) {
-    CreateDereference(E->getSubExpr(), Parent);
+    // The child of a dereference operator must be a binary operator so that
+    // *e and *(e + 0) have the same canonical form. So for an expression of
+    // the form *e, we create a UnaryOperatorNode whose child is a
+    // BinaryOperatorNode e + 0.
+    auto *N = new UnaryOperatorNode(UnaryOperatorKind::UO_Deref, Parent);
+    AttachNode(N, Parent);
+    AddZero(E->getSubExpr(), /*Parent*/ N);
   } else if ((Op == UnaryOperatorKind::UO_Plus ||
               Op == UnaryOperatorKind::UO_Minus) &&
               E->isIntegerConstantExpr(Ctx)) {
@@ -166,16 +172,6 @@ void PreorderAST::CreateUnaryOperator(UnaryOperator *E, Node *Parent) {
     AttachNode(N, Parent);
     Create(E->getSubExpr(), /*Parent*/ N);
   }
-}
-
-void PreorderAST::CreateDereference(Expr *Child, Node *Parent) {
-  // The child of a dereference operator must be a binary operator so that
-  // *e and *(e + 0) have the same canonical form. So for an expression of
-  // the form *e, we create a UnaryOperatorNode whose child is a
-  // BinaryOperatorNode e + 0.
-  auto *N = new UnaryOperatorNode(UnaryOperatorKind::UO_Deref, Parent);
-  AttachNode(N, Parent);
-  AddZero(Child, /*Parent*/ N);
 }
 
 void PreorderAST::CreateMember(MemberExpr *E, Node *Parent) {
