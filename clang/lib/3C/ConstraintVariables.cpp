@@ -145,7 +145,7 @@ PointerVariableConstraint::PointerVariableConstraint(
   this->BaseType = Ot->BaseType;
   this->SrcHasItype = Ot->SrcHasItype;
   this->IsVoidPtr = Ot->IsVoidPtr;
-  // We need not initialize other members.
+  this->TypedefLevelInfo = Ot->TypedefLevelInfo;
 }
 
 PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
