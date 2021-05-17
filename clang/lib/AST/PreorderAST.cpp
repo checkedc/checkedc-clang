@@ -422,8 +422,10 @@ bool BinaryOperatorNode::ConstantFold(bool &Error, ASTContext &Ctx) {
     }
   }
 
-  // To fold constants we need at least 2 constants.
-  if (NumConsts <= 1)
+  // To fold constants we need at least 1 constant. If we have only 1 constant
+  // it can trivially be folded. Folding 1 constant allows us to constant
+  // fold expressions such as *(p + -(1 + 2)) to *(p + -3).
+  if (NumConsts < 1)
     return false;
 
   // Delete the folded constants and reclaim memory.
