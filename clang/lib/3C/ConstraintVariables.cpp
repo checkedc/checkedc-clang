@@ -131,9 +131,9 @@ PointerVariableConstraint::PointerVariableConstraint(
       this->SrcVars.push_back(*CAIt);
       if (!isa<WildAtom>(*CAIt))
         CS.addConstraint(CS.createGeq(*CAIt, FreshVA, false));
-      ++VAIt;
-      ++CAIt;
     }
+    ++VAIt;
+    ++CAIt;
   }
 
   if (Ot->FV != nullptr) {
