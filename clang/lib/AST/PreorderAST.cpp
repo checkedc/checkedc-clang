@@ -83,7 +83,9 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
                                              BinaryOperatorKind::BO_Add, AE->getType(),
                                              AE->getValueKind(), AE->getObjectKind(),
                                              AE->getExprLoc(), FPOptionsOverride());
-    CreateDereference(DerefExpr, Parent);
+    auto *N = new UnaryOperatorNode(UnaryOperatorKind::UO_Deref, Parent);
+    AttachNode(N, Parent);
+    Create(DerefExpr, N);
 
   } else if (auto *ME = dyn_cast<MemberExpr>(E)) {
     CreateMember(ME, Parent);
