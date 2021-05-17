@@ -78,14 +78,7 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
     CreateUnaryOperator(UO, Parent);
 
   } else if (auto *AE = dyn_cast<ArraySubscriptExpr>(E)) {
-    // e1[e2] has the same canonical form as *(e1 + e2).
-    auto *DerefExpr = BinaryOperator::Create(Ctx, AE->getBase(), AE->getIdx(),
-                                             BinaryOperatorKind::BO_Add, AE->getType(),
-                                             AE->getValueKind(), AE->getObjectKind(),
-                                             AE->getExprLoc(), FPOptionsOverride());
-    auto *N = new UnaryOperatorNode(UnaryOperatorKind::UO_Deref, Parent);
-    AttachNode(N, Parent);
-    Create(DerefExpr, N);
+    CreateArraySubscript(AE, Parent);
 
   } else if (auto *ME = dyn_cast<MemberExpr>(E)) {
     CreateMember(ME, Parent);
@@ -172,6 +165,17 @@ void PreorderAST::CreateUnaryOperator(UnaryOperator *E, Node *Parent) {
     AttachNode(N, Parent);
     Create(E->getSubExpr(), /*Parent*/ N);
   }
+}
+
+void PreorderAST::CreateArraySubscript(ArraySubscriptExpr *E, Node *Parent) {
+  // e1[e2] has the same canonical form as *(e1 + e2).
+  auto *DerefExpr = BinaryOperator::Create(Ctx, E->getBase(), E->getIdx(),
+                                           BinaryOperatorKind::BO_Add, E->getType(),
+                                           E->getValueKind(), E->getObjectKind(),
+                                           E->getExprLoc(), FPOptionsOverride());
+  auto *N = new UnaryOperatorNode(UnaryOperatorKind::UO_Deref, Parent);
+  AttachNode(N, Parent);
+  Create(DerefExpr, N);
 }
 
 void PreorderAST::CreateMember(MemberExpr *E, Node *Parent) {
