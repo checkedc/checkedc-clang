@@ -259,8 +259,27 @@ int main(int argc, const char **argv) {
   InitializeAllAsmPrinters();
   InitializeAllAsmParsers();
 
-  CommonOptionsParser OptionsParser(argc, (const char **)(argv), _3CCategory,
-                                    HelpOverview);
+  // The following code is based on clangTidyMain in
+  // clang-tools-extra/clang-tidy/tool/ClangTidyMain.cpp. Apparently every
+  // LibTooling-based tool is supposed to duplicate it??
+  llvm::Expected<CommonOptionsParser> ExpectedOptionsParser =
+      CommonOptionsParser::create(argc, (const char **)(argv), _3CCategory,
+                                  cl::ZeroOrMore, HelpOverview);
+  if (!ExpectedOptionsParser) {
+    llvm::errs() << "3c: Error(s) parsing command-line arguments:\n"
+                 << llvm::toString(ExpectedOptionsParser.takeError());
+    return 1;
+  }
+  CommonOptionsParser &OptionsParser = *ExpectedOptionsParser;
+  // Specifying cl::ZeroOrMore rather than cl::OneOrMore and then checking this
+  // here lets us give a better error message than the default "Must specify at
+  // least 1 positional argument".
+  if (OptionsParser.getSourcePathList().empty()) {
+    llvm::errs() << "3c: Error: No source files specified.\n"
+                 << "See: " << argv[0] << " --help\n";
+    return 1;
+  }
+
   // Setup options.
   struct _3COptions CcOptions;
   CcOptions.BaseDir = OptBaseDir.getValue();
