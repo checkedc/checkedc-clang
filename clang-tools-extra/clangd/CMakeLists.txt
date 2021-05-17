@@ -28,18 +28,7 @@ set(LLVM_LINK_COMPONENTS
   Option
   )
 
-# CMake function to generate clangDaemon and 3cClangDaemon targets, minimizing
-# the diff in this file from upstream Clang to ease future merging.
-function(add_clangDaemon_target target_name)
-cmake_parse_arguments(ARG "" "" "EXTRA_LIBS" ${ARGN})
-
-add_clang_library(${target_name}
-  # If we omitted these from the clangDaemon target, llvm_check_source_file_list
-  # would raise an error. We could use LLVM_OPTIONAL_SOURCES, but it doesn't
-  # seem worth it.
-  3CCommands.cpp
-  3CDiagnostics.cpp
-
+add_clang_library(clangDaemon
   AST.cpp
   ClangdLSPServer.cpp
   ClangdServer.cpp
@@ -121,7 +110,7 @@ add_clang_library(${target_name}
   omp_gen
   )
 
-clang_target_link_libraries(${target_name}
+clang_target_link_libraries(clangDaemon
   PRIVATE
   clangAST
   clangASTMatchers
@@ -138,41 +127,7 @@ clang_target_link_libraries(${target_name}
   clangToolingInclusions
   clangToolingRefactoring
   clangToolingSyntax
-  ${ARG_EXTRA_LIBS}
   )
-
-endfunction()
-
-# Some whole-program analysis tools (including IDEs) do not cope well with the
-# clangd source files being included in the compilation database twice with
-# different preprocessor flags that lead to significantly different portions of
-# each file being included in the compilation. To avoid this problem,
-# CLANGD_EXCLUSIVE_VARIANT can be set to include only one variant of clangd in
-# the configuration. This can be used, for example, to rename a program element
-# that is part of 3C and update references to it in clangd3c. If you want to
-# rename an upstream Clang program element that is referenced in both
-# INTERACTIVE3C and !INTERACTIVE3C blocks, this won't help; fortunately, we have
-# never needed to do that so far.
-set(CLANGD_KNOWN_VARIANTS "clangd;clangd3c")
-set(CLANGD_EXCLUSIVE_VARIANT "" CACHE STRING
-  "Variant of clangd to include in the configuration. If empty, include all variants.")
-set_property(CACHE CLANGD_EXCLUSIVE_VARIANT
-  PROPERTY STRINGS ";${CLANGD_KNOWN_VARIANTS}")
-foreach(variant ${CLANGD_KNOWN_VARIANTS})
-  if(CLANGD_EXCLUSIVE_VARIANT STREQUAL "" OR
-      CLANGD_EXCLUSIVE_VARIANT STREQUAL variant)
-    set(CLANGD_INCLUDE_VARIANT_${variant} ON)
-  endif()
-endforeach()
-
-if(CLANGD_INCLUDE_VARIANT_clangd)
-add_clangDaemon_target(clangDaemon)
-endif()
-
-if(CLANGD_INCLUDE_VARIANT_clangd3c)
-add_clangDaemon_target(3cClangDaemon EXTRA_LIBS clang3C)
-target_compile_definitions(obj.3cClangDaemon PRIVATE INTERACTIVE3C=1)
-endif()
 
 add_subdirectory(refactor/tweaks)
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
@@ -189,7 +144,7 @@ if ( CLANGD_BUILD_XPC )
   add_subdirectory(xpc)
 endif ()
 
-if(CLANG_INCLUDE_TESTS AND CLANGD_INCLUDE_VARIANT_clangd)
+if(CLANG_INCLUDE_TESTS)
 add_subdirectory(test)
 add_subdirectory(unittests)
 endif()
