@@ -1,9 +1,8 @@
-//===-- RegisterContext.cpp -------------------------------------*- C++ -*-===//
+//===-- RegisterContext.cpp -----------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -83,14 +82,12 @@ RegisterContext::UpdateDynamicRegisterSize(const lldb_private::ArchSpec &arch,
   DataExtractor dwarf_data(dwarf_opcode_ptr, dwarf_opcode_len,
                            arch.GetByteOrder(), addr_size);
   ModuleSP opcode_ctx;
-  DWARFExpression dwarf_expr(opcode_ctx, dwarf_data, nullptr, 0,
-                             dwarf_opcode_len);
+  DWARFExpression dwarf_expr(opcode_ctx, dwarf_data, nullptr);
   Value result;
   Status error;
-  const lldb::offset_t offset = 0;
   if (dwarf_expr.Evaluate(&exe_ctx, this, opcode_ctx, dwarf_data, nullptr,
-                          offset, dwarf_opcode_len, eRegisterKindDWARF, nullptr,
-                          nullptr, result, &error)) {
+                          eRegisterKindDWARF, nullptr, nullptr, result,
+                          &error)) {
     expr_result = result.GetScalar().SInt(-1);
     switch (expr_result) {
     case 0:
@@ -277,6 +274,24 @@ uint32_t RegisterContext::SetHardwareBreakpoint(lldb::addr_t addr,
   return LLDB_INVALID_INDEX32;
 }
 
+// Used when parsing DWARF and EH frame information and any other object file
+// sections that contain register numbers in them.
+uint32_t
+RegisterContext::ConvertRegisterKindToRegisterNumber(lldb::RegisterKind kind,
+                                                     uint32_t num) {
+  const uint32_t num_regs = GetRegisterCount();
+
+  assert(kind < kNumRegisterKinds);
+  for (uint32_t reg_idx = 0; reg_idx < num_regs; ++reg_idx) {
+    const RegisterInfo *reg_info = GetRegisterInfoAtIndex(reg_idx);
+
+    if (reg_info->kinds[kind] == num)
+      return reg_idx;
+  }
+
+  return LLDB_INVALID_REGNUM;
+}
+
 bool RegisterContext::ClearHardwareBreakpoint(uint32_t hw_idx) { return false; }
 
 uint32_t RegisterContext::NumSupportedHardwareWatchpoints() { return 0; }
@@ -398,6 +413,17 @@ Status RegisterContext::WriteRegisterValueToMemory(
     error.SetErrorString("invalid process");
 
   return error;
+}
+
+lldb::ByteOrder RegisterContext::GetByteOrder() {
+  // Get the target process whose privileged thread was used for the register
+  // read.
+  lldb::ByteOrder byte_order = lldb::eByteOrderInvalid;
+  lldb_private::Process *process = CalculateProcess().get();
+
+  if (process)
+    byte_order = process->GetByteOrder();
+  return byte_order;
 }
 
 bool RegisterContext::ReadAllRegisterValues(

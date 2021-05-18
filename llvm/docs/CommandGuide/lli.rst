@@ -1,6 +1,8 @@
 lli - directly execute programs from LLVM bitcode
 =================================================
 
+.. program:: lli
+
 SYNOPSIS
 --------
 
@@ -163,7 +165,7 @@ CODE GENERATION OPTIONS
       =simple-noitin: Simple two pass scheduling: Same as simple except using generic latency
       =list-burr: Bottom-up register reduction list scheduling
       =list-tdrr: Top-down register reduction list scheduling
-      =list-td: Top-down list scheduler -print-machineinstrs - Print generated machine code
+      =list-td: Top-down list scheduler
 
 .. option:: -regalloc=allocator
 
@@ -212,4 +214,4 @@ Otherwise, it will return the exit code of the program it executes.
 SEE ALSO
 --------
 
-:program:`llc`
+:manpage:`llc(1)`

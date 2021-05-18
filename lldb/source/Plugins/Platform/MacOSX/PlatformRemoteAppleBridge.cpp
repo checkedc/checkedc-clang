@@ -1,9 +1,8 @@
-//===-- PlatformRemoteAppleBridge.cpp -------------------------------*- C++ -*-===//
+//===-- PlatformRemoteAppleBridge.cpp -------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -28,20 +27,14 @@
 using namespace lldb;
 using namespace lldb_private;
 
-//------------------------------------------------------------------
 /// Default Constructor
-//------------------------------------------------------------------
 PlatformRemoteAppleBridge::PlatformRemoteAppleBridge()
     : PlatformRemoteDarwinDevice () {}
 
-//------------------------------------------------------------------
 // Static Variables
-//------------------------------------------------------------------
 static uint32_t g_initialize_count = 0;
 
-//------------------------------------------------------------------
 // Static Functions
-//------------------------------------------------------------------
 void PlatformRemoteAppleBridge::Initialize() {
   PlatformDarwin::Initialize();
 
@@ -75,8 +68,8 @@ PlatformSP PlatformRemoteAppleBridge::CreateInstance(bool force,
     const char *triple_cstr =
         arch ? arch->GetTriple().getTriple().c_str() : "<null>";
 
-    log->Printf("PlatformRemoteAppleBridge::%s(force=%s, arch={%s,%s})",
-                __FUNCTION__, force ? "true" : "false", arch_name, triple_cstr);
+    LLDB_LOGF(log, "PlatformRemoteAppleBridge::%s(force=%s, arch={%s,%s})",
+              __FUNCTION__, force ? "true" : "false", arch_name, triple_cstr);
   }
 
   bool create = force;
@@ -103,14 +96,22 @@ PlatformSP PlatformRemoteAppleBridge::CreateInstance(bool force,
         break;
       }
       if (create) {
+// Suppress warning "switch statement contains 'default' but no 'case' labels".
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4065)
+#endif
         switch (triple.getOS()) {
-        // NEED_BRIDGEOS_TRIPLE case llvm::Triple::BridgeOS: 
-          break;
+          // NEED_BRIDGEOS_TRIPLE case llvm::Triple::BridgeOS:
+          //  break;
 
         default:
           create = false;
           break;
         }
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
       }
     } break;
     default:
@@ -119,16 +120,15 @@ PlatformSP PlatformRemoteAppleBridge::CreateInstance(bool force,
   }
 
   if (create) {
-    if (log)
-      log->Printf("PlatformRemoteAppleBridge::%s() creating platform",
-                  __FUNCTION__);
+    LLDB_LOGF(log, "PlatformRemoteAppleBridge::%s() creating platform",
+              __FUNCTION__);
 
     return lldb::PlatformSP(new PlatformRemoteAppleBridge());
   }
 
-  if (log)
-    log->Printf("PlatformRemoteAppleBridge::%s() aborting creation of platform",
-                __FUNCTION__);
+  LLDB_LOGF(log,
+            "PlatformRemoteAppleBridge::%s() aborting creation of platform",
+            __FUNCTION__);
 
   return lldb::PlatformSP();
 }
@@ -172,15 +172,10 @@ bool PlatformRemoteAppleBridge::GetSupportedArchitectureAtIndex(uint32_t idx,
   return false;
 }
 
-
-void PlatformRemoteAppleBridge::GetDeviceSupportDirectoryNames (std::vector<std::string> &dirnames) 
-{
-    dirnames.clear();
-    dirnames.push_back("BridgeOS DeviceSupport");
+llvm::StringRef PlatformRemoteAppleBridge::GetDeviceSupportDirectoryName() {
+  return "BridgeOS DeviceSupport";
 }
 
-std::string PlatformRemoteAppleBridge::GetPlatformName ()
-{
-    return "BridgeOS.platform";
+llvm::StringRef PlatformRemoteAppleBridge::GetPlatformName() {
+  return "BridgeOS.platform";
 }
-

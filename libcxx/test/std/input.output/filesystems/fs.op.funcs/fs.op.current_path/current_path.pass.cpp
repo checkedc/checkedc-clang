@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -16,13 +15,13 @@
 // void current_path(path const&);
 // void current_path(path const&, std::error_code& ec) noexcept;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 using namespace fs;
 
@@ -52,14 +51,18 @@ TEST_CASE(current_path_test)
 
 TEST_CASE(current_path_after_change_test)
 {
-    const path new_path = StaticEnv::Dir;
+    CWDGuard guard;
+    static_test_env static_env;
+    const path new_path = static_env.Dir;
     current_path(new_path);
     TEST_CHECK(current_path() == new_path);
 }
 
 TEST_CASE(current_path_is_file_test)
 {
-    const path p = StaticEnv::File;
+    CWDGuard guard;
+    static_test_env static_env;
+    const path p = static_env.File;
     std::error_code ec;
     const path old_p = current_path();
     current_path(p, ec);
@@ -69,14 +72,16 @@ TEST_CASE(current_path_is_file_test)
 
 TEST_CASE(set_to_non_absolute_path)
 {
-    const path base = StaticEnv::Dir;
+    CWDGuard guard;
+    static_test_env static_env;
+    const path base = static_env.Dir;
     current_path(base);
-    const path p = StaticEnv::Dir2.filename();
+    const path p = static_env.Dir2.filename();
     std::error_code ec;
     current_path(p, ec);
     TEST_CHECK(!ec);
     const path new_cwd = current_path();
-    TEST_CHECK(new_cwd == StaticEnv::Dir2);
+    TEST_CHECK(new_cwd == static_env.Dir2);
     TEST_CHECK(new_cwd.is_absolute());
 }
 

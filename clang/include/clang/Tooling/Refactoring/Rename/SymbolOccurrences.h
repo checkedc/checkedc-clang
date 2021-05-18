@@ -1,9 +1,8 @@
 //===--- SymbolOccurrences.h - Clang refactoring library ------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -70,17 +69,18 @@ public:
   OccurrenceKind getKind() const { return Kind; }
 
   ArrayRef<SourceRange> getNameRanges() const {
-    if (MultipleRanges) {
-      return llvm::makeArrayRef(MultipleRanges.get(),
-                                RangeOrNumRanges.getBegin().getRawEncoding());
-    }
-    return RangeOrNumRanges;
+    if (MultipleRanges)
+      return llvm::makeArrayRef(MultipleRanges.get(), NumRanges);
+    return SingleRange;
   }
 
 private:
   OccurrenceKind Kind;
   std::unique_ptr<SourceRange[]> MultipleRanges;
-  SourceRange RangeOrNumRanges;
+  union {
+    SourceRange SingleRange;
+    unsigned NumRanges;
+  };
 };
 
 using SymbolOccurrences = std::vector<SymbolOccurrence>;

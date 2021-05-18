@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -12,22 +11,23 @@
 // template<BidirectionalIterator Iter, Predicate<auto, Iter::value_type> Pred>
 //   requires ShuffleIterator<Iter>
 //         && CopyConstructible<Pred>
-//   Iter
+//   constexpr Iter  // constexpr in C++20
 //   partition(Iter first, Iter last, Pred pred);
 
 #include <algorithm>
 #include <cassert>
 
 
+#include "test_macros.h"
 #include "test_iterators.h"
 
 struct is_odd
 {
-    bool operator()(const int& i) const {return i & 1;}
+    TEST_CONSTEXPR bool operator()(const int& i) const {return i & 1;}
 };
 
 template <class Iter>
-void
+TEST_CONSTEXPR_CXX20 bool
 test()
 {
     // check mixed
@@ -92,11 +92,21 @@ test()
         assert(is_odd()(*i));
     for (int* i = base(r); i < ia+sa; ++i)
         assert(!is_odd()(*i));
+
+    return true;
 }
 
-int main()
+int main(int, char**)
 {
     test<bidirectional_iterator<int*> >();
     test<random_access_iterator<int*> >();
     test<int*>();
+
+#if TEST_STD_VER >= 20
+    static_assert(test<bidirectional_iterator<int*>>());
+    static_assert(test<random_access_iterator<int*>>());
+    static_assert(test<int*>());
+#endif
+
+    return 0;
 }

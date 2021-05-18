@@ -1,9 +1,8 @@
 //===- MinGW/Driver.cpp ---------------------------------------------------===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -31,15 +30,19 @@
 
 #include "lld/Common/Driver.h"
 #include "lld/Common/ErrorHandler.h"
+#include "lld/Common/Memory.h"
+#include "lld/Common/Version.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/Triple.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/Option.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Host.h"
 #include "llvm/Support/Path.h"
 
 #if !defined(_MSC_VER) && !defined(__MINGW32__)
@@ -63,7 +66,7 @@ enum {
 #undef PREFIX
 
 // Create table mapping all options defined in Options.td
-static const opt::OptTable::Info InfoTable[] = {
+static const opt::OptTable::Info infoTable[] = {
 #define OPTION(X1, X2, ID, KIND, GROUP, ALIAS, X7, X8, X9, X10, X11, X12)      \
   {X1, X2, X10,         X11,         OPT_##ID, opt::Option::KIND##Class,       \
    X9, X8, OPT_##GROUP, OPT_##ALIAS, X7,       X12},
@@ -74,208 +77,360 @@ static const opt::OptTable::Info InfoTable[] = {
 namespace {
 class MinGWOptTable : public opt::OptTable {
 public:
-  MinGWOptTable() : OptTable(InfoTable, false) {}
-  opt::InputArgList parse(ArrayRef<const char *> Argv);
+  MinGWOptTable() : OptTable(infoTable, false) {}
+  opt::InputArgList parse(ArrayRef<const char *> argv);
 };
 } // namespace
 
-opt::InputArgList MinGWOptTable::parse(ArrayRef<const char *> Argv) {
-  unsigned MissingIndex;
-  unsigned MissingCount;
+static void printHelp(const char *argv0) {
+  MinGWOptTable().PrintHelp(
+      lld::outs(), (std::string(argv0) + " [options] file...").c_str(), "lld",
+      false /*ShowHidden*/, true /*ShowAllAliases*/);
+  lld::outs() << "\n";
+}
 
-  SmallVector<const char *, 256> Vec(Argv.data(), Argv.data() + Argv.size());
-  opt::InputArgList Args = this->ParseArgs(Vec, MissingIndex, MissingCount);
+static cl::TokenizerCallback getQuotingStyle() {
+  if (Triple(sys::getProcessTriple()).getOS() == Triple::Win32)
+    return cl::TokenizeWindowsCommandLine;
+  return cl::TokenizeGNUCommandLine;
+}
 
-  if (MissingCount)
-    fatal(StringRef(Args.getArgString(MissingIndex)) + ": missing argument");
-  for (auto *Arg : Args.filtered(OPT_UNKNOWN))
-    fatal("unknown argument: " + Arg->getSpelling());
-  if (!Args.hasArg(OPT_INPUT) && !Args.hasArg(OPT_l))
-    fatal("no input files");
-  return Args;
+opt::InputArgList MinGWOptTable::parse(ArrayRef<const char *> argv) {
+  unsigned missingIndex;
+  unsigned missingCount;
+
+  SmallVector<const char *, 256> vec(argv.data(), argv.data() + argv.size());
+  cl::ExpandResponseFiles(saver, getQuotingStyle(), vec);
+  opt::InputArgList args = this->ParseArgs(vec, missingIndex, missingCount);
+
+  if (missingCount)
+    error(StringRef(args.getArgString(missingIndex)) + ": missing argument");
+  for (auto *arg : args.filtered(OPT_UNKNOWN))
+    error("unknown argument: " + arg->getAsString(args));
+  return args;
 }
 
 // Find a file by concatenating given paths.
-static Optional<std::string> findFile(StringRef Path1, const Twine &Path2) {
-  SmallString<128> S;
-  sys::path::append(S, Path1, Path2);
-  if (sys::fs::exists(S))
-    return S.str().str();
+static Optional<std::string> findFile(StringRef path1, const Twine &path2) {
+  SmallString<128> s;
+  sys::path::append(s, path1, path2);
+  if (sys::fs::exists(s))
+    return std::string(s);
   return None;
 }
 
 // This is for -lfoo. We'll look for libfoo.dll.a or libfoo.a from search paths.
 static std::string
-searchLibrary(StringRef Name, ArrayRef<StringRef> SearchPaths, bool BStatic) {
-  if (Name.startswith(":")) {
-    for (StringRef Dir : SearchPaths)
-      if (Optional<std::string> S = findFile(Dir, Name.substr(1)))
-        return *S;
-    fatal("unable to find library -l" + Name);
+searchLibrary(StringRef name, ArrayRef<StringRef> searchPaths, bool bStatic) {
+  if (name.startswith(":")) {
+    for (StringRef dir : searchPaths)
+      if (Optional<std::string> s = findFile(dir, name.substr(1)))
+        return *s;
+    error("unable to find library -l" + name);
+    return "";
   }
 
-  for (StringRef Dir : SearchPaths) {
-    if (!BStatic)
-      if (Optional<std::string> S = findFile(Dir, "lib" + Name + ".dll.a"))
-        return *S;
-    if (Optional<std::string> S = findFile(Dir, "lib" + Name + ".a"))
-      return *S;
+  for (StringRef dir : searchPaths) {
+    if (!bStatic) {
+      if (Optional<std::string> s = findFile(dir, "lib" + name + ".dll.a"))
+        return *s;
+      if (Optional<std::string> s = findFile(dir, name + ".dll.a"))
+        return *s;
+    }
+    if (Optional<std::string> s = findFile(dir, "lib" + name + ".a"))
+      return *s;
+    if (!bStatic) {
+      if (Optional<std::string> s = findFile(dir, name + ".lib"))
+        return *s;
+      if (Optional<std::string> s = findFile(dir, "lib" + name + ".dll")) {
+        error("lld doesn't support linking directly against " + *s +
+              ", use an import library");
+        return "";
+      }
+      if (Optional<std::string> s = findFile(dir, name + ".dll")) {
+        error("lld doesn't support linking directly against " + *s +
+              ", use an import library");
+        return "";
+      }
+    }
   }
-  fatal("unable to find library -l" + Name);
+  error("unable to find library -l" + name);
+  return "";
 }
 
 // Convert Unix-ish command line arguments to Windows-ish ones and
 // then call coff::link.
-bool mingw::link(ArrayRef<const char *> ArgsArr, raw_ostream &Diag) {
-  MinGWOptTable Parser;
-  opt::InputArgList Args = Parser.parse(ArgsArr.slice(1));
+bool mingw::link(ArrayRef<const char *> argsArr, bool canExitEarly,
+                 raw_ostream &stdoutOS, raw_ostream &stderrOS) {
+  lld::stdoutOS = &stdoutOS;
+  lld::stderrOS = &stderrOS;
 
-  std::vector<std::string> LinkArgs;
-  auto Add = [&](const Twine &S) { LinkArgs.push_back(S.str()); };
+  stderrOS.enable_colors(stderrOS.has_colors());
 
-  Add("lld-link");
-  Add("-lldmingw");
+  MinGWOptTable parser;
+  opt::InputArgList args = parser.parse(argsArr.slice(1));
 
-  if (auto *A = Args.getLastArg(OPT_entry)) {
-    StringRef S = A->getValue();
-    if (Args.getLastArgValue(OPT_m) == "i386pe" && S.startswith("_"))
-      Add("-entry:" + S.substr(1));
-    else
-      Add("-entry:" + S);
+  if (errorCount())
+    return false;
+
+  if (args.hasArg(OPT_help)) {
+    printHelp(argsArr[0]);
+    return true;
   }
 
-  if (auto *A = Args.getLastArg(OPT_subs))
-    Add("-subsystem:" + StringRef(A->getValue()));
-  if (auto *A = Args.getLastArg(OPT_out_implib))
-    Add("-implib:" + StringRef(A->getValue()));
-  if (auto *A = Args.getLastArg(OPT_stack))
-    Add("-stack:" + StringRef(A->getValue()));
-  if (auto *A = Args.getLastArg(OPT_output_def))
-    Add("-output-def:" + StringRef(A->getValue()));
-  if (auto *A = Args.getLastArg(OPT_image_base))
-    Add("-base:" + StringRef(A->getValue()));
-  if (auto *A = Args.getLastArg(OPT_map))
-    Add("-lldmap:" + StringRef(A->getValue()));
+  // A note about "compatible with GNU linkers" message: this is a hack for
+  // scripts generated by GNU Libtool 2.4.6 (released in February 2014 and
+  // still the newest version in March 2017) or earlier to recognize LLD as
+  // a GNU compatible linker. As long as an output for the -v option
+  // contains "GNU" or "with BFD", they recognize us as GNU-compatible.
+  if (args.hasArg(OPT_v) || args.hasArg(OPT_version))
+    message(getLLDVersion() + " (compatible with GNU linkers)");
 
-  if (auto *A = Args.getLastArg(OPT_o))
-    Add("-out:" + StringRef(A->getValue()));
-  else if (Args.hasArg(OPT_shared))
-    Add("-out:a.dll");
-  else
-    Add("-out:a.exe");
+  // The behavior of -v or --version is a bit strange, but this is
+  // needed for compatibility with GNU linkers.
+  if (args.hasArg(OPT_v) && !args.hasArg(OPT_INPUT) && !args.hasArg(OPT_l))
+    return true;
+  if (args.hasArg(OPT_version))
+    return true;
 
-  if (auto *A = Args.getLastArg(OPT_pdb)) {
-    Add("-debug");
-    Add("-pdb:" + StringRef(A->getValue()));
-  } else if (Args.hasArg(OPT_strip_debug)) {
-    Add("-debug:symtab");
-  } else if (!Args.hasArg(OPT_strip_all)) {
-    Add("-debug:dwarf");
+  if (!args.hasArg(OPT_INPUT) && !args.hasArg(OPT_l)) {
+    error("no input files");
+    return false;
   }
 
-  if (Args.hasArg(OPT_shared))
-    Add("-dll");
-  if (Args.hasArg(OPT_verbose))
-    Add("-verbose");
-  if (Args.hasArg(OPT_export_all_symbols))
-    Add("-export-all-symbols");
-  if (Args.hasArg(OPT_large_address_aware))
-    Add("-largeaddressaware");
-  if (Args.hasArg(OPT_kill_at))
-    Add("-kill-at");
+  std::vector<std::string> linkArgs;
+  auto add = [&](const Twine &s) { linkArgs.push_back(s.str()); };
 
-  if (Args.getLastArgValue(OPT_m) != "thumb2pe" &&
-      Args.getLastArgValue(OPT_m) != "arm64pe" && !Args.hasArg(OPT_dynamicbase))
-    Add("-dynamicbase:no");
+  add("lld-link");
+  add("-lldmingw");
 
-  if (Args.hasFlag(OPT_gc_sections, OPT_no_gc_sections, false))
-    Add("-opt:ref");
-  else
-    Add("-opt:noref");
-
-  if (auto *A = Args.getLastArg(OPT_icf)) {
-    StringRef S = A->getValue();
-    if (S == "all")
-      Add("-opt:icf");
-    else if (S == "safe" || S == "none")
-      Add("-opt:noicf");
+  if (auto *a = args.getLastArg(OPT_entry)) {
+    StringRef s = a->getValue();
+    if (args.getLastArgValue(OPT_m) == "i386pe" && s.startswith("_"))
+      add("-entry:" + s.substr(1));
     else
-      fatal("unknown parameter: --icf=" + S);
+      add("-entry:" + s);
+  }
+
+  if (args.hasArg(OPT_major_os_version, OPT_minor_os_version,
+                  OPT_major_subsystem_version, OPT_minor_subsystem_version)) {
+    StringRef majOSVer = args.getLastArgValue(OPT_major_os_version, "6");
+    StringRef minOSVer = args.getLastArgValue(OPT_minor_os_version, "0");
+    StringRef majSubSysVer = "6";
+    StringRef minSubSysVer = "0";
+    StringRef subSysName = "default";
+    StringRef subSysVer;
+    // Iterate over --{major,minor}-subsystem-version and --subsystem, and pick
+    // the version number components from the last one of them that specifies
+    // a version.
+    for (auto *a : args.filtered(OPT_major_subsystem_version,
+                                 OPT_minor_subsystem_version, OPT_subs)) {
+      switch (a->getOption().getID()) {
+      case OPT_major_subsystem_version:
+        majSubSysVer = a->getValue();
+        break;
+      case OPT_minor_subsystem_version:
+        minSubSysVer = a->getValue();
+        break;
+      case OPT_subs:
+        std::tie(subSysName, subSysVer) = StringRef(a->getValue()).split(':');
+        if (!subSysVer.empty()) {
+          if (subSysVer.contains('.'))
+            std::tie(majSubSysVer, minSubSysVer) = subSysVer.split('.');
+          else
+            majSubSysVer = subSysVer;
+        }
+        break;
+      }
+    }
+    add("-osversion:" + majOSVer + "." + minOSVer);
+    add("-subsystem:" + subSysName + "," + majSubSysVer + "." + minSubSysVer);
+  } else if (args.hasArg(OPT_subs)) {
+    StringRef subSys = args.getLastArgValue(OPT_subs, "default");
+    StringRef subSysName, subSysVer;
+    std::tie(subSysName, subSysVer) = subSys.split(':');
+    StringRef sep = subSysVer.empty() ? "" : ",";
+    add("-subsystem:" + subSysName + sep + subSysVer);
+  }
+
+  if (auto *a = args.getLastArg(OPT_out_implib))
+    add("-implib:" + StringRef(a->getValue()));
+  if (auto *a = args.getLastArg(OPT_stack))
+    add("-stack:" + StringRef(a->getValue()));
+  if (auto *a = args.getLastArg(OPT_output_def))
+    add("-output-def:" + StringRef(a->getValue()));
+  if (auto *a = args.getLastArg(OPT_image_base))
+    add("-base:" + StringRef(a->getValue()));
+  if (auto *a = args.getLastArg(OPT_map))
+    add("-lldmap:" + StringRef(a->getValue()));
+  if (auto *a = args.getLastArg(OPT_reproduce))
+    add("-reproduce:" + StringRef(a->getValue()));
+  if (auto *a = args.getLastArg(OPT_thinlto_cache_dir))
+    add("-lldltocache:" + StringRef(a->getValue()));
+  if (auto *a = args.getLastArg(OPT_file_alignment))
+    add("-filealign:" + StringRef(a->getValue()));
+  if (auto *a = args.getLastArg(OPT_section_alignment))
+    add("-align:" + StringRef(a->getValue()));
+
+  if (auto *a = args.getLastArg(OPT_o))
+    add("-out:" + StringRef(a->getValue()));
+  else if (args.hasArg(OPT_shared))
+    add("-out:a.dll");
+  else
+    add("-out:a.exe");
+
+  if (auto *a = args.getLastArg(OPT_pdb)) {
+    add("-debug");
+    StringRef v = a->getValue();
+    if (!v.empty())
+      add("-pdb:" + v);
+  } else if (args.hasArg(OPT_strip_debug)) {
+    add("-debug:symtab");
+  } else if (!args.hasArg(OPT_strip_all)) {
+    add("-debug:dwarf");
+  }
+
+  if (args.hasArg(OPT_shared))
+    add("-dll");
+  if (args.hasArg(OPT_verbose))
+    add("-verbose");
+  if (args.hasArg(OPT_exclude_all_symbols))
+    add("-exclude-all-symbols");
+  if (args.hasArg(OPT_export_all_symbols))
+    add("-export-all-symbols");
+  if (args.hasArg(OPT_large_address_aware))
+    add("-largeaddressaware");
+  if (args.hasArg(OPT_kill_at))
+    add("-kill-at");
+  if (args.hasArg(OPT_appcontainer))
+    add("-appcontainer");
+  if (args.hasArg(OPT_no_seh))
+    add("-noseh");
+
+  if (args.getLastArgValue(OPT_m) != "thumb2pe" &&
+      args.getLastArgValue(OPT_m) != "arm64pe" &&
+      args.hasArg(OPT_no_dynamicbase))
+    add("-dynamicbase:no");
+
+  if (args.hasFlag(OPT_no_insert_timestamp, OPT_insert_timestamp, false))
+    add("-timestamp:0");
+
+  if (args.hasFlag(OPT_gc_sections, OPT_no_gc_sections, false))
+    add("-opt:ref");
+  else
+    add("-opt:noref");
+
+  if (args.hasFlag(OPT_demangle, OPT_no_demangle, true))
+    add("-demangle");
+  else
+    add("-demangle:no");
+
+  if (args.hasFlag(OPT_enable_auto_import, OPT_disable_auto_import, true))
+    add("-auto-import");
+  else
+    add("-auto-import:no");
+  if (args.hasFlag(OPT_enable_runtime_pseudo_reloc,
+                   OPT_disable_runtime_pseudo_reloc, true))
+    add("-runtime-pseudo-reloc");
+  else
+    add("-runtime-pseudo-reloc:no");
+
+  if (args.hasFlag(OPT_allow_multiple_definition,
+                   OPT_no_allow_multiple_definition, false))
+    add("-force:multiple");
+
+  if (auto *a = args.getLastArg(OPT_icf)) {
+    StringRef s = a->getValue();
+    if (s == "all")
+      add("-opt:icf");
+    else if (s == "safe" || s == "none")
+      add("-opt:noicf");
+    else
+      error("unknown parameter: --icf=" + s);
   } else {
-    Add("-opt:noicf");
+    add("-opt:noicf");
   }
 
-  if (auto *A = Args.getLastArg(OPT_m)) {
-    StringRef S = A->getValue();
-    if (S == "i386pe")
-      Add("-machine:x86");
-    else if (S == "i386pep")
-      Add("-machine:x64");
-    else if (S == "thumb2pe")
-      Add("-machine:arm");
-    else if (S == "arm64pe")
-      Add("-machine:arm64");
+  if (auto *a = args.getLastArg(OPT_m)) {
+    StringRef s = a->getValue();
+    if (s == "i386pe")
+      add("-machine:x86");
+    else if (s == "i386pep")
+      add("-machine:x64");
+    else if (s == "thumb2pe")
+      add("-machine:arm");
+    else if (s == "arm64pe")
+      add("-machine:arm64");
     else
-      fatal("unknown parameter: -m" + S);
+      error("unknown parameter: -m" + s);
   }
 
-  for (auto *A : Args.filtered(OPT_mllvm))
-    Add("-mllvm:" + StringRef(A->getValue()));
+  for (auto *a : args.filtered(OPT_mllvm))
+    add("-mllvm:" + StringRef(a->getValue()));
 
-  for (auto *A : Args.filtered(OPT_Xlink))
-    Add(A->getValue());
+  for (auto *a : args.filtered(OPT_Xlink))
+    add(a->getValue());
 
-  if (Args.getLastArgValue(OPT_m) == "i386pe")
-    Add("-alternatename:__image_base__=___ImageBase");
+  if (args.getLastArgValue(OPT_m) == "i386pe")
+    add("-alternatename:__image_base__=___ImageBase");
   else
-    Add("-alternatename:__image_base__=__ImageBase");
+    add("-alternatename:__image_base__=__ImageBase");
 
-  for (auto *A : Args.filtered(OPT_require_defined))
-    Add("-include:" + StringRef(A->getValue()));
+  for (auto *a : args.filtered(OPT_require_defined))
+    add("-include:" + StringRef(a->getValue()));
+  for (auto *a : args.filtered(OPT_undefined))
+    add("-includeoptional:" + StringRef(a->getValue()));
+  for (auto *a : args.filtered(OPT_delayload))
+    add("-delayload:" + StringRef(a->getValue()));
+  for (auto *a : args.filtered(OPT_wrap))
+    add("-wrap:" + StringRef(a->getValue()));
 
-  std::vector<StringRef> SearchPaths;
-  for (auto *A : Args.filtered(OPT_L)) {
-    SearchPaths.push_back(A->getValue());
-    Add("-libpath:" + StringRef(A->getValue()));
+  std::vector<StringRef> searchPaths;
+  for (auto *a : args.filtered(OPT_L)) {
+    searchPaths.push_back(a->getValue());
+    add("-libpath:" + StringRef(a->getValue()));
   }
 
-  StringRef Prefix = "";
-  bool Static = false;
-  for (auto *A : Args) {
-    switch (A->getOption().getUnaliasedOption().getID()) {
+  StringRef prefix = "";
+  bool isStatic = false;
+  for (auto *a : args) {
+    switch (a->getOption().getID()) {
     case OPT_INPUT:
-      if (StringRef(A->getValue()).endswith_lower(".def"))
-        Add("-def:" + StringRef(A->getValue()));
+      if (StringRef(a->getValue()).endswith_lower(".def"))
+        add("-def:" + StringRef(a->getValue()));
       else
-        Add(Prefix + StringRef(A->getValue()));
+        add(prefix + StringRef(a->getValue()));
       break;
     case OPT_l:
-      Add(Prefix + searchLibrary(A->getValue(), SearchPaths, Static));
+      add(prefix + searchLibrary(a->getValue(), searchPaths, isStatic));
       break;
     case OPT_whole_archive:
-      Prefix = "-wholearchive:";
+      prefix = "-wholearchive:";
       break;
     case OPT_no_whole_archive:
-      Prefix = "";
+      prefix = "";
       break;
     case OPT_Bstatic:
-      Static = true;
+      isStatic = true;
       break;
     case OPT_Bdynamic:
-      Static = false;
+      isStatic = false;
       break;
     }
   }
 
-  if (Args.hasArg(OPT_verbose) || Args.hasArg(OPT__HASH_HASH_HASH))
-    outs() << llvm::join(LinkArgs, " ") << "\n";
+  if (errorCount())
+    return false;
 
-  if (Args.hasArg(OPT__HASH_HASH_HASH))
+  if (args.hasArg(OPT_verbose) || args.hasArg(OPT__HASH_HASH_HASH))
+    lld::outs() << llvm::join(linkArgs, " ") << "\n";
+
+  if (args.hasArg(OPT__HASH_HASH_HASH))
     return true;
 
   // Repack vector of strings to vector of const char pointers for coff::link.
-  std::vector<const char *> Vec;
-  for (const std::string &S : LinkArgs)
-    Vec.push_back(S.c_str());
-  return coff::link(Vec, true);
+  std::vector<const char *> vec;
+  for (const std::string &s : linkArgs)
+    vec.push_back(s.c_str());
+  return coff::link(vec, true, stdoutOS, stderrOS);
 }

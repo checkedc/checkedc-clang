@@ -1,15 +1,17 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 // <numeric>
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
+// UNSUPPORTED: clang-8
+// UNSUPPORTED: gcc-9
 
+// Became constexpr in C++20
 // template <class InputIterator1, class InputIterator2, class T>
 //   T transform_reduce(InputIterator1 first1, InputIterator1 last1,
 //                      InputIterator2 first2, T init);
@@ -19,11 +21,12 @@
 #include <cassert>
 #include <iterator>
 
+#include "test_macros.h"
 #include "MoveOnly.h"
 #include "test_iterators.h"
 
 template <class Iter1, class Iter2, class T>
-void
+TEST_CONSTEXPR_CXX20 void
 test(Iter1 first1, Iter1 last1, Iter2 first2, T init, T x)
 {
     static_assert( std::is_same_v<T,
@@ -32,7 +35,7 @@ test(Iter1 first1, Iter1 last1, Iter2 first2, T init, T x)
 }
 
 template <class SIter, class UIter>
-void
+TEST_CONSTEXPR_CXX20 void
 test()
 {
     int ia[]          = {1, 2, 3, 4, 5, 6};
@@ -51,14 +54,16 @@ test()
 }
 
 template <typename T, typename Init>
-void test_return_type()
+TEST_CONSTEXPR_CXX20 void
+test_return_type()
 {
     T *p = nullptr;
     static_assert( std::is_same_v<Init,
                        decltype(std::transform_reduce(p, p, p, Init{}))> );
 }
 
-void test_move_only_types()
+TEST_CONSTEXPR_CXX20 void
+test_move_only_types()
 {
     MoveOnly ia[] = {{1}, {2}, {3}};
     MoveOnly ib[] = {{1}, {2}, {3}};
@@ -66,7 +71,8 @@ void test_move_only_types()
         std::transform_reduce(std::begin(ia), std::end(ia), std::begin(ib), MoveOnly{0}).get());
 }
 
-int main()
+TEST_CONSTEXPR_CXX20 bool
+test()
 {
     test_return_type<char, int>();
     test_return_type<int, int>();
@@ -104,4 +110,15 @@ int main()
     test<      int*,       unsigned int *>();
 
     test_move_only_types();
+
+    return true;
+}
+
+int main(int, char**)
+{
+    test();
+#if TEST_STD_VER > 17
+    static_assert(test());
+#endif
+    return 0;
 }

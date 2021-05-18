@@ -1,9 +1,8 @@
 //===-- FDInterposing.cpp ---------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -69,15 +68,6 @@
 #include <unistd.h>
 #include <vector>
 
-//----------------------------------------------------------------------
-/// @def DISALLOW_COPY_AND_ASSIGN(TypeName)
-///     Macro definition for easily disallowing copy constructor and
-///     assignment operators in C++ classes.
-//----------------------------------------------------------------------
-#define DISALLOW_COPY_AND_ASSIGN(TypeName)                                     \
-  TypeName(const TypeName &);                                                  \
-  const TypeName &operator=(const TypeName &)
-
 extern "C" {
 int accept$NOCANCEL(int, struct sockaddr *__restrict, socklen_t *__restrict);
 int close$NOCANCEL(int);
@@ -88,10 +78,8 @@ int __open_extended(const char *, int, uid_t, gid_t, int,
 
 namespace fd_interposing {
 
-//----------------------------------------------------------------------
 // String class so we can get formatted strings without having to worry
 // about the memory storage since it will allocate the memory it needs.
-//----------------------------------------------------------------------
 class String {
 public:
   String() : m_str(NULL) {}
@@ -140,26 +128,23 @@ protected:
   char *m_str;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(String);
+  String(const String &) = delete;
+  const String &operator=(const String &) = delete;
 };
 
-//----------------------------------------------------------------------
 // Type definitions
-//----------------------------------------------------------------------
 typedef std::vector<void *> Frames;
 class FDEvent;
 typedef std::vector<void *> Frames;
 typedef std::tr1::shared_ptr<FDEvent> FDEventSP;
 typedef std::tr1::shared_ptr<String> StringSP;
 
-//----------------------------------------------------------------------
 // FDEvent
 //
-// A class that describes a file desciptor event.
+// A class that describes a file descriptor event.
 //
 // File descriptor events fall into one of two categories: create events
 // and delete events.
-//----------------------------------------------------------------------
 class FDEvent {
 public:
   FDEvent(int fd, int err, const StringSP &string_sp, bool is_create,
@@ -194,7 +179,7 @@ private:
   // The frames for the stack backtrace for this event
   Frames m_frames;
   // If this is a file descriptor delete event, this might contain
-  // the correspoding file descriptor create event
+  // the corresponding file descriptor create event
   FDEventSP m_create_event_sp;
   // The file descriptor for this event
   int m_fd;
@@ -205,11 +190,9 @@ private:
   bool m_is_create;
 };
 
-//----------------------------------------------------------------------
 // Templatized class that will save errno only if the "value" it is
 // constructed with is equal to INVALID. When the class goes out of
 // scope, it will restore errno if it was saved.
-//----------------------------------------------------------------------
 template <int INVALID> class Errno {
 public:
   // Save errno only if we are supposed to
@@ -236,27 +219,25 @@ typedef Errno<-1> NegativeErrorErrno;
 typedef std::vector<FDEventSP> FDEventArray;
 typedef std::map<int, FDEventArray> FDEventMap;
 
-//----------------------------------------------------------------------
 // Globals
-//----------------------------------------------------------------------
 // Global event map that contains all file descriptor events. As file
 // descriptor create and close events come in, they will get filled
 // into this map (protected by g_mutex). When a file descriptor close
 // event is detected, the open event will be removed and placed into
 // the close event so if something tries to double close a file
 // descriptor we can show the previous close event and the file
-// desctiptor event that created it. When a new file descriptor create
+// descriptor event that created it. When a new file descriptor create
 // event comes in, we will remove the previous one for that file
-// desctiptor unless the environment variable
+// descriptor unless the environment variable
 // "FileDescriptorStackLoggingNoCompact"
-// is set. The file desctiptor history can be accessed using the
+// is set. The file descriptor history can be accessed using the
 // get_fd_history() function.
 static FDEventMap g_fd_event_map;
 // A mutex to protect access to our data structures in g_fd_event_map
 // and also our logging messages
 static pthread_mutex_t g_mutex = PTHREAD_MUTEX_INITIALIZER;
 // Log all file descriptor create and close events by default. Only log
-// warnings and erros if the "FileDescriptorMinimalLogging" environment
+// warnings and errors if the "FileDescriptorMinimalLogging" environment
 // variable is set.
 static int g_log_all_calls = 1;
 // We compact the file descriptor events by default. Set the environment
@@ -265,10 +246,8 @@ static int g_compact = 1;
 // The current process ID
 static int g_pid = -1;
 static bool g_enabled = true;
-//----------------------------------------------------------------------
 // Mutex class that will lock a mutex when it is constructed, and unlock
 // it when is goes out of scope
-//----------------------------------------------------------------------
 class Locker {
 public:
   Locker(pthread_mutex_t *mutex_ptr) : m_mutex_ptr(mutex_ptr) {
@@ -513,7 +492,7 @@ void save_backtrace(int fd, int err, const StringSP &string_sp,
             fd);
       } else if (g_compact) {
         // We are compacting so we remove previous create event
-        // when we get the correspinding delete event
+        // when we get the corresponding delete event
         event_array.pop_back();
       }
     } else {
@@ -533,7 +512,7 @@ void save_backtrace(int fd, int err, const StringSP &string_sp,
         // that this close if for...
         fd_event_sp->SetCreateEvent(event_array.back());
         // We are compacting so we remove previous create event
-        // when we get the correspinding delete event
+        // when we get the corresponding delete event
         event_array.pop_back();
       }
     }
@@ -544,9 +523,7 @@ void save_backtrace(int fd, int err, const StringSP &string_sp,
   }
 }
 
-//----------------------------------------------------------------------
 // socket() interpose function
-//----------------------------------------------------------------------
 extern "C" int socket$__interposed__(int domain, int type, int protocol) {
   const int pid = get_interposed_pid();
   if (pid >= 0) {
@@ -573,9 +550,7 @@ extern "C" int socket$__interposed__(int domain, int type, int protocol) {
   }
 }
 
-//----------------------------------------------------------------------
 // socketpair() interpose function
-//----------------------------------------------------------------------
 extern "C" int socketpair$__interposed__(int domain, int type, int protocol,
                                          int fds[2]) {
   const int pid = get_interposed_pid();
@@ -601,9 +576,7 @@ extern "C" int socketpair$__interposed__(int domain, int type, int protocol,
   }
 }
 
-//----------------------------------------------------------------------
 // open() interpose function
-//----------------------------------------------------------------------
 extern "C" int open$__interposed__(const char *path, int oflag, int mode) {
   const int pid = get_interposed_pid();
   if (pid >= 0) {
@@ -632,9 +605,7 @@ extern "C" int open$__interposed__(const char *path, int oflag, int mode) {
   }
 }
 
-//----------------------------------------------------------------------
 // open$NOCANCEL() interpose function
-//----------------------------------------------------------------------
 extern "C" int open$NOCANCEL$__interposed__(const char *path, int oflag,
                                             int mode) {
   const int pid = get_interposed_pid();
@@ -655,9 +626,7 @@ extern "C" int open$NOCANCEL$__interposed__(const char *path, int oflag,
   }
 }
 
-//----------------------------------------------------------------------
 // __open_extended() interpose function
-//----------------------------------------------------------------------
 extern "C" int __open_extended$__interposed__(const char *path, int oflag,
                                               uid_t uid, gid_t gid, int mode,
                                               struct kauth_filesec *fsacl) {
@@ -680,9 +649,7 @@ extern "C" int __open_extended$__interposed__(const char *path, int oflag,
   }
 }
 
-//----------------------------------------------------------------------
 // kqueue() interpose function
-//----------------------------------------------------------------------
 extern "C" int kqueue$__interposed__(void) {
   const int pid = get_interposed_pid();
   if (pid >= 0) {
@@ -700,9 +667,7 @@ extern "C" int kqueue$__interposed__(void) {
   }
 }
 
-//----------------------------------------------------------------------
 // shm_open() interpose function
-//----------------------------------------------------------------------
 extern "C" int shm_open$__interposed__(const char *path, int oflag, int mode) {
   const int pid = get_interposed_pid();
   if (pid >= 0) {
@@ -722,9 +687,7 @@ extern "C" int shm_open$__interposed__(const char *path, int oflag, int mode) {
   }
 }
 
-//----------------------------------------------------------------------
 // accept() interpose function
-//----------------------------------------------------------------------
 extern "C" int accept$__interposed__(int socket, struct sockaddr *address,
                                      socklen_t *address_len) {
   const int pid = get_interposed_pid();
@@ -744,9 +707,7 @@ extern "C" int accept$__interposed__(int socket, struct sockaddr *address,
   }
 }
 
-//----------------------------------------------------------------------
 // accept$NOCANCEL() interpose function
-//----------------------------------------------------------------------
 extern "C" int accept$NOCANCEL$__interposed__(int socket,
                                               struct sockaddr *address,
                                               socklen_t *address_len) {
@@ -767,9 +728,7 @@ extern "C" int accept$NOCANCEL$__interposed__(int socket,
   }
 }
 
-//----------------------------------------------------------------------
 // dup() interpose function
-//----------------------------------------------------------------------
 extern "C" int dup$__interposed__(int fd2) {
   const int pid = get_interposed_pid();
   if (pid >= 0) {
@@ -788,9 +747,7 @@ extern "C" int dup$__interposed__(int fd2) {
   }
 }
 
-//----------------------------------------------------------------------
 // dup2() interpose function
-//----------------------------------------------------------------------
 extern "C" int dup2$__interposed__(int fd1, int fd2) {
   const int pid = get_interposed_pid();
   if (pid >= 0) {
@@ -820,9 +777,7 @@ extern "C" int dup2$__interposed__(int fd1, int fd2) {
   }
 }
 
-//----------------------------------------------------------------------
 // close() interpose function
-//----------------------------------------------------------------------
 extern "C" int close$__interposed__(int fd) {
   const int pid = get_interposed_pid();
   if (pid >= 0) {
@@ -860,9 +815,7 @@ extern "C" int close$__interposed__(int fd) {
   }
 }
 
-//----------------------------------------------------------------------
 // close$NOCANCEL() interpose function
-//----------------------------------------------------------------------
 extern "C" int close$NOCANCEL$__interposed__(int fd) {
   const int pid = get_interposed_pid();
   if (pid >= 0) {
@@ -901,9 +854,7 @@ extern "C" int close$NOCANCEL$__interposed__(int fd) {
   }
 }
 
-//----------------------------------------------------------------------
 // pipe() interpose function
-//----------------------------------------------------------------------
 extern "C" int pipe$__interposed__(int fds[2]) {
   const int pid = get_interposed_pid();
   if (pid >= 0) {
@@ -927,7 +878,6 @@ extern "C" int pipe$__interposed__(int fds[2]) {
   }
 }
 
-//----------------------------------------------------------------------
 // get_fd_history()
 //
 // This function allows runtime access to the file descriptor history.
@@ -937,7 +887,6 @@ extern "C" int pipe$__interposed__(int fds[2]) {
 //
 // @param[in] fd
 //      The file descriptor whose history should be dumped
-//----------------------------------------------------------------------
 extern "C" void get_fd_history(int log_fd, int fd) {
   // "create" below needs to be outside of the mutex locker scope
   if (log_fd >= 0) {
@@ -961,9 +910,7 @@ extern "C" void get_fd_history(int log_fd, int fd) {
   }
 }
 
-//----------------------------------------------------------------------
 // Interposing
-//----------------------------------------------------------------------
 // FD creation routines
 DYLD_INTERPOSE(accept$__interposed__, accept);
 DYLD_INTERPOSE(accept$NOCANCEL$__interposed__, accept$NOCANCEL);

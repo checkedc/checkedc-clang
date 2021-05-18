@@ -1,20 +1,20 @@
 //===--- MacroUsageCheck.h - clang-tidy--------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CPPCOREGUIDELINES_MACROUSAGECHECK_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CPPCOREGUIDELINES_MACROUSAGECHECK_H
 
-#include "../ClangTidy.h"
-#include "clang/Lex/Preprocessor.h"
+#include "../ClangTidyCheck.h"
+#include "clang/Lex/MacroInfo.h"
 #include <string>
 
 namespace clang {
+class MacroDirective;
 namespace tidy {
 namespace cppcoreguidelines {
 
@@ -28,10 +28,14 @@ public:
   MacroUsageCheck(StringRef Name, ClangTidyContext *Context)
       : ClangTidyCheck(Name, Context),
         AllowedRegexp(Options.get("AllowedRegexp", "^DEBUG_*")),
-        CheckCapsOnly(Options.get("CheckCapsOnly", 0)),
-        IgnoreCommandLineMacros(Options.get("IgnoreCommandLineMacros", 1)) {}
+        CheckCapsOnly(Options.get("CheckCapsOnly", false)),
+        IgnoreCommandLineMacros(Options.get("IgnoreCommandLineMacros", true)) {}
+  bool isLanguageVersionSupported(const LangOptions &LangOpts) const override {
+    return LangOpts.CPlusPlus11;
+  }
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
-  void registerPPCallbacks(CompilerInstance &Compiler) override;
+  void registerPPCallbacks(const SourceManager &SM, Preprocessor *PP,
+                           Preprocessor *ModuleExpanderPP) override;
   void warnMacro(const MacroDirective *MD, StringRef MacroName);
   void warnNaming(const MacroDirective *MD, StringRef MacroName);
 

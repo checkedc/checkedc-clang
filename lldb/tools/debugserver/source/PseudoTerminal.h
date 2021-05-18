@@ -1,9 +1,8 @@
 //===-- PseudoTerminal.h ----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -11,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __PseudoTerminal_h__
-#define __PseudoTerminal_h__
+#ifndef LLDB_TOOLS_DEBUGSERVER_SOURCE_PSEUDOTERMINAL_H
+#define LLDB_TOOLS_DEBUGSERVER_SOURCE_PSEUDOTERMINAL_H
 
 #include <fcntl.h>
 #include <string>
@@ -28,7 +27,7 @@ public:
     err_grantpt_failed = -3,
     err_unlockpt_failed = -4,
     err_ptsname_failed = -5,
-    err_open_slave_failed = -6,
+    err_open_secondary_failed = -6,
     err_fork_failed = -7,
     err_setsid_failed = -8,
     err_failed_to_acquire_controlling_terminal = -9,
@@ -36,52 +35,45 @@ public:
     err_dup2_failed_on_stdout = -11,
     err_dup2_failed_on_stderr = -12
   };
-  //------------------------------------------------------------------
   // Constructors and Destructors
-  //------------------------------------------------------------------
   PseudoTerminal();
   ~PseudoTerminal();
 
-  void CloseMaster();
-  void CloseSlave();
-  Status OpenFirstAvailableMaster(int oflag);
-  Status OpenSlave(int oflag);
-  int MasterFD() const { return m_master_fd; }
-  int SlaveFD() const { return m_slave_fd; }
-  int ReleaseMasterFD() {
-    // Release ownership of the master pseudo terminal file
+  void ClosePrimary();
+  void CloseSecondary();
+  Status OpenFirstAvailablePrimary(int oflag);
+  Status OpenSecondary(int oflag);
+  int PrimaryFD() const { return m_primary_fd; }
+  int SecondaryFD() const { return m_secondary_fd; }
+  int ReleasePrimaryFD() {
+    // Release ownership of the primary pseudo terminal file
     // descriptor without closing it. (the destructor for this
     // class will close it otherwise!)
-    int fd = m_master_fd;
-    m_master_fd = invalid_fd;
+    int fd = m_primary_fd;
+    m_primary_fd = invalid_fd;
     return fd;
   }
-  int ReleaseSlaveFD() {
-    // Release ownership of the slave pseudo terminal file
+  int ReleaseSecondaryFD() {
+    // Release ownership of the secondary pseudo terminal file
     // descriptor without closing it (the destructor for this
     // class will close it otherwise!)
-    int fd = m_slave_fd;
-    m_slave_fd = invalid_fd;
+    int fd = m_secondary_fd;
+    m_secondary_fd = invalid_fd;
     return fd;
   }
 
-  const char *SlaveName() const;
+  const char *SecondaryName() const;
 
   pid_t Fork(Status &error);
 
 protected:
-  //------------------------------------------------------------------
   // Classes that inherit from PseudoTerminal can see and modify these
-  //------------------------------------------------------------------
-  int m_master_fd;
-  int m_slave_fd;
+  int m_primary_fd;
+  int m_secondary_fd;
 
 private:
-  //------------------------------------------------------------------
-  // Outlaw copy and assignment constructors
-  //------------------------------------------------------------------
-  PseudoTerminal(const PseudoTerminal &rhs);
-  PseudoTerminal &operator=(const PseudoTerminal &rhs);
+  PseudoTerminal(const PseudoTerminal &rhs) = delete;
+  PseudoTerminal &operator=(const PseudoTerminal &rhs) = delete;
 };
 
-#endif // #ifndef __PseudoTerminal_h__
+#endif // LLDB_TOOLS_DEBUGSERVER_SOURCE_PSEUDOTERMINAL_H

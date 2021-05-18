@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -17,39 +16,39 @@
 
 // locale names
 #ifdef _WIN32
-// WARNING: Windows does not support UTF-8 codepages.
-// Locales are "converted" using https://docs.moodle.org/dev/Table_of_locales
-#define LOCALE_en_US           "en-US"
-#define LOCALE_en_US_UTF_8     "en-US"
-#define LOCALE_cs_CZ_ISO8859_2 "cs-CZ"
-#define LOCALE_fr_FR_UTF_8     "fr-FR"
-#define LOCALE_fr_CA_ISO8859_1 "fr-CA"
-#define LOCALE_ru_RU_UTF_8     "ru-RU"
-#define LOCALE_zh_CN_UTF_8     "zh-CN"
+    // WARNING: Windows does not support UTF-8 codepages.
+    // Locales are "converted" using https://docs.moodle.org/dev/Table_of_locales
+#   define LOCALE_en_US           "en-US"
+#   define LOCALE_en_US_UTF_8     "en-US"
+#   define LOCALE_cs_CZ_ISO8859_2 "cs-CZ"
+#   define LOCALE_fr_FR_UTF_8     "fr-FR"
+#   define LOCALE_fr_CA_ISO8859_1 "fr-CA"
+#   define LOCALE_ru_RU_UTF_8     "ru-RU"
+#   define LOCALE_zh_CN_UTF_8     "zh-CN"
 #elif defined(__CloudABI__)
-// Timezones are integrated into locales through LC_TIMEZONE_MASK on
-// CloudABI. LC_ALL_MASK can only be used if a timezone has also been
-// provided. UTC should be all right.
-#define LOCALE_en_US           "en_US"
-#define LOCALE_en_US_UTF_8     "en_US.UTF-8@UTC"
-#define LOCALE_fr_FR_UTF_8     "fr_FR.UTF-8@UTC"
-#define LOCALE_fr_CA_ISO8859_1 "fr_CA.ISO-8859-1@UTC"
-#define LOCALE_cs_CZ_ISO8859_2 "cs_CZ.ISO-8859-2@UTC"
-#define LOCALE_ru_RU_UTF_8     "ru_RU.UTF-8@UTC"
-#define LOCALE_zh_CN_UTF_8     "zh_CN.UTF-8@UTC"
+    // Timezones are integrated into locales through LC_TIMEZONE_MASK on
+    // CloudABI. LC_ALL_MASK can only be used if a timezone has also been
+    // provided. UTC should be all right.
+#   define LOCALE_en_US           "en_US"
+#   define LOCALE_en_US_UTF_8     "en_US.UTF-8@UTC"
+#   define LOCALE_fr_FR_UTF_8     "fr_FR.UTF-8@UTC"
+#   define LOCALE_fr_CA_ISO8859_1 "fr_CA.ISO-8859-1@UTC"
+#   define LOCALE_cs_CZ_ISO8859_2 "cs_CZ.ISO-8859-2@UTC"
+#   define LOCALE_ru_RU_UTF_8     "ru_RU.UTF-8@UTC"
+#   define LOCALE_zh_CN_UTF_8     "zh_CN.UTF-8@UTC"
 #else
-#define LOCALE_en_US           "en_US"
-#define LOCALE_en_US_UTF_8     "en_US.UTF-8"
-#define LOCALE_fr_FR_UTF_8     "fr_FR.UTF-8"
-#ifdef __linux__
-#define LOCALE_fr_CA_ISO8859_1 "fr_CA.ISO-8859-1"
-#define LOCALE_cs_CZ_ISO8859_2 "cs_CZ.ISO-8859-2"
-#else
-#define LOCALE_fr_CA_ISO8859_1 "fr_CA.ISO8859-1"
-#define LOCALE_cs_CZ_ISO8859_2 "cs_CZ.ISO8859-2"
-#endif
-#define LOCALE_ru_RU_UTF_8     "ru_RU.UTF-8"
-#define LOCALE_zh_CN_UTF_8     "zh_CN.UTF-8"
+#   define LOCALE_en_US           "en_US"
+#   define LOCALE_en_US_UTF_8     "en_US.UTF-8"
+#   define LOCALE_fr_FR_UTF_8     "fr_FR.UTF-8"
+#   ifdef __linux__
+#       define LOCALE_fr_CA_ISO8859_1 "fr_CA.ISO-8859-1"
+#       define LOCALE_cs_CZ_ISO8859_2 "cs_CZ.ISO-8859-2"
+#   else
+#       define LOCALE_fr_CA_ISO8859_1 "fr_CA.ISO8859-1"
+#       define LOCALE_cs_CZ_ISO8859_2 "cs_CZ.ISO8859-2"
+#   endif
+#   define LOCALE_ru_RU_UTF_8     "ru_RU.UTF-8"
+#   define LOCALE_zh_CN_UTF_8     "zh_CN.UTF-8"
 #endif
 
 #include <stdio.h>
@@ -58,9 +57,9 @@
 #include <locale>
 #include <string>
 #if defined(_WIN32) || defined(__MINGW32__)
-#include <io.h> // _mktemp_s
+#   include <io.h> // _mktemp_s
 #else
-#include <unistd.h> // close
+#   include <unistd.h> // close
 #endif
 
 #if defined(_NEWLIB_VERSION) && defined(__STRICT_ANSI__)
@@ -110,5 +109,19 @@ std::wstring get_wide_temp_file_name()
 #endif // _LIBCPP_HAS_OPEN_WITH_WCHAR
 
 #endif // __CloudABI__
+
+#if defined(_CS_GNU_LIBC_VERSION)
+inline bool glibc_version_less_than(char const* version) {
+  std::string test_version = std::string("glibc ") + version;
+
+  size_t n = confstr(_CS_GNU_LIBC_VERSION, nullptr, (size_t)0);
+  char *current_version = new char[n];
+  confstr(_CS_GNU_LIBC_VERSION, current_version, n);
+
+  bool result = strverscmp(current_version, test_version.c_str()) < 0;
+  delete[] current_version;
+  return result;
+}
+#endif // _CS_GNU_LIBC_VERSION
 
 #endif // PLATFORM_SUPPORT_H

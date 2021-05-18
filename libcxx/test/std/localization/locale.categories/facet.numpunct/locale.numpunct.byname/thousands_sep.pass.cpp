@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -22,12 +21,11 @@
 
 #include <locale>
 #include <cassert>
-#include <iostream> // FIXME: for debugging purposes only
 
 #include "test_macros.h"
 #include "platform_support.h" // locale name macros
 
-int main()
+int main(int, char**)
 {
     {
         std::locale l("C");
@@ -57,14 +55,10 @@ int main()
     }
     {
         std::locale l(LOCALE_fr_FR_UTF_8);
-#if defined(TEST_HAS_GLIBC)
-        const char sep = ' ';
 // The below tests work around GLIBC's use of U202F as LC_NUMERIC thousands_sep.
-# if TEST_GLIBC_PREREQ(2, 27)
-        const wchar_t wsep = L'\u202f';
-# else
-        const wchar_t wsep = L' ';
-# endif
+#if defined(_CS_GNU_LIBC_VERSION)
+        const char sep = ' ';
+        const wchar_t wsep = glibc_version_less_than("2.27") ? L' ' : L'\u202f';
 #else
         const char sep = ',';
         const wchar_t wsep = L',';
@@ -72,11 +66,6 @@ int main()
         {
             typedef char C;
             const std::numpunct<C>& np = std::use_facet<std::numpunct<C> >(l);
-            if (np.thousands_sep() != sep) {
-              std::cout << "np.thousands_sep() = '" << np.thousands_sep() << "'\n";
-              std::cout << "sep = '" << sep << "'\n";
-              std::cout << std::endl;
-            }
             assert(np.thousands_sep() == sep);
         }
         {
@@ -85,4 +74,6 @@ int main()
             assert(np.thousands_sep() == wsep);
         }
     }
+
+    return 0;
 }

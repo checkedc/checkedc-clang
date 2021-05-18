@@ -1,9 +1,8 @@
-//===-- OptionGroupArchitecture.cpp -----------------------------*- C++ -*-===//
+//===-- OptionGroupArchitecture.cpp ---------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -43,12 +42,11 @@ OptionGroupArchitecture::SetOptionValue(uint32_t option_idx,
 
   switch (short_option) {
   case 'a':
-    m_arch_str.assign(option_arg);
+    m_arch_str.assign(std::string(option_arg));
     break;
 
   default:
-    error.SetErrorStringWithFormat("unrecognized option '%c'", short_option);
-    break;
+    llvm_unreachable("Unimplemented option");
   }
 
   return error;

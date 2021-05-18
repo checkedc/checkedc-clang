@@ -19,11 +19,11 @@ target triple = "x86_64-unknown-linux-gnu"
 
 @__asan_mapping_offset = linkonce_odr constant i64 2147450880
 @__asan_mapping_scale = linkonce_odr constant i64 3
-@llvm.global_ctors = appending global [1 x { i32, void ()* }] [{ i32, void ()* } { i32 1, void ()* @asan.module_ctor }]
+@llvm.global_ctors = appending global [1 x { i32, void ()*, i8* }] [{ i32, void ()*, i8* } { i32 1, void ()* @asan.module_ctor, i8* null }]
 @___asan_gen_ = private unnamed_addr constant [16 x i8] c"1 32 4 5 .addr \00", align 1
 
 ; Function Attrs: sanitize_address uwtable
-define void @_Z4funci(%struct.A* noalias sret %agg.result, i32) #0 "stack-protector-buffer-size"="1" !dbg !4 {
+define void @_Z4funci(%struct.A* noalias sret(%struct.A) %agg.result, i32) #0 "stack-protector-buffer-size"="1" !dbg !4 {
 entry:
   %MyAlloca = alloca [96 x i8], align 32
   %1 = ptrtoint [96 x i8]* %MyAlloca to i64
@@ -140,9 +140,9 @@ declare void @__asan_register_globals(i64, i64)
 
 declare void @__asan_unregister_globals(i64, i64)
 
-attributes #0 = { sanitize_address uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf"="true" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "ssp-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { sanitize_address uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "ssp-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone }
-attributes #2 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf"="true" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "ssp-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #2 = { "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "ssp-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!22, !27}

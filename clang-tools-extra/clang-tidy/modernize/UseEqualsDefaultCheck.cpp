@@ -1,9 +1,8 @@
 //===--- UseEqualsDefaultCheck.cpp - clang-tidy----------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -11,6 +10,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Lex/Lexer.h"
+#include "../utils/LexerUtils.h"
 
 using namespace clang::ast_matchers;
 
@@ -20,7 +20,7 @@ namespace modernize {
 
 static const char SpecialFunction[] = "SpecialFunction";
 
-/// \brief Finds all the named non-static fields of \p Record.
+/// Finds all the named non-static fields of \p Record.
 static std::set<const FieldDecl *>
 getAllNamedFields(const CXXRecordDecl *Record) {
   std::set<const FieldDecl *> Result;
@@ -33,7 +33,7 @@ getAllNamedFields(const CXXRecordDecl *Record) {
   return Result;
 }
 
-/// \brief Returns the names of the direct bases of \p Record, both virtual and
+/// Returns the names of the direct bases of \p Record, both virtual and
 /// non-virtual.
 static std::set<const Type *> getAllDirectBases(const CXXRecordDecl *Record) {
   std::set<const Type *> Result;
@@ -45,7 +45,7 @@ static std::set<const Type *> getAllDirectBases(const CXXRecordDecl *Record) {
   return Result;
 }
 
-/// \brief Returns a matcher that matches member expressions where the base is
+/// Returns a matcher that matches member expressions where the base is
 /// the variable declared as \p Var and the accessed member is the one declared
 /// as \p Field.
 internal::Matcher<Expr> accessToFieldInVar(const FieldDecl *Field,
@@ -55,7 +55,7 @@ internal::Matcher<Expr> accessToFieldInVar(const FieldDecl *Field,
                  member(fieldDecl(equalsNode(Field)))));
 }
 
-/// \brief Check that the given constructor has copy signature and that it
+/// Check that the given constructor has copy signature and that it
 /// copy-initializes all its bases and members.
 static bool isCopyConstructorAndCanBeDefaulted(ASTContext *Context,
                                                const CXXConstructorDecl *Ctor) {
@@ -75,14 +75,17 @@ static bool isCopyConstructorAndCanBeDefaulted(ASTContext *Context,
     // The initialization of a base class should be a call to a copy
     // constructor of the base.
     if (match(
-            cxxConstructorDecl(forEachConstructorInitializer(cxxCtorInitializer(
-                isBaseInitializer(),
-                withInitializer(cxxConstructExpr(
-                    hasType(equalsNode(Base)),
-                    hasDeclaration(cxxConstructorDecl(isCopyConstructor())),
-                    argumentCountIs(1),
-                    hasArgument(
-                        0, declRefExpr(to(varDecl(equalsNode(Param)))))))))),
+            traverse(TK_AsIs,
+                     cxxConstructorDecl(
+                         forEachConstructorInitializer(cxxCtorInitializer(
+                             isBaseInitializer(),
+                             withInitializer(cxxConstructExpr(
+                                 hasType(equalsNode(Base)),
+                                 hasDeclaration(
+                                     cxxConstructorDecl(isCopyConstructor())),
+                                 argumentCountIs(1),
+                                 hasArgument(0, declRefExpr(to(varDecl(
+                                                    equalsNode(Param))))))))))),
             *Ctor, *Context)
             .empty())
       return false;
@@ -92,17 +95,20 @@ static bool isCopyConstructorAndCanBeDefaulted(ASTContext *Context,
   for (const auto *Field : FieldsToInit) {
     auto AccessToFieldInParam = accessToFieldInVar(Field, Param);
     // The initialization is a CXXConstructExpr for class types.
-    if (match(
-            cxxConstructorDecl(forEachConstructorInitializer(cxxCtorInitializer(
-                isMemberInitializer(), forField(equalsNode(Field)),
-                withInitializer(anyOf(
-                    AccessToFieldInParam,
-                    initListExpr(has(AccessToFieldInParam)),
-                    cxxConstructExpr(
-                        hasDeclaration(cxxConstructorDecl(isCopyConstructor())),
-                        argumentCountIs(1),
-                        hasArgument(0, AccessToFieldInParam))))))),
-            *Ctor, *Context)
+    if (match(traverse(
+                  TK_AsIs,
+                  cxxConstructorDecl(
+                      forEachConstructorInitializer(cxxCtorInitializer(
+                          isMemberInitializer(), forField(equalsNode(Field)),
+                          withInitializer(anyOf(
+                              AccessToFieldInParam,
+                              initListExpr(has(AccessToFieldInParam)),
+                              cxxConstructExpr(
+                                  hasDeclaration(
+                                      cxxConstructorDecl(isCopyConstructor())),
+                                  argumentCountIs(1),
+                                  hasArgument(0, AccessToFieldInParam)))))))),
+              *Ctor, *Context)
             .empty())
       return false;
   }
@@ -112,7 +118,7 @@ static bool isCopyConstructorAndCanBeDefaulted(ASTContext *Context,
          BasesToInit.size() + FieldsToInit.size();
 }
 
-/// \brief Checks that the given method is an overloading of the assignment
+/// Checks that the given method is an overloading of the assignment
 /// operator, has copy signature, returns a reference to "*this" and copies
 /// all its members and subobjects.
 static bool isCopyAssignmentAndCanBeDefaulted(ASTContext *Context,
@@ -130,8 +136,10 @@ static bool isCopyAssignmentAndCanBeDefaulted(ASTContext *Context,
   // statement:
   //   return *this;
   if (Compound->body_empty() ||
-      match(returnStmt(has(ignoringParenImpCasts(unaryOperator(
-                hasOperatorName("*"), hasUnaryOperand(cxxThisExpr()))))),
+      match(traverse(
+                TK_AsIs,
+                returnStmt(has(ignoringParenImpCasts(unaryOperator(
+                    hasOperatorName("*"), hasUnaryOperand(cxxThisExpr())))))),
             *Compound->body_back(), *Context)
           .empty())
     return false;
@@ -145,21 +153,23 @@ static bool isCopyAssignmentAndCanBeDefaulted(ASTContext *Context,
     //   ((Base*)this)->operator=((Base)Other);
     //
     // So we are looking for a member call that fulfills:
-    if (match(
-            compoundStmt(has(ignoringParenImpCasts(cxxMemberCallExpr(
-                // - The object is an implicit cast of 'this' to a pointer to
-                //   a base class.
-                onImplicitObjectArgument(
-                    implicitCastExpr(hasImplicitDestinationType(
-                                         pointsTo(type(equalsNode(Base)))),
-                                     hasSourceExpression(cxxThisExpr()))),
-                // - The called method is the operator=.
-                callee(cxxMethodDecl(isCopyAssignmentOperator())),
-                // - The argument is (an implicit cast to a Base of) the
-                // argument taken by "Operator".
-                argumentCountIs(1),
-                hasArgument(0, declRefExpr(to(varDecl(equalsNode(Param))))))))),
-            *Compound, *Context)
+    if (match(traverse(TK_AsIs,
+                       compoundStmt(has(ignoringParenImpCasts(cxxMemberCallExpr(
+                           // - The object is an implicit cast of 'this' to a
+                           // pointer to
+                           //   a base class.
+                           onImplicitObjectArgument(implicitCastExpr(
+                               hasImplicitDestinationType(
+                                   pointsTo(type(equalsNode(Base)))),
+                               hasSourceExpression(cxxThisExpr()))),
+                           // - The called method is the operator=.
+                           callee(cxxMethodDecl(isCopyAssignmentOperator())),
+                           // - The argument is (an implicit cast to a Base of)
+                           // the argument taken by "Operator".
+                           argumentCountIs(1),
+                           hasArgument(0, declRefExpr(to(varDecl(
+                                              equalsNode(Param)))))))))),
+              *Compound, *Context)
             .empty())
       return false;
   }
@@ -174,11 +184,13 @@ static bool isCopyAssignmentAndCanBeDefaulted(ASTContext *Context,
                           member(fieldDecl(equalsNode(Field))));
     auto RHS = accessToFieldInVar(Field, Param);
     if (match(
-            compoundStmt(has(ignoringParenImpCasts(stmt(anyOf(
-                binaryOperator(hasOperatorName("="), hasLHS(LHS), hasRHS(RHS)),
-                cxxOperatorCallExpr(hasOverloadedOperatorName("="),
-                                    argumentCountIs(2), hasArgument(0, LHS),
-                                    hasArgument(1, RHS))))))),
+            traverse(TK_AsIs,
+                     compoundStmt(has(ignoringParenImpCasts(stmt(anyOf(
+                         binaryOperator(hasOperatorName("="), hasLHS(LHS),
+                                        hasRHS(RHS)),
+                         cxxOperatorCallExpr(
+                             hasOverloadedOperatorName("="), argumentCountIs(2),
+                             hasArgument(0, LHS), hasArgument(1, RHS)))))))),
             *Compound, *Context)
             .empty())
       return false;
@@ -188,7 +200,7 @@ static bool isCopyAssignmentAndCanBeDefaulted(ASTContext *Context,
   return Compound->size() == BasesToInit.size() + FieldsToInit.size() + 1;
 }
 
-/// \brief Returns false if the body has any non-whitespace character.
+/// Returns false if the body has any non-whitespace character.
 static bool bodyEmpty(const ASTContext *Context, const CompoundStmt *Body) {
   bool Invalid = false;
   StringRef Text = Lexer::getSourceText(
@@ -201,16 +213,13 @@ static bool bodyEmpty(const ASTContext *Context, const CompoundStmt *Body) {
 UseEqualsDefaultCheck::UseEqualsDefaultCheck(StringRef Name,
                                              ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      IgnoreMacros(Options.getLocalOrGlobal("IgnoreMacros", true) != 0) {}
+      IgnoreMacros(Options.getLocalOrGlobal("IgnoreMacros", true)) {}
 
 void UseEqualsDefaultCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "IgnoreMacros", IgnoreMacros);
 }
 
 void UseEqualsDefaultCheck::registerMatchers(MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus)
-    return;
-
   // Destructor.
   Finder->addMatcher(cxxDestructorDecl(isDefinition()).bind(SpecialFunction),
                      this);
@@ -303,9 +312,16 @@ void UseEqualsDefaultCheck::check(const MatchFinder::MatchResult &Result) {
   auto Diag = diag(Location, "use '= default' to define a trivial " +
                                  SpecialFunctionName);
 
-  if (ApplyFix)
-    Diag << FixItHint::CreateReplacement(Body->getSourceRange(), "= default;")
+  if (ApplyFix) {
+    // Skipping comments, check for a semicolon after Body->getSourceRange()
+    Optional<Token> Token = utils::lexer::findNextTokenSkippingComments(
+        Body->getSourceRange().getEnd().getLocWithOffset(1),
+        Result.Context->getSourceManager(), Result.Context->getLangOpts());
+    StringRef Replacement =
+        Token && Token->is(tok::semi) ? "= default" : "= default;";
+    Diag << FixItHint::CreateReplacement(Body->getSourceRange(), Replacement)
          << RemoveInitializers;
+  }
 }
 
 } // namespace modernize

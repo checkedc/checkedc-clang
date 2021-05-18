@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -14,13 +13,15 @@
 // template <class... UTypes>
 //   tuple& operator=(tuple<UTypes...>&& u);
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 #include <tuple>
 #include <string>
 #include <memory>
 #include <utility>
 #include <cassert>
+
+#include "test_macros.h"
 
 struct B
 {
@@ -44,7 +45,7 @@ struct E {
   }
 };
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::tuple<long> T0;
@@ -97,7 +98,7 @@ int main()
     }
     {
         // Test that tuple evaluates correctly applies an lvalue reference
-        // before evaluating is_assignable (ie 'is_assignable<int&, int&&>')
+        // before evaluating is_assignable (i.e. 'is_assignable<int&, int&&>')
         // instead of evaluating 'is_assignable<int&&, int&&>' which is false.
         int x = 42;
         int y = 43;
@@ -107,4 +108,6 @@ int main()
         assert(std::get<0>(t) == 43);
         assert(&std::get<0>(t) == &x);
     }
+
+  return 0;
 }

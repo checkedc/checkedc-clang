@@ -1,9 +1,8 @@
 //===--- ProBoundsPointerArithmeticCheck.cpp - clang-tidy------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -28,16 +27,13 @@ void ProBoundsPointerArithmeticCheck::registerMatchers(MatchFinder *Finder) {
   // Flag all operators +, -, +=, -=, ++, -- that result in a pointer
   Finder->addMatcher(
       binaryOperator(
-          anyOf(hasOperatorName("+"), hasOperatorName("-"),
-                hasOperatorName("+="), hasOperatorName("-=")),
-          AllPointerTypes,
+          hasAnyOperatorName("+", "-", "+=", "-="), AllPointerTypes,
           unless(hasLHS(ignoringImpCasts(declRefExpr(to(isImplicit()))))))
           .bind("expr"),
       this);
 
   Finder->addMatcher(
-      unaryOperator(anyOf(hasOperatorName("++"), hasOperatorName("--")),
-                    hasType(pointerType()))
+      unaryOperator(hasAnyOperatorName("++", "--"), hasType(pointerType()))
           .bind("expr"),
       this);
 

@@ -1,17 +1,16 @@
 //===--- UppercaseLiteralSuffixCheck.cpp - clang-tidy ---------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "UppercaseLiteralSuffixCheck.h"
 #include "../utils/ASTUtils.h"
-#include "../utils/OptionsUtils.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include "clang/Lex/Lexer.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
 
@@ -184,7 +183,7 @@ UppercaseLiteralSuffixCheck::UppercaseLiteralSuffixCheck(
     : ClangTidyCheck(Name, Context),
       NewSuffixes(
           utils::options::parseStringList(Options.get("NewSuffixes", ""))),
-      IgnoreMacros(Options.getLocalOrGlobal("IgnoreMacros", 1) != 0) {}
+      IgnoreMacros(Options.getLocalOrGlobal("IgnoreMacros", true)) {}
 
 void UppercaseLiteralSuffixCheck::storeOptions(
     ClangTidyOptions::OptionMap &Opts) {
@@ -194,15 +193,15 @@ void UppercaseLiteralSuffixCheck::storeOptions(
 }
 
 void UppercaseLiteralSuffixCheck::registerMatchers(MatchFinder *Finder) {
-  // Sadly, we can't check whether the literal has sufix or not.
+  // Sadly, we can't check whether the literal has suffix or not.
   // E.g. i32 suffix still results in 'BuiltinType::Kind::Int'.
   // And such an info is not stored in the *Literal itself.
-  Finder->addMatcher(
+  Finder->addMatcher(traverse(TK_AsIs,
       stmt(eachOf(integerLiteral().bind(IntegerLiteralCheck::Name),
                   floatLiteral().bind(FloatingLiteralCheck::Name)),
            unless(anyOf(hasParent(userDefinedLiteral()),
                         hasAncestor(isImplicit()),
-                        hasAncestor(substNonTypeTemplateParmExpr())))),
+                        hasAncestor(substNonTypeTemplateParmExpr()))))),
       this);
 }
 

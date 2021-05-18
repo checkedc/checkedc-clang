@@ -1,9 +1,8 @@
-//===-- DynamicLoaderStatic.cpp ---------------------------------*- C++ -*-===//
+//===-- DynamicLoaderStatic.cpp -------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -18,11 +17,11 @@
 using namespace lldb;
 using namespace lldb_private;
 
-//----------------------------------------------------------------------
+LLDB_PLUGIN_DEFINE(DynamicLoaderStatic)
+
 // Create an instance of this class. This function is filled into the plugin
 // info class that gets handed out by the plugin factory and allows the lldb to
 // instantiate an instance of this class.
-//----------------------------------------------------------------------
 DynamicLoader *DynamicLoaderStatic::CreateInstance(Process *process,
                                                    bool force) {
   bool create = force;
@@ -30,8 +29,19 @@ DynamicLoader *DynamicLoaderStatic::CreateInstance(Process *process,
     const llvm::Triple &triple_ref =
         process->GetTarget().GetArchitecture().GetTriple();
     const llvm::Triple::OSType os_type = triple_ref.getOS();
-    if ((os_type == llvm::Triple::UnknownOS))
-      create = true;
+    const llvm::Triple::ArchType arch_type = triple_ref.getArch();
+    if (os_type == llvm::Triple::UnknownOS) {
+      // The WASM and Hexagon plugin check the ArchType rather than the OSType,
+      // so explicitly reject those here.
+      switch(arch_type) {
+        case llvm::Triple::hexagon:
+        case llvm::Triple::wasm32:
+        case llvm::Triple::wasm64:
+          break;
+        default:
+          create = true;
+      }
+    }
   }
 
   if (!create) {
@@ -46,34 +56,23 @@ DynamicLoader *DynamicLoaderStatic::CreateInstance(Process *process,
 
   if (create)
     return new DynamicLoaderStatic(process);
-  return NULL;
+  return nullptr;
 }
 
-//----------------------------------------------------------------------
 // Constructor
-//----------------------------------------------------------------------
 DynamicLoaderStatic::DynamicLoaderStatic(Process *process)
     : DynamicLoader(process) {}
 
-//----------------------------------------------------------------------
-// Destructor
-//----------------------------------------------------------------------
-DynamicLoaderStatic::~DynamicLoaderStatic() {}
-
-//------------------------------------------------------------------
 /// Called after attaching a process.
 ///
 /// Allow DynamicLoader plug-ins to execute some code after
 /// attaching to a process.
-//------------------------------------------------------------------
 void DynamicLoaderStatic::DidAttach() { LoadAllImagesAtFileAddresses(); }
 
-//------------------------------------------------------------------
 /// Called after attaching a process.
 ///
 /// Allow DynamicLoader plug-ins to execute some code after
 /// attaching to a process.
-//------------------------------------------------------------------
 void DynamicLoaderStatic::DidLaunch() { LoadAllImagesAtFileAddresses(); }
 
 void DynamicLoaderStatic::LoadAllImagesAtFileAddresses() {
@@ -84,11 +83,7 @@ void DynamicLoaderStatic::LoadAllImagesAtFileAddresses() {
   // Disable JIT for static dynamic loader targets
   m_process->SetCanJIT(false);
 
-  std::lock_guard<std::recursive_mutex> guard(module_list.GetMutex());
-
-  const size_t num_modules = module_list.GetSize();
-  for (uint32_t idx = 0; idx < num_modules; ++idx) {
-    ModuleSP module_sp(module_list.GetModuleAtIndexUnlocked(idx));
+  for (ModuleSP module_sp : module_list.Modules()) {
     if (module_sp) {
       bool changed = false;
       ObjectFile *image_object_file = module_sp->GetObjectFile();
@@ -157,9 +152,7 @@ const char *DynamicLoaderStatic::GetPluginDescriptionStatic() {
          "addresses contained in each image.";
 }
 
-//------------------------------------------------------------------
 // PluginInterface protocol
-//------------------------------------------------------------------
 lldb_private::ConstString DynamicLoaderStatic::GetPluginName() {
   return GetPluginNameStatic();
 }

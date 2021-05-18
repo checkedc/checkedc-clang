@@ -1,4 +1,12 @@
-// RUN: %clang_cc1 -triple x86_64-unknown-unknown -ast-dump %s | FileCheck -strict-whitespace %s
+// Test without serialization:
+// RUN: %clang_cc1 -triple x86_64-unknown-unknown -ast-dump %s \
+// RUN: | FileCheck --strict-whitespace %s
+//
+// Test with serialization:
+// RUN: %clang_cc1 -triple x86_64-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -x c++ -triple x86_64-unknown-unknown -include-pch %t -ast-dump-all /dev/null \
+// RUN: | sed -e "s/ <undeserialized declarations>//" -e "s/ imported//" \
+// RUN: | FileCheck --strict-whitespace %s
 
 struct R {
   R() = default;
@@ -117,6 +125,11 @@ void m(int) {}
 // CHECK: FunctionDecl 0x{{[^ ]*}} <line:[[@LINE-1]]:1, col:14> col:6 m 'void (int)'
 // CHECK-NEXT: ParmVarDecl 0x{{[^ ]*}} <col:8> col:11 'int'
 // CHECK-NEXT: CompoundStmt 0x{{[^ ]*}} <col:13, col:14>
+
+void n(int, ...) {}
+// CHECK: FunctionDecl 0x{{[^ ]*}} <line:[[@LINE-1]]:1, col:19> col:6 n 'void (int, ...)'
+// CHECK-NEXT: ParmVarDecl 0x{{[^ ]*}} <col:8> col:11 'int'
+// CHECK-NEXT: CompoundStmt 0x{{[^ ]*}} <col:18, col:19>
 
 int main() {
   // CHECK: FunctionDecl 0x{{[^ ]*}} <line:[[@LINE-1]]:1, line:[[@LINE+2]]:1> line:[[@LINE-1]]:5 main 'int ()'

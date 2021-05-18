@@ -7,12 +7,9 @@ executable("llvm-cfi-verify") {
     "//llvm/lib/Object",
     "//llvm/lib/Support",
     "//llvm/lib/Target:AllTargetsAsmParsers",
-    "//llvm/lib/Target:AllTargetsAsmPrinters",
     "//llvm/lib/Target:AllTargetsDescs",
     "//llvm/lib/Target:AllTargetsDisassemblers",
     "//llvm/lib/Target:AllTargetsInfos",
   ]
-  sources = [
-    "llvm-cfi-verify.cpp",
-  ]
+  sources = [ "llvm-cfi-verify.cpp" ]
 }

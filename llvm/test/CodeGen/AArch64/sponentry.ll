@@ -17,7 +17,7 @@ define dso_local void @bar() {
 ; CHECK: bar:
 ; CHECK: mov     x29, sp
 ; CHECK: add     x1, x29, #16
-; CEHCK: bl      _setjmpex
+; CHECK: bl      _setjmpex
 
 ; NOFP: str     x30, [sp, #-16]!
 ; NOFP: add     x1, sp, #16
@@ -38,9 +38,9 @@ define dso_local void @foo([24 x i64]*) {
 
 ; CHECK: foo:
 ; CHECK: sub     sp, sp, #448
-; CHECK: add     x29, sp, #432
-; CHECK: add     x1, x29, #16
-; CEHCK: bl      _setjmpex
+; CHECK: add     x29, sp, #424
+; CHECK: add     x1, x29, #24
+; CHECK: bl      _setjmpex
 
 ; NOFP: sub     sp, sp, #432
 ; NOFP: add     x1, sp, #432
@@ -70,7 +70,7 @@ define dso_local void @var_args(i8*, ...) {
 ; CHECK: sub     sp, sp, #96
 ; CHECK: add     x29, sp, #16
 ; CHECK: add     x1, x29, #80
-; CEHCK: bl      _setjmpex
+; CHECK: bl      _setjmpex
 
 ; NOFP: sub     sp, sp, #96
 ; NOFP: add     x1, sp, #96

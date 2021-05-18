@@ -1,9 +1,8 @@
 //===------ Support/ScopHelper.h -- Some Helper Functions for Scop. -------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -14,13 +13,11 @@
 #ifndef POLLY_SUPPORT_IRHELPER_H
 #define POLLY_SUPPORT_IRHELPER_H
 
-#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/ValueHandle.h"
-#include <tuple>
-#include <vector>
+#include "isl/isl-noexceptions.h"
 
 namespace llvm {
 class LoopInfo;
@@ -31,12 +28,74 @@ class Region;
 class Pass;
 class DominatorTree;
 class RegionInfo;
-class GetElementPtrInst;
+class RegionNode;
 } // namespace llvm
 
 namespace polly {
 class Scop;
 class ScopStmt;
+
+/// Enumeration of assumptions Polly can take.
+enum AssumptionKind {
+  ALIASING,
+  INBOUNDS,
+  WRAPPING,
+  UNSIGNED,
+  PROFITABLE,
+  ERRORBLOCK,
+  COMPLEXITY,
+  INFINITELOOP,
+  INVARIANTLOAD,
+  DELINEARIZATION,
+};
+
+/// Enum to distinguish between assumptions and restrictions.
+enum AssumptionSign { AS_ASSUMPTION, AS_RESTRICTION };
+
+/// Helper struct to remember assumptions.
+struct Assumption {
+  /// The kind of the assumption (e.g., WRAPPING).
+  AssumptionKind Kind;
+
+  /// Flag to distinguish assumptions and restrictions.
+  AssumptionSign Sign;
+
+  /// The valid/invalid context if this is an assumption/restriction.
+  isl::set Set;
+
+  /// The location that caused this assumption.
+  llvm::DebugLoc Loc;
+
+  /// An optional block whose domain can simplify the assumption.
+  llvm::BasicBlock *BB;
+
+  // Whether the assumption must be checked at runtime.
+  bool RequiresRTC;
+};
+
+using RecordedAssumptionsTy = llvm::SmallVector<Assumption, 8>;
+
+/// Record an assumption for later addition to the assumed context.
+///
+/// This function will add the assumption to the RecordedAssumptions. This
+/// collection will be added (@see addAssumption) to the assumed context once
+/// all paramaters are known and the context is fully built.
+///
+/// @param RecordedAssumption container which keeps all recorded assumptions.
+/// @param Kind The assumption kind describing the underlying cause.
+/// @param Set  The relations between parameters that are assumed to hold.
+/// @param Loc  The location in the source that caused this assumption.
+/// @param Sign Enum to indicate if the assumptions in @p Set are positive
+///             (needed/assumptions) or negative (invalid/restrictions).
+/// @param BB   The block in which this assumption was taken. If it is
+///             set, the domain of that block will be used to simplify the
+///             actual assumption in @p Set once it is added. This is useful
+///             if the assumption was created prior to the domain.
+/// @param RTC  Does the assumption require a runtime check?
+void recordAssumption(RecordedAssumptionsTy *RecordedAssumptions,
+                      AssumptionKind Kind, isl::set Set, llvm::DebugLoc Loc,
+                      AssumptionSign Sign, llvm::BasicBlock *BB = nullptr,
+                      bool RTC = true);
 
 /// Type to remap values.
 using ValueMapT = llvm::DenseMap<llvm::AssertingVH<llvm::Value>,
@@ -384,6 +443,27 @@ bool isErrorBlock(llvm::BasicBlock &BB, const llvm::Region &R,
 /// @return The condition of @p TI and nullptr if none could be extracted.
 llvm::Value *getConditionFromTerminator(llvm::Instruction *TI);
 
+/// Get the smallest loop that contains @p S but is not in @p S.
+llvm::Loop *getLoopSurroundingScop(Scop &S, llvm::LoopInfo &LI);
+
+/// Get the number of blocks in @p L.
+///
+/// The number of blocks in a loop are the number of basic blocks actually
+/// belonging to the loop, as well as all single basic blocks that the loop
+/// exits to and which terminate in an unreachable instruction. We do not
+/// allow such basic blocks in the exit of a scop, hence they belong to the
+/// scop and represent run-time conditions which we want to model and
+/// subsequently speculate away.
+///
+/// @see getRegionNodeLoop for additional details.
+unsigned getNumBlocksInLoop(llvm::Loop *L);
+
+/// Get the number of blocks in @p RN.
+unsigned getNumBlocksInRegionNode(llvm::RegionNode *RN);
+
+/// Return the smallest loop surrounding @p RN.
+llvm::Loop *getRegionNodeLoop(llvm::RegionNode *RN, llvm::LoopInfo &LI);
+
 /// Check if @p LInst can be hoisted in @p R.
 ///
 /// @param LInst The load to check.
@@ -426,22 +506,6 @@ bool canSynthesize(const llvm::Value *V, const Scop &S,
 /// Non-instructions do not use operands at a specific point such that in this
 /// case this function returns nullptr.
 llvm::BasicBlock *getUseBlock(const llvm::Use &U);
-
-/// Derive the individual index expressions from a GEP instruction.
-///
-/// This function optimistically assumes the GEP references into a fixed size
-/// array. If this is actually true, this function returns a list of array
-/// subscript expressions as SCEV as well as a list of integers describing
-/// the size of the individual array dimensions. Both lists have either equal
-/// length or the size list is one element shorter in case there is no known
-/// size available for the outermost array dimension.
-///
-/// @param GEP The GetElementPtr instruction to analyze.
-///
-/// @return A tuple with the subscript expressions and the dimension sizes.
-std::tuple<std::vector<const llvm::SCEV *>, std::vector<int>>
-getIndexExpressionsFromGEP(llvm::GetElementPtrInst *GEP,
-                           llvm::ScalarEvolution &SE);
 
 // If the loop is nonaffine/boxed, return the first non-boxed surrounding loop
 // for Polly. If the loop is affine, return the loop itself.

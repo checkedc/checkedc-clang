@@ -1,25 +1,24 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
 // path absolute(const path& p, const path& base=current_path());
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 using namespace fs;
 
@@ -39,12 +38,12 @@ TEST_CASE(basic_test)
     const fs::path cwd = fs::current_path();
     const struct {
       std::string input;
-      std::string expect;
+      fs::path expect;
     } TestCases [] = {
         {"", cwd / ""},
         {"foo", cwd / "foo"},
-        {"foo/", cwd / "foo/"},
-        {"/already_absolute", "/already_absolute"}
+        {"foo/", cwd / "foo" / ""},
+        {"/already_absolute", cwd.root_path() / "already_absolute"}
     };
     for (auto& TC : TestCases) {
         std::error_code ec = GetTestEC();

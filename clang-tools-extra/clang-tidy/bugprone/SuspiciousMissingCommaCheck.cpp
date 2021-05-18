@@ -1,9 +1,8 @@
 //===--- SuspiciousMissingCommaCheck.cpp - clang-tidy----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -23,6 +22,8 @@ bool isConcatenatedLiteralsOnPurpose(ASTContext *Ctx,
                                      const StringLiteral *Lit) {
   // String literals surrounded by parentheses are assumed to be on purpose.
   //    i.e.:  const char* Array[] = { ("a" "b" "c"), "d", [...] };
+
+  TraversalKindScope RAII(*Ctx, TK_AsIs);
   auto Parents = Ctx->getParents(*Lit);
   if (Parents.size() == 1 && Parents[0].get<ParenExpr>() != nullptr)
     return true;
@@ -105,7 +106,7 @@ void SuspiciousMissingCommaCheck::check(
   if (Size < SizeThreshold)
     return;
 
-  // Count the number of occurence of concatenated string literal.
+  // Count the number of occurrence of concatenated string literal.
   unsigned int Count = 0;
   for (unsigned int i = 0; i < Size; ++i) {
     const Expr *Child = InitializerList->getInit(i)->IgnoreImpCasts();

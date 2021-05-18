@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -13,9 +12,6 @@
 
 // iter_type put(iter_type s, ios_base& iob, char_type fill, long double v) const;
 
-// TODO(EricWF): This test takes 40+ minutes to build with Clang 3.8 under ASAN or MSAN.
-// UNSUPPORTED: asan, msan
-
 // TODO GLIBC uses a different string for positive and negative NAN numbers.
 // XFAIL: linux-gnu
 
@@ -24,6 +20,7 @@
 #include <cassert>
 #include <streambuf>
 #include <cmath>
+#include "test_macros.h"
 #include "test_iterators.h"
 
 typedef std::num_put<char, output_iterator<char*> > F;
@@ -24418,7 +24415,7 @@ void test12()
     output_iterator<char*> iter;
     std::locale lc = std::locale::classic();
     std::locale lg(lc, new my_numpunct);
-#ifdef __APPLE__
+#if defined(__APPLE__) && defined(__x86_64__)
 // This test is failing on FreeBSD, possibly due to different representations
 // of the floating point numbers.
     const my_facet f(1);
@@ -26207,7 +26204,7 @@ void test12()
 #endif
 }
 
-int main()
+int main(int, char**)
 {
     test1();
     test2();
@@ -26247,4 +26244,6 @@ int main()
     {
         long double v = std::nan(""); ((void)v);
     }
+
+  return 0;
 }

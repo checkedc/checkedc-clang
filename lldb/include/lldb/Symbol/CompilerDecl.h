@@ -1,14 +1,13 @@
 //===-- CompilerDecl.h ------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_CompilerDecl_h_
-#define liblldb_CompilerDecl_h_
+#ifndef LLDB_SYMBOL_COMPILERDECL_H
+#define LLDB_SYMBOL_COMPILERDECL_H
 
 #include "lldb/Symbol/CompilerType.h"
 #include "lldb/Utility/ConstString.h"
@@ -16,21 +15,29 @@
 
 namespace lldb_private {
 
+/// Represents a generic declaration such as a function declaration.
+///
+/// This class serves as an abstraction for a declaration inside one of the
+/// TypeSystems implemented by the language plugins. It does not have any actual
+/// logic in it but only stores an opaque pointer and a pointer to the
+/// TypeSystem that gives meaning to this opaque pointer. All methods of this
+/// class should call their respective method in the TypeSystem interface and
+/// pass the opaque pointer along.
+///
+/// \see lldb_private::TypeSystem
 class CompilerDecl {
 public:
-  //----------------------------------------------------------------------
   // Constructors and Destructors
-  //----------------------------------------------------------------------
-  CompilerDecl() : m_type_system(nullptr), m_opaque_decl(nullptr) {}
+  CompilerDecl() = default;
 
+  /// Creates a CompilerDecl with the given TypeSystem and opaque pointer.
+  ///
+  /// This constructor should only be called from the respective TypeSystem
+  /// implementation.
   CompilerDecl(TypeSystem *type_system, void *decl)
       : m_type_system(type_system), m_opaque_decl(decl) {}
 
-  ~CompilerDecl() {}
-
-  //----------------------------------------------------------------------
   // Tests
-  //----------------------------------------------------------------------
 
   explicit operator bool() const { return IsValid(); }
 
@@ -44,11 +51,7 @@ public:
     return m_type_system != nullptr && m_opaque_decl != nullptr;
   }
 
-  bool IsClang() const;
-
-  //----------------------------------------------------------------------
   // Accessors
-  //----------------------------------------------------------------------
 
   TypeSystem *GetTypeSystem() const { return m_type_system; }
 
@@ -82,8 +85,8 @@ public:
   CompilerType GetFunctionArgumentType(size_t arg_idx) const;
 
 private:
-  TypeSystem *m_type_system;
-  void *m_opaque_decl;
+  TypeSystem *m_type_system = nullptr;
+  void *m_opaque_decl = nullptr;
 };
 
 bool operator==(const CompilerDecl &lhs, const CompilerDecl &rhs);
@@ -91,4 +94,4 @@ bool operator!=(const CompilerDecl &lhs, const CompilerDecl &rhs);
 
 } // namespace lldb_private
 
-#endif // #ifndef liblldb_CompilerDecl_h_
+#endif // LLDB_SYMBOL_COMPILERDECL_H

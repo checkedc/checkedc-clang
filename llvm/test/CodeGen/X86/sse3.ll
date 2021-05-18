@@ -66,7 +66,7 @@ define <8 x i16> @t2(<8 x i16> %A, <8 x i16> %B) nounwind {
 ; X86:       # %bb.0:
 ; X86-NEXT:    movdqa {{.*#+}} xmm2 = [0,65535,65535,0,65535,65535,65535,65535]
 ; X86-NEXT:    pand %xmm2, %xmm0
-; X86-NEXT:    pshuflw {{.*#+}} xmm1 = xmm1[1,1,2,1,4,5,6,7]
+; X86-NEXT:    pshuflw {{.*#+}} xmm1 = xmm1[1,1,1,1,4,5,6,7]
 ; X86-NEXT:    pandn %xmm1, %xmm2
 ; X86-NEXT:    por %xmm2, %xmm0
 ; X86-NEXT:    retl
@@ -75,7 +75,7 @@ define <8 x i16> @t2(<8 x i16> %A, <8 x i16> %B) nounwind {
 ; X64:       # %bb.0:
 ; X64-NEXT:    movdqa {{.*#+}} xmm2 = [0,65535,65535,0,65535,65535,65535,65535]
 ; X64-NEXT:    pand %xmm2, %xmm0
-; X64-NEXT:    pshuflw {{.*#+}} xmm1 = xmm1[1,1,2,1,4,5,6,7]
+; X64-NEXT:    pshuflw {{.*#+}} xmm1 = xmm1[1,1,1,1,4,5,6,7]
 ; X64-NEXT:    pandn %xmm1, %xmm2
 ; X64-NEXT:    por %xmm2, %xmm0
 ; X64-NEXT:    retq
@@ -215,16 +215,16 @@ define void @t9(<4 x float>* %r, <2 x i32>* %A) nounwind {
 ; X86:       # %bb.0:
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; X86-NEXT:    movapd (%ecx), %xmm0
-; X86-NEXT:    movhpd {{.*#+}} xmm0 = xmm0[0],mem[0]
-; X86-NEXT:    movapd %xmm0, (%ecx)
+; X86-NEXT:    movaps (%ecx), %xmm0
+; X86-NEXT:    movhps {{.*#+}} xmm0 = xmm0[0,1],mem[0,1]
+; X86-NEXT:    movaps %xmm0, (%ecx)
 ; X86-NEXT:    retl
 ;
 ; X64-LABEL: t9:
 ; X64:       # %bb.0:
-; X64-NEXT:    movapd (%rdi), %xmm0
-; X64-NEXT:    movhpd {{.*#+}} xmm0 = xmm0[0],mem[0]
-; X64-NEXT:    movapd %xmm0, (%rdi)
+; X64-NEXT:    movaps (%rdi), %xmm0
+; X64-NEXT:    movhps {{.*#+}} xmm0 = xmm0[0,1],mem[0,1]
+; X64-NEXT:    movaps %xmm0, (%rdi)
 ; X64-NEXT:    retq
 	%tmp = load <4 x float>, <4 x float>* %r
 	%tmp.upgrd.3 = bitcast <2 x i32>* %A to double*
@@ -249,8 +249,8 @@ define void @t9(<4 x float>* %r, <2 x i32>* %A) nounwind {
 ; FIXME: This testcase produces icky code. It can be made much better!
 ; PR2585
 
-@g1 = external constant <4 x i32>
-@g2 = external constant <4 x i16>
+@g1 = external dso_local constant <4 x i32>
+@g2 = external dso_local constant <4 x i16>
 
 define void @t10() nounwind {
 ; X86-LABEL: t10:
@@ -396,14 +396,14 @@ entry:
 define <4 x i32> @t17() nounwind {
 ; X86-LABEL: t17:
 ; X86:       # %bb.0: # %entry
-; X86-NEXT:    movddup {{.*#+}} xmm0 = mem[0,0]
-; X86-NEXT:    andpd {{\.LCPI.*}}, %xmm0
+; X86-NEXT:    pshufd {{.*#+}} xmm0 = mem[0,1,0,1]
+; X86-NEXT:    pand {{\.LCPI.*}}, %xmm0
 ; X86-NEXT:    retl
 ;
 ; X64-LABEL: t17:
 ; X64:       # %bb.0: # %entry
-; X64-NEXT:    movddup {{.*#+}} xmm0 = mem[0,0]
-; X64-NEXT:    andpd {{.*}}(%rip), %xmm0
+; X64-NEXT:    pshufd {{.*#+}} xmm0 = mem[0,1,0,1]
+; X64-NEXT:    pand {{.*}}(%rip), %xmm0
 ; X64-NEXT:    retq
 entry:
   %tmp1 = load <4 x float>, <4 x float>* undef, align 16

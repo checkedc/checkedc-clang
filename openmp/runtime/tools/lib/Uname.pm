@@ -9,10 +9,9 @@
 #
 #//===----------------------------------------------------------------------===//
 #//
-#//                     The LLVM Compiler Infrastructure
-#//
-#// This file is dual licensed under the MIT and the University of Illinois Open
-#// Source Licenses. See LICENSE.txt for details.
+#// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+#// See https://llvm.org/LICENSE.txt for license information.
+#// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #//
 #//===----------------------------------------------------------------------===//
 #
@@ -94,7 +93,7 @@ if ( $^O =~ m/cygwin/i ) {
     # is really requested.
     $values{ fqdn } =
         sub {
-            my $fqdn = Net::Domain::hostfqdn(); # "fqdn" stands for "fully qualified doamain name".
+            my $fqdn = Net::Domain::hostfqdn(); # "fqdn" stands for "fully qualified domain name".
             # On some systems POSIX::uname() and Net::Domain::hostfqdn() reports different names.
             # Let us issue a warning if they significantly different. Names are insignificantly
             # different if POSIX::uname() matches the beginning of Net::Domain::hostfqdn().
@@ -157,6 +156,8 @@ if ( 0 ) {
         $values{ hardware_platform } = "mips64";
     } elsif ( $values{ machine } =~ m{\Amips\z} ) {
         $values{ hardware_platform } = "mips";
+    } elsif ( $values{ machine } =~ m{\Ariscv64\z} ) {
+        $values{ hardware_platform } = "riscv64";
     } else {
         die "Unsupported machine (\"$values{ machine }\") returned by POSIX::uname(); stopped";
     }; # if
@@ -355,7 +356,7 @@ if ( 0 ) {
                $output =~ m{^ProductVersion:\s*(.*)\s*$}m
                    or runtime_error( "There is no ProductVersion in sw_vers output:", $output, "(eof)" );
                my $release = $1;
-               # Sometimes release reported as "10.4.11" (3 componentes), sometimes as "10.6".
+               # Sometimes release reported as "10.4.11" (3 components), sometimes as "10.6".
                # Handle both variants.
                $release =~ m{^(\d+.\d+)(?:\.\d+)?(?=\s|$)}
                    or runtime_error( "Cannot parse OS X* version: $release" );

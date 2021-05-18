@@ -1,9 +1,8 @@
-//===-- TypeFormat.cpp ----------------------------------------*- C++ -*-===//
+//===-- TypeFormat.cpp ----------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -61,7 +60,7 @@ bool TypeFormatImpl_Format::FormatObject(ValueObject *valobj,
         DumpDataExtractor(data, &reg_sstr, 0, GetFormat(), reg_info->byte_size,
                           1, UINT32_MAX, LLDB_INVALID_ADDRESS, 0, 0,
                           exe_ctx.GetBestExecutionContextScope());
-        dest = reg_sstr.GetString();
+        dest = std::string(reg_sstr.GetString());
       }
     } else {
       CompilerType compiler_type = value.GetCompilerType();
@@ -70,7 +69,7 @@ bool TypeFormatImpl_Format::FormatObject(ValueObject *valobj,
         // default value logic
         if (GetFormat() == eFormatCString) {
           lldb_private::Flags type_flags(compiler_type.GetTypeInfo(
-              NULL)); // disambiguate w.r.t. TypeFormatImpl::Flags
+              nullptr)); // disambiguate w.r.t. TypeFormatImpl::Flags
           if (type_flags.Test(eTypeIsPointer) &&
               !type_flags.Test(eTypeIsObjC)) {
             // if we are dumping a pointer as a c-string, get the pointee data
@@ -115,7 +114,7 @@ bool TypeFormatImpl_Format::FormatObject(ValueObject *valobj,
         // here, but that's about as severe as we get
         // CompilerType::DumpTypeValue() should always return something, even
         // if that something is an error message
-        dest = sstr.GetString();
+        dest = std::string(sstr.GetString());
       }
     }
     return !dest.empty();
@@ -129,7 +128,7 @@ std::string TypeFormatImpl_Format::GetDescription() {
               Cascades() ? "" : " (not cascading)",
               SkipsPointers() ? " (skip pointers)" : "",
               SkipsReferences() ? " (skip references)" : "");
-  return sstr.GetString();
+  return std::string(sstr.GetString());
 }
 
 TypeFormatImpl_EnumType::TypeFormatImpl_EnumType(
@@ -165,7 +164,7 @@ bool TypeFormatImpl_EnumType::FormatObject(ValueObject *valobj,
     llvm::DenseSet<lldb_private::SymbolFile *> searched_symbol_files;
     images.FindTypes(nullptr, m_enum_type, false, UINT32_MAX,
                      searched_symbol_files, types);
-    if (types.GetSize() == 0)
+    if (types.Empty())
       return false;
     for (lldb::TypeSP type_sp : types.Types()) {
       if (!type_sp)
@@ -192,7 +191,7 @@ bool TypeFormatImpl_EnumType::FormatObject(ValueObject *valobj,
                                  data.GetByteSize(), 0, 0,
                                  exe_ctx.GetBestExecutionContextScope());
   if (!sstr.GetString().empty())
-    dest = sstr.GetString();
+    dest = std::string(sstr.GetString());
   return !dest.empty();
 }
 
@@ -202,5 +201,5 @@ std::string TypeFormatImpl_EnumType::GetDescription() {
               Cascades() ? "" : " (not cascading)",
               SkipsPointers() ? " (skip pointers)" : "",
               SkipsReferences() ? " (skip references)" : "");
-  return sstr.GetString();
+  return std::string(sstr.GetString());
 }

@@ -13,7 +13,7 @@
 
 # RUN: llvm-mc -filetype=obj -triple=i686-pc-linux %s -o %t.o
 # RUN: ld.lld -r -o %t %t.o %t.o
-# RUN: llvm-readobj -r -s -section-data %t | FileCheck --check-prefix=REL %s
+# RUN: llvm-readobj -r -S --section-data %t | FileCheck --check-prefix=REL %s
 
 
 # REL:      Section {
@@ -39,8 +39,8 @@
 
 # REL:      Relocations [
 # REL-NEXT:   Section ({{.*}}) .rel.data {
-# REL-NEXT:     0x0 R_386_32 .text 0x0
-# REL-NEXT:     0x4 R_386_32 .text 0x0
+# REL-NEXT:     0x0 R_386_32 .text
+# REL-NEXT:     0x4 R_386_32 .text
 # REL-NEXT:   }
 # REL-NEXT: ]
 

@@ -1,9 +1,8 @@
 //===--- SuspiciousEnumUsageCheck.cpp - clang-tidy-------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -111,7 +110,7 @@ static bool isPossiblyBitMask(const EnumDecl *EnumDec) {
 SuspiciousEnumUsageCheck::SuspiciousEnumUsageCheck(StringRef Name,
                                                    ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      StrictMode(Options.getLocalOrGlobal("StrictMode", 0)) {}
+      StrictMode(Options.getLocalOrGlobal("StrictMode", false)) {}
 
 void SuspiciousEnumUsageCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "StrictMode", StrictMode);
@@ -132,7 +131,7 @@ void SuspiciousEnumUsageCheck::registerMatchers(MatchFinder *Finder) {
       this);
 
   Finder->addMatcher(
-      binaryOperator(anyOf(hasOperatorName("+"), hasOperatorName("|")),
+      binaryOperator(hasAnyOperatorName("+", "|"),
                      hasLHS(enumExpr("lhsExpr", "enumDecl")),
                      hasRHS(expr(enumExpr("rhsExpr", ""),
                                  ignoringImpCasts(hasType(
@@ -140,16 +139,15 @@ void SuspiciousEnumUsageCheck::registerMatchers(MatchFinder *Finder) {
       this);
 
   Finder->addMatcher(
-      binaryOperator(anyOf(hasOperatorName("+"), hasOperatorName("|")),
-                     hasEitherOperand(
-                         expr(hasType(isInteger()), unless(enumExpr("", "")))),
-                     hasEitherOperand(enumExpr("enumExpr", "enumDecl"))),
+      binaryOperator(
+          hasAnyOperatorName("+", "|"),
+          hasOperands(expr(hasType(isInteger()), unless(enumExpr("", ""))),
+                      enumExpr("enumExpr", "enumDecl"))),
       this);
 
-  Finder->addMatcher(
-      binaryOperator(anyOf(hasOperatorName("|="), hasOperatorName("+=")),
-                     hasRHS(enumExpr("enumExpr", "enumDecl"))),
-      this);
+  Finder->addMatcher(binaryOperator(hasAnyOperatorName("|=", "+="),
+                                    hasRHS(enumExpr("enumExpr", "enumDecl"))),
+                     this);
 }
 
 void SuspiciousEnumUsageCheck::checkSuspiciousBitmaskUsage(
@@ -158,7 +156,7 @@ void SuspiciousEnumUsageCheck::checkSuspiciousBitmaskUsage(
   const auto *EnumConst =
       EnumExpr ? dyn_cast<EnumConstantDecl>(EnumExpr->getDecl()) : nullptr;
 
-  // Report the parameter if neccessary.
+  // Report the parameter if necessary.
   if (!EnumConst) {
     diag(EnumDec->getInnerLocStart(), BitmaskVarErrorMessage)
         << countNonPowOfTwoLiteralNum(EnumDec);

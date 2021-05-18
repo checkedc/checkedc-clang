@@ -1,9 +1,8 @@
 //===- Initialization.h - Semantic Analysis for Initializers ----*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -55,6 +54,9 @@ public:
 
     /// The entity being initialized is a function parameter.
     EK_Parameter,
+
+    /// The entity being initialized is a non-type template parameter.
+    EK_TemplateParameter,
 
     /// The entity being initialized is the result of a function call.
     EK_Result,
@@ -146,7 +148,7 @@ private:
     /// location of the 'return', 'throw', or 'new' keyword,
     /// respectively. When Kind == EK_Temporary, the location where
     /// the temporary is being created.
-    unsigned Location;
+    SourceLocation Location;
 
     /// Whether the entity being initialized may end up using the
     /// named return value optimization (NRVO).
@@ -172,11 +174,12 @@ private:
     IdentifierInfo *VarID;
 
     /// The source location at which the capture occurs.
-    unsigned Location;
+    SourceLocation Location;
   };
 
   union {
-    /// When Kind == EK_Variable, EK_Member or EK_Binding, the variable.
+    /// When Kind == EK_Variable, EK_Member, EK_Binding, or
+    /// EK_TemplateParameter, the variable, binding, or template parameter.
     VD Variable;
 
     /// When Kind == EK_RelatedResult, the ObjectiveC method where
@@ -206,7 +209,7 @@ private:
     struct C Capture;
   };
 
-  InitializedEntity() = default;
+  InitializedEntity() {};
 
   /// Create the initialization entity for a variable.
   InitializedEntity(VarDecl *Var, EntityKind EK = EK_Variable)
@@ -218,7 +221,8 @@ private:
   InitializedEntity(EntityKind Kind, SourceLocation Loc, QualType Type,
                     bool NRVO = false)
       : Kind(Kind), Type(Type) {
-    LocAndNRVO.Location = Loc.getRawEncoding();
+    new (&LocAndNRVO) LN;
+    LocAndNRVO.Location = Loc;
     LocAndNRVO.NRVO = NRVO;
   }
 
@@ -235,8 +239,9 @@ private:
   /// Create the initialization entity for a lambda capture.
   InitializedEntity(IdentifierInfo *VarID, QualType FieldType, SourceLocation Loc)
       : Kind(EK_LambdaCapture), Type(FieldType) {
+    new (&Capture) C;
     Capture.VarID = VarID;
-    Capture.Location = Loc.getRawEncoding();
+    Capture.Location = Loc;
   }
 
 public:
@@ -279,6 +284,17 @@ public:
     Entity.Type = Context.getVariableArrayDecayedType(Type);
     Entity.Parent = nullptr;
     Entity.Parameter = (Consumed);
+    return Entity;
+  }
+
+  /// Create the initialization entity for a template parameter.
+  static InitializedEntity
+  InitializeTemplateParameter(QualType T, NonTypeTemplateParmDecl *Param) {
+    InitializedEntity Entity;
+    Entity.Kind = EK_TemplateParameter;
+    Entity.Type = T;
+    Entity.Parent = nullptr;
+    Entity.Variable = {Param, false, false};
     return Entity;
   }
 
@@ -387,6 +403,8 @@ public:
   }
 
   /// Create the initialization entity for a lambda capture.
+  ///
+  /// \p VarID The name of the entity being captured, or nullptr for 'this'.
   static InitializedEntity InitializeLambdaCapture(IdentifierInfo *VarID,
                                                    QualType FieldType,
                                                    SourceLocation Loc) {
@@ -440,6 +458,10 @@ public:
             getKind() == EK_Parameter_CF_Audited);
   }
 
+  bool isParamOrTemplateParamKind() const {
+    return isParameterKind() || getKind() == EK_TemplateParameter;
+  }
+
   /// Determine whether this initialization consumes the
   /// parameter.
   bool isParameterConsumed() const {
@@ -481,14 +503,14 @@ public:
   /// the result of a function call.
   SourceLocation getReturnLoc() const {
     assert(getKind() == EK_Result && "No 'return' location!");
-    return SourceLocation::getFromRawEncoding(LocAndNRVO.Location);
+    return LocAndNRVO.Location;
   }
 
   /// Determine the location of the 'throw' keyword when initializing
   /// an exception object.
   SourceLocation getThrowLoc() const {
     assert(getKind() == EK_Exception && "No 'throw' location!");
-    return SourceLocation::getFromRawEncoding(LocAndNRVO.Location);
+    return LocAndNRVO.Location;
   }
 
   /// If this is an array, vector, or complex number element, get the
@@ -510,14 +532,14 @@ public:
   /// For a lambda capture, return the capture's name.
   StringRef getCapturedVarName() const {
     assert(getKind() == EK_LambdaCapture && "Not a lambda capture!");
-    return Capture.VarID->getName();
+    return Capture.VarID ? Capture.VarID->getName() : "this";
   }
 
   /// Determine the location of the capture when initializing
   /// field from a captured variable in a lambda.
   SourceLocation getCaptureLoc() const {
     assert(getKind() == EK_LambdaCapture && "Not a lambda capture!");
-    return SourceLocation::getFromRawEncoding(Capture.Location);
+    return Capture.Location;
   }
 
   void setParameterCFAudited() {
@@ -688,6 +710,9 @@ public:
     return Context >= IC_StaticCast;
   }
 
+  /// Determine whether this initialization is a static cast.
+  bool isStaticCast() const { return Context == IC_StaticCast; }
+
   /// Determine whether this initialization is a C-style cast.
   bool isCStyleOrFunctionalCast() const {
     return Context >= IC_CStyleCast;
@@ -817,11 +842,11 @@ public:
     /// Perform a qualification conversion, producing an lvalue.
     SK_QualificationConversionLValue,
 
+    /// Perform a function reference conversion, see [dcl.init.ref]p4.
+    SK_FunctionReferenceConversion,
+
     /// Perform a conversion adding _Atomic to a type.
     SK_AtomicConversion,
-
-    /// Perform a load from a glvalue, producing an rvalue.
-    SK_LValueToRValue,
 
     /// Perform an implicit conversion sequence.
     SK_ConversionSequence,
@@ -1001,6 +1026,9 @@ public:
     /// Non-const lvalue reference binding to a vector element.
     FK_NonConstLValueReferenceBindingToVectorElement,
 
+    /// Non-const lvalue reference binding to a matrix element.
+    FK_NonConstLValueReferenceBindingToMatrixElement,
+
     /// Non-const lvalue reference binding to an lvalue of unrelated
     /// type.
     FK_NonConstLValueReferenceBindingToUnrelated,
@@ -1010,6 +1038,9 @@ public:
 
     /// Reference binding drops qualifiers.
     FK_ReferenceInitDropsQualifiers,
+
+    /// Reference with mismatching address space binding to temporary.
+    FK_ReferenceAddrspaceMismatchTemporary,
 
     /// Reference binding failed.
     FK_ReferenceInitFailed,
@@ -1197,17 +1228,6 @@ public:
   /// constructor.
   bool isConstructorInitialization() const;
 
-  /// Returns whether the last step in this initialization sequence is a
-  /// narrowing conversion, defined by C++0x [dcl.init.list]p7.
-  ///
-  /// If this function returns true, *isInitializerConstant will be set to
-  /// describe whether *Initializer was a constant expression.  If
-  /// *isInitializerConstant is set to true, *ConstantValue will be set to the
-  /// evaluated value of *Initializer.
-  bool endsWithNarrowing(ASTContext &Ctx, const Expr *Initializer,
-                         bool *isInitializerConstant,
-                         APValue *ConstantValue) const;
-
   /// Add a new step in the initialization that resolves the address
   /// of an overloaded function to a specific function declaration.
   ///
@@ -1262,15 +1282,13 @@ public:
   void AddQualificationConversionStep(QualType Ty,
                                      ExprValueKind Category);
 
+  /// Add a new step that performs a function reference conversion to the
+  /// given type.
+  void AddFunctionReferenceConversionStep(QualType Ty);
+
   /// Add a new step that performs conversion from non-atomic to atomic
   /// type.
   void AddAtomicConversionStep(QualType Ty);
-
-  /// Add a new step that performs a load of the given type.
-  ///
-  /// Although the term "LValueToRValue" is conventional, this applies to both
-  /// lvalues and xvalues.
-  void AddLValueToRValueStep(QualType Ty);
 
   /// Add a new step that applies an implicit conversion sequence.
   void AddConversionSequenceStep(const ImplicitConversionSequence &ICS,
@@ -1334,10 +1352,6 @@ public:
   /// Add a step to initialzie an OpenCL opaque type (event_t, queue_t, etc.)
   /// from a zero constant.
   void AddOCLZeroOpaqueTypeStep(QualType T);
-
-  /// Add a step to initialize by zero types defined in the
-  /// cl_intel_device_side_avc_motion_estimation OpenCL extension
-  void AddOCLIntelSubgroupAVCZeroInitStep(QualType T);
 
   /// Add steps to unwrap a initializer list for a reference around a
   /// single element and rewrap it at the end.

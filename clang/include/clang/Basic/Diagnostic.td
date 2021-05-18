@@ -1,9 +1,8 @@
 //===--- Diagnostic.td - C Language Family Diagnostic Handling ------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -46,6 +45,7 @@ class TextSubstitution<string Text> {
   // diagnostics
   string Component = "";
   string CategoryName = "";
+  bit Deferrable = 0;
 }
 
 // Diagnostic Categories.  These can be applied to groups or individual
@@ -84,6 +84,7 @@ class Diagnostic<string text, DiagClass DC, Severity defaultmapping> {
   bit            AccessControl = 0;
   bit            WarningNoWerror = 0;
   bit            ShowInSystemHeader = 0;
+  bit            Deferrable = 0;
   Severity       DefaultSeverity = defaultmapping;
   DiagGroup      Group;
   string         CategoryName = "";
@@ -105,6 +106,14 @@ class ShowInSystemHeader {
 
 class SuppressInSystemHeader {
   bit ShowInSystemHeader = 0;
+}
+
+class Deferrable {
+  bit Deferrable = 1;
+}
+
+class NonDeferrable {
+  bit Deferrable = 0;
 }
 
 // FIXME: ExtWarn and Extension should also be SFINAEFailure by default.

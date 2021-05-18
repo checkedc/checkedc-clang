@@ -1,9 +1,8 @@
 //===-- sanitizer_signal_interceptors.inc -----------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -54,7 +53,10 @@ INTERCEPTOR(uptr, signal, int signum, uptr handler) {
 
 INTERCEPTOR(int, sigaction_symname, int signum,
             const __sanitizer_sigaction *act, __sanitizer_sigaction *oldact) {
-  if (GetHandleSignalMode(signum) == kHandleSignalExclusive) return 0;
+  if (GetHandleSignalMode(signum) == kHandleSignalExclusive) {
+    if (!oldact) return 0;
+    act = nullptr;
+  }
   SIGNAL_INTERCEPTOR_SIGACTION_IMPL(signum, act, oldact);
 }
 #define INIT_SIGACTION COMMON_INTERCEPT_FUNCTION(sigaction_symname)

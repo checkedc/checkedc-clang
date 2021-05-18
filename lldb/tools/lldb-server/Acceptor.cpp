@@ -1,9 +1,8 @@
 //===-- Acceptor.cpp --------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -119,7 +118,7 @@ std::unique_ptr<Acceptor> Acceptor::Create(StringRef name,
         return (local_port != 0) ? llvm::to_string(local_port) : "";
       };
     } else {
-      const std::string socket_name = name;
+      const std::string socket_name = std::string(name);
       local_socket_id = [socket_name]() { return socket_name; };
     }
 

@@ -1,9 +1,8 @@
 //===-- cli-wrapper-pt.cpp -------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 // CLI Wrapper of PTDecoder Tool to enable it to be used through LLDB's CLI. The
 // wrapper provides a new command called processor-trace with 4 child
@@ -192,6 +191,7 @@ public:
       result.SetStatus(lldb::eReturnStatusFailed);
       return false;
     }
+    result.SetStatus(lldb::eReturnStatusSuccessFinishResult);
     return true;
   }
 
@@ -291,6 +291,7 @@ public:
                  s.GetData());
       result.AppendMessage(res.GetOutput());
     }
+    result.SetStatus(lldb::eReturnStatusSuccessFinishResult);
     return true;
   }
 
@@ -429,6 +430,7 @@ public:
       }
       result.AppendMessage(res.GetOutput());
     }
+    result.SetStatus(lldb::eReturnStatusSuccessFinishResult);
     return true;
   }
 
@@ -481,6 +483,7 @@ public:
       result.SetStatus(lldb::eReturnStatusFailed);
       return false;
     }
+    result.SetStatus(lldb::eReturnStatusSuccessFinishResult);
     return true;
   }
 

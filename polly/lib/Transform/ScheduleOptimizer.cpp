@@ -1,9 +1,8 @@
 //===- Schedule.cpp - Calculate an optimized schedule ---------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -51,26 +50,23 @@
 #include "polly/DependenceInfo.h"
 #include "polly/LinkAllPasses.h"
 #include "polly/Options.h"
+#include "polly/ScheduleTreeTransform.h"
 #include "polly/ScopInfo.h"
 #include "polly/ScopPass.h"
 #include "polly/Simplify.h"
-#include "polly/Support/GICHelper.h"
 #include "polly/Support/ISLOStream.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/Function.h"
-#include "llvm/Pass.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
-#include "isl/constraint.h"
 #include "isl/ctx.h"
-#include "isl/map.h"
 #include "isl/options.h"
 #include "isl/printer.h"
 #include "isl/schedule.h"
 #include "isl/schedule_node.h"
-#include "isl/space.h"
 #include "isl/union_map.h"
 #include "isl/union_set.h"
 #include <algorithm>
@@ -281,9 +277,9 @@ STATISTIC(NumBoxedLoopsOptimized, "Number of boxed loops optimized");
 
 #define THREE_STATISTICS(VARNAME, DESC)                                        \
   static Statistic VARNAME[3] = {                                              \
-      {DEBUG_TYPE, #VARNAME "0", DESC " (original)", {0}, {false}},            \
-      {DEBUG_TYPE, #VARNAME "1", DESC " (after scheduler)", {0}, {false}},     \
-      {DEBUG_TYPE, #VARNAME "2", DESC " (after optimizer)", {0}, {false}}}
+      {DEBUG_TYPE, #VARNAME "0", DESC " (original)"},                          \
+      {DEBUG_TYPE, #VARNAME "1", DESC " (after scheduler)"},                   \
+      {DEBUG_TYPE, #VARNAME "2", DESC " (after optimizer)"}}
 
 THREE_STATISTICS(NumBands, "Number of bands");
 THREE_STATISTICS(NumBandMembers, "Number of band members");
@@ -389,8 +385,8 @@ ScheduleTreeOptimizer::isolateFullPartialTiles(isl::schedule_node Node,
   assert(isl_schedule_node_get_type(Node.get()) == isl_schedule_node_band);
   Node = Node.child(0).child(0);
   isl::union_map SchedRelUMap = Node.get_prefix_schedule_relation();
-  isl::map ScheduleRelation = isl::map::from_union_map(SchedRelUMap);
-  isl::set ScheduleRange = ScheduleRelation.range();
+  isl::union_set ScheduleRangeUSet = SchedRelUMap.range();
+  isl::set ScheduleRange{ScheduleRangeUSet};
   isl::set IsolateDomain = getPartialTilePrefixes(ScheduleRange, VectorWidth);
   auto AtomicOption = getDimOptions(IsolateDomain.get_ctx(), "atomic");
   isl::union_set IsolateOption = getIsolateOptions(IsolateDomain, 1);
@@ -813,7 +809,7 @@ static isl::schedule_node permuteBandNodeDimensions(isl::schedule_node Node,
                                                     unsigned FirstDim,
                                                     unsigned SecondDim) {
   assert(isl_schedule_node_get_type(Node.get()) == isl_schedule_node_band &&
-         isl_schedule_node_band_n_member(Node.get()) >
+         (unsigned)isl_schedule_node_band_n_member(Node.get()) >
              std::max(FirstDim, SecondDim));
   auto PartialSchedule =
       isl::manage(isl_schedule_node_band_get_partial_schedule(Node.get()));
@@ -850,6 +846,10 @@ isl::schedule_node ScheduleTreeOptimizer::createMacroKernel(
   Node = Node.parent().parent();
   Node = permuteBandNodeDimensions(Node, DimOutNum - 2, DimOutNum - 1);
   Node = permuteBandNodeDimensions(Node, DimOutNum - 3, DimOutNum - 1);
+
+  // Mark the outermost loop as parallelizable.
+  Node = Node.band_member_set_coincident(0, true);
+
   return Node.child(0).child(0);
 }
 
@@ -911,9 +911,10 @@ getMicroKernelParams(const TargetTransformInfo *TTI, MatMulInfoTy MMI) {
   auto Nvec = RegisterBitwidth / ElementSize;
   if (Nvec == 0)
     Nvec = 2;
-  int Nr =
-      ceil(sqrt(Nvec * LatencyVectorFma * ThroughputVectorFma) / Nvec) * Nvec;
-  int Mr = ceil(Nvec * LatencyVectorFma * ThroughputVectorFma / Nr);
+  int Nr = ceil(sqrt((double)(Nvec * LatencyVectorFma * ThroughputVectorFma)) /
+                Nvec) *
+           Nvec;
+  int Mr = ceil((double)(Nvec * LatencyVectorFma * ThroughputVectorFma / Nr));
   return {Mr, Nr};
 }
 
@@ -1259,7 +1260,7 @@ getBandNodeWithOriginDimOrder(isl::schedule_node Node) {
   auto Domain = Node.get_universe_domain();
   assert(isl_union_set_n_set(Domain.get()) == 1);
   if (Node.get_schedule_depth() != 0 ||
-      (isl::set(Domain).dim(isl::dim::set) !=
+      (static_cast<isl_size>(isl::set(Domain).dim(isl::dim::set)) !=
        isl_schedule_node_band_n_member(Node.get())))
     return Node;
   Node = isl::manage(isl_schedule_node_delete(Node.copy()));
@@ -1372,8 +1373,6 @@ bool ScheduleTreeOptimizer::isProfitableSchedule(Scop &S,
   // optimizations, by comparing (yet to be defined) performance metrics
   // before/after the scheduling optimizer
   // (e.g., #stride-one accesses)
-  if (S.containsExtensionNode(NewSchedule))
-    return true;
   auto NewScheduleMap = NewSchedule.get_map();
   auto OldSchedule = S.getSchedule();
   assert(OldSchedule && "Only IslScheduleOptimizer can insert extension nodes "
@@ -1390,7 +1389,7 @@ public:
 
   explicit IslScheduleOptimizer() : ScopPass(ID) {}
 
-  ~IslScheduleOptimizer() override { isl_schedule_free(LastSchedule); }
+  ~IslScheduleOptimizer() override { releaseMemory(); }
 
   /// Optimize the schedule of the SCoP @p S.
   bool runOnScop(Scop &S) override;
@@ -1405,9 +1404,11 @@ public:
   void releaseMemory() override {
     isl_schedule_free(LastSchedule);
     LastSchedule = nullptr;
+    IslCtx.reset();
   }
 
 private:
+  std::shared_ptr<isl_ctx> IslCtx;
   isl_schedule *LastSchedule = nullptr;
 };
 } // namespace
@@ -1621,6 +1622,7 @@ bool IslScheduleOptimizer::runOnScop(Scop &S) {
   auto *TTI = &getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F);
   const OptimizerAdditionalInfoTy OAI = {TTI, const_cast<Dependences *>(&D)};
   auto NewSchedule = ScheduleTreeOptimizer::optimizeSchedule(Schedule, &OAI);
+  NewSchedule = hoistExtensionNodes(NewSchedule);
   walkScheduleTreeForStatistics(NewSchedule, 2);
 
   if (!ScheduleTreeOptimizer::isProfitableSchedule(S, NewSchedule))
@@ -1630,6 +1632,8 @@ bool IslScheduleOptimizer::runOnScop(Scop &S) {
   ScopsOptimized++;
   NumAffineLoopsOptimized += ScopStats.NumAffineLoops;
   NumBoxedLoopsOptimized += ScopStats.NumBoxedLoops;
+  LastSchedule = NewSchedule.copy();
+  IslCtx = S.getSharedIslCtx();
 
   S.setScheduleTree(NewSchedule);
   S.markAsOptimized();
@@ -1652,11 +1656,14 @@ void IslScheduleOptimizer::printScop(raw_ostream &OS, Scop &) const {
   }
 
   p = isl_printer_to_str(isl_schedule_get_ctx(LastSchedule));
+  p = isl_printer_set_yaml_style(p, ISL_YAML_STYLE_BLOCK);
   p = isl_printer_print_schedule(p, LastSchedule);
   ScheduleStr = isl_printer_get_str(p);
   isl_printer_free(p);
 
   OS << ScheduleStr << "\n";
+
+  free(ScheduleStr);
 }
 
 void IslScheduleOptimizer::getAnalysisUsage(AnalysisUsage &AU) const {

@@ -1,15 +1,15 @@
 //===--- MacroUsageCheck.cpp - clang-tidy----------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "MacroUsageCheck.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/PPCallbacks.h"
+#include "clang/Lex/Preprocessor.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Regex.h"
 #include <algorithm>
@@ -32,12 +32,13 @@ bool isCapsOnly(StringRef Name) {
 class MacroUsageCallbacks : public PPCallbacks {
 public:
   MacroUsageCallbacks(MacroUsageCheck *Check, const SourceManager &SM,
-                      StringRef RegExp, bool CapsOnly, bool IgnoreCommandLine)
-      : Check(Check), SM(SM), RegExp(RegExp), CheckCapsOnly(CapsOnly),
+                      StringRef RegExpStr, bool CapsOnly, bool IgnoreCommandLine)
+      : Check(Check), SM(SM), RegExp(RegExpStr), CheckCapsOnly(CapsOnly),
         IgnoreCommandLineMacros(IgnoreCommandLine) {}
   void MacroDefined(const Token &MacroNameTok,
                     const MacroDirective *MD) override {
-    if (MD->getMacroInfo()->isUsedForHeaderGuard() ||
+    if (SM.isWrittenInBuiltinFile(MD->getLocation()) ||
+        MD->getMacroInfo()->isUsedForHeaderGuard() ||
         MD->getMacroInfo()->getNumTokens() == 0)
       return;
 
@@ -46,7 +47,7 @@ public:
       return;
 
     StringRef MacroName = MacroNameTok.getIdentifierInfo()->getName();
-    if (!CheckCapsOnly && !llvm::Regex(RegExp).match(MacroName))
+    if (!CheckCapsOnly && !RegExp.match(MacroName))
       Check->warnMacro(MD, MacroName);
 
     if (CheckCapsOnly && !isCapsOnly(MacroName))
@@ -56,7 +57,7 @@ public:
 private:
   MacroUsageCheck *Check;
   const SourceManager &SM;
-  StringRef RegExp;
+  const llvm::Regex RegExp;
   bool CheckCapsOnly;
   bool IgnoreCommandLineMacros;
 };
@@ -68,14 +69,11 @@ void MacroUsageCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "IgnoreCommandLineMacros", IgnoreCommandLineMacros);
 }
 
-void MacroUsageCheck::registerPPCallbacks(CompilerInstance &Compiler) {
-  if (!getLangOpts().CPlusPlus11)
-    return;
-
-  Compiler.getPreprocessor().addPPCallbacks(
-      llvm::make_unique<MacroUsageCallbacks>(this, Compiler.getSourceManager(),
-                                             AllowedRegexp, CheckCapsOnly,
-                                             IgnoreCommandLineMacros));
+void MacroUsageCheck::registerPPCallbacks(const SourceManager &SM,
+                                          Preprocessor *PP,
+                                          Preprocessor *ModuleExpanderPP) {
+  PP->addPPCallbacks(std::make_unique<MacroUsageCallbacks>(
+      this, SM, AllowedRegexp, CheckCapsOnly, IgnoreCommandLineMacros));
 }
 
 void MacroUsageCheck::warnMacro(const MacroDirective *MD, StringRef MacroName) {

@@ -1,9 +1,8 @@
 //===- AliasAnalysisEvaluator.cpp - Alias Analysis Accuracy Evaluator -----===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -17,6 +16,7 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -114,7 +114,7 @@ void AAEvaluator::runInternal(Function &F, AAResults &AA) {
       Stores.insert(&*I);
     Instruction &Inst = *I;
     if (auto *Call = dyn_cast<CallBase>(&Inst)) {
-      Value *Callee = Call->getCalledValue();
+      Value *Callee = Call->getCalledOperand();
       // Skip actual functions for direct function calls.
       if (!isa<Function>(Callee) && isInterestingPointer(Callee))
         Pointers.insert(Callee);
@@ -140,13 +140,13 @@ void AAEvaluator::runInternal(Function &F, AAResults &AA) {
   // iterate over the worklist, and run the full (n^2)/2 disambiguations
   for (SetVector<Value *>::iterator I1 = Pointers.begin(), E = Pointers.end();
        I1 != E; ++I1) {
-    auto I1Size = LocationSize::unknown();
+    auto I1Size = LocationSize::afterPointer();
     Type *I1ElTy = cast<PointerType>((*I1)->getType())->getElementType();
     if (I1ElTy->isSized())
       I1Size = LocationSize::precise(DL.getTypeStoreSize(I1ElTy));
 
     for (SetVector<Value *>::iterator I2 = Pointers.begin(); I2 != I1; ++I2) {
-      auto I2Size = LocationSize::unknown();
+      auto I2Size = LocationSize::afterPointer();
       Type *I2ElTy = cast<PointerType>((*I2)->getType())->getElementType();
       if (I2ElTy->isSized())
         I2Size = LocationSize::precise(DL.getTypeStoreSize(I2ElTy));
@@ -231,7 +231,7 @@ void AAEvaluator::runInternal(Function &F, AAResults &AA) {
   // Mod/ref alias analysis: compare all pairs of calls and values
   for (CallBase *Call : Calls) {
     for (auto Pointer : Pointers) {
-      auto Size = LocationSize::unknown();
+      auto Size = LocationSize::afterPointer();
       Type *ElTy = cast<PointerType>(Pointer->getType())->getElementType();
       if (ElTy->isSized())
         Size = LocationSize::precise(DL.getTypeStoreSize(ElTy));

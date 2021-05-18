@@ -1,9 +1,8 @@
 //===-- hwasan_interface_internal.h -----------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -17,14 +16,23 @@
 
 #include "sanitizer_common/sanitizer_internal_defs.h"
 #include "sanitizer_common/sanitizer_platform_limits_posix.h"
+#include <link.h>
 
 extern "C" {
 
 SANITIZER_INTERFACE_ATTRIBUTE
-void __hwasan_shadow_init();
+void __hwasan_init_static();
 
 SANITIZER_INTERFACE_ATTRIBUTE
 void __hwasan_init();
+
+SANITIZER_INTERFACE_ATTRIBUTE
+void __hwasan_library_loaded(ElfW(Addr) base, const ElfW(Phdr) * phdr,
+                             ElfW(Half) phnum);
+
+SANITIZER_INTERFACE_ATTRIBUTE
+void __hwasan_library_unloaded(ElfW(Addr) base, const ElfW(Phdr) * phdr,
+                               ElfW(Half) phnum);
 
 using __sanitizer::uptr;
 using __sanitizer::sptr;
@@ -101,6 +109,13 @@ SANITIZER_INTERFACE_ATTRIBUTE
 uptr __hwasan_tag_pointer(uptr p, u8 tag);
 
 SANITIZER_INTERFACE_ATTRIBUTE
+void __hwasan_tag_mismatch(uptr addr, u8 ts);
+
+SANITIZER_INTERFACE_ATTRIBUTE
+void __hwasan_tag_mismatch4(uptr addr, uptr access_info, uptr *registers_frame,
+                            size_t outsize);
+
+SANITIZER_INTERFACE_ATTRIBUTE
 u8 __hwasan_generate_tag();
 
 // Returns the offset of the first tag mismatch or -1 if the whole range is
@@ -116,6 +131,9 @@ void __hwasan_print_shadow(const void *x, uptr size);
 
 SANITIZER_INTERFACE_ATTRIBUTE
 void __hwasan_handle_longjmp(const void *sp_dst);
+
+SANITIZER_INTERFACE_ATTRIBUTE
+void __hwasan_handle_vfork(const void *sp_dst);
 
 SANITIZER_INTERFACE_ATTRIBUTE
 u16 __sanitizer_unaligned_load16(const uu16 *p);
@@ -193,6 +211,9 @@ SANITIZER_INTERFACE_ATTRIBUTE
 void * __sanitizer_realloc(void *ptr, uptr size);
 
 SANITIZER_INTERFACE_ATTRIBUTE
+void * __sanitizer_reallocarray(void *ptr, uptr nmemb, uptr size);
+
+SANITIZER_INTERFACE_ATTRIBUTE
 void * __sanitizer_malloc(uptr size);
 
 SANITIZER_INTERFACE_ATTRIBUTE
@@ -201,6 +222,9 @@ SANITIZER_INTERFACE_ATTRIBUTE
 void *__hwasan_memset(void *s, int c, uptr n);
 SANITIZER_INTERFACE_ATTRIBUTE
 void *__hwasan_memmove(void *dest, const void *src, uptr n);
+
+SANITIZER_INTERFACE_ATTRIBUTE
+void __hwasan_set_error_report_callback(void (*callback)(const char *));
 }  // extern "C"
 
 #endif  // HWASAN_INTERFACE_INTERNAL_H

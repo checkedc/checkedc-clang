@@ -1,11 +1,12 @@
 //===- unittests/CodeGen/CodeGenExternalTest.cpp - test external CodeGen -===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+#include "TestCompiler.h"
 
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
@@ -200,7 +201,7 @@ static void test_codegen_fns(MyASTConsumer *my) {
           dbgs() << "\n";
         }
 
-        llvm::CompositeType* structTy = dyn_cast<CompositeType>(llvmTy);
+        auto* structTy = dyn_cast<llvm::StructType>(llvmTy);
         ASSERT_TRUE(structTy != NULL);
 
         // Check getLLVMFieldNumber
@@ -258,45 +259,18 @@ static void test_codegen_fns(MyASTConsumer *my) {
 }
 
 TEST(CodeGenExternalTest, CodeGenExternalTest) {
-    LLVMContext Context;
-    CompilerInstance compiler;
+  clang::LangOptions LO;
+  LO.CPlusPlus = 1;
+  LO.CPlusPlus11 = 1;
+  TestCompiler Compiler(LO);
+  auto CustomASTConsumer
+    = std::make_unique<MyASTConsumer>(std::move(Compiler.CG));
 
-    compiler.createDiagnostics();
-    compiler.getLangOpts().CPlusPlus = 1;
-    compiler.getLangOpts().CPlusPlus11 = 1;
+  Compiler.init(TestProgram, std::move(CustomASTConsumer));
 
-    compiler.getTargetOpts().Triple = llvm::Triple::normalize(
-        llvm::sys::getProcessTriple());
-    compiler.setTarget(clang::TargetInfo::CreateTargetInfo(
-      compiler.getDiagnostics(),
-      std::make_shared<clang::TargetOptions>(
-        compiler.getTargetOpts())));
+  clang::ParseAST(Compiler.compiler.getSema(), false, false);
 
-    compiler.createFileManager();
-    compiler.createSourceManager(compiler.getFileManager());
-    compiler.createPreprocessor(clang::TU_Prefix);
-
-    compiler.createASTContext();
-
-
-    compiler.setASTConsumer(std::unique_ptr<ASTConsumer>(
-          new MyASTConsumer(std::unique_ptr<CodeGenerator>(
-             CreateLLVMCodeGen(compiler.getDiagnostics(),
-                               "MemoryTypesTest",
-                               compiler.getHeaderSearchOpts(),
-                               compiler.getPreprocessorOpts(),
-                               compiler.getCodeGenOpts(),
-                               Context)))));
-
-    compiler.createSema(clang::TU_Prefix, nullptr);
-
-    clang::SourceManager &sm = compiler.getSourceManager();
-    sm.setMainFileID(sm.createFileID(
-        llvm::MemoryBuffer::getMemBuffer(TestProgram), clang::SrcMgr::C_User));
-
-    clang::ParseAST(compiler.getSema(), false, false);
-
-    ASSERT_TRUE(test_codegen_fns_ran);
+  ASSERT_TRUE(test_codegen_fns_ran);
 }
 
 } // end anonymous namespace

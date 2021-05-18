@@ -1,9 +1,8 @@
 //===- lld/unittest/MachOTests/MachONormalizedFileYAMLTests.cpp -----------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -51,7 +50,7 @@ TEST(ObjectFileYAML, empty_ppc) {
     "...\n");
   EXPECT_EQ(f->arch, lld::MachOLinkingContext::arch_ppc);
   EXPECT_EQ(f->fileType, llvm::MachO::MH_OBJECT);
-  EXPECT_EQ((int)(f->flags), llvm::MachO::MH_SUBSECTIONS_VIA_SYMBOLS);
+  EXPECT_EQ((int)(f->flags), (int)(int)llvm::MachO::MH_SUBSECTIONS_VIA_SYMBOLS);
   EXPECT_TRUE(f->sections.empty());
   EXPECT_TRUE(f->localSymbols.empty());
   EXPECT_TRUE(f->globalSymbols.empty());
@@ -67,7 +66,7 @@ TEST(ObjectFileYAML, empty_x86_64) {
     "...\n");
   EXPECT_EQ(f->arch, lld::MachOLinkingContext::arch_x86_64);
   EXPECT_EQ(f->fileType, llvm::MachO::MH_OBJECT);
-  EXPECT_EQ((int)(f->flags), llvm::MachO::MH_SUBSECTIONS_VIA_SYMBOLS);
+  EXPECT_EQ((int)(f->flags), (int)(int)llvm::MachO::MH_SUBSECTIONS_VIA_SYMBOLS);
   EXPECT_TRUE(f->sections.empty());
   EXPECT_TRUE(f->localSymbols.empty());
   EXPECT_TRUE(f->globalSymbols.empty());
@@ -83,7 +82,7 @@ TEST(ObjectFileYAML, empty_x86) {
     "...\n");
   EXPECT_EQ(f->arch, lld::MachOLinkingContext::arch_x86);
   EXPECT_EQ(f->fileType, llvm::MachO::MH_OBJECT);
-  EXPECT_EQ((int)(f->flags), llvm::MachO::MH_SUBSECTIONS_VIA_SYMBOLS);
+  EXPECT_EQ((int)(f->flags), (int)llvm::MachO::MH_SUBSECTIONS_VIA_SYMBOLS);
   EXPECT_TRUE(f->sections.empty());
   EXPECT_TRUE(f->localSymbols.empty());
   EXPECT_TRUE(f->globalSymbols.empty());
@@ -99,7 +98,7 @@ TEST(ObjectFileYAML, empty_armv6) {
     "...\n");
   EXPECT_EQ(f->arch, lld::MachOLinkingContext::arch_armv6);
   EXPECT_EQ(f->fileType, llvm::MachO::MH_OBJECT);
-  EXPECT_EQ((int)(f->flags), llvm::MachO::MH_SUBSECTIONS_VIA_SYMBOLS);
+  EXPECT_EQ((int)(f->flags), (int)llvm::MachO::MH_SUBSECTIONS_VIA_SYMBOLS);
   EXPECT_TRUE(f->sections.empty());
   EXPECT_TRUE(f->localSymbols.empty());
   EXPECT_TRUE(f->globalSymbols.empty());
@@ -115,7 +114,7 @@ TEST(ObjectFileYAML, empty_armv7) {
     "...\n");
   EXPECT_EQ(f->arch, lld::MachOLinkingContext::arch_armv7);
   EXPECT_EQ(f->fileType, llvm::MachO::MH_OBJECT);
-  EXPECT_EQ((int)(f->flags), llvm::MachO::MH_SUBSECTIONS_VIA_SYMBOLS);
+  EXPECT_EQ((int)(f->flags), (int)llvm::MachO::MH_SUBSECTIONS_VIA_SYMBOLS);
   EXPECT_TRUE(f->sections.empty());
   EXPECT_TRUE(f->localSymbols.empty());
   EXPECT_TRUE(f->globalSymbols.empty());
@@ -131,7 +130,7 @@ TEST(ObjectFileYAML, empty_armv7s) {
     "...\n");
   EXPECT_EQ(f->arch, lld::MachOLinkingContext::arch_armv7s);
   EXPECT_EQ(f->fileType, llvm::MachO::MH_OBJECT);
-  EXPECT_EQ((int)(f->flags), llvm::MachO::MH_SUBSECTIONS_VIA_SYMBOLS);
+  EXPECT_EQ((int)(f->flags), (int)llvm::MachO::MH_SUBSECTIONS_VIA_SYMBOLS);
   EXPECT_TRUE(f->sections.empty());
   EXPECT_TRUE(f->localSymbols.empty());
   EXPECT_TRUE(f->globalSymbols.empty());
@@ -144,7 +143,7 @@ TEST(ObjectFileYAML, roundTrip) {
     NormalizedFile f;
     f.arch = lld::MachOLinkingContext::arch_x86_64;
     f.fileType = llvm::MachO::MH_OBJECT;
-    f.flags = llvm::MachO::MH_SUBSECTIONS_VIA_SYMBOLS;
+    f.flags = (int)llvm::MachO::MH_SUBSECTIONS_VIA_SYMBOLS;
     f.os = lld::MachOLinkingContext::OS::macOSX;
     toYAML(f, intermediate);
   }
@@ -152,7 +151,7 @@ TEST(ObjectFileYAML, roundTrip) {
     std::unique_ptr<NormalizedFile> f2 = fromYAML(intermediate);
     EXPECT_EQ(f2->arch, lld::MachOLinkingContext::arch_x86_64);
     EXPECT_EQ((int)(f2->fileType), llvm::MachO::MH_OBJECT);
-    EXPECT_EQ((int)(f2->flags), llvm::MachO::MH_SUBSECTIONS_VIA_SYMBOLS);
+    EXPECT_EQ((int)(f2->flags), (int)llvm::MachO::MH_SUBSECTIONS_VIA_SYMBOLS);
     EXPECT_TRUE(f2->sections.empty());
     EXPECT_TRUE(f2->localSymbols.empty());
     EXPECT_TRUE(f2->globalSymbols.empty());
@@ -276,7 +275,7 @@ TEST(ObjectFileYAML, hello_x86_64) {
     "...\n");
   EXPECT_EQ(f->arch, lld::MachOLinkingContext::arch_x86_64);
   EXPECT_EQ(f->fileType, llvm::MachO::MH_OBJECT);
-  EXPECT_EQ((int)(f->flags), llvm::MachO::MH_SUBSECTIONS_VIA_SYMBOLS);
+  EXPECT_EQ((int)(f->flags), (int)llvm::MachO::MH_SUBSECTIONS_VIA_SYMBOLS);
   EXPECT_EQ(f->sections.size(), 2UL);
 
   const Section& sect1 = f->sections[0];
@@ -406,7 +405,7 @@ TEST(ObjectFileYAML, hello_x86) {
     "...\n");
   EXPECT_EQ(f->arch, lld::MachOLinkingContext::arch_x86);
   EXPECT_EQ(f->fileType, llvm::MachO::MH_OBJECT);
-  EXPECT_EQ((int)(f->flags), llvm::MachO::MH_SUBSECTIONS_VIA_SYMBOLS);
+  EXPECT_EQ((int)(f->flags), (int)llvm::MachO::MH_SUBSECTIONS_VIA_SYMBOLS);
   EXPECT_EQ(f->sections.size(), 2UL);
 
   const Section& sect1 = f->sections[0];
@@ -534,7 +533,7 @@ TEST(ObjectFileYAML, hello_armv6) {
     "...\n");
   EXPECT_EQ(f->arch, lld::MachOLinkingContext::arch_armv6);
   EXPECT_EQ(f->fileType, llvm::MachO::MH_OBJECT);
-  EXPECT_EQ((int)(f->flags), llvm::MachO::MH_SUBSECTIONS_VIA_SYMBOLS);
+  EXPECT_EQ((int)(f->flags), (int)llvm::MachO::MH_SUBSECTIONS_VIA_SYMBOLS);
   EXPECT_EQ(f->sections.size(), 2UL);
 
   const Section& sect1 = f->sections[0];
@@ -674,7 +673,7 @@ TEST(ObjectFileYAML, hello_armv7) {
     "...\n");
   EXPECT_EQ(f->arch, lld::MachOLinkingContext::arch_armv7);
   EXPECT_EQ(f->fileType, llvm::MachO::MH_OBJECT);
-  EXPECT_EQ((int)(f->flags), llvm::MachO::MH_SUBSECTIONS_VIA_SYMBOLS);
+  EXPECT_EQ((int)(f->flags), (int)llvm::MachO::MH_SUBSECTIONS_VIA_SYMBOLS);
   EXPECT_EQ(f->sections.size(), 2UL);
 
   const Section& sect1 = f->sections[0];

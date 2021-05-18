@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 
 //===----------------------------------------------------------------------===//
@@ -15,7 +14,7 @@
 // Test unique_ptr converting move ctor
 
 // NOTE: unique_ptr does not provide converting constructors in C++03
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 #include <memory>
 #include <type_traits>
@@ -158,7 +157,7 @@ void test_noexcept() {
   }
 }
 
-int main() {
+int main(int, char**) {
   {
     test_sfinae();
     test_noexcept();
@@ -245,4 +244,6 @@ int main() {
     }
     checkNoneAlive();
   }
+
+  return 0;
 }

@@ -1,10 +1,5 @@
 import("//llvm/utils/TableGen/tablegen.gni")
 
-tablegen("AttributesCompatFunc") {
-  visibility = [ ":IR" ]
-  args = [ "-gen-attrs" ]
-}
-
 static_library("IR") {
   output_name = "LLVMCore"
   public_deps = [
@@ -13,13 +8,15 @@ static_library("IR") {
     "//llvm/include/llvm/IR:public_tablegen",
   ]
   deps = [
-    ":AttributesCompatFunc",
     "//llvm/include/llvm/IR:IntrinsicImpl",
     "//llvm/lib/BinaryFormat",
+    "//llvm/lib/Remarks",
     "//llvm/lib/Support",
   ]
   sources = [
+    "AbstractCallSite.cpp",
     "AsmWriter.cpp",
+    "Assumptions.cpp",
     "Attributes.cpp",
     "AutoUpgrade.cpp",
     "BasicBlock.cpp",
@@ -36,8 +33,8 @@ static_library("IR") {
     "DiagnosticHandler.cpp",
     "DiagnosticInfo.cpp",
     "DiagnosticPrinter.cpp",
-    "DomTreeUpdater.cpp",
     "Dominators.cpp",
+    "FPEnv.cpp",
     "Function.cpp",
     "GVMaterializer.cpp",
     "Globals.cpp",
@@ -49,6 +46,7 @@ static_library("IR") {
     "IntrinsicInst.cpp",
     "LLVMContext.cpp",
     "LLVMContextImpl.cpp",
+    "LLVMRemarkStreamer.cpp",
     "LegacyPassManager.cpp",
     "MDBuilder.cpp",
     "Mangler.cpp",
@@ -62,9 +60,13 @@ static_library("IR") {
     "PassManager.cpp",
     "PassRegistry.cpp",
     "PassTimingInfo.cpp",
+    "PrintPasses.cpp",
     "ProfileSummary.cpp",
+    "PseudoProbe.cpp",
+    "ReplaceConstant.cpp",
     "SafepointIRVerifier.cpp",
     "Statepoint.cpp",
+    "StructuralHash.cpp",
     "Type.cpp",
     "TypeFinder.cpp",
     "Use.cpp",

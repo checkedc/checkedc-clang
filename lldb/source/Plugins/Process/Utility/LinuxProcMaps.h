@@ -1,28 +1,27 @@
 //===-- LinuxProcMaps.h -----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_LinuxProcMaps_H_
-#define liblldb_LinuxProcMaps_H_
+#ifndef LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_LINUXPROCMAPS_H
+#define LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_LINUXPROCMAPS_H
 
 #include "lldb/lldb-forward.h"
 #include "llvm/ADT/StringRef.h"
-#include <functional>
-
+#include "llvm/Support/Error.h"
 
 namespace lldb_private {
 
-typedef std::function<bool(const lldb_private::MemoryRegionInfo &,
-                           const lldb_private::Status &)> LinuxMapCallback;
+typedef std::function<bool(llvm::Expected<MemoryRegionInfo>)> LinuxMapCallback;
 
 void ParseLinuxMapRegions(llvm::StringRef linux_map,
                           LinuxMapCallback const &callback);
+void ParseLinuxSMapRegions(llvm::StringRef linux_smap,
+                           LinuxMapCallback const &callback);
 
 } // namespace lldb_private
 
-#endif // liblldb_LinuxProcMaps_H_
+#endif // LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_LINUXPROCMAPS_H

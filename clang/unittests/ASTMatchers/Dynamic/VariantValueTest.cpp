@@ -1,9 +1,8 @@
 //===- unittest/ASTMatchers/Dynamic/VariantValueTest.cpp - VariantValue unit tests -===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===-----------------------------------------------------------------------------===//
 
@@ -183,6 +182,25 @@ TEST(VariantValueTest, Matcher) {
               VariantValue(VariantMatcher::SingleMatcher(declRefExpr()))
                   .getMatcher()
                   .getTypedMatcher<Stmt>()));
+}
+
+TEST(VariantValueTest, NodeKind) {
+  VariantValue Value = ASTNodeKind::getFromNodeKind<Stmt>();
+  EXPECT_TRUE(Value.isNodeKind());
+  EXPECT_TRUE(Value.getNodeKind().isSame(ASTNodeKind::getFromNodeKind<Stmt>()));
+
+  Value = ASTNodeKind::getFromNodeKind<CXXMethodDecl>();
+  EXPECT_TRUE(Value.isNodeKind());
+  EXPECT_TRUE(Value.getNodeKind().isSame(
+      ASTNodeKind::getFromNodeKind<CXXMethodDecl>()));
+
+  Value.setNodeKind(ASTNodeKind::getFromNodeKind<PointerType>());
+  EXPECT_TRUE(Value.isNodeKind());
+  EXPECT_TRUE(
+      Value.getNodeKind().isSame(ASTNodeKind::getFromNodeKind<PointerType>()));
+
+  Value = 42;
+  EXPECT_TRUE(!Value.isNodeKind());
 }
 
 } // end anonymous namespace

@@ -1,27 +1,27 @@
 //===--- Merge.cpp -----------------------------------------------*- C++-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "Merge.h"
-#include "Logger.h"
-#include "Trace.h"
+#include "index/Symbol.h"
+#include "index/SymbolLocation.h"
+#include "index/SymbolOrigin.h"
+#include "support/Logger.h"
+#include "support/Trace.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/raw_ostream.h"
+#include <algorithm>
+#include <iterator>
 
 namespace clang {
 namespace clangd {
 
-// FIXME: Deleted symbols in dirty files are still returned (from Static).
-//        To identify these eliminate these, we should:
-//          - find the generating file from each Symbol which is Static-only
-//          - ask Dynamic if it has that file (needs new SymbolIndex method)
-//          - if so, drop the Symbol.
 bool MergedIndex::fuzzyFind(
     const FuzzyFindRequest &Req,
     llvm::function_ref<void(const Symbol &)> Callback) const {
@@ -44,15 +44,23 @@ bool MergedIndex::fuzzyFind(
   SymbolSlab Dyn = std::move(DynB).build();
 
   llvm::DenseSet<SymbolID> SeenDynamicSymbols;
-  More |= Static->fuzzyFind(Req, [&](const Symbol &S) {
-    auto DynS = Dyn.find(S.ID);
-    ++StaticCount;
-    if (DynS == Dyn.end())
-      return Callback(S);
-    ++MergedCount;
-    SeenDynamicSymbols.insert(S.ID);
-    Callback(mergeSymbol(*DynS, S));
-  });
+  {
+    auto DynamicContainsFile = Dynamic->indexedFiles();
+    More |= Static->fuzzyFind(Req, [&](const Symbol &S) {
+      // We expect the definition to see the canonical declaration, so it seems
+      // to be enough to check only the definition if it exists.
+      if (DynamicContainsFile(S.Definition ? S.Definition.FileURI
+                                           : S.CanonicalDeclaration.FileURI))
+        return;
+      auto DynS = Dyn.find(S.ID);
+      ++StaticCount;
+      if (DynS == Dyn.end())
+        return Callback(S);
+      ++MergedCount;
+      SeenDynamicSymbols.insert(S.ID);
+      Callback(mergeSymbol(*DynS, S));
+    });
+  }
   SPAN_ATTACH(Tracer, "dynamic", DynamicCount);
   SPAN_ATTACH(Tracer, "static", StaticCount);
   SPAN_ATTACH(Tracer, "merged", MergedCount);
@@ -71,49 +79,108 @@ void MergedIndex::lookup(
   Dynamic->lookup(Req, [&](const Symbol &S) { B.insert(S); });
 
   auto RemainingIDs = Req.IDs;
-  Static->lookup(Req, [&](const Symbol &S) {
-    const Symbol *Sym = B.find(S.ID);
-    RemainingIDs.erase(S.ID);
-    if (!Sym)
-      Callback(S);
-    else
-      Callback(mergeSymbol(*Sym, S));
-  });
+  {
+    auto DynamicContainsFile = Dynamic->indexedFiles();
+    Static->lookup(Req, [&](const Symbol &S) {
+      // We expect the definition to see the canonical declaration, so it seems
+      // to be enough to check only the definition if it exists.
+      if (DynamicContainsFile(S.Definition ? S.Definition.FileURI
+                                           : S.CanonicalDeclaration.FileURI))
+        return;
+      const Symbol *Sym = B.find(S.ID);
+      RemainingIDs.erase(S.ID);
+      if (!Sym)
+        Callback(S);
+      else
+        Callback(mergeSymbol(*Sym, S));
+    });
+  }
   for (const auto &ID : RemainingIDs)
     if (const Symbol *Sym = B.find(ID))
       Callback(*Sym);
 }
 
-void MergedIndex::refs(const RefsRequest &Req,
+bool MergedIndex::refs(const RefsRequest &Req,
                        llvm::function_ref<void(const Ref &)> Callback) const {
   trace::Span Tracer("MergedIndex refs");
+  bool More = false;
   uint32_t Remaining =
       Req.Limit.getValueOr(std::numeric_limits<uint32_t>::max());
   // We don't want duplicated refs from the static/dynamic indexes,
-  // and we can't reliably duplicate them because offsets may differ slightly.
+  // and we can't reliably deduplicate them because offsets may differ slightly.
   // We consider the dynamic index authoritative and report all its refs,
   // and only report static index refs from other files.
-  //
-  // FIXME: The heuristic fails if the dynamic index contains a file, but all
-  // refs were removed (we will report stale ones from the static index).
-  // Ultimately we should explicit check which index has the file instead.
-  llvm::StringSet<> DynamicIndexFileURIs;
-  Dynamic->refs(Req, [&](const Ref &O) {
-    DynamicIndexFileURIs.insert(O.Location.FileURI);
+  More |= Dynamic->refs(Req, [&](const Ref &O) {
     Callback(O);
+    assert(Remaining != 0);
     --Remaining;
   });
-  assert(Remaining >= 0);
-  if (Remaining == 0)
-    return;
+  if (Remaining == 0 && More)
+    return More;
+  auto DynamicContainsFile = Dynamic->indexedFiles();
   // We return less than Req.Limit if static index returns more refs for dirty
   // files.
-  Static->refs(Req, [&](const Ref &O) {
-    if (Remaining > 0 && !DynamicIndexFileURIs.count(O.Location.FileURI)) {
+  bool StaticHadMore = Static->refs(Req, [&](const Ref &O) {
+    if (DynamicContainsFile(O.Location.FileURI))
+      return; // ignore refs that have been seen from dynamic index.
+    if (Remaining == 0) {
+      More = true;
+      return;
+    }
+    --Remaining;
+    Callback(O);
+  });
+  return More || StaticHadMore;
+}
+
+llvm::unique_function<bool(llvm::StringRef) const>
+MergedIndex::indexedFiles() const {
+  return [DynamicContainsFile{Dynamic->indexedFiles()},
+          StaticContainsFile{Static->indexedFiles()}](llvm::StringRef FileURI) {
+    return DynamicContainsFile(FileURI) || StaticContainsFile(FileURI);
+  };
+}
+
+void MergedIndex::relations(
+    const RelationsRequest &Req,
+    llvm::function_ref<void(const SymbolID &, const Symbol &)> Callback) const {
+  uint32_t Remaining =
+      Req.Limit.getValueOr(std::numeric_limits<uint32_t>::max());
+  // Return results from both indexes but avoid duplicates.
+  // We might return stale relations from the static index;
+  // we don't currently have a good way of identifying them.
+  llvm::DenseSet<std::pair<SymbolID, SymbolID>> SeenRelations;
+  Dynamic->relations(Req, [&](const SymbolID &Subject, const Symbol &Object) {
+    Callback(Subject, Object);
+    SeenRelations.insert(std::make_pair(Subject, Object.ID));
+    --Remaining;
+  });
+  if (Remaining == 0)
+    return;
+  Static->relations(Req, [&](const SymbolID &Subject, const Symbol &Object) {
+    if (Remaining > 0 &&
+        !SeenRelations.count(std::make_pair(Subject, Object.ID))) {
       --Remaining;
-      Callback(O);
+      Callback(Subject, Object);
     }
   });
+}
+
+// Returns true if \p L is (strictly) preferred to \p R (e.g. by file paths). If
+// neither is preferred, this returns false.
+static bool prefer(const SymbolLocation &L, const SymbolLocation &R) {
+  if (!L)
+    return false;
+  if (!R)
+    return true;
+  auto HasCodeGenSuffix = [](const SymbolLocation &Loc) {
+    constexpr static const char *CodegenSuffixes[] = {".proto"};
+    return std::any_of(std::begin(CodegenSuffixes), std::end(CodegenSuffixes),
+                       [&](llvm::StringRef Suffix) {
+                         return llvm::StringRef(Loc.FileURI).endswith(Suffix);
+                       });
+  };
+  return HasCodeGenSuffix(L) && !HasCodeGenSuffix(R);
 }
 
 Symbol mergeSymbol(const Symbol &L, const Symbol &R) {
@@ -130,19 +197,27 @@ Symbol mergeSymbol(const Symbol &L, const Symbol &R) {
   Symbol S = PreferR ? R : L;        // The target symbol we're merging into.
   const Symbol &O = PreferR ? L : R; // The "other" less-preferred symbol.
 
-  // For each optional field, fill it from O if missing in S.
-  // (It might be missing in O too, but that's a no-op).
-  if (!S.Definition)
-    S.Definition = O.Definition;
-  if (!S.CanonicalDeclaration)
+  // Only use locations in \p O if it's (strictly) preferred.
+  if (prefer(O.CanonicalDeclaration, S.CanonicalDeclaration))
     S.CanonicalDeclaration = O.CanonicalDeclaration;
+  if (prefer(O.Definition, S.Definition))
+    S.Definition = O.Definition;
   S.References += O.References;
   if (S.Signature == "")
     S.Signature = O.Signature;
   if (S.CompletionSnippetSuffix == "")
     S.CompletionSnippetSuffix = O.CompletionSnippetSuffix;
-  if (S.Documentation == "")
-    S.Documentation = O.Documentation;
+  if (S.Documentation == "") {
+    // Don't accept documentation from bare forward class declarations, if there
+    // is a definition and it didn't provide one. S is often an undocumented
+    // class, and O is a non-canonical forward decl preceded by an irrelevant
+    // comment.
+    bool IsClass = S.SymInfo.Kind == index::SymbolKind::Class ||
+                   S.SymInfo.Kind == index::SymbolKind::Struct ||
+                   S.SymInfo.Kind == index::SymbolKind::Union;
+    if (!IsClass || !S.Definition)
+      S.Documentation = O.Documentation;
+  }
   if (S.ReturnType == "")
     S.ReturnType = O.ReturnType;
   if (S.Type == "")

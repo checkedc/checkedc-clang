@@ -1,9 +1,9 @@
 // REQUIRES: x86
 // RUN: llvm-mc -filetype=obj -triple=x86_64-pc-linux %s -o %t.o
 // RUN: llvm-mc -filetype=obj -triple=x86_64-pc-linux %p/Inputs/comdat.s -o %t2.o
-// RUN: ld.lld -shared %t.o %t.o %t2.o -o %t
+// RUN: ld.lld -shared %t.o %t2.o -o %t
 // RUN: llvm-objdump -d %t | FileCheck %s
-// RUN: llvm-readobj -s -t %t | FileCheck --check-prefix=READ %s
+// RUN: llvm-readobj -S --symbols %t | FileCheck --check-prefix=READ %s
 
 // Check that we don't crash with --gc-section and that we print a list of
 // reclaimed sections on stderr.
@@ -19,19 +19,19 @@ foo:
         nop
 
 // CHECK: Disassembly of section .text2:
-// CHECK-NEXT: foo:
-// CHECK-NEXT:   1000: {{.*}}  nop
+// CHECK-EMPTY:
+// CHECK-NEXT: <foo>:
+// CHECK-NEXT:   1234: {{.*}}  nop
 // CHECK-NOT: nop
 
         .section bar, "ax"
         call foo
 
 // CHECK: Disassembly of section bar:
-// CHECK-NEXT: bar:
-// 0x1000 - 0x1001 - 5 = -6
-// 0      - 0x1006 - 5 = -4107
-// CHECK-NEXT:   1001:	{{.*}}  callq  -6
-// CHECK-NEXT:   1006:	{{.*}}  callq  -4107
+// CHECK-EMPTY:
+// CHECK-NEXT: <bar>:
+// 0x1234 - 0x1235 - 5 = -6
+// CHECK-NEXT:   1235:	{{.*}}  callq  0x1234
 
         .section .text3,"axG",@progbits,zed,comdat,unique,0
 
@@ -71,7 +71,7 @@ foo:
 // READ-NEXT:   }
 // READ-NEXT:   Symbol {
 // READ-NEXT:     Name: _DYNAMIC
-// READ-NEXT:     Value: 0x2000
+// READ-NEXT:     Value: 0x2240
 // READ-NEXT:     Size: 0
 // READ-NEXT:     Binding: Local
 // READ-NEXT:     Type: None

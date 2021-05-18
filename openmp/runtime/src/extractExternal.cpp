@@ -4,10 +4,9 @@
 
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.txt for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -58,7 +57,7 @@ protected:
   ~_rstream() { delete[] buf; }
 };
 
-// A stream encapuslating the content of a file or the content of a string,
+// A stream encapsulating the content of a file or the content of a string,
 // overriding the >> operator to read various integer types in binary form,
 // as well as a symbol table entry.
 class rstream : public _rstream {

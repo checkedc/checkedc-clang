@@ -2,8 +2,8 @@
 
 %struct.x = type { i8, i8, i8, i8, i8, i8, i8, i8, i8, i8, i8 }
 
-@src = external global %struct.x
-@dst = external global %struct.x
+@src = external dso_local global %struct.x
+@dst = external dso_local global %struct.x
 
 @.str1 = private unnamed_addr constant [31 x i8] c"DHRYSTONE PROGRAM, SOME STRING\00", align 1
 @.str2 = private unnamed_addr constant [36 x i8] c"DHRYSTONE PROGRAM, SOME STRING BLAH\00", align 1
@@ -16,10 +16,10 @@
 define i32 @t0() {
 entry:
 ; CHECK-LABEL: t0:
-; CHECK: ldur [[REG0:w[0-9]+]], [x[[BASEREG:[0-9]+]], #7]
-; CHECK: stur [[REG0]], [x[[BASEREG2:[0-9]+]], #7]
-; CHECK: ldr [[REG2:x[0-9]+]],
-; CHECK: str [[REG2]],
+; CHECK-DAG: ldur [[REG0:w[0-9]+]], [x[[BASEREG:[0-9]+]], #7]
+; CHECK-DAG: stur [[REG0]], [x[[BASEREG2:[0-9]+]], #7]
+; CHECK-DAG: ldr [[REG2:x[0-9]+]],
+; CHECK-DAG: str [[REG2]],
   call void @llvm.memcpy.p0i8.p0i8.i32(i8* align 8 getelementptr inbounds (%struct.x, %struct.x* @dst, i32 0, i32 0), i8* align 8 getelementptr inbounds (%struct.x, %struct.x* @src, i32 0, i32 0), i32 11, i1 false)
   ret i32 0
 }
@@ -61,7 +61,7 @@ entry:
 define void @t4(i8* nocapture %C) nounwind {
 entry:
 ; CHECK-LABEL: t4:
-; CHECK: orr [[REG5:w[0-9]+]], wzr, #0x20
+; CHECK: mov [[REG5:w[0-9]+]], #32
 ; CHECK: strh [[REG5]], [x0, #16]
 ; CHECK: ldr [[REG6:q[0-9]+]], [x{{[0-9]+}}]
 ; CHECK: str [[REG6]], [x0]
@@ -85,10 +85,10 @@ entry:
 define void @t6() nounwind {
 entry:
 ; CHECK-LABEL: t6:
-; CHECK: ldur [[REG9:x[0-9]+]], [x{{[0-9]+}}, #6]
-; CHECK: stur [[REG9]], [x{{[0-9]+}}, #6]
-; CHECK: ldr
-; CHECK: str
+; CHECK-DAG: ldur [[REG9:x[0-9]+]], [x{{[0-9]+}}, #6]
+; CHECK-DAG: stur [[REG9]], [x{{[0-9]+}}, #6]
+; CHECK-DAG: ldr
+; CHECK-DAG: str
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* getelementptr inbounds ([512 x i8], [512 x i8]* @spool.splbuf, i64 0, i64 0), i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str6, i64 0, i64 0), i64 14, i1 false)
   ret void
 }

@@ -65,7 +65,7 @@ entry:
 ; SIVI-DAG: buffer_store_byte
 ; SIVI-DAG: buffer_store_short
 
-; GFX9-DAG: global_store_byte_d16_hi v{{\[[0-9]:[0-9]+\]}}, v{{[0-9]+}}, off offset:2
+; GFX9-DAG: global_store_byte_d16_hi v{{[0-9]+}}, v{{[0-9]+}}, s{{\[[0-9]+:[0-9]+\]}} offset:2
 ; GFX9-DAG: global_store_short
 
 ; EG: MEM_RAT MSKOR
@@ -80,7 +80,7 @@ entry:
 ; GCN: s_and_b32 [[AND:s[0-9]+]], s{{[0-9]+}}, 0x1ffffff{{$}}
 ; GCN: v_mov_b32_e32 [[VAND:v[0-9]+]], [[AND]]
 ; SIVI: buffer_store_dword [[VAND]]
-; GFX9: global_store_dword v{{\[[0-9]+:[0-9]+\]}}, [[VAND]]
+; GFX9: global_store_dword v{{[0-9]+}}, [[VAND]], s
 
 ; EG: MEM_RAT_CACHELESS STORE_RAW
 ; EG-NOT: MEM_RAT
@@ -273,13 +273,12 @@ entry:
 }
 
 ; FUNC-LABEL: {{^}}store_v3i32:
-; SI-DAG: buffer_store_dwordx2
 ; SI-DAG: buffer_store_dword v
+; SI-DAG: buffer_store_dwordx2
 
-; VI-DAG: buffer_store_dwordx3
+; VI: buffer_store_dwordx3
 
-; GFX9-DAG: global_store_dwordx2
-; GFX9-DAG: global_store_dword v
+; GFX9: global_store_dwordx3
 
 ; EG-DAG: MEM_RAT_CACHELESS STORE_RAW {{T[0-9]+\.[XYZW]}}, {{T[0-9]+\.[XYZW]}},
 ; EG-DAG: MEM_RAT_CACHELESS STORE_RAW {{T[0-9]+\.XY}}, {{T[0-9]+\.[XYZW]}},

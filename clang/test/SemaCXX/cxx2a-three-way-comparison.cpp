@@ -1,5 +1,14 @@
 // RUN: %clang_cc1 -std=c++2a -verify %s
 
+// Keep this test before any declarations of operator<=>.
+namespace PR44786 {
+  template<typename T> void f(decltype(T{} <=> T{})) {} // expected-note {{previous}}
+
+  struct S {};
+  int operator<=>(S const &, S const &);
+  template<typename T> void f(decltype(T{} <=> T{})) {} // expected-error {{redefinition}}
+}
+
 struct A {};
 constexpr int operator<=>(A a, A b) { return 42; }
 static_assert(operator<=>(A(), A()) == 42);
@@ -22,3 +31,12 @@ struct B {
 };
 
 int &r = B().operator<=>(0);
+
+namespace PR47893 {
+  struct A {
+    void operator<=>(const A&) const;
+  };
+  template<typename T> auto f(T a, T b) -> decltype(a < b) = delete;
+  int &f(...);
+  int &r = f(A(), A());
+}

@@ -1,5 +1,5 @@
 // RUN: %clang_analyze_cc1 -std=c++98 -fcxx-exceptions -fexceptions -analyzer-checker=debug.DumpCFG -analyzer-config cfg-rich-constructors=false %s > %t 2>&1
-// RUN: FileCheck --input-file=%t -check-prefixes=CHECK,CXX98,WARNINGS,CXX98-WARNINGS %s
+// RUN: FileCheck --input-file=%t -check-prefixes=CHECK,CXX98,WARNINGS %s
 // RUN: %clang_analyze_cc1 -std=c++98 -fcxx-exceptions -fexceptions -analyzer-checker=debug.DumpCFG -analyzer-config cfg-rich-constructors=true %s > %t 2>&1
 // RUN: FileCheck --input-file=%t -check-prefixes=CHECK,CXX98,ANALYZER,CXX98-ANALYZER %s
 // RUN: %clang_analyze_cc1 -std=c++11 -fcxx-exceptions -fexceptions -analyzer-checker=debug.DumpCFG -analyzer-config cfg-rich-constructors=false %s > %t 2>&1
@@ -334,7 +334,7 @@ void test_aggregate_array_lifetime_extension() {
 // CHECK-NEXT:    61: ~A() (Temporary object destructor)
 // CHECK-NEXT:    62: ~A() (Temporary object destructor)
 // CHECK-NEXT:    63: ~A() (Temporary object destructor)
-// CHECK-NEXT:    64: [B1.57].~D() (Implicit destructor)
+// CHECK-NEXT:    64: [B1.57].~D [2]() (Implicit destructor)
 // CHECK-NEXT:    65: [B1.18].~D() (Implicit destructor)
 // CHECK-NEXT:     Preds (1): B2
 // CHECK-NEXT:     Succs (1): B0
@@ -363,7 +363,7 @@ void test_aggregate_with_nontrivial_own_destructor() {
 // WARNINGS-NEXT:   3:  (CXXConstructExpr, class A [0])
 // ANALYZER-NEXT:   3:  (CXXConstructExpr, [B1.4], class A [0])
 // CHECK-NEXT:   4: A b[0];
-// CHECK-NEXT:   5: [B1.2].~A() (Implicit destructor)
+// CHECK-NEXT:   5: [B1.2].~A [2]() (Implicit destructor)
 // CHECK-NEXT:   Preds (1): B2
 // CHECK-NEXT:   Succs (1): B0
 // CHECK:      [B0 (EXIT)]

@@ -1,9 +1,8 @@
 //===- ExegesisEmitter.cpp - Generate exegesis target data ----------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -102,7 +101,7 @@ ExegesisEmitter::ExegesisEmitter(RecordKeeper &RK)
     PrintFatalError("ERROR: No 'Target' subclasses defined!");
   if (Targets.size() != 1)
     PrintFatalError("ERROR: Multiple subclasses of Target defined!");
-  Target = Targets[0]->getName();
+  Target = std::string(Targets[0]->getName());
 }
 
 void ExegesisEmitter::emitPfmCountersInfo(const Record &Def,
@@ -145,7 +144,7 @@ void ExegesisEmitter::emitPfmCountersInfo(const Record &Def,
 
 void ExegesisEmitter::emitPfmCounters(raw_ostream &OS) const {
   // Emit the counter name table.
-  OS << "\nstatic const char* " << Target << "PfmCounterNames[] = {\n";
+  OS << "\nstatic const char *" << Target << "PfmCounterNames[] = {\n";
   for (const auto &NameAndIndex : PfmCounterNameTable)
     OS << "  \"" << NameAndIndex.first << "\", // " << NameAndIndex.second
        << "\n";

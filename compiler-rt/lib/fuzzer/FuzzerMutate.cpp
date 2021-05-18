@@ -1,24 +1,24 @@
 //===- FuzzerMutate.cpp - Mutate a test input -----------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 // Mutate a test input.
 //===----------------------------------------------------------------------===//
 
-#include "FuzzerMutate.h"
-#include "FuzzerCorpus.h"
 #include "FuzzerDefs.h"
 #include "FuzzerExtFunctions.h"
 #include "FuzzerIO.h"
+#include "FuzzerMutate.h"
 #include "FuzzerOptions.h"
+#include "FuzzerTracePC.h"
 
 namespace fuzzer {
 
 const size_t Dictionary::kMaxDictSize;
+static const size_t kMaxMutationsToPrint = 10;
 
 static void PrintASCII(const Word &W, const char *PrintAfter) {
   PrintASCII(W.data(), W.size(), PrintAfter);
@@ -73,10 +73,10 @@ size_t MutationDispatcher::Mutate_Custom(uint8_t *Data, size_t Size,
 
 size_t MutationDispatcher::Mutate_CustomCrossOver(uint8_t *Data, size_t Size,
                                                   size_t MaxSize) {
-  if (!Corpus || Corpus->size() < 2 || Size == 0)
+  if (Size == 0)
     return 0;
-  size_t Idx = Rand(Corpus->size());
-  const Unit &Other = (*Corpus)[Idx];
+  if (!CrossOverWith) return 0;
+  const Unit &Other = *CrossOverWith;
   if (Other.empty())
     return 0;
   CustomCrossOverInPlaceHere.resize(MaxSize);
@@ -422,30 +422,30 @@ size_t MutationDispatcher::Mutate_ChangeBinaryInteger(uint8_t *Data,
 size_t MutationDispatcher::Mutate_CrossOver(uint8_t *Data, size_t Size,
                                             size_t MaxSize) {
   if (Size > MaxSize) return 0;
-  if (!Corpus || Corpus->size() < 2 || Size == 0) return 0;
-  size_t Idx = Rand(Corpus->size());
-  const Unit &O = (*Corpus)[Idx];
+  if (Size == 0) return 0;
+  if (!CrossOverWith) return 0;
+  const Unit &O = *CrossOverWith;
   if (O.empty()) return 0;
-  MutateInPlaceHere.resize(MaxSize);
-  auto &U = MutateInPlaceHere;
   size_t NewSize = 0;
   switch(Rand(3)) {
     case 0:
-      NewSize = CrossOver(Data, Size, O.data(), O.size(), U.data(), U.size());
+      MutateInPlaceHere.resize(MaxSize);
+      NewSize = CrossOver(Data, Size, O.data(), O.size(),
+                          MutateInPlaceHere.data(), MaxSize);
+      memcpy(Data, MutateInPlaceHere.data(), NewSize);
       break;
     case 1:
-      NewSize = InsertPartOf(O.data(), O.size(), U.data(), U.size(), MaxSize);
+      NewSize = InsertPartOf(O.data(), O.size(), Data, Size, MaxSize);
       if (!NewSize)
-        NewSize = CopyPartOf(O.data(), O.size(), U.data(), U.size());
+        NewSize = CopyPartOf(O.data(), O.size(), Data, Size);
       break;
     case 2:
-      NewSize = CopyPartOf(O.data(), O.size(), U.data(), U.size());
+      NewSize = CopyPartOf(O.data(), O.size(), Data, Size);
       break;
     default: assert(0);
   }
   assert(NewSize > 0 && "CrossOver returned empty unit");
   assert(NewSize <= MaxSize && "CrossOver returned overisized unit");
-  memcpy(Data, U.data(), NewSize);
   return NewSize;
 }
 
@@ -482,17 +482,32 @@ void MutationDispatcher::PrintRecommendedDictionary() {
   Printf("###### End of recommended dictionary. ######\n");
 }
 
-void MutationDispatcher::PrintMutationSequence() {
+void MutationDispatcher::PrintMutationSequence(bool Verbose) {
   Printf("MS: %zd ", CurrentMutatorSequence.size());
-  for (auto M : CurrentMutatorSequence)
-    Printf("%s-", M.Name);
+  size_t EntriesToPrint =
+      Verbose ? CurrentMutatorSequence.size()
+              : std::min(kMaxMutationsToPrint, CurrentMutatorSequence.size());
+  for (size_t i = 0; i < EntriesToPrint; i++)
+    Printf("%s-", CurrentMutatorSequence[i].Name);
   if (!CurrentDictionaryEntrySequence.empty()) {
     Printf(" DE: ");
-    for (auto DE : CurrentDictionaryEntrySequence) {
+    EntriesToPrint = Verbose ? CurrentDictionaryEntrySequence.size()
+                             : std::min(kMaxMutationsToPrint,
+                                        CurrentDictionaryEntrySequence.size());
+    for (size_t i = 0; i < EntriesToPrint; i++) {
       Printf("\"");
-      PrintASCII(DE->GetW(), "\"-");
+      PrintASCII(CurrentDictionaryEntrySequence[i]->GetW(), "\"-");
     }
   }
+}
+
+std::string MutationDispatcher::MutationSequence() {
+  std::string MS;
+  for (auto M : CurrentMutatorSequence) {
+    MS += M.Name;
+    MS += "-";
+  }
+  return MS;
 }
 
 size_t MutationDispatcher::Mutate(uint8_t *Data, size_t Size, size_t MaxSize) {
@@ -530,7 +545,7 @@ size_t MutationDispatcher::MutateImpl(uint8_t *Data, size_t Size,
 size_t MutationDispatcher::MutateWithMask(uint8_t *Data, size_t Size,
                                           size_t MaxSize,
                                           const Vector<uint8_t> &Mask) {
-  assert(Size <= Mask.size());
+  size_t MaskedSize = std::min(Size, Mask.size());
   // * Copy the worthy bytes into a temporary array T
   // * Mutate T
   // * Copy T back.
@@ -539,16 +554,17 @@ size_t MutationDispatcher::MutateWithMask(uint8_t *Data, size_t Size,
   if (T.size() < Size)
     T.resize(Size);
   size_t OneBits = 0;
-  for (size_t I = 0; I < Size; I++)
+  for (size_t I = 0; I < MaskedSize; I++)
     if (Mask[I])
       T[OneBits++] = Data[I];
 
+  if (!OneBits) return 0;
   assert(!T.empty());
   size_t NewSize = Mutate(T.data(), OneBits, OneBits);
   assert(NewSize <= OneBits);
   (void)NewSize;
   // Even if NewSize < OneBits we still use all OneBits bytes.
-  for (size_t I = 0, J = 0; I < Size; I++)
+  for (size_t I = 0, J = 0; I < MaskedSize; I++)
     if (Mask[I])
       Data[I] = T[J++];
   return Size;

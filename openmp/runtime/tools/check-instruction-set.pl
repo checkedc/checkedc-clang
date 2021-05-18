@@ -3,10 +3,9 @@
 #
 #//===----------------------------------------------------------------------===//
 #//
-#//                     The LLVM Compiler Infrastructure
-#//
-#// This file is dual licensed under the MIT and the University of Illinois Open
-#// Source Licenses. See LICENSE.txt for details.
+#// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+#// See https://llvm.org/LICENSE.txt for license information.
+#// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #//
 #//===----------------------------------------------------------------------===//
 #
@@ -125,7 +124,7 @@ sub check_file($;$$) {
 
     my $n = 0;
     my $errors = 0;
-    my $current_func  = "";    # Name of current fuction.
+    my $current_func  = "";    # Name of current function.
     my $reported_func = "";    # name of last reported function.
     foreach my $line ( @bulk ) {
         ++ $n;

@@ -367,7 +367,7 @@ class C : public A, public B // align=16
 // offset. The pointer before subtraction doesn't need to be aligned for
 // the destination type.
 
-// CHECK-LABEL: define void @_Z16downcast_pointerP1B(%class.B* %b)
+// CHECK-LABEL: define{{.*}} void @_Z16downcast_pointerP1B(%class.B* %b)
 void downcast_pointer(B *b) {
   (void) static_cast<C*>(b);
   // Alignment check from EmitTypeCheck(TCK_DowncastPointer, ...)
@@ -384,7 +384,7 @@ void downcast_pointer(B *b) {
   // CHECK-NEXT: br i1 [[AND]]
 }
 
-// CHECK-LABEL: define void @_Z18downcast_referenceR1B(%class.B* dereferenceable({{[0-9]+}}) %b)
+// CHECK-LABEL: define{{.*}} void @_Z18downcast_referenceR1B(%class.B* nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) %b)
 void downcast_reference(B &b) {
   (void) static_cast<C&>(b);
   // Alignment check from EmitTypeCheck(TCK_DowncastReference, ...)
@@ -426,6 +426,34 @@ void indirect_function_call(void (*p)(int)) {
   p(42);
 }
 
+namespace VBaseObjectSize {
+  // Note: C is laid out such that offsetof(C, B) + sizeof(B) extends outside
+  // the C object.
+  struct alignas(16) A { void *a1, *a2; };
+  struct B : virtual A { void *b; void* g(); };
+  struct C : virtual A, virtual B { };
+  // CHECK-LABEL: define {{.*}} @_ZN15VBaseObjectSize1fERNS_1BE(
+  B &f(B &b) {
+    // Size check: check for nvsize(B) == 16 (do not require size(B) == 32)
+    // CHECK: [[SIZE:%.+]] = call i{{32|64}} @llvm.objectsize.i64.p0i8(
+    // CHECK: icmp uge i{{32|64}} [[SIZE]], 16,
+
+    // Alignment check: check for nvalign(B) == 8 (do not require align(B) == 16)
+    // CHECK: [[PTRTOINT:%.+]] = ptrtoint {{.*}} to i64,
+    // CHECK: and i64 [[PTRTOINT]], 7,
+    return b;
+  }
+
+  // CHECK-LABEL: define {{.*}} @_ZN15VBaseObjectSize1B1gEv(
+  void *B::g() {
+    // Ensure that the check on the "this" pointer also uses the proper
+    // alignment. We should be using nvalign(B) == 8, not 16.
+    // CHECK: [[PTRTOINT:%.+]] = ptrtoint {{.*}} to i64,
+    // CHECK: and i64 [[PTRTOINT]], 7
+    return nullptr;
+  }
+}
+
 namespace FunctionSanitizerVirtualCalls {
 struct A {
   virtual void f() {}
@@ -454,13 +482,13 @@ void force_irgen() {
   B::q();
 }
 
-// CHECK-LABEL: define void @_ZN29FunctionSanitizerVirtualCalls1B1fEv
+// CHECK-LABEL: define{{.*}} void @_ZN29FunctionSanitizerVirtualCalls1B1fEv
 // CHECK-NOT: prologue
 //
-// CHECK-LABEL: define void @_ZTv0_n24_N29FunctionSanitizerVirtualCalls1B1fEv
+// CHECK-LABEL: define{{.*}} void @_ZTv0_n24_N29FunctionSanitizerVirtualCalls1B1fEv
 // CHECK-NOT: prologue
 //
-// CHECK-LABEL: define void @_ZN29FunctionSanitizerVirtualCalls11force_irgenEv()
+// CHECK-LABEL: define{{.*}} void @_ZN29FunctionSanitizerVirtualCalls11force_irgenEv()
 // CHECK: prologue
 //
 // CHECK-LABEL: define linkonce_odr void @_ZN29FunctionSanitizerVirtualCalls1AC1Ev
@@ -533,6 +561,7 @@ namespace NothrowNew {
 
     // CHECK: [[nonnull]]:
     // CHECK: llvm.objectsize
+    // CHECK: icmp uge i64 {{.*}}, 123456,
     // CHECK: br i1
     //
     // CHECK: call {{.*}}__ubsan_handle_type_mismatch
@@ -550,6 +579,7 @@ namespace NothrowNew {
 
     // CHECK: [[nonnull]]:
     // CHECK: llvm.objectsize
+    // CHECK: icmp uge i64 {{.*}}, 123456,
     // CHECK: br i1
     //
     // CHECK: call {{.*}}__ubsan_handle_type_mismatch
@@ -561,6 +591,47 @@ namespace NothrowNew {
     // CHECK: ret
     return new (nothrow{}) X[123456];
   }
+
+  // CHECK-LABEL: define{{.*}}throwing_new
+  void *throwing_new(int size) {
+    // CHECK: icmp ne i8*{{.*}}, null
+    // CHECK: %[[size:.*]] = mul
+    // CHECK: llvm.objectsize
+    // CHECK: icmp uge i64 {{.*}}, %[[size]],
+    // CHECK: %[[ok:.*]] = and
+    // CHECK: br i1 %[[ok]], label %[[good:.*]], label %[[bad:[^,]*]]
+    //
+    // CHECK: [[bad]]:
+    // CHECK: call {{.*}}__ubsan_handle_type_mismatch
+    //
+    // CHECK: [[good]]:
+    // CHECK-NOT: {{ }}br{{ }}
+    // CHECK: ret
+    return new char[size];
+  }
+
+  // CHECK-LABEL: define{{.*}}nothrow_new_zero_size
+  void *nothrow_new_zero_size() {
+    // CHECK: %[[nonnull:.*]] = icmp ne i8*{{.*}}, null
+    // CHECK-NOT: llvm.objectsize
+    // CHECK: br i1 %[[nonnull]], label %[[good:.*]], label %[[bad:[^,]*]]
+    //
+    // CHECK: [[bad]]:
+    // CHECK: call {{.*}}__ubsan_handle_type_mismatch
+    //
+    // CHECK: [[good]]:
+    // CHECK-NOT: {{ }}br{{ }}
+    // CHECK: ret
+    return new char[0];
+  }
+
+  // CHECK-LABEL: define{{.*}}throwing_new_zero_size
+  void *throwing_new_zero_size() {
+    // Nothing to check here.
+    // CHECK-NOT: __ubsan_handle_type_mismatch
+    return new (nothrow{}) char[0];
+    // CHECK: ret
+  }
 }
 
 struct ThisAlign {
@@ -569,7 +640,7 @@ struct ThisAlign {
 };
 void ThisAlign::this_align_lambda() {
   // CHECK-LABEL: define internal %struct.ThisAlign* @"_ZZN9ThisAlign17this_align_lambdaEvENK3$_0clEv"
-  // CHECK-SAME: (%{{.*}}* %[[this:[^)]*]])
+  // CHECK-SAME: (%{{.*}}* {{[^,]*}} %[[this:[^)]*]])
   // CHECK: %[[this_addr:.*]] = alloca
   // CHECK: store %{{.*}}* %[[this]], %{{.*}}** %[[this_addr]],
   // CHECK: %[[this_inner:.*]] = load %{{.*}}*, %{{.*}}** %[[this_addr]],
@@ -670,7 +741,7 @@ namespace CopyValueRepresentation {
 
 void ThisAlign::this_align_lambda_2() {
   // CHECK-LABEL: define internal void @"_ZZN9ThisAlign19this_align_lambda_2EvENK3$_1clEv"
-  // CHECK-SAME: (%{{.*}}* %[[this:[^)]*]])
+  // CHECK-SAME: (%{{.*}}* {{[^,]*}} %[[this:[^)]*]])
   // CHECK: %[[this_addr:.*]] = alloca
   // CHECK: store %{{.*}}* %[[this]], %{{.*}}** %[[this_addr]],
   // CHECK: %[[this_inner:.*]] = load %{{.*}}*, %{{.*}}** %[[this_addr]],

@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -26,10 +25,10 @@ void test_val_ctor()
     {
         TEST_CONSTEXPR std::bitset<N> v(0xAAAAAAAAAAAAAAAAULL);
         assert(v.size() == N);
-        std::size_t M = std::min<std::size_t>(N, 64);
+        std::size_t M = std::min<std::size_t>(v.size(), 64);
         for (std::size_t i = 0; i < M; ++i)
             assert(v[i] == ((i & 1) != 0));
-        for (std::size_t i = M; i < N; ++i)
+        for (std::size_t i = M; i < v.size(); ++i)
             assert(v[i] == false);
     }
 #if TEST_STD_VER >= 11
@@ -40,7 +39,7 @@ void test_val_ctor()
 #endif
 }
 
-int main()
+int main(int, char**)
 {
     test_val_ctor<0>();
     test_val_ctor<1>();
@@ -51,4 +50,6 @@ int main()
     test_val_ctor<64>();
     test_val_ctor<65>();
     test_val_ctor<1000>();
+
+  return 0;
 }

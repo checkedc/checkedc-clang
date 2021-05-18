@@ -1,9 +1,8 @@
 //===--- SignedBitwiseCheck.cpp - clang-tidy-------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -18,9 +17,24 @@ namespace clang {
 namespace tidy {
 namespace hicpp {
 
+SignedBitwiseCheck::SignedBitwiseCheck(StringRef Name,
+                                       ClangTidyContext *Context)
+    : ClangTidyCheck(Name, Context),
+      IgnorePositiveIntegerLiterals(
+          Options.get("IgnorePositiveIntegerLiterals", false)) {}
+
+void SignedBitwiseCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
+  Options.store(Opts, "IgnorePositiveIntegerLiterals",
+                IgnorePositiveIntegerLiterals);
+}
+
 void SignedBitwiseCheck::registerMatchers(MatchFinder *Finder) {
   const auto SignedIntegerOperand =
-      expr(ignoringImpCasts(hasType(isSignedInteger()))).bind("signed-operand");
+      (IgnorePositiveIntegerLiterals
+           ? expr(ignoringImpCasts(hasType(isSignedInteger())),
+                  unless(integerLiteral()))
+           : expr(ignoringImpCasts(hasType(isSignedInteger()))))
+          .bind("signed-operand");
 
   // The standard [bitmask.types] allows some integral types to be implemented
   // as signed types. Exclude these types from diagnosing for bitwise or(|) and
@@ -34,9 +48,7 @@ void SignedBitwiseCheck::registerMatchers(MatchFinder *Finder) {
 
   // Match binary bitwise operations on signed integer arguments.
   Finder->addMatcher(
-      binaryOperator(anyOf(hasOperatorName("^"), hasOperatorName("|"),
-                           hasOperatorName("&"), hasOperatorName("^="),
-                           hasOperatorName("|="), hasOperatorName("&=")),
+      binaryOperator(hasAnyOperatorName("^", "|", "&", "^=", "|=", "&="),
 
                      unless(allOf(hasLHS(IsStdBitmask), hasRHS(IsStdBitmask))),
 
@@ -48,8 +60,7 @@ void SignedBitwiseCheck::registerMatchers(MatchFinder *Finder) {
   // Shifting and complement is not allowed for any signed integer type because
   // the sign bit may corrupt the result.
   Finder->addMatcher(
-      binaryOperator(anyOf(hasOperatorName("<<"), hasOperatorName(">>"),
-                           hasOperatorName("<<="), hasOperatorName(">>=")),
+      binaryOperator(hasAnyOperatorName("<<", ">>", "<<=", ">>="),
                      hasEitherOperand(SignedIntegerOperand),
                      hasLHS(hasType(isInteger())), hasRHS(hasType(isInteger())))
           .bind("binary-sign-interference"),

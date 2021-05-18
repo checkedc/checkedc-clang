@@ -1,9 +1,8 @@
 //===-- NativeRegisterContextLinux_s390x.h ----------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -15,6 +14,7 @@
 #include "Plugins/Process/Linux/NativeRegisterContextLinux.h"
 #include "Plugins/Process/Utility/RegisterContext_s390x.h"
 #include "Plugins/Process/Utility/lldb-s390x-register-enums.h"
+#include <asm/ptrace.h>
 
 namespace lldb_private {
 namespace process_linux {
@@ -67,13 +67,18 @@ protected:
   Status DoWriteRegisterValue(uint32_t offset, const char *reg_name,
                               const RegisterValue &value) override;
 
-  Status DoReadGPR(void *buf, size_t buf_size) override;
+  Status ReadGPR() override;
 
-  Status DoWriteGPR(void *buf, size_t buf_size) override;
+  Status WriteGPR() override;
 
-  Status DoReadFPR(void *buf, size_t buf_size) override;
+  Status ReadFPR() override;
 
-  Status DoWriteFPR(void *buf, size_t buf_size) override;
+  Status WriteFPR() override;
+
+  void *GetGPRBuffer() override { return &m_regs; }
+  size_t GetGPRSize() const override { return sizeof(m_regs); }
+  void *GetFPRBuffer() override { return &m_fp_regs; }
+  size_t GetFPRSize() override { return sizeof(m_fp_regs); }
 
 private:
   // Info about register ranges.
@@ -90,6 +95,9 @@ private:
   // Private member variables.
   RegInfo m_reg_info;
   lldb::addr_t m_watchpoint_addr;
+
+  s390_regs m_regs;
+  s390_fp_regs m_fp_regs;
 
   // Private member methods.
   bool IsRegisterSetAvailable(uint32_t set_index) const;

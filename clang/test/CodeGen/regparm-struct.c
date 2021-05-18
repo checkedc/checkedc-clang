@@ -159,7 +159,7 @@ void g16(void) {
 }
 
 __attribute__((regparm(3))) struct s12 f17(int a, int b, int c);
-// CHECK: declare void @f17(%struct.s12* inreg sret, i32 inreg, i32 inreg, i32)
+// CHECK: declare void @f17(%struct.s12* inreg sret(%struct.s12) align 4, i32 inreg, i32 inreg, i32)
 void g17(void) {
   f17(41, 42, 43);
 }
@@ -170,7 +170,7 @@ struct s13 {
   } y;
 };
 __attribute__((regparm(3))) void f18(struct s13 a, int b, int c, int d);
-// CHECK: declare void @f18(%struct.s13* byval align 4, i32 inreg, i32 inreg, i32 inreg)
+// CHECK: declare void @f18(%struct.s13* byval(%struct.s13) align 4, i32 inreg, i32 inreg, i32 inreg)
 void g18(void) {
   struct s13 x = {{41}};
   f18(x, 42, 43, 44);

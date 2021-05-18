@@ -1,15 +1,14 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
 
 // <memory>
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // template<typename _Alloc>
 // struct __is_allocator;
@@ -33,10 +32,12 @@ void test_allocators()
 }
 
 
-int main()
+int main(int, char**)
 {
 //	test_allocators<void>();
 	test_allocators<char>();
 	test_allocators<int>();
 	test_allocators<std::string>();
+
+  return 0;
 }

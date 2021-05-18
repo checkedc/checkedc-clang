@@ -1,11 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+// UNSUPPORTED: libcpp-has-no-random-device
 
 // <random>
 
@@ -15,10 +16,15 @@
 
 #include <random>
 #include <cassert>
+#include <climits>
 
-int main()
-{
-    std::random_device r;
-    double e = r.entropy();
-    ((void)e); // Prevent unused warning
+#include "test_macros.h"
+
+int main(int, char**) {
+  std::random_device r;
+  double e = r.entropy();
+  assert(e >= 0);
+  assert(e <= sizeof(typename std::random_device::result_type) * CHAR_BIT);
+
+  return 0;
 }

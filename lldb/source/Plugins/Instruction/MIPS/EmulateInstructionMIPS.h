@@ -1,15 +1,14 @@
 //===-- EmulateInstructionMIPS.h ------------------------------------*- C++
 //-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef EmulateInstructionMIPS_h_
-#define EmulateInstructionMIPS_h_
+#ifndef LLDB_SOURCE_PLUGINS_INSTRUCTION_MIPS_EMULATEINSTRUCTIONMIPS_H
+#define LLDB_SOURCE_PLUGINS_INSTRUCTION_MIPS_EMULATEINSTRUCTIONMIPS_H
 
 namespace llvm {
 class MCDisassembler;
@@ -21,8 +20,11 @@ class MCInstrInfo;
 class MCInst;
 }
 
+namespace lldb_private {
+  class OptionValueDictionary;
+}
+
 #include "lldb/Core/EmulateInstruction.h"
-#include "lldb/Interpreter/OptionValue.h"
 #include "lldb/Utility/Status.h"
 
 class EmulateInstructionMIPS : public lldb_private::EmulateInstruction {
@@ -201,7 +203,7 @@ protected:
 
   bool nonvolatile_reg_p(uint32_t regnum);
 
-  const char *GetRegisterName(unsigned reg_num, bool altnernate_name);
+  const char *GetRegisterName(unsigned reg_num, bool alternate_name);
 
 private:
   std::unique_ptr<llvm::MCDisassembler> m_disasm;
@@ -216,4 +218,4 @@ private:
   bool m_use_alt_disaasm;
 };
 
-#endif // EmulateInstructionMIPS_h_
+#endif // LLDB_SOURCE_PLUGINS_INSTRUCTION_MIPS_EMULATEINSTRUCTIONMIPS_H

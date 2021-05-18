@@ -3,7 +3,15 @@
 ; REQUIRES: static-libs
 ; REQUIRES: aarch64-registered-target
 
+; The above also applies if the binary is built with libc++.
+; UNSUPPORTED: libcxx-used
+
 ; RUN: echo > %t.input
+
+; workaround for https://openradar.appspot.com/FB8914243
+; RUN: rm -f %t.bin--aarch64
+; RUN: rm -f %t.bin--aarch64-O1
+; RUN: rm -f %t.bin--O3-aarch64
 
 ; RUN: cp llvm-isel-fuzzer %t.bin--aarch64
 ; RUN: %t.bin--aarch64 %t.input 2>&1 | FileCheck -check-prefix=AARCH64 %s

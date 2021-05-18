@@ -1,11 +1,13 @@
 /*===- InstrProfiling.c - Support library for PGO instrumentation ---------===*\
 |*
-|*                     The LLVM Compiler Infrastructure
-|*
-|* This file is distributed under the University of Illinois Open Source
-|* License. See LICENSE.TXT for details.
+|* Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+|* See https://llvm.org/LICENSE.txt for license information.
+|* SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 |*
 \*===----------------------------------------------------------------------===*/
+
+// Note: This is linked into the Darwin kernel, and must remain compatible
+// with freestanding compilation. See `darwin_add_builtin_libraries`.
 
 #include <limits.h>
 #include <stdio.h>
@@ -16,24 +18,15 @@
 #include "InstrProfilingInternal.h"
 
 #define INSTR_PROF_VALUE_PROF_DATA
-#include "InstrProfData.inc"
-
-
-COMPILER_RT_WEAK uint64_t INSTR_PROF_RAW_VERSION_VAR = INSTR_PROF_RAW_VERSION;
+#include "profile/InstrProfData.inc"
 
 COMPILER_RT_VISIBILITY uint64_t __llvm_profile_get_magic(void) {
   return sizeof(void *) == sizeof(uint64_t) ? (INSTR_PROF_RAW_MAGIC_64)
                                             : (INSTR_PROF_RAW_MAGIC_32);
 }
 
-static unsigned ProfileDumped = 0;
-
-COMPILER_RT_VISIBILITY unsigned lprofProfileDumped() {
-  return ProfileDumped;
-}
-
-COMPILER_RT_VISIBILITY void lprofSetProfileDumped() {
-  ProfileDumped = 1;
+COMPILER_RT_VISIBILITY void __llvm_profile_set_dumped() {
+  lprofSetProfileDumped(1);
 }
 
 /* Return the number of bytes needed to add to SizeInBytes to make it
@@ -77,5 +70,5 @@ COMPILER_RT_VISIBILITY void __llvm_profile_reset_counters(void) {
       }
     }
   }
-  ProfileDumped = 0;
+  lprofSetProfileDumped(0);
 }

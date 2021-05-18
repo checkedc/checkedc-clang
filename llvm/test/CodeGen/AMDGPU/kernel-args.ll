@@ -1,6 +1,6 @@
 ; RUN: llc < %s -march=amdgcn -verify-machineinstrs | FileCheck -allow-deprecated-dag-overlap -enable-var-scope --check-prefixes=SI,GCN,MESA-GCN,FUNC %s
 ; RUN: llc < %s -march=amdgcn -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs | FileCheck -allow-deprecated-dag-overlap -enable-var-scope -check-prefixes=VI,GCN,MESA-VI,MESA-GCN,FUNC %s
-; RUN: llc < %s -mtriple=amdgcn--amdhsa -mcpu=gfx900 -mattr=-code-object-v3 -verify-machineinstrs | FileCheck -allow-deprecated-dag-overlap -enable-var-scope -check-prefixes=VI,GCN,HSA-GFX9,FUNC %s
+; RUN: llc < %s -mtriple=amdgcn--amdhsa -mcpu=gfx900 --amdhsa-code-object-version=2 -verify-machineinstrs | FileCheck -allow-deprecated-dag-overlap -enable-var-scope -check-prefixes=VI,GCN,HSA-GFX9,FUNC %s
 ; RUN: llc < %s -march=r600 -mcpu=redwood -verify-machineinstrs | FileCheck -allow-deprecated-dag-overlap -enable-var-scope -check-prefixes=EG,EGCM,FUNC %s
 ; RUN: llc < %s -march=r600 -mcpu=cayman -verify-machineinstrs | FileCheck -allow-deprecated-dag-overlap -enable-var-scope --check-prefixes=CM,EGCM,FUNC %s
 
@@ -375,6 +375,122 @@ entry:
   ret void
 }
 
+; FUNC-LABEL: {{^}}v5i8_arg:
+; HSA-GFX9: kernarg_segment_byte_size = 16
+; HSA-GFX9: kernarg_segment_alignment = 4
+
+; EGCM-DAG: VTX_READ_8 T{{[0-9]}}.X, T{{[0-9]}}.X, 46
+; EGCM-DAG: VTX_READ_8 T{{[0-9]}}.X, T{{[0-9]}}.X, 46
+; EGCM-DAG: VTX_READ_8 T{{[0-9]}}.X, T{{[0-9]}}.X, 46
+
+; SI: s_load_dword s{{[0-9]+}}, s{{\[[0-9]+:[0-9]+\]}}, 0xb
+
+; VI-MESA: s_load_dword s{{[0-9]+}}, s{{\[[0-9]+:[0-9]+\]}}, 0x2c
+; VI-HSA: s_load_dword s{{[0-9]+}}, s{{\[[0-9]+:[0-9]+\]}}, 0x8
+define amdgpu_kernel void @v5i8_arg(<5 x i8> addrspace(1)* nocapture %out, <5 x i8> %in) nounwind {
+entry:
+  store <5 x i8> %in, <5 x i8> addrspace(1)* %out, align 4
+  ret void
+}
+
+; FUNC-LABEL: {{^}}v5i16_arg:
+; HSA-GFX9: kernarg_segment_byte_size = 32
+; HSA-GFX9: kernarg_segment_alignment = 4
+
+; EGCM-DAG: VTX_READ_16 T{{[0-9]}}.X, T{{[0-9]}}.X, 58
+; EGCM-DAG: VTX_READ_16 T{{[0-9]}}.X, T{{[0-9]}}.X, 58
+; EGCM-DAG: VTX_READ_16 T{{[0-9]}}.X, T{{[0-9]}}.X, 58
+
+; SI: s_load_dwordx2 s{{\[[0-9]+:[0-9]+\]}}, s{{\[[0-9]+:[0-9]+\]}}, 0xd
+
+; VI-HSA: s_load_dwordx2 s{{\[[0-9]+:[0-9]+\]}}, s{{\[[0-9]+:[0-9]+\]}}, 0x8
+; VI-MESA: s_load_dwordx2 s{{\[[0-9]+:[0-9]+\]}}, s{{\[[0-9]+:[0-9]+\]}}, 0x2c
+define amdgpu_kernel void @v5i16_arg(<5 x i16> addrspace(1)* nocapture %out, <5 x i16> %in) nounwind {
+entry:
+  store <5 x i16> %in, <5 x i16> addrspace(1)* %out, align 4
+  ret void
+}
+
+; FUNC-LABEL: {{^}}v5i32_arg:
+; HSA-GFX9: kernarg_segment_byte_size = 64
+; HSA-GFX9: kernarg_segment_alignment = 5
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[4].Y
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[4].Z
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[4].W
+; SI: s_load_dwordx4 s{{\[[0-9]:[0-9]+\]}}, s[0:1], 0x11
+; MESA-VI: s_load_dwordx4 s{{\[[0-9]:[0-9]+\]}}, s[0:1], 0x44
+; HSA-GFX9: s_load_dwordx4 s[{{[0-9]+:[0-9]+}}], s[4:5], 0x20
+define amdgpu_kernel void @v5i32_arg(<5 x i32> addrspace(1)* nocapture %out, <5 x i32> %in) nounwind {
+entry:
+  store <5 x i32> %in, <5 x i32> addrspace(1)* %out, align 4
+  ret void
+}
+
+; FUNC-LABEL: {{^}}v5f32_arg:
+; HSA-GFX9: kernarg_segment_byte_size = 64
+; HSA-GFX9: kernarg_segment_alignment = 5
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[4].Y
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[4].Z
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[4].W
+; SI: s_load_dwordx4 s{{\[[0-9]:[0-9]+\]}}, s[0:1], 0x11
+; MESA-VI: s_load_dwordx4 s{{\[[0-9]:[0-9]+\]}}, s[0:1], 0x44
+; HSA-GFX9: s_load_dwordx4 s[{{[0-9]+:[0-9]+}}], s[4:5], 0x20
+define amdgpu_kernel void @v5f32_arg(<5 x float> addrspace(1)* nocapture %out, <5 x float> %in) nounwind {
+entry:
+  store <5 x float> %in, <5 x float> addrspace(1)* %out, align 4
+  ret void
+}
+
+; FUNC-LABEL: {{^}}v5i64_arg:
+; HSA-GFX9: kernarg_segment_byte_size = 128
+; HSA-GFX9: kernarg_segment_alignment = 6
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[6].Y
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[6].Z
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[6].W
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[7].X
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[7].Y
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[7].Z
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[7].W
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[8].X
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[8].Y
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[8].Z
+; SI-DAG: s_load_dwordx8 s{{\[[0-9]:[0-9]+\]}}, s[0:1], 0x19
+; SI-DAG: s_load_dwordx2 s{{\[[0-9]:[0-9]+\]}}, s[0:1], 0x21
+; MESA-VI-DAG: s_load_dwordx8 s{{\[[0-9]:[0-9]+\]}}, s[0:1], 0x64
+; MESA-VI-DAG: s_load_dwordx2 s{{\[[0-9]:[0-9]+\]}}, s[0:1], 0x84
+; HSA-GFX9-DAG: s_load_dwordx8 s[{{[0-9]+:[0-9]+}}], s[4:5], 0x40
+; HSA-GFX9-DAG: s_load_dwordx4 s[{{[0-9]+:[0-9]+}}], s[4:5], 0x60
+define amdgpu_kernel void @v5i64_arg(<5 x i64> addrspace(1)* nocapture %out, <5 x i64> %in) nounwind {
+entry:
+  store <5 x i64> %in, <5 x i64> addrspace(1)* %out, align 8
+  ret void
+}
+
+; FUNC-LABEL: {{^}}v5f64_arg:
+; HSA-GFX9: kernarg_segment_byte_size = 128
+; HSA-GFX9: kernarg_segment_alignment = 6
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[6].Y
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[6].Z
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[6].W
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[7].X
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[7].Y
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[7].Z
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[7].W
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[8].X
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[8].Y
+; EGCM-DAG: T{{[0-9]\.[XYZW]}}, KC0[8].Z
+; SI-DAG: s_load_dwordx8 s{{\[[0-9]:[0-9]+\]}}, s[0:1], 0x19
+; SI-DAG: s_load_dwordx2 s{{\[[0-9]:[0-9]+\]}}, s[0:1], 0x21
+; MESA-VI-DAG: s_load_dwordx8 s{{\[[0-9]:[0-9]+\]}}, s[0:1], 0x64
+; MESA-VI-DAG: s_load_dwordx2 s{{\[[0-9]:[0-9]+\]}}, s[0:1], 0x84
+; HSA-GFX9-DAG: s_load_dwordx8 s[{{[0-9]+:[0-9]+}}], s[4:5], 0x40
+; HSA-GFX9-DAG: s_load_dwordx4 s[{{[0-9]+:[0-9]+}}], s[4:5], 0x60
+define amdgpu_kernel void @v5f64_arg(<5 x double> addrspace(1)* nocapture %out, <5 x double> %in) nounwind {
+entry:
+  store <5 x double> %in, <5 x double> addrspace(1)* %out, align 8
+  ret void
+}
+
 ; FIXME: Lots of unpack and re-pack junk on VI
 ; FUNC-LABEL: {{^}}v8i8_arg:
 ; HSA-GFX9: kernarg_segment_byte_size = 16
@@ -657,7 +773,7 @@ define amdgpu_kernel void @i1_arg(i1 addrspace(1)* %out, i1 %x) nounwind {
 ; HSA-GFX9: kernarg_segment_alignment = 4
 
 ; GCN: s_load_dword
-; SGCN: buffer_store_dword
+; GCN: {{buffer|flat|global}}_store_dword
 define amdgpu_kernel void @i1_arg_zext_i32(i32 addrspace(1)* %out, i1 %x) nounwind {
   %ext = zext i1 %x to i32
   store i32 %ext, i32 addrspace(1)* %out, align 4
@@ -739,10 +855,11 @@ define amdgpu_kernel void @struct_argument_alignment({i32, i64} %arg0, i8, {i32,
 ; multiple.
 ; FUNC-LABEL: {{^}}packed_struct_argument_alignment:
 ; HSA-GFX9: kernarg_segment_byte_size = 28
-; HSA-GFX9: global_load_dword v{{[0-9]+}}, v{{\[[0-9]+:[0-9]+\]}}, off offset:13
-; HSA-GFX9: global_load_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, v{{\[[0-9]+:[0-9]+\]}}, off offset:17
-; HSA-GFX9: s_load_dword s{{[0-9]+}}, s[4:5], 0x0
-; HSA-GFX9: s_load_dwordx2 s{{\[[0-9]+:[0-9]+\]}}, s[4:5], 0x4
+; HSA-GFX9-DAG: s_load_dword s{{[0-9]+}}, s[4:5], 0x0
+; HSA-GFX9-DAG: s_load_dwordx2 s{{\[[0-9]+:[0-9]+\]}}, s[4:5], 0x4
+; HSA-GFX9-DAG: v_mov_b32_e32 [[ZERO:v[0-9]+]], 0{{$}}
+; HSA-GFX9: global_load_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, [[ZERO]], s{{\[[0-9]+:[0-9]+\]}} offset:17
+; HSA-GFX9: global_load_dword v{{[0-9]+}}, [[ZERO]], s{{\[[0-9]+:[0-9]+\]}} offset:13
 define amdgpu_kernel void @packed_struct_argument_alignment(<{i32, i64}> %arg0, i8, <{i32, i64}> %arg1) {
   %val0 = extractvalue <{i32, i64}> %arg0, 0
   %val1 = extractvalue <{i32, i64}> %arg0, 1
@@ -788,9 +905,10 @@ define amdgpu_kernel void @array_3xi32(i16 %arg0, [3 x i32] %arg1) {
 
 ; FIXME: Why not all scalar loads?
 ; GCN-LABEL: {{^}}array_3xi16:
-; HSA-GFX9: global_load_ushort v{{[0-9]+}}, v{{\[[0-9]+:[0-9]+\]}}, off offset:2
-; HSA-GFX9: global_load_ushort v{{[0-9]+}}, v{{\[[0-9]+:[0-9]+\]}}, off offset:4
-; HSA-GFX9: global_load_ushort v{{[0-9]+}}, v{{\[[0-9]+:[0-9]+\]}}, off offset:6
+; HSA-GFX9-DAG: v_mov_b32_e32 [[ZERO:v[0-9]+]], 0{{$}}
+; HSA-GFX9: global_load_ushort v{{[0-9]+}}, [[ZERO]], s{{\[[0-9]+:[0-9]+\]}} offset:2
+; HSA-GFX9: global_load_ushort v{{[0-9]+}}, [[ZERO]], s{{\[[0-9]+:[0-9]+\]}} offset:4
+; HSA-GFX9: global_load_ushort v{{[0-9]+}}, [[ZERO]], s{{\[[0-9]+:[0-9]+\]}} offset:6
 define amdgpu_kernel void @array_3xi16(i8 %arg0, [3 x i16] %arg1) {
   store volatile i8 %arg0, i8 addrspace(1)* undef
   store volatile [3 x i16] %arg1, [3 x i16] addrspace(1)* undef
@@ -798,9 +916,32 @@ define amdgpu_kernel void @array_3xi16(i8 %arg0, [3 x i16] %arg1) {
 }
 
 ; GCN-LABEL: {{^}}small_array_round_down_offset:
-; HSA-GFX9: global_load_ubyte v{{[0-9]+}}, v{{\[[0-9]+:[0-9]+\]}}, off offset:1
+; HSA-GFX9-DAG: v_mov_b32_e32 [[ZERO:v[0-9]+]], 0{{$}}
+; HSA-GFX9: global_load_ubyte v{{[0-9]+}}, [[ZERO]], s{{\[[0-9]+:[0-9]+\]}} offset:1
 define amdgpu_kernel void @small_array_round_down_offset(i8, [1 x i8] %arg) {
   %val = extractvalue [1 x i8] %arg, 0
   store volatile i8 %val, i8 addrspace(1)* undef
+  ret void
+}
+
+; GCN-LABEL: {{^}}byref_align_constant_i32_arg:
+; HSA-GFX9: kernarg_segment_byte_size = 264
+; HSA-GFX9-DAG: s_load_dwordx2 {{s\[[0-9]+:[0-9]+\]}}, s[4:5], 0x100{{$}}
+define amdgpu_kernel void @byref_align_constant_i32_arg(i32 addrspace(1)* nocapture %out, i32 addrspace(4)* byref(i32) align(256) %in.byref, i32 %after.offset) {
+  %in = load i32, i32 addrspace(4)* %in.byref
+  store volatile i32 %in, i32 addrspace(1)* %out, align 4
+  store volatile i32 %after.offset, i32 addrspace(1)* %out, align 4
+  ret void
+}
+
+; GCN-LABEL: {{^}}byref_natural_align_constant_v16i32_arg:
+; HSA-GFX9: kernarg_segment_byte_size = 132
+; HSA-GFX9-DAG: s_load_dword s{{[0-9]+}}, s[4:5], 0x80
+; HSA-GFX9-DAG: s_load_dwordx16 s{{\[[0-9]+:[0-9]+\]}}, s[4:5], 0x40{{$}}
+define amdgpu_kernel void @byref_natural_align_constant_v16i32_arg(i32 addrspace(1)* nocapture %out, i8, <16 x i32> addrspace(4)* byref(<16 x i32>) %in.byref, i32 %after.offset) {
+  %in = load <16 x i32>, <16 x i32> addrspace(4)* %in.byref
+  %cast.out = bitcast i32 addrspace(1)* %out to <16 x i32> addrspace(1)*
+  store volatile <16 x i32> %in, <16 x i32> addrspace(1)* %cast.out, align 4
+  store volatile i32 %after.offset, i32 addrspace(1)* %out, align 4
   ret void
 }

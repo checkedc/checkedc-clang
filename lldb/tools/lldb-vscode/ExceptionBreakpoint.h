@@ -1,14 +1,13 @@
 //===-- ExceptionBreakpoint.h -----------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDBVSCODE_EXCEPTIONBREAKPOINT_H_
-#define LLDBVSCODE_EXCEPTIONBREAKPOINT_H_
+#ifndef LLDB_TOOLS_LLDB_VSCODE_EXCEPTIONBREAKPOINT_H
+#define LLDB_TOOLS_LLDB_VSCODE_EXCEPTIONBREAKPOINT_H
 
 #include <string>
 
@@ -22,12 +21,9 @@ struct ExceptionBreakpoint {
   lldb::LanguageType language;
   bool default_value;
   lldb::SBBreakpoint bp;
-  ExceptionBreakpoint(std::string f, std::string l, lldb::LanguageType lang) :
-    filter(std::move(f)),
-    label(std::move(l)),
-    language(lang),
-    default_value(false),
-    bp() {}
+  ExceptionBreakpoint(std::string f, std::string l, lldb::LanguageType lang)
+      : filter(std::move(f)), label(std::move(l)), language(lang),
+        default_value(false), bp() {}
 
   void SetBreakpoint();
   void ClearBreakpoint();

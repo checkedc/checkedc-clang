@@ -1,3 +1,15 @@
+/*
+ * kmp_dispatch_hier.h -- hierarchical scheduling methods and data structures
+ */
+
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #ifndef KMP_DISPATCH_HIER_H
 #define KMP_DISPATCH_HIER_H
 #include "kmp.h"
@@ -196,7 +208,7 @@ template <typename T> struct kmp_hier_shared_bdata_t {
 // Can be used in a unit with between 2 to 8 threads
 template <typename T> class core_barrier_impl {
   static inline kmp_uint64 get_wait_val(int num_active) {
-    kmp_uint64 wait_val;
+    kmp_uint64 wait_val = 0LL;
     switch (num_active) {
     case 2:
       wait_val = 0x0101LL;
@@ -261,10 +273,10 @@ void core_barrier_impl<T>::barrier(kmp_int32 id,
                 "next_index:%llu curr_wait:%llu next_wait:%llu\n",
                 __kmp_get_gtid(), current_index, next_index, current_wait_value,
                 next_wait_value));
-  char v = (current_wait_value ? 0x1 : 0x0);
+  char v = (current_wait_value ? '\1' : '\0');
   (RCAST(volatile char *, &(bdata->val[current_index])))[id] = v;
-  __kmp_wait_yield<kmp_uint64>(&(bdata->val[current_index]), current_wait_value,
-                               __kmp_eq<kmp_uint64> USE_ITT_BUILD_ARG(NULL));
+  __kmp_wait<kmp_uint64>(&(bdata->val[current_index]), current_wait_value,
+                         __kmp_eq<kmp_uint64> USE_ITT_BUILD_ARG(NULL));
   tdata->wait_val[current_index] = next_wait_value;
   tdata->index = next_index;
 }
@@ -310,8 +322,8 @@ void counter_barrier_impl<T>::barrier(kmp_int32 id,
                 next_wait_value));
   val = RCAST(volatile kmp_int64 *, &(bdata->val[current_index]));
   KMP_TEST_THEN_INC64(val);
-  __kmp_wait_yield<kmp_uint64>(&(bdata->val[current_index]), current_wait_value,
-                               __kmp_ge<kmp_uint64> USE_ITT_BUILD_ARG(NULL));
+  __kmp_wait<kmp_uint64>(&(bdata->val[current_index]), current_wait_value,
+                         __kmp_ge<kmp_uint64> USE_ITT_BUILD_ARG(NULL));
   tdata->wait_val[current_index] = next_wait_value;
   tdata->index = next_index;
 }
@@ -412,6 +424,7 @@ template <typename T> struct kmp_hier_top_unit_t {
 
   kmp_int32 is_active() const { return active; }
   kmp_int32 get_num_active() const { return active; }
+#ifdef KMP_DEBUG
   void print() {
     KD_TRACE(
         10,
@@ -419,6 +432,7 @@ template <typename T> struct kmp_hier_top_unit_t {
          active, &hier_pr, hier_pr.u.p.lb, hier_pr.u.p.ub, hier_pr.u.p.st,
          hier_pr.u.p.tc));
   }
+#endif
 };
 
 // Information regarding a single layer within the scheduling hierarchy
@@ -429,6 +443,7 @@ template <typename T> struct kmp_hier_layer_info_t {
   typename traits_t<T>::signed_t chunk; // chunk size associated with schedule
   int length; // length of the kmp_hier_top_unit_t array
 
+#ifdef KMP_DEBUG
   // Print this layer's information
   void print() {
     const char *t = __kmp_get_hier_str(type);
@@ -438,6 +453,7 @@ template <typename T> struct kmp_hier_layer_info_t {
          "length:%d\n",
          num_active, t, sched, chunk, length));
   }
+#endif
 };
 
 /*
@@ -521,8 +537,10 @@ private:
       // When no iterations are found (status == 0) and this is not the last
       // layer, attempt to go up the hierarchy for more iterations
       if (status == 0 && !last_layer) {
+        kmp_int32 hid;
+        __kmp_type_convert(hier_id, &hid);
         status = next_recurse(loc, gtid, parent, &contains_last, &my_lb, &my_ub,
-                              &my_st, hier_id, hier_level + 1);
+                              &my_st, hid, hier_level + 1);
         KD_TRACE(
             10,
             ("kmp_hier_t.next_recurse(): T#%d (%d) hier_next() returned %d\n",
@@ -675,6 +693,7 @@ public:
           sizeof(kmp_hier_top_unit_t<T>) * max);
       for (int j = 0; j < max; ++j) {
         layers[i][j].active = 0;
+        layers[i][j].hier_pr.flags.use_hier = TRUE;
       }
     }
     valid = true;
@@ -731,8 +750,10 @@ public:
           bool done = false;
           while (!done) {
             done = true;
+            kmp_int32 uid;
+            __kmp_type_convert(unit_id, &uid);
             status = next_recurse(loc, gtid, parent, &contains_last, p_lb, p_ub,
-                                  p_st, unit_id, 0);
+                                  p_st, uid, 0);
             if (status == 1) {
               __kmp_dispatch_init_algorithm(loc, gtid, pr, pr->schedule,
                                             parent->get_next_lb(tdata->index),
@@ -786,8 +807,10 @@ public:
         bool done = false;
         while (!done) {
           done = true;
+          kmp_int32 uid;
+          __kmp_type_convert(unit_id, &uid);
           status = next_recurse(loc, gtid, parent, &contains_last, p_lb, p_ub,
-                                p_st, unit_id, 0);
+                                p_st, uid, 0);
           if (status == 1) {
             sh = parent->get_curr_sh(tdata->index);
             __kmp_dispatch_init_algorithm(loc, gtid, pr, pr->schedule,
@@ -875,6 +898,7 @@ public:
   int get_top_level_nproc() const { return top_level_nproc; }
   // Return whether this hierarchy is valid or not
   bool is_valid() const { return valid; }
+#ifdef KMP_DEBUG
   // Print the hierarchy
   void print() {
     KD_TRACE(10, ("kmp_hier_t:\n"));
@@ -889,6 +913,7 @@ public:
       }
     }
   }
+#endif
 };
 
 template <typename T>
@@ -898,8 +923,6 @@ void __kmp_dispatch_init_hierarchy(ident_t *loc, int n,
                                    typename traits_t<T>::signed_t *new_chunks,
                                    T lb, T ub,
                                    typename traits_t<T>::signed_t st) {
-  typedef typename traits_t<T>::signed_t ST;
-  typedef typename traits_t<T>::unsigned_t UT;
   int tid, gtid, num_hw_threads, num_threads_per_layer1, active;
   int my_buffer_index;
   kmp_info_t *th;
@@ -924,31 +947,30 @@ void __kmp_dispatch_init_hierarchy(ident_t *loc, int n,
   KMP_DEBUG_ASSERT(new_chunks);
   if (!TCR_4(__kmp_init_parallel))
     __kmp_parallel_initialize();
+  __kmp_resume_if_soft_paused();
+
   th = __kmp_threads[gtid];
   team = th->th.th_team;
   active = !team->t.t_serialized;
   th->th.th_ident = loc;
   num_hw_threads = __kmp_hier_max_units[kmp_hier_layer_e::LAYER_THREAD + 1];
-  if (!active) {
-    KD_TRACE(10, ("__kmp_dispatch_init_hierarchy: T#%d not active parallel. "
-                  "Using normal dispatch functions.\n",
-                  gtid));
-    pr = reinterpret_cast<dispatch_private_info_template<T> *>(
-        th->th.th_dispatch->th_disp_buffer);
-    KMP_DEBUG_ASSERT(pr);
-    pr->flags.use_hier = FALSE;
-    pr->flags.contains_last = FALSE;
-    return;
-  }
   KMP_DEBUG_ASSERT(th->th.th_dispatch ==
                    &th->th.th_team->t.t_dispatch[th->th.th_info.ds.ds_tid]);
-
   my_buffer_index = th->th.th_dispatch->th_disp_index;
   pr = reinterpret_cast<dispatch_private_info_template<T> *>(
       &th->th.th_dispatch
            ->th_disp_buffer[my_buffer_index % __kmp_dispatch_num_buffers]);
   sh = reinterpret_cast<dispatch_shared_info_template<T> volatile *>(
       &team->t.t_disp_buffer[my_buffer_index % __kmp_dispatch_num_buffers]);
+  if (!active) {
+    KD_TRACE(10, ("__kmp_dispatch_init_hierarchy: T#%d not active parallel. "
+                  "Using normal dispatch functions.\n",
+                  gtid));
+    KMP_DEBUG_ASSERT(pr);
+    pr->flags.use_hier = FALSE;
+    pr->flags.contains_last = FALSE;
+    return;
+  }
   KMP_DEBUG_ASSERT(pr);
   KMP_DEBUG_ASSERT(sh);
   pr->flags.use_hier = TRUE;
@@ -977,7 +999,7 @@ void __kmp_dispatch_init_hierarchy(ident_t *loc, int n,
     th->th.th_hier_bar_data = (kmp_hier_private_bdata_t *)__kmp_allocate(
         sizeof(kmp_hier_private_bdata_t) * kmp_hier_layer_e::LAYER_LAST);
   }
-  // Have threads "register" themselves by modifiying the active count for each
+  // Have threads "register" themselves by modifying the active count for each
   // level they are involved in. The active count will act as nthreads for that
   // level regarding the scheduling algorithms
   for (int i = 0; i < n; ++i) {
@@ -1055,7 +1077,7 @@ void __kmp_dispatch_init_hierarchy(ident_t *loc, int n,
     my_unit->reset_shared_barrier();
     my_unit->hier_pr.flags.contains_last = FALSE;
     // Last layer, initialize the private buffers with entire loop information
-    // Now the next next_algorithim() call will get the first chunk of
+    // Now the next next_algorithm() call will get the first chunk of
     // iterations properly
     if (i == n - 1) {
       __kmp_dispatch_init_algorithm<T>(

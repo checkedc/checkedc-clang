@@ -1,9 +1,8 @@
 //===- AMDGPUAliasAnalysis --------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 /// \file
@@ -14,13 +13,7 @@
 #define LLVM_LIB_TARGET_AMDGPU_AMDGPUALIASANALYSIS_H
 
 #include "AMDGPU.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/AliasAnalysis.h"
-#include "llvm/IR/Function.h"
-#include "llvm/IR/Module.h"
-#include "llvm/Pass.h"
-#include <algorithm>
-#include <memory>
 
 namespace llvm {
 
@@ -35,36 +28,35 @@ class AMDGPUAAResult : public AAResultBase<AMDGPUAAResult> {
   const DataLayout &DL;
 
 public:
-  explicit AMDGPUAAResult(const DataLayout &DL, Triple T) : AAResultBase(),
-    DL(DL) {}
+  explicit AMDGPUAAResult(const DataLayout &DL) : AAResultBase(), DL(DL) {}
   AMDGPUAAResult(AMDGPUAAResult &&Arg)
       : AAResultBase(std::move(Arg)), DL(Arg.DL) {}
 
   /// Handle invalidation events from the new pass manager.
   ///
   /// By definition, this result is stateless and so remains valid.
-  bool invalidate(Function &, const PreservedAnalyses &) { return false; }
+  bool invalidate(Function &, const PreservedAnalyses &,
+                  FunctionAnalysisManager::Invalidator &Inv) {
+    return false;
+  }
 
-  AliasResult alias(const MemoryLocation &LocA, const MemoryLocation &LocB);
-  bool pointsToConstantMemory(const MemoryLocation &Loc, bool OrLocal);
-
-private:
-  bool Aliases(const MDNode *A, const MDNode *B) const;
-  bool PathAliases(const MDNode *A, const MDNode *B) const;
+  AliasResult alias(const MemoryLocation &LocA, const MemoryLocation &LocB,
+                    AAQueryInfo &AAQI);
+  bool pointsToConstantMemory(const MemoryLocation &Loc, AAQueryInfo &AAQI,
+                              bool OrLocal);
 };
 
 /// Analysis pass providing a never-invalidated alias analysis result.
 class AMDGPUAA : public AnalysisInfoMixin<AMDGPUAA> {
   friend AnalysisInfoMixin<AMDGPUAA>;
 
-  static char PassID;
+  static AnalysisKey Key;
 
 public:
   using Result = AMDGPUAAResult;
 
   AMDGPUAAResult run(Function &F, AnalysisManager<Function> &AM) {
-    return AMDGPUAAResult(F.getParent()->getDataLayout(),
-        Triple(F.getParent()->getTargetTriple()));
+    return AMDGPUAAResult(F.getParent()->getDataLayout());
   }
 };
 
@@ -83,8 +75,7 @@ public:
   const AMDGPUAAResult &getResult() const { return *Result; }
 
   bool doInitialization(Module &M) override {
-    Result.reset(new AMDGPUAAResult(M.getDataLayout(),
-        Triple(M.getTargetTriple())));
+    Result.reset(new AMDGPUAAResult(M.getDataLayout()));
     return false;
   }
 

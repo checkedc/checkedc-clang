@@ -9,28 +9,33 @@ endif ()
 
 string(REPLACE ${CMAKE_CFG_INTDIR} ${LLVM_BUILD_MODE} CLANG_TOOLS_DIR ${LLVM_RUNTIME_OUTPUT_INTDIR})
 
-if(CLANG_BUILT_STANDALONE)
-  # Set HAVE_LIBZ according to recorded LLVM_ENABLE_ZLIB value. This
-  # value is forced to 0 if zlib was not found, so it is fine to use it
-  # instead of HAVE_LIBZ (not recorded).
-  if(LLVM_ENABLE_ZLIB)
-    set(HAVE_LIBZ 1)
-  endif()
-endif()
-
 llvm_canonicalize_cmake_booleans(
   CLANG_BUILD_EXAMPLES
   CLANG_ENABLE_ARCMT
   CLANG_ENABLE_STATIC_ANALYZER
+  CLANG_SPAWN_CC1
   ENABLE_BACKTRACES
-  HAVE_LIBZ
-  LLVM_ENABLE_PER_TARGET_RUNTIME_DIR)
+  LLVM_ENABLE_NEW_PASS_MANAGER
+  LLVM_ENABLE_ZLIB
+  LLVM_ENABLE_PER_TARGET_RUNTIME_DIR
+  LLVM_ENABLE_PLUGINS
+  LLVM_ENABLE_THREADS)
 
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
   ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
   MAIN_CONFIG
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py
+  PATHS
+  "LLVM_SOURCE_DIR"
+  "LLVM_BINARY_DIR"
+  "LLVM_TOOLS_DIR"
+  "LLVM_LIBS_DIR"
+  "SHLIBDIR"
+  "LLVM_LIT_TOOLS_DIR"
+  "CLANG_BINARY_DIR"
+  "CLANG_SOURCE_DIR"
+  "CLANG_TOOLS_DIR"
   )
 
 configure_lit_site_cfg(
@@ -38,6 +43,13 @@ configure_lit_site_cfg(
   ${CMAKE_CURRENT_BINARY_DIR}/Unit/lit.site.cfg.py
   MAIN_CONFIG
   ${CMAKE_CURRENT_SOURCE_DIR}/Unit/lit.cfg.py
+  PATHS
+  "LLVM_SOURCE_DIR"
+  "LLVM_BINARY_DIR"
+  "LLVM_TOOLS_DIR"
+  "LLVM_LIBS_DIR"
+  "CLANG_BINARY_DIR"
+  "SHLIBDIR"
   )
 
 option(CLANG_TEST_USE_VG "Run Clang tests under Valgrind" OFF)
@@ -46,15 +58,19 @@ if(CLANG_TEST_USE_VG)
 endif ()
 
 list(APPEND CLANG_TEST_DEPS
-  clang clang-headers
+  apinotes-test
+  c-index-test
+  clang
+  clang-resource-headers
   clang-format
-  c-index-test diagtool
   clang-tblgen
   clang-offload-bundler
   clang-import-test
   clang-rename
   clang-refactor
   clang-diff
+  clang-scan-deps
+  diagtool
   hmaptool
   )
   
@@ -74,28 +90,17 @@ endif ()
 
 if (CLANG_BUILD_EXAMPLES)
   list(APPEND CLANG_TEST_DEPS
+    Attribute
     AnnotateFunctions
+    CallSuperAttr
     clang-interpreter
     PrintFunctionNames
     )
 endif ()
 
-if (CLANG_ENABLE_STATIC_ANALYZER AND CLANG_BUILD_EXAMPLES)
-  list(APPEND CLANG_TEST_DEPS
-    SampleAnalyzerPlugin
-    )
-endif ()
-
 set(CLANG_TEST_PARAMS
-  clang_site_config=${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg
   USE_Z3_SOLVER=0
   )
-
-set(ANALYZER_TEST_PARAMS
-  USE_Z3_SOLVER=0)
-
-set(ANALYZER_TEST_PARAMS_Z3
-  USE_Z3_SOLVER=1)
 
 if( NOT CLANG_BUILT_STANDALONE )
   list(APPEND CLANG_TEST_DEPS
@@ -105,21 +110,44 @@ if( NOT CLANG_BUILT_STANDALONE )
     llvm-as
     llvm-bcanalyzer
     llvm-cat
+    llvm-cxxfilt
     llvm-dis
+    llvm-dwarfdump
+    llvm-ifs
     llvm-lto2
     llvm-modextract
     llvm-nm
+    llvm-objcopy
     llvm-objdump
     llvm-profdata
+    llvm-readelf
     llvm-readobj
+    llvm-strip
     llvm-symbolizer
     opt
+    split-file
+    yaml2obj
     )
 
   if(TARGET llvm-lto)
     list(APPEND CLANG_TEST_DEPS llvm-lto)
   endif()
 endif()
+
+if (CLANG_ENABLE_STATIC_ANALYZER)
+  if (LLVM_ENABLE_PLUGINS)
+    list(APPEND CLANG_TEST_DEPS
+      SampleAnalyzerPlugin
+      CheckerDependencyHandlingAnalyzerPlugin
+      CheckerOptionHandlingAnalyzerPlugin
+      )
+  endif()
+endif()
+
+# Copy gen_ast_dump_json_test.py to the clang build dir. This allows invoking
+# it without having to pass the --clang= argument
+configure_file(AST/gen_ast_dump_json_test.py
+  ${CLANG_BINARY_DIR}/bin/gen_ast_dump_json_test.py COPYONLY)
 
 add_custom_target(clang-test-depends DEPENDS ${CLANG_TEST_DEPS})
 set_target_properties(clang-test-depends PROPERTIES FOLDER "Clang tests")
@@ -132,28 +160,6 @@ add_lit_testsuite(check-clang "Running the Clang regression tests"
   ARGS ${CLANG_TEST_EXTRA_ARGS}
   )
 set_target_properties(check-clang PROPERTIES FOLDER "Clang tests")
-
-if (CLANG_ENABLE_STATIC_ANALYZER)
-  # check-all would launch those tests via check-clang.
-  set(EXCLUDE_FROM_ALL ON)
-
-  add_lit_testsuite(check-clang-analyzer "Running the Clang analyzer tests"
-    ${CMAKE_CURRENT_BINARY_DIR}/Analysis
-    PARAMS ${ANALYZER_TEST_PARAMS}
-    DEPENDS ${CLANG_TEST_DEPS})
-  set_target_properties(check-clang-analyzer PROPERTIES FOLDER "Clang tests")
-
-
-  if (CLANG_ANALYZER_WITH_Z3)
-    add_lit_testsuite(check-clang-analyzer-z3 "Running the Clang analyzer tests, using Z3 as a solver"
-      ${CMAKE_CURRENT_BINARY_DIR}/Analysis
-      PARAMS ${ANALYZER_TEST_PARAMS_Z3}
-      DEPENDS ${CLANG_TEST_DEPS})
-    set_target_properties(check-clang-analyzer-z3 PROPERTIES FOLDER "Clang tests")
-  endif()
-
-  set(EXCLUDE_FROM_ALL OFF)
-endif()
 
 add_lit_testsuites(CLANG ${CMAKE_CURRENT_SOURCE_DIR}
   PARAMS ${CLANG_TEST_PARAMS}

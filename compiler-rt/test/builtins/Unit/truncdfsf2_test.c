@@ -1,17 +1,5 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-
-//===--------------- truncdfsf2_test.c - Test __truncdfsf2 ----------------===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __truncdfsf2 for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
+// REQUIRES: librt_has_truncdfsf2
 
 #include <stdio.h>
 

@@ -89,33 +89,33 @@ T tmain() {
   return T();
 }
 
-// HCHECK-DAG: [[TEST:@.+]] = global [[S_FLOAT_TY]] zeroinitializer,
+// HCHECK-DAG: [[TEST:@.+]] ={{.*}} global [[S_FLOAT_TY]] zeroinitializer,
 S<float> test;
-// HCHECK-DAG: [[T_VAR:@.+]] = global i{{[0-9]+}} 333,
+// HCHECK-DAG: [[T_VAR:@.+]] ={{.*}} global i{{[0-9]+}} 333,
 int t_var = 333;
-// HCHECK-DAG: [[VEC:@.+]] = global [2 x i{{[0-9]+}}] [i{{[0-9]+}} 1, i{{[0-9]+}} 2],
+// HCHECK-DAG: [[VEC:@.+]] ={{.*}} global [2 x i{{[0-9]+}}] [i{{[0-9]+}} 1, i{{[0-9]+}} 2],
 int vec[] = {1, 2};
-// HCHECK-DAG: [[S_ARR:@.+]] = global [2 x [[S_FLOAT_TY]]] zeroinitializer,
+// HCHECK-DAG: [[S_ARR:@.+]] ={{.*}} global [2 x [[S_FLOAT_TY]]] zeroinitializer,
 S<float> s_arr[] = {1, 2};
-// HCHECK-DAG: [[VAR:@.+]] = global [[S_FLOAT_TY]] zeroinitializer,
+// HCHECK-DAG: [[VAR:@.+]] ={{.*}} global [[S_FLOAT_TY]] zeroinitializer,
 S<float> var(3);
 // HCHECK-DAG: [[SIVAR:@.+]] = internal global i{{[0-9]+}} 0,
 
 int main() {
   static int sivar;
 #ifdef LAMBDA
-  // HLAMBDA: [[G:@.+]] = global i{{[0-9]+}} 1212,
+  // HLAMBDA: [[G:@.+]] ={{.*}} global i{{[0-9]+}} 1212,
   // HLAMBDA-LABEL: @main
   // HLAMBDA: call void [[OUTER_LAMBDA:@.+]](
   [&]() {
     // HLAMBDA: define{{.*}} internal{{.*}} void [[OUTER_LAMBDA]](
-    // HLAMBDA: call i32 @__tgt_target_teams(i64 -1, i8* @{{[^,]+}}, i32 3, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i32 0, i32 0)
+    // HLAMBDA: call i32 @__tgt_target_teams_mapper(%struct.ident_t* @{{.+}}, i64 -1, i8* @{{[^,]+}}, i32 3, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i8** null, i8** null, i32 0, i32 0)
     // HLAMBDA: call void @[[LOFFL1:.+]](i{{64|32}} %{{.+}})
     // HLAMBDA:  ret
 #pragma omp target teams distribute parallel for firstprivate(g, g1, sivar)
   for (int i = 0; i < 2; ++i) {
     // HLAMBDA: define{{.*}} internal{{.*}} void @[[LOFFL1]](i{{64|32}} {{%.+}}, i{{64|32}} {{%.+}})
-    // TLAMBDA: define weak void @[[LOFFL1:.+]](i{{64|32}} {{%.+}}, i{{64|32}} {{%.+}})
+    // TLAMBDA: define weak{{.*}} void @[[LOFFL1:.+]](i{{64|32}} {{%.+}}, i{{64|32}} {{%.+}})
     // LAMBDA: {{%.+}} = alloca i{{[0-9]+}},
     // LAMBDA: {{%.+}} = alloca i{{[0-9]+}},
     // LAMBDA: {{%.+}} = alloca i{{[0-9]+}},
@@ -181,7 +181,7 @@ int main() {
     // LAMBDA: call void @__kmpc_for_static_fini(
     // LAMBDA: ret void
     [&]() {
-      // LAMBDA: define {{.+}} void [[INNER_LAMBDA]](%{{.+}}* [[ARG_PTR:%.+]])
+      // LAMBDA: define {{.+}} void [[INNER_LAMBDA]]({{.+}} [[ARG_PTR:%.+]])
       // LAMBDA: store %{{.+}}* [[ARG_PTR]], %{{.+}}** [[ARG_PTR_REF:%.+]],
       g = 2;
       g1 = 2;
@@ -213,7 +213,7 @@ int main() {
 }
 
 // HCHECK: define {{.*}}i{{[0-9]+}} @main()
-// HCHECK: call i32 @__tgt_target_teams(i64 -1, i8* @{{[^,]+}}, i32 5, 
+// HCHECK: call i32 @__tgt_target_teams_mapper(%struct.ident_t* @{{.+}}, i64 -1, i8* @{{[^,]+}}, i32 5,
 // HCHECK: call void @[[OFFL1:.+]](
 // HCHECK: {{%.+}} = call{{.*}} i32 @[[TMAIN_INT:.+]]()
 // HCHECK:  ret
@@ -374,7 +374,7 @@ int main() {
 // CHECK: ret void
 
 // HCHECK: define{{.*}} i{{[0-9]+}} @[[TMAIN_INT]]()
-// HCHECK: call i32 @__tgt_target_teams(i64 -1, i8* @{{[^,]+}}, i32 4, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i32 0, i32 0)
+// HCHECK: call i32 @__tgt_target_teams_mapper(%struct.ident_t* @{{.+}}, i64 -1, i8* @{{[^,]+}}, i32 4, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i8** null, i8** null, i32 0, i32 0)
 // HCHECK: call void @[[TOFFL1:.+]](
 // HCHECK:  ret
 
@@ -391,6 +391,7 @@ int main() {
 // CHECK-DAG: [[TS_ARR_TE_PAR:%.+]] = load [2 x [[S_INT_TY]]]*, [2 x [[S_INT_TY]]]** [[TS_ARR_PRIV]],
 // CHECK-DAG: [[TVAR_TE_PAR:%.+]] = load [[S_INT_TY]]*, [[S_INT_TY]]** [[TVAR_PRIV]],
 
+// CHECK: [[TVAR_TE_PAR:%.+]] = load [[S_INT_TY]]*, [[S_INT_TY]]** %
 // CHECK: call void {{.+}} @__kmpc_fork_teams({{.+}}, i32 4, {{.+}} @[[TOUTL1:.+]] to {{.+}}, [2 x i{{[0-9]+}}]* [[TVEC_TE_PAR]], i{{[0-9]+}} [[TT_VAR_TE_PAR]], [2 x [[S_INT_TY]]]* [[TS_ARR_TE_PAR]], [[S_INT_TY]]* [[TVAR_TE_PAR]])
 // CHECK: ret void
 
@@ -426,9 +427,12 @@ int main() {
 // CHECK-64: [[CONV_TVAR:%.+]] = bitcast i64* [[T_VAR_ADDR]] to i32*
 // CHECK: [[S_ARR_ADDR_REF:%.+]] = load [2 x [[S_INT_TY]]]*, [2 x [[S_INT_TY]]]** [[S_ARR_ADDR]],
 
+// CHECK: [[VAR_REF:%.+]] = load{{.+}} [[VAR_ADDR]],
+// CHECK: store [[S_INT_TY]]* [[VAR_REF]], [[S_INT_TY]]** [[VAR_ADDR:%.+]],
+
 // firstprivate vec(vec): copy from *_addr into priv1 and then from priv1 into priv2
-// CHECK-DAG: [[VEC_DEST_PRIV:%.+]] = bitcast [2 x i{{[0-9]+}}]* [[VEC_PRIV]] to i8* 
-// CHECK-DAG: [[VEC_SRC:%.+]] = bitcast [2 x i{{[0-9]+}}]* [[VEC_ADDR_VAL]] to i8* 
+// CHECK-DAG: [[VEC_DEST_PRIV:%.+]] = bitcast [2 x i{{[0-9]+}}]* [[VEC_PRIV]] to i8*
+// CHECK-DAG: [[VEC_SRC:%.+]] = bitcast [2 x i{{[0-9]+}}]* [[VEC_ADDR_VAL]] to i8*
 // CHECK: call void @llvm.memcpy.{{.+}}(i8* align {{[0-9]+}} [[VEC_DEST_PRIV]], i8* align {{[0-9]+}} [[VEC_SRC]], {{.+}})
 
 // firstprivate(s_arr)
@@ -487,9 +491,12 @@ int main() {
 // CHECK-64: [[CONV_TVAR:%.+]] = bitcast i64* [[T_VAR_ADDR]] to i32*
 // CHECK: [[S_ARR_ADDR_REF:%.+]] = load [2 x [[S_INT_TY]]]*, [2 x [[S_INT_TY]]]** [[S_ARR_ADDR]],
 
+// CHECK: [[VAR_REF:%.+]] = load{{.+}} [[VAR_ADDR]],
+// CHECK: store [[S_INT_TY]]* [[VAR_REF]], [[S_INT_TY]]** [[VAR_ADDR:%.+]],
+
 // firstprivate vec(vec): copy from *_addr into priv1 and then from priv1 into priv2
-// CHECK-DAG: [[VEC_DEST_PRIV:%.+]] = bitcast [2 x i{{[0-9]+}}]* [[VEC_PRIV]] to i8* 
-// CHECK-DAG: [[VEC_SRC:%.+]] = bitcast [2 x i{{[0-9]+}}]* [[VEC_ADDR_VAL]] to i8* 
+// CHECK-DAG: [[VEC_DEST_PRIV:%.+]] = bitcast [2 x i{{[0-9]+}}]* [[VEC_PRIV]] to i8*
+// CHECK-DAG: [[VEC_SRC:%.+]] = bitcast [2 x i{{[0-9]+}}]* [[VEC_ADDR_VAL]] to i8*
 // CHECK: call void @llvm.memcpy.{{.+}}(i8* align {{[0-9]+}} [[VEC_DEST_PRIV]], i8* align {{[0-9]+}} [[VEC_SRC]], {{.+}})
 
 // firstprivate(s_arr)

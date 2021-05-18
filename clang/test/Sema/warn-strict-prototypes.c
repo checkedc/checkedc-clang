@@ -1,5 +1,8 @@
-// RUN: %clang_cc1 -triple i386-pc-unknown -fsyntax-only -Wstrict-prototypes -verify %s
+// RUN: %clang_cc1 -triple i386-pc-unknown -fsyntax-only -Wstrict-prototypes -Wno-implicit-function-declaration -verify %s
 // RUN: %clang_cc1 -triple i386-pc-unknown -fsyntax-only -Wstrict-prototypes -fdiagnostics-parseable-fixits %s 2>&1 | FileCheck %s
+
+// function definition with 0 params, no prototype, no preceding declaration.
+void foo0() {} // expected-warning {{this old-style function definition is not preceded by a prototype}}
 
 // function declaration with unspecified params
 void foo1(); // expected-warning {{this function declaration is not a prototype}}
@@ -7,9 +10,9 @@ void foo1(); // expected-warning {{this function declaration is not a prototype}
 // function declaration with 0 params
 void foo2(void);
 
-// function definition with 0 params(for both cases),
-// valid according to 6.7.5.3/14
-void foo1() {}
+// function definition with 0 params, no prototype.
+void foo1() {} // expected-warning {{this old-style function definition is not preceded by a prototype}}
+// function definition with 0 params, prototype.
 void foo2(void) {}
 
 // function type typedef unspecified params
@@ -71,3 +74,9 @@ void __attribute__((cdecl)) foo12(d) // expected-warning {{this old-style functi
 // rdar://problem/33251668
 void foo13(...) __attribute__((overloadable));
 void foo13(...) __attribute__((overloadable)) {}
+
+// We should not generate a strict-prototype warning for an implicit
+// declaration.  Leave that up to the implicit-function-declaration warning.
+void foo14(void) {
+  foo14_call(); // no-warning
+}

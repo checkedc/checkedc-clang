@@ -1,14 +1,13 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
 // UNSUPPORTED: libcpp-has-no-threads
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <future>
 
@@ -18,6 +17,9 @@
 
 #include <future>
 #include <cassert>
+
+#include "make_test_thread.h"
+#include "test_macros.h"
 
 void func1(std::promise<int> p)
 {
@@ -40,7 +42,7 @@ void func5(std::promise<void> p)
     p.set_value();
 }
 
-int main()
+int main(int, char**)
 {
     typedef std::chrono::high_resolution_clock Clock;
     typedef std::chrono::duration<double, std::milli> ms;
@@ -48,7 +50,7 @@ int main()
         typedef int T;
         std::promise<T> p;
         std::shared_future<T> f = p.get_future();
-        std::thread(func1, std::move(p)).detach();
+        support::make_test_thread(func1, std::move(p)).detach();
         assert(f.valid());
         f.wait();
         assert(f.valid());
@@ -62,7 +64,7 @@ int main()
         typedef int& T;
         std::promise<T> p;
         std::shared_future<T> f = p.get_future();
-        std::thread(func3, std::move(p)).detach();
+        support::make_test_thread(func3, std::move(p)).detach();
         assert(f.valid());
         f.wait();
         assert(f.valid());
@@ -76,7 +78,7 @@ int main()
         typedef void T;
         std::promise<T> p;
         std::shared_future<T> f = p.get_future();
-        std::thread(func5, std::move(p)).detach();
+        support::make_test_thread(func5, std::move(p)).detach();
         assert(f.valid());
         f.wait();
         assert(f.valid());
@@ -86,4 +88,6 @@ int main()
         assert(f.valid());
         assert(t1-t0 < ms(5));
     }
+
+  return 0;
 }

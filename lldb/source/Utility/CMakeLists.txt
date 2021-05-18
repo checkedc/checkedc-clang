@@ -1,44 +1,26 @@
 set(LLDB_SYSTEM_LIBS)
 
-# Windows-only libraries
-if ( CMAKE_SYSTEM_NAME MATCHES "Windows" )
+if (APPLE)
   list(APPEND LLDB_SYSTEM_LIBS
-    ws2_32
-    rpcrt4
-    )
-endif ()
+       ${FOUNDATION_LIBRARY}
+       ${CORE_FOUNDATION_LIBRARY}
+       ${CORE_SERVICES_LIBRARY}
+       ${SECURITY_LIBRARY}
+       ${DEBUG_SYMBOLS_LIBRARY})
+endif()
 
-if (NOT LLDB_DISABLE_LIBEDIT)
-  list(APPEND LLDB_SYSTEM_LIBS ${libedit_LIBRARIES})
+if(NOT PURE_WINDOWS)
+  list(APPEND LLDB_SYSTEM_LIBS ${CMAKE_THREAD_LIBS_INIT})
 endif()
-if (NOT LLDB_DISABLE_CURSES)
-  list(APPEND LLDB_SYSTEM_LIBS ${CURSES_LIBRARIES})
-  if(LLVM_ENABLE_TERMINFO AND HAVE_TERMINFO)
-    list(APPEND LLDB_SYSTEM_LIBS ${TERMINFO_LIBS})
-  endif()
-endif()
+
+list(APPEND LLDB_SYSTEM_LIBS ${CMAKE_DL_LIBS})
+
+if (CMAKE_SYSTEM_NAME MATCHES "Windows")
+  list(APPEND LLDB_SYSTEM_LIBS ws2_32 rpcrt4)
+endif ()
 
 if (NOT HAVE_CXX_ATOMICS64_WITHOUT_LIB )
     list(APPEND LLDB_SYSTEM_LIBS atomic)
-endif()
-
-if(Backtrace_FOUND)
-  list(APPEND LLDB_SYSTEM_LIBS ${Backtrace_LIBRARY})
-endif()
-
-if (NOT LLDB_DISABLE_PYTHON AND NOT LLVM_BUILD_STATIC)
-  list(APPEND LLDB_SYSTEM_LIBS ${PYTHON_LIBRARIES})
-endif()
-
-list(APPEND LLDB_SYSTEM_LIBS ${system_libs})
-
-if (LLVM_BUILD_STATIC)
-  if (NOT LLDB_DISABLE_PYTHON)
-    list(APPEND LLDB_SYSTEM_LIBS python2.7 util)
-  endif()
-  if (NOT LLDB_DISABLE_CURSES)
-    list(APPEND LLDB_SYSTEM_LIBS gpm)
-  endif()
 endif()
 
 add_lldb_library(lldbUtility
@@ -46,9 +28,9 @@ add_lldb_library(lldbUtility
   Args.cpp
   Baton.cpp
   Broadcaster.cpp
+  CompletionRequest.cpp
   Connection.cpp
   ConstString.cpp
-  CompletionRequest.cpp
   DataBufferHeap.cpp
   DataBufferLLVM.cpp
   DataEncoder.cpp
@@ -56,24 +38,25 @@ add_lldb_library(lldbUtility
   Environment.cpp
   Event.cpp
   FileSpec.cpp
+  GDBRemote.cpp
   IOObject.cpp
-  JSON.cpp
   LLDBAssert.cpp
   Listener.cpp
   Log.cpp
   Logging.cpp
   NameMatches.cpp
+  ProcessInfo.cpp
   RegisterValue.cpp
   RegularExpression.cpp
   Reproducer.cpp
+  ReproducerInstrumentation.cpp
+  ReproducerProvider.cpp
   Scalar.cpp
   SelectHelper.cpp
-  SharingPtr.cpp
   State.cpp
   Status.cpp
   Stream.cpp
   StreamCallback.cpp
-  StreamGDBRemote.cpp
   StreamString.cpp
   StringExtractor.cpp
   StringExtractorGDBRemote.cpp
@@ -82,11 +65,15 @@ add_lldb_library(lldbUtility
   StructuredData.cpp
   TildeExpressionResolver.cpp
   Timer.cpp
-  UserID.cpp
-  UriParser.cpp
+  TraceOptions.cpp
+  UnimplementedError.cpp
   UUID.cpp
+  UriParser.cpp
+  UserID.cpp
+  UserIDResolver.cpp
   VASprintf.cpp
   VMRange.cpp
+  XcodeSDK.cpp
 
   LINK_LIBS
     ${LLDB_SYSTEM_LIBS}

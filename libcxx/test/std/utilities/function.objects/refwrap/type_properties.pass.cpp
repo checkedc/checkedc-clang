@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -13,9 +12,6 @@
 
 // Test that reference wrapper meets the requirements of CopyConstructible and
 // CopyAssignable, and TriviallyCopyable (starting in C++14).
-
-// Test fails due to use of is_trivially_* trait.
-// XFAIL: gcc-4.9 && c++14
 
 #include <functional>
 #include <type_traits>
@@ -53,7 +49,7 @@ void test()
 #endif
 }
 
-int main()
+int main(int, char**)
 {
     test<int>();
     test<double>();
@@ -61,4 +57,6 @@ int main()
 #if TEST_STD_VER >= 11
     test<MoveOnly>();
 #endif
+
+  return 0;
 }

@@ -1,45 +1,40 @@
 //===-- DWARFCompileUnit.h --------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SymbolFileDWARF_DWARFCompileUnit_h_
-#define SymbolFileDWARF_DWARFCompileUnit_h_
+#ifndef LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFCOMPILEUNIT_H
+#define LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFCOMPILEUNIT_H
 
 #include "DWARFUnit.h"
+#include "llvm/Support/Error.h"
 
 class DWARFCompileUnit : public DWARFUnit {
 public:
-  static DWARFUnitSP Extract(SymbolFileDWARF *dwarf2Data,
-                             const lldb_private::DWARFDataExtractor &debug_info,
-                             lldb::offset_t *offset_ptr);
+  void BuildAddressRangeTable(DWARFDebugAranges *debug_aranges) override;
+
   void Dump(lldb_private::Stream *s) const override;
 
-  //------------------------------------------------------------------
-  /// Get the data that contains the DIE information for this unit.
-  ///
-  /// @return
-  ///   The correct data (.debug_types for DWARF 4 and earlier, and
-  ///   .debug_info for DWARF 5 and later) for the DIE information in
-  ///   this unit.
-  //------------------------------------------------------------------
-  const lldb_private::DWARFDataExtractor &GetData() const override;
+  static bool classof(const DWARFUnit *unit) { return !unit->IsTypeUnit(); }
 
-  //------------------------------------------------------------------
-  /// Get the size in bytes of the header.
-  ///
-  /// @return
-  ///     Byte size of the compile unit header
-  //------------------------------------------------------------------
-  uint32_t GetHeaderByteSize() const override;
+  DWARFCompileUnit &GetNonSkeletonUnit();
+
+  DWARFDIE LookupAddress(const dw_addr_t address);
 
 private:
-  DWARFCompileUnit(SymbolFileDWARF *dwarf2Data);
-  DISALLOW_COPY_AND_ASSIGN(DWARFCompileUnit);
+  DWARFCompileUnit(SymbolFileDWARF &dwarf, lldb::user_id_t uid,
+                   const DWARFUnitHeader &header,
+                   const DWARFAbbreviationDeclarationSet &abbrevs,
+                   DIERef::Section section, bool is_dwo)
+      : DWARFUnit(dwarf, uid, header, abbrevs, section, is_dwo) {}
+
+  DWARFCompileUnit(const DWARFCompileUnit &) = delete;
+  const DWARFCompileUnit &operator=(const DWARFCompileUnit &) = delete;
+
+  friend class DWARFUnit;
 };
 
-#endif // SymbolFileDWARF_DWARFCompileUnit_h_
+#endif // LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFCOMPILEUNIT_H

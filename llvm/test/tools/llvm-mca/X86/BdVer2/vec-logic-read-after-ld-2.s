@@ -23,8 +23,8 @@ vandps (%rdi), %ymm1, %ymm2
 # CHECK-NEXT: [6]: HasSideEffects (U)
 
 # CHECK:      [1]    [2]    [3]    [4]    [5]    [6]    Instructions:
-# CHECK-NEXT:  2      5     2.00                        vaddps	%ymm0, %ymm0, %ymm1
-# CHECK-NEXT:  2      7     1.00    *                   vandps	(%rdi), %ymm1, %ymm2
+# CHECK-NEXT:  2      5     1.00                        vaddps	%ymm0, %ymm0, %ymm1
+# CHECK-NEXT:  2      7     1.50    *                   vandps	(%rdi), %ymm1, %ymm2
 
 # CHECK:      Timeline view:
 # CHECK-NEXT: Index     0123456789
@@ -41,3 +41,4 @@ vandps (%rdi), %ymm1, %ymm2
 # CHECK:            [0]    [1]    [2]    [3]
 # CHECK-NEXT: 0.     1     1.0    1.0    0.0       vaddps	%ymm0, %ymm0, %ymm1
 # CHECK-NEXT: 1.     1     1.0    0.0    0.0       vandps	(%rdi), %ymm1, %ymm2
+# CHECK-NEXT:        1     1.0    0.5    0.0       <total>

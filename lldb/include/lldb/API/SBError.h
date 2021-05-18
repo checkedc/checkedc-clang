@@ -1,14 +1,13 @@
 //===-- SBError.h -----------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_SBError_h_
-#define LLDB_SBError_h_
+#ifndef LLDB_API_SBERROR_H
+#define LLDB_API_SBERROR_H
 
 #include "lldb/API/SBDefines.h"
 
@@ -47,27 +46,31 @@ public:
   int SetErrorStringWithFormat(const char *format, ...)
       __attribute__((format(printf, 2, 3)));
 
+  explicit operator bool() const;
+
   bool IsValid() const;
 
   bool GetDescription(lldb::SBStream &description);
 
 protected:
-  friend class SBCommandReturnObject;
-  friend class SBData;
-  friend class SBDebugger;
-  friend class SBCommunication;
-  friend class SBHostOS;
-  friend class SBPlatform;
-  friend class SBProcess;
-  friend class SBStructuredData;
-  friend class SBThread;
-  friend class SBTrace;
-  friend class SBTarget;
-  friend class SBValue;
-  friend class SBWatchpoint;
   friend class SBBreakpoint;
   friend class SBBreakpointLocation;
   friend class SBBreakpointName;
+  friend class SBCommandReturnObject;
+  friend class SBCommunication;
+  friend class SBData;
+  friend class SBDebugger;
+  friend class SBHostOS;
+  friend class SBPlatform;
+  friend class SBProcess;
+  friend class SBReproducer;
+  friend class SBStructuredData;
+  friend class SBTarget;
+  friend class SBThread;
+  friend class SBTrace;
+  friend class SBValue;
+  friend class SBWatchpoint;
+  friend class SBFile;
 
   lldb_private::Status *get();
 
@@ -80,11 +83,11 @@ protected:
   void SetError(const lldb_private::Status &lldb_error);
 
 private:
-  std::unique_ptr<lldb_private::Status> m_opaque_ap;
+  std::unique_ptr<lldb_private::Status> m_opaque_up;
 
   void CreateIfNeeded();
 };
 
 } // namespace lldb
 
-#endif // LLDB_SBError_h_
+#endif // LLDB_API_SBERROR_H

@@ -1,9 +1,8 @@
 //===-- BPFMCCodeEmitter.cpp - Convert BPF code to machine code -----------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -14,6 +13,7 @@
 #include "MCTargetDesc/BPFMCTargetDesc.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/MC/MCCodeEmitter.h"
+#include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCFixup.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
@@ -64,9 +64,10 @@ public:
                          const MCSubtargetInfo &STI) const override;
 
 private:
-  uint64_t computeAvailableFeatures(const FeatureBitset &FB) const;
-  void verifyInstructionPredicates(const MCInst &MI,
-                                   uint64_t AvailableFeatures) const;
+  FeatureBitset computeAvailableFeatures(const FeatureBitset &FB) const;
+  void
+  verifyInstructionPredicates(const MCInst &MI,
+                              const FeatureBitset &AvailableFeatures) const;
 };
 
 } // end anonymous namespace
@@ -158,12 +159,18 @@ void BPFMCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
 uint64_t BPFMCCodeEmitter::getMemoryOpValue(const MCInst &MI, unsigned Op,
                                             SmallVectorImpl<MCFixup> &Fixups,
                                             const MCSubtargetInfo &STI) const {
+  // For CMPXCHG instructions, output is implicitly in R0/W0,
+  // so memory operand starts from operand 0.
+  int MemOpStartIndex = 1, Opcode = MI.getOpcode();
+  if (Opcode == BPF::CMPXCHGW32 || Opcode == BPF::CMPXCHGD)
+    MemOpStartIndex = 0;
+
   uint64_t Encoding;
-  const MCOperand Op1 = MI.getOperand(1);
+  const MCOperand Op1 = MI.getOperand(MemOpStartIndex);
   assert(Op1.isReg() && "First operand is not register.");
   Encoding = MRI.getEncodingValue(Op1.getReg());
   Encoding <<= 16;
-  MCOperand Op2 = MI.getOperand(2);
+  MCOperand Op2 = MI.getOperand(MemOpStartIndex + 1);
   assert(Op2.isImm() && "Second operand is not immediate.");
   Encoding |= Op2.getImm() & 0xffff;
   return Encoding;

@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -19,6 +18,8 @@
 #include <iterator>
 #include <random>
 #include <cassert>
+
+#include "test_macros.h"
 
 std::mt19937 randomness;
 
@@ -131,7 +132,22 @@ test_larger_sorts(int N)
     test_larger_sorts(N, N);
 }
 
-int main()
+void
+test_pointer_sort()
+{
+    static const int array_size = 10;
+    const int v[array_size] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    const int *pv[array_size];
+    for (int i = 0; i < array_size; i++) {
+      pv[i] = &v[array_size - 1 - i];
+    }
+    std::sort(pv, pv + array_size);
+    assert(*pv[0] == v[0]);
+    assert(*pv[1] == v[1]);
+    assert(*pv[array_size - 1] == v[array_size - 1]);
+}
+
+int main(int, char**)
 {
     // test null range
     int d = 0;
@@ -153,4 +169,8 @@ int main()
     test_larger_sorts(997);
     test_larger_sorts(1000);
     test_larger_sorts(1009);
+
+    test_pointer_sort();
+
+  return 0;
 }

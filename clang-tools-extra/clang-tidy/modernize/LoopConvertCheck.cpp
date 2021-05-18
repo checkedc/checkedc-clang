@@ -1,9 +1,8 @@
 //===--- LoopConvertCheck.cpp - clang-tidy---------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -15,10 +14,12 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <cstring>
 #include <utility>
@@ -28,10 +29,36 @@ using namespace llvm;
 
 namespace clang {
 namespace tidy {
+
+template <> struct OptionEnumMapping<modernize::Confidence::Level> {
+  static llvm::ArrayRef<std::pair<modernize::Confidence::Level, StringRef>>
+  getEnumMapping() {
+    static constexpr std::pair<modernize::Confidence::Level, StringRef>
+        Mapping[] = {{modernize::Confidence::CL_Reasonable, "reasonable"},
+                     {modernize::Confidence::CL_Safe, "safe"},
+                     {modernize::Confidence::CL_Risky, "risky"}};
+    return makeArrayRef(Mapping);
+  }
+};
+
+template <> struct OptionEnumMapping<modernize::VariableNamer::NamingStyle> {
+  static llvm::ArrayRef<
+      std::pair<modernize::VariableNamer::NamingStyle, StringRef>>
+  getEnumMapping() {
+    static constexpr std::pair<modernize::VariableNamer::NamingStyle, StringRef>
+        Mapping[] = {{modernize::VariableNamer::NS_CamelCase, "CamelCase"},
+                     {modernize::VariableNamer::NS_CamelBack, "camelBack"},
+                     {modernize::VariableNamer::NS_LowerCase, "lower_case"},
+                     {modernize::VariableNamer::NS_UpperCase, "UPPER_CASE"}};
+    return makeArrayRef(Mapping);
+  }
+};
+
 namespace modernize {
 
 static const char LoopNameArray[] = "forLoopArray";
 static const char LoopNameIterator[] = "forLoopIterator";
+static const char LoopNameReverseIterator[] = "forLoopReverseIterator";
 static const char LoopNamePseudoArray[] = "forLoopPseudoArray";
 static const char ConditionBoundName[] = "conditionBound";
 static const char ConditionVarName[] = "conditionVar";
@@ -43,22 +70,25 @@ static const char ConditionEndVarName[] = "conditionEndVar";
 static const char EndVarName[] = "endVar";
 static const char DerefByValueResultName[] = "derefByValueResult";
 static const char DerefByRefResultName[] = "derefByRefResult";
-
 // shared matchers
-static const TypeMatcher AnyType = anything();
+static const TypeMatcher AnyType() { return anything(); }
 
-static const StatementMatcher IntegerComparisonMatcher =
-    expr(ignoringParenImpCasts(
-        declRefExpr(to(varDecl(hasType(isInteger())).bind(ConditionVarName)))));
+static const StatementMatcher IntegerComparisonMatcher() {
+  return expr(ignoringParenImpCasts(
+      declRefExpr(to(varDecl(hasType(isInteger())).bind(ConditionVarName)))));
+}
 
-static const DeclarationMatcher InitToZeroMatcher =
-    varDecl(hasInitializer(ignoringParenImpCasts(integerLiteral(equals(0)))))
-        .bind(InitVarName);
+static const DeclarationMatcher InitToZeroMatcher() {
+  return varDecl(
+             hasInitializer(ignoringParenImpCasts(integerLiteral(equals(0)))))
+      .bind(InitVarName);
+}
 
-static const StatementMatcher IncrementVarMatcher =
-    declRefExpr(to(varDecl(hasType(isInteger())).bind(IncrementVarName)));
+static const StatementMatcher IncrementVarMatcher() {
+  return declRefExpr(to(varDecl(hasType(isInteger())).bind(IncrementVarName)));
+}
 
-/// \brief The matcher for loops over arrays.
+/// The matcher for loops over arrays.
 ///
 /// In this general example, assuming 'j' and 'k' are of integral type:
 /// \code
@@ -82,19 +112,19 @@ StatementMatcher makeArrayLoopMatcher() {
 
   return forStmt(
              unless(isInTemplateInstantiation()),
-             hasLoopInit(declStmt(hasSingleDecl(InitToZeroMatcher))),
+             hasLoopInit(declStmt(hasSingleDecl(InitToZeroMatcher()))),
              hasCondition(anyOf(
                  binaryOperator(hasOperatorName("<"),
-                                hasLHS(IntegerComparisonMatcher),
+                                hasLHS(IntegerComparisonMatcher()),
                                 hasRHS(ArrayBoundMatcher)),
                  binaryOperator(hasOperatorName(">"), hasLHS(ArrayBoundMatcher),
-                                hasRHS(IntegerComparisonMatcher)))),
+                                hasRHS(IntegerComparisonMatcher())))),
              hasIncrement(unaryOperator(hasOperatorName("++"),
-                                        hasUnaryOperand(IncrementVarMatcher))))
+                                        hasUnaryOperand(IncrementVarMatcher()))))
       .bind(LoopNameArray);
 }
 
-/// \brief The matcher used for iterator-based for loops.
+/// The matcher used for iterator-based for loops.
 ///
 /// This matcher is more flexible than array-based loops. It will match
 /// catch loops of the following textual forms (regardless of whether the
@@ -121,11 +151,17 @@ StatementMatcher makeArrayLoopMatcher() {
 ///   - The iterator variables 'it', 'f', and 'h' are the same.
 ///   - The two containers on which 'begin' and 'end' are called are the same.
 ///   - If the end iterator variable 'g' is defined, it is the same as 'f'.
-StatementMatcher makeIteratorLoopMatcher() {
+StatementMatcher makeIteratorLoopMatcher(bool IsReverse) {
+
+  auto BeginNameMatcher = IsReverse ? hasAnyName("rbegin", "crbegin")
+                                    : hasAnyName("begin", "cbegin");
+
+  auto EndNameMatcher =
+      IsReverse ? hasAnyName("rend", "crend") : hasAnyName("end", "cend");
+
   StatementMatcher BeginCallMatcher =
-      cxxMemberCallExpr(
-          argumentCountIs(0),
-          callee(cxxMethodDecl(anyOf(hasName("begin"), hasName("cbegin")))))
+      cxxMemberCallExpr(argumentCountIs(0),
+                        callee(cxxMethodDecl(BeginNameMatcher)))
           .bind(BeginCallName);
 
   DeclarationMatcher InitDeclMatcher =
@@ -139,8 +175,7 @@ StatementMatcher makeIteratorLoopMatcher() {
       varDecl(hasInitializer(anything())).bind(EndVarName);
 
   StatementMatcher EndCallMatcher = cxxMemberCallExpr(
-      argumentCountIs(0),
-      callee(cxxMethodDecl(anyOf(hasName("end"), hasName("cend")))));
+      argumentCountIs(0), callee(cxxMethodDecl(EndNameMatcher)));
 
   StatementMatcher IteratorBoundMatcher =
       expr(anyOf(ignoringParenImpCasts(
@@ -191,17 +226,17 @@ StatementMatcher makeIteratorLoopMatcher() {
              hasIncrement(anyOf(
                  unaryOperator(hasOperatorName("++"),
                                hasUnaryOperand(declRefExpr(
-                                   to(varDecl(hasType(pointsTo(AnyType)))
+                                   to(varDecl(hasType(pointsTo(AnyType())))
                                           .bind(IncrementVarName))))),
                  cxxOperatorCallExpr(
                      hasOverloadedOperatorName("++"),
                      hasArgument(
                          0, declRefExpr(to(varDecl(TestDerefReturnsByValue)
                                                .bind(IncrementVarName))))))))
-      .bind(LoopNameIterator);
+      .bind(IsReverse ? LoopNameReverseIterator : LoopNameIterator);
 }
 
-/// \brief The matcher used for array-like containers (pseudoarrays).
+/// The matcher used for array-like containers (pseudoarrays).
 ///
 /// This matcher is more flexible than array-based loops. It will match
 /// loops of the following textual forms (regardless of whether the
@@ -257,8 +292,7 @@ StatementMatcher makePseudoArrayLoopMatcher() {
       ));
 
   StatementMatcher SizeCallMatcher = cxxMemberCallExpr(
-      argumentCountIs(0),
-      callee(cxxMethodDecl(anyOf(hasName("size"), hasName("length")))),
+      argumentCountIs(0), callee(cxxMethodDecl(hasAnyName("size", "length"))),
       on(anyOf(hasType(pointsTo(RecordWithBeginEnd)),
                hasType(RecordWithBeginEnd))));
 
@@ -279,27 +313,27 @@ StatementMatcher makePseudoArrayLoopMatcher() {
              unless(isInTemplateInstantiation()),
              hasLoopInit(
                  anyOf(declStmt(declCountIs(2),
-                                containsDeclaration(0, InitToZeroMatcher),
+                                containsDeclaration(0, InitToZeroMatcher()),
                                 containsDeclaration(1, EndDeclMatcher)),
-                       declStmt(hasSingleDecl(InitToZeroMatcher)))),
+                       declStmt(hasSingleDecl(InitToZeroMatcher())))),
              hasCondition(anyOf(
                  binaryOperator(hasOperatorName("<"),
-                                hasLHS(IntegerComparisonMatcher),
+                                hasLHS(IntegerComparisonMatcher()),
                                 hasRHS(IndexBoundMatcher)),
                  binaryOperator(hasOperatorName(">"), hasLHS(IndexBoundMatcher),
-                                hasRHS(IntegerComparisonMatcher)))),
+                                hasRHS(IntegerComparisonMatcher())))),
              hasIncrement(unaryOperator(hasOperatorName("++"),
-                                        hasUnaryOperand(IncrementVarMatcher))))
+                                        hasUnaryOperand(IncrementVarMatcher()))))
       .bind(LoopNamePseudoArray);
 }
 
-/// \brief Determine whether Init appears to be an initializing an iterator.
+/// Determine whether Init appears to be an initializing an iterator.
 ///
 /// If it is, returns the object whose begin() or end() method is called, and
 /// the output parameter isArrow is set to indicate whether the initialization
 /// is called via . or ->.
 static const Expr *getContainerFromBeginEndCall(const Expr *Init, bool IsBegin,
-                                                bool *IsArrow) {
+                                                bool *IsArrow, bool IsReverse) {
   // FIXME: Maybe allow declaration/initialization outside of the for loop.
   const auto *TheCall =
       dyn_cast_or_null<CXXMemberCallExpr>(digThroughConstructors(Init));
@@ -310,9 +344,11 @@ static const Expr *getContainerFromBeginEndCall(const Expr *Init, bool IsBegin,
   if (!Member)
     return nullptr;
   StringRef Name = Member->getMemberDecl()->getName();
-  StringRef TargetName = IsBegin ? "begin" : "end";
-  StringRef ConstTargetName = IsBegin ? "cbegin" : "cend";
-  if (Name != TargetName && Name != ConstTargetName)
+  if (!Name.consume_back(IsBegin ? "begin" : "end"))
+    return nullptr;
+  if (IsReverse && !Name.consume_back("r"))
+    return nullptr;
+  if (!Name.empty() && !Name.equals("c"))
     return nullptr;
 
   const Expr *SourceExpr = Member->getBase();
@@ -323,25 +359,26 @@ static const Expr *getContainerFromBeginEndCall(const Expr *Init, bool IsBegin,
   return SourceExpr;
 }
 
-/// \brief Determines the container whose begin() and end() functions are called
+/// Determines the container whose begin() and end() functions are called
 /// for an iterator-based loop.
 ///
 /// BeginExpr must be a member call to a function named "begin()", and EndExpr
 /// must be a member.
 static const Expr *findContainer(ASTContext *Context, const Expr *BeginExpr,
                                  const Expr *EndExpr,
-                                 bool *ContainerNeedsDereference) {
+                                 bool *ContainerNeedsDereference,
+                                 bool IsReverse) {
   // Now that we know the loop variable and test expression, make sure they are
   // valid.
   bool BeginIsArrow = false;
   bool EndIsArrow = false;
-  const Expr *BeginContainerExpr =
-      getContainerFromBeginEndCall(BeginExpr, /*IsBegin=*/true, &BeginIsArrow);
+  const Expr *BeginContainerExpr = getContainerFromBeginEndCall(
+      BeginExpr, /*IsBegin=*/true, &BeginIsArrow, IsReverse);
   if (!BeginContainerExpr)
     return nullptr;
 
-  const Expr *EndContainerExpr =
-      getContainerFromBeginEndCall(EndExpr, /*IsBegin=*/false, &EndIsArrow);
+  const Expr *EndContainerExpr = getContainerFromBeginEndCall(
+      EndExpr, /*IsBegin=*/false, &EndIsArrow, IsReverse);
   // Disallow loops that try evil things like this (note the dot and arrow):
   //  for (IteratorType It = Obj.begin(), E = Obj->end(); It != E; ++It) { }
   if (!EndContainerExpr || BeginIsArrow != EndIsArrow ||
@@ -352,7 +389,7 @@ static const Expr *findContainer(ASTContext *Context, const Expr *BeginExpr,
   return BeginContainerExpr;
 }
 
-/// \brief Obtain the original source code text from a SourceRange.
+/// Obtain the original source code text from a SourceRange.
 static StringRef getStringFromRange(SourceManager &SourceMgr,
                                     const LangOptions &LangOpts,
                                     SourceRange Range) {
@@ -365,7 +402,7 @@ static StringRef getStringFromRange(SourceManager &SourceMgr,
                               LangOpts);
 }
 
-/// \brief If the given expression is actually a DeclRefExpr or a MemberExpr,
+/// If the given expression is actually a DeclRefExpr or a MemberExpr,
 /// find and return the underlying ValueDecl; otherwise, return NULL.
 static const ValueDecl *getReferencedVariable(const Expr *E) {
   if (const DeclRefExpr *DRE = getDeclRef(E))
@@ -375,7 +412,7 @@ static const ValueDecl *getReferencedVariable(const Expr *E) {
   return nullptr;
 }
 
-/// \brief Returns true when the given expression is a member expression
+/// Returns true when the given expression is a member expression
 /// whose base is `this` (implicitly or not).
 static bool isDirectMemberExpr(const Expr *E) {
   if (const auto *Member = dyn_cast<MemberExpr>(E->IgnoreParenImpCasts()))
@@ -383,7 +420,7 @@ static bool isDirectMemberExpr(const Expr *E) {
   return false;
 }
 
-/// \brief Given an expression that represents an usage of an element from the
+/// Given an expression that represents an usage of an element from the
 /// containter that we are iterating over, returns false when it can be
 /// guaranteed this element cannot be modified as a result of this usage.
 static bool canBeModified(ASTContext *Context, const Expr *E) {
@@ -403,7 +440,7 @@ static bool canBeModified(ASTContext *Context, const Expr *E) {
   return true;
 }
 
-/// \brief Returns true when it can be guaranteed that the elements of the
+/// Returns true when it can be guaranteed that the elements of the
 /// container are not being modified.
 static bool usagesAreConst(ASTContext *Context, const UsageResult &Usages) {
   for (const Usage &U : Usages) {
@@ -419,7 +456,7 @@ static bool usagesAreConst(ASTContext *Context, const UsageResult &Usages) {
   return true;
 }
 
-/// \brief Returns true if the elements of the container are never accessed
+/// Returns true if the elements of the container are never accessed
 /// by reference.
 static bool usagesReturnRValues(const UsageResult &Usages) {
   for (const auto &U : Usages) {
@@ -429,7 +466,7 @@ static bool usagesReturnRValues(const UsageResult &Usages) {
   return true;
 }
 
-/// \brief Returns true if the container is const-qualified.
+/// Returns true if the container is const-qualified.
 static bool containerIsConst(const Expr *ContainerExpr, bool Dereference) {
   if (const auto *VDec = getReferencedVariable(ContainerExpr)) {
     QualType CType = VDec->getType();
@@ -449,46 +486,57 @@ static bool containerIsConst(const Expr *ContainerExpr, bool Dereference) {
 
 LoopConvertCheck::RangeDescriptor::RangeDescriptor()
     : ContainerNeedsDereference(false), DerefByConstRef(false),
-      DerefByValue(false) {}
+      DerefByValue(false), NeedsReverseCall(false) {}
 
 LoopConvertCheck::LoopConvertCheck(StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context), TUInfo(new TUTrackingInfo),
-      MaxCopySize(std::stoull(Options.get("MaxCopySize", "16"))),
-      MinConfidence(StringSwitch<Confidence::Level>(
-                        Options.get("MinConfidence", "reasonable"))
-                        .Case("safe", Confidence::CL_Safe)
-                        .Case("risky", Confidence::CL_Risky)
-                        .Default(Confidence::CL_Reasonable)),
-      NamingStyle(StringSwitch<VariableNamer::NamingStyle>(
-                      Options.get("NamingStyle", "CamelCase"))
-                      .Case("camelBack", VariableNamer::NS_CamelBack)
-                      .Case("lower_case", VariableNamer::NS_LowerCase)
-                      .Case("UPPER_CASE", VariableNamer::NS_UpperCase)
-                      .Default(VariableNamer::NS_CamelCase)) {}
+      MaxCopySize(Options.get("MaxCopySize", 16ULL)),
+      MinConfidence(Options.get("MinConfidence", Confidence::CL_Reasonable)),
+      NamingStyle(Options.get("NamingStyle", VariableNamer::NS_CamelCase)),
+      Inserter(Options.getLocalOrGlobal("IncludeStyle",
+                                        utils::IncludeSorter::IS_LLVM)),
+      UseCxx20IfAvailable(Options.get("UseCxx20ReverseRanges", true)),
+      ReverseFunction(Options.get("MakeReverseRangeFunction", "")),
+      ReverseHeader(Options.get("MakeReverseRangeHeader", "")) {
+
+  if (ReverseFunction.empty() && !ReverseHeader.empty()) {
+    configurationDiag(
+        "modernize-loop-convert: 'MakeReverseRangeHeader' is set but "
+        "'MakeReverseRangeFunction' is not, disabling reverse loop "
+        "transformation");
+    UseReverseRanges = false;
+  } else if (ReverseFunction.empty()) {
+    UseReverseRanges = UseCxx20IfAvailable && getLangOpts().CPlusPlus20;
+  } else {
+    UseReverseRanges = true;
+  }
+}
 
 void LoopConvertCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "MaxCopySize", std::to_string(MaxCopySize));
-  SmallVector<std::string, 3> Confs{"risky", "reasonable", "safe"};
-  Options.store(Opts, "MinConfidence", Confs[static_cast<int>(MinConfidence)]);
+  Options.store(Opts, "MaxCopySize", MaxCopySize);
+  Options.store(Opts, "MinConfidence", MinConfidence);
+  Options.store(Opts, "NamingStyle", NamingStyle);
+  Options.store(Opts, "IncludeStyle", Inserter.getStyle());
+  Options.store(Opts, "UseCxx20ReverseRanges", UseCxx20IfAvailable);
+  Options.store(Opts, "MakeReverseRangeFunction", ReverseFunction);
+  Options.store(Opts, "MakeReverseRangeHeader", ReverseHeader);
+}
 
-  SmallVector<std::string, 4> Styles{"camelBack", "CamelCase", "lower_case",
-                                     "UPPER_CASE"};
-  Options.store(Opts, "NamingStyle", Styles[static_cast<int>(NamingStyle)]);
+void LoopConvertCheck::registerPPCallbacks(const SourceManager &SM,
+                                           Preprocessor *PP,
+                                           Preprocessor *ModuleExpanderPP) {
+  Inserter.registerPreprocessor(PP);
 }
 
 void LoopConvertCheck::registerMatchers(MatchFinder *Finder) {
-  // Only register the matchers for C++. Because this checker is used for
-  // modernization, it is reasonable to run it on any C++ standard with the
-  // assumption the user is trying to modernize their codebase.
-  if (!getLangOpts().CPlusPlus)
-    return;
-
-  Finder->addMatcher(makeArrayLoopMatcher(), this);
-  Finder->addMatcher(makeIteratorLoopMatcher(), this);
-  Finder->addMatcher(makePseudoArrayLoopMatcher(), this);
+  Finder->addMatcher(traverse(TK_AsIs, makeArrayLoopMatcher()), this);
+  Finder->addMatcher(traverse(TK_AsIs, makeIteratorLoopMatcher(false)), this);
+  Finder->addMatcher(traverse(TK_AsIs, makePseudoArrayLoopMatcher()), this);
+  if (UseReverseRanges)
+    Finder->addMatcher(traverse(TK_AsIs, makeIteratorLoopMatcher(true)), this);
 }
 
-/// \brief Given the range of a single declaration, such as:
+/// Given the range of a single declaration, such as:
 /// \code
 ///   unsigned &ThisIsADeclarationThatCanSpanSeveralLinesOfCode =
 ///       InitializationValues[I];
@@ -512,20 +560,18 @@ void LoopConvertCheck::getAliasRange(SourceManager &SM, SourceRange &Range) {
       SourceRange(Range.getBegin(), Range.getEnd().getLocWithOffset(Offset));
 }
 
-/// \brief Computes the changes needed to convert a given for loop, and
+/// Computes the changes needed to convert a given for loop, and
 /// applies them.
 void LoopConvertCheck::doConversion(
     ASTContext *Context, const VarDecl *IndexVar,
     const ValueDecl *MaybeContainer, const UsageResult &Usages,
     const DeclStmt *AliasDecl, bool AliasUseRequired, bool AliasFromForInit,
     const ForStmt *Loop, RangeDescriptor Descriptor) {
-  auto Diag = diag(Loop->getForLoc(), "use range-based for loop instead");
-
   std::string VarName;
   bool VarNameFromAlias = (Usages.size() == 1) && AliasDecl;
   bool AliasVarIsRef = false;
   bool CanCopy = true;
-
+  std::vector<FixItHint> FixIts;
   if (VarNameFromAlias) {
     const auto *AliasVar = cast<VarDecl>(AliasDecl->getSingleDecl());
     VarName = AliasVar->getName().str();
@@ -557,8 +603,8 @@ void LoopConvertCheck::doConversion(
       getAliasRange(Context->getSourceManager(), ReplaceRange);
     }
 
-    Diag << FixItHint::CreateReplacement(
-        CharSourceRange::getTokenRange(ReplaceRange), ReplacementText);
+    FixIts.push_back(FixItHint::CreateReplacement(
+        CharSourceRange::getTokenRange(ReplaceRange), ReplacementText));
     // No further replacements are made to the loop, since the iterator or index
     // was used exactly once - in the initialization of AliasVar.
   } else {
@@ -603,8 +649,8 @@ void LoopConvertCheck::doConversion(
             Usage.Kind == Usage::UK_CaptureByCopy ? "&" + VarName : VarName;
       }
       TUInfo->getReplacedVars().insert(std::make_pair(Loop, IndexVar));
-      Diag << FixItHint::CreateReplacement(
-          CharSourceRange::getTokenRange(Range), ReplaceText);
+      FixIts.push_back(FixItHint::CreateReplacement(
+          CharSourceRange::getTokenRange(Range), ReplaceText));
     }
   }
 
@@ -614,6 +660,7 @@ void LoopConvertCheck::doConversion(
   QualType Type = Context->getAutoDeductType();
   if (!Descriptor.ElemType.isNull() && Descriptor.ElemType->isFundamentalType())
     Type = Descriptor.ElemType.getUnqualifiedType();
+  Type = Type.getDesugaredType(*Context);
 
   // If the new variable name is from the aliased variable, then the reference
   // type for the new variable should only be used if the aliased variable was
@@ -637,24 +684,46 @@ void LoopConvertCheck::doConversion(
     }
   }
 
-  StringRef MaybeDereference = Descriptor.ContainerNeedsDereference ? "*" : "";
-  std::string TypeString = Type.getAsString(getLangOpts());
-  std::string Range = ("(" + TypeString + " " + VarName + " : " +
-                       MaybeDereference + Descriptor.ContainerString + ")")
-                          .str();
-  Diag << FixItHint::CreateReplacement(
-      CharSourceRange::getTokenRange(ParenRange), Range);
+  SmallString<128> Range;
+  llvm::raw_svector_ostream Output(Range);
+  Output << '(';
+  Type.print(Output, getLangOpts());
+  Output << ' ' << VarName << " : ";
+  if (Descriptor.NeedsReverseCall)
+    Output << getReverseFunction() << '(';
+  if (Descriptor.ContainerNeedsDereference)
+    Output << '*';
+  Output << Descriptor.ContainerString;
+  if (Descriptor.NeedsReverseCall)
+    Output << "))";
+  else
+    Output << ')';
+  FixIts.push_back(FixItHint::CreateReplacement(
+      CharSourceRange::getTokenRange(ParenRange), Range));
+
+  if (Descriptor.NeedsReverseCall && !getReverseHeader().empty()) {
+    if (Optional<FixItHint> Insertion = Inserter.createIncludeInsertion(
+            Context->getSourceManager().getFileID(Loop->getBeginLoc()),
+            getReverseHeader()))
+      FixIts.push_back(*Insertion);
+  }
+  diag(Loop->getForLoc(), "use range-based for loop instead") << FixIts;
   TUInfo->getGeneratedDecls().insert(make_pair(Loop, VarName));
 }
 
-/// \brief Returns a string which refers to the container iterated over.
+/// Returns a string which refers to the container iterated over.
 StringRef LoopConvertCheck::getContainerString(ASTContext *Context,
                                                const ForStmt *Loop,
                                                const Expr *ContainerExpr) {
   StringRef ContainerString;
-  if (isa<CXXThisExpr>(ContainerExpr->IgnoreParenImpCasts())) {
+  ContainerExpr = ContainerExpr->IgnoreParenImpCasts();
+  if (isa<CXXThisExpr>(ContainerExpr)) {
     ContainerString = "this";
   } else {
+    // For CXXOperatorCallExpr (e.g. vector_ptr->size()), its first argument is
+    // the class object (vector_ptr) we are targeting.
+    if (const auto* E = dyn_cast<CXXOperatorCallExpr>(ContainerExpr))
+      ContainerExpr = E->getArg(0);
     ContainerString =
         getStringFromRange(Context->getSourceManager(), Context->getLangOpts(),
                            ContainerExpr->getSourceRange());
@@ -663,7 +732,7 @@ StringRef LoopConvertCheck::getContainerString(ASTContext *Context,
   return ContainerString;
 }
 
-/// \brief Determines what kind of 'auto' must be used after converting a for
+/// Determines what kind of 'auto' must be used after converting a for
 /// loop that iterates over an array or pseudoarray.
 void LoopConvertCheck::getArrayLoopQualifiers(ASTContext *Context,
                                               const BoundNodes &Nodes,
@@ -698,7 +767,7 @@ void LoopConvertCheck::getArrayLoopQualifiers(ASTContext *Context,
   }
 }
 
-/// \brief Determines what kind of 'auto' must be used after converting an
+/// Determines what kind of 'auto' must be used after converting an
 /// iterator based for loop.
 void LoopConvertCheck::getIteratorLoopQualifiers(ASTContext *Context,
                                                  const BoundNodes &Nodes,
@@ -740,20 +809,22 @@ void LoopConvertCheck::getIteratorLoopQualifiers(ASTContext *Context,
   }
 }
 
-/// \brief Determines the parameters needed to build the range replacement.
+/// Determines the parameters needed to build the range replacement.
 void LoopConvertCheck::determineRangeDescriptor(
     ASTContext *Context, const BoundNodes &Nodes, const ForStmt *Loop,
     LoopFixerKind FixerKind, const Expr *ContainerExpr,
     const UsageResult &Usages, RangeDescriptor &Descriptor) {
-  Descriptor.ContainerString = getContainerString(Context, Loop, ContainerExpr);
+  Descriptor.ContainerString =
+      std::string(getContainerString(Context, Loop, ContainerExpr));
+  Descriptor.NeedsReverseCall = (FixerKind == LFK_ReverseIterator);
 
-  if (FixerKind == LFK_Iterator)
+  if (FixerKind == LFK_Iterator || FixerKind == LFK_ReverseIterator)
     getIteratorLoopQualifiers(Context, Nodes, Descriptor);
   else
     getArrayLoopQualifiers(Context, Nodes, ContainerExpr, Usages, Descriptor);
 }
 
-/// \brief Check some of the conditions that must be met for the loop to be
+/// Check some of the conditions that must be met for the loop to be
 /// convertible.
 bool LoopConvertCheck::isConvertible(ASTContext *Context,
                                      const ast_matchers::BoundNodes &Nodes,
@@ -776,7 +847,7 @@ bool LoopConvertCheck::isConvertible(ASTContext *Context,
     return false;
 
   // FIXME: Try to put most of this logic inside a matcher.
-  if (FixerKind == LFK_Iterator) {
+  if (FixerKind == LFK_Iterator || FixerKind == LFK_ReverseIterator) {
     QualType InitVarType = InitVar->getType();
     QualType CanonicalInitVarType = InitVarType.getCanonicalType();
 
@@ -792,11 +863,6 @@ bool LoopConvertCheck::isConvertible(ASTContext *Context,
               CanonicalBeginType->getPointeeType(),
               CanonicalInitVarType->getPointeeType()))
         return false;
-    } else if (!Context->hasSameType(CanonicalInitVarType,
-                                     CanonicalBeginType)) {
-      // Check for qualified types to avoid conversions from non-const to const
-      // iterator types.
-      return false;
     }
   } else if (FixerKind == LFK_PseudoArray) {
     // This call is required to obtain the container.
@@ -820,6 +886,8 @@ void LoopConvertCheck::check(const MatchFinder::MatchResult &Result) {
     FixerKind = LFK_Array;
   } else if ((Loop = Nodes.getNodeAs<ForStmt>(LoopNameIterator))) {
     FixerKind = LFK_Iterator;
+  } else if ((Loop = Nodes.getNodeAs<ForStmt>(LoopNameReverseIterator))) {
+    FixerKind = LFK_ReverseIterator;
   } else {
     Loop = Nodes.getNodeAs<ForStmt>(LoopNamePseudoArray);
     assert(Loop && "Bad Callback. No for statement");
@@ -847,10 +915,11 @@ void LoopConvertCheck::check(const MatchFinder::MatchResult &Result) {
   // With array loops, the container is often discovered during the
   // ForLoopIndexUseVisitor traversal.
   const Expr *ContainerExpr = nullptr;
-  if (FixerKind == LFK_Iterator) {
-    ContainerExpr = findContainer(Context, LoopVar->getInit(),
-                                  EndVar ? EndVar->getInit() : EndCall,
-                                  &Descriptor.ContainerNeedsDereference);
+  if (FixerKind == LFK_Iterator || FixerKind == LFK_ReverseIterator) {
+    ContainerExpr = findContainer(
+        Context, LoopVar->getInit(), EndVar ? EndVar->getInit() : EndCall,
+        &Descriptor.ContainerNeedsDereference,
+        /*IsReverse=*/FixerKind == LFK_ReverseIterator);
   } else if (FixerKind == LFK_PseudoArray) {
     ContainerExpr = EndCall->getImplicitObjectArgument();
     Descriptor.ContainerNeedsDereference =
@@ -891,6 +960,7 @@ void LoopConvertCheck::check(const MatchFinder::MatchResult &Result) {
   }
 
   // Find out which qualifiers we have to use in the loop range.
+  TraversalKindScope RAII(*Context, TK_AsIs);
   const UsageResult &Usages = Finder.getUsages();
   determineRangeDescriptor(Context, Nodes, Loop, FixerKind, ContainerExpr,
                            Usages, Descriptor);
@@ -913,6 +983,23 @@ void LoopConvertCheck::check(const MatchFinder::MatchResult &Result) {
   doConversion(Context, LoopVar, getReferencedVariable(ContainerExpr), Usages,
                Finder.getAliasDecl(), Finder.aliasUseRequired(),
                Finder.aliasFromForInit(), Loop, Descriptor);
+}
+
+llvm::StringRef LoopConvertCheck::getReverseFunction() const {
+  if (!ReverseFunction.empty())
+    return ReverseFunction;
+  if (UseReverseRanges)
+    return "std::ranges::reverse_view";
+  return "";
+}
+
+llvm::StringRef LoopConvertCheck::getReverseHeader() const {
+  if (!ReverseHeader.empty())
+    return ReverseHeader;
+  if (UseReverseRanges && ReverseFunction.empty()) {
+    return "<ranges>";
+  }
+  return "";
 }
 
 } // namespace modernize

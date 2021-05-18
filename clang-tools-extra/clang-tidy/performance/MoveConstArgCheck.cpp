@@ -1,9 +1,8 @@
 //===--- MoveConstArgCheck.cpp - clang-tidy -----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -41,9 +40,6 @@ void MoveConstArgCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
 }
 
 void MoveConstArgCheck::registerMatchers(MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus)
-    return;
-
   auto MoveCallMatcher =
       callExpr(callee(functionDecl(hasName("::std::move"))), argumentCountIs(1),
                unless(isInTemplateInstantiation()))
@@ -55,8 +51,10 @@ void MoveConstArgCheck::registerMatchers(MatchFinder *Finder) {
       MoveCallMatcher, parmVarDecl(hasType(references(isConstQualified()))));
 
   Finder->addMatcher(callExpr(ConstParamMatcher).bind("receiving-expr"), this);
-  Finder->addMatcher(cxxConstructExpr(ConstParamMatcher).bind("receiving-expr"),
-                     this);
+  Finder->addMatcher(
+      traverse(TK_AsIs,
+               cxxConstructExpr(ConstParamMatcher).bind("receiving-expr")),
+      this);
 }
 
 void MoveConstArgCheck::check(const MatchFinder::MatchResult &Result) {

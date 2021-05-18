@@ -13,11 +13,10 @@ define void @trunc_shl_7_v4i32_v4i64(<4 x i32> addrspace(1)* %out, <4 x i64> add
 ;
 ; AVX2-LABEL: trunc_shl_7_v4i32_v4i64:
 ; AVX2:       # %bb.0:
-; AVX2-NEXT:    vpshufd {{.*#+}} ymm0 = mem[0,2,2,3,4,6,6,7]
-; AVX2-NEXT:    vpermq {{.*#+}} ymm0 = ymm0[0,2,2,3]
+; AVX2-NEXT:    vmovaps (%rsi), %xmm0
+; AVX2-NEXT:    vshufps {{.*#+}} xmm0 = xmm0[0,2],mem[0,2]
 ; AVX2-NEXT:    vpslld $7, %xmm0, %xmm0
 ; AVX2-NEXT:    vmovdqa %xmm0, (%rdi)
-; AVX2-NEXT:    vzeroupper
 ; AVX2-NEXT:    retq
   %val = load <4 x i64>, <4 x i64> addrspace(1)* %in
   %shl = shl <4 x i64> %val, <i64 7, i64 7, i64 7, i64 7>
@@ -39,7 +38,7 @@ define <8 x i16> @trunc_shl_15_v8i16_v8i32(<8 x i32> %a) {
 ;
 ; AVX2-LABEL: trunc_shl_15_v8i16_v8i32:
 ; AVX2:       # %bb.0:
-; AVX2-NEXT:    vpshufb {{.*#+}} ymm0 = ymm0[0,1,4,5,8,9,12,13,8,9,12,13,12,13,14,15,16,17,20,21,24,25,28,29,24,25,28,29,28,29,30,31]
+; AVX2-NEXT:    vpshufb {{.*#+}} ymm0 = ymm0[0,1,4,5,8,9,12,13,u,u,u,u,u,u,u,u,16,17,20,21,24,25,28,29,u,u,u,u,u,u,u,u]
 ; AVX2-NEXT:    vpermq {{.*#+}} ymm0 = ymm0[0,2,2,3]
 ; AVX2-NEXT:    vpsllw $15, %xmm0, %xmm0
 ; AVX2-NEXT:    vzeroupper

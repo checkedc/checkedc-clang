@@ -1,9 +1,8 @@
 //===--- AlignedAllocation.h - Aligned Allocation ---------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -34,6 +33,8 @@ inline llvm::VersionTuple alignedAllocMinVersion(llvm::Triple::OSType OS) {
     return llvm::VersionTuple(11U);
   case llvm::Triple::WatchOS: // Earliest supporting version is 4.0.0.
     return llvm::VersionTuple(4U);
+  case llvm::Triple::ZOS:
+    return llvm::VersionTuple(); // All z/OS versions have no support.
   }
 
   llvm_unreachable("Unexpected OS");

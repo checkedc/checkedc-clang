@@ -1,5 +1,5 @@
 # RUN: llc -o - %s -mtriple=aarch64-windows -start-after=prologepilog \
-# RUN:    -filetype=obj | llvm-readobj -unwind | FileCheck %s
+# RUN:    -filetype=obj | llvm-readobj --unwind - | FileCheck %s
 
 # Check that that the large stack allocation is correctly represented in .xdata.
 
@@ -15,7 +15,7 @@
 # CHECK-NEXT:       0xe3                ; nop
 # CHECK-NEXT:       0xe3                ; nop
 # CHECK-NEXT:       0x42                ; stp x29, x30, [sp, #16]
-# CHECK-NEXT:       0xd53f              ; str x28, [sp, #256]!
+# CHECK-NEXT:       0xd53f              ; str x28, [sp, #-256]!
 # CHECK-NEXT:       0xe4                ; end
 # CHECK-NEXT:     ]
 # CHECK-NEXT:     EpilogueScopes [
@@ -78,8 +78,8 @@
   ; Function Attrs: nounwind
   declare void @llvm.stackprotector(i8*, i8**) #2
 
-  attributes #0 = { noinline optnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="generic" "target-features"="+neon" "unsafe-fp-math"="false" "use-soft-float"="false" }
-  attributes #1 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="generic" "target-features"="+neon" "unsafe-fp-math"="false" "use-soft-float"="false" }
+  attributes #0 = { noinline optnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="generic" "target-features"="+neon" "unsafe-fp-math"="false" "use-soft-float"="false" }
+  attributes #1 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="generic" "target-features"="+neon" "unsafe-fp-math"="false" "use-soft-float"="false" }
   attributes #2 = { nounwind }
 
   !llvm.module.flags = !{!0}
@@ -89,7 +89,7 @@
 ...
 ---
 name:            '?func@@YAHH@Z'
-alignment:       2
+alignment:       4
 exposesReturnsTwice: false
 legalized:       true
 regBankSelected: true
@@ -120,39 +120,39 @@ frameInfo:
 fixedStack:
 stack:
   - { id: 0, name: retval, type: default, offset: -36, size: 4, alignment: 4,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -4, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
   - { id: 1, name: i.addr, type: default, offset: -40, size: 4, alignment: 4,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -8, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
   - { id: 2, name: A, type: default, offset: -2992812, size: 2992772, alignment: 4,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -2992780, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
   - { id: 3, name: a, type: default, offset: -2992816, size: 4, alignment: 4,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -2992784, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
   - { id: 4, name: B, type: default, offset: -2993308, size: 492, alignment: 4,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -2993276, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
   - { id: 5, name: '', type: spill-slot, offset: -2993320, size: 8, alignment: 8,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       debug-info-variable: '', debug-info-expression: '', debug-info-location: '' }
   - { id: 6, name: '', type: spill-slot, offset: -2993324, size: 4, alignment: 4,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       debug-info-variable: '', debug-info-expression: '', debug-info-location: '' }
   - { id: 7, name: '', type: spill-slot, offset: -8, size: 8, alignment: 8,
-      stack-id: 0, callee-saved-register: '$fp', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '$fp', callee-saved-restored: true,
       debug-info-variable: '', debug-info-expression: '', debug-info-location: '' }
   - { id: 8, name: '', type: spill-slot, offset: -16, size: 8, alignment: 8,
-      stack-id: 0, callee-saved-register: '$lr', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '$lr', callee-saved-restored: true,
       debug-info-variable: '', debug-info-expression: '', debug-info-location: '' }
   - { id: 9, name: '', type: spill-slot, offset: -32, size: 8, alignment: 16,
-      stack-id: 0, callee-saved-register: '$x28', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '$x28', callee-saved-restored: true,
       debug-info-variable: '', debug-info-expression: '', debug-info-location: '' }
 constants:
 body:             |

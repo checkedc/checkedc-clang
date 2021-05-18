@@ -1,5 +1,5 @@
 ; RUN: llc < %s -mtriple thumbv7s-apple-darwin  -asm-verbose=false | FileCheck %s
-; RUN: llc < %s -mtriple thumbv7s-apple-darwin  -asm-verbose=false -print-machineinstrs=if-converter 2>&1 | FileCheck --check-prefix=CHECK-PROB %s
+; RUN: llc < %s -mtriple thumbv7s-apple-darwin  -asm-verbose=false -stop-after=if-converter | FileCheck --check-prefix=CHECK-PROB %s
 
 declare i32 @foo(i32)
 declare i8* @bar(i32, i8*, i8*)
@@ -35,7 +35,7 @@ declare i8* @bar(i32, i8*, i8*)
 ; CHECK-PROB: bb.2{{[0-9a-zA-Z.]*}}:
 ; CHECK-PROB: successors: %bb.3(0x40000000), %bb.5(0x40000000)
 
-define i32 @test(i32 %a, i32 %a2, i32* %p, i32* %p2) "no-frame-pointer-elim"="true" {
+define i32 @test(i32 %a, i32 %a2, i32* %p, i32* %p2) "frame-pointer"="all" {
 entry:
   %dst1 = call i8* @bar(i32 1, i8* blockaddress(@test, %bb1), i8* blockaddress(@test, %bb2))
   %dst2 = call i8* @bar(i32 2, i8* blockaddress(@test, %bb1), i8* blockaddress(@test, %bb2))

@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -16,7 +15,9 @@
 #include <string>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+TEST_CONSTEXPR_CXX20 bool test()
 {
 #ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
     char16_t s2[3] = {0};
@@ -26,4 +27,17 @@ int main()
     assert(s2[2] == char16_t(5));
     assert(std::char_traits<char16_t>::assign(NULL, 0, char16_t(5)) == NULL);
 #endif  // _LIBCPP_HAS_NO_UNICODE_CHARS
+
+  return true;
+}
+
+int main(int, char**)
+{
+    test();
+
+#if TEST_STD_VER > 17
+    static_assert(test());
+#endif
+
+  return 0;
 }

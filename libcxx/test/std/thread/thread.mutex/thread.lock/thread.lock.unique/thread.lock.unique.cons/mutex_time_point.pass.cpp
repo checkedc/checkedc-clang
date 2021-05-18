@@ -1,15 +1,14 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
 // UNSUPPORTED: libcpp-has-no-threads
 
-// FLAKY_TEST.
+// ALLOW_RETRIES: 2
 
 // <mutex>
 
@@ -22,6 +21,9 @@
 #include <thread>
 #include <cstdlib>
 #include <cassert>
+
+#include "make_test_thread.h"
+#include "test_macros.h"
 
 std::timed_mutex m;
 
@@ -51,20 +53,22 @@ void f2()
     assert(d < ms(50));  // within 50ms
 }
 
-int main()
+int main(int, char**)
 {
     {
         m.lock();
-        std::thread t(f1);
+        std::thread t = support::make_test_thread(f1);
         std::this_thread::sleep_for(ms(250));
         m.unlock();
         t.join();
     }
     {
         m.lock();
-        std::thread t(f2);
+        std::thread t = support::make_test_thread(f2);
         std::this_thread::sleep_for(ms(300));
         m.unlock();
         t.join();
     }
+
+  return 0;
 }

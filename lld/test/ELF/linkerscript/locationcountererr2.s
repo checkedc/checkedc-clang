@@ -3,8 +3,8 @@
 # RUN: echo "SECTIONS {" > %t.script
 # RUN: echo ". = 0x150; . = 0x10; .text : {} }" >> %t.script
 # RUN: ld.lld %t.o --script %t.script -o %t -shared
-# RUN: llvm-objdump -section-headers %t | FileCheck %s
-# CHECK:  Name   Size      Address
+# RUN: llvm-objdump --section-headers %t | FileCheck %s
+# CHECK:  Name   Size   VMA
 # CHECK: .text 00000000 0000000000000010
 
 # RUN: echo "SECTIONS { . = 0x20; . = ASSERT(0x1, "foo"); }" > %t2.script

@@ -1,15 +1,14 @@
 //===-- PlatformiOSSimulatorCoreSimulatorSupport.h ----------------*- C++
 //-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_PlatformiOSSimulatorCoreSimulatorSupport_h_
-#define liblldb_PlatformiOSSimulatorCoreSimulatorSupport_h_
+#ifndef LLDB_SOURCE_PLUGINS_PLATFORM_MACOSX_OBJCXX_PLATFORMIOSSIMULATORCORESIMULATORSUPPORT_H
+#define LLDB_SOURCE_PLUGINS_PLATFORM_MACOSX_OBJCXX_PLATFORMIOSSIMULATORCORESIMULATORSUPPORT_H
 
 #include <functional>
 #include <ostream>
@@ -20,7 +19,7 @@
 #else
 typedef void *id;
 #endif
-#include "lldb/Target/ProcessLaunchInfo.h"
+#include "lldb/Host/ProcessLaunchInfo.h"
 #include "lldb/Utility/Args.h"
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/Status.h"
@@ -218,4 +217,4 @@ private:
 };
 }
 
-#endif // liblldb_PlatformiOSSimulatorCoreSimulatorSupport_h_
+#endif // LLDB_SOURCE_PLUGINS_PLATFORM_MACOSX_OBJCXX_PLATFORMIOSSIMULATORCORESIMULATORSUPPORT_H

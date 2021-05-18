@@ -1,16 +1,6 @@
-// FIXME: XFAIL as currently it cannot be built by lit properly.
-// XFAIL: *
+// FIXME: UNSUPPORTED as currently it cannot be built by lit properly.
+// UNSUPPORTED: true
 // RUN: %clangxx_builtins %s %librt -o %t && %run %t
-/* ===-- gcc_personality_test.c - Tests __gcc_personality_v0 -------------===
- *
- *                     The LLVM Compiler Infrastructure
- *
- * This file is dual licensed under the MIT and the University of Illinois Open
- * Source Licenses. See LICENSE.TXT for details.
- *
- * ===----------------------------------------------------------------------===
- */
-
 
 #include <stdlib.h>
 #include <stdio.h>

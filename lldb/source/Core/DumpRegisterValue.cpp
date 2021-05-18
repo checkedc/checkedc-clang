@@ -1,9 +1,8 @@
-//===-- DumpRegisterValue.cpp -----------------------------------*- C++ -*-===//
+//===-- DumpRegisterValue.cpp ---------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -34,7 +33,7 @@ bool lldb_private::DumpRegisterValue(const RegisterValue &reg_val, Stream *s,
       format_string.Printf("%%%us", reg_name_right_align_at);
     else
       format_string.Printf("%%s");
-    std::string fmt = format_string.GetString();
+    std::string fmt = std::string(format_string.GetString());
     if (prefix_with_name) {
       if (reg_info->name) {
         s->Printf(fmt.c_str(), reg_info->name);

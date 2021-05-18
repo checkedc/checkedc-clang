@@ -1,21 +1,21 @@
-; RUN: %llc_dwarf -filetype=obj %s -o - | llvm-dwarfdump -v -debug-info - | FileCheck %s
+; RUN: llc -filetype=obj %s -o - | llvm-dwarfdump -v -debug-info - | FileCheck %s
 
 ; A hand-written testcase to check 64-bit constant handling in location lists.
 
 ; CHECK: .debug_info contents:
 ; CHECK: DW_TAG_variable
 ; CHECK-NEXT: DW_AT_location [DW_FORM_data4]	(
-; CHECK-NEXT:   [0x{{.*}}, 0x{{.*}}): DW_OP_constu 0x4000000000000000)
+; CHECK-NEXT:   {{.*}}: DW_OP_constu 0x4000000000000000)
 ; CHECK-NEXT: DW_AT_name {{.*}}"d"
 ; CHECK: DW_TAG_variable
 ; CHECK-NEXT: DW_AT_location [DW_FORM_data4]	(
-; CHECK-NEXT:   [0x{{.*}}, 0x{{.*}}): DW_OP_consts +0
-; CHECK-NEXT:   [0x{{.*}}, 0x{{.*}}): DW_OP_consts +4611686018427387904)
+; CHECK-NEXT:   {{.*}}: DW_OP_consts +0
+; CHECK-NEXT:   {{.*}}: DW_OP_consts +4611686018427387904)
 ; CHECK-NEXT: DW_AT_name {{.*}}"i"
 ; CHECK: DW_TAG_variable
 ; CHECK-NEXT: DW_AT_location [DW_FORM_data4]	(
-; CHECK-NEXT:   [0x{{.*}}, 0x{{.*}}): DW_OP_lit0
-; CHECK-NEXT:   [0x{{.*}}, 0x{{.*}}): DW_OP_constu 0x4000000000000000)
+; CHECK-NEXT:   {{.*}}: DW_OP_lit0
+; CHECK-NEXT:   {{.*}}: DW_OP_constu 0x4000000000000000)
 ; CHECK-NEXT: DW_AT_name {{.*}}"u"
 
 source_filename = "test.c"

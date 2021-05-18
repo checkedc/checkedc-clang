@@ -1,14 +1,13 @@
 //===-- OptionGroupPlatform.h -----------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_OptionGroupPlatform_h_
-#define liblldb_OptionGroupPlatform_h_
+#ifndef LLDB_INTERPRETER_OPTIONGROUPPLATFORM_H
+#define LLDB_INTERPRETER_OPTIONGROUPPLATFORM_H
 
 #include "lldb/Interpreter/Options.h"
 #include "lldb/Utility/ConstString.h"
@@ -16,11 +15,9 @@
 
 namespace lldb_private {
 
-//-------------------------------------------------------------------------
 // PlatformOptionGroup
 //
 // Make platform options available to any commands that need the settings.
-//-------------------------------------------------------------------------
 class OptionGroupPlatform : public OptionGroup {
 public:
   OptionGroupPlatform(bool include_platform_option)
@@ -51,15 +48,15 @@ public:
       m_platform_name.clear();
   }
 
-  const ConstString &GetSDKRootDirectory() const { return m_sdk_sysroot; }
+  ConstString GetSDKRootDirectory() const { return m_sdk_sysroot; }
 
-  void SetSDKRootDirectory(const ConstString &sdk_root_directory) {
+  void SetSDKRootDirectory(ConstString sdk_root_directory) {
     m_sdk_sysroot = sdk_root_directory;
   }
 
-  const ConstString &GetSDKBuild() const { return m_sdk_build; }
+  ConstString GetSDKBuild() const { return m_sdk_build; }
 
-  void SetSDKBuild(const ConstString &sdk_build) { m_sdk_build = sdk_build; }
+  void SetSDKBuild(ConstString sdk_build) { m_sdk_build = sdk_build; }
 
   bool PlatformMatches(const lldb::PlatformSP &platform_sp) const;
 
@@ -73,4 +70,4 @@ protected:
 
 } // namespace lldb_private
 
-#endif // liblldb_OptionGroupPlatform_h_
+#endif // LLDB_INTERPRETER_OPTIONGROUPPLATFORM_H

@@ -1,6 +1,6 @@
-// RUN: llvm-tblgen -gen-global-isel -I %p/../../include -optimize-match-table=false %s -o %T/non-optimized.cpp
-// RUN: llvm-tblgen -gen-global-isel -I %p/../../include -optimize-match-table=true  %s -o %T/optimized.cpp
-// RUN: llvm-tblgen -gen-global-isel -I %p/../../include %s -o %T/default.cpp
+// RUN: llvm-tblgen -gen-global-isel -I %p/../../include -I %p/Common -optimize-match-table=false %s -o %T/non-optimized.cpp
+// RUN: llvm-tblgen -gen-global-isel -I %p/../../include -I %p/Common -optimize-match-table=true  %s -o %T/optimized.cpp
+// RUN: llvm-tblgen -gen-global-isel -I %p/../../include -I %p/Common %s -o %T/default.cpp
 
 // RUN: FileCheck %s --check-prefixes=CHECK,R19C,R19N -input-file=%T/non-optimized.cpp
 // RUN: FileCheck %s --check-prefixes=CHECK,R19C,R19O -input-file=%T/optimized.cpp
@@ -23,28 +23,12 @@
 // RUN: diff %T/default.cpp %T/optimized.cpp
 
 include "llvm/Target/Target.td"
+include "GlobalISelEmitterCommon.td"
 
 //===- Define the necessary boilerplate for our test target. --------------===//
 
-def MyTargetISA : InstrInfo;
-def MyTarget : Target { let InstructionSet = MyTargetISA; }
-
 let TargetPrefix = "mytarget" in {
 def int_mytarget_nop : Intrinsic<[llvm_i32_ty], [llvm_i32_ty], [IntrNoMem]>;
-}
-
-def R0 : Register<"r0"> { let Namespace = "MyTarget"; }
-def GPR32 : RegisterClass<"MyTarget", [i32], 32, (add R0)>;
-def GPR32Op : RegisterOperand<GPR32>;
-def F0 : Register<"f0"> { let Namespace = "MyTarget"; }
-def FPR32 : RegisterClass<"MyTarget", [f32], 32, (add F0)>;
-
-class I<dag OOps, dag IOps, list<dag> Pat>
-  : Instruction {
-  let Namespace = "MyTarget";
-  let OutOperandList = OOps;
-  let InOperandList = IOps;
-  let Pattern = Pat;
 }
 
 def complex : Operand<i32>, ComplexPattern<i32, 2, "SelectComplexPattern", []> {
@@ -86,7 +70,7 @@ def HasC : Predicate<"Subtarget->hasC()"> { let RecomputePerFunction = 1; }
 // CHECK-LABEL: #ifdef GET_GLOBALISEL_TEMPORARIES_DECL
 // CHECK-NEXT:    mutable MatcherState State;
 // CHECK-NEXT:    typedef ComplexRendererFns(MyTargetInstructionSelector::*ComplexMatcherMemFn)(MachineOperand &) const;
-// CHECK-NEXT:    typedef void(MyTargetInstructionSelector::*CustomRendererFn)(MachineInstrBuilder &, const MachineInstr&) const;
+// CHECK-NEXT:    typedef void(MyTargetInstructionSelector::*CustomRendererFn)(MachineInstrBuilder &, const MachineInstr &, int) const;
 // CHECK-NEXT:    const ISelInfoTy<PredicateBitset, ComplexMatcherMemFn, CustomRendererFn> ISelInfo;
 // CHECK-NEXT:    static MyTargetInstructionSelector::ComplexMatcherMemFn ComplexPredicateFns[];
 // CHECK-NEXT:    static MyTargetInstructionSelector::CustomRendererFn CustomRenderers[];
@@ -94,7 +78,7 @@ def HasC : Predicate<"Subtarget->hasC()"> { let RecomputePerFunction = 1; }
 // CHECK-NEXT:    bool testImmPredicate_APInt(unsigned PredicateID, const APInt &Imm) const override;
 // CHECK-NEXT:    bool testImmPredicate_APFloat(unsigned PredicateID, const APFloat &Imm) const override;
 // CHECK-NEXT:    const int64_t *getMatchTable() const override;
-// CHECK-NEXT:    bool testMIPredicate_MI(unsigned PredicateID, const MachineInstr &MI) const override;
+// CHECK-NEXT:    bool testMIPredicate_MI(unsigned PredicateID, const MachineInstr &MI, const std::array<const MachineOperand *, 3> &Operands) const override;
 // CHECK-NEXT:  #endif // ifdef GET_GLOBALISEL_TEMPORARIES_DECL
 
 // CHECK-LABEL: #ifdef GET_GLOBALISEL_TEMPORARIES_INIT
@@ -112,9 +96,9 @@ def HasC : Predicate<"Subtarget->hasC()"> { let RecomputePerFunction = 1; }
 // CHECK-NEXT:  computeAvailableModuleFeatures(const MyTargetSubtarget *Subtarget) const {
 // CHECK-NEXT:    PredicateBitset Features;
 // CHECK-NEXT:    if (Subtarget->hasA())
-// CHECK-NEXT:      Features[Feature_HasABit] = 1;
+// CHECK-NEXT:      Features.set(Feature_HasABit);
 // CHECK-NEXT:    if (Subtarget->hasB())
-// CHECK-NEXT:      Features[Feature_HasBBit] = 1;
+// CHECK-NEXT:      Features.set(Feature_HasBBit);
 // CHECK-NEXT:    return Features;
 // CHECK-NEXT:  }
 
@@ -122,16 +106,18 @@ def HasC : Predicate<"Subtarget->hasC()"> { let RecomputePerFunction = 1; }
 // CHECK-NEXT:  computeAvailableFunctionFeatures(const MyTargetSubtarget *Subtarget, const MachineFunction *MF) const {
 // CHECK-NEXT:    PredicateBitset Features;
 // CHECK-NEXT:    if (Subtarget->hasC())
-// CHECK-NEXT:      Features[Feature_HasCBit] = 1;
+// CHECK-NEXT:      Features.set(Feature_HasCBit);
 // CHECK-NEXT:    return Features;
 // CHECK-NEXT:  }
 
 // CHECK-LABEL: // LLT Objects.
 // CHECK-NEXT:  enum {
+// CHECK-NEXT:    GILLT_p0s32
 // CHECK-NEXT:    GILLT_s32,
 // CHECK-NEXT:  }
-// CHECK-NEXT:  const static size_t NumTypeObjects = 1;
+// CHECK-NEXT:  const static size_t NumTypeObjects = 2;
 // CHECK-NEXT:  const static LLT TypeObjects[] = {
+// CHECK-NEXT:    LLT::pointer(0, 32),
 // CHECK-NEXT:    LLT::scalar(32),
 // CHECK-NEXT:  };
 
@@ -224,14 +210,13 @@ def HasC : Predicate<"Subtarget->hasC()"> { let RecomputePerFunction = 1; }
 // CHECK-NEXT: };
 // CHECK-NEXT: MyTargetInstructionSelector::CustomRendererFn
 // CHECK-NEXT: MyTargetInstructionSelector::CustomRenderers[] = {
-// CHECK-NEXT:   nullptr, // GICP_Invalid
+// CHECK-NEXT:   nullptr, // GICR_Invalid
 // CHECK-NEXT:   &MyTargetInstructionSelector::renderImm8, // gi_cimm8
 // CHECK-NEXT: };
 
 // CHECK: bool MyTargetInstructionSelector::selectImpl(MachineInstr &I, CodeGenCoverage &CoverageInfo) const {
 // CHECK-NEXT: MachineFunction &MF = *I.getParent()->getParent();
 // CHECK-NEXT: MachineRegisterInfo &MRI = MF.getRegInfo();
-// CHECK:      AvailableFunctionFeatures = computeAvailableFunctionFeatures(&STI, &MF);
 // CHECK-NEXT: const PredicateBitset AvailableFeatures = getAvailableFeatures();
 // CHECK-NEXT: NewMIVector OutMIs;
 // CHECK-NEXT: State.MIs.clear();
@@ -270,7 +255,7 @@ def HasC : Predicate<"Subtarget->hasC()"> { let RecomputePerFunction = 1; }
 // R19N-NEXT:    // MIs[0] src1
 // R19N-NEXT:    GIM_CheckType, /*MI*/0, /*Op*/1, /*Type*/GILLT_s32,
 // R19N-NEXT:    GIM_CheckRegBankForClass, /*MI*/0, /*Op*/1, /*RC*/MyTarget::GPR32RegClassID,
-// R19N-NEXT:    // MIs[0] Operand 2
+// R19N-NEXT:    // MIs[0] complex_rr:src2a:src2b
 // R19N-NEXT:    GIM_CheckType, /*MI*/0, /*Op*/2, /*Type*/GILLT_s32,
 //
 // R19N-NEXT:    GIM_CheckComplexPattern, /*MI*/0, /*Op*/2, /*Renderer*/0, GICP_gi_complex_rr,
@@ -289,7 +274,7 @@ def HasC : Predicate<"Subtarget->hasC()"> { let RecomputePerFunction = 1; }
 // R19N-NEXT:    // MIs[1] src4
 // R19N-NEXT:    GIM_CheckType, /*MI*/1, /*Op*/2, /*Type*/GILLT_s32,
 // R19N-NEXT:    GIM_CheckComplexPattern, /*MI*/1, /*Op*/2, /*Renderer*/1, GICP_gi_complex,
-// R19N-NEXT:    // MIs[1] Operand 3
+// R19N-NEXT:    // MIs[1] complex:src5a:src5b
 // R19N-NEXT:    GIM_CheckType, /*MI*/1, /*Op*/3, /*Type*/GILLT_s32,
 // R19N-NEXT:    GIM_CheckComplexPattern, /*MI*/1, /*Op*/3, /*Renderer*/2, GICP_gi_complex,
 // R19O-NEXT:    GIM_CheckRegBankForClass, /*MI*/1, /*Op*/1, /*RC*/MyTarget::GPR32RegClassID,
@@ -354,12 +339,10 @@ def : Pat<(select GPR32:$src1, (complex_rr GPR32:$src2a, GPR32:$src2b),
 // R21C-NEXT:  // Label [[PREV_NUM]]: @[[PREV]]
 // R21C-NEXT:  GIM_Try, /*On fail goto*//*Label [[LABEL_NUM:[0-9]+]]*/ [[LABEL:[0-9]+]], // Rule ID 21 //
 //
-// R21O-NEXT:    GIM_CheckCxxInsnPredicate, /*MI*/0, /*FnId*/GIPFP_MI_Predicate_frag,
 // R21O-NEXT:    GIM_CheckRegBankForClass, /*MI*/0, /*Op*/0, /*RC*/MyTarget::GPR32RegClassID,
 // R21O-NEXT:    GIM_CheckRegBankForClass, /*MI*/0, /*Op*/1, /*RC*/MyTarget::GPR32RegClassID,
 // R21N-NEXT:    GIM_CheckNumOperands, /*MI*/0, /*Expected*/4,
 // R21N-NEXT:    GIM_CheckOpcode, /*MI*/0, TargetOpcode::G_SELECT,
-// R21N-NEXT:    GIM_CheckCxxInsnPredicate, /*MI*/0, /*FnId*/GIPFP_MI_Predicate_frag,
 // R21N-NEXT:    // MIs[0] dst
 // R21N-NEXT:    GIM_CheckType, /*MI*/0, /*Op*/0, /*Type*/GILLT_s32,
 // R21N-NEXT:    GIM_CheckRegBankForClass, /*MI*/0, /*Op*/0, /*RC*/MyTarget::GPR32RegClassID,
@@ -369,10 +352,12 @@ def : Pat<(select GPR32:$src1, (complex_rr GPR32:$src2a, GPR32:$src2b),
 // R21N-NEXT:    // MIs[0] src2
 // R21N-NEXT:    GIM_CheckType, /*MI*/0, /*Op*/2, /*Type*/GILLT_s32,
 //
+// R21O-NEXT:    GIM_CheckCxxInsnPredicate, /*MI*/0, /*FnId*/GIPFP_MI_Predicate_frag,
 // R21C-NEXT:    GIM_CheckComplexPattern, /*MI*/0, /*Op*/2, /*Renderer*/0, GICP_gi_complex,
 // R21N-NEXT:    // MIs[0] src3
 // R21N-NEXT:    GIM_CheckType, /*MI*/0, /*Op*/3, /*Type*/GILLT_s32,
 // R21C-NEXT:    GIM_CheckComplexPattern, /*MI*/0, /*Op*/3, /*Renderer*/1, GICP_gi_complex,
+// R21N-NEXT:    GIM_CheckCxxInsnPredicate, /*MI*/0, /*FnId*/GIPFP_MI_Predicate_frag,
 // R21C-NEXT:    // (select:{ *:[i32] } GPR32:{ *:[i32] }:$src1, complex:{ *:[i32] }:$src2, complex:{ *:[i32] }:$src3)<<P:Predicate_frag>> => (INSN2:{ *:[i32] } GPR32:{ *:[i32] }:$src1, complex:{ *:[i32] }:$src3, complex:{ *:[i32] }:$src2)
 
 // R21C-NEXT:    GIR_BuildMI, /*InsnID*/0, /*Opcode*/MyTarget::INSN2,
@@ -829,7 +814,7 @@ def : Pat<(not GPR32:$Wm), (ORN R0, GPR32:$Wm)>;
 // NOOPT-NEXT:    GIR_Copy, /*NewInsnID*/0, /*OldInsnID*/0, /*OpIdx*/1, // src3
 // NOOPT-NEXT:    GIR_EraseFromParent, /*InsnID*/0,
 // NOOPT-NEXT:    GIR_ConstrainSelectedInstOperands, /*InsnID*/0,
-// NOOPT-NEXT:    // GIR_Coverage, 25,
+// NOOPT-NEXT:    // GIR_Coverage, 26,
 // NOOPT-NEXT:    GIR_Done,
 // NOOPT-NEXT:  // Label [[LABEL_NUM]]: @[[LABEL]]
 
@@ -974,6 +959,29 @@ def MOVcimm8 : I<(outs GPR32:$dst), (ins i32imm:$imm), [(set GPR32:$dst, cimm8:$
 def LOAD : I<(outs GPR32:$dst), (ins GPR32:$src1),
             [(set GPR32:$dst, (load GPR32:$src1))]>;
 
+//===- Test a simple pattern with explicit pointer operands. ---------------===//
+
+// NOOPT-NEXT:  GIM_Try, /*On fail goto*//*Label [[LABEL_NUM:[0-9]+]]*/ [[LABEL:[0-9]+]],
+// NOOPT-NEXT:    GIM_CheckNumOperands, /*MI*/0, /*Expected*/2,
+// NOOPT-NEXT:    GIM_CheckOpcode, /*MI*/0, TargetOpcode::G_LOAD,
+// NOOPT-NEXT:    GIM_CheckMemorySizeEqualToLLT, /*MI*/0, /*MMO*/0, /*OpIdx*/0,
+// NOOPT-NEXT:    GIM_CheckAtomicOrdering, /*MI*/0, /*Order*/(int64_t)AtomicOrdering::NotAtomic,
+// NOOPT-NEXT:    // MIs[0] dst
+// NOOPT-NEXT:    GIM_CheckType, /*MI*/0, /*Op*/0, /*Type*/GILLT_p0s32,
+// NOOPT-NEXT:    GIM_CheckRegBankForClass, /*MI*/0, /*Op*/0, /*RC*/MyTarget::GPR32RegClassID,
+// NOOPT-NEXT:    // MIs[0] src
+// NOOPT-NEXT:    GIM_CheckPointerToAny, /*MI*/0, /*Op*/1, /*SizeInBits*/32,
+// NOOPT-NEXT:    GIM_CheckRegBankForClass, /*MI*/0, /*Op*/1, /*RC*/MyTarget::GPR32RegClassID,
+// NOOPT-NEXT:    // (ld:{ *:[i32] } GPR32:{ *:[i32] }:$src)<<P:Predicate_unindexedload>><<P:Predicate_load>>  =>  (LOAD:{ *:[i32] } GPR32:{ *:[i32] }:$src)
+// NOOPT-NEXT:    GIR_MutateOpcode, /*InsnID*/0, /*RecycleInsnID*/0, /*Opcode*/MyTarget::LOAD,
+// NOOPT-NEXT:    GIR_ConstrainSelectedInstOperands, /*InsnID*/0,
+// NOOPT-NEXT:    // GIR_Coverage, 23,
+// NOOPT-NEXT:    GIR_Done,
+// NOOPT-NEXT:  // Label [[LABEL_NUM]]: @[[LABEL]]
+
+def : Pat<(load GPR32:$src),
+          (p0 (LOAD GPR32:$src))>;
+
 //===- Test a simple pattern with a sextload -------------------------------===//
 //
 // NOOPT-NEXT:  GIM_Try, /*On fail goto*//*Label [[LABEL_NUM:[0-9]+]]*/ [[LABEL:[0-9]+]],
@@ -1061,7 +1069,7 @@ def DOUBLE : I<(outs GPR32:$dst), (ins GPR32:$src), [(set GPR32:$dst, (add GPR32
 // NOOPT-NEXT:    // (add:{ *:[i32] } i32:{ *:[i32] }:$src1, i32:{ *:[i32] }:$src2) => (ADD:{ *:[i32] } i32:{ *:[i32] }:$src1, i32:{ *:[i32] }:$src2)
 // NOOPT-NEXT:    GIR_MutateOpcode, /*InsnID*/0, /*RecycleInsnID*/0, /*Opcode*/MyTarget::ADD,
 // NOOPT-NEXT:    GIR_ConstrainSelectedInstOperands, /*InsnID*/0,
-// NOOPT-NEXT:    // GIR_Coverage, 23,
+// NOOPT-NEXT:    // GIR_Coverage, 24,
 // NOOPT-NEXT:    GIR_Done,
 // NOOPT-NEXT:  // Label [[LABEL_NUM]]: @[[LABEL]]
 
@@ -1112,8 +1120,8 @@ def MUL : I<(outs GPR32:$dst), (ins GPR32:$src2, GPR32:$src1),
 // NOOPT-NEXT:    GIM_CheckRegBankForClass, /*MI*/0, /*Op*/1, /*RC*/MyTarget::FPR32RegClassID,
 // NOOPT-NEXT:    // (bitconvert:{ *:[i32] } FPR32:{ *:[f32] }:$src1) => (COPY_TO_REGCLASS:{ *:[i32] } FPR32:{ *:[f32] }:$src1, GPR32:{ *:[i32] })
 // NOOPT-NEXT:    GIR_MutateOpcode, /*InsnID*/0, /*RecycleInsnID*/0, /*Opcode*/TargetOpcode::COPY,
-// NOOPT-NEXT:    GIR_ConstrainOperandRC, /*InsnID*/0, /*Op*/0, /*RC GPR32*/1,
-// NOOPT-NEXT:    // GIR_Coverage, 24,
+// NOOPT-NEXT:    GIR_ConstrainOperandRC, /*InsnID*/0, /*Op*/0, MyTarget::GPR32RegClassID,
+// NOOPT-NEXT:    // GIR_Coverage, 25,
 // NOOPT-NEXT:    GIR_Done,
 // NOOPT-NEXT:  // Label [[LABEL_NUM]]: @[[LABEL]]
 

@@ -1,27 +1,24 @@
 //===-- ObjectFileMachO.h ---------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ObjectFileMachO_h_
-#define liblldb_ObjectFileMachO_h_
+#ifndef LLDB_SOURCE_PLUGINS_OBJECTFILE_MACH_O_OBJECTFILEMACHO_H
+#define LLDB_SOURCE_PLUGINS_OBJECTFILE_MACH_O_OBJECTFILEMACHO_H
 
 #include "lldb/Core/Address.h"
 #include "lldb/Core/FileSpecList.h"
-#include "lldb/Core/RangeMap.h"
 #include "lldb/Host/SafeMachO.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Utility/FileSpec.h"
+#include "lldb/Utility/RangeMap.h"
 #include "lldb/Utility/UUID.h"
 
-//----------------------------------------------------------------------
 // This class needs to be hidden as eventually belongs in a plugin that
 // will export the ObjectFile protocol
-//----------------------------------------------------------------------
 class ObjectFileMachO : public lldb_private::ObjectFile {
 public:
   ObjectFileMachO(const lldb::ModuleSP &module_sp, lldb::DataBufferSP &data_sp,
@@ -34,9 +31,7 @@ public:
 
   ~ObjectFileMachO() override = default;
 
-  //------------------------------------------------------------------
   // Static Functions
-  //------------------------------------------------------------------
   static void Initialize();
 
   static void Terminate();
@@ -68,9 +63,14 @@ public:
   static bool MagicBytesMatch(lldb::DataBufferSP &data_sp, lldb::addr_t offset,
                               lldb::addr_t length);
 
-  //------------------------------------------------------------------
+  // LLVM RTTI support
+  static char ID;
+  bool isA(const void *ClassID) const override {
+    return ClassID == &ID || ObjectFile::isA(ClassID);
+  }
+  static bool classof(const ObjectFile *obj) { return obj->isA(&ID); }
+
   // Member Functions
-  //------------------------------------------------------------------
   bool ParseHeader() override;
 
   bool SetLoadAddress(lldb_private::Target &target, lldb::addr_t value,
@@ -79,6 +79,8 @@ public:
   lldb::ByteOrder GetByteOrder() const override;
 
   bool IsExecutable() const override;
+
+  bool IsDynamicLoader() const;
 
   uint32_t GetAddressByteSize() const override;
 
@@ -94,7 +96,7 @@ public:
 
   lldb_private::ArchSpec GetArchitecture() override;
 
-  bool GetUUID(lldb_private::UUID *uuid) override;
+  lldb_private::UUID GetUUID() override;
 
   uint32_t GetDependentModules(lldb_private::FileSpecList &files) override;
 
@@ -110,7 +112,9 @@ public:
 
   std::string GetIdentifierString() override;
 
-  bool GetCorefileMainBinaryInfo (lldb::addr_t &address, lldb_private::UUID &uuid) override;
+  bool GetCorefileMainBinaryInfo(lldb::addr_t &address,
+                                 lldb_private::UUID &uuid,
+                                 ObjectFile::BinaryType &type) override;
 
   lldb::RegisterContextSP
   GetThreadContextAtIndex(uint32_t idx, lldb_private::Thread &thread) override;
@@ -123,7 +127,7 @@ public:
 
   llvm::VersionTuple GetMinimumOSVersion() override;
 
-  uint32_t GetSDKVersion(uint32_t *versions, uint32_t num_versions) override;
+  llvm::VersionTuple GetSDKVersion() override;
 
   bool GetIsDynamicLinkEditor() override;
 
@@ -133,37 +137,48 @@ public:
 
   bool AllowAssemblyEmulationUnwindPlans() override;
 
-  //------------------------------------------------------------------
   // PluginInterface protocol
-  //------------------------------------------------------------------
   lldb_private::ConstString GetPluginName() override;
 
   uint32_t GetPluginVersion() override;
 
 protected:
-  static bool
+  static lldb_private::UUID
   GetUUID(const llvm::MachO::mach_header &header,
           const lldb_private::DataExtractor &data,
-          lldb::offset_t lc_offset, // Offset to the first load command
-          lldb_private::UUID &uuid);
+          lldb::offset_t lc_offset); // Offset to the first load command
 
-  static lldb_private::ArchSpec
-  GetArchitecture(const llvm::MachO::mach_header &header,
-                  const lldb_private::DataExtractor &data,
-                  lldb::offset_t lc_offset);
+  static lldb_private::ArchSpec GetArchitecture(
+      lldb::ModuleSP module_sp, const llvm::MachO::mach_header &header,
+      const lldb_private::DataExtractor &data, lldb::offset_t lc_offset);
 
-  // Intended for same-host arm device debugging where lldb needs to
-  // detect libraries in the shared cache and augment the nlist entries
-  // with an on-disk dyld_shared_cache file.  The process will record
-  // the shared cache UUID so the on-disk cache can be matched or rejected
-  // correctly.
-  void GetProcessSharedCacheUUID(lldb_private::Process *, lldb::addr_t &base_addr, lldb_private::UUID &uuid);
+  /// Enumerate all ArchSpecs supported by this Mach-O file.
+  ///
+  /// On macOS one Mach-O slice can contain multiple load commands:
+  /// One load command for being loaded into a macOS process and one
+  /// load command for being loaded into a macCatalyst process. In
+  /// contrast to ObjectContainerUniversalMachO, this is the same
+  /// binary that can be loaded into different contexts.
+  static void GetAllArchSpecs(const llvm::MachO::mach_header &header,
+                              const lldb_private::DataExtractor &data,
+                              lldb::offset_t lc_offset,
+                              lldb_private::ModuleSpec &base_spec,
+                              lldb_private::ModuleSpecList &all_specs);
 
-  // Intended for same-host arm device debugging where lldb will read
-  // shared cache libraries out of its own memory instead of the remote
-  // process' memory as an optimization.  If lldb's shared cache UUID
-  // does not match the process' shared cache UUID, this optimization
-  // should not be used.
+  /// Intended for same-host arm device debugging where lldb needs to
+  /// detect libraries in the shared cache and augment the nlist entries
+  /// with an on-disk dyld_shared_cache file.  The process will record
+  /// the shared cache UUID so the on-disk cache can be matched or rejected
+  /// correctly.
+  void GetProcessSharedCacheUUID(lldb_private::Process *,
+                                 lldb::addr_t &base_addr,
+                                 lldb_private::UUID &uuid);
+
+  /// Intended for same-host arm device debugging where lldb will read
+  /// shared cache libraries out of its own memory instead of the remote
+  /// process' memory as an optimization.  If lldb's shared cache UUID
+  /// does not match the process' shared cache UUID, this optimization
+  /// should not be used.
   void GetLLDBSharedCacheUUID(lldb::addr_t &base_addir, lldb_private::UUID &uuid);
 
   lldb_private::Section *GetMachHeaderSection();
@@ -180,7 +195,7 @@ protected:
 
   size_t ParseSymtab();
 
-  typedef lldb_private::RangeArray<uint32_t, uint32_t, 8> EncryptedFileRanges;
+  typedef lldb_private::RangeVector<uint32_t, uint32_t, 8> EncryptedFileRanges;
   EncryptedFileRanges GetEncryptedFileRanges();
 
   struct SegmentParsingContext;
@@ -195,26 +210,28 @@ protected:
   bool SectionIsLoadable(const lldb_private::Section *section);
 
   llvm::MachO::mach_header m_header;
-  static const lldb_private::ConstString &GetSegmentNameTEXT();
-  static const lldb_private::ConstString &GetSegmentNameDATA();
-  static const lldb_private::ConstString &GetSegmentNameDATA_DIRTY();
-  static const lldb_private::ConstString &GetSegmentNameDATA_CONST();
-  static const lldb_private::ConstString &GetSegmentNameOBJC();
-  static const lldb_private::ConstString &GetSegmentNameLINKEDIT();
-  static const lldb_private::ConstString &GetSegmentNameDWARF();
-  static const lldb_private::ConstString &GetSectionNameEHFrame();
+  static lldb_private::ConstString GetSegmentNameTEXT();
+  static lldb_private::ConstString GetSegmentNameDATA();
+  static lldb_private::ConstString GetSegmentNameDATA_DIRTY();
+  static lldb_private::ConstString GetSegmentNameDATA_CONST();
+  static lldb_private::ConstString GetSegmentNameOBJC();
+  static lldb_private::ConstString GetSegmentNameLINKEDIT();
+  static lldb_private::ConstString GetSegmentNameDWARF();
+  static lldb_private::ConstString GetSectionNameEHFrame();
 
   llvm::MachO::dysymtab_command m_dysymtab;
   std::vector<llvm::MachO::segment_command_64> m_mach_segments;
   std::vector<llvm::MachO::section_64> m_mach_sections;
   llvm::Optional<llvm::VersionTuple> m_min_os_version;
-  std::vector<uint32_t> m_sdk_versions;
+  llvm::Optional<llvm::VersionTuple> m_sdk_versions;
   typedef lldb_private::RangeVector<uint32_t, uint32_t> FileRangeArray;
   lldb_private::Address m_entry_point_address;
   FileRangeArray m_thread_context_offsets;
+  lldb::offset_t m_linkedit_original_offset;
+  lldb::addr_t m_text_address;
   bool m_thread_context_offsets_valid;
   lldb_private::FileSpecList m_reexported_dylibs;
   bool m_allow_assembly_emulation_unwind_plans;
 };
 
-#endif // liblldb_ObjectFileMachO_h_
+#endif // LLDB_SOURCE_PLUGINS_OBJECTFILE_MACH_O_OBJECTFILEMACHO_H

@@ -147,6 +147,33 @@ define i1 @abs_nsw_is_not_negative_wrong_range(i32 %x) {
   ret i1 %r
 }
 
+; Even if we don't have nsw, the range is still limited in the unsigned domain.
+define i1 @abs_positive_or_signed_min(i32 %x) {
+; CHECK-LABEL: @abs_positive_or_signed_min(
+; CHECK-NEXT:    ret i1 true
+;
+  %cmp = icmp slt i32 %x, 0
+  %negx = sub i32 0, %x
+  %abs = select i1 %cmp, i32 %negx, i32 %x
+  %r = icmp ult i32 %abs, 2147483649
+  ret i1 %r
+}
+
+define i1 @abs_positive_or_signed_min_reduced_range(i32 %x) {
+; CHECK-LABEL: @abs_positive_or_signed_min_reduced_range(
+; CHECK-NEXT:    [[CMP:%.*]] = icmp slt i32 [[X:%.*]], 0
+; CHECK-NEXT:    [[NEGX:%.*]] = sub i32 0, [[X]]
+; CHECK-NEXT:    [[ABS:%.*]] = select i1 [[CMP]], i32 [[NEGX]], i32 [[X]]
+; CHECK-NEXT:    [[R:%.*]] = icmp ult i32 [[ABS]], -2147483648
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %cmp = icmp slt i32 %x, 0
+  %negx = sub i32 0, %x
+  %abs = select i1 %cmp, i32 %negx, i32 %x
+  %r = icmp ult i32 %abs, 2147483648
+  ret i1 %r
+}
+
 ; This is canonical form for this IR. For nabs(), we don't require 'nsw'
 
 define i1 @nabs_is_negative_or_0(i32 %x) {
@@ -374,3 +401,20 @@ define i1 @nabs_no_intersection(i32 %a) {
   ret i1 %r
 }
 
+; We can't fold this to false unless both subs have nsw.
+define i1 @abs_sub_sub_missing_nsw(i32 %x, i32 %y) {
+; CHECK-LABEL: @abs_sub_sub_missing_nsw(
+; CHECK-NEXT:    [[A:%.*]] = sub i32 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[B:%.*]] = sub nsw i32 [[Y]], [[X]]
+; CHECK-NEXT:    [[C:%.*]] = icmp sgt i32 [[A]], -1
+; CHECK-NEXT:    [[D:%.*]] = select i1 [[C]], i32 [[A]], i32 [[B]]
+; CHECK-NEXT:    [[E:%.*]] = icmp slt i32 [[D]], 0
+; CHECK-NEXT:    ret i1 [[E]]
+;
+  %a = sub i32 %x, %y
+  %b = sub nsw i32 %y, %x
+  %c = icmp sgt i32 %a, -1
+  %d = select i1 %c, i32 %a, i32 %b
+  %e = icmp slt i32 %d, 0
+  ret i1 %e
+}

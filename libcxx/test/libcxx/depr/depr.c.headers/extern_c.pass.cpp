@@ -1,15 +1,16 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 // Sometimes C++'s <foo.h> headers get included within extern "C" contexts. This
 // is ill-formed (no diagnostic required), per [using.headers]p3, but we permit
 // it as an extension.
+
+#include <__config>
 
 extern "C" {
 #include <assert.h>
@@ -21,7 +22,9 @@ extern "C" {
 #include <inttypes.h>
 #include <iso646.h>
 #include <limits.h>
-#include <locale.h>
+#ifndef _LIBCPP_HAS_NO_LOCALIZATION
+#   include <locale.h>
+#endif
 #include <math.h>
 #include <setjmp.h>
 #include <signal.h>
@@ -40,4 +43,6 @@ extern "C" {
 #include <wctype.h>
 }
 
-int main() {}
+int main(int, char**) {
+  return 0;
+}

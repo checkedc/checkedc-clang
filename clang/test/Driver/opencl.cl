@@ -1,8 +1,10 @@
 // RUN: %clang -S -### -cl-std=CL %s 2>&1 | FileCheck --check-prefix=CHECK-CL %s
+// RUN: %clang -S -### -cl-std=CL1.0 %s 2>&1 | FileCheck --check-prefix=CHECK-CL10 %s
 // RUN: %clang -S -### -cl-std=CL1.1 %s 2>&1 | FileCheck --check-prefix=CHECK-CL11 %s
 // RUN: %clang -S -### -cl-std=CL1.2 %s 2>&1 | FileCheck --check-prefix=CHECK-CL12 %s
 // RUN: %clang -S -### -cl-std=CL2.0 %s 2>&1 | FileCheck --check-prefix=CHECK-CL20 %s
-// RUN: %clang -S -### -cl-std=c++ %s 2>&1 | FileCheck --check-prefix=CHECK-CLCPP %s
+// RUN: %clang -S -### -cl-std=CL3.0 %s 2>&1 | FileCheck --check-prefix=CHECK-CL30 %s
+// RUN: %clang -S -### -cl-std=clc++ %s 2>&1 | FileCheck --check-prefix=CHECK-CLCPP %s
 // RUN: %clang -S -### -cl-opt-disable %s 2>&1 | FileCheck --check-prefix=CHECK-OPT-DISABLE %s
 // RUN: %clang -S -### -cl-strict-aliasing %s 2>&1 | FileCheck --check-prefix=CHECK-STRICT-ALIASING %s
 // RUN: %clang -S -### -cl-single-precision-constant %s 2>&1 | FileCheck --check-prefix=CHECK-SINGLE-PRECISION-CONST %s
@@ -19,10 +21,12 @@
 // RUN: not %clang -cl-std=invalid -DOPENCL %s 2>&1 | FileCheck --check-prefix=CHECK-INVALID %s
 
 // CHECK-CL: "-cc1" {{.*}} "-cl-std=CL"
+// CHECK-CL10: "-cc1" {{.*}} "-cl-std=CL1.0"
 // CHECK-CL11: "-cc1" {{.*}} "-cl-std=CL1.1"
 // CHECK-CL12: "-cc1" {{.*}} "-cl-std=CL1.2"
 // CHECK-CL20: "-cc1" {{.*}} "-cl-std=CL2.0"
-// CHECK-CLCPP: "-cc1" {{.*}} "-cl-std=c++"
+// CHECK-CL30: "-cc1" {{.*}} "-cl-std=CL3.0"
+// CHECK-CLCPP: "-cc1" {{.*}} "-cl-std=clc++"
 // CHECK-OPT-DISABLE: "-cc1" {{.*}} "-cl-opt-disable"
 // CHECK-STRICT-ALIASING: "-cc1" {{.*}} "-cl-strict-aliasing"
 // CHECK-SINGLE-PRECISION-CONST: "-cc1" {{.*}} "-cl-single-precision-constant"
@@ -32,7 +36,10 @@
 // CHECK-FAST-RELAXED-MATH: "-cc1" {{.*}} "-cl-fast-relaxed-math"
 // CHECK-MAD-ENABLE: "-cc1" {{.*}} "-cl-mad-enable"
 // CHECK-NO-SIGNED-ZEROS: "-cc1" {{.*}} "-cl-no-signed-zeros"
-// CHECK-DENORMS-ARE-ZERO: "-cc1" {{.*}} "-cl-denorms-are-zero"
+
+// This is not forwarded
+// CHECK-DENORMS-ARE-ZERO-NOT: "-cl-denorms-are-zero"
+
 // CHECK-ROUND-DIV: "-cc1" {{.*}} "-cl-fp32-correctly-rounded-divide-sqrt"
 // CHECK-UNIFORM-WG: "-cc1" {{.*}} "-cl-uniform-work-group-size"
 // CHECK-C99: error: invalid value 'c99' in '-cl-std=c99'

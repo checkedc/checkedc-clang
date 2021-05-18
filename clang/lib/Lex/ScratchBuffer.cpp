@@ -1,9 +1,8 @@
 //===--- ScratchBuffer.cpp - Scratch space for forming tokens -------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -38,10 +37,10 @@ SourceLocation ScratchBuffer::getToken(const char *Buf, unsigned Len,
   else {
     // Clear out the source line cache if it's already been computed.
     // FIXME: Allow this to be incrementally extended.
-    auto *ContentCache = const_cast<SrcMgr::ContentCache *>(
-        SourceMgr.getSLocEntry(SourceMgr.getFileID(BufferStartLoc))
-                 .getFile().getContentCache());
-    ContentCache->SourceLineCache = nullptr;
+    SourceMgr.getSLocEntry(SourceMgr.getFileID(BufferStartLoc))
+        .getFile()
+        .getContentCache()
+        .SourceLineCache = SrcMgr::LineOffsetMapping();
   }
 
   // Prefix the token with a \n, so that it looks like it is the first thing on

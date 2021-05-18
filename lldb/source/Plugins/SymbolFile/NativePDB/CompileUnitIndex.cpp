@@ -1,9 +1,8 @@
-//===-- CompileUnitIndex.cpp ------------------------------------*- C++ -*-===//
+//===-- CompileUnitIndex.cpp ----------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -125,13 +124,22 @@ CompilandIndexItem &CompileUnitIndex::GetOrCreateCompiland(uint16_t modi) {
   uint16_t stream = descriptor.getModuleStreamIndex();
   std::unique_ptr<llvm::msf::MappedBlockStream> stream_data =
       m_index.pdb().createIndexedStream(stream);
+
+
+  std::unique_ptr<CompilandIndexItem>& cci = result.first->second;
+
+  if (!stream_data) {
+    llvm::pdb::ModuleDebugStreamRef debug_stream(descriptor, nullptr);
+    cci = std::make_unique<CompilandIndexItem>(PdbCompilandId{ modi }, debug_stream, std::move(descriptor));
+    return *cci;
+  }
+
   llvm::pdb::ModuleDebugStreamRef debug_stream(descriptor,
                                                std::move(stream_data));
+
   cantFail(debug_stream.reload());
 
-  std::unique_ptr<CompilandIndexItem> &cci = result.first->second;
-
-  cci = llvm::make_unique<CompilandIndexItem>(
+  cci = std::make_unique<CompilandIndexItem>(
       PdbCompilandId{modi}, std::move(debug_stream), std::move(descriptor));
   ParseExtendedInfo(m_index, *cci);
 
@@ -146,7 +154,7 @@ CompilandIndexItem &CompileUnitIndex::GetOrCreateCompiland(uint16_t modi) {
   // name until we find it, and we can cache that one since the memory is backed
   // by a contiguous chunk inside the mapped PDB.
   llvm::SmallString<64> main_file = GetMainSourceFile(*cci);
-  std::string s = main_file.str();
+  std::string s = std::string(main_file.str());
   llvm::sys::path::native(main_file);
 
   uint32_t file_count = modules.getSourceFileCount(modi);

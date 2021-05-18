@@ -1,14 +1,13 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 import glob, os, pipes, sys, subprocess
 
 
-if not "SANITIZER_IOSSIM_TEST_DEVICE_IDENTIFIER" in os.environ:
+device_id = os.environ.get('SANITIZER_IOSSIM_TEST_DEVICE_IDENTIFIER')
+if not device_id:
   raise EnvironmentError("Specify SANITIZER_IOSSIM_TEST_DEVICE_IDENTIFIER to select which simulator to use.")
 
-device_id = os.environ["SANITIZER_IOSSIM_TEST_DEVICE_IDENTIFIER"]
-
-for e in ["ASAN_OPTIONS", "TSAN_OPTIONS", "UBSAN_OPTIONS", "APPLE_ASAN_INIT_FOR_DLOPEN"]:
+for e in ["ASAN_OPTIONS", "TSAN_OPTIONS", "UBSAN_OPTIONS", "APPLE_ASAN_INIT_FOR_DLOPEN", "ASAN_ACTIVATION_OPTIONS"]:
   if e in os.environ:
     os.environ["SIMCTL_CHILD_" + e] = os.environ[e]
 
@@ -30,7 +29,7 @@ if prog == 'rm':
   # We use `shell=True` so that any wildcard globs get expanded by the shell.
   exitcode = subprocess.call(rm_cmd_line_str, shell=True)
 else:
-  exitcode = subprocess.call(["xcrun", "simctl", "spawn", device_id] + sys.argv[1:])
+  exitcode = subprocess.call(["xcrun", "simctl", "spawn", "--standalone", device_id] + sys.argv[1:])
 if exitcode > 125:
   exitcode = 126
 sys.exit(exitcode)

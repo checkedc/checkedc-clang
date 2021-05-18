@@ -1,4 +1,4 @@
-// Check that 'llvm-readobj -dyn-relocations' shows dynamic relocations
+// Check that 'llvm-readobj --dyn-relocations' shows dynamic relocations
 // if they have REL record format.
 
 // dyn-rel.so.elf-mips
@@ -23,7 +23,7 @@
 // % llvm-mc -filetype=obj -triple=mips-unknown-linux -o test.o test.s
 // % ld  -m elf32btsmip -shared -o dyn-rel.so.elf-mips test.o
 
-RUN: llvm-readobj -relocations -dyn-relocations -expand-relocs \
+RUN: llvm-readobj -r --dyn-relocations --expand-relocs \
 RUN:   %p/Inputs/dyn-rel.so.elf-mips | FileCheck %s
 
 // CHECK:      Relocations [
@@ -32,19 +32,16 @@ RUN:   %p/Inputs/dyn-rel.so.elf-mips | FileCheck %s
 // CHECK-NEXT:       Offset: 0x0
 // CHECK-NEXT:       Type: R_MIPS_NONE (0)
 // CHECK-NEXT:       Symbol: - (0)
-// CHECK-NEXT:       Addend: 0x0
 // CHECK-NEXT:     }
 // CHECK-NEXT:     Relocation {
 // CHECK-NEXT:       Offset: 0x102F8
 // CHECK-NEXT:       Type: R_MIPS_REL32 (3)
 // CHECK-NEXT:       Symbol: - (0)
-// CHECK-NEXT:       Addend: 0x0
 // CHECK-NEXT:     }
 // CHECK-NEXT:     Relocation {
 // CHECK-NEXT:       Offset: 0x102F4
 // CHECK-NEXT:       Type: R_MIPS_REL32 (3)
 // CHECK-NEXT:       Symbol: v2 (9)
-// CHECK-NEXT:       Addend: 0x0
 // CHECK-NEXT:     }
 // CHECK-NEXT:   }
 // CHECK-NEXT: ]
@@ -54,18 +51,15 @@ RUN:   %p/Inputs/dyn-rel.so.elf-mips | FileCheck %s
 // CHECK-NEXT:     Offset: 0x0
 // CHECK-NEXT:     Type: R_MIPS_NONE (0)
 // CHECK-NEXT:     Symbol: -
-// CHECK-NEXT:     Addend: 0x0
 // CHECK-NEXT:   }
 // CHECK-NEXT:   Relocation {
 // CHECK-NEXT:     Offset: 0x102F8
 // CHECK-NEXT:     Type: R_MIPS_REL32 (3)
 // CHECK-NEXT:     Symbol: -
-// CHECK-NEXT:     Addend: 0x0
 // CHECK-NEXT:   }
 // CHECK-NEXT:   Relocation {
 // CHECK-NEXT:     Offset: 0x102F4
 // CHECK-NEXT:     Type: R_MIPS_REL32 (3)
 // CHECK-NEXT:     Symbol: v2
-// CHECK-NEXT:     Addend: 0x0
 // CHECK-NEXT:   }
 // CHECK-NEXT: }

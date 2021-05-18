@@ -1,14 +1,13 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
 // UNSUPPORTED: libcpp-has-no-threads
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // There's currently no release of OS X whose dylib contains the patch for
 // PR38682. Since the fix for future<void> is in the dylib, this test may fail.
@@ -18,8 +17,6 @@
 // UNSUPPORTED: with_system_cxx_lib=macosx10.11
 // UNSUPPORTED: with_system_cxx_lib=macosx10.10
 // UNSUPPORTED: with_system_cxx_lib=macosx10.9
-// UNSUPPORTED: with_system_cxx_lib=macosx10.8
-// UNSUPPORTED: with_system_cxx_lib=macosx10.7
 
 // This test is designed to cause and allow TSAN to detect a race condition
 // in std::async, as reported in https://bugs.llvm.org/show_bug.cgi?id=38682.
@@ -30,6 +27,8 @@
 #include <numeric>
 #include <vector>
 
+#include "test_macros.h"
+
 
 static int worker(std::vector<int> const& data) {
   return std::accumulate(data.begin(), data.end(), 0);
@@ -39,7 +38,7 @@ static int& worker_ref(int& i) { return i; }
 
 static void worker_void() { }
 
-int main() {
+int main(int, char**) {
   // future<T>
   {
     std::vector<int> const v{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
@@ -66,4 +65,6 @@ int main() {
       fut.get();
     }
   }
+
+  return 0;
 }

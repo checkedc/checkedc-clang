@@ -1,9 +1,8 @@
 //===--- IncludeOrderCheck.cpp - clang-tidy -------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -16,12 +15,13 @@
 
 namespace clang {
 namespace tidy {
-namespace llvm {
+namespace llvm_check {
 
 namespace {
 class IncludeOrderPPCallbacks : public PPCallbacks {
 public:
-  explicit IncludeOrderPPCallbacks(ClangTidyCheck &Check, SourceManager &SM)
+  explicit IncludeOrderPPCallbacks(ClangTidyCheck &Check,
+                                   const SourceManager &SM)
       : LookForMainModule(true), Check(Check), SM(SM) {}
 
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
@@ -46,14 +46,14 @@ private:
   bool LookForMainModule;
 
   ClangTidyCheck &Check;
-  SourceManager &SM;
+  const SourceManager &SM;
 };
 } // namespace
 
-void IncludeOrderCheck::registerPPCallbacks(CompilerInstance &Compiler) {
-  Compiler.getPreprocessor().addPPCallbacks(
-      ::llvm::make_unique<IncludeOrderPPCallbacks>(
-          *this, Compiler.getSourceManager()));
+void IncludeOrderCheck::registerPPCallbacks(const SourceManager &SM,
+                                            Preprocessor *PP,
+                                            Preprocessor *ModuleExpanderPP) {
+  PP->addPPCallbacks(::std::make_unique<IncludeOrderPPCallbacks>(*this, SM));
 }
 
 static int getPriority(StringRef Filename, bool IsAngled, bool IsMainModule) {
@@ -67,7 +67,8 @@ static int getPriority(StringRef Filename, bool IsAngled, bool IsMainModule) {
     return 2;
 
   // System headers are sorted to the end.
-  if (IsAngled || Filename.startswith("gtest/"))
+  if (IsAngled || Filename.startswith("gtest/") ||
+      Filename.startswith("gmock/"))
     return 3;
 
   // Other headers are inserted between the main module header and LLVM headers.
@@ -81,7 +82,8 @@ void IncludeOrderPPCallbacks::InclusionDirective(
     SrcMgr::CharacteristicKind FileType) {
   // We recognize the first include as a special main module header and want
   // to leave it in the top position.
-  IncludeDirective ID = {HashLoc, FilenameRange, FileName, IsAngled, false};
+  IncludeDirective ID = {HashLoc, FilenameRange, std::string(FileName),
+                         IsAngled, false};
   if (LookForMainModule && !IsAngled) {
     ID.IsMainModule = true;
     LookForMainModule = false;
@@ -176,6 +178,6 @@ void IncludeOrderPPCallbacks::EndOfMainFile() {
   IncludeDirectives.clear();
 }
 
-} // namespace llvm
+} // namespace llvm_check
 } // namespace tidy
 } // namespace clang

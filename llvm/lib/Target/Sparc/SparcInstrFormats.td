@@ -1,9 +1,8 @@
 //===-- SparcInstrFormats.td - Sparc Instruction Formats ---*- tablegen -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -25,7 +24,7 @@ class InstSP<dag outs, dag ins, string asmstr, list<dag> pattern,
 
   let DecoderNamespace = "Sparc";
   field bits<32> SoftFail = 0;
-  
+
   let Itinerary = itin;
 }
 
@@ -225,13 +224,13 @@ class F3_Si<bits<2> opVal, bits<6> op3val, bit xVal, dag outs, dag ins,
 
 // Define rr and ri shift instructions with patterns.
 multiclass F3_S<string OpcStr, bits<6> Op3Val, bit XVal, SDNode OpNode,
-                ValueType VT, RegisterClass RC,
+                ValueType VT, ValueType SIT, RegisterClass RC,
                 InstrItinClass itin = IIC_iu_instr> {
   def rr : F3_Sr<2, Op3Val, XVal, (outs RC:$rd), (ins RC:$rs1, IntRegs:$rs2),
                  !strconcat(OpcStr, " $rs1, $rs2, $rd"),
                  [(set VT:$rd, (OpNode VT:$rs1, i32:$rs2))],
                  itin>;
-  def ri : F3_Si<2, Op3Val, XVal, (outs RC:$rd), (ins RC:$rs1, i32imm:$shcnt),
+  def ri : F3_Si<2, Op3Val, XVal, (outs RC:$rd), (ins RC:$rs1, SIT:$shcnt),
                  !strconcat(OpcStr, " $rs1, $shcnt, $rd"),
                  [(set VT:$rd, (OpNode VT:$rs1, (i32 imm:$shcnt)))],
                  itin>;

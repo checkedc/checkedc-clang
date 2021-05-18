@@ -1,9 +1,8 @@
-//===-- UnwindTable.cpp -----------------------------------------*- C++ -*-===//
+//===-- UnwindTable.cpp ---------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -14,11 +13,13 @@
 #include "lldb/Core/Module.h"
 #include "lldb/Core/Section.h"
 #include "lldb/Symbol/ArmUnwindInfo.h"
+#include "lldb/Symbol/CallFrameInfo.h"
 #include "lldb/Symbol/CompactUnwindInfo.h"
 #include "lldb/Symbol/DWARFCallFrameInfo.h"
 #include "lldb/Symbol/FuncUnwinders.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/SymbolContext.h"
+#include "lldb/Symbol/SymbolVendor.h"
 
 // There is one UnwindTable object per ObjectFile. It contains a list of Unwind
 // objects -- one per function, populated lazily -- for the ObjectFile. Each
@@ -27,9 +28,10 @@
 using namespace lldb;
 using namespace lldb_private;
 
-UnwindTable::UnwindTable(ObjectFile &objfile)
-    : m_object_file(objfile), m_unwinds(), m_initialized(false), m_mutex(),
-      m_eh_frame_up(), m_compact_unwind_up(), m_arm_unwind_up() {}
+UnwindTable::UnwindTable(Module &module)
+    : m_module(module), m_unwinds(), m_initialized(false), m_mutex(),
+      m_object_file_unwind_up(), m_eh_frame_up(), m_compact_unwind_up(),
+      m_arm_unwind_up() {}
 
 // We can't do some of this initialization when the ObjectFile is running its
 // ctor; delay doing it until needed for something.
@@ -43,33 +45,40 @@ void UnwindTable::Initialize() {
   if (m_initialized) // check again once we've acquired the lock
     return;
   m_initialized = true;
+  ObjectFile *object_file = m_module.GetObjectFile();
+  if (!object_file)
+    return;
 
-  SectionList *sl = m_object_file.GetSectionList();
+  m_object_file_unwind_up = object_file->CreateCallFrameInfo();
+
+  SectionList *sl = m_module.GetSectionList();
   if (!sl)
     return;
 
   SectionSP sect = sl->FindSectionByType(eSectionTypeEHFrame, true);
   if (sect.get()) {
-    m_eh_frame_up.reset(
-        new DWARFCallFrameInfo(m_object_file, sect, DWARFCallFrameInfo::EH));
+    m_eh_frame_up = std::make_unique<DWARFCallFrameInfo>(
+        *object_file, sect, DWARFCallFrameInfo::EH);
   }
 
   sect = sl->FindSectionByType(eSectionTypeDWARFDebugFrame, true);
   if (sect) {
-    m_debug_frame_up.reset(
-        new DWARFCallFrameInfo(m_object_file, sect, DWARFCallFrameInfo::DWARF));
+    m_debug_frame_up = std::make_unique<DWARFCallFrameInfo>(
+        *object_file, sect, DWARFCallFrameInfo::DWARF);
   }
 
   sect = sl->FindSectionByType(eSectionTypeCompactUnwind, true);
   if (sect) {
-    m_compact_unwind_up.reset(new CompactUnwindInfo(m_object_file, sect));
+    m_compact_unwind_up =
+        std::make_unique<CompactUnwindInfo>(*object_file, sect);
   }
 
   sect = sl->FindSectionByType(eSectionTypeARMexidx, true);
   if (sect) {
     SectionSP sect_extab = sl->FindSectionByType(eSectionTypeARMextab, true);
     if (sect_extab.get()) {
-      m_arm_unwind_up.reset(new ArmUnwindInfo(m_object_file, sect, sect_extab));
+      m_arm_unwind_up =
+          std::make_unique<ArmUnwindInfo>(*object_file, sect, sect_extab);
     }
   }
 }
@@ -80,7 +89,12 @@ llvm::Optional<AddressRange> UnwindTable::GetAddressRange(const Address &addr,
                                                           SymbolContext &sc) {
   AddressRange range;
 
-  // First check the symbol context
+  // First check the unwind info from the object file plugin
+  if (m_object_file_unwind_up &&
+      m_object_file_unwind_up->GetAddressRange(addr, range))
+    return range;
+
+  // Check the symbol context
   if (sc.GetAddressRange(eSymbolContextFunction | eSymbolContextSymbol, 0,
                          false, range) &&
       range.GetBaseAddress().IsValid())
@@ -149,8 +163,7 @@ UnwindTable::GetUncachedFuncUnwindersContainingAddress(const Address &addr,
 
 void UnwindTable::Dump(Stream &s) {
   std::lock_guard<std::mutex> guard(m_mutex);
-  s.Printf("UnwindTable for '%s':\n",
-           m_object_file.GetFileSpec().GetPath().c_str());
+  s.Format("UnwindTable for '{0}':\n", m_module.GetFileSpec());
   const_iterator begin = m_unwinds.begin();
   const_iterator end = m_unwinds.end();
   for (const_iterator pos = begin; pos != end; ++pos) {
@@ -158,6 +171,11 @@ void UnwindTable::Dump(Stream &s) {
              pos->first);
   }
   s.EOL();
+}
+
+lldb_private::CallFrameInfo *UnwindTable::GetObjectFileUnwindInfo() {
+  Initialize();
+  return m_object_file_unwind_up.get();
 }
 
 DWARFCallFrameInfo *UnwindTable::GetEHFrameInfo() {
@@ -180,10 +198,12 @@ ArmUnwindInfo *UnwindTable::GetArmUnwindInfo() {
   return m_arm_unwind_up.get();
 }
 
-ArchSpec UnwindTable::GetArchitecture() {
-  return m_object_file.GetArchitecture();
-}
+SymbolFile *UnwindTable::GetSymbolFile() { return m_module.GetSymbolFile(); }
+
+ArchSpec UnwindTable::GetArchitecture() { return m_module.GetArchitecture(); }
 
 bool UnwindTable::GetAllowAssemblyEmulationUnwindPlans() {
-  return m_object_file.AllowAssemblyEmulationUnwindPlans();
+  if (ObjectFile *object_file = m_module.GetObjectFile())
+    return object_file->AllowAssemblyEmulationUnwindPlans();
+  return false;
 }

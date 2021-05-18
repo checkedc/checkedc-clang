@@ -1,9 +1,8 @@
 //===-- AArch64WinCOFFStreamer.cpp - ARM Target WinCOFF Streamer ----*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -29,7 +28,8 @@ public:
 
   void EmitWinEHHandlerData(SMLoc Loc) override;
   void EmitWindowsUnwindTables() override;
-  void FinishImpl() override;
+  void EmitWindowsUnwindTables(WinEH::FrameInfo *Frame) override;
+  void finishImpl() override;
 };
 
 void AArch64WinCOFFStreamer::EmitWinEHHandlerData(SMLoc Loc) {
@@ -37,7 +37,12 @@ void AArch64WinCOFFStreamer::EmitWinEHHandlerData(SMLoc Loc) {
 
   // We have to emit the unwind info now, because this directive
   // actually switches to the .xdata section!
-  EHStreamer.EmitUnwindInfo(*this, getCurrentWinFrameInfo());
+  EHStreamer.EmitUnwindInfo(*this, getCurrentWinFrameInfo(),
+                            /* HandlerData = */ true);
+}
+
+void AArch64WinCOFFStreamer::EmitWindowsUnwindTables(WinEH::FrameInfo *Frame) {
+  EHStreamer.EmitUnwindInfo(*this, Frame, /* HandlerData = */ false);
 }
 
 void AArch64WinCOFFStreamer::EmitWindowsUnwindTables() {
@@ -46,11 +51,11 @@ void AArch64WinCOFFStreamer::EmitWindowsUnwindTables() {
   EHStreamer.Emit(*this);
 }
 
-void AArch64WinCOFFStreamer::FinishImpl() {
-  EmitFrames(nullptr);
+void AArch64WinCOFFStreamer::finishImpl() {
+  emitFrames(nullptr);
   EmitWindowsUnwindTables();
 
-  MCWinCOFFStreamer::FinishImpl();
+  MCWinCOFFStreamer::finishImpl();
 }
 } // end anonymous namespace
 
@@ -69,7 +74,7 @@ void AArch64TargetWinCOFFStreamer::EmitARM64WinUnwindCode(unsigned UnwindCode,
   WinEH::FrameInfo *CurFrame = S.EnsureValidWinFrameInfo(SMLoc());
   if (!CurFrame)
     return;
-  MCSymbol *Label = S.EmitCFILabel();
+  MCSymbol *Label = S.emitCFILabel();
   auto Inst = WinEH::Instruction(UnwindCode, Label, Reg, Offset);
   if (InEpilogCFI)
     CurFrame->EpilogMap[CurrentEpilog].push_back(Inst);
@@ -84,6 +89,10 @@ void AArch64TargetWinCOFFStreamer::EmitARM64WinCFIAllocStack(unsigned Size) {
   else if (Size >= 512)
     Op = Win64EH::UOP_AllocMedium;
   EmitARM64WinUnwindCode(Op, -1, Size);
+}
+
+void AArch64TargetWinCOFFStreamer::EmitARM64WinCFISaveR19R20X(int Offset) {
+  EmitARM64WinUnwindCode(Win64EH::UOP_SaveR19R20X, -1, Offset);
 }
 
 void AArch64TargetWinCOFFStreamer::EmitARM64WinCFISaveFPLR(int Offset) {
@@ -114,6 +123,11 @@ void AArch64TargetWinCOFFStreamer::EmitARM64WinCFISaveRegP(unsigned Reg,
 void AArch64TargetWinCOFFStreamer::EmitARM64WinCFISaveRegPX(unsigned Reg,
                                                             int Offset) {
   EmitARM64WinUnwindCode(Win64EH::UOP_SaveRegPX, Reg, Offset);
+}
+
+void AArch64TargetWinCOFFStreamer::EmitARM64WinCFISaveLRPair(unsigned Reg,
+                                                             int Offset) {
+  EmitARM64WinUnwindCode(Win64EH::UOP_SaveLRPair, Reg, Offset);
 }
 
 void AArch64TargetWinCOFFStreamer::EmitARM64WinCFISaveFReg(unsigned Reg,
@@ -151,6 +165,10 @@ void AArch64TargetWinCOFFStreamer::EmitARM64WinCFINop() {
   EmitARM64WinUnwindCode(Win64EH::UOP_Nop, -1, 0);
 }
 
+void AArch64TargetWinCOFFStreamer::EmitARM64WinCFISaveNext() {
+  EmitARM64WinUnwindCode(Win64EH::UOP_SaveNext, -1, 0);
+}
+
 // The functions below handle opcodes that can end up in either a prolog or
 // an epilog, but not both.
 void AArch64TargetWinCOFFStreamer::EmitARM64WinCFIPrologEnd() {
@@ -159,7 +177,7 @@ void AArch64TargetWinCOFFStreamer::EmitARM64WinCFIPrologEnd() {
   if (!CurFrame)
     return;
 
-  MCSymbol *Label = S.EmitCFILabel();
+  MCSymbol *Label = S.emitCFILabel();
   CurFrame->PrologEnd = Label;
   WinEH::Instruction Inst = WinEH::Instruction(Win64EH::UOP_End, Label, -1, 0);
   auto it = CurFrame->Instructions.begin();
@@ -173,7 +191,7 @@ void AArch64TargetWinCOFFStreamer::EmitARM64WinCFIEpilogStart() {
     return;
 
   InEpilogCFI = true;
-  CurrentEpilog = S.EmitCFILabel();
+  CurrentEpilog = S.emitCFILabel();
 }
 
 void AArch64TargetWinCOFFStreamer::EmitARM64WinCFIEpilogEnd() {
@@ -183,10 +201,26 @@ void AArch64TargetWinCOFFStreamer::EmitARM64WinCFIEpilogEnd() {
     return;
 
   InEpilogCFI = false;
-  MCSymbol *Label = S.EmitCFILabel();
+  MCSymbol *Label = S.emitCFILabel();
   WinEH::Instruction Inst = WinEH::Instruction(Win64EH::UOP_End, Label, -1, 0);
   CurFrame->EpilogMap[CurrentEpilog].push_back(Inst);
   CurrentEpilog = nullptr;
+}
+
+void AArch64TargetWinCOFFStreamer::EmitARM64WinCFITrapFrame() {
+  EmitARM64WinUnwindCode(Win64EH::UOP_TrapFrame, -1, 0);
+}
+
+void AArch64TargetWinCOFFStreamer::EmitARM64WinCFIMachineFrame() {
+  EmitARM64WinUnwindCode(Win64EH::UOP_PushMachFrame, -1, 0);
+}
+
+void AArch64TargetWinCOFFStreamer::EmitARM64WinCFIContext() {
+  EmitARM64WinUnwindCode(Win64EH::UOP_Context, -1, 0);
+}
+
+void AArch64TargetWinCOFFStreamer::EmitARM64WinCFIClearUnwoundToCall() {
+  EmitARM64WinUnwindCode(Win64EH::UOP_ClearUnwoundToCall, -1, 0);
 }
 
 MCWinCOFFStreamer *createAArch64WinCOFFStreamer(

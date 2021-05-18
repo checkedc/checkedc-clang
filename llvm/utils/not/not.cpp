@@ -1,9 +1,8 @@
 //===- not.cpp - The 'not' testing tool -----------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 // Usage:
@@ -15,6 +14,10 @@
 #include "llvm/Support/Program.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 using namespace llvm;
 
@@ -28,6 +31,16 @@ int main(int argc, const char **argv) {
     ++argv;
     --argc;
     ExpectCrash = true;
+
+    // Crash is expected, so disable crash report and symbolization to reduce
+    // output and avoid potentially slow symbolization.
+#ifdef _WIN32
+    SetEnvironmentVariableA("LLVM_DISABLE_CRASH_REPORT", "1");
+    SetEnvironmentVariableA("LLVM_DISABLE_SYMBOLIZATION", "1");
+#else
+    setenv("LLVM_DISABLE_CRASH_REPORT", "1", 0);
+    setenv("LLVM_DISABLE_SYMBOLIZATION", "1", 0);
+#endif
   }
 
   if (argc == 0)

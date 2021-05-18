@@ -1,24 +1,20 @@
 //===-- AMDGPUTargetStreamer.h - AMDGPU Target Streamer --------*- C++ -*--===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_LIB_TARGET_AMDGPU_MCTARGETDESC_AMDGPUTARGETSTREAMER_H
 #define LLVM_LIB_TARGET_AMDGPU_MCTARGETDESC_AMDGPUTARGETSTREAMER_H
 
-#include "AMDKernelCodeT.h"
-#include "llvm/BinaryFormat/MsgPackTypes.h"
+#include "Utils/AMDGPUPALMetadata.h"
 #include "llvm/MC/MCStreamer.h"
-#include "llvm/MC/MCSubtargetInfo.h"
-#include "llvm/Support/AMDGPUMetadata.h"
-#include "llvm/Support/AMDHSAKernelDescriptor.h"
+
+struct amd_kernel_code_t;
 
 namespace llvm {
-#include "AMDGPUPTNote.h"
 
 class DataLayout;
 class Function;
@@ -28,12 +24,26 @@ class MDNode;
 class Module;
 class Type;
 
+namespace AMDGPU {
+namespace HSAMD {
+struct Metadata;
+}
+} // namespace AMDGPU
+
+namespace amdhsa {
+struct kernel_descriptor_t;
+}
+
 class AMDGPUTargetStreamer : public MCTargetStreamer {
+  AMDGPUPALMetadata PALMetadata;
+
 protected:
   MCContext &getContext() const { return Streamer.getContext(); }
 
 public:
   AMDGPUTargetStreamer(MCStreamer &S) : MCTargetStreamer(S) {}
+
+  AMDGPUPALMetadata *getPALMetadata() { return &PALMetadata; }
 
   virtual void EmitDirectiveAMDGCNTarget(StringRef Target) = 0;
 
@@ -48,6 +58,9 @@ public:
   virtual void EmitAMDKernelCodeT(const amd_kernel_code_t &Header) = 0;
 
   virtual void EmitAMDGPUSymbolType(StringRef SymbolName, unsigned Type) = 0;
+
+  virtual void emitAMDGPULDS(MCSymbol *Symbol, unsigned Size,
+                             Align Alignment) = 0;
 
   /// \returns True on success, false on failure.
   virtual bool EmitISAVersion(StringRef IsaVersionString) = 0;
@@ -65,14 +78,13 @@ public:
   /// the \p HSAMetadata structure is updated with the correct types.
   ///
   /// \returns True on success, false on failure.
-  virtual bool EmitHSAMetadata(std::shared_ptr<msgpack::Node> &HSAMetadata,
-                               bool Strict) = 0;
+  virtual bool EmitHSAMetadata(msgpack::Document &HSAMetadata, bool Strict) = 0;
 
   /// \returns True on success, false on failure.
   virtual bool EmitHSAMetadata(const AMDGPU::HSAMD::Metadata &HSAMetadata) = 0;
 
   /// \returns True on success, false on failure.
-  virtual bool EmitPALMetadata(const AMDGPU::PALMD::Metadata &PALMetadata) = 0;
+  virtual bool EmitCodeEnd() = 0;
 
   virtual void EmitAmdhsaKernelDescriptor(
       const MCSubtargetInfo &STI, StringRef KernelName,
@@ -89,6 +101,8 @@ class AMDGPUTargetAsmStreamer final : public AMDGPUTargetStreamer {
 public:
   AMDGPUTargetAsmStreamer(MCStreamer &S, formatted_raw_ostream &OS);
 
+  void finish() override;
+
   void EmitDirectiveAMDGCNTarget(StringRef Target) override;
 
   void EmitDirectiveHSACodeObjectVersion(uint32_t Major,
@@ -102,18 +116,19 @@ public:
 
   void EmitAMDGPUSymbolType(StringRef SymbolName, unsigned Type) override;
 
+  void emitAMDGPULDS(MCSymbol *Sym, unsigned Size, Align Alignment) override;
+
   /// \returns True on success, false on failure.
   bool EmitISAVersion(StringRef IsaVersionString) override;
 
   /// \returns True on success, false on failure.
-  bool EmitHSAMetadata(std::shared_ptr<msgpack::Node> &HSAMetadata,
-                       bool Strict) override;
+  bool EmitHSAMetadata(msgpack::Document &HSAMetadata, bool Strict) override;
 
   /// \returns True on success, false on failure.
   bool EmitHSAMetadata(const AMDGPU::HSAMD::Metadata &HSAMetadata) override;
 
   /// \returns True on success, false on failure.
-  bool EmitPALMetadata(const AMDGPU::PALMD::Metadata &PALMetadata) override;
+  bool EmitCodeEnd() override;
 
   void EmitAmdhsaKernelDescriptor(
       const MCSubtargetInfo &STI, StringRef KernelName,
@@ -124,6 +139,7 @@ public:
 
 class AMDGPUTargetELFStreamer final : public AMDGPUTargetStreamer {
   MCStreamer &Streamer;
+  Triple::OSType Os;
 
   void EmitNote(StringRef Name, const MCExpr *DescSize, unsigned NoteType,
                 function_ref<void(MCELFStreamer &)> EmitDesc);
@@ -132,6 +148,8 @@ public:
   AMDGPUTargetELFStreamer(MCStreamer &S, const MCSubtargetInfo &STI);
 
   MCELFStreamer &getStreamer();
+
+  void finish() override;
 
   void EmitDirectiveAMDGCNTarget(StringRef Target) override;
 
@@ -146,18 +164,19 @@ public:
 
   void EmitAMDGPUSymbolType(StringRef SymbolName, unsigned Type) override;
 
+  void emitAMDGPULDS(MCSymbol *Sym, unsigned Size, Align Alignment) override;
+
   /// \returns True on success, false on failure.
   bool EmitISAVersion(StringRef IsaVersionString) override;
 
   /// \returns True on success, false on failure.
-  bool EmitHSAMetadata(std::shared_ptr<msgpack::Node> &HSAMetadata,
-                       bool Strict) override;
+  bool EmitHSAMetadata(msgpack::Document &HSAMetadata, bool Strict) override;
 
   /// \returns True on success, false on failure.
   bool EmitHSAMetadata(const AMDGPU::HSAMD::Metadata &HSAMetadata) override;
 
   /// \returns True on success, false on failure.
-  bool EmitPALMetadata(const AMDGPU::PALMD::Metadata &PALMetadata) override;
+  bool EmitCodeEnd() override;
 
   void EmitAmdhsaKernelDescriptor(
       const MCSubtargetInfo &STI, StringRef KernelName,

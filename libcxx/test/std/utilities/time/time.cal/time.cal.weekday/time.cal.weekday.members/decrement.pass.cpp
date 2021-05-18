@@ -1,12 +1,11 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class weekday;
@@ -26,13 +25,13 @@ template <typename WD>
 constexpr bool testConstexpr()
 {
     WD wd{1};
-    if (static_cast<unsigned>(--wd) != 0) return false;
-    if (static_cast<unsigned>(wd--) != 0) return false;
-    if (static_cast<unsigned>(wd)   != 6) return false;
+    if ((--wd).c_encoding() != 0) return false;
+    if ((wd--).c_encoding() != 0) return false;
+    if ((wd).c_encoding()   != 6) return false;
     return true;
 }
 
-int main()
+int main(int, char**)
 {
     using weekday = std::chrono::weekday;
     ASSERT_NOEXCEPT(--(std::declval<weekday&>())  );
@@ -46,8 +45,10 @@ int main()
     for (unsigned i = 0; i <= 6; ++i)
     {
         weekday wd(i);
-        assert((static_cast<unsigned>(--wd) == euclidian_subtraction<unsigned, 0, 6>(i, 1)));
-        assert((static_cast<unsigned>(wd--) == euclidian_subtraction<unsigned, 0, 6>(i, 1)));
-        assert((static_cast<unsigned>(wd)   == euclidian_subtraction<unsigned, 0, 6>(i, 2)));
+        assert(((--wd).c_encoding() == euclidian_subtraction<unsigned, 0, 6>(i, 1)));
+        assert(((wd--).c_encoding() == euclidian_subtraction<unsigned, 0, 6>(i, 1)));
+        assert(((wd)  .c_encoding() == euclidian_subtraction<unsigned, 0, 6>(i, 2)));
     }
+
+  return 0;
 }

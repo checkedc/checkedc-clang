@@ -14,7 +14,7 @@
 }
 @end
 
-// GLOBALS-LABEL @OBJC_METACLASS_A
+// GLOBALS-LABEL: @OBJC_METACLASS_A
 //  Strong layout: scan the first word.
 // GLOBALS: @OBJC_CLASS_NAME_{{.*}} = private unnamed_addr constant [2 x i8] c"\01\00"
 //  Weak layout: skip the first word, scan the second word.
@@ -137,7 +137,7 @@ void testBlockLayoutWeak(__weak id x) {
   useBlock(^{ (void) x; });
 }
 
-// CHECK-LABEL: define void @testCatch()
+// CHECK-LABEL: define{{.*}} void @testCatch()
 // CHECK: [[X:%.*]] = alloca [[A:%.*]]*, align 4
 // CHECK: [[Y:%.*]] = alloca i8*, align 4
 // CHECK: call void @objc_exception_try_enter

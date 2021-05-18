@@ -36,3 +36,12 @@ namespace PR16502 {
   int f();
   const A &c = { 10, ++c.temporary };
 }
+
+namespace IncompleteTest {
+  struct String;
+  // expected-error@+1 {{reference to incomplete type 'const IncompleteTest::String' could not bind to an lvalue of type 'const char [1]'}}
+  void takeString(const String& = "") {} // expected-note {{passing argument to parameter here}}
+  void test() {
+        takeString();
+  }
+}

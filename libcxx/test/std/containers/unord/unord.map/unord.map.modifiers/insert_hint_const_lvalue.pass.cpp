@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -15,13 +14,10 @@
 
 // iterator insert(const_iterator p, const value_type& x);
 
-#if _LIBCPP_DEBUG >= 1
-#define _LIBCPP_ASSERT(x, m) ((x) ? (void)0 : std::exit(0))
-#endif
-
 #include <unordered_map>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 template<class Container>
@@ -57,7 +53,7 @@ void do_insert_hint_const_lvalue_test()
     assert(r->second == 4);
 }
 
-int main()
+int main(int, char**)
 {
     do_insert_hint_const_lvalue_test<std::unordered_map<double, int> >();
 #if TEST_STD_VER >= 11
@@ -68,17 +64,6 @@ int main()
         do_insert_hint_const_lvalue_test<C>();
     }
 #endif
-#if _LIBCPP_DEBUG >= 1
-    {
-        typedef std::unordered_map<double, int> C;
-        typedef C::iterator R;
-        typedef C::value_type P;
-        C c;
-        C c2;
-        C::const_iterator e = c2.end();
-        P v(3.5, 3);
-        R r = c.insert(e, v);
-        assert(false);
-    }
-#endif
+
+    return 0;
 }

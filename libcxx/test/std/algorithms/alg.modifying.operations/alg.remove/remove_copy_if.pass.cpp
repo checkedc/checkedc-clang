@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -31,7 +30,7 @@ TEST_CONSTEXPR bool test_constexpr() {
 
     auto it = std::remove_copy_if(std::begin(ia), std::end(ia), std::begin(ib), equalToTwo);
 
-    return std::distance(std::begin(ib), it) == (std::size(ia) - 1)   // we removed one element
+    return std::distance(std::begin(ib), it) == static_cast<int>(std::size(ia) - 1)   // we removed one element
         && std::none_of(std::begin(ib), it, equalToTwo)
         && std::all_of (it, std::end(ib), [](int a) {return a == 0;})
            ;
@@ -56,7 +55,7 @@ test()
     assert(ib[5] == 4);
 }
 
-int main()
+int main(int, char**)
 {
     test<input_iterator<const int*>, output_iterator<int*> >();
     test<input_iterator<const int*>, forward_iterator<int*> >();
@@ -91,4 +90,6 @@ int main()
 #if TEST_STD_VER > 17
     static_assert(test_constexpr());
 #endif
+
+  return 0;
 }

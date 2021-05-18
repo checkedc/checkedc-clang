@@ -1,16 +1,15 @@
 //===-- Time.h --------------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 // Include system time headers, adding missing functions as necessary
 
-#ifndef liblldb_Host_Time_h_
-#define liblldb_Host_Time_h_
+#ifndef LLDB_HOST_TIME_H
+#define LLDB_HOST_TIME_H
 
 #ifdef __ANDROID__
 #include <android/api-level.h>
@@ -23,4 +22,4 @@ extern time_t timegm(struct tm *t);
 #include <time.h>
 #endif
 
-#endif // liblldb_Host_Time_h_
+#endif // LLDB_HOST_TIME_H

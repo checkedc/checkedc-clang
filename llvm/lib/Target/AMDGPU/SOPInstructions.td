@@ -1,15 +1,15 @@
-//===-- SOPInstructions.td - SOP Instruction Defintions -------------------===//
+//===-- SOPInstructions.td - SOP Instruction Definitions ------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 def GPRIdxModeMatchClass : AsmOperandClass {
   let Name = "GPRIdxMode";
   let PredicateMethod = "isGPRIdxMode";
+  let ParserMethod = "parseGPRIdxMode";
   let RenderMethod = "addImmOperands";
 }
 
@@ -26,7 +26,6 @@ class SOP_Pseudo<string opName, dag outs, dag ins, string asmOps,
 
   let isPseudo = 1;
   let isCodeGenOnly = 1;
-  let SubtargetPredicate = isGCN;
 
   string Mnemonic = opName;
   string AsmOperands = asmOps;
@@ -55,9 +54,9 @@ class SOP1_Pseudo <string opName, dag outs, dag ins,
   bits<1> has_sdst = 1;
 }
 
-class SOP1_Real<bits<8> op, SOP1_Pseudo ps> :
+class SOP1_Real<bits<8> op, SOP1_Pseudo ps, string real_name = ps.Mnemonic> :
   InstSI <ps.OutOperandList, ps.InOperandList,
-          ps.Mnemonic # " " # ps.AsmOperands, []>,
+          real_name # " " # ps.AsmOperands, []>,
   Enc32 {
 
   let isPseudo = 0;
@@ -78,10 +77,18 @@ class SOP1_Real<bits<8> op, SOP1_Pseudo ps> :
   let Inst{31-23} = 0x17d; //encoding;
 }
 
-class SOP1_32 <string opName, list<dag> pattern=[]> : SOP1_Pseudo <
-  opName, (outs SReg_32:$sdst), (ins SSrc_b32:$src0),
-  "$sdst, $src0", pattern
->;
+class SOP1_32 <string opName, list<dag> pattern=[], bit tied_in = 0> : SOP1_Pseudo <
+  opName, (outs SReg_32:$sdst),
+  !if(tied_in, (ins SSrc_b32:$src0, SReg_32:$sdst_in),
+               (ins SSrc_b32:$src0)),
+  "$sdst, $src0", pattern> {
+  let Constraints = !if(tied_in, "$sdst = $sdst_in", "");
+}
+
+// Only register input allowed.
+class SOP1_32R <string opName, list<dag> pattern=[]> : SOP1_Pseudo <
+  opName, (outs SReg_32:$sdst), (ins SReg_32:$src0),
+  "$sdst, $src0", pattern>;
 
 // 32-bit input, no output.
 class SOP1_0_32 <string opName, list<dag> pattern = []> : SOP1_Pseudo <
@@ -89,6 +96,17 @@ class SOP1_0_32 <string opName, list<dag> pattern = []> : SOP1_Pseudo <
   "$src0", pattern> {
   let has_sdst = 0;
 }
+
+// Special case for movreld where sdst is treated as a use operand.
+class SOP1_32_movreld <string opName, list<dag> pattern=[]> : SOP1_Pseudo <
+  opName, (outs), (ins SReg_32:$sdst, SSrc_b32:$src0),
+  "$sdst, $src0", pattern>;
+
+// Special case for movreld where sdst is treated as a use operand.
+class SOP1_64_movreld <string opName, list<dag> pattern=[]> : SOP1_Pseudo <
+  opName, (outs), (ins SReg_64:$sdst, SSrc_b64:$src0),
+  "$sdst, $src0", pattern
+>;
 
 class SOP1_0_32R <string opName, list<dag> pattern = []> : SOP1_Pseudo <
   opName, (outs), (ins SReg_32:$src0),
@@ -101,6 +119,12 @@ class SOP1_64 <string opName, list<dag> pattern=[]> : SOP1_Pseudo <
   "$sdst, $src0", pattern
 >;
 
+// Only register input allowed.
+class SOP1_64R <string opName, list<dag> pattern=[]> : SOP1_Pseudo <
+  opName, (outs SReg_64:$sdst), (ins SReg_64:$src0),
+  "$sdst, $src0", pattern
+>;
+
 // 64-bit input, 32-bit output.
 class SOP1_32_64 <string opName, list<dag> pattern=[]> : SOP1_Pseudo <
   opName, (outs SReg_32:$sdst), (ins SSrc_b64:$src0),
@@ -108,10 +132,13 @@ class SOP1_32_64 <string opName, list<dag> pattern=[]> : SOP1_Pseudo <
 >;
 
 // 32-bit input, 64-bit output.
-class SOP1_64_32 <string opName, list<dag> pattern=[]> : SOP1_Pseudo <
-  opName, (outs SReg_64:$sdst), (ins SSrc_b32:$src0),
-  "$sdst, $src0", pattern
->;
+class SOP1_64_32 <string opName, list<dag> pattern=[], bit tied_in = 0> : SOP1_Pseudo <
+  opName, (outs SReg_64:$sdst),
+  !if(tied_in, (ins SSrc_b32:$src0, SReg_64:$sdst_in),
+               (ins SSrc_b32:$src0)),
+  "$sdst, $src0", pattern> {
+  let Constraints = !if(tied_in, "$sdst = $sdst_in", "");
+}
 
 // no input, 64-bit output.
 class SOP1_64_0 <string opName, list<dag> pattern=[]> : SOP1_Pseudo <
@@ -120,8 +147,8 @@ class SOP1_64_0 <string opName, list<dag> pattern=[]> : SOP1_Pseudo <
 }
 
 // 64-bit input, no output
-class SOP1_1 <string opName, list<dag> pattern=[]> : SOP1_Pseudo <
-  opName, (outs), (ins SReg_64:$src0), "$src0", pattern> {
+class SOP1_1 <string opName, RegisterClass rc = SReg_64, list<dag> pattern=[]> : SOP1_Pseudo <
+  opName, (outs), (ins rc:$src0), "$src0", pattern> {
   let has_sdst = 0;
 }
 
@@ -147,11 +174,23 @@ let Defs = [SCC] in {
     [(set i64:$sdst, (not i64:$src0))]
   >;
   def S_WQM_B32 : SOP1_32 <"s_wqm_b32">;
-  def S_WQM_B64 : SOP1_64 <"s_wqm_b64",
-    [(set i1:$sdst, (int_amdgcn_wqm_vote i1:$src0))]
-  >;
+  def S_WQM_B64 : SOP1_64 <"s_wqm_b64">;
 } // End Defs = [SCC]
 
+
+let WaveSizePredicate = isWave32 in {
+def : GCNPat <
+  (int_amdgcn_wqm_vote i1:$src0),
+  (S_WQM_B32 SSrc_b32:$src0)
+>;
+}
+
+let WaveSizePredicate = isWave64 in {
+def : GCNPat <
+  (int_amdgcn_wqm_vote i1:$src0),
+  (S_WQM_B64 SSrc_b64:$src0)
+>;
+}
 
 def S_BREV_B32 : SOP1_32 <"s_brev_b32",
   [(set i32:$sdst, (bitreverse i32:$src0))]
@@ -164,12 +203,16 @@ def S_BCNT0_I32_B64 : SOP1_32_64 <"s_bcnt0_i32_b64">;
 def S_BCNT1_I32_B32 : SOP1_32 <"s_bcnt1_i32_b32",
   [(set i32:$sdst, (ctpop i32:$src0))]
 >;
-def S_BCNT1_I32_B64 : SOP1_32_64 <"s_bcnt1_i32_b64">;
+def S_BCNT1_I32_B64 : SOP1_32_64 <"s_bcnt1_i32_b64",
+  [(set i32:$sdst, (ctpop i64:$src0))]
+>;
 } // End Defs = [SCC]
 
 def S_FF0_I32_B32 : SOP1_32 <"s_ff0_i32_b32">;
 def S_FF0_I32_B64 : SOP1_32_64 <"s_ff0_i32_b64">;
-def S_FF1_I32_B64 : SOP1_32_64 <"s_ff1_i32_b64">;
+def S_FF1_I32_B64 : SOP1_32_64 <"s_ff1_i32_b64",
+  [(set i32:$sdst, (AMDGPUffbl_b32 i64:$src0))]
+>;
 
 def S_FF1_I32_B32 : SOP1_32 <"s_ff1_i32_b32",
   [(set i32:$sdst, (AMDGPUffbl_b32 i32:$src0))]
@@ -179,7 +222,9 @@ def S_FLBIT_I32_B32 : SOP1_32 <"s_flbit_i32_b32",
   [(set i32:$sdst, (AMDGPUffbh_u32 i32:$src0))]
 >;
 
-def S_FLBIT_I32_B64 : SOP1_32_64 <"s_flbit_i32_b64">;
+def S_FLBIT_I32_B64 : SOP1_32_64 <"s_flbit_i32_b64",
+  [(set i32:$sdst, (AMDGPUffbh_u32 i64:$src0))]
+>;
 def S_FLBIT_I32 : SOP1_32 <"s_flbit_i32",
   [(set i32:$sdst, (AMDGPUffbh_i32 i32:$src0))]
 >;
@@ -191,10 +236,10 @@ def S_SEXT_I32_I16 : SOP1_32 <"s_sext_i32_i16",
   [(set i32:$sdst, (sext_inreg i32:$src0, i16))]
 >;
 
-def S_BITSET0_B32 : SOP1_32    <"s_bitset0_b32">;
-def S_BITSET0_B64 : SOP1_64_32 <"s_bitset0_b64">;
-def S_BITSET1_B32 : SOP1_32    <"s_bitset1_b32">;
-def S_BITSET1_B64 : SOP1_64_32 <"s_bitset1_b64">;
+def S_BITSET0_B32 : SOP1_32    <"s_bitset0_b32", [], 1>;
+def S_BITSET0_B64 : SOP1_64_32 <"s_bitset0_b64", [], 1>;
+def S_BITSET1_B32 : SOP1_32    <"s_bitset1_b32", [], 1>;
+def S_BITSET1_B64 : SOP1_64_32 <"s_bitset1_b64", [], 1>;
 def S_GETPC_B64 : SOP1_64_0  <"s_getpc_b64",
   [(set i64:$sdst, (int_amdgcn_s_getpc))]
 >;
@@ -207,7 +252,7 @@ def S_SETPC_B64 : SOP1_1  <"s_setpc_b64">;
 
 let isReturn = 1 in {
 // Define variant marked as return rather than branch.
-def S_SETPC_B64_return : SOP1_1<"", [(AMDGPUret_flag i64:$src0)]>;
+def S_SETPC_B64_return : SOP1_1<"", CCR_SGPR_64, [(AMDGPUret_flag i64:$src0)]>;
 }
 } // End isTerminator = 1, isBarrier = 1
 
@@ -235,27 +280,28 @@ def S_QUADMASK_B32 : SOP1_32 <"s_quadmask_b32">;
 def S_QUADMASK_B64 : SOP1_64 <"s_quadmask_b64">;
 
 let Uses = [M0] in {
-def S_MOVRELS_B32 : SOP1_32 <"s_movrels_b32">;
-def S_MOVRELS_B64 : SOP1_64 <"s_movrels_b64">;
-def S_MOVRELD_B32 : SOP1_32 <"s_movreld_b32">;
-def S_MOVRELD_B64 : SOP1_64 <"s_movreld_b64">;
+def S_MOVRELS_B32 : SOP1_32R <"s_movrels_b32">;
+def S_MOVRELS_B64 : SOP1_64R <"s_movrels_b64">;
+def S_MOVRELD_B32 : SOP1_32_movreld <"s_movreld_b32">;
+def S_MOVRELD_B64 : SOP1_64_movreld <"s_movreld_b64">;
 } // End Uses = [M0]
 
+let SubtargetPredicate = isGFX6GFX7GFX8GFX9 in {
 def S_CBRANCH_JOIN : SOP1_0_32R <"s_cbranch_join">;
-def S_MOV_REGRD_B32 : SOP1_32 <"s_mov_regrd_b32">;
+} // End SubtargetPredicate = isGFX6GFX7GFX8GFX9
+
 let Defs = [SCC] in {
 def S_ABS_I32 : SOP1_32 <"s_abs_i32">;
 } // End Defs = [SCC]
-def S_MOV_FED_B32 : SOP1_32 <"s_mov_fed_b32">;
 
 let SubtargetPredicate = HasVGPRIndexMode in {
 def S_SET_GPR_IDX_IDX : SOP1_0_32<"s_set_gpr_idx_idx"> {
-  let Uses = [M0];
-  let Defs = [M0];
+  let Uses = [M0, MODE];
+  let Defs = [M0, MODE];
 }
 }
 
-let SubtargetPredicate = isGFX9 in {
+let SubtargetPredicate = isGFX9Plus in {
   let hasSideEffects = 1, Defs = [EXEC, SCC], Uses = [EXEC] in {
     def S_ANDN1_SAVEEXEC_B64 : SOP1_64<"s_andn1_saveexec_b64">;
     def S_ORN1_SAVEEXEC_B64  : SOP1_64<"s_orn1_saveexec_b64">;
@@ -264,7 +310,28 @@ let SubtargetPredicate = isGFX9 in {
   } // End hasSideEffects = 1, Defs = [EXEC, SCC], Uses = [EXEC]
 
   def S_BITREPLICATE_B64_B32 : SOP1_64_32<"s_bitreplicate_b64_b32">;
-} // End SubtargetPredicate = isGFX9
+} // End SubtargetPredicate = isGFX9Plus
+
+let SubtargetPredicate = isGFX10Plus in {
+  let hasSideEffects = 1, Defs = [EXEC, SCC], Uses = [EXEC] in {
+    def S_AND_SAVEEXEC_B32   : SOP1_32<"s_and_saveexec_b32">;
+    def S_OR_SAVEEXEC_B32    : SOP1_32<"s_or_saveexec_b32">;
+    def S_XOR_SAVEEXEC_B32   : SOP1_32<"s_xor_saveexec_b32">;
+    def S_ANDN2_SAVEEXEC_B32 : SOP1_32<"s_andn2_saveexec_b32">;
+    def S_ORN2_SAVEEXEC_B32  : SOP1_32<"s_orn2_saveexec_b32">;
+    def S_NAND_SAVEEXEC_B32  : SOP1_32<"s_nand_saveexec_b32">;
+    def S_NOR_SAVEEXEC_B32   : SOP1_32<"s_nor_saveexec_b32">;
+    def S_XNOR_SAVEEXEC_B32  : SOP1_32<"s_xnor_saveexec_b32">;
+    def S_ANDN1_SAVEEXEC_B32 : SOP1_32<"s_andn1_saveexec_b32">;
+    def S_ORN1_SAVEEXEC_B32  : SOP1_32<"s_orn1_saveexec_b32">;
+    def S_ANDN1_WREXEC_B32   : SOP1_32<"s_andn1_wrexec_b32">;
+    def S_ANDN2_WREXEC_B32   : SOP1_32<"s_andn2_wrexec_b32">;
+  } // End hasSideEffects = 1, Defs = [EXEC, SCC], Uses = [EXEC]
+
+  let Uses = [M0] in {
+    def S_MOVRELSD_2_B32 : SOP1_32<"s_movrelsd_2_b32">;
+  } // End Uses = [M0]
+} // End SubtargetPredicate = isGFX10Plus
 
 //===----------------------------------------------------------------------===//
 // SOP2 Instructions
@@ -292,9 +359,9 @@ class SOP2_Pseudo<string opName, dag outs, dag ins,
   // let Size = 4; // Do we need size here?
 }
 
-class SOP2_Real<bits<7> op, SOP_Pseudo ps> :
+class SOP2_Real<bits<7> op, SOP_Pseudo ps, string real_name = ps.Mnemonic> :
   InstSI <ps.OutOperandList, ps.InOperandList,
-          ps.Mnemonic # " " # ps.AsmOperands, []>,
+          real_name # " " # ps.AsmOperands, []>,
   Enc32 {
   let isPseudo = 0;
   let isCodeGenOnly = 0;
@@ -302,6 +369,8 @@ class SOP2_Real<bits<7> op, SOP_Pseudo ps> :
   // copy relevant pseudo op flags
   let SubtargetPredicate = ps.SubtargetPredicate;
   let AsmMatchConverter  = ps.AsmMatchConverter;
+  let UseNamedOperandTable = ps.UseNamedOperandTable;
+  let TSFlags = ps.TSFlags;
 
   // encoding
   bits<7> sdst;
@@ -339,14 +408,38 @@ class SOP2_64_32_32 <string opName, list<dag> pattern=[]> : SOP2_Pseudo <
 class UniformUnaryFrag<SDPatternOperator Op> : PatFrag <
   (ops node:$src0),
   (Op $src0),
-  [{ return !N->isDivergent(); }]
->;
+  [{ return !N->isDivergent(); }]> {
+  // This check is unnecessary as it's captured by the result register
+  // bank constraint.
+  //
+  // FIXME: Should add a way for the emitter to recognize this is a
+  // trivially true predicate to eliminate the check.
+  let GISelPredicateCode = [{return true;}];
+}
 
 class UniformBinFrag<SDPatternOperator Op> : PatFrag <
   (ops node:$src0, node:$src1),
   (Op $src0, $src1),
-  [{ return !N->isDivergent(); }]
->;
+  [{ return !N->isDivergent(); }]> {
+  // This check is unnecessary as it's captured by the result register
+  // bank constraint.
+  //
+  // FIXME: Should add a way for the emitter to recognize this is a
+  // trivially true predicate to eliminate the check.
+  let GISelPredicateCode = [{return true;}];
+}
+
+class DivergentBinFrag<SDPatternOperator Op> : PatFrag <
+  (ops node:$src0, node:$src1),
+  (Op $src0, $src1),
+  [{ return N->isDivergent(); }]> {
+  // This check is unnecessary as it's captured by the result register
+  // bank constraint.
+  //
+  // FIXME: Should add a way for the emitter to recognize this is a
+  // trivially true predicate to eliminate the check.
+  let GISelPredicateCode = [{return true;}];
+}
 
 let Defs = [SCC] in { // Carry out goes to SCC
 let isCommutable = 1 in {
@@ -374,23 +467,38 @@ def S_SUBB_U32 : SOP2_32 <"s_subb_u32",
 
 let isCommutable = 1 in {
 def S_MIN_I32 : SOP2_32 <"s_min_i32",
-  [(set i32:$sdst, (UniformBinFrag<smin> i32:$src0, i32:$src1))]
+  [(set i32:$sdst, (smin i32:$src0, i32:$src1))]
 >;
 def S_MIN_U32 : SOP2_32 <"s_min_u32",
-  [(set i32:$sdst, (UniformBinFrag<umin> i32:$src0, i32:$src1))]
+  [(set i32:$sdst, (umin i32:$src0, i32:$src1))]
 >;
 def S_MAX_I32 : SOP2_32 <"s_max_i32",
-  [(set i32:$sdst, (UniformBinFrag<smax> i32:$src0, i32:$src1))]
+  [(set i32:$sdst, (smax i32:$src0, i32:$src1))]
 >;
 def S_MAX_U32 : SOP2_32 <"s_max_u32",
-  [(set i32:$sdst, (UniformBinFrag<umax> i32:$src0, i32:$src1))]
+  [(set i32:$sdst, (umax i32:$src0, i32:$src1))]
 >;
 } // End isCommutable = 1
 } // End Defs = [SCC]
 
+// This pattern is restricted to certain subtargets (practically GFX8Plus)
+// because isel sometimes produces an sreg_64 copy to SCC as a by-product
+// of this pattern, and only for subtargets with hasScalarCompareEq64
+// is it possible to map such copy to a single instruction (S_CMP_LG_U64).
+class SelectPat<SDPatternOperator select> : PatFrag <
+  (ops node:$src1, node:$src2),
+  (select SCC, $src1, $src2),
+  [{ return Subtarget->hasScalarCompareEq64() &&
+            N->getOperand(0)->hasOneUse() && !N->isDivergent(); }]
+>;
 
 let Uses = [SCC] in {
-  def S_CSELECT_B32 : SOP2_32 <"s_cselect_b32">;
+  let AddedComplexity = 20 in {
+    def S_CSELECT_B32 : SOP2_32 <"s_cselect_b32",
+      [(set i32:$sdst, (SelectPat<select> i32:$src0, i32:$src1))]
+    >;
+  }
+
   def S_CSELECT_B64 : SOP2_64 <"s_cselect_b64">;
 } // End Uses = [SCC]
 
@@ -445,6 +553,7 @@ def S_NOR_B64 : SOP2_64 <"s_nor_b64",
 >;
 } // End isCommutable = 1
 
+// There are also separate patterns for types other than i32
 def S_ANDN2_B32 : SOP2_32 <"s_andn2_b32",
   [(set i32:$sdst, (UniformBinFrag<and> i32:$src0, (UniformUnaryFrag<not> i32:$src1)))]
 >;
@@ -468,22 +577,22 @@ let AddedComplexity = 1 in {
 let Defs = [SCC] in {
 // TODO: b64 versions require VOP3 change since v_lshlrev_b64 is VOP3
 def S_LSHL_B32 : SOP2_32 <"s_lshl_b32",
-  [(set i32:$sdst, (UniformBinFrag<shl> i32:$src0, i32:$src1))]
+  [(set SReg_32:$sdst, (UniformBinFrag<shl> (i32 SSrc_b32:$src0), (i32 SSrc_b32:$src1)))]
 >;
 def S_LSHL_B64 : SOP2_64_32 <"s_lshl_b64",
-  [(set i64:$sdst, (UniformBinFrag<shl> i64:$src0, i32:$src1))]
+  [(set SReg_64:$sdst, (UniformBinFrag<shl> (i64 SSrc_b64:$src0), (i32 SSrc_b32:$src1)))]
 >;
 def S_LSHR_B32 : SOP2_32 <"s_lshr_b32",
-  [(set i32:$sdst, (UniformBinFrag<srl> i32:$src0, i32:$src1))]
+  [(set SReg_32:$sdst, (UniformBinFrag<srl> (i32 SSrc_b32:$src0), (i32 SSrc_b32:$src1)))]
 >;
 def S_LSHR_B64 : SOP2_64_32 <"s_lshr_b64",
-  [(set i64:$sdst, (UniformBinFrag<srl> i64:$src0, i32:$src1))]
+  [(set SReg_64:$sdst, (UniformBinFrag<srl> (i64 SSrc_b64:$src0), (i32 SSrc_b32:$src1)))]
 >;
 def S_ASHR_I32 : SOP2_32 <"s_ashr_i32",
-  [(set i32:$sdst, (UniformBinFrag<sra> i32:$src0, i32:$src1))]
+  [(set SReg_32:$sdst, (UniformBinFrag<sra> (i32 SSrc_b32:$src0), (i32 SSrc_b32:$src1)))]
 >;
 def S_ASHR_I64 : SOP2_64_32 <"s_ashr_i64",
-  [(set i64:$sdst, (UniformBinFrag<sra> i64:$src0, i32:$src1))]
+  [(set SReg_64:$sdst, (UniformBinFrag<sra> (i64 SSrc_b64:$src0), (i32 SSrc_b32:$src1)))]
 >;
 } // End Defs = [SCC]
 
@@ -512,13 +621,14 @@ def S_CBRANCH_G_FORK : SOP2_Pseudo <
   "$src0, $src1"
 > {
   let has_sdst = 0;
+  let SubtargetPredicate = isGFX6GFX7GFX8GFX9;
 }
 
 let Defs = [SCC] in {
 def S_ABSDIFF_I32 : SOP2_32 <"s_absdiff_i32">;
 } // End Defs = [SCC]
 
-let SubtargetPredicate = isVI in {
+let SubtargetPredicate = isGFX8GFX9 in {
   def S_RFE_RESTORE_B64 : SOP2_Pseudo <
     "s_rfe_restore_b64", (outs),
     (ins SSrc_b64:$src0, SSrc_b32:$src1),
@@ -529,21 +639,33 @@ let SubtargetPredicate = isVI in {
   }
 }
 
-let SubtargetPredicate = isGFX9 in {
+let SubtargetPredicate = isGFX9Plus in {
   def S_PACK_LL_B32_B16 : SOP2_32<"s_pack_ll_b32_b16">;
   def S_PACK_LH_B32_B16 : SOP2_32<"s_pack_lh_b32_b16">;
   def S_PACK_HH_B32_B16 : SOP2_32<"s_pack_hh_b32_b16">;
 
   let Defs = [SCC] in {
-    def S_LSHL1_ADD_U32 : SOP2_32<"s_lshl1_add_u32">;
-    def S_LSHL2_ADD_U32 : SOP2_32<"s_lshl2_add_u32">;
-    def S_LSHL3_ADD_U32 : SOP2_32<"s_lshl3_add_u32">;
-    def S_LSHL4_ADD_U32 : SOP2_32<"s_lshl4_add_u32">;
+    def S_LSHL1_ADD_U32 : SOP2_32<"s_lshl1_add_u32",
+      [(set i32:$sdst, (shl1_add SSrc_b32:$src0, SSrc_b32:$src1))]
+    >;
+    def S_LSHL2_ADD_U32 : SOP2_32<"s_lshl2_add_u32",
+      [(set i32:$sdst, (shl2_add SSrc_b32:$src0, SSrc_b32:$src1))]
+    >;
+    def S_LSHL3_ADD_U32 : SOP2_32<"s_lshl3_add_u32",
+      [(set i32:$sdst, (shl3_add SSrc_b32:$src0, SSrc_b32:$src1))]
+    >;
+    def S_LSHL4_ADD_U32 : SOP2_32<"s_lshl4_add_u32",
+      [(set i32:$sdst, (shl4_add SSrc_b32:$src0, SSrc_b32:$src1))]
+    >;
   } // End Defs = [SCC]
 
-  def S_MUL_HI_U32 : SOP2_32<"s_mul_hi_u32">;
-  def S_MUL_HI_I32 : SOP2_32<"s_mul_hi_i32">;
-}
+  let isCommutable = 1 in {
+    def S_MUL_HI_U32 : SOP2_32<"s_mul_hi_u32",
+      [(set i32:$sdst, (UniformBinFrag<mulhu> SSrc_b32:$src0, SSrc_b32:$src1))]>;
+    def S_MUL_HI_I32 : SOP2_32<"s_mul_hi_i32",
+      [(set i32:$sdst, (UniformBinFrag<mulhs> SSrc_b32:$src0, SSrc_b32:$src1))]>;
+  }
+} // End SubtargetPredicate = isGFX9Plus
 
 //===----------------------------------------------------------------------===//
 // SOPK Instructions
@@ -555,7 +677,6 @@ class SOPK_Pseudo <string opName, dag outs, dag ins,
   SIMCInstr<opName, SIEncodingFamily.NONE> {
   let isPseudo = 1;
   let isCodeGenOnly = 1;
-  let SubtargetPredicate = isGCN;
   let mayLoad = 0;
   let mayStore = 0;
   let hasSideEffects = 0;
@@ -617,6 +738,19 @@ class SOPK_32 <string opName, list<dag> pattern=[]> : SOPK_Pseudo <
   (ins s16imm:$simm16),
   "$sdst, $simm16",
   pattern>;
+
+class SOPK_32_BR <string opName, list<dag> pattern=[]> : SOPK_Pseudo <
+  opName,
+  (outs),
+  (ins sopp_brtarget:$simm16, SReg_32:$sdst),
+  "$sdst, $simm16",
+  pattern> {
+  let Defs = [EXEC];
+  let Uses = [EXEC];
+  let isBranch = 1;
+  let isTerminator = 1;
+  let SchedRW = [WriteBranch];
+}
 
 class SOPK_SCC <string opName, string base_op, bit isSignExt> : SOPK_Pseudo <
   opName,
@@ -684,33 +818,54 @@ let Defs = [SCC], isCommutable = 1, DisableEncoding = "$src0",
   def S_MULK_I32 : SOPK_32TIE <"s_mulk_i32">;
 }
 
+let SubtargetPredicate = isGFX6GFX7GFX8GFX9 in
 def S_CBRANCH_I_FORK : SOPK_Pseudo <
   "s_cbranch_i_fork",
-  (outs), (ins SReg_64:$sdst, s16imm:$simm16),
+  (outs), (ins SReg_64:$sdst, sopp_brtarget:$simm16),
   "$sdst, $simm16"
 >;
 
 let mayLoad = 1 in {
+// s_getreg_b32 should use hasSideEffects = 1 for tablegen to allow
+// its use in the readcyclecounter selection.
+// FIXME: Need to truncate immediate to 16-bits.
 def S_GETREG_B32 : SOPK_Pseudo <
   "s_getreg_b32",
   (outs SReg_32:$sdst), (ins hwreg:$simm16),
-  "$sdst, $simm16"
->;
+  "$sdst, $simm16",
+  [(set i32:$sdst, (int_amdgcn_s_getreg (i32 timm:$simm16)))]> {
+  let SOPKZext = 1;
+  let hasSideEffects = 1;
 }
+} // End mayLoad = 1
 
-let hasSideEffects = 1 in {
+let mayLoad = 0, mayStore = 0, Defs = [MODE], Uses = [MODE] in {
 
-def S_SETREG_B32 : SOPK_Pseudo <
+// FIXME: Need to truncate immediate to 16-bits.
+class S_SETREG_B32_Pseudo <list<dag> pattern=[]> : SOPK_Pseudo <
   "s_setreg_b32",
   (outs), (ins SReg_32:$sdst, hwreg:$simm16),
   "$simm16, $sdst",
-  [(AMDGPUsetreg i32:$sdst, (i16 timm:$simm16))]
->;
+  pattern>;
+
+def S_SETREG_B32 : S_SETREG_B32_Pseudo <
+  [(int_amdgcn_s_setreg (i32 timm:$simm16), i32:$sdst)]> {
+  // Use custom inserter to optimize some cases to
+  // S_DENORM_MODE/S_ROUND_MODE/S_SETREG_B32_mode.
+  let usesCustomInserter = 1;
+  let hasSideEffects = 1;
+}
+
+// Variant of SETREG that is guaranteed to only touch FP bits in the MODE
+// register, so doesn't have unmodeled side effects.
+def S_SETREG_B32_mode : S_SETREG_B32_Pseudo {
+  let hasSideEffects = 0;
+}
 
 // FIXME: Not on SI?
 //def S_GETREG_REGRD_B32 : SOPK_32 <sopk<0x14, 0x13>, "s_getreg_regrd_b32">;
 
-def S_SETREG_IMM32_B32 : SOPK_Pseudo <
+class S_SETREG_IMM32_B32_Pseudo : SOPK_Pseudo <
   "s_setreg_imm32_b32",
   (outs), (ins i32imm:$imm, hwreg:$simm16),
   "$simm16, $imm"> {
@@ -718,23 +873,91 @@ def S_SETREG_IMM32_B32 : SOPK_Pseudo <
   let has_sdst = 0;
 }
 
-} // End hasSideEffects = 1
+def S_SETREG_IMM32_B32 : S_SETREG_IMM32_B32_Pseudo {
+  let hasSideEffects = 1;
+}
 
-let SubtargetPredicate = isGFX9 in {
+// Variant of SETREG_IMM32 that is guaranteed to only touch FP bits in the MODE
+// register, so doesn't have unmodeled side effects.
+def S_SETREG_IMM32_B32_mode : S_SETREG_IMM32_B32_Pseudo {
+  let hasSideEffects = 0;
+}
+
+} // End mayLoad = 0, mayStore = 0, Defs = [MODE], Uses = [MODE]
+
+class SOPK_WAITCNT<string opName, list<dag> pat=[]> :
+    SOPK_Pseudo<
+        opName,
+        (outs),
+        (ins SReg_32:$sdst, s16imm:$simm16),
+        "$sdst, $simm16",
+        pat> {
+  let hasSideEffects = 1;
+  let mayLoad = 1;
+  let mayStore = 1;
+  let has_sdst = 1; // First source takes place of sdst in encoding
+}
+
+let SubtargetPredicate = isGFX9Plus in {
   def S_CALL_B64 : SOPK_Pseudo<
       "s_call_b64",
       (outs SReg_64:$sdst),
-      (ins s16imm:$simm16),
+      (ins sopp_brtarget:$simm16),
       "$sdst, $simm16"> {
     let isCall = 1;
   }
-}
+} // End SubtargetPredicate = isGFX9Plus
+
+let SubtargetPredicate = isGFX10Plus in {
+  def S_VERSION : SOPK_Pseudo<
+      "s_version",
+      (outs),
+      (ins s16imm:$simm16),
+      "$simm16"> {
+    let has_sdst = 0;
+  }
+
+  def S_SUBVECTOR_LOOP_BEGIN : SOPK_32_BR<"s_subvector_loop_begin">;
+  def S_SUBVECTOR_LOOP_END   : SOPK_32_BR<"s_subvector_loop_end">;
+
+  def S_WAITCNT_VSCNT   : SOPK_WAITCNT<"s_waitcnt_vscnt">;
+  def S_WAITCNT_VMCNT   : SOPK_WAITCNT<"s_waitcnt_vmcnt">;
+  def S_WAITCNT_EXPCNT  : SOPK_WAITCNT<"s_waitcnt_expcnt">;
+  def S_WAITCNT_LGKMCNT : SOPK_WAITCNT<"s_waitcnt_lgkmcnt">;
+} // End SubtargetPredicate = isGFX10Plus
 
 //===----------------------------------------------------------------------===//
 // SOPC Instructions
 //===----------------------------------------------------------------------===//
 
-class SOPCe <bits<7> op> : Enc32 {
+class SOPC_Pseudo<string opName, dag outs, dag ins,
+                  string asmOps, list<dag> pattern=[]> :
+  SOP_Pseudo<opName, outs, ins, asmOps, pattern> {
+  let mayLoad = 0;
+  let mayStore = 0;
+  let hasSideEffects = 0;
+  let SALU = 1;
+  let SOPC = 1;
+  let Defs = [SCC];
+  let SchedRW = [WriteSALU];
+  let UseNamedOperandTable = 1;
+}
+
+class SOPC_Real<bits<7> op, SOPC_Pseudo ps, string real_name = ps.Mnemonic> :
+  InstSI <ps.OutOperandList, ps.InOperandList,
+          real_name # " " # ps.AsmOperands, []>,
+  Enc32 {
+  let isPseudo = 0;
+  let isCodeGenOnly = 0;
+
+  // copy relevant pseudo op flags
+  let SubtargetPredicate = ps.SubtargetPredicate;
+  let OtherPredicates    = ps.OtherPredicates;
+  let AsmMatchConverter  = ps.AsmMatchConverter;
+  let UseNamedOperandTable = ps.UseNamedOperandTable;
+  let TSFlags = ps.TSFlags;
+
+  // encoding
   bits<8> src0;
   bits<8> src1;
 
@@ -744,87 +967,78 @@ class SOPCe <bits<7> op> : Enc32 {
   let Inst{31-23} = 0x17e;
 }
 
-class SOPC <bits<7> op, dag outs, dag ins, string asm,
-            list<dag> pattern = []> :
-  InstSI<outs, ins, asm, pattern>, SOPCe <op> {
-  let mayLoad = 0;
-  let mayStore = 0;
-  let hasSideEffects = 0;
-  let SALU = 1;
-  let SOPC = 1;
-  let isCodeGenOnly = 0;
-  let Defs = [SCC];
-  let SchedRW = [WriteSALU];
-  let UseNamedOperandTable = 1;
-  let SubtargetPredicate = isGCN;
+class SOPC_Base <RegisterOperand rc0, RegisterOperand rc1,
+                 string opName, list<dag> pattern = []> : SOPC_Pseudo <
+  opName, (outs), (ins rc0:$src0, rc1:$src1),
+  "$src0, $src1", pattern > {
 }
 
-class SOPC_Base <bits<7> op, RegisterOperand rc0, RegisterOperand rc1,
-                 string opName, list<dag> pattern = []> : SOPC <
-  op, (outs), (ins rc0:$src0, rc1:$src1),
-  opName#" $src0, $src1", pattern > {
-  let Defs = [SCC];
-}
-class SOPC_Helper <bits<7> op, RegisterOperand rc, ValueType vt,
-                    string opName, PatLeaf cond> : SOPC_Base <
-  op, rc, rc, opName,
+class SOPC_Helper <RegisterOperand rc, ValueType vt,
+                    string opName, SDPatternOperator cond> : SOPC_Base <
+  rc, rc, opName,
   [(set SCC, (si_setcc_uniform vt:$src0, vt:$src1, cond))] > {
 }
 
-class SOPC_CMP_32<bits<7> op, string opName,
-                  PatLeaf cond = COND_NULL, string revOp = opName>
-  : SOPC_Helper<op, SSrc_b32, i32, opName, cond>,
+class SOPC_CMP_32<string opName,
+                  SDPatternOperator cond = COND_NULL, string revOp = opName>
+  : SOPC_Helper<SSrc_b32, i32, opName, cond>,
     Commutable_REV<revOp, !eq(revOp, opName)>,
     SOPKInstTable<0, opName> {
   let isCompare = 1;
   let isCommutable = 1;
 }
 
-class SOPC_CMP_64<bits<7> op, string opName,
-                  PatLeaf cond = COND_NULL, string revOp = opName>
-  : SOPC_Helper<op, SSrc_b64, i64, opName, cond>,
+class SOPC_CMP_64<string opName,
+                  SDPatternOperator cond = COND_NULL, string revOp = opName>
+  : SOPC_Helper<SSrc_b64, i64, opName, cond>,
     Commutable_REV<revOp, !eq(revOp, opName)> {
   let isCompare = 1;
   let isCommutable = 1;
 }
 
-class SOPC_32<bits<7> op, string opName, list<dag> pattern = []>
-  : SOPC_Base<op, SSrc_b32, SSrc_b32, opName, pattern>;
+class SOPC_32<string opName, list<dag> pattern = []>
+  : SOPC_Base<SSrc_b32, SSrc_b32, opName, pattern>;
 
-class SOPC_64_32<bits<7> op, string opName, list<dag> pattern = []>
-  : SOPC_Base<op, SSrc_b64, SSrc_b32, opName, pattern>;
+class SOPC_64_32<string opName, list<dag> pattern = []>
+  : SOPC_Base<SSrc_b64, SSrc_b32, opName, pattern>;
 
-def S_CMP_EQ_I32 : SOPC_CMP_32 <0x00, "s_cmp_eq_i32">;
-def S_CMP_LG_I32 : SOPC_CMP_32 <0x01, "s_cmp_lg_i32">;
-def S_CMP_GT_I32 : SOPC_CMP_32 <0x02, "s_cmp_gt_i32", COND_SGT>;
-def S_CMP_GE_I32 : SOPC_CMP_32 <0x03, "s_cmp_ge_i32", COND_SGE>;
-def S_CMP_LT_I32 : SOPC_CMP_32 <0x04, "s_cmp_lt_i32", COND_SLT, "s_cmp_gt_i32">;
-def S_CMP_LE_I32 : SOPC_CMP_32 <0x05, "s_cmp_le_i32", COND_SLE, "s_cmp_ge_i32">;
-def S_CMP_EQ_U32 : SOPC_CMP_32 <0x06, "s_cmp_eq_u32", COND_EQ>;
-def S_CMP_LG_U32 : SOPC_CMP_32 <0x07, "s_cmp_lg_u32", COND_NE>;
-def S_CMP_GT_U32 : SOPC_CMP_32 <0x08, "s_cmp_gt_u32", COND_UGT>;
-def S_CMP_GE_U32 : SOPC_CMP_32 <0x09, "s_cmp_ge_u32", COND_UGE>;
-def S_CMP_LT_U32 : SOPC_CMP_32 <0x0a, "s_cmp_lt_u32", COND_ULT, "s_cmp_gt_u32">;
-def S_CMP_LE_U32 : SOPC_CMP_32 <0x0b, "s_cmp_le_u32", COND_ULE, "s_cmp_ge_u32">;
+def S_CMP_EQ_I32 : SOPC_CMP_32 <"s_cmp_eq_i32">;
+def S_CMP_LG_I32 : SOPC_CMP_32 <"s_cmp_lg_i32">;
+def S_CMP_GT_I32 : SOPC_CMP_32 <"s_cmp_gt_i32", COND_SGT>;
+def S_CMP_GE_I32 : SOPC_CMP_32 <"s_cmp_ge_i32", COND_SGE>;
+def S_CMP_LT_I32 : SOPC_CMP_32 <"s_cmp_lt_i32", COND_SLT, "s_cmp_gt_i32">;
+def S_CMP_LE_I32 : SOPC_CMP_32 <"s_cmp_le_i32", COND_SLE, "s_cmp_ge_i32">;
+def S_CMP_EQ_U32 : SOPC_CMP_32 <"s_cmp_eq_u32", COND_EQ>;
+def S_CMP_LG_U32 : SOPC_CMP_32 <"s_cmp_lg_u32", COND_NE>;
+def S_CMP_GT_U32 : SOPC_CMP_32 <"s_cmp_gt_u32", COND_UGT>;
+def S_CMP_GE_U32 : SOPC_CMP_32 <"s_cmp_ge_u32", COND_UGE>;
+def S_CMP_LT_U32 : SOPC_CMP_32 <"s_cmp_lt_u32", COND_ULT, "s_cmp_gt_u32">;
+def S_CMP_LE_U32 : SOPC_CMP_32 <"s_cmp_le_u32", COND_ULE, "s_cmp_ge_u32">;
 
-def S_BITCMP0_B32 : SOPC_32 <0x0c, "s_bitcmp0_b32">;
-def S_BITCMP1_B32 : SOPC_32 <0x0d, "s_bitcmp1_b32">;
-def S_BITCMP0_B64 : SOPC_64_32 <0x0e, "s_bitcmp0_b64">;
-def S_BITCMP1_B64 : SOPC_64_32 <0x0f, "s_bitcmp1_b64">;
-def S_SETVSKIP : SOPC_32 <0x10, "s_setvskip">;
+def S_BITCMP0_B32 : SOPC_32 <"s_bitcmp0_b32">;
+def S_BITCMP1_B32 : SOPC_32 <"s_bitcmp1_b32">;
+def S_BITCMP0_B64 : SOPC_64_32 <"s_bitcmp0_b64">;
+def S_BITCMP1_B64 : SOPC_64_32 <"s_bitcmp1_b64">;
+let SubtargetPredicate = isGFX6GFX7GFX8GFX9 in
+def S_SETVSKIP : SOPC_32 <"s_setvskip">;
 
-let SubtargetPredicate = isVI in {
-def S_CMP_EQ_U64 : SOPC_CMP_64 <0x12, "s_cmp_eq_u64", COND_EQ>;
-def S_CMP_LG_U64 : SOPC_CMP_64 <0x13, "s_cmp_lg_u64", COND_NE>;
-}
+let SubtargetPredicate = isGFX8Plus in {
+def S_CMP_EQ_U64 : SOPC_CMP_64 <"s_cmp_eq_u64", COND_EQ>;
+def S_CMP_LG_U64 : SOPC_CMP_64 <"s_cmp_lg_u64", COND_NE>;
+} // End SubtargetPredicate = isGFX8Plus
 
 let SubtargetPredicate = HasVGPRIndexMode in {
-def S_SET_GPR_IDX_ON : SOPC <0x11,
+// Setting the GPR index mode is really writing the fields in the mode
+// register. We don't want to add mode register uses to every
+// instruction, and it's too complicated to deal with anyway. This is
+// modeled just as a side effect.
+def S_SET_GPR_IDX_ON : SOPC_Pseudo <
+  "s_set_gpr_idx_on" ,
   (outs),
   (ins SSrc_b32:$src0, GPRIdxMode:$src1),
-  "s_set_gpr_idx_on $src0,$src1"> {
-  let Defs = [M0]; // No scc def
-  let Uses = [M0]; // Other bits of m0 unmodified.
+  "$src0, $src1"> {
+  let Defs = [M0, MODE]; // No scc def
+  let Uses = [M0, MODE]; // Other bits of mode, m0 unmodified.
   let hasSideEffects = 1; // Sets mode.gpr_idx_en
   let FixedSize = 1;
 }
@@ -834,211 +1048,291 @@ def S_SET_GPR_IDX_ON : SOPC <0x11,
 // SOPP Instructions
 //===----------------------------------------------------------------------===//
 
-class SOPPe <bits<7> op> : Enc32 {
-  bits <16> simm16;
-
-  let Inst{15-0} = simm16;
-  let Inst{22-16} = op;
-  let Inst{31-23} = 0x17f; // encoding
-}
-
-class SOPP <bits<7> op, dag ins, string asm, list<dag> pattern = []> :
-  InstSI <(outs), ins, asm, pattern >, SOPPe <op> {
-
+class SOPP_Pseudo<string opName, dag ins,
+                  string asmOps = "", list<dag> pattern=[], string keyName = opName> :
+  SOP_Pseudo<opName, (outs), ins, asmOps, pattern> {
+  let isPseudo = 1;
+  let isCodeGenOnly = 1;
   let mayLoad = 0;
   let mayStore = 0;
   let hasSideEffects = 0;
   let SALU = 1;
   let SOPP = 1;
-  let Size = 4;
+  let FixedSize = 1;
   let SchedRW = [WriteSALU];
-
   let UseNamedOperandTable = 1;
-  let SubtargetPredicate = isGCN;
+  bits <16> simm16;
+  bits <1> fixed_imm = 0;
+  string KeyName = keyName;
 }
 
+class SOPPRelaxTable <bit isRelaxed, string keyName, string gfxip> {
+  bit IsRelaxed = isRelaxed;
+  string KeyName = keyName # gfxip;
+}
 
-def S_NOP : SOPP <0x00000000, (ins i16imm:$simm16), "s_nop $simm16">;
+//spaces inserted in realname on instantiation of this record to allow s_endpgm to omit whitespace
+class SOPP_Real<bits<7> op, SOPP_Pseudo ps, string real_name = ps.Mnemonic> :
+  InstSI <ps.OutOperandList, ps.InOperandList,
+          real_name # ps.AsmOperands, []> {
+  let isPseudo = 0;
+  let isCodeGenOnly = 0;
+
+  // copy relevant pseudo op flags
+  let SubtargetPredicate = ps.SubtargetPredicate;
+  let OtherPredicates    = ps.OtherPredicates;
+  let AsmMatchConverter  = ps.AsmMatchConverter;
+  let UseNamedOperandTable = ps.UseNamedOperandTable;
+  let TSFlags = ps.TSFlags;
+  bits <16> simm16;
+}
+
+class SOPP_Real_32 <bits<7> op, SOPP_Pseudo ps, string real_name = ps.Mnemonic> : SOPP_Real<op, ps, real_name>,
+Enc32 {
+  let Inst{15-0} = !if(ps.fixed_imm, ps.simm16, simm16);
+  let Inst{22-16} = op;
+  let Inst{31-23} = 0x17f;
+}
+
+class SOPP_Real_64 <bits<7> op, SOPP_Pseudo ps, string real_name = ps.Mnemonic> : SOPP_Real<op, ps, real_name>,
+Enc64 {
+  // encoding
+  let Inst{15-0} = !if(ps.fixed_imm, ps.simm16, simm16);
+  let Inst{22-16} = op;
+  let Inst{31-23} = 0x17f;
+  //effectively a nop
+  let Inst{47-32} = 0x0;
+  let Inst{54-48} = 0x0;
+  let Inst{63-55} = 0x17f;
+}
+
+multiclass SOPP_With_Relaxation <string opName, dag ins,
+                  string asmOps, list<dag> pattern=[]> {
+  def "" : SOPP_Pseudo <opName, ins, asmOps, pattern>;
+  def _pad_s_nop : SOPP_Pseudo <opName # "_pad_s_nop", ins, asmOps, pattern, opName>;
+}
+
+def S_NOP : SOPP_Pseudo<"s_nop" , (ins i16imm:$simm16), "$simm16">;
 
 let isTerminator = 1 in {
+def S_ENDPGM : SOPP_Pseudo<"s_endpgm", (ins EndpgmImm:$simm16), "$simm16"> {
+  let isBarrier = 1;
+  let isReturn = 1;
+  let hasSideEffects = 1;
+}
 
-def S_ENDPGM : SOPP <0x00000001, (ins), "s_endpgm",
-  [(AMDGPUendpgm)]> {
+def S_ENDPGM_SAVED : SOPP_Pseudo<"s_endpgm_saved", (ins)> {
+  let SubtargetPredicate = isGFX8Plus;
   let simm16 = 0;
+  let fixed_imm = 1;
   let isBarrier = 1;
   let isReturn = 1;
 }
 
-let SubtargetPredicate = isVI in {
-def S_ENDPGM_SAVED : SOPP <0x0000001B, (ins), "s_endpgm_saved"> {
-  let simm16 = 0;
-  let isBarrier = 1;
-  let isReturn = 1;
-}
-}
-
-let SubtargetPredicate = isGFX9 in {
-  let isBarrier = 1, isReturn = 1, simm16 = 0 in {
+let SubtargetPredicate = isGFX9Plus in {
+  let isBarrier = 1, isReturn = 1, simm16 = 0, fixed_imm = 1 in {
     def S_ENDPGM_ORDERED_PS_DONE :
-      SOPP<0x01e, (ins), "s_endpgm_ordered_ps_done">;
-  } // End isBarrier = 1, isReturn = 1, simm16 = 0
-} // End SubtargetPredicate = isGFX9
+      SOPP_Pseudo<"s_endpgm_ordered_ps_done", (ins)>;
+  } // End isBarrier = 1, isReturn = 1, simm16 = 0, fixed_imm = 1
+} // End SubtargetPredicate = isGFX9Plus
+
+let SubtargetPredicate = isGFX10Plus in {
+  let isBarrier = 1, isReturn = 1, simm16 = 0, fixed_imm = 1 in {
+    def S_CODE_END :
+      SOPP_Pseudo<"s_code_end", (ins)>;
+  } // End isBarrier = 1, isReturn = 1, simm16 = 0, fixed_imm = 1
+} // End SubtargetPredicate = isGFX10Plus
 
 let isBranch = 1, SchedRW = [WriteBranch] in {
-def S_BRANCH : SOPP <
-  0x00000002, (ins sopp_brtarget:$simm16), "s_branch $simm16",
-  [(br bb:$simm16)]> {
-  let isBarrier = 1;
+let isBarrier = 1 in {
+defm S_BRANCH : SOPP_With_Relaxation<
+  "s_branch" , (ins sopp_brtarget:$simm16), "$simm16",
+  [(br bb:$simm16)]>;
 }
 
 let Uses = [SCC] in {
-def S_CBRANCH_SCC0 : SOPP <
-  0x00000004, (ins sopp_brtarget:$simm16),
-  "s_cbranch_scc0 $simm16"
+defm S_CBRANCH_SCC0 : SOPP_With_Relaxation<
+  "s_cbranch_scc0" , (ins sopp_brtarget:$simm16),
+  "$simm16"
 >;
-def S_CBRANCH_SCC1 : SOPP <
-  0x00000005, (ins sopp_brtarget:$simm16),
-  "s_cbranch_scc1 $simm16"
+defm S_CBRANCH_SCC1 : SOPP_With_Relaxation <
+  "s_cbranch_scc1" , (ins sopp_brtarget:$simm16),
+  "$simm16"
 >;
 } // End Uses = [SCC]
 
 let Uses = [VCC] in {
-def S_CBRANCH_VCCZ : SOPP <
-  0x00000006, (ins sopp_brtarget:$simm16),
-  "s_cbranch_vccz $simm16"
+defm S_CBRANCH_VCCZ : SOPP_With_Relaxation <
+  "s_cbranch_vccz" , (ins sopp_brtarget:$simm16),
+  "$simm16"
 >;
-def S_CBRANCH_VCCNZ : SOPP <
-  0x00000007, (ins sopp_brtarget:$simm16),
-  "s_cbranch_vccnz $simm16"
+defm S_CBRANCH_VCCNZ : SOPP_With_Relaxation <
+  "s_cbranch_vccnz" , (ins sopp_brtarget:$simm16),
+  "$simm16"
 >;
 } // End Uses = [VCC]
 
 let Uses = [EXEC] in {
-def S_CBRANCH_EXECZ : SOPP <
-  0x00000008, (ins sopp_brtarget:$simm16),
-  "s_cbranch_execz $simm16"
+defm S_CBRANCH_EXECZ : SOPP_With_Relaxation <
+  "s_cbranch_execz" , (ins sopp_brtarget:$simm16),
+  "$simm16"
 >;
-def S_CBRANCH_EXECNZ : SOPP <
-  0x00000009, (ins sopp_brtarget:$simm16),
-  "s_cbranch_execnz $simm16"
+defm S_CBRANCH_EXECNZ : SOPP_With_Relaxation <
+  "s_cbranch_execnz" , (ins sopp_brtarget:$simm16),
+  "$simm16"
 >;
 } // End Uses = [EXEC]
 
-def S_CBRANCH_CDBGSYS : SOPP <
-  0x00000017, (ins sopp_brtarget:$simm16),
-  "s_cbranch_cdbgsys $simm16"
+defm S_CBRANCH_CDBGSYS : SOPP_With_Relaxation <
+  "s_cbranch_cdbgsys" , (ins sopp_brtarget:$simm16),
+  "$simm16"
 >;
 
-def S_CBRANCH_CDBGSYS_AND_USER : SOPP <
-  0x0000001A, (ins sopp_brtarget:$simm16),
-  "s_cbranch_cdbgsys_and_user $simm16"
+defm S_CBRANCH_CDBGSYS_AND_USER : SOPP_With_Relaxation <
+  "s_cbranch_cdbgsys_and_user" , (ins sopp_brtarget:$simm16),
+  "$simm16"
 >;
 
-def S_CBRANCH_CDBGSYS_OR_USER : SOPP <
-  0x00000019, (ins sopp_brtarget:$simm16),
-  "s_cbranch_cdbgsys_or_user $simm16"
+defm S_CBRANCH_CDBGSYS_OR_USER : SOPP_With_Relaxation <
+  "s_cbranch_cdbgsys_or_user" , (ins sopp_brtarget:$simm16),
+  "$simm16"
 >;
 
-def S_CBRANCH_CDBGUSER : SOPP <
-  0x00000018, (ins sopp_brtarget:$simm16),
-  "s_cbranch_cdbguser $simm16"
+defm S_CBRANCH_CDBGUSER : SOPP_With_Relaxation <
+  "s_cbranch_cdbguser" , (ins sopp_brtarget:$simm16),
+  "$simm16"
 >;
 
 } // End isBranch = 1
 } // End isTerminator = 1
 
 let hasSideEffects = 1 in {
-def S_BARRIER : SOPP <0x0000000a, (ins), "s_barrier",
+def S_BARRIER : SOPP_Pseudo <"s_barrier", (ins), "",
   [(int_amdgcn_s_barrier)]> {
   let SchedRW = [WriteBarrier];
   let simm16 = 0;
-  let mayLoad = 1;
-  let mayStore = 1;
+  let fixed_imm = 1;
   let isConvergent = 1;
 }
 
-let SubtargetPredicate = isVI in {
-def S_WAKEUP : SOPP <0x00000003, (ins), "s_wakeup"> {
+def S_WAKEUP : SOPP_Pseudo <"s_wakeup", (ins) > {
+  let SubtargetPredicate = isGFX8Plus;
   let simm16 = 0;
+  let fixed_imm = 1;
   let mayLoad = 1;
   let mayStore = 1;
 }
-}
 
-let mayLoad = 1, mayStore = 1, hasSideEffects = 1 in
-def S_WAITCNT : SOPP <0x0000000c, (ins WAIT_FLAG:$simm16), "s_waitcnt $simm16">;
-def S_SETHALT : SOPP <0x0000000d, (ins i16imm:$simm16), "s_sethalt $simm16">;
-def S_SETKILL : SOPP <0x0000000b, (ins i16imm:$simm16), "s_setkill $simm16">;
+let mayLoad = 0, mayStore = 0, hasSideEffects = 1 in
+def S_WAITCNT : SOPP_Pseudo <"s_waitcnt" , (ins WAIT_FLAG:$simm16), "$simm16",
+    [(int_amdgcn_s_waitcnt timm:$simm16)]>;
+def S_SETHALT : SOPP_Pseudo <"s_sethalt" , (ins i16imm:$simm16), "$simm16">;
+def S_SETKILL : SOPP_Pseudo <"s_setkill" , (ins i16imm:$simm16), "$simm16">;
 
 // On SI the documentation says sleep for approximately 64 * low 2
 // bits, consistent with the reported maximum of 448. On VI the
 // maximum reported is 960 cycles, so 960 / 64 = 15 max, so is the
 // maximum really 15 on VI?
-def S_SLEEP : SOPP <0x0000000e, (ins i32imm:$simm16),
-  "s_sleep $simm16", [(int_amdgcn_s_sleep SIMM16bit:$simm16)]> {
+def S_SLEEP : SOPP_Pseudo <"s_sleep", (ins i32imm:$simm16),
+  "$simm16", [(int_amdgcn_s_sleep timm:$simm16)]> {
   let hasSideEffects = 1;
-  let mayLoad = 1;
-  let mayStore = 1;
+  let mayLoad = 0;
+  let mayStore = 0;
 }
 
-def S_SETPRIO : SOPP <0x0000000f, (ins i16imm:$simm16), "s_setprio $simm16">;
+def S_SETPRIO : SOPP_Pseudo <"s_setprio" , (ins i16imm:$simm16), "$simm16">;
 
 let Uses = [EXEC, M0] in {
 // FIXME: Should this be mayLoad+mayStore?
-def S_SENDMSG : SOPP <0x00000010, (ins SendMsgImm:$simm16), "s_sendmsg $simm16",
-  [(AMDGPUsendmsg (i32 imm:$simm16))]
->;
+def S_SENDMSG : SOPP_Pseudo <"s_sendmsg" , (ins SendMsgImm:$simm16), "$simm16",
+  [(int_amdgcn_s_sendmsg (i32 timm:$simm16), M0)]>;
 
-def S_SENDMSGHALT : SOPP <0x00000011, (ins SendMsgImm:$simm16), "s_sendmsghalt $simm16",
-  [(AMDGPUsendmsghalt (i32 imm:$simm16))]
->;
+def S_SENDMSGHALT : SOPP_Pseudo <"s_sendmsghalt" , (ins SendMsgImm:$simm16), "$simm16",
+  [(int_amdgcn_s_sendmsghalt (i32 timm:$simm16), M0)]>;
+
 } // End Uses = [EXEC, M0]
 
-def S_TRAP : SOPP <0x00000012, (ins i16imm:$simm16), "s_trap $simm16">;
-def S_ICACHE_INV : SOPP <0x00000013, (ins), "s_icache_inv"> {
+def S_TRAP : SOPP_Pseudo <"s_trap" , (ins i16imm:$simm16), "$simm16"> {
+  let isTrap = 1;
+}
+
+def S_ICACHE_INV : SOPP_Pseudo <"s_icache_inv", (ins)> {
   let simm16 = 0;
+  let fixed_imm = 1;
 }
-def S_INCPERFLEVEL : SOPP <0x00000014, (ins i32imm:$simm16), "s_incperflevel $simm16",
-  [(int_amdgcn_s_incperflevel SIMM16bit:$simm16)]> {
+def S_INCPERFLEVEL : SOPP_Pseudo <"s_incperflevel", (ins i32imm:$simm16), "$simm16",
+  [(int_amdgcn_s_incperflevel timm:$simm16)]> {
   let hasSideEffects = 1;
-  let mayLoad = 1;
-  let mayStore = 1;
+  let mayLoad = 0;
+  let mayStore = 0;
 }
-def S_DECPERFLEVEL : SOPP <0x00000015, (ins i32imm:$simm16), "s_decperflevel $simm16",
-  [(int_amdgcn_s_decperflevel SIMM16bit:$simm16)]> {
+def S_DECPERFLEVEL : SOPP_Pseudo <"s_decperflevel", (ins i32imm:$simm16), "$simm16",
+  [(int_amdgcn_s_decperflevel timm:$simm16)]> {
   let hasSideEffects = 1;
-  let mayLoad = 1;
-  let mayStore = 1;
+  let mayLoad = 0;
+  let mayStore = 0;
 }
-def S_TTRACEDATA : SOPP <0x00000016, (ins), "s_ttracedata"> {
+def S_TTRACEDATA : SOPP_Pseudo <"s_ttracedata", (ins)> {
   let simm16 = 0;
+  let fixed_imm = 1;
 }
 
 let SubtargetPredicate = HasVGPRIndexMode in {
-def S_SET_GPR_IDX_OFF : SOPP<0x1c, (ins), "s_set_gpr_idx_off"> {
+def S_SET_GPR_IDX_OFF : SOPP_Pseudo<"s_set_gpr_idx_off", (ins) > {
   let simm16 = 0;
+  let fixed_imm = 1;
+  let Defs = [MODE];
+  let Uses = [MODE];
 }
 }
 } // End hasSideEffects
 
 let SubtargetPredicate = HasVGPRIndexMode in {
-def S_SET_GPR_IDX_MODE : SOPP<0x1d, (ins GPRIdxMode:$simm16),
-  "s_set_gpr_idx_mode$simm16"> {
-  let Defs = [M0];
+def S_SET_GPR_IDX_MODE : SOPP_Pseudo<"s_set_gpr_idx_mode", (ins GPRIdxMode:$simm16),
+  "$simm16"> {
+  let Defs = [M0, MODE];
+  let Uses = [MODE];
 }
 }
 
-//===----------------------------------------------------------------------===//
-// S_GETREG_B32 Intrinsic Pattern.
-//===----------------------------------------------------------------------===//
-def : GCNPat <
-  (int_amdgcn_s_getreg imm:$simm16),
-  (S_GETREG_B32 (as_i16imm $simm16))
->;
+let SubtargetPredicate = isGFX10Plus in {
+  def S_INST_PREFETCH :
+    SOPP_Pseudo<"s_inst_prefetch", (ins s16imm:$simm16), "$simm16">;
+  def S_CLAUSE :
+    SOPP_Pseudo<"s_clause", (ins s16imm:$simm16), "$simm16">;
+  def S_WAIT_IDLE :
+    SOPP_Pseudo <"s_wait_idle", (ins), ""> {
+      let simm16 = 0;
+      let fixed_imm = 1;
+    }
+  def S_WAITCNT_DEPCTR :
+    SOPP_Pseudo <"s_waitcnt_depctr" , (ins s16imm:$simm16), "$simm16">;
+
+  let hasSideEffects = 0, Uses = [MODE], Defs = [MODE] in {
+    def S_ROUND_MODE :
+      SOPP_Pseudo<"s_round_mode", (ins s16imm:$simm16), "$simm16">;
+    def S_DENORM_MODE :
+      SOPP_Pseudo<"s_denorm_mode", (ins i32imm:$simm16), "$simm16",
+      [(SIdenorm_mode (i32 timm:$simm16))]>;
+  }
+
+  def S_TTRACEDATA_IMM :
+    SOPP_Pseudo<"s_ttracedata_imm", (ins s16imm:$simm16), "$simm16">;
+} // End SubtargetPredicate = isGFX10Plus
 
 //===----------------------------------------------------------------------===//
 // SOP1 Patterns
 //===----------------------------------------------------------------------===//
+
+def : GCNPat <
+  (AMDGPUendpgm),
+    (S_ENDPGM (i16 0))
+>;
+
+def : GCNPat <
+  (int_amdgcn_endpgm),
+    (S_ENDPGM (i16 0))
+>;
 
 def : GCNPat <
   (i64 (ctpop i64:$src)),
@@ -1049,7 +1343,7 @@ def : GCNPat <
 
 def : GCNPat <
   (i32 (smax i32:$x, (i32 (ineg i32:$x)))),
-  (S_ABS_I32 $x)
+  (S_ABS_I32 SReg_32:$x)
 >;
 
 def : GCNPat <
@@ -1059,7 +1353,7 @@ def : GCNPat <
 
 // Same as a 32-bit inreg
 def : GCNPat<
-  (i32 (sext i16:$src)),
+  (i32 (UniformUnaryFrag<sext> i16:$src)),
   (S_SEXT_I32_I16 $src)
 >;
 
@@ -1086,7 +1380,7 @@ def : GCNPat<
 >;
 
 def : GCNPat <
-  (i64 (sext i16:$src)),
+  (i64 (UniformUnaryFrag<sext> i16:$src)),
     (REG_SEQUENCE SReg_64, (i32 (S_SEXT_I32_I16 $src)), sub0,
     (i32 (COPY_TO_REGCLASS (S_ASHR_I32 (i32 (S_SEXT_I32_I16 $src)), (S_MOV_B32 (i32 31))), SGPR_32)), sub1)
 >;
@@ -1096,164 +1390,433 @@ def : GCNPat<
   (S_AND_B32 (S_MOV_B32 (i32 0xffff)), $src)
 >;
 
-
-
-//===----------------------------------------------------------------------===//
-// SOPP Patterns
-//===----------------------------------------------------------------------===//
-
-def : GCNPat <
-  (int_amdgcn_s_waitcnt i32:$simm16),
-  (S_WAITCNT (as_i16imm $simm16))
+// FIXME: ValueType should have isVector field
+class ScalarNot2Pat<Instruction inst, SDPatternOperator op, ValueType vt,
+                    bit isVector = 1> : GCNPat<
+  (UniformBinFrag<op> vt:$src0, (UniformUnaryFrag<!if(isVector, vnot, not)> vt:$src1)),
+  (inst getSOPSrcForVT<vt>.ret:$src0, getSOPSrcForVT<vt>.ret:$src1)
 >;
 
+// Match these for some more types
+// TODO: i1
+def : ScalarNot2Pat<S_ANDN2_B32, and, i16, 0>;
+def : ScalarNot2Pat<S_ANDN2_B32, and, v2i16>;
+def : ScalarNot2Pat<S_ANDN2_B64, and, v4i16>;
+def : ScalarNot2Pat<S_ANDN2_B64, and, v2i32>;
+
+def : ScalarNot2Pat<S_ORN2_B32, or, i16, 0>;
+def : ScalarNot2Pat<S_ORN2_B32, or, v2i16>;
+def : ScalarNot2Pat<S_ORN2_B64, or, v4i16>;
+def : ScalarNot2Pat<S_ORN2_B64, or, v2i32>;
 
 //===----------------------------------------------------------------------===//
-// Real target instructions, move this to the appropriate subtarget TD file
+// Target-specific instruction encodings.
 //===----------------------------------------------------------------------===//
 
-class Select_si<string opName> :
-  SIMCInstr<opName, SIEncodingFamily.SI> {
-  list<Predicate> AssemblerPredicates = [isSICI];
-  string DecoderNamespace = "SICI";
+class Select_gfx10<string opName> : SIMCInstr<opName, SIEncodingFamily.GFX10> {
+  Predicate AssemblerPredicate = isGFX10Plus;
+  string DecoderNamespace      = "GFX10";
 }
 
-class SOP1_Real_si<bits<8> op, SOP1_Pseudo ps> :
-  SOP1_Real<op, ps>,
-  Select_si<ps.Mnemonic>;
-
-class SOP2_Real_si<bits<7> op, SOP2_Pseudo ps> :
-  SOP2_Real<op, ps>,
-  Select_si<ps.Mnemonic>;
-
-class SOPK_Real_si<bits<5> op, SOPK_Pseudo ps> :
-  SOPK_Real32<op, ps>,
-  Select_si<ps.Mnemonic>;
-
-def S_MOV_B32_si           : SOP1_Real_si <0x03, S_MOV_B32>;
-def S_MOV_B64_si           : SOP1_Real_si <0x04, S_MOV_B64>;
-def S_CMOV_B32_si          : SOP1_Real_si <0x05, S_CMOV_B32>;
-def S_CMOV_B64_si          : SOP1_Real_si <0x06, S_CMOV_B64>;
-def S_NOT_B32_si           : SOP1_Real_si <0x07, S_NOT_B32>;
-def S_NOT_B64_si           : SOP1_Real_si <0x08, S_NOT_B64>;
-def S_WQM_B32_si           : SOP1_Real_si <0x09, S_WQM_B32>;
-def S_WQM_B64_si           : SOP1_Real_si <0x0a, S_WQM_B64>;
-def S_BREV_B32_si          : SOP1_Real_si <0x0b, S_BREV_B32>;
-def S_BREV_B64_si          : SOP1_Real_si <0x0c, S_BREV_B64>;
-def S_BCNT0_I32_B32_si     : SOP1_Real_si <0x0d, S_BCNT0_I32_B32>;
-def S_BCNT0_I32_B64_si     : SOP1_Real_si <0x0e, S_BCNT0_I32_B64>;
-def S_BCNT1_I32_B32_si     : SOP1_Real_si <0x0f, S_BCNT1_I32_B32>;
-def S_BCNT1_I32_B64_si     : SOP1_Real_si <0x10, S_BCNT1_I32_B64>;
-def S_FF0_I32_B32_si       : SOP1_Real_si <0x11, S_FF0_I32_B32>;
-def S_FF0_I32_B64_si       : SOP1_Real_si <0x12, S_FF0_I32_B64>;
-def S_FF1_I32_B32_si       : SOP1_Real_si <0x13, S_FF1_I32_B32>;
-def S_FF1_I32_B64_si       : SOP1_Real_si <0x14, S_FF1_I32_B64>;
-def S_FLBIT_I32_B32_si     : SOP1_Real_si <0x15, S_FLBIT_I32_B32>;
-def S_FLBIT_I32_B64_si     : SOP1_Real_si <0x16, S_FLBIT_I32_B64>;
-def S_FLBIT_I32_si         : SOP1_Real_si <0x17, S_FLBIT_I32>;
-def S_FLBIT_I32_I64_si     : SOP1_Real_si <0x18, S_FLBIT_I32_I64>;
-def S_SEXT_I32_I8_si       : SOP1_Real_si <0x19, S_SEXT_I32_I8>;
-def S_SEXT_I32_I16_si      : SOP1_Real_si <0x1a, S_SEXT_I32_I16>;
-def S_BITSET0_B32_si       : SOP1_Real_si <0x1b, S_BITSET0_B32>;
-def S_BITSET0_B64_si       : SOP1_Real_si <0x1c, S_BITSET0_B64>;
-def S_BITSET1_B32_si       : SOP1_Real_si <0x1d, S_BITSET1_B32>;
-def S_BITSET1_B64_si       : SOP1_Real_si <0x1e, S_BITSET1_B64>;
-def S_GETPC_B64_si         : SOP1_Real_si <0x1f, S_GETPC_B64>;
-def S_SETPC_B64_si         : SOP1_Real_si <0x20, S_SETPC_B64>;
-def S_SWAPPC_B64_si        : SOP1_Real_si <0x21, S_SWAPPC_B64>;
-def S_RFE_B64_si           : SOP1_Real_si <0x22, S_RFE_B64>;
-def S_AND_SAVEEXEC_B64_si  : SOP1_Real_si <0x24, S_AND_SAVEEXEC_B64>;
-def S_OR_SAVEEXEC_B64_si   : SOP1_Real_si <0x25, S_OR_SAVEEXEC_B64>;
-def S_XOR_SAVEEXEC_B64_si  : SOP1_Real_si <0x26, S_XOR_SAVEEXEC_B64>;
-def S_ANDN2_SAVEEXEC_B64_si: SOP1_Real_si <0x27, S_ANDN2_SAVEEXEC_B64>;
-def S_ORN2_SAVEEXEC_B64_si : SOP1_Real_si <0x28, S_ORN2_SAVEEXEC_B64>;
-def S_NAND_SAVEEXEC_B64_si : SOP1_Real_si <0x29, S_NAND_SAVEEXEC_B64>;
-def S_NOR_SAVEEXEC_B64_si  : SOP1_Real_si <0x2a, S_NOR_SAVEEXEC_B64>;
-def S_XNOR_SAVEEXEC_B64_si : SOP1_Real_si <0x2b, S_XNOR_SAVEEXEC_B64>;
-def S_QUADMASK_B32_si      : SOP1_Real_si <0x2c, S_QUADMASK_B32>;
-def S_QUADMASK_B64_si      : SOP1_Real_si <0x2d, S_QUADMASK_B64>;
-def S_MOVRELS_B32_si       : SOP1_Real_si <0x2e, S_MOVRELS_B32>;
-def S_MOVRELS_B64_si       : SOP1_Real_si <0x2f, S_MOVRELS_B64>;
-def S_MOVRELD_B32_si       : SOP1_Real_si <0x30, S_MOVRELD_B32>;
-def S_MOVRELD_B64_si       : SOP1_Real_si <0x31, S_MOVRELD_B64>;
-def S_CBRANCH_JOIN_si      : SOP1_Real_si <0x32, S_CBRANCH_JOIN>;
-def S_MOV_REGRD_B32_si     : SOP1_Real_si <0x33, S_MOV_REGRD_B32>;
-def S_ABS_I32_si           : SOP1_Real_si <0x34, S_ABS_I32>;
-def S_MOV_FED_B32_si       : SOP1_Real_si <0x35, S_MOV_FED_B32>;
-
-def S_ADD_U32_si           : SOP2_Real_si <0x00, S_ADD_U32>;
-def S_ADD_I32_si           : SOP2_Real_si <0x02, S_ADD_I32>;
-def S_SUB_U32_si           : SOP2_Real_si <0x01, S_SUB_U32>;
-def S_SUB_I32_si           : SOP2_Real_si <0x03, S_SUB_I32>;
-def S_ADDC_U32_si          : SOP2_Real_si <0x04, S_ADDC_U32>;
-def S_SUBB_U32_si          : SOP2_Real_si <0x05, S_SUBB_U32>;
-def S_MIN_I32_si           : SOP2_Real_si <0x06, S_MIN_I32>;
-def S_MIN_U32_si           : SOP2_Real_si <0x07, S_MIN_U32>;
-def S_MAX_I32_si           : SOP2_Real_si <0x08, S_MAX_I32>;
-def S_MAX_U32_si           : SOP2_Real_si <0x09, S_MAX_U32>;
-def S_CSELECT_B32_si       : SOP2_Real_si <0x0a, S_CSELECT_B32>;
-def S_CSELECT_B64_si       : SOP2_Real_si <0x0b, S_CSELECT_B64>;
-def S_AND_B32_si           : SOP2_Real_si <0x0e, S_AND_B32>;
-def S_AND_B64_si           : SOP2_Real_si <0x0f, S_AND_B64>;
-def S_OR_B32_si            : SOP2_Real_si <0x10, S_OR_B32>;
-def S_OR_B64_si            : SOP2_Real_si <0x11, S_OR_B64>;
-def S_XOR_B32_si           : SOP2_Real_si <0x12, S_XOR_B32>;
-def S_XOR_B64_si           : SOP2_Real_si <0x13, S_XOR_B64>;
-def S_ANDN2_B32_si         : SOP2_Real_si <0x14, S_ANDN2_B32>;
-def S_ANDN2_B64_si         : SOP2_Real_si <0x15, S_ANDN2_B64>;
-def S_ORN2_B32_si          : SOP2_Real_si <0x16, S_ORN2_B32>;
-def S_ORN2_B64_si          : SOP2_Real_si <0x17, S_ORN2_B64>;
-def S_NAND_B32_si          : SOP2_Real_si <0x18, S_NAND_B32>;
-def S_NAND_B64_si          : SOP2_Real_si <0x19, S_NAND_B64>;
-def S_NOR_B32_si           : SOP2_Real_si <0x1a, S_NOR_B32>;
-def S_NOR_B64_si           : SOP2_Real_si <0x1b, S_NOR_B64>;
-def S_XNOR_B32_si          : SOP2_Real_si <0x1c, S_XNOR_B32>;
-def S_XNOR_B64_si          : SOP2_Real_si <0x1d, S_XNOR_B64>;
-def S_LSHL_B32_si          : SOP2_Real_si <0x1e, S_LSHL_B32>;
-def S_LSHL_B64_si          : SOP2_Real_si <0x1f, S_LSHL_B64>;
-def S_LSHR_B32_si          : SOP2_Real_si <0x20, S_LSHR_B32>;
-def S_LSHR_B64_si          : SOP2_Real_si <0x21, S_LSHR_B64>;
-def S_ASHR_I32_si          : SOP2_Real_si <0x22, S_ASHR_I32>;
-def S_ASHR_I64_si          : SOP2_Real_si <0x23, S_ASHR_I64>;
-def S_BFM_B32_si           : SOP2_Real_si <0x24, S_BFM_B32>;
-def S_BFM_B64_si           : SOP2_Real_si <0x25, S_BFM_B64>;
-def S_MUL_I32_si           : SOP2_Real_si <0x26, S_MUL_I32>;
-def S_BFE_U32_si           : SOP2_Real_si <0x27, S_BFE_U32>;
-def S_BFE_I32_si           : SOP2_Real_si <0x28, S_BFE_I32>;
-def S_BFE_U64_si           : SOP2_Real_si <0x29, S_BFE_U64>;
-def S_BFE_I64_si           : SOP2_Real_si <0x2a, S_BFE_I64>;
-def S_CBRANCH_G_FORK_si    : SOP2_Real_si <0x2b, S_CBRANCH_G_FORK>;
-def S_ABSDIFF_I32_si       : SOP2_Real_si <0x2c, S_ABSDIFF_I32>;
-
-def S_MOVK_I32_si          : SOPK_Real_si <0x00, S_MOVK_I32>;
-def S_CMOVK_I32_si         : SOPK_Real_si <0x02, S_CMOVK_I32>;
-def S_CMPK_EQ_I32_si       : SOPK_Real_si <0x03, S_CMPK_EQ_I32>;
-def S_CMPK_LG_I32_si       : SOPK_Real_si <0x04, S_CMPK_LG_I32>;
-def S_CMPK_GT_I32_si       : SOPK_Real_si <0x05, S_CMPK_GT_I32>;
-def S_CMPK_GE_I32_si       : SOPK_Real_si <0x06, S_CMPK_GE_I32>;
-def S_CMPK_LT_I32_si       : SOPK_Real_si <0x07, S_CMPK_LT_I32>;
-def S_CMPK_LE_I32_si       : SOPK_Real_si <0x08, S_CMPK_LE_I32>;
-def S_CMPK_EQ_U32_si       : SOPK_Real_si <0x09, S_CMPK_EQ_U32>;
-def S_CMPK_LG_U32_si       : SOPK_Real_si <0x0a, S_CMPK_LG_U32>;
-def S_CMPK_GT_U32_si       : SOPK_Real_si <0x0b, S_CMPK_GT_U32>;
-def S_CMPK_GE_U32_si       : SOPK_Real_si <0x0c, S_CMPK_GE_U32>;
-def S_CMPK_LT_U32_si       : SOPK_Real_si <0x0d, S_CMPK_LT_U32>;
-def S_CMPK_LE_U32_si       : SOPK_Real_si <0x0e, S_CMPK_LE_U32>;
-def S_ADDK_I32_si          : SOPK_Real_si <0x0f, S_ADDK_I32>;
-def S_MULK_I32_si          : SOPK_Real_si <0x10, S_MULK_I32>;
-def S_CBRANCH_I_FORK_si    : SOPK_Real_si <0x11, S_CBRANCH_I_FORK>;
-def S_GETREG_B32_si        : SOPK_Real_si <0x12, S_GETREG_B32>;
-def S_SETREG_B32_si        : SOPK_Real_si <0x13, S_SETREG_B32>;
-//def S_GETREG_REGRD_B32_si  : SOPK_Real_si <0x14, S_GETREG_REGRD_B32>; // see pseudo for comments
-def S_SETREG_IMM32_B32_si  : SOPK_Real64<0x15, S_SETREG_IMM32_B32>,
-                             Select_si<S_SETREG_IMM32_B32.Mnemonic>;
-
-
-class Select_vi<string opName> :
-  SIMCInstr<opName, SIEncodingFamily.VI> {
-  list<Predicate> AssemblerPredicates = [isVI];
-  string DecoderNamespace = "VI";
+class Select_vi<string opName> : SIMCInstr<opName, SIEncodingFamily.VI> {
+  Predicate AssemblerPredicate = isGFX8GFX9;
+  string DecoderNamespace = "GFX8";
 }
+
+class Select_gfx6_gfx7<string opName> : SIMCInstr<opName, SIEncodingFamily.SI> {
+  Predicate AssemblerPredicate = isGFX6GFX7;
+  string DecoderNamespace      = "GFX6GFX7";
+}
+
+//===----------------------------------------------------------------------===//
+// SOP1 - GFX10.
+//===----------------------------------------------------------------------===//
+
+multiclass SOP1_Real_gfx10<bits<8> op> {
+  def _gfx10 : SOP1_Real<op, !cast<SOP1_Pseudo>(NAME)>,
+               Select_gfx10<!cast<SOP1_Pseudo>(NAME).Mnemonic>;
+}
+
+defm S_ANDN1_SAVEEXEC_B64   : SOP1_Real_gfx10<0x037>;
+defm S_ORN1_SAVEEXEC_B64    : SOP1_Real_gfx10<0x038>;
+defm S_ANDN1_WREXEC_B64     : SOP1_Real_gfx10<0x039>;
+defm S_ANDN2_WREXEC_B64     : SOP1_Real_gfx10<0x03a>;
+defm S_BITREPLICATE_B64_B32 : SOP1_Real_gfx10<0x03b>;
+defm S_AND_SAVEEXEC_B32     : SOP1_Real_gfx10<0x03c>;
+defm S_OR_SAVEEXEC_B32      : SOP1_Real_gfx10<0x03d>;
+defm S_XOR_SAVEEXEC_B32     : SOP1_Real_gfx10<0x03e>;
+defm S_ANDN2_SAVEEXEC_B32   : SOP1_Real_gfx10<0x03f>;
+defm S_ORN2_SAVEEXEC_B32    : SOP1_Real_gfx10<0x040>;
+defm S_NAND_SAVEEXEC_B32    : SOP1_Real_gfx10<0x041>;
+defm S_NOR_SAVEEXEC_B32     : SOP1_Real_gfx10<0x042>;
+defm S_XNOR_SAVEEXEC_B32    : SOP1_Real_gfx10<0x043>;
+defm S_ANDN1_SAVEEXEC_B32   : SOP1_Real_gfx10<0x044>;
+defm S_ORN1_SAVEEXEC_B32    : SOP1_Real_gfx10<0x045>;
+defm S_ANDN1_WREXEC_B32     : SOP1_Real_gfx10<0x046>;
+defm S_ANDN2_WREXEC_B32     : SOP1_Real_gfx10<0x047>;
+defm S_MOVRELSD_2_B32       : SOP1_Real_gfx10<0x049>;
+
+//===----------------------------------------------------------------------===//
+// SOP1 - GFX6, GFX7.
+//===----------------------------------------------------------------------===//
+
+
+multiclass SOP1_Real_gfx6_gfx7<bits<8> op> {
+  def _gfx6_gfx7 : SOP1_Real<op, !cast<SOP1_Pseudo>(NAME)>,
+                   Select_gfx6_gfx7<!cast<SOP1_Pseudo>(NAME).Mnemonic>;
+}
+
+multiclass SOP1_Real_gfx6_gfx7_gfx10<bits<8> op> :
+  SOP1_Real_gfx6_gfx7<op>, SOP1_Real_gfx10<op>;
+
+defm S_CBRANCH_JOIN  : SOP1_Real_gfx6_gfx7<0x032>;
+
+defm S_MOV_B32            : SOP1_Real_gfx6_gfx7_gfx10<0x003>;
+defm S_MOV_B64            : SOP1_Real_gfx6_gfx7_gfx10<0x004>;
+defm S_CMOV_B32           : SOP1_Real_gfx6_gfx7_gfx10<0x005>;
+defm S_CMOV_B64           : SOP1_Real_gfx6_gfx7_gfx10<0x006>;
+defm S_NOT_B32            : SOP1_Real_gfx6_gfx7_gfx10<0x007>;
+defm S_NOT_B64            : SOP1_Real_gfx6_gfx7_gfx10<0x008>;
+defm S_WQM_B32            : SOP1_Real_gfx6_gfx7_gfx10<0x009>;
+defm S_WQM_B64            : SOP1_Real_gfx6_gfx7_gfx10<0x00a>;
+defm S_BREV_B32           : SOP1_Real_gfx6_gfx7_gfx10<0x00b>;
+defm S_BREV_B64           : SOP1_Real_gfx6_gfx7_gfx10<0x00c>;
+defm S_BCNT0_I32_B32      : SOP1_Real_gfx6_gfx7_gfx10<0x00d>;
+defm S_BCNT0_I32_B64      : SOP1_Real_gfx6_gfx7_gfx10<0x00e>;
+defm S_BCNT1_I32_B32      : SOP1_Real_gfx6_gfx7_gfx10<0x00f>;
+defm S_BCNT1_I32_B64      : SOP1_Real_gfx6_gfx7_gfx10<0x010>;
+defm S_FF0_I32_B32        : SOP1_Real_gfx6_gfx7_gfx10<0x011>;
+defm S_FF0_I32_B64        : SOP1_Real_gfx6_gfx7_gfx10<0x012>;
+defm S_FF1_I32_B32        : SOP1_Real_gfx6_gfx7_gfx10<0x013>;
+defm S_FF1_I32_B64        : SOP1_Real_gfx6_gfx7_gfx10<0x014>;
+defm S_FLBIT_I32_B32      : SOP1_Real_gfx6_gfx7_gfx10<0x015>;
+defm S_FLBIT_I32_B64      : SOP1_Real_gfx6_gfx7_gfx10<0x016>;
+defm S_FLBIT_I32          : SOP1_Real_gfx6_gfx7_gfx10<0x017>;
+defm S_FLBIT_I32_I64      : SOP1_Real_gfx6_gfx7_gfx10<0x018>;
+defm S_SEXT_I32_I8        : SOP1_Real_gfx6_gfx7_gfx10<0x019>;
+defm S_SEXT_I32_I16       : SOP1_Real_gfx6_gfx7_gfx10<0x01a>;
+defm S_BITSET0_B32        : SOP1_Real_gfx6_gfx7_gfx10<0x01b>;
+defm S_BITSET0_B64        : SOP1_Real_gfx6_gfx7_gfx10<0x01c>;
+defm S_BITSET1_B32        : SOP1_Real_gfx6_gfx7_gfx10<0x01d>;
+defm S_BITSET1_B64        : SOP1_Real_gfx6_gfx7_gfx10<0x01e>;
+defm S_GETPC_B64          : SOP1_Real_gfx6_gfx7_gfx10<0x01f>;
+defm S_SETPC_B64          : SOP1_Real_gfx6_gfx7_gfx10<0x020>;
+defm S_SWAPPC_B64         : SOP1_Real_gfx6_gfx7_gfx10<0x021>;
+defm S_RFE_B64            : SOP1_Real_gfx6_gfx7_gfx10<0x022>;
+defm S_AND_SAVEEXEC_B64   : SOP1_Real_gfx6_gfx7_gfx10<0x024>;
+defm S_OR_SAVEEXEC_B64    : SOP1_Real_gfx6_gfx7_gfx10<0x025>;
+defm S_XOR_SAVEEXEC_B64   : SOP1_Real_gfx6_gfx7_gfx10<0x026>;
+defm S_ANDN2_SAVEEXEC_B64 : SOP1_Real_gfx6_gfx7_gfx10<0x027>;
+defm S_ORN2_SAVEEXEC_B64  : SOP1_Real_gfx6_gfx7_gfx10<0x028>;
+defm S_NAND_SAVEEXEC_B64  : SOP1_Real_gfx6_gfx7_gfx10<0x029>;
+defm S_NOR_SAVEEXEC_B64   : SOP1_Real_gfx6_gfx7_gfx10<0x02a>;
+defm S_XNOR_SAVEEXEC_B64  : SOP1_Real_gfx6_gfx7_gfx10<0x02b>;
+defm S_QUADMASK_B32       : SOP1_Real_gfx6_gfx7_gfx10<0x02c>;
+defm S_QUADMASK_B64       : SOP1_Real_gfx6_gfx7_gfx10<0x02d>;
+defm S_MOVRELS_B32        : SOP1_Real_gfx6_gfx7_gfx10<0x02e>;
+defm S_MOVRELS_B64        : SOP1_Real_gfx6_gfx7_gfx10<0x02f>;
+defm S_MOVRELD_B32        : SOP1_Real_gfx6_gfx7_gfx10<0x030>;
+defm S_MOVRELD_B64        : SOP1_Real_gfx6_gfx7_gfx10<0x031>;
+defm S_ABS_I32            : SOP1_Real_gfx6_gfx7_gfx10<0x034>;
+
+//===----------------------------------------------------------------------===//
+// SOP2 - GFX10.
+//===----------------------------------------------------------------------===//
+
+multiclass SOP2_Real_gfx10<bits<7> op> {
+  def _gfx10 : SOP2_Real<op, !cast<SOP2_Pseudo>(NAME)>,
+               Select_gfx10<!cast<SOP2_Pseudo>(NAME).Mnemonic>;
+}
+
+defm S_LSHL1_ADD_U32   : SOP2_Real_gfx10<0x02e>;
+defm S_LSHL2_ADD_U32   : SOP2_Real_gfx10<0x02f>;
+defm S_LSHL3_ADD_U32   : SOP2_Real_gfx10<0x030>;
+defm S_LSHL4_ADD_U32   : SOP2_Real_gfx10<0x031>;
+defm S_PACK_LL_B32_B16 : SOP2_Real_gfx10<0x032>;
+defm S_PACK_LH_B32_B16 : SOP2_Real_gfx10<0x033>;
+defm S_PACK_HH_B32_B16 : SOP2_Real_gfx10<0x034>;
+defm S_MUL_HI_U32      : SOP2_Real_gfx10<0x035>;
+defm S_MUL_HI_I32      : SOP2_Real_gfx10<0x036>;
+
+//===----------------------------------------------------------------------===//
+// SOP2 - GFX6, GFX7.
+//===----------------------------------------------------------------------===//
+
+multiclass SOP2_Real_gfx6_gfx7<bits<7> op> {
+  def _gfx6_gfx7 : SOP2_Real<op, !cast<SOP_Pseudo>(NAME)>,
+                   Select_gfx6_gfx7<!cast<SOP_Pseudo>(NAME).Mnemonic>;
+}
+
+multiclass SOP2_Real_gfx6_gfx7_gfx10<bits<7> op> :
+  SOP2_Real_gfx6_gfx7<op>, SOP2_Real_gfx10<op>;
+
+defm S_CBRANCH_G_FORK : SOP2_Real_gfx6_gfx7<0x02b>;
+
+defm S_ADD_U32     : SOP2_Real_gfx6_gfx7_gfx10<0x000>;
+defm S_SUB_U32     : SOP2_Real_gfx6_gfx7_gfx10<0x001>;
+defm S_ADD_I32     : SOP2_Real_gfx6_gfx7_gfx10<0x002>;
+defm S_SUB_I32     : SOP2_Real_gfx6_gfx7_gfx10<0x003>;
+defm S_ADDC_U32    : SOP2_Real_gfx6_gfx7_gfx10<0x004>;
+defm S_SUBB_U32    : SOP2_Real_gfx6_gfx7_gfx10<0x005>;
+defm S_MIN_I32     : SOP2_Real_gfx6_gfx7_gfx10<0x006>;
+defm S_MIN_U32     : SOP2_Real_gfx6_gfx7_gfx10<0x007>;
+defm S_MAX_I32     : SOP2_Real_gfx6_gfx7_gfx10<0x008>;
+defm S_MAX_U32     : SOP2_Real_gfx6_gfx7_gfx10<0x009>;
+defm S_CSELECT_B32 : SOP2_Real_gfx6_gfx7_gfx10<0x00a>;
+defm S_CSELECT_B64 : SOP2_Real_gfx6_gfx7_gfx10<0x00b>;
+defm S_AND_B32     : SOP2_Real_gfx6_gfx7_gfx10<0x00e>;
+defm S_AND_B64     : SOP2_Real_gfx6_gfx7_gfx10<0x00f>;
+defm S_OR_B32      : SOP2_Real_gfx6_gfx7_gfx10<0x010>;
+defm S_OR_B64      : SOP2_Real_gfx6_gfx7_gfx10<0x011>;
+defm S_XOR_B32     : SOP2_Real_gfx6_gfx7_gfx10<0x012>;
+defm S_XOR_B64     : SOP2_Real_gfx6_gfx7_gfx10<0x013>;
+defm S_ANDN2_B32   : SOP2_Real_gfx6_gfx7_gfx10<0x014>;
+defm S_ANDN2_B64   : SOP2_Real_gfx6_gfx7_gfx10<0x015>;
+defm S_ORN2_B32    : SOP2_Real_gfx6_gfx7_gfx10<0x016>;
+defm S_ORN2_B64    : SOP2_Real_gfx6_gfx7_gfx10<0x017>;
+defm S_NAND_B32    : SOP2_Real_gfx6_gfx7_gfx10<0x018>;
+defm S_NAND_B64    : SOP2_Real_gfx6_gfx7_gfx10<0x019>;
+defm S_NOR_B32     : SOP2_Real_gfx6_gfx7_gfx10<0x01a>;
+defm S_NOR_B64     : SOP2_Real_gfx6_gfx7_gfx10<0x01b>;
+defm S_XNOR_B32    : SOP2_Real_gfx6_gfx7_gfx10<0x01c>;
+defm S_XNOR_B64    : SOP2_Real_gfx6_gfx7_gfx10<0x01d>;
+defm S_LSHL_B32    : SOP2_Real_gfx6_gfx7_gfx10<0x01e>;
+defm S_LSHL_B64    : SOP2_Real_gfx6_gfx7_gfx10<0x01f>;
+defm S_LSHR_B32    : SOP2_Real_gfx6_gfx7_gfx10<0x020>;
+defm S_LSHR_B64    : SOP2_Real_gfx6_gfx7_gfx10<0x021>;
+defm S_ASHR_I32    : SOP2_Real_gfx6_gfx7_gfx10<0x022>;
+defm S_ASHR_I64    : SOP2_Real_gfx6_gfx7_gfx10<0x023>;
+defm S_BFM_B32     : SOP2_Real_gfx6_gfx7_gfx10<0x024>;
+defm S_BFM_B64     : SOP2_Real_gfx6_gfx7_gfx10<0x025>;
+defm S_MUL_I32     : SOP2_Real_gfx6_gfx7_gfx10<0x026>;
+defm S_BFE_U32     : SOP2_Real_gfx6_gfx7_gfx10<0x027>;
+defm S_BFE_I32     : SOP2_Real_gfx6_gfx7_gfx10<0x028>;
+defm S_BFE_U64     : SOP2_Real_gfx6_gfx7_gfx10<0x029>;
+defm S_BFE_I64     : SOP2_Real_gfx6_gfx7_gfx10<0x02a>;
+defm S_ABSDIFF_I32 : SOP2_Real_gfx6_gfx7_gfx10<0x02c>;
+
+//===----------------------------------------------------------------------===//
+// SOPK - GFX10.
+//===----------------------------------------------------------------------===//
+
+multiclass SOPK_Real32_gfx10<bits<5> op> {
+  def _gfx10 : SOPK_Real32<op, !cast<SOPK_Pseudo>(NAME)>,
+               Select_gfx10<!cast<SOPK_Pseudo>(NAME).Mnemonic>;
+}
+
+multiclass SOPK_Real64_gfx10<bits<5> op> {
+  def _gfx10 : SOPK_Real64<op, !cast<SOPK_Pseudo>(NAME)>,
+               Select_gfx10<!cast<SOPK_Pseudo>(NAME).Mnemonic>;
+}
+
+defm S_VERSION              : SOPK_Real32_gfx10<0x001>;
+defm S_CALL_B64             : SOPK_Real32_gfx10<0x016>;
+defm S_WAITCNT_VSCNT        : SOPK_Real32_gfx10<0x017>;
+defm S_WAITCNT_VMCNT        : SOPK_Real32_gfx10<0x018>;
+defm S_WAITCNT_EXPCNT       : SOPK_Real32_gfx10<0x019>;
+defm S_WAITCNT_LGKMCNT      : SOPK_Real32_gfx10<0x01a>;
+defm S_SUBVECTOR_LOOP_BEGIN : SOPK_Real32_gfx10<0x01b>;
+defm S_SUBVECTOR_LOOP_END   : SOPK_Real32_gfx10<0x01c>;
+
+//===----------------------------------------------------------------------===//
+// SOPK - GFX6, GFX7.
+//===----------------------------------------------------------------------===//
+
+multiclass SOPK_Real32_gfx6_gfx7<bits<5> op> {
+  def _gfx6_gfx7 : SOPK_Real32<op, !cast<SOPK_Pseudo>(NAME)>,
+                   Select_gfx6_gfx7<!cast<SOPK_Pseudo>(NAME).Mnemonic>;
+}
+
+multiclass SOPK_Real64_gfx6_gfx7<bits<5> op> {
+  def _gfx6_gfx7 : SOPK_Real64<op, !cast<SOPK_Pseudo>(NAME)>,
+                   Select_gfx6_gfx7<!cast<SOPK_Pseudo>(NAME).Mnemonic>;
+}
+
+multiclass SOPK_Real32_gfx6_gfx7_gfx10<bits<5> op> :
+  SOPK_Real32_gfx6_gfx7<op>, SOPK_Real32_gfx10<op>;
+
+multiclass SOPK_Real64_gfx6_gfx7_gfx10<bits<5> op> :
+  SOPK_Real64_gfx6_gfx7<op>, SOPK_Real64_gfx10<op>;
+
+defm S_CBRANCH_I_FORK : SOPK_Real32_gfx6_gfx7<0x011>;
+
+defm S_MOVK_I32         : SOPK_Real32_gfx6_gfx7_gfx10<0x000>;
+defm S_CMOVK_I32        : SOPK_Real32_gfx6_gfx7_gfx10<0x002>;
+defm S_CMPK_EQ_I32      : SOPK_Real32_gfx6_gfx7_gfx10<0x003>;
+defm S_CMPK_LG_I32      : SOPK_Real32_gfx6_gfx7_gfx10<0x004>;
+defm S_CMPK_GT_I32      : SOPK_Real32_gfx6_gfx7_gfx10<0x005>;
+defm S_CMPK_GE_I32      : SOPK_Real32_gfx6_gfx7_gfx10<0x006>;
+defm S_CMPK_LT_I32      : SOPK_Real32_gfx6_gfx7_gfx10<0x007>;
+defm S_CMPK_LE_I32      : SOPK_Real32_gfx6_gfx7_gfx10<0x008>;
+defm S_CMPK_EQ_U32      : SOPK_Real32_gfx6_gfx7_gfx10<0x009>;
+defm S_CMPK_LG_U32      : SOPK_Real32_gfx6_gfx7_gfx10<0x00a>;
+defm S_CMPK_GT_U32      : SOPK_Real32_gfx6_gfx7_gfx10<0x00b>;
+defm S_CMPK_GE_U32      : SOPK_Real32_gfx6_gfx7_gfx10<0x00c>;
+defm S_CMPK_LT_U32      : SOPK_Real32_gfx6_gfx7_gfx10<0x00d>;
+defm S_CMPK_LE_U32      : SOPK_Real32_gfx6_gfx7_gfx10<0x00e>;
+defm S_ADDK_I32         : SOPK_Real32_gfx6_gfx7_gfx10<0x00f>;
+defm S_MULK_I32         : SOPK_Real32_gfx6_gfx7_gfx10<0x010>;
+defm S_GETREG_B32       : SOPK_Real32_gfx6_gfx7_gfx10<0x012>;
+defm S_SETREG_B32       : SOPK_Real32_gfx6_gfx7_gfx10<0x013>;
+defm S_SETREG_IMM32_B32 : SOPK_Real64_gfx6_gfx7_gfx10<0x015>;
+
+//===----------------------------------------------------------------------===//
+// SOPP - GFX6, GFX7, GFX8, GFX9, GFX10
+//===----------------------------------------------------------------------===//
+
+multiclass SOPP_Real_32_gfx6_gfx7<bits<7> op, string real_name = !cast<SOPP_Pseudo>(NAME).Mnemonic> {
+  def _gfx6_gfx7 : SOPP_Real_32<op, !cast<SOPP_Pseudo>(NAME), real_name>,
+                   Select_gfx6_gfx7<!cast<SOPP_Pseudo>(NAME).Mnemonic>,
+                   SOPPRelaxTable<0, !cast<SOPP_Pseudo>(NAME).KeyName, "_gfx6_gfx7">;
+}
+
+multiclass SOPP_Real_32_gfx8_gfx9<bits<7> op, string real_name = !cast<SOPP_Pseudo>(NAME).Mnemonic # " "> {
+  def _vi : SOPP_Real_32<op, !cast<SOPP_Pseudo>(NAME), real_name>,
+            Select_vi<!cast<SOPP_Pseudo>(NAME).Mnemonic>,
+            SOPPRelaxTable<0, !cast<SOPP_Pseudo>(NAME).KeyName, "_vi">;
+}
+
+multiclass SOPP_Real_32_gfx10<bits<7> op, string real_name = !cast<SOPP_Pseudo>(NAME).Mnemonic # " "> {
+  def _gfx10 : SOPP_Real_32<op, !cast<SOPP_Pseudo>(NAME), real_name>,
+               Select_gfx10<!cast<SOPP_Pseudo>(NAME).Mnemonic>,
+               SOPPRelaxTable<0, !cast<SOPP_Pseudo>(NAME).KeyName, "_gfx10">;
+}
+
+multiclass SOPP_Real_32_gfx8_gfx9_gfx10<bits<7> op, string real_name = !cast<SOPP_Pseudo>(NAME).Mnemonic # " "> :
+  SOPP_Real_32_gfx8_gfx9<op, real_name>, SOPP_Real_32_gfx10<op, real_name>;
+
+multiclass SOPP_Real_32_gfx6_gfx7_gfx8_gfx9<bits<7> op, string real_name = !cast<SOPP_Pseudo>(NAME).Mnemonic # " "> :
+  SOPP_Real_32_gfx6_gfx7<op, real_name>, SOPP_Real_32_gfx8_gfx9<op, real_name>;
+
+multiclass SOPP_Real_32_gfx6_gfx7_gfx8_gfx9_gfx10<bits<7> op, string real_name = !cast<SOPP_Pseudo>(NAME).Mnemonic # " "> :
+  SOPP_Real_32_gfx6_gfx7_gfx8_gfx9<op, real_name>, SOPP_Real_32_gfx10<op, real_name>;
+
+//64 bit encodings, for Relaxation
+multiclass SOPP_Real_64_gfx6_gfx7<bits<7> op, string real_name = !cast<SOPP_Pseudo>(NAME).Mnemonic # " "> {
+  def _gfx6_gfx7 : SOPP_Real_64<op, !cast<SOPP_Pseudo>(NAME), real_name>,
+                   Select_gfx6_gfx7<!cast<SOPP_Pseudo>(NAME).Mnemonic>,
+                   SOPPRelaxTable<1, !cast<SOPP_Pseudo>(NAME).KeyName, "_gfx6_gfx7">;
+}
+
+multiclass SOPP_Real_64_gfx8_gfx9<bits<7> op, string real_name = !cast<SOPP_Pseudo>(NAME).Mnemonic # " "> {
+  def _vi : SOPP_Real_64<op, !cast<SOPP_Pseudo>(NAME), real_name>,
+            Select_vi<!cast<SOPP_Pseudo>(NAME).Mnemonic>,
+            SOPPRelaxTable<1, !cast<SOPP_Pseudo>(NAME).KeyName, "_vi">;
+}
+
+multiclass SOPP_Real_64_gfx10<bits<7> op, string real_name = !cast<SOPP_Pseudo>(NAME).Mnemonic # " "> {
+  def _gfx10 : SOPP_Real_64<op, !cast<SOPP_Pseudo>(NAME), real_name>,
+               Select_gfx10<!cast<SOPP_Pseudo>(NAME).Mnemonic>,
+               SOPPRelaxTable<1, !cast<SOPP_Pseudo>(NAME).KeyName, "_gfx10">;
+}
+
+multiclass SOPP_Real_64_gfx8_gfx9_gfx10<bits<7> op, string real_name = !cast<SOPP_Pseudo>(NAME).Mnemonic # " "> :
+  SOPP_Real_64_gfx8_gfx9<op, real_name>, SOPP_Real_64_gfx10<op, real_name>;
+
+multiclass SOPP_Real_64_gfx6_gfx7_gfx8_gfx9<bits<7> op, string real_name = !cast<SOPP_Pseudo>(NAME).Mnemonic # " "> :
+  SOPP_Real_64_gfx6_gfx7<op, real_name>, SOPP_Real_64_gfx8_gfx9<op, real_name>;
+
+multiclass SOPP_Real_64_gfx6_gfx7_gfx8_gfx9_gfx10<bits<7> op, string real_name = !cast<SOPP_Pseudo>(NAME).Mnemonic # " "> :
+  SOPP_Real_64_gfx6_gfx7_gfx8_gfx9<op, real_name>, SOPP_Real_64_gfx10<op, real_name>;
+
+//relaxation for insts with no operands not implemented
+multiclass SOPP_Real_With_Relaxation_gfx6_gfx7_gfx8_gfx9_gfx10<bits<7> op> {
+  defm "" : SOPP_Real_32_gfx6_gfx7_gfx8_gfx9_gfx10<op>;
+  defm _pad_s_nop : SOPP_Real_64_gfx6_gfx7_gfx8_gfx9_gfx10<op>;
+}
+
+defm S_NOP                      : SOPP_Real_32_gfx6_gfx7_gfx8_gfx9_gfx10<0x000>;
+defm S_ENDPGM                   : SOPP_Real_32_gfx6_gfx7_gfx8_gfx9_gfx10<0x001, "s_endpgm">;
+defm S_BRANCH                   : SOPP_Real_With_Relaxation_gfx6_gfx7_gfx8_gfx9_gfx10<0x002>;
+defm S_WAKEUP                   : SOPP_Real_32_gfx8_gfx9_gfx10<0x003>;
+defm S_CBRANCH_SCC0             : SOPP_Real_With_Relaxation_gfx6_gfx7_gfx8_gfx9_gfx10<0x004>;
+defm S_CBRANCH_SCC1             : SOPP_Real_With_Relaxation_gfx6_gfx7_gfx8_gfx9_gfx10<0x005>;
+defm S_CBRANCH_VCCZ             : SOPP_Real_With_Relaxation_gfx6_gfx7_gfx8_gfx9_gfx10<0x006>;
+defm S_CBRANCH_VCCNZ            : SOPP_Real_With_Relaxation_gfx6_gfx7_gfx8_gfx9_gfx10<0x007>;
+defm S_CBRANCH_EXECZ            : SOPP_Real_With_Relaxation_gfx6_gfx7_gfx8_gfx9_gfx10<0x008>;
+defm S_CBRANCH_EXECNZ           : SOPP_Real_With_Relaxation_gfx6_gfx7_gfx8_gfx9_gfx10<0x009>;
+defm S_CBRANCH_CDBGSYS          : SOPP_Real_With_Relaxation_gfx6_gfx7_gfx8_gfx9_gfx10<0x017>;
+defm S_CBRANCH_CDBGUSER         : SOPP_Real_With_Relaxation_gfx6_gfx7_gfx8_gfx9_gfx10<0x018>;
+defm S_CBRANCH_CDBGSYS_OR_USER  : SOPP_Real_With_Relaxation_gfx6_gfx7_gfx8_gfx9_gfx10<0x019>;
+defm S_CBRANCH_CDBGSYS_AND_USER : SOPP_Real_With_Relaxation_gfx6_gfx7_gfx8_gfx9_gfx10<0x01A>;
+defm S_BARRIER                  : SOPP_Real_32_gfx6_gfx7_gfx8_gfx9_gfx10<0x00a>;
+defm S_WAITCNT                  : SOPP_Real_32_gfx6_gfx7_gfx8_gfx9_gfx10<0x00c>;
+defm S_SETHALT                  : SOPP_Real_32_gfx6_gfx7_gfx8_gfx9_gfx10<0x00d>;
+defm S_SETKILL                  : SOPP_Real_32_gfx6_gfx7_gfx8_gfx9_gfx10<0x00b>;
+defm S_SLEEP                    : SOPP_Real_32_gfx6_gfx7_gfx8_gfx9_gfx10<0x00e>;
+defm S_SETPRIO                  : SOPP_Real_32_gfx6_gfx7_gfx8_gfx9_gfx10<0x00f>;
+defm S_SENDMSG                  : SOPP_Real_32_gfx6_gfx7_gfx8_gfx9_gfx10<0x010>;
+defm S_SENDMSGHALT              : SOPP_Real_32_gfx6_gfx7_gfx8_gfx9_gfx10<0x011>;
+defm S_TRAP                     : SOPP_Real_32_gfx6_gfx7_gfx8_gfx9_gfx10<0x012>;
+defm S_ICACHE_INV               : SOPP_Real_32_gfx6_gfx7_gfx8_gfx9_gfx10<0x013>;
+defm S_INCPERFLEVEL             : SOPP_Real_32_gfx6_gfx7_gfx8_gfx9_gfx10<0x014>;
+defm S_DECPERFLEVEL             : SOPP_Real_32_gfx6_gfx7_gfx8_gfx9_gfx10<0x015>;
+defm S_TTRACEDATA               : SOPP_Real_32_gfx6_gfx7_gfx8_gfx9_gfx10<0x016>;
+defm S_ENDPGM_SAVED             : SOPP_Real_32_gfx6_gfx7_gfx8_gfx9_gfx10<0x01B>;
+defm S_SET_GPR_IDX_OFF          : SOPP_Real_32_gfx8_gfx9<0x01c>;
+defm S_SET_GPR_IDX_MODE         : SOPP_Real_32_gfx8_gfx9<0x01d>;
+defm S_ENDPGM_ORDERED_PS_DONE   : SOPP_Real_32_gfx8_gfx9_gfx10<0x01e>;
+defm S_CODE_END                 : SOPP_Real_32_gfx10<0x01f>;
+defm S_INST_PREFETCH            : SOPP_Real_32_gfx10<0x020>;
+defm S_CLAUSE                   : SOPP_Real_32_gfx10<0x021>;
+defm S_WAIT_IDLE                : SOPP_Real_32_gfx10<0x022>;
+defm S_WAITCNT_DEPCTR           : SOPP_Real_32_gfx10<0x023>;
+defm S_ROUND_MODE               : SOPP_Real_32_gfx10<0x024>;
+defm S_DENORM_MODE              : SOPP_Real_32_gfx10<0x025>;
+defm S_TTRACEDATA_IMM           : SOPP_Real_32_gfx10<0x028>;
+
+//===----------------------------------------------------------------------===//
+// SOPC - GFX6, GFX7, GFX8, GFX9, GFX10
+//===----------------------------------------------------------------------===//
+
+multiclass SOPC_Real_gfx6_gfx7<bits<7> op> {
+  def _gfx6_gfx7 : SOPC_Real<op, !cast<SOPC_Pseudo>(NAME)>,
+                   Select_gfx6_gfx7<!cast<SOPC_Pseudo>(NAME).Mnemonic>;
+}
+
+multiclass SOPC_Real_gfx8_gfx9<bits<7> op> {
+  def _vi : SOPC_Real<op, !cast<SOPC_Pseudo>(NAME)>,
+            Select_vi<!cast<SOPC_Pseudo>(NAME).Mnemonic>;
+}
+
+multiclass SOPC_Real_gfx10<bits<7> op> {
+  def _gfx10 : SOPC_Real<op, !cast<SOPC_Pseudo>(NAME)>,
+               Select_gfx10<!cast<SOPC_Pseudo>(NAME).Mnemonic>;
+}
+
+multiclass SOPC_Real_gfx8_gfx9_gfx10<bits<7> op> :
+  SOPC_Real_gfx8_gfx9<op>, SOPC_Real_gfx10<op>;
+
+multiclass SOPC_Real_gfx6_gfx7_gfx8_gfx9<bits<7> op> :
+  SOPC_Real_gfx6_gfx7<op>, SOPC_Real_gfx8_gfx9<op>;
+
+multiclass SOPC_Real_gfx6_gfx7_gfx8_gfx9_gfx10<bits<7> op> :
+  SOPC_Real_gfx6_gfx7_gfx8_gfx9<op>, SOPC_Real_gfx10<op>;
+
+defm S_CMP_EQ_I32     : SOPC_Real_gfx6_gfx7_gfx8_gfx9_gfx10<0x00>;
+defm S_CMP_LG_I32     : SOPC_Real_gfx6_gfx7_gfx8_gfx9_gfx10<0x01>;
+defm S_CMP_GT_I32     : SOPC_Real_gfx6_gfx7_gfx8_gfx9_gfx10<0x02>;
+defm S_CMP_GE_I32     : SOPC_Real_gfx6_gfx7_gfx8_gfx9_gfx10<0x03>;
+defm S_CMP_LT_I32     : SOPC_Real_gfx6_gfx7_gfx8_gfx9_gfx10<0x04>;
+defm S_CMP_LE_I32     : SOPC_Real_gfx6_gfx7_gfx8_gfx9_gfx10<0x05>;
+defm S_CMP_EQ_U32     : SOPC_Real_gfx6_gfx7_gfx8_gfx9_gfx10<0x06>;
+defm S_CMP_LG_U32     : SOPC_Real_gfx6_gfx7_gfx8_gfx9_gfx10<0x07>;
+defm S_CMP_GT_U32     : SOPC_Real_gfx6_gfx7_gfx8_gfx9_gfx10<0x08>;
+defm S_CMP_GE_U32     : SOPC_Real_gfx6_gfx7_gfx8_gfx9_gfx10<0x09>;
+defm S_CMP_LT_U32     : SOPC_Real_gfx6_gfx7_gfx8_gfx9_gfx10<0x0a>;
+defm S_CMP_LE_U32     : SOPC_Real_gfx6_gfx7_gfx8_gfx9_gfx10<0x0b>;
+defm S_BITCMP0_B32    : SOPC_Real_gfx6_gfx7_gfx8_gfx9_gfx10<0x0c>;
+defm S_BITCMP1_B32    : SOPC_Real_gfx6_gfx7_gfx8_gfx9_gfx10<0x0d>;
+defm S_BITCMP0_B64    : SOPC_Real_gfx6_gfx7_gfx8_gfx9_gfx10<0x0e>;
+defm S_BITCMP1_B64    : SOPC_Real_gfx6_gfx7_gfx8_gfx9_gfx10<0x0f>;
+defm S_SETVSKIP       : SOPC_Real_gfx6_gfx7_gfx8_gfx9<0x10>;
+defm S_SET_GPR_IDX_ON : SOPC_Real_gfx8_gfx9<0x11>;
+defm S_CMP_EQ_U64     : SOPC_Real_gfx8_gfx9_gfx10<0x12>;
+defm S_CMP_LG_U64     : SOPC_Real_gfx8_gfx9_gfx10<0x13>;
+
+//===----------------------------------------------------------------------===//
+// GFX8 (VI), GFX9.
+//===----------------------------------------------------------------------===//
 
 class SOP1_Real_vi<bits<8> op, SOP1_Pseudo ps> :
   SOP1_Real<op, ps>,
@@ -1315,9 +1878,7 @@ def S_MOVRELS_B64_vi       : SOP1_Real_vi <0x2b, S_MOVRELS_B64>;
 def S_MOVRELD_B32_vi       : SOP1_Real_vi <0x2c, S_MOVRELD_B32>;
 def S_MOVRELD_B64_vi       : SOP1_Real_vi <0x2d, S_MOVRELD_B64>;
 def S_CBRANCH_JOIN_vi      : SOP1_Real_vi <0x2e, S_CBRANCH_JOIN>;
-def S_MOV_REGRD_B32_vi     : SOP1_Real_vi <0x2f, S_MOV_REGRD_B32>;
 def S_ABS_I32_vi           : SOP1_Real_vi <0x30, S_ABS_I32>;
-def S_MOV_FED_B32_vi       : SOP1_Real_vi <0x31, S_MOV_FED_B32>;
 def S_SET_GPR_IDX_IDX_vi   : SOP1_Real_vi <0x32, S_SET_GPR_IDX_IDX>;
 
 def S_ADD_U32_vi           : SOP2_Real_vi <0x00, S_ADD_U32>;

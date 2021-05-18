@@ -1,9 +1,8 @@
 //==-- WebAssemblyTargetStreamer.h - WebAssembly Target Streamer -*- C++ -*-==//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -22,7 +21,6 @@
 
 namespace llvm {
 
-class MCWasmStreamer;
 class MCSymbolWasm;
 
 /// WebAssembly-specific streamer interface, to implement support
@@ -41,11 +39,19 @@ public:
   virtual void emitIndIdx(const MCExpr *Value) = 0;
   /// .globaltype
   virtual void emitGlobalType(const MCSymbolWasm *Sym) = 0;
+  /// .tabletype
+  virtual void emitTableType(const MCSymbolWasm *Sym) = 0;
   /// .eventtype
   virtual void emitEventType(const MCSymbolWasm *Sym) = 0;
   /// .import_module
   virtual void emitImportModule(const MCSymbolWasm *Sym,
-                                StringRef ModuleName) = 0;
+                                StringRef ImportModule) = 0;
+  /// .import_name
+  virtual void emitImportName(const MCSymbolWasm *Sym,
+                              StringRef ImportName) = 0;
+  /// .export_name
+  virtual void emitExportName(const MCSymbolWasm *Sym,
+                              StringRef ExportName) = 0;
 
 protected:
   void emitValueType(wasm::ValType Type);
@@ -54,9 +60,6 @@ protected:
 /// This part is for ascii assembly output
 class WebAssemblyTargetAsmStreamer final : public WebAssemblyTargetStreamer {
   formatted_raw_ostream &OS;
-  void emitSignature(const wasm::WasmSignature *Sig);
-  void emitParamList(const wasm::WasmSignature *Sig);
-  void emitReturnList(const wasm::WasmSignature *Sig);
 
 public:
   WebAssemblyTargetAsmStreamer(MCStreamer &S, formatted_raw_ostream &OS);
@@ -66,8 +69,11 @@ public:
   void emitFunctionType(const MCSymbolWasm *Sym) override;
   void emitIndIdx(const MCExpr *Value) override;
   void emitGlobalType(const MCSymbolWasm *Sym) override;
+  void emitTableType(const MCSymbolWasm *Sym) override;
   void emitEventType(const MCSymbolWasm *Sym) override;
-  void emitImportModule(const MCSymbolWasm *Sym, StringRef ModuleName) override;
+  void emitImportModule(const MCSymbolWasm *Sym, StringRef ImportModule) override;
+  void emitImportName(const MCSymbolWasm *Sym, StringRef ImportName) override;
+  void emitExportName(const MCSymbolWasm *Sym, StringRef ExportName) override;
 };
 
 /// This part is for Wasm object output
@@ -80,9 +86,14 @@ public:
   void emitFunctionType(const MCSymbolWasm *Sym) override {}
   void emitIndIdx(const MCExpr *Value) override;
   void emitGlobalType(const MCSymbolWasm *Sym) override {}
+  void emitTableType(const MCSymbolWasm *Sym) override {}
   void emitEventType(const MCSymbolWasm *Sym) override {}
   void emitImportModule(const MCSymbolWasm *Sym,
-                        StringRef ModuleName) override {}
+                        StringRef ImportModule) override {}
+  void emitImportName(const MCSymbolWasm *Sym,
+                      StringRef ImportName) override {}
+  void emitExportName(const MCSymbolWasm *Sym,
+                      StringRef ExportName) override {}
 };
 
 /// This part is for null output
@@ -96,8 +107,11 @@ public:
   void emitFunctionType(const MCSymbolWasm *) override {}
   void emitIndIdx(const MCExpr *) override {}
   void emitGlobalType(const MCSymbolWasm *) override {}
+  void emitTableType(const MCSymbolWasm *) override {}
   void emitEventType(const MCSymbolWasm *) override {}
   void emitImportModule(const MCSymbolWasm *, StringRef) override {}
+  void emitImportName(const MCSymbolWasm *, StringRef) override {}
+  void emitExportName(const MCSymbolWasm *, StringRef) override {}
 };
 
 } // end namespace llvm

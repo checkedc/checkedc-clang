@@ -1,9 +1,8 @@
 
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -11,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __RNBRemote_h__
-#define __RNBRemote_h__
+#ifndef LLDB_TOOLS_DEBUGSERVER_SOURCE_RNBREMOTE_H
+#define LLDB_TOOLS_DEBUGSERVER_SOURCE_RNBREMOTE_H
 
 #include "DNB.h"
 #include "PThreadMutex.h"
@@ -34,7 +33,7 @@ enum class compression_types { zlib_deflate, lz4, lzma, lzfse, none };
 
 class RNBRemote {
 public:
-  typedef enum {
+  enum PacketEnum {
     invalid_packet = 0,
     ack,                           // '+'
     nack,                          // '-'
@@ -139,7 +138,7 @@ public:
     query_supported_async_json_packets, // 'QSupportedAsyncJSONPackets'
     configure_darwin_log,               // 'ConfigureDarwinLog:'
     unknown_type
-  } PacketEnum;
+  };
 
   typedef rnb_err_t (RNBRemote::*HandlePacketCallback)(const char *p);
 
@@ -265,8 +264,7 @@ public:
   RNBSocket &Comm() { return m_comm; }
 
 private:
-  // Outlaw some constructors
-  RNBRemote(const RNBRemote &);
+  RNBRemote(const RNBRemote &) = delete;
 
 protected:
   rnb_err_t GetCommData();
@@ -430,4 +428,4 @@ protected:
    about how many bytes gdb might try to send in a single packet.  */
 #define DEFAULT_GDB_REMOTE_PROTOCOL_BUFSIZE 399
 
-#endif // #ifndef __RNBRemote_h__
+#endif // LLDB_TOOLS_DEBUGSERVER_SOURCE_RNBREMOTE_H

@@ -1,9 +1,8 @@
 //===- MipsTargetMachine.h - Define TargetMachine for Mips ------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -30,7 +29,7 @@ class MipsTargetMachine : public LLVMTargetMachine {
   std::unique_ptr<TargetLoweringObjectFile> TLOF;
   // Selected ABI
   MipsABIInfo ABI;
-  MipsSubtarget *Subtarget;
+  const MipsSubtarget *Subtarget;
   MipsSubtarget DefaultSubtarget;
   MipsSubtarget NoMips16Subtarget;
   MipsSubtarget Mips16Subtarget;
@@ -64,12 +63,16 @@ public:
     return TLOF.get();
   }
 
+  /// Returns true if a cast between SrcAS and DestAS is a noop.
+  bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override {
+    // Mips doesn't have any special address spaces so we just reserve
+    // the first 256 for software use (e.g. OpenCL) and treat casts
+    // between them as noops.
+    return SrcAS < 256 && DestAS < 256;
+  }
+
   bool isLittleEndian() const { return isLittle; }
   const MipsABIInfo &getABI() const { return ABI; }
-
-  bool isMachineVerifierClean() const override {
-    return false;
-  }
 };
 
 /// Mips32/64 big endian target machine.

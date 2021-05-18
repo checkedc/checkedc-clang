@@ -1,13 +1,12 @@
 //===-- Acceptor.h ----------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#ifndef lldb_server_Acceptor_h_
-#define lldb_server_Acceptor_h_
+#ifndef LLDB_TOOLS_LLDB_SERVER_ACCEPTOR_H
+#define LLDB_TOOLS_LLDB_SERVER_ACCEPTOR_H
 
 #include "lldb/Host/Socket.h"
 #include "lldb/Utility/Connection.h"
@@ -58,4 +57,4 @@ private:
 } // namespace lldb_server
 } // namespace lldb_private
 
-#endif // lldb_server_Acceptor_h_
+#endif // LLDB_TOOLS_LLDB_SERVER_ACCEPTOR_H

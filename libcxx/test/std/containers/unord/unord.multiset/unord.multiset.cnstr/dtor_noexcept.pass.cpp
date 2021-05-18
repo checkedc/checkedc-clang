@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -11,7 +10,7 @@
 
 // ~unordered_multiset() // implied noexcept;
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 #include <unordered_set>
 #include <cassert>
@@ -38,7 +37,7 @@ struct some_hash
     std::size_t operator()(T const&) const;
 };
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::unordered_multiset<MoveOnly> C;
@@ -65,4 +64,6 @@ int main()
         static_assert(!std::is_nothrow_destructible<C>::value, "");
     }
 #endif // _LIBCPP_VERSION
+
+  return 0;
 }

@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -21,7 +20,7 @@
 // const path& path1() const noexcept;
 // const path& path2() const noexcept;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 
@@ -95,8 +94,10 @@ void test_signatures()
   }
 }
 
-int main() {
+int main(int, char**) {
   static_assert(std::is_base_of<std::system_error, fs::filesystem_error>::value, "");
   test_constructors();
   test_signatures();
+
+  return 0;
 }

@@ -1,6 +1,6 @@
 # RUN: llvm-mc -triple bpfel -filetype=obj -o %t %s
 # RUN: llvm-objdump -d -r %t | FileCheck --check-prefixes CHECK,CHECK-64 %s
-# RUN: llvm-objdump -mattr=+alu32 -d -r %t | FileCheck --check-prefixes CHECK,CHECK-32 %s
+# RUN: llvm-objdump --mattr=+alu32 -d -r %t | FileCheck --check-prefixes CHECK,CHECK-32 %s
 
 // ======== BPF_LD Class ========
 // Some extra whitespaces are deliberately added to test the parser.
@@ -57,7 +57,8 @@
 
   lock *(u32 *)(r2 + 16) += r9  // BPF_STX | BPF_W | BPF_XADD
   lock *(u64 *)(r3 - 30) += r10 // BPF_STX | BPF_DW | BPF_XADD
-// CHECK: c3 92 10 00 00 00 00 00 	lock *(u32 *)(r2 + 16) += r9
+// CHECK-64: c3 92 10 00 00 00 00 00 	lock *(u32 *)(r2 + 16) += r9
+// CHECK-32: c3 92 10 00 00 00 00 00 	lock *(u32 *)(r2 + 16) += w9
 // CHECK: db a3 e2 ff 00 00 00 00 	lock *(u64 *)(r3 - 30) += r10
 
 // ======== BPF_JMP Class ========
@@ -133,7 +134,7 @@ Llabel0 :
   r8 ^= r9    // BPF_XOR  | BPF_X
   r9 = r10    // BPF_MOV  | BPF_X
   r10 s>>= r0 // BPF_ARSH | BPF_X
-// CHECK:Llabel0:
+// CHECK: <Llabel0>:
 // CHECK: 87 02 00 00 00 00 00 00	r2 = -r2
 // CHECK: 4f 54 00 00 00 00 00 00 	r4 |= r5
 // CHECK: 5f 65 00 00 00 00 00 00 	r5 &= r6

@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 // UNSUPPORTED: libcpp-no-deduction-guides
 
 // <string>
@@ -22,7 +21,7 @@
 #include "test_macros.h"
 #include "test_allocator.h"
 #include "test_iterators.h"
-#include "constexpr_char_traits.hpp"
+#include "constexpr_char_traits.h"
 
 template <class T, class Alloc = std::allocator<T>>
 using BStr = std::basic_string<T, std::char_traits<T>, Alloc>;
@@ -47,11 +46,11 @@ using BStr = std::basic_string<T, std::char_traits<T>, Alloc>;
 // (13) basic_string(initializer_list<CharT>, A const& = A())
 // (14) basic_string(BSV, A const& = A())
 // (15) basic_string(const T&, size_type, size_type, A const& = A())
-int main()
+int main(int, char**)
 {
   using TestSizeT = test_allocator<char>::size_type;
   { // Testing (1)
-    // Nothing TODO. Cannot deduce without any arguments.
+    // Nothing to do. Cannot deduce without any arguments.
   }
   { // Testing (2)
     // This overload isn't compatible with implicit deduction guides as
@@ -314,4 +313,6 @@ int main()
     ASSERT_SAME_TYPE(decltype(w), ExpectW);
     assert(w == L"cd");
   }
+
+  return 0;
 }

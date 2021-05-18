@@ -1,14 +1,13 @@
 //===-- Value.h -------------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Value_h_
-#define liblldb_Value_h_
+#ifndef LLDB_CORE_VALUE_H
+#define LLDB_CORE_VALUE_H
 
 #include "lldb/Symbol/CompilerType.h"
 #include "lldb/Utility/DataBufferHeap.h"
@@ -27,20 +26,10 @@
 
 namespace lldb_private {
 class DataExtractor;
-}
-namespace lldb_private {
 class ExecutionContext;
-}
-namespace lldb_private {
 class Module;
-}
-namespace lldb_private {
 class Stream;
-}
-namespace lldb_private {
 class Type;
-}
-namespace lldb_private {
 class Variable;
 }
 
@@ -54,8 +43,6 @@ public:
     // m_value contains...
     // ============================
     eValueTypeScalar,      // raw scalar value
-    eValueTypeVector,      // byte array of m_vector.length with endianness of
-                           // m_vector.byte_order
     eValueTypeFileAddress, // file address value
     eValueTypeLoadAddress, // load address value
     eValueTypeHostAddress  // host address value (for memory in the process that
@@ -73,66 +60,8 @@ public:
     eContextTypeVariable      // lldb_private::Variable *
   };
 
-  const static size_t kMaxByteSize = 32u;
-
-  struct Vector {
-    // The byte array must be big enough to hold vector registers for any
-    // supported target.
-    uint8_t bytes[kMaxByteSize];
-    size_t length;
-    lldb::ByteOrder byte_order;
-
-    Vector() : length(0), byte_order(lldb::eByteOrderInvalid) {}
-
-    Vector(const Vector &vector) { *this = vector; }
-    const Vector &operator=(const Vector &vector) {
-      SetBytes(vector.bytes, vector.length, vector.byte_order);
-      return *this;
-    }
-
-    void Clear() { length = 0; }
-
-    bool SetBytes(const void *bytes, size_t length,
-                  lldb::ByteOrder byte_order) {
-      this->length = length;
-      this->byte_order = byte_order;
-      if (length)
-        ::memcpy(this->bytes, bytes,
-                 length < kMaxByteSize ? length : kMaxByteSize);
-      return IsValid();
-    }
-
-    bool IsValid() const {
-      return (length > 0 && length < kMaxByteSize &&
-              byte_order != lldb::eByteOrderInvalid);
-    }
-    // Casts a vector, if valid, to an unsigned int of matching or largest
-    // supported size. Truncates to the beginning of the vector if required.
-    // Returns a default constructed Scalar if the Vector data is internally
-    // inconsistent.
-    llvm::APInt rhs = llvm::APInt(BITWIDTH_INT128, NUM_OF_WORDS_INT128,
-                                  ((type128 *)bytes)->x);
-    Scalar GetAsScalar() const {
-      Scalar scalar;
-      if (IsValid()) {
-        if (length == 1)
-          scalar = *(const uint8_t *)bytes;
-        else if (length == 2)
-          scalar = *(const uint16_t *)bytes;
-        else if (length == 4)
-          scalar = *(const uint32_t *)bytes;
-        else if (length == 8)
-          scalar = *(const uint64_t *)bytes;
-        else if (length >= 16)
-          scalar = rhs;
-      }
-      return scalar;
-    }
-  };
-
   Value();
   Value(const Scalar &scalar);
-  Value(const Vector &vector);
   Value(const void *bytes, int len);
   Value(const Value &rhs);
 
@@ -164,8 +93,7 @@ public:
     m_context = p;
     if (m_context_type == eContextTypeRegisterInfo) {
       RegisterInfo *reg_info = GetRegisterInfo();
-      if (reg_info->encoding == lldb::eEncodingVector &&
-          m_vector.byte_order != lldb::eByteOrderInvalid)
+      if (reg_info->encoding == lldb::eEncodingVector)
         SetValueType(eValueTypeScalar);
     }
   }
@@ -178,29 +106,7 @@ public:
 
   const Scalar &GetScalar() const { return m_value; }
 
-  const Vector &GetVector() const { return m_vector; }
-
   Scalar &GetScalar() { return m_value; }
-
-  Vector &GetVector() { return m_vector; }
-
-  bool SetVectorBytes(const Vector &vector) {
-    m_vector = vector;
-    return m_vector.IsValid();
-  }
-
-  bool SetVectorBytes(uint8_t *bytes, size_t length,
-                      lldb::ByteOrder byte_order) {
-    return m_vector.SetBytes(bytes, length, byte_order);
-  }
-
-  bool SetScalarFromVector() {
-    if (m_vector.IsValid()) {
-      m_value = m_vector.GetAsScalar();
-      return true;
-    }
-    return false;
-  }
 
   size_t ResizeData(size_t len);
 
@@ -221,7 +127,6 @@ public:
   uint64_t GetValueByteSize(Status *error_ptr, ExecutionContext *exe_ctx);
 
   Status GetValueAsData(ExecutionContext *exe_ctx, DataExtractor &data,
-                        uint32_t data_offset,
                         Module *module); // Can be nullptr
 
   static const char *GetValueTypeAsCString(ValueType context_type);
@@ -237,7 +142,6 @@ public:
 
 protected:
   Scalar m_value;
-  Vector m_vector;
   CompilerType m_compiler_type;
   void *m_context;
   ValueType m_value_type;
@@ -270,4 +174,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_Value_h_
+#endif // LLDB_CORE_VALUE_H

@@ -1,9 +1,8 @@
 //===--- Query.h - clang-query ----------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -29,6 +28,7 @@ enum QueryKind {
   QK_Match,
   QK_SetBool,
   QK_SetOutputKind,
+  QK_SetTraversalKind,
   QK_EnableOutputKind,
   QK_DisableOutputKind,
   QK_Quit
@@ -45,6 +45,7 @@ struct Query : llvm::RefCountedBase<Query> {
   /// \return false if an error occurs, otherwise return true.
   virtual bool run(llvm::raw_ostream &OS, QuerySession &QS) const = 0;
 
+  StringRef RemainingContent;
   const QueryKind Kind;
 };
 
@@ -117,6 +118,10 @@ template <> struct SetQueryKind<bool> {
 
 template <> struct SetQueryKind<OutputKind> {
   static const QueryKind value = QK_SetOutputKind;
+};
+
+template <> struct SetQueryKind<TraversalKind> {
+  static const QueryKind value = QK_SetTraversalKind;
 };
 
 /// Query for "set VAR VALUE".

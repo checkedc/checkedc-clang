@@ -1,7 +1,7 @@
 // REQUIRES: x86
 // RUN: llvm-mc -filetype=obj -triple=i686-unknown-cloudabi %s -o %t.o
 // RUN: ld.lld --export-dynamic %t.o -o %t
-// RUN: llvm-readobj -dyn-symbols %t | FileCheck %s
+// RUN: llvm-readobj --dyn-syms %t | FileCheck %s
 
 // Ensure that a dynamic symbol table is present when --export-dynamic
 // is passed in, even when creating statically linked executables.
@@ -18,7 +18,7 @@
 // CHECK-NEXT:   }
 // CHECK-NEXT:   Symbol {
 // CHECK-NEXT:     Name: _start
-// CHECK-NEXT:     Value: 0x401000
+// CHECK-NEXT:     Value:
 // CHECK-NEXT:     Size: 0
 // CHECK-NEXT:     Binding: Global
 // CHECK-NEXT:     Type: None

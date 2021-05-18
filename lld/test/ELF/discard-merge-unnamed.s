@@ -1,5 +1,5 @@
 // RUN: ld.lld %p/Inputs/discard-merge-unnamed.o -o %t2 -shared
-// RUN: llvm-readobj -t %t2 | FileCheck %s
+// RUN: llvm-readobj --symbols %t2 | FileCheck %s
 
 // Test that the unnamed symbol is SHF_MERGE is omitted.
 
@@ -15,7 +15,7 @@
 // CHECK-NEXT:   }
 // CHECK-NEXT:   Symbol {
 // CHECK-NEXT:     Name: _DYNAMIC
-// CHECK-NEXT:     Value: 0x2000
+// CHECK-NEXT:     Value:
 // CHECK-NEXT:     Size: 0
 // CHECK-NEXT:     Binding: Local
 // CHECK-NEXT:     Type: None

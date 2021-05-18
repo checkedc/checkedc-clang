@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -17,14 +16,14 @@
 // void copy(const path& from, const path& to, copy_options options,
 //           error_code& ec);
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cstddef>
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 using namespace fs;
 
@@ -64,6 +63,7 @@ TEST_CASE(test_error_reporting)
 #endif
     };
 
+    static_test_env static_env;
     scoped_test_env env;
     const path file = env.create_file("file1", 42);
     const path dir = env.create_dir("dir");
@@ -75,7 +75,7 @@ TEST_CASE(test_error_reporting)
     // !exists(f)
     {
         std::error_code ec = test_ec;
-        const path f = StaticEnv::DNE;
+        const path f = static_env.DNE;
         const path t = env.test_root;
         fs::copy(f, t, ec);
         TEST_REQUIRE(ec);
@@ -265,7 +265,7 @@ TEST_CASE(test_copy_symlinks_to_symlink_dir)
     const path file2 = env.create_file("file2", 101);
     const path file2_sym = env.create_symlink(file2, "file2_sym");
     const path dir = env.create_dir("dir");
-    const path dir_sym = env.create_symlink(dir, "dir_sym");
+    const path dir_sym = env.create_directory_symlink(dir, "dir_sym");
     {
         std::error_code ec = GetTestEC();
         fs::copy(file1, dir_sym, copy_options::copy_symlinks, ec);
@@ -286,14 +286,14 @@ TEST_CASE(test_dir_create_symlink)
     {
         std::error_code ec = GetTestEC();
         fs::copy(dir, dest, copy_options::create_symlinks, ec);
-        TEST_CHECK(ec == std::make_error_code(std::errc::is_a_directory));
+        TEST_CHECK(ErrorIs(ec, std::errc::is_a_directory));
         TEST_CHECK(!exists(dest));
         TEST_CHECK(!is_symlink(dest));
     }
     {
         std::error_code ec = GetTestEC();
         fs::copy(dir, dest, copy_options::create_symlinks|copy_options::recursive, ec);
-        TEST_CHECK(ec == std::make_error_code(std::errc::is_a_directory));
+        TEST_CHECK(ErrorIs(ec, std::errc::is_a_directory));
         TEST_CHECK(!exists(dest));
         TEST_CHECK(!is_symlink(dest));
     }

@@ -6,6 +6,7 @@
 
 // Tests for the whole-program-vtables feature:
 // RUN: %clang_cc1 -flto -flto-unit -triple x86_64-unknown-linux -fvisibility hidden -fwhole-program-vtables -emit-llvm -o - %s | FileCheck --check-prefix=VTABLE-OPT --check-prefix=ITANIUM --check-prefix=TT-ITANIUM %s
+// RUN: %clang_cc1 -flto -flto-unit -triple x86_64-unknown-linux -fwhole-program-vtables -emit-llvm -o - %s | FileCheck --check-prefix=VTABLE-OPT --check-prefix=ITANIUM-DEFAULTVIS --check-prefix=TT-ITANIUM %s
 // RUN: %clang_cc1 -flto -flto-unit -triple x86_64-pc-windows-msvc -fwhole-program-vtables -emit-llvm -o - %s | FileCheck --check-prefix=VTABLE-OPT --check-prefix=MS --check-prefix=TT-MS %s
 
 // Tests for cfi + whole-program-vtables:
@@ -129,6 +130,7 @@ void D::h() {
 }
 
 // ITANIUM: define hidden void @_Z2afP1A
+// ITANIUM-DEFAULTVIS: define{{.*}} void @_Z2afP1A
 // MS: define dso_local void @"?af@@YAXPEAUA@@@Z"
 void af(A *a) {
   // TT-ITANIUM: [[P:%[^ ]*]] = call i1 @llvm.type.test(i8* [[VT:%[^ ]*]], metadata !"_ZTS1A")
@@ -142,7 +144,7 @@ void af(A *a) {
   // CFI-NEXT: {{^$}}
 
   // CFI: [[TRAPBB]]
-  // NDIAG-NEXT: call void @llvm.trap()
+  // NDIAG-NEXT: call void @llvm.ubsantrap(i8 2)
   // NDIAG-NEXT: unreachable
   // DIAG-NEXT: [[VTINT:%[^ ]*]] = ptrtoint i8* [[VT]] to i64
   // DIAG-NEXT: [[VTVALID:%[^ ]*]] = zext i1 [[VTVALID0]] to i64
@@ -239,6 +241,7 @@ struct D : C {
 };
 
 // ITANIUM: define hidden void @_ZN5test21fEPNS_1DE
+// ITANIUM-DEFAULTVIS: define{{.*}} void @_ZN5test21fEPNS_1DE
 // MS: define dso_local void @"?f@test2@@YAXPEAUD@1@@Z"
 void f(D *d) {
   // TT-ITANIUM: {{%[^ ]*}} = call i1 @llvm.type.test(i8* {{%[^ ]*}}, metadata !"_ZTSN5test21DE")

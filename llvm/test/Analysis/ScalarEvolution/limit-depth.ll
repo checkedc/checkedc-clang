@@ -1,4 +1,5 @@
-; RUN: opt -scalar-evolution-max-arith-depth=0 -scalar-evolution-max-ext-depth=0 -analyze -scalar-evolution < %s | FileCheck %s
+; RUN: opt -scalar-evolution-max-arith-depth=0 -scalar-evolution-max-cast-depth=0 -analyze -enable-new-pm=0 -scalar-evolution < %s | FileCheck %s
+; RUN: opt -scalar-evolution-max-arith-depth=0 -scalar-evolution-max-cast-depth=0 -disable-output "-passes=print<scalar-evolution>" < %s 2>&1 | FileCheck %s
 
 ; Check that depth set to 0 prevents getAddExpr and getMulExpr from making
 ; transformations in SCEV. We expect the result to be very straightforward.
@@ -23,10 +24,11 @@ define void @test_add(i32 %a, i32 %b, i32 %c, i32 %d, i32 %e, i32 %f) {
   ret void
 }
 
-define void @test_mul(i32 %a, i32 %b, i32 %c, i32 %d, i32 %e, i32 %f) {
-; CHECK-LABEL: @test_mul
+; Constant factors still get folded together.
+define void @test_mul_consts(i32 %a, i32 %b, i32 %c, i32 %d, i32 %e, i32 %f) {
+; CHECK-LABEL: @test_mul_consts
 ; CHECK:       %s2 = mul i32 %s1, %p3
-; CHECK-NEXT:  -->  (2 * 3 * 4 * 5 * 6 * 7 * %a * %b * %c * %d * %e * %f)
+; CHECK-NEXT:  -->  (5040 * %a * %b * %c * %d * %e * %f)
   %tmp0 = mul i32 %a, 2
   %tmp1 = mul i32 %b, 3
   %tmp2 = mul i32 %c, 4
@@ -40,6 +42,18 @@ define void @test_mul(i32 %a, i32 %b, i32 %c, i32 %d, i32 %e, i32 %f) {
 
   %s1 = mul i32 %p1, %p2
   %s2 = mul i32 %s1, %p3
+  ret void
+}
+
+; The outer *5 gets distributed because it is at depth=0, but the resulting
+; nested multiply doesn't get flattened, because it is at depth=1.
+define void @test_mul(i32 %a, i32 %b) {
+; CHECK-LABEL: @test_mul
+; CHECK:       %tmp2 = mul i32 %tmp1, 5
+; CHECK-NEXT:  -->  (20 + (5 * (3 * %a)))
+  %tmp0 = mul i32 %a, 3
+  %tmp1 = add i32 %tmp0, 4
+  %tmp2 = mul i32 %tmp1, 5
   ret void
 }
 
@@ -96,5 +110,47 @@ loop2:
 
 exit:
   %ze2 = zext i64 %iv2.inc to i128
+  ret void
+}
+
+define void @test_trunc(i32 %a, i32 %b, i32 %c, i32 %d, i32 %e, i32 %f) {
+; CHECK-LABEL: @test_trunc
+; CHECK:          %trunc2 = trunc i64 %iv2.inc to i32
+; CHECK-NEXT:     -->  {(trunc i64 (1 + {7,+,1}<%loop>) to i32),+,1}<%loop2>
+entry:
+  br label %loop
+
+loop:
+  %iv = phi i128 [ 6, %entry ], [ %iv.inc, %loop ]
+  %iv.inc = add nsw i128 %iv, 1
+  %cond = icmp sle i128 %iv.inc, 50
+  br i1 %cond, label %loop, label %between
+
+between:
+  %trunc = trunc i128 %iv.inc to i64
+  br label %loop2
+
+loop2:
+  %iv2 = phi i64 [ %trunc, %between ], [ %iv2.inc, %loop2 ]
+  %iv2.inc = add nuw i64 %iv2, 1
+  %cond2 = icmp sle i64 %iv2.inc, 50
+  br i1 %cond2, label %loop2, label %exit
+
+exit:
+  %trunc2 = trunc i64 %iv2.inc to i32
+  ret void
+}
+
+; Check that all constant SCEVs are folded regardless depth limit.
+define void @test_mul_const(i32 %a) {
+; CHECK-LABEL:  @test_mul_const
+; CHECK:          %test3 = mul i32 %test2, 3
+; CHECK-NEXT:     -->  (9 + (3 * (3 * %a)))
+; CHECK:          %test4 = mul i32 3, 3
+; CHECK-NEXT:     -->  9 U: [9,10) S: [9,10)
+  %test = mul i32 3, %a
+  %test2 = add i32 3, %test
+  %test3 = mul i32 %test2, 3
+  %test4 = mul i32 3, 3
   ret void
 }

@@ -1,9 +1,8 @@
 //===- NVPTXInstrInfo.td - NVPTX Instruction defs -------------*- tblgen-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -14,7 +13,7 @@
 include "NVPTXInstrFormats.td"
 
 // A NOP instruction
-let hasSideEffects = 0 in {
+let hasSideEffects = false in {
   def NOP : NVPTXInst<(outs), (ins), "", []>;
 }
 
@@ -138,14 +137,22 @@ def do_SQRTF32_RN : Predicate<"usePrecSqrtF32()">;
 def hasHWROT32 : Predicate<"Subtarget->hasHWROT32()">;
 def noHWROT32 : Predicate<"!Subtarget->hasHWROT32()">;
 
-def true : Predicate<"true">;
+def True : Predicate<"true">;
 
 def hasPTX31 : Predicate<"Subtarget->getPTXVersion() >= 31">;
 def hasPTX60 : Predicate<"Subtarget->getPTXVersion() >= 60">;
 def hasPTX61 : Predicate<"Subtarget->getPTXVersion() >= 61">;
+def hasPTX63 : Predicate<"Subtarget->getPTXVersion() >= 63">;
+def hasPTX64 : Predicate<"Subtarget->getPTXVersion() >= 64">;
 
 def hasSM30 : Predicate<"Subtarget->getSmVersion() >= 30">;
 def hasSM70 : Predicate<"Subtarget->getSmVersion() >= 70">;
+def hasSM72 : Predicate<"Subtarget->getSmVersion() >= 72">;
+def hasSM75 : Predicate<"Subtarget->getSmVersion() >= 75">;
+
+// non-sync shfl instructions are not available on sm_70+ in PTX6.4+
+def hasSHFL : Predicate<"!(Subtarget->getSmVersion() >= 70" 
+                          "&& Subtarget->getPTXVersion() >= 64)">;
 
 def useShortPtr : Predicate<"useShortPointers()">;
 def useFP16Math: Predicate<"Subtarget->allowFP16Math()">;
@@ -400,7 +407,7 @@ multiclass F2<string OpcStr, SDNode OpNode> {
 // Type Conversion
 //-----------------------------------
 
-let hasSideEffects = 0 in {
+let hasSideEffects = false in {
   // Generate a cvt to the given type from all possible types.  Each instance
   // takes a CvtMode immediate that defines the conversion mode to use.  It can
   // be CvtNONE to omit a conversion mode.
@@ -1015,12 +1022,12 @@ multiclass FMA_F16<string OpcStr, RegisterClass RC, Predicate Pred> {
 }
 
 defm FMA16_ftz : FMA_F16<"fma.rn.ftz.f16", Float16Regs, doF32FTZ>;
-defm FMA16     : FMA_F16<"fma.rn.f16", Float16Regs, true>;
+defm FMA16     : FMA_F16<"fma.rn.f16", Float16Regs, True>;
 defm FMA16x2_ftz : FMA_F16<"fma.rn.ftz.f16x2", Float16x2Regs, doF32FTZ>;
-defm FMA16x2     : FMA_F16<"fma.rn.f16x2", Float16x2Regs, true>;
+defm FMA16x2     : FMA_F16<"fma.rn.f16x2", Float16x2Regs, True>;
 defm FMA32_ftz : FMA<"fma.rn.ftz.f32", Float32Regs, f32imm, doF32FTZ>;
-defm FMA32     : FMA<"fma.rn.f32", Float32Regs, f32imm, true>;
-defm FMA64     : FMA<"fma.rn.f64", Float64Regs, f64imm, true>;
+defm FMA32     : FMA<"fma.rn.f32", Float32Regs, f32imm, True>;
+defm FMA64     : FMA<"fma.rn.f64", Float64Regs, f64imm, True>;
 
 // sin/cos
 def SINF:  NVPTXInst<(outs Float32Regs:$dst), (ins Float32Regs:$src),
@@ -1360,7 +1367,7 @@ multiclass BFE<string TyStr, RegisterClass RC> {
                 !strconcat("bfe.", TyStr, " \t$d, $a, $b, $c;"), []>;
 }
 
-let hasSideEffects = 0 in {
+let hasSideEffects = false in {
   defm BFE_S32 : BFE<"s32", Int32Regs>;
   defm BFE_U32 : BFE<"u32", Int32Regs>;
   defm BFE_S64 : BFE<"s64", Int64Regs>;
@@ -1374,7 +1381,7 @@ let hasSideEffects = 0 in {
 // FIXME: This doesn't cover versions of set and setp that combine with a
 // boolean predicate, e.g. setp.eq.and.b16.
 
-let hasSideEffects = 0 in {
+let hasSideEffects = false in {
   multiclass SETP<string TypeStr, RegisterClass RC, Operand ImmCls> {
     def rr :
       NVPTXInst<(outs Int1Regs:$dst), (ins RC:$a, RC:$b, CmpMode:$cmp),
@@ -1420,7 +1427,7 @@ def SETP_f16x2rr :
 // "set.CmpOp{.ftz}.dtype.stype", where dtype is the type of the destination
 // reg, either u32, s32, or f32.  Anyway these aren't used at the moment.
 
-let hasSideEffects = 0 in {
+let hasSideEffects = false in {
   multiclass SET<string TypeStr, RegisterClass RC, Operand ImmCls> {
     def rr : NVPTXInst<(outs Int32Regs:$dst),
                        (ins RC:$a, RC:$b, CmpMode:$cmp),
@@ -1455,7 +1462,7 @@ defm SET_f64 : SET<"f64", Float64Regs, f64imm>;
 
 // selp instructions that don't have any pattern matches; we explicitly use
 // them within this file.
-let hasSideEffects = 0 in {
+let hasSideEffects = false in {
   multiclass SELP<string TypeStr, RegisterClass RC, Operand ImmCls> {
     def rr : NVPTXInst<(outs RC:$dst),
                        (ins RC:$a, RC:$b, Int1Regs:$p),
@@ -1549,6 +1556,10 @@ def LdStCode : Operand<i32> {
   let PrintMethod = "printLdStCode";
 }
 
+def MmaCode : Operand<i32> {
+  let PrintMethod = "printMmaCode";
+}
+
 def SDTWrapper : SDTypeProfile<1, 1, [SDTCisSameAs<0, 1>, SDTCisPtrTy<0>]>;
 def Wrapper    : SDNode<"NVPTXISD::Wrapper", SDTWrapper>;
 
@@ -1561,7 +1572,7 @@ def MOV_ADDR64 : NVPTXInst<(outs Int64Regs:$dst), (ins imem:$a),
                            [(set Int64Regs:$dst, (Wrapper tglobaladdr:$a))]>;
 
 // Get pointer to local stack.
-let hasSideEffects = 0 in {
+let hasSideEffects = false in {
   def MOV_DEPOT_ADDR :    NVPTXInst<(outs Int32Regs:$d), (ins i32imm:$num),
                                      "mov.u32 \t$d, __local_depot$num;", []>;
   def MOV_DEPOT_ADDR_64 : NVPTXInst<(outs Int64Regs:$d), (ins i32imm:$num),
@@ -1977,7 +1988,7 @@ def ProxyReg :
   SDNode<"NVPTXISD::ProxyReg", SDTProxyRegProfile,
          [SDNPHasChain, SDNPOutGlue, SDNPInGlue, SDNPSideEffect]>;
 
-let mayLoad = 1 in {
+let mayLoad = true in {
   class LoadParamMemInst<NVPTXRegClass regclass, string opstr> :
         NVPTXInst<(outs regclass:$dst), (ins i32imm:$b),
                   !strconcat("ld.param", opstr, " \t$dst, [retval0+$b];"),
@@ -2002,7 +2013,7 @@ class LoadParamRegInst<NVPTXRegClass regclass, string opstr> :
                 !strconcat("mov", opstr, " \t$dst, retval$b;"),
                 [(set regclass:$dst, (LoadParam (i32 0), (i32 imm:$b)))]>;
 
-let mayStore = 1 in {
+let mayStore = true in {
   class StoreParamInst<NVPTXRegClass regclass, string opstr> :
         NVPTXInst<(outs), (ins regclass:$val, i32imm:$a, i32imm:$b),
                   !strconcat("st.param", opstr, " \t[param$a+$b], $val;"),
@@ -2812,7 +2823,7 @@ def : Pat<(select Int32Regs:$pred, Float64Regs:$a, Float64Regs:$b),
           (SETP_b32ri (ANDb32ri Int32Regs:$pred, 1), 1, CmpEQ))>;
 
 
-let hasSideEffects = 0 in {
+let hasSideEffects = false in {
   // pack a set of smaller int registers to a larger int register
   def V4I16toI64 : NVPTXInst<(outs Int64Regs:$d),
                              (ins Int16Regs:$s1, Int16Regs:$s2,
@@ -2845,7 +2856,7 @@ let hasSideEffects = 0 in {
 
 }
 
-let hasSideEffects = 0 in {
+let hasSideEffects = false in {
   // Extract element of f16x2 register. PTX does not provide any way
   // to access elements of f16x2 vector directly, so we need to
   // extract it using a temporary register.
@@ -2888,7 +2899,7 @@ let hasSideEffects = 0 in {
 }
 
 // Count leading zeros
-let hasSideEffects = 0 in {
+let hasSideEffects = false in {
   def CLZr32 : NVPTXInst<(outs Int32Regs:$d), (ins Int32Regs:$a),
                          "clz.b32 \t$d, $a;", []>;
   def CLZr64 : NVPTXInst<(outs Int32Regs:$d), (ins Int64Regs:$a),
@@ -2902,7 +2913,7 @@ def : Pat<(ctlz Int32Regs:$a), (CLZr32 Int32Regs:$a)>;
 // ctz instruction always returns a 32-bit value.  For ctlz.i64, convert the
 // ptx value to 64 bits to match the ISD node's semantics, unless we know we're
 // truncating back down to 32 bits.
-def : Pat<(ctlz Int64Regs:$a), (CVT_u64_u32 (CLZr64 Int64Regs:$a), CvtNONE)>;
+def : Pat<(i64 (ctlz Int64Regs:$a)), (CVT_u64_u32 (CLZr64 Int64Regs:$a), CvtNONE)>;
 def : Pat<(i32 (trunc (ctlz Int64Regs:$a))), (CLZr64 Int64Regs:$a)>;
 
 // For 16-bit ctlz, we zero-extend to 32-bit, perform the count, then trunc the
@@ -2919,14 +2930,14 @@ def : Pat<(i32 (trunc (ctlz Int64Regs:$a))), (CLZr64 Int64Regs:$a)>;
 // and then ctlz that value.  This way we don't have to subtract 16 from the
 // result.  Unfortunately today we don't have a way to generate
 // "mov b32reg, {b16imm, b16reg}", so we don't do this optimization.
-def : Pat<(ctlz Int16Regs:$a),
+def : Pat<(i16 (ctlz Int16Regs:$a)),
           (SUBi16ri (CVT_u16_u32
            (CLZr32 (CVT_u32_u16 Int16Regs:$a, CvtNONE)), CvtNONE), 16)>;
-def : Pat<(i32 (zext (ctlz Int16Regs:$a))),
+def : Pat<(i32 (zext (i16 (ctlz Int16Regs:$a)))),
           (SUBi32ri (CLZr32 (CVT_u32_u16 Int16Regs:$a, CvtNONE)), 16)>;
 
 // Population count
-let hasSideEffects = 0 in {
+let hasSideEffects = false in {
   def POPCr32 : NVPTXInst<(outs Int32Regs:$d), (ins Int32Regs:$a),
                           "popc.b32 \t$d, $a;", []>;
   def POPCr64 : NVPTXInst<(outs Int32Regs:$d), (ins Int64Regs:$a),
@@ -2947,7 +2958,7 @@ def : Pat<(i32 (trunc (ctpop Int64Regs:$a))), (POPCr64 Int64Regs:$a)>;
 // If we know that we're storing into an i32, we can avoid the final trunc.
 def : Pat<(ctpop Int16Regs:$a),
           (CVT_u16_u32 (POPCr32 (CVT_u32_u16 Int16Regs:$a, CvtNONE)), CvtNONE)>;
-def : Pat<(i32 (zext (ctpop Int16Regs:$a))),
+def : Pat<(i32 (zext (i16 (ctpop Int16Regs:$a)))),
           (POPCr32 (CVT_u32_u16 Int16Regs:$a, CvtNONE))>;
 
 // fpround f32 -> f16
@@ -3002,15 +3013,6 @@ def : Pat<(ffloor Float32Regs:$a),
           (CVT_f32_f32 Float32Regs:$a, CvtRMI)>, Requires<[doNoF32FTZ]>;
 def : Pat<(ffloor Float64Regs:$a),
           (CVT_f64_f64 Float64Regs:$a, CvtRMI)>;
-
-def : Pat<(f16 (fround Float16Regs:$a)),
-          (CVT_f16_f16 Float16Regs:$a, CvtRNI)>;
-def : Pat<(fround Float32Regs:$a),
-          (CVT_f32_f32 Float32Regs:$a, CvtRNI_FTZ)>, Requires<[doF32FTZ]>;
-def : Pat<(f32 (fround Float32Regs:$a)),
-          (CVT_f32_f32 Float32Regs:$a, CvtRNI)>, Requires<[doNoF32FTZ]>;
-def : Pat<(f64 (fround Float64Regs:$a)),
-          (CVT_f64_f64 Float64Regs:$a, CvtRNI)>;
 
 def : Pat<(ftrunc Float16Regs:$a),
           (CVT_f16_f16 Float16Regs:$a, CvtRZI)>;

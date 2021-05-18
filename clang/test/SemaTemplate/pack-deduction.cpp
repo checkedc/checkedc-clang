@@ -5,8 +5,8 @@ template<typename ...T> struct X {};
 template<typename T, typename U> struct P {};
 
 namespace Nested {
-  template<typename ...T> int f1(X<T, T...>... a); // expected-note +{{conflicting types for parameter 'T'}}
-  template<typename ...T> int f2(P<X<T...>, T> ...a); // expected-note +{{conflicting types for parameter 'T'}}
+  template<typename ...T> int f1(X<T, T...>... a); // expected-note +{{packs of different lengths for parameter 'T'}}
+  template<typename ...T> int f2(P<X<T...>, T> ...a); // expected-note +{{packs of different lengths for parameter 'T'}}
 
   int a1 = f1(X<int, int, double>(), X<double, int, double>());
   int a2 = f1(X<int, int>());
@@ -165,4 +165,23 @@ namespace substitution_vs_function_deduction {
     // FIXME: We fail to decay the parameter to a pointer type.
     A<int>().g(f); // expected-error {{no match}}
   }
+}
+
+namespace Nested_Explicit_Specialization {
+template <typename>
+struct Outer {
+
+  template <int>
+  struct Inner;
+
+  template <>
+  struct Inner<0> {
+    template <typename... Args>
+    void Test(Args...) {}
+  };
+};
+
+void Run() {
+  Outer<void>::Inner<0>().Test(1,1);
+}
 }

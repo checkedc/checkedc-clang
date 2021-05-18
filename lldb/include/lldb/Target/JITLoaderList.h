@@ -1,14 +1,13 @@
 //===-- JITLoaderList.h -----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_JITLoaderList_h_
-#define liblldb_JITLoaderList_h_
+#ifndef LLDB_TARGET_JITLOADERLIST_H
+#define LLDB_TARGET_JITLOADERLIST_H
 
 #include <mutex>
 #include <vector>
@@ -17,11 +16,9 @@
 
 namespace lldb_private {
 
-//----------------------------------------------------------------------
-/// @class JITLoaderList JITLoaderList.h "lldb/Target/JITLoaderList.h"
+/// \class JITLoaderList JITLoaderList.h "lldb/Target/JITLoaderList.h"
 ///
 /// Class used by the Process to hold a list of its JITLoaders.
-//----------------------------------------------------------------------
 class JITLoaderList {
 public:
   JITLoaderList();
@@ -48,4 +45,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_JITLoaderList_h_
+#endif // LLDB_TARGET_JITLOADERLIST_H

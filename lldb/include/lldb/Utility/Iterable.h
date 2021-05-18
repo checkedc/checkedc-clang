@@ -1,14 +1,13 @@
 //===-- Iterable.h ----------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Iterable_h_
-#define liblldb_Iterable_h_
+#ifndef LLDB_UTILITY_ITERABLE_H
+#define LLDB_UTILITY_ITERABLE_H
 
 #include <utility>
 
@@ -171,7 +170,7 @@ template <typename C, typename E, E (*A)(typename C::const_iterator &),
           typename MutexType>
 class LockingAdaptedIterable : public AdaptedIterable<C, E, A> {
 public:
-  LockingAdaptedIterable(C &container, MutexType &mutex)
+  LockingAdaptedIterable(const C &container, MutexType &mutex)
       : AdaptedIterable<C, E, A>(container), m_mutex(&mutex) {
     m_mutex->lock();
   }
@@ -195,4 +194,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_Iterable_h_
+#endif // LLDB_UTILITY_ITERABLE_H

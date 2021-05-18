@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -38,13 +37,13 @@ struct test
     typedef typename base::value_compare value_compare;
 
     explicit test(const test_allocator<int>& a) : base(a) {}
-    test(const value_compare& comp, const test_allocator<int>& a)
-        : base(comp, a) {}
-    test(const value_compare& comp, const container_type& c,
-        const test_allocator<int>& a) : base(comp, c, a) {}
+    test(const value_compare& compare, const test_allocator<int>& a)
+        : base(compare, a) {}
+    test(const value_compare& compare, const container_type& container,
+        const test_allocator<int>& a) : base(compare, container, a) {}
 #if TEST_STD_VER >= 11 // testing rvalue constructor
-    test(const value_compare& comp, container_type&& c,
-         const test_allocator<int>& a) : base(comp, std::move(c), a) {}
+    test(const value_compare& compare, container_type&& container,
+         const test_allocator<int>& a) : base(compare, std::move(container), a) {}
     test(test&& q, const test_allocator<int>& a) : base(std::move(q), a) {}
 #endif
     test_allocator<int> get_allocator() {return c.get_allocator();}
@@ -52,7 +51,7 @@ struct test
     using base::c;
 };
 
-int main()
+int main(int, char**)
 {
     typedef std::vector<int, test_allocator<int> > C;
     C v = make<C>(5);
@@ -60,4 +59,6 @@ int main()
     assert(q.c.get_allocator() == test_allocator<int>(3));
     assert(q.size() == 5);
     assert(q.top() == 4);
+
+  return 0;
 }

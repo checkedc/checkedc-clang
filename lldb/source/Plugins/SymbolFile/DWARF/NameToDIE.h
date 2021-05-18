@@ -1,14 +1,13 @@
 //===-- NameToDIE.h ---------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SymbolFileDWARF_NameToDIE_h_
-#define SymbolFileDWARF_NameToDIE_h_
+#ifndef LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_NAMETODIE_H
+#define LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_NAMETODIE_H
 
 #include <functional>
 
@@ -17,7 +16,7 @@
 #include "lldb/Core/dwarf.h"
 #include "lldb/lldb-defines.h"
 
-class SymbolFileDWARF;
+class DWARFUnit;
 
 class NameToDIE {
 public:
@@ -27,20 +26,21 @@ public:
 
   void Dump(lldb_private::Stream *s);
 
-  void Insert(const lldb_private::ConstString &name, const DIERef &die_ref);
+  void Insert(lldb_private::ConstString name, const DIERef &die_ref);
 
   void Append(const NameToDIE &other);
 
   void Finalize();
 
-  size_t Find(const lldb_private::ConstString &name,
-              DIEArray &info_array) const;
+  bool Find(lldb_private::ConstString name,
+            llvm::function_ref<bool(DIERef ref)> callback) const;
 
-  size_t Find(const lldb_private::RegularExpression &regex,
-              DIEArray &info_array) const;
+  bool Find(const lldb_private::RegularExpression &regex,
+            llvm::function_ref<bool(DIERef ref)> callback) const;
 
-  size_t FindAllEntriesForCompileUnit(dw_offset_t cu_offset,
-                                      DIEArray &info_array) const;
+  void
+  FindAllEntriesForUnit(const DWARFUnit &unit,
+                        llvm::function_ref<bool(DIERef ref)> callback) const;
 
   void
   ForEach(std::function<bool(lldb_private::ConstString name,
@@ -51,4 +51,4 @@ protected:
   lldb_private::UniqueCStringMap<DIERef> m_map;
 };
 
-#endif // SymbolFileDWARF_NameToDIE_h_
+#endif // LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_NAMETODIE_H

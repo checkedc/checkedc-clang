@@ -1,4 +1,12 @@
-// UNSUPPORTED: c++98, c++03
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+// UNSUPPORTED: c++03
 
 #include <memory>
 
@@ -29,7 +37,7 @@ struct Deleter {
   }
 };
 
-int main() {
+int main(int, char**) {
   {
     SPtr<0> s; // OK
     SPtr<1> s1(nullptr); // OK
@@ -41,4 +49,6 @@ int main() {
     SPtr<4> s4(getFn<4>()); // expected-note {{requested here}}
     SPtr<5> s5(getFn<5>(), std::default_delete<FnType<5>>{}); // expected-note {{requested here}}
   }
+
+  return 0;
 }

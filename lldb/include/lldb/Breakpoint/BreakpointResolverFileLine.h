@@ -1,45 +1,43 @@
 //===-- BreakpointResolverFileLine.h ----------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_BreakpointResolverFileLine_h_
-#define liblldb_BreakpointResolverFileLine_h_
+#ifndef LLDB_BREAKPOINT_BREAKPOINTRESOLVERFILELINE_H
+#define LLDB_BREAKPOINT_BREAKPOINTRESOLVERFILELINE_H
 
 #include "lldb/Breakpoint/BreakpointResolver.h"
 
 namespace lldb_private {
 
-//----------------------------------------------------------------------
-/// @class BreakpointResolverFileLine BreakpointResolverFileLine.h
+/// \class BreakpointResolverFileLine BreakpointResolverFileLine.h
 /// "lldb/Breakpoint/BreakpointResolverFileLine.h" This class sets breakpoints
 /// by file and line.  Optionally, it will look for inlined instances of the
 /// file and line specification.
-//----------------------------------------------------------------------
 
 class BreakpointResolverFileLine : public BreakpointResolver {
 public:
-  BreakpointResolverFileLine(Breakpoint *bkpt, const FileSpec &resolver,
+  BreakpointResolverFileLine(const lldb::BreakpointSP &bkpt,
+                             const FileSpec &resolver,
                              uint32_t line_no, uint32_t column,
                              lldb::addr_t m_offset, bool check_inlines,
                              bool skip_prologue, bool exact_match);
 
   static BreakpointResolver *
-  CreateFromStructuredData(Breakpoint *bkpt,
+  CreateFromStructuredData(const lldb::BreakpointSP &bkpt,
                            const StructuredData::Dictionary &data_dict,
                            Status &error);
 
   StructuredData::ObjectSP SerializeToStructuredData() override;
 
-  ~BreakpointResolverFileLine() override;
+  ~BreakpointResolverFileLine() override = default;
 
   Searcher::CallbackReturn SearchCallback(SearchFilter &filter,
-                                          SymbolContext &context, Address *addr,
-                                          bool containing) override;
+                                          SymbolContext &context,
+                                          Address *addr) override;
 
   lldb::SearchDepth GetDepth() override;
 
@@ -55,7 +53,8 @@ public:
     return V->getResolverID() == BreakpointResolver::FileLineResolver;
   }
 
-  lldb::BreakpointResolverSP CopyForBreakpoint(Breakpoint &breakpoint) override;
+  lldb::BreakpointResolverSP
+  CopyForBreakpoint(lldb::BreakpointSP &breakpoint) override;
 
 protected:
   void FilterContexts(SymbolContextList &sc_list, bool is_relative);
@@ -70,9 +69,11 @@ protected:
   bool m_exact_match;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(BreakpointResolverFileLine);
+  BreakpointResolverFileLine(const BreakpointResolverFileLine &) = delete;
+  const BreakpointResolverFileLine &
+  operator=(const BreakpointResolverFileLine &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_BreakpointResolverFileLine_h_
+#endif // LLDB_BREAKPOINT_BREAKPOINTRESOLVERFILELINE_H

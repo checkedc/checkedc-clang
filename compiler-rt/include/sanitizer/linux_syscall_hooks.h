@@ -1,9 +1,8 @@
 //===-- linux_syscall_hooks.h ---------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -1846,6 +1845,10 @@
 #define __sanitizer_syscall_post_rt_sigaction(res, signum, act, oldact, sz)    \
   __sanitizer_syscall_post_impl_rt_sigaction(res, (long)signum, (long)act,     \
                                              (long)oldact, (long)sz)
+#define __sanitizer_syscall_pre_sigaltstack(ss, oss)                           \
+  __sanitizer_syscall_pre_impl_sigaltstack((long)ss, (long)oss)
+#define __sanitizer_syscall_post_sigaltstack(res, ss, oss)                     \
+  __sanitizer_syscall_post_impl_sigaltstack(res, (long)ss, (long)oss)
 
 // And now a few syscalls we don't handle yet.
 #define __sanitizer_syscall_pre_afs_syscall(...)
@@ -1913,7 +1916,6 @@
 #define __sanitizer_syscall_pre_setreuid32(...)
 #define __sanitizer_syscall_pre_set_thread_area(...)
 #define __sanitizer_syscall_pre_setuid32(...)
-#define __sanitizer_syscall_pre_sigaltstack(...)
 #define __sanitizer_syscall_pre_sigreturn(...)
 #define __sanitizer_syscall_pre_sigsuspend(...)
 #define __sanitizer_syscall_pre_stty(...)
@@ -1993,7 +1995,6 @@
 #define __sanitizer_syscall_post_setreuid32(res, ...)
 #define __sanitizer_syscall_post_set_thread_area(res, ...)
 #define __sanitizer_syscall_post_setuid32(res, ...)
-#define __sanitizer_syscall_post_sigaltstack(res, ...)
 #define __sanitizer_syscall_post_sigreturn(res, ...)
 #define __sanitizer_syscall_post_sigsuspend(res, ...)
 #define __sanitizer_syscall_post_stty(res, ...)
@@ -3076,6 +3077,8 @@ void __sanitizer_syscall_pre_impl_rt_sigaction(long signum, long act,
                                                long oldact, long sz);
 void __sanitizer_syscall_post_impl_rt_sigaction(long res, long signum, long act,
                                                 long oldact, long sz);
+void __sanitizer_syscall_pre_impl_sigaltstack(long ss, long oss);
+void __sanitizer_syscall_post_impl_sigaltstack(long res, long ss, long oss);
 #ifdef __cplusplus
 }  // extern "C"
 #endif

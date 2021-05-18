@@ -1,9 +1,8 @@
 //===- FuzzerExtFunctionsWeak.cpp - Interface to external functions -------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 // Implementation for Linux. This relies on the linker's support for weak
@@ -12,9 +11,9 @@
 // weak symbols to be undefined. That is a complication we don't want to expose
 // to clients right now.
 //===----------------------------------------------------------------------===//
-#include "FuzzerDefs.h"
+#include "FuzzerPlatform.h"
 #if LIBFUZZER_LINUX || LIBFUZZER_NETBSD || LIBFUZZER_FUCHSIA ||                \
-    LIBFUZZER_FREEBSD || LIBFUZZER_OPENBSD
+    LIBFUZZER_FREEBSD || LIBFUZZER_EMSCRIPTEN
 
 #include "FuzzerExtFunctions.h"
 #include "FuzzerIO.h"

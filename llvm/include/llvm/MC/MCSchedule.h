@@ -1,9 +1,8 @@
 //===-- llvm/MC/MCSchedule.h - Scheduling -----------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -22,6 +21,7 @@
 
 namespace llvm {
 
+template <typename T> class ArrayRef;
 struct InstrItinerary;
 class MCSubtargetInfo;
 class MCInstrInfo;
@@ -205,7 +205,7 @@ struct MCExtraProcessorInfo {
 /// subtargets can't be done. Nonetheless, the abstract model is
 /// useful. Futhermore, subtargets typically extend this model with processor
 /// specific resources to model any hardware features that can be exploited by
-/// sceduling heuristics and aren't sufficiently represented in the abstract.
+/// scheduling heuristics and aren't sufficiently represented in the abstract.
 ///
 /// The abstract pipeline is built around the notion of an "issue point". This
 /// is merely a reference point for counting machine cycles. The physical
@@ -369,6 +369,11 @@ struct MCSchedModel {
   double
   getReciprocalThroughput(const MCSubtargetInfo &STI, const MCInstrInfo &MCII,
                           const MCInst &Inst) const;
+
+  /// Returns the maximum forwarding delay for register reads dependent on
+  /// writes of scheduling class WriteResourceIdx.
+  static unsigned getForwardingDelayCycles(ArrayRef<MCReadAdvanceEntry> Entries,
+                                           unsigned WriteResourceIdx = 0);
 
   /// Returns the default initialized model.
   static const MCSchedModel &GetDefaultSchedModel() { return Default; }

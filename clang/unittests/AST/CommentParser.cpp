@@ -1,9 +1,8 @@
 //===- unittests/AST/CommentParser.cpp ------ Comment parser tests --------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -29,7 +28,7 @@ namespace comments {
 
 namespace {
 
-const bool DEBUG = true;
+const bool MY_DEBUG = true;
 
 class CommentParserTest : public ::testing::Test {
 protected:
@@ -63,9 +62,9 @@ FullComment *CommentParserTest::parseString(const char *Source) {
   Parser P(L, S, Allocator, SourceMgr, Diags, Traits);
   FullComment *FC = P.parseFullComment();
 
-  if (DEBUG) {
+  if (MY_DEBUG) {
     llvm::errs() << "=== Source:\n" << Source << "\n=== AST:\n";
-    FC->dump(llvm::errs(), &Traits, &SourceMgr);
+    FC->dump();
   }
 
   Token Tok;
@@ -629,40 +628,40 @@ TEST_F(CommentParserTest, Basic3) {
 
 TEST_F(CommentParserTest, ParagraphSplitting1) {
   const char *Sources[] = {
-    "// Aaa\n"
+    ("// Aaa\n"
     "//\n"
-    "// Bbb",
+    "// Bbb"),
 
-    "// Aaa\n"
+    ("// Aaa\n"
     "// \n"
-    "// Bbb",
+    "// Bbb"),
 
-    "// Aaa\n"
+    ("// Aaa\n"
     "//\t\n"
-    "// Bbb",
+    "// Bbb"),
 
-    "// Aaa\n"
+    ("// Aaa\n"
     "//\n"
     "//\n"
-    "// Bbb",
+    "// Bbb"),
 
-    "/**\n"
+    ("/**\n"
     " Aaa\n"
     "\n"
     " Bbb\n"
-    "*/",
+    "*/"),
 
-    "/**\n"
+    ("/**\n"
     " Aaa\n"
     " \n"
     " Bbb\n"
-    "*/",
+    "*/"),
 
-    "/**\n"
+    ("/**\n"
     " Aaa\n"
     "\t \n"
     " Bbb\n"
-    "*/",
+    "*/"),
   };
 
   for (size_t i = 0, e = array_lengthof(Sources); i != e; i++) {
@@ -794,12 +793,12 @@ TEST_F(CommentParserTest, ParamCommand2) {
 TEST_F(CommentParserTest, ParamCommand3) {
   const char *Sources[] = {
     "// \\param aaa Bbb\n",
-    "// \\param\n"
-    "//     aaa Bbb\n",
-    "// \\param \n"
-    "//     aaa Bbb\n",
-    "// \\param aaa\n"
-    "// Bbb\n"
+    ("// \\param\n"
+    "//     aaa Bbb\n"),
+    ("// \\param \n"
+    "//     aaa Bbb\n"),
+    ("// \\param aaa\n"
+    "// Bbb\n")
   };
 
   for (size_t i = 0, e = array_lengthof(Sources); i != e; i++) {
@@ -824,12 +823,12 @@ TEST_F(CommentParserTest, ParamCommand4) {
   const char *Sources[] = {
     "// \\param [in] aaa Bbb\n",
     "// \\param[in] aaa Bbb\n",
-    "// \\param\n"
-    "//     [in] aaa Bbb\n",
-    "// \\param [in]\n"
-    "//     aaa Bbb\n",
-    "// \\param [in] aaa\n"
-    "// Bbb\n",
+    ("// \\param\n"
+    "//     [in] aaa Bbb\n"),
+    ("// \\param [in]\n"
+    "//     aaa Bbb\n"),
+    ("// \\param [in] aaa\n"
+    "// Bbb\n"),
   };
 
   for (size_t i = 0, e = array_lengthof(Sources); i != e; i++) {
@@ -854,12 +853,12 @@ TEST_F(CommentParserTest, ParamCommand5) {
   const char *Sources[] = {
     "// \\param [out] aaa Bbb\n",
     "// \\param[out] aaa Bbb\n",
-    "// \\param\n"
-    "//     [out] aaa Bbb\n",
-    "// \\param [out]\n"
-    "//     aaa Bbb\n",
-    "// \\param [out] aaa\n"
-    "// Bbb\n",
+    ("// \\param\n"
+    "//     [out] aaa Bbb\n"),
+    ("// \\param [out]\n"
+    "//     aaa Bbb\n"),
+    ("// \\param [out] aaa\n"
+    "// Bbb\n"),
   };
 
   for (size_t i = 0, e = array_lengthof(Sources); i != e; i++) {

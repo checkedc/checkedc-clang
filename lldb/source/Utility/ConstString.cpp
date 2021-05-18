@@ -1,9 +1,8 @@
-//===-- ConstString.cpp -----------------------------------------*- C++ -*-===//
+//===-- ConstString.cpp ---------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -19,7 +18,6 @@
 #include "llvm/Support/RWMutex.h"
 #include "llvm/Support/Threading.h"
 
-#include <algorithm>
 #include <array>
 #include <utility>
 
@@ -31,9 +29,37 @@ using namespace lldb_private;
 
 class Pool {
 public:
+  /// The default BumpPtrAllocatorImpl slab size.
+  static const size_t AllocatorSlabSize = 4096;
+  static const size_t SizeThreshold = AllocatorSlabSize;
+  /// Every Pool has its own allocator which receives an equal share of
+  /// the ConstString allocations. This means that when allocating many
+  /// ConstStrings, every allocator sees only its small share of allocations and
+  /// assumes LLDB only allocated a small amount of memory so far. In reality
+  /// LLDB allocated a total memory that is N times as large as what the
+  /// allocator sees (where N is the number of string pools). This causes that
+  /// the BumpPtrAllocator continues a long time to allocate memory in small
+  /// chunks which only makes sense when allocating a small amount of memory
+  /// (which is true from the perspective of a single allocator). On some
+  /// systems doing all these small memory allocations causes LLDB to spend
+  /// a lot of time in malloc, so we need to force all these allocators to
+  /// behave like one allocator in terms of scaling their memory allocations
+  /// with increased demand. To do this we set the growth delay for each single
+  /// allocator to a rate so that our pool of allocators scales their memory
+  /// allocations similar to a single BumpPtrAllocatorImpl.
+  ///
+  /// Currently we have 256 string pools and the normal growth delay of the
+  /// BumpPtrAllocatorImpl is 128 (i.e., the memory allocation size increases
+  /// every 128 full chunks), so by changing the delay to 1 we get a
+  /// total growth delay in our allocator collection of 256/1 = 256. This is
+  /// still only half as fast as a normal allocator but we can't go any faster
+  /// without decreasing the number of string pools.
+  static const size_t AllocatorGrowthDelay = 1;
+  typedef llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator, AllocatorSlabSize,
+                                     SizeThreshold, AllocatorGrowthDelay>
+      Allocator;
   typedef const char *StringPoolValueType;
-  typedef llvm::StringMap<StringPoolValueType, llvm::BumpPtrAllocator>
-      StringPool;
+  typedef llvm::StringMap<StringPoolValueType, Allocator> StringPool;
   typedef llvm::StringMapEntry<StringPoolValueType> StringPoolEntryType;
 
   static StringPoolEntryType &
@@ -58,23 +84,6 @@ public:
       return GetStringMapEntryFromKeyData(ccstr).getValue();
     }
     return nullptr;
-  }
-
-  bool SetMangledCounterparts(const char *key_ccstr, const char *value_ccstr) {
-    if (key_ccstr != nullptr && value_ccstr != nullptr) {
-      {
-        const uint8_t h = hash(llvm::StringRef(key_ccstr));
-        llvm::sys::SmartScopedWriter<false> wlock(m_string_pools[h].m_mutex);
-        GetStringMapEntryFromKeyData(key_ccstr).setValue(value_ccstr);
-      }
-      {
-        const uint8_t h = hash(llvm::StringRef(value_ccstr));
-        llvm::sys::SmartScopedWriter<false> wlock(m_string_pools[h].m_mutex);
-        GetStringMapEntryFromKeyData(value_ccstr).setValue(key_ccstr);
-      }
-      return true;
-    }
-    return false;
   }
 
   const char *GetConstCString(const char *cstr) {
@@ -144,16 +153,14 @@ public:
   const char *GetConstTrimmedCStringWithLength(const char *cstr,
                                                size_t cstr_len) {
     if (cstr != nullptr) {
-      const size_t trimmed_len = std::min<size_t>(strlen(cstr), cstr_len);
+      const size_t trimmed_len = strnlen(cstr, cstr_len);
       return GetConstCStringWithLength(cstr, trimmed_len);
     }
     return nullptr;
   }
 
-  //------------------------------------------------------------------
   // Return the size in bytes that this object and any items in its collection
   // of uniqued strings + data count values takes in memory.
-  //------------------------------------------------------------------
   size_t MemorySize() const {
     size_t mem_size = sizeof(Pool);
     for (const auto &pool : m_string_pools) {
@@ -178,7 +185,6 @@ protected:
   std::array<PoolEntry, 256> m_string_pools;
 };
 
-//----------------------------------------------------------------------
 // Frameworks and dylibs aren't supposed to have global C++ initializers so we
 // hide the string pool in a static function so that it will get initialized on
 // the first call to this static function.
@@ -187,7 +193,6 @@ protected:
 // can't guarantee that some objects won't get destroyed after the global
 // destructor chain is run, and trying to make sure no destructors touch
 // ConstStrings is difficult.  So we leak the pool instead.
-//----------------------------------------------------------------------
 static Pool &StringPool() {
   static llvm::once_flag g_pool_initialization_flag;
   static Pool *g_string_pool = nullptr;
@@ -205,9 +210,9 @@ ConstString::ConstString(const char *cstr, size_t cstr_len)
     : m_string(StringPool().GetConstCStringWithLength(cstr, cstr_len)) {}
 
 ConstString::ConstString(const llvm::StringRef &s)
-    : m_string(StringPool().GetConstCStringWithLength(s.data(), s.size())) {}
+    : m_string(StringPool().GetConstCStringWithStringRef(s)) {}
 
-bool ConstString::operator<(const ConstString &rhs) const {
+bool ConstString::operator<(ConstString rhs) const {
   if (m_string == rhs.m_string)
     return false;
 
@@ -222,7 +227,7 @@ bool ConstString::operator<(const ConstString &rhs) const {
   return lhs_string_ref.data() == nullptr;
 }
 
-Stream &lldb_private::operator<<(Stream &s, const ConstString &str) {
+Stream &lldb_private::operator<<(Stream &s, ConstString str) {
   const char *cstr = str.GetCString();
   if (cstr != nullptr)
     s << cstr;
@@ -234,7 +239,7 @@ size_t ConstString::GetLength() const {
   return Pool::GetConstCStringLength(m_string);
 }
 
-bool ConstString::Equals(const ConstString &lhs, const ConstString &rhs,
+bool ConstString::Equals(ConstString lhs, ConstString rhs,
                          const bool case_sensitive) {
   if (lhs.m_string == rhs.m_string)
     return true;
@@ -251,7 +256,7 @@ bool ConstString::Equals(const ConstString &lhs, const ConstString &rhs,
   return lhs_string_ref.equals_lower(rhs_string_ref);
 }
 
-int ConstString::Compare(const ConstString &lhs, const ConstString &rhs,
+int ConstString::Compare(ConstString lhs, ConstString rhs,
                          const bool case_sensitive) {
   // If the iterators are the same, this is the same string
   const char *lhs_cstr = lhs.m_string;
@@ -303,7 +308,7 @@ void ConstString::SetString(const llvm::StringRef &s) {
 }
 
 void ConstString::SetStringWithMangledCounterpart(llvm::StringRef demangled,
-                                                   const ConstString &mangled) {
+                                                  ConstString mangled) {
   m_string = StringPool().GetConstCStringAndSetMangledCounterPart(
       demangled, mangled.m_string);
 }
@@ -330,5 +335,17 @@ size_t ConstString::StaticMemorySize() {
 void llvm::format_provider<ConstString>::format(const ConstString &CS,
                                                 llvm::raw_ostream &OS,
                                                 llvm::StringRef Options) {
-  format_provider<StringRef>::format(CS.AsCString(), OS, Options);
+  format_provider<StringRef>::format(CS.GetStringRef(), OS, Options);
+}
+
+void llvm::yaml::ScalarTraits<ConstString>::output(const ConstString &Val,
+                                                   void *, raw_ostream &Out) {
+  Out << Val.GetStringRef();
+}
+
+llvm::StringRef
+llvm::yaml::ScalarTraits<ConstString>::input(llvm::StringRef Scalar, void *,
+                                             ConstString &Val) {
+  Val = ConstString(Scalar);
+  return {};
 }

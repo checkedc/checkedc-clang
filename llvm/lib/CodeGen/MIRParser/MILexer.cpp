@@ -1,9 +1,8 @@
 //===- MILexer.cpp - Machine instructions lexer implementation ------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -12,12 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "MILexer.h"
-#include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/None.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include <algorithm>
 #include <cassert>
@@ -102,6 +98,20 @@ static Cursor skipComment(Cursor C) {
     return C;
   while (!isNewlineChar(C.peek()) && !C.isEOF())
     C.advance();
+  return C;
+}
+
+/// Machine operands can have comments, enclosed between /* and */.
+/// This eats up all tokens, including /* and */.
+static Cursor skipMachineOperandComment(Cursor C) {
+  if (C.peek() != '/' || C.peek(1) != '*')
+    return C;
+
+  while (C.peek() != '*' || C.peek(1) != '/')
+    C.advance();
+
+  C.advance();
+  C.advance();
   return C;
 }
 
@@ -202,10 +212,12 @@ static MIToken::TokenKind getIdentifierKind(StringRef Identifier) {
       .Case("contract", MIToken::kw_contract)
       .Case("afn", MIToken::kw_afn)
       .Case("reassoc", MIToken::kw_reassoc)
-      .Case("nuw" , MIToken::kw_nuw)
-      .Case("nsw" , MIToken::kw_nsw)
-      .Case("exact" , MIToken::kw_exact)
+      .Case("nuw", MIToken::kw_nuw)
+      .Case("nsw", MIToken::kw_nsw)
+      .Case("exact", MIToken::kw_exact)
+      .Case("nofpexcept", MIToken::kw_nofpexcept)
       .Case("debug-location", MIToken::kw_debug_location)
+      .Case("debug-instr-number", MIToken::kw_debug_instr_number)
       .Case("same_value", MIToken::kw_cfi_same_value)
       .Case("offset", MIToken::kw_cfi_offset)
       .Case("rel_offset", MIToken::kw_cfi_rel_offset)
@@ -220,7 +232,8 @@ static MIToken::TokenKind getIdentifierKind(StringRef Identifier) {
       .Case("undefined", MIToken::kw_cfi_undefined)
       .Case("register", MIToken::kw_cfi_register)
       .Case("window_save", MIToken::kw_cfi_window_save)
-      .Case("negate_ra_sign_state", MIToken::kw_cfi_aarch64_negate_ra_sign_state)
+      .Case("negate_ra_sign_state",
+            MIToken::kw_cfi_aarch64_negate_ra_sign_state)
       .Case("blockaddress", MIToken::kw_blockaddress)
       .Case("intrinsic", MIToken::kw_intrinsic)
       .Case("target-index", MIToken::kw_target_index)
@@ -236,21 +249,27 @@ static MIToken::TokenKind getIdentifierKind(StringRef Identifier) {
       .Case("dereferenceable", MIToken::kw_dereferenceable)
       .Case("invariant", MIToken::kw_invariant)
       .Case("align", MIToken::kw_align)
+      .Case("basealign", MIToken::kw_align)
       .Case("addrspace", MIToken::kw_addrspace)
       .Case("stack", MIToken::kw_stack)
       .Case("got", MIToken::kw_got)
       .Case("jump-table", MIToken::kw_jump_table)
       .Case("constant-pool", MIToken::kw_constant_pool)
       .Case("call-entry", MIToken::kw_call_entry)
+      .Case("custom", MIToken::kw_custom)
       .Case("liveout", MIToken::kw_liveout)
       .Case("address-taken", MIToken::kw_address_taken)
       .Case("landing-pad", MIToken::kw_landing_pad)
+      .Case("ehfunclet-entry", MIToken::kw_ehfunclet_entry)
       .Case("liveins", MIToken::kw_liveins)
       .Case("successors", MIToken::kw_successors)
       .Case("floatpred", MIToken::kw_floatpred)
       .Case("intpred", MIToken::kw_intpred)
+      .Case("shufflemask", MIToken::kw_shufflemask)
       .Case("pre-instr-symbol", MIToken::kw_pre_instr_symbol)
       .Case("post-instr-symbol", MIToken::kw_post_instr_symbol)
+      .Case("heap-alloc-marker", MIToken::kw_heap_alloc_marker)
+      .Case("bbsections", MIToken::kw_bbsections)
       .Case("unknown-size", MIToken::kw_unknown_size)
       .Default(MIToken::Identifier);
 }
@@ -515,7 +534,7 @@ static Cursor maybeLexMCSymbol(Cursor C, MIToken &Token,
 }
 
 static bool isValidHexFloatingPointPrefix(char C) {
-  return C == 'H' || C == 'K' || C == 'L' || C == 'M';
+  return C == 'H' || C == 'K' || C == 'L' || C == 'M' || C == 'R';
 }
 
 static Cursor lexFloatingPointLiteral(Cursor Range, Cursor C, MIToken &Token) {
@@ -581,8 +600,8 @@ static MIToken::TokenKind getMetadataKeywordKind(StringRef Identifier) {
       .Default(MIToken::Error);
 }
 
-static Cursor maybeLexExlaim(Cursor C, MIToken &Token,
-                             ErrorCallbackType ErrorCallback) {
+static Cursor maybeLexExclaim(Cursor C, MIToken &Token,
+                              ErrorCallbackType ErrorCallback) {
   if (C.peek() != '!')
     return None;
   auto Range = C;
@@ -688,6 +707,8 @@ StringRef llvm::lexMIToken(StringRef Source, MIToken &Token,
     return C.remaining();
   }
 
+  C = skipMachineOperandComment(C);
+
   if (Cursor R = maybeLexMachineBasicBlock(C, Token, ErrorCallback))
     return R.remaining();
   if (Cursor R = maybeLexIdentifier(C, Token))
@@ -718,7 +739,7 @@ StringRef llvm::lexMIToken(StringRef Source, MIToken &Token,
     return R.remaining();
   if (Cursor R = maybeLexNumericalLiteral(C, Token))
     return R.remaining();
-  if (Cursor R = maybeLexExlaim(C, Token, ErrorCallback))
+  if (Cursor R = maybeLexExclaim(C, Token, ErrorCallback))
     return R.remaining();
   if (Cursor R = maybeLexSymbol(C, Token))
     return R.remaining();

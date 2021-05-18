@@ -83,14 +83,17 @@
 ...
 ---
 name:            test_icmp_eq_i8
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
   - { id: 0, class: gpr }
   - { id: 1, class: gpr }
-  - { id: 2, class: gpr }
+  - { id: 2, class: _ }
   - { id: 3, class: gpr }
+  - { id: 4, class: gpr }
+  - { id: 5, class: gpr }
+  - { id: 6, class: gpr }
 body:             |
   bb.1 (%ir-block.0):
     liveins: $edi, $esi
@@ -99,29 +102,34 @@ body:             |
     ; CHECK: [[COPY:%[0-9]+]]:gr8 = COPY $dil
     ; CHECK: [[COPY1:%[0-9]+]]:gr8 = COPY $sil
     ; CHECK: CMP8rr [[COPY]], [[COPY1]], implicit-def $eflags
-    ; CHECK: [[SETEr:%[0-9]+]]:gr8 = SETEr implicit $eflags
-    ; CHECK: [[SUBREG_TO_REG:%[0-9]+]]:gr32 = SUBREG_TO_REG 0, [[SETEr]], %subreg.sub_8bit
-    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[SUBREG_TO_REG]], 1, implicit-def $eflags
+    ; CHECK: [[SETCCr:%[0-9]+]]:gr8 = SETCCr 4, implicit $eflags
+    ; CHECK: [[MOVZX32rr8_:%[0-9]+]]:gr32 = MOVZX32rr8 [[SETCCr]]
+    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[MOVZX32rr8_]], 1, implicit-def $eflags
     ; CHECK: $eax = COPY [[AND32ri8_]]
     ; CHECK: RET 0, implicit $eax
     %0(s8) = COPY $dil
     %1(s8) = COPY $sil
-    %2(s1) = G_ICMP intpred(eq), %0(s8), %1
-    %3(s32) = G_ZEXT %2(s1)
+    %4(s8) = G_ICMP intpred(eq), %0(s8), %1
+    %5(s32) = G_CONSTANT i32 1
+    %6(s32) = G_ANYEXT %4(s8)
+    %3(s32) = G_AND %6, %5
     $eax = COPY %3(s32)
     RET 0, implicit $eax
 
 ...
 ---
 name:            test_icmp_eq_i16
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
   - { id: 0, class: gpr }
   - { id: 1, class: gpr }
-  - { id: 2, class: gpr }
+  - { id: 2, class: _ }
   - { id: 3, class: gpr }
+  - { id: 4, class: gpr }
+  - { id: 5, class: gpr }
+  - { id: 6, class: gpr }
 body:             |
   bb.1 (%ir-block.0):
     liveins: $edi, $esi
@@ -130,29 +138,34 @@ body:             |
     ; CHECK: [[COPY:%[0-9]+]]:gr16 = COPY $di
     ; CHECK: [[COPY1:%[0-9]+]]:gr16 = COPY $si
     ; CHECK: CMP16rr [[COPY]], [[COPY1]], implicit-def $eflags
-    ; CHECK: [[SETEr:%[0-9]+]]:gr8 = SETEr implicit $eflags
-    ; CHECK: [[SUBREG_TO_REG:%[0-9]+]]:gr32 = SUBREG_TO_REG 0, [[SETEr]], %subreg.sub_8bit
-    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[SUBREG_TO_REG]], 1, implicit-def $eflags
+    ; CHECK: [[SETCCr:%[0-9]+]]:gr8 = SETCCr 4, implicit $eflags
+    ; CHECK: [[MOVZX32rr8_:%[0-9]+]]:gr32 = MOVZX32rr8 [[SETCCr]]
+    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[MOVZX32rr8_]], 1, implicit-def $eflags
     ; CHECK: $eax = COPY [[AND32ri8_]]
     ; CHECK: RET 0, implicit $eax
     %0(s16) = COPY $di
     %1(s16) = COPY $si
-    %2(s1) = G_ICMP intpred(eq), %0(s16), %1
-    %3(s32) = G_ZEXT %2(s1)
+    %4(s8) = G_ICMP intpred(eq), %0(s16), %1
+    %5(s32) = G_CONSTANT i32 1
+    %6(s32) = G_ANYEXT %4(s8)
+    %3(s32) = G_AND %6, %5
     $eax = COPY %3(s32)
     RET 0, implicit $eax
 
 ...
 ---
 name:            test_icmp_eq_i64
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
   - { id: 0, class: gpr }
   - { id: 1, class: gpr }
-  - { id: 2, class: gpr }
+  - { id: 2, class: _ }
   - { id: 3, class: gpr }
+  - { id: 4, class: gpr }
+  - { id: 5, class: gpr }
+  - { id: 6, class: gpr }
 body:             |
   bb.1 (%ir-block.0):
     liveins: $rdi, $rsi
@@ -161,29 +174,34 @@ body:             |
     ; CHECK: [[COPY:%[0-9]+]]:gr64 = COPY $rdi
     ; CHECK: [[COPY1:%[0-9]+]]:gr64 = COPY $rsi
     ; CHECK: CMP64rr [[COPY]], [[COPY1]], implicit-def $eflags
-    ; CHECK: [[SETEr:%[0-9]+]]:gr8 = SETEr implicit $eflags
-    ; CHECK: [[SUBREG_TO_REG:%[0-9]+]]:gr32 = SUBREG_TO_REG 0, [[SETEr]], %subreg.sub_8bit
-    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[SUBREG_TO_REG]], 1, implicit-def $eflags
+    ; CHECK: [[SETCCr:%[0-9]+]]:gr8 = SETCCr 4, implicit $eflags
+    ; CHECK: [[MOVZX32rr8_:%[0-9]+]]:gr32 = MOVZX32rr8 [[SETCCr]]
+    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[MOVZX32rr8_]], 1, implicit-def $eflags
     ; CHECK: $eax = COPY [[AND32ri8_]]
     ; CHECK: RET 0, implicit $eax
     %0(s64) = COPY $rdi
     %1(s64) = COPY $rsi
-    %2(s1) = G_ICMP intpred(eq), %0(s64), %1
-    %3(s32) = G_ZEXT %2(s1)
+    %4(s8) = G_ICMP intpred(eq), %0(s64), %1
+    %5(s32) = G_CONSTANT i32 1
+    %6(s32) = G_ANYEXT %4(s8)
+    %3(s32) = G_AND %6, %5
     $eax = COPY %3(s32)
     RET 0, implicit $eax
 
 ...
 ---
 name:            test_icmp_eq_i32
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
   - { id: 0, class: gpr }
   - { id: 1, class: gpr }
-  - { id: 2, class: gpr }
+  - { id: 2, class: _ }
   - { id: 3, class: gpr }
+  - { id: 4, class: gpr }
+  - { id: 5, class: gpr }
+  - { id: 6, class: gpr }
 body:             |
   bb.1 (%ir-block.0):
     liveins: $edi, $esi
@@ -192,29 +210,34 @@ body:             |
     ; CHECK: [[COPY:%[0-9]+]]:gr32 = COPY $edi
     ; CHECK: [[COPY1:%[0-9]+]]:gr32 = COPY $esi
     ; CHECK: CMP32rr [[COPY]], [[COPY1]], implicit-def $eflags
-    ; CHECK: [[SETEr:%[0-9]+]]:gr8 = SETEr implicit $eflags
-    ; CHECK: [[SUBREG_TO_REG:%[0-9]+]]:gr32 = SUBREG_TO_REG 0, [[SETEr]], %subreg.sub_8bit
-    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[SUBREG_TO_REG]], 1, implicit-def $eflags
+    ; CHECK: [[SETCCr:%[0-9]+]]:gr8 = SETCCr 4, implicit $eflags
+    ; CHECK: [[MOVZX32rr8_:%[0-9]+]]:gr32 = MOVZX32rr8 [[SETCCr]]
+    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[MOVZX32rr8_]], 1, implicit-def $eflags
     ; CHECK: $eax = COPY [[AND32ri8_]]
     ; CHECK: RET 0, implicit $eax
     %0(s32) = COPY $edi
     %1(s32) = COPY $esi
-    %2(s1) = G_ICMP intpred(eq), %0(s32), %1
-    %3(s32) = G_ZEXT %2(s1)
+    %4(s8) = G_ICMP intpred(eq), %0(s32), %1
+    %5(s32) = G_CONSTANT i32 1
+    %6(s32) = G_ANYEXT %4(s8)
+    %3(s32) = G_AND %6, %5
     $eax = COPY %3(s32)
     RET 0, implicit $eax
 
 ...
 ---
 name:            test_icmp_ne_i32
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
   - { id: 0, class: gpr }
   - { id: 1, class: gpr }
-  - { id: 2, class: gpr }
+  - { id: 2, class: _ }
   - { id: 3, class: gpr }
+  - { id: 4, class: gpr }
+  - { id: 5, class: gpr }
+  - { id: 6, class: gpr }
 body:             |
   bb.1 (%ir-block.0):
     liveins: $edi, $esi
@@ -223,29 +246,34 @@ body:             |
     ; CHECK: [[COPY:%[0-9]+]]:gr32 = COPY $edi
     ; CHECK: [[COPY1:%[0-9]+]]:gr32 = COPY $esi
     ; CHECK: CMP32rr [[COPY]], [[COPY1]], implicit-def $eflags
-    ; CHECK: [[SETNEr:%[0-9]+]]:gr8 = SETNEr implicit $eflags
-    ; CHECK: [[SUBREG_TO_REG:%[0-9]+]]:gr32 = SUBREG_TO_REG 0, [[SETNEr]], %subreg.sub_8bit
-    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[SUBREG_TO_REG]], 1, implicit-def $eflags
+    ; CHECK: [[SETCCr:%[0-9]+]]:gr8 = SETCCr 5, implicit $eflags
+    ; CHECK: [[MOVZX32rr8_:%[0-9]+]]:gr32 = MOVZX32rr8 [[SETCCr]]
+    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[MOVZX32rr8_]], 1, implicit-def $eflags
     ; CHECK: $eax = COPY [[AND32ri8_]]
     ; CHECK: RET 0, implicit $eax
     %0(s32) = COPY $edi
     %1(s32) = COPY $esi
-    %2(s1) = G_ICMP intpred(ne), %0(s32), %1
-    %3(s32) = G_ZEXT %2(s1)
+    %4(s8) = G_ICMP intpred(ne), %0(s32), %1
+    %5(s32) = G_CONSTANT i32 1
+    %6(s32) = G_ANYEXT %4(s8)
+    %3(s32) = G_AND %6, %5
     $eax = COPY %3(s32)
     RET 0, implicit $eax
 
 ...
 ---
 name:            test_icmp_ugt_i32
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
   - { id: 0, class: gpr }
   - { id: 1, class: gpr }
-  - { id: 2, class: gpr }
+  - { id: 2, class: _ }
   - { id: 3, class: gpr }
+  - { id: 4, class: gpr }
+  - { id: 5, class: gpr }
+  - { id: 6, class: gpr }
 body:             |
   bb.1 (%ir-block.0):
     liveins: $edi, $esi
@@ -254,29 +282,34 @@ body:             |
     ; CHECK: [[COPY:%[0-9]+]]:gr32 = COPY $edi
     ; CHECK: [[COPY1:%[0-9]+]]:gr32 = COPY $esi
     ; CHECK: CMP32rr [[COPY]], [[COPY1]], implicit-def $eflags
-    ; CHECK: [[SETAr:%[0-9]+]]:gr8 = SETAr implicit $eflags
-    ; CHECK: [[SUBREG_TO_REG:%[0-9]+]]:gr32 = SUBREG_TO_REG 0, [[SETAr]], %subreg.sub_8bit
-    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[SUBREG_TO_REG]], 1, implicit-def $eflags
+    ; CHECK: [[SETCCr:%[0-9]+]]:gr8 = SETCCr 7, implicit $eflags
+    ; CHECK: [[MOVZX32rr8_:%[0-9]+]]:gr32 = MOVZX32rr8 [[SETCCr]]
+    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[MOVZX32rr8_]], 1, implicit-def $eflags
     ; CHECK: $eax = COPY [[AND32ri8_]]
     ; CHECK: RET 0, implicit $eax
     %0(s32) = COPY $edi
     %1(s32) = COPY $esi
-    %2(s1) = G_ICMP intpred(ugt), %0(s32), %1
-    %3(s32) = G_ZEXT %2(s1)
+    %4(s8) = G_ICMP intpred(ugt), %0(s32), %1
+    %5(s32) = G_CONSTANT i32 1
+    %6(s32) = G_ANYEXT %4(s8)
+    %3(s32) = G_AND %6, %5
     $eax = COPY %3(s32)
     RET 0, implicit $eax
 
 ...
 ---
 name:            test_icmp_uge_i32
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
   - { id: 0, class: gpr }
   - { id: 1, class: gpr }
-  - { id: 2, class: gpr }
+  - { id: 2, class: _ }
   - { id: 3, class: gpr }
+  - { id: 4, class: gpr }
+  - { id: 5, class: gpr }
+  - { id: 6, class: gpr }
 body:             |
   bb.1 (%ir-block.0):
     liveins: $edi, $esi
@@ -285,29 +318,34 @@ body:             |
     ; CHECK: [[COPY:%[0-9]+]]:gr32 = COPY $edi
     ; CHECK: [[COPY1:%[0-9]+]]:gr32 = COPY $esi
     ; CHECK: CMP32rr [[COPY]], [[COPY1]], implicit-def $eflags
-    ; CHECK: [[SETAEr:%[0-9]+]]:gr8 = SETAEr implicit $eflags
-    ; CHECK: [[SUBREG_TO_REG:%[0-9]+]]:gr32 = SUBREG_TO_REG 0, [[SETAEr]], %subreg.sub_8bit
-    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[SUBREG_TO_REG]], 1, implicit-def $eflags
+    ; CHECK: [[SETCCr:%[0-9]+]]:gr8 = SETCCr 3, implicit $eflags
+    ; CHECK: [[MOVZX32rr8_:%[0-9]+]]:gr32 = MOVZX32rr8 [[SETCCr]]
+    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[MOVZX32rr8_]], 1, implicit-def $eflags
     ; CHECK: $eax = COPY [[AND32ri8_]]
     ; CHECK: RET 0, implicit $eax
     %0(s32) = COPY $edi
     %1(s32) = COPY $esi
-    %2(s1) = G_ICMP intpred(uge), %0(s32), %1
-    %3(s32) = G_ZEXT %2(s1)
+    %4(s8) = G_ICMP intpred(uge), %0(s32), %1
+    %5(s32) = G_CONSTANT i32 1
+    %6(s32) = G_ANYEXT %4(s8)
+    %3(s32) = G_AND %6, %5
     $eax = COPY %3(s32)
     RET 0, implicit $eax
 
 ...
 ---
 name:            test_icmp_ult_i32
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
   - { id: 0, class: gpr }
   - { id: 1, class: gpr }
-  - { id: 2, class: gpr }
+  - { id: 2, class: _ }
   - { id: 3, class: gpr }
+  - { id: 4, class: gpr }
+  - { id: 5, class: gpr }
+  - { id: 6, class: gpr }
 body:             |
   bb.1 (%ir-block.0):
     liveins: $edi, $esi
@@ -316,29 +354,34 @@ body:             |
     ; CHECK: [[COPY:%[0-9]+]]:gr32 = COPY $edi
     ; CHECK: [[COPY1:%[0-9]+]]:gr32 = COPY $esi
     ; CHECK: CMP32rr [[COPY]], [[COPY1]], implicit-def $eflags
-    ; CHECK: [[SETBr:%[0-9]+]]:gr8 = SETBr implicit $eflags
-    ; CHECK: [[SUBREG_TO_REG:%[0-9]+]]:gr32 = SUBREG_TO_REG 0, [[SETBr]], %subreg.sub_8bit
-    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[SUBREG_TO_REG]], 1, implicit-def $eflags
+    ; CHECK: [[SETCCr:%[0-9]+]]:gr8 = SETCCr 2, implicit $eflags
+    ; CHECK: [[MOVZX32rr8_:%[0-9]+]]:gr32 = MOVZX32rr8 [[SETCCr]]
+    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[MOVZX32rr8_]], 1, implicit-def $eflags
     ; CHECK: $eax = COPY [[AND32ri8_]]
     ; CHECK: RET 0, implicit $eax
     %0(s32) = COPY $edi
     %1(s32) = COPY $esi
-    %2(s1) = G_ICMP intpred(ult), %0(s32), %1
-    %3(s32) = G_ZEXT %2(s1)
+    %4(s8) = G_ICMP intpred(ult), %0(s32), %1
+    %5(s32) = G_CONSTANT i32 1
+    %6(s32) = G_ANYEXT %4(s8)
+    %3(s32) = G_AND %6, %5
     $eax = COPY %3(s32)
     RET 0, implicit $eax
 
 ...
 ---
 name:            test_icmp_ule_i32
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
   - { id: 0, class: gpr }
   - { id: 1, class: gpr }
-  - { id: 2, class: gpr }
+  - { id: 2, class: _ }
   - { id: 3, class: gpr }
+  - { id: 4, class: gpr }
+  - { id: 5, class: gpr }
+  - { id: 6, class: gpr }
 body:             |
   bb.1 (%ir-block.0):
     liveins: $edi, $esi
@@ -347,29 +390,34 @@ body:             |
     ; CHECK: [[COPY:%[0-9]+]]:gr32 = COPY $edi
     ; CHECK: [[COPY1:%[0-9]+]]:gr32 = COPY $esi
     ; CHECK: CMP32rr [[COPY]], [[COPY1]], implicit-def $eflags
-    ; CHECK: [[SETBEr:%[0-9]+]]:gr8 = SETBEr implicit $eflags
-    ; CHECK: [[SUBREG_TO_REG:%[0-9]+]]:gr32 = SUBREG_TO_REG 0, [[SETBEr]], %subreg.sub_8bit
-    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[SUBREG_TO_REG]], 1, implicit-def $eflags
+    ; CHECK: [[SETCCr:%[0-9]+]]:gr8 = SETCCr 6, implicit $eflags
+    ; CHECK: [[MOVZX32rr8_:%[0-9]+]]:gr32 = MOVZX32rr8 [[SETCCr]]
+    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[MOVZX32rr8_]], 1, implicit-def $eflags
     ; CHECK: $eax = COPY [[AND32ri8_]]
     ; CHECK: RET 0, implicit $eax
     %0(s32) = COPY $edi
     %1(s32) = COPY $esi
-    %2(s1) = G_ICMP intpred(ule), %0(s32), %1
-    %3(s32) = G_ZEXT %2(s1)
+    %4(s8) = G_ICMP intpred(ule), %0(s32), %1
+    %5(s32) = G_CONSTANT i32 1
+    %6(s32) = G_ANYEXT %4(s8)
+    %3(s32) = G_AND %6, %5
     $eax = COPY %3(s32)
     RET 0, implicit $eax
 
 ...
 ---
 name:            test_icmp_sgt_i32
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
   - { id: 0, class: gpr }
   - { id: 1, class: gpr }
-  - { id: 2, class: gpr }
+  - { id: 2, class: _ }
   - { id: 3, class: gpr }
+  - { id: 4, class: gpr }
+  - { id: 5, class: gpr }
+  - { id: 6, class: gpr }
 body:             |
   bb.1 (%ir-block.0):
     liveins: $edi, $esi
@@ -378,29 +426,34 @@ body:             |
     ; CHECK: [[COPY:%[0-9]+]]:gr32 = COPY $edi
     ; CHECK: [[COPY1:%[0-9]+]]:gr32 = COPY $esi
     ; CHECK: CMP32rr [[COPY]], [[COPY1]], implicit-def $eflags
-    ; CHECK: [[SETGr:%[0-9]+]]:gr8 = SETGr implicit $eflags
-    ; CHECK: [[SUBREG_TO_REG:%[0-9]+]]:gr32 = SUBREG_TO_REG 0, [[SETGr]], %subreg.sub_8bit
-    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[SUBREG_TO_REG]], 1, implicit-def $eflags
+    ; CHECK: [[SETCCr:%[0-9]+]]:gr8 = SETCCr 15, implicit $eflags
+    ; CHECK: [[MOVZX32rr8_:%[0-9]+]]:gr32 = MOVZX32rr8 [[SETCCr]]
+    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[MOVZX32rr8_]], 1, implicit-def $eflags
     ; CHECK: $eax = COPY [[AND32ri8_]]
     ; CHECK: RET 0, implicit $eax
     %0(s32) = COPY $edi
     %1(s32) = COPY $esi
-    %2(s1) = G_ICMP intpred(sgt), %0(s32), %1
-    %3(s32) = G_ZEXT %2(s1)
+    %4(s8) = G_ICMP intpred(sgt), %0(s32), %1
+    %5(s32) = G_CONSTANT i32 1
+    %6(s32) = G_ANYEXT %4(s8)
+    %3(s32) = G_AND %6, %5
     $eax = COPY %3(s32)
     RET 0, implicit $eax
 
 ...
 ---
 name:            test_icmp_sge_i32
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
   - { id: 0, class: gpr }
   - { id: 1, class: gpr }
-  - { id: 2, class: gpr }
+  - { id: 2, class: _ }
   - { id: 3, class: gpr }
+  - { id: 4, class: gpr }
+  - { id: 5, class: gpr }
+  - { id: 6, class: gpr }
 body:             |
   bb.1 (%ir-block.0):
     liveins: $edi, $esi
@@ -409,29 +462,34 @@ body:             |
     ; CHECK: [[COPY:%[0-9]+]]:gr32 = COPY $edi
     ; CHECK: [[COPY1:%[0-9]+]]:gr32 = COPY $esi
     ; CHECK: CMP32rr [[COPY]], [[COPY1]], implicit-def $eflags
-    ; CHECK: [[SETGEr:%[0-9]+]]:gr8 = SETGEr implicit $eflags
-    ; CHECK: [[SUBREG_TO_REG:%[0-9]+]]:gr32 = SUBREG_TO_REG 0, [[SETGEr]], %subreg.sub_8bit
-    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[SUBREG_TO_REG]], 1, implicit-def $eflags
+    ; CHECK: [[SETCCr:%[0-9]+]]:gr8 = SETCCr 13, implicit $eflags
+    ; CHECK: [[MOVZX32rr8_:%[0-9]+]]:gr32 = MOVZX32rr8 [[SETCCr]]
+    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[MOVZX32rr8_]], 1, implicit-def $eflags
     ; CHECK: $eax = COPY [[AND32ri8_]]
     ; CHECK: RET 0, implicit $eax
     %0(s32) = COPY $edi
     %1(s32) = COPY $esi
-    %2(s1) = G_ICMP intpred(sge), %0(s32), %1
-    %3(s32) = G_ZEXT %2(s1)
+    %4(s8) = G_ICMP intpred(sge), %0(s32), %1
+    %5(s32) = G_CONSTANT i32 1
+    %6(s32) = G_ANYEXT %4(s8)
+    %3(s32) = G_AND %6, %5
     $eax = COPY %3(s32)
     RET 0, implicit $eax
 
 ...
 ---
 name:            test_icmp_slt_i32
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
   - { id: 0, class: gpr }
   - { id: 1, class: gpr }
-  - { id: 2, class: gpr }
+  - { id: 2, class: _ }
   - { id: 3, class: gpr }
+  - { id: 4, class: gpr }
+  - { id: 5, class: gpr }
+  - { id: 6, class: gpr }
 body:             |
   bb.1 (%ir-block.0):
     liveins: $edi, $esi
@@ -440,29 +498,34 @@ body:             |
     ; CHECK: [[COPY:%[0-9]+]]:gr32 = COPY $edi
     ; CHECK: [[COPY1:%[0-9]+]]:gr32 = COPY $esi
     ; CHECK: CMP32rr [[COPY]], [[COPY1]], implicit-def $eflags
-    ; CHECK: [[SETLr:%[0-9]+]]:gr8 = SETLr implicit $eflags
-    ; CHECK: [[SUBREG_TO_REG:%[0-9]+]]:gr32 = SUBREG_TO_REG 0, [[SETLr]], %subreg.sub_8bit
-    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[SUBREG_TO_REG]], 1, implicit-def $eflags
+    ; CHECK: [[SETCCr:%[0-9]+]]:gr8 = SETCCr 12, implicit $eflags
+    ; CHECK: [[MOVZX32rr8_:%[0-9]+]]:gr32 = MOVZX32rr8 [[SETCCr]]
+    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[MOVZX32rr8_]], 1, implicit-def $eflags
     ; CHECK: $eax = COPY [[AND32ri8_]]
     ; CHECK: RET 0, implicit $eax
     %0(s32) = COPY $edi
     %1(s32) = COPY $esi
-    %2(s1) = G_ICMP intpred(slt), %0(s32), %1
-    %3(s32) = G_ZEXT %2(s1)
+    %4(s8) = G_ICMP intpred(slt), %0(s32), %1
+    %5(s32) = G_CONSTANT i32 1
+    %6(s32) = G_ANYEXT %4(s8)
+    %3(s32) = G_AND %6, %5
     $eax = COPY %3(s32)
     RET 0, implicit $eax
 
 ...
 ---
 name:            test_icmp_sle_i32
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
   - { id: 0, class: gpr }
   - { id: 1, class: gpr }
-  - { id: 2, class: gpr }
+  - { id: 2, class: _ }
   - { id: 3, class: gpr }
+  - { id: 4, class: gpr }
+  - { id: 5, class: gpr }
+  - { id: 6, class: gpr }
 body:             |
   bb.1 (%ir-block.0):
     liveins: $edi, $esi
@@ -471,15 +534,17 @@ body:             |
     ; CHECK: [[COPY:%[0-9]+]]:gr32 = COPY $edi
     ; CHECK: [[COPY1:%[0-9]+]]:gr32 = COPY $esi
     ; CHECK: CMP32rr [[COPY]], [[COPY1]], implicit-def $eflags
-    ; CHECK: [[SETLEr:%[0-9]+]]:gr8 = SETLEr implicit $eflags
-    ; CHECK: [[SUBREG_TO_REG:%[0-9]+]]:gr32 = SUBREG_TO_REG 0, [[SETLEr]], %subreg.sub_8bit
-    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[SUBREG_TO_REG]], 1, implicit-def $eflags
+    ; CHECK: [[SETCCr:%[0-9]+]]:gr8 = SETCCr 14, implicit $eflags
+    ; CHECK: [[MOVZX32rr8_:%[0-9]+]]:gr32 = MOVZX32rr8 [[SETCCr]]
+    ; CHECK: [[AND32ri8_:%[0-9]+]]:gr32 = AND32ri8 [[MOVZX32rr8_]], 1, implicit-def $eflags
     ; CHECK: $eax = COPY [[AND32ri8_]]
     ; CHECK: RET 0, implicit $eax
     %0(s32) = COPY $edi
     %1(s32) = COPY $esi
-    %2(s1) = G_ICMP intpred(sle), %0(s32), %1
-    %3(s32) = G_ZEXT %2(s1)
+    %4(s8) = G_ICMP intpred(sle), %0(s32), %1
+    %5(s32) = G_CONSTANT i32 1
+    %6(s32) = G_ANYEXT %4(s8)
+    %3(s32) = G_AND %6, %5
     $eax = COPY %3(s32)
     RET 0, implicit $eax
 

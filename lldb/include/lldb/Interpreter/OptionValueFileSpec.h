@@ -1,14 +1,13 @@
 //===-- OptionValueFileSpec.h -----------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_OptionValueFileSpec_h_
-#define liblldb_OptionValueFileSpec_h_
+#ifndef LLDB_INTERPRETER_OPTIONVALUEFILESPEC_H
+#define LLDB_INTERPRETER_OPTIONVALUEFILESPEC_H
 
 #include "lldb/Interpreter/OptionValue.h"
 
@@ -28,9 +27,7 @@ public:
 
   ~OptionValueFileSpec() override {}
 
-  //---------------------------------------------------------------------
   // Virtual subclass pure virtual overrides
-  //---------------------------------------------------------------------
 
   OptionValue::Type GetType() const override { return eTypeFileSpec; }
 
@@ -44,22 +41,19 @@ public:
   SetValueFromString(const char *,
                      VarSetOperationType = eVarSetOperationAssign) = delete;
 
-  bool Clear() override {
+  void Clear() override {
     m_current_value = m_default_value;
     m_value_was_set = false;
     m_data_sp.reset();
     m_data_mod_time = llvm::sys::TimePoint<>();
-    return true;
   }
 
   lldb::OptionValueSP DeepCopy() const override;
 
-  size_t AutoComplete(CommandInterpreter &interpreter,
-                      CompletionRequest &request) override;
+  void AutoComplete(CommandInterpreter &interpreter,
+                    CompletionRequest &request) override;
 
-  //---------------------------------------------------------------------
   // Subclass specific functions
-  //---------------------------------------------------------------------
 
   FileSpec &GetCurrentValue() { return m_current_value; }
 
@@ -91,4 +85,4 @@ protected:
 
 } // namespace lldb_private
 
-#endif // liblldb_OptionValueFileSpec_h_
+#endif // LLDB_INTERPRETER_OPTIONVALUEFILESPEC_H

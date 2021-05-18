@@ -3,9 +3,9 @@
 
 # RUN: echo "SECTIONS {.foo : {*(.foo.*)} }" > %t.script
 # RUN: ld.lld -o %t1 --script %t.script %t
-# RUN: llvm-objdump -section-headers %t1 | FileCheck %s
+# RUN: llvm-objdump --section-headers %t1 | FileCheck %s
 # CHECK:      Sections:
-# CHECK-NEXT: Idx Name          Size      Address          Type
+# CHECK-NEXT: Idx Name          Size     VMA          Type
 # CHECK-NOT: .foo
 # CHECK:  .foo          00000008 {{.*}} DATA
 # CHECK-NOT: .foo

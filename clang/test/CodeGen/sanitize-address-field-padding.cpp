@@ -2,7 +2,7 @@
 // RUN: echo 'type:SomeNamespace::BlacklistedByName=field-padding' > %t.type.blacklist
 // RUN: echo 'src:*sanitize-address-field-padding.cpp=field-padding' > %t.file.blacklist
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown -fsanitize=address -fsanitize-address-field-padding=1 -fsanitize-blacklist=%t.type.blacklist -Rsanitize-address -emit-llvm -o - %s 2>&1 | FileCheck %s
-// RUN: %clang_cc1 -triple x86_64-unknown-unknown -fsanitize=address -fsanitize-address-field-padding=1 -fsanitize-blacklist=%t.type.blacklist -Rsanitize-address -emit-llvm -o - %s -O1 -mconstructor-aliases 2>&1 | FileCheck %s --check-prefix=WITH_CTOR_ALIASES
+// RUN: %clang_cc1 -triple x86_64-unknown-unknown -fsanitize=address -fsanitize-address-field-padding=1 -fsanitize-blacklist=%t.type.blacklist -Rsanitize-address -emit-llvm -o - %s -O1 -fno-experimental-new-pass-manager -mconstructor-aliases 2>&1 | FileCheck %s --check-prefix=WITH_CTOR_ALIASES
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown -fsanitize=address -fsanitize-address-field-padding=1 -fsanitize-blacklist=%t.file.blacklist -Rsanitize-address -emit-llvm -o - %s 2>&1 | FileCheck %s --check-prefix=FILE_BLACKLIST
 // RUN: %clang_cc1 -fsanitize=address -emit-llvm -o - %s 2>&1 | FileCheck %s --check-prefix=NO_PADDING
 // Try to emulate -save-temps option and make sure -disable-llvm-passes will not run sanitize instrumentation.
@@ -215,7 +215,7 @@ void Create_InheritsFrom_WithVirtualDtor() {
 // i.e. we ignore -mconstructor-aliases when field paddings are added
 // because the paddings in InheritsFrom_WithVirtualDtor needs to be unpoisoned
 // in the dtor.
-// WITH_CTOR_ALIASES-LABEL: define void @_Z35Create_InheritsFrom_WithVirtualDtor
+// WITH_CTOR_ALIASES-LABEL: define{{.*}} void @_Z35Create_InheritsFrom_WithVirtualDtor
 // WITH_CTOR_ALIASES-NOT: call void @_ZN15WithVirtualDtorD2Ev
 // WITH_CTOR_ALIASES: call void @_ZN28InheritsFrom_WithVirtualDtorD2Ev
 // WITH_CTOR_ALIASES: ret void
@@ -234,6 +234,6 @@ void MakeTrivialCopy(ClassWithTrivialCopy *s1, ClassWithTrivialCopy *s2) {
   ClassWithTrivialCopy s3(*s2);
 }
 
-// CHECK-LABEL: define void @_Z15MakeTrivialCopyP20ClassWithTrivialCopyS0_
+// CHECK-LABEL: define{{.*}} void @_Z15MakeTrivialCopyP20ClassWithTrivialCopyS0_
 // CHECK-NOT: memcpy
 // CHECK: ret void

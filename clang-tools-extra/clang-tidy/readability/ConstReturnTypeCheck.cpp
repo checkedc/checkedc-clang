@@ -1,9 +1,8 @@
 //===--- ConstReturnTypeCheck.cpp - clang-tidy ---------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -23,8 +22,8 @@ namespace readability {
 
 // Finds the location of the qualifying `const` token in the `FunctionDecl`'s
 // return type. Returns `None` when the return type is not `const`-qualified or
-// `const` does not appear in `Def`'s source like when the type is an alias or a
-// macro.
+// `const` does not appear in `Def`'s source, like when the type is an alias or
+// a macro.
 static llvm::Optional<Token>
 findConstToRemove(const FunctionDecl *Def,
                   const MatchFinder::MatchResult &Result) {
@@ -48,8 +47,8 @@ findConstToRemove(const FunctionDecl *Def,
   if (FileRange.isInvalid())
     return None;
 
-  return utils::lexer::getConstQualifyingToken(FileRange, *Result.Context,
-                                               *Result.SourceManager);
+  return utils::lexer::getQualifyingToken(
+      tok::kw_const, FileRange, *Result.Context, *Result.SourceManager);
 }
 
 namespace {
@@ -80,7 +79,7 @@ static CheckResult checkDef(const clang::FunctionDecl *Def,
   Result.Hints.push_back(FixItHint::CreateRemoval(Result.ConstRange));
 
   // Fix the definition and any visible declarations, but don't warn
-  // seperately for each declaration. Instead, associate all fixes with the
+  // separately for each declaration. Instead, associate all fixes with the
   // single warning at the definition.
   for (const FunctionDecl *Decl = Def->getPreviousDecl(); Decl != nullptr;
        Decl = Decl->getPreviousDecl()) {

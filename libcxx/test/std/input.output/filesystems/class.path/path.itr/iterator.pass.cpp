@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -19,13 +18,13 @@
 //      path(InputIterator first, InputIterator last);
 
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <iterator>
 #include <type_traits>
 #include <cassert>
 
 #include "test_macros.h"
-#include "filesystem_test_helper.hpp"
+#include "filesystem_test_helper.h"
 
 
 
@@ -50,7 +49,11 @@ void checkIteratorConcepts() {
     ASSERT_SAME_TYPE(It, decltype(it--));
     ASSERT_SAME_TYPE(Traits::reference, decltype(*it));
     ASSERT_SAME_TYPE(Traits::pointer, decltype(it.operator->()));
+#ifdef _WIN32
+    ASSERT_SAME_TYPE(std::wstring const&, decltype(it->native()));
+#else
     ASSERT_SAME_TYPE(std::string const&, decltype(it->native()));
+#endif
     ASSERT_SAME_TYPE(bool, decltype(it == it));
     ASSERT_SAME_TYPE(bool, decltype(it != it));
   }
@@ -98,8 +101,10 @@ void checkBeginEndBasic() {
 
 }
 
-int main() {
+int main(int, char**) {
   using namespace fs;
   checkIteratorConcepts();
   checkBeginEndBasic(); // See path.decompose.pass.cpp for more tests.
+
+  return 0;
 }

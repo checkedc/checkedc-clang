@@ -38,7 +38,7 @@ __try.cont:
 define internal i32 @"\01?filt$0@0@f@@"() #1 {
 entry:
   %0 = tail call i8* @llvm.frameaddress(i32 1)
-  %1 = tail call i8* @llvm.x86.seh.recoverfp(i8* bitcast (void ()* @f to i8*), i8* %0)
+  %1 = tail call i8* @llvm.eh.recoverfp(i8* bitcast (void ()* @f to i8*), i8* %0)
   %2 = tail call i8* @llvm.localrecover(i8* bitcast (void ()* @f to i8*), i8* %1, i32 0)
   %__exception_code = bitcast i8* %2 to i32*
   %3 = getelementptr inbounds i8, i8* %0, i32 -20
@@ -55,7 +55,7 @@ entry:
 declare i8* @llvm.frameaddress(i32) #2
 
 ; Function Attrs: nounwind readnone
-declare i8* @llvm.x86.seh.recoverfp(i8*, i8*) #2
+declare i8* @llvm.eh.recoverfp(i8*, i8*) #2
 
 ; Function Attrs: nounwind readnone
 declare i8* @llvm.localrecover(i8*, i8*, i32) #2
@@ -65,8 +65,8 @@ declare i32 @_except_handler3(...)
 ; Function Attrs: nounwind
 declare void @llvm.localescape(...) #3
 
-attributes #0 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="pentium4" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="pentium4" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="pentium4" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #1 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="pentium4" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #2 = { nounwind readnone }
 attributes #3 = { nounwind }
 

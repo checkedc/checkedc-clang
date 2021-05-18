@@ -1,18 +1,9 @@
 // RUN: %clang_builtins %s %librt -lm -o %t && %run %t
+// REQUIRES: librt_has_mulxc3
 // UNSUPPORTED: powerpc64
 // REQUIRES: x86-target-arch
-//===-- mulxc3_test.c - Test __mulxc3 -------------------------------------===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __mulxc3 for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
+// UNSUPPORTED: mips
+// REQUIRES: c99-complex
 
 #if !_ARCH_PPC
 
@@ -21,8 +12,6 @@
 #include <complex.h>
 #include <stdio.h>
 
-// UNSUPPORTED: mips
-// REQUIRES: c99-complex
 
 // Returns: the product of a + ib and c + id
 

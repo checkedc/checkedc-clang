@@ -13,11 +13,10 @@ define float @test(i64 %a) nounwind {
 ; X86-NEXT:    movl %esp, %ebp
 ; X86-NEXT:    andl $-8, %esp
 ; X86-NEXT:    subl $16, %esp
+; X86-NEXT:    movl 12(%ebp), %eax
 ; X86-NEXT:    movsd {{.*#+}} xmm0 = mem[0],zero
 ; X86-NEXT:    movlps %xmm0, {{[0-9]+}}(%esp)
-; X86-NEXT:    xorl %eax, %eax
-; X86-NEXT:    cmpl $0, 12(%ebp)
-; X86-NEXT:    setns %al
+; X86-NEXT:    shrl $31, %eax
 ; X86-NEXT:    fildll {{[0-9]+}}(%esp)
 ; X86-NEXT:    fadds {{\.LCPI.*}}(,%eax,4)
 ; X86-NEXT:    fstps {{[0-9]+}}(%esp)
@@ -33,14 +32,14 @@ define float @test(i64 %a) nounwind {
 ; X64-NEXT:    testq %rdi, %rdi
 ; X64-NEXT:    js .LBB0_1
 ; X64-NEXT:  # %bb.2: # %entry
-; X64-NEXT:    cvtsi2ssq %rdi, %xmm0
+; X64-NEXT:    cvtsi2ss %rdi, %xmm0
 ; X64-NEXT:    retq
 ; X64-NEXT:  .LBB0_1:
 ; X64-NEXT:    movq %rdi, %rax
 ; X64-NEXT:    shrq %rax
 ; X64-NEXT:    andl $1, %edi
 ; X64-NEXT:    orq %rax, %rdi
-; X64-NEXT:    cvtsi2ssq %rdi, %xmm0
+; X64-NEXT:    cvtsi2ss %rdi, %xmm0
 ; X64-NEXT:    addss %xmm0, %xmm0
 ; X64-NEXT:    retq
 entry:

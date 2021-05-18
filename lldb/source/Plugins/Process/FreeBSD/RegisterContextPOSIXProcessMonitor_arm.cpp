@@ -1,9 +1,8 @@
-//===-- RegisterContextPOSIXProcessMonitor_arm.cpp -----------*- C++ -*-===//
+//===-- RegisterContextPOSIXProcessMonitor_arm.cpp ------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===---------------------------------------------------------------------===//
 
@@ -15,6 +14,7 @@
 #include "ProcessMonitor.h"
 #include "RegisterContextPOSIXProcessMonitor_arm.h"
 #include "Plugins/Process/Utility/RegisterContextPOSIX_arm.h"
+#include "Plugins/Process/Utility/lldb-arm-register-enums.h"
 
 using namespace lldb_private;
 using namespace lldb;
@@ -22,9 +22,9 @@ using namespace lldb;
 #define REG_CONTEXT_SIZE (GetGPRSize())
 
 RegisterContextPOSIXProcessMonitor_arm::RegisterContextPOSIXProcessMonitor_arm(
-    Thread &thread, uint32_t concrete_frame_idx,
-    lldb_private::RegisterInfoInterface *register_info)
-    : RegisterContextPOSIX_arm(thread, concrete_frame_idx, register_info) {}
+    lldb_private::Thread &thread,
+    std::unique_ptr<RegisterInfoPOSIX_arm> register_info)
+    : RegisterContextPOSIX_arm(thread, std::move(register_info)) {}
 
 ProcessMonitor &RegisterContextPOSIXProcessMonitor_arm::GetMonitor() {
   ProcessSP base = CalculateProcess();
@@ -156,7 +156,7 @@ bool RegisterContextPOSIXProcessMonitor_arm::ReadAllRegisterValues(
     DataBufferSP &data_sp) {
   bool success = false;
   data_sp.reset(new DataBufferHeap(REG_CONTEXT_SIZE, 0));
-  if (data_sp && ReadGPR() && ReadFPR()) {
+  if (ReadGPR() && ReadFPR()) {
     uint8_t *dst = data_sp->GetBytes();
     success = dst != 0;
 

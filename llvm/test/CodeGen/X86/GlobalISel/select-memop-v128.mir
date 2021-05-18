@@ -1,7 +1,7 @@
-# RUN: llc -mtriple=x86_64-linux-gnu                                  -run-pass=instruction-select -verify-machineinstrs %s -o - | FileCheck %s --check-prefix=ALL --check-prefix=NO_AVX512VL --check-prefix=NO_AVX512F --check-prefix=SSE
-# RUN: llc -mtriple=x86_64-linux-gnu -mattr=+avx                      -run-pass=instruction-select -verify-machineinstrs %s -o - | FileCheck %s --check-prefix=ALL --check-prefix=NO_AVX512VL --check-prefix=NO_AVX512F --check-prefix=AVX
-# RUN: llc -mtriple=x86_64-linux-gnu -mattr=+avx512f                  -run-pass=instruction-select -verify-machineinstrs %s -o - | FileCheck %s --check-prefix=ALL --check-prefix=NO_AVX512VL --check-prefix=AVX512ALL --check-prefix=AVX512F
-# RUN: llc -mtriple=x86_64-linux-gnu -mattr=+avx512f -mattr=+avx512vl -run-pass=instruction-select -verify-machineinstrs %s -o - | FileCheck %s --check-prefix=ALL --check-prefix=AVX512ALL --check-prefix=AVX512VL
+# RUN: llc -mtriple=x86_64-linux-gnu                                  -run-pass=instruction-select -verify-machineinstrs %s -o - | FileCheck %s --check-prefixes=ALL,NO_AVX512F,SSE
+# RUN: llc -mtriple=x86_64-linux-gnu -mattr=+avx                      -run-pass=instruction-select -verify-machineinstrs %s -o - | FileCheck %s --check-prefixes=ALL,NO_AVX512F,AVX
+# RUN: llc -mtriple=x86_64-linux-gnu -mattr=+avx512f                  -run-pass=instruction-select -verify-machineinstrs %s -o - | FileCheck %s --check-prefixes=ALL,AVX512ALL,AVX512F
+# RUN: llc -mtriple=x86_64-linux-gnu -mattr=+avx512f -mattr=+avx512vl -run-pass=instruction-select -verify-machineinstrs %s -o - | FileCheck %s --check-prefixes=ALL,AVX512ALL,AVX512VL
 
 --- |
   define <4 x i32> @test_load_v4i32_noalign(<4 x i32>* %p1) {
@@ -28,7 +28,7 @@
 ---
 # ALL-LABEL: name:            test_load_v4i32_noalign
 name:            test_load_v4i32_noalign
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
@@ -53,7 +53,7 @@ body:             |
 ---
 # ALL-LABEL: name:            test_load_v4i32_align
 name:            test_load_v4i32_align
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
@@ -78,7 +78,7 @@ body:             |
 ---
 # ALL-LABEL: name:            test_store_v4i32_align
 name:            test_store_v4i32_align
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
@@ -106,7 +106,7 @@ body:             |
 ---
 # ALL-LABEL: name:            test_store_v4i32_noalign
 name:            test_store_v4i32_noalign
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:

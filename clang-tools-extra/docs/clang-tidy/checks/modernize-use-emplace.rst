@@ -10,7 +10,7 @@ results in less verbose and potentially more efficient code.
 Right now the check doesn't support ``push_front`` and ``insert``.
 It also doesn't support ``insert`` functions for associative containers
 because replacing ``insert`` with ``emplace`` may result in
-`speed regression <http://htmlpreview.github.io/?https://github.com/HowardHinnant/papers/blob/master/insert_vs_emplace.html>`_, but it might get support with some addition flag in the future.
+`speed regression <https://htmlpreview.github.io/?https://github.com/HowardHinnant/papers/blob/master/insert_vs_emplace.html>`_, but it might get support with some addition flag in the future.
 
 By default only ``std::vector``, ``std::deque``, ``std::list`` are considered.
 This list can be modified using the :option:`ContainersWithPushBack` option.
@@ -104,15 +104,15 @@ Options
 
 .. option:: IgnoreImplicitConstructors
 
-    When non-zero, the check will ignore implicitly constructed arguments of
+    When `true`, the check will ignore implicitly constructed arguments of
     ``push_back``, e.g.
 
     .. code-block:: c++
 
         std::vector<std::string> v;
-        v.push_back("a"); // Ignored when IgnoreImplicitConstructors is ``1``.
+        v.push_back("a"); // Ignored when IgnoreImplicitConstructors is `true`.
 
-    Default is ``0``.
+    Default is `false`.
 
 .. option:: SmartPointers
 

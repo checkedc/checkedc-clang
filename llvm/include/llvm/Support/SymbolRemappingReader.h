@@ -1,9 +1,8 @@
 //===- SymbolRemappingReader.h - Read symbol remapping file -----*- C++ -*-===//
 //
-//                      The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -69,7 +68,7 @@ namespace llvm {
 
 class SymbolRemappingParseError : public ErrorInfo<SymbolRemappingParseError> {
 public:
-  SymbolRemappingParseError(StringRef File, int64_t Line, Twine Message)
+  SymbolRemappingParseError(StringRef File, int64_t Line, const Twine &Message)
       : File(File), Line(Line), Message(Message.str()) {}
 
   void log(llvm::raw_ostream &OS) const override {

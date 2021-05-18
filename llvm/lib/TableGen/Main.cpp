@@ -1,9 +1,8 @@
 //===- Main.cpp - Top-Level TableGen implementation -----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -50,6 +49,12 @@ static cl::list<std::string>
 MacroNames("D", cl::desc("Name of the macro to be defined"),
             cl::value_desc("macro name"), cl::Prefix);
 
+static cl::opt<bool>
+WriteIfChanged("write-if-changed", cl::desc("Only write output if it changed"));
+
+static cl::opt<bool>
+TimePhases("time-phases", cl::desc("Time phases of parser and backend"));
+
 static int reportError(const char *ProgName, Twine Msg) {
   errs() << ProgName << ": " << Msg;
   errs().flush();
@@ -65,28 +70,35 @@ static int createDependencyFile(const TGParser &Parser, const char *argv0) {
     return reportError(argv0, "the option -d must be used together with -o\n");
 
   std::error_code EC;
-  ToolOutputFile DepOut(DependFilename, EC, sys::fs::F_Text);
+  ToolOutputFile DepOut(DependFilename, EC, sys::fs::OF_None);
   if (EC)
     return reportError(argv0, "error opening " + DependFilename + ":" +
                                   EC.message() + "\n");
   DepOut.os() << OutputFilename << ":";
   for (const auto &Dep : Parser.getDependencies()) {
-    DepOut.os() << ' ' << Dep.first;
+    DepOut.os() << ' ' << Dep;
   }
   DepOut.os() << "\n";
   DepOut.keep();
   return 0;
 }
 
-int llvm::TableGenMain(char *argv0, TableGenMainFn *MainFn) {
+int llvm::TableGenMain(const char *argv0, TableGenMainFn *MainFn) {
   RecordKeeper Records;
 
+  if (TimePhases)
+    Records.startPhaseTiming();
+
   // Parse the input file.
+
+  Records.startTimer("Parse, build records");
   ErrorOr<std::unique_ptr<MemoryBuffer>> FileOrErr =
       MemoryBuffer::getFileOrSTDIN(InputFilename);
   if (std::error_code EC = FileOrErr.getError())
     return reportError(argv0, "Could not open input file '" + InputFilename +
                                   "': " + EC.message() + "\n");
+
+  Records.saveInputFilename(InputFilename);
 
   // Tell SrcMgr about this buffer, which is what TGParser will pick up.
   SrcMgr.AddNewSourceBuffer(std::move(*FileOrErr), SMLoc());
@@ -99,11 +111,15 @@ int llvm::TableGenMain(char *argv0, TableGenMainFn *MainFn) {
 
   if (Parser.ParseFile())
     return 1;
+  Records.stopTimer();
 
   // Write output to memory.
+  Records.startBackendTimer("Backend overall");
   std::string OutString;
   raw_string_ostream Out(OutString);
-  if (MainFn(Out, Records))
+  unsigned status = MainFn(Out, Records);
+  Records.stopBackendTimer();
+  if (status)
     return 1;
 
   // Always write the depfile, even if the main output hasn't changed.
@@ -115,24 +131,31 @@ int llvm::TableGenMain(char *argv0, TableGenMainFn *MainFn) {
       return Ret;
   }
 
-  // Only updates the real output file if there are any differences.
-  // This prevents recompilation of all the files depending on it if there
-  // aren't any.
-  if (auto ExistingOrErr = MemoryBuffer::getFile(OutputFilename))
-    if (std::move(ExistingOrErr.get())->getBuffer() == Out.str())
-      return 0;
-
-  std::error_code EC;
-  ToolOutputFile OutFile(OutputFilename, EC, sys::fs::F_Text);
-  if (EC)
-    return reportError(argv0, "error opening " + OutputFilename + ":" +
-                                  EC.message() + "\n");
-  OutFile.os() << Out.str();
+  Records.startTimer("Write output");
+  bool WriteFile = true;
+  if (WriteIfChanged) {
+    // Only updates the real output file if there are any differences.
+    // This prevents recompilation of all the files depending on it if there
+    // aren't any.
+    if (auto ExistingOrErr = MemoryBuffer::getFile(OutputFilename))
+      if (std::move(ExistingOrErr.get())->getBuffer() == Out.str())
+        WriteFile = false;
+  }
+  if (WriteFile) {
+    std::error_code EC;
+    ToolOutputFile OutFile(OutputFilename, EC, sys::fs::OF_None);
+    if (EC)
+      return reportError(argv0, "error opening " + OutputFilename + ": " +
+                                    EC.message() + "\n");
+    OutFile.os() << Out.str();
+    if (ErrorsPrinted == 0)
+      OutFile.keep();
+  }
+  
+  Records.stopTimer();
+  Records.stopPhaseTiming();
 
   if (ErrorsPrinted > 0)
     return reportError(argv0, Twine(ErrorsPrinted) + " errors.\n");
-
-  // Declare success.
-  OutFile.keep();
   return 0;
 }

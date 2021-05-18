@@ -1,9 +1,8 @@
 //===--- CommentLexer.cpp -------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -741,12 +740,11 @@ void Lexer::lexHTMLEndTag(Token &T) {
 
 Lexer::Lexer(llvm::BumpPtrAllocator &Allocator, DiagnosticsEngine &Diags,
              const CommandTraits &Traits, SourceLocation FileLoc,
-             const char *BufferStart, const char *BufferEnd,
-             bool ParseCommands)
+             const char *BufferStart, const char *BufferEnd, bool ParseCommands)
     : Allocator(Allocator), Diags(Diags), Traits(Traits),
-      BufferStart(BufferStart), BufferEnd(BufferEnd), FileLoc(FileLoc),
-      BufferPtr(BufferStart), CommentState(LCS_BeforeComment), State(LS_Normal),
-      ParseCommands(ParseCommands) {}
+      BufferStart(BufferStart), BufferEnd(BufferEnd), BufferPtr(BufferStart),
+      FileLoc(FileLoc), ParseCommands(ParseCommands),
+      CommentState(LCS_BeforeComment), State(LS_Normal) {}
 
 void Lexer::lex(Token &T) {
 again:
@@ -851,17 +849,14 @@ again:
 }
 
 StringRef Lexer::getSpelling(const Token &Tok,
-                             const SourceManager &SourceMgr,
-                             bool *Invalid) const {
+                             const SourceManager &SourceMgr) const {
   SourceLocation Loc = Tok.getLocation();
   std::pair<FileID, unsigned> LocInfo = SourceMgr.getDecomposedLoc(Loc);
 
   bool InvalidTemp = false;
   StringRef File = SourceMgr.getBufferData(LocInfo.first, &InvalidTemp);
-  if (InvalidTemp) {
-    *Invalid = true;
+  if (InvalidTemp)
     return StringRef();
-  }
 
   const char *Begin = File.data() + LocInfo.second;
   return StringRef(Begin, Tok.getLength());

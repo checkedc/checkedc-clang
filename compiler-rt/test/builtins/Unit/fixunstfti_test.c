@@ -1,20 +1,9 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-//===-- fixunstfti_test.c - Test __fixunstfti -----------------------------===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __fixunstfti for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
+// REQUIRES: librt_has_fixunstfti
+// UNSUPPORTED: mips
 
 #include <stdio.h>
 
-// UNSUPPORTED: mips
 
 #if __LDBL_MANT_DIG__ == 113
 

@@ -1,9 +1,8 @@
 //===- lib/ReaderWriter/MachO/File.h ----------------------------*- C++ -*-===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -18,6 +17,8 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Format.h"
+#include "llvm/TextAPI/MachO/InterfaceFile.h"
+#include "llvm/TextAPI/MachO/TextAPIReader.h"
 #include <unordered_map>
 
 namespace lld {
@@ -136,7 +137,7 @@ public:
     _undefAtoms[name] = atom;
   }
 
-  /// Search this file for an the atom from 'section' that covers
+  /// Search this file for the atom from 'section' that covers
   /// 'offsetInSect'.  Returns nullptr is no atom found.
   MachODefinedAtom *findAtomCoveringAddress(const Section &section,
                                             uint64_t offsetInSect,
@@ -323,7 +324,8 @@ public:
 
   void loadReExportedDylibs(FindDylib find) {
     for (ReExportedDylib &entry : _reExportedDylibs) {
-      entry.file = find(entry.path);
+      if (!entry.file)
+        entry.file = find(entry.path);
     }
   }
 
@@ -340,7 +342,7 @@ public:
     return std::error_code();
   }
 
-private:
+protected:
   OwningAtomPtr<SharedLibraryAtom> exports(StringRef name,
                                    StringRef installName) const {
     // First, check if requested symbol is directly implemented by this dylib.
@@ -374,6 +376,7 @@ private:
 
   struct ReExportedDylib {
     ReExportedDylib(StringRef p) : path(p), file(nullptr) { }
+    ReExportedDylib(StringRef p, MachODylibFile *file) : path(p), file(file) { }
     StringRef       path;
     MachODylibFile *file;
   };
@@ -392,6 +395,70 @@ private:
   uint32_t                                   _compatVersion;
   std::vector<ReExportedDylib>               _reExportedDylibs;
   mutable std::unordered_map<StringRef, AtomAndFlags> _nameToAtom;
+};
+
+class TAPIFile : public MachODylibFile {
+public:
+
+  TAPIFile(std::unique_ptr<MemoryBuffer> mb, MachOLinkingContext *ctx)
+      : MachODylibFile(std::move(mb), ctx) {}
+
+  std::error_code doParse() override {
+
+    llvm::Expected<std::unique_ptr<llvm::MachO::InterfaceFile>> result =
+        llvm::MachO::TextAPIReader::get(*_mb);
+    if (!result)
+      return std::make_error_code(std::errc::invalid_argument);
+
+    std::unique_ptr<llvm::MachO::InterfaceFile> interface{std::move(*result)};
+    return loadFromInterface(*interface);
+  }
+
+private:
+  std::error_code loadFromInterface(llvm::MachO::InterfaceFile &interface) {
+    llvm::MachO::Architecture arch;
+    switch(_ctx->arch()) {
+    case MachOLinkingContext::arch_x86:
+      arch = llvm::MachO::AK_i386;
+      break;
+    case MachOLinkingContext::arch_x86_64:
+      arch = llvm::MachO::AK_x86_64;
+      break;
+    case MachOLinkingContext::arch_arm64:
+      arch = llvm::MachO::AK_arm64;
+      break;
+    default:
+      return std::make_error_code(std::errc::invalid_argument);
+    }
+
+    setInstallName(interface.getInstallName().copy(allocator()));
+    // TODO(compnerd) filter out symbols based on the target platform
+    for (const auto symbol : interface.symbols())
+      if (symbol->getArchitectures().has(arch))
+        addExportedSymbol(symbol->getName(), symbol->isWeakDefined(), true);
+
+    for (const llvm::MachO::InterfaceFileRef &reexport :
+         interface.reexportedLibraries())
+      addReExportedDylib(reexport.getInstallName().copy(allocator()));
+
+    for (const auto& document : interface.documents()) {
+      for (auto& reexport : _reExportedDylibs) {
+        if (reexport.path != document->getInstallName())
+          continue;
+        assert(!reexport.file);
+        _ownedFiles.push_back(std::make_unique<TAPIFile>(
+            MemoryBuffer::getMemBuffer("", _mb->getBufferIdentifier()), _ctx));
+        reexport.file = _ownedFiles.back().get();
+        std::error_code err = _ownedFiles.back()->loadFromInterface(*document);
+        if (err)
+          return err;
+      }
+    }
+
+    return std::error_code();
+  }
+
+  std::vector<std::unique_ptr<TAPIFile>> _ownedFiles;
 };
 
 } // end namespace mach_o

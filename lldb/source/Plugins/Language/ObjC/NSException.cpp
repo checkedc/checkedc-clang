@@ -1,9 +1,8 @@
-//===-- NSException.cpp -----------------------------------------*- C++ -*-===//
+//===-- NSException.cpp ---------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -14,8 +13,6 @@
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/DataFormatters/FormattersHelpers.h"
-#include "lldb/Symbol/ClangASTContext.h"
-#include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/Target/ProcessStructReader.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/DataBufferHeap.h"
@@ -24,6 +21,8 @@
 #include "lldb/Utility/Stream.h"
 
 #include "Plugins/Language/ObjC/NSString.h"
+#include "Plugins/LanguageRuntime/ObjC/ObjCLanguageRuntime.h"
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -70,10 +69,13 @@ static bool ExtractFields(ValueObject &valobj, ValueObjectSP *name_sp,
   InferiorSizedWord userinfo_isw(userinfo, *process_sp);
   InferiorSizedWord reserved_isw(reserved, *process_sp);
 
-  CompilerType voidstar = process_sp->GetTarget()
-                              .GetScratchClangASTContext()
-                              ->GetBasicType(lldb::eBasicTypeVoid)
-                              .GetPointerType();
+  auto *clang_ast_context =
+      ScratchTypeSystemClang::GetForTarget(process_sp->GetTarget());
+  if (!clang_ast_context)
+    return false;
+
+  CompilerType voidstar =
+      clang_ast_context->GetBasicType(lldb::eBasicTypeVoid).GetPointerType();
 
   if (name_sp)
     *name_sp = ValueObject::CreateValueObjectFromData(
@@ -97,21 +99,19 @@ static bool ExtractFields(ValueObject &valobj, ValueObjectSP *name_sp,
 
 bool lldb_private::formatters::NSException_SummaryProvider(
     ValueObject &valobj, Stream &stream, const TypeSummaryOptions &options) {
-  lldb::ValueObjectSP name_sp;
   lldb::ValueObjectSP reason_sp;
-  if (!ExtractFields(valobj, &name_sp, &reason_sp, nullptr, nullptr))
+  if (!ExtractFields(valobj, nullptr, &reason_sp, nullptr, nullptr))
     return false;
 
-  if (!name_sp || !reason_sp)
+  if (!reason_sp) {
+    stream.Printf("No reason");
     return false;
+  }
 
-  StreamString name_str_summary;
   StreamString reason_str_summary;
-  if (NSStringSummaryProvider(*name_sp, name_str_summary, options) &&
-      NSStringSummaryProvider(*reason_sp, reason_str_summary, options) &&
-      !name_str_summary.Empty() && !reason_str_summary.Empty()) {
-    stream.Printf("name: %s - reason: %s", name_str_summary.GetData(),
-                  reason_str_summary.GetData());
+  if (NSStringSummaryProvider(*reason_sp, reason_str_summary, options) &&
+      !reason_str_summary.Empty()) {
+    stream.Printf("%s", reason_str_summary.GetData());
     return true;
   } else
     return false;
@@ -150,7 +150,7 @@ public:
 
   bool MightHaveChildren() override { return true; }
 
-  size_t GetIndexOfChildWithName(const ConstString &name) override {
+  size_t GetIndexOfChildWithName(ConstString name) override {
     // NSException has 4 members:
     //   NSString *name;
     //   NSString *reason;
@@ -180,9 +180,7 @@ lldb_private::formatters::NSExceptionSyntheticFrontEndCreator(
   lldb::ProcessSP process_sp(valobj_sp->GetProcessSP());
   if (!process_sp)
     return nullptr;
-  ObjCLanguageRuntime *runtime =
-      (ObjCLanguageRuntime *)process_sp->GetLanguageRuntime(
-          lldb::eLanguageTypeObjC);
+  ObjCLanguageRuntime *runtime = ObjCLanguageRuntime::Get(*process_sp);
   if (!runtime)
     return nullptr;
 

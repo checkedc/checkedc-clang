@@ -1,9 +1,8 @@
 //===--- Options.h - Option info & table ------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -25,7 +24,7 @@ namespace options {
 /// Flags specifically for clang options.  Must not overlap with
 /// llvm::opt::DriverFlag.
 enum ClangFlags {
-  DriverOption = (1 << 4),
+  NoXarchOption = (1 << 4),
   LinkerInput = (1 << 5),
   NoArgumentUnused = (1 << 6),
   Unsupported = (1 << 7),
@@ -34,7 +33,11 @@ enum ClangFlags {
   CC1Option = (1 << 10),
   CC1AsOption = (1 << 11),
   NoDriverOption = (1 << 12),
-  Ignored = (1 << 13)
+  LinkOption = (1 << 13),
+  FlangOption = (1 << 14),
+  FC1Option = (1 << 15),
+  FlangOnlyOption = (1 << 16),
+  Ignored = (1 << 17),
 };
 
 enum ID {
@@ -48,7 +51,7 @@ enum ID {
   };
 }
 
-std::unique_ptr<llvm::opt::OptTable> createDriverOptTable();
+const llvm::opt::OptTable &getDriverOptTable();
 }
 }
 

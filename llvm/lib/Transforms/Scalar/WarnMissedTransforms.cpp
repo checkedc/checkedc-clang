@@ -1,9 +1,8 @@
 //===- LoopTransformWarning.cpp -  ----------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -12,7 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Scalar/WarnMissedTransforms.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
 
 using namespace llvm;
@@ -47,12 +48,12 @@ static void warnAboutLeftoverTransformations(Loop *L,
 
   if (hasVectorizeTransformation(L) == TM_ForcedByUser) {
     LLVM_DEBUG(dbgs() << "Leftover vectorization transformation\n");
-    Optional<int> VectorizeWidth =
-        getOptionalIntLoopAttribute(L, "llvm.loop.vectorize.width");
+    Optional<ElementCount> VectorizeWidth =
+        getOptionalElementCountLoopAttribute(L);
     Optional<int> InterleaveCount =
         getOptionalIntLoopAttribute(L, "llvm.loop.interleave.count");
 
-    if (VectorizeWidth.getValueOr(0) != 1)
+    if (!VectorizeWidth || VectorizeWidth->isVector())
       ORE->emit(
           DiagnosticInfoOptimizationFailure(DEBUG_TYPE,
                                             "FailedRequestedVectorization",
@@ -93,7 +94,7 @@ PreservedAnalyses
 WarnMissedTransformationsPass::run(Function &F, FunctionAnalysisManager &AM) {
   // Do not warn about not applied transformations if optimizations are
   // disabled.
-  if (F.hasFnAttribute(Attribute::OptimizeNone))
+  if (F.hasOptNone())
     return PreservedAnalyses::all();
 
   auto &ORE = AM.getResult<OptimizationRemarkEmitterAnalysis>(F);

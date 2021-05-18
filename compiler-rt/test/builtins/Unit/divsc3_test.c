@@ -1,23 +1,12 @@
 // RUN: %clang_builtins %s %librt -lm -o %t && %run %t
-//===-- divsc3_test.c - Test __divsc3 -------------------------------------===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __divsc3 for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
+// REQUIRES: librt_has_divsc3
+// REQUIRES: c99-complex
 
 #include "int_lib.h"
 #include <math.h>
 #include <complex.h>
 #include <stdio.h>
 
-// REQUIRES: c99-complex
 
 // Returns: the quotient of (a + ib) / (c + id)
 
@@ -103,7 +92,7 @@ int test__divsc3(float a, float b, float c, float d)
             {
             float _Complex z = (a * c + b * d) / (c * c + d * d)
                              + (b * c - a * d) / (c * c + d * d) * _Complex_I;
-            if (r != z)
+            if (cabsf((r-z)/r) > 1.e-6)
                 return 1;
             }
             break;

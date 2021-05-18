@@ -1,5 +1,19 @@
 // RUN: %clang_cc1 -triple=x86_64-linux-gnu -emit-llvm -o - %s | FileCheck %s
 
+// Builtins inside a namespace inside an extern "C" must be considered builtins.
+extern "C" {
+namespace X {
+double __builtin_fabs(double);
+float __builtin_fabsf(float) noexcept;
+} // namespace X
+}
+
+int o = X::__builtin_fabs(-2.0);
+// CHECK: @o ={{.*}} global i32 2, align 4
+
+long p = X::__builtin_fabsf(-3.0f);
+// CHECK: @p ={{.*}} global i64 3, align 8
+
 // PR8839
 extern "C" char memmove();
 
@@ -29,7 +43,7 @@ long y = __builtin_abs(-2l);
 
 extern const char char_memchr_arg[32];
 char *memchr_result = __builtin_char_memchr(char_memchr_arg, 123, 32);
-// CHECK: call i8* @memchr(i8* getelementptr inbounds ([32 x i8], [32 x i8]* @char_memchr_arg, i32 0, i32 0), i32 123, i64 32)
+// CHECK: call i8* @memchr(i8* getelementptr inbounds ([32 x i8], [32 x i8]* @char_memchr_arg, i64 0, i64 0), i32 123, i64 32)
 
 int constexpr_overflow_result() {
   constexpr int x = 1;

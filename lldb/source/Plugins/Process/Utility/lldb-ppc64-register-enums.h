@@ -1,20 +1,17 @@
 //===-- lldb-ppc64-register-enums.h ---------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef lldb_ppc64_register_enums_h
-#define lldb_ppc64_register_enums_h
+#ifndef LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_LLDB_PPC64_REGISTER_ENUMS_H
+#define LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_LLDB_PPC64_REGISTER_ENUMS_H
 
 // LLDB register codes (e.g. RegisterKind == eRegisterKindLLDB)
 
-// ---------------------------------------------------------------------------
 // Internal codes for all ppc64 registers.
-// ---------------------------------------------------------------------------
 enum {
   k_first_gpr_ppc64,
   gpr_r0_ppc64 = k_first_gpr_ppc64,
@@ -136,4 +133,4 @@ enum {
   k_num_vmx_registers_ppc64 = k_last_vmx_ppc64 - k_first_vmx_ppc64 + 1,
 };
 
-#endif // #ifndef lldb_ppc64_register_enums_h
+#endif // LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_LLDB_PPC64_REGISTER_ENUMS_H

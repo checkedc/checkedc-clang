@@ -5,6 +5,7 @@ unittest("GlobalISelTests") {
     "//llvm/lib/CodeGen",
     "//llvm/lib/CodeGen/GlobalISel",
     "//llvm/lib/CodeGen/MIRParser",
+    "//llvm/lib/FileCheck",
     "//llvm/lib/IR",
     "//llvm/lib/MC",
     "//llvm/lib/Support",
@@ -12,8 +13,15 @@ unittest("GlobalISelTests") {
     "//llvm/lib/Target:TargetsToBuild",
   ]
   sources = [
+    "CSETest.cpp",
+    "ConstantFoldingTest.cpp",
+    "GISelMITest.cpp",
+    "GISelUtilsTest.cpp",
+    "KnownBitsTest.cpp",
     "LegalizerHelperTest.cpp",
     "LegalizerInfoTest.cpp",
+    "LegalizerTest.cpp",
+    "MachineIRBuilderTest.cpp",
     "PatternMatchTest.cpp",
   ]
   has_custom_main = true

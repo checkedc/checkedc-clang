@@ -1,9 +1,8 @@
-//===-- ThreadPlanCallUserExpression.cpp -------------------------*- C++-*-===//
+//===-- ThreadPlanCallUserExpression.cpp ----------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -14,7 +13,7 @@
 #include "lldb/Breakpoint/BreakpointLocation.h"
 #include "lldb/Core/Address.h"
 #include "lldb/Expression/DiagnosticManager.h"
-#include "lldb/Expression/IRDynamicChecks.h"
+#include "lldb/Expression/DynamicCheckerFunctions.h"
 #include "lldb/Expression/UserExpression.h"
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Target/LanguageRuntime.h"
@@ -30,9 +29,7 @@
 using namespace lldb;
 using namespace lldb_private;
 
-//----------------------------------------------------------------------
 // ThreadPlanCallUserExpression: Plan to call a single function
-//----------------------------------------------------------------------
 
 ThreadPlanCallUserExpression::ThreadPlanCallUserExpression(
     Thread &thread, Address &function, llvm::ArrayRef<lldb::addr_t> args,
@@ -72,9 +69,8 @@ bool ThreadPlanCallUserExpression::MischiefManaged() {
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
 
   if (IsPlanComplete()) {
-    if (log)
-      log->Printf("ThreadPlanCallFunction(%p): Completed call function plan.",
-                  static_cast<void *>(this));
+    LLDB_LOGF(log, "ThreadPlanCallFunction(%p): Completed call function plan.",
+              static_cast<void *>(this));
 
     if (m_manage_materialization && PlanSucceeded() && m_user_expression_sp) {
       lldb::addr_t function_stack_top;
@@ -105,8 +101,7 @@ StopInfoSP ThreadPlanCallUserExpression::GetRealStopInfo() {
 
   if (stop_info_sp) {
     lldb::addr_t addr = GetStopAddress();
-    DynamicCheckerFunctions *checkers =
-        m_thread.GetProcess()->GetDynamicCheckers();
+    DynamicCheckerFunctions *checkers = m_process.GetDynamicCheckers();
     StreamString s;
 
     if (checkers && checkers->DoCheckersExplainStop(addr, s))

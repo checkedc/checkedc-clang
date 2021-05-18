@@ -1,9 +1,8 @@
 //===-- asan_mapping.h ------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -80,6 +79,20 @@
 // || `[0x1000000000, 0x11ffffffff]` || lowshadow  ||
 // || `[0x0000000000, 0x0fffffffff]` || lowmem     ||
 //
+// RISC-V has only 38 bits for task size
+// Low mem size is set with kRiscv64_ShadowOffset64 in
+// compiler-rt/lib/asan/asan_allocator.h and in
+// llvm/lib/Transforms/Instrumentation/AddressSanitizer.cpp with
+// kRiscv64_ShadowOffset64, High mem top border is set with
+// GetMaxVirtualAddress() in
+// compiler-rt/lib/sanitizer_common/sanitizer_linux.cpp
+// Default Linux/RISCV64 Sv39/Sv48 mapping:
+// || `[0x000820000000, 0x003fffffffff]` || HighMem    ||
+// || `[0x000124000000, 0x00081fffffff]` || HighShadow ||
+// || `[0x000024000000, 0x000123ffffff]` || ShadowGap  ||
+// || `[0x000020000000, 0x000023ffffff]` || LowShadow  ||
+// || `[0x000000000000, 0x00001fffffff]` || LowMem     ||
+//
 // Default Linux/AArch64 (42-bit VMA) mapping:
 // || `[0x10000000000, 0x3ffffffffff]` || highmem    ||
 // || `[0x0a000000000, 0x0ffffffffff]` || highshadow ||
@@ -100,6 +113,13 @@
 // || `[0x12000000000000, 0x127fffffffffff]` || ShadowGap  ||
 // || `[0x10000000000000, 0x11ffffffffffff]` || LowShadow  ||
 // || `[0x00000000000000, 0x0fffffffffffff]` || LowMem     ||
+//
+// Default Linux/SPARC64 (52-bit VMA) mapping:
+// || `[0x8000000000000, 0xfffffffffffff]` || HighMem    ||
+// || `[0x1080000000000, 0x207ffffffffff]` || HighShadow ||
+// || `[0x0090000000000, 0x107ffffffffff]` || ShadowGap  ||
+// || `[0x0080000000000, 0x008ffffffffff]` || LowShadow  ||
+// || `[0x0000000000000, 0x007ffffffffff]` || LowMem     ||
 //
 // Shadow mapping on FreeBSD/x86-64 with SHADOW_OFFSET == 0x400000000000:
 // || `[0x500000000000, 0x7fffffffffff]` || HighMem    ||
@@ -154,15 +174,13 @@ static const u64 kDefaultShadowOffset32 = 1ULL << 29;  // 0x20000000
 static const u64 kDefaultShadowOffset64 = 1ULL << 44;
 static const u64 kDefaultShort64bitShadowOffset =
     0x7FFFFFFF & (~0xFFFULL << kDefaultShadowScale);  // < 2G.
-static const u64 kIosShadowOffset32 = 1ULL << 30;  // 0x40000000
-static const u64 kIosShadowOffset64 = 0x120200000;
-static const u64 kIosSimShadowOffset32 = 1ULL << 30;
-static const u64 kIosSimShadowOffset64 = kDefaultShadowOffset64;
 static const u64 kAArch64_ShadowOffset64 = 1ULL << 36;
+static const u64 kRiscv64_ShadowOffset64 = 0x20000000;
 static const u64 kMIPS32_ShadowOffset32 = 0x0aaa0000;
 static const u64 kMIPS64_ShadowOffset64 = 1ULL << 37;
 static const u64 kPPC64_ShadowOffset64 = 1ULL << 44;
 static const u64 kSystemZ_ShadowOffset64 = 1ULL << 52;
+static const u64 kSPARC64_ShadowOffset64 = 1ULL << 43;  // 0x80000000000
 static const u64 kFreeBSD_ShadowOffset32 = 1ULL << 30;  // 0x40000000
 static const u64 kFreeBSD_ShadowOffset64 = 1ULL << 46;  // 0x400000000000
 static const u64 kNetBSD_ShadowOffset32 = 1ULL << 30;  // 0x40000000
@@ -194,11 +212,7 @@ static const u64 kMyriadCacheBitMask32 = 0x40000000ULL;
 #  elif SANITIZER_WINDOWS
 #    define SHADOW_OFFSET kWindowsShadowOffset32
 #  elif SANITIZER_IOS
-#    if SANITIZER_IOSSIM
-#      define SHADOW_OFFSET kIosSimShadowOffset32
-#    else
-#      define SHADOW_OFFSET kIosShadowOffset32
-#    endif
+#    define SHADOW_OFFSET __asan_shadow_memory_dynamic_address
 #  elif SANITIZER_MYRIAD2
 #    define SHADOW_OFFSET kMyriadShadowOffset32
 #  else
@@ -206,11 +220,11 @@ static const u64 kMyriadCacheBitMask32 = 0x40000000ULL;
 #  endif
 #else
 #  if SANITIZER_IOS
-#    if SANITIZER_IOSSIM
-#      define SHADOW_OFFSET kIosSimShadowOffset64
-#    else
-#      define SHADOW_OFFSET __asan_shadow_memory_dynamic_address
-#    endif
+#    define SHADOW_OFFSET __asan_shadow_memory_dynamic_address
+#  elif SANITIZER_MAC && defined(__aarch64__)
+#    define SHADOW_OFFSET __asan_shadow_memory_dynamic_address
+#elif SANITIZER_RISCV64
+#define SHADOW_OFFSET kRiscv64_ShadowOffset64
 #  elif defined(__aarch64__)
 #    define SHADOW_OFFSET kAArch64_ShadowOffset64
 #  elif defined(__powerpc64__)
@@ -225,6 +239,8 @@ static const u64 kMyriadCacheBitMask32 = 0x40000000ULL;
 #   define SHADOW_OFFSET kDefaultShadowOffset64
 #  elif defined(__mips64)
 #   define SHADOW_OFFSET kMIPS64_ShadowOffset64
+#elif defined(__sparc__)
+#define SHADOW_OFFSET kSPARC64_ShadowOffset64
 #  elif SANITIZER_WINDOWS64
 #   define SHADOW_OFFSET __asan_shadow_memory_dynamic_address
 #  else
@@ -271,6 +287,8 @@ extern uptr kHighMemEnd, kMidMemBeg, kMidMemEnd;  // Initialized in __asan_init.
 
 #if SANITIZER_MYRIAD2
 #include "asan_mapping_myriad.h"
+#elif defined(__sparc__) && SANITIZER_WORDSIZE == 64
+#include "asan_mapping_sparc64.h"
 #else
 #define MEM_TO_SHADOW(mem) (((mem) >> SHADOW_SCALE) + (SHADOW_OFFSET))
 
@@ -355,6 +373,8 @@ static inline bool AddrIsInShadowGap(uptr a) {
 #endif  // SANITIZER_MYRIAD2
 
 namespace __asan {
+
+static inline uptr MemToShadowSize(uptr size) { return size >> SHADOW_SCALE; }
 
 static inline bool AddrIsInMem(uptr a) {
   PROFILE_ASAN_MAPPING();

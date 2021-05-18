@@ -1,14 +1,13 @@
 //===-- TraceOptions.h ------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_TraceOptions_h_
-#define liblldb_TraceOptions_h_
+#ifndef LLDB_UTILITY_TRACEOPTIONS_H
+#define LLDB_UTILITY_TRACEOPTIONS_H
 
 #include "lldb/lldb-defines.h"
 #include "lldb/lldb-enumerations.h"
@@ -16,6 +15,19 @@
 #include "lldb/Utility/StructuredData.h"
 
 namespace lldb_private {
+
+/// This struct represents a tracing technology.
+struct TraceTypeInfo {
+  /// The name of the technology, e.g. intel-pt or arm-coresight.
+  ///
+  /// In order for a Trace plug-in (see \a lldb_private::Trace.h) to support the
+  /// trace technology given by this struct, it should match its name with this
+  /// field.
+  std::string name;
+  /// A description for the technology.
+  std::string description;
+};
+
 class TraceOptions {
 public:
   TraceOptions() : m_trace_params(new StructuredData::Dictionary()) {}
@@ -58,4 +70,12 @@ private:
 };
 }
 
-#endif // liblldb_TraceOptions_h_
+namespace llvm {
+namespace json {
+
+bool fromJSON(const Value &value, lldb_private::TraceTypeInfo &info, Path path);
+
+} // namespace json
+} // namespace llvm
+
+#endif // LLDB_UTILITY_TRACEOPTIONS_H

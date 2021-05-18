@@ -7,13 +7,13 @@
 # RUN: llvm-mc %s -triple=riscv64 \
 # RUN:     | FileCheck -check-prefixes=CHECK-S,CHECK-S-OBJ %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 < %s \
-# RUN:     | llvm-objdump -d -r -riscv-no-aliases - \
+# RUN:     | llvm-objdump -d -r -M no-aliases - \
 # RUN:     | FileCheck -check-prefixes=CHECK-OBJ-NOALIAS,CHECK-S-OBJ-NOALIAS %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 < %s \
 # RUN:     | llvm-objdump -d -r - \
 # RUN:     | FileCheck -check-prefixes=CHECK-OBJ,CHECK-S-OBJ %s
 # RUN: llvm-mc -filetype=obj -triple riscv64 < %s \
-# RUN:     | llvm-objdump -d -r -riscv-no-aliases - \
+# RUN:     | llvm-objdump -d -r -M no-aliases - \
 # RUN:     | FileCheck -check-prefixes=CHECK-OBJ-NOALIAS,CHECK-S-OBJ-NOALIAS %s
 # RUN: llvm-mc -filetype=obj -triple riscv64 < %s \
 # RUN:     | llvm-objdump -d -r - \
@@ -69,41 +69,63 @@ sgt x1, x2, x3
 # CHECK-S-OBJ: sltu tp, t1, t0
 sgtu x4, x5, x6
 
-# CHECK-S-OBJ-NOALIAS: beq a0, zero, 512
-# CHECK-S-OBJ: beqz a0, 512
+# CHECK-S-NOALIAS: beq a0, zero, 512
+# CHECK-S: beqz a0, 512
+# CHECK-OBJ-NOALIAS: beq a0, zero, 0x22c
+# CHECK-OBJ: beqz a0, 0x22c
 beqz x10, 512
-# CHECK-S-OBJ-NOALIAS: bne a1, zero, 1024
-# CHECK-S-OBJ: bnez a1, 1024
+# CHECK-S-NOALIAS: bne a1, zero, 1024
+# CHECK-S: bnez a1, 1024
+# CHECK-OBJ-NOALIAS: bne a1, zero, 0x430
+# CHECK-OBJ: bnez a1, 0x430
 bnez x11, 1024
-# CHECK-S-OBJ-NOALIAS: bge zero, a2, 4
-# CHECK-S-OBJ: blez a2, 4
+# CHECK-S-NOALIAS: bge zero, a2, 4
+# CHECK-S: blez a2, 4
+# CHECK-OBJ-NOALIAS: bge zero, a2, 0x38
+# CHECK-OBJ: blez a2, 0x38
 blez x12, 4
-# CHECK-S-OBJ-NOALIAS: bge a3, zero, 8
-# CHECK-S-OBJ: bgez a3, 8
+# CHECK-S-NOALIAS: bge a3, zero, 8
+# CHECK-S: bgez a3, 8
+# CHECK-OBJ-NOALIAS: bge a3, zero, 0x40
+# CHECK-OBJ: bgez a3, 0x40
 bgez x13, 8
-# CHECK-S-OBJ-NOALIAS: blt a4, zero, 12
-# CHECK-S-OBJ: bltz a4, 12
+# CHECK-S-NOALIAS: blt a4, zero, 12
+# CHECK-S: bltz a4, 12
+# CHECK-OBJ-NOALIAS: blt a4, zero, 0x48
+# CHECK-OBJ: bltz a4, 0x48
 bltz x14, 12
-# CHECK-S-OBJ-NOALIAS: blt zero, a5, 16
-# CHECK-S-OBJ: bgtz a5, 16
+# CHECK-S-NOALIAS: blt zero, a5, 16
+# CHECK-S: bgtz a5, 16
+# CHECK-OBJ-NOALIAS: blt zero, a5, 0x50
+# CHECK-OBJ: bgtz a5, 0x50
 bgtz x15, 16
 
 # Always output the canonical mnemonic for the pseudo branch instructions.
-# CHECK-S-OBJ-NOALIAS: blt a6, a5, 20
-# CHECK-S-OBJ: blt a6, a5, 20
+# CHECK-S-NOALIAS: blt a6, a5, 20
+# CHECK-S: blt a6, a5, 20
+# CHECK-OBJ-NOALIAS: blt a6, a5, 0x58
+# CHECK-OBJ: blt a6, a5, 0x58
 bgt x15, x16, 20
-# CHECK-S-OBJ-NOALIAS: bge a7, a6, 24
-# CHECK-S-OBJ: bge a7, a6, 24
+# CHECK-S-NOALIAS: bge a7, a6, 24
+# CHECK-S: bge a7, a6, 24
+# CHECK-OBJ-NOALIAS: bge a7, a6, 0x60
+# CHECK-OBJ: bge a7, a6, 0x60
 ble x16, x17, 24
-# CHECK-S-OBJ-NOALIAS: bltu s2, a7, 28
-# CHECK-S-OBJ: bltu s2, a7, 28
+# CHECK-S-NOALIAS: bltu s2, a7, 28
+# CHECK-S: bltu s2, a7, 28
+# CHECK-OBJ-NOALIAS: bltu s2, a7, 0x68
+# CHECK-OBJ: bltu s2, a7, 0x68
 bgtu x17, x18, 28
-# CHECK-S-OBJ-NOALIAS: bgeu s3, s2, 32
-# CHECK-S-OBJ: bgeu s3, s2, 32
+# CHECK-S-NOALIAS: bgeu s3, s2, 32
+# CHECK-S: bgeu s3, s2, 32
+# CHECK-OBJ-NOALIAS: bgeu s3, s2, 0x70
+# CHECK-OBJ: bgeu s3, s2, 0x70
 bleu x18, x19, 32
 
-# CHECK-S-OBJ-NOALIAS: jal zero, 2044
-# CHECK-S-OBJ: j 2044
+# CHECK-S-NOALIAS: jal zero, 2044
+# CHECK-S: j 2044
+# CHECK-OBJ-NOALIAS: jal zero, 0x850
+# CHECK-OBJ: j 0x850
 j 2044
 # CHECK-S-NOALIAS: jal zero, foo
 # CHECK-S: j foo
@@ -117,8 +139,17 @@ j foo
 # CHECK-OBJ: j 0
 # CHECK-OBJ: R_RISCV_JAL a0
 j a0
-# CHECK-S-OBJ-NOALIAS: jal ra, 2040
-# CHECK-S-OBJ: jal 2040
+# CHECK-S-NOALIAS: [[LABEL:.L[[:alnum:]_]+]]:
+# CHECK-S-NOALIAS-NEXT: jal zero, [[LABEL]]
+# CHECK-S: [[LABEL:.L[[:alnum:]_]+]]:
+# CHECK-S-NEXT: j [[LABEL]]
+# CHECK-OBJ-NOALIAS: jal zero, 0
+# CHECK-OBJ: j 0
+j .
+# CHECK-S-NOALIAS: jal ra, 2040
+# CHECK-S: jal 2040
+# CHECK-OBJ-NOALIAS: jal ra, 0x85c
+# CHECK-OBJ: jal 0x85c
 jal 2040
 # CHECK-S-NOALIAS: jal ra, foo
 # CHECK-S: jal foo
@@ -132,13 +163,31 @@ jal foo
 # CHECK-OBJ: jal 0
 # CHECK-OBJ: R_RISCV_JAL a0
 jal a0
-# CHECK-S-OBJ-NOALIAS: jalr zero, s4, 0
+# CHECK-S-OBJ-NOALIAS: jalr zero, 0(s4)
 # CHECK-S-OBJ: jr s4
 jr x20
-# CHECK-S-OBJ-NOALIAS: jalr ra, s5, 0
-# CHECK-S-OBJ: jalr s5
-jalr x21
-# CHECK-S-OBJ-NOALIAS: jalr zero, ra, 0
+# CHECK-S-OBJ-NOALIAS: jalr zero, 6(s5)
+# CHECK-S-OBJ: jr 6(s5)
+jr 6(x21)
+# CHECK-S-OBJ-NOALIAS: jalr zero, 7(s6)
+# CHECK-S-OBJ: jr 7(s6)
+jr x22, 7
+# CHECK-S-OBJ-NOALIAS: jalr ra, 0(s4)
+# CHECK-S-OBJ: jalr s4
+jalr x20
+# CHECK-S-OBJ-NOALIAS: jalr ra, 8(s5)
+# CHECK-S-OBJ: jalr 8(s5)
+jalr 8(x21)
+# CHECK-S-OBJ-NOALIAS: jalr s6, 0(s7)
+# CHECK-S-OBJ: jalr s6, s7
+jalr x22, x23
+# CHECK-S-OBJ-NOALIAS: jalr ra, 9(s8)
+# CHECK-S-OBJ: jalr 9(s8)
+jalr x24, 9
+# CHECK-S-OBJ-NOALIAS: jalr s9, 11(s10)
+# CHECK-S-OBJ: jalr s9, 11(s10)
+jalr x25, x26, 11
+# CHECK-S-OBJ-NOALIAS: jalr zero, 0(ra)
 # CHECK-S-OBJ: ret
 ret
 # TODO call

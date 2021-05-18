@@ -1,9 +1,8 @@
 //===- Core/Atom.h - A node in linking graph --------------------*- C++ -*-===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -39,7 +38,7 @@ public:
     definitionSharedLibrary ///< Only in shared libraries to model export.
   };
 
-  /// The scope in which this atom is acessible to other atoms.
+  /// The scope in which this atom is accessible to other atoms.
   enum Scope {
     scopeTranslationUnit,  ///< Accessible only to atoms in the same translation
                            ///  unit (e.g. a C static).

@@ -1,16 +1,5 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-//===-- paritysi2_test.c - Test __paritysi2 -------------------------------===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __paritysi2 for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
+// REQUIRES: librt_has_paritysi2
 
 #include "int_lib.h"
 #include <stdio.h>
@@ -18,7 +7,7 @@
 
 // Returns: 1 if number of bits is odd else returns 0
 
-COMPILER_RT_ABI si_int __paritysi2(si_int a);
+COMPILER_RT_ABI int __paritysi2(si_int a);
 
 int naive_parity(si_int a)
 {

@@ -1,14 +1,13 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: clang-5, clang-6, clang-7
-// UNSUPPORTED: apple-clang-6, apple-clang-7, apple-clang-8, apple-clang-9, apple-clang-10
+// UNSUPPORTED: apple-clang-9, apple-clang-10
 
 // <chrono>
 // class day;
@@ -21,7 +20,7 @@
 
 #include "test_macros.h"
 
-int main()
+int main(int, char**)
 {
     {
     using namespace std::chrono;
@@ -31,7 +30,7 @@ int main()
     static_assert( 7d == day(7), "");
     day d1 = 4d;
     assert (d1 == day(4));
-}
+    }
 
     {
     using namespace std::literals;
@@ -44,4 +43,6 @@ int main()
     assert (d1 == std::chrono::day(4));
     }
 
+
+  return 0;
 }

@@ -6,6 +6,12 @@ set(SANITIZER_GEN_DYNAMIC_LIST
 set(SANITIZER_LINT_SCRIPT
   ${COMPILER_RT_SOURCE_DIR}/lib/sanitizer_common/scripts/check_lint.sh)
 
+if(CMAKE_NM)
+  set(SANITIZER_NM "${CMAKE_NM}")
+else()
+  set(SANITIZER_NM nm)
+endif()
+
 # Create a target "<name>-<arch>-symbols" that would generate the list of
 # symbols that need to be exported from sanitizer runtime "<name>". Function
 # interceptors are exported automatically, user can also provide files with
@@ -28,9 +34,9 @@ macro(add_sanitizer_rt_symbols name)
       list(APPEND extra_args "--extra" ${arg})
     endforeach()
     add_custom_command(OUTPUT ${stamp}
-      COMMAND ${PYTHON_EXECUTABLE}
+      COMMAND ${Python3_EXECUTABLE}
         ${SANITIZER_GEN_DYNAMIC_LIST} ${extra_args} $<TARGET_FILE:${target_name}>
-        -o $<TARGET_FILE:${target_name}>.syms
+        --nm-executable "${SANITIZER_NM}" -o $<TARGET_FILE:${target_name}>.syms
       COMMAND ${CMAKE_COMMAND} -E touch ${stamp}
       DEPENDS ${target_name} ${SANITIZER_GEN_DYNAMIC_LIST} ${ARG_EXTRA}
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -78,9 +84,9 @@ macro(add_sanitizer_rt_version_list name)
     list(APPEND args "$<TARGET_FILE:${arg}>")
   endforeach()
   add_custom_command(OUTPUT ${vers}
-    COMMAND ${PYTHON_EXECUTABLE}
+    COMMAND ${Python3_EXECUTABLE}
       ${SANITIZER_GEN_DYNAMIC_LIST} --version-list ${args}
-      -o ${vers}
+      --nm-executable "${SANITIZER_NM}" -o ${vers}
     DEPENDS ${SANITIZER_GEN_DYNAMIC_LIST} ${ARG_EXTRA} ${ARG_LIBS}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     COMMENT "Generating version list for ${name}"
@@ -94,7 +100,7 @@ endmacro()
 if(CMAKE_HOST_UNIX AND NOT OS_NAME MATCHES "OpenBSD")
   add_custom_target(SanitizerLintCheck
     COMMAND env LLVM_CHECKOUT=${LLVM_MAIN_SRC_DIR} SILENT=1 TMPDIR=
-      PYTHON_EXECUTABLE=${PYTHON_EXECUTABLE}
+      PYTHON_EXECUTABLE=${Python3_EXECUTABLE}
       COMPILER_RT=${COMPILER_RT_SOURCE_DIR}
       ${SANITIZER_LINT_SCRIPT}
     DEPENDS ${SANITIZER_LINT_SCRIPT}

@@ -1,9 +1,8 @@
 //===-- clang-doc/MDGeneratorTest.cpp -------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -32,6 +31,7 @@ TEST(MDGeneratorTest, emitNamespaceMD) {
   I.ChildRecords.emplace_back(EmptySID, "ChildStruct", InfoType::IT_record);
   I.ChildFunctions.emplace_back();
   I.ChildFunctions.back().Name = "OneFunction";
+  I.ChildFunctions.back().Access = AccessSpecifier::AS_none;
   I.ChildEnums.emplace_back();
   I.ChildEnums.back().Name = "OneEnum";
 
@@ -39,7 +39,7 @@ TEST(MDGeneratorTest, emitNamespaceMD) {
   assert(G);
   std::string Buffer;
   llvm::raw_string_ostream Actual(Buffer);
-  auto Err = G->generateDocForInfo(&I, Actual);
+  auto Err = G->generateDocForInfo(&I, Actual, ClangDocContext());
   assert(!Err);
   std::string Expected = R"raw(# namespace Namespace
 
@@ -47,14 +47,12 @@ TEST(MDGeneratorTest, emitNamespaceMD) {
 
 ## Namespaces
 
-ChildNamespace
-
+* [ChildNamespace](../ChildNamespace/index.md)
 
 
 ## Records
 
-ChildStruct
-
+* [ChildStruct](../ChildStruct.md)
 
 
 ## Functions
@@ -102,11 +100,11 @@ TEST(MDGeneratorTest, emitRecordMD) {
   assert(G);
   std::string Buffer;
   llvm::raw_string_ostream Actual(Buffer);
-  auto Err = G->generateDocForInfo(&I, Actual);
+  auto Err = G->generateDocForInfo(&I, Actual, ClangDocContext());
   assert(!Err);
   std::string Expected = R"raw(# class r
 
-*Defined at line 10 of test.cpp*
+*Defined at test.cpp#10*
 
 Inherits from F, G
 
@@ -128,7 +126,7 @@ ChildStruct
 
 ### OneFunction
 
-* OneFunction()*
+*public  OneFunction()*
 
 
 
@@ -154,6 +152,8 @@ TEST(MDGeneratorTest, emitFunctionMD) {
   I.DefLoc = Location(10, llvm::SmallString<16>{"test.cpp"});
   I.Loc.emplace_back(12, llvm::SmallString<16>{"test.cpp"});
 
+  I.Access = AccessSpecifier::AS_none;
+
   I.ReturnType = TypeInfo(EmptySID, "void", InfoType::IT_default);
   I.Params.emplace_back("int", "P");
   I.IsMethod = true;
@@ -163,13 +163,13 @@ TEST(MDGeneratorTest, emitFunctionMD) {
   assert(G);
   std::string Buffer;
   llvm::raw_string_ostream Actual(Buffer);
-  auto Err = G->generateDocForInfo(&I, Actual);
+  auto Err = G->generateDocForInfo(&I, Actual, ClangDocContext());
   assert(!Err);
   std::string Expected = R"raw(### f
 
 *void f(int P)*
 
-*Defined at line 10 of test.cpp*
+*Defined at test.cpp#10*
 
 )raw";
 
@@ -191,7 +191,7 @@ TEST(MDGeneratorTest, emitEnumMD) {
   assert(G);
   std::string Buffer;
   llvm::raw_string_ostream Actual(Buffer);
-  auto Err = G->generateDocForInfo(&I, Actual);
+  auto Err = G->generateDocForInfo(&I, Actual, ClangDocContext());
   assert(!Err);
   std::string Expected = R"raw(| enum class e |
 
@@ -200,7 +200,7 @@ TEST(MDGeneratorTest, emitEnumMD) {
 | X |
 
 
-*Defined at line 10 of test.cpp*
+*Defined at test.cpp#10*
 
 )raw";
 
@@ -214,104 +214,105 @@ TEST(MDGeneratorTest, emitCommentMD) {
   I.ReturnType = TypeInfo(EmptySID, "void", InfoType::IT_default);
   I.Params.emplace_back("int", "I");
   I.Params.emplace_back("int", "J");
+  I.Access = AccessSpecifier::AS_none;
 
   CommentInfo Top;
   Top.Kind = "FullComment";
 
-  Top.Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Top.Children.emplace_back(std::make_unique<CommentInfo>());
   CommentInfo *BlankLine = Top.Children.back().get();
   BlankLine->Kind = "ParagraphComment";
-  BlankLine->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  BlankLine->Children.emplace_back(std::make_unique<CommentInfo>());
   BlankLine->Children.back()->Kind = "TextComment";
 
-  Top.Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Top.Children.emplace_back(std::make_unique<CommentInfo>());
   CommentInfo *Brief = Top.Children.back().get();
   Brief->Kind = "ParagraphComment";
-  Brief->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Brief->Children.emplace_back(std::make_unique<CommentInfo>());
   Brief->Children.back()->Kind = "TextComment";
   Brief->Children.back()->Name = "ParagraphComment";
   Brief->Children.back()->Text = " Brief description.";
 
-  Top.Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Top.Children.emplace_back(std::make_unique<CommentInfo>());
   CommentInfo *Extended = Top.Children.back().get();
   Extended->Kind = "ParagraphComment";
-  Extended->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Extended->Children.emplace_back(std::make_unique<CommentInfo>());
   Extended->Children.back()->Kind = "TextComment";
   Extended->Children.back()->Text = " Extended description that";
-  Extended->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Extended->Children.emplace_back(std::make_unique<CommentInfo>());
   Extended->Children.back()->Kind = "TextComment";
   Extended->Children.back()->Text = " continues onto the next line.";
 
-  Top.Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Top.Children.emplace_back(std::make_unique<CommentInfo>());
   CommentInfo *HTML = Top.Children.back().get();
   HTML->Kind = "ParagraphComment";
-  HTML->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  HTML->Children.emplace_back(std::make_unique<CommentInfo>());
   HTML->Children.back()->Kind = "TextComment";
-  HTML->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  HTML->Children.emplace_back(std::make_unique<CommentInfo>());
   HTML->Children.back()->Kind = "HTMLStartTagComment";
   HTML->Children.back()->Name = "ul";
   HTML->Children.back()->AttrKeys.emplace_back("class");
   HTML->Children.back()->AttrValues.emplace_back("test");
-  HTML->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  HTML->Children.emplace_back(std::make_unique<CommentInfo>());
   HTML->Children.back()->Kind = "HTMLStartTagComment";
   HTML->Children.back()->Name = "li";
-  HTML->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  HTML->Children.emplace_back(std::make_unique<CommentInfo>());
   HTML->Children.back()->Kind = "TextComment";
   HTML->Children.back()->Text = " Testing.";
-  HTML->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  HTML->Children.emplace_back(std::make_unique<CommentInfo>());
   HTML->Children.back()->Kind = "HTMLEndTagComment";
   HTML->Children.back()->Name = "ul";
   HTML->Children.back()->SelfClosing = true;
 
-  Top.Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Top.Children.emplace_back(std::make_unique<CommentInfo>());
   CommentInfo *Verbatim = Top.Children.back().get();
   Verbatim->Kind = "VerbatimBlockComment";
   Verbatim->Name = "verbatim";
   Verbatim->CloseName = "endverbatim";
-  Verbatim->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Verbatim->Children.emplace_back(std::make_unique<CommentInfo>());
   Verbatim->Children.back()->Kind = "VerbatimBlockLineComment";
   Verbatim->Children.back()->Text = " The description continues.";
 
-  Top.Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Top.Children.emplace_back(std::make_unique<CommentInfo>());
   CommentInfo *ParamOut = Top.Children.back().get();
   ParamOut->Kind = "ParamCommandComment";
   ParamOut->Direction = "[out]";
   ParamOut->ParamName = "I";
   ParamOut->Explicit = true;
-  ParamOut->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  ParamOut->Children.emplace_back(std::make_unique<CommentInfo>());
   ParamOut->Children.back()->Kind = "ParagraphComment";
   ParamOut->Children.back()->Children.emplace_back(
-      llvm::make_unique<CommentInfo>());
+      std::make_unique<CommentInfo>());
   ParamOut->Children.back()->Children.back()->Kind = "TextComment";
   ParamOut->Children.back()->Children.emplace_back(
-      llvm::make_unique<CommentInfo>());
+      std::make_unique<CommentInfo>());
   ParamOut->Children.back()->Children.back()->Kind = "TextComment";
   ParamOut->Children.back()->Children.back()->Text = " is a parameter.";
 
-  Top.Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Top.Children.emplace_back(std::make_unique<CommentInfo>());
   CommentInfo *ParamIn = Top.Children.back().get();
   ParamIn->Kind = "ParamCommandComment";
   ParamIn->Direction = "[in]";
   ParamIn->ParamName = "J";
-  ParamIn->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  ParamIn->Children.emplace_back(std::make_unique<CommentInfo>());
   ParamIn->Children.back()->Kind = "ParagraphComment";
   ParamIn->Children.back()->Children.emplace_back(
-      llvm::make_unique<CommentInfo>());
+      std::make_unique<CommentInfo>());
   ParamIn->Children.back()->Children.back()->Kind = "TextComment";
   ParamIn->Children.back()->Children.back()->Text = " is a parameter.";
   ParamIn->Children.back()->Children.emplace_back(
-      llvm::make_unique<CommentInfo>());
+      std::make_unique<CommentInfo>());
   ParamIn->Children.back()->Children.back()->Kind = "TextComment";
 
-  Top.Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Top.Children.emplace_back(std::make_unique<CommentInfo>());
   CommentInfo *Return = Top.Children.back().get();
   Return->Kind = "BlockCommandComment";
   Return->Name = "return";
   Return->Explicit = true;
-  Return->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Return->Children.emplace_back(std::make_unique<CommentInfo>());
   Return->Children.back()->Kind = "ParagraphComment";
   Return->Children.back()->Children.emplace_back(
-      llvm::make_unique<CommentInfo>());
+      std::make_unique<CommentInfo>());
   Return->Children.back()->Children.back()->Kind = "TextComment";
   Return->Children.back()->Children.back()->Text = "void";
 
@@ -321,14 +322,14 @@ TEST(MDGeneratorTest, emitCommentMD) {
   assert(G);
   std::string Buffer;
   llvm::raw_string_ostream Actual(Buffer);
-  auto Err = G->generateDocForInfo(&I, Actual);
+  auto Err = G->generateDocForInfo(&I, Actual, ClangDocContext());
   assert(!Err);
   std::string Expected =
       R"raw(### f
 
 *void f(int I, int J)*
 
-*Defined at line 10 of test.cpp*
+*Defined at test.cpp#10*
 
 
 

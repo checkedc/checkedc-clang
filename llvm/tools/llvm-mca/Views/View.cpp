@@ -1,9 +1,8 @@
 //===----------------------- View.cpp ---------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 /// \file
@@ -13,10 +12,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "Views/View.h"
+#include "llvm/MC/MCInst.h"
+#include "llvm/MC/MCSubtargetInfo.h"
 
 namespace llvm {
 namespace mca {
 
 void View::anchor() {}
+
 } // namespace mca
 } // namespace llvm

@@ -1,9 +1,8 @@
-//===-- UUIDTest.cpp --------------------------------------------*- C++ -*-===//
+//===-- UUIDTest.cpp ------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -42,34 +41,46 @@ TEST(UUIDTest, Validity) {
   UUID a20 = UUID::fromData(zeroes.data(), 20);
   UUID a16_0 = UUID::fromOptionalData(zeroes.data(), 16);
   UUID a20_0 = UUID::fromOptionalData(zeroes.data(), 20);
+  UUID from_str;
+  from_str.SetFromStringRef("00000000-0000-0000-0000-000000000000");
+  UUID opt_from_str;
+  opt_from_str.SetFromOptionalStringRef("00000000-0000-0000-0000-000000000000");
+
   EXPECT_FALSE(empty);
   EXPECT_TRUE(a16);
   EXPECT_TRUE(a20);
+  EXPECT_TRUE(from_str);
   EXPECT_FALSE(a16_0);
   EXPECT_FALSE(a20_0);
+  EXPECT_FALSE(opt_from_str);
 }
 
 TEST(UUIDTest, SetFromStringRef) {
   UUID u;
-  EXPECT_EQ(32u, u.SetFromStringRef("404142434445464748494a4b4c4d4e4f"));
+  EXPECT_TRUE(u.SetFromStringRef("404142434445464748494a4b4c4d4e4f"));
   EXPECT_EQ(UUID::fromData("@ABCDEFGHIJKLMNO", 16), u);
 
-  EXPECT_EQ(36u, u.SetFromStringRef("40-41-42-43-4445464748494a4b4c4d4e4f"));
+  EXPECT_TRUE(u.SetFromStringRef("40-41-42-43-4445464748494a4b4c4d4e4f"));
   EXPECT_EQ(UUID::fromData("@ABCDEFGHIJKLMNO", 16), u);
 
-  EXPECT_EQ(45u, u.SetFromStringRef(
-                     "40-41-42-43-4445464748494a4b4c4d4e4f-50515253", 20));
+  EXPECT_TRUE(
+      u.SetFromStringRef("40-41-42-43-4445464748494a4b4c4d4e4f-50515253"));
   EXPECT_EQ(UUID::fromData("@ABCDEFGHIJKLMNOPQRS", 20), u);
 
-  EXPECT_EQ(0u, u.SetFromStringRef("40-41-42-43-4445464748494a4b4c4d4e4f", 20));
-  EXPECT_EQ(0u, u.SetFromStringRef("40xxxxx"));
-  EXPECT_EQ(0u, u.SetFromStringRef(""));
-  EXPECT_EQ(UUID::fromData("@ABCDEFGHIJKLMNOPQRS", 20), u)
+  EXPECT_TRUE(u.SetFromStringRef("40-41-42-43-4445464748494a4b4c4d4e4f"));
+
+  EXPECT_FALSE(u.SetFromStringRef("40xxxxx"));
+  EXPECT_FALSE(u.SetFromStringRef(""));
+  EXPECT_EQ(UUID::fromData("@ABCDEFGHIJKLMNO", 16), u)
       << "uuid was changed by failed parse calls";
 
-  EXPECT_EQ(
-      32u, u.SetFromStringRef("404142434445464748494a4b4c4d4e4f-50515253", 16));
-  EXPECT_EQ(UUID::fromData("@ABCDEFGHIJKLMNO", 16), u);
+  EXPECT_TRUE(u.SetFromStringRef("404142434445464748494a4b4c4d4e4f-50515253"));
+  EXPECT_EQ(UUID::fromData("@ABCDEFGHIJKLMNOPQRS", 20), u);
+
+  EXPECT_TRUE(u.SetFromStringRef("40414243"));
+  EXPECT_EQ(UUID::fromData("@ABCD", 4), u);
+
+  EXPECT_FALSE(u.SetFromStringRef("4"));
 }
 
 TEST(UUIDTest, StringConverion) {

@@ -1,9 +1,8 @@
 //===------ RegisterPasses.cpp - Add the Polly Passes to default passes  --===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -24,15 +23,11 @@
 #include "polly/CodeGen/CodeGeneration.h"
 #include "polly/CodeGen/CodegenCleanup.h"
 #include "polly/CodeGen/IslAst.h"
-#include "polly/CodeGen/PPCGCodeGeneration.h"
 #include "polly/CodePreparation.h"
-#include "polly/DeLICM.h"
 #include "polly/DependenceInfo.h"
-#include "polly/FlattenSchedule.h"
 #include "polly/ForwardOpTree.h"
 #include "polly/JSONExporter.h"
 #include "polly/LinkAllPasses.h"
-#include "polly/Options.h"
 #include "polly/PolyhedralInfo.h"
 #include "polly/ScopDetection.h"
 #include "polly/ScopInfo.h"
@@ -43,11 +38,10 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
-#include "llvm/Transforms/Scalar.h"
-#include "llvm/Transforms/Vectorize.h"
 
 using namespace llvm;
 using namespace polly;
@@ -241,6 +235,23 @@ static cl::opt<bool> EnablePruneUnprofitable(
     cl::desc("Bail out on unprofitable SCoPs before rescheduling"), cl::Hidden,
     cl::init(true), cl::cat(PollyCategory));
 
+namespace {
+
+/// Initialize Polly passes when library is loaded.
+///
+/// We use the constructor of a statically declared object to initialize the
+/// different Polly passes right after the Polly library is loaded. This ensures
+/// that the Polly passes are available e.g. in the 'opt' tool.
+class StaticInitializer {
+public:
+  StaticInitializer() {
+    llvm::PassRegistry &Registry = *llvm::PassRegistry::getPassRegistry();
+    polly::initializePollyPasses(Registry);
+  }
+};
+static StaticInitializer InitializeEverything;
+} // end of anonymous namespace.
+
 namespace polly {
 void initializePollyPasses(PassRegistry &Registry) {
   initializeCodeGenerationPass(Registry);
@@ -273,7 +284,7 @@ void initializePollyPasses(PassRegistry &Registry) {
   initializeFlattenSchedulePass(Registry);
   initializeForwardOpTreePass(Registry);
   initializeDeLICMPass(Registry);
-  initializeSimplifyPass(Registry);
+  initializeSimplifyLegacyPassPass(Registry);
   initializeDumpModulePass(Registry);
   initializePruneUnprofitablePass(Registry);
 }
@@ -350,12 +361,9 @@ void registerPollyPasses(llvm::legacy::PassManagerBase &PM) {
     PM.add(polly::createPruneUnprofitablePass());
 
 #ifdef GPU_CODEGEN
-  if (Target == TARGET_HYBRID) {
+  if (Target == TARGET_HYBRID)
     PM.add(
         polly::createPPCGCodeGenerationPass(GPUArchChoice, GPURuntimeChoice));
-    PM.add(polly::createManagedMemoryRewritePassPass(GPUArchChoice,
-                                                     GPURuntimeChoice));
-  }
 #endif
   if (Target == TARGET_CPU || Target == TARGET_HYBRID)
     switch (Optimizer) {
@@ -387,6 +395,12 @@ void registerPollyPasses(llvm::legacy::PassManagerBase &PM) {
         polly::createPPCGCodeGenerationPass(GPUArchChoice, GPURuntimeChoice));
     PM.add(polly::createManagedMemoryRewritePassPass());
   }
+#endif
+
+#ifdef GPU_CODEGEN
+  if (Target == TARGET_HYBRID)
+    PM.add(polly::createManagedMemoryRewritePassPass(GPUArchChoice,
+                                                     GPURuntimeChoice));
 #endif
 
   // FIXME: This dummy ModulePass keeps some programs from miscompiling,
@@ -510,7 +524,7 @@ static void buildDefaultPollyPipeline(FunctionPassManager &PM,
   PM.addPass(CodePreparationPass());
   PM.addPass(createFunctionToScopPassAdaptor(std::move(SPM)));
   PM.addPass(PB.buildFunctionSimplificationPipeline(
-      Level, PassBuilder::ThinLTOPhase::None)); // Cleanup
+      Level, ThinOrFullLTOPhase::None)); // Cleanup
 
   assert(!DumpAfter && "This option is not implemented");
   assert(DumpAfterFile.empty() && "This option is not implemented");
@@ -664,7 +678,7 @@ static bool isScopPassName(StringRef Name) {
 static bool
 parseTopLevelPipeline(ModulePassManager &MPM,
                       ArrayRef<PassBuilder::PipelineElement> Pipeline,
-                      bool VerifyEachPass, bool DebugLogging) {
+                      bool DebugLogging) {
   std::vector<PassBuilder::PipelineElement> FullPipeline;
   StringRef FirstName = Pipeline.front().Name;
 
@@ -684,16 +698,12 @@ parseTopLevelPipeline(ModulePassManager &MPM,
   }
 
   FPM.addPass(createFunctionToScopPassAdaptor(std::move(SPM)));
-  if (VerifyEachPass)
-    FPM.addPass(VerifierPass());
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
-  if (VerifyEachPass)
-    MPM.addPass(VerifierPass());
 
   return true;
 }
 
-void RegisterPollyPasses(PassBuilder &PB) {
+void registerPollyPasses(PassBuilder &PB) {
   PB.registerAnalysisRegistrationCallback(registerFunctionAnalyses);
   PB.registerPipelineParsingCallback(parseFunctionPipeline);
   PB.registerPipelineParsingCallback(parseScopPipeline);
@@ -705,9 +715,7 @@ void RegisterPollyPasses(PassBuilder &PB) {
 }
 } // namespace polly
 
-// Plugin Entrypoint:
-extern "C" ::llvm::PassPluginLibraryInfo LLVM_ATTRIBUTE_WEAK
-llvmGetPassPluginInfo() {
+llvm::PassPluginLibraryInfo getPollyPluginInfo() {
   return {LLVM_PLUGIN_API_VERSION, "Polly", LLVM_VERSION_STRING,
-          polly::RegisterPollyPasses};
+          polly::registerPollyPasses};
 }

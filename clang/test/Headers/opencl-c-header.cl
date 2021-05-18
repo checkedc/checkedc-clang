@@ -1,6 +1,7 @@
 // RUN: %clang_cc1 -O0 -triple spir-unknown-unknown -internal-isystem ../../lib/Headers -include opencl-c.h -emit-llvm -o - %s -verify | FileCheck %s
-// RUN: %clang_cc1 -O0 -triple spir-unknown-unknown -internal-isystem ../../lib/Headers -include opencl-c.h -emit-llvm -o - %s -verify -cl-std=CL1.1| FileCheck %s
-// RUN: %clang_cc1 -O0 -triple spir-unknown-unknown -internal-isystem ../../lib/Headers -include opencl-c.h -emit-llvm -o - %s -verify -cl-std=CL1.2| FileCheck %s
+// RUN: %clang_cc1 -O0 -triple spir-unknown-unknown -internal-isystem ../../lib/Headers -include opencl-c.h -emit-llvm -o - %s -verify -cl-std=CL1.1 | FileCheck %s
+// RUN: %clang_cc1 -O0 -triple spir-unknown-unknown -internal-isystem ../../lib/Headers -include opencl-c.h -emit-llvm -o - %s -verify -cl-std=CL1.2 | FileCheck %s
+// RUN: %clang_cc1 -O0 -triple spir-unknown-unknown -internal-isystem ../../lib/Headers -include opencl-c.h -emit-llvm -o - %s -verify -cl-std=clc++ | FileCheck %s --check-prefix=CHECK20
 
 // Test including the default header as a module.
 // The module should be compiled only once and loaded from cache afterwards.
@@ -52,37 +53,102 @@
 // CHECK: _Z16convert_char_rtec
 // CHECK-NOT: _Z3ctzc
 // CHECK20: _Z3ctzc
-// CHECK20-NOT: _Z16convert_char_rtec
+// CHECK20: _Z16convert_char_rtec
 char f(char x) {
-#if __OPENCL_C_VERSION__ != CL_VERSION_2_0
-  return convert_char_rte(x);
-
-#else //__OPENCL_C_VERSION__
+// Check functionality from OpenCL 2.0 onwards
+#if defined(__OPENCL_CPP_VERSION__) || (__OPENCL_C_VERSION__ == CL_VERSION_2_0)
   ndrange_t t;
-  return ctz(x);
+  x = ctz(x);
 #endif //__OPENCL_C_VERSION__
+  return convert_char_rte(x);
 }
 
 // Verify that a builtin using a write_only image3d_t type is available
 // from OpenCL 2.0 onwards.
 
 // CHECK20: _Z12write_imagef14ocl_image3d_wo
-#if __OPENCL_C_VERSION__ >= CL_VERSION_2_0
+#if defined(__OPENCL_CPP_VERSION__) || (__OPENCL_C_VERSION__ >= CL_VERSION_2_0)
 void test_image3dwo(write_only image3d_t img) {
   write_imagef(img, (0), (0.0f));
 }
 #endif //__OPENCL_C_VERSION__
 
+#if defined(__OPENCL_CPP_VERSION__)
+// Test old atomic overloaded with generic addr space.
+void test_atomics(__generic volatile unsigned int* a) {
+  atomic_add(a, 1);
+}
+#endif
+
+// Verify that ATOMIC_VAR_INIT is defined.
+#if defined(__OPENCL_CPP_VERSION__) || (__OPENCL_C_VERSION__ >= CL_VERSION_2_0)
+global atomic_int z = ATOMIC_VAR_INIT(99);
+#endif //__OPENCL_C_VERSION__
+// CHECK-MOD: Reading modules
+
+// Check that extension macros are defined correctly.
+
+// FIXME: this should not be defined for all targets
 // Verify that non-builtin cl_intel_planar_yuv extension is defined from
 // OpenCL 1.2 onwards.
-#if (__OPENCL_C_VERSION__ >= CL_VERSION_1_2)
+#if defined(__OPENCL_CPP_VERSION__) || (__OPENCL_C_VERSION__ >= CL_VERSION_1_2)
 // expected-no-diagnostics
-#ifndef cl_intel_planar_yuv
-#error "Missing cl_intel_planar_yuv define"
-#endif
 #else //__OPENCL_C_VERSION__
 // expected-warning@+2{{unknown OpenCL extension 'cl_intel_planar_yuv' - ignoring}}
 #endif //__OPENCL_C_VERSION__
 #pragma OPENCL EXTENSION cl_intel_planar_yuv : enable
 
-// CHECK-MOD: Reading modules
+// For SPIR all extensions are supported.
+#if defined(__SPIR__)
+
+#if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 200)
+
+#if cl_khr_subgroup_extended_types != 1
+#error "Incorrectly defined cl_khr_subgroup_extended_types"
+#endif
+#if cl_khr_subgroup_non_uniform_vote != 1
+#error "Incorrectly defined cl_khr_subgroup_non_uniform_vote"
+#endif
+#if cl_khr_subgroup_ballot != 1
+#error "Incorrectly defined cl_khr_subgroup_ballot"
+#endif
+#if cl_khr_subgroup_non_uniform_arithmetic != 1
+#error "Incorrectly defined cl_khr_subgroup_non_uniform_arithmetic"
+#endif
+#if cl_khr_subgroup_shuffle != 1
+#error "Incorrectly defined cl_khr_subgroup_shuffle"
+#endif
+#if cl_khr_subgroup_shuffle_relative != 1
+#error "Incorrectly defined cl_khr_subgroup_shuffle_relative"
+#endif
+#if cl_khr_subgroup_clustered_reduce != 1
+#error "Incorrectly defined cl_khr_subgroup_clustered_reduce"
+#endif
+
+#else
+
+#ifdef cl_khr_subgroup_extended_types
+#error "Incorrect cl_khr_subgroup_extended_types define"
+#endif
+#ifdef cl_khr_subgroup_non_uniform_vote
+#error "Incorrect cl_khr_subgroup_non_uniform_vote define"
+#endif
+#ifdef cl_khr_subgroup_ballot
+#error "Incorrect cl_khr_subgroup_ballot define"
+#endif
+#ifdef cl_khr_subgroup_non_uniform_arithmetic
+#error "Incorrect cl_khr_subgroup_non_uniform_arithmetic define"
+#endif
+#ifdef cl_khr_subgroup_shuffle
+#error "Incorrect cl_khr_subgroup_shuffle define"
+#endif
+#ifdef cl_khr_subgroup_shuffle_relative
+#error "Incorrect cl_khr_subgroup_shuffle_relative define"
+#endif
+#ifdef cl_khr_subgroup_clustered_reduce
+#error "Incorrect cl_khr_subgroup_clustered_reduce define"
+#endif
+
+#endif //(defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 200)
+
+#endif // defined(__SPIR__)

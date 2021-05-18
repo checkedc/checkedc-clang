@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -37,17 +36,17 @@ void test_char_pointer_ctor()
     }
 
     {
-    const char str[] ="1010101010";
+    const char str[] = "1010101010";
     std::bitset<N> v(str);
-    std::size_t M = std::min<std::size_t>(N, 10);
+    std::size_t M = std::min<std::size_t>(v.size(), 10);
     for (std::size_t i = 0; i < M; ++i)
         assert(v[i] == (str[M - 1 - i] == '1'));
-    for (std::size_t i = 10; i < N; ++i)
+    for (std::size_t i = 10; i < v.size(); ++i)
         assert(v[i] == false);
     }
 }
 
-int main()
+int main(int, char**)
 {
     test_char_pointer_ctor<0>();
     test_char_pointer_ctor<1>();
@@ -58,4 +57,6 @@ int main()
     test_char_pointer_ctor<64>();
     test_char_pointer_ctor<65>();
     test_char_pointer_ctor<1000>();
+
+  return 0;
 }

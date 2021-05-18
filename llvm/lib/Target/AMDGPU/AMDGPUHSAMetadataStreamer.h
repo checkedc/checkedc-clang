@@ -1,9 +1,8 @@
 //===--- AMDGPUHSAMetadataStreamer.h ----------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -16,11 +15,9 @@
 #ifndef LLVM_LIB_TARGET_AMDGPU_MCTARGETDESC_AMDGPUHSAMETADATASTREAMER_H
 #define LLVM_LIB_TARGET_AMDGPU_MCTARGETDESC_AMDGPUHSAMETADATASTREAMER_H
 
-#include "AMDGPU.h"
-#include "AMDKernelCodeT.h"
-#include "llvm/ADT/StringRef.h"
-#include "llvm/BinaryFormat/MsgPackTypes.h"
+#include "llvm/BinaryFormat/MsgPackDocument.h"
 #include "llvm/Support/AMDGPUMetadata.h"
+#include "llvm/Support/Alignment.h"
 
 namespace llvm {
 
@@ -28,6 +25,7 @@ class AMDGPUTargetStreamer;
 class Argument;
 class DataLayout;
 class Function;
+class MachineFunction;
 class MDNode;
 class Module;
 struct SIProgramInfo;
@@ -52,8 +50,8 @@ public:
 
 class MetadataStreamerV3 final : public MetadataStreamer {
 private:
-  std::shared_ptr<msgpack::Node> HSAMetadataRoot =
-      std::make_shared<msgpack::MapNode>();
+  std::unique_ptr<msgpack::Document> HSAMetadataDoc =
+      std::make_unique<msgpack::Document>();
 
   void dump(StringRef HSAMetadataString) const;
 
@@ -66,45 +64,42 @@ private:
   StringRef getValueKind(Type *Ty, StringRef TypeQual,
                          StringRef BaseTypeName) const;
 
-  StringRef getValueType(Type *Ty, StringRef TypeName) const;
-
   std::string getTypeName(Type *Ty, bool Signed) const;
 
-  std::shared_ptr<msgpack::ArrayNode>
-  getWorkGroupDimensions(MDNode *Node) const;
+  msgpack::ArrayDocNode getWorkGroupDimensions(MDNode *Node) const;
 
-  std::shared_ptr<msgpack::MapNode>
-  getHSAKernelProps(const MachineFunction &MF,
-                    const SIProgramInfo &ProgramInfo) const;
+  msgpack::MapDocNode getHSAKernelProps(const MachineFunction &MF,
+                                        const SIProgramInfo &ProgramInfo) const;
 
   void emitVersion();
 
   void emitPrintf(const Module &Mod);
 
-  void emitKernelLanguage(const Function &Func, msgpack::MapNode &Kern);
+  void emitKernelLanguage(const Function &Func, msgpack::MapDocNode Kern);
 
-  void emitKernelAttrs(const Function &Func, msgpack::MapNode &Kern);
+  void emitKernelAttrs(const Function &Func, msgpack::MapDocNode Kern);
 
-  void emitKernelArgs(const Function &Func, msgpack::MapNode &Kern);
+  void emitKernelArgs(const Function &Func, msgpack::MapDocNode Kern);
 
   void emitKernelArg(const Argument &Arg, unsigned &Offset,
-                     msgpack::ArrayNode &Args);
+                     msgpack::ArrayDocNode Args);
 
-  void emitKernelArg(const DataLayout &DL, Type *Ty, StringRef ValueKind,
-                     unsigned &Offset, msgpack::ArrayNode &Args,
-                     unsigned PointeeAlign = 0, StringRef Name = "",
-                     StringRef TypeName = "", StringRef BaseTypeName = "",
-                     StringRef AccQual = "", StringRef TypeQual = "");
+  void emitKernelArg(const DataLayout &DL, Type *Ty, Align Alignment,
+                     StringRef ValueKind, unsigned &Offset,
+                     msgpack::ArrayDocNode Args, MaybeAlign PointeeAlign = None,
+                     StringRef Name = "", StringRef TypeName = "",
+                     StringRef BaseTypeName = "", StringRef AccQual = "",
+                     StringRef TypeQual = "");
 
   void emitHiddenKernelArgs(const Function &Func, unsigned &Offset,
-                            msgpack::ArrayNode &Args);
+                            msgpack::ArrayDocNode Args);
 
-  std::shared_ptr<msgpack::Node> &getRootMetadata(StringRef Key) {
-    return (*cast<msgpack::MapNode>(HSAMetadataRoot.get()))[Key];
+  msgpack::DocNode &getRootMetadata(StringRef Key) {
+    return HSAMetadataDoc->getRoot().getMap(/*Convert=*/true)[Key];
   }
 
-  std::shared_ptr<msgpack::Node> &getHSAMetadataRoot() {
-    return HSAMetadataRoot;
+  msgpack::DocNode &getHSAMetadataRoot() {
+    return HSAMetadataDoc->getRoot();
   }
 
 public:
@@ -136,8 +131,6 @@ private:
   ValueKind getValueKind(Type *Ty, StringRef TypeQual,
                          StringRef BaseTypeName) const;
 
-  ValueType getValueType(Type *Ty, StringRef TypeName) const;
-
   std::string getTypeName(Type *Ty, bool Signed) const;
 
   std::vector<uint32_t> getWorkGroupDimensions(MDNode *Node) const;
@@ -161,8 +154,8 @@ private:
 
   void emitKernelArg(const Argument &Arg);
 
-  void emitKernelArg(const DataLayout &DL, Type *Ty, ValueKind ValueKind,
-                     unsigned PointeeAlign = 0,
+  void emitKernelArg(const DataLayout &DL, Type *Ty, Align Alignment,
+                     ValueKind ValueKind, MaybeAlign PointeeAlign = None,
                      StringRef Name = "", StringRef TypeName = "",
                      StringRef BaseTypeName = "", StringRef AccQual = "",
                      StringRef TypeQual = "");

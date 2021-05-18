@@ -1,9 +1,8 @@
-//===--- PeformanceTidyModule.cpp - clang-tidy ----------------------------===//
+//===-- PerformanceTidyModule.cpp - clang-tidy ----------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -18,7 +17,10 @@
 #include "InefficientVectorOperationCheck.h"
 #include "MoveConstArgCheck.h"
 #include "MoveConstructorInitCheck.h"
+#include "NoAutomaticMoveCheck.h"
+#include "NoIntToPtrCheck.h"
 #include "NoexceptMoveConstructorCheck.h"
+#include "TriviallyDestructibleCheck.h"
 #include "TypePromotionInMathFnCheck.h"
 #include "UnnecessaryCopyInitialization.h"
 #include "UnnecessaryValueParamCheck.h"
@@ -46,8 +48,13 @@ public:
         "performance-move-const-arg");
     CheckFactories.registerCheck<MoveConstructorInitCheck>(
         "performance-move-constructor-init");
+    CheckFactories.registerCheck<NoAutomaticMoveCheck>(
+        "performance-no-automatic-move");
+    CheckFactories.registerCheck<NoIntToPtrCheck>("performance-no-int-to-ptr");
     CheckFactories.registerCheck<NoexceptMoveConstructorCheck>(
         "performance-noexcept-move-constructor");
+    CheckFactories.registerCheck<TriviallyDestructibleCheck>(
+        "performance-trivially-destructible");
     CheckFactories.registerCheck<TypePromotionInMathFnCheck>(
         "performance-type-promotion-in-math-fn");
     CheckFactories.registerCheck<UnnecessaryCopyInitialization>(

@@ -6,6 +6,7 @@ add_clang_unittest(FormatTests
   CleanupTest.cpp
   FormatTest.cpp
   FormatTestComments.cpp
+  FormatTestCSharp.cpp
   FormatTestJS.cpp
   FormatTestJava.cpp
   FormatTestObjC.cpp
@@ -14,18 +15,19 @@ add_clang_unittest(FormatTests
   FormatTestSelective.cpp
   FormatTestTableGen.cpp
   FormatTestTextProto.cpp
+  MacroExpanderTest.cpp
   NamespaceEndCommentsFixerTest.cpp
   SortImportsTestJS.cpp
   SortImportsTestJava.cpp
   SortIncludesTest.cpp
   UsingDeclarationsSorterTest.cpp
+  TokenAnnotatorTest.cpp
   )
 
-target_link_libraries(FormatTests
+clang_target_link_libraries(FormatTests
   PRIVATE
   clangBasic
   clangFormat
-  clangFrontend
   clangRewrite
   clangToolingCore
   )

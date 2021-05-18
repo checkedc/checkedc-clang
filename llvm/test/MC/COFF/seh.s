@@ -1,6 +1,6 @@
 // This test checks that the SEH directives emit the correct unwind data.
 
-// RUN: llvm-mc -triple x86_64-pc-win32 -filetype=obj %s | llvm-readobj -s -u -r | FileCheck %s
+// RUN: llvm-mc -triple x86_64-pc-win32 -filetype=obj %s | llvm-readobj -S -u -r - | FileCheck %s
 
 // CHECK:      Sections [
 // CHECK:        Section {
@@ -133,7 +133,7 @@ func:
     movups %xmm8, (%rsp)
     .seh_savexmm %xmm8, 0
     pushq %rbx
-    .seh_pushreg 3
+    .seh_pushreg %rbx
     mov %rsp, %rbx
     .seh_setframe 3, 0
     .seh_endprologue

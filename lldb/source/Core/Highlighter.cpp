@@ -1,9 +1,8 @@
-//===-- Highlighter.cpp -----------------------------------------*- C++ -*-===//
+//===-- Highlighter.cpp ---------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -14,6 +13,7 @@
 #include "lldb/Utility/StreamString.h"
 
 using namespace lldb_private;
+using namespace lldb_private::ansi;
 
 void HighlightStyle::ColorStyle::Apply(Stream &s, llvm::StringRef value) const {
   s << m_prefix << value << m_suffix;
@@ -21,8 +21,8 @@ void HighlightStyle::ColorStyle::Apply(Stream &s, llvm::StringRef value) const {
 
 void HighlightStyle::ColorStyle::Set(llvm::StringRef prefix,
                                      llvm::StringRef suffix) {
-  m_prefix = lldb_utility::ansi::FormatAnsiTerminalCodes(prefix);
-  m_suffix = lldb_utility::ansi::FormatAnsiTerminalCodes(suffix);
+  m_prefix = FormatAnsiTerminalCodes(prefix);
+  m_suffix = FormatAnsiTerminalCodes(suffix);
 }
 
 void DefaultHighlighter::Highlight(const HighlightStyle &options,

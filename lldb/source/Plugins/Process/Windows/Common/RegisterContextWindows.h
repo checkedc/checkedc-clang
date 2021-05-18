@@ -1,9 +1,8 @@
 //===-- RegisterContextWindows.h --------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -19,16 +18,12 @@ class Thread;
 
 class RegisterContextWindows : public lldb_private::RegisterContext {
 public:
-  //------------------------------------------------------------------
   // Constructors and Destructors
-  //------------------------------------------------------------------
   RegisterContextWindows(Thread &thread, uint32_t concrete_frame_idx);
 
   virtual ~RegisterContextWindows();
 
-  //------------------------------------------------------------------
   // Subclasses must override these functions
-  //------------------------------------------------------------------
   void InvalidateAllRegisters() override;
 
   bool ReadAllRegisterValues(lldb::DataBufferSP &data_sp) override;
@@ -38,30 +33,28 @@ public:
   uint32_t ConvertRegisterKindToRegisterNumber(lldb::RegisterKind kind,
                                                uint32_t num) override;
 
-  //------------------------------------------------------------------
-  // Subclasses can override these functions if desired
-  //------------------------------------------------------------------
-  uint32_t NumSupportedHardwareBreakpoints() override;
-
-  uint32_t SetHardwareBreakpoint(lldb::addr_t addr, size_t size) override;
-
-  bool ClearHardwareBreakpoint(uint32_t hw_idx) override;
-
-  uint32_t NumSupportedHardwareWatchpoints() override;
-
-  uint32_t SetHardwareWatchpoint(lldb::addr_t addr, size_t size, bool read,
-                                 bool write) override;
-
-  bool ClearHardwareWatchpoint(uint32_t hw_index) override;
-
   bool HardwareSingleStep(bool enable) override;
 
+  static constexpr uint32_t GetNumHardwareBreakpointSlots() {
+    return NUM_HARDWARE_BREAKPOINT_SLOTS;
+  }
+  static constexpr bool DoHardwareBreakpointsTriggerAfter() { return true; }
+
+  bool AddHardwareBreakpoint(uint32_t slot, lldb::addr_t address, uint32_t size,
+                             bool read, bool write);
+  bool RemoveHardwareBreakpoint(uint32_t slot);
+
+  uint32_t GetTriggeredHardwareBreakpointSlotId();
+
 protected:
+  static constexpr unsigned NUM_HARDWARE_BREAKPOINT_SLOTS = 4;
+
   virtual bool CacheAllRegisterValues();
+  virtual bool ApplyAllRegisterValues();
 
   CONTEXT m_context;
   bool m_context_stale;
 };
-}
+} // namespace lldb_private
 
 #endif // #ifndef liblldb_RegisterContextWindows_H_

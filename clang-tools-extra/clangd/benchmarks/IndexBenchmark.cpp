@@ -1,9 +1,8 @@
 //===--- IndexBenchmark.cpp - Clangd index benchmarks -----------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -57,8 +56,10 @@ std::vector<FuzzyFindRequest> extractQueriesFromLogs() {
   for (const auto &Item : *JSONArray->getAsArray()) {
     FuzzyFindRequest Request;
     // Panic if the provided file couldn't be parsed.
-    if (!fromJSON(Item, Request)) {
-      llvm::errs() << "Error when deserializing request: " << Item << '\n';
+    llvm::json::Path::Root Root("FuzzyFindRequest");
+    if (!fromJSON(Item, Request, Root)) {
+      llvm::errs() << llvm::toString(Root.getError()) << "\n";
+      Root.printErrorContext(Item, llvm::errs());
       exit(1);
     }
     Requests.push_back(Request);
@@ -83,6 +84,12 @@ static void DexQueries(benchmark::State &State) {
       Dex->fuzzyFind(Request, [](const Symbol &S) {});
 }
 BENCHMARK(DexQueries);
+
+static void DexBuild(benchmark::State &State) {
+  for (auto _ : State)
+    buildDex();
+}
+BENCHMARK(DexBuild);
 
 } // namespace
 } // namespace clangd

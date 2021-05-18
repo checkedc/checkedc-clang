@@ -1,9 +1,8 @@
 //===- AMDGPUOpenCLEnqueuedBlockLowering.cpp - Lower enqueued block -------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -34,16 +33,12 @@
 
 #include "AMDGPU.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/StringRef.h"
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/DerivedTypes.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Mangler.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/User.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "amdgpu-lower-enqueued-block"
 
@@ -120,11 +115,11 @@ bool AMDGPUOpenCLEnqueuedBlockLowering::runOnModule(Module &M) {
       auto T = ArrayType::get(Type::getInt64Ty(C), 2);
       auto *GV = new GlobalVariable(
           M, T,
-          /*IsConstant=*/false, GlobalValue::ExternalLinkage,
+          /*isConstant=*/false, GlobalValue::ExternalLinkage,
           /*Initializer=*/Constant::getNullValue(T), RuntimeHandle,
           /*InsertBefore=*/nullptr, GlobalValue::NotThreadLocal,
           AMDGPUAS::GLOBAL_ADDRESS,
-          /*IsExternallyInitialized=*/false);
+          /*isExternallyInitialized=*/false);
       LLVM_DEBUG(dbgs() << "runtime handle created: " << *GV << '\n');
 
       for (auto U : F.users()) {

@@ -1,9 +1,8 @@
 //===--- ASTSelection.cpp - Clang refactoring library ---------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -14,7 +13,6 @@
 
 using namespace clang;
 using namespace tooling;
-using ast_type_traits::DynTypedNode;
 
 namespace {
 
@@ -220,7 +218,7 @@ static void dump(const SelectedASTNode &Node, llvm::raw_ostream &OS,
   if (const Decl *D = Node.Node.get<Decl>()) {
     OS << D->getDeclKindName() << "Decl";
     if (const auto *ND = dyn_cast<NamedDecl>(D))
-      OS << " \"" << ND->getNameAsString() << '"';
+      OS << " \"" << ND->getDeclName() << '"';
   } else if (const Stmt *S = Node.Node.get<Stmt>()) {
     OS << S->getStmtClassName();
   }

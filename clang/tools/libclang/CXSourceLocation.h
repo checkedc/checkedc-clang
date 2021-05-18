@@ -1,9 +1,8 @@
 //===- CXSourceLocation.h - CXSourceLocations Utilities ---------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -72,7 +71,11 @@ static inline SourceRange translateCXSourceRange(CXSourceRange R) {
                      SourceLocation::getFromRawEncoding(R.end_int_data));
 }
 
-
+/// Translates CXSourceRange to CharSourceRange.
+/// The semantics of \p R are:
+/// R.begin_int_data is first character of the range.
+/// R.end_int_data is one character past the end of the range.
+CharSourceRange translateCXRangeToCharRange(CXSourceRange R);
 }} // end namespace: clang::cxloc
 
 #endif

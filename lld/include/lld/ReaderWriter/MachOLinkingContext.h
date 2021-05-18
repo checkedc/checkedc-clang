@@ -1,9 +1,8 @@
 //===- lld/ReaderWriter/MachOLinkingContext.h -----------------------------===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -56,8 +55,8 @@ public:
 
   enum class ExportMode {
     globals,    // Default, all global symbols exported.
-    whiteList,  // -exported_symbol[s_list], only listed symbols exported.
-    blackList   // -unexported_symbol[s_list], no listed symbol exported.
+    exported,   // -exported_symbol[s_list], only listed symbols exported.
+    unexported  // -unexported_symbol[s_list], no listed symbol exported.
   };
 
   enum class DebugInfoMode {
@@ -102,7 +101,7 @@ public:
     auto file = std::unique_ptr<T>(new T(std::forward<Args>(args)...));
     auto *filePtr = file.get();
     auto *ctx = const_cast<MachOLinkingContext *>(this);
-    ctx->getNodes().push_back(llvm::make_unique<FileNode>(std::move(file)));
+    ctx->getNodes().push_back(std::make_unique<FileNode>(std::move(file)));
     return filePtr;
   }
 
@@ -249,7 +248,7 @@ public:
   /// installed dynamic library.
   uint32_t compatibilityVersion() const { return _compatibilityVersion; }
 
-  /// The dylib's current version, in the the raw uint32 format.
+  /// The dylib's current version, in the raw uint32 format.
   ///
   /// When building a dynamic library, this is the current version that gets
   /// embedded into the result. Other Mach-O binaries that link against
@@ -424,8 +423,6 @@ public:
 private:
   Writer &writer() const override;
   mach_o::MachODylibFile* loadIndirectDylib(StringRef path);
-  void checkExportWhiteList(const DefinedAtom *atom) const;
-  void checkExportBlackList(const DefinedAtom *atom) const;
   struct ArchInfo {
     StringRef                 archName;
     MachOLinkingContext::Arch arch;

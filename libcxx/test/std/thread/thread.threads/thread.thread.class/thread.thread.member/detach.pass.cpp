@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -20,6 +19,7 @@
 #include <system_error>
 #include <cassert>
 
+#include "make_test_thread.h"
 #include "test_macros.h"
 
 std::atomic_bool done(false);
@@ -62,11 +62,11 @@ bool G::op_run = false;
 
 void foo() {}
 
-int main()
+int main(int, char**)
 {
     {
         G g;
-        std::thread t0(g);
+        std::thread t0 = support::make_test_thread(g);
         assert(t0.joinable());
         t0.detach();
         assert(!t0.joinable());
@@ -77,7 +77,7 @@ int main()
     assert(G::n_alive == 0);
 #ifndef TEST_HAS_NO_EXCEPTIONS
     {
-        std::thread t0(foo);
+        std::thread t0 = support::make_test_thread(foo);
         assert(t0.joinable());
         t0.detach();
         assert(!t0.joinable());
@@ -87,4 +87,6 @@ int main()
         }
     }
 #endif
+
+  return 0;
 }

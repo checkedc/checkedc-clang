@@ -1,10 +1,8 @@
-//===-- ProcessMachCore.cpp ------------------------------------------*- C++
-//-*-===//
+//===-- ProcessMachCore.cpp -----------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -13,7 +11,6 @@
 
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Threading.h"
-#include <mutex>
 
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/Module.h"
@@ -21,6 +18,7 @@
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/Section.h"
 #include "lldb/Host/Host.h"
+#include "lldb/Symbol/LocateSymbolFile.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Target/MemoryRegionInfo.h"
 #include "lldb/Target/Target.h"
@@ -40,8 +38,13 @@
 #include "Plugins/DynamicLoader/MacOSX-DYLD/DynamicLoaderMacOSXDYLD.h"
 #include "Plugins/ObjectFile/Mach-O/ObjectFileMachO.h"
 
+#include <memory>
+#include <mutex>
+
 using namespace lldb;
 using namespace lldb_private;
+
+LLDB_PLUGIN_DEFINE(ProcessMachCore)
 
 ConstString ProcessMachCore::GetPluginNameStatic() {
   static ConstString g_name("mach-o-core");
@@ -58,9 +61,10 @@ void ProcessMachCore::Terminate() {
 
 lldb::ProcessSP ProcessMachCore::CreateInstance(lldb::TargetSP target_sp,
                                                 ListenerSP listener_sp,
-                                                const FileSpec *crash_file) {
+                                                const FileSpec *crash_file,
+                                                bool can_connect) {
   lldb::ProcessSP process_sp;
-  if (crash_file) {
+  if (crash_file && !can_connect) {
     const size_t header_size = sizeof(llvm::MachO::mach_header);
     auto data_sp = FileSystem::Instance().CreateDataBuffer(
         crash_file->GetPath(), header_size, 0);
@@ -71,8 +75,8 @@ lldb::ProcessSP ProcessMachCore::CreateInstance(lldb::TargetSP target_sp,
       llvm::MachO::mach_header mach_header;
       if (ObjectFileMachO::ParseHeader(data, &data_offset, mach_header)) {
         if (mach_header.filetype == llvm::MachO::MH_CORE)
-          process_sp.reset(
-              new ProcessMachCore(target_sp, listener_sp, *crash_file));
+          process_sp = std::make_shared<ProcessMachCore>(target_sp, listener_sp,
+                                                         *crash_file);
       }
     }
   }
@@ -92,7 +96,7 @@ bool ProcessMachCore::CanDebug(lldb::TargetSP target_sp,
     // ModuleSpecList::FindMatchingModuleSpec enforces a strict arch mach.
     ModuleSpec core_module_spec(m_core_file);
     Status error(ModuleList::GetSharedModule(core_module_spec, m_core_module_sp,
-                                             NULL, NULL, NULL));
+                                             nullptr, nullptr, nullptr));
 
     if (m_core_module_sp) {
       ObjectFile *core_objfile = m_core_module_sp->GetObjectFile();
@@ -103,20 +107,16 @@ bool ProcessMachCore::CanDebug(lldb::TargetSP target_sp,
   return false;
 }
 
-//----------------------------------------------------------------------
 // ProcessMachCore constructor
-//----------------------------------------------------------------------
 ProcessMachCore::ProcessMachCore(lldb::TargetSP target_sp,
                                  ListenerSP listener_sp,
                                  const FileSpec &core_file)
-    : Process(target_sp, listener_sp), m_core_aranges(), m_core_range_infos(),
-      m_core_module_sp(), m_core_file(core_file),
+    : PostMortemProcess(target_sp, listener_sp), m_core_aranges(),
+      m_core_range_infos(), m_core_module_sp(), m_core_file(core_file),
       m_dyld_addr(LLDB_INVALID_ADDRESS),
       m_mach_kernel_addr(LLDB_INVALID_ADDRESS), m_dyld_plugin_name() {}
 
-//----------------------------------------------------------------------
 // Destructor
-//----------------------------------------------------------------------
 ProcessMachCore::~ProcessMachCore() {
   Clear();
   // We need to call finalize on the process before destroying ourselves to
@@ -126,9 +126,7 @@ ProcessMachCore::~ProcessMachCore() {
   Finalize();
 }
 
-//----------------------------------------------------------------------
 // PluginInterface
-//----------------------------------------------------------------------
 ConstString ProcessMachCore::GetPluginName() { return GetPluginNameStatic(); }
 
 uint32_t ProcessMachCore::GetPluginVersion() { return 1; }
@@ -164,10 +162,10 @@ bool ProcessMachCore::GetDynamicLoaderAddress(lldb::addr_t addr) {
     case llvm::MachO::MH_DYLINKER:
       // printf("0x%16.16" PRIx64 ": file_type = MH_DYLINKER\n", vaddr);
       // Address of dyld "struct mach_header" in the core file
-      if (log)
-        log->Printf("ProcessMachCore::GetDynamicLoaderAddress found a user "
-                    "process dyld binary image at 0x%" PRIx64,
-                    addr);
+      LLDB_LOGF(log,
+                "ProcessMachCore::GetDynamicLoaderAddress found a user "
+                "process dyld binary image at 0x%" PRIx64,
+                addr);
       m_dyld_addr = addr;
       return true;
 
@@ -176,10 +174,10 @@ bool ProcessMachCore::GetDynamicLoaderAddress(lldb::addr_t addr) {
       // Check MH_EXECUTABLE file types to see if the dynamic link object flag
       // is NOT set. If it isn't, then we have a mach_kernel.
       if ((header.flags & llvm::MachO::MH_DYLDLINK) == 0) {
-        if (log)
-          log->Printf("ProcessMachCore::GetDynamicLoaderAddress found a mach "
-                      "kernel binary image at 0x%" PRIx64,
-                      addr);
+        LLDB_LOGF(log,
+                  "ProcessMachCore::GetDynamicLoaderAddress found a mach "
+                  "kernel binary image at 0x%" PRIx64,
+                  addr);
         // Address of the mach kernel "struct mach_header" in the core file.
         m_mach_kernel_addr = addr;
         return true;
@@ -190,9 +188,7 @@ bool ProcessMachCore::GetDynamicLoaderAddress(lldb::addr_t addr) {
   return false;
 }
 
-//----------------------------------------------------------------------
 // Process Control
-//----------------------------------------------------------------------
 Status ProcessMachCore::DoLoadCore() {
   Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_DYNAMIC_LOADER |
                                                   LIBLLDB_LOG_PROCESS));
@@ -203,7 +199,7 @@ Status ProcessMachCore::DoLoadCore() {
   }
 
   ObjectFile *core_objfile = m_core_module_sp->GetObjectFile();
-  if (core_objfile == NULL) {
+  if (core_objfile == nullptr) {
     error.SetErrorString("invalid core object file");
     return error;
   }
@@ -216,7 +212,7 @@ Status ProcessMachCore::DoLoadCore() {
   }
 
   SectionList *section_list = core_objfile->GetSectionList();
-  if (section_list == NULL) {
+  if (section_list == nullptr) {
     error.SetErrorString("core file has no sections");
     return error;
   }
@@ -286,18 +282,20 @@ Status ProcessMachCore::DoLoadCore() {
 
   addr_t objfile_binary_addr;
   UUID objfile_binary_uuid;
-  if (core_objfile->GetCorefileMainBinaryInfo (objfile_binary_addr, objfile_binary_uuid))
-  {
+  ObjectFile::BinaryType type;
+  if (core_objfile->GetCorefileMainBinaryInfo(objfile_binary_addr,
+                                              objfile_binary_uuid, type)) {
     if (objfile_binary_addr != LLDB_INVALID_ADDRESS)
     {
         m_mach_kernel_addr = objfile_binary_addr;
         found_main_binary_definitively = true;
-        if (log)
-            log->Printf ("ProcessMachCore::DoLoadCore: using kernel address 0x%" PRIx64
-                         " from LC_NOTE 'main bin spec' load command.", m_mach_kernel_addr);
+        LLDB_LOGF(log,
+                  "ProcessMachCore::DoLoadCore: using kernel address 0x%" PRIx64
+                  " from LC_NOTE 'main bin spec' load command.",
+                  m_mach_kernel_addr);
     }
   }
-  
+
   // This checks for the presence of an LC_IDENT string in a core file;
   // LC_IDENT is very obsolete and should not be used in new code, but if the
   // load command is present, let's use the contents.
@@ -315,7 +313,7 @@ Status ProcessMachCore::DoLoadCore() {
       size_t p = corefile_identifier.find("stext=") + strlen("stext=");
       if (corefile_identifier[p] == '0' && corefile_identifier[p + 1] == 'x') {
         errno = 0;
-        addr = ::strtoul(corefile_identifier.c_str() + p, NULL, 16);
+        addr = ::strtoul(corefile_identifier.c_str() + p, nullptr, 16);
         if (errno != 0 || addr == 0)
           addr = LLDB_INVALID_ADDRESS;
       }
@@ -323,11 +321,87 @@ Status ProcessMachCore::DoLoadCore() {
     if (uuid.IsValid() && addr != LLDB_INVALID_ADDRESS) {
       m_mach_kernel_addr = addr;
       found_main_binary_definitively = true;
-      if (log)
-        log->Printf(
-            "ProcessMachCore::DoLoadCore: Using the kernel address 0x%" PRIx64
-            " from LC_IDENT/LC_NOTE 'kern ver str' string: '%s'",
-            addr, corefile_identifier.c_str());
+      LLDB_LOGF(
+          log,
+          "ProcessMachCore::DoLoadCore: Using the kernel address 0x%" PRIx64
+          " from LC_IDENT/LC_NOTE 'kern ver str' string: '%s'",
+          addr, corefile_identifier.c_str());
+    }
+  }
+
+  // In the case where we have an LC_NOTE specifying a standalone
+  // binary with only a UUID (and no load address) (iBoot, EFI, etc),
+  // then let's try to force a load of the binary and set its
+  // load address to 0-offset.
+  //
+  // The two forms this can come in is either a
+  //   'kern ver str' LC_NOTE with "EFI UUID=...."
+  //   'main bin spec' LC_NOTE with UUID and no load address.
+
+  if (found_main_binary_definitively == false &&
+      (corefile_identifier.find("EFI ") != std::string::npos ||
+       (objfile_binary_uuid.IsValid() &&
+        objfile_binary_addr == LLDB_INVALID_ADDRESS))) {
+    UUID uuid;
+    if (objfile_binary_uuid.IsValid()) {
+      uuid = objfile_binary_uuid;
+      LLDB_LOGF(log,
+                "ProcessMachCore::DoLoadCore: Using the main bin spec "
+                "LC_NOTE with UUID %s and no load address",
+                uuid.GetAsString().c_str());
+    } else {
+      if (corefile_identifier.find("UUID=") != std::string::npos) {
+        size_t p = corefile_identifier.find("UUID=") + strlen("UUID=");
+        std::string uuid_str = corefile_identifier.substr(p, 36);
+        uuid.SetFromStringRef(uuid_str);
+        if (uuid.IsValid()) {
+          LLDB_LOGF(log,
+                    "ProcessMachCore::DoLoadCore: Using the EFI "
+                    "from LC_IDENT/LC_NOTE 'kern ver str' string: '%s'",
+                    corefile_identifier.c_str());
+        }
+      }
+    }
+
+    if (uuid.IsValid()) {
+      ModuleSpec module_spec;
+      module_spec.GetUUID() = uuid;
+      module_spec.GetArchitecture() = GetTarget().GetArchitecture();
+
+      // Lookup UUID locally, before attempting dsymForUUID-like action
+      FileSpecList search_paths = Target::GetDefaultDebugFileSearchPaths();
+      module_spec.GetSymbolFileSpec() =
+          Symbols::LocateExecutableSymbolFile(module_spec, search_paths);
+      if (module_spec.GetSymbolFileSpec()) {
+        ModuleSpec executable_module_spec =
+            Symbols::LocateExecutableObjectFile(module_spec);
+        if (FileSystem::Instance().Exists(
+                executable_module_spec.GetFileSpec())) {
+          module_spec.GetFileSpec() = executable_module_spec.GetFileSpec();
+        }
+      }
+
+      // Force a a dsymForUUID lookup, if that tool is available.
+      if (!module_spec.GetSymbolFileSpec())
+        Symbols::DownloadObjectAndSymbolFile(module_spec, true);
+
+      // If we found a binary, load it at offset 0 and set our
+      // dyld_plugin to be the static plugin.
+      if (FileSystem::Instance().Exists(module_spec.GetFileSpec())) {
+        ModuleSP module_sp(new Module(module_spec));
+        if (module_sp.get() && module_sp->GetObjectFile()) {
+          GetTarget().GetImages().AppendIfNeeded(module_sp, true);
+          GetTarget().SetExecutableModule(module_sp, eLoadDependentsNo);
+          found_main_binary_definitively = true;
+          bool changed = true;
+          module_sp->SetLoadAddress(GetTarget(), 0, true, changed);
+          ModuleList added_module;
+          added_module.Append(module_sp, false);
+          GetTarget().ModulesDidLoad(added_module);
+          m_dyld_plugin_name = DynamicLoaderDarwinKernel::GetPluginNameStatic();
+          found_main_binary_definitively = true;
+        }
+      }
     }
   }
 
@@ -385,42 +459,43 @@ Status ProcessMachCore::DoLoadCore() {
     m_dyld_addr = saved_user_dyld_addr;
 
     if (better_kernel_address != LLDB_INVALID_ADDRESS) {
-      if (log)
-        log->Printf("ProcessMachCore::DoLoadCore: Using the kernel address "
-                    "from DynamicLoaderDarwinKernel");
+      LLDB_LOGF(log, "ProcessMachCore::DoLoadCore: Using the kernel address "
+                     "from DynamicLoaderDarwinKernel");
       m_mach_kernel_addr = better_kernel_address;
     }
   }
 
-  // If we found both a user-process dyld and a kernel binary, we need to
-  // decide which to prefer.
-  if (GetCorefilePreference() == eKernelCorefile) {
-    if (m_mach_kernel_addr != LLDB_INVALID_ADDRESS) {
-      if (log)
-        log->Printf("ProcessMachCore::DoLoadCore: Using kernel corefile image "
-                    "at 0x%" PRIx64,
-                    m_mach_kernel_addr);
-      m_dyld_plugin_name = DynamicLoaderDarwinKernel::GetPluginNameStatic();
-    } else if (m_dyld_addr != LLDB_INVALID_ADDRESS) {
-      if (log)
-        log->Printf("ProcessMachCore::DoLoadCore: Using user process dyld "
-                    "image at 0x%" PRIx64,
-                    m_dyld_addr);
-      m_dyld_plugin_name = DynamicLoaderMacOSXDYLD::GetPluginNameStatic();
-    }
-  } else {
-    if (m_dyld_addr != LLDB_INVALID_ADDRESS) {
-      if (log)
-        log->Printf("ProcessMachCore::DoLoadCore: Using user process dyld "
-                    "image at 0x%" PRIx64,
-                    m_dyld_addr);
-      m_dyld_plugin_name = DynamicLoaderMacOSXDYLD::GetPluginNameStatic();
-    } else if (m_mach_kernel_addr != LLDB_INVALID_ADDRESS) {
-      if (log)
-        log->Printf("ProcessMachCore::DoLoadCore: Using kernel corefile image "
-                    "at 0x%" PRIx64,
-                    m_mach_kernel_addr);
-      m_dyld_plugin_name = DynamicLoaderDarwinKernel::GetPluginNameStatic();
+  if (m_dyld_plugin_name.IsEmpty()) {
+    // If we found both a user-process dyld and a kernel binary, we need to
+    // decide which to prefer.
+    if (GetCorefilePreference() == eKernelCorefile) {
+      if (m_mach_kernel_addr != LLDB_INVALID_ADDRESS) {
+        LLDB_LOGF(log,
+                  "ProcessMachCore::DoLoadCore: Using kernel corefile image "
+                  "at 0x%" PRIx64,
+                  m_mach_kernel_addr);
+        m_dyld_plugin_name = DynamicLoaderDarwinKernel::GetPluginNameStatic();
+      } else if (m_dyld_addr != LLDB_INVALID_ADDRESS) {
+        LLDB_LOGF(log,
+                  "ProcessMachCore::DoLoadCore: Using user process dyld "
+                  "image at 0x%" PRIx64,
+                  m_dyld_addr);
+        m_dyld_plugin_name = DynamicLoaderMacOSXDYLD::GetPluginNameStatic();
+      }
+    } else {
+      if (m_dyld_addr != LLDB_INVALID_ADDRESS) {
+        LLDB_LOGF(log,
+                  "ProcessMachCore::DoLoadCore: Using user process dyld "
+                  "image at 0x%" PRIx64,
+                  m_dyld_addr);
+        m_dyld_plugin_name = DynamicLoaderMacOSXDYLD::GetPluginNameStatic();
+      } else if (m_mach_kernel_addr != LLDB_INVALID_ADDRESS) {
+        LLDB_LOGF(log,
+                  "ProcessMachCore::DoLoadCore: Using kernel corefile image "
+                  "at 0x%" PRIx64,
+                  m_mach_kernel_addr);
+        m_dyld_plugin_name = DynamicLoaderDarwinKernel::GetPluginNameStatic();
+      }
     }
   }
 
@@ -429,7 +504,7 @@ Status ProcessMachCore::DoLoadCore() {
     // segments are usually meaningless, they may be just "read", because we're
     // dealing with kernel coredumps or early startup coredumps and the dumper
     // is grabbing pages of memory without knowing what they are.  If they
-    // aren't marked as "exeuctable", that can break the unwinder which will
+    // aren't marked as "executable", that can break the unwinder which will
     // check a pc value to see if it is in an executable segment and stop the
     // backtrace early if it is not ("executable" and "unknown" would both be
     // fine, but "not executable" will break the unwinder).
@@ -454,15 +529,15 @@ Status ProcessMachCore::DoLoadCore() {
 }
 
 lldb_private::DynamicLoader *ProcessMachCore::GetDynamicLoader() {
-  if (m_dyld_ap.get() == NULL)
-    m_dyld_ap.reset(DynamicLoader::FindPlugin(
-        this,
-        m_dyld_plugin_name.IsEmpty() ? NULL : m_dyld_plugin_name.GetCString()));
-  return m_dyld_ap.get();
+  if (m_dyld_up.get() == nullptr)
+    m_dyld_up.reset(DynamicLoader::FindPlugin(
+        this, m_dyld_plugin_name.IsEmpty() ? nullptr
+                                           : m_dyld_plugin_name.GetCString()));
+  return m_dyld_up.get();
 }
 
-bool ProcessMachCore::UpdateThreadList(ThreadList &old_thread_list,
-                                       ThreadList &new_thread_list) {
+bool ProcessMachCore::DoUpdateThreadList(ThreadList &old_thread_list,
+                                         ThreadList &new_thread_list) {
   if (old_thread_list.GetSize(false) == 0) {
     // Make up the thread the first time this is called so we can setup our one
     // and only core thread state.
@@ -492,17 +567,13 @@ void ProcessMachCore::RefreshStateAfterStop() {
 
 Status ProcessMachCore::DoDestroy() { return Status(); }
 
-//------------------------------------------------------------------
 // Process Queries
-//------------------------------------------------------------------
 
 bool ProcessMachCore::IsAlive() { return true; }
 
 bool ProcessMachCore::WarnBeforeDetach() const { return false; }
 
-//------------------------------------------------------------------
 // Process Memory
-//------------------------------------------------------------------
 size_t ProcessMachCore::ReadMemory(addr_t addr, void *buf, size_t size,
                                    Status &error) {
   // Don't allow the caching that lldb_private::Process::ReadMemory does since
@@ -516,7 +587,6 @@ size_t ProcessMachCore::DoReadMemory(addr_t addr, void *buf, size_t size,
   size_t bytes_read = 0;
 
   if (core_objfile) {
-    //----------------------------------------------------------------------
     // Segments are not always contiguous in mach-o core files. We have core
     // files that have segments like:
     //            Address    Size       File off   File size
@@ -533,7 +603,6 @@ size_t ProcessMachCore::DoReadMemory(addr_t addr, void *buf, size_t size,
     // We would attempt to read 32 bytes from 0xf6ff0 but would only get 16
     // unless we loop through consecutive memory ranges that are contiguous in
     // the address space, but not in the file data.
-    //----------------------------------------------------------------------
     while (bytes_read < size) {
       const addr_t curr_addr = addr + bytes_read;
       const VMRangeToFileOffset::Entry *core_memory_entry =

@@ -1,14 +1,13 @@
 //===-- StructuredDataDarwinLog.h -------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef StructuredDataDarwinLog_h
-#define StructuredDataDarwinLog_h
+#ifndef LLDB_SOURCE_PLUGINS_STRUCTUREDDATA_DARWINLOG_STRUCTUREDDATADARWINLOG_H
+#define LLDB_SOURCE_PLUGINS_STRUCTUREDDATA_DARWINLOG_STRUCTUREDDATADARWINLOG_H
 
 #include "lldb/Target/StructuredDataPlugin.h"
 
@@ -25,67 +24,55 @@ class StructuredDataDarwinLog : public StructuredDataPlugin {
   friend sddarwinlog_private::EnableCommand;
 
 public:
-  // -------------------------------------------------------------------------
   // Public static API
-  // -------------------------------------------------------------------------
 
   static void Initialize();
 
   static void Terminate();
 
-  static const ConstString &GetStaticPluginName();
+  static ConstString GetStaticPluginName();
 
-  // -------------------------------------------------------------------------
   /// Return whether the DarwinLog functionality is enabled.
   ///
-  /// The DarwinLog functionality is enabled if the user expicitly enabled
+  /// The DarwinLog functionality is enabled if the user explicitly enabled
   /// it with the enable command, or if the user has the setting set
   /// that controls if we always enable it for newly created/attached
   /// processes.
   ///
-  /// @return
+  /// \return
   ///      True if DarwinLog support is/will be enabled for existing or
   ///      newly launched/attached processes.
-  // -------------------------------------------------------------------------
   static bool IsEnabled();
 
-  // -------------------------------------------------------------------------
   // PluginInterface API
-  // -------------------------------------------------------------------------
 
   ConstString GetPluginName() override;
 
   uint32_t GetPluginVersion() override;
 
-  // -------------------------------------------------------------------------
   // StructuredDataPlugin API
-  // -------------------------------------------------------------------------
 
-  bool SupportsStructuredDataType(const ConstString &type_name) override;
+  bool SupportsStructuredDataType(ConstString type_name) override;
 
   void HandleArrivalOfStructuredData(
-      Process &process, const ConstString &type_name,
+      Process &process, ConstString type_name,
       const StructuredData::ObjectSP &object_sp) override;
 
   Status GetDescription(const StructuredData::ObjectSP &object_sp,
                         lldb_private::Stream &stream) override;
 
-  bool GetEnabled(const ConstString &type_name) const override;
+  bool GetEnabled(ConstString type_name) const override;
 
   void ModulesDidLoad(Process &process, ModuleList &module_list) override;
 
-  ~StructuredDataDarwinLog();
+  ~StructuredDataDarwinLog() override;
 
 private:
-  // -------------------------------------------------------------------------
   // Private constructors
-  // -------------------------------------------------------------------------
 
   StructuredDataDarwinLog(const lldb::ProcessWP &process_wp);
 
-  // -------------------------------------------------------------------------
   // Private static methods
-  // -------------------------------------------------------------------------
 
   static lldb::StructuredDataPluginSP CreateInstance(Process &process);
 
@@ -99,16 +86,12 @@ private:
   static Status FilterLaunchInfo(ProcessLaunchInfo &launch_info,
                                  Target *target);
 
-  // -------------------------------------------------------------------------
   // Internal helper methods used by friend classes
-  // -------------------------------------------------------------------------
   void SetEnabled(bool enabled);
 
   void AddInitCompletionHook(Process &process);
 
-  // -------------------------------------------------------------------------
   // Private methods
-  // -------------------------------------------------------------------------
 
   void DumpTimestamp(Stream &stream, uint64_t timestamp);
 
@@ -117,16 +100,12 @@ private:
   size_t HandleDisplayOfEvent(const StructuredData::Dictionary &event,
                               Stream &stream);
 
-  // -------------------------------------------------------------------------
   /// Call the enable command again, using whatever settings were initially
   /// made.
-  // -------------------------------------------------------------------------
 
   void EnableNow();
 
-  // -------------------------------------------------------------------------
   // Private data
-  // -------------------------------------------------------------------------
   bool m_recorded_first_timestamp;
   uint64_t m_first_timestamp_seen;
   bool m_is_enabled;
@@ -136,4 +115,4 @@ private:
 };
 }
 
-#endif /* StructuredDataPluginDarwinLog_hpp */
+#endif // LLDB_SOURCE_PLUGINS_STRUCTUREDDATA_DARWINLOG_STRUCTUREDDATADARWINLOG_H

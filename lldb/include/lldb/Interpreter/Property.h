@@ -1,14 +1,13 @@
 //===-- Property.h ----------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Property_h_
-#define liblldb_Property_h_
+#ifndef LLDB_INTERPRETER_PROPERTY_H
+#define LLDB_INTERPRETER_PROPERTY_H
 
 #include "lldb/Interpreter/OptionValue.h"
 #include "lldb/Utility/ConstString.h"
@@ -38,7 +37,7 @@ class Property {
 public:
   Property(const PropertyDefinition &definition);
 
-  Property(const ConstString &name, const ConstString &desc, bool is_global,
+  Property(ConstString name, ConstString desc, bool is_global,
            const lldb::OptionValueSP &value_sp);
 
   llvm::StringRef GetName() const { return m_name.GetStringRef(); }
@@ -65,8 +64,7 @@ public:
                        uint32_t output_width,
                        bool display_qualified_name) const;
 
-  void SetValueChangedCallback(OptionValueChangedCallback callback,
-                               void *baton);
+  void SetValueChangedCallback(std::function<void()> callback);
 
 protected:
   ConstString m_name;
@@ -77,4 +75,4 @@ protected:
 
 } // namespace lldb_private
 
-#endif // liblldb_Property_h_
+#endif // LLDB_INTERPRETER_PROPERTY_H

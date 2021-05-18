@@ -1,10 +1,10 @@
 ; RUN: llc -verify-machineinstrs -o - -mtriple=powerpc64le-unknown-linux-gnu < %s | FileCheck %s
 
 define void @ILLBeBack() #0 {
-; CHECK-LABEL @ILLBeBack
-; CHECK: beq {{[0-9]+}}, [[LABEL:\.[a-zA-Z0-9_]+]]
-; CHECK: bl __xray_FunctionExit
+; CHECK-LABEL: @ILLBeBack
+; CHECK: bne {{[0-9]+}}, [[LABEL:\.[a-zA-Z0-9_]+]]
 ; CHECK: [[LABEL]]:
+; CHECK: bl __xray_FunctionExit
 bb:
   br i1 undef, label %bb1, label %bb8
 

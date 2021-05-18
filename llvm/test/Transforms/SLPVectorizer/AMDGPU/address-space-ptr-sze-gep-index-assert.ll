@@ -65,7 +65,7 @@ bb:
   ret void
 }
 
-; This should vectorize if using GetUnderlyingObject
+; This should vectorize if using getUnderlyingObject
 define void @multi_as_reduction_same_size(i32 addrspace(1)* %global, i64 %idx0, i64 %idx1) #0 {
 ; CHECK-LABEL: @multi_as_reduction_same_size(
 ; CHECK-NEXT:  bb:
@@ -106,7 +106,7 @@ bb:
   ret void
 }
 
-; This should vectorize if using GetUnderlyingObject
+; This should vectorize if using getUnderlyingObject
 ; The add is done in the same width, even though the address space size is smaller
 define void @multi_as_reduction_different_sized_noncanon(i32 addrspace(3)* %lds, i64 %idx0, i64 %idx1) #0 {
 ; CHECK-LABEL: @multi_as_reduction_different_sized_noncanon(
@@ -145,5 +145,18 @@ bb:
 
   store i32 %sub0, i32* undef
   store i32 %sub1, i32* undef
+  ret void
+}
+
+; CHECK-LABEL: slp_crash_on_addrspacecast
+; CHECK: ret void
+define void @slp_crash_on_addrspacecast() {
+entry:
+  %0 = getelementptr inbounds i64, i64 addrspace(3)* undef, i32 undef
+  %p0 = addrspacecast i64 addrspace(3)* %0 to i64*
+  store i64 undef, i64* %p0, align 8
+  %1 = getelementptr inbounds i64, i64 addrspace(3)* undef, i32 undef
+  %p1 = addrspacecast i64 addrspace(3)* %1 to i64*
+  store i64 undef, i64* %p1, align 8
   ret void
 }

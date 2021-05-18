@@ -1,9 +1,8 @@
 //===-- sanitizer_common_syscalls.inc ---------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -2295,9 +2294,10 @@ PRE_SYSCALL(ni_syscall)() {}
 POST_SYSCALL(ni_syscall)(long res) {}
 
 PRE_SYSCALL(ptrace)(long request, long pid, long addr, long data) {
-#if !SANITIZER_ANDROID && \
-    (defined(__i386) || defined(__x86_64) || defined(__mips64) || \
-     defined(__powerpc64__) || defined(__aarch64__) || defined(__s390__))
+#if !SANITIZER_ANDROID &&                                                   \
+    (defined(__i386) || defined(__x86_64) || defined(__mips64) ||           \
+     defined(__powerpc64__) || defined(__aarch64__) || defined(__s390__) || \
+     SANITIZER_RISCV64)
   if (data) {
     if (request == ptrace_setregs) {
       PRE_READ((void *)data, struct_user_regs_struct_sz);
@@ -2316,9 +2316,10 @@ PRE_SYSCALL(ptrace)(long request, long pid, long addr, long data) {
 }
 
 POST_SYSCALL(ptrace)(long res, long request, long pid, long addr, long data) {
-#if !SANITIZER_ANDROID && \
-    (defined(__i386) || defined(__x86_64) || defined(__mips64) || \
-     defined(__powerpc64__) || defined(__aarch64__) || defined(__s390__))
+#if !SANITIZER_ANDROID &&                                                   \
+    (defined(__i386) || defined(__x86_64) || defined(__mips64) ||           \
+     defined(__powerpc64__) || defined(__aarch64__) || defined(__s390__) || \
+     SANITIZER_RISCV64)
   if (res >= 0 && data) {
     // Note that this is different from the interceptor in
     // sanitizer_common_interceptors.inc.
@@ -2872,6 +2873,35 @@ POST_SYSCALL(rt_sigaction)(long res, long signum,
   if (res >= 0 && oldact) {
     SIZE_T oldact_sz = ((char *)&oldact->sa_mask) - ((char *)oldact) + sz;
     POST_WRITE(oldact, oldact_sz);
+  }
+}
+
+PRE_SYSCALL(getrandom)(void *buf, uptr count, long flags) {
+  if (buf) {
+    PRE_WRITE(buf, count);
+  }
+}
+
+POST_SYSCALL(getrandom)(long res, void *buf, uptr count, long flags) {
+  if (res > 0 && buf) {
+    POST_WRITE(buf, res);
+  }
+}
+
+PRE_SYSCALL(sigaltstack)(const void *ss, void *oss) {
+  if (ss != nullptr) {
+    PRE_READ(ss, struct_stack_t_sz);
+  }
+  if (oss != nullptr) {
+    PRE_WRITE(oss, struct_stack_t_sz);
+  }
+}
+
+POST_SYSCALL(sigaltstack)(long res, void *ss, void *oss) {
+  if (res == 0) {
+    if (oss != nullptr) {
+      POST_WRITE(oss, struct_stack_t_sz);
+    }
   }
 }
 }  // extern "C"

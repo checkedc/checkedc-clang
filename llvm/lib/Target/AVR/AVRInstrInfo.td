@@ -1,9 +1,8 @@
 //===-- AVRInstrInfo.td - AVR Instruction defs -------------*- tablegen -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -60,6 +59,9 @@ def AVRlsr : SDNode<"AVRISD::LSR", SDTIntUnaryOp>;
 def AVRrol : SDNode<"AVRISD::ROL", SDTIntUnaryOp>;
 def AVRror : SDNode<"AVRISD::ROR", SDTIntUnaryOp>;
 def AVRasr : SDNode<"AVRISD::ASR", SDTIntUnaryOp>;
+def AVRlsl7 : SDNode<"AVRISD::LSL7", SDTIntUnaryOp>;
+def AVRlsr7 : SDNode<"AVRISD::LSR7", SDTIntUnaryOp>;
+def AVRasr7 : SDNode<"AVRISD::ASR7", SDTIntUnaryOp>;
 
 // Pseudo shift nodes for non-constant shift amounts.
 def AVRlslLoop : SDNode<"AVRISD::LSLLOOP", SDTIntShiftOp>;
@@ -67,6 +69,9 @@ def AVRlsrLoop : SDNode<"AVRISD::LSRLOOP", SDTIntShiftOp>;
 def AVRrolLoop : SDNode<"AVRISD::ROLLOOP", SDTIntShiftOp>;
 def AVRrorLoop : SDNode<"AVRISD::RORLOOP", SDTIntShiftOp>;
 def AVRasrLoop : SDNode<"AVRISD::ASRLOOP", SDTIntShiftOp>;
+
+// SWAP node.
+def AVRSwap : SDNode<"AVRISD::SWAP", SDTIntUnaryOp>;
 
 //===----------------------------------------------------------------------===//
 // AVR Operands, Complex Patterns and Transformations Definitions.
@@ -90,9 +95,27 @@ def imm0_63_neg : PatLeaf<(imm),
 
 def uimm6 : PatLeaf<(imm), [{ return isUInt<6>(N->getZExtValue()); }]>;
 
+// imm_com8_XFORM - Return the complement of a imm_com8 value
+def imm_com8_XFORM : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(~((uint8_t)N->getZExtValue()), SDLoc(N),
+                                   MVT::i8);
+}]>;
+
+// imm_com8 - Match an immediate that is a complement
+// of a 8-bit immediate.
+// Note: this pattern doesn't require an encoder method and such, as it's
+// only used on aliases (Pat<> and InstAlias<>). The actual encoding
+// is handled by the destination instructions, which use imm_com8.
+def imm_com8_asmoperand : AsmOperandClass { let Name = "ImmCom8"; }
+def imm_com8 : Operand<i8> {
+  let ParserMatchClass = imm_com8_asmoperand;
+}
+
 def ioaddr_XFORM : SDNodeXForm<imm,
 [{
-  return CurDAG->getTargetConstant(uint8_t(N->getZExtValue()) - 0x20, SDLoc(N), MVT::i8);
+  uint8_t offset = Subtarget->getIORegisterOffset();
+  return CurDAG->getTargetConstant(uint8_t(N->getZExtValue()) - offset,
+                                   SDLoc(N), MVT::i8);
 }]>;
 
 def iobitpos8_XFORM : SDNodeXForm<imm,
@@ -109,20 +132,23 @@ def iobitposn8_XFORM : SDNodeXForm<imm,
 
 def ioaddr8 : PatLeaf<(imm),
 [{
-  uint64_t val = N->getZExtValue();
-  return val >= 0x20 && val < 0x60;
+  uint8_t offset = Subtarget->getIORegisterOffset();
+  uint64_t val = N->getZExtValue() - offset;
+  return val < 0x40;
 }], ioaddr_XFORM>;
 
 def lowioaddr8 : PatLeaf<(imm),
 [{
-  uint64_t val = N->getZExtValue();
-  return val >= 0x20 && val < 0x40;
+  uint8_t offset = Subtarget->getIORegisterOffset();
+  uint64_t val = N->getZExtValue() - offset;
+  return val < 0x20;
 }], ioaddr_XFORM>;
 
 def ioaddr16 : PatLeaf<(imm),
 [{
-  uint64_t val = N->getZExtValue();
-  return val >= 0x20 && val < 0x5f;
+  uint8_t offset = Subtarget->getIORegisterOffset();
+  uint64_t val = N->getZExtValue() - offset;
+  return val < 0x3f;
 }], ioaddr_XFORM>;
 
 def iobitpos8 : PatLeaf<(imm),
@@ -157,13 +183,6 @@ def memspi : Operand<iPTR>
   let MIOperandInfo = (ops GPRSP, i16imm);
 }
 
-def imm_com8 : Operand<i8>
-{
-  let EncoderMethod = "encodeComplement";
-
-  let MIOperandInfo = (ops i8imm);
-}
-
 def relbrtarget_7 : Operand<OtherVT>
 {
     let PrintMethod   = "printPCRelImm";
@@ -180,6 +199,7 @@ def brtarget_13 : Operand<OtherVT>
 def call_target : Operand<iPTR>
 {
     let EncoderMethod = "encodeCallTarget";
+    let DecoderMethod = "decodeCallTarget";
 }
 
 // A 16-bit address (which can lead to an R_AVR_16 relocation).
@@ -252,58 +272,58 @@ def LDDSTDPtrReg : Operand<i16>
 //===----------------------------------------------------------------------===//
 
 def HasSRAM       :    Predicate<"Subtarget->hasSRAM()">,
-                         AssemblerPredicate<"FeatureSRAM">;
+                         AssemblerPredicate<(all_of FeatureSRAM)>;
 
 def HasJMPCALL    :    Predicate<"Subtarget->hasJMPCALL()">,
-                         AssemblerPredicate<"FeatureJMPCALL">;
+                         AssemblerPredicate<(all_of FeatureJMPCALL)>;
 
 def HasIJMPCALL   :    Predicate<"Subtarget->hasIJMPCALL()">,
-                         AssemblerPredicate<"FeatureIJMPCALL">;
+                         AssemblerPredicate<(all_of FeatureIJMPCALL)>;
 
 def HasEIJMPCALL  :    Predicate<"Subtarget->hasEIJMPCALL()">,
-                         AssemblerPredicate<"FeatureEIJMPCALL">;
+                         AssemblerPredicate<(all_of FeatureEIJMPCALL)>;
 
 def HasADDSUBIW   :    Predicate<"Subtarget->hasADDSUBIW()">,
-                         AssemblerPredicate<"FeatureADDSUBIW">;
+                         AssemblerPredicate<(all_of FeatureADDSUBIW)>;
 
 def HasSmallStack :    Predicate<"Subtarget->HasSmallStack()">,
-                         AssemblerPredicate<"FeatureSmallStack">;
+                         AssemblerPredicate<(all_of FeatureSmallStack)>;
 
 def HasMOVW       :    Predicate<"Subtarget->hasMOVW()">,
-                         AssemblerPredicate<"FeatureMOVW">;
+                         AssemblerPredicate<(all_of FeatureMOVW)>;
 
 def HasLPM        :    Predicate<"Subtarget->hasLPM()">,
-                         AssemblerPredicate<"FeatureLPM">;
+                         AssemblerPredicate<(all_of FeatureLPM)>;
 
 def HasLPMX       :    Predicate<"Subtarget->hasLPMX()">,
-                         AssemblerPredicate<"FeatureLPMX">;
+                         AssemblerPredicate<(all_of FeatureLPMX)>;
 
 def HasELPM       :    Predicate<"Subtarget->hasELPM()">,
-                         AssemblerPredicate<"FeatureELPM">;
+                         AssemblerPredicate<(all_of FeatureELPM)>;
 
 def HasELPMX      :    Predicate<"Subtarget->hasELPMX()">,
-                         AssemblerPredicate<"FeatureELPMX">;
+                         AssemblerPredicate<(all_of FeatureELPMX)>;
 
 def HasSPM        :    Predicate<"Subtarget->hasSPM()">,
-                         AssemblerPredicate<"FeatureSPM">;
+                         AssemblerPredicate<(all_of FeatureSPM)>;
 
 def HasSPMX       :    Predicate<"Subtarget->hasSPMX()">,
-                         AssemblerPredicate<"FeatureSPMX">;
+                         AssemblerPredicate<(all_of FeatureSPMX)>;
 
 def HasDES        :    Predicate<"Subtarget->hasDES()">,
-                         AssemblerPredicate<"FeatureDES">;
+                         AssemblerPredicate<(all_of FeatureDES)>;
 
 def SupportsRMW   :    Predicate<"Subtarget->supportsRMW()">,
-                         AssemblerPredicate<"FeatureRMW">;
+                         AssemblerPredicate<(all_of FeatureRMW)>;
 
 def SupportsMultiplication : Predicate<"Subtarget->supportsMultiplication()">,
-                               AssemblerPredicate<"FeatureMultiplication">;
+                               AssemblerPredicate<(all_of FeatureMultiplication)>;
 
 def HasBREAK      :    Predicate<"Subtarget->hasBREAK()">,
-                         AssemblerPredicate<"FeatureBREAK">;
+                         AssemblerPredicate<(all_of FeatureBREAK)>;
 
 def HasTinyEncoding : Predicate<"Subtarget->hasTinyEncoding()">,
-                        AssemblerPredicate<"FeatureTinyEncoding">;
+                        AssemblerPredicate<(all_of FeatureTinyEncoding)>;
 
 
 // AVR specific condition code. These correspond to AVR_*_COND in
@@ -547,7 +567,7 @@ Defs = [R1, R0, SREG] in
 
     def MULSRdRr : FMUL2RdRr<0,
                              (outs),
-                             (ins GPR8:$lhs, GPR8:$rhs),
+                             (ins LD8:$lhs, LD8:$rhs),
                              "muls\t$lhs, $rhs",
                              []>,
                    Requires<[SupportsMultiplication]>;
@@ -555,28 +575,28 @@ Defs = [R1, R0, SREG] in
 
   def MULSURdRr : FMUL2RdRr<1,
                             (outs),
-                            (ins GPR8:$lhs, GPR8:$rhs),
+                            (ins LD8lo:$lhs, LD8lo:$rhs),
                             "mulsu\t$lhs, $rhs",
                             []>,
                   Requires<[SupportsMultiplication]>;
 
   def FMUL : FFMULRdRr<0b01,
                        (outs),
-                       (ins GPR8:$lhs, GPR8:$rhs),
+                       (ins LD8lo:$lhs, LD8lo:$rhs),
                        "fmul\t$lhs, $rhs",
                        []>,
              Requires<[SupportsMultiplication]>;
 
   def FMULS : FFMULRdRr<0b10,
                         (outs),
-                        (ins GPR8:$lhs, GPR8:$rhs),
+                        (ins LD8lo:$lhs, LD8lo:$rhs),
                         "fmuls\t$lhs, $rhs",
                         []>,
               Requires<[SupportsMultiplication]>;
 
   def FMULSU : FFMULRdRr<0b11,
                          (outs),
-                         (ins GPR8:$lhs, GPR8:$rhs),
+                         (ins LD8lo:$lhs, LD8lo:$rhs),
                          "fmulsu\t$lhs, $rhs",
                          []>,
                Requires<[SupportsMultiplication]>;
@@ -718,13 +738,23 @@ Defs = [SREG] in
                       "comw\t$rd",
                       [(set i16:$rd, (not i16:$src)), (implicit SREG)]>;
 
-  //:TODO: optimize NEG for wider types
   def NEGRd : FRd<0b1001,
                   0b0100001,
                   (outs GPR8:$rd),
                   (ins GPR8:$src),
                   "neg\t$rd",
                   [(set i8:$rd, (ineg i8:$src)), (implicit SREG)]>;
+
+  // NEGW Rd+1:Rd
+  //
+  // Expands to:
+  // neg Rd+1
+  // neg Rd
+  // sbci Rd+1, 0
+  def NEGWRd : Pseudo<(outs DREGS:$rd),
+                      (ins DREGS:$src),
+                      "negw\t$rd",
+                      [(set i16:$rd, (ineg i16:$src)), (implicit SREG)]>;
 }
 
 // TST Rd
@@ -832,7 +862,7 @@ let isCall = 1 in
 //===----------------------------------------------------------------------===//
 let isTerminator = 1,
 isReturn = 1,
-isBarrier = 1 in 
+isBarrier = 1 in
 {
   def RET : F16<0b1001010100001000,
                 (outs),
@@ -1151,11 +1181,11 @@ isReMaterializable = 1 in
   // LDW Rd+1:Rd, P
   //
   // Expands to:
-  // ld Rd,   P+
-  // ld Rd+1, P
+  // ld  Rd,   P
+  // ldd Rd+1, P+1
   let Constraints = "@earlyclobber $reg" in
   def LDWRdPtr : Pseudo<(outs DREGS:$reg),
-                        (ins PTRREGS:$ptrreg),
+                        (ins PTRDISPREGS:$ptrreg),
                         "ldw\t$reg, $ptrreg",
                         [(set i16:$reg, (load i16:$ptrreg))]>,
                  Requires<[HasSRAM]>;
@@ -1222,7 +1252,7 @@ isReMaterializable = 1 in
   // ldd Rd,   P+q
   // ldd Rd+1, P+q+1
   let Constraints = "@earlyclobber $dst" in
-  def LDDWRdPtrQ : Pseudo<(outs DREGS_WITHOUT_Z_WORKAROUND:$dst),
+  def LDDWRdPtrQ : Pseudo<(outs DREGS_WITHOUT_YZ_WORKAROUND:$dst),
                           (ins memri:$memri),
                           "lddw\t$dst, $memri",
                           [(set i16:$dst, (load addr:$memri))]>,
@@ -1302,7 +1332,7 @@ def AtomicLoadOr16  : AtomicLoadOp16<atomic_load_or_16>;
 def AtomicLoadXor8  : AtomicLoadOp8<atomic_load_xor_8>;
 def AtomicLoadXor16 : AtomicLoadOp16<atomic_load_xor_16>;
 def AtomicFence     : Pseudo<(outs), (ins), "atomic_fence",
-                             [(atomic_fence imm, imm)]>;
+                             [(atomic_fence timm, timm)]>;
 
 // Indirect store from register to data space.
 def STSKRr : F32DM<0b1,
@@ -1639,12 +1669,22 @@ Defs = [SREG] in
                       "lslw\t$rd",
                       [(set i16:$rd, (AVRlsl i16:$src)), (implicit SREG)]>;
 
+  def LSLB7Rd : Pseudo<(outs GPR8:$rd),
+                       (ins GPR8:$src),
+                       "lslb7\t$rd",
+                       [(set i8:$rd, (AVRlsl7 i8:$src)), (implicit SREG)]>;
+
   def LSRRd : FRd<0b1001,
                   0b0100110,
                   (outs GPR8:$rd),
                   (ins GPR8:$src),
                   "lsr\t$rd",
                   [(set i8:$rd, (AVRlsr i8:$src)), (implicit SREG)]>;
+
+  def LSRB7Rd : Pseudo<(outs GPR8:$rd),
+                       (ins GPR8:$src),
+                       "lsrb7\t$rd",
+                       [(set i8:$rd, (AVRlsr7 i8:$src)), (implicit SREG)]>;
 
   def LSRWRd : Pseudo<(outs DREGS:$rd),
                       (ins DREGS:$src),
@@ -1658,6 +1698,11 @@ Defs = [SREG] in
                   "asr\t$rd",
                   [(set i8:$rd, (AVRasr i8:$src)), (implicit SREG)]>;
 
+  def ASRB7Rd : Pseudo<(outs GPR8:$rd),
+                       (ins GPR8:$src),
+                       "asrb7\t$rd",
+                       [(set i8:$rd, (AVRasr7 i8:$src)), (implicit SREG)]>;
+
   def ASRWRd : Pseudo<(outs DREGS:$rd),
                       (ins DREGS:$src),
                       "asrw\t$rd",
@@ -1667,6 +1712,16 @@ Defs = [SREG] in
   let Uses = [SREG] in
   {
     // 8-bit ROL is an alias of ADC Rd, Rd
+
+    def ROLBRd : Pseudo<(outs GPR8:$rd),
+                        (ins GPR8:$src),
+                        "rolb\t$rd",
+                        [(set i8:$rd, (AVRrol i8:$src)), (implicit SREG)]>;
+
+    def RORBRd : Pseudo<(outs GPR8:$rd),
+                        (ins GPR8:$src),
+                        "rorb\t$rd",
+                        [(set i8:$rd, (AVRror i8:$src)), (implicit SREG)]>;
 
     def ROLWRd : Pseudo<(outs DREGS:$rd),
                         (ins DREGS:$src),
@@ -1678,7 +1733,7 @@ Defs = [SREG] in
                     (outs GPR8:$rd),
                     (ins GPR8:$src),
                     "ror\t$rd",
-                    [(set i8:$rd, (AVRror i8:$src)), (implicit SREG)]>;
+                    []>;
 
     def RORWRd : Pseudo<(outs DREGS:$rd),
                         (ins DREGS:$src),
@@ -1695,7 +1750,7 @@ def SWAPRd : FRd<0b1001,
                  (outs GPR8:$rd),
                  (ins GPR8:$src),
                  "swap\t$rd",
-                 [(set i8:$rd, (bswap i8:$src))]>;
+                 [(set i8:$rd, (AVRSwap i8:$src))]>;
 
 // IO register bit set/clear operations.
 //:TODO: add patterns when popcount(imm)==2 to be expanded with 2 sbi/cbi
@@ -1729,20 +1784,7 @@ def BLD : FRdB<0b00,
                "bld\t$rd, $b",
                []>;
 
-// Set/clear bit in register operations.
-let Constraints = "$src = $rd",
-Defs = [SREG] in
-{
-  // CBR Rd, K
-  // Alias for `ANDI Rd, COM(K)` where COM(K) is the complement of K.
-  // FIXME: This uses the 'complement' encoder. We need it to also use the
-  // imm_ldi8 encoder. This will cause no fixups to be created on this instruction.
-  def CBRRdK : FRdK<0b0111,
-                    (outs LD8:$rd),
-                    (ins LD8:$src, imm_com8:$k),
-                    "cbr\t$rd, $k",
-                    []>;
-}
+def CBR : InstAlias<"cbr\t$rd, $k", (ANDIRdK LD8:$rd, imm_com8:$k), 0>;
 
 // CLR Rd
 // Alias for EOR Rd, Rd
@@ -2037,8 +2079,6 @@ def : Pat<(add i16:$src1, imm:$src2),
           (SUBIWRdK i16:$src1, (imm16_neg_XFORM imm:$src2))>;
 def : Pat<(addc i16:$src1, imm:$src2),
           (SUBIWRdK i16:$src1, (imm16_neg_XFORM imm:$src2))>;
-def : Pat<(adde i16:$src1, imm:$src2),
-          (SBCIWRdK i16:$src1, (imm16_neg_XFORM imm:$src2))>;
 
 def : Pat<(add i8:$src1, imm:$src2),
           (SUBIRdK i8:$src1, (imm8_neg_XFORM imm:$src2))>;

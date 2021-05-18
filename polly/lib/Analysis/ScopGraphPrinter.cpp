@@ -1,9 +1,8 @@
 //===- GraphPrinter.cpp - Create a DOT output describing the Scop. --------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -69,11 +68,10 @@ template <> struct DOTGraphTraits<RegionNode *> : public DefaultDOTGraphTraits {
       BasicBlock *BB = Node->getNodeAs<BasicBlock>();
 
       if (isSimple())
-        return DOTGraphTraits<const Function *>::getSimpleNodeLabel(
-            BB, BB->getParent());
+        return DOTGraphTraits<DOTFuncInfo *>::getSimpleNodeLabel(BB, nullptr);
+
       else
-        return DOTGraphTraits<const Function *>::getCompleteNodeLabel(
-            BB, BB->getParent());
+        return DOTGraphTraits<DOTFuncInfo *>::getCompleteNodeLabel(BB, nullptr);
     }
 
     return "Not implemented";
@@ -179,7 +177,7 @@ struct DOTGraphTraits<ScopDetectionWrapperPass *>
 
     RegionInfo *RI = R->getRegionInfo();
 
-    for (const auto &BB : R->blocks())
+    for (BasicBlock *BB : R->blocks())
       if (RI->getRegionFor(BB) == R)
         O.indent(2 * (depth + 1))
             << "Node"

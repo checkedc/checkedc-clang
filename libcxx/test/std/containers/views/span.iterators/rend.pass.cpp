@@ -1,12 +1,11 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <span>
 
@@ -23,46 +22,34 @@ template <class Span>
 constexpr bool testConstexprSpan(Span s)
 {
     bool ret = true;
-    typename Span::reverse_iterator e        = s. rend();
-    typename Span::const_reverse_iterator ce = s.crend();
+    typename Span::reverse_iterator e = s.rend();
     if (s.empty())
     {
-        ret = ret &&  ( e ==  s.rbegin());
-        ret = ret &&  (ce == s.crbegin());
+        ret = ret &&  (e == s.rbegin());
     }
     else
     {
-        ret = ret &&  ( e !=  s.rbegin());
-        ret = ret &&  (ce != s.crbegin());
+        ret = ret &&  (e != s.rbegin());
     }
 
-    ret = ret &&  (( e -  s.rbegin()) == s.size());
-    ret = ret &&  ((ce - s.crbegin()) == s.size());
-
-    ret = ret &&  (e == ce);
+    ret = ret &&  (static_cast<size_t>(e - s.rbegin()) == s.size());
     return ret;
 }
 
 template <class Span>
 void testRuntimeSpan(Span s)
 {
-    typename Span::reverse_iterator e        = s. rend();
-    typename Span::const_reverse_iterator ce = s.crend();
+    typename Span::reverse_iterator e = s.rend();
     if (s.empty())
     {
-        assert( e ==  s.rbegin());
-        assert(ce == s.crbegin());
+        assert(e == s.rbegin());
     }
     else
     {
-        assert( e !=  s.rbegin());
-        assert(ce != s.crbegin());
+        assert(e != s.rbegin());
     }
 
-    assert(( e -  s.rbegin()) == s.size());
-    assert((ce - s.crbegin()) == s.size());
-
-    assert(e == ce);
+    assert(static_cast<size_t>(e - s.rbegin()) == s.size());
 }
 
 
@@ -73,7 +60,7 @@ constexpr int iArr1[] = { 0,  1,  2,  3,  4,  5,  6,  7,  8,  9};
           int iArr2[] = {10, 11, 12, 13, 14, 15, 16, 17, 18, 19};
 
 
-int main()
+int main(int, char**)
 {
     static_assert(testConstexprSpan(std::span<int>()),            "");
     static_assert(testConstexprSpan(std::span<long>()),           "");
@@ -113,6 +100,8 @@ int main()
     testRuntimeSpan(std::span<int>(iArr2, 5));
 
     std::string s;
-    testRuntimeSpan(std::span<std::string>(&s, (std::ptrdiff_t) 0));
+    testRuntimeSpan(std::span<std::string>(&s, (std::size_t) 0));
     testRuntimeSpan(std::span<std::string>(&s, 1));
+
+  return 0;
 }

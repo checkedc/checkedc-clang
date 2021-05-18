@@ -1,14 +1,13 @@
 //===-- ArchitectureMips.h ---------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_PLUGIN_ARCHITECTURE_MIPS_H
-#define LLDB_PLUGIN_ARCHITECTURE_MIPS_H
+#ifndef LLDB_SOURCE_PLUGINS_ARCHITECTURE_MIPS_ARCHITECTUREMIPS_H
+#define LLDB_SOURCE_PLUGINS_ARCHITECTURE_MIPS_ARCHITECTUREMIPS_H
 
 #include "lldb/Core/Architecture.h"
 #include "lldb/Utility/ArchSpec.h"
@@ -36,10 +35,9 @@ public:
                                     AddressClass addr_class) const override;
 
 private:
-  Instruction *GetInstructionAtAddress(const ExecutionContext &exe_ctx,
+  Instruction *GetInstructionAtAddress(Target &target,
                                        const Address &resolved_addr,
                                        lldb::addr_t symbol_offset) const;
-
 
   static std::unique_ptr<Architecture> Create(const ArchSpec &arch);
   ArchitectureMips(const ArchSpec &arch) : m_arch(arch) {}
@@ -49,4 +47,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // LLDB_PLUGIN_ARCHITECTURE_MIPS_H
+#endif // LLDB_SOURCE_PLUGINS_ARCHITECTURE_MIPS_ARCHITECTUREMIPS_H

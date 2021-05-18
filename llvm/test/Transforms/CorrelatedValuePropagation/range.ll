@@ -240,8 +240,7 @@ sw.default:
 
 define i1 @test8(i64* %p) {
 ; CHECK-LABEL: @test8(
-; CHECK-NEXT:    [[A:%.*]] = load i64, i64* [[P:%.*]], !range !0
-; CHECK-NEXT:    [[RES:%.*]] = icmp eq i64 [[A]], 0
+; CHECK-NEXT:    [[A:%.*]] = load i64, i64* [[P:%.*]], align 4, [[RNG0:!range !.*]]
 ; CHECK-NEXT:    ret i1 false
 ;
   %a = load i64, i64* %p, !range !{i64 4, i64 255}
@@ -251,8 +250,7 @@ define i1 @test8(i64* %p) {
 
 define i1 @test9(i64* %p) {
 ; CHECK-LABEL: @test9(
-; CHECK-NEXT:    [[A:%.*]] = load i64, i64* [[P:%.*]], !range !1
-; CHECK-NEXT:    [[RES:%.*]] = icmp eq i64 [[A]], 0
+; CHECK-NEXT:    [[A:%.*]] = load i64, i64* [[P:%.*]], align 4, [[RNG1:!range !.*]]
 ; CHECK-NEXT:    ret i1 true
 ;
   %a = load i64, i64* %p, !range !{i64 0, i64 1}
@@ -262,8 +260,7 @@ define i1 @test9(i64* %p) {
 
 define i1 @test10(i64* %p) {
 ; CHECK-LABEL: @test10(
-; CHECK-NEXT:    [[A:%.*]] = load i64, i64* [[P:%.*]], !range !2
-; CHECK-NEXT:    [[RES:%.*]] = icmp eq i64 [[A]], 0
+; CHECK-NEXT:    [[A:%.*]] = load i64, i64* [[P:%.*]], align 4, [[RNG2:!range !.*]]
 ; CHECK-NEXT:    ret i1 false
 ;
   %a = load i64, i64* %p, !range !{i64 4, i64 8, i64 15, i64 20}
@@ -275,9 +272,8 @@ define i1 @test10(i64* %p) {
 
 define i1 @test11() {
 ; CHECK-LABEL: @test11(
-; CHECK-NEXT:    [[POSITIVE:%.*]] = load i32, i32* @g, !range !3
-; CHECK-NEXT:    [[ADD:%.*]] = add i32 [[POSITIVE]], 1
-; CHECK-NEXT:    [[TEST:%.*]] = icmp sgt i32 [[ADD]], 0
+; CHECK-NEXT:    [[POSITIVE:%.*]] = load i32, i32* @g, align 4, [[RNG3:!range !.*]]
+; CHECK-NEXT:    [[ADD:%.*]] = add nuw nsw i32 [[POSITIVE]], 1
 ; CHECK-NEXT:    br label [[NEXT:%.*]]
 ; CHECK:       next:
 ; CHECK-NEXT:    ret i1 true
@@ -457,7 +453,7 @@ define i1 @test14_slt(i32 %a) {
 ; CHECK-NEXT:    br i1 [[CMP]], label [[THEN:%.*]], label [[ELSE:%.*]]
 ; CHECK:       then:
 ; CHECK-NEXT:    [[RESULT:%.*]] = or i1 false, false
-; CHECK-NEXT:    ret i1 [[RESULT]]
+; CHECK-NEXT:    ret i1 false
 ; CHECK:       else:
 ; CHECK-NEXT:    ret i1 false
 ;
@@ -508,7 +504,7 @@ define i1 @test14_sgt(i32 %a) {
 ; CHECK-NEXT:    br i1 [[CMP]], label [[THEN:%.*]], label [[ELSE:%.*]]
 ; CHECK:       then:
 ; CHECK-NEXT:    [[RESULT:%.*]] = or i1 false, false
-; CHECK-NEXT:    ret i1 [[RESULT]]
+; CHECK-NEXT:    ret i1 false
 ; CHECK:       else:
 ; CHECK-NEXT:    ret i1 false
 ;
@@ -585,7 +581,7 @@ define i1 @test14_ugt(i32 %a) {
 ; CHECK-NEXT:    br i1 [[CMP]], label [[THEN:%.*]], label [[ELSE:%.*]]
 ; CHECK:       then:
 ; CHECK-NEXT:    [[RESULT:%.*]] = or i1 false, false
-; CHECK-NEXT:    ret i1 [[RESULT]]
+; CHECK-NEXT:    ret i1 false
 ; CHECK:       else:
 ; CHECK-NEXT:    ret i1 false
 ;
@@ -629,10 +625,35 @@ else:
   ret i1 false
 }
 
+define i1 @test14_ugt_and(i32 %a) {
+; CHECK-LABEL: @test14_ugt_and(
+; CHECK-NEXT:    [[A_OFF:%.*]] = add i32 [[A:%.*]], -8
+; CHECK-NEXT:    [[CMP:%.*]] = icmp ugt i32 [[A_OFF]], 8
+; CHECK-NEXT:    br i1 [[CMP]], label [[THEN:%.*]], label [[ELSE:%.*]]
+; CHECK:       then:
+; CHECK-NEXT:    [[RESULT:%.*]] = and i1 false, false
+; CHECK-NEXT:    ret i1 false
+; CHECK:       else:
+; CHECK-NEXT:    ret i1 false
+;
+  %a.off = add i32 %a, -8
+  %cmp = icmp ugt i32 %a.off, 8
+  br i1 %cmp, label %then, label %else
+
+then:
+  %dead.1 = icmp eq i32 %a, 8
+  %dead.2 = icmp eq i32 %a, 16
+  %result = and i1 %dead.1, %dead.2
+  ret i1 %result
+
+else:
+  ret i1 false
+}
+
 @limit = external global i32
 define i1 @test15(i32 %a) {
 ; CHECK-LABEL: @test15(
-; CHECK-NEXT:    [[LIMIT:%.*]] = load i32, i32* @limit, !range !4
+; CHECK-NEXT:    [[LIMIT:%.*]] = load i32, i32* @limit, align 4, [[RNG4:!range !.*]]
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp ult i32 [[A:%.*]], [[LIMIT]]
 ; CHECK-NEXT:    br i1 [[CMP]], label [[THEN:%.*]], label [[ELSE:%.*]]
 ; CHECK:       then:
@@ -745,10 +766,9 @@ target93:
 define i1 @test17_i1(i1 %a) {
 ; CHECK-LABEL: @test17_i1(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[C:%.*]] = and i1 [[A:%.*]], true
 ; CHECK-NEXT:    br label [[DISPATCH:%.*]]
 ; CHECK:       dispatch:
-; CHECK-NEXT:    br i1 [[A]], label [[TRUE:%.*]], label [[DISPATCH]]
+; CHECK-NEXT:    br i1 [[A:%.*]], label [[TRUE:%.*]], label [[DISPATCH]]
 ; CHECK:       true:
 ; CHECK-NEXT:    ret i1 true
 ;

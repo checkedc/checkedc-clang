@@ -1,4 +1,4 @@
-# RUN: yaml2obj %s > %t.o
+# RUN: yaml2obj %s -o %t.o
 # RUN: llvm-dwarfdump %t.o 2>&1 | FileCheck %s
 # CHECK: failed to compute relocation: Unknown
 
@@ -28,8 +28,8 @@ Sections:
         Symbol:          _start
         Type:            0xFF
 Symbols:
-  Global:
-    - Name:     _start
-      Type:     STT_FUNC
-      Section:  .text
-      Value:    0x0
+  - Name:     _start
+    Type:     STT_FUNC
+    Section:  .text
+    Value:    0x0
+    Binding:  STB_GLOBAL

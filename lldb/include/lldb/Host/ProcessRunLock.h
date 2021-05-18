@@ -1,31 +1,26 @@
 //===-- ProcessRunLock.h ----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ProcessRunLock_h_
-#define liblldb_ProcessRunLock_h_
+#ifndef LLDB_HOST_PROCESSRUNLOCK_H
+#define LLDB_HOST_PROCESSRUNLOCK_H
 
 #include <stdint.h>
 #include <time.h>
 
 #include "lldb/lldb-defines.h"
 
-//----------------------------------------------------------------------
 /// Enumerations for broadcasting.
-//----------------------------------------------------------------------
 namespace lldb_private {
 
-//----------------------------------------------------------------------
-/// @class ProcessRunLock ProcessRunLock.h "lldb/Host/ProcessRunLock.h"
+/// \class ProcessRunLock ProcessRunLock.h "lldb/Host/ProcessRunLock.h"
 /// A class used to prevent the process from starting while other
 /// threads are accessing its data, and prevent access to its data while it is
 /// running.
-//----------------------------------------------------------------------
 
 class ProcessRunLock {
 public:
@@ -72,7 +67,8 @@ public:
     ProcessRunLock *m_lock;
 
   private:
-    DISALLOW_COPY_AND_ASSIGN(ProcessRunLocker);
+    ProcessRunLocker(const ProcessRunLocker &) = delete;
+    const ProcessRunLocker &operator=(const ProcessRunLocker &) = delete;
   };
 
 protected:
@@ -80,9 +76,10 @@ protected:
   bool m_running;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(ProcessRunLock);
+  ProcessRunLock(const ProcessRunLock &) = delete;
+  const ProcessRunLock &operator=(const ProcessRunLock &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_ProcessRunLock_h_
+#endif // LLDB_HOST_PROCESSRUNLOCK_H

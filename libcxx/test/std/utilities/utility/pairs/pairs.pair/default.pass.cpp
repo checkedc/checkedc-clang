@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -11,12 +10,7 @@
 
 // template <class T1, class T2> struct pair
 
-// constexpr pair();
-
-// This test doesn't pass due to a constexpr bug in GCC 4.9 that fails
-// to initialize any type without a user provided constructor in a constant
-// expression (e.g. float).
-// XFAIL: gcc-4.9
+// explicit(see-below) constexpr pair();
 
 // NOTE: The SFINAE on the default constructor is tested in
 //       default-sfinae.pass.cpp
@@ -27,9 +21,9 @@
 #include <cassert>
 
 #include "test_macros.h"
-#include "archetypes.hpp"
+#include "archetypes.h"
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::pair<float, short*> P;
@@ -51,5 +45,12 @@ int main()
         using P2 = std::pair<NoDefault, int>;
         static_assert(!std::is_default_constructible<P2>::value, "");
     }
+    {
+        struct Base { };
+        struct Derived : Base { protected: Derived() = default; };
+        static_assert(!std::is_default_constructible<std::pair<Derived, int> >::value, "");
+    }
 #endif
+
+  return 0;
 }

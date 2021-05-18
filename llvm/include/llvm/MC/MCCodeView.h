@@ -1,9 +1,8 @@
 //===- MCCodeView.h - Machine Code CodeView support -------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -166,8 +165,6 @@ public:
   void recordCVLoc(MCContext &Ctx, const MCSymbol *Label, unsigned FunctionId,
                    unsigned FileNo, unsigned Line, unsigned Column,
                    bool PrologueEnd, bool IsStmt);
-
-  bool isValidCVFileNumber(unsigned FileNumber);
 
   /// Add a line entry.
   void addLineEntry(const MCCVLoc &LineEntry);

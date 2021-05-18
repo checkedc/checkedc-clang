@@ -1,16 +1,5 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-//===-- divdf3vfp_test.c - Test __divdf3vfp -------------------------------===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __divdf3vfp for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
+// REQUIRES: librt_has_divdf3vfp
 
 #include "int_lib.h"
 #include <stdio.h>
@@ -18,7 +7,7 @@
 #include <math.h>
 
 
-#if __arm__ && __VFP_FP__
+#if defined(__arm__) && defined(__ARM_FP) && (__ARM_FP & 0x8)
 extern COMPILER_RT_ABI double __divdf3vfp(double a, double b);
 
 int test__divdf3vfp(double a, double b)
@@ -34,7 +23,7 @@ int test__divdf3vfp(double a, double b)
 
 int main()
 {
-#if __arm__ && __VFP_FP__
+#if defined(__arm__) && defined(__ARM_FP) && (__ARM_FP & 0x8)
     if (test__divdf3vfp(1.0, 1.0))
         return 1;
     if (test__divdf3vfp(12345.678, 1.23))

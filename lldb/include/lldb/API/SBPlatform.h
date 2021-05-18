@@ -1,14 +1,13 @@
 //===-- SBPlatform.h --------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_SBPlatform_h_
-#define LLDB_SBPlatform_h_
+#ifndef LLDB_API_SBPLATFORM_H
+#define LLDB_API_SBPLATFORM_H
 
 #include "lldb/API/SBDefines.h"
 
@@ -29,7 +28,7 @@ public:
 
   ~SBPlatformConnectOptions();
 
-  void operator=(const SBPlatformConnectOptions &rhs);
+  SBPlatformConnectOptions &operator=(const SBPlatformConnectOptions &rhs);
 
   const char *GetURL();
 
@@ -52,13 +51,20 @@ protected:
 
 class LLDB_API SBPlatformShellCommand {
 public:
+  SBPlatformShellCommand(const char *shell, const char *shell_command);
   SBPlatformShellCommand(const char *shell_command);
 
   SBPlatformShellCommand(const SBPlatformShellCommand &rhs);
 
+  SBPlatformShellCommand &operator=(const SBPlatformShellCommand &rhs);
+
   ~SBPlatformShellCommand();
 
   void Clear();
+
+  const char *GetShell();
+
+  void SetShell(const char *shell);
 
   const char *GetCommand();
 
@@ -90,7 +96,15 @@ public:
 
   SBPlatform(const char *platform_name);
 
+  SBPlatform(const SBPlatform &rhs);
+
+  SBPlatform &operator=(const SBPlatform &rhs);
+
   ~SBPlatform();
+
+  static SBPlatform GetHostPlatform();
+
+  explicit operator bool() const;
 
   bool IsValid() const;
 
@@ -108,9 +122,7 @@ public:
 
   bool IsConnected();
 
-  //----------------------------------------------------------------------
   // The following functions will work if the platform is connected
-  //----------------------------------------------------------------------
   const char *GetTriple();
 
   const char *GetHostname();
@@ -147,6 +159,14 @@ public:
 
   SBUnixSignals GetUnixSignals() const;
 
+  /// Return the environment variables of the remote platform connection
+  /// process.
+  ///
+  /// \return
+  ///     An lldb::SBEnvironment object which is a copy of the platform's
+  ///     environment.
+  SBEnvironment GetEnvironment();
+
 protected:
   friend class SBDebugger;
   friend class SBTarget;
@@ -164,4 +184,4 @@ protected:
 
 } // namespace lldb
 
-#endif // LLDB_SBPlatform_h_
+#endif // LLDB_API_SBPLATFORM_H

@@ -1,60 +1,116 @@
+add_subdirectory(support)
+
+# Configure the Features.inc file.
+if (NOT DEFINED CLANGD_BUILD_XPC)
+  if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    set(CLANGD_BUILD_XPC_DEFAULT ON)
+  else ()
+    set(CLANGD_BUILD_XPC_DEFAULT OFF)
+  endif ()
+
+  llvm_canonicalize_cmake_booleans(CLANGD_BUILD_XPC_DEFAULT)
+
+  set(CLANGD_BUILD_XPC ${CLANGD_BUILD_XPC_DEFAULT} CACHE BOOL "Build XPC Support For Clangd." FORCE)
+  unset(CLANGD_BUILD_XPC_DEFAULT)
+endif ()
+
+option(CLANGD_MALLOC_TRIM "Call malloc_trim(3) periodically in Clangd. (only takes effect when using glibc)" ON)
+
+llvm_canonicalize_cmake_booleans(
+  CLANGD_BUILD_XPC
+  CLANGD_ENABLE_REMOTE
+  CLANGD_MALLOC_TRIM
+  LLVM_ENABLE_ZLIB
+)
+
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/Features.inc.in
+  ${CMAKE_CURRENT_BINARY_DIR}/Features.inc
+)
+
 set(LLVM_LINK_COMPONENTS
   Support
+  AllTargetsInfos
+  FrontendOpenMP
+  Option
   )
 
-if(CLANG_BUILT_STANDALONE)
-  # needed to get HAVE_CXX_ATOMICS64_WITHOUT_LIB defined
-  include(CheckAtomic)
+include(${CMAKE_CURRENT_SOURCE_DIR}/quality/CompletionModel.cmake)
+gen_decision_forest(${CMAKE_CURRENT_SOURCE_DIR}/quality/model CompletionModel clang::clangd::Example)
+
+if(MSVC AND NOT CLANG_CL)
+ set_source_files_properties(CompileCommands.cpp PROPERTIES COMPILE_FLAGS -wd4130) # disables C4130: logical operation on address of string constant
 endif()
 
-set(CLANGD_ATOMIC_LIB "")
-if(NOT HAVE_CXX_ATOMICS64_WITHOUT_LIB)
-  list(APPEND CLANGD_ATOMIC_LIB "atomic")
-endif()
+include_directories(BEFORE "${CMAKE_CURRENT_BINARY_DIR}/../clang-tidy")
 
 add_clang_library(clangDaemon
   AST.cpp
-  Cancellation.cpp
+  ASTSignals.cpp
   ClangdLSPServer.cpp
   ClangdServer.cpp
-  ClangdUnit.cpp
   CodeComplete.cpp
   CodeCompletionStrings.cpp
+  CollectMacros.cpp
+  CompileCommands.cpp
   Compiler.cpp
-  Context.cpp
+  Config.cpp
+  ConfigCompile.cpp
+  ConfigProvider.cpp
+  ConfigYAML.cpp
   Diagnostics.cpp
   DraftStore.cpp
+  DumpAST.cpp
   ExpectedTypes.cpp
   FindSymbols.cpp
+  FindTarget.cpp
   FileDistance.cpp
+  Format.cpp
   FS.cpp
-  FSProvider.cpp
   FuzzyMatch.cpp
   GlobalCompilationDatabase.cpp
   Headers.cpp
+  HeaderSourceSwitch.cpp
+  Hover.cpp
+  IncludeFixer.cpp
   JSONTransport.cpp
-  Logger.cpp
+  PathMapping.cpp
   Protocol.cpp
   Quality.cpp
+  ParsedAST.cpp
+  Preamble.cpp
   RIFF.cpp
+  Selection.cpp
+  SemanticHighlighting.cpp
+  SemanticSelection.cpp
   SourceCode.cpp
-  Threading.cpp
-  Trace.cpp
+  QueryDriverDatabase.cpp
+  TidyProvider.cpp
   TUScheduler.cpp
   URI.cpp
   XRefs.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/CompletionModel.cpp
 
   index/Background.cpp
+  index/BackgroundIndexLoader.cpp
   index/BackgroundIndexStorage.cpp
+  index/BackgroundQueue.cpp
+  index/BackgroundRebuild.cpp
   index/CanonicalIncludes.cpp
   index/FileIndex.cpp
   index/Index.cpp
   index/IndexAction.cpp
   index/MemIndex.cpp
   index/Merge.cpp
-  index/SymbolID.cpp
+  index/ProjectAware.cpp
+  index/Ref.cpp
+  index/Relation.cpp
   index/Serialization.cpp
+  index/Symbol.cpp
   index/SymbolCollector.cpp
+  index/SymbolID.cpp
+  index/SymbolLocation.cpp
+  index/SymbolOrigin.cpp
   index/YAMLSerialization.cpp
 
   index/dex/Dex.cpp
@@ -62,7 +118,20 @@ add_clang_library(clangDaemon
   index/dex/PostingList.cpp
   index/dex/Trigram.cpp
 
-  LINK_LIBS
+  refactor/Rename.cpp
+  refactor/Tweak.cpp
+
+  DEPENDS
+  omp_gen
+  )
+
+# Include generated CompletionModel headers.
+target_include_directories(clangDaemon PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+)
+
+clang_target_link_libraries(clangDaemon
+  PRIVATE
   clangAST
   clangASTMatchers
   clangBasic
@@ -73,39 +142,49 @@ add_clang_library(clangDaemon
   clangLex
   clangSema
   clangSerialization
-  clangTidy
-  clangTidyAndroidModule
-  clangTidyAbseilModule
-  clangTidyBoostModule
-  clangTidyBugproneModule
-  clangTidyCERTModule
-  clangTidyCppCoreGuidelinesModule
-  clangTidyFuchsiaModule
-  clangTidyGoogleModule
-  clangTidyHICPPModule
-  clangTidyLLVMModule
-  clangTidyMiscModule
-  clangTidyModernizeModule
-  clangTidyObjCModule
-  clangTidyPerformanceModule
-  clangTidyPortabilityModule
-  clangTidyReadabilityModule
-  clangTidyZirconModule
   clangTooling
   clangToolingCore
   clangToolingInclusions
-  clangToolingRefactor
-  ${LLVM_PTHREAD_LIB}
-  ${CLANGD_ATOMIC_LIB}
+  clangToolingSyntax
   )
 
-if( LLVM_LIB_FUZZING_ENGINE OR LLVM_USE_SANITIZE_COVERAGE )
+target_link_libraries(clangDaemon
+  PRIVATE
+  ${LLVM_PTHREAD_LIB}
+
+  clangTidy
+  ${ALL_CLANG_TIDY_CHECKS}
+
+  clangdSupport
+  )
+
+add_subdirectory(refactor/tweaks)
+if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+  # FIXME: Make fuzzer not use linux-specific APIs, build it everywhere.
   add_subdirectory(fuzzer)
 endif()
 add_subdirectory(tool)
 add_subdirectory(indexer)
-add_subdirectory(index/dex/dexp)
 
 if (LLVM_INCLUDE_BENCHMARKS)
   add_subdirectory(benchmarks)
 endif()
+if ( CLANGD_BUILD_XPC )
+  add_subdirectory(xpc)
+endif ()
+
+if (CLANGD_ENABLE_REMOTE)
+  include(FindGRPC)
+endif()
+
+if(CLANG_INCLUDE_TESTS)
+  add_subdirectory(test)
+  add_subdirectory(unittests)
+endif()
+
+# FIXME(kirillbobyrev): Document this in the LLVM docs once remote index is stable.
+option(CLANGD_ENABLE_REMOTE "Use gRPC library to enable remote index support for Clangd" OFF)
+set(GRPC_INSTALL_PATH "" CACHE PATH "Path to gRPC library manual installation.")
+
+add_subdirectory(index/remote)
+add_subdirectory(index/dex/dexp)

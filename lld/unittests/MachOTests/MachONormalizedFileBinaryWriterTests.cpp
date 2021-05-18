@@ -1,9 +1,8 @@
 //===- lld/unittest/MachOTests/MachONormalizedFileBinaryWriterTests.cpp ---===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -329,7 +328,7 @@ TEST(BinaryWriterTest, obj_relocs_x86) {
   EXPECT_EQ(tlv.isExtern, true);
   EXPECT_EQ(tlv.symbol, 1U);
 
-  //llvm::errs() << "temp = " << tmpFl << "\n";
+  // lld::errs() << "temp = " << tmpFl << "\n";
   bufferOwner.reset(nullptr);
   std::error_code ec = llvm::sys::fs::remove(Twine(tmpFl));
   EXPECT_FALSE(ec);
@@ -459,7 +458,7 @@ TEST(BinaryWriterTest, obj_relocs_armv7) {
   EXPECT_EQ(absPointer.isExtern, true);
   EXPECT_EQ(absPointer.symbol, 2U);
 
-  //llvm::errs() << "temp = " << tmpFl << "\n";
+  // lld::errs() << "temp = " << tmpFl << "\n";
   bufferOwner.reset(nullptr);
   std::error_code ec = llvm::sys::fs::remove(Twine(tmpFl));
   EXPECT_FALSE(ec);

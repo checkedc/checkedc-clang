@@ -1,28 +1,35 @@
 //===--- ClangdServer.h - Main clangd server code ----------------*- C++-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_CLANGDSERVER_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_CLANGDSERVER_H
 
-#include "Cancellation.h"
-#include "ClangdUnit.h"
+#include "../clang-tidy/ClangTidyOptions.h"
 #include "CodeComplete.h"
-#include "FSProvider.h"
-#include "Function.h"
+#include "ConfigProvider.h"
 #include "GlobalCompilationDatabase.h"
+#include "Hover.h"
 #include "Protocol.h"
+#include "SemanticHighlighting.h"
 #include "TUScheduler.h"
+#include "XRefs.h"
 #include "index/Background.h"
 #include "index/FileIndex.h"
 #include "index/Index.h"
+#include "refactor/Rename.h"
+#include "refactor/Tweak.h"
+#include "support/Cancellation.h"
+#include "support/Function.h"
+#include "support/MemoryTree.h"
+#include "support/ThreadsafeFS.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/Core/Replacement.h"
+#include "llvm/ADT/FunctionExtras.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
@@ -33,22 +40,7 @@
 #include <utility>
 
 namespace clang {
-class PCHContainerOperations;
-
 namespace clangd {
-
-// FIXME: find a better name.
-class DiagnosticsConsumer {
-public:
-  virtual ~DiagnosticsConsumer() = default;
-
-  /// Called by ClangdServer when \p Diagnostics for \p File are ready.
-  virtual void onDiagnosticsReady(PathRef File,
-                                  std::vector<Diag> Diagnostics) = 0;
-  /// Called whenever the file status is updated.
-  virtual void onFileUpdated(PathRef File, const TUStatus &Status){};
-};
-
 /// Manages a collection of source files and derived data (ASTs, indexes),
 /// and provides language-aware features such as code completion.
 ///
@@ -64,6 +56,37 @@ public:
 /// (ClangdLSPServer uses this to implement $/cancelRequest).
 class ClangdServer {
 public:
+  /// Interface with hooks for users of ClangdServer to be notified of events.
+  class Callbacks {
+  public:
+    virtual ~Callbacks() = default;
+
+    /// Called by ClangdServer when \p Diagnostics for \p File are ready.
+    /// May be called concurrently for separate files, not for a single file.
+    virtual void onDiagnosticsReady(PathRef File, llvm::StringRef Version,
+                                    std::vector<Diag> Diagnostics) {}
+    /// Called whenever the file status is updated.
+    /// May be called concurrently for separate files, not for a single file.
+    virtual void onFileUpdated(PathRef File, const TUStatus &Status) {}
+
+    /// Called by ClangdServer when some \p Highlightings for \p File are ready.
+    /// May be called concurrently for separate files, not for a single file.
+    virtual void
+    onHighlightingsReady(PathRef File, llvm::StringRef Version,
+                         std::vector<HighlightingToken> Highlightings) {}
+
+    /// Called when background indexing tasks are enqueued/started/completed.
+    /// Not called concurrently.
+    virtual void
+    onBackgroundIndexProgress(const BackgroundQueue::Stats &Stats) {}
+  };
+  /// Creates a context provider that loads and installs config.
+  /// Errors in loading config are reported as diagnostics via Callbacks.
+  /// (This is typically used as ClangdServer::Options::ContextProvider).
+  static std::function<Context(PathRef)>
+  createConfiguredContextProvider(const config::Provider *Provider,
+                                  ClangdServer::Callbacks *);
+
   struct Options {
     /// To process requests asynchronously, ClangdServer spawns worker threads.
     /// If this is zero, no threads are spawned. All work is done on the calling
@@ -75,23 +98,39 @@ public:
 
     /// Cached preambles are potentially large. If false, store them on disk.
     bool StorePreamblesInMemory = true;
+    /// Reuse even stale preambles, and rebuild them in the background.
+    /// This improves latency at the cost of accuracy.
+    bool AsyncPreambleBuilds = true;
 
     /// If true, ClangdServer builds a dynamic in-memory index for symbols in
     /// opened files and uses the index to augment code completion results.
     bool BuildDynamicSymbolIndex = false;
     /// Use a heavier and faster in-memory index implementation.
-    /// FIXME: we should make this true if it isn't too slow to build!.
-    bool HeavyweightDynamicSymbolIndex = false;
+    bool HeavyweightDynamicSymbolIndex = true;
     /// If true, ClangdServer automatically indexes files in the current project
     /// on background threads. The index is stored in the project root.
     bool BackgroundIndex = false;
-    /// If set to non-zero, the background index rebuilds the symbol index
-    /// periodically every BuildIndexPeriodMs milliseconds; otherwise, the
-    /// symbol index will be updated for each indexed file.
-    size_t BackgroundIndexRebuildPeriodMs = 0;
+
+    /// Store refs to main-file symbols in the index.
+    bool CollectMainFileRefs = true;
 
     /// If set, use this index to augment code completion results.
     SymbolIndex *StaticIndex = nullptr;
+
+    /// If set, queried to derive a processing context for some work.
+    /// Usually used to inject Config (see createConfiguredContextProvider).
+    ///
+    /// When the provider is called, the active context will be that inherited
+    /// from the request (e.g. addDocument()), or from the ClangdServer
+    /// constructor if there is no such request (e.g. background indexing).
+    ///
+    /// The path is an absolute path of the file being processed.
+    /// If there is no particular file (e.g. project loading) then it is empty.
+    std::function<Context(PathRef)> ContextProvider;
+
+    /// The Options provider to use when running clang-tidy. If null, clang-tidy
+    /// checks will be disabled.
+    TidyProviderRef ClangTidyProvider;
 
     /// Clangd's workspace root. Relevant for "workspace" operations not bound
     /// to a particular file.
@@ -105,8 +144,23 @@ public:
     llvm::Optional<std::string> ResourceDir = llvm::None;
 
     /// Time to wait after a new file version before computing diagnostics.
-    std::chrono::steady_clock::duration UpdateDebounce =
-        std::chrono::milliseconds(500);
+    DebouncePolicy UpdateDebounce = DebouncePolicy{
+        /*Min=*/std::chrono::milliseconds(50),
+        /*Max=*/std::chrono::milliseconds(500),
+        /*RebuildRatio=*/1,
+    };
+
+    /// Clangd will execute compiler drivers matching one of these globs to
+    /// fetch system include path.
+    std::vector<std::string> QueryDriverGlobs;
+
+    /// Enable notification-based semantic highlighting.
+    bool TheiaSemanticHighlighting = false;
+
+    /// Enable preview of FoldingRanges feature.
+    bool FoldingRanges = false;
+
+    explicit operator TUScheduler::Options() const;
   };
   // Sensible default options for use in tests.
   // Features like indexing must be enabled if desired.
@@ -119,25 +173,24 @@ public:
   /// added file (i.e., when processing a first call to addDocument) and reuses
   /// those arguments for subsequent reparses. However, ClangdServer will check
   /// if compilation arguments changed on calls to forceReparse().
-  ///
-  /// After each parsing request finishes, ClangdServer reports diagnostics to
-  /// \p DiagConsumer. Note that a callback to \p DiagConsumer happens on a
-  /// worker thread. Therefore, instances of \p DiagConsumer must properly
-  /// synchronize access to shared state.
-  ClangdServer(const GlobalCompilationDatabase &CDB,
-               const FileSystemProvider &FSProvider,
-               DiagnosticsConsumer &DiagConsumer, const Options &Opts);
+  ClangdServer(const GlobalCompilationDatabase &CDB, const ThreadsafeFS &TFS,
+               const Options &Opts, Callbacks *Callbacks = nullptr);
 
   /// Add a \p File to the list of tracked C++ files or update the contents if
   /// \p File is already tracked. Also schedules parsing of the AST for it on a
   /// separate thread. When the parsing is complete, DiagConsumer passed in
   /// constructor will receive onDiagnosticsReady callback.
+  /// Version identifies this snapshot and is propagated to ASTs, preambles,
+  /// diagnostics etc built from it.
   void addDocument(PathRef File, StringRef Contents,
-                   WantDiagnostics WD = WantDiagnostics::Auto);
+                   llvm::StringRef Version = "null",
+                   WantDiagnostics WD = WantDiagnostics::Auto,
+                   bool ForceRebuild = false);
 
   /// Remove \p File from list of tracked files, schedule a request to free
   /// resources associated with it. Pending diagnostics for closed files may not
   /// be delivered, even if requested with WantDiags::Auto or WantDiags::Yes.
+  /// An empty set of diagnostics will be delivered, with Version = "".
   void removeDocument(PathRef File);
 
   /// Run code completion for \p File at \p Pos.
@@ -156,13 +209,14 @@ public:
   /// called for tracked files.
   void signatureHelp(PathRef File, Position Pos, Callback<SignatureHelp> CB);
 
-  /// Get definition of symbol at a specified \p Line and \p Column in \p File.
-  void findDefinitions(PathRef File, Position Pos,
-                       Callback<std::vector<Location>> CB);
+  /// Find declaration/definition locations of symbol at a specified position.
+  void locateSymbolAt(PathRef File, Position Pos,
+                      Callback<std::vector<LocatedSymbol>> CB);
 
-  /// Helper function that returns a path to the corresponding source file when
-  /// given a header file and vice versa.
-  llvm::Optional<Path> switchSourceHeader(PathRef Path);
+  /// Switch to a corresponding source file when given a header file, and vice
+  /// versa.
+  void switchSourceHeader(PathRef Path,
+                          Callback<llvm::Optional<clangd::Path>> CB);
 
   /// Get document highlights for a given position.
   void findDocumentHighlights(PathRef File, Position Pos,
@@ -170,7 +224,25 @@ public:
 
   /// Get code hover for a given position.
   void findHover(PathRef File, Position Pos,
-                 Callback<llvm::Optional<Hover>> CB);
+                 Callback<llvm::Optional<HoverInfo>> CB);
+
+  /// Get information about type hierarchy for a given position.
+  void typeHierarchy(PathRef File, Position Pos, int Resolve,
+                     TypeHierarchyDirection Direction,
+                     Callback<llvm::Optional<TypeHierarchyItem>> CB);
+
+  /// Resolve type hierarchy item in the given direction.
+  void resolveTypeHierarchy(TypeHierarchyItem Item, int Resolve,
+                            TypeHierarchyDirection Direction,
+                            Callback<llvm::Optional<TypeHierarchyItem>> CB);
+
+  /// Get information about call hierarchy for a given position.
+  void prepareCallHierarchy(PathRef File, Position Pos,
+                            Callback<std::vector<CallHierarchyItem>> CB);
+
+  /// Resolve incoming calls for a given call hierarchy item.
+  void incomingCalls(const CallHierarchyItem &Item,
+                     Callback<std::vector<CallHierarchyIncomingCall>>);
 
   /// Retrieve the top symbols from the workspace matching a query.
   void workspaceSymbols(StringRef Query, int Limit,
@@ -180,32 +252,61 @@ public:
   void documentSymbols(StringRef File,
                        Callback<std::vector<DocumentSymbol>> CB);
 
+  /// Retrieve ranges that can be used to fold code within the specified file.
+  void foldingRanges(StringRef File, Callback<std::vector<FoldingRange>> CB);
+
+  /// Retrieve implementations for virtual method.
+  void findImplementations(PathRef File, Position Pos,
+                           Callback<std::vector<LocatedSymbol>> CB);
+
   /// Retrieve locations for symbol references.
   void findReferences(PathRef File, Position Pos, uint32_t Limit,
-                      Callback<std::vector<Location>> CB);
+                      Callback<ReferencesResult> CB);
 
   /// Run formatting for \p Rng inside \p File with content \p Code.
-  llvm::Expected<tooling::Replacements> formatRange(StringRef Code,
-                                                    PathRef File, Range Rng);
+  void formatRange(PathRef File, StringRef Code, Range Rng,
+                   Callback<tooling::Replacements> CB);
 
   /// Run formatting for the whole \p File with content \p Code.
-  llvm::Expected<tooling::Replacements> formatFile(StringRef Code,
-                                                   PathRef File);
+  void formatFile(PathRef File, StringRef Code,
+                  Callback<tooling::Replacements> CB);
 
-  /// Run formatting after a character was typed at \p Pos in \p File with
+  /// Run formatting after \p TriggerText was typed at \p Pos in \p File with
   /// content \p Code.
-  llvm::Expected<tooling::Replacements>
-  formatOnType(StringRef Code, PathRef File, Position Pos);
+  void formatOnType(PathRef File, StringRef Code, Position Pos,
+                    StringRef TriggerText, Callback<std::vector<TextEdit>> CB);
+
+  /// Test the validity of a rename operation.
+  ///
+  /// If NewName is provided, it performs a name validation.
+  void prepareRename(PathRef File, Position Pos,
+                     llvm::Optional<std::string> NewName,
+                     const RenameOptions &RenameOpts,
+                     Callback<RenameResult> CB);
 
   /// Rename all occurrences of the symbol at the \p Pos in \p File to
   /// \p NewName.
+  /// If WantFormat is false, the final TextEdit will be not formatted,
+  /// embedders could use this method to get all occurrences of the symbol (e.g.
+  /// highlighting them in prepare stage).
   void rename(PathRef File, Position Pos, llvm::StringRef NewName,
-              Callback<std::vector<tooling::Replacement>> CB);
+              const RenameOptions &Opts, Callback<RenameResult> CB);
 
-  /// Only for testing purposes.
-  /// Waits until all requests to worker thread are finished and dumps AST for
-  /// \p File. \p File must be in the list of added documents.
-  void dumpAST(PathRef File, llvm::unique_function<void(std::string)> Callback);
+  struct TweakRef {
+    std::string ID;    /// ID to pass for applyTweak.
+    std::string Title; /// A single-line message to show in the UI.
+    llvm::StringLiteral Kind;
+  };
+  /// Enumerate the code tweaks available to the user at a specified point.
+  /// Tweaks where Filter returns false will not be checked or included.
+  void enumerateTweaks(PathRef File, Range Sel,
+                       llvm::unique_function<bool(const Tweak &)> Filter,
+                       Callback<std::vector<TweakRef>> CB);
+
+  /// Apply the code tweak with a specified \p ID.
+  void applyTweak(PathRef File, Range Sel, StringRef ID,
+                  Callback<Tweak::Effect> CB);
+
   /// Called when an event occurs for a watched file in the workspace.
   void onFileEvent(const DidChangeWatchedFilesParams &Params);
 
@@ -214,35 +315,50 @@ public:
   void symbolInfo(PathRef File, Position Pos,
                   Callback<std::vector<SymbolDetails>> CB);
 
-  /// Returns estimated memory usage for each of the currently open files.
-  /// The order of results is unspecified.
+  /// Get semantic ranges around a specified position in a file.
+  void semanticRanges(PathRef File, const std::vector<Position> &Pos,
+                      Callback<std::vector<SelectionRange>> CB);
+
+  /// Get all document links in a file.
+  void documentLinks(PathRef File, Callback<std::vector<DocumentLink>> CB);
+
+  void semanticHighlights(PathRef File,
+                          Callback<std::vector<HighlightingToken>>);
+
+  /// Describe the AST subtree for a piece of code.
+  void getAST(PathRef File, Range R, Callback<llvm::Optional<ASTNode>> CB);
+
+  /// Runs an arbitrary action that has access to the AST of the specified file.
+  /// The action will execute on one of ClangdServer's internal threads.
+  /// The AST is only valid for the duration of the callback.
+  /// As with other actions, the file must have been opened.
+  void customAction(PathRef File, llvm::StringRef Name,
+                    Callback<InputsAndAST> Action);
+
+  /// Returns estimated memory usage and other statistics for each of the
+  /// currently open files.
   /// Overall memory usage of clangd may be significantly more than reported
   /// here, as this metric does not account (at least) for:
   ///   - memory occupied by static and dynamic index,
   ///   - memory required for in-flight requests,
   /// FIXME: those metrics might be useful too, we should add them.
-  std::vector<std::pair<Path, std::size_t>> getUsedBytesPerFile() const;
-
-  /// Returns the active dynamic index if one was built.
-  /// This can be useful for testing, debugging, or observing memory usage.
-  const SymbolIndex *dynamicIndex() const { return DynamicIdx.get(); }
+  llvm::StringMap<TUScheduler::FileStats> fileStats() const;
 
   // Blocks the main thread until the server is idle. Only for use in tests.
   // Returns false if the timeout expires.
   LLVM_NODISCARD bool
   blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds = 10);
 
-private:
-  /// FIXME: This stats several files to find a .clang-format file. I/O can be
-  /// slow. Think of a way to cache this.
-  llvm::Expected<tooling::Replacements>
-  formatCode(llvm::StringRef Code, PathRef File,
-             ArrayRef<tooling::Range> Ranges);
+  /// Builds a nested representation of memory used by components.
+  void profile(MemoryTree &MT) const;
 
-  tooling::CompileCommand getCompileCommand(PathRef File);
+private:
+  void formatCode(PathRef File, llvm::StringRef Code,
+                  ArrayRef<tooling::Range> Ranges,
+                  Callback<tooling::Replacements> CB);
 
   const GlobalCompilationDatabase &CDB;
-  const FileSystemProvider &FSProvider;
+  const ThreadsafeFS &TFS;
 
   Path ResourceDir;
   // The index used to look up symbols. This could be:
@@ -258,13 +374,15 @@ private:
   // Storage for merged views of the various indexes.
   std::vector<std::unique_ptr<SymbolIndex>> MergedIdx;
 
+  // When set, provides clang-tidy options for a specific file.
+  TidyProviderRef ClangTidyProvider;
+
   // GUARDED_BY(CachedCompletionFuzzyFindRequestMutex)
   llvm::StringMap<llvm::Optional<FuzzyFindRequest>>
       CachedCompletionFuzzyFindRequestByFile;
   mutable std::mutex CachedCompletionFuzzyFindRequestMutex;
 
   llvm::Optional<std::string> WorkspaceRoot;
-  std::shared_ptr<PCHContainerOperations> PCHs;
   // WorkScheduler has to be the last member, because its destructor has to be
   // called before all other members to stop the worker thread that references
   // ClangdServer.

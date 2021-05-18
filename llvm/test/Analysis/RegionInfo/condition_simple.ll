@@ -1,21 +1,24 @@
 ; REQUIRES: asserts
-; RUN: opt -regions -analyze < %s | FileCheck %s
+; RUN: opt -regions -analyze -enable-new-pm=0 < %s | FileCheck %s
 ; RUN: opt -regions -stats -disable-output < %s 2>&1 | FileCheck -check-prefix=STAT %s
-; RUN: opt -regions -print-region-style=bb  -analyze < %s 2>&1 | FileCheck -check-prefix=BBIT %s
-; RUN: opt -regions -print-region-style=rn  -analyze < %s 2>&1 | FileCheck -check-prefix=RNIT %s
+; RUN: opt -regions -print-region-style=bb  -analyze -enable-new-pm=0 < %s 2>&1 | FileCheck -check-prefix=BBIT %s
+; RUN: opt -regions -print-region-style=rn  -analyze -enable-new-pm=0 < %s 2>&1 | FileCheck -check-prefix=RNIT %s
 
 ; RUN: opt < %s -passes='print<regions>' 2>&1 | FileCheck %s
+; RUN: opt < %s -passes='print<regions>' -stats 2>&1 | FileCheck -check-prefix=STAT %s
+; RUN: opt -passes='print<regions>' -print-region-style=bb < %s 2>&1 | FileCheck -check-prefix=BBIT %s
+; RUN: opt -passes='print<regions>' -print-region-style=rn < %s 2>&1 | FileCheck -check-prefix=RNIT %s
 
 define void @normal_condition() nounwind {
-0:
+"0":
 	br label %"1"
-1:
+"1":
 	br i1 1, label %"2", label %"3"
-2:
+"2":
 	br label %"4"
-3:
+"3":
 	br label %"4"
-4:
+"4":
 	ret void
 }
 

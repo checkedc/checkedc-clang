@@ -1,9 +1,8 @@
 //===--- ImplicitBoolConversionCheck.cpp - clang-tidy----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -222,6 +221,9 @@ bool isCastAllowedInCondition(const ImplicitCastExpr *Cast,
                               ASTContext &Context) {
   std::queue<const Stmt *> Q;
   Q.push(Cast);
+
+  TraversalKindScope RAII(Context, TK_AsIs);
+
   while (!Q.empty()) {
     for (const auto &N : Context.getParents(*Q.front())) {
       const Stmt *S = N.get<Stmt>();
@@ -258,12 +260,6 @@ void ImplicitBoolConversionCheck::storeOptions(
 }
 
 void ImplicitBoolConversionCheck::registerMatchers(MatchFinder *Finder) {
-  // This check doesn't make much sense if we run it on language without
-  // built-in bool support.
-  if (!getLangOpts().Bool) {
-    return;
-  }
-
   auto exceptionCases =
       expr(anyOf(allOf(isMacroExpansion(), unless(isNULLMacroExpansion())),
                  has(ignoringImplicit(memberExpr(hasDeclaration(fieldDecl(hasBitWidth(1)))))),
@@ -280,58 +276,62 @@ void ImplicitBoolConversionCheck::registerMatchers(MatchFinder *Finder) {
       binaryOperator(hasOperatorName("^"), hasLHS(implicitCastFromBool),
                      hasRHS(implicitCastFromBool));
   Finder->addMatcher(
-      implicitCastExpr(
-          anyOf(hasCastKind(CK_IntegralToBoolean),
-                hasCastKind(CK_FloatingToBoolean),
-                hasCastKind(CK_PointerToBoolean),
-                hasCastKind(CK_MemberPointerToBoolean)),
-          // Exclude case of using if or while statements with variable
-          // declaration, e.g.:
-          //   if (int var = functionCall()) {}
-          unless(
-              hasParent(stmt(anyOf(ifStmt(), whileStmt()), has(declStmt())))),
-          // Exclude cases common to implicit cast to and from bool.
-          unless(exceptionCases), unless(has(boolXor)),
-          // Retrive also parent statement, to check if we need additional
-          // parens in replacement.
-          anyOf(hasParent(stmt().bind("parentStmt")), anything()),
-          unless(isInTemplateInstantiation()),
-          unless(hasAncestor(functionTemplateDecl())))
-          .bind("implicitCastToBool"),
+      traverse(TK_AsIs,
+               implicitCastExpr(
+                   anyOf(hasCastKind(CK_IntegralToBoolean),
+                         hasCastKind(CK_FloatingToBoolean),
+                         hasCastKind(CK_PointerToBoolean),
+                         hasCastKind(CK_MemberPointerToBoolean)),
+                   // Exclude case of using if or while statements with variable
+                   // declaration, e.g.:
+                   //   if (int var = functionCall()) {}
+                   unless(hasParent(
+                       stmt(anyOf(ifStmt(), whileStmt()), has(declStmt())))),
+                   // Exclude cases common to implicit cast to and from bool.
+                   unless(exceptionCases), unless(has(boolXor)),
+                   // Retrieve also parent statement, to check if we need
+                   // additional parens in replacement.
+                   anyOf(hasParent(stmt().bind("parentStmt")), anything()),
+                   unless(isInTemplateInstantiation()),
+                   unless(hasAncestor(functionTemplateDecl())))
+                   .bind("implicitCastToBool")),
       this);
 
-  auto boolComparison = binaryOperator(
-      anyOf(hasOperatorName("=="), hasOperatorName("!=")),
-      hasLHS(implicitCastFromBool), hasRHS(implicitCastFromBool));
-  auto boolOpAssignment =
-      binaryOperator(anyOf(hasOperatorName("|="), hasOperatorName("&=")),
-                     hasLHS(expr(hasType(booleanType()))));
+  auto boolComparison = binaryOperator(hasAnyOperatorName("==", "!="),
+                                       hasLHS(implicitCastFromBool),
+                                       hasRHS(implicitCastFromBool));
+  auto boolOpAssignment = binaryOperator(hasAnyOperatorName("|=", "&="),
+                                         hasLHS(expr(hasType(booleanType()))));
   auto bitfieldAssignment = binaryOperator(
       hasLHS(memberExpr(hasDeclaration(fieldDecl(hasBitWidth(1))))));
   auto bitfieldConstruct = cxxConstructorDecl(hasDescendant(cxxCtorInitializer(
       withInitializer(equalsBoundNode("implicitCastFromBool")),
       forField(hasBitWidth(1)))));
   Finder->addMatcher(
-      implicitCastExpr(
-          implicitCastFromBool,
-          // Exclude comparisons of bools, as they are always cast to integers
-          // in such context:
-          //   bool_expr_a == bool_expr_b
-          //   bool_expr_a != bool_expr_b
-          unless(hasParent(binaryOperator(anyOf(
-              boolComparison, boolXor, boolOpAssignment, bitfieldAssignment)))),
-          implicitCastExpr().bind("implicitCastFromBool"),
-          unless(hasParent(bitfieldConstruct)),
-          // Check also for nested casts, for example: bool -> int -> float.
-          anyOf(hasParent(implicitCastExpr().bind("furtherImplicitCast")),
-                anything()),
-          unless(isInTemplateInstantiation()),
-          unless(hasAncestor(functionTemplateDecl()))),
+      traverse(
+          TK_AsIs,
+          implicitCastExpr(
+              implicitCastFromBool,
+              // Exclude comparisons of bools, as they are always cast to
+              // integers in such context:
+              //   bool_expr_a == bool_expr_b
+              //   bool_expr_a != bool_expr_b
+              unless(hasParent(
+                  binaryOperator(anyOf(boolComparison, boolXor,
+                                       boolOpAssignment, bitfieldAssignment)))),
+              implicitCastExpr().bind("implicitCastFromBool"),
+              unless(hasParent(bitfieldConstruct)),
+              // Check also for nested casts, for example: bool -> int -> float.
+              anyOf(hasParent(implicitCastExpr().bind("furtherImplicitCast")),
+                    anything()),
+              unless(isInTemplateInstantiation()),
+              unless(hasAncestor(functionTemplateDecl())))),
       this);
 }
 
 void ImplicitBoolConversionCheck::check(
     const MatchFinder::MatchResult &Result) {
+
   if (const auto *CastToBool =
           Result.Nodes.getNodeAs<ImplicitCastExpr>("implicitCastToBool")) {
     const auto *Parent = Result.Nodes.getNodeAs<Stmt>("parentStmt");

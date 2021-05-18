@@ -1,9 +1,8 @@
-//===--- ToolChains.cpp - ToolChain Implementations -----------------------===//
+//===-- MSVC.cpp - MSVC ToolChain Implementations -------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -67,6 +66,20 @@ using namespace llvm::opt;
 static bool getSystemRegistryString(const char *keyPath, const char *valueName,
                                     std::string &value, std::string *phValue);
 
+// Check command line arguments to try and find a toolchain.
+static bool
+findVCToolChainViaCommandLine(const ArgList &Args, std::string &Path,
+                              MSVCToolChain::ToolsetLayout &VSLayout) {
+  // Don't validate the input; trust the value supplied by the user.
+  // The primary motivation is to prevent unnecessary file and registry access.
+  if (Arg *A = Args.getLastArg(options::OPT__SLASH_vctoolsdir)) {
+    Path = A->getValue();
+    VSLayout = MSVCToolChain::ToolsetLayout::VS2017OrNewer;
+    return true;
+  }
+  return false;
+}
+
 // Check various environment variables to try and find a toolchain.
 static bool findVCToolChainViaEnvironment(std::string &Path,
                                           MSVCToolChain::ToolsetLayout &VSLayout) {
@@ -129,13 +142,13 @@ static bool findVCToolChainViaEnvironment(std::string &Path,
         llvm::StringRef ParentPath = llvm::sys::path::parent_path(TestPath);
         llvm::StringRef ParentFilename = llvm::sys::path::filename(ParentPath);
         if (ParentFilename == "VC") {
-          Path = ParentPath;
+          Path = std::string(ParentPath);
           VSLayout = MSVCToolChain::ToolsetLayout::OlderVS;
           return true;
         }
         if (ParentFilename == "x86ret" || ParentFilename == "x86chk"
           || ParentFilename == "amd64ret" || ParentFilename == "amd64chk") {
-          Path = ParentPath;
+          Path = std::string(ParentPath);
           VSLayout = MSVCToolChain::ToolsetLayout::DevDivInternal;
           return true;
         }
@@ -164,7 +177,7 @@ static bool findVCToolChainViaEnvironment(std::string &Path,
         for (int i = 0; i < 3; ++i)
           ToolChainPath = llvm::sys::path::parent_path(ToolChainPath);
 
-        Path = ToolChainPath;
+        Path = std::string(ToolChainPath);
         VSLayout = MSVCToolChain::ToolsetLayout::VS2017OrNewer;
         return true;
       }
@@ -262,7 +275,7 @@ static bool findVCToolChainViaSetupConfig(std::string &Path,
   if (!llvm::sys::fs::is_directory(ToolchainPath))
     return false;
 
-  Path = ToolchainPath.str();
+  Path = std::string(ToolchainPath.str());
   VSLayout = MSVCToolChain::ToolsetLayout::VS2017OrNewer;
   return true;
 #endif
@@ -283,7 +296,7 @@ static bool findVCToolChainViaRegistry(std::string &Path,
           VSInstallPath.c_str(), VSInstallPath.find(R"(\Common7\IDE)")));
       llvm::sys::path::append(VCPath, "VC");
 
-      Path = VCPath.str();
+      Path = std::string(VCPath.str());
       VSLayout = MSVCToolChain::ToolsetLayout::OlderVS;
       return true;
     }
@@ -301,7 +314,8 @@ static std::string FindVisualStudioExecutable(const ToolChain &TC,
   SmallString<128> FilePath(MSVC.getSubDirectoryPath(
       toolchains::MSVCToolChain::SubDirectoryType::Bin));
   llvm::sys::path::append(FilePath, Exe);
-  return llvm::sys::fs::can_execute(FilePath) ? FilePath.str() : Exe;
+  return std::string(llvm::sys::fs::can_execute(FilePath) ? FilePath.str()
+                                                          : Exe);
 }
 
 void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
@@ -319,8 +333,10 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
         Args.MakeArgString(std::string("-out:") + Output.getFilename()));
 
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles) &&
-      !C.getDriver().IsCLMode())
+      !C.getDriver().IsCLMode()) {
     CmdArgs.push_back("-defaultlib:libcmt");
+    CmdArgs.push_back("-defaultlib:oldnames");
+  }
 
   if (!llvm::sys::Process::GetEnv("LIB")) {
     // If the VC environment hasn't been configured (perhaps because the user
@@ -331,6 +347,11 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
         Twine("-libpath:") +
         TC.getSubDirectoryPath(
             toolchains::MSVCToolChain::SubDirectoryType::Lib)));
+
+    CmdArgs.push_back(Args.MakeArgString(
+        Twine("-libpath:") +
+        TC.getSubDirectoryPath(toolchains::MSVCToolChain::SubDirectoryType::Lib,
+                               "atlmfc")));
 
     if (TC.useUniversalCRT()) {
       std::string UniversalCRTLibPath;
@@ -345,14 +366,23 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
           Args.MakeArgString(std::string("-libpath:") + WindowsSdkLibPath));
   }
 
+  // Add the compiler-rt library directories to libpath if they exist to help
+  // the linker find the various sanitizer, builtin, and profiling runtimes.
+  for (const auto &LibPath : TC.getLibraryPaths()) {
+    if (TC.getVFS().exists(LibPath))
+      CmdArgs.push_back(Args.MakeArgString("-libpath:" + LibPath));
+  }
+  auto CRTPath = TC.getCompilerRTPath();
+  if (TC.getVFS().exists(CRTPath))
+    CmdArgs.push_back(Args.MakeArgString("-libpath:" + CRTPath));
+
   if (!C.getDriver().IsCLMode() && Args.hasArg(options::OPT_L))
     for (const auto &LibPath : Args.getAllArgValues(options::OPT_L))
       CmdArgs.push_back(Args.MakeArgString("-libpath:" + LibPath));
 
   CmdArgs.push_back("-nologo");
 
-  if (Args.hasArg(options::OPT_g_Group, options::OPT__SLASH_Z7,
-                  options::OPT__SLASH_Zd))
+  if (Args.hasArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
     CmdArgs.push_back("-debug");
 
   // Pass on /Brepro if it was passed to the compiler.
@@ -378,7 +408,7 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     if (!Args.hasArg(options::OPT_shared))
       CmdArgs.push_back(
           Args.MakeArgString(std::string("-wholearchive:") +
-                             TC.getCompilerRTArgString(Args, "fuzzer", false)));
+                             TC.getCompilerRTArgString(Args, "fuzzer")));
     CmdArgs.push_back(Args.MakeArgString("-debug"));
     // Prevent the linker from padding sections we use for instrumentation
     // arrays.
@@ -417,6 +447,17 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   Args.AddAllArgValues(CmdArgs, options::OPT__SLASH_link);
+
+  // Control Flow Guard checks
+  if (Arg *A = Args.getLastArg(options::OPT__SLASH_guard)) {
+    StringRef GuardArgs = A->getValue();
+    if (GuardArgs.equals_lower("cf") || GuardArgs.equals_lower("cf,nochecks")) {
+      // MSVC doesn't yet support the "nochecks" modifier.
+      CmdArgs.push_back("-guard:cf");
+    } else if (GuardArgs.equals_lower("cf-")) {
+      CmdArgs.push_back("-guard:cf-");
+    }
+  }
 
   if (Args.hasFlag(options::OPT_fopenmp, options::OPT_fopenmp_EQ,
                    options::OPT_fno_openmp, false)) {
@@ -489,15 +530,25 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     // their own link.exe which may come first.
     linkPath = FindVisualStudioExecutable(TC, "link.exe");
 
-    if (!TC.FoundMSVCInstall() && !llvm::sys::fs::can_execute(linkPath))
-      C.getDriver().Diag(clang::diag::warn_drv_msvc_not_found);
+    if (!TC.FoundMSVCInstall() && !llvm::sys::fs::can_execute(linkPath)) {
+      llvm::SmallString<128> ClPath;
+      ClPath = TC.GetProgramPath("cl.exe");
+      if (llvm::sys::fs::can_execute(ClPath)) {
+        linkPath = llvm::sys::path::parent_path(ClPath);
+        llvm::sys::path::append(linkPath, "link.exe");
+        if (!llvm::sys::fs::can_execute(linkPath))
+          C.getDriver().Diag(clang::diag::warn_drv_msvc_not_found);
+      } else {
+        C.getDriver().Diag(clang::diag::warn_drv_msvc_not_found);
+      }
+    }
 
 #ifdef _WIN32
     // When cross-compiling with VS2017 or newer, link.exe expects to have
     // its containing bin directory at the top of PATH, followed by the
     // native target bin directory.
     // e.g. when compiling for x86 on an x64 host, PATH should start with:
-    // /bin/HostX64/x86;/bin/HostX64/x64
+    // /bin/Hostx64/x86;/bin/Hostx64/x64
     // This doesn't attempt to handle ToolsetLayout::DevDivInternal.
     if (TC.getIsVS2017OrNewer() &&
         llvm::Triple(llvm::sys::getProcessTriple()).getArch() != TC.getArch()) {
@@ -539,7 +590,7 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
               EnvVar.substr(0, PrefixLen) +
               TC.getSubDirectoryPath(SubDirectoryType::Bin) +
               llvm::Twine(llvm::sys::EnvPathSeparator) +
-              TC.getSubDirectoryPath(SubDirectoryType::Bin, HostArch) +
+              TC.getSubDirectoryPath(SubDirectoryType::Bin, "", HostArch) +
               (EnvVar.size() > PrefixLen
                    ? llvm::Twine(llvm::sys::EnvPathSeparator) +
                          EnvVar.substr(PrefixLen)
@@ -556,8 +607,9 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     linkPath = TC.GetProgramPath(Linker.str().c_str());
   }
 
-  auto LinkCmd = llvm::make_unique<Command>(
-      JA, *this, Args.MakeArgString(linkPath), CmdArgs, Inputs);
+  auto LinkCmd = std::make_unique<Command>(
+      JA, *this, ResponseFileSupport::AtFileUTF16(),
+      Args.MakeArgString(linkPath), CmdArgs, Inputs, Output);
   if (!Environment.empty())
     LinkCmd->setEnvironment(Environment);
   C.addCommand(std::move(LinkCmd));
@@ -617,11 +669,11 @@ std::unique_ptr<Command> visualstudio::Compiler::GetCommand(
   // FIXME: How can we ensure this stays in sync with relevant clang-cl options?
 
   if (Args.hasFlag(options::OPT__SLASH_GR_, options::OPT__SLASH_GR,
-                   /*default=*/false))
+                   /*Default=*/false))
     CmdArgs.push_back("/GR-");
 
   if (Args.hasFlag(options::OPT__SLASH_GS_, options::OPT__SLASH_GS,
-                   /*default=*/false))
+                   /*Default=*/false))
     CmdArgs.push_back("/GS-");
 
   if (Arg *A = Args.getLastArg(options::OPT_ffunction_sections,
@@ -665,6 +717,17 @@ std::unique_ptr<Command> visualstudio::Compiler::GetCommand(
                           : "/Zc:threadSafeInit-");
   }
 
+  // Control Flow Guard checks
+  if (Arg *A = Args.getLastArg(options::OPT__SLASH_guard)) {
+    StringRef GuardArgs = A->getValue();
+    if (GuardArgs.equals_lower("cf") || GuardArgs.equals_lower("cf,nochecks")) {
+      // MSVC doesn't yet support the "nochecks" modifier.
+      CmdArgs.push_back("/guard:cf");
+    } else if (GuardArgs.equals_lower("cf-")) {
+      CmdArgs.push_back("/guard:cf-");
+    }
+  }
+
   // Pass through all unknown arguments so that the fallback command can see
   // them too.
   Args.AddAllArgs(CmdArgs, options::OPT_UNKNOWN);
@@ -686,22 +749,25 @@ std::unique_ptr<Command> visualstudio::Compiler::GetCommand(
   CmdArgs.push_back(Fo);
 
   std::string Exec = FindVisualStudioExecutable(getToolChain(), "cl.exe");
-  return llvm::make_unique<Command>(JA, *this, Args.MakeArgString(Exec),
-                                    CmdArgs, Inputs);
+  return std::make_unique<Command>(
+      JA, *this, ResponseFileSupport::AtFileUTF16(), Args.MakeArgString(Exec),
+      CmdArgs, Inputs, Output);
 }
 
 MSVCToolChain::MSVCToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ArgList &Args)
-    : ToolChain(D, Triple, Args), CudaInstallation(D, Triple, Args) {
+    : ToolChain(D, Triple, Args), CudaInstallation(D, Triple, Args),
+      RocmInstallation(D, Triple, Args) {
   getProgramPaths().push_back(getDriver().getInstalledDir());
   if (getDriver().getInstalledDir() != getDriver().Dir)
     getProgramPaths().push_back(getDriver().Dir);
 
-  // Check the environment first, since that's probably the user telling us
-  // what they want to use.
-  // Failing that, just try to find the newest Visual Studio version we can
-  // and use its default VC toolchain.
-  findVCToolChainViaEnvironment(VCToolChainPath, VSLayout) ||
+  // Check the command line first, that's the user explicitly telling us what to
+  // use. Check the environment next, in case we're being invoked from a VS
+  // command prompt. Failing that, just try to find the newest Visual Studio
+  // version we can and use its default VC toolchain.
+  findVCToolChainViaCommandLine(Args, VCToolChainPath, VSLayout) ||
+      findVCToolChainViaEnvironment(VCToolChainPath, VSLayout) ||
       findVCToolChainViaSetupConfig(VCToolChainPath, VSLayout) ||
       findVCToolChainViaRegistry(VCToolChainPath, VSLayout);
 }
@@ -750,8 +816,14 @@ void MSVCToolChain::AddCudaIncludeArgs(const ArgList &DriverArgs,
   CudaInstallation.AddCudaIncludeArgs(DriverArgs, CC1Args);
 }
 
+void MSVCToolChain::AddHIPIncludeArgs(const ArgList &DriverArgs,
+                                      ArgStringList &CC1Args) const {
+  RocmInstallation.AddHIPIncludeArgs(DriverArgs, CC1Args);
+}
+
 void MSVCToolChain::printVerboseInfo(raw_ostream &OS) const {
   CudaInstallation.print(OS);
+  RocmInstallation.print(OS);
 }
 
 // Windows SDKs and VC Toolchains group their contents into subdirectories based
@@ -815,6 +887,7 @@ static const char *llvmArchToDevDivInternalArch(llvm::Triple::ArchType Arch) {
 // of hardcoding paths.
 std::string
 MSVCToolChain::getSubDirectoryPath(SubDirectoryType Type,
+                                   llvm::StringRef SubdirParent,
                                    llvm::Triple::ArchType TargetArch) const {
   const char *SubdirName;
   const char *IncludeName;
@@ -834,12 +907,15 @@ MSVCToolChain::getSubDirectoryPath(SubDirectoryType Type,
   }
 
   llvm::SmallString<256> Path(VCToolChainPath);
+  if (!SubdirParent.empty())
+    llvm::sys::path::append(Path, SubdirParent);
+
   switch (Type) {
   case SubDirectoryType::Bin:
     if (VSLayout == ToolsetLayout::VS2017OrNewer) {
       const bool HostIsX64 =
           llvm::Triple(llvm::sys::getProcessTriple()).isArch64Bit();
-      const char *const HostName = HostIsX64 ? "HostX64" : "HostX86";
+      const char *const HostName = HostIsX64 ? "Hostx64" : "Hostx86";
       llvm::sys::path::append(Path, "bin", HostName, SubdirName);
     } else { // OlderVS or DevDivInternal
       llvm::sys::path::append(Path, "bin", SubdirName);
@@ -852,7 +928,7 @@ MSVCToolChain::getSubDirectoryPath(SubDirectoryType Type,
     llvm::sys::path::append(Path, "lib", SubdirName);
     break;
   }
-  return Path.str();
+  return std::string(Path.str());
 }
 
 #ifdef _WIN32
@@ -1006,7 +1082,7 @@ static bool getWindows10SDKVersionFromPath(const std::string &SDKPath,
     if (!CandidateName.startswith("10."))
       continue;
     if (CandidateName > SDKVersion)
-      SDKVersion = CandidateName;
+      SDKVersion = std::string(CandidateName);
   }
 
   return !SDKVersion.empty();
@@ -1089,7 +1165,7 @@ bool MSVCToolChain::getWindowsSDKLibraryPath(std::string &path) const {
     }
   }
 
-  path = libPath.str();
+  path = std::string(libPath.str());
   return true;
 }
 
@@ -1128,7 +1204,7 @@ bool MSVCToolChain::getUniversalCRTLibraryPath(std::string &Path) const {
   llvm::SmallString<128> LibPath(UniversalCRTSdkPath);
   llvm::sys::path::append(LibPath, "Lib", UCRTVersion, "ucrt", ArchName);
 
-  Path = LibPath.str();
+  Path = std::string(LibPath.str());
   return true;
 }
 
@@ -1203,15 +1279,18 @@ void MSVCToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
     return;
 
   // Honor %INCLUDE%. It should know essential search paths with vcvarsall.bat.
-  if (llvm::Optional<std::string> cl_include_dir =
-          llvm::sys::Process::GetEnv("INCLUDE")) {
-    SmallVector<StringRef, 8> Dirs;
-    StringRef(*cl_include_dir)
-        .split(Dirs, ";", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-    for (StringRef Dir : Dirs)
-      addSystemInclude(DriverArgs, CC1Args, Dir);
-    if (!Dirs.empty())
-      return;
+  // Skip if the user expressly set a vctoolsdir
+  if (!DriverArgs.getLastArg(options::OPT__SLASH_vctoolsdir)) {
+    if (llvm::Optional<std::string> cl_include_dir =
+            llvm::sys::Process::GetEnv("INCLUDE")) {
+      SmallVector<StringRef, 8> Dirs;
+      StringRef(*cl_include_dir)
+          .split(Dirs, ";", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+      for (StringRef Dir : Dirs)
+        addSystemInclude(DriverArgs, CC1Args, Dir);
+      if (!Dirs.empty())
+        return;
+    }
   }
 
   // When built with access to the proper Windows APIs, try to actually find
@@ -1219,6 +1298,8 @@ void MSVCToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
   if (!VCToolChainPath.empty()) {
     addSystemInclude(DriverArgs, CC1Args,
                      getSubDirectoryPath(SubDirectoryType::Include));
+    addSystemInclude(DriverArgs, CC1Args,
+                     getSubDirectoryPath(SubDirectoryType::Include, "atlmfc"));
 
     if (useUniversalCRT()) {
       std::string UniversalCRTSdkPath;
@@ -1318,6 +1399,8 @@ MSVCToolChain::ComputeEffectiveClangTriple(const ArgList &Args,
 SanitizerMask MSVCToolChain::getSupportedSanitizers() const {
   SanitizerMask Res = ToolChain::getSupportedSanitizers();
   Res |= SanitizerKind::Address;
+  Res |= SanitizerKind::PointerCompare;
+  Res |= SanitizerKind::PointerSubtract;
   Res |= SanitizerKind::Fuzzer;
   Res |= SanitizerKind::FuzzerNoLink;
   Res &= ~SanitizerKind::CFIMFCall;
@@ -1408,10 +1491,10 @@ static void TranslateOptArg(Arg *A, llvm::opt::DerivedArgList &DAL,
           DAL.AddFlagArg(
               A, Opts.getOption(options::OPT_fno_omit_frame_pointer));
       } else {
-        // Don't warn about /Oy- in 64-bit builds (where
+        // Don't warn about /Oy- in x86-64 builds (where
         // SupportsForcingFramePointer is false).  The flag having no effect
         // there is a compiler-internal optimization, and people shouldn't have
-        // to special-case their build files for 64-bit clang-cl.
+        // to special-case their build files for x86-64 clang-cl.
         A->claim();
       }
       break;
@@ -1431,19 +1514,20 @@ static void TranslateDArg(Arg *A, llvm::opt::DerivedArgList &DAL,
     return;
   }
 
-  std::string NewVal = Val;
+  std::string NewVal = std::string(Val);
   NewVal[Hash] = '=';
   DAL.AddJoinedArg(A, Opts.getOption(options::OPT_D), NewVal);
 }
 
 llvm::opt::DerivedArgList *
 MSVCToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
-                             StringRef BoundArch, Action::OffloadKind) const {
+                             StringRef BoundArch,
+                             Action::OffloadKind OFK) const {
   DerivedArgList *DAL = new DerivedArgList(Args.getBaseArgs());
   const OptTable &Opts = getDriver().getOpts();
 
-  // /Oy and /Oy- only has an effect under X86-32.
-  bool SupportsForcingFramePointer = getArch() == llvm::Triple::x86;
+  // /Oy and /Oy- don't have an effect on X86-64
+  bool SupportsForcingFramePointer = getArch() != llvm::Triple::x86_64;
 
   // The -O[12xd] flag actually expands to several flags.  We must desugar the
   // flags so that options embedded can be negated.  For example, the '-O2' flag
@@ -1477,7 +1561,8 @@ MSVCToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
     } else if (A->getOption().matches(options::OPT_D)) {
       // Translate -Dfoo#bar into -Dfoo=bar.
       TranslateDArg(A, *DAL, Opts);
-    } else {
+    } else if (OFK != Action::OFK_HIP) {
+      // HIP Toolchain translates input args by itself.
       DAL->append(A);
     }
   }

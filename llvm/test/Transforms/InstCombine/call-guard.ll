@@ -1,4 +1,6 @@
-; RUN: opt < %s -instcombine -S | FileCheck %s
+; RUN: opt < %s -instcombine -instcombine-infinite-loop-threshold=2 -S | FileCheck %s
+; RUN: opt < %s -instcombine -S -debugify-each | FileCheck %s
+; RUN: opt < %s -passes=instcombine -S -debugify-each | FileCheck %s
 
 declare void @llvm.experimental.guard(i1, ...)
 
@@ -66,7 +68,7 @@ define void @negative_load(i32 %V1, i32* %P) {
   ret void
 }
 
-define void @deref_load(i32 %V1, i32* dereferenceable(4) %P) {
+define void @deref_load(i32 %V1, i32* dereferenceable(4) align 4 %P) {
 ; CHECK-LABEL: @deref_load
 ; CHECK-NEXT:  %V2 = load i32, i32* %P, align 4
 ; CHECK-NEXT:  %1 = and i32 %V2, %V1

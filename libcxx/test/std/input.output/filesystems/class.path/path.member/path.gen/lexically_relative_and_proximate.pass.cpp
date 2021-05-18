@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -16,19 +15,16 @@
 // path lexically_relative(const path& p) const;
 // path lexically_proximate(const path& p) const;
 
-#include "filesystem_include.hpp"
-#include <type_traits>
-#include <vector>
-#include <iostream>
-#include <cassert>
+#include "filesystem_include.h"
+#include <cstdio>
+#include <string>
 
 #include "test_macros.h"
-#include "test_iterators.h"
-#include "count_new.hpp"
-#include "filesystem_test_helper.hpp"
+#include "count_new.h"
+#include "filesystem_test_helper.h"
 
 
-int main() {
+int main(int, char**) {
   // clang-format off
   struct {
     std::string input;
@@ -66,20 +62,21 @@ int main() {
     auto ReportErr = [&](const char* Testing, fs::path const& Output,
                                               fs::path const& Expected) {
       Failed = true;
-      std::cerr << "TEST CASE #" << ID << " FAILED: \n";
-      std::cerr << "  Testing: " << Testing << "\n";
-      std::cerr << "  Input: '" << TC.input << "'\n";
-      std::cerr << "  Base: '" << TC.base << "'\n";
-      std::cerr << "  Expected: '" << Expected << "'\n";
-      std::cerr << "  Output: '" << Output.native() << "'";
-      std::cerr << std::endl;
+      std::fprintf(stderr, "TEST CASE #%d FAILED:\n"
+                  "  Testing: %s\n"
+                  "  Input: '%s'\n"
+                  "  Base: '%s'\n"
+                  "  Expected: '%s'\n"
+                  "  Output: '%s'\n",
+        ID, Testing, TC.input.c_str(), TC.base.c_str(),
+        Expected.string().c_str(), Output.string().c_str());
     };
     if (!PathEq(output, TC.expect))
       ReportErr("path::lexically_relative", output, TC.expect);
     const fs::path proximate_output = p.lexically_proximate(TC.base);
     // [path.gen] lexically_proximate
     // Returns: If the value of lexically_relative(base) is not an empty path,
-    // return it.Otherwise return *this.
+    // return it. Otherwise return *this.
     const fs::path proximate_expected = output.native().empty() ? p
         : output;
     if (!PathEq(proximate_expected, proximate_output))

@@ -1,9 +1,8 @@
 //===--- Merge.h -------------------------------------------------*- C++-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -24,10 +23,6 @@ Symbol mergeSymbol(const Symbol &L, const Symbol &R);
 //  - the Dynamic index covers few files, but is relatively up-to-date.
 //  - the Static index covers a bigger set of files, but is relatively stale.
 // The returned index attempts to combine results, and avoid duplicates.
-//
-// FIXME: We don't have a mechanism in Index to track deleted symbols and
-// refs in dirty files, so the merged index may return stale symbols
-// and refs from Static index.
 class MergedIndex : public SymbolIndex {
   const SymbolIndex *Dynamic, *Static;
 
@@ -41,8 +36,13 @@ public:
                  llvm::function_ref<void(const Symbol &)>) const override;
   void lookup(const LookupRequest &,
               llvm::function_ref<void(const Symbol &)>) const override;
-  void refs(const RefsRequest &,
+  bool refs(const RefsRequest &,
             llvm::function_ref<void(const Ref &)>) const override;
+  void relations(const RelationsRequest &,
+                 llvm::function_ref<void(const SymbolID &, const Symbol &)>)
+      const override;
+  llvm::unique_function<bool(llvm::StringRef) const>
+  indexedFiles() const override;
   size_t estimateMemoryUsage() const override {
     return Dynamic->estimateMemoryUsage() + Static->estimateMemoryUsage();
   }

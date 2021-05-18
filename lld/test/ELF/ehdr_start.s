@@ -2,9 +2,9 @@
 
 # RUN: llvm-mc -filetype=obj -triple=x86_64-unknown-linux %s -o %t.o
 # RUN: ld.lld %t.o -o %t
-# RUN: llvm-readobj -symbols %t | FileCheck %s
+# RUN: llvm-readobj --symbols %t | FileCheck %s
 # CHECK:    Name: __ehdr_start (1)
-# CHECK-NEXT:    Value: 0x200000
+# CHECK-NEXT:    Value: [[ADDR:.*]]
 # CHECK-NEXT:    Size: 0
 # CHECK-NEXT:    Binding: Local (0x0)
 # CHECK-NEXT:    Type: None (0x0)
@@ -14,7 +14,7 @@
 # CHECK-NEXT:    Section: .text (0x1)
 
 # CHECK:    Name: __executable_start
-# CHECK-NEXT:    Value: 0x200000
+# CHECK-NEXT:    Value: [[ADDR]]
 # CHECK-NEXT:    Size: 0
 # CHECK-NEXT:    Binding: Local
 # CHECK-NEXT:    Type: None
@@ -30,7 +30,7 @@ _start:
   .quad __executable_start
 
 # RUN: ld.lld -r %t.o -o %t.r
-# RUN: llvm-readobj -symbols %t.r | FileCheck %s --check-prefix=RELOCATABLE
+# RUN: llvm-readobj --symbols %t.r | FileCheck %s --check-prefix=RELOCATABLE
 
 # RELOCATABLE:    Name: __ehdr_start (1)
 # RELOCATABLE-NEXT:    Value: 0x0

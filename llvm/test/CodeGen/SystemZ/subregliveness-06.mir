@@ -123,7 +123,7 @@
   declare void @llvm.stackprotector(i8*, i8**) #2
   
   attributes #0 = { argmemonly nounwind "target-cpu"="z13" }
-  attributes #1 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="z13" "target-features"="+transactional-execution,+vector" "unsafe-fp-math"="false" "use-soft-float"="false" }
+  attributes #1 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="z13" "target-features"="+transactional-execution,+vector" "unsafe-fp-math"="false" "use-soft-float"="false" }
   attributes #2 = { nounwind }
   
   !llvm.ident = !{!0}
@@ -144,7 +144,7 @@
 ...
 ---
 name:            func_32
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 liveins:         
   - { reg: '$r2d', virtual-reg: '%10' }
@@ -152,8 +152,8 @@ liveins:
 frameInfo:       
   maxAlignment:    8
 stack:           
-  - { id: 0, name: tmp, size: 4, alignment: 4, stack-id: 0 }
-  - { id: 1, name: tmp2, size: 200, alignment: 8, stack-id: 0 }
+  - { id: 0, name: tmp, size: 4, alignment: 4, stack-id: default }
+  - { id: 1, name: tmp2, size: 200, alignment: 8, stack-id: default }
 body:             |
   bb.0.bb:
     liveins: $r2d, $r3d

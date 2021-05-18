@@ -6,19 +6,19 @@
 # RUN: ld.lld -shared %td.o -o %td.so
 
 # RUN: ld.lld %t.o %td.so -o %t.exe
-# RUN: llvm-readobj -sections -dynamic-table %t.exe \
+# RUN: llvm-readobj --sections --dynamic-table %t.exe \
 # RUN:   | FileCheck -check-prefixes=EXE,NOPIE %s
 
 # RUN: ld.lld -pie %t.o %td.so -o %t.so
-# RUN: llvm-readobj -sections -dyn-symbols -dynamic-table %t.so \
+# RUN: llvm-readobj --sections --dyn-syms --dynamic-table %t.so \
 # RUN:   | FileCheck -check-prefixes=EXE,PIE %s
 
 # RUN: ld.lld %t.o --image-base=0x123000 %td.so -o %t.exe
-# RUN: llvm-readobj -sections -dynamic-table %t.exe \
+# RUN: llvm-readobj --sections --dynamic-table %t.exe \
 # RUN:   | FileCheck -check-prefix=IMAGE_BASE %s
 
 # RUN: ld.lld -shared %t.o %td.so -o %t.so
-# RUN: llvm-readobj -sections -dyn-symbols -dynamic-table %t.so \
+# RUN: llvm-readobj --sections --dyn-syms --dynamic-table %t.so \
 # RUN:   | FileCheck -check-prefix=DSO %s
 
 # EXE:      Sections [
@@ -96,11 +96,6 @@
 # DSO-NEXT:     Offset:
 # DSO-NEXT:     Size: 8
 # DSO:      ]
-# DSO:      DynamicSymbols [
-# DSO:          Name:
-# DSO:          Name: __start
-# DSO:          Name: _foo
-# DSO:      ]
 # DSO:      DynamicSection [
 # DSO-NEXT:   Tag        Type                 Name/Value
 # DSO-DAG:    0x00000003 PLTGOT               [[GOTADDR]]
@@ -110,6 +105,11 @@
 # DSO-DAG:    0x7000000A MIPS_LOCAL_GOTNO     2
 # DSO-DAG:    0x70000011 MIPS_SYMTABNO        3
 # DSO-DAG:    0x70000013 MIPS_GOTSYM          0x3
+# DSO:      ]
+# DSO-NEXT: DynamicSymbols [
+# DSO:          Name:
+# DSO:          Name: __start
+# DSO:          Name: _foo
 # DSO:      ]
 
   .text

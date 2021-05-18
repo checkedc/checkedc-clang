@@ -1,16 +1,5 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-//===-- negsf2vfp_test.c - Test __negsf2vfp -------------------------------===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __negsf2vfp for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
+// REQUIRES: librt_has_negsf2vfp
 
 #include "int_lib.h"
 #include <stdio.h>
@@ -20,7 +9,7 @@
 
 extern COMPILER_RT_ABI float __negsf2vfp(float a);
 
-#if __arm__ && __VFP_FP__
+#if defined(__arm__) && defined(__ARM_FP) && (__ARM_FP & 0x4)
 int test__negsf2vfp(float a)
 {
     float actual = __negsf2vfp(a);
@@ -34,7 +23,7 @@ int test__negsf2vfp(float a)
 
 int main()
 {
-#if __arm__ && __VFP_FP__
+#if defined(__arm__) && defined(__ARM_FP) && (__ARM_FP & 0x4)
     if (test__negsf2vfp(1.0))
         return 1;
     if (test__negsf2vfp(HUGE_VALF))

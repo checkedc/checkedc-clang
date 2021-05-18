@@ -45,8 +45,9 @@ define i64 @add_nsw_sext_lsh_add(i32 %i, i64 %x) {
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    addl $-5, %edi
 ; CHECK-NEXT:    movslq %edi, %rax
-; CHECK-NEXT:    movq $3, %rcx
-; CHECK:         retq
+; CHECK-NEXT:    shlq $3, %rax
+; CHECK-NEXT:    addq %rsi, %rax
+; CHECK-NEXT:    retq
 
   %add = add nsw i32 %i, -5
   %ext = sext i32 %add to i64
@@ -77,7 +78,7 @@ define i8* @gep8(i32 %i, i8* %x) {
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    addl $5, %edi
 ; CHECK-NEXT:    movslq %edi, %rax
-; CHECK-NEXT:    leaq (%rsi,%rax), %rax
+; CHECK-NEXT:    addq %rsi, %rax
 ; CHECK-NEXT:    retq
 
   %add = add nsw i32 %i, 5
@@ -89,11 +90,10 @@ define i8* @gep8(i32 %i, i8* %x) {
 define i16* @gep16(i32 %i, i16* %x) {
 ; CHECK-LABEL: gep16:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    movq $2, %rax
 ; CHECK-NEXT:    addl $-5, %edi
-; CHECK-NEXT:    movslq %edi, %rcx
-; CHECK-NEXT:    imulq %rax, %rcx
-; CHECK-NEXT:    leaq (%rsi,%rcx), %rax
+; CHECK-NEXT:    movslq %edi, %rax
+; CHECK-NEXT:    imulq $2, %rax, %rax
+; CHECK-NEXT:    addq %rsi, %rax
 ; CHECK-NEXT:    retq
 
   %add = add nsw i32 %i, -5
@@ -105,11 +105,10 @@ define i16* @gep16(i32 %i, i16* %x) {
 define i32* @gep32(i32 %i, i32* %x) {
 ; CHECK-LABEL: gep32:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    movq $4, %rax
 ; CHECK-NEXT:    addl $5, %edi
-; CHECK-NEXT:    movslq %edi, %rcx
-; CHECK-NEXT:    imulq %rax, %rcx
-; CHECK-NEXT:    leaq (%rsi,%rcx), %rax
+; CHECK-NEXT:    movslq %edi, %rax
+; CHECK-NEXT:    imulq $4, %rax, %rax
+; CHECK-NEXT:    addq %rsi, %rax
 ; CHECK-NEXT:    retq
 
   %add = add nsw i32 %i, 5
@@ -121,11 +120,10 @@ define i32* @gep32(i32 %i, i32* %x) {
 define i64* @gep64(i32 %i, i64* %x) {
 ; CHECK-LABEL: gep64:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    movq $8, %rax
 ; CHECK-NEXT:    addl $-5, %edi
-; CHECK-NEXT:    movslq %edi, %rcx
-; CHECK-NEXT:    imulq %rax, %rcx
-; CHECK-NEXT:    leaq (%rsi,%rcx), %rax
+; CHECK-NEXT:    movslq %edi, %rax
+; CHECK-NEXT:    imulq $8, %rax, %rax
+; CHECK-NEXT:    addq %rsi, %rax
 ; CHECK-NEXT:    retq
 
   %add = add nsw i32 %i, -5
@@ -139,11 +137,10 @@ define i64* @gep64(i32 %i, i64* %x) {
 define i128* @gep128(i32 %i, i128* %x) {
 ; CHECK-LABEL: gep128:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    movq $16, %rax
 ; CHECK-NEXT:    addl $5, %edi
-; CHECK-NEXT:    movslq %edi, %rcx
-; CHECK-NEXT:    imulq %rax, %rcx
-; CHECK-NEXT:    leaq (%rsi,%rcx), %rax
+; CHECK-NEXT:    movslq %edi, %rax
+; CHECK-NEXT:    imulq $16, %rax, %rax
+; CHECK-NEXT:    addq %rsi, %rax
 ; CHECK-NEXT:    retq
 
   %add = add nsw i32 %i, 5
@@ -159,21 +156,21 @@ define i128* @gep128(i32 %i, i128* %x) {
 define void @PR20134(i32* %a, i32 %i) {
 ; CHECK-LABEL: PR20134:
 ; CHECK:       # %bb.0:
-; CHECK:         movq    $4, %rax
-; CHECK-NEXT:    leal    1(%rsi), %ecx
-; CHECK-NEXT:    movslq  %ecx, %rcx
-; CHECK-NEXT:    imulq   %rax, %rcx
-; CHECK-NEXT:    leaq    (%rdi,%rcx), %rcx
-; CHECK-NEXT:    leal    2(%rsi), %edx
-; CHECK-NEXT:    movslq  %edx, %rdx
-; CHECK-NEXT:    imulq   %rax, %rdx
-; CHECK-NEXT:    leaq    (%rdi,%rdx), %rdx
-; CHECK-NEXT:    movl    (%rdx), %edx
-; CHECK-NEXT:    addl    (%rcx), %edx
-; CHECK-NEXT:    movslq  %esi, %rcx
-; CHECK-NEXT:    imulq   %rax, %rcx
-; CHECK-NEXT:    leaq    (%rdi,%rcx), %rax
-; CHECK-NEXT:    movl    %edx, (%rax)
+; CHECK-NEXT:    # kill: def $esi killed $esi def $rsi
+; CHECK-NEXT:    leal 1(%rsi), %eax
+; CHECK-NEXT:    cltq
+; CHECK-NEXT:    imulq $4, %rax, %rax
+; CHECK-NEXT:    addq %rdi, %rax
+; CHECK-NEXT:    leal 2(%rsi), %ecx
+; CHECK-NEXT:    movslq %ecx, %rcx
+; CHECK-NEXT:    imulq $4, %rcx, %rcx
+; CHECK-NEXT:    addq %rdi, %rcx
+; CHECK-NEXT:    movl (%rcx), %ecx
+; CHECK-NEXT:    addl (%rax), %ecx
+; CHECK-NEXT:    movslq %esi, %rax
+; CHECK-NEXT:    imulq $4, %rax, %rax
+; CHECK-NEXT:    addq %rdi, %rax
+; CHECK-NEXT:    movl %ecx, (%rax)
 ; CHECK-NEXT:    retq
 
   %add1 = add nsw i32 %i, 1
@@ -195,19 +192,23 @@ define void @PR20134(i32* %a, i32 %i) {
 
 ; The same as @PR20134 but sign extension is replaced with zero extension
 define void @PR20134_zext(i32* %a, i32 %i) {
-; CHECK: # %bb.0:
-; CHECK:         movq    $4, %rax
-; CHECK-NEXT:    leal    1(%rsi), %ecx
-; CHECK-NEXT:    imulq   %rax, %rcx
-; CHECK-NEXT:    leaq    (%rdi,%rcx), %rcx
-; CHECK-NEXT:    leal    2(%rsi), %edx
-; CHECK-NEXT:    imulq   %rax, %rdx
-; CHECK-NEXT:    leaq    (%rdi,%rdx), %rdx
-; CHECK-NEXT:    movl    (%rdx), %edx
-; CHECK-NEXT:    addl    (%rcx), %edx
-; CHECK-NEXT:    imulq   %rax, %rsi
-; CHECK-NEXT:    leaq    (%rdi,%rsi), %rax
-; CHECK-NEXT:    movl    %edx, (%rax)
+; CHECK-LABEL: PR20134_zext:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    # kill: def $esi killed $esi def $rsi
+; CHECK-NEXT:    leal 1(%rsi), %eax
+; CHECK-NEXT:    movl %eax, %eax
+; CHECK-NEXT:    imulq $4, %rax, %rax
+; CHECK-NEXT:    addq %rdi, %rax
+; CHECK-NEXT:    leal 2(%rsi), %ecx
+; CHECK-NEXT:    movl %ecx, %ecx
+; CHECK-NEXT:    imulq $4, %rcx, %rcx
+; CHECK-NEXT:    addq %rdi, %rcx
+; CHECK-NEXT:    movl (%rcx), %ecx
+; CHECK-NEXT:    addl (%rax), %ecx
+; CHECK-NEXT:    movl %esi, %eax
+; CHECK-NEXT:    imulq $4, %rax, %rax
+; CHECK-NEXT:    addq %rdi, %rax
+; CHECK-NEXT:    movl %ecx, (%rax)
 ; CHECK-NEXT:    retq
 
   %add1 = add nuw i32 %i, 1

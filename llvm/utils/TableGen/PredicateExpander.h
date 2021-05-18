@@ -1,9 +1,8 @@
 //===--------------------- PredicateExpander.h ----------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 /// \file
@@ -80,6 +79,9 @@ public:
   void expandCheckInvalidRegOperand(raw_ostream &OS, int OpIndex);
   void expandCheckFunctionPredicate(raw_ostream &OS, StringRef MCInstFn,
                                     StringRef MachineInstrFn);
+  void expandCheckFunctionPredicateWithTII(raw_ostream &OS, StringRef MCInstFn,
+                                           StringRef MachineInstrFn,
+                                           StringRef TIIPtr);
   void expandCheckNonPortable(raw_ostream &OS, StringRef CodeBlock);
   void expandPredicate(raw_ostream &OS, const Record *Rec);
   void expandReturnStatement(raw_ostream &OS, const Record *Rec);

@@ -1,4 +1,4 @@
-# RUN: yaml2obj %s > %t
+# RUN: yaml2obj %s -o %t
 # RUN: llvm-objcopy %t %t2
 # RUN: llvm-readobj --symbols %t2 | FileCheck %s
 
@@ -9,22 +9,30 @@ FileHeader:
   Type:            ET_EXEC
   Machine:         EM_HEXAGON
 Symbols:
-  Global:
-    - Name:     test
-      Index:    SHN_COMMON
-      Value:    0x1234
-    - Name:     test2
-      Index:    SHN_HEXAGON_SCOMMON
-      Value:    0x1235
-    - Name:     test3
-      Index:    SHN_HEXAGON_SCOMMON_2
-      Value:    0x1236
-    - Name:     test4
-      Index:    SHN_HEXAGON_SCOMMON_4
-      Value:    0x1237
-    - Name:     test5
-      Index:    SHN_HEXAGON_SCOMMON_8
-      Value:    0x1238
+  - Name:     test
+    Index:    SHN_COMMON
+    Value:    0x1233
+    Binding:  STB_GLOBAL
+  - Name:     test1
+    Index:    SHN_HEXAGON_SCOMMON
+    Value:    0x1234
+    Binding:  STB_GLOBAL
+  - Name:     test2
+    Index:    SHN_HEXAGON_SCOMMON_1
+    Value:    0x1235
+    Binding:  STB_GLOBAL
+  - Name:     test3
+    Index:    SHN_HEXAGON_SCOMMON_2
+    Value:    0x1236
+    Binding:  STB_GLOBAL
+  - Name:     test4
+    Index:    SHN_HEXAGON_SCOMMON_4
+    Value:    0x1237
+    Binding:  STB_GLOBAL
+  - Name:     test5
+    Index:    SHN_HEXAGON_SCOMMON_8
+    Value:    0x1238
+    Binding:  STB_GLOBAL
 
 #CHECK:     Symbols [
 #CHECK-NEXT:   Symbol {
@@ -38,12 +46,21 @@ Symbols:
 #CHECK-NEXT:  }
 #CHECK-NEXT:  Symbol {
 #CHECK-NEXT:    Name: test
-#CHECK-NEXT:    Value: 0x1234
+#CHECK-NEXT:    Value: 0x1233
 #CHECK-NEXT:    Size: 0
 #CHECK-NEXT:    Binding: Global (0x1)
 #CHECK-NEXT:    Type: None (0x0)
 #CHECK-NEXT:    Other: 0
 #CHECK-NEXT:    Section: Common (0xFFF2)
+#CHECK-NEXT:  }
+#CHECK-NEXT:  Symbol {
+#CHECK-NEXT:    Name: test1
+#CHECK-NEXT:    Value: 0x1234
+#CHECK-NEXT:    Size: 0
+#CHECK-NEXT:    Binding: Global (0x1)
+#CHECK-NEXT:    Type: None (0x0)
+#CHECK-NEXT:    Other: 0
+#CHECK-NEXT:    Section: Processor Specific (0xFF00)
 #CHECK-NEXT:  }
 #CHECK-NEXT:  Symbol {
 #CHECK-NEXT:    Name: test2
@@ -52,7 +69,7 @@ Symbols:
 #CHECK-NEXT:    Binding: Global (0x1)
 #CHECK-NEXT:    Type: None (0x0)
 #CHECK-NEXT:    Other: 0
-#CHECK-NEXT:    Section: Processor Specific (0xFF00)
+#CHECK-NEXT:    Section: Processor Specific (0xFF01)
 #CHECK-NEXT:  }
 #CHECK-NEXT:  Symbol {
 #CHECK-NEXT:    Name: test3

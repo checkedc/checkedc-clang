@@ -1,14 +1,13 @@
 // -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
 // <experimental/coroutine>
 
 // template <class Promise = void>
@@ -27,7 +26,7 @@
 
 namespace coro = std::experimental;
 
-int main()
+int main(int, char**)
 {
   {
     using H = coro::coroutine_handle<>;
@@ -43,4 +42,6 @@ int main()
     // expected-error@experimental/coroutine:* 1 {{coroutine_handle<promise_type>::from_address cannot be called with non-void pointers}}
     H::from_address((int*)nullptr); // expected-note {{requested here}}
   }
+
+  return 0;
 }

@@ -1,5 +1,6 @@
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 // Break through a series of strcmp.
 #include <cassert>
@@ -22,9 +23,7 @@ bool Eq(const uint8_t *Data, size_t Size, const char *Str) {
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
   if (Eq(Data, Size, "ABC") &&
       Size >= 3 && Eq(Data + 3, Size - 3, "QWER") &&
-      Size >= 7 && Eq(Data + 7, Size - 7, "ZXCVN") &&
-      Size >= 14 && Data[13] == 42
-    ) {
+      Size >= 7 && Eq(Data + 7, Size - 7, "ZXCVN")) {
     fprintf(stderr, "BINGO\n");
     exit(1);
   }

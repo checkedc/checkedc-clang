@@ -1,13 +1,13 @@
 //===--- DeleteNullPointerCheck.cpp - clang-tidy---------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "DeleteNullPointerCheck.h"
+#include "../utils/LexerUtils.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Lex/Lexer.h"
@@ -35,18 +35,19 @@ void DeleteNullPointerCheck::registerMatchers(MatchFinder *Finder) {
 
   const auto PointerCondition = castExpr(hasCastKind(CK_PointerToBoolean),
                                          hasSourceExpression(PointerExpr));
-  const auto BinaryPointerCheckCondition =
-      binaryOperator(hasEitherOperand(castExpr(hasCastKind(CK_NullToPointer))),
-                     hasEitherOperand(PointerExpr));
+  const auto BinaryPointerCheckCondition = binaryOperator(
+      hasOperands(castExpr(hasCastKind(CK_NullToPointer)), PointerExpr));
 
   Finder->addMatcher(
-      ifStmt(hasCondition(anyOf(PointerCondition, BinaryPointerCheckCondition)),
-             hasThen(anyOf(
-                 DeleteExpr, DeleteMemberExpr,
-                 compoundStmt(anyOf(has(DeleteExpr), has(DeleteMemberExpr)),
-                              statementCountIs(1))
-                     .bind("compound"))))
-          .bind("ifWithDelete"),
+      traverse(TK_AsIs,
+               ifStmt(hasCondition(
+                          anyOf(PointerCondition, BinaryPointerCheckCondition)),
+                      hasThen(anyOf(DeleteExpr, DeleteMemberExpr,
+                                    compoundStmt(anyOf(has(DeleteExpr),
+                                                       has(DeleteMemberExpr)),
+                                                 statementCountIs(1))
+                                        .bind("compound"))))
+                   .bind("ifWithDelete")),
       this);
 }
 
@@ -63,9 +64,11 @@ void DeleteNullPointerCheck::check(const MatchFinder::MatchResult &Result) {
 
   Diag << FixItHint::CreateRemoval(CharSourceRange::getTokenRange(
       IfWithDelete->getBeginLoc(),
-      Lexer::getLocForEndOfToken(IfWithDelete->getCond()->getEndLoc(), 0,
-                                 *Result.SourceManager,
-                                 Result.Context->getLangOpts())));
+      utils::lexer::getPreviousToken(IfWithDelete->getThen()->getBeginLoc(),
+                                     *Result.SourceManager,
+                                     Result.Context->getLangOpts())
+          .getLocation()));
+
   if (Compound) {
     Diag << FixItHint::CreateRemoval(
         CharSourceRange::getTokenRange(Compound->getLBracLoc()));

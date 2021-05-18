@@ -1,15 +1,14 @@
 //===-- LibCxx.h ---------------------------------------------------*- C++
 //-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_LibCxx_h_
-#define liblldb_LibCxx_h_
+#ifndef LLDB_SOURCE_PLUGINS_LANGUAGE_CPLUSPLUS_LIBCXX_H
+#define LLDB_SOURCE_PLUGINS_LANGUAGE_CPLUSPLUS_LIBCXX_H
 
 #include "lldb/Core/ValueObject.h"
 #include "lldb/DataFormatters/TypeSummary.h"
@@ -44,6 +43,10 @@ bool LibcxxSmartPointerSummaryProvider(
     const TypeSummaryOptions
         &options); // libc++ std::shared_ptr<> and std::weak_ptr<>
 
+// libc++ std::unique_ptr<>
+bool LibcxxUniquePointerSummaryProvider(ValueObject &valobj, Stream &stream,
+                                        const TypeSummaryOptions &options);
+
 bool LibcxxFunctionSummaryProvider(
     ValueObject &valobj, Stream &stream,
     const TypeSummaryOptions &options); // libc++ std::function<>
@@ -67,7 +70,7 @@ public:
 
   bool MightHaveChildren() override;
 
-  size_t GetIndexOfChildWithName(const ConstString &name) override;
+  size_t GetIndexOfChildWithName(ConstString name) override;
 
   ~LibCxxMapIteratorSyntheticFrontEnd() override;
 
@@ -96,7 +99,7 @@ public:
 
   bool MightHaveChildren() override;
 
-  size_t GetIndexOfChildWithName(const ConstString &name) override;
+  size_t GetIndexOfChildWithName(ConstString name) override;
 
   ~LibcxxSharedPtrSyntheticFrontEnd() override;
 
@@ -108,12 +111,36 @@ private:
   lldb::ByteOrder m_byte_order;
 };
 
+class LibcxxUniquePtrSyntheticFrontEnd : public SyntheticChildrenFrontEnd {
+public:
+  LibcxxUniquePtrSyntheticFrontEnd(lldb::ValueObjectSP valobj_sp);
+
+  size_t CalculateNumChildren() override;
+
+  lldb::ValueObjectSP GetChildAtIndex(size_t idx) override;
+
+  bool Update() override;
+
+  bool MightHaveChildren() override;
+
+  size_t GetIndexOfChildWithName(ConstString name) override;
+
+  ~LibcxxUniquePtrSyntheticFrontEnd() override;
+
+private:
+  lldb::ValueObjectSP m_compressed_pair_sp;
+};
+
 SyntheticChildrenFrontEnd *
 LibcxxBitsetSyntheticFrontEndCreator(CXXSyntheticChildren *,
                                      lldb::ValueObjectSP);
 
 SyntheticChildrenFrontEnd *
 LibcxxSharedPtrSyntheticFrontEndCreator(CXXSyntheticChildren *,
+                                        lldb::ValueObjectSP);
+
+SyntheticChildrenFrontEnd *
+LibcxxUniquePtrSyntheticFrontEndCreator(CXXSyntheticChildren *,
                                         lldb::ValueObjectSP);
 
 SyntheticChildrenFrontEnd *
@@ -157,4 +184,4 @@ LibcxxVariantFrontEndCreator(CXXSyntheticChildren *,
 } // namespace formatters
 } // namespace lldb_private
 
-#endif // liblldb_LibCxx_h_
+#endif // LLDB_SOURCE_PLUGINS_LANGUAGE_CPLUSPLUS_LIBCXX_H

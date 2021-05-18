@@ -1,20 +1,21 @@
 #
 #//===----------------------------------------------------------------------===//
 #//
-#//                     The LLVM Compiler Infrastructure
-#//
-#// This file is dual licensed under the MIT and the University of Illinois Open
-#// Source Licenses. See LICENSE.txt for details.
+#// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+#// See https://llvm.org/LICENSE.txt for license information.
+#// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #//
 #//===----------------------------------------------------------------------===//
 #
 
 include(CheckCCompilerFlag)
 include(CheckCSourceCompiles)
+include(CheckCXXSourceCompiles)
 include(CheckCXXCompilerFlag)
 include(CheckIncludeFile)
 include(CheckLibraryExists)
 include(CheckIncludeFiles)
+include(CheckSymbolExists)
 include(LibompCheckLinkerFlag)
 include(LibompCheckFortranFlag)
 
@@ -46,43 +47,33 @@ function(libomp_check_architecture_flag flag retval)
   set(${retval} ${${retval}} PARENT_SCOPE)
 endfunction()
 
-# Checking C, CXX, Linker Flags
+# Checking CXX, Linker Flags
 check_cxx_compiler_flag(-fno-exceptions LIBOMP_HAVE_FNO_EXCEPTIONS_FLAG)
 check_cxx_compiler_flag(-fno-rtti LIBOMP_HAVE_FNO_RTTI_FLAG)
-check_c_compiler_flag("-x c++" LIBOMP_HAVE_X_CPP_FLAG)
-check_cxx_compiler_flag(-Wcast-qual LIBOMP_HAVE_WCAST_QUAL_FLAG)
-check_c_compiler_flag(-Wunused-function LIBOMP_HAVE_WNO_UNUSED_FUNCTION_FLAG)
-check_c_compiler_flag(-Wunused-local-typedef LIBOMP_HAVE_WNO_UNUSED_LOCAL_TYPEDEF_FLAG)
-check_c_compiler_flag(-Wunused-value LIBOMP_HAVE_WNO_UNUSED_VALUE_FLAG)
-check_c_compiler_flag(-Wunused-variable LIBOMP_HAVE_WNO_UNUSED_VARIABLE_FLAG)
-check_c_compiler_flag(-Wswitch LIBOMP_HAVE_WNO_SWITCH_FLAG)
-check_c_compiler_flag(-Wcovered-switch-default LIBOMP_HAVE_WNO_COVERED_SWITCH_DEFAULT_FLAG)
-check_c_compiler_flag(-Wdeprecated-register LIBOMP_HAVE_WNO_DEPRECATED_REGISTER_FLAG)
-check_c_compiler_flag(-Wsign-compare LIBOMP_HAVE_WNO_SIGN_COMPARE_FLAG)
-check_c_compiler_flag(-Wgnu-anonymous-struct LIBOMP_HAVE_WNO_GNU_ANONYMOUS_STRUCT_FLAG)
-check_c_compiler_flag(-Wunknown-pragmas LIBOMP_HAVE_WNO_UNKNOWN_PRAGMAS_FLAG)
-check_c_compiler_flag(-Wmissing-field-initializers LIBOMP_HAVE_WNO_MISSING_FIELD_INITIALIZERS_FLAG)
-check_c_compiler_flag(-Wmissing-braces LIBOMP_HAVE_WNO_MISSING_BRACES_FLAG)
-check_c_compiler_flag(-Wcomment LIBOMP_HAVE_WNO_COMMENT_FLAG)
-check_c_compiler_flag(-Wself-assign LIBOMP_HAVE_WNO_SELF_ASSIGN_FLAG)
-check_c_compiler_flag(-Wvla-extension LIBOMP_HAVE_WNO_VLA_EXTENSION_FLAG)
-check_c_compiler_flag(-Wformat-pedantic LIBOMP_HAVE_WNO_FORMAT_PEDANTIC_FLAG)
-check_c_compiler_flag(-Wstringop-overflow=0 LIBOMP_HAVE_WSTRINGOP_OVERFLOW_FLAG)
-check_c_compiler_flag(-msse2 LIBOMP_HAVE_MSSE2_FLAG)
-check_c_compiler_flag(-ftls-model=initial-exec LIBOMP_HAVE_FTLS_MODEL_FLAG)
+check_cxx_compiler_flag(-Wno-class-memaccess LIBOMP_HAVE_WNO_CLASS_MEMACCESS_FLAG)
+check_cxx_compiler_flag(-Wno-covered-switch-default LIBOMP_HAVE_WNO_COVERED_SWITCH_DEFAULT_FLAG)
+check_cxx_compiler_flag(-Wno-frame-address LIBOMP_HAVE_WNO_FRAME_ADDRESS_FLAG)
+check_cxx_compiler_flag(-Wno-strict-aliasing LIBOMP_HAVE_WNO_STRICT_ALIASING_FLAG)
+check_cxx_compiler_flag(-Wstringop-overflow=0 LIBOMP_HAVE_WSTRINGOP_OVERFLOW_FLAG)
+check_cxx_compiler_flag(-Wno-stringop-truncation LIBOMP_HAVE_WNO_STRINGOP_TRUNCATION_FLAG)
+check_cxx_compiler_flag(-Wno-switch LIBOMP_HAVE_WNO_SWITCH_FLAG)
+check_cxx_compiler_flag(-Wno-uninitialized LIBOMP_HAVE_WNO_UNINITIALIZED_FLAG)
+check_cxx_compiler_flag(-Wno-unused-but-set-variable LIBOMP_HAVE_WNO_UNUSED_BUT_SET_VARIABLE_FLAG)
+# check_cxx_compiler_flag(-Wconversion LIBOMP_HAVE_WCONVERSION_FLAG)
+check_cxx_compiler_flag(-msse2 LIBOMP_HAVE_MSSE2_FLAG)
+check_cxx_compiler_flag(-ftls-model=initial-exec LIBOMP_HAVE_FTLS_MODEL_FLAG)
 libomp_check_architecture_flag(-mmic LIBOMP_HAVE_MMIC_FLAG)
 libomp_check_architecture_flag(-m32 LIBOMP_HAVE_M32_FLAG)
 if(WIN32)
   if(MSVC)
     # Check Windows MSVC style flags.
-    check_c_compiler_flag(/TP LIBOMP_HAVE_TP_FLAG)
     check_cxx_compiler_flag(/EHsc LIBOMP_HAVE_EHSC_FLAG)
     check_cxx_compiler_flag(/GS LIBOMP_HAVE_GS_FLAG)
     check_cxx_compiler_flag(/Oy- LIBOMP_HAVE_Oy__FLAG)
     check_cxx_compiler_flag(/arch:SSE2 LIBOMP_HAVE_ARCH_SSE2_FLAG)
     check_cxx_compiler_flag(/Qsafeseh LIBOMP_HAVE_QSAFESEH_FLAG)
   endif()
-  check_c_compiler_flag(-mrtm LIBOMP_HAVE_MRTM_FLAG)
+  check_cxx_compiler_flag(-mrtm LIBOMP_HAVE_MRTM_FLAG)
   # It is difficult to create a dummy masm assembly file
   # and then check the MASM assembler to see if these flags exist and work,
   # so we assume they do for Windows.
@@ -99,12 +90,20 @@ if(WIN32)
   endforeach()
 else()
   # It is difficult to create a dummy assembly file that compiles into an
-  # exectuable for every architecture and then check the C compiler to
+  # executable for every architecture and then check the C compiler to
   # see if -x assembler-with-cpp exists and works, so we assume it does for non-Windows.
   set(LIBOMP_HAVE_X_ASSEMBLER_WITH_CPP_FLAG TRUE)
 endif()
 if(${LIBOMP_FORTRAN_MODULES})
   libomp_check_fortran_flag(-m32 LIBOMP_HAVE_M32_FORTRAN_FLAG)
+endif()
+
+# Check for Unix shared memory
+check_symbol_exists(shm_open "sys/mman.h" LIBOMP_HAVE_SHM_OPEN_NO_LRT)
+if (NOT LIBOMP_HAVE_SHM_OPEN_NO_LRT)
+  set(CMAKE_REQUIRED_LIBRARIES -lrt)
+  check_symbol_exists(shm_open "sys/mman.h" LIBOMP_HAVE_SHM_OPEN_WITH_LRT)
+  set(CMAKE_REQUIRED_LIBRARIES)
 endif()
 
 # Check linker flags
@@ -117,7 +116,6 @@ elseif(NOT APPLE)
   libomp_check_linker_flag("-Wl,--version-script=${LIBOMP_SRC_DIR}/exports_so.txt" LIBOMP_HAVE_VERSION_SCRIPT_FLAG)
   libomp_check_linker_flag(-static-libgcc LIBOMP_HAVE_STATIC_LIBGCC_FLAG)
   libomp_check_linker_flag(-Wl,-z,noexecstack LIBOMP_HAVE_Z_NOEXECSTACK_FLAG)
-  libomp_check_linker_flag(-Wl,-fini=__kmp_internal_end_fini LIBOMP_HAVE_FINI_FLAG)
 endif()
 
 # Check Intel(R) C Compiler specific flags
@@ -143,6 +141,53 @@ else()
   if(NOT CMAKE_USE_PTHREADS_INIT)
     libomp_error_say("Need pthread interface on Unix-like systems.")
   endif()
+endif()
+
+# Checking for x86-specific waitpkg and rtm attribute and intrinsics
+if (IA32 OR INTEL64)
+  check_include_file(immintrin.h LIBOMP_HAVE_IMMINTRIN_H)
+  if (NOT LIBOMP_HAVE_IMMINTRIN_H)
+    check_include_file(intrin.h LIBOMP_HAVE_INTRIN_H)
+  endif()
+  check_cxx_source_compiles("__attribute__((target(\"rtm\")))
+                             int main() {return 0;}" LIBOMP_HAVE_ATTRIBUTE_RTM)
+  check_cxx_source_compiles("__attribute__((target(\"waitpkg\")))
+                            int main() {return 0;}" LIBOMP_HAVE_ATTRIBUTE_WAITPKG)
+  libomp_append(CMAKE_REQUIRED_DEFINITIONS -DIMMINTRIN_H LIBOMP_HAVE_IMMINTRIN_H)
+  libomp_append(CMAKE_REQUIRED_DEFINITIONS -DINTRIN_H LIBOMP_HAVE_INTRIN_H)
+  libomp_append(CMAKE_REQUIRED_DEFINITIONS -DATTRIBUTE_WAITPKG LIBOMP_HAVE_ATTRIBUTE_WAITPKG)
+  libomp_append(CMAKE_REQUIRED_DEFINITIONS -DATTRIBUTE_RTM LIBOMP_HAVE_ATTRIBUTE_RTM)
+  set(source_code "// check for attribute and wait pkg intrinsics
+      #ifdef IMMINTRIN_H
+      #include <immintrin.h>
+      #endif
+      #ifdef INTRIN_H
+      #include <intrin.h>
+      #endif
+      #ifdef ATTRIBUTE_WAITPKG
+      __attribute__((target(\"waitpkg\")))
+      #endif
+      static inline int __kmp_umwait(unsigned hint, unsigned long long counter) {
+        return _umwait(hint, counter);
+      }
+      int main() { int a = __kmp_umwait(0, 1000); return a; }")
+  check_cxx_source_compiles("${source_code}" LIBOMP_HAVE_WAITPKG_INTRINSICS)
+  set(source_code "// check for attribute rtm and rtm intrinsics
+      #ifdef IMMINTRIN_H
+      #include <immintrin.h>
+      #endif
+      #ifdef INTRIN_H
+      #include <intrin.h>
+      #endif
+      #ifdef ATTRIBUTE_RTM
+      __attribute__((target(\"rtm\")))
+      #endif
+      static inline int __kmp_xbegin() {
+        return _xbegin();
+      }
+      int main() { int a = __kmp_xbegin(); return a; }")
+  check_cxx_source_compiles("${source_code}" LIBOMP_HAVE_RTM_INTRINSICS)
+  set(CMAKE_REQUIRED_DEFINITIONS)
 endif()
 
 # Find perl executable
@@ -246,8 +291,10 @@ else()
       (LIBOMP_ARCH STREQUAL i386) OR
 #      (LIBOMP_ARCH STREQUAL arm) OR
       (LIBOMP_ARCH STREQUAL aarch64) OR
+      (LIBOMP_ARCH STREQUAL aarch64_a64fx) OR
       (LIBOMP_ARCH STREQUAL ppc64le) OR
-      (LIBOMP_ARCH STREQUAL ppc64))
+      (LIBOMP_ARCH STREQUAL ppc64) OR
+      (LIBOMP_ARCH STREQUAL riscv64))
      AND # OS supported?
      ((WIN32 AND LIBOMP_HAVE_PSAPI) OR APPLE OR (NOT WIN32 AND LIBOMP_HAVE_WEAK_ATTRIBUTE)))
     set(LIBOMP_HAVE_OMPT_SUPPORT TRUE)

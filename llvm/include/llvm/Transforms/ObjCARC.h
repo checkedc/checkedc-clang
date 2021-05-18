@@ -1,9 +1,8 @@
 //===-- ObjCARC.h - ObjCARC Scalar Transformations --------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -14,6 +13,8 @@
 
 #ifndef LLVM_TRANSFORMS_OBJCARC_H
 #define LLVM_TRANSFORMS_OBJCARC_H
+
+#include "llvm/IR/PassManager.h"
 
 namespace llvm {
 
@@ -42,6 +43,22 @@ Pass *createObjCARCContractPass();
 // ObjCARCOpt - ObjC ARC optimization.
 //
 Pass *createObjCARCOptPass();
+
+struct ObjCARCOptPass : public PassInfoMixin<ObjCARCOptPass> {
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+};
+
+struct ObjCARCContractPass : public PassInfoMixin<ObjCARCContractPass> {
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+};
+
+struct ObjCARCAPElimPass : public PassInfoMixin<ObjCARCAPElimPass> {
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+};
+
+struct ObjCARCExpandPass : public PassInfoMixin<ObjCARCExpandPass> {
+  PreservedAnalyses run(Function &M, FunctionAnalysisManager &AM);
+};
 
 } // End llvm namespace
 

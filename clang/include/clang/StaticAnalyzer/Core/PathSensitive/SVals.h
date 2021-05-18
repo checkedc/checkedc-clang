@@ -1,9 +1,8 @@
 //===- SVals.h - Abstract Values for Static Analysis ------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -81,7 +80,7 @@ public:
 #define ABSTRACT_SVAL_WITH_KIND(Id, Parent) Id ## Kind,
 #include "clang/StaticAnalyzer/Core/PathSensitive/SVals.def"
   };
-  enum { BaseBits = 2, BaseMask = 0x3 };
+  enum { BaseBits = 2, BaseMask = 0b11 };
 
 protected:
   const void *Data = nullptr;
@@ -117,7 +116,7 @@ public:
 
   unsigned getRawKind() const { return Kind; }
   BaseKind getBaseKind() const { return (BaseKind) (Kind & BaseMask); }
-  unsigned getSubKind() const { return (Kind & ~BaseMask) >> BaseBits; }
+  unsigned getSubKind() const { return Kind >> BaseBits; }
 
   // This method is required for using SVal in a FoldingSetNode.  It
   // extracts a unique signature for this SVal object.
@@ -183,13 +182,10 @@ public:
   /// should continue to the base regions if the region is not symbolic.
   SymbolRef getAsSymbol(bool IncludeBaseRegions = false) const;
 
-  /// getAsSymbolicExpression - If this Sval wraps a symbolic expression then
-  ///  return that expression.  Otherwise return NULL.
-  const SymExpr *getAsSymbolicExpression() const;
-
-  const SymExpr *getAsSymExpr() const;
-
   const MemRegion *getAsRegion() const;
+
+  /// printJson - Pretty-prints in JSON format.
+  void printJson(raw_ostream &Out, bool AddQuotes) const;
 
   void dumpToStream(raw_ostream &OS) const;
   void dump() const;
@@ -304,7 +300,7 @@ public:
 
   static bool isCompoundType(QualType T) {
     return T->isArrayType() || T->isRecordType() ||
-           T->isComplexType() || T->isVectorType();
+           T->isAnyComplexType() || T->isVectorType();
   }
 
 private:
@@ -524,7 +520,7 @@ class PointerToMember : public NonLoc {
 
 public:
   using PTMDataType =
-      llvm::PointerUnion<const DeclaratorDecl *, const PointerToMemberData *>;
+      llvm::PointerUnion<const NamedDecl *, const PointerToMemberData *>;
 
   const PTMDataType getPTMData() const {
     return PTMDataType::getFromOpaqueValue(const_cast<void *>(Data));
@@ -532,7 +528,7 @@ public:
 
   bool isNullMemberPointer() const;
 
-  const DeclaratorDecl *getDecl() const;
+  const NamedDecl *getDecl() const;
 
   template<typename AdjustedDecl>
   const AdjustedDecl *getDeclAs() const {
@@ -667,14 +663,5 @@ private:
 } // namespace ento
 
 } // namespace clang
-
-namespace llvm {
-
-template <typename T> struct isPodLike;
-template <> struct isPodLike<clang::ento::SVal> {
-  static const bool value = true;
-};
-
-} // namespace llvm
 
 #endif // LLVM_CLANG_STATICANALYZER_CORE_PATHSENSITIVE_SVALS_H

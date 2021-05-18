@@ -1,14 +1,13 @@
 //===-- TypeSummary.h -------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef lldb_TypeSummary_h_
-#define lldb_TypeSummary_h_
+#ifndef LLDB_DATAFORMATTERS_TYPESUMMARY_H
+#define LLDB_DATAFORMATTERS_TYPESUMMARY_H
 
 #include <stdint.h>
 
@@ -27,11 +26,8 @@ namespace lldb_private {
 class TypeSummaryOptions {
 public:
   TypeSummaryOptions();
-  TypeSummaryOptions(const TypeSummaryOptions &rhs);
 
   ~TypeSummaryOptions() = default;
-
-  TypeSummaryOptions &operator=(const TypeSummaryOptions &rhs);
 
   lldb::LanguageType GetLanguage() const;
 
@@ -274,7 +270,8 @@ protected:
 
 private:
   Kind m_kind;
-  DISALLOW_COPY_AND_ASSIGN(TypeSummaryImpl);
+  TypeSummaryImpl(const TypeSummaryImpl &) = delete;
+  const TypeSummaryImpl &operator=(const TypeSummaryImpl &) = delete;
 };
 
 // simple string-based summaries, using ${var to show data
@@ -301,7 +298,8 @@ struct StringSummaryFormat : public TypeSummaryImpl {
   }
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(StringSummaryFormat);
+  StringSummaryFormat(const StringSummaryFormat &) = delete;
+  const StringSummaryFormat &operator=(const StringSummaryFormat &) = delete;
 };
 
 // summaries implemented via a C++ function
@@ -324,7 +322,7 @@ struct CXXFunctionSummaryFormat : public TypeSummaryImpl {
 
   const char *GetTextualInfo() const { return m_description.c_str(); }
 
-  void SetBackendFunction(Callback cb_func) { m_impl = cb_func; }
+  void SetBackendFunction(Callback cb_func) { m_impl = std::move(cb_func); }
 
   void SetTextualInfo(const char *descr) {
     if (descr)
@@ -345,7 +343,9 @@ struct CXXFunctionSummaryFormat : public TypeSummaryImpl {
   typedef std::shared_ptr<CXXFunctionSummaryFormat> SharedPointer;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(CXXFunctionSummaryFormat);
+  CXXFunctionSummaryFormat(const CXXFunctionSummaryFormat &) = delete;
+  const CXXFunctionSummaryFormat &
+  operator=(const CXXFunctionSummaryFormat &) = delete;
 };
 
 // Python-based summaries, running script code to show data
@@ -391,8 +391,9 @@ struct ScriptSummaryFormat : public TypeSummaryImpl {
   typedef std::shared_ptr<ScriptSummaryFormat> SharedPointer;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(ScriptSummaryFormat);
+  ScriptSummaryFormat(const ScriptSummaryFormat &) = delete;
+  const ScriptSummaryFormat &operator=(const ScriptSummaryFormat &) = delete;
 };
 } // namespace lldb_private
 
-#endif // lldb_TypeSummary_h_
+#endif // LLDB_DATAFORMATTERS_TYPESUMMARY_H

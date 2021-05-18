@@ -1,30 +1,25 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 // <memory>
 
-// check nested types:
+// Check that the nested types of std::allocator are provided:
 
 // template <class T>
 // class allocator
 // {
 // public:
-//     typedef size_t                                size_type;
-//     typedef ptrdiff_t                             difference_type;
-//     typedef T*                                    pointer;
-//     typedef const T*                              const_pointer;
-//     typedef typename add_lvalue_reference<T>::type       reference;
-//     typedef typename add_lvalue_reference<const T>::type const_reference;
-//     typedef T                                     value_type;
-//     typedef true_type                             is_always_equal;
+//     typedef size_t    size_type;
+//     typedef ptrdiff_t difference_type;
+//     typedef T         value_type;
 //
-//     template <class U> struct rebind {typedef allocator<U> other;};
+//     typedef true_type propagate_on_container_move_assignment;
+//     typedef true_type is_always_equal;
 // ...
 // };
 
@@ -34,24 +29,36 @@
 
 #include "test_macros.h"
 
-int main()
+template <typename T, typename U>
+TEST_CONSTEXPR_CXX20 bool test()
 {
-    static_assert((std::is_same<std::allocator<char>::size_type, std::size_t>::value), "");
-    static_assert((std::is_same<std::allocator<char>::difference_type, std::ptrdiff_t>::value), "");
-    static_assert((std::is_same<std::allocator<char>::pointer, char*>::value), "");
-    static_assert((std::is_same<std::allocator<char>::const_pointer, const char*>::value), "");
-    static_assert((std::is_same<std::allocator<char>::value_type, char>::value), "");
-    static_assert((std::is_same<std::allocator<char>::reference, char&>::value), "");
-    static_assert((std::is_same<std::allocator<char>::const_reference, const char&>::value), "");
-    static_assert((std::is_same<std::allocator<char>::rebind<int>::other,
-                                std::allocator<int> >::value), "");
+    static_assert((std::is_same<typename std::allocator<T>::size_type, std::size_t>::value), "");
+    static_assert((std::is_same<typename std::allocator<T>::difference_type, std::ptrdiff_t>::value), "");
+    static_assert((std::is_same<typename std::allocator<T>::value_type, T>::value), "");
+    static_assert((std::is_same<typename std::allocator<T>::propagate_on_container_move_assignment, std::true_type>::value), "");
+    static_assert((std::is_same<typename std::allocator<T>::is_always_equal, std::true_type>::value), "");
 
-    static_assert((std::is_same<std::allocator<      char>::is_always_equal, std::true_type>::value), "");
-    LIBCPP_STATIC_ASSERT((std::is_same<std::allocator<const char>::is_always_equal, std::true_type>::value), "");
-
-    std::allocator<char> a;
-    std::allocator<char> a2 = a;
+    std::allocator<T> a;
+    std::allocator<T> a2 = a;
     a2 = a;
-    std::allocator<int> a3 = a2;
-    ((void)a3);
+    std::allocator<U> a3 = a2;
+    (void)a3;
+
+    return true;
+}
+
+int main(int, char**)
+{
+    test<char, int>();
+#ifdef _LIBCPP_VERSION // extension
+    test<char const, int const>();
+#endif // _LIBCPP_VERSION
+
+#if TEST_STD_VER > 17
+    static_assert(test<char, int>());
+#ifdef _LIBCPP_VERSION // extension
+    static_assert(test<char const, int const>());
+#endif // _LIBCPP_VERSION
+#endif
+    return 0;
 }

@@ -13,7 +13,7 @@ define i32 @test1(i32 %i) nounwind ssp {
 }
 
 ; CHECK-LABEL: test1:
-; CHECK: andl	$8, 
+; CHECK: andl	$8,
 
 
 ; rdar://9289512 - The load should fold into the compare.
@@ -119,14 +119,14 @@ define i32 @test10(i32 %X) nounwind {
   %Y = udiv i32 %X, 8
   ret i32 %Y
 ; CHECK-LABEL: test10:
-; CHECK: shrl	$3, 
+; CHECK: shrl	$3,
 }
 
 define i32 @test11(i32 %X) nounwind {
   %Y = sdiv exact i32 %X, 8
   ret i32 %Y
 ; CHECK-LABEL: test11:
-; CHECK: sarl	$3, 
+; CHECK: sarl	$3,
 }
 
 
@@ -168,7 +168,7 @@ entry:
   call void @test13f(i1 zeroext %tobool) noredzone
   ret void
 ; CHECK-LABEL: test14:
-; CHECK: andb	$1, 
+; CHECK: andb	$1,
 ; CHECK: callq
 }
 
@@ -227,7 +227,7 @@ if.else:                                          ; preds = %entry
 ; CHECK: movl	(%rdi), %eax
 ; CHECK: callq _foo
 ; CHECK: cmpl	$5, %eax
-; CHECK-NEXT: je 
+; CHECK-NEXT: je
 }
 
 ; Check that 0.0 is materialized using xorps
@@ -251,13 +251,13 @@ define void @test19(double* %p1) {
 define void @test20() nounwind ssp {
 entry:
   %tmp = alloca %struct.a, align 8
-  call void @test20sret(%struct.a* sret %tmp)
+  call void @test20sret(%struct.a* sret(%struct.a) %tmp)
   ret void
 ; CHECK-LABEL: test20:
 ; CHECK: movq %rsp, %rdi
 ; CHECK: callq _test20sret
 }
-declare void @test20sret(%struct.a* sret)
+declare void @test20sret(%struct.a* sret(%struct.a))
 
 ; Check that -0.0 is not materialized using xor
 define void @test21(double* %p1) {
@@ -292,15 +292,15 @@ entry:
 declare void @foo22(i32)
 
 ; PR13563
-define void @test23(i8* noalias sret %result) {
+define void @test23(i8* noalias sret(i8) %result) {
   %a = alloca i8
   %b = call i8* @foo23()
   ret void
 ; CHECK-LABEL: test23:
 ; CHECK: movq %rdi, [[STACK:[0-9]+\(%rsp\)]]
 ; CHECK: call
-; CHECK: movq [[STACK]], %rdi
-; CHECK: movq %rdi, %rax
+; CHECK-NEXT: movq [[STACK]], %rax
+; CHECK-NEXT: addq $24, %rsp
 ; CHECK: ret
 }
 

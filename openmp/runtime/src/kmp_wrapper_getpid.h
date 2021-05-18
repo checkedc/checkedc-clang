@@ -4,10 +4,9 @@
 
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.txt for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -23,10 +22,15 @@
 #include <unistd.h>
 #if KMP_OS_DARWIN
 // OS X
-#define __kmp_gettid() syscall(SYS_thread_selfid)
+#define __kmp_gettid() pthread_mach_thread_np(pthread_self())
+#elif KMP_OS_FREEBSD
+#include <pthread_np.h>
+#define __kmp_gettid() pthread_getthreadid_np()
 #elif KMP_OS_NETBSD
 #include <lwp.h>
 #define __kmp_gettid() _lwp_self()
+#elif KMP_OS_OPENBSD
+#define __kmp_gettid() syscall(SYS_getthrid)
 #elif defined(SYS_gettid)
 // Hopefully other Unix systems define SYS_gettid syscall for getting os thread
 // id

@@ -6,11 +6,11 @@ set(DD_CFLAGS ${SANITIZER_COMMON_CFLAGS})
 append_rtti_flag(OFF DD_CFLAGS)
 
 set(DD_SOURCES
-  dd_rtl.cc
-  dd_interceptors.cc
-)
+  dd_rtl.cpp
+  dd_interceptors.cpp
+  )
 
-set(DD_LINKLIBS ${SANITIZER_CXX_ABI_LIBRARY} ${SANITIZER_COMMON_LINK_LIBS})
+set(DD_LINKLIBS ${SANITIZER_CXX_ABI_LIBRARIES} ${SANITIZER_COMMON_LINK_LIBS})
 
 append_list_if(COMPILER_RT_HAS_LIBDL dl DD_LINKLIBS)
 append_list_if(COMPILER_RT_HAS_LIBRT rt DD_LINKLIBS)

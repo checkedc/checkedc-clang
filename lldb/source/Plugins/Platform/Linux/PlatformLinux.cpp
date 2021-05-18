@@ -1,9 +1,8 @@
-//===-- PlatformLinux.cpp ---------------------------------------*- C++ -*-===//
+//===-- PlatformLinux.cpp -------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -11,7 +10,7 @@
 #include "lldb/Host/Config.h"
 
 #include <stdio.h>
-#ifndef LLDB_DISABLE_POSIX
+#if LLDB_ENABLE_POSIX
 #include <sys/utsname.h>
 #endif
 
@@ -35,9 +34,10 @@ using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::platform_linux;
 
+LLDB_PLUGIN_DEFINE(PlatformLinux)
+
 static uint32_t g_initialize_count = 0;
 
-//------------------------------------------------------------------
 
 PlatformSP PlatformLinux::CreateInstance(bool force, const ArchSpec *arch) {
   Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PLATFORM));
@@ -119,14 +119,10 @@ void PlatformLinux::Terminate() {
   PlatformPOSIX::Terminate();
 }
 
-//------------------------------------------------------------------
 /// Default Constructor
-//------------------------------------------------------------------
 PlatformLinux::PlatformLinux(bool is_host)
     : PlatformPOSIX(is_host) // This is the local host platform
 {}
-
-PlatformLinux::~PlatformLinux() = default;
 
 bool PlatformLinux::GetSupportedArchitectureAtIndex(uint32_t idx,
                                                     ArchSpec &arch) {
@@ -203,7 +199,7 @@ bool PlatformLinux::GetSupportedArchitectureAtIndex(uint32_t idx,
 void PlatformLinux::GetStatus(Stream &strm) {
   Platform::GetStatus(strm);
 
-#ifndef LLDB_DISABLE_POSIX
+#if LLDB_ENABLE_POSIX
   // Display local kernel information only when we are running in host mode.
   // Otherwise, we would end up printing non-Linux information (when running on
   // Mac OS for example).
@@ -220,9 +216,9 @@ void PlatformLinux::GetStatus(Stream &strm) {
 #endif
 }
 
-int32_t
+uint32_t
 PlatformLinux::GetResumeCountForLaunchInfo(ProcessLaunchInfo &launch_info) {
-  int32_t resume_count = 0;
+  uint32_t resume_count = 0;
 
   // Always resume past the initial stop when we use eLaunchFlagDebug
   if (launch_info.GetFlags().Test(eLaunchFlagDebug)) {
@@ -241,7 +237,7 @@ PlatformLinux::GetResumeCountForLaunchInfo(ProcessLaunchInfo &launch_info) {
 
   // Figure out what shell we're planning on using.
   const char *shell_name = strrchr(shell_string.c_str(), '/');
-  if (shell_name == NULL)
+  if (shell_name == nullptr)
     shell_name = shell_string.c_str();
   else
     shell_name++;
@@ -264,123 +260,10 @@ bool PlatformLinux::CanDebugProcess() {
   }
 }
 
-// For local debugging, Linux will override the debug logic to use llgs-launch
-// rather than lldb-launch, llgs-attach.  This differs from current lldb-
-// launch, debugserver-attach approach on MacOSX.
-lldb::ProcessSP
-PlatformLinux::DebugProcess(ProcessLaunchInfo &launch_info, Debugger &debugger,
-                            Target *target, // Can be NULL, if NULL create a new
-                                            // target, else use existing one
-                            Status &error) {
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PLATFORM));
-  LLDB_LOG(log, "target {0}", target);
-
-  // If we're a remote host, use standard behavior from parent class.
-  if (!IsHost())
-    return PlatformPOSIX::DebugProcess(launch_info, debugger, target, error);
-
-  //
-  // For local debugging, we'll insist on having ProcessGDBRemote create the
-  // process.
-  //
-
-  ProcessSP process_sp;
-
-  // Make sure we stop at the entry point
-  launch_info.GetFlags().Set(eLaunchFlagDebug);
-
-  // We always launch the process we are going to debug in a separate process
-  // group, since then we can handle ^C interrupts ourselves w/o having to
-  // worry about the target getting them as well.
-  launch_info.SetLaunchInSeparateProcessGroup(true);
-
-  // Ensure we have a target.
-  if (target == nullptr) {
-    LLDB_LOG(log, "creating new target");
-    TargetSP new_target_sp;
-    error = debugger.GetTargetList().CreateTarget(
-        debugger, "", "", eLoadDependentsNo, nullptr, new_target_sp);
-    if (error.Fail()) {
-      LLDB_LOG(log, "failed to create new target: {0}", error);
-      return process_sp;
-    }
-
-    target = new_target_sp.get();
-    if (!target) {
-      error.SetErrorString("CreateTarget() returned nullptr");
-      LLDB_LOG(log, "error: {0}", error);
-      return process_sp;
-    }
-  }
-
-  // Mark target as currently selected target.
-  debugger.GetTargetList().SetSelectedTarget(target);
-
-  // Now create the gdb-remote process.
-  LLDB_LOG(log, "having target create process with gdb-remote plugin");
-  process_sp =
-      target->CreateProcess(launch_info.GetListener(), "gdb-remote", nullptr);
-
-  if (!process_sp) {
-    error.SetErrorString("CreateProcess() failed for gdb-remote process");
-    LLDB_LOG(log, "error: {0}", error);
-    return process_sp;
-  }
-
-  LLDB_LOG(log, "successfully created process");
-  // Adjust launch for a hijacker.
-  ListenerSP listener_sp;
-  if (!launch_info.GetHijackListener()) {
-    LLDB_LOG(log, "setting up hijacker");
-    listener_sp =
-        Listener::MakeListener("lldb.PlatformLinux.DebugProcess.hijack");
-    launch_info.SetHijackListener(listener_sp);
-    process_sp->HijackProcessEvents(listener_sp);
-  }
-
-  // Log file actions.
-  if (log) {
-    LLDB_LOG(log, "launching process with the following file actions:");
-    StreamString stream;
-    size_t i = 0;
-    const FileAction *file_action;
-    while ((file_action = launch_info.GetFileActionAtIndex(i++)) != nullptr) {
-      file_action->Dump(stream);
-      LLDB_LOG(log, "{0}", stream.GetData());
-      stream.Clear();
-    }
-  }
-
-  // Do the launch.
-  error = process_sp->Launch(launch_info);
-  if (error.Success()) {
-    // Handle the hijacking of process events.
-    if (listener_sp) {
-      const StateType state = process_sp->WaitForProcessToStop(
-          llvm::None, NULL, false, listener_sp);
-
-      LLDB_LOG(log, "pid {0} state {0}", process_sp->GetID(), state);
-    }
-
-    // Hook up process PTY if we have one (which we should for local debugging
-    // with llgs).
-    int pty_fd = launch_info.GetPTY().ReleaseMasterFileDescriptor();
-    if (pty_fd != PseudoTerminal::invalid_fd) {
-      process_sp->SetSTDIOFileDescriptor(pty_fd);
-      LLDB_LOG(log, "hooked up STDIO pty to process");
-    } else
-      LLDB_LOG(log, "not using process STDIO pty");
-  } else {
-    LLDB_LOG(log, "process launch failed: {0}", error);
-    // FIXME figure out appropriate cleanup here.  Do we delete the target? Do
-    // we delete the process?  Does our caller do that?
-  }
-
-  return process_sp;
-}
-
 void PlatformLinux::CalculateTrapHandlerSymbolNames() {
   m_trap_handlers.push_back(ConstString("_sigtramp"));
+  m_trap_handlers.push_back(ConstString("__kernel_rt_sigreturn"));
+  m_trap_handlers.push_back(ConstString("__restore_rt"));
 }
 
 MmapArgList PlatformLinux::GetMmapArgumentList(const ArchSpec &arch,
@@ -388,14 +271,7 @@ MmapArgList PlatformLinux::GetMmapArgumentList(const ArchSpec &arch,
                                                unsigned prot, unsigned flags,
                                                addr_t fd, addr_t offset) {
   uint64_t flags_platform = 0;
-  uint64_t map_anon = MAP_ANON;
-
-  // To get correct flags for MIPS Architecture
-  if (arch.GetTriple().getArch() == llvm::Triple::mips64 ||
-      arch.GetTriple().getArch() == llvm::Triple::mips64el ||
-      arch.GetTriple().getArch() == llvm::Triple::mips ||
-      arch.GetTriple().getArch() == llvm::Triple::mipsel)
-    map_anon = 0x800;
+  uint64_t map_anon = arch.IsMIPS() ? 0x800 : MAP_ANON;
 
   if (flags & eMmapFlagsPrivate)
     flags_platform |= MAP_PRIVATE;

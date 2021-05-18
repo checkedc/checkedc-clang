@@ -966,7 +966,7 @@ define i32 @load_i32_by_i8_base_offset_index_2(i8* %arg, i32 %i) {
 ; CHECK64-LABEL: load_i32_by_i8_base_offset_index_2:
 ; CHECK64:       # %bb.0:
 ; CHECK64-NEXT:    movl %esi, %eax
-; CHECK64-NEXT:    movl 13(%rdi,%rax), %eax
+; CHECK64-NEXT:    movl 13(%rax,%rdi), %eax
 ; CHECK64-NEXT:    retq
   %tmp = add nuw nsw i32 %i, 4
   %tmp2 = add nuw nsw i32 %i, 3
@@ -1119,18 +1119,12 @@ define i32 @zext_load_i32_by_i8(i32* %arg) {
 ; CHECK-LABEL: zext_load_i32_by_i8:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; CHECK-NEXT:    movzbl (%eax), %ecx
-; CHECK-NEXT:    movzbl 1(%eax), %eax
-; CHECK-NEXT:    shll $8, %eax
-; CHECK-NEXT:    orl %ecx, %eax
+; CHECK-NEXT:    movzwl (%eax), %eax
 ; CHECK-NEXT:    retl
 ;
 ; CHECK64-LABEL: zext_load_i32_by_i8:
 ; CHECK64:       # %bb.0:
-; CHECK64-NEXT:    movzbl (%rdi), %ecx
-; CHECK64-NEXT:    movzbl 1(%rdi), %eax
-; CHECK64-NEXT:    shll $8, %eax
-; CHECK64-NEXT:    orl %ecx, %eax
+; CHECK64-NEXT:    movzwl (%rdi), %eax
 ; CHECK64-NEXT:    retq
   %tmp = bitcast i32* %arg to i8*
   %tmp1 = getelementptr inbounds i8, i8* %tmp, i32 0
@@ -1218,18 +1212,16 @@ define i32 @zext_load_i32_by_i8_bswap(i32* %arg) {
 ; CHECK-LABEL: zext_load_i32_by_i8_bswap:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; CHECK-NEXT:    movzbl 1(%eax), %ecx
-; CHECK-NEXT:    movzbl (%eax), %eax
-; CHECK-NEXT:    shll $8, %eax
-; CHECK-NEXT:    orl %ecx, %eax
+; CHECK-NEXT:    movzwl (%eax), %eax
+; CHECK-NEXT:    shll $16, %eax
+; CHECK-NEXT:    bswapl %eax
 ; CHECK-NEXT:    retl
 ;
 ; CHECK64-LABEL: zext_load_i32_by_i8_bswap:
 ; CHECK64:       # %bb.0:
-; CHECK64-NEXT:    movzbl 1(%rdi), %ecx
-; CHECK64-NEXT:    movzbl (%rdi), %eax
-; CHECK64-NEXT:    shll $8, %eax
-; CHECK64-NEXT:    orl %ecx, %eax
+; CHECK64-NEXT:    movzwl (%rdi), %eax
+; CHECK64-NEXT:    shll $16, %eax
+; CHECK64-NEXT:    bswapl %eax
 ; CHECK64-NEXT:    retq
   %tmp = bitcast i32* %arg to i8*
   %tmp1 = getelementptr inbounds i8, i8* %tmp, i32 1

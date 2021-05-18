@@ -1,9 +1,8 @@
 //===- lld/unittest/MachOTests/MachONormalizedFileBinaryReaderTests.cpp ---===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -76,7 +75,7 @@ TEST(BinaryReaderTest, empty_obj_x86_64) {
       fromBinary(fileBytes, sizeof(fileBytes), "x86_64");
   EXPECT_EQ(f->arch, lld::MachOLinkingContext::arch_x86_64);
   EXPECT_EQ((int)(f->fileType), MH_OBJECT);
-  EXPECT_EQ((int)(f->flags), MH_SUBSECTIONS_VIA_SYMBOLS);
+  EXPECT_EQ((int)(f->flags), (int)MH_SUBSECTIONS_VIA_SYMBOLS);
   EXPECT_TRUE(f->localSymbols.empty());
   EXPECT_TRUE(f->globalSymbols.empty());
   EXPECT_TRUE(f->undefinedSymbols.empty());
@@ -107,7 +106,7 @@ TEST(BinaryReaderTest, empty_obj_x86) {
       fromBinary(fileBytes, sizeof(fileBytes), "i386");
   EXPECT_EQ(f->arch, lld::MachOLinkingContext::arch_x86);
   EXPECT_EQ((int)(f->fileType), MH_OBJECT);
-  EXPECT_EQ((int)(f->flags), MH_SUBSECTIONS_VIA_SYMBOLS);
+  EXPECT_EQ((int)(f->flags), (int)MH_SUBSECTIONS_VIA_SYMBOLS);
   EXPECT_TRUE(f->localSymbols.empty());
   EXPECT_TRUE(f->globalSymbols.empty());
   EXPECT_TRUE(f->undefinedSymbols.empty());
@@ -138,7 +137,7 @@ TEST(BinaryReaderTest, empty_obj_ppc) {
       fromBinary(fileBytes, sizeof(fileBytes), "ppc");
   EXPECT_EQ(f->arch, lld::MachOLinkingContext::arch_ppc);
   EXPECT_EQ((int)(f->fileType), MH_OBJECT);
-  EXPECT_EQ((int)(f->flags), MH_SUBSECTIONS_VIA_SYMBOLS);
+  EXPECT_EQ((int)(f->flags), (int)MH_SUBSECTIONS_VIA_SYMBOLS);
   EXPECT_TRUE(f->localSymbols.empty());
   EXPECT_TRUE(f->globalSymbols.empty());
   EXPECT_TRUE(f->undefinedSymbols.empty());
@@ -169,7 +168,7 @@ TEST(BinaryReaderTest, empty_obj_armv7) {
       fromBinary(fileBytes, sizeof(fileBytes), "armv7");
   EXPECT_EQ(f->arch, lld::MachOLinkingContext::arch_armv7);
   EXPECT_EQ((int)(f->fileType), MH_OBJECT);
-  EXPECT_EQ((int)(f->flags), MH_SUBSECTIONS_VIA_SYMBOLS);
+  EXPECT_EQ((int)(f->flags), (int)MH_SUBSECTIONS_VIA_SYMBOLS);
   EXPECT_TRUE(f->localSymbols.empty());
   EXPECT_TRUE(f->globalSymbols.empty());
   EXPECT_TRUE(f->undefinedSymbols.empty());
@@ -183,7 +182,7 @@ TEST(BinaryReaderTest, empty_obj_x86_64_arm7) {
       fromBinary(fileBytes, sizeof(fileBytes), "x86_64");
   EXPECT_EQ(f->arch, lld::MachOLinkingContext::arch_x86_64);
   EXPECT_EQ((int)(f->fileType), MH_OBJECT);
-  EXPECT_EQ((int)(f->flags), MH_SUBSECTIONS_VIA_SYMBOLS);
+  EXPECT_EQ((int)(f->flags), (int)MH_SUBSECTIONS_VIA_SYMBOLS);
   EXPECT_TRUE(f->localSymbols.empty());
   EXPECT_TRUE(f->globalSymbols.empty());
   EXPECT_TRUE(f->undefinedSymbols.empty());
@@ -192,7 +191,7 @@ TEST(BinaryReaderTest, empty_obj_x86_64_arm7) {
       fromBinary(fileBytes, sizeof(fileBytes), "armv7");
   EXPECT_EQ(f2->arch, lld::MachOLinkingContext::arch_armv7);
   EXPECT_EQ((int)(f2->fileType), MH_OBJECT);
-  EXPECT_EQ((int)(f2->flags), MH_SUBSECTIONS_VIA_SYMBOLS);
+  EXPECT_EQ((int)(f2->flags), (int)MH_SUBSECTIONS_VIA_SYMBOLS);
   EXPECT_TRUE(f2->localSymbols.empty());
   EXPECT_TRUE(f2->globalSymbols.empty());
   EXPECT_TRUE(f2->undefinedSymbols.empty());
@@ -269,7 +268,7 @@ TEST(BinaryReaderTest, hello_obj_x86_64) {
 
   EXPECT_EQ(f->arch, lld::MachOLinkingContext::arch_x86_64);
   EXPECT_EQ((int)(f->fileType), MH_OBJECT);
-  EXPECT_EQ((int)(f->flags), MH_SUBSECTIONS_VIA_SYMBOLS);
+  EXPECT_EQ((int)(f->flags), (int)MH_SUBSECTIONS_VIA_SYMBOLS);
   EXPECT_EQ(f->sections.size(), 2UL);
   const Section& text = f->sections[0];
   EXPECT_TRUE(text.segmentName.equals("__TEXT"));
@@ -394,7 +393,7 @@ TEST(BinaryReaderTest, hello_obj_x86) {
 
   EXPECT_EQ(f->arch, lld::MachOLinkingContext::arch_x86);
   EXPECT_EQ((int)(f->fileType), MH_OBJECT);
-  EXPECT_EQ((int)(f->flags), MH_SUBSECTIONS_VIA_SYMBOLS);
+  EXPECT_EQ((int)(f->flags), (int)MH_SUBSECTIONS_VIA_SYMBOLS);
   EXPECT_EQ(f->sections.size(), 2UL);
   const Section& text = f->sections[0];
   EXPECT_TRUE(text.segmentName.equals("__TEXT"));
@@ -526,7 +525,7 @@ TEST(BinaryReaderTest, hello_obj_armv7) {
 
   EXPECT_EQ(f->arch, lld::MachOLinkingContext::arch_armv7);
   EXPECT_EQ((int)(f->fileType), MH_OBJECT);
-  EXPECT_EQ((int)(f->flags), MH_SUBSECTIONS_VIA_SYMBOLS);
+  EXPECT_EQ((int)(f->flags), (int)MH_SUBSECTIONS_VIA_SYMBOLS);
   EXPECT_EQ(f->sections.size(), 2UL);
   const Section& text = f->sections[0];
   EXPECT_TRUE(text.segmentName.equals("__TEXT"));
@@ -670,7 +669,7 @@ TEST(BinaryReaderTest, hello_obj_ppc) {
 
   EXPECT_EQ(f->arch, lld::MachOLinkingContext::arch_ppc);
   EXPECT_EQ((int)(f->fileType), MH_OBJECT);
-  EXPECT_EQ((int)(f->flags), MH_SUBSECTIONS_VIA_SYMBOLS);
+  EXPECT_EQ((int)(f->flags), (int)MH_SUBSECTIONS_VIA_SYMBOLS);
   EXPECT_EQ(f->sections.size(), 2UL);
   const Section& text = f->sections[0];
   EXPECT_TRUE(text.segmentName.equals("__TEXT"));

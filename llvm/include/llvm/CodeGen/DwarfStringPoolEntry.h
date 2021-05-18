@@ -1,9 +1,8 @@
 //===- llvm/CodeGen/DwarfStringPoolEntry.h - String pool entry --*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -22,7 +21,7 @@ struct DwarfStringPoolEntry {
   static constexpr unsigned NotIndexed = -1;
 
   MCSymbol *Symbol;
-  unsigned Offset;
+  uint64_t Offset;
   unsigned Index;
 
   bool isIndexed() const { return Index != NotIndexed; }
@@ -48,7 +47,7 @@ public:
     assert(getMapEntry()->second.Symbol && "No symbol available!");
     return getMapEntry()->second.Symbol;
   }
-  unsigned getOffset() const { return getMapEntry()->second.Offset; }
+  uint64_t getOffset() const { return getMapEntry()->second.Offset; }
   bool isIndexed() const { return MapEntryAndIndexed.getInt(); }
   unsigned getIndex() const {
     assert(isIndexed());

@@ -1,14 +1,13 @@
 //===-- OptionValueUUID.h --------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_OptionValueUUID_h_
-#define liblldb_OptionValueUUID_h_
+#ifndef LLDB_INTERPRETER_OPTIONVALUEUUID_H
+#define LLDB_INTERPRETER_OPTIONVALUEUUID_H
 
 #include "lldb/Utility/UUID.h"
 #include "lldb/Interpreter/OptionValue.h"
@@ -23,9 +22,7 @@ public:
 
   ~OptionValueUUID() override {}
 
-  //---------------------------------------------------------------------
   // Virtual subclass pure virtual overrides
-  //---------------------------------------------------------------------
 
   OptionValue::Type GetType() const override { return eTypeUUID; }
 
@@ -39,17 +36,14 @@ public:
   SetValueFromString(const char *,
                      VarSetOperationType = eVarSetOperationAssign) = delete;
 
-  bool Clear() override {
+  void Clear() override {
     m_uuid.Clear();
     m_value_was_set = false;
-    return true;
   }
 
   lldb::OptionValueSP DeepCopy() const override;
 
-  //---------------------------------------------------------------------
   // Subclass specific functions
-  //---------------------------------------------------------------------
 
   UUID &GetCurrentValue() { return m_uuid; }
 
@@ -57,8 +51,8 @@ public:
 
   void SetCurrentValue(const UUID &value) { m_uuid = value; }
 
-  size_t AutoComplete(CommandInterpreter &interpreter,
-                      CompletionRequest &request) override;
+  void AutoComplete(CommandInterpreter &interpreter,
+                    CompletionRequest &request) override;
 
 protected:
   UUID m_uuid;
@@ -66,4 +60,4 @@ protected:
 
 } // namespace lldb_private
 
-#endif // liblldb_OptionValueUUID_h_
+#endif // LLDB_INTERPRETER_OPTIONVALUEUUID_H

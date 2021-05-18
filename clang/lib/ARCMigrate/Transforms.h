@@ -1,9 +1,8 @@
 //===-- Transforms.h - Transformations to ARC mode --------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -94,12 +93,12 @@ public:
     bool FullyMigratable;
   };
   std::vector<GCAttrOccurrence> GCAttrs;
-  llvm::DenseSet<unsigned> AttrSet;
-  llvm::DenseSet<unsigned> RemovedAttrSet;
+  llvm::DenseSet<SourceLocation> AttrSet;
+  llvm::DenseSet<SourceLocation> RemovedAttrSet;
 
   /// Set of raw '@' locations for 'assign' properties group that contain
   /// GC __weak.
-  llvm::DenseSet<unsigned> AtPropsWeak;
+  llvm::DenseSet<SourceLocation> AtPropsWeak;
 
   explicit MigrationContext(MigrationPass &pass) : Pass(pass) {}
   ~MigrationContext();

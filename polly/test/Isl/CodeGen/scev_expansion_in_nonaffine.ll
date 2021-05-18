@@ -9,12 +9,12 @@
 ; whole subregion.
 
 ; CHECK-LABEL:  polly.stmt.if.then.110:
-; CHECK:          %[[R1_1:[0-9]*]] = mul i64 %polly.indvar[[R0_1:[0-9]*]], 30
+; CHECK:          %[[R1_1:[0-9]*]] = mul nuw nsw i64 %polly.indvar[[R0_1:[0-9]*]], 30
 ; CHECK:          %scevgep[[R1_2:[0-9]*]] = getelementptr i32, i32* %scevgep{{[0-9]*}}, i64 %[[R1_1]]
 ; CHECK:          store i32 0, i32* %scevgep[[R1_2]], align 8
 
 ; CHECK-LABEL:  polly.stmt.if.else:
-; CHECK:          %[[R2_1:[0-9]*]] = mul i64 %polly.indvar[[R0_1]], 30
+; CHECK:          %[[R2_1:[0-9]*]] = mul nuw nsw i64 %polly.indvar[[R0_1]], 30
 ; CHECK:          %scevgep[[R2_2:[0-9]*]] = getelementptr i32, i32* %scevgep{{[0-9]*}}, i64 %[[R2_1]]
 ; CHECK:          store i32 21, i32* %scevgep[[R2_2]], align 8
 
@@ -87,4 +87,4 @@ for.inc.117:                                      ; preds = %for.inc.114, %for.c
   br i1 %cmp95, label %for.cond.98.preheader, label %for.cond.120.preheader
 }
 
-attributes #0 = { nounwind uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+mmx,+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+mmx,+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }

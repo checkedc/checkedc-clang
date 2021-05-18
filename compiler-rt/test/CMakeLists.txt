@@ -1,6 +1,7 @@
 # Needed for lit support in standalone builds.
 include(AddLLVM)
 
+pythonize_bool(LLVM_ENABLE_EXPENSIVE_CHECKS)
 configure_compiler_rt_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.common.configured.in
   ${CMAKE_CURRENT_BINARY_DIR}/lit.common.configured)
@@ -14,24 +15,17 @@ if(COMPILER_RT_BUILD_PROFILE AND COMPILER_RT_HAS_PROFILE)
   list(APPEND SANITIZER_COMMON_LIT_TEST_DEPS profile)
 endif()
 
-if(COMPILER_RT_STANDALONE_BUILD)
-  list(APPEND SANITIZER_COMMON_LIT_TEST_DEPS FileCheck)
-endif()
-
 # When ANDROID, we build tests with the host compiler (i.e. CMAKE_C_COMPILER),
 # and run tests with tools from the host toolchain.
 if(NOT ANDROID)
-  if(NOT COMPILER_RT_STANDALONE_BUILD)
+  if(NOT COMPILER_RT_STANDALONE_BUILD AND NOT RUNTIMES_BUILD)
     # Use LLVM utils and Clang from the same build tree.
     list(APPEND SANITIZER_COMMON_LIT_TEST_DEPS
-      clang clang-headers FileCheck count not llvm-config llvm-nm llvm-objdump
+      clang clang-resource-headers FileCheck count not llvm-config llvm-nm llvm-objdump
       llvm-readobj llvm-symbolizer compiler-rt-headers sancov)
     if (WIN32)
       list(APPEND SANITIZER_COMMON_LIT_TEST_DEPS KillTheDoctor)
     endif()
-  endif()
-  if(CMAKE_HOST_UNIX)
-    list(APPEND SANITIZER_COMMON_LIT_TEST_DEPS SanitizerLintCheck)
   endif()
 endif()
 
@@ -74,8 +68,14 @@ if(COMPILER_RT_CAN_EXECUTE_TESTS)
   if(COMPILER_RT_BUILD_PROFILE AND COMPILER_RT_HAS_PROFILE)
     compiler_rt_test_runtime(profile)
   endif()
+  if(COMPILER_RT_BUILD_MEMPROF)
+    compiler_rt_test_runtime(memprof)
+  endif()
   if(COMPILER_RT_BUILD_XRAY)
     compiler_rt_test_runtime(xray)
+  endif()
+  if(COMPILER_RT_BUILD_CRT AND COMPILER_RT_HAS_CRT)
+    add_subdirectory(crt)
   endif()
   # ShadowCallStack does not yet provide a runtime with compiler-rt, the tests
   # include their own minimal runtime

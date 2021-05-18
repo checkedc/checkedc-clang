@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -19,17 +18,18 @@
 //   set_union(InIter1 first1, InIter1 last1, InIter2 first2, InIter2 last2,
 //             OutIter result, Compare comp);
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 #include <algorithm>
 #include <cassert>
 #include <iterator>
 #include <vector>
 
+#include "test_macros.h"
 #include "MoveOnly.h"
 
 
-int main()
+int main(int, char**)
 {
     std::vector<MoveOnly> lhs, rhs;
     lhs.push_back(MoveOnly(2));
@@ -43,4 +43,6 @@ int main()
 
     assert(res.size() == 1);
     assert(res[0].get() == 2);
+
+  return 0;
 }

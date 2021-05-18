@@ -1,14 +1,13 @@
 //===-- ItaniumABILanguageRuntime.h -----------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ItaniumABILanguageRuntime_h_
-#define liblldb_ItaniumABILanguageRuntime_h_
+#ifndef LLDB_SOURCE_PLUGINS_LANGUAGERUNTIME_CPLUSPLUS_ITANIUMABI_ITANIUMABILANGUAGERUNTIME_H
+#define LLDB_SOURCE_PLUGINS_LANGUAGERUNTIME_CPLUSPLUS_ITANIUMABI_ITANIUMABILANGUAGERUNTIME_H
 
 #include <map>
 #include <mutex>
@@ -17,9 +16,10 @@
 #include "lldb/Breakpoint/BreakpointResolver.h"
 #include "lldb/Core/Value.h"
 #include "lldb/Symbol/Type.h"
-#include "lldb/Target/CPPLanguageRuntime.h"
 #include "lldb/Target/LanguageRuntime.h"
 #include "lldb/lldb-private.h"
+
+#include "Plugins/LanguageRuntime/CPlusPlus/CPPLanguageRuntime.h"
 
 namespace lldb_private {
 
@@ -27,9 +27,7 @@ class ItaniumABILanguageRuntime : public lldb_private::CPPLanguageRuntime {
 public:
   ~ItaniumABILanguageRuntime() override = default;
 
-  //------------------------------------------------------------------
   // Static Functions
-  //------------------------------------------------------------------
   static void Initialize();
 
   static void Terminate();
@@ -39,7 +37,15 @@ public:
 
   static lldb_private::ConstString GetPluginNameStatic();
 
-  bool IsVTableName(const char *name) override;
+  static char ID;
+
+  bool isA(const void *ClassID) const override {
+    return ClassID == &ID || CPPLanguageRuntime::isA(ClassID);
+  }
+
+  static bool classof(const LanguageRuntime *runtime) {
+    return runtime->isA(&ID);
+  }
 
   bool GetDynamicTypeAndAddress(ValueObject &in_value,
                                 lldb::DynamicValueType use_dynamic,
@@ -60,27 +66,24 @@ public:
 
   bool ExceptionBreakpointsExplainStop(lldb::StopInfoSP stop_reason) override;
 
-  lldb::BreakpointResolverSP CreateExceptionResolver(Breakpoint *bkpt,
-                                                     bool catch_bp,
-                                                     bool throw_bp) override;
+  lldb::BreakpointResolverSP
+  CreateExceptionResolver(const lldb::BreakpointSP &bkpt,
+                          bool catch_bp, bool throw_bp) override;
 
   lldb::SearchFilterSP CreateExceptionSearchFilter() override;
   
   lldb::ValueObjectSP GetExceptionObjectForThread(
       lldb::ThreadSP thread_sp) override;
 
-  //------------------------------------------------------------------
   // PluginInterface protocol
-  //------------------------------------------------------------------
   lldb_private::ConstString GetPluginName() override;
 
   uint32_t GetPluginVersion() override;
 
 protected:
-  lldb::BreakpointResolverSP CreateExceptionResolver(Breakpoint *bkpt,
-                                                     bool catch_bp,
-                                                     bool throw_bp,
-                                                     bool for_expressions);
+  lldb::BreakpointResolverSP
+  CreateExceptionResolver(const lldb::BreakpointSP &bkpt,
+                          bool catch_bp, bool throw_bp, bool for_expressions);
 
   lldb::BreakpointSP CreateExceptionBreakpoint(bool catch_bp, bool throw_bp,
                                                bool for_expressions,
@@ -91,9 +94,8 @@ private:
 
   ItaniumABILanguageRuntime(Process *process)
       : // Call CreateInstance instead.
-        lldb_private::CPPLanguageRuntime(process),
-        m_cxx_exception_bp_sp(), m_dynamic_type_map(),
-        m_dynamic_type_map_mutex() {}
+        lldb_private::CPPLanguageRuntime(process), m_cxx_exception_bp_sp(),
+        m_dynamic_type_map(), m_dynamic_type_map_mutex() {}
 
   lldb::BreakpointSP m_cxx_exception_bp_sp;
   DynamicTypeCache m_dynamic_type_map;
@@ -111,4 +113,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_ItaniumABILanguageRuntime_h_
+#endif // LLDB_SOURCE_PLUGINS_LANGUAGERUNTIME_CPLUSPLUS_ITANIUMABI_ITANIUMABILANGUAGERUNTIME_H

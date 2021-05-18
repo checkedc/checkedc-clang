@@ -1,13 +1,15 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
+
+// These tests require locale for non-char paths
+// UNSUPPORTED: libcpp-has-no-localization
 
 // <filesystem>
 
@@ -19,20 +21,20 @@
 //      path(InputIterator first, InputIterator last);
 
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 
 #include "test_macros.h"
 #include "test_iterators.h"
 #include "min_allocator.h"
-#include "filesystem_test_helper.hpp"
+#include "filesystem_test_helper.h"
 
 
 template <class CharT, class ...Args>
 void RunTestCaseImpl(MultiStringType const& MS, Args... args) {
   using namespace fs;
-  const char* Expect = MS;
+  const fs::path::value_type* Expect = MS;
   const CharT* TestPath = MS;
   const CharT* TestPathEnd = StrEnd(TestPath);
   const std::size_t Size = TestPathEnd - TestPath;
@@ -118,12 +120,17 @@ void test_sfinae() {
   }
 }
 
-int main() {
+int main(int, char**) {
   for (auto const& MS : PathList) {
     RunTestCase<char>(MS);
+#if TEST_STD_VER > 17 && defined(__cpp_char8_t)
+    RunTestCase<char8_t>(MS);
+#endif
     RunTestCase<wchar_t>(MS);
     RunTestCase<char16_t>(MS);
     RunTestCase<char32_t>(MS);
   }
   test_sfinae();
+
+  return 0;
 }

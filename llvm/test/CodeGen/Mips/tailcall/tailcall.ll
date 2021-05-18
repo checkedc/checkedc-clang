@@ -47,7 +47,7 @@ entry:
 ; PIC32MM: jalr $25
 ; PIC32R6: jalr $25
 ; STATIC32: jal
-; STATIC32MMR6: jal
+; STATIC32MMR6: balc
 ; N64: jalr $25
 ; N64R6: jalr $25
 ; PIC16: jalrc
@@ -65,7 +65,7 @@ entry:
 ; PIC32MM: jalr $25
 ; PIC32R6: jalr $25
 ; STATIC32: jal
-; STATIC32MMR6: jal
+; STATIC32MMR6: balc
 ; N64: jalr $25
 ; N64R6: jalr $25
 ; PIC16: jalrc
@@ -83,7 +83,7 @@ entry:
 ; PIC32R6: jalr $25
 ; PIC32MM: jalr $25
 ; STATIC32: jal
-; STATIC32MMR6: jal
+; STATIC32MMR6: balc
 ; N64: jalr $25
 ; N64R6: jalr $25
 ; PIC16: jalrc
@@ -179,7 +179,7 @@ entry:
 ; PIC32R6: jalr $25
 ; PIC32MM: jalr $25
 ; STATIC32: jal
-; STATIC32MMR6: jal
+; STATIC32MMR6: balc
 ; PIC64: jalr $25
 ; STATIC64: jal
 ; PIC16: jalrc
@@ -192,7 +192,7 @@ entry:
 
 @gs1 = external global %struct.S
 
-declare i32 @callee9(%struct.S* byval)
+declare i32 @callee9(%struct.S* byval(%struct.S))
 
 define i32 @caller9_0() nounwind {
 entry:
@@ -217,13 +217,13 @@ entry:
 ; PIC32R6: jalrc $25
 ; PIC32MM: jalr $25
 ; STATIC32: jal
-; STATIC32MMR6: jal
+; STATIC32MMR6: balc
 ; STATIC64: jal
 ; PIC64: jalr $25
 ; PIC64R6: jalrc $25
 ; PIC16: jalrc
 
-  %call = tail call i32 @callee9(%struct.S* byval @gs1) nounwind
+  %call = tail call i32 @callee9(%struct.S* byval(%struct.S) @gs1) nounwind
   ret i32 %call
 }
 
@@ -236,7 +236,7 @@ entry:
 ; PIC32R6: jalr $25
 ; PIC32MM: jalr $25
 ; STATIC32: jal
-; STATIC32MMR6: jal
+; STATIC32MMR6: balc
 ; STATIC64: jal
 ; PIC64: jalr $25
 ; PIC64R6: jalr $25
@@ -246,7 +246,7 @@ entry:
   ret i32 %call
 }
 
-declare i32 @callee11(%struct.S* byval)
+declare i32 @callee11(%struct.S* byval(%struct.S))
 
 define i32 @caller11() nounwind noinline {
 entry:
@@ -255,13 +255,13 @@ entry:
 ; PIC32R6: jalrc $25
 ; PIC32MM: jalr $25
 ; STATIC32: jal
-; STATIC32MMR6: jal
+; STATIC32MMR6: balc
 ; STATIC64: jal
 ; PIC64: jalr $25
 ; PIC64R6: jalrc $25
 ; PIC16: jalrc
 
-  %call = tail call i32 @callee11(%struct.S* byval @gs1) nounwind
+  %call = tail call i32 @callee11(%struct.S* byval(%struct.S) @gs1) nounwind
   ret i32 %call
 }
 
@@ -269,14 +269,14 @@ declare i32 @callee12()
 
 declare void @llvm.memcpy.p0i8.p0i8.i32(i8* nocapture, i8* nocapture, i32, i1) nounwind
 
-define i32 @caller12(%struct.S* nocapture byval %a0) nounwind {
+define i32 @caller12(%struct.S* nocapture byval(%struct.S) %a0) nounwind {
 entry:
 ; ALL-LABEL: caller12:
 ; PIC32: jalr $25
 ; PIC32R6: jalrc $25
 ; PIC32MM: jalr $25
 ; STATIC32: jal
-; STATIC32MMR6: jal
+; STATIC32MMR6: balc
 ; STATIC64: jal
 ; PIC64: jalr $25
 ; PIC64R6: jalrc $25
@@ -297,7 +297,7 @@ entry:
 ; PIC32R6: jalr $25
 ; PIC32MM: jalr $25
 ; STATIC32: jal
-; STATIC32MMR6: jal
+; STATIC32MMR6: balc
 ; STATIC64: jal
 ; PIC64R6: jalr $25
 ; PIC64: jalr $25

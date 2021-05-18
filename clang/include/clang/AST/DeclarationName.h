@@ -1,9 +1,8 @@
 //===- DeclarationName.h - Representation of declaration names --*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -529,7 +528,7 @@ public:
 
   static int compare(DeclarationName LHS, DeclarationName RHS);
 
-  void print(raw_ostream &OS, const PrintingPolicy &Policy);
+  void print(raw_ostream &OS, const PrintingPolicy &Policy) const;
 
   void dump() const;
 };
@@ -793,7 +792,7 @@ public:
   std::string getAsString() const;
 
   /// printName - Print the human-readable name to a stream.
-  void printName(raw_ostream &OS) const;
+  void printName(raw_ostream &OS, PrintingPolicy Policy) const;
 
   /// getBeginLoc - Retrieve the location of the first token.
   SourceLocation getBeginLoc() const { return NameLoc; }
@@ -812,29 +811,16 @@ private:
   SourceLocation getEndLocPrivate() const;
 };
 
-/// Insertion operator for diagnostics.  This allows sending DeclarationName's
-/// into a diagnostic with <<.
-inline const DiagnosticBuilder &operator<<(const DiagnosticBuilder &DB,
-                                           DeclarationName N) {
-  DB.AddTaggedVal(N.getAsOpaqueInteger(),
-                  DiagnosticsEngine::ak_declarationname);
-  return DB;
-}
-
 /// Insertion operator for partial diagnostics.  This allows binding
 /// DeclarationName's into a partial diagnostic with <<.
-inline const PartialDiagnostic &operator<<(const PartialDiagnostic &PD,
-                                           DeclarationName N) {
+inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &PD,
+                                             DeclarationName N) {
   PD.AddTaggedVal(N.getAsOpaqueInteger(),
                   DiagnosticsEngine::ak_declarationname);
   return PD;
 }
 
-inline raw_ostream &operator<<(raw_ostream &OS,
-                                     DeclarationNameInfo DNInfo) {
-  DNInfo.printName(OS);
-  return OS;
-}
+raw_ostream &operator<<(raw_ostream &OS, DeclarationNameInfo DNInfo);
 
 } // namespace clang
 
@@ -862,9 +848,36 @@ struct DenseMapInfo<clang::DeclarationName> {
   }
 };
 
-template <>
-struct isPodLike<clang::DeclarationName> { static const bool value = true; };
+template <> struct PointerLikeTypeTraits<clang::DeclarationName> {
+  static inline void *getAsVoidPointer(clang::DeclarationName P) {
+    return P.getAsOpaquePtr();
+  }
+  static inline clang::DeclarationName getFromVoidPointer(void *P) {
+    return clang::DeclarationName::getFromOpaquePtr(P);
+  }
+  static constexpr int NumLowBitsAvailable = 0;
+};
 
 } // namespace llvm
+
+// The definition of AssumedTemplateStorage is factored out of TemplateName to
+// resolve a cyclic dependency between it and DeclarationName (via Type).
+namespace clang {
+
+/// A structure for storing the information associated with a name that has
+/// been assumed to be a template name (despite finding no TemplateDecls).
+class AssumedTemplateStorage : public UncommonTemplateNameStorage {
+  friend class ASTContext;
+
+  AssumedTemplateStorage(DeclarationName Name)
+      : UncommonTemplateNameStorage(Assumed, 0), Name(Name) {}
+  DeclarationName Name;
+
+public:
+  /// Get the name of the template.
+  DeclarationName getDeclName() const { return Name; }
+};
+
+} // namespace clang
 
 #endif // LLVM_CLANG_AST_DECLARATIONNAME_H

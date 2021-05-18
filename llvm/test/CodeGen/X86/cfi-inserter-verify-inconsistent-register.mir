@@ -1,4 +1,4 @@
-# RUN: not llc -o - %s -mtriple=x86_64-- -verify-cfiinstrs \
+# RUN: not --crash llc -o - %s -mtriple=x86_64-- -verify-cfiinstrs \
 # RUN:     -run-pass=cfi-instr-inserter 2>&1 | FileCheck %s
 # Test that CFI verifier finds inconsistent register between bb.end and one of
 # its precedessors.
@@ -16,7 +16,7 @@ name: inconsistentRegister
 body: |
   bb.0:
     CFI_INSTRUCTION def_cfa_register $rbp
-    JNE_1 %bb.2, implicit undef $eflags
+    JCC_1 %bb.2, 5, implicit undef $eflags
 
   bb.1:
     CFI_INSTRUCTION def_cfa $rsp, 8

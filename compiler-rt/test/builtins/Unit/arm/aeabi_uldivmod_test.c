@@ -1,17 +1,5 @@
-// REQUIRES-ANY: arm-target-arch,armv6m-target-arch
+// REQUIRES: arm-target-arch || armv6m-target-arch
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-//===-- aeabi_uldivmod_test.c - Test aeabi_uldivmod -----------------------===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests aeabi_uldivmod for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
 
 #include "int_lib.h"
 #include <stdio.h>

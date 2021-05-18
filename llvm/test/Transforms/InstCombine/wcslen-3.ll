@@ -3,11 +3,11 @@
 ;
 ; RUN: opt < %s -instcombine -S | FileCheck %s
 
+target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
+
 ; Test behavior for wchar_size==2
 !llvm.module.flags = !{!0}
 !0 = !{i32 1, !"wchar_size", i32 2}
-
-target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
 
 declare i64 @wcslen(i16*)
 
@@ -131,9 +131,9 @@ define i64 @test_simplify10(i16 %x) {
 define i64 @test_simplify11(i16 %x) {
 ; CHECK-LABEL: @test_simplify11(
 ; CHECK-NEXT:    [[AND:%.*]] = and i16 [[X:%.*]], 7
-; CHECK-NEXT:    [[TMP1:%.*]] = zext i16 [[AND]] to i64
-; CHECK-NEXT:    [[TMP2:%.*]] = sub nsw i64 9, [[TMP1]]
-; CHECK-NEXT:    ret i64 [[TMP2]]
+; CHECK-NEXT:    [[NARROW:%.*]] = sub nuw nsw i16 9, [[AND]]
+; CHECK-NEXT:    [[TMP1:%.*]] = zext i16 [[NARROW]] to i64
+; CHECK-NEXT:    ret i64 [[TMP1]]
 ;
   %and = and i16 %x, 7
   %hello_p = getelementptr inbounds [13 x i16], [13 x i16]* @null_hello_mid, i16 0, i16 %and

@@ -359,8 +359,7 @@ define i32 @in_constant_varx_mone(i32 %x, i32 %y, i32 %mask) {
 define i32 @out_constant_varx_mone_invmask(i32 %x, i32 %y, i32 %mask) {
 ; CHECK-LABEL: out_constant_varx_mone_invmask:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    bic w8, w0, w2
-; CHECK-NEXT:    orr w0, w8, w2
+; CHECK-NEXT:    orr w0, w0, w2
 ; CHECK-NEXT:    ret
   %notmask = xor i32 %mask, -1
   %mx = and i32 %notmask, %x
@@ -442,8 +441,7 @@ define i32 @in_constant_varx_42_invmask(i32 %x, i32 %y, i32 %mask) {
 define i32 @out_constant_mone_vary(i32 %x, i32 %y, i32 %mask) {
 ; CHECK-LABEL: out_constant_mone_vary:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    bic w8, w1, w2
-; CHECK-NEXT:    orr w0, w2, w8
+; CHECK-NEXT:    orr w0, w1, w2
 ; CHECK-NEXT:    ret
   %notmask = xor i32 %mask, -1
   %mx = and i32 %mask, -1
@@ -554,16 +552,16 @@ declare void @use32(i32) nounwind
 define i32 @in_multiuse_A(i32 %x, i32 %y, i32 %z, i32 %mask) nounwind {
 ; CHECK-LABEL: in_multiuse_A:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    str x20, [sp, #-32]! // 8-byte Folded Spill
+; CHECK-NEXT:    str x30, [sp, #-32]! // 8-byte Folded Spill
 ; CHECK-NEXT:    eor w8, w0, w1
+; CHECK-NEXT:    stp x20, x19, [sp, #16] // 16-byte Folded Spill
 ; CHECK-NEXT:    and w20, w8, w3
 ; CHECK-NEXT:    mov w0, w20
-; CHECK-NEXT:    stp x19, x30, [sp, #16] // 16-byte Folded Spill
 ; CHECK-NEXT:    mov w19, w1
 ; CHECK-NEXT:    bl use32
 ; CHECK-NEXT:    eor w0, w20, w19
-; CHECK-NEXT:    ldp x19, x30, [sp, #16] // 16-byte Folded Reload
-; CHECK-NEXT:    ldr x20, [sp], #32 // 8-byte Folded Reload
+; CHECK-NEXT:    ldp x20, x19, [sp, #16] // 16-byte Folded Reload
+; CHECK-NEXT:    ldr x30, [sp], #32 // 8-byte Folded Reload
 ; CHECK-NEXT:    ret
   %n0 = xor i32 %x, %y
   %n1 = and i32 %n0, %mask
@@ -574,15 +572,15 @@ define i32 @in_multiuse_A(i32 %x, i32 %y, i32 %z, i32 %mask) nounwind {
 define i32 @in_multiuse_B(i32 %x, i32 %y, i32 %z, i32 %mask) nounwind {
 ; CHECK-LABEL: in_multiuse_B:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    str x20, [sp, #-32]! // 8-byte Folded Spill
+; CHECK-NEXT:    str x30, [sp, #-32]! // 8-byte Folded Spill
 ; CHECK-NEXT:    eor w0, w0, w1
-; CHECK-NEXT:    stp x19, x30, [sp, #16] // 16-byte Folded Spill
+; CHECK-NEXT:    stp x20, x19, [sp, #16] // 16-byte Folded Spill
 ; CHECK-NEXT:    mov w19, w1
 ; CHECK-NEXT:    and w20, w0, w3
 ; CHECK-NEXT:    bl use32
 ; CHECK-NEXT:    eor w0, w20, w19
-; CHECK-NEXT:    ldp x19, x30, [sp, #16] // 16-byte Folded Reload
-; CHECK-NEXT:    ldr x20, [sp], #32 // 8-byte Folded Reload
+; CHECK-NEXT:    ldp x20, x19, [sp, #16] // 16-byte Folded Reload
+; CHECK-NEXT:    ldr x30, [sp], #32 // 8-byte Folded Reload
 ; CHECK-NEXT:    ret
   %n0 = xor i32 %x, %y
   %n1 = and i32 %n0, %mask

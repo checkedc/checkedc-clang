@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -15,14 +14,14 @@
 
 // recursive_recursive_directory_iterator(recursive_recursive_directory_iterator const&);
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <set>
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 using namespace fs;
 
@@ -44,7 +43,8 @@ TEST_CASE(test_copy_end_iterator)
 
 TEST_CASE(test_copy_valid_iterator)
 {
-    const path testDir = StaticEnv::Dir;
+    static_test_env static_env;
+    const path testDir = static_env.Dir;
     const recursive_directory_iterator endIt{};
 
     // build 'it' up with "interesting" non-default state so we can test

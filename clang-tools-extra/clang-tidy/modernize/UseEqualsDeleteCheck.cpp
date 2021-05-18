@@ -1,9 +1,8 @@
 //===--- UseEqualsDeleteCheck.cpp - clang-tidy-----------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -26,9 +25,6 @@ void UseEqualsDeleteCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
 }
 
 void UseEqualsDeleteCheck::registerMatchers(MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus)
-    return;
-
   auto PrivateSpecialFn = cxxMethodDecl(
       isPrivate(),
       anyOf(cxxConstructorDecl(anyOf(isDefaultConstructor(),
@@ -40,12 +36,12 @@ void UseEqualsDeleteCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
       cxxMethodDecl(
           PrivateSpecialFn,
-          unless(anyOf(hasBody(stmt()), isDefaulted(), isDeleted(),
+          unless(anyOf(hasAnyBody(stmt()), isDefaulted(), isDeleted(),
                        ast_matchers::isTemplateInstantiation(),
                        // Ensure that all methods except private special member
                        // functions are defined.
                        hasParent(cxxRecordDecl(hasMethod(unless(
-                           anyOf(PrivateSpecialFn, hasBody(stmt()), isPure(),
+                           anyOf(PrivateSpecialFn, hasAnyBody(stmt()), isPure(),
                                  isDefaulted(), isDeleted()))))))))
           .bind(SpecialFunction),
       this);

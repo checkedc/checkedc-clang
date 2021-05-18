@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -15,17 +14,14 @@
 // path proximate(const path& p, const path& base = current_path())
 // path proximate(const path& p, const path& base, error_code& ec);
 
-#include "filesystem_include.hpp"
-#include <type_traits>
-#include <vector>
-#include <iostream>
+#include "filesystem_include.h"
 #include <cassert>
+#include <cstdio>
 
 #include "test_macros.h"
-#include "test_iterators.h"
-#include "count_new.hpp"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "count_new.h"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 
 static int count_path_elems(const fs::path& p) {
@@ -64,15 +60,15 @@ TEST_CASE(basic_test) {
   path relative_cwd = cwd.native().substr(1);
   // clang-format off
   struct {
-    std::string input;
-    std::string base;
-    std::string expect;
+    fs::path input;
+    fs::path base;
+    fs::path expect;
   } TestCases[] = {
       {"", "", "."},
       {cwd, "a", ".."},
       {parent_cwd, "a", "../.."},
       {"a", cwd, "a"},
-      {"a", parent_cwd, "fs.op.proximate/a"},
+      {"a", parent_cwd, curdir / "a"},
       {"/", "a", dot_dot_to_root / ".."},
       {"/", "a/b", dot_dot_to_root / "../.."},
       {"/", "a/b/", dot_dot_to_root / "../.."},
@@ -104,28 +100,30 @@ TEST_CASE(basic_test) {
     const fs::path output = fs::proximate(p, TC.base, ec);
     if (ec) {
       TEST_CHECK(!ec);
-      std::cerr << "TEST CASE #" << ID << " FAILED: \n";
-      std::cerr << "  Input: '" << TC.input << "'\n";
-      std::cerr << "  Base: '" << TC.base << "'\n";
-      std::cerr << "  Expected: '" << TC.expect << "'\n";
-
-      std::cerr << std::endl;
+      std::fprintf(stderr, "TEST CASE #%d FAILED:\n"
+                  "  Input: '%s'\n"
+                  "  Base: '%s'\n"
+                  "  Expected: '%s'\n",
+        ID, TC.input.string().c_str(), TC.base.string().c_str(),
+        TC.expect.string().c_str());
     } else if (!PathEq(output, TC.expect)) {
       TEST_CHECK(PathEq(output, TC.expect));
 
       const path canon_input = fs::weakly_canonical(TC.input);
       const path canon_base = fs::weakly_canonical(TC.base);
       const path lexically_p = canon_input.lexically_proximate(canon_base);
-      std::cerr << "TEST CASE #" << ID << " FAILED: \n";
-      std::cerr << "  Input: '" << TC.input << "'\n";
-      std::cerr << "  Base: '" << TC.base << "'\n";
-      std::cerr << "  Expected: '" << TC.expect << "'\n";
-      std::cerr << "  Output:   '" << output.native() << "'\n";
-      std::cerr << "  Lex Prox: '" << lexically_p.native() << "'\n";
-      std::cerr << "  Canon Input: " <<  canon_input << "\n";
-      std::cerr << "  Canon Base: " << canon_base << "\n";
-
-      std::cerr << std::endl;
+      std::fprintf(stderr, "TEST CASE #%d FAILED:\n"
+                  "  Input: '%s'\n"
+                  "  Base: '%s'\n"
+                  "  Expected: '%s'\n"
+                  "  Output: '%s'\n"
+                  "  Lex Prox: '%s'\n"
+                  "  Canon Input: '%s'\n"
+                  "  Canon Base: '%s'\n",
+        ID, TC.input.string().c_str(), TC.base.string().c_str(),
+        TC.expect.string().c_str(), output.string().c_str(),
+        lexically_p.string().c_str(), canon_input.string().c_str(),
+        canon_base.string().c_str());
     }
   }
 }

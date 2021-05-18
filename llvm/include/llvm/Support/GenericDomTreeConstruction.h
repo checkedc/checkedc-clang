@@ -1,30 +1,34 @@
 //===- GenericDomTreeConstruction.h - Dominator Calculation ------*- C++ -*-==//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 /// \file
 ///
-/// Generic dominator tree construction - This file provides routines to
+/// Generic dominator tree construction - this file provides routines to
 /// construct immediate dominator information for a flow-graph based on the
 /// Semi-NCA algorithm described in this dissertation:
 ///
-///   Linear-Time Algorithms for Dominators and Related Problems
+///   [1] Linear-Time Algorithms for Dominators and Related Problems
 ///   Loukas Georgiadis, Princeton University, November 2005, pp. 21-23:
 ///   ftp://ftp.cs.princeton.edu/reports/2005/737.pdf
 ///
-/// This implements the O(n*log(n)) versions of EVAL and LINK, because it turns
-/// out that the theoretically slower O(n*log(n)) implementation is actually
-/// faster than the almost-linear O(n*alpha(n)) version, even for large CFGs.
+/// Semi-NCA algorithm runs in O(n^2) worst-case time but usually slightly
+/// faster than Simple Lengauer-Tarjan in practice.
+///
+/// O(n^2) worst cases happen when the computation of nearest common ancestors
+/// requires O(n) average time, which is very unlikely in real world. If this
+/// ever turns out to be an issue, consider implementing a hybrid algorithm
+/// that uses SLT to perform full constructions and SemiNCA for incremental
+/// updates.
 ///
 /// The file uses the Depth Based Search algorithm to perform incremental
 /// updates (insertion and deletions). The implemented algorithm is based on
 /// this publication:
 ///
-///   An Experimental Study of Dynamic Dominators
+///   [2] An Experimental Study of Dynamic Dominators
 ///   Loukas Georgiadis, et al., April 12 2016, pp. 5-7, 9-10:
 ///   https://arxiv.org/pdf/1604.02711.pdf
 ///
@@ -33,7 +37,6 @@
 #ifndef LLVM_SUPPORT_GENERICDOMTREECONSTRUCTION_H
 #define LLVM_SUPPORT_GENERICDOMTREECONSTRUCTION_H
 
-#include <queue>
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/DepthFirstIterator.h"
@@ -41,6 +44,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/GenericDomTree.h"
+#include <queue>
 
 #define DEBUG_TYPE "dom-tree-builder"
 
@@ -54,6 +58,7 @@ struct SemiNCAInfo {
   using TreeNodePtr = DomTreeNodeBase<NodeT> *;
   using RootsT = decltype(DomTreeT::Roots);
   static constexpr bool IsPostDom = DomTreeT::IsPostDominator;
+  using GraphDiffT = GraphDiff<NodePtr, IsPostDom>;
 
   // Information record used by Semi-NCA during tree construction.
   struct InfoRec {
@@ -73,21 +78,17 @@ struct SemiNCAInfo {
   using UpdateT = typename DomTreeT::UpdateType;
   using UpdateKind = typename DomTreeT::UpdateKind;
   struct BatchUpdateInfo {
-    SmallVector<UpdateT, 4> Updates;
-    using NodePtrAndKind = PointerIntPair<NodePtr, 1, UpdateKind>;
+    // Note: Updates inside PreViewCFG are aleady legalized.
+    BatchUpdateInfo(GraphDiffT &PreViewCFG, GraphDiffT *PostViewCFG = nullptr)
+        : PreViewCFG(PreViewCFG), PostViewCFG(PostViewCFG),
+          NumLegalized(PreViewCFG.getNumLegalizedUpdates()) {}
 
-    // In order to be able to walk a CFG that is out of sync with the CFG
-    // DominatorTree last knew about, use the list of updates to reconstruct
-    // previous CFG versions of the current CFG. For each node, we store a set
-    // of its virtually added/deleted future successors and predecessors.
-    // Note that these children are from the future relative to what the
-    // DominatorTree knows about -- using them to gets us some snapshot of the
-    // CFG from the past (relative to the state of the CFG).
-    DenseMap<NodePtr, SmallVector<NodePtrAndKind, 4>> FutureSuccessors;
-    DenseMap<NodePtr, SmallVector<NodePtrAndKind, 4>> FuturePredecessors;
     // Remembers if the whole tree was recalculated at some point during the
     // current batch update.
     bool IsRecalculated = false;
+    GraphDiffT &PreViewCFG;
+    GraphDiffT *PostViewCFG;
+    const size_t NumLegalized;
   };
 
   BatchUpdateInfo *BatchUpdates;
@@ -103,66 +104,24 @@ struct SemiNCAInfo {
     // in progress, we need this information to continue it.
   }
 
-  template <bool Inverse>
-  struct ChildrenGetter {
-    using ResultTy = SmallVector<NodePtr, 8>;
+  template <bool Inversed>
+  static SmallVector<NodePtr, 8> getChildren(NodePtr N, BatchUpdatePtr BUI) {
+    if (BUI)
+      return BUI->PreViewCFG.template getChildren<Inversed>(N);
+    return getChildren<Inversed>(N);
+  }
 
-    static ResultTy Get(NodePtr N, std::integral_constant<bool, false>) {
-      auto RChildren = reverse(children<NodePtr>(N));
-      return ResultTy(RChildren.begin(), RChildren.end());
-    }
+  template <bool Inversed>
+  static SmallVector<NodePtr, 8> getChildren(NodePtr N) {
+    using DirectedNodeT =
+        std::conditional_t<Inversed, Inverse<NodePtr>, NodePtr>;
+    auto R = children<DirectedNodeT>(N);
+    SmallVector<NodePtr, 8> Res(detail::reverse_if<!Inversed>(R));
 
-    static ResultTy Get(NodePtr N, std::integral_constant<bool, true>) {
-      auto IChildren = inverse_children<NodePtr>(N);
-      return ResultTy(IChildren.begin(), IChildren.end());
-    }
-
-    using Tag = std::integral_constant<bool, Inverse>;
-
-    // The function below is the core part of the batch updater. It allows the
-    // Depth Based Search algorithm to perform incremental updates in lockstep
-    // with updates to the CFG. We emulated lockstep CFG updates by getting its
-    // next snapshots by reverse-applying future updates.
-    static ResultTy Get(NodePtr N, BatchUpdatePtr BUI) {
-      ResultTy Res = Get(N, Tag());
-      // If there's no batch update in progress, simply return node's children.
-      if (!BUI) return Res;
-
-      // CFG children are actually its *most current* children, and we have to
-      // reverse-apply the future updates to get the node's children at the
-      // point in time the update was performed.
-      auto &FutureChildren = (Inverse != IsPostDom) ? BUI->FuturePredecessors
-                                                    : BUI->FutureSuccessors;
-      auto FCIt = FutureChildren.find(N);
-      if (FCIt == FutureChildren.end()) return Res;
-
-      for (auto ChildAndKind : FCIt->second) {
-        const NodePtr Child = ChildAndKind.getPointer();
-        const UpdateKind UK = ChildAndKind.getInt();
-
-        // Reverse-apply the future update.
-        if (UK == UpdateKind::Insert) {
-          // If there's an insertion in the future, it means that the edge must
-          // exist in the current CFG, but was not present in it before.
-          assert(llvm::find(Res, Child) != Res.end()
-                 && "Expected child not found in the CFG");
-          Res.erase(std::remove(Res.begin(), Res.end(), Child), Res.end());
-          LLVM_DEBUG(dbgs() << "\tHiding edge " << BlockNamePrinter(N) << " -> "
-                            << BlockNamePrinter(Child) << "\n");
-        } else {
-          // If there's an deletion in the future, it means that the edge cannot
-          // exist in the current CFG, but existed in it before.
-          assert(llvm::find(Res, Child) == Res.end() &&
-                 "Unexpected child found in the CFG");
-          LLVM_DEBUG(dbgs() << "\tShowing virtual edge " << BlockNamePrinter(N)
-                            << " -> " << BlockNamePrinter(Child) << "\n");
-          Res.push_back(Child);
-        }
-      }
-
-      return Res;
-    }
-  };
+    // Remove nullptr children for clang.
+    llvm::erase_value(Res, nullptr);
+    return Res;
+  }
 
   NodePtr getIDom(NodePtr BB) const {
     auto InfoIt = NodeToInfo.find(BB);
@@ -183,9 +142,7 @@ struct SemiNCAInfo {
 
     // Add a new tree node for this NodeT, and link it as a child of
     // IDomNode
-    return (DT.DomTreeNodes[BB] = IDomNode->addChild(
-        llvm::make_unique<DomTreeNodeBase<NodeT>>(BB, IDomNode)))
-        .get();
+    return DT.createChild(BB, IDomNode);
   }
 
   static bool AlwaysDescend(NodePtr, NodePtr) { return true; }
@@ -206,6 +163,8 @@ struct SemiNCAInfo {
     }
   };
 
+  using NodeOrderMap = DenseMap<NodePtr, unsigned>;
+
   // Custom DFS implementation which can skip nodes based on a provided
   // predicate. It also collects ReverseChildren so that we don't have to spend
   // time getting predecessors in SemiNCA.
@@ -213,9 +172,13 @@ struct SemiNCAInfo {
   // If IsReverse is set to true, the DFS walk will be performed backwards
   // relative to IsPostDom -- using reverse edges for dominators and forward
   // edges for postdominators.
+  //
+  // If SuccOrder is specified then in this order the DFS traverses the children
+  // otherwise the order is implied by the results of getChildren().
   template <bool IsReverse = false, typename DescendCondition>
   unsigned runDFS(NodePtr V, unsigned LastNum, DescendCondition Condition,
-                  unsigned AttachToNum) {
+                  unsigned AttachToNum,
+                  const NodeOrderMap *SuccOrder = nullptr) {
     assert(V);
     SmallVector<NodePtr, 64> WorkList = {V};
     if (NodeToInfo.count(V) != 0) NodeToInfo[V].Parent = AttachToNum;
@@ -231,8 +194,14 @@ struct SemiNCAInfo {
       NumToNode.push_back(BB);
 
       constexpr bool Direction = IsReverse != IsPostDom;  // XOR.
-      for (const NodePtr Succ :
-           ChildrenGetter<Direction>::Get(BB, BatchUpdates)) {
+      auto Successors = getChildren<Direction>(BB, BatchUpdates);
+      if (SuccOrder && Successors.size() > 1)
+        llvm::sort(
+            Successors.begin(), Successors.end(), [=](NodePtr A, NodePtr B) {
+              return SuccOrder->find(A)->second < SuccOrder->find(B)->second;
+            });
+
+      for (const NodePtr Succ : Successors) {
         const auto SIT = NodeToInfo.find(Succ);
         // Don't visit nodes more than once but remember to collect
         // ReverseChildren.
@@ -255,42 +224,47 @@ struct SemiNCAInfo {
     return LastNum;
   }
 
-  NodePtr eval(NodePtr VIn, unsigned LastLinked) {
-    auto &VInInfo = NodeToInfo[VIn];
-    if (VInInfo.DFSNum < LastLinked)
-      return VIn;
+  // V is a predecessor of W. eval() returns V if V < W, otherwise the minimum
+  // of sdom(U), where U > W and there is a virtual forest path from U to V. The
+  // virtual forest consists of linked edges of processed vertices.
+  //
+  // We can follow Parent pointers (virtual forest edges) to determine the
+  // ancestor U with minimum sdom(U). But it is slow and thus we employ the path
+  // compression technique to speed up to O(m*log(n)). Theoretically the virtual
+  // forest can be organized as balanced trees to achieve almost linear
+  // O(m*alpha(m,n)) running time. But it requires two auxiliary arrays (Size
+  // and Child) and is unlikely to be faster than the simple implementation.
+  //
+  // For each vertex V, its Label points to the vertex with the minimal sdom(U)
+  // (Semi) in its path from V (included) to NodeToInfo[V].Parent (excluded).
+  NodePtr eval(NodePtr V, unsigned LastLinked,
+               SmallVectorImpl<InfoRec *> &Stack) {
+    InfoRec *VInfo = &NodeToInfo[V];
+    if (VInfo->Parent < LastLinked)
+      return VInfo->Label;
 
-    SmallVector<NodePtr, 32> Work;
-    SmallPtrSet<NodePtr, 32> Visited;
+    // Store ancestors except the last (root of a virtual tree) into a stack.
+    assert(Stack.empty());
+    do {
+      Stack.push_back(VInfo);
+      VInfo = &NodeToInfo[NumToNode[VInfo->Parent]];
+    } while (VInfo->Parent >= LastLinked);
 
-    if (VInInfo.Parent >= LastLinked)
-      Work.push_back(VIn);
-
-    while (!Work.empty()) {
-      NodePtr V = Work.back();
-      auto &VInfo = NodeToInfo[V];
-      NodePtr VAncestor = NumToNode[VInfo.Parent];
-
-      // Process Ancestor first
-      if (Visited.insert(VAncestor).second && VInfo.Parent >= LastLinked) {
-        Work.push_back(VAncestor);
-        continue;
-      }
-      Work.pop_back();
-
-      // Update VInfo based on Ancestor info
-      if (VInfo.Parent < LastLinked)
-        continue;
-
-      auto &VAInfo = NodeToInfo[VAncestor];
-      NodePtr VAncestorLabel = VAInfo.Label;
-      NodePtr VLabel = VInfo.Label;
-      if (NodeToInfo[VAncestorLabel].Semi < NodeToInfo[VLabel].Semi)
-        VInfo.Label = VAncestorLabel;
-      VInfo.Parent = VAInfo.Parent;
-    }
-
-    return VInInfo.Label;
+    // Path compression. Point each vertex's Parent to the root and update its
+    // Label if any of its ancestors (PInfo->Label) has a smaller Semi.
+    const InfoRec *PInfo = VInfo;
+    const InfoRec *PLabelInfo = &NodeToInfo[PInfo->Label];
+    do {
+      VInfo = Stack.pop_back_val();
+      VInfo->Parent = PInfo->Parent;
+      const InfoRec *VLabelInfo = &NodeToInfo[VInfo->Label];
+      if (PLabelInfo->Semi < VLabelInfo->Semi)
+        VInfo->Label = PInfo->Label;
+      else
+        PLabelInfo = VLabelInfo;
+      PInfo = VInfo;
+    } while (!Stack.empty());
+    return VInfo->Label;
   }
 
   // This function requires DFS to be run before calling it.
@@ -304,6 +278,7 @@ struct SemiNCAInfo {
     }
 
     // Step #1: Calculate the semidominators of all vertices.
+    SmallVector<InfoRec *, 32> EvalStack;
     for (unsigned i = NextDFSNum - 1; i >= 2; --i) {
       NodePtr W = NumToNode[i];
       auto &WInfo = NodeToInfo[W];
@@ -319,7 +294,7 @@ struct SemiNCAInfo {
         if (TN && TN->getLevel() < MinLevel)
           continue;
 
-        unsigned SemiU = NodeToInfo[eval(N, i + 1)].Semi;
+        unsigned SemiU = NodeToInfo[eval(N, i + 1, EvalStack)].Semi;
         if (SemiU < WInfo.Semi) WInfo.Semi = SemiU;
       }
     }
@@ -361,7 +336,7 @@ struct SemiNCAInfo {
   // to CFG nodes within infinite loops.
   static bool HasForwardSuccessors(const NodePtr N, BatchUpdatePtr BUI) {
     assert(N && "N must be a valid node");
-    return !ChildrenGetter<false>::Get(N, BUI).empty();
+    return !getChildren<false>(N, BUI).empty();
   }
 
   static NodePtr GetEntryNode(const DomTreeT &DT) {
@@ -422,6 +397,32 @@ struct SemiNCAInfo {
     // nodes.
     if (Total + 1 != Num) {
       HasNonTrivialRoots = true;
+
+      // SuccOrder is the order of blocks in the function. It is needed to make
+      // the calculation of the FurthestAway node and the whole PostDomTree
+      // immune to swap successors transformation (e.g. canonicalizing branch
+      // predicates). SuccOrder is initialized lazily only for successors of
+      // reverse unreachable nodes.
+      Optional<NodeOrderMap> SuccOrder;
+      auto InitSuccOrderOnce = [&]() {
+        SuccOrder = NodeOrderMap();
+        for (const auto Node : nodes(DT.Parent))
+          if (SNCA.NodeToInfo.count(Node) == 0)
+            for (const auto Succ : getChildren<false>(Node, SNCA.BatchUpdates))
+              SuccOrder->try_emplace(Succ, 0);
+
+        // Add mapping for all entries of SuccOrder.
+        unsigned NodeNum = 0;
+        for (const auto Node : nodes(DT.Parent)) {
+          ++NodeNum;
+          auto Order = SuccOrder->find(Node);
+          if (Order != SuccOrder->end()) {
+            assert(Order->second == 0);
+            Order->second = NodeNum;
+          }
+        }
+      };
+
       // Make another DFS pass over all other nodes to find the
       // reverse-unreachable blocks, and find the furthest paths we'll be able
       // to make.
@@ -446,7 +447,12 @@ struct SemiNCAInfo {
           // expensive and does not always lead to a minimal set of roots.
           LLVM_DEBUG(dbgs() << "\t\t\tRunning forward DFS\n");
 
-          const unsigned NewNum = SNCA.runDFS<true>(I, Num, AlwaysDescend, Num);
+          if (!SuccOrder)
+            InitSuccOrderOnce();
+          assert(SuccOrder);
+
+          const unsigned NewNum =
+              SNCA.runDFS<true>(I, Num, AlwaysDescend, Num, &*SuccOrder);
           const NodePtr FurthestAway = SNCA.NumToNode[NewNum];
           LLVM_DEBUG(dbgs() << "\t\t\tFound a new furthest away node "
                             << "(non-trivial root): "
@@ -522,7 +528,7 @@ struct SemiNCAInfo {
         // If we wound another root in a (forward) DFS walk, remove the current
         // root from the set of roots, as it is reverse-reachable from the other
         // one.
-        if (llvm::find(Roots, N) != Roots.end()) {
+        if (llvm::is_contained(Roots, N)) {
           LLVM_DEBUG(dbgs() << "\tForward DFS walk found another root "
                             << BlockNamePrinter(N) << "\n\tRemoving root "
                             << BlockNamePrinter(Root) << "\n");
@@ -555,12 +561,21 @@ struct SemiNCAInfo {
     auto *Parent = DT.Parent;
     DT.reset();
     DT.Parent = Parent;
-    SemiNCAInfo SNCA(nullptr);  // Since we are rebuilding the whole tree,
-                                // there's no point doing it incrementally.
+    // If the update is using the actual CFG, BUI is null. If it's using a view,
+    // BUI is non-null and the PreCFGView is used. When calculating from
+    // scratch, make the PreViewCFG equal to the PostCFGView, so Post is used.
+    BatchUpdatePtr PostViewBUI = nullptr;
+    if (BUI && BUI->PostViewCFG) {
+      BUI->PreViewCFG = *BUI->PostViewCFG;
+      PostViewBUI = BUI;
+    }
+    // This is rebuilding the whole tree, not incrementally, but PostViewBUI is
+    // used in case the caller needs a DT update with a CFGView.
+    SemiNCAInfo SNCA(PostViewBUI);
 
     // Step #0: Number blocks in depth-first order and initialize variables used
     // in later stages of the algorithm.
-    DT.Roots = FindRoots(DT, nullptr);
+    DT.Roots = FindRoots(DT, PostViewBUI);
     SNCA.doFullDFSWalk(DT, AlwaysDescend);
 
     SNCA.runSemiNCA(DT);
@@ -577,9 +592,7 @@ struct SemiNCAInfo {
     // all real exits (including multiple exit blocks, infinite loops).
     NodePtr Root = IsPostDom ? nullptr : DT.Roots[0];
 
-    DT.RootNode = (DT.DomTreeNodes[Root] =
-                       llvm::make_unique<DomTreeNodeBase<NodeT>>(Root, nullptr))
-        .get();
+    DT.RootNode = DT.createNode(Root);
     SNCA.attachNewSubtree(DT, DT.RootNode);
   }
 
@@ -589,8 +602,6 @@ struct SemiNCAInfo {
     // Loop over all of the discovered blocks in the function...
     for (size_t i = 1, e = NumToNode.size(); i != e; ++i) {
       NodePtr W = NumToNode[i];
-      LLVM_DEBUG(dbgs() << "\tdiscovered a new reachable node "
-                        << BlockNamePrinter(W) << "\n");
 
       // Don't replace this with 'count', the insertion side effect is important
       if (DT.DomTreeNodes[W]) continue;  // Haven't calculated this node yet?
@@ -602,8 +613,7 @@ struct SemiNCAInfo {
 
       // Add a new tree node for this BasicBlock, and link it as a child of
       // IDomNode.
-      DT.DomTreeNodes[W] = IDomNode->addChild(
-          llvm::make_unique<DomTreeNodeBase<NodeT>>(W, IDomNode));
+      DT.createChild(W, IDomNode);
     }
   }
 
@@ -620,21 +630,22 @@ struct SemiNCAInfo {
 
   // Helper struct used during edge insertions.
   struct InsertionInfo {
-    using BucketElementTy = std::pair<unsigned, TreeNodePtr>;
-    struct DecreasingLevel {
-      bool operator()(const BucketElementTy &First,
-                      const BucketElementTy &Second) const {
-        return First.first > Second.first;
+    struct Compare {
+      bool operator()(TreeNodePtr LHS, TreeNodePtr RHS) const {
+        return LHS->getLevel() < RHS->getLevel();
       }
     };
 
-    std::priority_queue<BucketElementTy, SmallVector<BucketElementTy, 8>,
-        DecreasingLevel>
-        Bucket;  // Queue of tree nodes sorted by level in descending order.
-    SmallDenseSet<TreeNodePtr, 8> Affected;
-    SmallDenseMap<TreeNodePtr, unsigned, 8> Visited;
-    SmallVector<TreeNodePtr, 8> AffectedQueue;
-    SmallVector<TreeNodePtr, 8> VisitedNotAffectedQueue;
+    // Bucket queue of tree nodes ordered by descending level. For simplicity,
+    // we use a priority_queue here.
+    std::priority_queue<TreeNodePtr, SmallVector<TreeNodePtr, 8>,
+                        Compare>
+        Bucket;
+    SmallDenseSet<TreeNodePtr, 8> Visited;
+    SmallVector<TreeNodePtr, 8> Affected;
+#ifndef NDEBUG
+    SmallVector<TreeNodePtr, 8> VisitedUnaffected;
+#endif
   };
 
   static void InsertEdge(DomTreeT &DT, const BatchUpdatePtr BUI,
@@ -652,10 +663,7 @@ struct SemiNCAInfo {
 
       // The unreachable node becomes a new root -- a tree node for it.
       TreeNodePtr VirtualRoot = DT.getNode(nullptr);
-      FromTN =
-          (DT.DomTreeNodes[From] = VirtualRoot->addChild(
-               llvm::make_unique<DomTreeNodeBase<NodeT>>(From, VirtualRoot)))
-              .get();
+      FromTN = DT.createChild(From, VirtualRoot);
       DT.Roots.push_back(From);
     }
 
@@ -678,14 +686,24 @@ struct SemiNCAInfo {
     // root.
     if (!DT.isVirtualRoot(To->getIDom())) return false;
 
-    auto RIt = llvm::find(DT.Roots, To->getBlock());
-    if (RIt == DT.Roots.end())
+    if (!llvm::is_contained(DT.Roots, To->getBlock()))
       return false;  // To is not a root, nothing to update.
 
     LLVM_DEBUG(dbgs() << "\t\tAfter the insertion, " << BlockNamePrinter(To)
                       << " is no longer a root\n\t\tRebuilding the tree!!!\n");
 
     CalculateFromScratch(DT, BUI);
+    return true;
+  }
+
+  static bool isPermutation(const SmallVectorImpl<NodePtr> &A,
+                            const SmallVectorImpl<NodePtr> &B) {
+    if (A.size() != B.size())
+      return false;
+    SmallPtrSet<NodePtr, 4> Set(A.begin(), A.end());
+    for (NodePtr N : B)
+      if (Set.count(N) == 0)
+        return false;
     return true;
   }
 
@@ -702,9 +720,8 @@ struct SemiNCAInfo {
       return;
 
     // Recalculate the set of roots.
-    auto Roots = FindRoots(DT, BUI);
-    if (DT.Roots.size() != Roots.size() ||
-        !std::is_permutation(DT.Roots.begin(), DT.Roots.end(), Roots.begin())) {
+    RootsT Roots = FindRoots(DT, BUI);
+    if (!isPermutation(DT.Roots, Roots)) {
       // The roots chosen in the CFG have changed. This is because the
       // incremental algorithm does not really know or use the set of roots and
       // can make a different (implicit) decision about which node within an
@@ -713,9 +730,8 @@ struct SemiNCAInfo {
       LLVM_DEBUG(dbgs() << "Roots are different in updated trees\n"
                         << "The entire tree needs to be rebuilt\n");
       // It may be possible to update the tree without recalculating it, but
-      // we do not know yet how to do it, and it happens rarely in practise.
+      // we do not know yet how to do it, and it happens rarely in practice.
       CalculateFromScratch(DT, BUI);
-      return;
     }
   }
 
@@ -737,101 +753,92 @@ struct SemiNCAInfo {
     assert(NCD);
 
     LLVM_DEBUG(dbgs() << "\t\tNCA == " << BlockNamePrinter(NCD) << "\n");
-    const TreeNodePtr ToIDom = To->getIDom();
+    const unsigned NCDLevel = NCD->getLevel();
 
-    // Nothing affected -- NCA property holds.
-    // (Based on the lemma 2.5 from the second paper.)
-    if (NCD == To || NCD == ToIDom) return;
+    // Based on Lemma 2.5 from [2], after insertion of (From,To), v is affected
+    // iff depth(NCD)+1 < depth(v) && a path P from To to v exists where every
+    // w on P s.t. depth(v) <= depth(w)
+    //
+    // This reduces to a widest path problem (maximizing the depth of the
+    // minimum vertex in the path) which can be solved by a modified version of
+    // Dijkstra with a bucket queue (named depth-based search in [2]).
 
-    // Identify and collect affected nodes.
+    // To is in the path, so depth(NCD)+1 < depth(v) <= depth(To). Nothing
+    // affected if this does not hold.
+    if (NCDLevel + 1 >= To->getLevel())
+      return;
+
     InsertionInfo II;
-    LLVM_DEBUG(dbgs() << "Marking " << BlockNamePrinter(To)
-                      << " as affected\n");
-    II.Affected.insert(To);
-    const unsigned ToLevel = To->getLevel();
-    LLVM_DEBUG(dbgs() << "Putting " << BlockNamePrinter(To)
-                      << " into a Bucket\n");
-    II.Bucket.push({ToLevel, To});
+    SmallVector<TreeNodePtr, 8> UnaffectedOnCurrentLevel;
+    II.Bucket.push(To);
+    II.Visited.insert(To);
 
     while (!II.Bucket.empty()) {
-      const TreeNodePtr CurrentNode = II.Bucket.top().second;
-      const unsigned  CurrentLevel = CurrentNode->getLevel();
+      TreeNodePtr TN = II.Bucket.top();
       II.Bucket.pop();
-      LLVM_DEBUG(dbgs() << "\tAdding to Visited and AffectedQueue: "
-                        << BlockNamePrinter(CurrentNode) << "\n");
+      II.Affected.push_back(TN);
 
-      II.Visited.insert({CurrentNode, CurrentLevel});
-      II.AffectedQueue.push_back(CurrentNode);
+      const unsigned CurrentLevel = TN->getLevel();
+      LLVM_DEBUG(dbgs() << "Mark " << BlockNamePrinter(TN) <<
+                 "as affected, CurrentLevel " << CurrentLevel << "\n");
 
-      // Discover and collect affected successors of the current node.
-      VisitInsertion(DT, BUI, CurrentNode, CurrentLevel, NCD, II);
+      assert(TN->getBlock() && II.Visited.count(TN) && "Preconditions!");
+
+      while (true) {
+        // Unlike regular Dijkstra, we have an inner loop to expand more
+        // vertices. The first iteration is for the (affected) vertex popped
+        // from II.Bucket and the rest are for vertices in
+        // UnaffectedOnCurrentLevel, which may eventually expand to affected
+        // vertices.
+        //
+        // Invariant: there is an optimal path from `To` to TN with the minimum
+        // depth being CurrentLevel.
+        for (const NodePtr Succ : getChildren<IsPostDom>(TN->getBlock(), BUI)) {
+          const TreeNodePtr SuccTN = DT.getNode(Succ);
+          assert(SuccTN &&
+                 "Unreachable successor found at reachable insertion");
+          const unsigned SuccLevel = SuccTN->getLevel();
+
+          LLVM_DEBUG(dbgs() << "\tSuccessor " << BlockNamePrinter(Succ)
+                            << ", level = " << SuccLevel << "\n");
+
+          // There is an optimal path from `To` to Succ with the minimum depth
+          // being min(CurrentLevel, SuccLevel).
+          //
+          // If depth(NCD)+1 < depth(Succ) is not satisfied, Succ is unaffected
+          // and no affected vertex may be reached by a path passing through it.
+          // Stop here. Also, Succ may be visited by other predecessors but the
+          // first visit has the optimal path. Stop if Succ has been visited.
+          if (SuccLevel <= NCDLevel + 1 || !II.Visited.insert(SuccTN).second)
+            continue;
+
+          if (SuccLevel > CurrentLevel) {
+            // Succ is unaffected but it may (transitively) expand to affected
+            // vertices. Store it in UnaffectedOnCurrentLevel.
+            LLVM_DEBUG(dbgs() << "\t\tMarking visited not affected "
+                              << BlockNamePrinter(Succ) << "\n");
+            UnaffectedOnCurrentLevel.push_back(SuccTN);
+#ifndef NDEBUG
+            II.VisitedUnaffected.push_back(SuccTN);
+#endif
+          } else {
+            // The condition is satisfied (Succ is affected). Add Succ to the
+            // bucket queue.
+            LLVM_DEBUG(dbgs() << "\t\tAdd " << BlockNamePrinter(Succ)
+                              << " to a Bucket\n");
+            II.Bucket.push(SuccTN);
+          }
+        }
+
+        if (UnaffectedOnCurrentLevel.empty())
+          break;
+        TN = UnaffectedOnCurrentLevel.pop_back_val();
+        LLVM_DEBUG(dbgs() << " Next: " << BlockNamePrinter(TN) << "\n");
+      }
     }
 
     // Finish by updating immediate dominators and levels.
     UpdateInsertion(DT, BUI, NCD, II);
-  }
-
-  // Visits an affected node and collect its affected successors.
-  static void VisitInsertion(DomTreeT &DT, const BatchUpdatePtr BUI,
-                             const TreeNodePtr TN, const unsigned RootLevel,
-                             const TreeNodePtr NCD, InsertionInfo &II) {
-    const unsigned NCDLevel = NCD->getLevel();
-    LLVM_DEBUG(dbgs() << "Visiting " << BlockNamePrinter(TN) << ",  RootLevel "
-                      << RootLevel << "\n");
-
-    SmallVector<TreeNodePtr, 8> Stack = {TN};
-    assert(TN->getBlock() && II.Visited.count(TN) && "Preconditions!");
-
-    SmallPtrSet<TreeNodePtr, 8> Processed;
-
-    do {
-      TreeNodePtr Next = Stack.pop_back_val();
-      LLVM_DEBUG(dbgs() << " Next: " << BlockNamePrinter(Next) << "\n");
-
-      for (const NodePtr Succ :
-           ChildrenGetter<IsPostDom>::Get(Next->getBlock(), BUI)) {
-        const TreeNodePtr SuccTN = DT.getNode(Succ);
-        assert(SuccTN && "Unreachable successor found at reachable insertion");
-        const unsigned SuccLevel = SuccTN->getLevel();
-
-        LLVM_DEBUG(dbgs() << "\tSuccessor " << BlockNamePrinter(Succ)
-                          << ", level = " << SuccLevel << "\n");
-
-        // Do not process the same node multiple times.
-        if (Processed.count(Next) > 0)
-          continue;
-
-        // Succ dominated by subtree From -- not affected.
-        // (Based on the lemma 2.5 from the second paper.)
-        if (SuccLevel > RootLevel) {
-          LLVM_DEBUG(dbgs() << "\t\tDominated by subtree From\n");
-          if (II.Visited.count(SuccTN) != 0) {
-            LLVM_DEBUG(dbgs() << "\t\t\talready visited at level "
-                              << II.Visited[SuccTN] << "\n\t\t\tcurrent level "
-                              << RootLevel << ")\n");
-
-            // A node can be necessary to visit again if we see it again at
-            // a lower level than before.
-            if (II.Visited[SuccTN] >= RootLevel)
-              continue;
-          }
-
-          LLVM_DEBUG(dbgs() << "\t\tMarking visited not affected "
-                            << BlockNamePrinter(Succ) << "\n");
-          II.Visited.insert({SuccTN, RootLevel});
-          II.VisitedNotAffectedQueue.push_back(SuccTN);
-          Stack.push_back(SuccTN);
-        } else if ((SuccLevel > NCDLevel + 1) &&
-            II.Affected.count(SuccTN) == 0) {
-          LLVM_DEBUG(dbgs() << "\t\tMarking affected and adding "
-                            << BlockNamePrinter(Succ) << " to a Bucket\n");
-          II.Affected.insert(SuccTN);
-          II.Bucket.push({SuccLevel, SuccTN});
-        }
-      }
-
-      Processed.insert(Next);
-    } while (!Stack.empty());
   }
 
   // Updates immediate dominators and levels after insertion.
@@ -839,26 +846,19 @@ struct SemiNCAInfo {
                               const TreeNodePtr NCD, InsertionInfo &II) {
     LLVM_DEBUG(dbgs() << "Updating NCD = " << BlockNamePrinter(NCD) << "\n");
 
-    for (const TreeNodePtr TN : II.AffectedQueue) {
+    for (const TreeNodePtr TN : II.Affected) {
       LLVM_DEBUG(dbgs() << "\tIDom(" << BlockNamePrinter(TN)
                         << ") = " << BlockNamePrinter(NCD) << "\n");
       TN->setIDom(NCD);
     }
 
-    UpdateLevelsAfterInsertion(II);
+#ifndef NDEBUG
+    for (const TreeNodePtr TN : II.VisitedUnaffected)
+      assert(TN->getLevel() == TN->getIDom()->getLevel() + 1 &&
+             "TN should have been updated by an affected ancestor");
+#endif
+
     if (IsPostDom) UpdateRootsAfterUpdate(DT, BUI);
-  }
-
-  static void UpdateLevelsAfterInsertion(InsertionInfo &II) {
-    LLVM_DEBUG(
-        dbgs() << "Updating levels for visited but not affected nodes\n");
-
-    for (const TreeNodePtr TN : II.VisitedNotAffectedQueue) {
-      LLVM_DEBUG(dbgs() << "\tlevel(" << BlockNamePrinter(TN) << ") = ("
-                        << BlockNamePrinter(TN->getIDom()) << ") "
-                        << TN->getIDom()->getLevel() << " + 1\n");
-      TN->UpdateLevel();
-    }
   }
 
   // Handles insertion to previously unreachable nodes.
@@ -923,8 +923,8 @@ struct SemiNCAInfo {
     // the DomTree about it.
     // The check is O(N), so run it only in debug configuration.
     auto IsSuccessor = [BUI](const NodePtr SuccCandidate, const NodePtr Of) {
-      auto Successors = ChildrenGetter<IsPostDom>::Get(Of, BUI);
-      return llvm::find(Successors, SuccCandidate) != Successors.end();
+      auto Successors = getChildren<IsPostDom>(Of, BUI);
+      return llvm::is_contained(Successors, SuccCandidate);
     };
     (void)IsSuccessor;
     assert(!IsSuccessor(To, From) && "Deleted edge still exists in the CFG!");
@@ -954,7 +954,7 @@ struct SemiNCAInfo {
                         << BlockNamePrinter(ToIDom) << "\n");
 
       // To remains reachable after deletion.
-      // (Based on the caption under Figure 4. from the second paper.)
+      // (Based on the caption under Figure 4. from [2].)
       if (FromTN != ToIDom || HasProperSupport(DT, BUI, ToTN))
         DeleteReachable(DT, BUI, FromTN, ToTN);
       else
@@ -973,7 +973,7 @@ struct SemiNCAInfo {
     LLVM_DEBUG(dbgs() << "\tRebuilding subtree\n");
 
     // Find the top of the subtree that needs to be rebuilt.
-    // (Based on the lemma 2.6 from the second paper.)
+    // (Based on the lemma 2.6 from [2].)
     const NodePtr ToIDom =
         DT.findNearestCommonDominator(FromTN->getBlock(), ToTN->getBlock());
     assert(ToIDom || DT.isPostDominator());
@@ -1005,20 +1005,19 @@ struct SemiNCAInfo {
   }
 
   // Checks if a node has proper support, as defined on the page 3 and later
-  // explained on the page 7 of the second paper.
+  // explained on the page 7 of [2].
   static bool HasProperSupport(DomTreeT &DT, const BatchUpdatePtr BUI,
                                const TreeNodePtr TN) {
     LLVM_DEBUG(dbgs() << "IsReachableFromIDom " << BlockNamePrinter(TN)
                       << "\n");
-    for (const NodePtr Pred :
-         ChildrenGetter<!IsPostDom>::Get(TN->getBlock(), BUI)) {
+    auto TNB = TN->getBlock();
+    for (const NodePtr Pred : getChildren<!IsPostDom>(TNB, BUI)) {
       LLVM_DEBUG(dbgs() << "\tPred " << BlockNamePrinter(Pred) << "\n");
       if (!DT.getNode(Pred)) continue;
 
-      const NodePtr Support =
-          DT.findNearestCommonDominator(TN->getBlock(), Pred);
+      const NodePtr Support = DT.findNearestCommonDominator(TNB, Pred);
       LLVM_DEBUG(dbgs() << "\tSupport " << BlockNamePrinter(Support) << "\n");
-      if (Support != TN->getBlock()) {
+      if (Support != TNB) {
         LLVM_DEBUG(dbgs() << "\t" << BlockNamePrinter(TN)
                           << " is reachable from support "
                           << BlockNamePrinter(Support) << "\n");
@@ -1030,7 +1029,7 @@ struct SemiNCAInfo {
   }
 
   // Handle deletions that make destination node unreachable.
-  // (Based on the lemma 2.7 from the second paper.)
+  // (Based on the lemma 2.7 from the [2].)
   static void DeleteUnreachable(DomTreeT &DT, const BatchUpdatePtr BUI,
                                 const TreeNodePtr ToTN) {
     LLVM_DEBUG(dbgs() << "Deleting unreachable subtree "
@@ -1059,7 +1058,7 @@ struct SemiNCAInfo {
       const TreeNodePtr TN = DT.getNode(To);
       assert(TN);
       if (TN->getLevel() > Level) return true;
-      if (llvm::find(AffectedQueue, To) == AffectedQueue.end())
+      if (!llvm::is_contained(AffectedQueue, To))
         AffectedQueue.push_back(To);
 
       return false;
@@ -1149,48 +1148,34 @@ struct SemiNCAInfo {
   //===--------------------- DomTree Batch Updater --------------------------===
   //~~
 
-  static void ApplyUpdates(DomTreeT &DT, ArrayRef<UpdateT> Updates) {
-    const size_t NumUpdates = Updates.size();
+  static void ApplyUpdates(DomTreeT &DT, GraphDiffT &PreViewCFG,
+                           GraphDiffT *PostViewCFG) {
+    // Note: the PostViewCFG is only used when computing from scratch. It's data
+    // should already included in the PreViewCFG for incremental updates.
+    const size_t NumUpdates = PreViewCFG.getNumLegalizedUpdates();
     if (NumUpdates == 0)
       return;
 
     // Take the fast path for a single update and avoid running the batch update
     // machinery.
     if (NumUpdates == 1) {
-      const auto &Update = Updates.front();
-      if (Update.getKind() == UpdateKind::Insert)
-        DT.insertEdge(Update.getFrom(), Update.getTo());
-      else
-        DT.deleteEdge(Update.getFrom(), Update.getTo());
-
+      UpdateT Update = PreViewCFG.popUpdateForIncrementalUpdates();
+      if (!PostViewCFG) {
+        if (Update.getKind() == UpdateKind::Insert)
+          InsertEdge(DT, /*BUI=*/nullptr, Update.getFrom(), Update.getTo());
+        else
+          DeleteEdge(DT, /*BUI=*/nullptr, Update.getFrom(), Update.getTo());
+      } else {
+        BatchUpdateInfo BUI(*PostViewCFG, PostViewCFG);
+        if (Update.getKind() == UpdateKind::Insert)
+          InsertEdge(DT, &BUI, Update.getFrom(), Update.getTo());
+        else
+          DeleteEdge(DT, &BUI, Update.getFrom(), Update.getTo());
+      }
       return;
     }
 
-    BatchUpdateInfo BUI;
-    LLVM_DEBUG(dbgs() << "Legalizing " << BUI.Updates.size() << " updates\n");
-    cfg::LegalizeUpdates<NodePtr>(Updates, BUI.Updates, IsPostDom);
-
-    const size_t NumLegalized = BUI.Updates.size();
-    BUI.FutureSuccessors.reserve(NumLegalized);
-    BUI.FuturePredecessors.reserve(NumLegalized);
-
-    // Use the legalized future updates to initialize future successors and
-    // predecessors. Note that these sets will only decrease size over time, as
-    // the next CFG snapshots slowly approach the actual (current) CFG.
-    for (UpdateT &U : BUI.Updates) {
-      BUI.FutureSuccessors[U.getFrom()].push_back({U.getTo(), U.getKind()});
-      BUI.FuturePredecessors[U.getTo()].push_back({U.getFrom(), U.getKind()});
-    }
-
-    LLVM_DEBUG(dbgs() << "About to apply " << NumLegalized << " updates\n");
-    LLVM_DEBUG(if (NumLegalized < 32) for (const auto &U
-                                           : reverse(BUI.Updates)) {
-      dbgs() << "\t";
-      U.dump();
-      dbgs() << "\n";
-    });
-    LLVM_DEBUG(dbgs() << "\n");
-
+    BatchUpdateInfo BUI(PreViewCFG, PostViewCFG);
     // Recalculate the DominatorTree when the number of updates
     // exceeds a threshold, which usually makes direct updating slower than
     // recalculation. We select this threshold proportional to the
@@ -1200,38 +1185,28 @@ struct SemiNCAInfo {
 
     // Make unittests of the incremental algorithm work
     if (DT.DomTreeNodes.size() <= 100) {
-      if (NumLegalized > DT.DomTreeNodes.size())
+      if (BUI.NumLegalized > DT.DomTreeNodes.size())
         CalculateFromScratch(DT, &BUI);
-    } else if (NumLegalized > DT.DomTreeNodes.size() / 40)
+    } else if (BUI.NumLegalized > DT.DomTreeNodes.size() / 40)
       CalculateFromScratch(DT, &BUI);
 
     // If the DominatorTree was recalculated at some point, stop the batch
     // updates. Full recalculations ignore batch updates and look at the actual
     // CFG.
-    for (size_t i = 0; i < NumLegalized && !BUI.IsRecalculated; ++i)
+    for (size_t i = 0; i < BUI.NumLegalized && !BUI.IsRecalculated; ++i)
       ApplyNextUpdate(DT, BUI);
   }
 
   static void ApplyNextUpdate(DomTreeT &DT, BatchUpdateInfo &BUI) {
-    assert(!BUI.Updates.empty() && "No updates to apply!");
-    UpdateT CurrentUpdate = BUI.Updates.pop_back_val();
+    // Popping the next update, will move the PreViewCFG to the next snapshot.
+    UpdateT CurrentUpdate = BUI.PreViewCFG.popUpdateForIncrementalUpdates();
+#if 0
+    // FIXME: The LLVM_DEBUG macro only plays well with a modular
+    // build of LLVM when the header is marked as textual, but doing
+    // so causes redefinition errors.
     LLVM_DEBUG(dbgs() << "Applying update: ");
     LLVM_DEBUG(CurrentUpdate.dump(); dbgs() << "\n");
-
-    // Move to the next snapshot of the CFG by removing the reverse-applied
-    // current update. Since updates are performed in the same order they are
-    // legalized it's sufficient to pop the last item here.
-    auto &FS = BUI.FutureSuccessors[CurrentUpdate.getFrom()];
-    assert(FS.back().getPointer() == CurrentUpdate.getTo() &&
-           FS.back().getInt() == CurrentUpdate.getKind());
-    FS.pop_back();
-    if (FS.empty()) BUI.FutureSuccessors.erase(CurrentUpdate.getFrom());
-
-    auto &FP = BUI.FuturePredecessors[CurrentUpdate.getTo()];
-    assert(FP.back().getPointer() == CurrentUpdate.getFrom() &&
-           FP.back().getInt() == CurrentUpdate.getKind());
-    FP.pop_back();
-    if (FP.empty()) BUI.FuturePredecessors.erase(CurrentUpdate.getTo());
+#endif
 
     if (CurrentUpdate.getKind() == UpdateKind::Insert)
       InsertEdge(DT, &BUI, CurrentUpdate.getFrom(), CurrentUpdate.getTo());
@@ -1270,9 +1245,7 @@ struct SemiNCAInfo {
     }
 
     RootsT ComputedRoots = FindRoots(DT, nullptr);
-    if (DT.Roots.size() != ComputedRoots.size() ||
-        !std::is_permutation(DT.Roots.begin(), DT.Roots.end(),
-                             ComputedRoots.begin())) {
+    if (!isPermutation(DT.Roots, ComputedRoots)) {
       errs() << "Tree has different roots than freshly computed ones!\n";
       errs() << "\tPDT roots: ";
       for (const NodePtr N : DT.Roots) errs() << BlockNamePrinter(N) << ", ";
@@ -1361,7 +1334,7 @@ struct SemiNCAInfo {
     if (!DT.DFSInfoValid || !DT.Parent)
       return true;
 
-    const NodePtr RootBB = IsPostDom ? nullptr : DT.getRoots()[0];
+    const NodePtr RootBB = IsPostDom ? nullptr : *DT.root_begin();
     const TreeNodePtr Root = DT.getNode(RootBB);
 
     auto PrintNodeAndDFSNums = [](const TreeNodePtr TN) {
@@ -1385,7 +1358,7 @@ struct SemiNCAInfo {
       const TreeNodePtr Node = NodeToTN.second.get();
 
       // Handle tree leaves.
-      if (Node->getChildren().empty()) {
+      if (Node->isLeaf()) {
         if (Node->getDFSNumIn() + 1 != Node->getDFSNumOut()) {
           errs() << "Tree leaf should have DFSOut = DFSIn + 1:\n\t";
           PrintNodeAndDFSNums(Node);
@@ -1482,9 +1455,9 @@ struct SemiNCAInfo {
   // LEFT, and thus, LEFT is really an ancestor (in the dominator tree) of
   // RIGHT, not a sibling.
 
-  // It is possible to verify the parent and sibling properties in
-  // linear time, but the algorithms are complex. Instead, we do it in a
-  // straightforward N^2 and N^3 way below, using direct path reachability.
+  // It is possible to verify the parent and sibling properties in linear time,
+  // but the algorithms are complex. Instead, we do it in a straightforward
+  // N^2 and N^3 way below, using direct path reachability.
 
   // Checks if the tree has the parent property: if for all edges from V to W in
   // the input graph, such that V is reachable, the parent of W in the tree is
@@ -1497,7 +1470,8 @@ struct SemiNCAInfo {
     for (auto &NodeToTN : DT.DomTreeNodes) {
       const TreeNodePtr TN = NodeToTN.second.get();
       const NodePtr BB = TN->getBlock();
-      if (!BB || TN->getChildren().empty()) continue;
+      if (!BB || TN->isLeaf())
+        continue;
 
       LLVM_DEBUG(dbgs() << "Verifying parent property of node "
                         << BlockNamePrinter(TN) << "\n");
@@ -1506,7 +1480,7 @@ struct SemiNCAInfo {
         return From != BB && To != BB;
       });
 
-      for (TreeNodePtr Child : TN->getChildren())
+      for (TreeNodePtr Child : TN->children())
         if (NodeToInfo.count(Child->getBlock()) != 0) {
           errs() << "Child " << BlockNamePrinter(Child)
                  << " reachable after its parent " << BlockNamePrinter(BB)
@@ -1530,17 +1504,17 @@ struct SemiNCAInfo {
     for (auto &NodeToTN : DT.DomTreeNodes) {
       const TreeNodePtr TN = NodeToTN.second.get();
       const NodePtr BB = TN->getBlock();
-      if (!BB || TN->getChildren().empty()) continue;
+      if (!BB || TN->isLeaf())
+        continue;
 
-      const auto &Siblings = TN->getChildren();
-      for (const TreeNodePtr N : Siblings) {
+      for (const TreeNodePtr N : TN->children()) {
         clear();
         NodePtr BBN = N->getBlock();
         doFullDFSWalk(DT, [BBN](NodePtr From, NodePtr To) {
           return From != BBN && To != BBN;
         });
 
-        for (const TreeNodePtr S : Siblings) {
+        for (const TreeNodePtr S : TN->children()) {
           if (S == N) continue;
 
           if (NodeToInfo.count(S->getBlock()) == 0) {
@@ -1560,7 +1534,7 @@ struct SemiNCAInfo {
 
   // Check if the given tree is the same as a freshly computed one for the same
   // Parent.
-  // Running time: O(N^2), but faster in practise (same as tree construction).
+  // Running time: O(N^2), but faster in practice (same as tree construction).
   //
   // Note that this does not check if that the tree construction algorithm is
   // correct and should be only used for fast (but possibly unsound)
@@ -1592,19 +1566,11 @@ void Calculate(DomTreeT &DT) {
 template <typename DomTreeT>
 void CalculateWithUpdates(DomTreeT &DT,
                           ArrayRef<typename DomTreeT::UpdateType> Updates) {
-  // TODO: Move BUI creation in common method, reuse in ApplyUpdates.
-  typename SemiNCAInfo<DomTreeT>::BatchUpdateInfo BUI;
-  LLVM_DEBUG(dbgs() << "Legalizing " << BUI.Updates.size() << " updates\n");
-  cfg::LegalizeUpdates<typename DomTreeT::NodePtr>(Updates, BUI.Updates,
-                                                   DomTreeT::IsPostDominator);
-  const size_t NumLegalized = BUI.Updates.size();
-  BUI.FutureSuccessors.reserve(NumLegalized);
-  BUI.FuturePredecessors.reserve(NumLegalized);
-  for (auto &U : BUI.Updates) {
-    BUI.FutureSuccessors[U.getFrom()].push_back({U.getTo(), U.getKind()});
-    BUI.FuturePredecessors[U.getTo()].push_back({U.getFrom(), U.getKind()});
-  }
-
+  // FIXME: Updated to use the PreViewCFG and behave the same as until now.
+  // This behavior is however incorrect; this actually needs the PostViewCFG.
+  GraphDiff<typename DomTreeT::NodePtr, DomTreeT::IsPostDominator> PreViewCFG(
+      Updates, /*ReverseApplyUpdates=*/true);
+  typename SemiNCAInfo<DomTreeT>::BatchUpdateInfo BUI(PreViewCFG);
   SemiNCAInfo<DomTreeT>::CalculateFromScratch(DT, &BUI);
 }
 
@@ -1624,8 +1590,11 @@ void DeleteEdge(DomTreeT &DT, typename DomTreeT::NodePtr From,
 
 template <class DomTreeT>
 void ApplyUpdates(DomTreeT &DT,
-                  ArrayRef<typename DomTreeT::UpdateType> Updates) {
-  SemiNCAInfo<DomTreeT>::ApplyUpdates(DT, Updates);
+                  GraphDiff<typename DomTreeT::NodePtr,
+                            DomTreeT::IsPostDominator> &PreViewCFG,
+                  GraphDiff<typename DomTreeT::NodePtr,
+                            DomTreeT::IsPostDominator> *PostViewCFG) {
+  SemiNCAInfo<DomTreeT>::ApplyUpdates(DT, PreViewCFG, PostViewCFG);
 }
 
 template <class DomTreeT>
@@ -1637,12 +1606,12 @@ bool Verify(const DomTreeT &DT, typename DomTreeT::VerificationLevel VL) {
   if (!SNCA.IsSameAsFreshTree(DT))
     return false;
 
-  // Common checks to verify the properties of the tree. O(N log N) at worst
+  // Common checks to verify the properties of the tree. O(N log N) at worst.
   if (!SNCA.verifyRoots(DT) || !SNCA.verifyReachability(DT) ||
       !SNCA.VerifyLevels(DT) || !SNCA.VerifyDFSNumbers(DT))
     return false;
 
-  // Extra checks depending on VerificationLevel. Up to O(N^3)
+  // Extra checks depending on VerificationLevel. Up to O(N^3).
   if (VL == DomTreeT::VerificationLevel::Basic ||
       VL == DomTreeT::VerificationLevel::Full)
     if (!SNCA.verifyParentProperty(DT))

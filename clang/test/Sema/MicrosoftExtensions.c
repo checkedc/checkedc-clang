@@ -1,5 +1,4 @@
-// RUN: %clang_cc1 -triple i686-windows %s -fsyntax-only -Wno-unused-value -Wmicrosoft -verify -fms-extensions
-
+// RUN: %clang_cc1 -triple i686-windows %s -fsyntax-only -Wno-unused-value -Wno-pointer-to-int-cast -Wmicrosoft -verify -fms-extensions
 
 struct A
 {
@@ -92,17 +91,15 @@ enum : long long {  // expected-warning{{enumeration types with a fixed underlyi
   SomeValue = 0x100000000
 };
 
-
 void pointer_to_integral_type_conv(char* ptr) {
-   char ch = (char)ptr;
-   short sh = (short)ptr;
-   ch = (char)ptr;
-   sh = (short)ptr;
+  char ch = (char)ptr;
+  short sh = (short)ptr;
+  ch = (char)ptr;
+  sh = (short)ptr;
 
-   // This is valid ISO C.
-   _Bool b = (_Bool)ptr;
+  // This is valid ISO C.
+  _Bool b = (_Bool)ptr;
 }
-
 
 typedef struct {
   UNKNOWN u; // expected-error {{unknown type name 'UNKNOWN'}}
@@ -149,6 +146,20 @@ void ptr_func(int * __ptr64 i) {} // expected-error {{redefinition of 'ptr_func'
 // It is also illegal to overload based on the pointer type attribute.
 void ptr_func2(int * __sptr __ptr32 i) {}  // expected-note {{previous definition is here}}
 void ptr_func2(int * __uptr __ptr32 i) {} // expected-error {{redefinition of 'ptr_func2'}}
+
+// Check for warning when return types have the type attribute.
+void *__ptr32 ptr_func3() { return 0; } // expected-note {{previous definition is here}}
+void *__ptr64 ptr_func3() { return 0; } // expected-error {{redefinition of 'ptr_func3'}}
+
+// Test that __ptr32/__ptr64 can be passed as arguments with other address
+// spaces.
+void ptr_func4(int *i);
+void ptr_func5(int *__ptr32 i);
+void test_ptr_arguments() {
+  int *__ptr64 i64;
+  ptr_func4(i64);
+  ptr_func5(i64);
+}
 
 int * __sptr __ptr32 __sptr wrong4; // expected-warning {{attribute '__sptr' is already applied}}
 

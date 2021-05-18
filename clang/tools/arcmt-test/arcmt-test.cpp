@@ -1,9 +1,8 @@
 //===-- arcmt-test.cpp - ARC Migration Tool testbed -----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -122,7 +121,7 @@ static bool checkForMigration(StringRef resourcesPath,
   }
 
   CompilerInvocation CI;
-  if (!CompilerInvocation::CreateFromArgs(CI, Args.begin(), Args.end(), *Diags))
+  if (!CompilerInvocation::CreateFromArgs(CI, Args, *Diags))
     return true;
 
   if (CI.getFrontendOpts().Inputs.empty()) {
@@ -140,11 +139,10 @@ static bool checkForMigration(StringRef resourcesPath,
 }
 
 static void printResult(FileRemapper &remapper, raw_ostream &OS) {
-  PreprocessorOptions PPOpts;
-  remapper.applyMappings(PPOpts);
-  // The changed files will be in memory buffers, print them.
-  for (const auto &RB : PPOpts.RemappedFileBuffers)
-    OS << RB.second->getBuffer();
+  remapper.forEachMapping([](StringRef, StringRef) {},
+                          [&](StringRef, const llvm::MemoryBufferRef &Buffer) {
+                            OS << Buffer.getBuffer();
+                          });
 }
 
 static bool performTransformations(StringRef resourcesPath,
@@ -161,8 +159,7 @@ static bool performTransformations(StringRef resourcesPath,
       new DiagnosticsEngine(DiagID, &*DiagOpts, &*DiagClient));
 
   CompilerInvocation origCI;
-  if (!CompilerInvocation::CreateFromArgs(origCI, Args.begin(), Args.end(),
-                                     *TopDiags))
+  if (!CompilerInvocation::CreateFromArgs(origCI, Args, *TopDiags))
     return true;
 
   if (origCI.getFrontendOpts().Inputs.empty()) {

@@ -1,19 +1,20 @@
 //===----------------------- cxa_bad_cast.pass.cpp ------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 #include <cxxabi.h>
 #include <cassert>
 #include <stdlib.h>
 #include <exception>
 #include <typeinfo>
+
+#include "test_macros.h"
 
 class Base {
   virtual void foo() {};
@@ -32,17 +33,17 @@ void my_terminate() { exit(0); }
 int main ()
 {
     // swap-out the terminate handler
-    void (*default_handler)() = std::get_terminate(); 
+    void (*default_handler)() = std::get_terminate();
     std::set_terminate(my_terminate);
 
-#ifndef LIBCXXABI_HAS_NO_EXCEPTIONS
+#ifndef TEST_HAS_NO_EXCEPTIONS
     try {
 #endif
         Derived &d = test_bad_cast(gB);
         assert(false);
         ((void)d);
-#ifndef LIBCXXABI_HAS_NO_EXCEPTIONS
-    } catch (std::bad_cast) {
+#ifndef TEST_HAS_NO_EXCEPTIONS
+    } catch (std::bad_cast const&) {
         // success
         return 0;
     } catch (...) {

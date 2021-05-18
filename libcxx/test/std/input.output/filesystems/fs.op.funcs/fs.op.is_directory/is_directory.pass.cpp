@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -15,13 +14,13 @@
 // bool is_directory(path const& p);
 // bool is_directory(path const& p, std::error_code& ec) noexcept;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 using namespace fs;
 
@@ -63,15 +62,17 @@ TEST_CASE(is_directory_status_test)
 
 TEST_CASE(test_exist_not_found)
 {
-    const path p = StaticEnv::DNE;
+    static_test_env static_env;
+    const path p = static_env.DNE;
     TEST_CHECK(is_directory(p) == false);
 }
 
 TEST_CASE(static_env_test)
 {
-    TEST_CHECK(is_directory(StaticEnv::Dir));
-    TEST_CHECK(is_directory(StaticEnv::SymlinkToDir));
-    TEST_CHECK(!is_directory(StaticEnv::File));
+    static_test_env static_env;
+    TEST_CHECK(is_directory(static_env.Dir));
+    TEST_CHECK(is_directory(static_env.SymlinkToDir));
+    TEST_CHECK(!is_directory(static_env.File));
 }
 
 TEST_CASE(test_is_directory_fails)

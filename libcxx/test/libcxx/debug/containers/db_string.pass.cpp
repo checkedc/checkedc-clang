@@ -1,28 +1,25 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
-// UNSUPPORTED: libcpp-no-exceptions, libcpp-no-if-constexpr
-// MODULES_DEFINES: _LIBCPP_DEBUG=1
-// MODULES_DEFINES: _LIBCPP_DEBUG_USE_EXCEPTIONS
+// UNSUPPORTED: c++03, c++11, c++14
+// UNSUPPORTED: windows
+// UNSUPPORTED: libcpp-no-if-constexpr
 
-// Can't test the system lib because this test enables debug mode
-// UNSUPPORTED: with_system_cxx_lib
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DEBUG=1
+// UNSUPPORTED: libcxx-no-debug-mode
 
 // test container debugging
 
-#define _LIBCPP_DEBUG 1
-#define _LIBCPP_DEBUG_USE_EXCEPTIONS
 #include <string>
 #include <vector>
 
 #include "test_macros.h"
+#include "container_debug_tests.h"
 #include "debug_mode_helper.h"
 
 using namespace IteratorDebugChecks;
@@ -44,57 +41,56 @@ public:
   static void run() {
     Base::run_iterator_tests();
     Base::run_allocator_aware_tests();
-    try {
-      for (int N : {3, 128}) {
-        FrontOnEmptyContainer(N);
-        BackOnEmptyContainer(N);
-        PopBack(N);
-      }
-    } catch (...) {
-      assert(false && "uncaught debug exception");
+
+    for (int N : {3, 128}) {
+      FrontOnEmptyContainer(N);
+      BackOnEmptyContainer(N);
+      PopBack(N);
     }
   }
 
 private:
   static void BackOnEmptyContainer(int N) {
-    CHECKPOINT("testing back on empty");
+    // testing back on empty
     Container C = makeContainer(N);
     Container const& CC = C;
     iterator it = --C.end();
     (void)C.back();
     (void)CC.back();
     C.pop_back();
-    CHECK_DEBUG_THROWS( C.erase(it) );
+    EXPECT_DEATH( C.erase(it) );
     C.clear();
-    CHECK_DEBUG_THROWS( C.back() );
-    CHECK_DEBUG_THROWS( CC.back() );
+    EXPECT_DEATH( C.back() );
+    EXPECT_DEATH( CC.back() );
   }
 
   static void FrontOnEmptyContainer(int N) {
-    CHECKPOINT("testing front on empty");
+    // testing front on empty
     Container C = makeContainer(N);
     Container const& CC = C;
     (void)C.front();
     (void)CC.front();
     C.clear();
-    CHECK_DEBUG_THROWS( C.front() );
-    CHECK_DEBUG_THROWS( CC.front() );
+    EXPECT_DEATH( C.front() );
+    EXPECT_DEATH( CC.front() );
   }
 
   static void PopBack(int N) {
-    CHECKPOINT("testing pop_back() invalidation");
+    // testing pop_back() invalidation
     Container C1 = makeContainer(N);
     iterator it1 = C1.end();
     --it1;
     C1.pop_back();
-    CHECK_DEBUG_THROWS( C1.erase(it1) );
+    EXPECT_DEATH( C1.erase(it1) );
     C1.erase(C1.begin(), C1.end());
     assert(C1.size() == 0);
-    CHECK_DEBUG_THROWS( C1.pop_back() );
+    EXPECT_DEATH_MATCHES(DebugInfoMatcher("string::pop_back(): string is already empty"), C1.pop_back() );
   }
 };
 
-int main()
+int main(int, char**)
 {
   StringContainerChecks<>::run();
+
+  return 0;
 }

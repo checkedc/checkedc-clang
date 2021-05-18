@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -57,14 +56,6 @@ void test_comparisons()
 #pragma clang diagnostic ignored "-Wnull-conversion"
 #endif
 void test_nullptr_conversions() {
-// GCC does not accept this due to CWG Defect #1423
-// http://www.open-std.org/jtc1/sc22/wg21/docs/cwg_defects.html#1423
-#if defined(__clang__)
-    {
-        bool b = nullptr;
-        assert(!b);
-    }
-#endif
     {
         bool b(nullptr);
         assert(!b);
@@ -75,7 +66,7 @@ void test_nullptr_conversions() {
 #endif
 
 
-int main()
+int main(int, char**)
 {
     static_assert(sizeof(std::nullptr_t) == sizeof(void*),
                   "sizeof(std::nullptr_t) == sizeof(void*)");
@@ -104,4 +95,6 @@ int main()
         test_comparisons<void(*)()>();
     }
     test_nullptr_conversions();
+
+  return 0;
 }

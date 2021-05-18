@@ -17,7 +17,7 @@ namespace std {
 }
 
 template<typename T> constexpr bool has_type(...) { return false; }
-template<typename T> constexpr bool has_type(T) { return true; }
+template<typename T> constexpr bool has_type(T&) { return true; }
 
 std::initializer_list il = {1, 2, 3, 4, 5};
 
@@ -172,6 +172,10 @@ namespace nondeducible {
   template<typename A = int,
            typename ...B>
   X(float) -> X<A, B...>; // ok
+
+  template <typename> struct UnnamedTemplateParam {};
+  template <typename>                                  // expected-note {{non-deducible template parameter (anonymous)}}
+  UnnamedTemplateParam() -> UnnamedTemplateParam<int>; // expected-error {{deduction guide template contains a template parameter that cannot be deduced}}
 }
 
 namespace default_args_from_ctor {
@@ -268,13 +272,16 @@ namespace tuple_tests {
   // Don't get caught by surprise when X<...> doesn't even exist in the
   // selected specialization!
   namespace libcxx_2 {
-    template<class ...T> struct tuple { // expected-note {{candidate}}
+    template<class ...T> struct tuple {
       template<class ...Args> struct X { static const bool value = false; };
+      // Substitution into X<U...>::value succeeds but produces the
+      // value-dependent expression
+      //   tuple<T...>::X<>::value
+      // FIXME: Is that the right behavior?
       template<class ...U, bool Y = X<U...>::value> tuple(U &&...u);
-      // expected-note@-1 {{substitution failure [with T = <>, U = <int, int, int>]: cannot reference member of primary template because deduced class template specialization 'tuple<>' is an explicit specialization}}
     };
     template <> class tuple<> {};
-    tuple a = {1, 2, 3}; // expected-error {{no viable constructor or deduction guide}}
+    tuple a = {1, 2, 3}; // expected-error {{excess elements in struct initializer}}
   }
 
   namespace libcxx_3 {
@@ -407,6 +414,122 @@ template<typename U> struct B {
 B b(0, {});
 }
 
+}
+
+#pragma clang diagnostic push
+#pragma clang diagnostic warning "-Wctad-maybe-unsupported"
+namespace test_implicit_ctad_warning {
+
+template <class T>
+struct Tag {};
+
+template <class T>
+struct NoExplicit { // expected-note {{add a deduction guide to suppress this warning}}
+  NoExplicit(T) {}
+  NoExplicit(T, int) {}
+};
+
+// expected-warning@+1 {{'NoExplicit' may not intend to support class template argument deduction}}
+NoExplicit ne(42);
+
+template <class U>
+struct HasExplicit {
+  HasExplicit(U) {}
+  HasExplicit(U, int) {}
+};
+template <class U> HasExplicit(U, int) -> HasExplicit<Tag<U>>;
+
+HasExplicit he(42);
+
+// Motivating examples from (taken from Stephan Lavavej's 2018 Cppcon talk)
+template <class T, class U>
+struct AmateurPair { // expected-note {{add a deduction guide to suppress this warning}}
+  T first;
+  U second;
+  explicit AmateurPair(const T &t, const U &u) {}
+};
+// expected-warning@+1 {{'AmateurPair' may not intend to support class template argument deduction}}
+AmateurPair p1(42, "hello world"); // deduces to Pair<int, char[12]>
+
+template <class T, class U>
+struct AmateurPair2 { // expected-note {{add a deduction guide to suppress this warning}}
+  T first;
+  U second;
+  explicit AmateurPair2(T t, U u) {}
+};
+// expected-warning@+1 {{'AmateurPair2' may not intend to support class template argument deduction}}
+AmateurPair2 p2(42, "hello world"); // deduces to Pair2<int, const char*>
+
+template <class T, class U>
+struct ProPair {
+  T first; U second;
+    explicit ProPair(T const& t, U  const& u)  {}
+};
+template<class T1, class T2>
+ProPair(T1, T2) -> ProPair<T1, T2>;
+ProPair p3(42, "hello world"); // deduces to ProPair<int, const char*>
+static_assert(__is_same(decltype(p3), ProPair<int, const char*>));
+
+// Test that user-defined explicit guides suppress the warning even if they
+// aren't used as candidates.
+template <class T>
+struct TestExplicitCtor {
+  TestExplicitCtor(T) {}
+};
+template <class T>
+explicit TestExplicitCtor(TestExplicitCtor<T> const&) -> TestExplicitCtor<void>;
+TestExplicitCtor<int> ce1{42};
+TestExplicitCtor ce2 = ce1;
+static_assert(__is_same(decltype(ce2), TestExplicitCtor<int>), "");
+
+struct allow_ctad_t {
+  allow_ctad_t() = delete;
+};
+
+template <class T>
+struct TestSuppression {
+  TestSuppression(T) {}
+};
+TestSuppression(allow_ctad_t)->TestSuppression<void>;
+TestSuppression ta("abc");
+static_assert(__is_same(decltype(ta), TestSuppression<const char *>), "");
+}
+#pragma clang diagnostic pop
+
+namespace PR41549 {
+
+template <class H, class P> struct umm;
+
+template <class H = int, class P = int>
+struct umm {
+  umm(H h = 0, P p = 0);
+};
+
+template <class H, class P> struct umm;
+
+umm m(1);
+
+}
+
+namespace PR45124 {
+  class a { int d; };
+  class b : a {};
+
+  struct x { ~x(); };
+  template<typename> class y { y(x = x()); };
+  template<typename z> y(z)->y<z>;
+
+  // Not a constant initializer, but trivial default initialization. We won't
+  // detect this as trivial default initialization if synthesizing the implicit
+  // deduction guide 'template<typename T> y(x = x()) -> Y<T>;' leaves behind a
+  // pending cleanup.
+  __thread b g;
+}
+
+namespace PR47175 {
+  template<typename T> struct A { A(T); T x; };
+  template<typename T> int &&n = A(T()).x;
+  int m = n<int>;
 }
 
 #else

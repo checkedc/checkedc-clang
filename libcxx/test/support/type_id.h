@@ -1,22 +1,19 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 #ifndef SUPPORT_TYPE_ID_H
 #define SUPPORT_TYPE_ID_H
 
 #include <functional>
-#include <typeinfo>
 #include <string>
 #include <cstdio>
 #include <cassert>
 
 #include "test_macros.h"
-#include "demangle.h"
 
 #if TEST_STD_VER < 11
 #error This header requires C++11 or greater
@@ -31,12 +28,7 @@ struct TypeID {
   {return LHS.m_id != RHS.m_id; }
 
   std::string name() const {
-    return demangle(m_id);
-  }
-
-  void dump() const {
-    std::string s = name();
-    std::printf("TypeID: %s\n", s.c_str());
+    return m_id;
   }
 
 private:
@@ -52,7 +44,11 @@ private:
 // makeTypeID - Return the TypeID for the specified type 'T'.
 template <class T>
 inline TypeID const& makeTypeIDImp() {
-  static const TypeID id(typeid(T).name());
+#ifdef _MSC_VER
+  static const TypeID id(__FUNCSIG__);
+#else
+  static const TypeID id(__PRETTY_FUNCTION__);
+#endif // _MSC_VER
   return id;
 }
 

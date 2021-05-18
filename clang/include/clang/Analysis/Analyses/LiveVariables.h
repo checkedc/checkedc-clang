@@ -1,9 +1,8 @@
 //===- LiveVariables.h - Live Variable Analysis for Source CFGs -*- C++ --*-//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -31,22 +30,22 @@ public:
   class LivenessValues {
   public:
 
-    llvm::ImmutableSet<const Stmt *> liveStmts;
+    llvm::ImmutableSet<const Expr *> liveExprs;
     llvm::ImmutableSet<const VarDecl *> liveDecls;
     llvm::ImmutableSet<const BindingDecl *> liveBindings;
 
     bool equals(const LivenessValues &V) const;
 
     LivenessValues()
-      : liveStmts(nullptr), liveDecls(nullptr), liveBindings(nullptr) {}
+      : liveExprs(nullptr), liveDecls(nullptr), liveBindings(nullptr) {}
 
-    LivenessValues(llvm::ImmutableSet<const Stmt *> LiveStmts,
+    LivenessValues(llvm::ImmutableSet<const Expr *> liveExprs,
                    llvm::ImmutableSet<const VarDecl *> LiveDecls,
                    llvm::ImmutableSet<const BindingDecl *> LiveBindings)
-        : liveStmts(LiveStmts), liveDecls(LiveDecls),
+        : liveExprs(liveExprs), liveDecls(LiveDecls),
           liveBindings(LiveBindings) {}
 
-    bool isLive(const Stmt *S) const;
+    bool isLive(const Expr *E) const;
     bool isLive(const VarDecl *D) const;
 
     friend class LiveVariables;
@@ -71,8 +70,8 @@ public:
   ~LiveVariables() override;
 
   /// Compute the liveness information for a given CFG.
-  static LiveVariables *computeLiveness(AnalysisDeclContext &analysisContext,
-                                        bool killAtAssign);
+  static std::unique_ptr<LiveVariables>
+  computeLiveness(AnalysisDeclContext &analysisContext, bool killAtAssign);
 
   /// Return true if a variable is live at the end of a
   /// specified block.
@@ -84,21 +83,22 @@ public:
   ///  only returns liveness information for block-level expressions.
   bool isLive(const Stmt *S, const VarDecl *D);
 
-  /// Returns true the block-level expression "value" is live
+  /// Returns true the block-level expression value is live
   ///  before the given block-level expression (see runOnAllBlocks).
-  bool isLive(const Stmt *Loc, const Stmt *StmtVal);
+  bool isLive(const Stmt *Loc, const Expr *Val);
 
   /// Print to stderr the variable liveness information associated with
   /// each basic block.
   void dumpBlockLiveness(const SourceManager &M);
 
-  /// Print to stderr the statement liveness information associated with
+  /// Print to stderr the expression liveness information associated with
   /// each basic block.
-  void dumpStmtLiveness(const SourceManager &M);
+  void dumpExprLiveness(const SourceManager &M);
 
   void runOnAllBlocks(Observer &obs);
 
-  static LiveVariables *create(AnalysisDeclContext &analysisContext) {
+  static std::unique_ptr<LiveVariables>
+  create(AnalysisDeclContext &analysisContext) {
     return computeLiveness(analysisContext, true);
   }
 
@@ -111,7 +111,8 @@ private:
 
 class RelaxedLiveVariables : public LiveVariables {
 public:
-  static LiveVariables *create(AnalysisDeclContext &analysisContext) {
+  static std::unique_ptr<LiveVariables>
+  create(AnalysisDeclContext &analysisContext) {
     return computeLiveness(analysisContext, false);
   }
 

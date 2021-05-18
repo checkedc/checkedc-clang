@@ -8,8 +8,8 @@
 ; RUN: llvm-mc -triple x86_64-windows-msvc -filetype=obj %S/Inputs/loadconfig-cfg-x64.s -o %t.ldcfg.obj
 
 ; RUN: llvm-as %s -o %t.bc
-; RUN: lld-link -entry:main -guard:cf -dll %t.bc %t.lib %t.ldcfg.obj -out:%t.dll
-; RUN: llvm-readobj -coff-load-config %t.dll | FileCheck %s
+; RUN: lld-link -entry:main -guard:cf -dll %t.bc %t.lib %t.ldcfg.obj -out:%t2.dll
+; RUN: llvm-readobj --coff-load-config %t2.dll | FileCheck %s
 
 ; There must be *two* entries in the table: DLL entry point, and my_handler.
 
@@ -23,7 +23,7 @@
 ; CHECK-NEXT:   0x180{{.*}}
 ; CHECK-NEXT: ]
 
-target datalayout = "e-m:w-i64:64-f80:128-n8:16:32:64-S128"
+target datalayout = "e-m:w-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-windows-msvc19.12.25835"
 
 declare dllimport void @do_indirect_call(void ()*)

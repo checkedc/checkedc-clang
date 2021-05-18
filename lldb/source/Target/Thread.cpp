@@ -1,19 +1,17 @@
-//===-- Thread.cpp ----------------------------------------------*- C++ -*-===//
+//===-- Thread.cpp --------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Target/Thread.h"
-#include "Plugins/Process/Utility/UnwindLLDB.h"
-#include "Plugins/Process/Utility/UnwindMacOSXFrameBackchain.h"
 #include "lldb/Breakpoint/BreakpointLocation.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/FormatEntity.h"
 #include "lldb/Core/Module.h"
+#include "lldb/Core/StructuredDataImpl.h"
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Interpreter/OptionValueFileSpecList.h"
@@ -23,7 +21,7 @@
 #include "lldb/Target/ABI.h"
 #include "lldb/Target/DynamicLoader.h"
 #include "lldb/Target/ExecutionContext.h"
-#include "lldb/Target/ObjCLanguageRuntime.h"
+#include "lldb/Target/LanguageRuntime.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/StackFrameRecognizer.h"
@@ -35,6 +33,7 @@
 #include "lldb/Target/ThreadPlanCallFunction.h"
 #include "lldb/Target/ThreadPlanPython.h"
 #include "lldb/Target/ThreadPlanRunToAddress.h"
+#include "lldb/Target/ThreadPlanStack.h"
 #include "lldb/Target/ThreadPlanStepInRange.h"
 #include "lldb/Target/ThreadPlanStepInstruction.h"
 #include "lldb/Target/ThreadPlanStepOut.h"
@@ -43,13 +42,15 @@
 #include "lldb/Target/ThreadPlanStepThrough.h"
 #include "lldb/Target/ThreadPlanStepUntil.h"
 #include "lldb/Target/ThreadSpec.h"
-#include "lldb/Target/Unwind.h"
+#include "lldb/Target/UnwindLLDB.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RegularExpression.h"
 #include "lldb/Utility/State.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/lldb-enumerations.h"
+
+#include <memory>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -62,36 +63,17 @@ const ThreadPropertiesSP &Thread::GetGlobalProperties() {
   return *g_settings_sp_ptr;
 }
 
-static constexpr PropertyDefinition g_properties[] = {
-    {"step-in-avoid-nodebug", OptionValue::eTypeBoolean, true, true, nullptr,
-     {},
-     "If true, step-in will not stop in functions with no debug information."},
-    {"step-out-avoid-nodebug", OptionValue::eTypeBoolean, true, false, nullptr,
-     {}, "If true, when step-in/step-out/step-over leave the current frame, "
-         "they will continue to step out till they come to a function with "
-         "debug information. Passing a frame argument to step-out will "
-         "override this option."},
-    {"step-avoid-regexp", OptionValue::eTypeRegex, true, 0, "^std::", {},
-     "A regular expression defining functions step-in won't stop in."},
-    {"step-avoid-libraries", OptionValue::eTypeFileSpecList, true, 0, nullptr,
-     {}, "A list of libraries that source stepping won't stop in."},
-    {"trace-thread", OptionValue::eTypeBoolean, false, false, nullptr, {},
-     "If true, this thread will single-step and log execution."},
-    {"max-backtrace-depth", OptionValue::eTypeUInt64, false, 300000, nullptr,
-     {}, "Maximum number of frames to backtrace."}};
+#define LLDB_PROPERTIES_thread
+#include "TargetProperties.inc"
 
 enum {
-  ePropertyStepInAvoidsNoDebug,
-  ePropertyStepOutAvoidsNoDebug,
-  ePropertyStepAvoidRegex,
-  ePropertyStepAvoidLibraries,
-  ePropertyEnableThreadTrace,
-  ePropertyMaxBacktraceDepth
+#define LLDB_PROPERTIES_thread
+#include "TargetPropertiesEnum.inc"
 };
 
 class ThreadOptionValueProperties : public OptionValueProperties {
 public:
-  ThreadOptionValueProperties(const ConstString &name)
+  ThreadOptionValueProperties(ConstString name)
       : OptionValueProperties(name) {}
 
   // This constructor is used when creating ThreadOptionValueProperties when it
@@ -122,12 +104,12 @@ public:
 
 ThreadProperties::ThreadProperties(bool is_global) : Properties() {
   if (is_global) {
-    m_collection_sp.reset(
-        new ThreadOptionValueProperties(ConstString("thread")));
-    m_collection_sp->Initialize(g_properties);
+    m_collection_sp =
+        std::make_shared<ThreadOptionValueProperties>(ConstString("thread"));
+    m_collection_sp->Initialize(g_thread_properties);
   } else
-    m_collection_sp.reset(
-        new ThreadOptionValueProperties(Thread::GetGlobalProperties().get()));
+    m_collection_sp = std::make_shared<ThreadOptionValueProperties>(
+        Thread::GetGlobalProperties().get());
 }
 
 ThreadProperties::~ThreadProperties() = default;
@@ -137,9 +119,9 @@ const RegularExpression *ThreadProperties::GetSymbolsToAvoidRegexp() {
   return m_collection_sp->GetPropertyAtIndexAsOptionValueRegex(nullptr, idx);
 }
 
-FileSpecList &ThreadProperties::GetLibrariesToAvoid() const {
+FileSpecList ThreadProperties::GetLibrariesToAvoid() const {
   const uint32_t idx = ePropertyStepAvoidLibraries;
-  OptionValueFileSpecList *option_value =
+  const OptionValueFileSpecList *option_value =
       m_collection_sp->GetPropertyAtIndexAsOptionValueFileSpecList(nullptr,
                                                                    false, idx);
   assert(option_value);
@@ -149,32 +131,30 @@ FileSpecList &ThreadProperties::GetLibrariesToAvoid() const {
 bool ThreadProperties::GetTraceEnabledState() const {
   const uint32_t idx = ePropertyEnableThreadTrace;
   return m_collection_sp->GetPropertyAtIndexAsBoolean(
-      nullptr, idx, g_properties[idx].default_uint_value != 0);
+      nullptr, idx, g_thread_properties[idx].default_uint_value != 0);
 }
 
 bool ThreadProperties::GetStepInAvoidsNoDebug() const {
   const uint32_t idx = ePropertyStepInAvoidsNoDebug;
   return m_collection_sp->GetPropertyAtIndexAsBoolean(
-      nullptr, idx, g_properties[idx].default_uint_value != 0);
+      nullptr, idx, g_thread_properties[idx].default_uint_value != 0);
 }
 
 bool ThreadProperties::GetStepOutAvoidsNoDebug() const {
   const uint32_t idx = ePropertyStepOutAvoidsNoDebug;
   return m_collection_sp->GetPropertyAtIndexAsBoolean(
-      nullptr, idx, g_properties[idx].default_uint_value != 0);
+      nullptr, idx, g_thread_properties[idx].default_uint_value != 0);
 }
 
 uint64_t ThreadProperties::GetMaxBacktraceDepth() const {
   const uint32_t idx = ePropertyMaxBacktraceDepth;
   return m_collection_sp->GetPropertyAtIndexAsUInt64(
-      nullptr, idx, g_properties[idx].default_uint_value != 0);
+      nullptr, idx, g_thread_properties[idx].default_uint_value != 0);
 }
 
-//------------------------------------------------------------------
 // Thread Event Data
-//------------------------------------------------------------------
 
-const ConstString &Thread::ThreadEventData::GetFlavorString() {
+ConstString Thread::ThreadEventData::GetFlavorString() {
   static ConstString g_flavor("Thread::ThreadEventData");
   return g_flavor;
 }
@@ -233,9 +213,7 @@ Thread::ThreadEventData::GetStackFrameFromEvent(const Event *event_ptr) {
   return frame_sp;
 }
 
-//------------------------------------------------------------------
 // Thread class
-//------------------------------------------------------------------
 
 ConstString &Thread::GetStaticBroadcasterClass() {
   static ConstString class_name("lldb.thread");
@@ -251,61 +229,33 @@ Thread::Thread(Process &process, lldb::tid_t tid, bool use_invalid_index_id)
       m_index_id(use_invalid_index_id ? LLDB_INVALID_INDEX32
                                       : process.GetNextThreadIndexID(tid)),
       m_reg_context_sp(), m_state(eStateUnloaded), m_state_mutex(),
-      m_plan_stack(), m_completed_plan_stack(), m_frame_mutex(),
-      m_curr_frames_sp(), m_prev_frames_sp(),
+      m_frame_mutex(), m_curr_frames_sp(), m_prev_frames_sp(),
       m_resume_signal(LLDB_INVALID_SIGNAL_NUMBER),
       m_resume_state(eStateRunning), m_temporary_resume_state(eStateRunning),
-      m_unwinder_ap(), m_destroy_called(false),
+      m_unwinder_up(), m_destroy_called(false),
       m_override_should_notify(eLazyBoolCalculate),
       m_extended_info_fetched(false), m_extended_info() {
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_OBJECT));
-  if (log)
-    log->Printf("%p Thread::Thread(tid = 0x%4.4" PRIx64 ")",
-                static_cast<void *>(this), GetID());
+  LLDB_LOGF(log, "%p Thread::Thread(tid = 0x%4.4" PRIx64 ")",
+            static_cast<void *>(this), GetID());
 
   CheckInWithManager();
-
-  QueueFundamentalPlan(true);
 }
 
 Thread::~Thread() {
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_OBJECT));
-  if (log)
-    log->Printf("%p Thread::~Thread(tid = 0x%4.4" PRIx64 ")",
-                static_cast<void *>(this), GetID());
+  LLDB_LOGF(log, "%p Thread::~Thread(tid = 0x%4.4" PRIx64 ")",
+            static_cast<void *>(this), GetID());
   /// If you hit this assert, it means your derived class forgot to call
   /// DoDestroy in its destructor.
   assert(m_destroy_called);
 }
 
 void Thread::DestroyThread() {
-  // Tell any plans on the plan stacks that the thread is being destroyed since
-  // any plans that have a thread go away in the middle of might need to do
-  // cleanup, or in some cases NOT do cleanup...
-  for (auto plan : m_plan_stack)
-    plan->ThreadDestroyed();
-
-  for (auto plan : m_discarded_plan_stack)
-    plan->ThreadDestroyed();
-
-  for (auto plan : m_completed_plan_stack)
-    plan->ThreadDestroyed();
-
   m_destroy_called = true;
-  m_plan_stack.clear();
-  m_discarded_plan_stack.clear();
-  m_completed_plan_stack.clear();
-
-  // Push a ThreadPlanNull on the plan stack.  That way we can continue
-  // assuming that the plan stack is never empty, but if somebody errantly asks
-  // questions of a destroyed thread without checking first whether it is
-  // destroyed, they won't crash.
-  ThreadPlanSP null_plan_sp(new ThreadPlanNull(*this));
-  m_plan_stack.push_back(null_plan_sp);
-
   m_stop_info_sp.reset();
   m_reg_context_sp.reset();
-  m_unwinder_ap.reset();
+  m_unwinder_up.reset();
   std::lock_guard<std::recursive_mutex> guard(m_frame_mutex);
   m_curr_frames_sp.reset();
   m_prev_frames_sp.reset();
@@ -321,7 +271,7 @@ lldb::StackFrameSP Thread::GetSelectedFrame() {
   StackFrameListSP stack_frame_list_sp(GetStackFrameList());
   StackFrameSP frame_sp = stack_frame_list_sp->GetFrameAtIndex(
       stack_frame_list_sp->GetSelectedFrameIndex());
-  FunctionOptimizationWarning(frame_sp.get());
+  FrameSelectedCallback(frame_sp.get());
   return frame_sp;
 }
 
@@ -330,7 +280,7 @@ uint32_t Thread::SetSelectedFrame(lldb_private::StackFrame *frame,
   uint32_t ret_value = GetStackFrameList()->SetSelectedFrame(frame);
   if (broadcast)
     BroadcastSelectedFrameChange(frame->GetStackID());
-  FunctionOptimizationWarning(frame);
+  FrameSelectedCallback(frame);
   return ret_value;
 }
 
@@ -340,7 +290,7 @@ bool Thread::SetSelectedFrameByIndex(uint32_t frame_idx, bool broadcast) {
     GetStackFrameList()->SetSelectedFrame(frame_sp.get());
     if (broadcast)
       BroadcastSelectedFrameChange(frame_sp->GetStackID());
-    FunctionOptimizationWarning(frame_sp.get());
+    FrameSelectedCallback(frame_sp.get());
     return true;
   } else
     return false;
@@ -364,7 +314,7 @@ bool Thread::SetSelectedFrameByIndexNoisily(uint32_t frame_idx,
 
       bool show_frame_info = true;
       bool show_source = !already_shown;
-      FunctionOptimizationWarning(frame_sp.get());
+      FrameSelectedCallback(frame_sp.get());
       return frame_sp->GetStatus(output_stream, show_frame_info, show_source);
     }
     return false;
@@ -372,12 +322,17 @@ bool Thread::SetSelectedFrameByIndexNoisily(uint32_t frame_idx,
     return false;
 }
 
-void Thread::FunctionOptimizationWarning(StackFrame *frame) {
-  if (frame && frame->HasDebugInformation() &&
-      GetProcess()->GetWarningsOptimization()) {
+void Thread::FrameSelectedCallback(StackFrame *frame) {
+  if (!frame)
+    return;
+
+  if (frame->HasDebugInformation() &&
+      (GetProcess()->GetWarningsOptimization() ||
+       GetProcess()->GetWarningsUnsupportedLanguage())) {
     SymbolContext sc =
         frame->GetSymbolContext(eSymbolContextFunction | eSymbolContextModule);
     GetProcess()->PrintWarningOptimization(sc);
+    GetProcess()->PrintWarningUnsupportedLanguage(sc);
   }
 }
 
@@ -414,6 +369,11 @@ lldb::StopInfoSP Thread::GetStopInfo() {
   }
 }
 
+void Thread::CalculatePublicStopInfo() {
+  ResetStopInfo();
+  SetStopInfo(GetStopInfo());
+}
+
 lldb::StopInfoSP Thread::GetPrivateStopInfo() {
   if (m_destroy_called)
     return m_stop_info_sp;
@@ -441,7 +401,7 @@ lldb::StopInfoSP Thread::GetPrivateStopInfo() {
     // "m_stop_info_stop_id != process_stop_id" as the condition for the if
     // statement below, we must also check the stop info to see if we need to
     // override it. See the header documentation in
-    // Process::GetStopInfoOverrideCallback() for more information on the stop
+    // Architecture::OverrideStopInfo() for more information on the stop
     // info override callback.
     if (m_stop_info_override_stop_id != process_stop_id) {
       m_stop_info_override_stop_id = process_stop_id;
@@ -493,11 +453,10 @@ void Thread::SetStopInfo(const lldb::StopInfoSP &stop_info_sp) {
   else
     m_stop_info_stop_id = UINT32_MAX;
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_THREAD));
-  if (log)
-    log->Printf("%p: tid = 0x%" PRIx64 ": stop info = %s (stop_id = %u)",
-                static_cast<void *>(this), GetID(),
-                stop_info_sp ? stop_info_sp->GetDescription() : "<NULL>",
-                m_stop_info_stop_id);
+  LLDB_LOGF(log, "%p: tid = 0x%" PRIx64 ": stop info = %s (stop_id = %u)",
+            static_cast<void *>(this), GetID(),
+            stop_info_sp ? stop_info_sp->GetDescription() : "<NULL>",
+            m_stop_info_stop_id);
 }
 
 void Thread::SetShouldReportStop(Vote vote) {
@@ -543,7 +502,8 @@ bool Thread::CheckpointThreadState(ThreadStateCheckpoint &saved_state) {
   if (process_sp)
     saved_state.orig_stop_id = process_sp->GetStopID();
   saved_state.current_inlined_depth = GetCurrentInlinedDepth();
-  saved_state.m_completed_plan_stack = m_completed_plan_stack;
+  saved_state.m_completed_plan_checkpoint =
+      GetPlans().CheckpointCompletedPlans();
 
   return true;
 }
@@ -561,8 +521,8 @@ bool Thread::RestoreRegisterStateFromCheckpoint(
         // Clear out all stack frames as our world just changed.
         ClearStackFrames();
         reg_ctx_sp->InvalidateIfNeeded(true);
-        if (m_unwinder_ap.get())
-          m_unwinder_ap->Clear();
+        if (m_unwinder_up)
+          m_unwinder_up->Clear();
         return ret;
       }
     }
@@ -577,7 +537,8 @@ bool Thread::RestoreThreadStateFromCheckpoint(
   SetStopInfo(saved_state.stop_info_sp);
   GetStackFrameList()->SetCurrentInlinedDepth(
       saved_state.current_inlined_depth);
-  m_completed_plan_stack = saved_state.m_completed_plan_stack;
+  GetPlans().RestoreCompletedPlanCheckpoint(
+      saved_state.m_completed_plan_checkpoint);
   return true;
 }
 
@@ -592,8 +553,67 @@ void Thread::SetState(StateType state) {
   m_state = state;
 }
 
+std::string Thread::GetStopDescription() {
+  StackFrameSP frame_sp = GetStackFrameAtIndex(0);
+
+  if (!frame_sp)
+    return GetStopDescriptionRaw();
+
+  auto recognized_frame_sp = frame_sp->GetRecognizedFrame();
+
+  if (!recognized_frame_sp)
+    return GetStopDescriptionRaw();
+
+  std::string recognized_stop_description =
+      recognized_frame_sp->GetStopDescription();
+
+  if (!recognized_stop_description.empty())
+    return recognized_stop_description;
+
+  return GetStopDescriptionRaw();
+}
+
+std::string Thread::GetStopDescriptionRaw() {
+  StopInfoSP stop_info_sp = GetStopInfo();
+  std::string raw_stop_description;
+  if (stop_info_sp && stop_info_sp->IsValid()) {
+    raw_stop_description = stop_info_sp->GetDescription();
+    assert((!raw_stop_description.empty() ||
+            stop_info_sp->GetStopReason() == eStopReasonNone) &&
+           "StopInfo returned an empty description.");
+  }
+  return raw_stop_description;
+}
+
+void Thread::SelectMostRelevantFrame() {
+  Log *log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_THREAD);
+
+  auto frames_list_sp = GetStackFrameList();
+
+  // Only the top frame should be recognized.
+  auto frame_sp = frames_list_sp->GetFrameAtIndex(0);
+
+  auto recognized_frame_sp = frame_sp->GetRecognizedFrame();
+
+  if (!recognized_frame_sp) {
+    LLDB_LOG(log, "Frame #0 not recognized");
+    return;
+  }
+
+  if (StackFrameSP most_relevant_frame_sp =
+          recognized_frame_sp->GetMostRelevantFrame()) {
+    LLDB_LOG(log, "Found most relevant frame at index {0}",
+             most_relevant_frame_sp->GetFrameIndex());
+    SetSelectedFrame(most_relevant_frame_sp.get());
+  } else {
+    LLDB_LOG(log, "No relevant frame!");
+  }
+}
+
 void Thread::WillStop() {
   ThreadPlan *current_plan = GetCurrentPlan();
+
+  SelectMostRelevantFrame();
 
   // FIXME: I may decide to disallow threads with no plans.  In which
   // case this should go to an assert.
@@ -651,8 +671,7 @@ void Thread::SetupForResume() {
 
 bool Thread::ShouldResume(StateType resume_state) {
   // At this point clear the completed plan stack.
-  m_completed_plan_stack.clear();
-  m_discarded_plan_stack.clear();
+  GetPlans().WillResume();
   m_override_should_notify = eLazyBoolCalculate;
 
   StateType prev_resume_state = GetTemporaryResumeState();
@@ -724,18 +743,18 @@ bool Thread::ShouldStop(Event *event_ptr) {
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
 
   if (GetResumeState() == eStateSuspended) {
-    if (log)
-      log->Printf("Thread::%s for tid = 0x%4.4" PRIx64 " 0x%4.4" PRIx64
-                  ", should_stop = 0 (ignore since thread was suspended)",
-                  __FUNCTION__, GetID(), GetProtocolID());
+    LLDB_LOGF(log,
+              "Thread::%s for tid = 0x%4.4" PRIx64 " 0x%4.4" PRIx64
+              ", should_stop = 0 (ignore since thread was suspended)",
+              __FUNCTION__, GetID(), GetProtocolID());
     return false;
   }
 
   if (GetTemporaryResumeState() == eStateSuspended) {
-    if (log)
-      log->Printf("Thread::%s for tid = 0x%4.4" PRIx64 " 0x%4.4" PRIx64
-                  ", should_stop = 0 (ignore since thread was suspended)",
-                  __FUNCTION__, GetID(), GetProtocolID());
+    LLDB_LOGF(log,
+              "Thread::%s for tid = 0x%4.4" PRIx64 " 0x%4.4" PRIx64
+              ", should_stop = 0 (ignore since thread was suspended)",
+              __FUNCTION__, GetID(), GetProtocolID());
     return false;
   }
 
@@ -743,28 +762,30 @@ bool Thread::ShouldStop(Event *event_ptr) {
   // thread caused the process to stop. NOTE: this must take place before the
   // plan is moved from the current plan stack to the completed plan stack.
   if (!ThreadStoppedForAReason()) {
-    if (log)
-      log->Printf("Thread::%s for tid = 0x%4.4" PRIx64 " 0x%4.4" PRIx64
-                  ", pc = 0x%16.16" PRIx64
-                  ", should_stop = 0 (ignore since no stop reason)",
-                  __FUNCTION__, GetID(), GetProtocolID(),
-                  GetRegisterContext() ? GetRegisterContext()->GetPC()
-                                       : LLDB_INVALID_ADDRESS);
+    LLDB_LOGF(log,
+              "Thread::%s for tid = 0x%4.4" PRIx64 " 0x%4.4" PRIx64
+              ", pc = 0x%16.16" PRIx64
+              ", should_stop = 0 (ignore since no stop reason)",
+              __FUNCTION__, GetID(), GetProtocolID(),
+              GetRegisterContext() ? GetRegisterContext()->GetPC()
+                                   : LLDB_INVALID_ADDRESS);
     return false;
   }
 
   if (log) {
-    log->Printf("Thread::%s(%p) for tid = 0x%4.4" PRIx64 " 0x%4.4" PRIx64
-                ", pc = 0x%16.16" PRIx64,
-                __FUNCTION__, static_cast<void *>(this), GetID(),
-                GetProtocolID(),
-                GetRegisterContext() ? GetRegisterContext()->GetPC()
-                                     : LLDB_INVALID_ADDRESS);
-    log->Printf("^^^^^^^^ Thread::ShouldStop Begin ^^^^^^^^");
+    LLDB_LOGF(log,
+              "Thread::%s(%p) for tid = 0x%4.4" PRIx64 " 0x%4.4" PRIx64
+              ", pc = 0x%16.16" PRIx64,
+              __FUNCTION__, static_cast<void *>(this), GetID(), GetProtocolID(),
+              GetRegisterContext() ? GetRegisterContext()->GetPC()
+                                   : LLDB_INVALID_ADDRESS);
+    LLDB_LOGF(log, "^^^^^^^^ Thread::ShouldStop Begin ^^^^^^^^");
     StreamString s;
     s.IndentMore();
-    DumpThreadPlans(&s);
-    log->Printf("Plan stack initial state:\n%s", s.GetData());
+    GetProcess()->DumpThreadPlansForTID(
+        s, GetID(), eDescriptionLevelVerbose, true /* internal */,
+        false /* condense_trivial */, true /* skip_unreported */);
+    LLDB_LOGF(log, "Plan stack initial state:\n%s", s.GetData());
   }
 
   // The top most plan always gets to do the trace log...
@@ -777,9 +798,8 @@ bool Thread::ShouldStop(Event *event_ptr) {
   StopInfoSP private_stop_info(GetPrivateStopInfo());
   if (private_stop_info &&
       !private_stop_info->ShouldStopSynchronous(event_ptr)) {
-    if (log)
-      log->Printf("StopInfo::ShouldStop async callback says we should not "
-                  "stop, returning ShouldStop of false.");
+    LLDB_LOGF(log, "StopInfo::ShouldStop async callback says we should not "
+                   "stop, returning ShouldStop of false.");
     return false;
   }
 
@@ -843,27 +863,24 @@ bool Thread::ShouldStop(Event *event_ptr) {
   if (!done_processing_current_plan) {
     bool over_ride_stop = current_plan->ShouldAutoContinue(event_ptr);
 
-    if (log)
-      log->Printf("Plan %s explains stop, auto-continue %i.",
-                  current_plan->GetName(), over_ride_stop);
+    LLDB_LOGF(log, "Plan %s explains stop, auto-continue %i.",
+              current_plan->GetName(), over_ride_stop);
 
     // We're starting from the base plan, so just let it decide;
-    if (PlanIsBasePlan(current_plan)) {
+    if (current_plan->IsBasePlan()) {
       should_stop = current_plan->ShouldStop(event_ptr);
-      if (log)
-        log->Printf("Base plan says should stop: %i.", should_stop);
+      LLDB_LOGF(log, "Base plan says should stop: %i.", should_stop);
     } else {
       // Otherwise, don't let the base plan override what the other plans say
       // to do, since presumably if there were other plans they would know what
       // to do...
-      while (1) {
-        if (PlanIsBasePlan(current_plan))
+      while (true) {
+        if (current_plan->IsBasePlan())
           break;
 
         should_stop = current_plan->ShouldStop(event_ptr);
-        if (log)
-          log->Printf("Plan %s should stop: %d.", current_plan->GetName(),
-                      should_stop);
+        LLDB_LOGF(log, "Plan %s should stop: %d.", current_plan->GetName(),
+                  should_stop);
         if (current_plan->MischiefManaged()) {
           if (should_stop)
             current_plan->WillStop();
@@ -904,16 +921,16 @@ bool Thread::ShouldStop(Event *event_ptr) {
 
     // Discard the stale plans and all plans below them in the stack, plus move
     // the completed plans to the completed plan stack
-    while (!PlanIsBasePlan(plan_ptr)) {
+    while (!plan_ptr->IsBasePlan()) {
       bool stale = plan_ptr->IsPlanStale();
       ThreadPlan *examined_plan = plan_ptr;
       plan_ptr = GetPreviousPlan(examined_plan);
 
       if (stale) {
-        if (log)
-          log->Printf(
-              "Plan %s being discarded in cleanup, it says it is already done.",
-              examined_plan->GetName());
+        LLDB_LOGF(
+            log,
+            "Plan %s being discarded in cleanup, it says it is already done.",
+            examined_plan->GetName());
         while (GetCurrentPlan() != examined_plan) {
           DiscardPlan();
         }
@@ -931,10 +948,12 @@ bool Thread::ShouldStop(Event *event_ptr) {
   if (log) {
     StreamString s;
     s.IndentMore();
-    DumpThreadPlans(&s);
-    log->Printf("Plan stack final state:\n%s", s.GetData());
-    log->Printf("vvvvvvvv Thread::ShouldStop End (returning %i) vvvvvvvv",
-                should_stop);
+    GetProcess()->DumpThreadPlansForTID(
+        s, GetID(), eDescriptionLevelVerbose, true /* internal */,
+        false /* condense_trivial */, true /* skip_unreported */);
+    LLDB_LOGF(log, "Plan stack final state:\n%s", s.GetData());
+    LLDB_LOGF(log, "vvvvvvvv Thread::ShouldStop End (returning %i) vvvvvvvv",
+              should_stop);
   }
   return should_stop;
 }
@@ -946,55 +965,55 @@ Vote Thread::ShouldReportStop(Event *event_ptr) {
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
 
   if (thread_state == eStateSuspended || thread_state == eStateInvalid) {
-    if (log)
-      log->Printf("Thread::ShouldReportStop() tid = 0x%4.4" PRIx64
-                  ": returning vote %i (state was suspended or invalid)",
-                  GetID(), eVoteNoOpinion);
+    LLDB_LOGF(log,
+              "Thread::ShouldReportStop() tid = 0x%4.4" PRIx64
+              ": returning vote %i (state was suspended or invalid)",
+              GetID(), eVoteNoOpinion);
     return eVoteNoOpinion;
   }
 
   if (temp_thread_state == eStateSuspended ||
       temp_thread_state == eStateInvalid) {
-    if (log)
-      log->Printf(
-          "Thread::ShouldReportStop() tid = 0x%4.4" PRIx64
-          ": returning vote %i (temporary state was suspended or invalid)",
-          GetID(), eVoteNoOpinion);
+    LLDB_LOGF(log,
+              "Thread::ShouldReportStop() tid = 0x%4.4" PRIx64
+              ": returning vote %i (temporary state was suspended or invalid)",
+              GetID(), eVoteNoOpinion);
     return eVoteNoOpinion;
   }
 
   if (!ThreadStoppedForAReason()) {
-    if (log)
-      log->Printf("Thread::ShouldReportStop() tid = 0x%4.4" PRIx64
-                  ": returning vote %i (thread didn't stop for a reason.)",
-                  GetID(), eVoteNoOpinion);
+    LLDB_LOGF(log,
+              "Thread::ShouldReportStop() tid = 0x%4.4" PRIx64
+              ": returning vote %i (thread didn't stop for a reason.)",
+              GetID(), eVoteNoOpinion);
     return eVoteNoOpinion;
   }
 
-  if (m_completed_plan_stack.size() > 0) {
-    // Don't use GetCompletedPlan here, since that suppresses private plans.
-    if (log)
-      log->Printf("Thread::ShouldReportStop() tid = 0x%4.4" PRIx64
-                  ": returning vote  for complete stack's back plan",
-                  GetID());
-    return m_completed_plan_stack.back()->ShouldReportStop(event_ptr);
+  if (GetPlans().AnyCompletedPlans()) {
+    // Pass skip_private = false to GetCompletedPlan, since we want to ask 
+    // the last plan, regardless of whether it is private or not.
+    LLDB_LOGF(log,
+              "Thread::ShouldReportStop() tid = 0x%4.4" PRIx64
+              ": returning vote  for complete stack's back plan",
+              GetID());
+    return GetPlans().GetCompletedPlan(false)->ShouldReportStop(event_ptr);
   } else {
     Vote thread_vote = eVoteNoOpinion;
     ThreadPlan *plan_ptr = GetCurrentPlan();
-    while (1) {
+    while (true) {
       if (plan_ptr->PlanExplainsStop(event_ptr)) {
         thread_vote = plan_ptr->ShouldReportStop(event_ptr);
         break;
       }
-      if (PlanIsBasePlan(plan_ptr))
+      if (plan_ptr->IsBasePlan())
         break;
       else
         plan_ptr = GetPreviousPlan(plan_ptr);
     }
-    if (log)
-      log->Printf("Thread::ShouldReportStop() tid = 0x%4.4" PRIx64
-                  ": returning vote %i for current plan",
-                  GetID(), thread_vote);
+    LLDB_LOGF(log,
+              "Thread::ShouldReportStop() tid = 0x%4.4" PRIx64
+              ": returning vote %i for current plan",
+              GetID(), thread_vote);
 
     return thread_vote;
   }
@@ -1008,23 +1027,24 @@ Vote Thread::ShouldReportRun(Event *event_ptr) {
   }
 
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
-  if (m_completed_plan_stack.size() > 0) {
-    // Don't use GetCompletedPlan here, since that suppresses private plans.
-    if (log)
-      log->Printf("Current Plan for thread %d(%p) (0x%4.4" PRIx64
-                  ", %s): %s being asked whether we should report run.",
-                  GetIndexID(), static_cast<void *>(this), GetID(),
-                  StateAsCString(GetTemporaryResumeState()),
-                  m_completed_plan_stack.back()->GetName());
+  if (GetPlans().AnyCompletedPlans()) {
+    // Pass skip_private = false to GetCompletedPlan, since we want to ask 
+    // the last plan, regardless of whether it is private or not.
+    LLDB_LOGF(log,
+              "Current Plan for thread %d(%p) (0x%4.4" PRIx64
+              ", %s): %s being asked whether we should report run.",
+              GetIndexID(), static_cast<void *>(this), GetID(),
+              StateAsCString(GetTemporaryResumeState()),
+              GetCompletedPlan()->GetName());
 
-    return m_completed_plan_stack.back()->ShouldReportRun(event_ptr);
+    return GetPlans().GetCompletedPlan(false)->ShouldReportRun(event_ptr);
   } else {
-    if (log)
-      log->Printf("Current Plan for thread %d(%p) (0x%4.4" PRIx64
-                  ", %s): %s being asked whether we should report run.",
-                  GetIndexID(), static_cast<void *>(this), GetID(),
-                  StateAsCString(GetTemporaryResumeState()),
-                  GetCurrentPlan()->GetName());
+    LLDB_LOGF(log,
+              "Current Plan for thread %d(%p) (0x%4.4" PRIx64
+              ", %s): %s being asked whether we should report run.",
+              GetIndexID(), static_cast<void *>(this), GetID(),
+              StateAsCString(GetTemporaryResumeState()),
+              GetCurrentPlan()->GetName());
 
     return GetCurrentPlan()->ShouldReportRun(event_ptr);
   }
@@ -1034,149 +1054,101 @@ bool Thread::MatchesSpec(const ThreadSpec *spec) {
   return (spec == nullptr) ? true : spec->ThreadPassesBasicTests(*this);
 }
 
-void Thread::PushPlan(ThreadPlanSP &thread_plan_sp) {
-  if (thread_plan_sp) {
-    // If the thread plan doesn't already have a tracer, give it its parent's
-    // tracer:
-    if (!thread_plan_sp->GetThreadPlanTracer()) {
-      assert(!m_plan_stack.empty());
-      thread_plan_sp->SetThreadPlanTracer(
-          m_plan_stack.back()->GetThreadPlanTracer());
-    }
-    m_plan_stack.push_back(thread_plan_sp);
+ThreadPlanStack &Thread::GetPlans() const {
+  ThreadPlanStack *plans = GetProcess()->FindThreadPlans(GetID());
+  if (plans)
+    return *plans;
 
-    thread_plan_sp->DidPush();
+  // History threads don't have a thread plan, but they do ask get asked to
+  // describe themselves, which usually involves pulling out the stop reason.
+  // That in turn will check for a completed plan on the ThreadPlanStack.
+  // Instead of special-casing at that point, we return a Stack with a
+  // ThreadPlanNull as its base plan.  That will give the right answers to the
+  // queries GetDescription makes, and only assert if you try to run the thread.
+  if (!m_null_plan_stack_up)
+    m_null_plan_stack_up = std::make_unique<ThreadPlanStack>(*this, true);
+  return *(m_null_plan_stack_up.get());
+}
 
-    Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
-    if (log) {
-      StreamString s;
-      thread_plan_sp->GetDescription(&s, lldb::eDescriptionLevelFull);
-      log->Printf("Thread::PushPlan(0x%p): \"%s\", tid = 0x%4.4" PRIx64 ".",
-                  static_cast<void *>(this), s.GetData(),
-                  thread_plan_sp->GetThread().GetID());
-    }
+void Thread::PushPlan(ThreadPlanSP thread_plan_sp) {
+  assert(thread_plan_sp && "Don't push an empty thread plan.");
+
+  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+  if (log) {
+    StreamString s;
+    thread_plan_sp->GetDescription(&s, lldb::eDescriptionLevelFull);
+    LLDB_LOGF(log, "Thread::PushPlan(0x%p): \"%s\", tid = 0x%4.4" PRIx64 ".",
+              static_cast<void *>(this), s.GetData(),
+              thread_plan_sp->GetThread().GetID());
   }
+  
+  GetPlans().PushPlan(std::move(thread_plan_sp));
 }
 
 void Thread::PopPlan() {
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
-
-  if (m_plan_stack.size() <= 1)
-    return;
-  else {
-    ThreadPlanSP &plan = m_plan_stack.back();
-    if (log) {
-      log->Printf("Popping plan: \"%s\", tid = 0x%4.4" PRIx64 ".",
-                  plan->GetName(), plan->GetThread().GetID());
-    }
-    m_completed_plan_stack.push_back(plan);
-    plan->WillPop();
-    m_plan_stack.pop_back();
+  ThreadPlanSP popped_plan_sp = GetPlans().PopPlan();
+  if (log) {
+    LLDB_LOGF(log, "Popping plan: \"%s\", tid = 0x%4.4" PRIx64 ".",
+              popped_plan_sp->GetName(), popped_plan_sp->GetThread().GetID());
   }
 }
 
 void Thread::DiscardPlan() {
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
-  if (m_plan_stack.size() > 1) {
-    ThreadPlanSP &plan = m_plan_stack.back();
-    if (log)
-      log->Printf("Discarding plan: \"%s\", tid = 0x%4.4" PRIx64 ".",
-                  plan->GetName(), plan->GetThread().GetID());
+  ThreadPlanSP discarded_plan_sp = GetPlans().PopPlan();
 
-    m_discarded_plan_stack.push_back(plan);
-    plan->WillPop();
-    m_plan_stack.pop_back();
+  LLDB_LOGF(log, "Discarding plan: \"%s\", tid = 0x%4.4" PRIx64 ".",
+            discarded_plan_sp->GetName(), 
+            discarded_plan_sp->GetThread().GetID());
+}
+
+void Thread::AutoCompleteThreadPlans(CompletionRequest &request) const {
+  const ThreadPlanStack &plans = GetPlans();
+  if (!plans.AnyPlans())
+    return;
+
+  // Iterate from the second plan (index: 1) to skip the base plan.
+  ThreadPlanSP p;
+  uint32_t i = 1;
+  while ((p = plans.GetPlanByIndex(i, false))) {
+    StreamString strm;
+    p->GetDescription(&strm, eDescriptionLevelInitial);
+    request.TryCompleteCurrentArg(std::to_string(i), strm.GetString());
+    i++;
   }
 }
 
-ThreadPlan *Thread::GetCurrentPlan() {
-  // There will always be at least the base plan.  If somebody is mucking with
-  // a thread with an empty plan stack, we should assert right away.
-  return m_plan_stack.empty() ? nullptr : m_plan_stack.back().get();
+ThreadPlan *Thread::GetCurrentPlan() const {
+  return GetPlans().GetCurrentPlan().get();
 }
 
-ThreadPlanSP Thread::GetCompletedPlan() {
-  ThreadPlanSP empty_plan_sp;
-  if (!m_completed_plan_stack.empty()) {
-    for (int i = m_completed_plan_stack.size() - 1; i >= 0; i--) {
-      ThreadPlanSP completed_plan_sp;
-      completed_plan_sp = m_completed_plan_stack[i];
-      if (!completed_plan_sp->GetPrivate())
-        return completed_plan_sp;
-    }
-  }
-  return empty_plan_sp;
+ThreadPlanSP Thread::GetCompletedPlan() const {
+  return GetPlans().GetCompletedPlan();
 }
 
-ValueObjectSP Thread::GetReturnValueObject() {
-  if (!m_completed_plan_stack.empty()) {
-    for (int i = m_completed_plan_stack.size() - 1; i >= 0; i--) {
-      ValueObjectSP return_valobj_sp;
-      return_valobj_sp = m_completed_plan_stack[i]->GetReturnValueObject();
-      if (return_valobj_sp)
-        return return_valobj_sp;
-    }
-  }
-  return ValueObjectSP();
+ValueObjectSP Thread::GetReturnValueObject() const {
+  return GetPlans().GetReturnValueObject();
 }
 
-ExpressionVariableSP Thread::GetExpressionVariable() {
-  if (!m_completed_plan_stack.empty()) {
-    for (int i = m_completed_plan_stack.size() - 1; i >= 0; i--) {
-      ExpressionVariableSP expression_variable_sp;
-      expression_variable_sp =
-          m_completed_plan_stack[i]->GetExpressionVariable();
-      if (expression_variable_sp)
-        return expression_variable_sp;
-    }
-  }
-  return ExpressionVariableSP();
+ExpressionVariableSP Thread::GetExpressionVariable() const {
+  return GetPlans().GetExpressionVariable();
 }
 
-bool Thread::IsThreadPlanDone(ThreadPlan *plan) {
-  if (!m_completed_plan_stack.empty()) {
-    for (int i = m_completed_plan_stack.size() - 1; i >= 0; i--) {
-      if (m_completed_plan_stack[i].get() == plan)
-        return true;
-    }
-  }
-  return false;
+bool Thread::IsThreadPlanDone(ThreadPlan *plan) const {
+  return GetPlans().IsPlanDone(plan);
 }
 
-bool Thread::WasThreadPlanDiscarded(ThreadPlan *plan) {
-  if (!m_discarded_plan_stack.empty()) {
-    for (int i = m_discarded_plan_stack.size() - 1; i >= 0; i--) {
-      if (m_discarded_plan_stack[i].get() == plan)
-        return true;
-    }
-  }
-  return false;
+bool Thread::WasThreadPlanDiscarded(ThreadPlan *plan) const {
+  return GetPlans().WasPlanDiscarded(plan);
 }
 
-bool Thread::CompletedPlanOverridesBreakpoint() {
-  return (!m_completed_plan_stack.empty()) ;
+bool Thread::CompletedPlanOverridesBreakpoint() const {
+  return GetPlans().AnyCompletedPlans();
 }
 
-ThreadPlan *Thread::GetPreviousPlan(ThreadPlan *current_plan) {
-  if (current_plan == nullptr)
-    return nullptr;
-
-  int stack_size = m_completed_plan_stack.size();
-  for (int i = stack_size - 1; i > 0; i--) {
-    if (current_plan == m_completed_plan_stack[i].get())
-      return m_completed_plan_stack[i - 1].get();
-  }
-
-  if (stack_size > 0 && m_completed_plan_stack[0].get() == current_plan) {
-    return GetCurrentPlan();
-  }
-
-  stack_size = m_plan_stack.size();
-  for (int i = stack_size - 1; i > 0; i--) {
-    if (current_plan == m_plan_stack[i].get())
-      return m_plan_stack[i - 1].get();
-  }
-  return nullptr;
+ThreadPlan *Thread::GetPreviousPlan(ThreadPlan *current_plan) const{
+  return GetPlans().GetPreviousPlan(current_plan);
 }
 
 Status Thread::QueueThreadPlan(ThreadPlanSP &thread_plan_sp,
@@ -1210,38 +1182,18 @@ Status Thread::QueueThreadPlan(ThreadPlanSP &thread_plan_sp,
 }
 
 void Thread::EnableTracer(bool value, bool single_stepping) {
-  int stack_size = m_plan_stack.size();
-  for (int i = 0; i < stack_size; i++) {
-    if (m_plan_stack[i]->GetThreadPlanTracer()) {
-      m_plan_stack[i]->GetThreadPlanTracer()->EnableTracing(value);
-      m_plan_stack[i]->GetThreadPlanTracer()->EnableSingleStep(single_stepping);
-    }
-  }
+  GetPlans().EnableTracer(value, single_stepping);
 }
 
 void Thread::SetTracer(lldb::ThreadPlanTracerSP &tracer_sp) {
-  int stack_size = m_plan_stack.size();
-  for (int i = 0; i < stack_size; i++)
-    m_plan_stack[i]->SetThreadPlanTracer(tracer_sp);
+  GetPlans().SetTracer(tracer_sp);
 }
 
-bool Thread::DiscardUserThreadPlansUpToIndex(uint32_t thread_index) {
+bool Thread::DiscardUserThreadPlansUpToIndex(uint32_t plan_index) {
   // Count the user thread plans from the back end to get the number of the one
   // we want to discard:
 
-  uint32_t idx = 0;
-  ThreadPlan *up_to_plan_ptr = nullptr;
-
-  for (ThreadPlanSP plan_sp : m_plan_stack) {
-    if (plan_sp->GetPrivate())
-      continue;
-    if (idx == thread_index) {
-      up_to_plan_ptr = plan_sp.get();
-      break;
-    } else
-      idx++;
-  }
-
+  ThreadPlan *up_to_plan_ptr = GetPlans().GetPlanByIndex(plan_index).get();
   if (up_to_plan_ptr == nullptr)
     return false;
 
@@ -1255,112 +1207,37 @@ void Thread::DiscardThreadPlansUpToPlan(lldb::ThreadPlanSP &up_to_plan_sp) {
 
 void Thread::DiscardThreadPlansUpToPlan(ThreadPlan *up_to_plan_ptr) {
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
-  if (log)
-    log->Printf("Discarding thread plans for thread tid = 0x%4.4" PRIx64
-                ", up to %p",
-                GetID(), static_cast<void *>(up_to_plan_ptr));
-
-  int stack_size = m_plan_stack.size();
-
-  // If the input plan is nullptr, discard all plans.  Otherwise make sure this
-  // plan is in the stack, and if so discard up to and including it.
-
-  if (up_to_plan_ptr == nullptr) {
-    for (int i = stack_size - 1; i > 0; i--)
-      DiscardPlan();
-  } else {
-    bool found_it = false;
-    for (int i = stack_size - 1; i > 0; i--) {
-      if (m_plan_stack[i].get() == up_to_plan_ptr)
-        found_it = true;
-    }
-    if (found_it) {
-      bool last_one = false;
-      for (int i = stack_size - 1; i > 0 && !last_one; i--) {
-        if (GetCurrentPlan() == up_to_plan_ptr)
-          last_one = true;
-        DiscardPlan();
-      }
-    }
-  }
+  LLDB_LOGF(log,
+            "Discarding thread plans for thread tid = 0x%4.4" PRIx64
+            ", up to %p",
+            GetID(), static_cast<void *>(up_to_plan_ptr));
+  GetPlans().DiscardPlansUpToPlan(up_to_plan_ptr);
 }
 
 void Thread::DiscardThreadPlans(bool force) {
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
   if (log) {
-    log->Printf("Discarding thread plans for thread (tid = 0x%4.4" PRIx64
-                ", force %d)",
-                GetID(), force);
+    LLDB_LOGF(log,
+              "Discarding thread plans for thread (tid = 0x%4.4" PRIx64
+              ", force %d)",
+              GetID(), force);
   }
 
   if (force) {
-    int stack_size = m_plan_stack.size();
-    for (int i = stack_size - 1; i > 0; i--) {
-      DiscardPlan();
-    }
+    GetPlans().DiscardAllPlans();
     return;
   }
-
-  while (1) {
-    int master_plan_idx;
-    bool discard = true;
-
-    // Find the first master plan, see if it wants discarding, and if yes
-    // discard up to it.
-    for (master_plan_idx = m_plan_stack.size() - 1; master_plan_idx >= 0;
-         master_plan_idx--) {
-      if (m_plan_stack[master_plan_idx]->IsMasterPlan()) {
-        discard = m_plan_stack[master_plan_idx]->OkayToDiscard();
-        break;
-      }
-    }
-
-    if (discard) {
-      // First pop all the dependent plans:
-      for (int i = m_plan_stack.size() - 1; i > master_plan_idx; i--) {
-        // FIXME: Do we need a finalize here, or is the rule that
-        // "PrepareForStop"
-        // for the plan leaves it in a state that it is safe to pop the plan
-        // with no more notice?
-        DiscardPlan();
-      }
-
-      // Now discard the master plan itself.
-      // The bottom-most plan never gets discarded.  "OkayToDiscard" for it
-      // means discard it's dependent plans, but not it...
-      if (master_plan_idx > 0) {
-        DiscardPlan();
-      }
-    } else {
-      // If the master plan doesn't want to get discarded, then we're done.
-      break;
-    }
-  }
-}
-
-bool Thread::PlanIsBasePlan(ThreadPlan *plan_ptr) {
-  if (plan_ptr->IsBasePlan())
-    return true;
-  else if (m_plan_stack.size() == 0)
-    return false;
-  else
-    return m_plan_stack[0].get() == plan_ptr;
+  GetPlans().DiscardConsultingMasterPlans();
 }
 
 Status Thread::UnwindInnermostExpression() {
   Status error;
-  int stack_size = m_plan_stack.size();
-
-  // If the input plan is nullptr, discard all plans.  Otherwise make sure this
-  // plan is in the stack, and if so discard up to and including it.
-
-  for (int i = stack_size - 1; i > 0; i--) {
-    if (m_plan_stack[i]->GetKind() == ThreadPlan::eKindCallFunction) {
-      DiscardThreadPlansUpToPlan(m_plan_stack[i].get());
-      return error;
-    }
-  }
-  error.SetErrorString("No expressions currently active on this thread");
+  ThreadPlan *innermost_expr_plan = GetPlans().GetInnermostExpression();
+  if (!innermost_expr_plan) {
+    error.SetErrorString("No expressions currently active on this thread");
+    return error;
+  }  
+  DiscardThreadPlansUpToPlan(innermost_expr_plan);
   return error;
 }
 
@@ -1384,9 +1261,9 @@ ThreadPlanSP Thread::QueueThreadPlanForStepOverRange(
     const SymbolContext &addr_context, lldb::RunMode stop_other_threads,
     Status &status, LazyBool step_out_avoids_code_withoug_debug_info) {
   ThreadPlanSP thread_plan_sp;
-  thread_plan_sp.reset(new ThreadPlanStepOverRange(
+  thread_plan_sp = std::make_shared<ThreadPlanStepOverRange>(
       *this, range, addr_context, stop_other_threads,
-      step_out_avoids_code_withoug_debug_info));
+      step_out_avoids_code_withoug_debug_info);
 
   status = QueueThreadPlan(thread_plan_sp, abort_other_plans);
   return thread_plan_sp;
@@ -1398,10 +1275,12 @@ ThreadPlanSP Thread::QueueThreadPlanForStepOverRange(
     bool abort_other_plans, const LineEntry &line_entry,
     const SymbolContext &addr_context, lldb::RunMode stop_other_threads,
     Status &status, LazyBool step_out_avoids_code_withoug_debug_info) {
+  const bool include_inlined_functions = true;
+  auto address_range =
+      line_entry.GetSameLineContiguousAddressRange(include_inlined_functions);
   return QueueThreadPlanForStepOverRange(
-      abort_other_plans, line_entry.GetSameLineContiguousAddressRange(),
-      addr_context, stop_other_threads, status,
-      step_out_avoids_code_withoug_debug_info);
+      abort_other_plans, address_range, addr_context, stop_other_threads,
+      status, step_out_avoids_code_withoug_debug_info);
 }
 
 ThreadPlanSP Thread::QueueThreadPlanForStepInRange(
@@ -1431,8 +1310,10 @@ ThreadPlanSP Thread::QueueThreadPlanForStepInRange(
     lldb::RunMode stop_other_threads, Status &status,
     LazyBool step_in_avoids_code_without_debug_info,
     LazyBool step_out_avoids_code_without_debug_info) {
+  const bool include_inlined_functions = false;
   return QueueThreadPlanForStepInRange(
-      abort_other_plans, line_entry.GetSameLineContiguousAddressRange(),
+      abort_other_plans,
+      line_entry.GetSameLineContiguousAddressRange(include_inlined_functions),
       addr_context, step_in_target, stop_other_threads, status,
       step_in_avoids_code_without_debug_info,
       step_out_avoids_code_without_debug_info);
@@ -1503,82 +1384,24 @@ ThreadPlanSP Thread::QueueThreadPlanForStepUntil(
 }
 
 lldb::ThreadPlanSP Thread::QueueThreadPlanForStepScripted(
-    bool abort_other_plans, const char *class_name, bool stop_other_threads,
+    bool abort_other_plans, const char *class_name, 
+    StructuredData::ObjectSP extra_args_sp,  bool stop_other_threads,
     Status &status) {
-  ThreadPlanSP thread_plan_sp(new ThreadPlanPython(*this, class_name));
+    
+  StructuredDataImpl *extra_args_impl = nullptr; 
+  if (extra_args_sp) {
+    extra_args_impl = new StructuredDataImpl();
+    extra_args_impl->SetObjectSP(extra_args_sp);
+  }
 
+  ThreadPlanSP thread_plan_sp(new ThreadPlanPython(*this, class_name, 
+                                                   extra_args_impl));
+  thread_plan_sp->SetStopOthers(stop_other_threads);
   status = QueueThreadPlan(thread_plan_sp, abort_other_plans);
   return thread_plan_sp;
 }
 
 uint32_t Thread::GetIndexID() const { return m_index_id; }
-
-static void PrintPlanElement(Stream *s, const ThreadPlanSP &plan,
-                             lldb::DescriptionLevel desc_level,
-                             int32_t elem_idx) {
-  s->IndentMore();
-  s->Indent();
-  s->Printf("Element %d: ", elem_idx);
-  plan->GetDescription(s, desc_level);
-  s->EOL();
-  s->IndentLess();
-}
-
-static void PrintPlanStack(Stream *s,
-                           const std::vector<lldb::ThreadPlanSP> &plan_stack,
-                           lldb::DescriptionLevel desc_level,
-                           bool include_internal) {
-  int32_t print_idx = 0;
-  for (ThreadPlanSP plan_sp : plan_stack) {
-    if (include_internal || !plan_sp->GetPrivate()) {
-      PrintPlanElement(s, plan_sp, desc_level, print_idx++);
-    }
-  }
-}
-
-void Thread::DumpThreadPlans(Stream *s, lldb::DescriptionLevel desc_level,
-                             bool include_internal,
-                             bool ignore_boring_threads) const {
-  uint32_t stack_size;
-
-  if (ignore_boring_threads) {
-    uint32_t stack_size = m_plan_stack.size();
-    uint32_t completed_stack_size = m_completed_plan_stack.size();
-    uint32_t discarded_stack_size = m_discarded_plan_stack.size();
-    if (stack_size == 1 && completed_stack_size == 0 &&
-        discarded_stack_size == 0) {
-      s->Printf("thread #%u: tid = 0x%4.4" PRIx64 "\n", GetIndexID(), GetID());
-      s->IndentMore();
-      s->Indent();
-      s->Printf("No active thread plans\n");
-      s->IndentLess();
-      return;
-    }
-  }
-
-  s->Indent();
-  s->Printf("thread #%u: tid = 0x%4.4" PRIx64 ":\n", GetIndexID(), GetID());
-  s->IndentMore();
-  s->Indent();
-  s->Printf("Active plan stack:\n");
-  PrintPlanStack(s, m_plan_stack, desc_level, include_internal);
-
-  stack_size = m_completed_plan_stack.size();
-  if (stack_size > 0) {
-    s->Indent();
-    s->Printf("Completed Plan Stack:\n");
-    PrintPlanStack(s, m_completed_plan_stack, desc_level, include_internal);
-  }
-
-  stack_size = m_discarded_plan_stack.size();
-  if (stack_size > 0) {
-    s->Indent();
-    s->Printf("Discarded Plan Stack:\n");
-    PrintPlanStack(s, m_discarded_plan_stack, desc_level, include_internal);
-  }
-
-  s->IndentLess();
-}
 
 TargetSP Thread::CalculateTarget() {
   TargetSP target_sp;
@@ -1599,23 +1422,19 @@ void Thread::CalculateExecutionContext(ExecutionContext &exe_ctx) {
 }
 
 StackFrameListSP Thread::GetStackFrameList() {
-  StackFrameListSP frame_list_sp;
   std::lock_guard<std::recursive_mutex> guard(m_frame_mutex);
-  if (m_curr_frames_sp) {
-    frame_list_sp = m_curr_frames_sp;
-  } else {
-    frame_list_sp.reset(new StackFrameList(*this, m_prev_frames_sp, true));
-    m_curr_frames_sp = frame_list_sp;
-  }
-  return frame_list_sp;
+
+  if (!m_curr_frames_sp)
+    m_curr_frames_sp =
+        std::make_shared<StackFrameList>(*this, m_prev_frames_sp, true);
+
+  return m_curr_frames_sp;
 }
 
 void Thread::ClearStackFrames() {
   std::lock_guard<std::recursive_mutex> guard(m_frame_mutex);
 
-  Unwind *unwinder = GetUnwinder();
-  if (unwinder)
-    unwinder->Clear();
+  GetUnwinder().Clear();
 
   // Only store away the old "reference" StackFrameList if we got all its
   // frames:
@@ -1678,7 +1497,7 @@ Status Thread::ReturnFromFrame(lldb::StackFrameSP frame_sp,
     // FIXME: ValueObject::Cast doesn't currently work correctly, at least not
     // for scalars.
     // Turn that back on when that works.
-    if (/* DISABLES CODE */ (0) && sc.function != nullptr) {
+    if (/* DISABLES CODE */ (false) && sc.function != nullptr) {
       Type *function_type = sc.function->GetType();
       if (function_type) {
         CompilerType return_type =
@@ -1786,7 +1605,7 @@ Status Thread::JumpToLine(const FileSpec &file, uint32_t line,
                 "first location:\n",
                 file.GetFilename().AsCString(), line);
     DumpAddressList(sstr, candidates, target);
-    *warnings = sstr.GetString();
+    *warnings = std::string(sstr.GetString());
   }
 
   if (!reg_ctx->SetPC(dest))
@@ -1858,7 +1677,7 @@ Thread::GetStackFrameSPForStackFramePtr(StackFrame *stack_frame_ptr) {
   return GetStackFrameList()->GetStackFrameSPForStackFramePtr(stack_frame_ptr);
 }
 
-const char *Thread::StopReasonAsCString(lldb::StopReason reason) {
+std::string Thread::StopReasonAsString(lldb::StopReason reason) {
   switch (reason) {
   case eStopReasonInvalid:
     return "invalid";
@@ -1884,13 +1703,10 @@ const char *Thread::StopReasonAsCString(lldb::StopReason reason) {
     return "instrumentation break";
   }
 
-  static char unknown_state_string[64];
-  snprintf(unknown_state_string, sizeof(unknown_state_string),
-           "StopReason = %i", reason);
-  return unknown_state_string;
+  return "StopReason = " + std::to_string(reason);
 }
 
-const char *Thread::RunModeAsCString(lldb::RunMode mode) {
+std::string Thread::RunModeAsString(lldb::RunMode mode) {
   switch (mode) {
   case eOnlyThisThread:
     return "only this thread";
@@ -1900,10 +1716,7 @@ const char *Thread::RunModeAsCString(lldb::RunMode mode) {
     return "only during stepping";
   }
 
-  static char unknown_state_string[64];
-  snprintf(unknown_state_string, sizeof(unknown_state_string), "RunMode = %i",
-           mode);
-  return unknown_state_string;
+  return "RunMode = " + std::to_string(mode);
 }
 
 size_t Thread::GetStatus(Stream &strm, uint32_t start_frame,
@@ -2054,35 +1867,10 @@ size_t Thread::GetStackFrameStatus(Stream &strm, uint32_t first_frame,
       strm, first_frame, num_frames, show_frame_info, num_frames_with_source);
 }
 
-Unwind *Thread::GetUnwinder() {
-  if (!m_unwinder_ap) {
-    const ArchSpec target_arch(CalculateTarget()->GetArchitecture());
-    const llvm::Triple::ArchType machine = target_arch.GetMachine();
-    switch (machine) {
-    case llvm::Triple::x86_64:
-    case llvm::Triple::x86:
-    case llvm::Triple::arm:
-    case llvm::Triple::aarch64:
-    case llvm::Triple::thumb:
-    case llvm::Triple::mips:
-    case llvm::Triple::mipsel:
-    case llvm::Triple::mips64:
-    case llvm::Triple::mips64el:
-    case llvm::Triple::ppc:
-    case llvm::Triple::ppc64:
-    case llvm::Triple::ppc64le:
-    case llvm::Triple::systemz:
-    case llvm::Triple::hexagon:
-      m_unwinder_ap.reset(new UnwindLLDB(*this));
-      break;
-
-    default:
-      if (target_arch.GetTriple().getVendor() == llvm::Triple::Apple)
-        m_unwinder_ap.reset(new UnwindMacOSXFrameBackchain(*this));
-      break;
-    }
-  }
-  return m_unwinder_ap.get();
+Unwind &Thread::GetUnwinder() {
+  if (!m_unwinder_up)
+    m_unwinder_up = std::make_unique<UnwindLLDB>(*this);
+  return *m_unwinder_up;
 }
 
 void Thread::Flush() {
@@ -2210,25 +1998,27 @@ ValueObjectSP Thread::GetCurrentException() {
       if (auto e = recognized_frame->GetExceptionObject())
         return e;
 
-  // FIXME: For now, only ObjC exceptions are supported. This should really
-  // iterate over all language runtimes and ask them all to give us the current
-  // exception.
-  if (auto runtime = GetProcess()->GetObjCLanguageRuntime())
+  // NOTE: Even though this behavior is generalized, only ObjC is actually
+  // supported at the moment.
+  for (LanguageRuntime *runtime : GetProcess()->GetLanguageRuntimes()) {
     if (auto e = runtime->GetExceptionObjectForThread(shared_from_this()))
       return e;
+  }
 
   return ValueObjectSP();
 }
 
 ThreadSP Thread::GetCurrentExceptionBacktrace() {
   ValueObjectSP exception = GetCurrentException();
-  if (!exception) return ThreadSP();
+  if (!exception)
+    return ThreadSP();
 
-  // FIXME: For now, only ObjC exceptions are supported. This should really
-  // iterate over all language runtimes and ask them all to give us the current
-  // exception.
-  auto runtime = GetProcess()->GetObjCLanguageRuntime();
-  if (!runtime) return ThreadSP();
+  // NOTE: Even though this behavior is generalized, only ObjC is actually
+  // supported at the moment.
+  for (LanguageRuntime *runtime : GetProcess()->GetLanguageRuntimes()) {
+    if (auto bt = runtime->GetBacktraceThreadFromException(exception))
+      return bt;
+  }
 
-  return runtime->GetBacktraceThreadFromException(exception);
+  return ThreadSP();
 }

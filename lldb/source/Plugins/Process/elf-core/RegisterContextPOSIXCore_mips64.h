@@ -1,14 +1,13 @@
 //===-- RegisterContextPOSIXCore_mips64.h -----------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_RegisterContextCorePOSIX_mips64_h_
-#define liblldb_RegisterContextCorePOSIX_mips64_h_
+#ifndef LLDB_SOURCE_PLUGINS_PROCESS_ELF_CORE_REGISTERCONTEXTPOSIXCORE_MIPS64_H
+#define LLDB_SOURCE_PLUGINS_PROCESS_ELF_CORE_REGISTERCONTEXTPOSIXCORE_MIPS64_H
 
 #include "Plugins/Process/Utility/RegisterContextPOSIX_mips64.h"
 #include "Plugins/Process/elf-core/RegisterUtilities.h"
@@ -53,4 +52,4 @@ private:
   lldb_private::DataExtractor m_fpr;
 };
 
-#endif // liblldb_RegisterContextCorePOSIX_mips64_h_
+#endif // LLDB_SOURCE_PLUGINS_PROCESS_ELF_CORE_REGISTERCONTEXTPOSIXCORE_MIPS64_H

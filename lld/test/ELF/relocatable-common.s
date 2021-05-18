@@ -1,17 +1,17 @@
 # REQUIRES: x86
 # RUN: llvm-mc -filetype=obj -triple=x86_64-unknown-linux %s -o %t1.o
 # RUN: ld.lld -r %t1.o -o %t
-# RUN: llvm-readobj -symbols -r %t | FileCheck %s
+# RUN: llvm-readobj --symbols -r %t | FileCheck %s
 # RUN: ld.lld -r --no-define-common %t1.o -o %t
-# RUN: llvm-readobj -symbols -r %t | FileCheck %s
+# RUN: llvm-readobj --symbols -r %t | FileCheck %s
 # RUN: ld.lld -r --define-common %t1.o -o %t
-# RUN: llvm-readobj -symbols -r %t | FileCheck -check-prefix=DEFCOMM %s
+# RUN: llvm-readobj --symbols -r %t | FileCheck -check-prefix=DEFCOMM %s
 # RUN: ld.lld -r -d %t1.o -o %t
-# RUN: llvm-readobj -symbols -r %t | FileCheck -check-prefix=DEFCOMM %s
+# RUN: llvm-readobj --symbols -r %t | FileCheck -check-prefix=DEFCOMM %s
 # RUN: ld.lld -r -dc %t1.o -o %t
-# RUN: llvm-readobj -symbols -r %t | FileCheck -check-prefix=DEFCOMM %s
+# RUN: llvm-readobj --symbols -r %t | FileCheck -check-prefix=DEFCOMM %s
 # RUN: ld.lld -r -dp %t1.o -o %t
-# RUN: llvm-readobj -symbols -r %t | FileCheck -check-prefix=DEFCOMM %s
+# RUN: llvm-readobj --symbols -r %t | FileCheck -check-prefix=DEFCOMM %s
 
 # CHECK:        Symbol {
 # CHECK:          Name: common
@@ -33,7 +33,7 @@
 # DEFCOMM-NEXT:   Section: COMMON
 # DEFCOMM-NEXT: }
 
-# RUN: not ld.lld -shared --no-define-common %t1.o -o %t 2>&1 | FileCheck --check-prefix=ERROR %s
+# RUN: not ld.lld -shared --no-define-common %t1.o -o /dev/null 2>&1 | FileCheck --check-prefix=ERROR %s
 # ERROR: error: -no-define-common not supported in non relocatable output
 
 .comm common,4,4

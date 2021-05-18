@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -15,7 +14,7 @@
 
 // unordered_map(unordered_map&& u);
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 #include <unordered_map>
 #include <string>
@@ -30,7 +29,7 @@
 #include "test_allocator.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::unordered_map<int, std::string,
@@ -166,15 +165,6 @@ int main()
 
         assert(c0.empty());
     }
-#if _LIBCPP_DEBUG >= 1
-    {
-        std::unordered_map<int, int> s1 = {{1, 1}, {2, 2}, {3, 3}};
-        std::unordered_map<int, int>::iterator i = s1.begin();
-        std::pair<const int, int> k = *i;
-        std::unordered_map<int, int> s2 = std::move(s1);
-        assert(*i == k);
-        s2.erase(i);
-        assert(s2.size() == 2);
-    }
-#endif
+
+    return 0;
 }

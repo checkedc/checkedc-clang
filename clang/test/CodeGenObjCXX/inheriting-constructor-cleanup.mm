@@ -21,9 +21,9 @@ id g(void);
 void f() {
   Inheritor({g()});
 }
-// CHECK-LABEL: define void @_Z1fv
+// CHECK-LABEL: define{{.*}} void @_Z1fv
 // CHECK:       %[[TMP:.*]] = call i8* @_Z1gv()
-// CHECK:       {{.*}} = call i8* @llvm.objc.retainAutoreleasedReturnValue(i8* %[[TMP]])
+// CHECK:       {{.*}} = notail call i8* @llvm.objc.retainAutoreleasedReturnValue(i8* %[[TMP]])
 // CHECK:       call void (%struct.Base*, i8*, ...) @_ZN4BaseC2E6Strongz(%struct.Base* {{.*}}, i8* {{.*}})
 // CHECK-NEXT:  call void @_ZN9InheritorD1Ev(%struct.Inheritor* {{.*}})
 

@@ -1,9 +1,8 @@
 //===--- TargetOptions.h ----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -36,6 +35,9 @@ public:
   /// If given, the name of the target CPU to generate code for.
   std::string CPU;
 
+  /// If given, the name of the target CPU to tune code for.
+  std::string TuneCPU;
+
   /// If given, the unit to use for floating point math.
   std::string FPMath;
 
@@ -55,8 +57,12 @@ public:
   /// be a list of strings starting with by '+' or '-'.
   std::vector<std::string> Features;
 
+  /// The map of which features have been enabled disabled based on the command
+  /// line.
+  llvm::StringMap<bool> FeatureMap;
+
   /// Supported OpenCL extensions and optional core features.
-  OpenCLOptions SupportedOpenCLOptions;
+  llvm::StringMap<bool> OpenCLFeaturesMap;
 
   /// The list of OpenCL extensions to enable or disable, as written on
   /// the command line.
@@ -69,6 +75,9 @@ public:
   /// address space.
   bool NVPTXUseShortPointers = false;
 
+  /// \brief If enabled, allow AMDGPU unsafe floating point atomics.
+  bool AllowAMDGPUUnsafeFPAtomics = false;
+
   // The code model to be used as specified by the user. Corresponds to
   // CodeModel::Model enum defined in include/llvm/Support/CodeGen.h, plus
   // "default" for the case when the user has not explicitly specified a
@@ -76,6 +85,11 @@ public:
   std::string CodeModel;
 
   /// The version of the SDK which was used during the compilation.
+  /// The option is used for two different purposes:
+  /// * on darwin the version is propagated to LLVM where it's used
+  ///   to support SDK Version metadata (See D55673).
+  /// * CUDA compilation uses it to control parts of CUDA compilation
+  ///   in clang that depend on specific version of the CUDA SDK.
   llvm::VersionTuple SDKVersion;
 };
 

@@ -1,23 +1,12 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-//===-- divdc3_test.c - Test __divdc3 -------------------------------------===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __divdc3 for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
+// REQUIRES: librt_has_divdc3
+// REQUIRES: c99-complex
 
 #include "int_lib.h"
 #include <math.h>
 #include <complex.h>
 #include <stdio.h>
 
-// REQUIRES: c99-complex
 
 // Returns: the quotient of (a + ib) / (c + id)
 

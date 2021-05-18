@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -20,14 +19,14 @@
 // recursive_directory_iterator(const path& p, directory_options options, error_code& ec);
 
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <set>
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 using namespace fs;
 
@@ -61,11 +60,12 @@ TEST_CASE(test_constructor_signatures)
 
 TEST_CASE(test_construction_from_bad_path)
 {
+    static_test_env static_env;
     std::error_code ec;
     directory_options opts = directory_options::none;
     const RDI endIt;
 
-    const path testPaths[] = { StaticEnv::DNE, StaticEnv::BadSymlink };
+    const path testPaths[] = { static_env.DNE, static_env.BadSymlink };
     for (path const& testPath : testPaths)
     {
         {
@@ -171,9 +171,10 @@ TEST_CASE(test_open_on_empty_directory_equals_end)
 
 TEST_CASE(test_open_on_directory_succeeds)
 {
-    const path testDir = StaticEnv::Dir;
-    std::set<path> dir_contents(std::begin(StaticEnv::DirIterationList),
-                                std::end(  StaticEnv::DirIterationList));
+    static_test_env static_env;
+    const path testDir = static_env.Dir;
+    std::set<path> dir_contents(static_env.DirIterationList.begin(),
+                                static_env.DirIterationList.end());
     const RDI endIt{};
 
     {
@@ -192,7 +193,8 @@ TEST_CASE(test_open_on_directory_succeeds)
 
 TEST_CASE(test_open_on_file_fails)
 {
-    const path testFile = StaticEnv::File;
+    static_test_env static_env;
+    const path testFile = static_env.File;
     const RDI endIt{};
     {
         std::error_code ec;
@@ -207,8 +209,9 @@ TEST_CASE(test_open_on_file_fails)
 
 TEST_CASE(test_options_post_conditions)
 {
-    const path goodDir = StaticEnv::Dir;
-    const path badDir = StaticEnv::DNE;
+    static_test_env static_env;
+    const path goodDir = static_env.Dir;
+    const path badDir = static_env.DNE;
 
     {
         std::error_code ec;

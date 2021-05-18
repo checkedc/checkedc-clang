@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -18,11 +17,11 @@
 
 
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 using namespace fs;
 
@@ -39,7 +38,7 @@ TEST_CASE(test_signatures)
     ASSERT_NOT_NOEXCEPT(fs::permissions(p, pr));
     ASSERT_NOT_NOEXCEPT(fs::permissions(p, pr, opts));
     ASSERT_NOEXCEPT(fs::permissions(p, pr, ec));
-    ASSERT_NOT_NOEXCEPT(fs::permissions(p, pr, opts, ec));
+    LIBCPP_ONLY(ASSERT_NOT_NOEXCEPT(fs::permissions(p, pr, opts, ec)));
 }
 
 TEST_CASE(test_error_reporting)
@@ -173,7 +172,10 @@ TEST_CASE(test_no_resolve_symlink_on_symlink)
 #endif
         std::error_code ec = GetTestEC();
         permissions(sym, TC.set_perms, TC.opts | perm_options::nofollow, ec);
-        TEST_CHECK(ec == expected_ec);
+        if (expected_ec)
+            TEST_CHECK(ErrorIs(ec, static_cast<std::errc>(expected_ec.value())));
+        else
+            TEST_CHECK(!ec);
         TEST_CHECK(status(file).permissions() == file_perms);
         TEST_CHECK(symlink_status(sym).permissions() == expected_link_perms);
     }

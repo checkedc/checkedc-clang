@@ -1,14 +1,13 @@
 //===-- SBAddress.h ---------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_SBAddress_h_
-#define LLDB_SBAddress_h_
+#ifndef LLDB_API_SBADDRESS_H
+#define LLDB_API_SBADDRESS_H
 
 #include "lldb/API/SBDefines.h"
 #include "lldb/API/SBModule.h"
@@ -29,6 +28,12 @@ public:
   ~SBAddress();
 
   const lldb::SBAddress &operator=(const lldb::SBAddress &rhs);
+
+  explicit operator bool() const;
+
+  // operator== is a free function
+
+  bool operator!=(const SBAddress &rhs) const;
 
   bool IsValid() const;
 
@@ -110,16 +115,16 @@ protected:
 
   const lldb_private::Address &ref() const;
 
-  SBAddress(const lldb_private::Address *lldb_object_ptr);
+  SBAddress(const lldb_private::Address &address);
 
-  void SetAddress(const lldb_private::Address *lldb_object_ptr);
+  void SetAddress(const lldb_private::Address &address);
 
 private:
-  std::unique_ptr<lldb_private::Address> m_opaque_ap;
+  std::unique_ptr<lldb_private::Address> m_opaque_up;
 };
 
 bool LLDB_API operator==(const SBAddress &lhs, const SBAddress &rhs);
 
 } // namespace lldb
 
-#endif // LLDB_SBAddress_h_
+#endif // LLDB_API_SBADDRESS_H

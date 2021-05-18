@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <compare>
 
@@ -156,14 +155,33 @@ constexpr bool test_constexpr() {
       break;
     }
   }
+
+  {
+    static_assert(std::weak_ordering::less == std::weak_ordering::less);
+    static_assert(std::weak_ordering::less != std::weak_ordering::equivalent);
+    static_assert(std::weak_ordering::less != std::weak_ordering::greater);
+
+    static_assert(std::weak_ordering::equivalent != std::weak_ordering::less);
+    static_assert(std::weak_ordering::equivalent ==
+                  std::weak_ordering::equivalent);
+    static_assert(std::weak_ordering::equivalent !=
+                  std::weak_ordering::greater);
+
+    static_assert(std::weak_ordering::greater != std::weak_ordering::less);
+    static_assert(std::weak_ordering::greater !=
+                  std::weak_ordering::equivalent);
+    static_assert(std::weak_ordering::greater == std::weak_ordering::greater);
+  }
 #endif
 
   return true;
 }
 
-int main() {
+int main(int, char**) {
   test_static_members();
   test_signatures();
   static_assert(test_conversion(), "conversion test failed");
   static_assert(test_constexpr(), "constexpr test failed");
+
+  return 0;
 }

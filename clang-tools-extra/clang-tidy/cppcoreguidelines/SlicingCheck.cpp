@@ -1,9 +1,8 @@
 //===--- SlicingCheck.cpp - clang-tidy-------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -46,7 +45,7 @@ void SlicingCheck::registerMatchers(MatchFinder *Finder) {
   const auto IsWithinDerivedCtor =
       hasParent(cxxConstructorDecl(ofClass(equalsBoundNode("DerivedDecl"))));
 
-  // Assignement slicing: "a = b;" and "a = std::move(b);" variants.
+  // Assignment slicing: "a = b;" and "a = std::move(b);" variants.
   const auto SlicesObjectInAssignment =
       callExpr(callee(cxxMethodDecl(anyOf(isCopyAssignmentOperator(),
                                           isMoveAssignmentOperator()),
@@ -63,9 +62,10 @@ void SlicingCheck::registerMatchers(MatchFinder *Finder) {
       // constructor in DerivedDecl's constructors.
       unless(IsWithinDerivedCtor));
 
-  Finder->addMatcher(
-      expr(anyOf(SlicesObjectInAssignment, SlicesObjectInCtor)).bind("Call"),
-      this);
+  Finder->addMatcher(traverse(TK_AsIs, expr(anyOf(SlicesObjectInAssignment,
+                                                  SlicesObjectInCtor))
+                                           .bind("Call")),
+                     this);
 }
 
 /// Warns on methods overridden in DerivedDecl with respect to BaseDecl.
@@ -76,7 +76,7 @@ void SlicingCheck::DiagnoseSlicedOverriddenMethods(
     const CXXRecordDecl &BaseDecl) {
   if (DerivedDecl.getCanonicalDecl() == BaseDecl.getCanonicalDecl())
     return;
-  for (const auto &Method : DerivedDecl.methods()) {
+  for (const auto *Method : DerivedDecl.methods()) {
     // Virtual destructors are OK. We're ignoring constructors since they are
     // tagged as overrides.
     if (isa<CXXConstructorDecl>(Method) || isa<CXXDestructorDecl>(Method))

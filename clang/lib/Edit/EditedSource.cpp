@@ -1,9 +1,8 @@
 //===- EditedSource.cpp - Collection of source edits ----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -60,8 +59,8 @@ void EditedSource::finishedCommit() {
     SourceLocation ExpLoc;
     MacroArgUse ArgUse;
     std::tie(ExpLoc, ArgUse) = ExpArg;
-    auto &ArgUses = ExpansionToArgMap[ExpLoc.getRawEncoding()];
-    if (std::find(ArgUses.begin(), ArgUses.end(), ArgUse) == ArgUses.end())
+    auto &ArgUses = ExpansionToArgMap[ExpLoc];
+    if (llvm::find(ArgUses, ArgUse) == ArgUses.end())
       ArgUses.push_back(ArgUse);
   }
   CurrCommitMacroArgExps.clear();
@@ -83,7 +82,7 @@ bool EditedSource::canInsertInOffset(SourceLocation OrigLoc, FileOffset Offs) {
     SourceLocation ExpLoc;
     MacroArgUse ArgUse;
     deconstructMacroArgLoc(OrigLoc, ExpLoc, ArgUse);
-    auto I = ExpansionToArgMap.find(ExpLoc.getRawEncoding());
+    auto I = ExpansionToArgMap.find(ExpLoc);
     if (I != ExpansionToArgMap.end() &&
         find_if(I->second, [&](const MacroArgUse &U) {
           return ArgUse.Identifier == U.Identifier &&

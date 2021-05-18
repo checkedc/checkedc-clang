@@ -1,9 +1,8 @@
-//===-- LibCxxQueue.cpp -----------------------------------------*- C++ -*-===//
+//===-- LibCxxQueue.cpp ---------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -21,7 +20,7 @@ public:
     Update();
   }
 
-  size_t GetIndexOfChildWithName(const ConstString &name) override {
+  size_t GetIndexOfChildWithName(ConstString name) override {
     return m_container_sp ? m_container_sp->GetIndexOfChildWithName(name)
                           : UINT32_MAX;
   }
@@ -39,16 +38,21 @@ public:
   }
 
 private:
-  ValueObjectSP m_container_sp;
+  // The lifetime of a ValueObject and all its derivative ValueObjects
+  // (children, clones, etc.) is managed by a ClusterManager. These
+  // objects are only destroyed when every shared pointer to any of them
+  // is destroyed, so we must not store a shared pointer to any ValueObject
+  // derived from our backend ValueObject (since we're in the same cluster).
+  ValueObject* m_container_sp = nullptr;
 };
 } // namespace
 
 bool QueueFrontEnd::Update() {
-  m_container_sp.reset();
+  m_container_sp = nullptr;
   ValueObjectSP c_sp = m_backend.GetChildMemberWithName(ConstString("c"), true);
   if (!c_sp)
     return false;
-  m_container_sp = c_sp->GetSyntheticValue();
+  m_container_sp = c_sp->GetSyntheticValue().get();
   return false;
 }
 

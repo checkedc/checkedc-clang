@@ -1,9 +1,8 @@
 //===-- sanitizer_common_interceptors_format.inc ----------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -341,6 +340,12 @@ static void scanf_common(void *ctx, int n_inputs, bool allowGnuMalloc,
       size = 0;
     }
     COMMON_INTERCEPTOR_WRITE_RANGE(ctx, argp, size);
+    // For %ms/%mc, write the allocated output buffer as well.
+    if (dir.allocate) {
+      char *buf = *(char **)argp;
+      if (buf)
+        COMMON_INTERCEPTOR_WRITE_RANGE(ctx, buf, internal_strlen(buf) + 1);
+    }
   }
 }
 

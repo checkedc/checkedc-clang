@@ -1,5 +1,5 @@
 ; RUN: llc -march=amdgcn -amdgpu-atomic-optimizations=false -verify-machineinstrs < %s | FileCheck -enable-var-scope -strict-whitespace -check-prefixes=GCN,SI,SICIVI %s
-; RUN: llc -march=amdgcn -mcpu=tonga -mattr=-flat-for-global -amdgpu-atomic-optimizations=false -verify-machineinstrs < %s | FileCheck -enable-var-scope -strict-whitespace -check-prefixes=GCN,VI,SICIVI,GFX89 %s
+; RUN: llc -march=amdgcn -mcpu=tonga -mattr=-flat-for-global -amdgpu-atomic-optimizations=false -verify-machineinstrs < %s | FileCheck -enable-var-scope -strict-whitespace -check-prefixes=GCN,SICIVI,GFX89 %s
 ; RUN: llc -march=amdgcn -mcpu=gfx900 -mattr=-flat-for-global -amdgpu-atomic-optimizations=false -verify-machineinstrs < %s | FileCheck -enable-var-scope -strict-whitespace -check-prefixes=GCN,GFX9,GFX89 %s
 
 ; GCN-LABEL: {{^}}lds_atomic_xchg_ret_i64:
@@ -24,6 +24,19 @@ define amdgpu_kernel void @lds_atomic_xchg_ret_i64_offset(i64 addrspace(1)* %out
   %gep = getelementptr i64, i64 addrspace(3)* %ptr, i32 4
   %result = atomicrmw xchg i64 addrspace(3)* %gep, i64 4 seq_cst
   store i64 %result, i64 addrspace(1)* %out, align 8
+  ret void
+}
+
+; GCN-LABEL: {{^}}lds_atomic_xchg_ret_f64_offset:
+; SICIVI: s_mov_b32 m0
+; GFX9-NOT: m0
+
+; GCN: ds_wrxchg_rtn_b64 {{.*}} offset:32
+; GCN: s_endpgm
+define amdgpu_kernel void @lds_atomic_xchg_ret_f64_offset(double addrspace(1)* %out, double addrspace(3)* %ptr) nounwind {
+  %gep = getelementptr double, double addrspace(3)* %ptr, i32 4
+  %result = atomicrmw xchg double addrspace(3)* %gep, double 4.0 seq_cst
+  store double %result, double addrspace(1)* %out, align 8
   ret void
 }
 

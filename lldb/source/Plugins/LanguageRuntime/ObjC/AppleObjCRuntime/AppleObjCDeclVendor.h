@@ -1,32 +1,34 @@
 //===-- AppleObjCDeclVendor.h -----------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_AppleObjCDeclVendor_h_
-#define liblldb_AppleObjCDeclVendor_h_
+#ifndef LLDB_SOURCE_PLUGINS_LANGUAGERUNTIME_OBJC_APPLEOBJCRUNTIME_APPLEOBJCDECLVENDOR_H
+#define LLDB_SOURCE_PLUGINS_LANGUAGERUNTIME_OBJC_APPLEOBJCRUNTIME_APPLEOBJCDECLVENDOR_H
 
-#include "lldb/Symbol/ClangASTContext.h"
-#include "lldb/Symbol/DeclVendor.h"
-#include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/lldb-private.h"
+
+#include "Plugins/ExpressionParser/Clang/ClangDeclVendor.h"
+#include "Plugins/LanguageRuntime/ObjC/ObjCLanguageRuntime.h"
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 
 namespace lldb_private {
 
 class AppleObjCExternalASTSource;
 
-class AppleObjCDeclVendor : public DeclVendor {
+class AppleObjCDeclVendor : public ClangDeclVendor {
 public:
   AppleObjCDeclVendor(ObjCLanguageRuntime &runtime);
 
-  uint32_t FindDecls(const ConstString &name, bool append, uint32_t max_matches,
-                     std::vector<clang::NamedDecl *> &decls) override;
+  static bool classof(const DeclVendor *vendor) {
+    return vendor->GetKind() == eAppleObjCDeclVendor;
+  }
 
-  clang::ExternalASTMerger::ImporterSource GetImporterSource() override;
+  uint32_t FindDecls(ConstString name, bool append, uint32_t max_matches,
+                     std::vector<CompilerDecl> &decls) override;
 
   friend class AppleObjCExternalASTSource;
 
@@ -35,7 +37,7 @@ private:
   bool FinishDecl(clang::ObjCInterfaceDecl *decl);
 
   ObjCLanguageRuntime &m_runtime;
-  ClangASTContext m_ast_ctx;
+  TypeSystemClang m_ast_ctx;
   ObjCLanguageRuntime::EncodingToTypeSP m_type_realizer_sp;
   AppleObjCExternalASTSource *m_external_source;
 
@@ -48,4 +50,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_AppleObjCDeclVendor_h_
+#endif // LLDB_SOURCE_PLUGINS_LANGUAGERUNTIME_OBJC_APPLEOBJCRUNTIME_APPLEOBJCDECLVENDOR_H

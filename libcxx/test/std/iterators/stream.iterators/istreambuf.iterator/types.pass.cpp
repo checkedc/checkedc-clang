@@ -1,16 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 // <iterator>
-
-// Test fails due to use of is_trivially_* trait.
-// XFAIL: gcc-4.9
 
 // template<class charT, class traits = char_traits<charT> >
 // class istreambuf_iterator
@@ -35,7 +31,7 @@
 
 #include "test_macros.h"
 
-int main()
+int main(int, char**)
 {
     typedef std::istreambuf_iterator<char> I1;
     static_assert((std::is_same<I1::iterator_category, std::input_iterator_tag>::value), "");
@@ -66,4 +62,6 @@ int main()
     static_assert((std::is_nothrow_default_constructible<I2>::value), "" );
     static_assert((std::is_trivially_copy_constructible<I2>::value), "" );
     static_assert((std::is_trivially_destructible<I2>::value), "" );
+
+  return 0;
 }

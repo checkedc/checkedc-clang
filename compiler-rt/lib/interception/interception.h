@@ -1,9 +1,8 @@
 //===-- interception.h ------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -18,7 +17,7 @@
 #include "sanitizer_common/sanitizer_internal_defs.h"
 
 #if !SANITIZER_LINUX && !SANITIZER_FREEBSD && !SANITIZER_MAC && \
-    !SANITIZER_NETBSD && !SANITIZER_OPENBSD && !SANITIZER_WINDOWS && \
+    !SANITIZER_NETBSD && !SANITIZER_WINDOWS && \
     !SANITIZER_FUCHSIA && !SANITIZER_RTEMS && !SANITIZER_SOLARIS
 # error "Interception doesn't work on this operating system."
 #endif
@@ -186,11 +185,17 @@ const interpose_substitution substitution_##func_name[] \
 #endif  // SANITIZER_MAC
 
 #if !SANITIZER_FUCHSIA && !SANITIZER_RTEMS
-#define DECLARE_REAL_AND_INTERCEPTOR(ret_type, func, ...) \
+# define DECLARE_REAL_AND_INTERCEPTOR(ret_type, func, ...) \
   DECLARE_REAL(ret_type, func, __VA_ARGS__) \
   extern "C" ret_type WRAP(func)(__VA_ARGS__);
+// Declare an interceptor and its wrapper defined in a different translation
+// unit (ex. asm).
+# define DECLARE_EXTERN_INTERCEPTOR_AND_WRAPPER(ret_type, func, ...)    \
+  extern "C" ret_type WRAP(func)(__VA_ARGS__); \
+  extern "C" ret_type func(__VA_ARGS__);
 #else
-#define DECLARE_REAL_AND_INTERCEPTOR(ret_type, func, ...)
+# define DECLARE_REAL_AND_INTERCEPTOR(ret_type, func, ...)
+# define DECLARE_EXTERN_INTERCEPTOR_AND_WRAPPER(ret_type, func, ...)
 #endif
 
 // Generally, you don't need to use DEFINE_REAL by itself, as INTERCEPTOR
@@ -267,16 +272,16 @@ const interpose_substitution substitution_##func_name[] \
 // INTERCEPT_FUNCTION macro, only its name.
 namespace __interception {
 #if defined(_WIN64)
-typedef unsigned long long uptr;  // NOLINT
+typedef unsigned long long uptr;
 #else
-typedef unsigned long uptr;  // NOLINT
+typedef unsigned long uptr;
 #endif  // _WIN64
 }  // namespace __interception
 
 #define INCLUDED_FROM_INTERCEPTION_LIB
 
 #if SANITIZER_LINUX || SANITIZER_FREEBSD || SANITIZER_NETBSD || \
-    SANITIZER_OPENBSD || SANITIZER_SOLARIS
+    SANITIZER_SOLARIS
 
 # include "interception_linux.h"
 # define INTERCEPT_FUNCTION(func) INTERCEPT_FUNCTION_LINUX_OR_FREEBSD(func)

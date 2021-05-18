@@ -1,9 +1,8 @@
 //===-CachePruning.cpp - LLVM Cache Directory Pruning ---------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -12,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Support/CachePruning.h"
-
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
@@ -36,15 +35,8 @@ struct FileInfo {
   /// Used to determine which files to prune first. Also used to determine
   /// set membership, so must take into account all fields.
   bool operator<(const FileInfo &Other) const {
-    if (Time < Other.Time)
-      return true;
-    else if (Other.Time < Time)
-      return false;
-    if (Other.Size < Size)
-      return true;
-    else if (Size < Other.Size)
-      return false;
-    return Path < Other.Path;
+    return std::tie(Time, Other.Size, Path) <
+           std::tie(Other.Time, Size, Other.Path);
   }
 };
 } // anonymous namespace
@@ -53,7 +45,7 @@ struct FileInfo {
 /// interval option.
 static void writeTimestampFile(StringRef TimestampFile) {
   std::error_code EC;
-  raw_fd_ostream Out(TimestampFile.str(), EC, sys::fs::F_None);
+  raw_fd_ostream Out(TimestampFile.str(), EC, sys::fs::OF_None);
 }
 
 static Expected<std::chrono::seconds> parseDuration(StringRef Duration) {
@@ -219,11 +211,12 @@ bool llvm::pruneCache(StringRef Path, CachePruningPolicy Policy) {
   // Walk all of the files within this directory.
   for (sys::fs::directory_iterator File(CachePathNative, EC), FileEnd;
        File != FileEnd && !EC; File.increment(EC)) {
-    // Ignore any files not beginning with the string "llvmcache-". This
+    // Ignore filenames not beginning with "llvmcache-" or "Thin-". This
     // includes the timestamp file as well as any files created by the user.
     // This acts as a safeguard against data loss if the user specifies the
     // wrong directory as their cache directory.
-    if (!sys::path::filename(File->path()).startswith("llvmcache-"))
+    StringRef filename = sys::path::filename(File->path());
+    if (!filename.startswith("llvmcache-") && !filename.startswith("Thin-"))
       continue;
 
     // Look at this file. If we can't stat it, there's nothing interesting

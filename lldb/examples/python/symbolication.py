@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 #----------------------------------------------------------------------
 # Be sure to add the python path that points to the LLDB shared library.
@@ -26,8 +26,8 @@
 #   PYTHONPATH=/path/to/LLDB.framework/Resources/Python ./crashlog.py ~/Library/Logs/DiagnosticReports/a.crash
 #----------------------------------------------------------------------
 
+from __future__ import print_function
 import lldb
-import commands
 import optparse
 import os
 import plistlib
@@ -203,13 +203,13 @@ class Section:
                 if op == '+':
                     self.end_addr += self.start_addr
                 return True
-        print 'error: invalid section info string "%s"' % s
-        print 'Valid section info formats are:'
-        print 'Format                Example                    Description'
-        print '--------------------- -----------------------------------------------'
-        print '<name>=<base>        __TEXT=0x123000             Section from base address only'
-        print '<name>=<base>-<end>  __TEXT=0x123000-0x124000    Section from base address and end address'
-        print '<name>=<base>+<size> __TEXT=0x123000+0x1000      Section from base address and size'
+        print('error: invalid section info string "%s"' % s)
+        print('Valid section info formats are:')
+        print('Format                Example                    Description')
+        print('--------------------- -----------------------------------------------')
+        print('<name>=<base>        __TEXT=0x123000             Section from base address only')
+        print('<name>=<base>-<end>  __TEXT=0x123000-0x124000    Section from base address and end address')
+        print('<name>=<base>+<size> __TEXT=0x123000+0x1000      Section from base address and size')
         return False
 
     def __str__(self):
@@ -248,7 +248,6 @@ class Image:
         obj = cls(module.file.fullpath, module.uuid)
         obj.resolved_path = module.platform_file.fullpath
         obj.resolved = True
-        obj.arch = module.triple
         for section in module.sections:
             symb_section = Section.InitWithSBTargetAndSBSection(
                 target, section)
@@ -261,21 +260,21 @@ class Image:
         return obj
 
     def dump(self, prefix):
-        print "%s%s" % (prefix, self)
+        print("%s%s" % (prefix, self))
 
     def debug_dump(self):
-        print 'path = "%s"' % (self.path)
-        print 'resolved_path = "%s"' % (self.resolved_path)
-        print 'resolved = %i' % (self.resolved)
-        print 'unavailable = %i' % (self.unavailable)
-        print 'uuid = %s' % (self.uuid)
-        print 'section_infos = %s' % (self.section_infos)
-        print 'identifier = "%s"' % (self.identifier)
-        print 'version = %s' % (self.version)
-        print 'arch = %s' % (self.arch)
-        print 'module = %s' % (self.module)
-        print 'symfile = "%s"' % (self.symfile)
-        print 'slide = %i (0x%x)' % (self.slide, self.slide)
+        print('path = "%s"' % (self.path))
+        print('resolved_path = "%s"' % (self.resolved_path))
+        print('resolved = %i' % (self.resolved))
+        print('unavailable = %i' % (self.unavailable))
+        print('uuid = %s' % (self.uuid))
+        print('section_infos = %s' % (self.section_infos))
+        print('identifier = "%s"' % (self.identifier))
+        print('version = %s' % (self.version))
+        print('arch = %s' % (self.arch))
+        print('module = %s' % (self.module))
+        print('symfile = "%s"' % (self.symfile))
+        print('slide = %i (0x%x)' % (self.slide, self.slide))
 
     def __str__(self):
         s = ''
@@ -380,7 +379,7 @@ class Image:
                     return None
                 resolved_path = self.get_resolved_path()
                 self.module = target.AddModule(
-                    resolved_path, self.arch, uuid_str, self.symfile)
+                    resolved_path, str(self.arch), uuid_str, self.symfile)
             if not self.module:
                 return 'error: unable to get module for (%s) "%s"' % (
                     self.arch, self.get_resolved_path())
@@ -411,7 +410,7 @@ class Image:
             return str(self.uuid).upper()
         return None
 
-    def create_target(self):
+    def create_target(self, debugger):
         '''Create a target using the information in this Image object.'''
         if self.unavailable:
             return None
@@ -419,37 +418,41 @@ class Image:
         if self.locate_module_and_debug_symbols():
             resolved_path = self.get_resolved_path()
             path_spec = lldb.SBFileSpec(resolved_path)
-            #result.PutCString ('plist[%s] = %s' % (uuid, self.plist))
             error = lldb.SBError()
-            target = lldb.debugger.CreateTarget(
+            target = debugger.CreateTarget(
                 resolved_path, self.arch, None, False, error)
             if target:
                 self.module = target.FindModule(path_spec)
                 if self.has_section_load_info():
                     err = self.load_module(target)
                     if err:
-                        print 'ERROR: ', err
+                        print('ERROR: ', err)
                 return target
             else:
-                print 'error: unable to create a valid target for (%s) "%s"' % (self.arch, self.path)
+                print('error: unable to create a valid target for (%s) "%s"' % (self.arch, self.path))
         else:
-            print 'error: unable to locate main executable (%s) "%s"' % (self.arch, self.path)
+            print('error: unable to locate main executable (%s) "%s"' % (self.arch, self.path))
         return None
 
 
 class Symbolicator:
 
-    def __init__(self):
-        """A class the represents the information needed to symbolicate addresses in a program"""
-        self.target = None
-        self.images = list()  # a list of images to be used when symbolicating
+    def __init__(self, debugger=None, target=None, images=list()):
+        """A class the represents the information needed to symbolicate
+        addresses in a program.
+
+        Do not call this initializer directly, but rather use the factory
+        methods.
+        """
+        self.debugger = debugger
+        self.target = target
+        self.images = images  # a list of images to be used when symbolicating
         self.addr_mask = 0xffffffffffffffff
 
     @classmethod
     def InitWithSBTarget(cls, target):
-        obj = cls()
-        obj.target = target
-        obj.images = list()
+        """Initialize a new Symbolicator with an existing SBTarget."""
+        obj = cls(target=target)
         triple = target.triple
         if triple:
             arch = triple.split('-')[0]
@@ -459,6 +462,13 @@ class Symbolicator:
         for module in target.modules:
             image = Image.InitWithSBTargetAndSBModule(target, module)
             obj.images.append(image)
+        return obj
+
+    @classmethod
+    def InitWithSBDebugger(cls, debugger, images):
+        """Initialize a new Symbolicator with an existing debugger and list of
+        images. The Symbolicator will create the target."""
+        obj = cls(debugger=debugger, images=images)
         return obj
 
     def __str__(self):
@@ -498,7 +508,7 @@ class Symbolicator:
 
         if self.images:
             for image in self.images:
-                self.target = image.create_target()
+                self.target = image.create_target(self.debugger)
                 if self.target:
                     if self.target.GetAddressByteSize() == 4:
                         triple = self.target.triple
@@ -554,7 +564,7 @@ class Symbolicator:
                     if symbolicated_addresses:
                         return symbolicated_addresses
         else:
-            print 'error: no target in Symbolicator'
+            print('error: no target in Symbolicator')
         return None
 
 
@@ -575,7 +585,6 @@ def disassemble_instructions(
         mnemonic = inst.GetMnemonic(target)
         operands = inst.GetOperands(target)
         comment = inst.GetComment(target)
-        #data = inst.GetData (target)
         lines.append("%#16.16x: %8s %s" % (inst_pc, mnemonic, operands))
         if comment:
             line_len = len(lines[-1])
@@ -602,22 +611,22 @@ def disassemble_instructions(
             end_idx = inst_idx
         for i in range(start_idx, end_idx + 1):
             if i == pc_index:
-                print ' -> ', lines[i]
+                print(' -> ', lines[i])
             else:
-                print '    ', lines[i]
+                print('    ', lines[i])
 
 
 def print_module_section_data(section):
-    print section
+    print(section)
     section_data = section.GetSectionData()
     if section_data:
         ostream = lldb.SBStream()
         section_data.GetDescription(ostream, section.GetFileAddress())
-        print ostream.GetData()
+        print(ostream.GetData())
 
 
 def print_module_section(section, depth):
-    print section
+    print(section)
     if depth > 0:
         num_sub_sections = section.GetNumSubSections()
         for sect_idx in range(num_sub_sections):
@@ -632,10 +641,10 @@ def print_module_sections(module, depth):
 
 def print_module_symbols(module):
     for sym in module:
-        print sym
+        print(sym)
 
 
-def Symbolicate(command_args):
+def Symbolicate(debugger, command_args):
 
     usage = "usage: %prog [options] <addr1> [addr2 ...]"
     description = '''Symbolicate one or more addresses using LLDB's python scripting API..'''
@@ -689,7 +698,7 @@ def Symbolicate(command_args):
         (options, args) = parser.parse_args(command_args)
     except:
         return
-    symbolicator = Symbolicator()
+    symbolicator = Symbolicator(debugger)
     images = list()
     if options.file:
         image = Image(options.file)
@@ -709,19 +718,20 @@ def Symbolicate(command_args):
 
     target = symbolicator.create_target()
     if options.verbose:
-        print symbolicator
+        print(symbolicator)
     if target:
         for addr_str in args:
             addr = int(addr_str, 0)
             symbolicated_addrs = symbolicator.symbolicate(
                 addr, options.verbose)
             for symbolicated_addr in symbolicated_addrs:
-                print symbolicated_addr
-            print
+                print(symbolicated_addr)
+            print()
     else:
-        print 'error: no target for %s' % (symbolicator)
+        print('error: no target for %s' % (symbolicator))
 
 if __name__ == '__main__':
     # Create a new debugger instance
-    lldb.debugger = lldb.SBDebugger.Create()
-    Symbolicate(sys.argv[1:])
+    debugger = lldb.SBDebugger.Create()
+    Symbolicate(debugger, sys.argv[1:])
+    SBDebugger.Destroy(debugger)

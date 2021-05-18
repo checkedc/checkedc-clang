@@ -36,15 +36,15 @@
 # RUN: ld.lld -shared --hash-style both -o %t-ppc64le.so  %t-ppc64le.o  %t2-ppc64le.a  %t3-ppc64le.so
 # RUN: ld.lld -shared --hash-style both -o %t-ppc64.so  %t-ppc64.o  %t2-ppc64.a  %t3-ppc64.so
 
-# RUN: llvm-readobj -dyn-symbols -gnu-hash-table %te-i386.so \
+# RUN: llvm-readobj --dyn-syms --gnu-hash-table %te-i386.so \
 # RUN:   | FileCheck %s -check-prefix=EMPTY
-# RUN: llvm-readobj -sections -dyn-symbols -gnu-hash-table %t-i386.so \
+# RUN: llvm-readobj --sections --dyn-syms --gnu-hash-table %t-i386.so \
 # RUN:   | FileCheck %s -check-prefix=I386
-# RUN: llvm-readobj -sections -dyn-symbols -gnu-hash-table %t-x86_64.so \
+# RUN: llvm-readobj --sections --dyn-syms --gnu-hash-table %t-x86_64.so \
 # RUN:   | FileCheck %s -check-prefix=X86_64
-# RUN: llvm-readobj -sections -dyn-symbols -gnu-hash-table %t-ppc64le.so \
+# RUN: llvm-readobj --sections --dyn-syms --gnu-hash-table %t-ppc64le.so \
 # RUN:   | FileCheck %s -check-prefix=PPC64
-# RUN: llvm-readobj -sections -dyn-symbols -gnu-hash-table %t-ppc64.so \
+# RUN: llvm-readobj --sections --dyn-syms --gnu-hash-table %t-ppc64.so \
 # RUN:   | FileCheck %s -check-prefix=PPC64
 
 # EMPTY:      DynamicSymbols [
@@ -68,7 +68,7 @@
 # EMPTY-NEXT:   Values: []
 # EMPTY-NEXT: }
 
-# I386:      Format: ELF32-i386
+# I386:      Format: elf32-i386
 # I386:      Arch: i386
 # I386:      AddressSize: 32bit
 # I386:      Sections [
@@ -127,7 +127,7 @@
 # I386-NEXT:   Values: [0xB8860BA, 0xB887389]
 # I386-NEXT: }
 
-# X86_64:      Format: ELF64-x86-64
+# X86_64:      Format: elf64-x86-64
 # X86_64:      Arch: x86_64
 # X86_64:      AddressSize: 64bit
 # X86_64:      Sections [
@@ -187,7 +187,7 @@
 # X86_64-NEXT:   Values: [0xB8860BA, 0xB887389]
 # X86_64-NEXT: }
 
-# PPC64:      Format: ELF64-ppc64
+# PPC64:      Format: elf64-powerpc
 # PPC64:      Arch: powerpc64
 # PPC64:      AddressSize: 64bit
 # PPC64:      Sections [

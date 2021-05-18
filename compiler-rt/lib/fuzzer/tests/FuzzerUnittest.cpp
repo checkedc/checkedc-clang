@@ -1,12 +1,13 @@
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 // Avoid ODR violations (LibFuzzer is built without ASan and this test is built
 // with ASan) involving C++ standard library types when using libcxx.
 #define _LIBCPP_HAS_NO_ASAN
 
-// Do not attempt to use LLVM ostream from gtest.
-#define GTEST_NO_LLVM_RAW_OSTREAM 1
+// Do not attempt to use LLVM ostream etc from gtest.
+#define GTEST_NO_LLVM_SUPPORT 1
 
 #include "FuzzerCorpus.h"
 #include "FuzzerDictionary.h"
@@ -591,12 +592,17 @@ TEST(FuzzerUtil, Base64) {
 TEST(Corpus, Distribution) {
   DataFlowTrace DFT;
   Random Rand(0);
-  std::unique_ptr<InputCorpus> C(new InputCorpus(""));
+  struct EntropicOptions Entropic = {false, 0xFF, 100, false};
+  std::unique_ptr<InputCorpus> C(new InputCorpus("", Entropic));
   size_t N = 10;
   size_t TriesPerUnit = 1<<16;
   for (size_t i = 0; i < N; i++)
-    C->AddToCorpus(Unit{static_cast<uint8_t>(i)}, 1, false, false, {}, DFT,
-                   nullptr);
+    C->AddToCorpus(Unit{static_cast<uint8_t>(i)}, /*NumFeatures*/ 1,
+                   /*MayDeleteFile*/ false, /*HasFocusFunction*/ false,
+                   /*ForceAddToCorpus*/ false,
+                   /*TimeOfUnit*/ std::chrono::microseconds(0),
+                   /*FeatureSet*/ {}, DFT,
+                   /*BaseII*/ nullptr);
 
   Vector<size_t> Hist(N);
   for (size_t i = 0; i < N * TriesPerUnit; i++) {
@@ -618,7 +624,7 @@ TEST(Merge, Bad) {
     "2\n2\nA\n",
     "2\n2\nA\nB\nC\n",
     "0\n0\n",
-    "1\n1\nA\nDONE 0",
+    "1\n1\nA\nFT 0",
     "1\n1\nA\nSTARTED 1",
   };
   Merger M;
@@ -643,11 +649,9 @@ static void Merge(const std::string &Input,
                   size_t NumNewFeatures) {
   Merger M;
   Vector<std::string> NewFiles;
+  Set<uint32_t> NewFeatures, NewCov;
   EXPECT_TRUE(M.Parse(Input, true));
-  std::stringstream SS;
-  M.PrintSummary(SS);
-  EXPECT_EQ(NumNewFeatures, M.Merge(&NewFiles));
-  EXPECT_EQ(M.AllFeatures(), M.ParseSummary(SS));
+  EXPECT_EQ(NumNewFeatures, M.Merge({}, &NewFeatures, {}, &NewCov, &NewFiles));
   EQ(NewFiles, Result);
 }
 
@@ -671,9 +675,9 @@ TEST(Merge, Good) {
 
   EXPECT_TRUE(M.Parse("3\n1\nAA\nBB\nC\n"
                         "STARTED 0 1000\n"
-                        "DONE 0 1 2 3\n"
+                        "FT 0 1 2 3\n"
                         "STARTED 1 1001\n"
-                        "DONE 1 4 5 6 \n"
+                        "FT 1 4 5 6 \n"
                         "STARTED 2 1002\n"
                         "", true));
   EXPECT_EQ(M.Files.size(), 3U);
@@ -691,11 +695,12 @@ TEST(Merge, Good) {
 
 
   Vector<std::string> NewFiles;
+  Set<uint32_t> NewFeatures, NewCov;
 
   EXPECT_TRUE(M.Parse("3\n2\nAA\nBB\nC\n"
-                        "STARTED 0 1000\nDONE 0 1 2 3\n"
-                        "STARTED 1 1001\nDONE 1 4 5 6 \n"
-                        "STARTED 2 1002\nDONE 2 6 1 3 \n"
+                        "STARTED 0 1000\nFT 0 1 2 3\n"
+                        "STARTED 1 1001\nFT 1 4 5 6 \n"
+                        "STARTED 2 1002\nFT 2 6 1 3 \n"
                         "", true));
   EXPECT_EQ(M.Files.size(), 3U);
   EXPECT_EQ(M.NumFilesInFirstCorpus, 2U);
@@ -704,24 +709,24 @@ TEST(Merge, Good) {
   EQ(M.Files[0].Features, {1, 2, 3});
   EQ(M.Files[1].Features, {4, 5, 6});
   EQ(M.Files[2].Features, {1, 3, 6});
-  EXPECT_EQ(0U, M.Merge(&NewFiles));
+  EXPECT_EQ(0U, M.Merge({}, &NewFeatures, {}, &NewCov, &NewFiles));
   EQ(NewFiles, {});
 
   EXPECT_TRUE(M.Parse("3\n1\nA\nB\nC\n"
-                        "STARTED 0 1000\nDONE 0 1 2 3\n"
-                        "STARTED 1 1001\nDONE 1 4 5 6 \n"
-                        "STARTED 2 1002\nDONE 2 6 1 3\n"
+                        "STARTED 0 1000\nFT 0 1 2 3\n"
+                        "STARTED 1 1001\nFT 1 4 5 6 \n"
+                        "STARTED 2 1002\nFT 2 6 1 3\n"
                         "", true));
   EQ(M.Files[0].Features, {1, 2, 3});
   EQ(M.Files[1].Features, {4, 5, 6});
   EQ(M.Files[2].Features, {1, 3, 6});
-  EXPECT_EQ(3U, M.Merge(&NewFiles));
+  EXPECT_EQ(3U, M.Merge({}, &NewFeatures, {}, &NewCov, &NewFiles));
   EQ(NewFiles, {"B"});
 
   // Same as the above, but with InitialFeatures.
   EXPECT_TRUE(M.Parse("2\n0\nB\nC\n"
-                        "STARTED 0 1001\nDONE 0 4 5 6 \n"
-                        "STARTED 1 1002\nDONE 1 6 1 3\n"
+                        "STARTED 0 1001\nFT 0 4 5 6 \n"
+                        "STARTED 1 1002\nFT 1 6 1 3\n"
                         "", true));
   EQ(M.Files[0].Features, {4, 5, 6});
   EQ(M.Files[1].Features, {1, 3, 6});
@@ -729,38 +734,130 @@ TEST(Merge, Good) {
   InitialFeatures.insert(1);
   InitialFeatures.insert(2);
   InitialFeatures.insert(3);
-  EXPECT_EQ(3U, M.Merge(InitialFeatures, &NewFiles));
+  EXPECT_EQ(3U, M.Merge(InitialFeatures, &NewFeatures, {}, &NewCov, &NewFiles));
   EQ(NewFiles, {"B"});
 }
 
 TEST(Merge, Merge) {
 
   Merge("3\n1\nA\nB\nC\n"
-        "STARTED 0 1000\nDONE 0 1 2 3\n"
-        "STARTED 1 1001\nDONE 1 4 5 6 \n"
-        "STARTED 2 1002\nDONE 2 6 1 3 \n",
+        "STARTED 0 1000\nFT 0 1 2 3\n"
+        "STARTED 1 1001\nFT 1 4 5 6 \n"
+        "STARTED 2 1002\nFT 2 6 1 3 \n",
         {"B"}, 3);
 
   Merge("3\n0\nA\nB\nC\n"
-        "STARTED 0 2000\nDONE 0 1 2 3\n"
-        "STARTED 1 1001\nDONE 1 4 5 6 \n"
-        "STARTED 2 1002\nDONE 2 6 1 3 \n",
+        "STARTED 0 2000\nFT 0 1 2 3\n"
+        "STARTED 1 1001\nFT 1 4 5 6 \n"
+        "STARTED 2 1002\nFT 2 6 1 3 \n",
         {"A", "B", "C"}, 6);
 
   Merge("4\n0\nA\nB\nC\nD\n"
-        "STARTED 0 2000\nDONE 0 1 2 3\n"
-        "STARTED 1 1101\nDONE 1 4 5 6 \n"
-        "STARTED 2 1102\nDONE 2 6 1 3 100 \n"
-        "STARTED 3 1000\nDONE 3 1  \n",
+        "STARTED 0 2000\nFT 0 1 2 3\n"
+        "STARTED 1 1101\nFT 1 4 5 6 \n"
+        "STARTED 2 1102\nFT 2 6 1 3 100 \n"
+        "STARTED 3 1000\nFT 3 1  \n",
         {"A", "B", "C", "D"}, 7);
 
   Merge("4\n1\nA\nB\nC\nD\n"
-        "STARTED 0 2000\nDONE 0 4 5 6 7 8\n"
-        "STARTED 1 1100\nDONE 1 1 2 3 \n"
-        "STARTED 2 1100\nDONE 2 2 3 \n"
-        "STARTED 3 1000\nDONE 3 1  \n",
+        "STARTED 0 2000\nFT 0 4 5 6 7 8\n"
+        "STARTED 1 1100\nFT 1 1 2 3 \n"
+        "STARTED 2 1100\nFT 2 2 3 \n"
+        "STARTED 3 1000\nFT 3 1  \n",
         {"B", "D"}, 3);
 }
+
+TEST(DFT, BlockCoverage) {
+  BlockCoverage Cov;
+  // Assuming C0 has 5 instrumented blocks,
+  // C1: 7 blocks, C2: 4, C3: 9, C4 never covered, C5: 15,
+
+  // Add C0
+  EXPECT_TRUE(Cov.AppendCoverage("C0 5\n"));
+  EXPECT_EQ(Cov.GetCounter(0, 0), 1U);
+  EXPECT_EQ(Cov.GetCounter(0, 1), 0U);  // not seen this BB yet.
+  EXPECT_EQ(Cov.GetCounter(0, 5), 0U);  // BB ID out of bounds.
+  EXPECT_EQ(Cov.GetCounter(1, 0), 0U);  // not seen this function yet.
+
+  EXPECT_EQ(Cov.GetNumberOfBlocks(0), 5U);
+  EXPECT_EQ(Cov.GetNumberOfCoveredBlocks(0), 1U);
+  EXPECT_EQ(Cov.GetNumberOfBlocks(1), 0U);
+
+  // Various errors.
+  EXPECT_FALSE(Cov.AppendCoverage("C0\n"));  // No total number.
+  EXPECT_FALSE(Cov.AppendCoverage("C0 7\n"));  // No total number.
+  EXPECT_FALSE(Cov.AppendCoverage("CZ\n"));  // Wrong function number.
+  EXPECT_FALSE(Cov.AppendCoverage("C1 7 7"));  // BB ID is too big.
+  EXPECT_FALSE(Cov.AppendCoverage("C1 100 7")); // BB ID is too big.
+
+  // Add C0 more times.
+  EXPECT_TRUE(Cov.AppendCoverage("C0 5\n"));
+  EXPECT_EQ(Cov.GetCounter(0, 0), 2U);
+  EXPECT_TRUE(Cov.AppendCoverage("C0 1 2 5\n"));
+  EXPECT_EQ(Cov.GetCounter(0, 0), 3U);
+  EXPECT_EQ(Cov.GetCounter(0, 1), 1U);
+  EXPECT_EQ(Cov.GetCounter(0, 2), 1U);
+  EXPECT_EQ(Cov.GetCounter(0, 3), 0U);
+  EXPECT_EQ(Cov.GetCounter(0, 4), 0U);
+  EXPECT_EQ(Cov.GetNumberOfCoveredBlocks(0), 3U);
+  EXPECT_TRUE(Cov.AppendCoverage("C0 1 3 4 5\n"));
+  EXPECT_EQ(Cov.GetCounter(0, 0), 4U);
+  EXPECT_EQ(Cov.GetCounter(0, 1), 2U);
+  EXPECT_EQ(Cov.GetCounter(0, 2), 1U);
+  EXPECT_EQ(Cov.GetCounter(0, 3), 1U);
+  EXPECT_EQ(Cov.GetCounter(0, 4), 1U);
+  EXPECT_EQ(Cov.GetNumberOfCoveredBlocks(0), 5U);
+
+  EXPECT_TRUE(Cov.AppendCoverage("C1 7\nC2 4\nC3 9\nC5 15\nC0 5\n"));
+  EXPECT_EQ(Cov.GetCounter(0, 0), 5U);
+  EXPECT_EQ(Cov.GetCounter(1, 0), 1U);
+  EXPECT_EQ(Cov.GetCounter(2, 0), 1U);
+  EXPECT_EQ(Cov.GetCounter(3, 0), 1U);
+  EXPECT_EQ(Cov.GetCounter(4, 0), 0U);
+  EXPECT_EQ(Cov.GetCounter(5, 0), 1U);
+
+  EXPECT_TRUE(Cov.AppendCoverage("C3 4 5 9\nC5 11 12 15"));
+  EXPECT_EQ(Cov.GetCounter(0, 0), 5U);
+  EXPECT_EQ(Cov.GetCounter(1, 0), 1U);
+  EXPECT_EQ(Cov.GetCounter(2, 0), 1U);
+  EXPECT_EQ(Cov.GetCounter(3, 0), 2U);
+  EXPECT_EQ(Cov.GetCounter(3, 4), 1U);
+  EXPECT_EQ(Cov.GetCounter(3, 5), 1U);
+  EXPECT_EQ(Cov.GetCounter(3, 6), 0U);
+  EXPECT_EQ(Cov.GetCounter(4, 0), 0U);
+  EXPECT_EQ(Cov.GetCounter(5, 0), 2U);
+  EXPECT_EQ(Cov.GetCounter(5, 10), 0U);
+  EXPECT_EQ(Cov.GetCounter(5, 11), 1U);
+  EXPECT_EQ(Cov.GetCounter(5, 12), 1U);
+}
+
+TEST(DFT, FunctionWeights) {
+  BlockCoverage Cov;
+  // unused function gets zero weight.
+  EXPECT_TRUE(Cov.AppendCoverage("C0 5\n"));
+  auto Weights = Cov.FunctionWeights(2);
+  EXPECT_GT(Weights[0], 0.);
+  EXPECT_EQ(Weights[1], 0.);
+
+  // Less frequently used function gets less weight.
+  Cov.clear();
+  EXPECT_TRUE(Cov.AppendCoverage("C0 5\nC1 5\nC1 5\n"));
+  Weights = Cov.FunctionWeights(2);
+  EXPECT_GT(Weights[0], Weights[1]);
+
+  // A function with more uncovered blocks gets more weight.
+  Cov.clear();
+  EXPECT_TRUE(Cov.AppendCoverage("C0 1 2 3 5\nC1 2 4\n"));
+  Weights = Cov.FunctionWeights(2);
+  EXPECT_GT(Weights[1], Weights[0]);
+
+  // A function with DFT gets more weight than the function w/o DFT.
+  Cov.clear();
+  EXPECT_TRUE(Cov.AppendCoverage("F1 111\nC0 3\nC1 1 2 3\n"));
+  Weights = Cov.FunctionWeights(2);
+  EXPECT_GT(Weights[1], Weights[0]);
+}
+
 
 TEST(Fuzzer, ForEachNonZeroByte) {
   const size_t N = 64;
@@ -956,6 +1053,68 @@ TEST(FuzzerCommand, SetOutput) {
 
   CmdLine = Cmd.toString();
   EXPECT_EQ(CmdLine, makeCmdLine("", ">thud 2>&1"));
+}
+
+TEST(Entropic, UpdateFrequency) {
+  const size_t One = 1, Two = 2;
+  const size_t FeatIdx1 = 0, FeatIdx2 = 42, FeatIdx3 = 12, FeatIdx4 = 26;
+  size_t Index;
+  // Create input corpus with default entropic configuration
+  struct EntropicOptions Entropic = {true, 0xFF, 100, false};
+  std::unique_ptr<InputCorpus> C(new InputCorpus("", Entropic));
+  std::unique_ptr<InputInfo> II(new InputInfo());
+
+  C->AddRareFeature(FeatIdx1);
+  C->UpdateFeatureFrequency(II.get(), FeatIdx1);
+  EXPECT_EQ(II->FeatureFreqs.size(), One);
+  C->AddRareFeature(FeatIdx2);
+  C->UpdateFeatureFrequency(II.get(), FeatIdx1);
+  C->UpdateFeatureFrequency(II.get(), FeatIdx2);
+  EXPECT_EQ(II->FeatureFreqs.size(), Two);
+  EXPECT_EQ(II->FeatureFreqs[0].second, 2);
+  EXPECT_EQ(II->FeatureFreqs[1].second, 1);
+
+  C->AddRareFeature(FeatIdx3);
+  C->AddRareFeature(FeatIdx4);
+  C->UpdateFeatureFrequency(II.get(), FeatIdx3);
+  C->UpdateFeatureFrequency(II.get(), FeatIdx3);
+  C->UpdateFeatureFrequency(II.get(), FeatIdx3);
+  C->UpdateFeatureFrequency(II.get(), FeatIdx4);
+
+  for (Index = 1; Index < II->FeatureFreqs.size(); Index++)
+    EXPECT_LT(II->FeatureFreqs[Index - 1].first, II->FeatureFreqs[Index].first);
+
+  II->DeleteFeatureFreq(FeatIdx3);
+  for (Index = 1; Index < II->FeatureFreqs.size(); Index++)
+    EXPECT_LT(II->FeatureFreqs[Index - 1].first, II->FeatureFreqs[Index].first);
+}
+
+double SubAndSquare(double X, double Y) {
+  double R = X - Y;
+  R = R * R;
+  return R;
+}
+
+TEST(Entropic, ComputeEnergy) {
+  const double Precision = 0.01;
+  struct EntropicOptions Entropic = {true, 0xFF, 100, false};
+  std::unique_ptr<InputCorpus> C(new InputCorpus("", Entropic));
+  std::unique_ptr<InputInfo> II(new InputInfo());
+  Vector<std::pair<uint32_t, uint16_t>> FeatureFreqs = {{1, 3}, {2, 3}, {3, 3}};
+  II->FeatureFreqs = FeatureFreqs;
+  II->NumExecutedMutations = 0;
+  II->UpdateEnergy(4, false, std::chrono::microseconds(0));
+  EXPECT_LT(SubAndSquare(II->Energy, 1.450805), Precision);
+
+  II->NumExecutedMutations = 9;
+  II->UpdateEnergy(5, false, std::chrono::microseconds(0));
+  EXPECT_LT(SubAndSquare(II->Energy, 1.525496), Precision);
+
+  II->FeatureFreqs[0].second++;
+  II->FeatureFreqs.push_back(std::pair<uint32_t, uint16_t>(42, 6));
+  II->NumExecutedMutations = 20;
+  II->UpdateEnergy(10, false, std::chrono::microseconds(0));
+  EXPECT_LT(SubAndSquare(II->Energy, 1.792831), Precision);
 }
 
 int main(int argc, char **argv) {

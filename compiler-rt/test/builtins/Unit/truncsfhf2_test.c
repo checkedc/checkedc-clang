@@ -1,32 +1,20 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-
-//===--------------- truncsfhf2_test.c - Test __truncsfhf2 ----------------===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __truncsfhf2 for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
+// REQUIRES: librt_has_truncsfhf2
 
 #include <stdio.h>
 
 #include "fp_test.h"
 
-uint16_t __truncsfhf2(float a);
+TYPE_FP16 __truncsfhf2(float a);
 
 int test__truncsfhf2(float a, uint16_t expected)
 {
-    uint16_t x = __truncsfhf2(a);
+    TYPE_FP16 x = __truncsfhf2(a);
     int ret = compareResultH(x, expected);
 
     if (ret){
         printf("error in test__truncsfhf2(%f) = %#.4x, "
-               "expected %#.4x\n", a, x, fromRep16(expected));
+               "expected %#.4x\n", a, toRep16(x), expected);
     }
     return ret;
 }

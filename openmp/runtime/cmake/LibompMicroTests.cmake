@@ -1,10 +1,9 @@
 #
 #//===----------------------------------------------------------------------===//
 #//
-#//                     The LLVM Compiler Infrastructure
-#//
-#// This file is dual licensed under the MIT and the University of Illinois Open
-#// Source Licenses. See LICENSE.txt for details.
+#// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+#// See https://llvm.org/LICENSE.txt for license information.
+#// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #//
 #//===----------------------------------------------------------------------===//
 #
@@ -23,10 +22,10 @@
 #  - Available for Unix, Intel(R) MIC Architecture dynamic library builds. Not available otherwise.
 # (3) test-execstack
 #  - Tests if stack is executable
-#  - Fails if stack is executable. Should only be readable and writable. Not exectuable.
+#  - Fails if stack is executable. Should only be readable and writable. Not executable.
 #  - Program dependencies: perl, readelf
 #  - Available for Unix dynamic library builds. Not available otherwise.
-# (4) test-instr (Intel(R) MIC Architecutre only)
+# (4) test-instr (Intel(R) MIC Architecture only)
 #  - Tests Intel(R) MIC Architecture libraries for valid instruction set
 #  - Fails if finds invalid instruction for Intel(R) MIC Architecture (wasn't compiled with correct flags)
 #  - Program dependencies: perl, objdump
@@ -41,7 +40,7 @@
 # get library location
 if(WIN32)
   get_target_property(LIBOMP_OUTPUT_DIRECTORY omp RUNTIME_OUTPUT_DIRECTORY)
-  get_target_property(LIBOMPIMP_OUTPUT_DIRECTORY ompimp ARCHIVE_OUTPUT_DIRECTORY)
+  get_target_property(LIBOMPIMP_OUTPUT_DIRECTORY ${LIBOMP_IMP_LIB_TARGET} ARCHIVE_OUTPUT_DIRECTORY)
   if(NOT LIBOMPIMP_OUTPUT_DIRECTORY)
     set(LIBOMPIMP_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
   endif()
@@ -171,7 +170,7 @@ add_custom_command(
 add_custom_target(libomp-test-deps DEPENDS test-deps/.success)
 set(libomp_expected_library_deps)
 if(CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
-  set(libomp_expected_library_deps libc.so.7 libthr.so.3)
+  set(libomp_expected_library_deps libc.so.7 libthr.so.3 libm.so.5)
   libomp_append(libomp_expected_library_deps libhwloc.so.5 LIBOMP_USE_HWLOC)
 elseif(CMAKE_SYSTEM_NAME MATCHES "NetBSD")
   set(libomp_expected_library_deps libc.so.12 libpthread.so.1 libm.so.0)
@@ -210,6 +209,9 @@ else()
       libomp_append(libomp_expected_library_deps libc.so.6)
       libomp_append(libomp_expected_library_deps ld64.so.1)
     elseif(${MIPS} OR ${MIPS64})
+      libomp_append(libomp_expected_library_deps libc.so.6)
+      libomp_append(libomp_expected_library_deps ld.so.1)
+    elseif(${RISCV64})
       libomp_append(libomp_expected_library_deps libc.so.6)
       libomp_append(libomp_expected_library_deps ld.so.1)
     endif()

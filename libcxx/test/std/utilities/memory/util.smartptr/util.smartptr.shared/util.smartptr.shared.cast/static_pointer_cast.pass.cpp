@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -16,6 +15,8 @@
 #include <memory>
 #include <type_traits>
 #include <cassert>
+
+#include "test_macros.h"
 
 struct B
 {
@@ -34,13 +35,13 @@ struct A
     static int count;
 
     A() {++count;}
-    A(const A&) {++count;}
+    A(const A& other) : B(other) {++count;}
     ~A() {--count;}
 };
 
 int A::count = 0;
 
-int main()
+int main(int, char**)
 {
     {
         const std::shared_ptr<A> pA(new A);
@@ -66,4 +67,20 @@ int main()
         assert(pB.get() == pA.get());
         assert(!pB.owner_before(pA) && !pA.owner_before(pB));
     }
+#if TEST_STD_VER > 14
+    {
+      const std::shared_ptr<A[8]> pA;
+      std::shared_ptr<B[8]> pB = std::static_pointer_cast<B[8]>(pA);
+      assert(pB.get() == pA.get());
+      assert(!pB.owner_before(pA) && !pA.owner_before(pB));
+    }
+    {
+      const std::shared_ptr<B[8]> pA;
+      std::shared_ptr<A[8]> pB = std::static_pointer_cast<A[8]>(pA);
+      assert(pB.get() == pA.get());
+      assert(!pB.owner_before(pA) && !pA.owner_before(pB));
+    }
+#endif // TEST_STD_VER > 14
+
+    return 0;
 }

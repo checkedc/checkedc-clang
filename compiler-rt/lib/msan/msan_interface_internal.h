@@ -1,9 +1,8 @@
 //===-- msan_interface_internal.h -------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -47,6 +46,12 @@ using __sanitizer::u32;
 using __sanitizer::u16;
 using __sanitizer::u8;
 
+// Versions of the above which take Origin as a parameter
+SANITIZER_INTERFACE_ATTRIBUTE
+void __msan_warning_with_origin(u32 origin);
+SANITIZER_INTERFACE_ATTRIBUTE __attribute__((noreturn)) void
+__msan_warning_with_origin_noreturn(u32 origin);
+
 SANITIZER_INTERFACE_ATTRIBUTE
 void __msan_maybe_warning_1(u8 s, u32 o);
 SANITIZER_INTERFACE_ATTRIBUTE
@@ -69,6 +74,8 @@ SANITIZER_INTERFACE_ATTRIBUTE
 void __msan_unpoison(const void *a, uptr size);
 SANITIZER_INTERFACE_ATTRIBUTE
 void __msan_unpoison_string(const char *s);
+SANITIZER_INTERFACE_ATTRIBUTE
+void __msan_unpoison_param(uptr n);
 SANITIZER_INTERFACE_ATTRIBUTE
 void __msan_clear_and_unpoison(void *a, uptr size);
 SANITIZER_INTERFACE_ATTRIBUTE
@@ -122,8 +129,8 @@ void __msan_set_keep_going(int keep_going);
 SANITIZER_INTERFACE_ATTRIBUTE
 int __msan_set_poison_in_malloc(int do_poison);
 
-SANITIZER_INTERFACE_ATTRIBUTE SANITIZER_WEAK_ATTRIBUTE
-/* OPTIONAL */ const char* __msan_default_options();
+SANITIZER_INTERFACE_ATTRIBUTE
+const char *__msan_default_options();
 
 // For testing.
 SANITIZER_INTERFACE_ATTRIBUTE
@@ -180,6 +187,12 @@ void __msan_scoped_disable_interceptor_checks();
 
 SANITIZER_INTERFACE_ATTRIBUTE
 void __msan_scoped_enable_interceptor_checks();
+
+SANITIZER_INTERFACE_ATTRIBUTE
+void __msan_start_switch_fiber(const void *bottom, uptr size);
+
+SANITIZER_INTERFACE_ATTRIBUTE
+void __msan_finish_switch_fiber(const void **bottom_old, uptr *size_old);
 }  // extern "C"
 
 #endif  // MSAN_INTERFACE_INTERNAL_H

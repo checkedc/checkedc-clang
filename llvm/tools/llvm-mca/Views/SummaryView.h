@@ -1,9 +1,8 @@
 //===--------------------- SummaryView.h ---------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 /// \file
@@ -46,6 +45,19 @@ class SummaryView : public View {
   unsigned TotalCycles;
   // The total number of micro opcodes contributed by a block of instructions.
   unsigned NumMicroOps;
+
+  struct DisplayValues {
+    unsigned Instructions;
+    unsigned Iterations;
+    unsigned TotalInstructions;
+    unsigned TotalCycles;
+    unsigned DispatchWidth;
+    unsigned TotalUOps;
+    double IPC;
+    double UOpsPerCycle;
+    double BlockRThroughput;
+  };
+
   // For each processor resource, this vector stores the cumulative number of
   // resource cycles consumed by the analyzed code block.
   llvm::SmallVector<unsigned, 8> ProcResourceUsage;
@@ -56,11 +68,17 @@ class SummaryView : public View {
   // declared by the scheduling model.
   llvm::SmallVector<uint64_t, 8> ProcResourceMasks;
 
+  // Used to map resource indices to actual processor resource IDs.
+  llvm::SmallVector<unsigned, 8> ResIdx2ProcResID;
+
   // Compute the reciprocal throughput for the analyzed code block.
   // The reciprocal block throughput is computed as the MAX between:
   //   - NumMicroOps / DispatchWidth
   //   - Total Resource Cycles / #Units   (for every resource consumed).
   double getBlockRThroughput() const;
+
+  /// Compute the data we want to print out in the object DV.
+  void collectData(DisplayValues &DV) const;
 
 public:
   SummaryView(const llvm::MCSchedModel &Model, llvm::ArrayRef<llvm::MCInst> S,
@@ -68,8 +86,9 @@ public:
 
   void onCycleEnd() override { ++TotalCycles; }
   void onEvent(const HWInstructionEvent &Event) override;
-
   void printView(llvm::raw_ostream &OS) const override;
+  StringRef getNameAsString() const override { return "SummaryView"; }
+  json::Value toJSON() const override;
 };
 } // namespace mca
 } // namespace llvm

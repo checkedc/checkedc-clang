@@ -1,9 +1,8 @@
 //===- unittest/Tooling/CleanupTest.cpp - Include insertion/deletion tests ===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -14,9 +13,6 @@
 #include "clang/Tooling/Core/Replacement.h"
 
 #include "gtest/gtest.h"
-
-using clang::tooling::ReplacementTest;
-using clang::tooling::toReplacements;
 
 namespace clang {
 namespace tooling {
@@ -29,7 +25,7 @@ protected:
     assert(Header.startswith("\"") || Header.startswith("<"));
     auto R = Includes.insert(Header.trim("\"<>"), Header.startswith("<"));
     if (!R)
-      return Code;
+      return std::string(Code);
     auto Result = applyAllReplacements(Code, Replacements(*R));
     EXPECT_TRUE(static_cast<bool>(Result));
     return *Result;
@@ -44,7 +40,7 @@ protected:
     return *Result;
   }
 
-  const std::string FileName = "fix.cpp";
+  std::string FileName = "fix.cpp";
   IncludeStyle Style = format::getLLVMStyle().IncludeStyle;
 };
 
@@ -106,6 +102,15 @@ TEST_F(HeaderIncludesTest, InsertAfterMainHeader) {
   Style = format::getGoogleStyle(format::FormatStyle::LanguageKind::LK_Cpp)
               .IncludeStyle;
   EXPECT_EQ(Expected, insert(Code, "<a>"));
+
+  FileName = "fix.cu.cpp";
+  EXPECT_EQ(Expected, insert(Code, "<a>"));
+
+  FileName = "fix_test.cu.cpp";
+  EXPECT_EQ(Expected, insert(Code, "<a>"));
+
+  FileName = "bar.cpp";
+  EXPECT_NE(Expected, insert(Code, "<a>")) << "Not main header";
 }
 
 TEST_F(HeaderIncludesTest, InsertBeforeSystemHeaderLLVM) {
@@ -316,6 +321,17 @@ TEST_F(HeaderIncludesTest, RealHeaderGuardAfterComments) {
   EXPECT_EQ(Expected, insert(Code, "<vector>"));
 }
 
+TEST_F(HeaderIncludesTest, PragmaOnce) {
+  std::string Code = "// comment \n"
+                     "#pragma once\n"
+                     "int x;\n";
+  std::string Expected = "// comment \n"
+                         "#pragma once\n"
+                         "#include <vector>\n"
+                         "int x;\n";
+  EXPECT_EQ(Expected, insert(Code, "<vector>"));
+}
+
 TEST_F(HeaderIncludesTest, IfNDefWithNoDefine) {
   std::string Code = "// comment \n"
                      "#ifndef X\n"
@@ -338,6 +354,18 @@ TEST_F(HeaderIncludesTest, FakeHeaderGuard) {
                          "#ifndef X\n"
                          "#define 1\n";
   EXPECT_EQ(Expected, insert(Code, "<vector>"));
+}
+
+TEST_F(HeaderIncludesTest, FakeHeaderGuardIfnDef) {
+  std::string Code = "#ifndef A_H\n"
+                     "#define A_H 1\n"
+                     "#endif";
+  std::string Expected = "#include \"b.h\"\n"
+                         "#ifndef A_H\n"
+                         "#define A_H 1\n"
+                         "#endif";
+
+  EXPECT_EQ(Expected, insert(Code, "\"b.h\""));
 }
 
 TEST_F(HeaderIncludesTest, HeaderGuardWithComment) {

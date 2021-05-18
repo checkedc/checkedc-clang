@@ -1,4 +1,4 @@
-// RUN: %libomp-compile -lpthread && %libomp-run
+// RUN: %libomp-compile-and-run
 #include <stdio.h>
 #include "omp_testsuite.h"
 
@@ -37,6 +37,7 @@ void* thread_function(void* arg) {
       a++;
     }
   }
+  return NULL;
 }
 
 int test_omp_team_reuse()

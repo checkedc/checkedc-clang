@@ -1,16 +1,5 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-//===-- floatunssidfvfp_test.c - Test __floatunssidfvfp -------------------===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __floatunssidfvfp for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
+// REQUIRES: librt_has_floatunssidfvfp
 
 #include "int_lib.h"
 #include <stdio.h>
@@ -20,7 +9,7 @@
 
 extern COMPILER_RT_ABI double __floatunssidfvfp(unsigned int a);
 
-#if __arm__ && __VFP_FP__
+#if defined(__arm__) && defined(__ARM_FP) && (__ARM_FP & 0x8)
 int test__floatunssidfvfp(unsigned int a)
 {
     double actual = __floatunssidfvfp(a);
@@ -34,7 +23,7 @@ int test__floatunssidfvfp(unsigned int a)
 
 int main()
 {
-#if __arm__ && __VFP_FP__
+#if defined(__arm__) && defined(__ARM_FP) && (__ARM_FP & 0x8)
     if (test__floatunssidfvfp(0))
         return 1;
     if (test__floatunssidfvfp(1))

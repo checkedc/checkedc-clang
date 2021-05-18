@@ -1,17 +1,6 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
+// REQUIRES: librt_has_ffsti2
 // REQUIRES: int128
-//===-- ffsti2_test.c - Test __ffsti2 -------------------------------------===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __ffsti2 for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
 
 #include "int_lib.h"
 #include <stdio.h>
@@ -21,11 +10,11 @@
 // Returns: the index of the least significant 1-bit in a, or
 // the value zero if a is zero. The least significant bit is index one.
 
-COMPILER_RT_ABI si_int __ffsti2(ti_int a);
+COMPILER_RT_ABI int __ffsti2(ti_int a);
 
-int test__ffsti2(ti_int a, si_int expected)
+int test__ffsti2(ti_int a, int expected)
 {
-    si_int x = __ffsti2(a);
+    int x = __ffsti2(a);
     if (x != expected)
     {
         twords at;

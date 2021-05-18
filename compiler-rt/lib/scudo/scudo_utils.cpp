@@ -1,9 +1,8 @@
 //===-- scudo_utils.cpp -----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -63,6 +62,14 @@ FORMAT(1, 2) void NORETURN dieWithMessage(const char *Format, ...) {
 # ifndef bit_SSE4_2
 #  define bit_SSE4_2 bit_SSE42  // clang and gcc have different defines.
 # endif
+
+#ifndef signature_HYGON_ebx // They are not defined in gcc.
+// HYGON: "HygonGenuine".
+#define signature_HYGON_ebx 0x6f677948
+#define signature_HYGON_edx 0x6e65476e
+#define signature_HYGON_ecx 0x656e6975
+#endif
+
 bool hasHardwareCRC32() {
   u32 Eax, Ebx, Ecx, Edx;
   __get_cpuid(0, &Eax, &Ebx, &Ecx, &Edx);
@@ -72,7 +79,10 @@ bool hasHardwareCRC32() {
   const bool IsAMD = (Ebx == signature_AMD_ebx) &&
                      (Edx == signature_AMD_edx) &&
                      (Ecx == signature_AMD_ecx);
-  if (!IsIntel && !IsAMD)
+  const bool IsHygon = (Ebx == signature_HYGON_ebx) &&
+                       (Edx == signature_HYGON_edx) &&
+                       (Ecx == signature_HYGON_ecx);
+  if (!IsIntel && !IsAMD && !IsHygon)
     return false;
   __get_cpuid(1, &Eax, &Ebx, &Ecx, &Edx);
   return !!(Ecx & bit_SSE4_2);
@@ -111,7 +121,7 @@ bool hasHardwareCRC32ARMPosix() { return false; }
 // initialized after the other globals, so we can check its value to know if
 // calling getauxval is safe.
 extern "C" SANITIZER_WEAK_ATTRIBUTE char *__progname;
-INLINE bool areBionicGlobalsInitialized() {
+inline bool areBionicGlobalsInitialized() {
   return !SANITIZER_ANDROID || (&__progname && __progname);
 }
 

@@ -1,9 +1,8 @@
-//===-- CommunicationKDP.cpp ------------------------------------*- C++ -*-===//
+//===-- CommunicationKDP.cpp ----------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -29,9 +28,7 @@
 using namespace lldb;
 using namespace lldb_private;
 
-//----------------------------------------------------------------------
 // CommunicationKDP constructor
-//----------------------------------------------------------------------
 CommunicationKDP::CommunicationKDP(const char *comm_name)
     : Communication(comm_name), m_addr_byte_size(4),
       m_byte_order(eByteOrderLittle), m_packet_timeout(5), m_sequence_mutex(),
@@ -40,9 +37,7 @@ CommunicationKDP::CommunicationKDP(const char *comm_name)
       m_kdp_version_feature(0u), m_kdp_hostinfo_cpu_mask(0u),
       m_kdp_hostinfo_cpu_type(0u), m_kdp_hostinfo_cpu_subtype(0u) {}
 
-//----------------------------------------------------------------------
 // Destructor
-//----------------------------------------------------------------------
 CommunicationKDP::~CommunicationKDP() {
   if (IsConnected()) {
     Disconnect();
@@ -75,24 +70,22 @@ bool CommunicationKDP::SendRequestAndGetReply(
     if (log) {
       PacketStreamType log_strm;
       DumpPacket(log_strm, request_packet.GetData(), request_packet.GetSize());
-      log->Printf("error: kdp running, not sending packet: %.*s",
-                  (uint32_t)log_strm.GetSize(), log_strm.GetData());
+      LLDB_LOGF(log, "error: kdp running, not sending packet: %.*s",
+                (uint32_t)log_strm.GetSize(), log_strm.GetData());
     }
     return false;
   }
 
   std::lock_guard<std::recursive_mutex> guard(m_sequence_mutex);
-#ifdef LLDB_CONFIGURATION_DEBUG
   // NOTE: this only works for packets that are in native endian byte order
   assert(request_packet.GetSize() ==
          *((const uint16_t *)(request_packet.GetData() + 2)));
-#endif
   lldb::offset_t offset = 1;
   const uint32_t num_retries = 3;
   for (uint32_t i = 0; i < num_retries; ++i) {
     if (SendRequestPacketNoLock(request_packet)) {
       const uint8_t request_sequence_id = (uint8_t)request_packet.GetData()[1];
-      while (1) {
+      while (true) {
         if (WaitForPacketWithTimeoutMicroSecondsNoLock(
                 reply_packet,
                 std::chrono::microseconds(GetPacketTimeout()).count())) {
@@ -145,7 +138,7 @@ bool CommunicationKDP::SendRequestPacketNoLock(
     if (log) {
       PacketStreamType log_strm;
       DumpPacket(log_strm, packet_data, packet_size);
-      log->Printf("%.*s", (uint32_t)log_strm.GetSize(), log_strm.GetData());
+      LLDB_LOGF(log, "%.*s", (uint32_t)log_strm.GetSize(), log_strm.GetData());
     }
     ConnectionStatus status = eConnectionStatusSuccess;
 
@@ -154,10 +147,10 @@ bool CommunicationKDP::SendRequestPacketNoLock(
     if (bytes_written == packet_size)
       return true;
 
-    if (log)
-      log->Printf("error: failed to send packet entire packet %" PRIu64
-                  " of %" PRIu64 " bytes sent",
-                  (uint64_t)bytes_written, (uint64_t)packet_size);
+    LLDB_LOGF(log,
+              "error: failed to send packet entire packet %" PRIu64
+              " of %" PRIu64 " bytes sent",
+              (uint64_t)bytes_written, (uint64_t)packet_size);
   }
   return false;
 }
@@ -201,12 +194,11 @@ size_t CommunicationKDP::WaitForPacketWithTimeoutMicroSecondsNoLock(
                                  : std::chrono::microseconds(timeout_usec),
                              status, &error);
 
-    LLDB_LOGV(log, 
-      "Read (buffer, sizeof(buffer), timeout_usec = 0x{0:x}, "
-                  "status = {1}, error = {2}) => bytes_read = {4}",
-                  timeout_usec,
-                  Communication::ConnectionStatusAsCString(status),
-                  error, bytes_read);
+    LLDB_LOGV(log,
+              "Read (buffer, sizeof(buffer), timeout_usec = 0x{0:x}, "
+              "status = {1}, error = {2}) => bytes_read = {4}",
+              timeout_usec, Communication::ConnectionStatusAsString(status),
+              error, bytes_read);
 
     if (bytes_read > 0) {
       if (CheckForPacket(buffer, bytes_read, packet))
@@ -246,8 +238,9 @@ bool CommunicationKDP::CheckForPacket(const uint8_t *src, size_t src_len,
     if (log && log->GetVerbose()) {
       PacketStreamType log_strm;
       DumpHexBytes(&log_strm, src, src_len, UINT32_MAX, LLDB_INVALID_ADDRESS);
-      log->Printf("CommunicationKDP::%s adding %u bytes: %s", __FUNCTION__,
-                  (uint32_t)src_len, log_strm.GetData());
+      log_strm.PutChar('\0');
+      LLDB_LOGF(log, "CommunicationKDP::%s adding %u bytes: %s", __FUNCTION__,
+                (uint32_t)src_len, log_strm.GetData());
     }
     m_bytes.append((const char *)src, src_len);
   }
@@ -311,7 +304,7 @@ bool CommunicationKDP::CheckForPacket(const uint8_t *src, size_t src_len,
       if (length <= bytes_available) {
         // We have an entire packet ready, we need to copy the data bytes into
         // a buffer that will be owned by the packet and erase the bytes from
-        // our communcation buffer "m_bytes"
+        // our communication buffer "m_bytes"
         packet.SetData(DataBufferSP(new DataBufferHeap(&m_bytes[0], length)));
         m_bytes.erase(0, length);
 
@@ -319,7 +312,8 @@ bool CommunicationKDP::CheckForPacket(const uint8_t *src, size_t src_len,
           PacketStreamType log_strm;
           DumpPacket(log_strm, packet);
 
-          log->Printf("%.*s", (uint32_t)log_strm.GetSize(), log_strm.GetData());
+          LLDB_LOGF(log, "%.*s", (uint32_t)log_strm.GetSize(),
+                    log_strm.GetData());
         }
         return true;
       }
@@ -328,9 +322,8 @@ bool CommunicationKDP::CheckForPacket(const uint8_t *src, size_t src_len,
     default:
       // Unrecognized reply command byte, erase this byte and try to get back
       // on track
-      if (log)
-        log->Printf("CommunicationKDP::%s: tossing junk byte: 0x%2.2x",
-                    __FUNCTION__, (uint8_t)m_bytes[0]);
+      LLDB_LOGF(log, "CommunicationKDP::%s: tossing junk byte: 0x%2.2x",
+                __FUNCTION__, (uint8_t)m_bytes[0]);
       m_bytes.erase(0, 1);
       break;
     }
@@ -452,7 +445,7 @@ lldb_private::UUID CommunicationKDP::GetUUID() {
   if (uuid_str.size() < 32)
     return uuid;
 
-  if (uuid.SetFromStringRef(uuid_str) == 0) {
+  if (!uuid.SetFromStringRef(uuid_str)) {
     UUID invalid_uuid;
     return invalid_uuid;
   }
@@ -793,7 +786,7 @@ void CommunicationKDP::DumpPacket(Stream &s, const DataExtractor &packet) {
           const uint32_t region_count = packet.GetU32(&offset);
           s.Printf(" (count = %u", region_count);
           for (uint32_t i = 0; i < region_count; ++i) {
-            const addr_t region_addr = packet.GetPointer(&offset);
+            const addr_t region_addr = packet.GetAddress(&offset);
             const uint32_t region_size = packet.GetU32(&offset);
             const uint32_t region_prot = packet.GetU32(&offset);
             s.Printf("\n\tregion[%" PRIu64 "] = { range = [0x%16.16" PRIx64

@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -18,6 +17,7 @@
 #include <cassert>
 
 #include "test_macros.h"
+#include "test_iterators.h"
 
 #if TEST_STD_VER > 17
 TEST_CONSTEXPR bool test_constexpr() {
@@ -30,9 +30,13 @@ TEST_CONSTEXPR bool test_constexpr() {
 
 void test()
 {
+    typedef random_access_iterator<int *> RI;
     int i1[] = {0, 0};
     assert(std::is_heap_until(i1, i1) == i1);
     assert(std::is_heap_until(i1, i1+1) == i1+1);
+    assert(std::is_heap_until(RI(i1), RI(i1)) == RI(i1));
+    assert(std::is_heap_until(RI(i1), RI(i1+1)) == RI(i1+1));
+
     int i2[] = {0, 1};
     int i3[] = {1, 0};
     assert(std::is_heap_until(i1, i1+2) == i1+2);
@@ -526,11 +530,13 @@ void test()
     assert(std::is_heap_until(i246, i246+7) == i246+7);
 }
 
-int main()
+int main(int, char**)
 {
     test();
 
 #if TEST_STD_VER > 17
     static_assert(test_constexpr());
 #endif
+
+  return 0;
 }

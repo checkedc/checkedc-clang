@@ -1,19 +1,17 @@
 //===-- ClangFunctionCaller.h -----------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ClangFunctionCaller_h_
-#define liblldb_ClangFunctionCaller_h_
+#ifndef LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_CLANGFUNCTIONCALLER_H
+#define LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_CLANGFUNCTIONCALLER_H
 
 #include "ClangExpressionHelper.h"
 
 #include "lldb/Core/Address.h"
-#include "lldb/Core/ClangForward.h"
 #include "lldb/Core/Value.h"
 #include "lldb/Core/ValueObjectList.h"
 #include "lldb/Expression/FunctionCaller.h"
@@ -25,8 +23,7 @@ namespace lldb_private {
 class ASTStructExtractor;
 class ClangExpressionParser;
 
-//----------------------------------------------------------------------
-/// @class ClangFunctionCaller ClangFunctionCaller.h
+/// \class ClangFunctionCaller ClangFunctionCaller.h
 /// "lldb/Expression/ClangFunctionCaller.h" Encapsulates a function that can
 /// be called.
 ///
@@ -58,7 +55,6 @@ class ClangExpressionParser;
 ///
 /// Any of the methods that take arg_addr_ptr can be passed NULL, and the
 /// argument space will be managed for you.
-//----------------------------------------------------------------------
 class ClangFunctionCaller : public FunctionCaller {
   friend class ASTStructExtractor;
 
@@ -68,20 +64,16 @@ class ClangFunctionCaller : public FunctionCaller {
 
     ~ClangFunctionCallerHelper() override = default;
 
-    //------------------------------------------------------------------
     /// Return the object that the parser should use when resolving external
     /// values.  May be NULL if everything should be self-contained.
-    //------------------------------------------------------------------
-    ClangExpressionDeclMap *DeclMap() override { return NULL; }
+    ClangExpressionDeclMap *DeclMap() override { return nullptr; }
 
-    //------------------------------------------------------------------
     /// Return the object that the parser should allow to access ASTs. May be
     /// NULL if the ASTs do not need to be transformed.
     ///
-    /// @param[in] passthrough
+    /// \param[in] passthrough
     ///     The ASTConsumer that the returned transformer should send
     ///     the ASTs to after transformation.
-    //------------------------------------------------------------------
     clang::ASTConsumer *
     ASTTransformer(clang::ASTConsumer *passthrough) override;
 
@@ -93,28 +85,31 @@ class ClangFunctionCaller : public FunctionCaller {
                                                             ///layout.
   };
 
+  // LLVM RTTI support
+  static char ID;
+
 public:
-  //------------------------------------------------------------------
+  bool isA(const void *ClassID) const override {
+    return ClassID == &ID || FunctionCaller::isA(ClassID);
+  }
+  static bool classof(const Expression *obj) { return obj->isA(&ID); }
+
   /// Constructor
   ///
-  /// @param[in] exe_scope
+  /// \param[in] exe_scope
   ///     An execution context scope that gets us at least a target and
   ///     process.
   ///
-  /// @param[in] ast_context
-  ///     The AST context to evaluate argument types in.
-  ///
-  /// @param[in] return_qualtype
-  ///     An opaque Clang QualType for the function result.  Should be
+  /// \param[in] return_type
+  ///     A compiler type for the function result.  Should be
   ///     defined in ast_context.
   ///
-  /// @param[in] function_address
+  /// \param[in] function_address
   ///     The address of the function to call.
   ///
-  /// @param[in] arg_value_list
+  /// \param[in] arg_value_list
   ///     The default values to use when calling this function.  Can
   ///     be overridden using WriteFunctionArguments().
-  //------------------------------------------------------------------
   ClangFunctionCaller(ExecutionContextScope &exe_scope,
                       const CompilerType &return_type,
                       const Address &function_address,
@@ -122,20 +117,18 @@ public:
 
   ~ClangFunctionCaller() override;
 
-  //------------------------------------------------------------------
   /// Compile the wrapper function
   ///
-  /// @param[in] thread_to_use_sp
+  /// \param[in] thread_to_use_sp
   ///     Compilation might end up calling functions.  Pass in the thread you
   ///     want the compilation to use.  If you pass in an empty ThreadSP it will
   ///     use the currently selected thread.
   ///
-  /// @param[in] diagnostic_manager
+  /// \param[in] diagnostic_manager
   ///     The diagnostic manager to report parser errors to.
   ///
-  /// @return
+  /// \return
   ///     The number of errors.
-  //------------------------------------------------------------------
   unsigned CompileFunction(lldb::ThreadSP thread_to_use_sp,
                            DiagnosticManager &diagnostic_manager) override;
 
@@ -147,9 +140,7 @@ protected:
   const char *GetWrapperStructName() { return m_wrapper_struct_name.c_str(); }
 
 private:
-  //------------------------------------------------------------------
   // For ClangFunctionCaller only
-  //------------------------------------------------------------------
 
   // Note: the parser needs to be destructed before the execution unit, so
   // declare the execution unit first.
@@ -158,4 +149,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_ClangFunctionCaller_h_
+#endif // LLDB_SOURCE_PLUGINS_EXPRESSIONPARSER_CLANG_CLANGFUNCTIONCALLER_H

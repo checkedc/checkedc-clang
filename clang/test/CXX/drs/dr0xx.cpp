@@ -118,10 +118,10 @@ namespace dr9 { // dr9: yes
     int m; // expected-note {{here}}
     friend int R1();
   };
-  struct N : protected B { // expected-note 2{{protected}}
+  struct N : protected B { // expected-note {{protected}}
     friend int R2();
   } n;
-  int R1() { return n.m; } // expected-error {{protected base class}} expected-error {{protected member}}
+  int R1() { return n.m; } // expected-error {{protected member}}
   int R2() { return n.m; }
 }
 
@@ -204,10 +204,10 @@ namespace dr16 { // dr16: yes
     void f(); // expected-note {{here}}
     friend class C;
   };
-  class B : A {}; // expected-note 4{{here}}
+  class B : A {}; // expected-note 3{{here}}
   class C : B {
     void g() {
-      f(); // expected-error {{private member}} expected-error {{private base}}
+      f(); // expected-error {{private member}}
       A::f(); // expected-error {{private member}} expected-error {{private base}}
     }
   };
@@ -316,15 +316,16 @@ namespace dr25 { // dr25: yes
 namespace dr26 { // dr26: yes
   struct A { A(A, const A & = A()); }; // expected-error {{must pass its first argument by reference}}
   struct B {
-    B(); // expected-note 0-1{{candidate}}
+    B();
+    // FIXME: In C++98, we diagnose this twice.
     B(const B &, B = B());
 #if __cplusplus <= 201402L
-    // expected-error@-2 {{no matching constructor}} expected-note@-2 {{candidate}} expected-note@-2 {{here}}
+    // expected-error@-2 1+{{recursive evaluation of default argument}} expected-note@-2 1+{{used here}}
 #endif
   };
   struct C {
     static C &f();
-    C(const C &, C = f()); // expected-error {{no matching constructor}} expected-note {{candidate}} expected-note {{here}}
+    C(const C &, C = f()); // expected-error {{recursive evaluation of default argument}} expected-note {{used here}}
   };
 }
 
@@ -413,6 +414,36 @@ namespace dr33 { // dr33: yes
   void g(X::S);
   template<typename Z> Z g(Y::T);
   void h() { f(&g); } // expected-error {{ambiguous}}
+
+  template<typename T> void t(X::S);
+  template<typename T, typename U = void> void u(X::S); // expected-error 0-1{{default template argument}}
+  void templ() { f(t<int>); f(u<int>); }
+
+  // Even though v<int> cannot select the first overload, ADL considers it
+  // and adds namespace Z to the set of associated namespaces, and then picks
+  // Z::f even though that function has nothing to do with any associated type.
+  namespace Z { struct Q; void f(void(*)()); }
+  template<int> Z::Q v();
+  template<typename> void v();
+  void unrelated_templ() { f(v<int>); }
+
+  namespace dependent {
+    struct X {};
+    template<class T> struct Y {
+      friend int operator+(X, void(*)(Y)) {}
+    };
+
+    template<typename T> void f(Y<T>);
+    int use = X() + f<int>; // expected-error {{invalid operands}}
+  }
+
+  namespace member {
+    struct Q {};
+    struct Y { friend int operator+(Q, Y (*)()); };
+    struct X { template<typename> static Y f(); };
+    int m = Q() + X().f<int>; // ok
+    int n = Q() + (&(X().f<int>)); // ok
+  }
 }
 
 // dr34: na
@@ -839,18 +870,17 @@ namespace dr68 { // dr68: yes
 }
 
 namespace dr69 { // dr69: yes
-  template<typename T> static void f() {}
+  template<typename T> static void f() {} // #dr69-f
   // FIXME: Should we warn here?
   inline void g() { f<int>(); }
-  // FIXME: This should be rejected, per [temp.explicit]p11.
-  extern template void f<char>();
+  extern template void f<char>(); // expected-error {{explicit instantiation declaration of 'f' with internal linkage}}
 #if __cplusplus < 201103L
   // expected-error@-2 {{C++11 extension}}
 #endif
   template<void(*)()> struct Q {};
   Q<&f<int> > q;
 #if __cplusplus < 201103L
-  // expected-error@-2 {{internal linkage}} expected-note@-11 {{here}}
+  // expected-error@-2 {{internal linkage}} expected-note@#dr69-f {{here}}
 #endif
 }
 
@@ -885,7 +915,7 @@ namespace dr75 { // dr75: yes
 
 namespace dr76 { // dr76: yes
   const volatile int n = 1;
-  int arr[n]; // expected-error +{{variable length array}}
+  int arr[n]; // expected-error +{{variable length array}} expected-note {{read of volatile}}
 }
 
 namespace dr77 { // dr77: yes

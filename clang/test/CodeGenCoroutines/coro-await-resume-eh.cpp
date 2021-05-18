@@ -22,13 +22,13 @@ struct throwing_task {
   struct promise_type {
     auto get_return_object() { return throwing_task{}; }
     auto initial_suspend() { return throwing_awaitable{}; }
-    auto final_suspend() { return coro::suspend_never{}; }
+    auto final_suspend() noexcept { return coro::suspend_never{}; }
     void return_void() {}
     void unhandled_exception() {}
   };
 };
 
-// CHECK-LABEL: define void @_Z1fv()
+// CHECK-LABEL: define{{.*}} void @_Z1fv()
 throwing_task f() {
   // A variable RESUMETHREW is used to keep track of whether the body
   // of 'await_resume' threw an exception. Exceptions thrown in
@@ -76,7 +76,7 @@ throwing_task f() {
   // CHECK-NEXT: br label %[[COROFINAL]]
 
   // CHECK: [[COROFINAL]]:
-  // CHECK-NEXT: invoke void @_ZN13throwing_task12promise_type13final_suspendEv
+  // CHECK-NEXT: call void @_ZN13throwing_task12promise_type13final_suspendEv
   co_return;
 }
 
@@ -90,13 +90,13 @@ struct noexcept_task {
   struct promise_type {
     auto get_return_object() { return noexcept_task{}; }
     auto initial_suspend() { return noexcept_awaitable{}; }
-    auto final_suspend() { return coro::suspend_never{}; }
+    auto final_suspend() noexcept { return coro::suspend_never{}; }
     void return_void() {}
     void unhandled_exception() {}
   };
 };
 
-// CHECK-LABEL: define void @_Z1gv()
+// CHECK-LABEL: define{{.*}} void @_Z1gv()
 noexcept_task g() {
   // If the await_resume function is marked as noexcept, none of the additional
   // conditions that are present in f() above are added to the IR.

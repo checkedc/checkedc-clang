@@ -23,6 +23,18 @@ namespace std {
 } // std
 #endif
 
+namespace dr1601 { // dr1601: 10
+enum E : char { e };
+#if __cplusplus < 201103L
+    // expected-error@-2 {{enumeration types with a fixed underlying type are a C++11 extension}}
+#endif
+void f(char);
+void f(int);
+void g() {
+  f(e);
+}
+} // namespace dr1601
+
 namespace dr1611 { // dr1611: dup 1658
   struct A { A(int); };
   struct B : virtual A { virtual void f() = 0; };
@@ -99,13 +111,13 @@ namespace dr1638 { // dr1638: yes
 namespace dr1645 { // dr1645: 3.9
 #if __cplusplus >= 201103L
   struct A {
-    constexpr A(int, float = 0); // expected-note 2{{candidate}}
+    constexpr A(int, float = 0); // expected-note {{candidate}}
     explicit A(int, int = 0); // expected-note 2{{candidate}}
     A(int, int, int = 0) = delete; // expected-note {{candidate}}
   };
 
-  struct B : A { // expected-note 2{{candidate}}
-    using A::A; // expected-note 5{{inherited here}}
+  struct B : A {
+    using A::A; // expected-note 4{{inherited here}}
   };
 
   constexpr B a(0); // expected-error {{ambiguous}}
@@ -282,6 +294,54 @@ namespace dr1687 { // dr1687: 7
   enum E2 {};
   auto c = To<E1>() <=> To<E2>(); // expected-error {{invalid operands to binary expression ('To<dr1687::E1>' and 'To<dr1687::E2>')}}
 #endif
+}
+
+namespace dr1690 { // dr1690: 9
+  // See also the various tests in "CXX/basic/basic.lookup/basic.lookup.argdep".
+#if __cplusplus >= 201103L
+  namespace N {
+    static auto lambda = []() { struct S {} s; return s; };
+    void f(decltype(lambda()));
+  }
+
+  void test() {
+    auto s = N::lambda();
+    f(s); // ok
+  }
+#endif
+}
+
+namespace dr1691 { // dr1691: 9
+#if __cplusplus >= 201103L
+  namespace N {
+    namespace M {
+      enum E : int;
+      void f(E);
+    }
+    enum M::E : int {};
+    void g(M::E); // expected-note {{declared here}}
+  }
+  void test() {
+    N::M::E e;
+    f(e); // ok
+    g(e); // expected-error {{use of undeclared}}
+  }
+#endif
+}
+
+namespace dr1692 { // dr1692: 9
+  namespace N {
+    struct A {
+      struct B {
+        struct C {};
+      };
+    };
+    void f(A::B::C);
+  }
+  void test() {
+    N::A::B::C c;
+    f(c); // ok
+  }
 }
 
 namespace dr1696 { // dr1696: 7

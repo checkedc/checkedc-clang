@@ -1,4 +1,5 @@
-; RUN: opt -S -analyze -scalar-evolution < %s | FileCheck %s
+; RUN: opt -S -analyze -enable-new-pm=0 -scalar-evolution < %s | FileCheck %s
+; RUN: opt -S -disable-output "-passes=print<scalar-evolution>" < %s 2>&1 | FileCheck %s
 
 define void @s32_max1(i32 %n, i32* %p) {
 entry:
@@ -81,7 +82,9 @@ if.end:
   br i1 %cmp1, label %do.body, label %do.end ; taken either 0 or 2 times
 
 ; CHECK-LABEL: Determining loop execution counts for: @s32_max2_unpredictable_exit
-; CHECK-NEXT: Loop %do.body: <multiple exits> backedge-taken count is (-1 + (-1 * ((-1 + (-1 * ((2 + %n) smax %n)) + %n) umax (-1 + (-1 * %x) + %n))))
+; CHECK-NEXT: Loop %do.body: <multiple exits> backedge-taken count is (((-1 * %n) + ((2 + %n) smax %n)) umin ((-1 * %n) + %x))
+; CHECK-NEXT:   exit count for do.body: ((-1 * %n) + %x)
+; CHECK-NEXT:   exit count for if.end: ((-1 * %n) + ((2 + %n) smax %n))
 ; CHECK-NEXT: Loop %do.body: max backedge-taken count is 2{{$}}
 
 do.end:
@@ -169,7 +172,9 @@ if.end:
   br i1 %cmp1, label %do.body, label %do.end ; taken either 0 or 2 times
 
 ; CHECK-LABEL: Determining loop execution counts for: @u32_max2_unpredictable_exit
-; CHECK-NEXT: Loop %do.body: <multiple exits> backedge-taken count is (-1 + (-1 * ((-1 + (-1 * ((2 + %n) umax %n)) + %n) umax (-1 + (-1 * %x) + %n))))
+; CHECK-NEXT: Loop %do.body: <multiple exits> backedge-taken count is (((-1 * %n) + ((2 + %n) umax %n)) umin ((-1 * %n) + %x))
+; CHECK-NEXT:   exit count for do.body: ((-1 * %n) + %x)
+; CHECK-NEXT:   exit count for if.end: ((-1 * %n) + ((2 + %n) umax %n))
 ; CHECK-NEXT: Loop %do.body: max backedge-taken count is 2{{$}}
 
 do.end:

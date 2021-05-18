@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -14,11 +13,13 @@
 //  However, for backwards compatibility, if _LIBCPP_ENABLE_CXX17_REMOVED_BINDERS
 //  is defined before including <functional>, then they will be restored.
 
-// MODULES_DEFINES: _LIBCPP_ENABLE_CXX17_REMOVED_BINDERS
-#define _LIBCPP_ENABLE_CXX17_REMOVED_BINDERS
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_ENABLE_CXX17_REMOVED_BINDERS
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
 
 #include <functional>
 #include <cassert>
+
+#include "test_macros.h"
 
 int identity(int v) { return v; }
 int sum(int a, int b) { return a + b; }
@@ -31,7 +32,7 @@ struct Foo {
   int sum(int a, int b) const { return a + b; }
 };
 
-int main()
+int main(int, char**)
 {
     typedef std::pointer_to_unary_function<int, int> PUF;
     typedef std::pointer_to_binary_function<int, int, int> PBF;
@@ -61,4 +62,6 @@ int main()
 
     assert((std::mem_fun_ref(&Foo::zero)(f) == 0));
     assert((std::mem_fun_ref(&Foo::identity)(f, 5) == 5));
+
+  return 0;
 }

@@ -1,14 +1,13 @@
 //===-- PlatformAndroid.h ---------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_PlatformAndroid_h_
-#define liblldb_PlatformAndroid_h_
+#ifndef LLDB_SOURCE_PLUGINS_PLATFORM_ANDROID_PLATFORMANDROID_H
+#define LLDB_SOURCE_PLUGINS_PLATFORM_ANDROID_PLATFORMANDROID_H
 
 #include <memory>
 #include <string>
@@ -24,15 +23,11 @@ class PlatformAndroid : public platform_linux::PlatformLinux {
 public:
   PlatformAndroid(bool is_host);
 
-  ~PlatformAndroid() override;
-
   static void Initialize();
 
   static void Terminate();
 
-  //------------------------------------------------------------
   // lldb_private::PluginInterface functions
-  //------------------------------------------------------------
   static lldb::PlatformSP CreateInstance(bool force, const ArchSpec *arch);
 
   static ConstString GetPluginNameStatic(bool is_host);
@@ -43,9 +38,7 @@ public:
 
   uint32_t GetPluginVersion() override { return 1; }
 
-  //------------------------------------------------------------
   // lldb_private::Platform functions
-  //------------------------------------------------------------
 
   Status ConnectRemote(Args &args) override;
 
@@ -81,11 +74,9 @@ private:
   std::unique_ptr<AdbClient::SyncService> m_adb_sync_svc;
   std::string m_device_id;
   uint32_t m_sdk_version;
-
-  DISALLOW_COPY_AND_ASSIGN(PlatformAndroid);
 };
 
 } // namespace platofor_android
 } // namespace lldb_private
 
-#endif // liblldb_PlatformAndroid_h_
+#endif // LLDB_SOURCE_PLUGINS_PLATFORM_ANDROID_PLATFORMANDROID_H

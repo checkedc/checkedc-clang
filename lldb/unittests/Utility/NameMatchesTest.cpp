@@ -1,9 +1,8 @@
-//===-- NameMatchesTest.cpp -------------------------------------*- C++ -*-===//
+//===-- NameMatchesTest.cpp -----------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -50,8 +49,8 @@ TEST(NameMatchesTest, EndsWith) {
 TEST(NameMatchesTest, RegularExpression) {
   EXPECT_TRUE(NameMatches("foobar", NameMatch::RegularExpression, "foo"));
   EXPECT_TRUE(NameMatches("foobar", NameMatch::RegularExpression, "f[oa]o"));
-  EXPECT_TRUE(NameMatches("foo", NameMatch::RegularExpression, ""));
-  EXPECT_TRUE(NameMatches("", NameMatch::RegularExpression, ""));
+  EXPECT_FALSE(NameMatches("foo", NameMatch::RegularExpression, ""));
+  EXPECT_FALSE(NameMatches("", NameMatch::RegularExpression, ""));
   EXPECT_FALSE(NameMatches("foo", NameMatch::RegularExpression, "b"));
   EXPECT_FALSE(NameMatches("", NameMatch::RegularExpression, "b"));
   EXPECT_FALSE(NameMatches("^a", NameMatch::RegularExpression, "^a"));

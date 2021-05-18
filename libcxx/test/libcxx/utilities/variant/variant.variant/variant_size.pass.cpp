@@ -1,14 +1,16 @@
 // -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
+
+// GCC 5 pretends it supports C++17, but it doesn't properly support it
+// UNSUPPORTED: gcc-5
 
 // <variant>
 
@@ -18,6 +20,8 @@
 #include <type_traits>
 #include <utility>
 #include <variant>
+
+#include "test_macros.h"
 
 template <class Sequence>
 struct make_variant_imp;
@@ -60,10 +64,12 @@ void test_index_internals() {
   static_assert(std::__variant_npos<IndexT> == IndexLim::max(), "");
 }
 
-int main() {
+int main(int, char**) {
   test_index_type<unsigned char>();
   // This won't compile due to template depth issues.
   //test_index_type<unsigned short>();
   test_index_internals<unsigned char>();
   test_index_internals<unsigned short>();
+
+  return 0;
 }

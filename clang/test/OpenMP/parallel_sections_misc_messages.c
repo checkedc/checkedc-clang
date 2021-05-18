@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fsyntax-only -fopenmp -verify %s
+// RUN: %clang_cc1 -fsyntax-only -fopenmp -verify %s -Wuninitialized
 
-// RUN: %clang_cc1 -fsyntax-only -fopenmp-simd -verify %s
+// RUN: %clang_cc1 -fsyntax-only -fopenmp-simd -verify %s -Wuninitialized
 
 void foo();
 
@@ -50,7 +50,7 @@ L1:
     }
 #pragma omp section
     if (i == 5)
-      goto L1; // expected-error {{use of undeclared label 'L1'}}
+      goto L1;
     else if (i == 6)
       return; // expected-error {{cannot return from OpenMP region}}
     else if (i == 7)

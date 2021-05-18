@@ -1,17 +1,6 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
+// REQUIRES: librt_has_clzti2
 // REQUIRES: int128
-//===-- clzti2_test.c - Test __clzti2 -------------------------------------===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __clzti2 for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
 
 #include "int_lib.h"
 #include <stdio.h>
@@ -22,11 +11,11 @@
 
 // Precondition: a != 0
 
-COMPILER_RT_ABI si_int __clzti2(ti_int a);
+COMPILER_RT_ABI int __clzti2(ti_int a);
 
-int test__clzti2(ti_int a, si_int expected)
+int test__clzti2(ti_int a, int expected)
 {
-    si_int x = __clzti2(a);
+    int x = __clzti2(a);
     if (x != expected)
     {
         twords at;

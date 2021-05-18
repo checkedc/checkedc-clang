@@ -10,7 +10,7 @@ namespace M {
 
 struct NonLiteral {
   NonLiteral() {}
-  NonLiteral(int) {} // expected-note 2{{here}}
+  NonLiteral(int) {}
   operator int() const { return 0; }
 };
 struct Literal {
@@ -27,9 +27,9 @@ template<typename T> struct ImplicitVirtualFromDependentBase : T {
   constexpr int ImplicitlyVirtual() const { return 0; }
 };
 
-constexpr int a = ImplicitVirtualFromDependentBase<S>().ImplicitlyVirtual(); // expected-error {{constant expression}} expected-note {{cannot evaluate virtual function call}}
+constexpr int a = ImplicitVirtualFromDependentBase<S>().ImplicitlyVirtual(); // expected-error {{constant expression}} expected-note {{cannot evaluate call to virtual function}}
 constexpr int b = ImplicitVirtualFromDependentBase<T>().ImplicitlyVirtual(); // ok
-constexpr int c = ImplicitVirtualFromDependentBase<S>().ImplicitVirtualFromDependentBase<S>::ImplicitlyVirtual();
+constexpr int c = ImplicitVirtualFromDependentBase<S>().ImplicitVirtualFromDependentBase<S>::ImplicitlyVirtual(); // expected-error {{constant expression}} expected-note {{cannot evaluate call to virtual function}}
 
 template<typename R> struct ConstexprMember {
   constexpr R F() const { return 0; }
@@ -42,8 +42,8 @@ template<typename ...P> struct ConstexprCtor {
 };
 constexpr ConstexprCtor<> f1() { return {}; } // ok
 constexpr ConstexprCtor<int> f2() { return 0; } // ok
-constexpr ConstexprCtor<NonLiteral> f3() { return { 0 }; } // expected-error {{never produces a constant expression}} expected-note {{non-constexpr constructor 'NonLiteral}}
-constexpr ConstexprCtor<int, NonLiteral> f4() { return { 0, 0 }; } // expected-error {{never produces a constant expression}} expected-note {{non-constexpr constructor 'NonLiteral}}
+constexpr ConstexprCtor<NonLiteral> f3() { return { 0 }; } // expected-error {{never produces a constant expression}} expected-note {{non-literal type 'NonLiteral}}
+constexpr ConstexprCtor<int, NonLiteral> f4() { return { 0, 0 }; } // expected-error {{never produces a constant expression}} expected-note {{non-literal type 'NonLiteral}}
 
 struct VirtBase : virtual S {}; // expected-note {{here}}
 

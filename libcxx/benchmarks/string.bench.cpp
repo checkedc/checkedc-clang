@@ -3,8 +3,8 @@
 #include <new>
 #include <vector>
 
-#include "CartesianBenchmarks.hpp"
-#include "GenerateInput.hpp"
+#include "CartesianBenchmarks.h"
+#include "GenerateInput.h"
 #include "benchmark/benchmark.h"
 #include "test_macros.h"
 
@@ -73,18 +73,23 @@ struct AllDiffTypes : EnumValuesAsTuple<AllDiffTypes, DiffType, 4> {
                                           "ChangeMiddle", "ChangeLast"};
 };
 
+static constexpr char SmallStringLiteral[] = "012345678";
+
 TEST_ALWAYS_INLINE const char* getSmallString(DiffType D) {
   switch (D) {
     case DiffType::Control:
-      return "0123456";
+      return SmallStringLiteral;
     case DiffType::ChangeFirst:
-      return "-123456";
+      return "-12345678";
     case DiffType::ChangeMiddle:
-      return "012-456";
+      return "0123-5678";
     case DiffType::ChangeLast:
-      return "012345-";
+      return "01234567-";
   }
 }
+
+static constexpr char LargeStringLiteral[] =
+    "012345678901234567890123456789012345678901234567890123456789012";
 
 TEST_ALWAYS_INLINE const char* getLargeString(DiffType D) {
 #define LARGE_STRING_FIRST "123456789012345678901234567890"
@@ -116,6 +121,20 @@ TEST_ALWAYS_INLINE const char* getHugeString(DiffType D) {
       return "0123456789" HUGE_STRING4 "01234-6789" HUGE_STRING4 "0123456789";
     case DiffType::ChangeLast:
       return "0123456789" HUGE_STRING4 "0123456789" HUGE_STRING4 "012345678-";
+  }
+}
+
+TEST_ALWAYS_INLINE const char* getString(Length L,
+                                         DiffType D = DiffType::Control) {
+  switch (L) {
+  case Length::Empty:
+    return "";
+  case Length::Small:
+    return getSmallString(D);
+  case Length::Large:
+    return getLargeString(D);
+  case Length::Huge:
+    return getHugeString(D);
   }
 }
 
@@ -215,6 +234,164 @@ struct StringMove {
   static std::string name() { return "BM_StringMove" + Length::name(); }
 };
 
+template <class Length, class Opaque>
+struct StringResizeDefaultInit {
+  static void run(benchmark::State& state) {
+    constexpr bool opaque = Opaque{} == Opacity::Opaque;
+    constexpr int kNumStrings = 4 << 10;
+    size_t length = makeString(Length()).size();
+    std::string strings[kNumStrings];
+    while (state.KeepRunningBatch(kNumStrings)) {
+      state.PauseTiming();
+      for (int i = 0; i < kNumStrings; ++i) {
+        std::string().swap(strings[i]);
+      }
+      benchmark::DoNotOptimize(strings);
+      state.ResumeTiming();
+      for (int i = 0; i < kNumStrings; ++i) {
+        strings[i].__resize_default_init(maybeOpaque(length, opaque));
+      }
+    }
+  }
+
+  static std::string name() {
+    return "BM_StringResizeDefaultInit" + Length::name() + Opaque::name();
+  }
+};
+
+template <class Length, class Opaque>
+struct StringAssignStr {
+  static void run(benchmark::State& state) {
+    constexpr bool opaque = Opaque{} == Opacity::Opaque;
+    constexpr int kNumStrings = 4 << 10;
+    std::string src = makeString(Length());
+    std::string strings[kNumStrings];
+    while (state.KeepRunningBatch(kNumStrings)) {
+      state.PauseTiming();
+      for (int i = 0; i < kNumStrings; ++i) {
+        std::string().swap(strings[i]);
+      }
+      benchmark::DoNotOptimize(strings);
+      state.ResumeTiming();
+      for (int i = 0; i < kNumStrings; ++i) {
+        strings[i] = *maybeOpaque(&src, opaque);
+      }
+    }
+  }
+
+  static std::string name() {
+    return "BM_StringAssignStr" + Length::name() + Opaque::name();
+  }
+};
+
+template <class Length, class Opaque>
+struct StringAssignAsciiz {
+  static void run(benchmark::State& state) {
+    constexpr bool opaque = Opaque{} == Opacity::Opaque;
+    constexpr int kNumStrings = 4 << 10;
+    std::string strings[kNumStrings];
+    while (state.KeepRunningBatch(kNumStrings)) {
+      state.PauseTiming();
+      for (int i = 0; i < kNumStrings; ++i) {
+        std::string().swap(strings[i]);
+      }
+      benchmark::DoNotOptimize(strings);
+      state.ResumeTiming();
+      for (int i = 0; i < kNumStrings; ++i) {
+        strings[i] = maybeOpaque(getString(Length()), opaque);
+      }
+    }
+  }
+
+  static std::string name() {
+    return "BM_StringAssignAsciiz" + Length::name() + Opaque::name();
+  }
+};
+
+template <class Length, class Opaque>
+struct StringEraseToEnd {
+  static void run(benchmark::State& state) {
+    constexpr bool opaque = Opaque{} == Opacity::Opaque;
+    constexpr int kNumStrings = 4 << 10;
+    std::string strings[kNumStrings];
+    const int mid = makeString(Length()).size() / 2;
+    while (state.KeepRunningBatch(kNumStrings)) {
+      state.PauseTiming();
+      for (int i = 0; i < kNumStrings; ++i) {
+        strings[i] = makeString(Length());
+      }
+      benchmark::DoNotOptimize(strings);
+      state.ResumeTiming();
+      for (int i = 0; i < kNumStrings; ++i) {
+        strings[i].erase(maybeOpaque(mid, opaque),
+                         maybeOpaque(std::string::npos, opaque));
+      }
+    }
+  }
+
+  static std::string name() {
+    return "BM_StringEraseToEnd" + Length::name() + Opaque::name();
+  }
+};
+
+template <class Length, class Opaque>
+struct StringEraseWithMove {
+  static void run(benchmark::State& state) {
+    constexpr bool opaque = Opaque{} == Opacity::Opaque;
+    constexpr int kNumStrings = 4 << 10;
+    std::string strings[kNumStrings];
+    const int n = makeString(Length()).size() / 2;
+    const int pos = n / 2;
+    while (state.KeepRunningBatch(kNumStrings)) {
+      state.PauseTiming();
+      for (int i = 0; i < kNumStrings; ++i) {
+        strings[i] = makeString(Length());
+      }
+      benchmark::DoNotOptimize(strings);
+      state.ResumeTiming();
+      for (int i = 0; i < kNumStrings; ++i) {
+        strings[i].erase(maybeOpaque(pos, opaque), maybeOpaque(n, opaque));
+      }
+    }
+  }
+
+  static std::string name() {
+    return "BM_StringEraseWithMove" + Length::name() + Opaque::name();
+  }
+};
+
+template <class Opaque>
+struct StringAssignAsciizMix {
+  static void run(benchmark::State& state) {
+    constexpr auto O = Opaque{};
+    constexpr auto D = DiffType::Control;
+    constexpr int kNumStrings = 4 << 10;
+    std::string strings[kNumStrings];
+    while (state.KeepRunningBatch(kNumStrings)) {
+      state.PauseTiming();
+      for (int i = 0; i < kNumStrings; ++i) {
+        std::string().swap(strings[i]);
+      }
+      benchmark::DoNotOptimize(strings);
+      state.ResumeTiming();
+      for (int i = 0; i < kNumStrings - 7; i += 8) {
+        strings[i + 0] = maybeOpaque(getSmallString(D), O == Opacity::Opaque);
+        strings[i + 1] = maybeOpaque(getSmallString(D), O == Opacity::Opaque);
+        strings[i + 2] = maybeOpaque(getLargeString(D), O == Opacity::Opaque);
+        strings[i + 3] = maybeOpaque(getSmallString(D), O == Opacity::Opaque);
+        strings[i + 4] = maybeOpaque(getSmallString(D), O == Opacity::Opaque);
+        strings[i + 5] = maybeOpaque(getSmallString(D), O == Opacity::Opaque);
+        strings[i + 6] = maybeOpaque(getLargeString(D), O == Opacity::Opaque);
+        strings[i + 7] = maybeOpaque(getSmallString(D), O == Opacity::Opaque);
+      }
+    }
+  }
+
+  static std::string name() {
+    return "BM_StringAssignAsciizMix" + Opaque::name();
+  }
+};
+
 enum class Relation { Eq, Less, Compare };
 struct AllRelations : EnumValuesAsTuple<AllRelations, Relation, 3> {
   static constexpr const char* Names[] = {"Eq", "Less", "Compare"};
@@ -257,6 +434,47 @@ struct StringRelational {
 
   static std::string name() {
     return "BM_StringRelational" + Rel::name() + LHLength::name() +
+           RHLength::name() + DiffType::name();
+  }
+};
+
+template <class Rel, class LHLength, class RHLength, class DiffType>
+struct StringRelationalLiteral {
+  static void run(benchmark::State& state) {
+    auto Lhs = makeString(LHLength(), DiffType());
+    for (auto _ : state) {
+      benchmark::DoNotOptimize(Lhs);
+      constexpr const char* Literal = RHLength::value == Length::Empty
+                                          ? ""
+                                          : RHLength::value == Length::Small
+                                                ? SmallStringLiteral
+                                                : LargeStringLiteral;
+      switch (Rel()) {
+      case Relation::Eq:
+        benchmark::DoNotOptimize(Lhs == Literal);
+        break;
+      case Relation::Less:
+        benchmark::DoNotOptimize(Lhs < Literal);
+        break;
+      case Relation::Compare:
+        benchmark::DoNotOptimize(Lhs.compare(Literal));
+        break;
+      }
+    }
+  }
+
+  static bool skip() {
+    // Doesn't matter how they differ if they have different size.
+    if (LHLength() != RHLength() && DiffType() != ::DiffType::Control)
+      return true;
+    // We don't need huge. Doensn't give anything different than Large.
+    if (LHLength() == Length::Huge || RHLength() == Length::Huge)
+      return true;
+    return false;
+  }
+
+  static std::string name() {
+    return "BM_StringRelationalLiteral" + Rel::name() + LHLength::name() +
            RHLength::name() + DiffType::name();
   }
 };
@@ -355,6 +573,22 @@ void sanityCheckGeneratedStrings() {
   }
 }
 
+// Some small codegen thunks to easily see generated code.
+bool StringEqString(const std::string& a, const std::string& b) {
+  return a == b;
+}
+bool StringEqCStr(const std::string& a, const char* b) { return a == b; }
+bool CStrEqString(const char* a, const std::string& b) { return a == b; }
+bool StringEqCStrLiteralEmpty(const std::string& a) {
+  return a == "";
+}
+bool StringEqCStrLiteralSmall(const std::string& a) {
+  return a == SmallStringLiteral;
+}
+bool StringEqCStrLiteralLarge(const std::string& a) {
+  return a == LargeStringLiteral;
+}
+
 int main(int argc, char** argv) {
   benchmark::Initialize(&argc, argv);
   if (benchmark::ReportUnrecognizedArguments(argc, argv))
@@ -364,12 +598,31 @@ int main(int argc, char** argv) {
 
   makeCartesianProductBenchmark<StringConstructDestroyCStr, AllLengths,
                                 AllOpacity>();
+
+  makeCartesianProductBenchmark<StringAssignStr, AllLengths, AllOpacity>();
+  makeCartesianProductBenchmark<StringAssignAsciiz, AllLengths, AllOpacity>();
+  makeCartesianProductBenchmark<StringAssignAsciizMix, AllOpacity>();
+
   makeCartesianProductBenchmark<StringCopy, AllLengths>();
   makeCartesianProductBenchmark<StringMove, AllLengths>();
   makeCartesianProductBenchmark<StringDestroy, AllLengths>();
+  makeCartesianProductBenchmark<StringResizeDefaultInit, AllLengths,
+                                AllOpacity>();
+  makeCartesianProductBenchmark<StringEraseToEnd, AllLengths, AllOpacity>();
+  makeCartesianProductBenchmark<StringEraseWithMove, AllLengths, AllOpacity>();
   makeCartesianProductBenchmark<StringRelational, AllRelations, AllLengths,
                                 AllLengths, AllDiffTypes>();
+  makeCartesianProductBenchmark<StringRelationalLiteral, AllRelations,
+                                AllLengths, AllLengths, AllDiffTypes>();
   makeCartesianProductBenchmark<StringRead, AllTemperatures, AllDepths,
                                 AllLengths>();
   benchmark::RunSpecifiedBenchmarks();
+
+  if (argc < 0) {
+    // ODR-use the functions to force them being generated in the binary.
+    auto functions = std::make_tuple(
+        StringEqString, StringEqCStr, CStrEqString, StringEqCStrLiteralEmpty,
+        StringEqCStrLiteralSmall, StringEqCStrLiteralLarge);
+    printf("%p", &functions);
+  }
 }

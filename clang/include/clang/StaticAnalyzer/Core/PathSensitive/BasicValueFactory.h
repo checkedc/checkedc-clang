@@ -1,9 +1,8 @@
 //==- BasicValueFactory.h - Basic values for Path Sens analysis --*- C++ -*-==//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -80,11 +79,11 @@ public:
 };
 
 class PointerToMemberData : public llvm::FoldingSetNode {
-  const DeclaratorDecl *D;
+  const NamedDecl *D;
   llvm::ImmutableList<const CXXBaseSpecifier *> L;
 
 public:
-  PointerToMemberData(const DeclaratorDecl *D,
+  PointerToMemberData(const NamedDecl *D,
                       llvm::ImmutableList<const CXXBaseSpecifier *> L)
       : D(D), L(L) {}
 
@@ -93,11 +92,11 @@ public:
   iterator begin() const { return L.begin(); }
   iterator end() const { return L.end(); }
 
-  static void Profile(llvm::FoldingSetNodeID& ID, const DeclaratorDecl *D,
+  static void Profile(llvm::FoldingSetNodeID &ID, const NamedDecl *D,
                       llvm::ImmutableList<const CXXBaseSpecifier *> L);
 
-  void Profile(llvm::FoldingSetNodeID& ID) { Profile(ID, D, L); }
-  const DeclaratorDecl *getDeclaratorDecl() const {return D;}
+  void Profile(llvm::FoldingSetNodeID &ID) { Profile(ID, D, L); }
+  const NamedDecl *getDeclaratorDecl() const { return D; }
 
   llvm::ImmutableList<const CXXBaseSpecifier *> getCXXBaseList() const {
     return L;
@@ -158,6 +157,10 @@ public:
 
   const llvm::APSInt &Convert(QualType T, const llvm::APSInt &From) {
     APSIntType TargetType = getAPSIntType(T);
+    return Convert(TargetType, From);
+  }
+
+  const llvm::APSInt &Convert(APSIntType TargetType, const llvm::APSInt &From) {
     if (TargetType == APSIntType(From))
       return From;
 
@@ -178,11 +181,19 @@ public:
   }
 
   const llvm::APSInt &getMaxValue(QualType T) {
-    return getValue(getAPSIntType(T).getMaxValue());
+    return getMaxValue(getAPSIntType(T));
   }
 
   const llvm::APSInt &getMinValue(QualType T) {
-    return getValue(getAPSIntType(T).getMinValue());
+    return getMinValue(getAPSIntType(T));
+  }
+
+  const llvm::APSInt &getMaxValue(APSIntType T) {
+    return getValue(T.getMaxValue());
+  }
+
+  const llvm::APSInt &getMinValue(APSIntType T) {
+    return getValue(T.getMinValue());
   }
 
   const llvm::APSInt &Add1(const llvm::APSInt &V) {
@@ -225,9 +236,9 @@ public:
   const LazyCompoundValData *getLazyCompoundValData(const StoreRef &store,
                                             const TypedValueRegion *region);
 
-  const PointerToMemberData *getPointerToMemberData(
-      const DeclaratorDecl *DD,
-      llvm::ImmutableList<const CXXBaseSpecifier *> L);
+  const PointerToMemberData *
+  getPointerToMemberData(const NamedDecl *ND,
+                         llvm::ImmutableList<const CXXBaseSpecifier *> L);
 
   llvm::ImmutableList<SVal> getEmptySValList() {
     return SValListFactory.getEmptyList();

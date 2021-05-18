@@ -1,9 +1,8 @@
 //===- Compilation.h - Compilation Task Data Structure ----------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -116,6 +115,11 @@ class Compilation {
   /// Optional redirection for stdin, stdout, stderr.
   std::vector<Optional<StringRef>> Redirects;
 
+  /// Callback called after compilation job has been finished.
+  /// Arguments of the callback are the compilation job as an instance of
+  /// class Command and the exit status of the corresponding child process.
+  std::function<void(const Command &, int)> PostCallback;
+
   /// Whether we're compiling for diagnostic purposes.
   bool ForDiagnostics = false;
 
@@ -213,6 +217,14 @@ public:
     return FailureResultFiles;
   }
 
+  /// Installs a handler that is executed when a compilation job is finished.
+  /// The arguments of the callback specify the compilation job as an instance
+  /// of class Command and the exit status of the child process executed that
+  /// job.
+  void setPostCallback(const std::function<void(const Command &, int)> &CB) {
+    PostCallback = CB;
+  }
+
   /// Returns the sysroot path.
   StringRef getSysRoot() const;
 
@@ -297,6 +309,10 @@ public:
 
   /// Return whether an error during the parsing of the input args.
   bool containsError() const { return ContainsError; }
+
+  /// Force driver to fail before toolchain is created. This is necessary when
+  /// error happens in action builder.
+  void setContainsError() { ContainsError = true; }
 
   /// Redirect - Redirect output of this compilation. Can only be done once.
   ///

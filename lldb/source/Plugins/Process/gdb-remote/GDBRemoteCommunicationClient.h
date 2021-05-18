@@ -1,14 +1,13 @@
 //===-- GDBRemoteCommunicationClient.h --------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_GDBRemoteCommunicationClient_h_
-#define liblldb_GDBRemoteCommunicationClient_h_
+#ifndef LLDB_SOURCE_PLUGINS_PROCESS_GDB_REMOTE_GDBREMOTECOMMUNICATIONCLIENT_H
+#define LLDB_SOURCE_PLUGINS_PROCESS_GDB_REMOTE_GDBREMOTECOMMUNICATIONCLIENT_H
 
 #include "GDBRemoteClientBase.h"
 
@@ -18,15 +17,37 @@
 #include <string>
 #include <vector>
 
-#include "lldb/Target/Process.h"
+#include "lldb/Host/File.h"
 #include "lldb/Utility/ArchSpec.h"
-#include "lldb/Utility/StreamGDBRemote.h"
+#include "lldb/Utility/GDBRemote.h"
+#include "lldb/Utility/ProcessInfo.h"
 #include "lldb/Utility/StructuredData.h"
+#include "lldb/Utility/TraceOptions.h"
+#if defined(_WIN32)
+#include "lldb/Host/windows/PosixApi.h"
+#endif
 
 #include "llvm/ADT/Optional.h"
+#include "llvm/Support/VersionTuple.h"
 
 namespace lldb_private {
 namespace process_gdb_remote {
+
+/// The offsets used by the target when relocating the executable. Decoded from
+/// qOffsets packet response.
+struct QOffsets {
+  /// If true, the offsets field describes segments. Otherwise, it describes
+  /// sections.
+  bool segments;
+
+  /// The individual offsets. Section offsets have two or three members.
+  /// Segment offsets have either one of two.
+  std::vector<uint64_t> offsets;
+};
+inline bool operator==(const QOffsets &a, const QOffsets &b) {
+  return a.segments == b.segments && a.offsets == b.offsets;
+}
+llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const QOffsets &offsets);
 
 class GDBRemoteCommunicationClient : public GDBRemoteClientBase {
 public:
@@ -34,10 +55,8 @@ public:
 
   ~GDBRemoteCommunicationClient() override;
 
-  //------------------------------------------------------------------
   // After connecting, send the handshake to the server to make sure
   // we are communicating with it.
-  //------------------------------------------------------------------
   bool HandshakeWithServer(Status *error_ptr);
 
   // For packets which specify a range of output to be returned,
@@ -85,39 +104,35 @@ public:
 
   bool KillSpawnedProcess(lldb::pid_t pid);
 
-  //------------------------------------------------------------------
   /// Sends a GDB remote protocol 'A' packet that delivers program
   /// arguments to the remote server.
   ///
-  /// @param[in] argv
+  /// \param[in] launch_info
   ///     A NULL terminated array of const C strings to use as the
   ///     arguments.
   ///
-  /// @return
+  /// \return
   ///     Zero if the response was "OK", a positive value if the
   ///     the response was "Exx" where xx are two hex digits, or
   ///     -1 if the call is unsupported or any other unexpected
   ///     response was received.
-  //------------------------------------------------------------------
   int SendArgumentsPacket(const ProcessLaunchInfo &launch_info);
 
-  //------------------------------------------------------------------
   /// Sends a "QEnvironment:NAME=VALUE" packet that will build up the
   /// environment that will get used when launching an application
   /// in conjunction with the 'A' packet. This function can be called
   /// multiple times in a row in order to pass on the desired
   /// environment that the inferior should be launched with.
   ///
-  /// @param[in] name_equal_value
+  /// \param[in] name_equal_value
   ///     A NULL terminated C string that contains a single environment
   ///     in the format "NAME=VALUE".
   ///
-  /// @return
+  /// \return
   ///     Zero if the response was "OK", a positive value if the
   ///     the response was "Exx" where xx are two hex digits, or
   ///     -1 if the call is unsupported or any other unexpected
   ///     response was received.
-  //------------------------------------------------------------------
   int SendEnvironmentPacket(char const *name_equal_value);
   int SendEnvironment(const Environment &env);
 
@@ -126,102 +141,88 @@ public:
   int SendLaunchEventDataPacket(const char *data,
                                 bool *was_supported = nullptr);
 
-  //------------------------------------------------------------------
   /// Sends a "vAttach:PID" where PID is in hex.
   ///
-  /// @param[in] pid
+  /// \param[in] pid
   ///     A process ID for the remote gdb server to attach to.
   ///
-  /// @param[out] response
+  /// \param[out] response
   ///     The response received from the gdb server. If the return
   ///     value is zero, \a response will contain a stop reply
   ///     packet.
   ///
-  /// @return
+  /// \return
   ///     Zero if the attach was successful, or an error indicating
   ///     an error code.
-  //------------------------------------------------------------------
   int SendAttach(lldb::pid_t pid, StringExtractorGDBRemote &response);
 
-  //------------------------------------------------------------------
   /// Sends a GDB remote protocol 'I' packet that delivers stdin
   /// data to the remote process.
   ///
-  /// @param[in] data
+  /// \param[in] data
   ///     A pointer to stdin data.
   ///
-  /// @param[in] data_len
+  /// \param[in] data_len
   ///     The number of bytes available at \a data.
   ///
-  /// @return
+  /// \return
   ///     Zero if the attach was successful, or an error indicating
   ///     an error code.
-  //------------------------------------------------------------------
   int SendStdinNotification(const char *data, size_t data_len);
 
-  //------------------------------------------------------------------
   /// Sets the path to use for stdin/out/err for a process
   /// that will be launched with the 'A' packet.
   ///
-  /// @param[in] path
+  /// \param[in] file_spec
   ///     The path to use for stdin/out/err
   ///
-  /// @return
+  /// \return
   ///     Zero if the for success, or an error code for failure.
-  //------------------------------------------------------------------
   int SetSTDIN(const FileSpec &file_spec);
   int SetSTDOUT(const FileSpec &file_spec);
   int SetSTDERR(const FileSpec &file_spec);
 
-  //------------------------------------------------------------------
   /// Sets the disable ASLR flag to \a enable for a process that will
   /// be launched with the 'A' packet.
   ///
-  /// @param[in] enable
+  /// \param[in] enable
   ///     A boolean value indicating whether to disable ASLR or not.
   ///
-  /// @return
+  /// \return
   ///     Zero if the for success, or an error code for failure.
-  //------------------------------------------------------------------
   int SetDisableASLR(bool enable);
 
-  //------------------------------------------------------------------
   /// Sets the DetachOnError flag to \a enable for the process controlled by the
   /// stub.
   ///
-  /// @param[in] enable
+  /// \param[in] enable
   ///     A boolean value indicating whether to detach on error or not.
   ///
-  /// @return
+  /// \return
   ///     Zero if the for success, or an error code for failure.
-  //------------------------------------------------------------------
   int SetDetachOnError(bool enable);
 
-  //------------------------------------------------------------------
   /// Sets the working directory to \a path for a process that will
   /// be launched with the 'A' packet for non platform based
   /// connections. If this packet is sent to a GDB server that
   /// implements the platform, it will change the current working
   /// directory for the platform process.
   ///
-  /// @param[in] working_dir
+  /// \param[in] working_dir
   ///     The path to a directory to use when launching our process
   ///
-  /// @return
+  /// \return
   ///     Zero if the for success, or an error code for failure.
-  //------------------------------------------------------------------
   int SetWorkingDir(const FileSpec &working_dir);
 
-  //------------------------------------------------------------------
   /// Gets the current working directory of a remote platform GDB
   /// server.
   ///
-  /// @param[out] working_dir
+  /// \param[out] working_dir
   ///     The current working directory on the remote platform.
   ///
-  /// @return
+  /// \return
   ///     Boolean for success
-  //------------------------------------------------------------------
   bool GetWorkingDir(FileSpec &working_dir);
 
   lldb::addr_t AllocateMemory(size_t size, uint32_t permissions);
@@ -265,6 +266,8 @@ public:
   bool GetDefaultThreadId(lldb::tid_t &tid);
 
   llvm::VersionTuple GetOSVersion();
+
+  llvm::VersionTuple GetMacCatalystVersion();
 
   bool GetOSBuildString(std::string &s);
 
@@ -366,12 +369,15 @@ public:
   size_t GetCurrentThreadIDs(std::vector<lldb::tid_t> &thread_ids,
                              bool &sequence_mutex_unavailable);
 
-  lldb::user_id_t OpenFile(const FileSpec &file_spec, uint32_t flags,
+  lldb::user_id_t OpenFile(const FileSpec &file_spec, File::OpenOptions flags,
                            mode_t mode, Status &error);
 
   bool CloseFile(lldb::user_id_t fd, Status &error);
 
   lldb::user_id_t GetFileSize(const FileSpec &file_spec);
+
+  void AutoCompleteDiskFileOrDirectory(CompletionRequest &request,
+                                       bool only_dir);
 
   Status GetFilePermissions(const FileSpec &file_spec,
                             uint32_t &file_permissions);
@@ -394,7 +400,7 @@ public:
   bool GetFileExists(const FileSpec &file_spec);
 
   Status RunShellCommand(
-      const char *command,         // Shouldn't be nullptr
+      llvm::StringRef command,
       const FileSpec &working_dir, // Pass empty FileSpec to use the current
                                    // working directory
       int *status_ptr, // Pass nullptr if you don't want the process exit status
@@ -440,6 +446,11 @@ public:
 
   bool GetSharedCacheInfoSupported();
 
+  /// Use qOffsets to query the offset used when relocating the target
+  /// executable. If successful, the returned structure will contain at least
+  /// one value in the offsets field.
+  llvm::Optional<QOffsets> GetQOffsets();
+
   bool GetModuleInfo(const FileSpec &module_file_spec,
                      const ArchSpec &arch_spec, ModuleSpec &module_spec);
 
@@ -456,21 +467,18 @@ public:
   // Sends QPassSignals packet to the server with given signals to ignore.
   Status SendSignalsToIgnore(llvm::ArrayRef<int32_t> signals);
 
-  //------------------------------------------------------------------
   /// Return the feature set supported by the gdb-remote server.
   ///
   /// This method returns the remote side's response to the qSupported
   /// packet.  The response is the complete string payload returned
   /// to the client.
   ///
-  /// @return
+  /// \return
   ///     The string returned by the server to the qSupported query.
-  //------------------------------------------------------------------
   const std::string &GetServerSupportedFeatures() const {
     return m_qSupported_response;
   }
 
-  //------------------------------------------------------------------
   /// Return the array of async JSON packet types supported by the remote.
   ///
   /// This method returns the remote side's array of supported JSON
@@ -486,18 +494,15 @@ public:
   /// A plugin indicates whether it knows how to handle a type_name.
   /// If so, it can be used to process the async JSON packet.
   ///
-  /// @return
+  /// \return
   ///     The string returned by the server to the qSupported query.
-  //------------------------------------------------------------------
   lldb_private::StructuredData::Array *GetSupportedStructuredDataPlugins();
 
-  //------------------------------------------------------------------
   /// Configure a StructuredData feature on the remote end.
   ///
-  /// @see \b Process::ConfigureStructuredData(...) for details.
-  //------------------------------------------------------------------
+  /// \see \b Process::ConfigureStructuredData(...) for details.
   Status
-  ConfigureRemoteStructuredData(const ConstString &type_name,
+  ConfigureRemoteStructuredData(ConstString type_name,
                                 const StructuredData::ObjectSP &config_sp);
 
   lldb::user_id_t SendStartTracePacket(const TraceOptions &options,
@@ -514,6 +519,8 @@ public:
                                size_t offset = 0);
 
   Status SendGetTraceConfigPacket(lldb::user_id_t uid, TraceOptions &options);
+
+  llvm::Expected<TraceTypeInfo> SendGetSupportedTraceType();
 
 protected:
   LazyBool m_supports_not_sending_acks;
@@ -572,6 +579,7 @@ protected:
   ArchSpec m_host_arch;
   ArchSpec m_process_arch;
   llvm::VersionTuple m_os_version;
+  llvm::VersionTuple m_maccatalyst_version;
   std::string m_os_build;
   std::string m_os_kernel;
   std::string m_hostname;
@@ -616,11 +624,15 @@ protected:
   Status GetQXferMemoryMapRegionInfo(lldb::addr_t addr,
                                      MemoryRegionInfo &region);
 
+  LazyBool GetThreadPacketSupported(lldb::tid_t tid, llvm::StringRef packetStr);
+
 private:
-  DISALLOW_COPY_AND_ASSIGN(GDBRemoteCommunicationClient);
+  GDBRemoteCommunicationClient(const GDBRemoteCommunicationClient &) = delete;
+  const GDBRemoteCommunicationClient &
+  operator=(const GDBRemoteCommunicationClient &) = delete;
 };
 
 } // namespace process_gdb_remote
 } // namespace lldb_private
 
-#endif // liblldb_GDBRemoteCommunicationClient_h_
+#endif // LLDB_SOURCE_PLUGINS_PROCESS_GDB_REMOTE_GDBREMOTECOMMUNICATIONCLIENT_H

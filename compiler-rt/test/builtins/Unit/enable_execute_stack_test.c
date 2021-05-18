@@ -1,14 +1,6 @@
 // REQUIRES: native-run
-// RUN: %clang_builtins %s %librt -o %t && %run %t
-//===-- enable_execute_stack_test.c - Test __enable_execute_stack ----------===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-
+// RUN: %clang_builtins %s %librt -o %t && %run_nomprotect %t
+// REQUIRES: librt_has_enable_execute_stack
 
 #include <stdio.h>
 #include <string.h>

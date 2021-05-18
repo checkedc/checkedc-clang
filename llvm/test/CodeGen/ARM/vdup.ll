@@ -429,9 +429,8 @@ define <4 x i32> @tduplane(<4 x i32> %invec) {
 define <2 x float> @check_f32(<4 x float> %v) nounwind {
 ; CHECK-LABEL: check_f32:
 ; CHECK:       @ %bb.0:
-; CHECK-NEXT:    vmov d17, r2, r3
-; CHECK-NEXT:    vmov d16, r0, r1
-; CHECK-NEXT:    vdup.32 d16, d17[1]
+; CHECK-NEXT:    vmov d16, r2, r3
+; CHECK-NEXT:    vdup.32 d16, d16[1]
 ; CHECK-NEXT:    vmov r0, r1, d16
 ; CHECK-NEXT:    mov pc, lr
   %x = extractelement <4 x float> %v, i32 3
@@ -443,9 +442,8 @@ define <2 x float> @check_f32(<4 x float> %v) nounwind {
 define <2 x i32> @check_i32(<4 x i32> %v) nounwind {
 ; CHECK-LABEL: check_i32:
 ; CHECK:       @ %bb.0:
-; CHECK-NEXT:    vmov d17, r2, r3
-; CHECK-NEXT:    vmov d16, r0, r1
-; CHECK-NEXT:    vdup.32 d16, d17[1]
+; CHECK-NEXT:    vmov d16, r2, r3
+; CHECK-NEXT:    vdup.32 d16, d16[1]
 ; CHECK-NEXT:    vmov r0, r1, d16
 ; CHECK-NEXT:    mov pc, lr
   %x = extractelement <4 x i32> %v, i32 3
@@ -457,7 +455,6 @@ define <2 x i32> @check_i32(<4 x i32> %v) nounwind {
 define <4 x i16> @check_i16(<8 x i16> %v) nounwind {
 ; CHECK-LABEL: check_i16:
 ; CHECK:       @ %bb.0:
-; CHECK-NEXT:    vmov d17, r2, r3
 ; CHECK-NEXT:    vmov d16, r0, r1
 ; CHECK-NEXT:    vdup.16 d16, d16[3]
 ; CHECK-NEXT:    vmov r0, r1, d16
@@ -471,7 +468,6 @@ define <4 x i16> @check_i16(<8 x i16> %v) nounwind {
 define <8 x i8> @check_i8(<16 x i8> %v) nounwind {
 ; CHECK-LABEL: check_i8:
 ; CHECK:       @ %bb.0:
-; CHECK-NEXT:    vmov d17, r2, r3
 ; CHECK-NEXT:    vmov d16, r0, r1
 ; CHECK-NEXT:    vdup.8 d16, d16[3]
 ; CHECK-NEXT:    vmov r0, r1, d16

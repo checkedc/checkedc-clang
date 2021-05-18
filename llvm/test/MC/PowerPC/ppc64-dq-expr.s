@@ -1,5 +1,6 @@
 # RUN: llvm-mc -triple powerpc64le-unknown-linux-gnu %s -filetype=obj -o - | \
 # RUN:    llvm-objdump -D  -r - | FileCheck %s
+
         .text
         .abiversion 2
         .global test
@@ -21,7 +22,7 @@ test:
         .comm  vecB, 16, 16
 
 # CHECK: Disassembly of section .text:
-# CHECK-LABEL: test:
+# CHECK-LABEL: <test>:
 # CHECK-NEXT:    addis 2, 12, 0
 # CHECK-NEXT:    R_PPC64_REL16_HA     .TOC.
 # CHECK-NEXT:    addi 2, 2, 0

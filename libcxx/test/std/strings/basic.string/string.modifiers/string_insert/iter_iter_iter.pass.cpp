@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -12,13 +11,10 @@
 // template<class InputIterator>
 //   iterator insert(const_iterator p, InputIterator first, InputIterator last);
 
-#if _LIBCPP_DEBUG >= 1
-#define _LIBCPP_ASSERT(x, m) ((x) ? (void)0 : std::exit(0))
-#endif
-
 #include <string>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_iterators.h"
 #include "min_allocator.h"
 
@@ -50,7 +46,7 @@ test_exceptions(S s, typename S::difference_type pos, It first, It last)
 }
 #endif
 
-int main()
+int main(int, char**)
 {
     {
     typedef std::string S;
@@ -159,16 +155,6 @@ int main()
     test_exceptions(S(), 0, TIter(s, s+10, 6, TIter::TAComparison), TIter());
     }
 #endif
-#if _LIBCPP_DEBUG >= 1
-    {
-        std::string v;
-        std::string v2;
-        char a[] = "123";
-        const int N = sizeof(a)/sizeof(a[0]);
-        std::string::iterator i = v.insert(v2.cbegin() + 10, a, a+N);
-        assert(false);
-    }
-#endif
 
     { // test inserting into self
     typedef std::string S;
@@ -219,4 +205,6 @@ int main()
     s.insert(s.begin(), MoveIt(It(std::begin(p))), MoveIt(It(std::end(p) - 1)));
     assert(s == "ABCD");
   }
+
+  return 0;
 }

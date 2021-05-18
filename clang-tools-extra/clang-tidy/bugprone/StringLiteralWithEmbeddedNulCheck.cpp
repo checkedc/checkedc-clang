@@ -1,9 +1,8 @@
 //===--- StringLiteralWithEmbeddedNulCheck.cpp - clang-tidy----------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -28,7 +27,7 @@ AST_MATCHER(StringLiteral, containsNul) {
 
 void StringLiteralWithEmbeddedNulCheck::registerMatchers(MatchFinder *Finder) {
   // Match a string that contains embedded NUL character. Extra-checks are
-  // applied in |check| to find incorectly escaped characters.
+  // applied in |check| to find incorrectly escaped characters.
   Finder->addMatcher(stringLiteral(containsNul()).bind("strlit"), this);
 
   // The remaining checks only apply to C++.
@@ -50,8 +49,8 @@ void StringLiteralWithEmbeddedNulCheck::registerMatchers(MatchFinder *Finder) {
 
   // Detect passing a suspicious string literal to a string constructor.
   // example: std::string str = "abc\0def";
-  Finder->addMatcher(
-      cxxConstructExpr(StringConstructorExpr, hasArgument(0, StrLitWithNul)),
+  Finder->addMatcher(traverse(TK_AsIs,
+      cxxConstructExpr(StringConstructorExpr, hasArgument(0, StrLitWithNul))),
       this);
 
   // Detect passing a suspicious string literal through an overloaded operator.

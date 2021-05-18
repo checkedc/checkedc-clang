@@ -3,10 +3,9 @@
  */
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.txt for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 #ifndef KMP_CONFIG_H
@@ -45,6 +44,8 @@
 #define OMPT_DEBUG LIBOMP_OMPT_DEBUG
 #cmakedefine01 LIBOMP_OMPT_SUPPORT
 #define OMPT_SUPPORT LIBOMP_OMPT_SUPPORT
+#cmakedefine01 LIBOMPTARGET_PROFILING_SUPPORT
+#define OMPTARGET_PROFILING_SUPPORT LIBOMPTARGET_PROFILING_SUPPORT
 #cmakedefine01 LIBOMP_OMPT_OPTIONAL
 #define OMPT_OPTIONAL LIBOMP_OMPT_OPTIONAL
 #cmakedefine01 LIBOMP_USE_ADAPTIVE_LOCKS
@@ -65,21 +66,32 @@
 #define KMP_LIBRARY_FILE "@LIBOMP_LIB_FILE@"
 #define KMP_VERSION_MAJOR @LIBOMP_VERSION_MAJOR@
 #define KMP_VERSION_MINOR @LIBOMP_VERSION_MINOR@
-#define LIBOMP_OMP_VERSION @LIBOMP_OMP_VERSION@
-#define OMP_50_ENABLED (LIBOMP_OMP_VERSION >= 50)
-#define OMP_45_ENABLED (LIBOMP_OMP_VERSION >= 45)
-#define OMP_40_ENABLED (LIBOMP_OMP_VERSION >= 40)
-#define OMP_30_ENABLED (LIBOMP_OMP_VERSION >= 30)
 #cmakedefine01 LIBOMP_TSAN_SUPPORT
 #if LIBOMP_TSAN_SUPPORT
 #define TSAN_SUPPORT
 #endif
 #cmakedefine01 MSVC
 #define KMP_MSVC_COMPAT MSVC
+#cmakedefine01 LIBOMP_HAVE_WAITPKG_INTRINSICS
+#define KMP_HAVE_WAITPKG_INTRINSICS LIBOMP_HAVE_WAITPKG_INTRINSICS
+#cmakedefine01 LIBOMP_HAVE_RTM_INTRINSICS
+#define KMP_HAVE_RTM_INTRINSICS LIBOMP_HAVE_RTM_INTRINSICS
+#cmakedefine01 LIBOMP_HAVE_IMMINTRIN_H
+#define KMP_HAVE_IMMINTRIN_H LIBOMP_HAVE_IMMINTRIN_H
+#cmakedefine01 LIBOMP_HAVE_INTRIN_H
+#define KMP_HAVE_INTRIN_H LIBOMP_HAVE_INTRIN_H
+#cmakedefine01 LIBOMP_HAVE_ATTRIBUTE_WAITPKG
+#define KMP_HAVE_ATTRIBUTE_WAITPKG LIBOMP_HAVE_ATTRIBUTE_WAITPKG
+#cmakedefine01 LIBOMP_HAVE_ATTRIBUTE_RTM
+#define KMP_HAVE_ATTRIBUTE_RTM LIBOMP_HAVE_ATTRIBUTE_RTM
+#cmakedefine01 LIBOMP_ARCH_AARCH64_A64FX
+#define KMP_ARCH_AARCH64_A64FX LIBOMP_ARCH_AARCH64_A64FX
 
 // Configured cache line based on architecture
 #if KMP_ARCH_PPC64
 # define CACHE_LINE 128
+#elif KMP_ARCH_AARCH64_A64FX
+# define CACHE_LINE 256
 #else
 # define CACHE_LINE 64
 #endif

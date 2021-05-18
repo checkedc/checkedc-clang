@@ -1,4 +1,4 @@
-# RUN: llc -run-pass opt-phis -march=x86-64 -o - %s | FileCheck %s
+# RUN: llc -run-pass opt-phis -mtriple=x86_64-- -o - %s | FileCheck %s
 # All PHIs should be removed since they can be securely replaced
 # by %8 register.
 # CHECK-NOT: PHI
@@ -9,7 +9,7 @@
 ...
 ---
 name:            test
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 jumpTable:
   kind:            block-address
@@ -30,7 +30,7 @@ body:             |
     %15:gr32 = SUB32rr %7, %14, implicit-def dead $eflags
     %10:gr64_nosp = SUBREG_TO_REG 0, %15, %subreg.sub_32bit
     %16:gr32 = SUB32ri8 %15, 3, implicit-def $eflags
-    JA_1 %bb.8, implicit $eflags
+    JCC_1 %bb.8, 7, implicit $eflags
 
   bb.9:
     JMP64m $noreg, 8, %10, %jump-table.0, $noreg :: (load 8 from jump-table)

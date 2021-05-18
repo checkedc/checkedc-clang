@@ -1,22 +1,19 @@
 // -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
-// XFAIL: availability=macosx10.13
-// XFAIL: availability=macosx10.12
-// XFAIL: availability=macosx10.11
-// XFAIL: availability=macosx10.10
-// XFAIL: availability=macosx10.9
-// XFAIL: availability=macosx10.8
-// XFAIL: availability=macosx10.7
+// Throwing bad_variant_access is supported starting in macosx10.13
+// XFAIL: with_system_cxx_lib=macosx10.12 && !no-exceptions
+// XFAIL: with_system_cxx_lib=macosx10.11 && !no-exceptions
+// XFAIL: with_system_cxx_lib=macosx10.10 && !no-exceptions
+// XFAIL: with_system_cxx_lib=macosx10.9 && !no-exceptions
 
 // <variant>
 
@@ -30,10 +27,10 @@
 #include <type_traits>
 #include <variant>
 
-#include "archetypes.hpp"
-#include "test_convertible.hpp"
+#include "archetypes.h"
+#include "test_convertible.h"
 #include "test_macros.h"
-#include "variant_test_helpers.hpp"
+#include "variant_test_helpers.h"
 
 template <class Var, size_t I, class... Args>
 constexpr auto test_emplace_exists_imp(int) -> decltype(
@@ -118,7 +115,7 @@ void test_basic() {
     assert(std::get<2>(v) == &x);
     assert(&ref2 == &std::get<2>(v));
     // emplace with multiple args
-    auto& ref3 = v.emplace<4>(3, 'a');
+    auto& ref3 = v.emplace<4>(3u, 'a');
     static_assert(std::is_same_v<std::string&, decltype(ref3)>, "");
     assert(std::get<4>(v) == "aaa");
     assert(&ref3 == &std::get<4>(v));
@@ -152,7 +149,7 @@ void test_basic() {
     assert(&std::get<3>(v) == &z);
     assert(&ref4 == &std::get<3>(v));
     // emplace with multiple args
-    auto& ref5 = v.emplace<5>(3, 'a');
+    auto& ref5 = v.emplace<5>(3u, 'a');
     static_assert(std::is_same_v<std::string&, decltype(ref5)>, "");
     assert(std::get<5>(v) == "aaa");
     assert(&ref5 == &std::get<5>(v));
@@ -160,7 +157,9 @@ void test_basic() {
 #endif
 }
 
-int main() {
+int main(int, char**) {
   test_basic();
   test_emplace_sfinae();
+
+  return 0;
 }

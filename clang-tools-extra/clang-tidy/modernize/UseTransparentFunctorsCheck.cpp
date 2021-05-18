@@ -1,9 +1,8 @@
 //===--- UseTransparentFunctorsCheck.cpp - clang-tidy----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -19,17 +18,14 @@ namespace modernize {
 
 UseTransparentFunctorsCheck::UseTransparentFunctorsCheck(
     StringRef Name, ClangTidyContext *Context)
-    : ClangTidyCheck(Name, Context), SafeMode(Options.get("SafeMode", 0)) {}
+    : ClangTidyCheck(Name, Context), SafeMode(Options.get("SafeMode", false)) {}
 
 void UseTransparentFunctorsCheck::storeOptions(
     ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "SafeMode", SafeMode ? 1 : 0);
+  Options.store(Opts, "SafeMode", SafeMode);
 }
 
 void UseTransparentFunctorsCheck::registerMatchers(MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus14)
-    return;
-
   const auto TransparentFunctors =
       classTemplateSpecializationDecl(
           unless(hasAnyTemplateArgument(refersToType(voidType()))),

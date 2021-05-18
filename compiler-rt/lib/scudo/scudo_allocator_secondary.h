@@ -1,9 +1,8 @@
 //===-- scudo_allocator_secondary.h -----------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -50,20 +49,20 @@
 //   +--------------------+
 
 namespace LargeChunk {
-  struct Header {
-    ReservedAddressRange StoredRange;
-    uptr CommittedSize;
-    uptr Size;
-  };
-  constexpr uptr getHeaderSize() {
-    return RoundUpTo(sizeof(Header), MinAlignment);
-  }
-  static Header *getHeader(uptr Ptr) {
-    return reinterpret_cast<Header *>(Ptr - getHeaderSize());
-  }
-  static Header *getHeader(const void *Ptr) {
-    return getHeader(reinterpret_cast<uptr>(Ptr));
-  }
+struct Header {
+  ReservedAddressRange StoredRange;
+  uptr CommittedSize;
+  uptr Size;
+};
+constexpr uptr getHeaderSize() {
+  return RoundUpTo(sizeof(Header), MinAlignment);
+}
+static Header *getHeader(uptr Ptr) {
+  return reinterpret_cast<Header *>(Ptr - getHeaderSize());
+}
+static Header *getHeader(const void *Ptr) {
+  return getHeader(reinterpret_cast<uptr>(Ptr));
+}
 }  // namespace LargeChunk
 
 class LargeMmapAllocator {

@@ -19,14 +19,9 @@ set( LLVM_LINK_COMPONENTS
 
 option(CLANG_PLUGIN_SUPPORT "Build clang with plugin support" ON)
 
-# Support plugins. This must be before add_clang_executable as it reads
-# LLVM_NO_DEAD_STRIP.
+# Support plugins.
 if(CLANG_PLUGIN_SUPPORT)
-  set(LLVM_NO_DEAD_STRIP 1)
-endif()
-
-if(NOT CLANG_BUILT_STANDALONE)
-  set(tablegen_deps intrinsics_gen)
+  set(support_plugins SUPPORT_PLUGINS)
 endif()
 
 add_clang_tool(clang
@@ -36,10 +31,11 @@ add_clang_tool(clang
   cc1gen_reproducer_main.cpp
 
   DEPENDS
-  ${tablegen_deps}
+  intrinsics_gen
+  ${support_plugins}
   )
 
-target_link_libraries(clang
+clang_target_link_libraries(clang
   PRIVATE
   clangBasic
   clangCodeGen
@@ -57,10 +53,10 @@ endif()
 
 # Support plugins.
 if(CLANG_PLUGIN_SUPPORT)
-  export_executable_symbols(clang)
+  export_executable_symbols_for_plugins(clang)
 endif()
 
-add_dependencies(clang clang-headers)
+add_dependencies(clang clang-resource-headers)
 
 if(NOT CLANG_LINKS_TO_CREATE)
   set(CLANG_LINKS_TO_CREATE clang++ clang-cl clang-cpp)
@@ -122,7 +118,3 @@ if(CLANG_ORDER_FILE AND
     set_target_properties(clang PROPERTIES LINK_DEPENDS ${CLANG_ORDER_FILE})
   endif()
 endif()
-
-if(WITH_POLLY AND LINK_POLLY_INTO_TOOLS)
-  target_link_libraries(clang PRIVATE Polly)
-endif(WITH_POLLY AND LINK_POLLY_INTO_TOOLS)

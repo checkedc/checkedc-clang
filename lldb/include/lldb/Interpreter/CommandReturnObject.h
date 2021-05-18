@@ -1,16 +1,14 @@
 //===-- CommandReturnObject.h -----------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_CommandReturnObject_h_
-#define liblldb_CommandReturnObject_h_
+#ifndef LLDB_INTERPRETER_COMMANDRETURNOBJECT_H
+#define LLDB_INTERPRETER_COMMANDRETURNOBJECT_H
 
-#include "lldb/Core/STLUtils.h"
 #include "lldb/Core/StreamFile.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/StreamTee.h"
@@ -18,6 +16,7 @@
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/FormatVariadic.h"
+#include "llvm/Support/WithColor.h"
 
 #include <memory>
 
@@ -25,21 +24,21 @@ namespace lldb_private {
 
 class CommandReturnObject {
 public:
-  CommandReturnObject();
+  CommandReturnObject(bool colors);
 
   ~CommandReturnObject();
 
   llvm::StringRef GetOutputData() {
     lldb::StreamSP stream_sp(m_out_stream.GetStreamAtIndex(eStreamStringIndex));
     if (stream_sp)
-      return static_pointer_cast<StreamString>(stream_sp)->GetString();
+      return std::static_pointer_cast<StreamString>(stream_sp)->GetString();
     return llvm::StringRef();
   }
 
   llvm::StringRef GetErrorData() {
     lldb::StreamSP stream_sp(m_err_stream.GetStreamAtIndex(eStreamStringIndex));
     if (stream_sp)
-      return static_pointer_cast<StreamString>(stream_sp)->GetString();
+      return std::static_pointer_cast<StreamString>(stream_sp)->GetString();
     return llvm::StringRef();
   }
 
@@ -47,7 +46,7 @@ public:
     // Make sure we at least have our normal string stream output stream
     lldb::StreamSP stream_sp(m_out_stream.GetStreamAtIndex(eStreamStringIndex));
     if (!stream_sp) {
-      stream_sp.reset(new StreamString());
+      stream_sp = std::make_shared<StreamString>();
       m_out_stream.SetStreamAtIndex(eStreamStringIndex, stream_sp);
     }
     return m_out_stream;
@@ -57,19 +56,19 @@ public:
     // Make sure we at least have our normal string stream output stream
     lldb::StreamSP stream_sp(m_err_stream.GetStreamAtIndex(eStreamStringIndex));
     if (!stream_sp) {
-      stream_sp.reset(new StreamString());
+      stream_sp = std::make_shared<StreamString>();
       m_err_stream.SetStreamAtIndex(eStreamStringIndex, stream_sp);
     }
     return m_err_stream;
   }
 
-  void SetImmediateOutputFile(FILE *fh, bool transfer_fh_ownership = false) {
-    lldb::StreamSP stream_sp(new StreamFile(fh, transfer_fh_ownership));
+  void SetImmediateOutputFile(lldb::FileSP file_sp) {
+    lldb::StreamSP stream_sp(new StreamFile(file_sp));
     m_out_stream.SetStreamAtIndex(eImmediateStreamIndex, stream_sp);
   }
 
-  void SetImmediateErrorFile(FILE *fh, bool transfer_fh_ownership = false) {
-    lldb::StreamSP stream_sp(new StreamFile(fh, transfer_fh_ownership));
+  void SetImmediateErrorFile(lldb::FileSP file_sp) {
+    lldb::StreamSP stream_sp(new StreamFile(file_sp));
     m_err_stream.SetStreamAtIndex(eImmediateStreamIndex, stream_sp);
   }
 
@@ -145,14 +144,6 @@ public:
 
   void SetInteractive(bool b);
 
-  bool GetAbnormalStopWasExpected() const {
-    return m_abnormal_stop_was_expected;
-  }
-
-  void SetAbnormalStopWasExpected(bool signal_was_expected) {
-    m_abnormal_stop_was_expected = signal_was_expected;
-  }
-
 private:
   enum { eStreamStringIndex = 0, eImmediateStreamIndex = 1 };
 
@@ -163,16 +154,8 @@ private:
   bool m_did_change_process_state;
   bool m_interactive; // If true, then the input handle from the debugger will
                       // be hooked up
-  bool m_abnormal_stop_was_expected; // This is to support
-                                     // eHandleCommandFlagStopOnCrash vrs.
-                                     // attach.
-  // The attach command often ends up with the process stopped due to a signal.
-  // Normally that would mean stop on crash should halt batch execution, but we
-  // obviously don't want that for attach.  Using this flag, the attach command
-  // (and anything else for which this is relevant) can say that the signal is
-  // expected, and batch command execution can continue.
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_CommandReturnObject_h_
+#endif // LLDB_INTERPRETER_COMMANDRETURNOBJECT_H

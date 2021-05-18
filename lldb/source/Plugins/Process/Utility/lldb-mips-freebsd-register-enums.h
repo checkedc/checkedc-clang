@@ -1,21 +1,18 @@
 //===-- lldb-mips-freebsd-register-enums.h ----------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef lldb_mips_freebsd_register_enums_h
-#define lldb_mips_freebsd_register_enums_h
+#ifndef LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_LLDB_MIPS_FREEBSD_REGISTER_ENUMS_H
+#define LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_LLDB_MIPS_FREEBSD_REGISTER_ENUMS_H
 
 namespace lldb_private {
 // LLDB register codes (e.g. RegisterKind == eRegisterKindLLDB)
 
-//---------------------------------------------------------------------------
 // Internal codes for all mips registers.
-//---------------------------------------------------------------------------
 enum {
   k_first_gpr_mips64,
   gpr_zero_mips64 = k_first_gpr_mips64,
@@ -65,4 +62,4 @@ enum {
   k_num_gpr_registers_mips64 = k_last_gpr_mips64 - k_first_gpr_mips64 + 1
 };
 }
-#endif // #ifndef lldb_mips_freebsd_register_enums_h
+#endif // LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_LLDB_MIPS_FREEBSD_REGISTER_ENUMS_H

@@ -1,9 +1,8 @@
 //===- StmtIterator.h - Iterators for Statements ----------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -105,12 +104,13 @@ public:
     return tmp;
   }
 
-  bool operator==(const DERIVED& RHS) const {
-    return stmt == RHS.stmt && DGI == RHS.DGI && RawVAPtr == RHS.RawVAPtr;
+  friend bool operator==(const DERIVED &LHS, const DERIVED &RHS) {
+    return LHS.stmt == RHS.stmt && LHS.DGI == RHS.DGI &&
+           LHS.RawVAPtr == RHS.RawVAPtr;
   }
 
-  bool operator!=(const DERIVED& RHS) const {
-    return stmt != RHS.stmt || DGI != RHS.DGI || RawVAPtr != RHS.RawVAPtr;
+  friend bool operator!=(const DERIVED &LHS, const DERIVED &RHS) {
+    return !(LHS == RHS);
   }
 
   REFERENCE operator*() const {

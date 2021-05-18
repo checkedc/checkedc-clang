@@ -16,7 +16,7 @@ functions, variables, arguments, namespaces etc.
 
 The tool is in a very early development stage, so you might encounter bugs and
 crashes. Submitting reports with information about how to reproduce the issue
-to `the LLVM bugtracker <https://llvm.org/bugs>`_ will definitely help the
+to `the LLVM bugtracker <https://bugs.llvm.org>`_ will definitely help the
 project. If you have any ideas or suggestions, you might want to put a feature
 request there.
 
@@ -24,10 +24,10 @@ Using Clang-Rename
 ==================
 
 :program:`clang-rename` is a `LibTooling
-<http://clang.llvm.org/docs/LibTooling.html>`_-based tool, and it's easier to
+<https://clang.llvm.org/docs/LibTooling.html>`_-based tool, and it's easier to
 work with if you set up a compile command database for your project (for an
 example of how to do this see `How To Setup Tooling For LLVM
-<http://clang.llvm.org/docs/HowToSetupToolingForLLVM.html>`_). You can also
+<https://clang.llvm.org/docs/HowToSetupToolingForLLVM.html>`_). You can also
 specify compilation options on the command line after `--`:
 
 .. code-block:: console
@@ -123,7 +123,9 @@ That way you can avoid spelling out all the names as command line arguments:
 
     -export-fixes=<filename>   - YAML file to store suggested fixes in.
     -extra-arg=<string>        - Additional argument to append to the compiler command line
+                                 Can be used several times.
     -extra-arg-before=<string> - Additional argument to prepend to the compiler command line
+                                 Can be used several times.
     -force                     - Ignore nonexistent qualified names.
     -i                         - Overwrite edited <file>s.
     -input=<string>            - YAML file to load oldname-newname pairs from.
@@ -139,8 +141,8 @@ Vim Integration
 
 You can call :program:`clang-rename` directly from Vim! To set up
 :program:`clang-rename` integration for Vim see
-`clang-rename/tool/clang-rename.py
-<http://reviews.llvm.org/diffusion/L/browse/clang-tools-extra/trunk/clang-rename/tool/clang-rename.py>`_.
+`clang/tools/clang-rename/clang-rename.py
+<https://github.com/llvm/llvm-project/blob/master/clang/tools/clang-rename/clang-rename.py>`_.
 
 Please note that **you have to save all buffers, in which the replacement will
 happen before running the tool**.
@@ -157,7 +159,7 @@ Emacs Integration
 You can also use :program:`clang-rename` while using Emacs! To set up
 :program:`clang-rename` integration for Emacs see
 `clang-rename/tool/clang-rename.el
-<http://reviews.llvm.org/diffusion/L/browse/clang-tools-extra/trunk/clang-rename/tool/clang-rename.el>`_.
+<https://github.com/llvm/llvm-project/blob/master/clang/tools/clang-rename/clang-rename.el>`_.
 
 Once installed, you can point your cursor to symbols you want to rename, press
 `M-X`, type `clang-rename` and new desired name.

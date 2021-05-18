@@ -145,3 +145,24 @@ namespace test6c {
             A::foo(); });
   }
 }
+
+namespace test7 {
+struct S {};
+void f() {
+  constexpr S s;
+  auto some_block = ^{ (void)s; };
+}
+}
+
+void static_data_member() {
+  auto block = ^{
+    class X {
+      static int x; // expected-error {{static data member 'x' not allowed in local class 'X'}}
+    };
+    class Y {
+      struct Z {
+        static int z; // expected-error {{static data member 'z' not allowed in local struct 'Z'}}
+      };
+    };
+  };
+}

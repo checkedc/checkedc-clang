@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -32,6 +31,7 @@
 #include <type_traits>
 #include <cassert>
 
+#include "test_macros.h"
 #include "atomic_helpers.h"
 
 template <class T>
@@ -67,6 +67,11 @@ testp()
         std::atomic_init(&t, T(1*sizeof(X)));
         assert(std::atomic_fetch_add_explicit(&t, 2,
                                   std::memory_order_seq_cst) == T(1*sizeof(X)));
+#ifdef _LIBCPP_VERSION // libc++ is not conforming
+        std::atomic_fetch_add_explicit<X>(&t, 0, std::memory_order_relaxed);
+#else
+        std::atomic_fetch_add_explicit<T>(&t, 0, std::memory_order_relaxed);
+#endif // _LIBCPP_VERSION
         assert(t == T(3*sizeof(X)));
     }
     {
@@ -76,13 +81,20 @@ testp()
         std::atomic_init(&t, T(1*sizeof(X)));
         assert(std::atomic_fetch_add_explicit(&t, 2,
                                   std::memory_order_seq_cst) == T(1*sizeof(X)));
+#ifdef _LIBCPP_VERSION // libc++ is not conforming
+        std::atomic_fetch_add_explicit<X>(&t, 0, std::memory_order_relaxed);
+#else
+        std::atomic_fetch_add_explicit<T>(&t, 0, std::memory_order_relaxed);
+#endif // _LIBCPP_VERSION
         assert(t == T(3*sizeof(X)));
     }
 }
 
-int main()
+int main(int, char**)
 {
     TestEachIntegralType<TestFn>()();
     testp<int*>();
     testp<const int*>();
+
+  return 0;
 }

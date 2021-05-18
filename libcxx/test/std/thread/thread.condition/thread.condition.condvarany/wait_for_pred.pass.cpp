@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -23,6 +22,9 @@
 #include <thread>
 #include <chrono>
 #include <cassert>
+
+#include "make_test_thread.h"
+#include "test_macros.h"
 
 class Pred
 {
@@ -71,12 +73,12 @@ void f()
     ++runs;
 }
 
-int main()
+int main(int, char**)
 {
     {
         expect_result = true;
         L1 lk(m0);
-        std::thread t(f);
+        std::thread t = support::make_test_thread(f);
         assert(test1 == 0);
         while (test1 == 0)
             cv.wait(lk);
@@ -91,7 +93,7 @@ int main()
     {
         expect_result = false;
         L1 lk(m0);
-        std::thread t(f);
+        std::thread t = support::make_test_thread(f);
         assert(test1 == 0);
         while (test1 == 0)
             cv.wait(lk);
@@ -99,4 +101,6 @@ int main()
         lk.unlock();
         t.join();
     }
+
+  return 0;
 }

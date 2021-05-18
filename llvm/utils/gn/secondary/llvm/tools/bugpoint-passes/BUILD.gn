@@ -7,13 +7,11 @@ loadable_module("bugpoint-passes") {
     # needs its headers.
     "//llvm/include/llvm/IR:public_tablegen",
   ]
-  sources = [
-    "TestPasses.cpp",
-  ]
+  sources = [ "TestPasses.cpp" ]
 
-  if (host_os == "linux") {
+  if (host_os != "mac" && host_os != "win") {
     # The GN build currently doesn't globally pass -fPIC, but that's
-    # needed for building .so files on Linux.  Just pass it manually
+    # needed for building .so files on ELF.  Just pass it manually
     # for loadable_modules for now.
     cflags = [ "-fPIC" ]
   }

@@ -1,16 +1,16 @@
 //===--- LoopConvertCheck.h - clang-tidy-------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_LOOP_CONVERT_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_LOOP_CONVERT_H
 
-#include "../ClangTidy.h"
+#include "../ClangTidyCheck.h"
+#include "../utils/IncludeInserter.h"
 #include "LoopConvertUtils.h"
 
 namespace clang {
@@ -20,8 +20,13 @@ namespace modernize {
 class LoopConvertCheck : public ClangTidyCheck {
 public:
   LoopConvertCheck(StringRef Name, ClangTidyContext *Context);
+  bool isLanguageVersionSupported(const LangOptions &LangOpts) const override {
+    return LangOpts.CPlusPlus;
+  }
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
+  void registerPPCallbacks(const SourceManager &SM, Preprocessor *PP,
+                           Preprocessor *ModuleExpanderPP) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 
 private:
@@ -32,6 +37,7 @@ private:
     bool DerefByValue;
     std::string ContainerString;
     QualType ElemType;
+    bool NeedsReverseCall;
   };
 
   void getAliasRange(SourceManager &SM, SourceRange &DeclRange);
@@ -65,10 +71,18 @@ private:
   bool isConvertible(ASTContext *Context, const ast_matchers::BoundNodes &Nodes,
                      const ForStmt *Loop, LoopFixerKind FixerKind);
 
+  StringRef getReverseFunction() const;
+  StringRef getReverseHeader() const;
+
   std::unique_ptr<TUTrackingInfo> TUInfo;
   const unsigned long long MaxCopySize;
   const Confidence::Level MinConfidence;
   const VariableNamer::NamingStyle NamingStyle;
+  utils::IncludeInserter Inserter;
+  bool UseReverseRanges;
+  const bool UseCxx20IfAvailable;
+  std::string ReverseFunction;
+  std::string ReverseHeader;
 };
 
 } // namespace modernize

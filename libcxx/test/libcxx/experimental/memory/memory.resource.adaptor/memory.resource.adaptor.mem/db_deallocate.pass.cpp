@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <experimental/memory_resource>
 
@@ -23,11 +22,13 @@ int AssertCount = 0;
 #include <type_traits>
 #include <cassert>
 
-#include "test_memory_resource.hpp"
+#include "test_memory_resource.h"
+
+#include "test_macros.h"
 
 namespace ex = std::experimental::pmr;
 
-int main()
+int main(int, char**)
 {
     using Alloc = NullAllocator<char>;
 
@@ -35,11 +36,18 @@ int main()
     ex::resource_adaptor<Alloc> r(Alloc{P});
     ex::memory_resource & m1 = r;
 
+#ifdef __STDCPP_DEFAULT_NEW_ALIGNMENT__
+    std::size_t maxSize = std::numeric_limits<std::size_t>::max()
+                            - __STDCPP_DEFAULT_NEW_ALIGNMENT__;
+#else
     std::size_t maxSize = std::numeric_limits<std::size_t>::max()
                             - alignof(std::max_align_t);
+#endif
 
     m1.deallocate(nullptr, maxSize);
     assert(AssertCount == 0);
     m1.deallocate(nullptr, maxSize + 1);
     assert(AssertCount >= 1);
+
+  return 0;
 }

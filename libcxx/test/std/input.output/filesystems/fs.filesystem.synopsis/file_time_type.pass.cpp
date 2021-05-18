@@ -1,19 +1,18 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
 // typedef TrivialClock file_time_type;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <chrono>
 #include <type_traits>
 
@@ -33,14 +32,8 @@ void test_trivial_clock() {
   ((void)odr_use);
 }
 
-void test_time_point_resolution_and_range() {
-  using namespace fs;
-  using Dur = file_time_type::duration;
-  using Period = Dur::period;
-  ASSERT_SAME_TYPE(Period, std::nano);
-}
-
-int main() {
+int main(int, char**) {
   test_trivial_clock();
-  test_time_point_resolution_and_range();
+
+  return 0;
 }

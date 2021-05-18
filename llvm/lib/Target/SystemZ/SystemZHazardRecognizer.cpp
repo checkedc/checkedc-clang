@@ -1,9 +1,8 @@
 //=-- SystemZHazardRecognizer.h - SystemZ Hazard Recognizer -----*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -75,8 +74,8 @@ unsigned SystemZHazardRecognizer::getCurrCycleIdx(SUnit *SU) const {
 }
 
 ScheduleHazardRecognizer::HazardType SystemZHazardRecognizer::
-getHazardType(SUnit *m, int Stalls) {
-  return (fitsIntoCurrentGroup(m) ? NoHazard : Hazard);
+getHazardType(SUnit *SU, int Stalls) {
+  return (fitsIntoCurrentGroup(SU) ? NoHazard : Hazard);
 }
 
 void SystemZHazardRecognizer::Reset() {
@@ -180,7 +179,7 @@ void SystemZHazardRecognizer::dumpSU(SUnit *SU, raw_ostream &OS) const {
       *SchedModel->getProcResource(PI->ProcResourceIdx);
     std::string FU(PRD.Name);
     // trim e.g. Z13_FXaUnit -> FXa
-    FU = FU.substr(FU.find("_") + 1);
+    FU = FU.substr(FU.find('_') + 1);
     size_t Pos = FU.find("Unit");
     if (Pos != std::string::npos)
       FU.resize(Pos);

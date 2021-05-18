@@ -1,9 +1,8 @@
 //===--- UniqueptrResetReleaseCheck.cpp - clang-tidy ----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -18,11 +17,6 @@ namespace tidy {
 namespace misc {
 
 void UniqueptrResetReleaseCheck::registerMatchers(MatchFinder *Finder) {
-  // Only register the matchers for C++11; the functionality currently does not
-  // provide any benefit to other languages, despite being benign.
-  if (!getLangOpts().CPlusPlus11)
-    return;
-
   Finder->addMatcher(
       cxxMemberCallExpr(
           on(expr().bind("left")), callee(memberExpr().bind("reset_member")),
@@ -105,12 +99,12 @@ void UniqueptrResetReleaseCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *ResetCall =
       Result.Nodes.getNodeAs<CXXMemberCallExpr>("reset_call");
 
-  std::string LeftText = clang::Lexer::getSourceText(
+  std::string LeftText = std::string(clang::Lexer::getSourceText(
       CharSourceRange::getTokenRange(Left->getSourceRange()),
-      *Result.SourceManager, getLangOpts());
-  std::string RightText = clang::Lexer::getSourceText(
+      *Result.SourceManager, getLangOpts()));
+  std::string RightText = std::string(clang::Lexer::getSourceText(
       CharSourceRange::getTokenRange(Right->getSourceRange()),
-      *Result.SourceManager, getLangOpts());
+      *Result.SourceManager, getLangOpts()));
 
   if (ResetMember->isArrow())
     LeftText = "*" + LeftText;

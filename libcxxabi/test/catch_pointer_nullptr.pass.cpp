@@ -1,13 +1,13 @@
 //===--------------------- catch_pointer_nullptr.cpp ----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, libcxxabi-no-exceptions
+// UNSUPPORTED: c++03
+// UNSUPPORTED: no-exceptions
 
 #include <cassert>
 #include <cstdlib>
@@ -61,7 +61,7 @@ void catch_nullptr_test() {
 }
 
 
-int main()
+int main(int, char**)
 {
   // catch naked nullptrs
   test1();
@@ -72,4 +72,6 @@ int main()
   catch_nullptr_test<int A::*>();
   catch_nullptr_test<const int A::*>();
   catch_nullptr_test<int A::**>();
+
+  return 0;
 }

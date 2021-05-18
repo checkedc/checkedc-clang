@@ -1,78 +1,61 @@
 //===-- VSCode.cpp ----------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#include <stdarg.h>
 #include <fstream>
 #include <mutex>
+#include <stdarg.h>
 
-#include "VSCode.h"
 #include "LLDBUtils.h"
+#include "VSCode.h"
+#include "llvm/Support/FormatVariadic.h"
 
 #if defined(_WIN32)
-#include <io.h>
+#define NOMINMAX
 #include <fcntl.h>
+#include <io.h>
+#include <windows.h>
 #endif
 
 using namespace lldb_vscode;
-
-namespace {
-  inline bool IsEmptyLine(llvm::StringRef S) {
-    return S.ltrim().empty();
-  }
-} // namespace
 
 namespace lldb_vscode {
 
 VSCode g_vsc;
 
 VSCode::VSCode()
-    : in(stdin), out(stdout), launch_info(nullptr), variables(),
-      broadcaster("lldb-vscode"), num_regs(0), num_locals(0), num_globals(0),
-      log(), exception_breakpoints(
-                 {{"cpp_catch", "C++ Catch", lldb::eLanguageTypeC_plus_plus},
-                  {"cpp_throw", "C++ Throw", lldb::eLanguageTypeC_plus_plus},
-                  {"objc_catch", "Objective C Catch", lldb::eLanguageTypeObjC},
-                  {"objc_throw", "Objective C Throw", lldb::eLanguageTypeObjC},
-                  {"swift_catch", "Swift Catch", lldb::eLanguageTypeSwift},
-                  {"swift_throw", "Swift Throw", lldb::eLanguageTypeSwift}}),
+    : variables(), broadcaster("lldb-vscode"), num_regs(0), num_locals(0),
+      num_globals(0), log(),
+      exception_breakpoints(
+          {{"cpp_catch", "C++ Catch", lldb::eLanguageTypeC_plus_plus},
+           {"cpp_throw", "C++ Throw", lldb::eLanguageTypeC_plus_plus},
+           {"objc_catch", "Objective C Catch", lldb::eLanguageTypeObjC},
+           {"objc_throw", "Objective C Throw", lldb::eLanguageTypeObjC},
+           {"swift_catch", "Swift Catch", lldb::eLanguageTypeSwift},
+           {"swift_throw", "Swift Throw", lldb::eLanguageTypeSwift}}),
       focus_tid(LLDB_INVALID_THREAD_ID), sent_terminated_event(false),
-      stop_at_entry(false) {
+      stop_at_entry(false), is_attach(false),
+      reverse_request_seq(0), waiting_for_run_in_terminal(false) {
   const char *log_file_path = getenv("LLDBVSCODE_LOG");
 #if defined(_WIN32)
-// Windows opens stdout and stdin in text mode which converts \n to 13,10
-// while the value is just 10 on Darwin/Linux. Setting the file mode to binary
-// fixes this.
-  assert(_setmode(fileno(stdout), _O_BINARY));
-  assert(_setmode(fileno(stdin), _O_BINARY));
+  // Windows opens stdout and stdin in text mode which converts \n to 13,10
+  // while the value is just 10 on Darwin/Linux. Setting the file mode to binary
+  // fixes this.
+  int result = _setmode(fileno(stdout), _O_BINARY);
+  assert(result);
+  result = _setmode(fileno(stdin), _O_BINARY);
+  (void)result;
+  assert(result);
 #endif
   if (log_file_path)
     log.reset(new std::ofstream(log_file_path));
 }
 
-VSCode::~VSCode() {
-  CloseInputStream();
-  CloseOutputStream();
-}
-
-void VSCode::CloseInputStream() {
-  if (in != stdin) {
-    fclose(in);
-    in = nullptr;
-  }
-}
-
-void VSCode::CloseOutputStream() {
-  if (out != stdout) {
-    fclose(out);
-    out = nullptr;
-  }
-}
+VSCode::~VSCode() {}
 
 int64_t VSCode::GetLineForPC(int64_t sourceReference, lldb::addr_t pc) const {
   auto pos = source_map.find(sourceReference);
@@ -98,15 +81,15 @@ VSCode::GetExceptionBreakpoint(const lldb::break_id_t bp_id) {
   return nullptr;
 }
 
-//----------------------------------------------------------------------
 // Send the JSON in "json_str" to the "out" stream. Correctly send the
 // "Content-Length:" field followed by the length, followed by the raw
 // JSON bytes.
-//----------------------------------------------------------------------
 void VSCode::SendJSON(const std::string &json_str) {
-  fprintf(out, "Content-Length: %u\r\n\r\n%s", (uint32_t)json_str.size(),
-          json_str.c_str());
-  fflush(out);
+  output.write_full("Content-Length: ");
+  output.write_full(llvm::utostr(json_str.size()));
+  output.write_full("\r\n\r\n");
+  output.write_full(json_str);
+
   if (log) {
     *log << "<-- " << std::endl
          << "Content-Length: " << json_str.size() << "\r\n\r\n"
@@ -114,10 +97,8 @@ void VSCode::SendJSON(const std::string &json_str) {
   }
 }
 
-//----------------------------------------------------------------------
 // Serialize the JSON value into a string and send the JSON packet to
 // the "out" stream.
-//----------------------------------------------------------------------
 void VSCode::SendJSON(const llvm::json::Value &json) {
   std::string s;
   llvm::raw_string_ostream strm(s);
@@ -127,52 +108,36 @@ void VSCode::SendJSON(const llvm::json::Value &json) {
   SendJSON(strm.str());
 }
 
-//----------------------------------------------------------------------
 // Read a JSON packet from the "in" stream.
-//----------------------------------------------------------------------
 std::string VSCode::ReadJSON() {
-  static std::string header("Content-Length: ");
-
-  uint32_t packet_len = 0;
+  std::string length_str;
   std::string json_str;
-  char line[1024];
+  int length;
 
-  while (fgets(line, sizeof(line), in)) {
-    if (strncmp(line, header.data(), header.size()) == 0) {
-      packet_len = atoi(line + header.size());
-      if (fgets(line, sizeof(line), in)) {
-        if (!IsEmptyLine(line))
-          if (log)
-            *log << "warning: expected empty line but got: \"" << line << "\""
-                 << std::endl;
-        break;
-      }
-    } else {
-      if (log)
-        *log << "warning: expected \"" << header << "\" but got: \"" << line
-             << "\"" << std::endl;
-    }
+  if (!input.read_expected(log.get(), "Content-Length: "))
+    return json_str;
+
+  if (!input.read_line(log.get(), length_str))
+    return json_str;
+
+  if (!llvm::to_integer(length_str, length))
+    return json_str;
+
+  if (!input.read_expected(log.get(), "\r\n"))
+    return json_str;
+
+  if (!input.read_full(log.get(), length, json_str))
+    return json_str;
+
+  if (log) {
+    *log << "--> " << std::endl
+         << "Content-Length: " << length << "\r\n\r\n"
+         << json_str << std::endl;
   }
-  // This is followed by two windows newline sequences ("\r\n\r\n") so eat
-  // two the newline sequences
-  if (packet_len > 0) {
-    json_str.resize(packet_len);
-    auto bytes_read = fread(&json_str[0], 1, packet_len, in);
-    if (bytes_read < packet_len) {
-      if (log)
-        *log << "error: read fewer bytes (" << bytes_read
-             << ") than requested (" << packet_len << ")" << std::endl;
-      json_str.erase(bytes_read);
-    }
-    if (log) {
-      *log << "--> " << std::endl;
-      *log << header << packet_len << "\r\n\r\n" << json_str << std::endl;
-    }
-  }
+
   return json_str;
 }
 
-//----------------------------------------------------------------------
 // "OutputEvent": {
 //   "allOf": [ { "$ref": "#/definitions/Event" }, {
 //     "type": "object",
@@ -233,7 +198,6 @@ std::string VSCode::ReadJSON() {
 //     "required": [ "event", "body" ]
 //   }]
 // }
-//----------------------------------------------------------------------
 void VSCode::SendOutput(OutputType o, const llvm::StringRef output) {
   if (output.empty())
     return;
@@ -268,8 +232,8 @@ VSCode::SendFormattedOutput(OutputType o, const char *format, ...) {
   va_start(args, format);
   int actual_length = vsnprintf(buffer, sizeof(buffer), format, args);
   va_end(args);
-  SendOutput(o, llvm::StringRef(buffer,
-                                std::min<int>(actual_length, sizeof(buffer))));
+  SendOutput(
+      o, llvm::StringRef(buffer, std::min<int>(actual_length, sizeof(buffer))));
 }
 
 int64_t VSCode::GetNextSourceReference() {
@@ -345,5 +309,120 @@ void VSCode::RunExitCommands() {
   RunLLDBCommands("Running exitCommands:", exit_commands);
 }
 
-} // namespace lldb_vscode
+void VSCode::RunTerminateCommands() {
+  RunLLDBCommands("Running terminateCommands:", terminate_commands);
+}
 
+lldb::SBTarget
+VSCode::CreateTargetFromArguments(const llvm::json::Object &arguments,
+                                  lldb::SBError &error) {
+  // Grab the name of the program we need to debug and create a target using
+  // the given program as an argument. Executable file can be a source of target
+  // architecture and platform, if they differ from the host. Setting exe path
+  // in launch info is useless because Target.Launch() will not change
+  // architecture and platform, therefore they should be known at the target
+  // creation. We also use target triple and platform from the launch
+  // configuration, if given, since in some cases ELF file doesn't contain
+  // enough information to determine correct arch and platform (or ELF can be
+  // omitted at all), so it is good to leave the user an apportunity to specify
+  // those. Any of those three can be left empty.
+  llvm::StringRef target_triple = GetString(arguments, "targetTriple");
+  llvm::StringRef platform_name = GetString(arguments, "platformName");
+  llvm::StringRef program = GetString(arguments, "program");
+  auto target = this->debugger.CreateTarget(
+      program.data(), target_triple.data(), platform_name.data(),
+      true, // Add dependent modules.
+      error);
+
+  if (error.Fail()) {
+    // Update message if there was an error.
+    error.SetErrorStringWithFormat(
+        "Could not create a target for a program '%s': %s.", program.data(),
+        error.GetCString());
+  }
+
+  return target;
+}
+
+void VSCode::SetTarget(const lldb::SBTarget target) {
+  this->target = target;
+
+  if (target.IsValid()) {
+    // Configure breakpoint event listeners for the target.
+    lldb::SBListener listener = this->debugger.GetListener();
+    listener.StartListeningForEvents(
+        this->target.GetBroadcaster(),
+        lldb::SBTarget::eBroadcastBitBreakpointChanged);
+    listener.StartListeningForEvents(this->broadcaster,
+                                     eBroadcastBitStopEventThread);
+  }
+}
+
+PacketStatus VSCode::GetNextObject(llvm::json::Object &object) {
+  std::string json = ReadJSON();
+  if (json.empty())
+    return PacketStatus::EndOfFile;
+
+  llvm::StringRef json_sref(json);
+  llvm::Expected<llvm::json::Value> json_value = llvm::json::parse(json_sref);
+  if (!json_value) {
+    auto error = json_value.takeError();
+    if (log) {
+      std::string error_str;
+      llvm::raw_string_ostream strm(error_str);
+      strm << error;
+      strm.flush();
+      *log << "error: failed to parse JSON: " << error_str << std::endl
+           << json << std::endl;
+    }
+    return PacketStatus::JSONMalformed;
+  }
+  object = *json_value->getAsObject();
+  if (!json_value->getAsObject()) {
+    if (log)
+      *log << "error: json packet isn't a object" << std::endl;
+    return PacketStatus::JSONNotObject;
+  }
+  return PacketStatus::Success;
+}
+
+bool VSCode::HandleObject(const llvm::json::Object &object) {
+  const auto packet_type = GetString(object, "type");
+  if (packet_type == "request") {
+    const auto command = GetString(object, "command");
+    auto handler_pos = request_handlers.find(std::string(command));
+    if (handler_pos != request_handlers.end()) {
+      handler_pos->second(object);
+      return true; // Success
+    } else {
+      if (log)
+        *log << "error: unhandled command \"" << command.data() << std::endl;
+      return false; // Fail
+    }
+  }
+  return false;
+}
+
+PacketStatus VSCode::SendReverseRequest(llvm::json::Object request,
+                                        llvm::json::Object &response) {
+  request.try_emplace("seq", ++reverse_request_seq);
+  SendJSON(llvm::json::Value(std::move(request)));
+  while (true) {
+    PacketStatus status = GetNextObject(response);
+    const auto packet_type = GetString(response, "type");
+    if (packet_type == "response")
+      return status;
+    else {
+      // Not our response, we got another packet
+      HandleObject(response);
+    }
+  }
+  return PacketStatus::EndOfFile;
+}
+
+void VSCode::RegisterRequestCallback(std::string request,
+                                     RequestCallback callback) {
+  request_handlers[request] = callback;
+}
+
+} // namespace lldb_vscode

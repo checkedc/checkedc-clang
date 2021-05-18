@@ -247,7 +247,7 @@ define <2 x i8> @urem_constant_op0_not_undef_lane(i8 %x) {
 
 define <2 x i8> @urem_constant_op1(i8 %x) {
 ; CHECK-LABEL: @urem_constant_op1(
-; CHECK-NEXT:    ret <2 x i8> undef
+; CHECK-NEXT:    ret <2 x i8> poison
 ;
   %ins = insertelement <2 x i8> undef, i8 %x, i32 1
   %bo = urem <2 x i8> %ins, <i8 undef, i8 2>
@@ -289,7 +289,7 @@ define <2 x i8> @srem_constant_op0_not_undef_lane(i8 %x) {
 
 define <2 x i8> @srem_constant_op1(i8 %x) {
 ; CHECK-LABEL: @srem_constant_op1(
-; CHECK-NEXT:    ret <2 x i8> undef
+; CHECK-NEXT:    ret <2 x i8> poison
 ;
   %ins = insertelement <2 x i8> undef, i8 %x, i32 1
   %bo = srem <2 x i8> %ins, <i8 undef, i8 2>
@@ -331,7 +331,7 @@ define <2 x i8> @udiv_constant_op0_not_undef_lane(i8 %x) {
 
 define <2 x i8> @udiv_constant_op1(i8 %x) {
 ; CHECK-LABEL: @udiv_constant_op1(
-; CHECK-NEXT:    ret <2 x i8> undef
+; CHECK-NEXT:    ret <2 x i8> poison
 ;
   %ins = insertelement <2 x i8> undef, i8 %x, i32 1
   %bo = udiv <2 x i8> %ins, <i8 undef, i8 2>
@@ -373,7 +373,7 @@ define <2 x i8> @sdiv_constant_op0_not_undef_lane(i8 %x) {
 
 define <2 x i8> @sdiv_constant_op1(i8 %x) {
 ; CHECK-LABEL: @sdiv_constant_op1(
-; CHECK-NEXT:    ret <2 x i8> undef
+; CHECK-NEXT:    ret <2 x i8> poison
 ;
   %ins = insertelement <2 x i8> undef, i8 %x, i32 1
   %bo = sdiv exact <2 x i8> %ins, <i8 undef, i8 2>
@@ -504,7 +504,7 @@ define <2 x float> @fsub_constant_op0_not_undef_lane(float %x) {
 define <2 x float> @fsub_constant_op1(float %x) {
 ; CHECK-LABEL: @fsub_constant_op1(
 ; CHECK-NEXT:    [[INS:%.*]] = insertelement <2 x float> undef, float [[X:%.*]], i32 1
-; CHECK-NEXT:    [[BO:%.*]] = fadd <2 x float> [[INS]], <float 0x7FF8000000000000, float -4.200000e+01>
+; CHECK-NEXT:    [[BO:%.*]] = fadd <2 x float> [[INS]], <float undef, float -4.200000e+01>
 ; CHECK-NEXT:    ret <2 x float> [[BO]]
 ;
   %ins = insertelement <2 x float> undef, float %x, i32 1

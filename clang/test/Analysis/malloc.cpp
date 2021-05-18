@@ -141,3 +141,52 @@ char* test_cxa_demangle(const char* sym) {
   }
   return funcname; // no-warning
 }
+
+namespace argument_leak {
+class A {
+  char *name;
+
+public:
+  char *getName() {
+    if (!name) {
+      name = static_cast<char *>(malloc(10));
+    }
+    return name;
+  }
+  ~A() {
+    if (name) {
+      delete[] name;
+    }
+  }
+};
+
+void test(A a) {
+  (void)a.getName();
+}
+} // namespace argument_leak
+
+#define ZERO_SIZE_PTR ((void *)16)
+
+void test_delete_ZERO_SIZE_PTR() {
+  int *Ptr = (int *)ZERO_SIZE_PTR;
+  // ZERO_SIZE_PTR is specially handled but only for malloc family
+  delete Ptr; // expected-warning{{Argument to 'delete' is a constant address (16)}}
+}
+
+namespace pr46253_class {
+class a {
+  void *realloc(int, bool = false) { realloc(1); } // no-crash
+};
+} // namespace pr46253_class
+
+namespace pr46253_retty{
+void realloc(void *ptr, size_t size) { realloc(ptr, size); } // no-crash
+} // namespace pr46253_retty
+
+namespace pr46253_paramty{
+void *realloc(void **ptr, size_t size) { realloc(ptr, size); } // no-crash
+} // namespace pr46253_paramty
+
+namespace pr46253_paramty2{
+void *realloc(void *ptr, int size) { realloc(ptr, size); } // no-crash
+} // namespace pr46253_paramty2

@@ -39,8 +39,9 @@
 ;
 ;   void test(bool *B, bool *E) { f<false, 0>(B, E); }
 ;
-; RUN: opt -S < %s -inline -inline-threshold=150 | FileCheck %s --check-prefixes=CHECK,OLD
+; RUN: opt -S < %s -inline -inline-threshold=150 -enable-new-pm=0 | FileCheck %s --check-prefixes=CHECK,OLD
 ; RUN: opt -S < %s -passes=inline -inline-threshold=150 | FileCheck %s --check-prefixes=CHECK,NEW
+; RUN: opt -S < %s -passes=inliner-wrapper -inline-threshold=150 | FileCheck %s --check-prefixes=CHECK,NEW
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 

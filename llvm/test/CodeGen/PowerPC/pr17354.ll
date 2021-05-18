@@ -10,11 +10,11 @@ target triple = "powerpc64-unknown-linux-gnu"
 %struct.CS = type { i32 }
 
 @_ZL3glb = internal global [1 x %struct.CS] zeroinitializer, align 4
-@llvm.global_ctors = appending global [1 x { i32, void ()* }] [{ i32, void ()* } { i32 65535, void ()* @_GLOBAL__I_a }]
+@llvm.global_ctors = appending global [1 x { i32, void ()*, i8* }] [{ i32, void ()*, i8* } { i32 65535, void ()* @_GLOBAL__I_a, i8* null }]
 
 define internal void @__cxx_global_var_init() section ".text.startup" {
 entry:
-  call void @_Z4funcv(%struct.CS* sret getelementptr inbounds ([1 x %struct.CS], [1 x %struct.CS]* @_ZL3glb, i64 0, i64 0))
+  call void @_Z4funcv(%struct.CS* sret(%struct.CS) getelementptr inbounds ([1 x %struct.CS], [1 x %struct.CS]* @_ZL3glb, i64 0, i64 0))
   ret void
 }
 
@@ -23,7 +23,7 @@ entry:
 ; CHECK-NEXT: nop
 
 ; Function Attrs: nounwind
-define void @_Z4funcv(%struct.CS* noalias sret %agg.result) #0 {
+define void @_Z4funcv(%struct.CS* noalias sret(%struct.CS) %agg.result) #0 {
 entry:
   %a_ = getelementptr inbounds %struct.CS, %struct.CS* %agg.result, i32 0, i32 0
   store i32 0, i32* %a_, align 4
@@ -36,4 +36,4 @@ entry:
   ret void
 }
 
-attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

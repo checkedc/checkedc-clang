@@ -1,39 +1,42 @@
 ; REQUIRES: asserts
-; RUN: opt -regions -analyze < %s | FileCheck %s
+; RUN: opt -regions -analyze -enable-new-pm=0 < %s | FileCheck %s
 ; RUN: opt -regions -stats -disable-output < %s 2>&1 | FileCheck -check-prefix=STAT %s
-; RUN: opt -regions -print-region-style=bb  -analyze < %s 2>&1 | FileCheck -check-prefix=BBIT %s
-; RUN: opt -regions -print-region-style=rn  -analyze < %s 2>&1 | FileCheck -check-prefix=RNIT %s
+; RUN: opt -regions -print-region-style=bb  -analyze -enable-new-pm=0 < %s 2>&1 | FileCheck -check-prefix=BBIT %s
+; RUN: opt -regions -print-region-style=rn  -analyze -enable-new-pm=0 < %s 2>&1 | FileCheck -check-prefix=RNIT %s
 
 ; RUN: opt < %s -passes='print<regions>' 2>&1 | FileCheck %s
+; RUN: opt < %s -passes='print<regions>' -stats 2>&1 | FileCheck -check-prefix=STAT %s
+; RUN: opt -passes='print<regions>' -print-region-style=bb < %s 2>&1 | FileCheck -check-prefix=BBIT %s
+; RUN: opt -passes='print<regions>' -print-region-style=rn < %s 2>&1 | FileCheck -check-prefix=RNIT %s
 
 define void @a_linear_impl_fig_1() nounwind {
-0:
+"0":
         br label %"1"
-1:
+"1":
 	br label %"2"
-2:
+"2":
 	br label %"3"
-3:
+"3":
 	br i1 1, label %"13", label %"4"
-4:
+"4":
 	br i1 1, label %"5", label %"1"
-5:
+"5":
 	br i1 1, label %"8", label %"6"
-6:
+"6":
 	br i1 1, label %"7", label %"4"
-7:
+"7":
 	ret void
-8:
+"8":
 	br i1 1, label %"9", label %"1"
-9:
+"9":
 	br label %"10"
-10:
+"10":
 	br i1 1, label %"12", label %"11"
-11:
+"11":
 	br i1 1, label %"9", label %"8"
-13:
+"13":
 	br i1 1, label %"2", label %"1"
-12:
+"12":
  	switch i32 0, label %"1" [ i32 0, label %"9"
                                   i32 1, label %"8"]
 }

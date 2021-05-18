@@ -1,10 +1,12 @@
 """
 LLDB AppKit formatters
 
-part of The LLVM Compiler Infrastructure
-This file is distributed under the University of Illinois Open Source
-License. See LICENSE.TXT for details.
+Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+See https://llvm.org/LICENSE.txt for license information.
+SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 """
+from __future__ import print_function
+
 # summary provider for CF(Mutable)BitVector
 import lldb
 import ctypes
@@ -169,11 +171,11 @@ def GetSummary_Impl(valobj):
         else:
             wrapper = CFBitVectorUnknown_SummaryProvider(
                 valobj, class_data.sys_params)
-            print actual_name
+            print(actual_name)
     else:
         wrapper = CFBitVectorUnknown_SummaryProvider(
             valobj, class_data.sys_params)
-        print name_string
+        print(name_string)
         statistics.metric_hit(
             'unknown_class',
             valobj.GetName() +

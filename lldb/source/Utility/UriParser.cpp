@@ -1,9 +1,8 @@
-//===-- UriParser.cpp -------------------------------------------*- C++ -*-===//
+//===-- UriParser.cpp -----------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -16,9 +15,7 @@
 
 using namespace lldb_private;
 
-//----------------------------------------------------------------------
 // UriParser::Parse
-//----------------------------------------------------------------------
 bool UriParser::Parse(llvm::StringRef uri, llvm::StringRef &scheme,
                       llvm::StringRef &hostname, int &port,
                       llvm::StringRef &path) {
@@ -45,7 +42,7 @@ bool UriParser::Parse(llvm::StringRef uri, llvm::StringRef &scheme,
   // Extract hostname
   if (!host_port.empty() && host_port[0] == '[') {
     // hostname is enclosed with square brackets.
-    pos = host_port.find(']');
+    pos = host_port.rfind(']');
     if (pos == std::string::npos)
       return false;
 

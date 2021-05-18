@@ -4,10 +4,9 @@
 
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.txt for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -101,23 +100,12 @@ __kmp_acquire_tas_lock_timed_template(kmp_tas_lock_t *lck, kmp_int32 gtid) {
   kmp_uint32 spins;
   KMP_FSYNC_PREPARE(lck);
   KMP_INIT_YIELD(spins);
-  if (TCR_4(__kmp_nth) > (__kmp_avail_proc ? __kmp_avail_proc : __kmp_xproc)) {
-    KMP_YIELD(TRUE);
-  } else {
-    KMP_YIELD_SPIN(spins);
-  }
-
   kmp_backoff_t backoff = __kmp_spin_backoff_params;
-  while (KMP_ATOMIC_LD_RLX(&lck->lk.poll) != tas_free ||
-         !__kmp_atomic_compare_store_acq(&lck->lk.poll, tas_free, tas_busy)) {
+  do {
     __kmp_spin_backoff(&backoff);
-    if (TCR_4(__kmp_nth) >
-        (__kmp_avail_proc ? __kmp_avail_proc : __kmp_xproc)) {
-      KMP_YIELD(TRUE);
-    } else {
-      KMP_YIELD_SPIN(spins);
-    }
-  }
+    KMP_YIELD_OVERSUB_ELSE_SPIN(spins);
+  } while (KMP_ATOMIC_LD_RLX(&lck->lk.poll) != tas_free ||
+           !__kmp_atomic_compare_store_acq(&lck->lk.poll, tas_free, tas_busy));
   KMP_FSYNC_ACQUIRED(lck);
   return KMP_LOCK_ACQUIRED_FIRST;
 }
@@ -170,8 +158,7 @@ int __kmp_release_tas_lock(kmp_tas_lock_t *lck, kmp_int32 gtid) {
   KMP_ATOMIC_ST_REL(&lck->lk.poll, KMP_LOCK_FREE(tas));
   KMP_MB(); /* Flush all pending memory write invalidates.  */
 
-  KMP_YIELD(TCR_4(__kmp_nth) >
-            (__kmp_avail_proc ? __kmp_avail_proc : __kmp_xproc));
+  KMP_YIELD_OVERSUB();
   return KMP_LOCK_RELEASED;
 }
 
@@ -385,11 +372,11 @@ __kmp_acquire_futex_lock_timed_template(kmp_futex_lock_t *lck, kmp_int32 gtid) {
         ("__kmp_acquire_futex_lock: lck:%p, T#%d before futex_wait(0x%x)\n",
          lck, gtid, poll_val));
 
-    kmp_int32 rc;
+    long rc;
     if ((rc = syscall(__NR_futex, &(lck->lk.poll), FUTEX_WAIT, poll_val, NULL,
                       NULL, 0)) != 0) {
       KA_TRACE(1000, ("__kmp_acquire_futex_lock: lck:%p, T#%d futex_wait(0x%x) "
-                      "failed (rc=%d errno=%d)\n",
+                      "failed (rc=%ld errno=%d)\n",
                       lck, gtid, poll_val, rc, errno));
       continue;
     }
@@ -475,8 +462,7 @@ int __kmp_release_futex_lock(kmp_futex_lock_t *lck, kmp_int32 gtid) {
   KA_TRACE(1000, ("__kmp_release_futex_lock: lck:%p(0x%x), T#%d exiting\n", lck,
                   lck->lk.poll, gtid));
 
-  KMP_YIELD(TCR_4(__kmp_nth) >
-            (__kmp_avail_proc ? __kmp_avail_proc : __kmp_xproc));
+  KMP_YIELD_OVERSUB();
   return KMP_LOCK_RELEASED;
 }
 
@@ -652,7 +638,7 @@ __kmp_acquire_ticket_lock_timed_template(kmp_ticket_lock_t *lck,
                                 std::memory_order_acquire) == my_ticket) {
     return KMP_LOCK_ACQUIRED_FIRST;
   }
-  KMP_WAIT_YIELD_PTR(&lck->lk.now_serving, my_ticket, __kmp_bakery_check, lck);
+  KMP_WAIT_PTR(&lck->lk.now_serving, my_ticket, __kmp_bakery_check, lck);
   return KMP_LOCK_ACQUIRED_FIRST;
 }
 
@@ -1250,10 +1236,12 @@ __kmp_acquire_queuing_lock_timed_template(kmp_queuing_lock_t *lck,
                ("__kmp_acquire_queuing_lock: lck:%p, T#%d waiting for lock\n",
                 lck, gtid));
 
-      /* ToDo: May want to consider using __kmp_wait_sleep  or something that
-         sleeps for throughput only here. */
       KMP_MB();
-      KMP_WAIT_YIELD(spin_here_p, FALSE, KMP_EQ, lck);
+      // ToDo: Use __kmp_wait_sleep or similar when blocktime != inf
+      KMP_WAIT(spin_here_p, FALSE, KMP_EQ, lck);
+      // Synchronize writes to both runtime thread structures
+      // and writes in user code.
+      KMP_MB();
 
 #ifdef DEBUG_QUEUING_LOCKS
       TRACE_LOCK(gtid + 1, "acq spin");
@@ -1283,8 +1271,8 @@ __kmp_acquire_queuing_lock_timed_template(kmp_queuing_lock_t *lck,
     /* Yield if number of threads > number of logical processors */
     /* ToDo: Not sure why this should only be in oversubscription case,
        maybe should be traditional YIELD_INIT/YIELD_WHEN loop */
-    KMP_YIELD(TCR_4(__kmp_nth) >
-              (__kmp_avail_proc ? __kmp_avail_proc : __kmp_xproc));
+    KMP_YIELD_OVERSUB();
+
 #ifdef DEBUG_QUEUING_LOCKS
     TRACE_LOCK(gtid + 1, "acq retry");
 #endif
@@ -1463,8 +1451,8 @@ int __kmp_release_queuing_lock(kmp_queuing_lock_t *lck, kmp_int32 gtid) {
         KMP_MB();
         /* make sure enqueuing thread has time to update next waiting thread
          * field */
-        *head_id_p = KMP_WAIT_YIELD((volatile kmp_uint32 *)waiting_id_p, 0,
-                                    KMP_NEQ, NULL);
+        *head_id_p =
+            KMP_WAIT((volatile kmp_uint32 *)waiting_id_p, 0, KMP_NEQ, NULL);
 #ifdef DEBUG_QUEUING_LOCKS
         TRACE_LOCK(gtid + 1, "rel deq: (h,t)->(h',t)");
 #endif
@@ -1716,10 +1704,7 @@ static void __kmp_set_queuing_lock_flags(kmp_queuing_lock_t *lck,
 
 /* RTM Adaptive locks */
 
-#if (KMP_COMPILER_ICC && __INTEL_COMPILER >= 1300) ||                          \
-    (KMP_COMPILER_MSVC && _MSC_VER >= 1700) ||                                 \
-    (KMP_COMPILER_CLANG && KMP_MSVC_COMPAT)
-
+#if KMP_HAVE_RTM_INTRINSICS
 #include <immintrin.h>
 #define SOFT_ABORT_MASK (_XABORT_RETRY | _XABORT_CONFLICT | _XABORT_EXPLICIT)
 
@@ -1906,20 +1891,6 @@ static float percent(kmp_uint32 count, kmp_uint32 total) {
   return (total == 0) ? 0.0 : (100.0 * count) / total;
 }
 
-static FILE *__kmp_open_stats_file() {
-  if (strcmp(__kmp_speculative_statsfile, "-") == 0)
-    return stdout;
-
-  size_t buffLen = KMP_STRLEN(__kmp_speculative_statsfile) + 20;
-  char buffer[buffLen];
-  KMP_SNPRINTF(&buffer[0], buffLen, __kmp_speculative_statsfile,
-               (kmp_int32)getpid());
-  FILE *result = fopen(&buffer[0], "w");
-
-  // Maybe we should issue a warning here...
-  return result ? result : stdout;
-}
-
 void __kmp_print_speculative_stats() {
   kmp_adaptive_lock_statistics_t total = destroyedStats;
   kmp_adaptive_lock_info_t *lck;
@@ -1936,7 +1907,16 @@ void __kmp_print_speculative_stats() {
   if (totalSections <= 0)
     return;
 
-  FILE *statsFile = __kmp_open_stats_file();
+  kmp_safe_raii_file_t statsFile;
+  if (strcmp(__kmp_speculative_statsfile, "-") == 0) {
+    statsFile.set_stdout();
+  } else {
+    size_t buffLen = KMP_STRLEN(__kmp_speculative_statsfile) + 20;
+    char buffer[buffLen];
+    KMP_SNPRINTF(&buffer[0], buffLen, __kmp_speculative_statsfile,
+                 (kmp_int32)getpid());
+    statsFile.open(buffer, "w");
+  }
 
   fprintf(statsFile, "Speculative lock statistics (all approximate!)\n");
   fprintf(statsFile, " Lock parameters: \n"
@@ -1968,9 +1948,6 @@ void __kmp_print_speculative_stats() {
   fprintf(statsFile, " Hard failures                    : %10d (%5.1f%%)\n",
           t->hardFailedSpeculations,
           percent(t->hardFailedSpeculations, totalSpeculations));
-
-  if (statsFile != stdout)
-    fclose(statsFile);
 }
 
 #define KMP_INC_STAT(lck, stat) (lck->lk.adaptive.stats.stat++)
@@ -2014,6 +1991,7 @@ static __inline void __kmp_step_badness(kmp_adaptive_lock_t *lck) {
 }
 
 // Check whether speculation should be attempted.
+KMP_ATTRIBUTE_TARGET_RTM
 static __inline int __kmp_should_speculate(kmp_adaptive_lock_t *lck,
                                            kmp_int32 gtid) {
   kmp_uint32 badness = lck->lk.adaptive.badness;
@@ -2024,6 +2002,7 @@ static __inline int __kmp_should_speculate(kmp_adaptive_lock_t *lck,
 
 // Attempt to acquire only the speculative lock.
 // Does not back off to the non-speculative lock.
+KMP_ATTRIBUTE_TARGET_RTM
 static int __kmp_test_adaptive_lock_only(kmp_adaptive_lock_t *lck,
                                          kmp_int32 gtid) {
   int retries = lck->lk.adaptive.max_soft_retries;
@@ -2132,7 +2111,7 @@ static void __kmp_acquire_adaptive_lock(kmp_adaptive_lock_t *lck,
       // lock from now on.
       while (!__kmp_is_unlocked_queuing_lock(GET_QLK_PTR(lck))) {
         KMP_INC_STAT(lck, lemmingYields);
-        __kmp_yield(TRUE);
+        KMP_YIELD(TRUE);
       }
 
       if (__kmp_test_adaptive_lock_only(lck, gtid))
@@ -2165,6 +2144,7 @@ static void __kmp_acquire_adaptive_lock_with_checks(kmp_adaptive_lock_t *lck,
   lck->lk.qlk.owner_id = gtid + 1;
 }
 
+KMP_ATTRIBUTE_TARGET_RTM
 static int __kmp_release_adaptive_lock(kmp_adaptive_lock_t *lck,
                                        kmp_int32 gtid) {
   if (__kmp_is_unlocked_queuing_lock(GET_QLK_PTR(
@@ -2260,23 +2240,14 @@ __kmp_acquire_drdpa_lock_timed_template(kmp_drdpa_lock_t *lck, kmp_int32 gtid) {
   // polling area has been reconfigured.  Unless it is reconfigured, the
   // reloads stay in L1 cache and are cheap.
   //
-  // Keep this code in sync with KMP_WAIT_YIELD, in kmp_dispatch.cpp !!!
-  //
-  // The current implementation of KMP_WAIT_YIELD doesn't allow for mask
+  // Keep this code in sync with KMP_WAIT, in kmp_dispatch.cpp !!!
+  // The current implementation of KMP_WAIT doesn't allow for mask
   // and poll to be re-read every spin iteration.
   kmp_uint32 spins;
-
   KMP_FSYNC_PREPARE(lck);
   KMP_INIT_YIELD(spins);
   while (polls[ticket & mask] < ticket) { // atomic load
-    // If we are oversubscribed,
-    // or have waited a bit (and KMP_LIBRARY=turnaround), then yield.
-    // CPU Pause is in the macros for yield.
-    //
-    KMP_YIELD(TCR_4(__kmp_nth) >
-              (__kmp_avail_proc ? __kmp_avail_proc : __kmp_xproc));
-    KMP_YIELD_SPIN(spins);
-
+    KMP_YIELD_OVERSUB_ELSE_SPIN(spins);
     // Re-read the mask and the poll pointer from the lock structure.
     //
     // Make certain that "mask" is read before "polls" !!!
@@ -2785,19 +2756,22 @@ static int __kmp_test_hle_lock_with_checks(kmp_dyna_lock_t *lck,
   return __kmp_test_hle_lock(lck, gtid); // TODO: add checks
 }
 
-static void __kmp_init_rtm_lock(kmp_queuing_lock_t *lck) {
+static void __kmp_init_rtm_queuing_lock(kmp_queuing_lock_t *lck) {
   __kmp_init_queuing_lock(lck);
 }
 
-static void __kmp_destroy_rtm_lock(kmp_queuing_lock_t *lck) {
+static void __kmp_destroy_rtm_queuing_lock(kmp_queuing_lock_t *lck) {
   __kmp_destroy_queuing_lock(lck);
 }
 
-static void __kmp_destroy_rtm_lock_with_checks(kmp_queuing_lock_t *lck) {
+static void
+__kmp_destroy_rtm_queuing_lock_with_checks(kmp_queuing_lock_t *lck) {
   __kmp_destroy_queuing_lock_with_checks(lck);
 }
 
-static void __kmp_acquire_rtm_lock(kmp_queuing_lock_t *lck, kmp_int32 gtid) {
+KMP_ATTRIBUTE_TARGET_RTM
+static void __kmp_acquire_rtm_queuing_lock(kmp_queuing_lock_t *lck,
+                                           kmp_int32 gtid) {
   unsigned retries = 3, status;
   do {
     status = _xbegin();
@@ -2808,8 +2782,9 @@ static void __kmp_acquire_rtm_lock(kmp_queuing_lock_t *lck, kmp_int32 gtid) {
     }
     if ((status & _XABORT_EXPLICIT) && _XABORT_CODE(status) == 0xff) {
       // Wait until lock becomes free
-      while (!__kmp_is_unlocked_queuing_lock(lck))
-        __kmp_yield(TRUE);
+      while (!__kmp_is_unlocked_queuing_lock(lck)) {
+        KMP_YIELD(TRUE);
+      }
     } else if (!(status & _XABORT_RETRY))
       break;
   } while (retries--);
@@ -2818,12 +2793,14 @@ static void __kmp_acquire_rtm_lock(kmp_queuing_lock_t *lck, kmp_int32 gtid) {
   __kmp_acquire_queuing_lock(lck, gtid);
 }
 
-static void __kmp_acquire_rtm_lock_with_checks(kmp_queuing_lock_t *lck,
-                                               kmp_int32 gtid) {
-  __kmp_acquire_rtm_lock(lck, gtid);
+static void __kmp_acquire_rtm_queuing_lock_with_checks(kmp_queuing_lock_t *lck,
+                                                       kmp_int32 gtid) {
+  __kmp_acquire_rtm_queuing_lock(lck, gtid);
 }
 
-static int __kmp_release_rtm_lock(kmp_queuing_lock_t *lck, kmp_int32 gtid) {
+KMP_ATTRIBUTE_TARGET_RTM
+static int __kmp_release_rtm_queuing_lock(kmp_queuing_lock_t *lck,
+                                          kmp_int32 gtid) {
   if (__kmp_is_unlocked_queuing_lock(lck)) {
     // Releasing from speculation
     _xend();
@@ -2834,12 +2811,14 @@ static int __kmp_release_rtm_lock(kmp_queuing_lock_t *lck, kmp_int32 gtid) {
   return KMP_LOCK_RELEASED;
 }
 
-static int __kmp_release_rtm_lock_with_checks(kmp_queuing_lock_t *lck,
-                                              kmp_int32 gtid) {
-  return __kmp_release_rtm_lock(lck, gtid);
+static int __kmp_release_rtm_queuing_lock_with_checks(kmp_queuing_lock_t *lck,
+                                                      kmp_int32 gtid) {
+  return __kmp_release_rtm_queuing_lock(lck, gtid);
 }
 
-static int __kmp_test_rtm_lock(kmp_queuing_lock_t *lck, kmp_int32 gtid) {
+KMP_ATTRIBUTE_TARGET_RTM
+static int __kmp_test_rtm_queuing_lock(kmp_queuing_lock_t *lck,
+                                       kmp_int32 gtid) {
   unsigned retries = 3, status;
   do {
     status = _xbegin();
@@ -2850,12 +2829,108 @@ static int __kmp_test_rtm_lock(kmp_queuing_lock_t *lck, kmp_int32 gtid) {
       break;
   } while (retries--);
 
-  return (__kmp_is_unlocked_queuing_lock(lck)) ? 1 : 0;
+  return __kmp_test_queuing_lock(lck, gtid);
 }
 
-static int __kmp_test_rtm_lock_with_checks(kmp_queuing_lock_t *lck,
-                                           kmp_int32 gtid) {
-  return __kmp_test_rtm_lock(lck, gtid);
+static int __kmp_test_rtm_queuing_lock_with_checks(kmp_queuing_lock_t *lck,
+                                                   kmp_int32 gtid) {
+  return __kmp_test_rtm_queuing_lock(lck, gtid);
+}
+
+// Reuse kmp_tas_lock_t for TSX lock which use RTM with fall-back spin lock.
+typedef kmp_tas_lock_t kmp_rtm_spin_lock_t;
+
+static void __kmp_destroy_rtm_spin_lock(kmp_rtm_spin_lock_t *lck) {
+  KMP_ATOMIC_ST_REL(&lck->lk.poll, 0);
+}
+
+static void __kmp_destroy_rtm_spin_lock_with_checks(kmp_rtm_spin_lock_t *lck) {
+  __kmp_destroy_rtm_spin_lock(lck);
+}
+
+KMP_ATTRIBUTE_TARGET_RTM
+static int __kmp_acquire_rtm_spin_lock(kmp_rtm_spin_lock_t *lck,
+                                       kmp_int32 gtid) {
+  unsigned retries = 3, status;
+  kmp_int32 lock_free = KMP_LOCK_FREE(rtm_spin);
+  kmp_int32 lock_busy = KMP_LOCK_BUSY(1, rtm_spin);
+  do {
+    status = _xbegin();
+    if (status == _XBEGIN_STARTED) {
+      if (KMP_ATOMIC_LD_RLX(&lck->lk.poll) == lock_free)
+        return KMP_LOCK_ACQUIRED_FIRST;
+      _xabort(0xff);
+    }
+    if ((status & _XABORT_EXPLICIT) && _XABORT_CODE(status) == 0xff) {
+      // Wait until lock becomes free
+      while (KMP_ATOMIC_LD_RLX(&lck->lk.poll) != lock_free) {
+        KMP_YIELD(TRUE);
+      }
+    } else if (!(status & _XABORT_RETRY))
+      break;
+  } while (retries--);
+
+  // Fall-back spin lock
+  KMP_FSYNC_PREPARE(lck);
+  kmp_backoff_t backoff = __kmp_spin_backoff_params;
+  while (KMP_ATOMIC_LD_RLX(&lck->lk.poll) != lock_free ||
+         !__kmp_atomic_compare_store_acq(&lck->lk.poll, lock_free, lock_busy)) {
+    __kmp_spin_backoff(&backoff);
+  }
+  KMP_FSYNC_ACQUIRED(lck);
+  return KMP_LOCK_ACQUIRED_FIRST;
+}
+
+static int __kmp_acquire_rtm_spin_lock_with_checks(kmp_rtm_spin_lock_t *lck,
+                                                   kmp_int32 gtid) {
+  return __kmp_acquire_rtm_spin_lock(lck, gtid);
+}
+
+KMP_ATTRIBUTE_TARGET_RTM
+static int __kmp_release_rtm_spin_lock(kmp_rtm_spin_lock_t *lck,
+                                       kmp_int32 gtid) {
+  if (KMP_ATOMIC_LD_RLX(&lck->lk.poll) == KMP_LOCK_FREE(rtm_spin)) {
+    // Releasing from speculation
+    _xend();
+  } else {
+    // Releasing from a real lock
+    KMP_FSYNC_RELEASING(lck);
+    KMP_ATOMIC_ST_REL(&lck->lk.poll, KMP_LOCK_FREE(rtm_spin));
+  }
+  return KMP_LOCK_RELEASED;
+}
+
+static int __kmp_release_rtm_spin_lock_with_checks(kmp_rtm_spin_lock_t *lck,
+                                                   kmp_int32 gtid) {
+  return __kmp_release_rtm_spin_lock(lck, gtid);
+}
+
+KMP_ATTRIBUTE_TARGET_RTM
+static int __kmp_test_rtm_spin_lock(kmp_rtm_spin_lock_t *lck, kmp_int32 gtid) {
+  unsigned retries = 3, status;
+  kmp_int32 lock_free = KMP_LOCK_FREE(rtm_spin);
+  kmp_int32 lock_busy = KMP_LOCK_BUSY(1, rtm_spin);
+  do {
+    status = _xbegin();
+    if (status == _XBEGIN_STARTED &&
+        KMP_ATOMIC_LD_RLX(&lck->lk.poll) == lock_free) {
+      return TRUE;
+    }
+    if (!(status & _XABORT_RETRY))
+      break;
+  } while (retries--);
+
+  if (KMP_ATOMIC_LD_RLX(&lck->lk.poll) == lock_free &&
+      __kmp_atomic_compare_store_acq(&lck->lk.poll, lock_free, lock_busy)) {
+    KMP_FSYNC_ACQUIRED(lck);
+    return TRUE;
+  }
+  return FALSE;
+}
+
+static int __kmp_test_rtm_spin_lock_with_checks(kmp_rtm_spin_lock_t *lck,
+                                                kmp_int32 gtid) {
+  return __kmp_test_rtm_spin_lock(lck, gtid);
 }
 
 #endif // KMP_USE_TSX
@@ -2966,10 +3041,10 @@ static int (*direct_test_check[])(kmp_dyna_lock_t *, kmp_int32) = {
 #undef expand
 
 // Exposes only one set of jump tables (*lock or *lock_with_checks).
-void (*(*__kmp_direct_destroy))(kmp_dyna_lock_t *) = 0;
-int (*(*__kmp_direct_set))(kmp_dyna_lock_t *, kmp_int32) = 0;
-int (*(*__kmp_direct_unset))(kmp_dyna_lock_t *, kmp_int32) = 0;
-int (*(*__kmp_direct_test))(kmp_dyna_lock_t *, kmp_int32) = 0;
+void (**__kmp_direct_destroy)(kmp_dyna_lock_t *) = 0;
+int (**__kmp_direct_set)(kmp_dyna_lock_t *, kmp_int32) = 0;
+int (**__kmp_direct_unset)(kmp_dyna_lock_t *, kmp_int32) = 0;
+int (**__kmp_direct_test)(kmp_dyna_lock_t *, kmp_int32) = 0;
 
 // Jump tables for the indirect lock functions
 #define expand(l, op) (void (*)(kmp_user_lock_p)) __kmp_##op##_##l##_##lock,
@@ -3016,10 +3091,10 @@ static int (*indirect_test_check[])(kmp_user_lock_p, kmp_int32) = {
 #undef expand
 
 // Exposes only one jump tables (*lock or *lock_with_checks).
-void (*(*__kmp_indirect_destroy))(kmp_user_lock_p) = 0;
-int (*(*__kmp_indirect_set))(kmp_user_lock_p, kmp_int32) = 0;
-int (*(*__kmp_indirect_unset))(kmp_user_lock_p, kmp_int32) = 0;
-int (*(*__kmp_indirect_test))(kmp_user_lock_p, kmp_int32) = 0;
+void (**__kmp_indirect_destroy)(kmp_user_lock_p) = 0;
+int (**__kmp_indirect_set)(kmp_user_lock_p, kmp_int32) = 0;
+int (**__kmp_indirect_unset)(kmp_user_lock_p, kmp_int32) = 0;
+int (**__kmp_indirect_test)(kmp_user_lock_p, kmp_int32) = 0;
 
 // Lock index table.
 kmp_indirect_lock_table_t __kmp_i_lock_table;
@@ -3041,7 +3116,7 @@ kmp_lock_flags_t (*__kmp_indirect_get_flags[KMP_NUM_I_LOCKS])(
 static kmp_indirect_lock_t *__kmp_indirect_lock_pool[KMP_NUM_I_LOCKS] = {0};
 
 // User lock allocator for dynamically dispatched indirect locks. Every entry of
-// the indirect lock table holds the address and type of the allocated indrect
+// the indirect lock table holds the address and type of the allocated indirect
 // lock (kmp_indirect_lock_t), and the size of the table doubles when it is
 // full. A destroyed indirect lock object is returned to the reusable pool of
 // locks, unique to each lock type.
@@ -3141,7 +3216,7 @@ static void __kmp_init_indirect_lock(kmp_dyna_lock_t *lock,
   }
 #endif
 #if KMP_USE_TSX
-  if (seq == lockseq_rtm && !__kmp_cpuinfo.rtm) {
+  if (seq == lockseq_rtm_queuing && !__kmp_cpuinfo.rtm) {
     seq = lockseq_queuing;
   }
 #endif
@@ -3283,7 +3358,7 @@ void __kmp_init_dynamic_user_locks() {
 #endif
   __kmp_indirect_lock_size[locktag_drdpa] = sizeof(kmp_drdpa_lock_t);
 #if KMP_USE_TSX
-  __kmp_indirect_lock_size[locktag_rtm] = sizeof(kmp_queuing_lock_t);
+  __kmp_indirect_lock_size[locktag_rtm_queuing] = sizeof(kmp_queuing_lock_t);
 #endif
   __kmp_indirect_lock_size[locktag_nested_tas] = sizeof(kmp_tas_lock_t);
 #if KMP_USE_FUTEX
@@ -3906,7 +3981,7 @@ void __kmp_cleanup_user_locks(void) {
       if (__kmp_env_consistency_check && (!IS_CRITICAL(lck)) &&
           ((loc = __kmp_get_user_lock_location(lck)) != NULL) &&
           (loc->psource != NULL)) {
-        kmp_str_loc_t str_loc = __kmp_str_loc_init(loc->psource, 0);
+        kmp_str_loc_t str_loc = __kmp_str_loc_init(loc->psource, false);
         KMP_WARNING(CnsLockNotDestroyed, str_loc.file, str_loc.line);
         __kmp_str_loc_free(&str_loc);
       }

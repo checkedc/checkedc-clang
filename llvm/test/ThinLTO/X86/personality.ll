@@ -14,7 +14,7 @@
 ; RUN:   -r %t1.bc,personality_routine3,l \
 ; RUN:   -r %t1.bc,main,xp \
 ; RUN:   -r %t1.bc,bar,l
-; RUN: llvm-readobj -t %t.o.2 | FileCheck %s --check-prefix=BINDING
+; RUN: llvm-readobj --symbols %t.o.2 | FileCheck %s --check-prefix=BINDING
 
 ; BINDING:     Symbol {
 ; BINDING:       Name: personality_routine
@@ -42,7 +42,7 @@
 
 ; BINDING-NOT:  Name: personality_routine3
 
-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
 declare protected i32 @personality_routine(i32, i32, i64, i8*, i8*)

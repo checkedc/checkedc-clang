@@ -1,14 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: c++experimental
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <experimental/memory_resource>
 
@@ -33,11 +31,13 @@
 #include <experimental/memory_resource>
 #include <cassert>
 
-#include "test_memory_resource.hpp"
+#include "test_memory_resource.h"
+
+#include "test_macros.h"
 
 using namespace std::experimental::pmr;
 
-int main() {
+int main(int, char**) {
     TestResource R;
     { // Test (A) and (B)
         memory_resource* p = get_default_resource();
@@ -71,4 +71,6 @@ int main() {
         static_assert(noexcept(set_default_resource(nullptr)),
                       "set_default_resource() must be noexcept");
     }
+
+  return 0;
 }

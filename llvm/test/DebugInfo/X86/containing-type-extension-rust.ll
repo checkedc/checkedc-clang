@@ -1,6 +1,4 @@
-; REQUIRES: object-emission
-
-; RUN: %llc_dwarf -O0 -filetype=obj < %s > %t
+; RUN: llc -O0 -filetype=obj < %s > %t
 ; RUN: llvm-dwarfdump -v -debug-info %t | FileCheck %s
 
 ; Check that any type can have a vtable holder.
@@ -76,10 +74,10 @@ top:
 ; std::rt::lang_start
 declare i64 @_ZN3std2rt10lang_start17h2626caf1112a00beE(void ()*, i64, i8**) unnamed_addr #3
 
-attributes #0 = { uwtable "no-frame-pointer-elim"="true" "probe-stack"="__rust_probestack" }
+attributes #0 = { uwtable "frame-pointer"="all" "probe-stack"="__rust_probestack" }
 attributes #1 = { nounwind readnone }
-attributes #2 = { "no-frame-pointer-elim"="true" }
-attributes #3 = { "no-frame-pointer-elim"="true" "probe-stack"="__rust_probestack" }
+attributes #2 = { "frame-pointer"="all" }
+attributes #3 = { "frame-pointer"="all" "probe-stack"="__rust_probestack" }
 
 !llvm.module.flags = !{!6, !7}
 !llvm.dbg.cu = !{!8}
@@ -109,7 +107,7 @@ attributes #3 = { "no-frame-pointer-elim"="true" "probe-stack"="__rust_probestac
 !22 = !DIExpression()
 !23 = !DILocation(line: 1, scope: !11)
 !24 = !DILocation(line: 59, scope: !11)
-!25 = distinct !DISubprogram(name: "main", linkageName: "_ZN2t24mainE", scope: !26, file: !9, line: 9, type: !27, isLocal: true, isDefinition: true, scopeLine: 9, flags: DIFlagPrototyped | DIFlagMainSubprogram, isOptimized: false, unit: !8, templateParams: !4, retainedNodes: !4)
+!25 = distinct !DISubprogram(name: "main", linkageName: "_ZN2t24mainE", scope: !26, file: !9, line: 9, type: !27, scopeLine: 9, flags: DIFlagPrototyped, spFlags: DISPFlagLocalToUnit | DISPFlagDefinition | DISPFlagMainSubprogram, isOptimized: false, unit: !8, templateParams: !4, retainedNodes: !4)
 !26 = !DINamespace(name: "t2", scope: null)
 !27 = !DISubroutineType(types: !28)
 !28 = !{null}

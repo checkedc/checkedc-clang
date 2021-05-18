@@ -1,13 +1,18 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
+
+// Throwing bad_any_cast is supported starting in macosx10.13
+// UNSUPPORTED: with_system_cxx_lib=macosx10.12
+// UNSUPPORTED: with_system_cxx_lib=macosx10.11
+// UNSUPPORTED: with_system_cxx_lib=macosx10.10
+// UNSUPPORTED: with_system_cxx_lib=macosx10.9
 
 // <any>
 
@@ -22,20 +27,16 @@ struct TestType {};
 using std::any;
 using std::any_cast;
 
-// On platforms that do not support any_cast, an additional availability error
-// is triggered by these tests.
-// expected-error@any_cast_request_invalid_value_category.fail.cpp:* 0+ {{call to unavailable function 'any_cast': introduced in macOS 10.14}}
-
 void test_const_lvalue_cast_request_non_const_lvalue()
 {
     const any a;
     // expected-error-re@any:* {{static_assert failed{{.*}} "ValueType is required to be a const lvalue reference or a CopyConstructible type"}}
-    // expected-error@any:* {{binding value of type 'const TestType' to reference to type 'TestType' drops 'const' qualifier}}
+    // expected-error@any:* {{drops 'const' qualifier}}
     any_cast<TestType &>(a); // expected-note {{requested here}}
 
     const any a2(42);
     // expected-error-re@any:* {{static_assert failed{{.*}} "ValueType is required to be a const lvalue reference or a CopyConstructible type"}}
-    // expected-error@any:* {{binding value of type 'const int' to reference to type 'int' drops 'const' qualifier}}
+    // expected-error@any:* {{drops 'const' qualifier}}
     any_cast<int&>(a2); // expected-note {{requested here}}
 }
 
@@ -62,9 +63,11 @@ void test_rvalue_any_cast_request_lvalue()
     any_cast<int&>(42);
 }
 
-int main()
+int main(int, char**)
 {
     test_const_lvalue_cast_request_non_const_lvalue();
     test_lvalue_any_cast_request_rvalue();
     test_rvalue_any_cast_request_lvalue();
+
+  return 0;
 }

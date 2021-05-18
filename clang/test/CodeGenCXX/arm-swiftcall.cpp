@@ -63,7 +63,7 @@ TEST(struct_1);
 // CHECK:   [[T2:%.*]] = insertvalue [[UAGG]] [[T1]], float [[THIRD]], 2
 // CHECK:   [[T3:%.*]] = insertvalue [[UAGG]] [[T2]], float [[FOURTH]], 3
 // CHECK:   ret [[UAGG]] [[T3]]
-// CHECK-LABEL: define {{.*}} @take_struct_1(i32, i8, float, float)
+// CHECK-LABEL: define {{.*}} @take_struct_1(i32 %0, i8 %1, float %2, float %3)
 // CHECK:   [[V:%.*]] = alloca [[REC]], align 4
 // CHECK:   [[CAST_TMP:%.*]] = bitcast [[REC]]* [[V]] to [[AGG]]*
 // CHECK:   [[T0:%.*]] = getelementptr inbounds [[AGG]], [[AGG]]* [[CAST_TMP]], i32 0, i32 0
@@ -75,7 +75,7 @@ TEST(struct_1);
 // CHECK:   [[T0:%.*]] = getelementptr inbounds [[AGG]], [[AGG]]* [[CAST_TMP]], i32 0, i32 5
 // CHECK:   store float %3, float* [[T0]], align 4
 // CHECK:   ret void
-// CHECK-LABEL: define void @test_struct_1()
+// CHECK-LABEL: define{{.*}} void @test_struct_1()
 // CHECK:   [[TMP:%.*]] = alloca [[REC]], align 4
 // CHECK:   [[CALL:%.*]] = call [[SWIFTCC:swiftcc]] [[UAGG]] @return_struct_1()
 // CHECK:   [[CAST_TMP:%.*]] = bitcast [[REC]]* [[TMP]] to [[AGG]]*
@@ -120,6 +120,6 @@ TEST(struct_indirect_1)
 class struct_trivial {
   int x;
 };
-// CHECK-LABEL define void @test_struct_trivial(i32{{( %.*)?}})
+// CHECK-LABEL: define{{.*}} swiftcc void @test_struct_trivial(i32{{( %.*)?}})
 extern "C" SWIFTCALL
 void test_struct_trivial(struct_trivial triv) {}

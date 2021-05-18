@@ -1,9 +1,8 @@
 //===--- UnusedAliasDeclsCheck.cpp - clang-tidy----------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -19,11 +18,6 @@ namespace tidy {
 namespace misc {
 
 void UnusedAliasDeclsCheck::registerMatchers(MatchFinder *Finder) {
-  // Only register the matchers for C++11; the functionality currently does not
-  // provide any benefit to other languages, despite being benign.
-  if (!getLangOpts().CPlusPlus11)
-    return;
-
   // We cannot do anything about headers (yet), as the alias declarations
   // used in one header could be used by some other translation unit.
   Finder->addMatcher(namespaceAliasDecl(isExpansionInMainFile()).bind("alias"),

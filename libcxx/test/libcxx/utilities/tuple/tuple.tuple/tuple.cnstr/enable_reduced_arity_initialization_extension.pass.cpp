@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -14,10 +13,10 @@
 // template <class... UTypes>
 //   explicit tuple(UTypes&&... u);
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
-// MODULES_DEFINES: _LIBCPP_ENABLE_TUPLE_IMPLICIT_REDUCED_ARITY_EXTENSION
-#define _LIBCPP_ENABLE_TUPLE_IMPLICIT_REDUCED_ARITY_EXTENSION
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_ENABLE_TUPLE_IMPLICIT_REDUCED_ARITY_EXTENSION
+
 #include <tuple>
 #include <cassert>
 #include <type_traits>
@@ -25,7 +24,7 @@
 #include <system_error>
 
 #include "test_macros.h"
-#include "test_convertible.hpp"
+#include "test_convertible.h"
 #include "MoveOnly.h"
 
 
@@ -90,7 +89,7 @@ void test_example_from_docs() {
   assert(std::get<2>(tup) == std::error_code{});
 }
 
-int main()
+int main(int, char**)
 {
 
     {
@@ -100,18 +99,20 @@ int main()
 
         Tup t = {E(0), E(1)};
         static_assert(test_convertible<Tup, E, E>(), "");
-        assert(std::get<0>(t) == 0);
-        assert(std::get<1>(t) == 1);
-        assert(std::get<2>(t) == MoveOnly());
+        assert(std::get<0>(t) == E(0));
+        assert(std::get<1>(t) == E(1));
+        assert(std::get<2>(t) == E());
 
         Tup t2 = {E(0)};
         static_assert(test_convertible<Tup, E>(), "");
-        assert(std::get<0>(t) == 0);
-        assert(std::get<1>(t) == E());
-        assert(std::get<2>(t) == E());
+        assert(std::get<0>(t2) == E(0));
+        assert(std::get<1>(t2) == E());
+        assert(std::get<2>(t2) == E());
     }
     // Check that SFINAE is properly applied with the default reduced arity
     // constructor extensions.
     test_default_constructible_extension_sfinae();
     test_example_from_docs();
+
+  return 0;
 }

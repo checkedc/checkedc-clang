@@ -1,9 +1,8 @@
 //===- Error.h - system_error extensions for lld ----------------*- C++ -*-===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -33,8 +32,8 @@ inline std::error_code make_error_code(YamlReaderError e) {
 }
 
 /// Creates an error_code object that has associated with it an arbitrary
-/// error messsage.  The value() of the error_code will always be non-zero
-/// but its value is meaningless. The messsage() will be (a copy of) the
+/// error message.  The value() of the error_code will always be non-zero
+/// but its value is meaningless. The message() will be (a copy of) the
 /// supplied error string.
 /// Note:  Once ErrorOr<> is updated to work with errors other than error_code,
 /// this can be updated to return some other kind of error.

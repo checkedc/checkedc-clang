@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -15,14 +14,19 @@
 //           const externT* from, const externT* from_end, const externT*& from_next,
 //           internT* to, internT* to_end, internT*& to_next) const;
 
+// This test runs in C++20, but we have deprecated codecvt<char(16|32), char, mbstate_t> in C++20.
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
+
 #include <locale>
 #include <string>
 #include <vector>
 #include <cassert>
 
+#include "test_macros.h"
+
 typedef std::codecvt<char32_t, char, std::mbstate_t> F;
 
-int main()
+int main(int, char**)
 {
     std::locale l = std::locale::classic();
     const char from[] = "some text";
@@ -37,4 +41,6 @@ int main()
     assert(to_next - to == 9);
     for (unsigned i = 0; i < 9; ++i)
         assert(to[i] == static_cast<char32_t>(from[i]));
+
+  return 0;
 }

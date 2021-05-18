@@ -1,24 +1,26 @@
-//===-- EditlineTest.cpp ----------------------------------------*- C++ -*-===//
+//===-- EditlineTest.cpp --------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_DISABLE_LIBEDIT
+#include "lldb/Host/Config.h"
+
+#if LLDB_ENABLE_LIBEDIT
 
 #define EDITLINE_TEST_DUMP_OUTPUT 0
 
 #include <stdio.h>
 #include <unistd.h>
 
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include <memory>
 #include <thread>
 
-#include "gtest/gtest.h"
-
+#include "TestingSupport/SubsystemRAII.h"
 #include "lldb/Host/Editline.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/Pipe.h"
@@ -63,7 +65,7 @@ public:
 
   void CloseInput();
 
-  bool IsValid() const { return _editline_sp.get() != nullptr; }
+  bool IsValid() const { return _editline_sp != nullptr; }
 
   lldb_private::Editline &GetEditline() { return *_editline_sp; }
 
@@ -86,47 +88,37 @@ private:
 
   PseudoTerminal _pty;
   int _pty_master_fd;
-  int _pty_slave_fd;
+  int _pty_secondary_fd;
 
-  std::unique_ptr<FilePointer> _el_slave_file;
+  std::unique_ptr<FilePointer> _el_secondary_file;
 };
 
 EditlineAdapter::EditlineAdapter()
-    : _editline_sp(), _pty(), _pty_master_fd(-1), _pty_slave_fd(-1),
-      _el_slave_file() {
+    : _editline_sp(), _pty(), _pty_master_fd(-1), _pty_secondary_fd(-1),
+      _el_secondary_file() {
   lldb_private::Status error;
 
   // Open the first master pty available.
-  char error_string[256];
-  error_string[0] = '\0';
-  if (!_pty.OpenFirstAvailableMaster(O_RDWR, error_string,
-                                     sizeof(error_string))) {
-    fprintf(stderr, "failed to open first available master pty: '%s'\n",
-            error_string);
-    return;
-  }
+  EXPECT_THAT_ERROR(_pty.OpenFirstAvailablePrimary(O_RDWR), llvm::Succeeded());
 
   // Grab the master fd.  This is a file descriptor we will:
   // (1) write to when we want to send input to editline.
   // (2) read from when we want to see what editline sends back.
-  _pty_master_fd = _pty.GetMasterFileDescriptor();
+  _pty_master_fd = _pty.GetPrimaryFileDescriptor();
 
-  // Open the corresponding slave pty.
-  if (!_pty.OpenSlave(O_RDWR, error_string, sizeof(error_string))) {
-    fprintf(stderr, "failed to open slave pty: '%s'\n", error_string);
-    return;
-  }
-  _pty_slave_fd = _pty.GetSlaveFileDescriptor();
+  // Open the corresponding secondary pty.
+  EXPECT_THAT_ERROR(_pty.OpenSecondary(O_RDWR), llvm::Succeeded());
+  _pty_secondary_fd = _pty.GetSecondaryFileDescriptor();
 
-  _el_slave_file.reset(new FilePointer(fdopen(_pty_slave_fd, "rw")));
-  EXPECT_FALSE(nullptr == *_el_slave_file);
-  if (*_el_slave_file == nullptr)
+  _el_secondary_file.reset(new FilePointer(fdopen(_pty_secondary_fd, "rw")));
+  EXPECT_FALSE(nullptr == *_el_secondary_file);
+  if (*_el_secondary_file == nullptr)
     return;
 
   // Create an Editline instance.
-  _editline_sp.reset(new lldb_private::Editline("gtest editor", *_el_slave_file,
-                                                *_el_slave_file,
-                                                *_el_slave_file, false));
+  _editline_sp.reset(new lldb_private::Editline(
+      "gtest editor", *_el_secondary_file, *_el_secondary_file,
+      *_el_secondary_file, false));
   _editline_sp->SetPrompt("> ");
 
   // Hookup our input complete callback.
@@ -134,8 +126,8 @@ EditlineAdapter::EditlineAdapter()
 }
 
 void EditlineAdapter::CloseInput() {
-  if (_el_slave_file != nullptr)
-    _el_slave_file.reset(nullptr);
+  if (_el_secondary_file != nullptr)
+    _el_secondary_file.reset(nullptr);
 }
 
 bool EditlineAdapter::SendLine(const std::string &line) {
@@ -197,8 +189,8 @@ bool EditlineAdapter::IsInputComplete(lldb_private::Editline *editline,
   int start_block_count = 0;
   int brace_balance = 0;
 
-  for (size_t i = 0; i < lines.GetSize(); ++i) {
-    for (auto ch : lines[i]) {
+  for (const std::string &line : lines) {
+    for (auto ch : line) {
       if (ch == '{') {
         ++start_block_count;
         ++brace_balance;
@@ -241,33 +233,31 @@ void EditlineAdapter::ConsumeAllOutput() {
 }
 
 class EditlineTestFixture : public ::testing::Test {
-private:
+  SubsystemRAII<FileSystem> subsystems;
   EditlineAdapter _el_adapter;
   std::shared_ptr<std::thread> _sp_output_thread;
 
 public:
-  void SetUp() {
-    FileSystem::Initialize();
-
+  static void SetUpTestCase() {
     // We need a TERM set properly for editline to work as expected.
     setenv("TERM", "vt100", 1);
+  }
 
+  void SetUp() override {
     // Validate the editline adapter.
     EXPECT_TRUE(_el_adapter.IsValid());
     if (!_el_adapter.IsValid())
       return;
 
     // Dump output.
-    _sp_output_thread.reset(
-        new std::thread([&] { _el_adapter.ConsumeAllOutput(); }));
+    _sp_output_thread =
+        std::make_shared<std::thread>([&] { _el_adapter.ConsumeAllOutput(); });
   }
 
-  void TearDown() {
+  void TearDown() override {
     _el_adapter.CloseInput();
     if (_sp_output_thread)
       _sp_output_thread->join();
-
-    FileSystem::Terminate();
   }
 
   EditlineAdapter &GetEditlineAdapter() { return _el_adapter; }
@@ -310,11 +300,11 @@ TEST_F(EditlineTestFixture, EditlineReceivesMultiLineText) {
 
   // Without any auto indentation support, our output should directly match our
   // input.
-  EXPECT_EQ(input_lines.size(), el_reported_lines.GetSize());
-  if (input_lines.size() == el_reported_lines.GetSize()) {
-    for (size_t i = 0; i < input_lines.size(); ++i)
-      EXPECT_EQ(input_lines[i], el_reported_lines[i]);
-  }
+  std::vector<std::string> reported_lines;
+  for (const std::string &line : el_reported_lines)
+    reported_lines.push_back(line);
+
+  EXPECT_THAT(reported_lines, testing::ContainerEq(input_lines));
 }
 
 #endif

@@ -6,7 +6,7 @@
 # RUN: llvm-mc -filetype=obj -triple=x86_64-pc-linux %s -o %t.o
 # RUN: echo "SECTIONS { .text : { *(.text) } .eh_frame : { *(.eh_frame) } }" > %t.script
 # RUN: ld.lld --eh-frame-hdr --script %t.script --section-start .text=0x1000 %t.o -o %t
-# RUN: llvm-readobj -s -section-data %t | FileCheck %s
+# RUN: llvm-readobj -S --section-data %t | FileCheck %s
 
 # CHECK:      Section {
 # CHECK:        Index:
@@ -57,7 +57,7 @@
 _start:
  nop
 
-.section .eh_frame, "a"
+.section .eh_frame,"a",@unwind
   .long 16   # Size
   .long 0x00 # ID
   .byte 0x01 # Version.

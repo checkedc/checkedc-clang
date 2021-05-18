@@ -1,20 +1,15 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 // <optional>
 
 // constexpr const T& optional<T>::operator*() const &;
-
-#ifdef _LIBCPP_DEBUG
-#define _LIBCPP_ASSERT(x, m) ((x) ? (void)0 : std::exit(0))
-#endif
 
 #include <optional>
 #include <type_traits>
@@ -37,7 +32,7 @@ struct Y
     int test() const {return 2;}
 };
 
-int main()
+int main(int, char**)
 {
     {
         const optional<X> opt; ((void)opt);
@@ -59,11 +54,6 @@ int main()
         constexpr optional<Y> opt(Y{});
         assert((*opt).test() == 2);
     }
-#ifdef _LIBCPP_DEBUG
-    {
-        const optional<X> opt;
-        assert((*opt).test() == 3);
-        assert(false);
-    }
-#endif  // _LIBCPP_DEBUG
+
+    return 0;
 }

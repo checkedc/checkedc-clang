@@ -1,11 +1,13 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+// GCC 5 does not evaluate static assertions dependent on a template parameter.
+// UNSUPPORTED: gcc-5
 
 // <algorithm>
 
@@ -17,7 +19,7 @@
 
 #include "test_iterators.h"
 
-int main() {
+int main(int, char**) {
   int arr[] = {1, 2, 3};
   const int *b = std::begin(arr), *e = std::end(arr);
   typedef input_iterator<const int*> Iter;
@@ -34,4 +36,6 @@ int main() {
     std::minmax_element(Iter(b), Iter(e));
   }
 
+
+  return 0;
 }

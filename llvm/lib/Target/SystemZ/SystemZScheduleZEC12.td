@@ -1,9 +1,8 @@
 //=- SystemZScheduleZEC12.td - SystemZ Scheduling Definitions --*- tblgen -*-=//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -188,7 +187,7 @@ def : InstRW<[WLat1, FXU, NormalGr], (instregex "LLIL(F|H|L)$")>;
 
 def : InstRW<[WLat1, FXU, NormalGr], (instregex "LG(F|H)I$")>;
 def : InstRW<[WLat1, FXU, NormalGr], (instregex "LHI(Mux)?$")>;
-def : InstRW<[WLat1, FXU, NormalGr], (instregex "LR(Mux)?$")>;
+def : InstRW<[WLat1, FXU, NormalGr], (instregex "LR$")>;
 
 // Load and trap
 def : InstRW<[WLat1LSU, FXU, LSU, NormalGr], (instregex "L(FH|G)?AT$")>;

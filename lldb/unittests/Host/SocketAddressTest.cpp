@@ -1,34 +1,26 @@
-//===-- SocketAddressTest.cpp -----------------------------------*- C++ -*-===//
+//===-- SocketAddressTest.cpp ---------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
+#include "lldb/Host/SocketAddress.h"
+#include "TestingSupport/SubsystemRAII.h"
+#include "lldb/Host/Socket.h"
+#include "llvm/Testing/Support/Error.h"
+
 #include "gtest/gtest.h"
 
-#include "lldb/Host/SocketAddress.h"
+using namespace lldb_private;
 
 namespace {
 class SocketAddressTest : public testing::Test {
 public:
-  static void SetUpTestCase() {
-#ifdef _MSC_VER
-    WSADATA data;
-    ASSERT_EQ(0, WSAStartup(MAKEWORD(2, 2), &data));
-#endif
-  }
-  static void TearDownTestCase() {
-#ifdef _MSC_VER
-    ASSERT_EQ(0, WSACleanup());
-#endif
-  }
+  SubsystemRAII<Socket> subsystems;
 };
 } // namespace
-
-using namespace lldb_private;
 
 TEST_F(SocketAddressTest, Set) {
   SocketAddress sa;

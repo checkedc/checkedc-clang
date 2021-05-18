@@ -1,14 +1,14 @@
-//===-- ConstStringTest.cpp -------------------------------------*- C++ -*-===//
+//===-- ConstStringTest.cpp -----------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Utility/ConstString.h"
 #include "llvm/Support/FormatVariadic.h"
+#include "llvm/Support/YAMLParser.h"
 #include "gtest/gtest.h"
 
 using namespace lldb_private;
@@ -89,4 +89,71 @@ TEST(ConstStringTest, NullAndEmptyStates) {
   EXPECT_TRUE(!null);
   EXPECT_TRUE(null.IsEmpty());
   EXPECT_TRUE(null.IsNull());
+}
+
+TEST(ConstStringTest, CompareConstString) {
+  ConstString foo("foo");
+  ConstString foo2("foo");
+  ConstString bar("bar");
+
+  EXPECT_TRUE(foo == foo2);
+  EXPECT_TRUE(foo2 == foo);
+  EXPECT_TRUE(foo == ConstString("foo"));
+
+  EXPECT_FALSE(foo == bar);
+  EXPECT_FALSE(foo2 == bar);
+  EXPECT_FALSE(foo == ConstString("bar"));
+  EXPECT_FALSE(foo == ConstString("different"));
+  EXPECT_FALSE(foo == ConstString(""));
+  EXPECT_FALSE(foo == ConstString());
+
+  ConstString empty("");
+  EXPECT_FALSE(empty == ConstString("bar"));
+  EXPECT_FALSE(empty == ConstString());
+  EXPECT_TRUE(empty == ConstString(""));
+
+  ConstString null;
+  EXPECT_FALSE(null == ConstString("bar"));
+  EXPECT_TRUE(null == ConstString());
+  EXPECT_FALSE(null == ConstString(""));
+}
+
+TEST(ConstStringTest, CompareStringRef) {
+  ConstString foo("foo");
+
+  EXPECT_TRUE(foo == "foo");
+  EXPECT_TRUE(foo != "");
+  EXPECT_FALSE(foo == static_cast<const char *>(nullptr));
+  EXPECT_TRUE(foo != "bar");
+
+  ConstString empty("");
+  EXPECT_FALSE(empty == "foo");
+  EXPECT_FALSE(empty != "");
+  EXPECT_FALSE(empty == static_cast<const char *>(nullptr));
+  EXPECT_TRUE(empty != "bar");
+
+  ConstString null;
+  EXPECT_FALSE(null == "foo");
+  EXPECT_TRUE(null != "");
+  EXPECT_TRUE(null == static_cast<const char *>(nullptr));
+  EXPECT_TRUE(null != "bar");
+}
+
+TEST(ConstStringTest, YAML) {
+  std::string buffer;
+  llvm::raw_string_ostream os(buffer);
+
+  // Serialize.
+  std::vector<ConstString> strings = {ConstString("foo"), ConstString("bar"),
+                                      ConstString("")};
+  llvm::yaml::Output yout(os);
+  yout << strings;
+  os.flush();
+
+  // Deserialize.
+  std::vector<ConstString> deserialized;
+  llvm::yaml::Input yin(buffer);
+  yin >> deserialized;
+
+  EXPECT_EQ(strings, deserialized);
 }

@@ -1,9 +1,8 @@
 //===--- StaticAssertCheck.cpp - clang-tidy -------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -28,11 +27,6 @@ StaticAssertCheck::StaticAssertCheck(StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context) {}
 
 void StaticAssertCheck::registerMatchers(MatchFinder *Finder) {
-  // This checker only makes sense for languages that have static assertion
-  // capabilities: C++11 and C11.
-  if (!(getLangOpts().CPlusPlus11 || getLangOpts().C11))
-    return;
-
   auto NegatedString = unaryOperator(
       hasOperatorName("!"), hasUnaryOperand(ignoringImpCasts(stringLiteral())));
   auto IsAlwaysFalse =
@@ -44,7 +38,7 @@ void StaticAssertCheck::registerMatchers(MatchFinder *Finder) {
                          .bind("castExpr")));
   auto AssertExprRoot = anyOf(
       binaryOperator(
-          anyOf(hasOperatorName("&&"), hasOperatorName("==")),
+          hasAnyOperatorName("&&", "=="),
           hasEitherOperand(ignoringImpCasts(stringLiteral().bind("assertMSG"))),
           anyOf(binaryOperator(hasEitherOperand(IsAlwaysFalseWithCast)),
                 anything()))
@@ -146,7 +140,8 @@ SourceLocation StaticAssertCheck::getLastParenLoc(const ASTContext *ASTCtx,
   const LangOptions &Opts = ASTCtx->getLangOpts();
   const SourceManager &SM = ASTCtx->getSourceManager();
 
-  llvm::MemoryBuffer *Buffer = SM.getBuffer(SM.getFileID(AssertLoc));
+  llvm::Optional<llvm::MemoryBufferRef> Buffer =
+      SM.getBufferOrNone(SM.getFileID(AssertLoc));
   if (!Buffer)
     return SourceLocation();
 

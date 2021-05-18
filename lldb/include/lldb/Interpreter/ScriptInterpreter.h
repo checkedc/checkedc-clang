@@ -1,25 +1,24 @@
 //===-- ScriptInterpreter.h -------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ScriptInterpreter_h_
-#define liblldb_ScriptInterpreter_h_
-
-#include "lldb/lldb-private.h"
+#ifndef LLDB_INTERPRETER_SCRIPTINTERPRETER_H
+#define LLDB_INTERPRETER_SCRIPTINTERPRETER_H
 
 #include "lldb/Breakpoint/BreakpointOptions.h"
+#include "lldb/Core/Communication.h"
 #include "lldb/Core/PluginInterface.h"
 #include "lldb/Core/SearchFilter.h"
+#include "lldb/Core/StreamFile.h"
+#include "lldb/Host/PseudoTerminal.h"
 #include "lldb/Utility/Broadcaster.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/StructuredData.h"
-
-#include "lldb/Host/PseudoTerminal.h"
+#include "lldb/lldb-private.h"
 
 namespace lldb_private {
 
@@ -30,12 +29,43 @@ public:
   virtual ~ScriptInterpreterLocker() = default;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(ScriptInterpreterLocker);
+  ScriptInterpreterLocker(const ScriptInterpreterLocker &) = delete;
+  const ScriptInterpreterLocker &
+  operator=(const ScriptInterpreterLocker &) = delete;
+};
+
+class ScriptInterpreterIORedirect {
+public:
+  /// Create an IO redirect. If IO is enabled, this will redirects the output
+  /// to the command return object if set or to the debugger otherwise. If IO
+  /// is disabled, it will redirect all IO to /dev/null.
+  static llvm::Expected<std::unique_ptr<ScriptInterpreterIORedirect>>
+  Create(bool enable_io, Debugger &debugger, CommandReturnObject *result);
+
+  ~ScriptInterpreterIORedirect();
+
+  lldb::FileSP GetInputFile() const { return m_input_file_sp; }
+  lldb::FileSP GetOutputFile() const { return m_output_file_sp->GetFileSP(); }
+  lldb::FileSP GetErrorFile() const { return m_error_file_sp->GetFileSP(); }
+
+  /// Flush our output and error file handles.
+  void Flush();
+
+private:
+  ScriptInterpreterIORedirect(std::unique_ptr<File> input,
+                              std::unique_ptr<File> output);
+  ScriptInterpreterIORedirect(Debugger &debugger, CommandReturnObject *result);
+
+  lldb::FileSP m_input_file_sp;
+  lldb::StreamFileSP m_output_file_sp;
+  lldb::StreamFileSP m_error_file_sp;
+  Communication m_communication;
+  bool m_disconnect;
 };
 
 class ScriptInterpreter : public PluginInterface {
 public:
-  typedef enum {
+  enum ScriptReturnType {
     eScriptReturnTypeCharPtr,
     eScriptReturnTypeBool,
     eScriptReturnTypeShortInt,
@@ -51,10 +81,9 @@ public:
     eScriptReturnTypeChar,
     eScriptReturnTypeCharStrOrNone,
     eScriptReturnTypeOpaqueObject
-  } ScriptReturnType;
+  };
 
-  ScriptInterpreter(CommandInterpreter &interpreter,
-                    lldb::ScriptLanguage script_lang);
+  ScriptInterpreter(Debugger &debugger, lldb::ScriptLanguage script_lang);
 
   ~ScriptInterpreter() override;
 
@@ -67,6 +96,9 @@ public:
 
     bool GetSetLLDBGlobals() const { return m_set_lldb_globals; }
 
+    // If this is true then any exceptions raised by the script will be
+    // cleared with PyErr_Clear().   If false then they will be left for
+    // the caller to clean up
     bool GetMaskoutErrors() const { return m_maskout_errors; }
 
     ExecuteScriptOptions &SetEnableIO(bool enable) {
@@ -119,8 +151,10 @@ public:
     return error;
   }
 
-  virtual Status GenerateBreakpointCommandCallbackData(StringList &input,
-                                                       std::string &output) {
+  virtual Status GenerateBreakpointCommandCallbackData(
+      StringList &input,
+      std::string &output,
+      bool has_extra_args) {
     Status error;
     error.SetErrorString("not implemented");
     return error;
@@ -210,6 +244,8 @@ public:
 
   virtual StructuredData::ObjectSP
   CreateScriptedThreadPlan(const char *class_name,
+                           StructuredDataImpl *args_data,
+                           std::string &error_str,
                            lldb::ThreadPlanSP thread_plan_sp) {
     return StructuredData::ObjectSP();
   }
@@ -248,7 +284,7 @@ public:
                                    lldb::BreakpointSP &bkpt_sp) {
     return StructuredData::GenericSP();
   }
-  
+
   virtual bool
   ScriptedBreakpointResolverSearchCallback(StructuredData::GenericSP implementor_sp,
                                            SymbolContext *sym_ctx)
@@ -260,6 +296,23 @@ public:
   ScriptedBreakpointResolverSearchDepth(StructuredData::GenericSP implementor_sp)
   {
     return lldb::eSearchDepthModule;
+  }
+
+  virtual StructuredData::GenericSP
+  CreateScriptedStopHook(lldb::TargetSP target_sp, const char *class_name,
+                         StructuredDataImpl *args_data, Status &error) {
+    error.SetErrorString("Creating scripted stop-hooks with the current "
+                         "script interpreter is not supported.");
+    return StructuredData::GenericSP();
+  }
+
+  // This dispatches to the handle_stop method of the stop-hook class.  It
+  // returns a "should_stop" bool.
+  virtual bool
+  ScriptedStopHookHandleStop(StructuredData::GenericSP implementor_sp,
+                             ExecutionContext &exc_ctx,
+                             lldb::StreamSP stream_sp) {
+    return true;
   }
 
   virtual StructuredData::ObjectSP
@@ -308,14 +361,20 @@ public:
     return error;
   }
 
-  void SetBreakpointCommandCallbackFunction(
+  Status SetBreakpointCommandCallbackFunction(
       std::vector<BreakpointOptions *> &bp_options_vec,
-      const char *function_name);
+      const char *function_name, StructuredData::ObjectSP extra_args_sp);
 
-  /// Set a one-liner as the callback for the breakpoint.
-  virtual void
-  SetBreakpointCommandCallbackFunction(BreakpointOptions *bp_options,
-                                       const char *function_name) {}
+  /// Set a script function as the callback for the breakpoint.
+  virtual Status
+  SetBreakpointCommandCallbackFunction(
+      BreakpointOptions *bp_options,
+      const char *function_name,
+      StructuredData::ObjectSP extra_args_sp) {
+    Status error;
+    error.SetErrorString("unimplemented");
+    return error;
+  }
 
   /// Set a one-liner as the callback for the watchpoint.
   virtual void SetWatchpointCommandCallback(WatchpointOptions *wp_options,
@@ -446,12 +505,10 @@ public:
   virtual bool CheckObjectExists(const char *name) { return false; }
 
   virtual bool
-  LoadScriptingModule(const char *filename, bool can_reload, bool init_session,
+  LoadScriptingModule(const char *filename, bool init_session,
                       lldb_private::Status &error,
-                      StructuredData::ObjectSP *module_sp = nullptr) {
-    error.SetErrorString("loading unimplemented");
-    return false;
-  }
+                      StructuredData::ObjectSP *module_sp = nullptr,
+                      FileSpec extra_search_dir = {});
 
   virtual bool IsReservedWord(const char *word) { return false; }
 
@@ -459,23 +516,23 @@ public:
 
   const char *GetScriptInterpreterPtyName();
 
-  int GetMasterFileDescriptor();
-
-  CommandInterpreter &GetCommandInterpreter();
+  virtual llvm::Expected<unsigned>
+  GetMaxPositionalArgumentsForCallable(const llvm::StringRef &callable_name) {
+    return llvm::createStringError(
+    llvm::inconvertibleErrorCode(), "Unimplemented function");
+  }
 
   static std::string LanguageToString(lldb::ScriptLanguage language);
 
   static lldb::ScriptLanguage StringToLanguage(const llvm::StringRef &string);
 
-  virtual void ResetOutputFileHandle(FILE *new_fh) {} // By default, do nothing.
-
   lldb::ScriptLanguage GetLanguage() { return m_script_lang; }
 
 protected:
-  CommandInterpreter &m_interpreter;
+  Debugger &m_debugger;
   lldb::ScriptLanguage m_script_lang;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_ScriptInterpreter_h_
+#endif // LLDB_INTERPRETER_SCRIPTINTERPRETER_H

@@ -1,14 +1,13 @@
 //===-- ValueObjectConstResultImpl.h ----------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ValueObjectConstResultImpl_h_
-#define liblldb_ValueObjectConstResultImpl_h_
+#ifndef LLDB_CORE_VALUEOBJECTCONSTRESULTIMPL_H
+#define LLDB_CORE_VALUEOBJECTCONSTRESULTIMPL_H
 
 #include "lldb/Utility/ConstString.h"
 #include "lldb/lldb-defines.h"
@@ -20,24 +19,16 @@
 #include <stdint.h>
 namespace lldb_private {
 class CompilerType;
-}
-namespace lldb_private {
 class DataExtractor;
-}
-namespace lldb_private {
 class Status;
-}
-namespace lldb_private {
 class ValueObject;
 }
 
 namespace lldb_private {
 
-//----------------------------------------------------------------------
 // A class wrapping common implementation details for operations in
 // ValueObjectConstResult ( & Child ) that may need to jump from the host
 // memory space into the target's memory space
-//----------------------------------------------------------------------
 class ValueObjectConstResultImpl {
 public:
   ValueObjectConstResultImpl(ValueObject *valobj,
@@ -80,9 +71,11 @@ private:
   lldb::ValueObjectSP m_load_addr_backend;
   lldb::ValueObjectSP m_address_of_backend;
 
-  DISALLOW_COPY_AND_ASSIGN(ValueObjectConstResultImpl);
+  ValueObjectConstResultImpl(const ValueObjectConstResultImpl &) = delete;
+  const ValueObjectConstResultImpl &
+  operator=(const ValueObjectConstResultImpl &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_ValueObjectConstResultImpl_h_
+#endif // LLDB_CORE_VALUEOBJECTCONSTRESULTIMPL_H

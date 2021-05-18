@@ -22,12 +22,15 @@ int main() {
       int t = (int)sin(0.1);
 #pragma omp task if (t)
       {
-        void *task_frame = get_frame_address(0);
-        if (creator_frame == task_frame) {
-          // Assume this code was inlined which the compiler is allowed to do.
+        if (creator_frame == get_frame_address(0)) {
+          printf("Assume this code was inlined which the compiler is allowed to do:\n");
           print_frame(0);
+        } else if (creator_frame == get_frame_address(1)) {
+          printf("Assume this code was called from the application:\n");
+          print_frame(1);
         } else {
           // The exit frame must be our parent!
+          printf("Assume this code was not inlined, exit frame must be our parent:\n");
           print_frame_from_outlined_fn(1);
         }
         print_ids(0);
@@ -48,11 +51,9 @@ int main() {
   // make sure initial data pointers are null
   // CHECK-NOT: 0: new_task_data initially not null
 
-  // CHECK: {{^}}[[MASTER_ID:[0-9]+]]: ompt_event_task_create
-  // CHECK-SAME: parent_task_id={{[0-9]+}}, parent_task_frame.exit=[[NULL]]
-  // CHECK-SAME: parent_task_frame.reenter=[[NULL]]
-  // CHECK-SAME: new_task_id={{[0-9]+}}, codeptr_ra=[[NULL]]
-  // CHECK-SAME: task_type=ompt_task_initial=1, has_dependences=no
+  // CHECK: {{^}}[[MASTER_ID:[0-9]+]]: ompt_event_initial_task_begin: parallel_id={{[0-9]+}}
+  // CHECK-SAME: task_id={{[0-9]+}}, actual_parallelism=1, index=1, flags=1 
+
   // CHECK: {{^}}[[MASTER_ID]]: __builtin_frame_address(0)
   // CHECK-SAME: =[[MAIN_REENTER:0x[0-f]+]]
   // CHECK: {{^}}[[MASTER_ID]]: ompt_event_parallel_begin

@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 // <optional>
 
 // From LWG2451:
@@ -19,7 +18,7 @@
 #include <cassert>
 
 #include "test_macros.h"
-#include "archetypes.hpp"
+#include "archetypes.h"
 
 using std::optional;
 
@@ -144,7 +143,7 @@ void test_with_test_type() {
     assert(T::alive == 0);
 }
 
-void test_ambigious_assign() {
+void test_ambiguous_assign() {
     using OptInt = std::optional<int>;
     {
         using T = AssignableFrom<OptInt const&>;
@@ -197,10 +196,10 @@ void test_ambigious_assign() {
 }
 
 
-int main()
+int main(int, char**)
 {
     test_with_test_type();
-    test_ambigious_assign();
+    test_ambiguous_assign();
     {
         optional<int> opt;
         constexpr optional<short> opt2;
@@ -251,4 +250,6 @@ int main()
         }
     }
 #endif
+
+  return 0;
 }

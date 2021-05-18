@@ -28,8 +28,7 @@ Sections:
     Link:            .symtab
     Info:            .text
     Relocations:
-      - Offset:          0x0000000000000000
-        Symbol:          bar
+      - Symbol:          bar
         Type:            R_X86_64_64
   - Name:            .debug_line
     Type:            SHT_PROGBITS
@@ -52,7 +51,8 @@ Sections:
     Content:         '0111001017000000'
 
 Symbols:
-  Global:
-    - Name:            _start
-      Section:         .text
-    - Name:            bar
+  - Name:            _start
+    Section:         .text
+    Binding:         STB_GLOBAL
+  - Name:            bar
+    Binding:         STB_GLOBAL

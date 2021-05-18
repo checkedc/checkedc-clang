@@ -1,10 +1,9 @@
 #
 #//===----------------------------------------------------------------------===//
 #//
-#//                     The LLVM Compiler Infrastructure
-#//
-#// This file is dual licensed under the MIT and the University of Illinois Open
-#// Source Licenses. See LICENSE.txt for details.
+#// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+#// See https://llvm.org/LICENSE.txt for license information.
+#// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #//
 #//===----------------------------------------------------------------------===//
 #
@@ -102,10 +101,14 @@ function(libomp_get_legal_arch return_arch_string)
     set(${return_arch_string} "PPC64LE" PARENT_SCOPE)
   elseif(${AARCH64})
     set(${return_arch_string} "AARCH64" PARENT_SCOPE)
+  elseif(${AARCH64_A64FX})
+    set(${return_arch_string} "AARCH64_A64FX" PARENT_SCOPE)
   elseif(${MIPS})
     set(${return_arch_string} "MIPS" PARENT_SCOPE)
   elseif(${MIPS64})
     set(${return_arch_string} "MIPS64" PARENT_SCOPE)
+  elseif(${RISCV64})
+    set(${return_arch_string} "RISCV64" PARENT_SCOPE)
   else()
     set(${return_arch_string} "${LIBOMP_ARCH}" PARENT_SCOPE)
     libomp_warning_say("libomp_get_legal_arch(): Warning: Unknown architecture: Using ${LIBOMP_ARCH}")

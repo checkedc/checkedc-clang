@@ -29,17 +29,33 @@ define i8 @test_uadd2() {
 
 define {i8, i1} @test_uadd3(i8 %v) {
 ; CHECK-LABEL: @test_uadd3(
-; CHECK-NEXT:    ret { i8, i1 } undef
+; CHECK-NEXT:    ret { i8, i1 } { i8 -1, i1 false }
 ;
   %result = call {i8, i1} @llvm.uadd.with.overflow.i8(i8 %v, i8 undef)
   ret {i8, i1} %result
 }
 
+define {i8, i1} @test_uadd3_poison(i8 %v) {
+; CHECK-LABEL: @test_uadd3_poison(
+; CHECK-NEXT:    ret { i8, i1 } { i8 -1, i1 false }
+;
+  %result = call {i8, i1} @llvm.uadd.with.overflow.i8(i8 %v, i8 poison)
+  ret {i8, i1} %result
+}
+
 define {i8, i1} @test_uadd4(i8 %v) {
 ; CHECK-LABEL: @test_uadd4(
-; CHECK-NEXT:    ret { i8, i1 } undef
+; CHECK-NEXT:    ret { i8, i1 } { i8 -1, i1 false }
 ;
   %result = call {i8, i1} @llvm.uadd.with.overflow.i8(i8 undef, i8 %v)
+  ret {i8, i1} %result
+}
+
+define {i8, i1} @test_uadd4_poison(i8 %v) {
+; CHECK-LABEL: @test_uadd4_poison(
+; CHECK-NEXT:    ret { i8, i1 } { i8 -1, i1 false }
+;
+  %result = call {i8, i1} @llvm.uadd.with.overflow.i8(i8 poison, i8 %v)
   ret {i8, i1} %result
 }
 
@@ -63,17 +79,33 @@ define i8 @test_sadd2() {
 
 define {i8, i1} @test_sadd3(i8 %v) {
 ; CHECK-LABEL: @test_sadd3(
-; CHECK-NEXT:    ret { i8, i1 } undef
+; CHECK-NEXT:    ret { i8, i1 } { i8 -1, i1 false }
 ;
   %result = call {i8, i1} @llvm.sadd.with.overflow.i8(i8 %v, i8 undef)
   ret {i8, i1} %result
 }
 
+define {i8, i1} @test_sadd3_poison(i8 %v) {
+; CHECK-LABEL: @test_sadd3_poison(
+; CHECK-NEXT:    ret { i8, i1 } { i8 -1, i1 false }
+;
+  %result = call {i8, i1} @llvm.sadd.with.overflow.i8(i8 %v, i8 poison)
+  ret {i8, i1} %result
+}
+
 define {i8, i1} @test_sadd4(i8 %v) {
 ; CHECK-LABEL: @test_sadd4(
-; CHECK-NEXT:    ret { i8, i1 } undef
+; CHECK-NEXT:    ret { i8, i1 } { i8 -1, i1 false }
 ;
   %result = call {i8, i1} @llvm.sadd.with.overflow.i8(i8 undef, i8 %v)
+  ret {i8, i1} %result
+}
+
+define {i8, i1} @test_sadd4_poison(i8 %v) {
+; CHECK-LABEL: @test_sadd4_poison(
+; CHECK-NEXT:    ret { i8, i1 } { i8 -1, i1 false }
+;
+  %result = call {i8, i1} @llvm.sadd.with.overflow.i8(i8 poison, i8 %v)
   ret {i8, i1} %result
 }
 
@@ -87,17 +119,33 @@ define {i8, i1} @test_usub1(i8 %V) {
 
 define {i8, i1} @test_usub2(i8 %V) {
 ; CHECK-LABEL: @test_usub2(
-; CHECK-NEXT:    ret { i8, i1 } undef
+; CHECK-NEXT:    ret { i8, i1 } zeroinitializer
 ;
   %x = call {i8, i1} @llvm.usub.with.overflow.i8(i8 %V, i8 undef)
   ret {i8, i1} %x
 }
 
+define {i8, i1} @test_usub2_poison(i8 %V) {
+; CHECK-LABEL: @test_usub2_poison(
+; CHECK-NEXT:    ret { i8, i1 } zeroinitializer
+;
+  %x = call {i8, i1} @llvm.usub.with.overflow.i8(i8 %V, i8 poison)
+  ret {i8, i1} %x
+}
+
 define {i8, i1} @test_usub3(i8 %V) {
 ; CHECK-LABEL: @test_usub3(
-; CHECK-NEXT:    ret { i8, i1 } undef
+; CHECK-NEXT:    ret { i8, i1 } zeroinitializer
 ;
   %x = call {i8, i1} @llvm.usub.with.overflow.i8(i8 undef, i8 %V)
+  ret {i8, i1} %x
+}
+
+define {i8, i1} @test_usub3_poison(i8 %V) {
+; CHECK-LABEL: @test_usub3_poison(
+; CHECK-NEXT:    ret { i8, i1 } zeroinitializer
+;
+  %x = call {i8, i1} @llvm.usub.with.overflow.i8(i8 poison, i8 %V)
   ret {i8, i1} %x
 }
 
@@ -111,17 +159,33 @@ define {i8, i1} @test_ssub1(i8 %V) {
 
 define {i8, i1} @test_ssub2(i8 %V) {
 ; CHECK-LABEL: @test_ssub2(
-; CHECK-NEXT:    ret { i8, i1 } undef
+; CHECK-NEXT:    ret { i8, i1 } zeroinitializer
 ;
   %x = call {i8, i1} @llvm.ssub.with.overflow.i8(i8 %V, i8 undef)
   ret {i8, i1} %x
 }
 
+define {i8, i1} @test_ssub2_poison(i8 %V) {
+; CHECK-LABEL: @test_ssub2_poison(
+; CHECK-NEXT:    ret { i8, i1 } zeroinitializer
+;
+  %x = call {i8, i1} @llvm.ssub.with.overflow.i8(i8 %V, i8 poison)
+  ret {i8, i1} %x
+}
+
 define {i8, i1} @test_ssub3(i8 %V) {
 ; CHECK-LABEL: @test_ssub3(
-; CHECK-NEXT:    ret { i8, i1 } undef
+; CHECK-NEXT:    ret { i8, i1 } zeroinitializer
 ;
   %x = call {i8, i1} @llvm.ssub.with.overflow.i8(i8 undef, i8 %V)
+  ret {i8, i1} %x
+}
+
+define {i8, i1} @test_ssub3_poison(i8 %V) {
+; CHECK-LABEL: @test_ssub3_poison(
+; CHECK-NEXT:    ret { i8, i1 } zeroinitializer
+;
+  %x = call {i8, i1} @llvm.ssub.with.overflow.i8(i8 poison, i8 %V)
   ret {i8, i1} %x
 }
 
@@ -141,6 +205,14 @@ define {i8, i1} @test_umul2(i8 %V) {
   ret {i8, i1} %x
 }
 
+define {i8, i1} @test_umul2_poison(i8 %V) {
+; CHECK-LABEL: @test_umul2_poison(
+; CHECK-NEXT:    ret { i8, i1 } zeroinitializer
+;
+  %x = call {i8, i1} @llvm.umul.with.overflow.i8(i8 %V, i8 poison)
+  ret {i8, i1} %x
+}
+
 define {i8, i1} @test_umul3(i8 %V) {
 ; CHECK-LABEL: @test_umul3(
 ; CHECK-NEXT:    ret { i8, i1 } zeroinitializer
@@ -154,6 +226,14 @@ define {i8, i1} @test_umul4(i8 %V) {
 ; CHECK-NEXT:    ret { i8, i1 } zeroinitializer
 ;
   %x = call {i8, i1} @llvm.umul.with.overflow.i8(i8 undef, i8 %V)
+  ret {i8, i1} %x
+}
+
+define {i8, i1} @test_umul4_poison(i8 %V) {
+; CHECK-LABEL: @test_umul4_poison(
+; CHECK-NEXT:    ret { i8, i1 } zeroinitializer
+;
+  %x = call {i8, i1} @llvm.umul.with.overflow.i8(i8 poison, i8 %V)
   ret {i8, i1} %x
 }
 
@@ -173,6 +253,14 @@ define {i8, i1} @test_smul2(i8 %V) {
   ret {i8, i1} %x
 }
 
+define {i8, i1} @test_smul2_poison(i8 %V) {
+; CHECK-LABEL: @test_smul2_poison(
+; CHECK-NEXT:    ret { i8, i1 } zeroinitializer
+;
+  %x = call {i8, i1} @llvm.smul.with.overflow.i8(i8 %V, i8 poison)
+  ret {i8, i1} %x
+}
+
 define {i8, i1} @test_smul3(i8 %V) {
 ; CHECK-LABEL: @test_smul3(
 ; CHECK-NEXT:    ret { i8, i1 } zeroinitializer
@@ -186,6 +274,14 @@ define {i8, i1} @test_smul4(i8 %V) {
 ; CHECK-NEXT:    ret { i8, i1 } zeroinitializer
 ;
   %x = call {i8, i1} @llvm.smul.with.overflow.i8(i8 undef, i8 %V)
+  ret {i8, i1} %x
+}
+
+define {i8, i1} @test_smul4_poison(i8 %V) {
+; CHECK-LABEL: @test_smul4_poison(
+; CHECK-NEXT:    ret { i8, i1 } zeroinitializer
+;
+  %x = call {i8, i1} @llvm.smul.with.overflow.i8(i8 poison, i8 %V)
   ret {i8, i1} %x
 }
 
@@ -358,7 +454,7 @@ define i32 @call_null() {
 ; CHECK-LABEL: @call_null(
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[CALL:%.*]] = call i32 null()
-; CHECK-NEXT:    ret i32 undef
+; CHECK-NEXT:    ret i32 poison
 ;
 entry:
   %call = call i32 null()
@@ -369,7 +465,7 @@ define i32 @call_undef() {
 ; CHECK-LABEL: @call_undef(
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[CALL:%.*]] = call i32 undef()
-; CHECK-NEXT:    ret i32 undef
+; CHECK-NEXT:    ret i32 poison
 ;
 entry:
   %call = call i32 undef()
@@ -470,12 +566,14 @@ define <2 x i8> @fshr_no_shift_modulo_bitwidth_splat(<2 x i8> %x, <2 x i8> %y) {
   ret <2 x i8> %z
 }
 
-; When the shift amount is 0, fshl returns its 1st parameter (x), so the guard is not needed.
+; If y is poison, eliminating the guard is not safe.
 
 define i8 @fshl_zero_shift_guard(i8 %x, i8 %y, i8 %sh) {
 ; CHECK-LABEL: @fshl_zero_shift_guard(
-; CHECK-NEXT:    [[F:%.*]] = call i8 @llvm.fshl.i8(i8 [[X:%.*]], i8 [[Y:%.*]], i8 [[SH:%.*]])
-; CHECK-NEXT:    ret i8 [[F]]
+; CHECK-NEXT:    [[C:%.*]] = icmp eq i8 [[SH:%.*]], 0
+; CHECK-NEXT:    [[F:%.*]] = call i8 @llvm.fshl.i8(i8 [[X:%.*]], i8 [[Y:%.*]], i8 [[SH]])
+; CHECK-NEXT:    [[S:%.*]] = select i1 [[C]], i8 [[X]], i8 [[F]]
+; CHECK-NEXT:    ret i8 [[S]]
 ;
   %c = icmp eq i8 %sh, 0
   %f = call i8 @llvm.fshl.i8(i8 %x, i8 %y, i8 %sh)
@@ -483,12 +581,14 @@ define i8 @fshl_zero_shift_guard(i8 %x, i8 %y, i8 %sh) {
   ret i8 %s
 }
 
-; When the shift amount is 0, fshl returns its 1st parameter (x), so the guard is not needed.
+; If y is poison, eliminating the guard is not safe.
 
 define i8 @fshl_zero_shift_guard_swapped(i8 %x, i8 %y, i8 %sh) {
 ; CHECK-LABEL: @fshl_zero_shift_guard_swapped(
-; CHECK-NEXT:    [[F:%.*]] = call i8 @llvm.fshl.i8(i8 [[X:%.*]], i8 [[Y:%.*]], i8 [[SH:%.*]])
-; CHECK-NEXT:    ret i8 [[F]]
+; CHECK-NEXT:    [[C:%.*]] = icmp ne i8 [[SH:%.*]], 0
+; CHECK-NEXT:    [[F:%.*]] = call i8 @llvm.fshl.i8(i8 [[X:%.*]], i8 [[Y:%.*]], i8 [[SH]])
+; CHECK-NEXT:    [[S:%.*]] = select i1 [[C]], i8 [[F]], i8 [[X]]
+; CHECK-NEXT:    ret i8 [[S]]
 ;
   %c = icmp ne i8 %sh, 0
   %f = call i8 @llvm.fshl.i8(i8 %x, i8 %y, i8 %sh)
@@ -520,12 +620,14 @@ define i8 @fshl_zero_shift_guard_inverted_swapped(i8 %x, i8 %y, i8 %sh) {
   ret i8 %s
 }
 
-; When the shift amount is 0, fshr returns its 2nd parameter (y), so the guard is not needed.
+; If x is poison, eliminating the guard is not safe.
 
 define i9 @fshr_zero_shift_guard(i9 %x, i9 %y, i9 %sh) {
 ; CHECK-LABEL: @fshr_zero_shift_guard(
-; CHECK-NEXT:    [[F:%.*]] = call i9 @llvm.fshr.i9(i9 [[X:%.*]], i9 [[Y:%.*]], i9 [[SH:%.*]])
-; CHECK-NEXT:    ret i9 [[F]]
+; CHECK-NEXT:    [[C:%.*]] = icmp eq i9 [[SH:%.*]], 0
+; CHECK-NEXT:    [[F:%.*]] = call i9 @llvm.fshr.i9(i9 [[X:%.*]], i9 [[Y:%.*]], i9 [[SH]])
+; CHECK-NEXT:    [[S:%.*]] = select i1 [[C]], i9 [[Y]], i9 [[F]]
+; CHECK-NEXT:    ret i9 [[S]]
 ;
   %c = icmp eq i9 %sh, 0
   %f = call i9 @llvm.fshr.i9(i9 %x, i9 %y, i9 %sh)
@@ -533,12 +635,14 @@ define i9 @fshr_zero_shift_guard(i9 %x, i9 %y, i9 %sh) {
   ret i9 %s
 }
 
-; When the shift amount is 0, fshr returns its 2nd parameter (y), so the guard is not needed.
+; If x is poison, eliminating the guard is not safe.
 
 define i9 @fshr_zero_shift_guard_swapped(i9 %x, i9 %y, i9 %sh) {
 ; CHECK-LABEL: @fshr_zero_shift_guard_swapped(
-; CHECK-NEXT:    [[F:%.*]] = call i9 @llvm.fshr.i9(i9 [[X:%.*]], i9 [[Y:%.*]], i9 [[SH:%.*]])
-; CHECK-NEXT:    ret i9 [[F]]
+; CHECK-NEXT:    [[C:%.*]] = icmp ne i9 [[SH:%.*]], 0
+; CHECK-NEXT:    [[F:%.*]] = call i9 @llvm.fshr.i9(i9 [[X:%.*]], i9 [[Y:%.*]], i9 [[SH]])
+; CHECK-NEXT:    [[S:%.*]] = select i1 [[C]], i9 [[F]], i9 [[Y]]
+; CHECK-NEXT:    ret i9 [[S]]
 ;
   %c = icmp ne i9 %sh, 0
   %f = call i9 @llvm.fshr.i9(i9 %x, i9 %y, i9 %sh)
@@ -570,6 +674,106 @@ define i9 @fshr_zero_shift_guard_inverted_swapped(i9 %x, i9 %y, i9 %sh) {
   ret i9 %s
 }
 
+; When the shift amount is 0, fshl returns its 1st parameter (x), so the guard is not needed.
+
+define i8 @rotl_zero_shift_guard(i8 %x, i8 %sh) {
+; CHECK-LABEL: @rotl_zero_shift_guard(
+; CHECK-NEXT:    [[F:%.*]] = call i8 @llvm.fshl.i8(i8 [[X:%.*]], i8 [[X]], i8 [[SH:%.*]])
+; CHECK-NEXT:    ret i8 [[F]]
+;
+  %c = icmp eq i8 %sh, 0
+  %f = call i8 @llvm.fshl.i8(i8 %x, i8 %x, i8 %sh)
+  %s = select i1 %c, i8 %x, i8 %f
+  ret i8 %s
+}
+
+; When the shift amount is 0, fshl returns its 1st parameter (x), so the guard is not needed.
+
+define i8 @rotl_zero_shift_guard_swapped(i8 %x, i8 %sh) {
+; CHECK-LABEL: @rotl_zero_shift_guard_swapped(
+; CHECK-NEXT:    [[F:%.*]] = call i8 @llvm.fshl.i8(i8 [[X:%.*]], i8 [[X]], i8 [[SH:%.*]])
+; CHECK-NEXT:    ret i8 [[F]]
+;
+  %c = icmp ne i8 %sh, 0
+  %f = call i8 @llvm.fshl.i8(i8 %x, i8 %x, i8 %sh)
+  %s = select i1 %c, i8 %f, i8 %x
+  ret i8 %s
+}
+
+; When the shift amount is 0, fshl returns its 1st parameter (x), so everything is deleted.
+
+define i8 @rotl_zero_shift_guard_inverted(i8 %x, i8 %sh) {
+; CHECK-LABEL: @rotl_zero_shift_guard_inverted(
+; CHECK-NEXT:    ret i8 [[X:%.*]]
+;
+  %c = icmp eq i8 %sh, 0
+  %f = call i8 @llvm.fshl.i8(i8 %x, i8 %x, i8 %sh)
+  %s = select i1 %c, i8 %f, i8 %x
+  ret i8 %s
+}
+
+; When the shift amount is 0, fshl returns its 1st parameter (x), so everything is deleted.
+
+define i8 @rotl_zero_shift_guard_inverted_swapped(i8 %x, i8 %sh) {
+; CHECK-LABEL: @rotl_zero_shift_guard_inverted_swapped(
+; CHECK-NEXT:    ret i8 [[X:%.*]]
+;
+  %c = icmp ne i8 %sh, 0
+  %f = call i8 @llvm.fshl.i8(i8 %x, i8 %x, i8 %sh)
+  %s = select i1 %c, i8 %x, i8 %f
+  ret i8 %s
+}
+
+; When the shift amount is 0, fshr returns its 2nd parameter (x), so the guard is not needed.
+
+define i9 @rotr_zero_shift_guard(i9 %x, i9 %sh) {
+; CHECK-LABEL: @rotr_zero_shift_guard(
+; CHECK-NEXT:    [[F:%.*]] = call i9 @llvm.fshr.i9(i9 [[X:%.*]], i9 [[X]], i9 [[SH:%.*]])
+; CHECK-NEXT:    ret i9 [[F]]
+;
+  %c = icmp eq i9 %sh, 0
+  %f = call i9 @llvm.fshr.i9(i9 %x, i9 %x, i9 %sh)
+  %s = select i1 %c, i9 %x, i9 %f
+  ret i9 %s
+}
+
+; When the shift amount is 0, fshr returns its 2nd parameter (x), so the guard is not needed.
+
+define i9 @rotr_zero_shift_guard_swapped(i9 %x, i9 %sh) {
+; CHECK-LABEL: @rotr_zero_shift_guard_swapped(
+; CHECK-NEXT:    [[F:%.*]] = call i9 @llvm.fshr.i9(i9 [[X:%.*]], i9 [[X]], i9 [[SH:%.*]])
+; CHECK-NEXT:    ret i9 [[F]]
+;
+  %c = icmp ne i9 %sh, 0
+  %f = call i9 @llvm.fshr.i9(i9 %x, i9 %x, i9 %sh)
+  %s = select i1 %c, i9 %f, i9 %x
+  ret i9 %s
+}
+
+; When the shift amount is 0, fshr returns its 2nd parameter (x), so everything is deleted.
+
+define i9 @rotr_zero_shift_guard_inverted(i9 %x, i9 %sh) {
+; CHECK-LABEL: @rotr_zero_shift_guard_inverted(
+; CHECK-NEXT:    ret i9 [[X:%.*]]
+;
+  %c = icmp eq i9 %sh, 0
+  %f = call i9 @llvm.fshr.i9(i9 %x, i9 %x, i9 %sh)
+  %s = select i1 %c, i9 %f, i9 %x
+  ret i9 %s
+}
+
+; When the shift amount is 0, fshr returns its 2nd parameter (x), so everything is deleted.
+
+define i9 @rotr_zero_shift_guard_inverted_swapped(i9 %x, i9 %sh) {
+; CHECK-LABEL: @rotr_zero_shift_guard_inverted_swapped(
+; CHECK-NEXT:    ret i9 [[X:%.*]]
+;
+  %c = icmp ne i9 %sh, 0
+  %f = call i9 @llvm.fshr.i9(i9 %x, i9 %x, i9 %sh)
+  %s = select i1 %c, i9 %x, i9 %f
+  ret i9 %s
+}
+
 ; Negative test - make sure we're matching the correct parameter of fshl.
 
 define i8 @fshl_zero_shift_guard_wrong_select_op(i8 %x, i8 %y, i8 %sh) {
@@ -587,14 +791,14 @@ define i8 @fshl_zero_shift_guard_wrong_select_op(i8 %x, i8 %y, i8 %sh) {
 
 ; Vector types work too.
 
-define <2 x i8> @fshr_zero_shift_guard_splat(<2 x i8> %x, <2 x i8> %y, <2 x i8> %sh) {
-; CHECK-LABEL: @fshr_zero_shift_guard_splat(
-; CHECK-NEXT:    [[F:%.*]] = call <2 x i8> @llvm.fshr.v2i8(<2 x i8> [[X:%.*]], <2 x i8> [[Y:%.*]], <2 x i8> [[SH:%.*]])
+define <2 x i8> @rotr_zero_shift_guard_splat(<2 x i8> %x, <2 x i8> %sh) {
+; CHECK-LABEL: @rotr_zero_shift_guard_splat(
+; CHECK-NEXT:    [[F:%.*]] = call <2 x i8> @llvm.fshr.v2i8(<2 x i8> [[X:%.*]], <2 x i8> [[X]], <2 x i8> [[SH:%.*]])
 ; CHECK-NEXT:    ret <2 x i8> [[F]]
 ;
   %c = icmp eq <2 x i8> %sh, zeroinitializer
-  %f = call <2 x i8> @llvm.fshr.v2i8(<2 x i8> %x, <2 x i8> %y, <2 x i8> %sh)
-  %s = select <2 x i1> %c, <2 x i8> %y, <2 x i8> %f
+  %f = call <2 x i8> @llvm.fshr.v2i8(<2 x i8> %x, <2 x i8> %x, <2 x i8> %sh)
+  %s = select <2 x i1> %c, <2 x i8> %x, <2 x i8> %f
   ret <2 x i8> %s
 }
 
@@ -634,3 +838,526 @@ define i9 @fshr_shift_undef(i9 %x, i9 %y) {
   ret i9 %r
 }
 
+; If one of operands is poison, the result is poison
+; TODO: these should be poison
+define i8 @fshl_ops_poison(i8 %b, i8 %shamt) {
+; CHECK-LABEL: @fshl_ops_poison(
+; CHECK-NEXT:    [[R:%.*]] = call i8 @llvm.fshl.i8(i8 poison, i8 [[B:%.*]], i8 [[SHAMT:%.*]])
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %r = call i8 @llvm.fshl.i8(i8 poison, i8 %b, i8 %shamt)
+  ret i8 %r
+}
+
+define i8 @fshl_ops_poison2(i8 %shamt) {
+; CHECK-LABEL: @fshl_ops_poison2(
+; CHECK-NEXT:    ret i8 undef
+;
+  %r = call i8 @llvm.fshl.i8(i8 poison, i8 undef, i8 %shamt)
+  ret i8 %r
+}
+
+define i8 @fshl_ops_poison3(i8 %a, i8 %shamt) {
+; CHECK-LABEL: @fshl_ops_poison3(
+; CHECK-NEXT:    [[R:%.*]] = call i8 @llvm.fshl.i8(i8 [[A:%.*]], i8 poison, i8 [[SHAMT:%.*]])
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %r = call i8 @llvm.fshl.i8(i8 %a, i8 poison, i8 %shamt)
+  ret i8 %r
+}
+
+define i8 @fshl_ops_poison4(i8 %shamt) {
+; CHECK-LABEL: @fshl_ops_poison4(
+; CHECK-NEXT:    ret i8 undef
+;
+  %r = call i8 @llvm.fshl.i8(i8 undef, i8 poison, i8 %shamt)
+  ret i8 %r
+}
+
+define i8 @fshl_ops_poison5(i8 %a, i8 %b) {
+; CHECK-LABEL: @fshl_ops_poison5(
+; CHECK-NEXT:    ret i8 [[A:%.*]]
+;
+  %r = call i8 @llvm.fshl.i8(i8 %a, i8 %b, i8 poison)
+  ret i8 %r
+}
+
+define i8 @fshl_ops_poison6() {
+; CHECK-LABEL: @fshl_ops_poison6(
+; CHECK-NEXT:    ret i8 undef
+;
+  %r = call i8 @llvm.fshl.i8(i8 undef, i8 undef, i8 poison)
+  ret i8 %r
+}
+
+define i9 @fshr_ops_poison(i9 %b, i9 %shamt) {
+; CHECK-LABEL: @fshr_ops_poison(
+; CHECK-NEXT:    [[R:%.*]] = call i9 @llvm.fshr.i9(i9 poison, i9 [[B:%.*]], i9 [[SHAMT:%.*]])
+; CHECK-NEXT:    ret i9 [[R]]
+;
+  %r = call i9 @llvm.fshr.i9(i9 poison, i9 %b, i9 %shamt)
+  ret i9 %r
+}
+
+define i9 @fshr_ops_poison2(i9 %shamt) {
+; CHECK-LABEL: @fshr_ops_poison2(
+; CHECK-NEXT:    ret i9 undef
+;
+  %r = call i9 @llvm.fshr.i9(i9 poison, i9 undef, i9 %shamt)
+  ret i9 %r
+}
+
+define i9 @fshr_ops_poison3(i9 %a, i9 %shamt) {
+; CHECK-LABEL: @fshr_ops_poison3(
+; CHECK-NEXT:    [[R:%.*]] = call i9 @llvm.fshr.i9(i9 [[A:%.*]], i9 poison, i9 [[SHAMT:%.*]])
+; CHECK-NEXT:    ret i9 [[R]]
+;
+  %r = call i9 @llvm.fshr.i9(i9 %a, i9 poison, i9 %shamt)
+  ret i9 %r
+}
+
+define i9 @fshr_ops_poison4(i9 %shamt) {
+; CHECK-LABEL: @fshr_ops_poison4(
+; CHECK-NEXT:    ret i9 undef
+;
+  %r = call i9 @llvm.fshr.i9(i9 undef, i9 poison, i9 %shamt)
+  ret i9 %r
+}
+
+define i9 @fshr_ops_poison5(i9 %a, i9 %b) {
+; CHECK-LABEL: @fshr_ops_poison5(
+; CHECK-NEXT:    ret i9 [[B:%.*]]
+;
+  %r = call i9 @llvm.fshr.i9(i9 %a, i9 %b, i9 poison)
+  ret i9 %r
+}
+
+define i9 @fshr_ops_poison6() {
+; CHECK-LABEL: @fshr_ops_poison6(
+; CHECK-NEXT:    ret i9 undef
+;
+  %r = call i9 @llvm.fshr.i9(i9 undef, i9 undef, i9 poison)
+  ret i9 %r
+}
+
+declare double @llvm.fma.f64(double,double,double)
+declare double @llvm.fmuladd.f64(double,double,double)
+
+define double @fma_undef_op0(double %x, double %y) {
+; CHECK-LABEL: @fma_undef_op0(
+; CHECK-NEXT:    ret double 0x7FF8000000000000
+;
+  %r = call double @llvm.fma.f64(double undef, double %x, double %y)
+  ret double %r
+}
+
+define double @fma_poison_op0(double %x, double %y) {
+; CHECK-LABEL: @fma_poison_op0(
+; CHECK-NEXT:    ret double 0x7FF8000000000000
+;
+  %r = call double @llvm.fma.f64(double poison, double %x, double %y)
+  ret double %r
+}
+
+define double @fma_undef_op1(double %x, double %y) {
+; CHECK-LABEL: @fma_undef_op1(
+; CHECK-NEXT:    ret double 0x7FF8000000000000
+;
+  %r = call double @llvm.fma.f64(double %x, double undef, double %y)
+  ret double %r
+}
+
+define double @fma_poison_op1(double %x, double %y) {
+; CHECK-LABEL: @fma_poison_op1(
+; CHECK-NEXT:    ret double 0x7FF8000000000000
+;
+  %r = call double @llvm.fma.f64(double %x, double poison, double %y)
+  ret double %r
+}
+
+define double @fma_undef_op2(double %x, double %y) {
+; CHECK-LABEL: @fma_undef_op2(
+; CHECK-NEXT:    ret double 0x7FF8000000000000
+;
+  %r = call double @llvm.fma.f64(double %x, double %y, double undef)
+  ret double %r
+}
+
+define double @fma_poison_op2(double %x, double %y) {
+; CHECK-LABEL: @fma_poison_op2(
+; CHECK-NEXT:    ret double 0x7FF8000000000000
+;
+  %r = call double @llvm.fma.f64(double %x, double %y, double poison)
+  ret double %r
+}
+
+define double @fmuladd_undef_op0(double %x, double %y) {
+; CHECK-LABEL: @fmuladd_undef_op0(
+; CHECK-NEXT:    ret double 0x7FF8000000000000
+;
+  %r = call double @llvm.fmuladd.f64(double undef, double %x, double %y)
+  ret double %r
+}
+
+define double @fmuladd_poison_op0(double %x, double %y) {
+; CHECK-LABEL: @fmuladd_poison_op0(
+; CHECK-NEXT:    ret double 0x7FF8000000000000
+;
+  %r = call double @llvm.fmuladd.f64(double poison, double %x, double %y)
+  ret double %r
+}
+
+define double @fmuladd_undef_op1(double %x, double %y) {
+; CHECK-LABEL: @fmuladd_undef_op1(
+; CHECK-NEXT:    ret double 0x7FF8000000000000
+;
+  %r = call double @llvm.fmuladd.f64(double %x, double undef, double %y)
+  ret double %r
+}
+
+define double @fmuladd_poison_op1(double %x, double %y) {
+; CHECK-LABEL: @fmuladd_poison_op1(
+; CHECK-NEXT:    ret double 0x7FF8000000000000
+;
+  %r = call double @llvm.fmuladd.f64(double %x, double poison, double %y)
+  ret double %r
+}
+
+define double @fmuladd_undef_op2(double %x, double %y) {
+; CHECK-LABEL: @fmuladd_undef_op2(
+; CHECK-NEXT:    ret double 0x7FF8000000000000
+;
+  %r = call double @llvm.fmuladd.f64(double %x, double %y, double undef)
+  ret double %r
+}
+
+define double @fmuladd_poison_op2(double %x, double %y) {
+; CHECK-LABEL: @fmuladd_poison_op2(
+; CHECK-NEXT:    ret double 0x7FF8000000000000
+;
+  %r = call double @llvm.fmuladd.f64(double %x, double %y, double poison)
+  ret double %r
+}
+
+define double @fma_nan_op0(double %x, double %y) {
+; CHECK-LABEL: @fma_nan_op0(
+; CHECK-NEXT:    ret double 0x7FF8000000000000
+;
+  %r = call double @llvm.fma.f64(double 0x7ff8000000000000, double %x, double %y)
+  ret double %r
+}
+
+define double @fma_nan_op1(double %x, double %y) {
+; CHECK-LABEL: @fma_nan_op1(
+; CHECK-NEXT:    ret double 0x7FF8000000000001
+;
+  %r = call double @llvm.fma.f64(double %x, double 0x7ff8000000000001, double %y)
+  ret double %r
+}
+
+define double @fma_nan_op2(double %x, double %y) {
+; CHECK-LABEL: @fma_nan_op2(
+; CHECK-NEXT:    ret double 0x7FF8000000000002
+;
+  %r = call double @llvm.fma.f64(double %x, double %y, double 0x7ff8000000000002)
+  ret double %r
+}
+
+define double @fmuladd_nan_op0_op1(double %x) {
+; CHECK-LABEL: @fmuladd_nan_op0_op1(
+; CHECK-NEXT:    ret double 0x7FF8000000001234
+;
+  %r = call double @llvm.fmuladd.f64(double 0x7ff8000000001234, double 0x7ff800000000dead, double %x)
+  ret double %r
+}
+
+define double @fmuladd_nan_op0_op2(double %x) {
+; CHECK-LABEL: @fmuladd_nan_op0_op2(
+; CHECK-NEXT:    ret double 0x7FF8000000005678
+;
+  %r = call double @llvm.fmuladd.f64(double 0x7ff8000000005678, double %x, double 0x7ff800000000dead)
+  ret double %r
+}
+
+define double @fmuladd_nan_op1_op2(double %x) {
+; CHECK-LABEL: @fmuladd_nan_op1_op2(
+; CHECK-NEXT:    ret double 0x7FF80000AAAAAAAA
+;
+  %r = call double @llvm.fmuladd.f64(double %x, double 0x7ff80000aaaaaaaa, double 0x7ff800000000dead)
+  ret double %r
+}
+
+define double @fma_nan_multiplicand_inf_zero(double %x) {
+; CHECK-LABEL: @fma_nan_multiplicand_inf_zero(
+; CHECK-NEXT:    [[R:%.*]] = call double @llvm.fma.f64(double 0x7FF0000000000000, double 0.000000e+00, double [[X:%.*]])
+; CHECK-NEXT:    ret double [[R]]
+;
+  %r = call double @llvm.fma.f64(double 0x7ff0000000000000, double 0.0, double %x)
+  ret double %r
+}
+
+define double @fma_nan_multiplicand_zero_inf(double %x) {
+; CHECK-LABEL: @fma_nan_multiplicand_zero_inf(
+; CHECK-NEXT:    [[R:%.*]] = call double @llvm.fma.f64(double 0.000000e+00, double 0x7FF0000000000000, double [[X:%.*]])
+; CHECK-NEXT:    ret double [[R]]
+;
+  %r = call double @llvm.fma.f64(double 0.0, double 0x7ff0000000000000, double %x)
+  ret double %r
+}
+
+define double @fma_nan_addend_inf_neginf(double %x, i32 %y) {
+; CHECK-LABEL: @fma_nan_addend_inf_neginf(
+; CHECK-NEXT:    [[NOTNAN:%.*]] = uitofp i32 [[Y:%.*]] to double
+; CHECK-NEXT:    [[R:%.*]] = call double @llvm.fma.f64(double 0x7FF0000000000000, double [[NOTNAN]], double 0xFFF0000000000000)
+; CHECK-NEXT:    ret double [[R]]
+;
+  %notnan = uitofp i32 %y to double
+  %r = call double @llvm.fma.f64(double 0x7ff0000000000000, double %notnan, double 0xfff0000000000000)
+  ret double %r
+}
+
+define double @fma_nan_addend_neginf_inf(double %x, i1 %y) {
+; CHECK-LABEL: @fma_nan_addend_neginf_inf(
+; CHECK-NEXT:    [[NOTNAN:%.*]] = select i1 [[Y:%.*]], double 4.200000e+01, double -1.000000e-01
+; CHECK-NEXT:    [[R:%.*]] = call double @llvm.fma.f64(double [[NOTNAN]], double 0xFFF0000000000000, double 0x7FF0000000000000)
+; CHECK-NEXT:    ret double [[R]]
+;
+  %notnan = select i1 %y, double 42.0, double -0.1
+  %r = call double @llvm.fma.f64(double %notnan, double 0xfff0000000000000, double 0x7ff0000000000000)
+  ret double %r
+}
+
+define double @fmuladd_nan_multiplicand_neginf_zero(double %x) {
+; CHECK-LABEL: @fmuladd_nan_multiplicand_neginf_zero(
+; CHECK-NEXT:    [[R:%.*]] = call double @llvm.fmuladd.f64(double 0xFFF0000000000000, double 0.000000e+00, double [[X:%.*]])
+; CHECK-NEXT:    ret double [[R]]
+;
+  %r = call double @llvm.fmuladd.f64(double 0xfff0000000000000, double 0.0, double %x)
+  ret double %r
+}
+
+define double @fmuladd_nan_multiplicand_negzero_inf(double %x) {
+; CHECK-LABEL: @fmuladd_nan_multiplicand_negzero_inf(
+; CHECK-NEXT:    [[R:%.*]] = call double @llvm.fmuladd.f64(double -0.000000e+00, double 0x7FF0000000000000, double [[X:%.*]])
+; CHECK-NEXT:    ret double [[R]]
+;
+  %r = call double @llvm.fmuladd.f64(double -0.0, double 0x7ff0000000000000, double %x)
+  ret double %r
+}
+
+define double @fmuladd_nan_addend_inf_neginf(double %x, i32 %y) {
+; CHECK-LABEL: @fmuladd_nan_addend_inf_neginf(
+; CHECK-NEXT:    [[NOTNAN:%.*]] = sitofp i32 [[Y:%.*]] to double
+; CHECK-NEXT:    [[R:%.*]] = call double @llvm.fmuladd.f64(double 0x7FF0000000000000, double [[NOTNAN]], double 0xFFF0000000000000)
+; CHECK-NEXT:    ret double [[R]]
+;
+  %notnan = sitofp i32 %y to double
+  %r = call double @llvm.fmuladd.f64(double 0x7ff0000000000000, double %notnan, double 0xfff0000000000000)
+  ret double %r
+}
+
+define double @fmuladd_nan_addend_neginf_inf(double %x, i1 %y) {
+; CHECK-LABEL: @fmuladd_nan_addend_neginf_inf(
+; CHECK-NEXT:    [[NOTNAN:%.*]] = select i1 [[Y:%.*]], double 4.200000e+01, double -1.000000e-01
+; CHECK-NEXT:    [[R:%.*]] = call double @llvm.fmuladd.f64(double [[NOTNAN]], double 0xFFF0000000000000, double 0x7FF0000000000000)
+; CHECK-NEXT:    ret double [[R]]
+;
+  %notnan = select i1 %y, double 42.0, double -0.1
+  %r = call double @llvm.fmuladd.f64(double %notnan, double 0xfff0000000000000, double 0x7ff0000000000000)
+  ret double %r
+}
+
+declare float @llvm.copysign.f32(float, float)
+declare <2 x double> @llvm.copysign.v2f64(<2 x double>, <2 x double>)
+
+define float @copysign_same_operand(float %x) {
+; CHECK-LABEL: @copysign_same_operand(
+; CHECK-NEXT:    ret float [[X:%.*]]
+;
+  %r = call float @llvm.copysign.f32(float %x, float %x)
+  ret float %r
+}
+
+define <2 x double> @copysign_same_operand_vec(<2 x double> %x) {
+; CHECK-LABEL: @copysign_same_operand_vec(
+; CHECK-NEXT:    ret <2 x double> [[X:%.*]]
+;
+  %r = call <2 x double> @llvm.copysign.v2f64(<2 x double> %x, <2 x double> %x)
+  ret <2 x double> %r
+}
+
+define float @negated_sign_arg(float %x) {
+; CHECK-LABEL: @negated_sign_arg(
+; CHECK-NEXT:    [[NEGX:%.*]] = fsub ninf float -0.000000e+00, [[X:%.*]]
+; CHECK-NEXT:    ret float [[NEGX]]
+;
+  %negx = fsub ninf float -0.0, %x
+  %r = call arcp float @llvm.copysign.f32(float %x, float %negx)
+  ret float %r
+}
+
+define <2 x double> @negated_sign_arg_vec(<2 x double> %x) {
+; CHECK-LABEL: @negated_sign_arg_vec(
+; CHECK-NEXT:    [[NEGX:%.*]] = fneg afn <2 x double> [[X:%.*]]
+; CHECK-NEXT:    ret <2 x double> [[NEGX]]
+;
+  %negx = fneg afn <2 x double> %x
+  %r = call arcp <2 x double> @llvm.copysign.v2f64(<2 x double> %x, <2 x double> %negx)
+  ret <2 x double> %r
+}
+
+define float @negated_mag_arg(float %x) {
+; CHECK-LABEL: @negated_mag_arg(
+; CHECK-NEXT:    ret float [[X:%.*]]
+;
+  %negx = fneg nnan float %x
+  %r = call ninf float @llvm.copysign.f32(float %negx, float %x)
+  ret float %r
+}
+
+define <2 x double> @negated_mag_arg_vec(<2 x double> %x) {
+; CHECK-LABEL: @negated_mag_arg_vec(
+; CHECK-NEXT:    ret <2 x double> [[X:%.*]]
+;
+  %negx = fneg afn <2 x double> %x
+  %r = call arcp <2 x double> @llvm.copysign.v2f64(<2 x double> %negx, <2 x double> %x)
+  ret <2 x double> %r
+}
+
+; We handle the "returned" attribute only in InstCombine, because the fact
+; that this simplification may replace one call with another may cause issues
+; for call graph passes.
+
+declare i32 @passthru_i32(i32 returned)
+declare i8* @passthru_p8(i8* returned)
+
+define i32 @returned_const_int_arg() {
+; CHECK-LABEL: @returned_const_int_arg(
+; CHECK-NEXT:    [[X:%.*]] = call i32 @passthru_i32(i32 42)
+; CHECK-NEXT:    ret i32 [[X]]
+;
+  %x = call i32 @passthru_i32(i32 42)
+  ret i32 %x
+}
+
+define i8* @returned_const_ptr_arg() {
+; CHECK-LABEL: @returned_const_ptr_arg(
+; CHECK-NEXT:    [[X:%.*]] = call i8* @passthru_p8(i8* null)
+; CHECK-NEXT:    ret i8* [[X]]
+;
+  %x = call i8* @passthru_p8(i8* null)
+  ret i8* %x
+}
+
+define i32 @returned_var_arg(i32 %arg) {
+; CHECK-LABEL: @returned_var_arg(
+; CHECK-NEXT:    [[X:%.*]] = call i32 @passthru_i32(i32 [[ARG:%.*]])
+; CHECK-NEXT:    ret i32 [[X]]
+;
+  %x = call i32 @passthru_i32(i32 %arg)
+  ret i32 %x
+}
+
+define i32 @returned_const_int_arg_musttail(i32 %arg) {
+; CHECK-LABEL: @returned_const_int_arg_musttail(
+; CHECK-NEXT:    [[X:%.*]] = musttail call i32 @passthru_i32(i32 42)
+; CHECK-NEXT:    ret i32 [[X]]
+;
+  %x = musttail call i32 @passthru_i32(i32 42)
+  ret i32 %x
+}
+
+define i32 @returned_var_arg_musttail(i32 %arg) {
+; CHECK-LABEL: @returned_var_arg_musttail(
+; CHECK-NEXT:    [[X:%.*]] = musttail call i32 @passthru_i32(i32 [[ARG:%.*]])
+; CHECK-NEXT:    ret i32 [[X]]
+;
+  %x = musttail call i32 @passthru_i32(i32 %arg)
+  ret i32 %x
+}
+
+define i32 @call_undef_musttail() {
+; CHECK-LABEL: @call_undef_musttail(
+; CHECK-NEXT:    [[X:%.*]] = musttail call i32 undef()
+; CHECK-NEXT:    ret i32 [[X]]
+;
+  %x = musttail call i32 undef()
+  ret i32 %x
+}
+
+; This is not the builtin fmax, so we don't know anything about its behavior.
+
+declare float @fmaxf(float, float)
+
+define float @nobuiltin_fmax() {
+; CHECK-LABEL: @nobuiltin_fmax(
+; CHECK-NEXT:    [[M:%.*]] = call float @fmaxf(float 0.000000e+00, float 1.000000e+00) [[ATTR3:#.*]]
+; CHECK-NEXT:    [[R:%.*]] = call float @llvm.fabs.f32(float [[M]])
+; CHECK-NEXT:    ret float [[R]]
+;
+  %m = call float @fmaxf(float 0.0, float 1.0) #0
+  %r = call float @llvm.fabs.f32(float %m)
+  ret float %r
+}
+
+
+declare i32 @llvm.ctpop.i32(i32)
+declare <3 x i33> @llvm.ctpop.v3i33(<3 x i33>)
+declare i1 @llvm.ctpop.i1(i1)
+
+define i32 @ctpop_lowbit(i32 %x) {
+; CHECK-LABEL: @ctpop_lowbit(
+; CHECK-NEXT:    [[B:%.*]] = and i32 [[X:%.*]], 1
+; CHECK-NEXT:    ret i32 [[B]]
+;
+  %b = and i32 %x, 1
+  %r = call i32 @llvm.ctpop.i32(i32 %b)
+  ret i32 %r
+}
+
+; Negative test - only low bit allowed
+; This could be reduced by instcombine to and+shift.
+
+define i32 @ctpop_pow2(i32 %x) {
+; CHECK-LABEL: @ctpop_pow2(
+; CHECK-NEXT:    [[B:%.*]] = and i32 [[X:%.*]], 4
+; CHECK-NEXT:    [[R:%.*]] = call i32 @llvm.ctpop.i32(i32 [[B]])
+; CHECK-NEXT:    ret i32 [[R]]
+;
+  %b = and i32 %x, 4
+  %r = call i32 @llvm.ctpop.i32(i32 %b)
+  ret i32 %r
+}
+
+define <3 x i33> @ctpop_signbit(<3 x i33> %x) {
+; CHECK-LABEL: @ctpop_signbit(
+; CHECK-NEXT:    [[B:%.*]] = lshr <3 x i33> [[X:%.*]], <i33 32, i33 32, i33 32>
+; CHECK-NEXT:    ret <3 x i33> [[B]]
+;
+  %b = lshr <3 x i33> %x, <i33 32, i33 32, i33 32>
+  %r = tail call <3 x i33> @llvm.ctpop.v3i33(<3 x i33> %b)
+  ret <3 x i33> %r
+}
+
+; Negative test - only 1 bit allowed
+
+define <3 x i33> @ctpop_notsignbit(<3 x i33> %x) {
+; CHECK-LABEL: @ctpop_notsignbit(
+; CHECK-NEXT:    [[B:%.*]] = lshr <3 x i33> [[X:%.*]], <i33 31, i33 31, i33 31>
+; CHECK-NEXT:    [[R:%.*]] = tail call <3 x i33> @llvm.ctpop.v3i33(<3 x i33> [[B]])
+; CHECK-NEXT:    ret <3 x i33> [[R]]
+;
+  %b = lshr <3 x i33> %x, <i33 31, i33 31, i33 31>
+  %r = tail call <3 x i33> @llvm.ctpop.v3i33(<3 x i33> %b)
+  ret <3 x i33> %r
+}
+
+define i1 @ctpop_bool(i1 %x) {
+; CHECK-LABEL: @ctpop_bool(
+; CHECK-NEXT:    ret i1 [[X:%.*]]
+;
+  %r = tail call i1 @llvm.ctpop.i1(i1 %x)
+  ret i1 %r
+}
+
+attributes #0 = { nobuiltin readnone }

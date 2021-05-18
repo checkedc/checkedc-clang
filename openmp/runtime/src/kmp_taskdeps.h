@@ -5,10 +5,9 @@
 
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.txt for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -17,8 +16,6 @@
 #define KMP_TASKDEPS_H
 
 #include "kmp.h"
-
-#if OMP_40_ENABLED
 
 #define KMP_ACQUIRE_DEPNODE(gtid, n) __kmp_acquire_lock(&(n)->dn.lock, (gtid))
 #define KMP_RELEASE_DEPNODE(gtid, n) __kmp_release_lock(&(n)->dn.lock, (gtid))
@@ -92,6 +89,16 @@ static inline void __kmp_release_deps(kmp_int32 gtid, kmp_taskdata_t *task) {
   kmp_info_t *thread = __kmp_threads[gtid];
   kmp_depnode_t *node = task->td_depnode;
 
+  // Check mutexinoutset dependencies, release locks
+  if (UNLIKELY(node && (node->dn.mtx_num_locks < 0))) {
+    // negative num_locks means all locks were acquired
+    node->dn.mtx_num_locks = -node->dn.mtx_num_locks;
+    for (int i = node->dn.mtx_num_locks - 1; i >= 0; --i) {
+      KMP_DEBUG_ASSERT(node->dn.mtx_locks[i] != NULL);
+      __kmp_release_lock(node->dn.mtx_locks[i], gtid);
+    }
+  }
+
   if (task->td_dephash) {
     KA_TRACE(
         40, ("__kmp_release_deps: T#%d freeing dependencies hash of task %p.\n",
@@ -112,6 +119,7 @@ static inline void __kmp_release_deps(kmp_int32 gtid, kmp_taskdata_t *task) {
   KMP_RELEASE_DEPNODE(gtid, node);
 
   kmp_depnode_list_t *next;
+  kmp_taskdata_t *next_taskdata;
   for (kmp_depnode_list_t *p = node->dn.successors; p; p = next) {
     kmp_depnode_t *successor = p->node;
     kmp_int32 npredecessors = KMP_ATOMIC_DEC(&successor->dn.npredecessors) - 1;
@@ -124,7 +132,24 @@ static inline void __kmp_release_deps(kmp_int32 gtid, kmp_taskdata_t *task) {
         KA_TRACE(20, ("__kmp_release_deps: T#%d successor %p of %p scheduled "
                       "for execution.\n",
                       gtid, successor->dn.task, task));
-        __kmp_omp_task(gtid, successor->dn.task, false);
+        // If a regular task depending on a hidden helper task, when the
+        // hidden helper task is done, the regular task should be executed by
+        // its encountering team.
+        if (KMP_HIDDEN_HELPER_THREAD(gtid)) {
+          // Hidden helper thread can only execute hidden helper tasks
+          KMP_ASSERT(task->td_flags.hidden_helper);
+          next_taskdata = KMP_TASK_TO_TASKDATA(successor->dn.task);
+          // If the dependent task is a regular task, we need to push to its
+          // encountering thread's queue; otherwise, it can be pushed to its own
+          // queue.
+          if (!next_taskdata->td_flags.hidden_helper) {
+            __kmp_omp_task(task->encountering_gtid, successor->dn.task, false);
+          } else {
+            __kmp_omp_task(gtid, successor->dn.task, false);
+          }
+        } else {
+          __kmp_omp_task(gtid, successor->dn.task, false);
+        }
       }
     }
 
@@ -144,7 +169,5 @@ static inline void __kmp_release_deps(kmp_int32 gtid, kmp_taskdata_t *task) {
       ("__kmp_release_deps: T#%d all successors of %p notified of completion\n",
        gtid, task));
 }
-
-#endif // OMP_40_ENABLED
 
 #endif // KMP_TASKDEPS_H

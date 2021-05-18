@@ -1,9 +1,8 @@
 /*===- InstrProfiling.h- Support library for PGO instrumentation ----------===*\
 |*
-|*                     The LLVM Compiler Infrastructure
-|*
-|* This file is distributed under the University of Illinois Open Source
-|* License. See LICENSE.TXT for details.
+|* Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+|* See https://llvm.org/LICENSE.txt for license information.
+|* SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 |*
 \*===----------------------------------------------------------------------===*/
 
@@ -42,11 +41,18 @@ int __llvm_profile_write_buffer_internal(
 /*!
  * The data structure describing the data to be written by the
  * low level writer callback function.
+ *
+ * If \ref ProfDataIOVec.Data is null, and \ref ProfDataIOVec.UseZeroPadding is
+ * 0, the write is skipped (the writer simply advances ElmSize*NumElm bytes).
+ *
+ * If \ref ProfDataIOVec.Data is null, and \ref ProfDataIOVec.UseZeroPadding is
+ * nonzero, ElmSize*NumElm zero bytes are written.
  */
 typedef struct ProfDataIOVec {
   const void *Data;
   size_t ElmSize;
   size_t NumElm;
+  int UseZeroPadding;
 } ProfDataIOVec;
 
 struct ProfDataWriter;
@@ -175,8 +181,12 @@ uint64_t lprofGetLoadModuleSignature();
  * Return non zero value if the profile data has already been
  * dumped to the file.
  */
-unsigned lprofProfileDumped();
-void lprofSetProfileDumped();
+unsigned lprofProfileDumped(void);
+void lprofSetProfileDumped(unsigned);
+
+/* Return non zero value if counters are being relocated at runtime. */
+unsigned lprofRuntimeCounterRelocation(void);
+void lprofSetRuntimeCounterRelocation(unsigned);
 
 COMPILER_RT_VISIBILITY extern void (*FreeHook)(void *);
 COMPILER_RT_VISIBILITY extern uint8_t *DynamicBufferIOBuffer;

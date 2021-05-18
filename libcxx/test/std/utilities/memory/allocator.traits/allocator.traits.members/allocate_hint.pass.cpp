@@ -1,18 +1,20 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+// UNSUPPORTED: clang-8
+// UNSUPPORTED: gcc-8, gcc-9
 
 // <memory>
 
 // template <class Alloc>
 // struct allocator_traits
 // {
-//     static pointer allocate(allocator_type& a, size_type n, const_void_pointer hint);
+//     static constexpr pointer allocate(allocator_type& a, size_type n, const_void_pointer hint);
 //     ...
 // };
 
@@ -28,11 +30,15 @@ struct A
 {
     typedef T value_type;
 
-    value_type* allocate(std::size_t n)
+    TEST_CONSTEXPR_CXX20 A() {}
+
+    TEST_CONSTEXPR_CXX20 value_type* allocate(std::size_t n)
     {
         assert(n == 10);
-        return reinterpret_cast<value_type*>(static_cast<std::uintptr_t>(0xDEADBEEF));
+        return &storage;
     }
+
+    value_type storage;
 };
 
 template <class T>
@@ -40,42 +46,48 @@ struct B
 {
     typedef T value_type;
 
-    value_type* allocate(std::size_t n)
-    {
-        assert(n == 12);
-        return reinterpret_cast<value_type*>(static_cast<std::uintptr_t>(0xEEADBEEF));
-    }
-    value_type* allocate(std::size_t n, const void* p)
+    TEST_CONSTEXPR_CXX20 value_type* allocate(std::size_t n, const void* p)
     {
         assert(n == 11);
-        assert(p == 0);
-        return reinterpret_cast<value_type*>(static_cast<std::uintptr_t>(0xFEADBEEF));
+        assert(p == nullptr);
+        return &storage;
     }
+
+    value_type storage;
 };
 
-
-int main()
+TEST_CONSTEXPR_CXX20 bool test()
 {
 #if TEST_STD_VER >= 11
-  {
-    A<int> a;
-    assert(std::allocator_traits<A<int> >::allocate(a, 10, nullptr) == reinterpret_cast<int*>(static_cast<std::uintptr_t>(0xDEADBEEF)));
-  }
-  {
-    typedef IncompleteHolder* VT;
-    typedef A<VT> Alloc;
-    Alloc a;
-    assert(std::allocator_traits<Alloc >::allocate(a, 10, nullptr) == reinterpret_cast<VT*>(static_cast<std::uintptr_t>(0xDEADBEEF)));
-  }
+    {
+        A<int> a;
+        assert(std::allocator_traits<A<int> >::allocate(a, 10, nullptr) == &a.storage);
+    }
+    {
+        typedef A<IncompleteHolder*> Alloc;
+        Alloc a;
+        assert(std::allocator_traits<Alloc>::allocate(a, 10, nullptr) == &a.storage);
+    }
 #endif
-  {
-    B<int> b;
-    assert(std::allocator_traits<B<int> >::allocate(b, 11, nullptr) == reinterpret_cast<int*>(static_cast<std::uintptr_t>(0xFEADBEEF)));
-  }
-  {
-    typedef IncompleteHolder* VT;
-    typedef B<VT> Alloc;
-    Alloc b;
-    assert(std::allocator_traits<Alloc >::allocate(b, 11, nullptr) == reinterpret_cast<VT*>(static_cast<std::uintptr_t>(0xFEADBEEF)));
-  }
+    {
+        B<int> b;
+        assert(std::allocator_traits<B<int> >::allocate(b, 11, nullptr) == &b.storage);
+    }
+    {
+        typedef B<IncompleteHolder*> Alloc;
+        Alloc b;
+        assert(std::allocator_traits<Alloc>::allocate(b, 11, nullptr) == &b.storage);
+    }
+
+    return true;
+}
+
+
+int main(int, char**)
+{
+    test();
+#if TEST_STD_VER > 17
+    static_assert(test());
+#endif
+    return 0;
 }

@@ -1,17 +1,5 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-
-//===-- ledf2vfp_test.c - Test __ledf2vfp ---------------------------------===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __ledf2vfp for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
+// REQUIRES: librt_has_ledf2vfp
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -21,7 +9,7 @@
 
 extern int __ledf2vfp(double a, double b);
 
-#if __arm__ && __VFP_FP__
+#if defined(__arm__) && defined(__ARM_FP) && (__ARM_FP & 0x8)
 int test__ledf2vfp(double a, double b)
 {
     int actual = __ledf2vfp(a, b);
@@ -35,7 +23,7 @@ int test__ledf2vfp(double a, double b)
 
 int main()
 {
-#if __arm__ && __VFP_FP__
+#if defined(__arm__) && defined(__ARM_FP) && (__ARM_FP & 0x8)
     if (test__ledf2vfp(0.0, 0.0))
         return 1;
     if (test__ledf2vfp(1.0, 1.0))

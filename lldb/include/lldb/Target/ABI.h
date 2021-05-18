@@ -1,14 +1,13 @@
 //===-- ABI.h ---------------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ABI_h_
-#define liblldb_ABI_h_
+#ifndef LLDB_TARGET_ABI_H
+#define LLDB_TARGET_ABI_H
 
 #include "lldb/Core/PluginInterface.h"
 #include "lldb/Symbol/UnwindPlan.h"
@@ -16,8 +15,8 @@
 #include "lldb/lldb-private.h"
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/MC/MCRegisterInfo.h"
 
-// forward define the llvm::Type class
 namespace llvm {
 class Type;
 }
@@ -35,7 +34,7 @@ public:
     size_t size; /* size in bytes of this argument */
 
     lldb::addr_t value;                 /* literal value */
-    std::unique_ptr<uint8_t[]> data_ap; /* host data pointer */
+    std::unique_ptr<uint8_t[]> data_up; /* host data pointer */
   };
 
   ~ABI() override;
@@ -87,14 +86,12 @@ protected:
   virtual lldb::ValueObjectSP
   GetReturnValueObjectImpl(Thread &thread, llvm::Type &ir_type) const;
 
-  //------------------------------------------------------------------
   /// Request to get a Process shared pointer.
   ///
   /// This ABI object may not have been created with a Process object,
   /// or the Process object may no longer be alive.  Be sure to handle
   /// the case where the shared pointer returned does not have an
   /// object inside it.
-  //------------------------------------------------------------------
   lldb::ProcessSP GetProcessSP() const { return m_process_wp.lock(); }
 
 public:
@@ -127,32 +124,68 @@ public:
     return pc;
   }
 
-  virtual const RegisterInfo *GetRegisterInfoArray(uint32_t &count) = 0;
+  llvm::MCRegisterInfo &GetMCRegisterInfo() { return *m_mc_register_info_up; }
 
-  bool GetRegisterInfoByName(const ConstString &name, RegisterInfo &info);
-
-  bool GetRegisterInfoByKind(lldb::RegisterKind reg_kind, uint32_t reg_num,
-                             RegisterInfo &info);
+  virtual void AugmentRegisterInfo(RegisterInfo &info) = 0;
 
   virtual bool GetPointerReturnRegister(const char *&name) { return false; }
 
   static lldb::ABISP FindPlugin(lldb::ProcessSP process_sp, const ArchSpec &arch);
 
 protected:
-  //------------------------------------------------------------------
-  // Classes that inherit from ABI can see and modify these
-  //------------------------------------------------------------------
-  ABI(lldb::ProcessSP process_sp) {
-    if (process_sp.get())
-        m_process_wp = process_sp;
+  ABI(lldb::ProcessSP process_sp, std::unique_ptr<llvm::MCRegisterInfo> info_up)
+      : m_process_wp(process_sp), m_mc_register_info_up(std::move(info_up)) {
+    assert(m_mc_register_info_up && "ABI must have MCRegisterInfo");
   }
 
+  /// Utility function to construct a MCRegisterInfo using the ArchSpec triple.
+  /// Plugins wishing to customize the construction can construct the
+  /// MCRegisterInfo themselves.
+  static std::unique_ptr<llvm::MCRegisterInfo>
+  MakeMCRegisterInfo(const ArchSpec &arch);
+
   lldb::ProcessWP m_process_wp;
+  std::unique_ptr<llvm::MCRegisterInfo> m_mc_register_info_up;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(ABI);
+  ABI(const ABI &) = delete;
+  const ABI &operator=(const ABI &) = delete;
+};
+
+class RegInfoBasedABI : public ABI {
+public:
+  void AugmentRegisterInfo(RegisterInfo &info) override;
+
+protected:
+  using ABI::ABI;
+
+  bool GetRegisterInfoByName(llvm::StringRef name, RegisterInfo &info);
+
+  virtual const RegisterInfo *GetRegisterInfoArray(uint32_t &count) = 0;
+};
+
+class MCBasedABI : public ABI {
+public:
+  void AugmentRegisterInfo(RegisterInfo &info) override;
+
+  /// If the register name is of the form "<from_prefix>[<number>]" then change
+  /// the name to "<to_prefix>[<number>]". Otherwise, leave the name unchanged.
+  static void MapRegisterName(std::string &reg, llvm::StringRef from_prefix,
+               llvm::StringRef to_prefix);
+protected:
+  using ABI::ABI;
+
+  /// Return eh_frame and dwarf numbers for the given register.
+  virtual std::pair<uint32_t, uint32_t> GetEHAndDWARFNums(llvm::StringRef reg);
+
+  /// Return the generic number of the given register.
+  virtual uint32_t GetGenericNum(llvm::StringRef reg) = 0;
+
+  /// For the given (capitalized) lldb register name, return the name of this
+  /// register in the MCRegisterInfo struct.
+  virtual std::string GetMCName(std::string reg) { return reg; }
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_ABI_h_
+#endif // LLDB_TARGET_ABI_H

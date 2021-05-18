@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -57,6 +56,19 @@ struct MySearcher {
     }
 };
 
+namespace User {
+struct S {
+    S(int x) : x_(x) {}
+    int x_;
+};
+bool operator==(S lhs, S rhs)
+{
+    return lhs.x_ == rhs.x_;
+}
+template <class T, class U>
+void make_pair(T&&, U&&) = delete;
+} // namespace User
+
 template <class Iter1, class Iter2>
 void
 test()
@@ -96,7 +108,15 @@ test()
     assert(std::search(Iter1(ij), Iter1(ij+sj), Iter2(ik), Iter2(ik+sk)) == Iter1(ij+6));
 }
 
-int main()
+template <class Iter>
+void
+adl_test()
+{
+    User::S ua[] = {1};
+    assert(std::search(Iter(ua), Iter(ua), Iter(ua), Iter(ua)) == Iter(ua));
+}
+
+int main(int, char**)
 {
     test<forward_iterator<const int*>, forward_iterator<const int*> >();
     test<forward_iterator<const int*>, bidirectional_iterator<const int*> >();
@@ -107,6 +127,9 @@ int main()
     test<random_access_iterator<const int*>, forward_iterator<const int*> >();
     test<random_access_iterator<const int*>, bidirectional_iterator<const int*> >();
     test<random_access_iterator<const int*>, random_access_iterator<const int*> >();
+
+    adl_test<forward_iterator<User::S*> >();
+    adl_test<random_access_iterator<User::S*> >();
 
 #if TEST_STD_VER > 14
 {
@@ -122,4 +145,6 @@ int main()
 #if TEST_STD_VER > 17
     static_assert(test_constexpr());
 #endif
+
+  return 0;
 }

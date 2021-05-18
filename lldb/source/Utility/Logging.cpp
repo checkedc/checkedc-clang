@@ -1,9 +1,8 @@
-//===-- Logging.cpp ---------------------------------------------*- C++ -*-===//
+//===-- Logging.cpp -------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -18,6 +17,7 @@ using namespace lldb_private;
 
 static constexpr Log::Category g_categories[] = {
   {{"api"}, {"log API calls and return values"}, LIBLLDB_LOG_API},
+  {{"ast"}, {"log AST"}, LIBLLDB_LOG_AST},
   {{"break"}, {"log breakpoints"}, LIBLLDB_LOG_BREAKPOINTS},
   {{"commands"}, {"log command argument parsing"}, LIBLLDB_LOG_COMMANDS},
   {{"comm"}, {"log communication activities"}, LIBLLDB_LOG_COMMUNICATION},
@@ -61,14 +61,4 @@ Log *lldb_private::GetLogIfAllCategoriesSet(uint32_t mask) {
 
 Log *lldb_private::GetLogIfAnyCategoriesSet(uint32_t mask) {
   return g_log_channel.GetLogIfAny(mask);
-}
-
-
-void lldb_private::LogIfAnyCategoriesSet(uint32_t mask, const char *format, ...) {
-  if (Log *log = GetLogIfAnyCategoriesSet(mask)) {
-    va_list args;
-    va_start(args, format);
-    log->VAPrintf(format, args);
-    va_end(args);
-  }
 }

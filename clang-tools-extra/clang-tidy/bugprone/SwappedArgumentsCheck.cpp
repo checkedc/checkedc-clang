@@ -1,9 +1,8 @@
 //===--- SwappedArgumentsCheck.cpp - clang-tidy ---------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -23,7 +22,7 @@ void SwappedArgumentsCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(callExpr().bind("call"), this);
 }
 
-/// \brief Look through lvalue to rvalue and nop casts. This filters out
+/// Look through lvalue to rvalue and nop casts. This filters out
 /// implicit conversions that have no effect on the input but block our view for
 /// other implicit casts.
 static const Expr *ignoreNoOpCasts(const Expr *E) {
@@ -34,7 +33,7 @@ static const Expr *ignoreNoOpCasts(const Expr *E) {
   return E;
 }
 
-/// \brief Restrict the warning to implicit casts that are most likely
+/// Restrict the warning to implicit casts that are most likely
 /// accidental. User defined or integral conversions fit in this category,
 /// lvalue to rvalue or derived to base does not.
 static bool isImplicitCastCandidate(const CastExpr *Cast) {

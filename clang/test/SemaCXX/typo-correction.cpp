@@ -1,4 +1,5 @@
-// RUN: %clang_cc1 -fspell-checking-limit 0 -verify -Wno-c++11-extensions %s
+// RUN: %clang_cc1 -fspell-checking-limit 0 -verify -Wno-c++11-extensions -fcxx-exceptions %s
+// RUN: %clang_cc1 -fspell-checking-limit 0 -verify -Wno-c++11-extensions -fcxx-exceptions -std=c++20 %s
 
 namespace PR21817{
 int a(-rsing[2]); // expected-error {{undeclared identifier 'rsing'; did you mean 'using'?}}
@@ -344,20 +345,20 @@ void zif::nab(int) {
 
 namespace TemplateFunction {
 template <class T>
-void A(T) { }  // expected-note {{'::TemplateFunction::A' declared here}}
+void fnA(T) { }  // expected-note {{'::TemplateFunction::fnA' declared here}}
 
 template <class T>
-void B(T) { }  // expected-note {{'::TemplateFunction::B' declared here}}
+void fnB(T) { }  // expected-note {{'::TemplateFunction::fnB' declared here}}
 
 class Foo {
  public:
-  void A(int, int) {}
-  void B() {}
+  void fnA(int, int) {}
+  void fnB() {}
 };
 
 void test(Foo F, int num) {
-  F.A(num);  // expected-error {{too few arguments to function call, expected 2, have 1; did you mean '::TemplateFunction::A'?}}
-  F.B(num);  // expected-error {{too many arguments to function call, expected 0, have 1; did you mean '::TemplateFunction::B'?}}
+  F.fnA(num);  // expected-error {{too few arguments to function call, expected 2, have 1; did you mean '::TemplateFunction::fnA'?}}
+  F.fnB(num);  // expected-error {{too many arguments to function call, expected 0, have 1; did you mean '::TemplateFunction::fnB'?}}
 }
 }
 namespace using_suggestion_val_dropped_specifier {
@@ -438,7 +439,7 @@ namespace PR17394 {
     long zzzzzzzzzz;
   };
   class B : private A {};
-  B zzzzzzzzzy<>; // expected-error {{expected ';' after top level declarator}}{}
+  B zzzzzzzzzy<>; // expected-error {{template specialization requires 'template<>'}} expected-error {{no variable template matches specialization}}
 }
 
 namespace correct_fields_in_member_funcs {
@@ -523,8 +524,8 @@ PR18685::BitVector Map;  // expected-error-re {{no type named 'BitVector' in nam
 namespace shadowed_template {
 template <typename T> class Fizbin {};  // expected-note {{'::shadowed_template::Fizbin' declared here}}
 class Baz {
-   int Fizbin();
-   Fizbin<int> qux;  // expected-error {{no template named 'Fizbin'; did you mean '::shadowed_template::Fizbin'?}}
+   int Fizbin;
+   Fizbin<int> qux; // expected-error {{no template named 'Fizbin'; did you mean '::shadowed_template::Fizbin'?}}
 };
 }
 
@@ -537,9 +538,9 @@ namespace no_correct_template_id_to_non_template {
 namespace PR18852 {
 void func() {
   struct foo {
-    void bar() {}
+    void barberry() {}
   };
-  bar();  // expected-error-re {{use of undeclared identifier 'bar'{{$}}}}
+  barberry();  // expected-error-re {{use of undeclared identifier 'barberry'{{$}}}}
 }
 
 class Thread {
@@ -610,6 +611,41 @@ int bar() {
 }
 }
 
+namespace testIncludeTypeInTemplateArgument {
+template <typename T, typename U>
+void foo(T t = {}, U = {}); // expected-note {{candidate template ignored}}
+
+class AddObservation {}; // expected-note {{declared here}}
+int bar1() {
+  // should resolve to a class.
+  foo<AddObservationFn, int>(); // expected-error {{unknown type name 'AddObservationFn'; did you mean 'AddObservation'?}}
+
+  // should not resolve to a class.
+  foo(AddObservationFn, 1);    // expected-error-re {{use of undeclared identifier 'AddObservationFn'{{$}}}}
+  int a = AddObservationFn, b; // expected-error-re {{use of undeclared identifier 'AddObservationFn'{{$}}}}
+
+  int AddObservation; // expected-note 3{{declared here}}
+  // should resolve to a local variable.
+  foo(AddObservationFn, 1);    // expected-error {{use of undeclared identifier 'AddObservationFn'; did you mean}}
+  int c = AddObservationFn, d; // expected-error {{use of undeclared identifier 'AddObservationFn'; did you mean}}
+
+  // FIXME: would be nice to not resolve to a variable.
+  foo<AddObservationFn, int>(); // expected-error {{use of undeclared identifier 'AddObservationFn'; did you mean}} \
+                                   expected-error {{no matching function for call}}
+}
+} // namespace testIncludeTypeInTemplateArgument
+
+namespace testNoCrashOnNullNNSTypoCorrection {
+int AddObservation();
+template <typename T, typename... Args>
+class UsingImpl {};
+class AddObservation { // expected-note {{declared here}}
+  using Using =
+      // should resolve to a class.
+      UsingImpl<AddObservationFn, const int>; // expected-error {{unknown type name 'AddObservationFn'; did you mean}}
+};
+} // namespace testNoCrashOnNullNNSTypoCorrection
+
 namespace testNonStaticMemberHandling {
 struct Foo {
   bool usesMetadata;  // expected-note {{'usesMetadata' declared here}}
@@ -678,7 +714,7 @@ namespace {
 struct a0is0 {};
 struct b0is0 {};
 int g() {
-  0 [                 // expected-error {{subscripted value is not an array}}
+  0 [
       sizeof(c0is0)]; // expected-error {{use of undeclared identifier}}
 };
 }
@@ -708,4 +744,16 @@ void ns::create_test2() { // expected-error {{out-of-line definition of 'create_
 // Expected no redefinition error here.
 void ns::create_test() {
 }
+}
+
+namespace PR46487 {
+  bool g_var_bool; // expected-note {{here}}
+  const char g_volatile_char = 5; // expected-note {{here}}
+  // FIXME: We shouldn't suggest a typo-correction to 'g_var_bool' here,
+  // because it doesn't make the expression valid.
+  // expected-error@+2 {{did you mean 'g_var_bool'}}
+  // expected-error@+1 {{assigning to 'bool' from incompatible type 'void'}}
+  enum : decltype((g_var_long = throw))::a {
+    b = g_volatile_uchar // expected-error {{did you mean 'g_volatile_char'}}
+  };
 }

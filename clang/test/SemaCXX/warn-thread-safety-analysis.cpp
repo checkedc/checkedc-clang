@@ -239,7 +239,7 @@ void sls_fun_bad_1() {
 }
 
 void sls_fun_bad_2() {
-  sls_mu.Lock();
+  sls_mu.Lock(); // expected-note{{mutex acquired here}}
   sls_mu.Lock(); // \
     // expected-warning{{acquiring mutex 'sls_mu' that is already held}}
   sls_mu.Unlock();
@@ -365,7 +365,7 @@ void aa_fun_bad_1() {
 }
 
 void aa_fun_bad_2() {
-  glock.globalLock();
+  glock.globalLock(); // expected-note{{mutex acquired here}}
   glock.globalLock(); // \
     // expected-warning{{acquiring mutex 'aa_mu' that is already held}}
   glock.globalUnlock();
@@ -726,26 +726,26 @@ void shared_bad_2() {
 }
 
 void shared_bad_3() {
-  sls_mu.Lock();
+  sls_mu.Lock();         // expected-note {{mutex acquired here}}
   sls_mu.ReaderUnlock(); // \
     // expected-warning {{releasing mutex 'sls_mu' using shared access, expected exclusive access}}
 }
 
 void shared_bad_4() {
-  sls_mu.ReaderLock();
+  sls_mu.ReaderLock();      // expected-note {{mutex acquired here}}
   sls_mu.ExclusiveUnlock(); // \
     // expected-warning {{releasing mutex 'sls_mu' using exclusive access, expected shared access}}
 }
 
 void shared_bad_5() {
-  sls_mu.Lock();
+  sls_mu.Lock();          // expected-note {{mutex acquired here}}
   sls_mu.PromoteShared(); // \
     // expected-warning {{releasing mutex 'sls_mu' using shared access, expected exclusive access}}
   sls_mu.ExclusiveUnlock();
 }
 
 void shared_bad_6() {
-  sls_mu.ReaderLock();
+  sls_mu.ReaderLock();      // expected-note {{mutex acquired here}}
   sls_mu.DemoteExclusive(); // \
     // expected-warning {{releasing mutex 'sls_mu' using exclusive access, expected shared access}}
   sls_mu.ReaderUnlock();
@@ -1691,7 +1691,7 @@ struct TestScopedLockable {
   }
 
   void foo3() {
-    MutexLock mulock_a(&mu1);
+    MutexLock mulock_a(&mu1); // expected-note{{mutex acquired here}}
     MutexLock mulock_b(&mu1); // \
       // expected-warning {{acquiring mutex 'mu1' that is already held}}
   }
@@ -2606,7 +2606,7 @@ void Foo::test3() {
 
 void Foo::test4() {
   ReleasableMutexLock rlock(&mu_);
-  rlock.Release();
+  rlock.Release();  // expected-note{{mutex released here}}
   rlock.Release();  // expected-warning {{releasing mutex 'mu_' that was not held}}
 }
 
@@ -2625,9 +2625,12 @@ void Foo::test5() {
 
 namespace RelockableScopedLock {
 
+class DeferTraits {};
+
 class SCOPED_LOCKABLE RelockableExclusiveMutexLock {
 public:
   RelockableExclusiveMutexLock(Mutex *mu) EXCLUSIVE_LOCK_FUNCTION(mu);
+  RelockableExclusiveMutexLock(Mutex *mu, DeferTraits) LOCKS_EXCLUDED(mu);
   ~RelockableExclusiveMutexLock() EXCLUSIVE_UNLOCK_FUNCTION();
 
   void Lock() EXCLUSIVE_LOCK_FUNCTION();
@@ -2639,6 +2642,7 @@ struct ExclusiveTraits {};
 
 class SCOPED_LOCKABLE RelockableMutexLock {
 public:
+  RelockableMutexLock(Mutex *mu, DeferTraits) LOCKS_EXCLUDED(mu);
   RelockableMutexLock(Mutex *mu, SharedTraits) SHARED_LOCK_FUNCTION(mu);
   RelockableMutexLock(Mutex *mu, ExclusiveTraits) EXCLUSIVE_LOCK_FUNCTION(mu);
   ~RelockableMutexLock() UNLOCK_FUNCTION();
@@ -2667,6 +2671,13 @@ void relock() {
 
   scope.Lock();
   x = 4;
+}
+
+void deferLock() {
+  RelockableExclusiveMutexLock scope(&mu, DeferTraits{});
+  x = 2; // expected-warning {{writing variable 'x' requires holding mutex 'mu' exclusively}}
+  scope.Lock();
+  x = 3;
 }
 
 void relockExclusive() {
@@ -2703,21 +2714,29 @@ void relockShared() {
   x = 5;
 }
 
+void deferLockShared() {
+  RelockableMutexLock scope(&mu, DeferTraits{});
+  print(x); // expected-warning {{reading variable 'x' requires holding mutex 'mu'}}
+  scope.ReaderLock();
+  print(x);
+  x = 2; // expected-warning {{writing variable 'x' requires holding mutex 'mu' exclusively}}
+}
+
 void doubleUnlock() {
   RelockableExclusiveMutexLock scope(&mu);
-  scope.Unlock();
+  scope.Unlock(); // expected-note{{mutex released here}}
   scope.Unlock(); // expected-warning {{releasing mutex 'mu' that was not held}}
 }
 
 void doubleLock1() {
-  RelockableExclusiveMutexLock scope(&mu);
+  RelockableExclusiveMutexLock scope(&mu); // expected-note{{mutex acquired here}}
   scope.Lock(); // expected-warning {{acquiring mutex 'mu' that is already held}}
 }
 
 void doubleLock2() {
   RelockableExclusiveMutexLock scope(&mu);
   scope.Unlock();
-  scope.Lock();
+  scope.Lock(); // expected-note{{mutex acquired here}}
   scope.Lock(); // expected-warning {{acquiring mutex 'mu' that is already held}}
 }
 
@@ -2754,7 +2773,7 @@ public:
 };
 
 void relockShared2() {
-  MemberLock lock;
+  MemberLock lock; // expected-note{{mutex acquired here}}
   lock.Lock(); // expected-warning {{acquiring mutex 'lock.mutex' that is already held}}
 }
 
@@ -2861,12 +2880,12 @@ void join() EXCLUSIVE_LOCKS_REQUIRED(mu) {
 
 void doubleLock() EXCLUSIVE_LOCKS_REQUIRED(mu) {
   MutexUnlock scope(&mu);
-  scope.Lock();
+  scope.Lock(); // expected-note{{mutex acquired here}}
   scope.Lock(); // expected-warning {{acquiring mutex 'mu' that is already held}}
 }
 
 void doubleUnlock() EXCLUSIVE_LOCKS_REQUIRED(mu) {
-  MutexUnlock scope(&mu);
+  MutexUnlock scope(&mu); // expected-note{{mutex released here}}
   scope.Unlock(); // expected-warning {{releasing mutex 'mu' that was not held}}
 }
 
@@ -3051,6 +3070,20 @@ void Foo::test() {
   int b = a;  // expected-warning {{reading variable 'a' requires holding mutex 'getMutexPtr()'}}
 }
 
+#ifdef __cpp_guaranteed_copy_elision
+
+void guaranteed_copy_elision() {
+  MutexLock lock = MutexLock{&sls_mu};
+  sls_guard_var = 0;
+}
+
+void guaranteed_copy_elision_const() {
+  const MutexLock lock = MutexLock{&sls_mu};
+  sls_guard_var = 0;
+}
+
+#endif
+
 } // end namespace TemporaryCleanupExpr
 
 
@@ -3164,10 +3197,10 @@ void Foo::test7() {
 
 
 void Foo::test8() {
-  mu_->Lock();
+  mu_->Lock();          // expected-note 2 {{mutex acquired here}}
   mu_.get()->Lock();    // expected-warning {{acquiring mutex 'mu_' that is already held}}
   (*mu_).Lock();        // expected-warning {{acquiring mutex 'mu_' that is already held}}
-  mu_.get()->Unlock();
+  mu_.get()->Unlock();  // expected-note {{mutex released here}}
   Unlock();             // expected-warning {{releasing mutex 'mu_' that was not held}}
 }
 
@@ -3298,9 +3331,9 @@ void test0() {
   foo.lock();
   foo.unlock();
 
-  foo.lock();
+  foo.lock();     // expected-note{{mutex acquired here}}
   foo.lock();     // expected-warning {{acquiring mutex 'foo' that is already held}}
-  foo.unlock();
+  foo.unlock();   // expected-note{{mutex released here}}
   foo.unlock();   // expected-warning {{releasing mutex 'foo' that was not held}}
 }
 
@@ -3311,10 +3344,10 @@ void test1() {
   foo.a = 0;
   foo.unlock1();
 
-  foo.lock1();
+  foo.lock1();    // expected-note{{mutex acquired here}}
   foo.lock1();    // expected-warning {{acquiring mutex 'foo.mu1_' that is already held}}
   foo.a = 0;
-  foo.unlock1();
+  foo.unlock1();  // expected-note{{mutex released here}}
   foo.unlock1();  // expected-warning {{releasing mutex 'foo.mu1_' that was not held}}
 }
 
@@ -3325,10 +3358,10 @@ int test2() {
   int d1 = foo.a;
   foo.unlock1();
 
-  foo.slock1();
+  foo.slock1();    // expected-note{{mutex acquired here}}
   foo.slock1();    // expected-warning {{acquiring mutex 'foo.mu1_' that is already held}}
   int d2 = foo.a;
-  foo.unlock1();
+  foo.unlock1();   // expected-note{{mutex released here}}
   foo.unlock1();   // expected-warning {{releasing mutex 'foo.mu1_' that was not held}}
   return d1 + d2;
 }
@@ -3342,7 +3375,7 @@ void test3() {
   foo.c = 0;
   foo.unlock3();
 
-  foo.lock3();
+  foo.lock3(); // expected-note 3 {{mutex acquired here}}
   foo.lock3(); // \
     // expected-warning {{acquiring mutex 'foo.mu1_' that is already held}} \
     // expected-warning {{acquiring mutex 'foo.mu2_' that is already held}} \
@@ -3350,7 +3383,7 @@ void test3() {
   foo.a = 0;
   foo.b = 0;
   foo.c = 0;
-  foo.unlock3();
+  foo.unlock3(); // expected-note 3 {{mutex released here}}
   foo.unlock3(); // \
     // expected-warning {{releasing mutex 'foo.mu1_' that was not held}} \
     // expected-warning {{releasing mutex 'foo.mu2_' that was not held}} \
@@ -3366,7 +3399,7 @@ void testlots() {
   foo.c = 0;
   foo.unlocklots();
 
-  foo.locklots();
+  foo.locklots(); // expected-note 3 {{mutex acquired here}}
   foo.locklots(); // \
     // expected-warning {{acquiring mutex 'foo.mu1_' that is already held}} \
     // expected-warning {{acquiring mutex 'foo.mu2_' that is already held}} \
@@ -3374,7 +3407,7 @@ void testlots() {
   foo.a = 0;
   foo.b = 0;
   foo.c = 0;
-  foo.unlocklots();
+  foo.unlocklots(); // expected-note 3 {{mutex released here}}
   foo.unlocklots(); // \
     // expected-warning {{releasing mutex 'foo.mu1_' that was not held}} \
     // expected-warning {{releasing mutex 'foo.mu2_' that was not held}} \
@@ -3524,7 +3557,7 @@ void test() {
   LockAllGraphs();
   g2.mu_.Unlock();
 
-  LockAllGraphs();
+  LockAllGraphs(); // expected-note{{mutex acquired here}}
   g1.mu_.Lock();  // expected-warning {{acquiring mutex 'g1.mu_' that is already held}}
   g1.mu_.Unlock();
 }
@@ -4952,7 +4985,7 @@ public:
   }
 
   void bar() {
-    bar2();       // expected-warning {{calling function 'bar2' requires holding  '!mu'}}
+    bar2();       // expected-warning {{calling function 'bar2' requires negative capability '!mu'}}
   }
 
   void bar2() EXCLUSIVE_LOCKS_REQUIRED(!mu) {
@@ -5003,7 +5036,8 @@ void spawn_fake_flight_control_thread(void) {
 }
 
 extern const char *deque_log_msg(void) __attribute__((requires_capability(Logger)));
-void logger_entry(void) __attribute__((requires_capability(Logger))) {
+void logger_entry(void) __attribute__((requires_capability(Logger)))
+                        __attribute__((requires_capability(!FlightControl))) {
   const char *msg;
 
   while ((msg = deque_log_msg())) {
@@ -5011,13 +5045,13 @@ void logger_entry(void) __attribute__((requires_capability(Logger))) {
   }
 }
 
-void spawn_fake_logger_thread(void) {
+void spawn_fake_logger_thread(void) __attribute__((requires_capability(!FlightControl))) {
   acquire(Logger);
   logger_entry();
   release(Logger);
 }
 
-int main(void) {
+int main(void) __attribute__((requires_capability(!FlightControl))) {
   spawn_fake_flight_control_thread();
   spawn_fake_logger_thread();
 
@@ -5633,6 +5667,22 @@ namespace ReturnScopedLockable {
   int use() {
     auto ptr = get();
     return ptr->f();
+  }
+  void use_constructor() {
+    auto ptr = ReadLockedPtr<Object>(nullptr);
+    ptr->f();
+    auto ptr2 = ReadLockedPtr<Object>{nullptr};
+    ptr2->f();
+    auto ptr3 = (ReadLockedPtr<Object>{nullptr});
+    ptr3->f();
+  }
+  struct Convertible {
+    Convertible();
+    operator ReadLockedPtr<Object>();
+  };
+  void use_conversion() {
+    ReadLockedPtr<Object> ptr = Convertible();
+    ptr->f();
   }
 }
 

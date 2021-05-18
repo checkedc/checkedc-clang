@@ -1,9 +1,8 @@
 //===-- BPFSubtarget.cpp - BPF Subtarget Information ----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -30,12 +29,13 @@ BPFSubtarget &BPFSubtarget::initializeSubtargetDependencies(StringRef CPU,
                                                             StringRef FS) {
   initializeEnvironment();
   initSubtargetFeatures(CPU, FS);
-  ParseSubtargetFeatures(CPU, FS);
+  ParseSubtargetFeatures(CPU, /*TuneCPU*/ CPU, FS);
   return *this;
 }
 
 void BPFSubtarget::initializeEnvironment() {
   HasJmpExt = false;
+  HasJmp32 = false;
   HasAlu32 = false;
   UseDwarfRIS = false;
 }
@@ -49,10 +49,16 @@ void BPFSubtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
     HasJmpExt = true;
     return;
   }
+  if (CPU == "v3") {
+    HasJmpExt = true;
+    HasJmp32 = true;
+    HasAlu32 = true;
+    return;
+  }
 }
 
 BPFSubtarget::BPFSubtarget(const Triple &TT, const std::string &CPU,
                            const std::string &FS, const TargetMachine &TM)
-    : BPFGenSubtargetInfo(TT, CPU, FS), InstrInfo(),
+    : BPFGenSubtargetInfo(TT, CPU, /*TuneCPU*/ CPU, FS), InstrInfo(),
       FrameLowering(initializeSubtargetDependencies(CPU, FS)),
       TLInfo(TM, *this) {}

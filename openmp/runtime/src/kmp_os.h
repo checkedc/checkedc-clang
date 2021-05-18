@@ -4,10 +4,9 @@
 
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.txt for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -15,8 +14,9 @@
 #define KMP_OS_H
 
 #include "kmp_config.h"
-#include <stdlib.h>
 #include <atomic>
+#include <stdarg.h>
+#include <stdlib.h>
 
 #define KMP_FTN_PLAIN 1
 #define KMP_FTN_APPEND 2
@@ -38,6 +38,14 @@
 
 #ifndef KMP_MEM_CONS_MODEL
 #define KMP_MEM_CONS_MODEL KMP_MEM_CONS_VOLATILE
+#endif
+
+#ifndef __has_cpp_attribute
+#define __has_cpp_attribute(x) 0
+#endif
+
+#ifndef __has_attribute
+#define __has_attribute(x) 0
 #endif
 
 /* ------------------------- Compiler recognition ---------------------- */
@@ -62,7 +70,7 @@
 #error Unknown compiler
 #endif
 
-#if (KMP_OS_LINUX || KMP_OS_WINDOWS) && !KMP_OS_CNK
+#if (KMP_OS_LINUX || KMP_OS_WINDOWS || KMP_OS_FREEBSD)
 #define KMP_AFFINITY_SUPPORTED 1
 #if KMP_OS_WINDOWS && KMP_ARCH_X86_64
 #define KMP_GROUP_AFFINITY 1
@@ -158,7 +166,8 @@ typedef unsigned long long kmp_uint64;
 
 #if KMP_ARCH_X86 || KMP_ARCH_ARM || KMP_ARCH_MIPS
 #define KMP_SIZE_T_SPEC KMP_UINT32_SPEC
-#elif KMP_ARCH_X86_64 || KMP_ARCH_PPC64 || KMP_ARCH_AARCH64 || KMP_ARCH_MIPS64
+#elif KMP_ARCH_X86_64 || KMP_ARCH_PPC64 || KMP_ARCH_AARCH64 ||                 \
+    KMP_ARCH_MIPS64 || KMP_ARCH_RISCV64
 #define KMP_SIZE_T_SPEC KMP_UINT64_SPEC
 #else
 #error "Can't determine size_t printf format specifier."
@@ -191,6 +200,18 @@ typedef kmp_uint32 kmp_uint;
 #endif /* BUILD_I8 */
 #define KMP_INT_MAX ((kmp_int32)0x7FFFFFFF)
 #define KMP_INT_MIN ((kmp_int32)0x80000000)
+
+// stdarg handling
+#if (KMP_ARCH_ARM || KMP_ARCH_X86_64 || KMP_ARCH_AARCH64) &&                   \
+    (KMP_OS_FREEBSD || KMP_OS_LINUX)
+typedef va_list *kmp_va_list;
+#define kmp_va_deref(ap) (*(ap))
+#define kmp_va_addr_of(ap) (&(ap))
+#else
+typedef va_list kmp_va_list;
+#define kmp_va_deref(ap) (ap)
+#define kmp_va_addr_of(ap) (ap)
+#endif
 
 #ifdef __cplusplus
 // macros to cast out qualifiers and to re-interpret types
@@ -260,6 +281,16 @@ template <> struct traits_t<unsigned long long> {
 #define __forceinline __inline
 #endif
 
+/* Check if the OS/arch can support user-level mwait */
+// All mwait code tests for UMWAIT first, so it should only fall back to ring3
+// MWAIT for KNL.
+#define KMP_HAVE_MWAIT                                                         \
+  ((KMP_ARCH_X86 || KMP_ARCH_X86_64) && (KMP_OS_LINUX || KMP_OS_WINDOWS) &&    \
+   !KMP_MIC2)
+#define KMP_HAVE_UMWAIT                                                        \
+  ((KMP_ARCH_X86 || KMP_ARCH_X86_64) && (KMP_OS_LINUX || KMP_OS_WINDOWS) &&    \
+   !KMP_MIC)
+
 #if KMP_OS_WINDOWS
 #include <windows.h>
 
@@ -297,6 +328,32 @@ extern "C" {
 
 #define KMP_CACHE_PREFETCH(ADDR) /* nothing */
 
+// Define attribute that indicates that the fall through from the previous
+// case label is intentional and should not be diagnosed by a compiler
+//   Code from libcxx/include/__config
+// Use a function like macro to imply that it must be followed by a semicolon
+#if __cplusplus > 201402L && __has_cpp_attribute(fallthrough)
+#  define KMP_FALLTHROUGH() [[fallthrough]]
+#elif __has_cpp_attribute(clang::fallthrough)
+#  define KMP_FALLTHROUGH() [[clang::fallthrough]]
+#elif __has_attribute(fallthrough) || __GNUC__ >= 7
+#  define KMP_FALLTHROUGH() __attribute__((__fallthrough__))
+#else
+#  define KMP_FALLTHROUGH() ((void)0)
+#endif
+
+#if KMP_HAVE_ATTRIBUTE_WAITPKG
+#define KMP_ATTRIBUTE_TARGET_WAITPKG __attribute__((target("waitpkg")))
+#else
+#define KMP_ATTRIBUTE_TARGET_WAITPKG /* Nothing */
+#endif
+
+#if KMP_HAVE_ATTRIBUTE_RTM
+#define KMP_ATTRIBUTE_TARGET_RTM __attribute__((target("rtm")))
+#else
+#define KMP_ATTRIBUTE_TARGET_RTM /* Nothing */
+#endif
+
 // Define attribute that indicates a function does not return
 #if __cplusplus >= 201103L
 #define KMP_NORETURN [[noreturn]]
@@ -316,10 +373,16 @@ extern "C" {
 #define KMP_ALIAS(alias_of) __attribute__((alias(alias_of)))
 #endif
 
-#if KMP_HAVE_WEAK_ATTRIBUTE
-#define KMP_WEAK_ATTRIBUTE __attribute__((weak))
+#if KMP_HAVE_WEAK_ATTRIBUTE && !KMP_DYNAMIC_LIB
+#define KMP_WEAK_ATTRIBUTE_EXTERNAL __attribute__((weak))
 #else
-#define KMP_WEAK_ATTRIBUTE /* Nothing */
+#define KMP_WEAK_ATTRIBUTE_EXTERNAL /* Nothing */
+#endif
+
+#if KMP_HAVE_WEAK_ATTRIBUTE
+#define KMP_WEAK_ATTRIBUTE_INTERNAL __attribute__((weak))
+#else
+#define KMP_WEAK_ATTRIBUTE_INTERNAL /* Nothing */
 #endif
 
 // Define KMP_VERSION_SYMBOL and KMP_EXPAND_NAME
@@ -512,32 +575,56 @@ extern kmp_real64 __kmp_xchg_real64(volatile kmp_real64 *p, kmp_real64 v);
   __sync_fetch_and_add((volatile kmp_int32 *)(p), 1)
 #define KMP_TEST_THEN_INC_ACQ32(p)                                             \
   __sync_fetch_and_add((volatile kmp_int32 *)(p), 1)
+#if KMP_ARCH_MIPS
+#define KMP_TEST_THEN_INC64(p)                                                 \
+  __atomic_fetch_add((volatile kmp_int64 *)(p), 1LL, __ATOMIC_SEQ_CST)
+#define KMP_TEST_THEN_INC_ACQ64(p)                                             \
+  __atomic_fetch_add((volatile kmp_int64 *)(p), 1LL, __ATOMIC_SEQ_CST)
+#else
 #define KMP_TEST_THEN_INC64(p)                                                 \
   __sync_fetch_and_add((volatile kmp_int64 *)(p), 1LL)
 #define KMP_TEST_THEN_INC_ACQ64(p)                                             \
   __sync_fetch_and_add((volatile kmp_int64 *)(p), 1LL)
+#endif
 #define KMP_TEST_THEN_ADD4_32(p)                                               \
   __sync_fetch_and_add((volatile kmp_int32 *)(p), 4)
 #define KMP_TEST_THEN_ADD4_ACQ32(p)                                            \
   __sync_fetch_and_add((volatile kmp_int32 *)(p), 4)
+#if KMP_ARCH_MIPS
+#define KMP_TEST_THEN_ADD4_64(p)                                               \
+  __atomic_fetch_add((volatile kmp_int64 *)(p), 4LL, __ATOMIC_SEQ_CST)
+#define KMP_TEST_THEN_ADD4_ACQ64(p)                                            \
+  __atomic_fetch_add((volatile kmp_int64 *)(p), 4LL, __ATOMIC_SEQ_CST)
+#define KMP_TEST_THEN_DEC64(p)                                                 \
+  __atomic_fetch_sub((volatile kmp_int64 *)(p), 1LL, __ATOMIC_SEQ_CST)
+#define KMP_TEST_THEN_DEC_ACQ64(p)                                             \
+  __atomic_fetch_sub((volatile kmp_int64 *)(p), 1LL, __ATOMIC_SEQ_CST)
+#else
 #define KMP_TEST_THEN_ADD4_64(p)                                               \
   __sync_fetch_and_add((volatile kmp_int64 *)(p), 4LL)
 #define KMP_TEST_THEN_ADD4_ACQ64(p)                                            \
   __sync_fetch_and_add((volatile kmp_int64 *)(p), 4LL)
-#define KMP_TEST_THEN_DEC32(p)                                                 \
-  __sync_fetch_and_sub((volatile kmp_int32 *)(p), 1)
-#define KMP_TEST_THEN_DEC_ACQ32(p)                                             \
-  __sync_fetch_and_sub((volatile kmp_int32 *)(p), 1)
 #define KMP_TEST_THEN_DEC64(p)                                                 \
   __sync_fetch_and_sub((volatile kmp_int64 *)(p), 1LL)
 #define KMP_TEST_THEN_DEC_ACQ64(p)                                             \
   __sync_fetch_and_sub((volatile kmp_int64 *)(p), 1LL)
+#endif
+#define KMP_TEST_THEN_DEC32(p)                                                 \
+  __sync_fetch_and_sub((volatile kmp_int32 *)(p), 1)
+#define KMP_TEST_THEN_DEC_ACQ32(p)                                             \
+  __sync_fetch_and_sub((volatile kmp_int32 *)(p), 1)
 #define KMP_TEST_THEN_ADD8(p, v)                                               \
   __sync_fetch_and_add((volatile kmp_int8 *)(p), (kmp_int8)(v))
 #define KMP_TEST_THEN_ADD32(p, v)                                              \
   __sync_fetch_and_add((volatile kmp_int32 *)(p), (kmp_int32)(v))
+#if KMP_ARCH_MIPS
+#define KMP_TEST_THEN_ADD64(p, v)                                              \
+  __atomic_fetch_add((volatile kmp_uint64 *)(p), (kmp_uint64)(v),              \
+                     __ATOMIC_SEQ_CST)
+#else
 #define KMP_TEST_THEN_ADD64(p, v)                                              \
   __sync_fetch_and_add((volatile kmp_int64 *)(p), (kmp_int64)(v))
+#endif
 
 #define KMP_TEST_THEN_OR8(p, v)                                                \
   __sync_fetch_and_or((volatile kmp_int8 *)(p), (kmp_int8)(v))
@@ -547,10 +634,19 @@ extern kmp_real64 __kmp_xchg_real64(volatile kmp_real64 *p, kmp_real64 v);
   __sync_fetch_and_or((volatile kmp_uint32 *)(p), (kmp_uint32)(v))
 #define KMP_TEST_THEN_AND32(p, v)                                              \
   __sync_fetch_and_and((volatile kmp_uint32 *)(p), (kmp_uint32)(v))
+#if KMP_ARCH_MIPS
+#define KMP_TEST_THEN_OR64(p, v)                                               \
+  __atomic_fetch_or((volatile kmp_uint64 *)(p), (kmp_uint64)(v),               \
+                    __ATOMIC_SEQ_CST)
+#define KMP_TEST_THEN_AND64(p, v)                                              \
+  __atomic_fetch_and((volatile kmp_uint64 *)(p), (kmp_uint64)(v),              \
+                     __ATOMIC_SEQ_CST)
+#else
 #define KMP_TEST_THEN_OR64(p, v)                                               \
   __sync_fetch_and_or((volatile kmp_uint64 *)(p), (kmp_uint64)(v))
 #define KMP_TEST_THEN_AND64(p, v)                                              \
   __sync_fetch_and_and((volatile kmp_uint64 *)(p), (kmp_uint64)(v))
+#endif
 
 #define KMP_COMPARE_AND_STORE_ACQ8(p, cv, sv)                                  \
   __sync_bool_compare_and_swap((volatile kmp_uint8 *)(p), (kmp_uint8)(cv),     \
@@ -570,12 +666,6 @@ extern kmp_real64 __kmp_xchg_real64(volatile kmp_real64 *p, kmp_real64 v);
 #define KMP_COMPARE_AND_STORE_REL32(p, cv, sv)                                 \
   __sync_bool_compare_and_swap((volatile kmp_uint32 *)(p), (kmp_uint32)(cv),   \
                                (kmp_uint32)(sv))
-#define KMP_COMPARE_AND_STORE_ACQ64(p, cv, sv)                                 \
-  __sync_bool_compare_and_swap((volatile kmp_uint64 *)(p), (kmp_uint64)(cv),   \
-                               (kmp_uint64)(sv))
-#define KMP_COMPARE_AND_STORE_REL64(p, cv, sv)                                 \
-  __sync_bool_compare_and_swap((volatile kmp_uint64 *)(p), (kmp_uint64)(cv),   \
-                               (kmp_uint64)(sv))
 #define KMP_COMPARE_AND_STORE_PTR(p, cv, sv)                                   \
   __sync_bool_compare_and_swap((void *volatile *)(p), (void *)(cv),            \
                                (void *)(sv))
@@ -589,9 +679,38 @@ extern kmp_real64 __kmp_xchg_real64(volatile kmp_real64 *p, kmp_real64 v);
 #define KMP_COMPARE_AND_STORE_RET32(p, cv, sv)                                 \
   __sync_val_compare_and_swap((volatile kmp_uint32 *)(p), (kmp_uint32)(cv),    \
                               (kmp_uint32)(sv))
+#if KMP_ARCH_MIPS
+static inline bool mips_sync_bool_compare_and_swap(
+  volatile kmp_uint64 *p, kmp_uint64 cv, kmp_uint64 sv) {
+  return __atomic_compare_exchange(p, &cv, &sv, false, __ATOMIC_SEQ_CST,
+                                                       __ATOMIC_SEQ_CST);
+}
+static inline bool mips_sync_val_compare_and_swap(
+  volatile kmp_uint64 *p, kmp_uint64 cv, kmp_uint64 sv) {
+  __atomic_compare_exchange(p, &cv, &sv, false, __ATOMIC_SEQ_CST,
+                                                __ATOMIC_SEQ_CST);
+  return cv;
+}
+#define KMP_COMPARE_AND_STORE_ACQ64(p, cv, sv)                                 \
+  mips_sync_bool_compare_and_swap((volatile kmp_uint64 *)(p), (kmp_uint64)(cv),\
+                               (kmp_uint64)(sv))
+#define KMP_COMPARE_AND_STORE_REL64(p, cv, sv)                                 \
+  mips_sync_bool_compare_and_swap((volatile kmp_uint64 *)(p), (kmp_uint64)(cv),\
+                               (kmp_uint64)(sv))
+#define KMP_COMPARE_AND_STORE_RET64(p, cv, sv)                                 \
+  mips_sync_val_compare_and_swap((volatile kmp_uint64 *)(p), (kmp_uint64)(cv), \
+                              (kmp_uint64)(sv))
+#else
+#define KMP_COMPARE_AND_STORE_ACQ64(p, cv, sv)                                 \
+  __sync_bool_compare_and_swap((volatile kmp_uint64 *)(p), (kmp_uint64)(cv),   \
+                               (kmp_uint64)(sv))
+#define KMP_COMPARE_AND_STORE_REL64(p, cv, sv)                                 \
+  __sync_bool_compare_and_swap((volatile kmp_uint64 *)(p), (kmp_uint64)(cv),   \
+                               (kmp_uint64)(sv))
 #define KMP_COMPARE_AND_STORE_RET64(p, cv, sv)                                 \
   __sync_val_compare_and_swap((volatile kmp_uint64 *)(p), (kmp_uint64)(cv),    \
                               (kmp_uint64)(sv))
+#endif
 
 #define KMP_XCHG_FIXED8(p, v)                                                  \
   __sync_lock_test_and_set((volatile kmp_uint8 *)(p), (kmp_uint8)(v))
@@ -763,7 +882,7 @@ extern kmp_real64 __kmp_xchg_real64(volatile kmp_real64 *p, kmp_real64 v);
 #endif /* KMP_OS_WINDOWS */
 
 #if KMP_ARCH_PPC64 || KMP_ARCH_ARM || KMP_ARCH_AARCH64 || KMP_ARCH_MIPS ||     \
-    KMP_ARCH_MIPS64
+    KMP_ARCH_MIPS64 || KMP_ARCH_RISCV64
 #define KMP_MB() __sync_synchronize()
 #endif
 
@@ -861,8 +980,8 @@ typedef void (*microtask_t)(int *gtid, int *npr, ...);
 #define VOLATILE_CAST(x) (x)
 #endif
 
-#define KMP_WAIT_YIELD __kmp_wait_yield_4
-#define KMP_WAIT_YIELD_PTR __kmp_wait_yield_4_ptr
+#define KMP_WAIT __kmp_wait_4
+#define KMP_WAIT_PTR __kmp_wait_4_ptr
 #define KMP_EQ __kmp_eq_4
 #define KMP_NEQ __kmp_neq_4
 #define KMP_LT __kmp_lt_4
@@ -888,9 +1007,7 @@ typedef void (*microtask_t)(int *gtid, int *npr, ...);
 #endif
 
 // Enable dynamic user lock
-#if OMP_45_ENABLED
 #define KMP_USE_DYNAMIC_LOCK 1
-#endif
 
 // Enable Intel(R) Transactional Synchronization Extensions (Intel(R) TSX) if
 // dynamic user lock is turned on

@@ -5,6 +5,10 @@
 // RUN: llvm-profdata merge -o %t.profdata %t.profraw
 // RUN: %clang_profuse=%t.profdata -o - -S -emit-llvm %s | FileCheck %s
 
+// This usage of llvm-nm assumes executables have symbol tables. They do not in
+// an MSVC environment, so we can't make this test portable.
+// UNSUPPORTED: msvc
+
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -68,3 +72,4 @@ int main(int argc, const char *argv[]) {
 // CHECK-SYMBOLS-NOT: {{ }}_free
 // CHECK-SYMBOLS-NOT: {{ }}free
 // CHECK-SYMBOLS-NOT: {{ }}_open
+// CHECK-SYMBOLS-NOT: {{ }}_getpagesize

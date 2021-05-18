@@ -1,9 +1,8 @@
 //===-- MSP430Subtarget.cpp - MSP430 Subtarget Information ----------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -44,11 +43,11 @@ MSP430Subtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS) {
   ExtendedInsts = false;
   HWMultMode = NoHWMult;
 
-  std::string CPUName = CPU;
+  StringRef CPUName = CPU;
   if (CPUName.empty())
     CPUName = "msp430";
 
-  ParseSubtargetFeatures(CPUName, FS);
+  ParseSubtargetFeatures(CPUName, /*TuneCPU*/ CPUName, FS);
 
   if (HWMultModeOption != NoHWMult)
     HWMultMode = HWMultModeOption;
@@ -58,5 +57,5 @@ MSP430Subtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS) {
 
 MSP430Subtarget::MSP430Subtarget(const Triple &TT, const std::string &CPU,
                                  const std::string &FS, const TargetMachine &TM)
-    : MSP430GenSubtargetInfo(TT, CPU, FS), FrameLowering(),
+    : MSP430GenSubtargetInfo(TT, CPU, /*TuneCPU*/ CPU, FS), FrameLowering(),
       InstrInfo(initializeSubtargetDependencies(CPU, FS)), TLInfo(TM, *this) {}

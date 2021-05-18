@@ -31,12 +31,12 @@ Features
 
 - LLD is very fast. When you link a large program on a multicore
   machine, you can expect that LLD runs more than twice as fast as the GNU
-  gold linker. Your milage may vary, though.
+  gold linker. Your mileage may vary, though.
 
-- It supports various CPUs/ABIs including x86-64, x86, x32, AArch64,
-  ARM, MIPS 32/64 big/little-endian, PowerPC, PowerPC 64 and AMDGPU.
-  Among these, x86-64, AArch64, and ARM (>= v6) are production quality.
-  MIPS seems decent too. x86 should be OK but is not well tested yet.
+- It supports various CPUs/ABIs including AArch64, AMDGPU, ARM, Hexagon, MIPS
+  32/64 big/little-endian, PowerPC, PowerPC64, RISC-V, SPARC V9, x86-32 and
+  x86-64. Among these, AArch64, ARM (>= v6), PowerPC, PowerPC64, x86-32 and
+  x86-64 have production quality. MIPS seems decent too.
 
 - It is always a cross-linker, meaning that it always supports all the
   above targets however it was built. In fact, we don't provide a
@@ -98,7 +98,7 @@ Build
 If you have already checked out LLVM using SVN, you can check out LLD
 under ``tools`` directory just like you probably did for clang. For the
 details, see `Getting Started with the LLVM System
-<http://llvm.org/docs/GettingStarted.html>`_.
+<https://llvm.org/docs/GettingStarted.html>`_.
 
 If you haven't checked out LLVM, the easiest way to build LLD is to
 check out the entire LLVM projects/sub-projects from a git mirror and
@@ -106,7 +106,7 @@ build that tree. You need `cmake` and of course a C++ compiler.
 
 .. code-block:: console
 
-  $ git clone https://github.com/llvm-project/llvm-project-20170507 llvm-project
+  $ git clone https://github.com/llvm/llvm-project llvm-project
   $ mkdir build
   $ cd build
   $ cmake -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_PROJECTS=lld -DCMAKE_INSTALL_PREFIX=/usr/local ../llvm-project/llvm
@@ -173,4 +173,9 @@ document soon.
    AtomLLD
    WebAssembly
    windows_support
+   missingkeyfunction
+   error_handling_script
+   Partitions
    ReleaseNotes
+   ELF/linker_script
+   ELF/warn_backrefs

@@ -1,16 +1,5 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-//===-- lshrdi3_test.c - Test __lshrdi3 -----------------------------------===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __lshrdi3 for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
+// REQUIRES: librt_has_lshrdi3
 
 #include "int_lib.h"
 #include <stdio.h>
@@ -19,9 +8,9 @@
 
 // Precondition:  0 <= b < bits_in_dword
 
-COMPILER_RT_ABI di_int __lshrdi3(di_int a, si_int b);
+COMPILER_RT_ABI di_int __lshrdi3(di_int a, int b);
 
-int test__lshrdi3(di_int a, si_int b, di_int expected)
+int test__lshrdi3(di_int a, int b, di_int expected)
 {
     di_int x = __lshrdi3(a, b);
     if (x != expected)

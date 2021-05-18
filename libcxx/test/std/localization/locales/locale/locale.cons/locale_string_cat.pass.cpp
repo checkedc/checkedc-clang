@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -11,8 +10,19 @@
 // REQUIRES: locale.ru_RU.UTF-8
 // UNSUPPORTED: sanitizer-new-delete
 
-// XFAIL: availability=macosx10.8
-// XFAIL: availability=macosx10.7
+// This test relies on P0482 being fixed, which isn't in
+// older Apple dylibs
+//
+// XFAIL: with_system_cxx_lib=macosx10.15
+// XFAIL: with_system_cxx_lib=macosx10.14
+// XFAIL: with_system_cxx_lib=macosx10.13
+// XFAIL: with_system_cxx_lib=macosx10.12
+// XFAIL: with_system_cxx_lib=macosx10.11
+// XFAIL: with_system_cxx_lib=macosx10.10
+// XFAIL: with_system_cxx_lib=macosx10.9 
+
+// This test runs in C++20, but we have deprecated codecvt<char(16|32), char, mbstate_t> in C++20.
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
 
 // <locale>
 
@@ -22,7 +32,8 @@
 #include <new>
 #include <cassert>
 
-#include "count_new.hpp"
+#include "count_new.h"
+#include "test_macros.h"
 #include "platform_support.h" // locale name macros
 
 
@@ -36,6 +47,10 @@ void check(const std::locale& loc)
     assert((std::has_facet<std::codecvt<char, char, std::mbstate_t> >(loc)));
     assert((std::has_facet<std::codecvt<char16_t, char, std::mbstate_t> >(loc)));
     assert((std::has_facet<std::codecvt<char32_t, char, std::mbstate_t> >(loc)));
+#if TEST_STD_VER > 17
+    assert((std::has_facet<std::codecvt<char16_t, char8_t, std::mbstate_t> >(loc)));
+    assert((std::has_facet<std::codecvt<char32_t, char8_t, std::mbstate_t> >(loc)));
+#endif
     assert((std::has_facet<std::codecvt<wchar_t, char, std::mbstate_t> >(loc)));
 
     assert((std::has_facet<std::moneypunct<char> >(loc)));
@@ -61,7 +76,7 @@ void check(const std::locale& loc)
     assert((std::has_facet<std::messages<wchar_t> >(loc)));
 }
 
-int main()
+int main(int, char**)
 {
     {
         std::locale loc(LOCALE_ru_RU_UTF_8);
@@ -70,4 +85,6 @@ int main()
         check(loc2);
     }
     assert(globalMemCounter.checkOutstandingNewEq(0));
+
+  return 0;
 }

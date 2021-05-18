@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -12,14 +11,16 @@
 // pointer_safety get_pointer_safety();
 
 // The pointer_safety interface is no longer provided in C++03 in the new ABI.
-// XFAIL: c++98, c++03
+// XFAIL: c++03
 
-// MODULES_DEFINES: _LIBCPP_ABI_POINTER_SAFETY_ENUM_TYPE
-#define _LIBCPP_ABI_POINTER_SAFETY_ENUM_TYPE
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_ABI_POINTER_SAFETY_ENUM_TYPE
+
 #include <memory>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
   {
     static_assert(std::is_enum<std::pointer_safety>::value, "");
@@ -35,4 +36,6 @@ int main()
            r == std::pointer_safety::preferred ||
            r == std::pointer_safety::strict);
   }
+
+  return 0;
 }

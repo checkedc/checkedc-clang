@@ -143,7 +143,7 @@ void foo() {
  __builtin_strcat(0, 0);
 }
 
-// CHECK-LABEL: define void @bar(
+// CHECK-LABEL: define{{.*}} void @bar(
 void bar() {
   float f;
   double d;
@@ -178,7 +178,7 @@ void bar() {
 }
 // CHECK: }
 
-// CHECK-LABEL: define void @test_conditional_bzero
+// CHECK-LABEL: define{{.*}} void @test_conditional_bzero
 void test_conditional_bzero() {
   char dst[20];
   int _sz = 20, len = 20;
@@ -192,9 +192,13 @@ void test_conditional_bzero() {
   // CHECK-NOT: phi
 }
 
-// CHECK-LABEL: define void @test_float_builtins
-void test_float_builtins(float F, double D, long double LD) {
+// CHECK-LABEL: define{{.*}} void @test_float_builtins
+void test_float_builtins(__fp16 *H, float F, double D, long double LD) {
   volatile int res;
+  res = __builtin_isinf(*H);
+  // CHECK:  call half @llvm.fabs.f16(half
+  // CHECK:  fcmp oeq half {{.*}}, 0xH7C00
+
   res = __builtin_isinf(F);
   // CHECK:  call float @llvm.fabs.f32(float
   // CHECK:  fcmp oeq float {{.*}}, 0x7FF0000000000000
@@ -206,6 +210,14 @@ void test_float_builtins(float F, double D, long double LD) {
   res = __builtin_isinf(LD);
   // CHECK:  call x86_fp80 @llvm.fabs.f80(x86_fp80
   // CHECK:  fcmp oeq x86_fp80 {{.*}}, 0xK7FFF8000000000000000
+
+  res = __builtin_isinf_sign(*H);
+  // CHECK:  %[[ABS:.*]] = call half @llvm.fabs.f16(half %[[ARG:.*]])
+  // CHECK:  %[[ISINF:.*]] = fcmp oeq half %[[ABS]], 0xH7C00
+  // CHECK:  %[[BITCAST:.*]] = bitcast half %[[ARG]] to i16
+  // CHECK:  %[[ISNEG:.*]] = icmp slt i16 %[[BITCAST]], 0
+  // CHECK:  %[[SIGN:.*]] = select i1 %[[ISNEG]], i32 -1, i32 1
+  // CHECK:  select i1 %[[ISINF]], i32 %[[SIGN]], i32 0
 
   res = __builtin_isinf_sign(F);
   // CHECK:  %[[ABS:.*]] = call float @llvm.fabs.f32(float %[[ARG:.*]])
@@ -231,6 +243,10 @@ void test_float_builtins(float F, double D, long double LD) {
   // CHECK:  %[[SIGN:.*]] = select i1 %[[ISNEG]], i32 -1, i32 1
   // CHECK:  select i1 %[[ISINF]], i32 %[[SIGN]], i32 0
 
+  res = __builtin_isfinite(*H);
+  // CHECK: call half @llvm.fabs.f16(half
+  // CHECK: fcmp one half {{.*}}, 0xH7C00
+
   res = __builtin_isfinite(F);
   // CHECK: call float @llvm.fabs.f32(float
   // CHECK: fcmp one float {{.*}}, 0x7FF0000000000000
@@ -239,6 +255,14 @@ void test_float_builtins(float F, double D, long double LD) {
   // CHECK: call double @llvm.fabs.f64(double
   // CHECK: fcmp one double {{.*}}, 0x7FF0000000000000
 
+  res = __builtin_isnormal(*H);
+  // CHECK: fcmp oeq half
+  // CHECK: call half @llvm.fabs.f16(half
+  // CHECK: fcmp ult half {{.*}}, 0xH7C00
+  // CHECK: fcmp uge half {{.*}}, 0xH0400
+  // CHECK: and i1
+  // CHECK: and i1
+
   res = __builtin_isnormal(F);
   // CHECK: fcmp oeq float
   // CHECK: call float @llvm.fabs.f32(float
@@ -246,13 +270,18 @@ void test_float_builtins(float F, double D, long double LD) {
   // CHECK: fcmp uge float {{.*}}, 0x3810000000000000
   // CHECK: and i1
   // CHECK: and i1
+
+  res = __builtin_flt_rounds();
+  // CHECK: call i32 @llvm.flt.rounds(
 }
 
-// CHECK-LABEL: define void @test_float_builtin_ops
+// CHECK-LABEL: define{{.*}} void @test_float_builtin_ops
 void test_float_builtin_ops(float F, double D, long double LD) {
   volatile float resf;
   volatile double resd;
   volatile long double resld;
+  volatile long int resli;
+  volatile long long int reslli;
 
   resf = __builtin_fmodf(F,F);
   // CHECK: frem float
@@ -377,12 +406,29 @@ void test_float_builtin_ops(float F, double D, long double LD) {
   resld = __builtin_roundl(LD);
   // CHECK: call x86_fp80 @llvm.round.f80
 
+  resli = __builtin_lroundf (F);
+  // CHECK: call i64 @llvm.lround.i64.f32
+
+  resli = __builtin_lround (D);
+  // CHECK: call i64 @llvm.lround.i64.f64
+
+  resli = __builtin_lroundl (LD);
+  // CHECK: call i64 @llvm.lround.i64.f80
+
+  resli = __builtin_lrintf (F);
+  // CHECK: call i64 @llvm.lrint.i64.f32
+
+  resli = __builtin_lrint (D);
+  // CHECK: call i64 @llvm.lrint.i64.f64
+
+  resli = __builtin_lrintl (LD);
+  // CHECK: call i64 @llvm.lrint.i64.f80
 }
 
 // __builtin_longjmp isn't supported on all platforms, so only test it on X86.
 #ifdef __x86_64__
 
-// CHECK-LABEL: define void @test_builtin_longjmp
+// CHECK-LABEL: define{{.*}} void @test_builtin_longjmp
 void test_builtin_longjmp(void **buffer) {
   // CHECK: [[BITCAST:%.*]] = bitcast
   // CHECK-NEXT: call void @llvm.eh.sjlj.longjmp(i8* [[BITCAST]])
@@ -392,14 +438,14 @@ void test_builtin_longjmp(void **buffer) {
 
 #endif
 
-// CHECK-LABEL: define i64 @test_builtin_readcyclecounter
+// CHECK-LABEL: define{{.*}} i64 @test_builtin_readcyclecounter
 long long test_builtin_readcyclecounter() {
   // CHECK: call i64 @llvm.readcyclecounter()
   return __builtin_readcyclecounter();
 }
 
 /// __builtin_launder should be a NOP in C since there are no vtables.
-// CHECK-LABEL: define void @test_builtin_launder
+// CHECK-LABEL: define{{.*}} void @test_builtin_launder
 void test_builtin_launder(int *p) {
   // CHECK: [[TMP:%.*]] = load i32*,
   // CHECK-NOT: @llvm.launder
@@ -407,10 +453,17 @@ void test_builtin_launder(int *p) {
   int *d = __builtin_launder(p);
 }
 
+// __warn_memset_zero_len should be NOP, see https://sourceware.org/bugzilla/show_bug.cgi?id=25399
+// CHECK-LABEL: define{{.*}} void @test___warn_memset_zero_len
+void test___warn_memset_zero_len() {
+  // CHECK-NOT: @__warn_memset_zero_len
+  __warn_memset_zero_len();
+}
+
 // Behavior of __builtin_os_log differs between platforms, so only test on X86
 #ifdef __x86_64__
 
-// CHECK-LABEL: define void @test_builtin_os_log
+// CHECK-LABEL: define{{.*}} void @test_builtin_os_log
 // CHECK: (i8* %[[BUF:.*]], i32 %[[I:.*]], i8* %[[DATA:.*]])
 void test_builtin_os_log(void *buf, int i, const char *data) {
   volatile int len;
@@ -534,7 +587,7 @@ void test_builtin_os_log(void *buf, int i, const char *data) {
 // CHECK: %[[V3:.*]] = load i64, i64* %[[ARG3_ADDR]], align 8
 // CHECK: store i64 %[[V3]], i64* %[[ARGDATACAST12]], align 1
 
-// CHECK-LABEL: define void @test_builtin_os_log_wide
+// CHECK-LABEL: define{{.*}} void @test_builtin_os_log_wide
 // CHECK: (i8* %[[BUF:.*]], i8* %[[DATA:.*]], i32* %[[STR:.*]])
 typedef int wchar_t;
 void test_builtin_os_log_wide(void *buf, const char *data, wchar_t *str) {
@@ -580,7 +633,7 @@ void test_builtin_os_log_wide(void *buf, const char *data, wchar_t *str) {
 // CHECK: %[[V0:.*]] = load i64, i64* %[[ARG0_ADDR]], align 8
 // CHECK: store i64 %[[V0]], i64* %[[ARGDATACAST]], align 1
 
-// CHECK-LABEL: define void @test_builtin_os_log_precision_width
+// CHECK-LABEL: define{{.*}} void @test_builtin_os_log_precision_width
 // CHECK: (i8* %[[BUF:.*]], i8* %[[DATA:.*]], i32 %[[PRECISION:.*]], i32 %[[WIDTH:.*]])
 void test_builtin_os_log_precision_width(void *buf, const char *data,
                                          int precision, int width) {
@@ -648,7 +701,7 @@ void test_builtin_os_log_precision_width(void *buf, const char *data,
 // CHECK: %[[V2:.*]] = load i64, i64* %[[ARG2_ADDR]], align 8
 // CHECK: store i64 %[[V2]], i64* %[[ARGDATACAST8]], align 1
 
-// CHECK-LABEL: define void @test_builtin_os_log_invalid
+// CHECK-LABEL: define{{.*}} void @test_builtin_os_log_invalid
 // CHECK: (i8* %[[BUF:.*]], i32 %[[DATA:.*]])
 void test_builtin_os_log_invalid(void *buf, int data) {
   volatile int len;
@@ -689,7 +742,7 @@ void test_builtin_os_log_invalid(void *buf, int data) {
 // CHECK: %[[V0:.*]] = load i32, i32* %[[ARG0_ADDR]], align 4
 // CHECK: store i32 %[[V0]], i32* %[[ARGDATACAST]], align 1
 
-// CHECK-LABEL: define void @test_builtin_os_log_percent
+// CHECK-LABEL: define{{.*}} void @test_builtin_os_log_percent
 // CHECK: (i8* %[[BUF:.*]], i8* %[[DATA1:.*]], i8* %[[DATA2:.*]])
 // Check that the %% which does not consume any argument is correctly handled
 void test_builtin_os_log_percent(void *buf, const char *data1, const char *data2) {
@@ -748,7 +801,7 @@ void test_builtin_os_log_percent(void *buf, const char *data1, const char *data2
 
 // Check that the following two functions call the same helper function.
 
-// CHECK-LABEL: define void @test_builtin_os_log_merge_helper0
+// CHECK-LABEL: define{{.*}} void @test_builtin_os_log_merge_helper0
 // CHECK: call void @__os_log_helper_1_0_2_4_0_8_0(
 void test_builtin_os_log_merge_helper0(void *buf, int i, double d) {
   __builtin_os_log_format(buf, "%d %f", i, d);
@@ -756,7 +809,7 @@ void test_builtin_os_log_merge_helper0(void *buf, int i, double d) {
 
 // CHECK-LABEL: define linkonce_odr hidden void @__os_log_helper_1_0_2_4_0_8_0(
 
-// CHECK-LABEL: define void @test_builtin_os_log_merge_helper1
+// CHECK-LABEL: define{{.*}} void @test_builtin_os_log_merge_helper1
 // CHECK: call void @__os_log_helper_1_0_2_4_0_8_0(
 void test_builtin_os_log_merge_helper1(void *buf, unsigned u, long long ll) {
   __builtin_os_log_format(buf, "%u %lld", u, ll);
@@ -764,11 +817,11 @@ void test_builtin_os_log_merge_helper1(void *buf, unsigned u, long long ll) {
 
 // Check that this function doesn't write past the end of array 'buf'.
 
-// CHECK-LABEL: define void @test_builtin_os_log_errno
+// CHECK-LABEL: define{{.*}} void @test_builtin_os_log_errno
 void test_builtin_os_log_errno() {
   // CHECK-NOT: @stacksave
   // CHECK: %[[BUF:.*]] = alloca [4 x i8], align 1
-  // CHECK: %[[DECAY:.*]] = getelementptr inbounds [4 x i8], [4 x i8]* %[[BUF]], i32 0, i32 0
+  // CHECK: %[[DECAY:.*]] = getelementptr inbounds [4 x i8], [4 x i8]* %[[BUF]], i64 0, i64 0
   // CHECK: call void @__os_log_helper_1_2_1_0_96(i8* %[[DECAY]])
   // CHECK-NOT: @stackrestore
 
@@ -792,7 +845,7 @@ void test_builtin_os_log_errno() {
 // CHECK: store i8 0, i8* %[[ARGSIZE]], align 1
 // CHECK-NEXT: ret void
 
-// CHECK-LABEL: define void @test_builtin_os_log_long_double
+// CHECK-LABEL: define{{.*}} void @test_builtin_os_log_long_double
 // CHECK: (i8* %[[BUF:.*]], x86_fp80 %[[LD:.*]])
 void test_builtin_os_log_long_double(void *buf, long double ld) {
   // CHECK: %[[BUF_ADDR:.*]] = alloca i8*, align 8

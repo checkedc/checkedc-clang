@@ -1,12 +1,11 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class year_month_day;
@@ -42,10 +41,10 @@ void RunTheExample()
 
     static_assert(year_month_day{local_days{year{2017}/January/0}}  == year{2016}/December/31);
     static_assert(year_month_day{local_days{year{2017}/January/31}} == year{2017}/January/31);
-    static_assert(year_month_day{local_days{year{2017}/January/32}} == year{2017}/February/1);  
+    static_assert(year_month_day{local_days{year{2017}/January/32}} == year{2017}/February/1);
 }
 
-int main()
+int main(int, char**)
 {
     using year           = std::chrono::year;
     using month          = std::chrono::month;
@@ -91,4 +90,5 @@ int main()
     assert( year_month_day{sd} == ymd); // and back
     }
 
+    return 0;
 }

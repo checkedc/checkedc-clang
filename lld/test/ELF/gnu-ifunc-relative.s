@@ -3,7 +3,7 @@
 // RUN: ld.lld --strip-all %t.o -o %t
 // RUN: llvm-readobj -r %t | FileCheck %s
 // RUN: ld.lld %t.o -o %t
-// RUN: llvm-readobj -r -t %t | FileCheck %s --check-prefixes=CHECK,SYM
+// RUN: llvm-readobj -r --symbols %t | FileCheck %s --check-prefixes=CHECK,SYM
 
 .type foo STT_GNU_IFUNC
 .globl foo
@@ -14,7 +14,7 @@ foo:
 _start:
  call foo
 
-// CHECK:      Section ({{.*}}) .rela.plt {
+// CHECK:      Section ({{.*}}) .rela.dyn {
 // CHECK-NEXT:   R_X86_64_IRELATIVE - 0x[[ADDR:.*]]
 // CHECK-NEXT: }
 

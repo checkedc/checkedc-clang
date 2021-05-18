@@ -6,7 +6,7 @@
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
-@structMember = external local_unnamed_addr global i64, align 8
+@structMember = external dso_local local_unnamed_addr global i64, align 8
 
 define i32 @PR29058(i8 %x, i32 %y) {
 ; CHECK-LABEL: PR29058:
@@ -17,7 +17,7 @@ define i32 @PR29058(i8 %x, i32 %y) {
 ; CHECK-NEXT:    cmovnel %esi, %eax
 ; CHECK-NEXT:    xorl %edx, %edx
 ; CHECK-NEXT:    cmpb $1, %dil
-; CHECK-NEXT:    sbbb %dl, %dl
+; CHECK-NEXT:    sbbl %edx, %edx
 ; CHECK-NEXT:    orb %dl, %cl
 ; CHECK-NEXT:    # kill: def $cl killed $cl killed $ecx
 ; CHECK-NEXT:    shll %cl, %eax

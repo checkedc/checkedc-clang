@@ -126,7 +126,7 @@ pminsw      (%rax), %mm2
 pminub      %mm0, %mm2
 pminub      (%rax), %mm2
 
-pmovmskb    %xmm0, %rcx
+pmovmskb    %mm0, %rcx
 
 pmulhuw     %mm0, %mm2
 pmulhuw     (%rax), %mm2
@@ -202,20 +202,20 @@ xorps       (%rax), %xmm2
 # CHECK-NEXT:  1      6     1.00    *                   andnps	(%rax), %xmm2
 # CHECK-NEXT:  1      1     0.50                        andps	%xmm0, %xmm2
 # CHECK-NEXT:  1      6     1.00    *                   andps	(%rax), %xmm2
-# CHECK-NEXT:  1      2     1.00                        cmpps	$0, %xmm0, %xmm2
-# CHECK-NEXT:  1      7     1.00    *                   cmpps	$0, (%rax), %xmm2
-# CHECK-NEXT:  1      2     1.00                        cmpss	$0, %xmm0, %xmm2
-# CHECK-NEXT:  1      7     1.00    *                   cmpss	$0, (%rax), %xmm2
+# CHECK-NEXT:  1      2     1.00                        cmpeqps	%xmm0, %xmm2
+# CHECK-NEXT:  1      7     1.00    *                   cmpeqps	(%rax), %xmm2
+# CHECK-NEXT:  1      2     1.00                        cmpeqss	%xmm0, %xmm2
+# CHECK-NEXT:  1      7     1.00    *                   cmpeqss	(%rax), %xmm2
 # CHECK-NEXT:  1      3     1.00                        comiss	%xmm0, %xmm1
 # CHECK-NEXT:  1      8     1.00    *                   comiss	(%rax), %xmm1
 # CHECK-NEXT:  1      3     1.00                        cvtpi2ps	%mm0, %xmm2
 # CHECK-NEXT:  1      8     1.00    *                   cvtpi2ps	(%rax), %xmm2
 # CHECK-NEXT:  1      3     1.00                        cvtps2pi	%xmm0, %mm2
 # CHECK-NEXT:  1      8     1.00    *                   cvtps2pi	(%rax), %mm2
-# CHECK-NEXT:  2      9     1.00                        cvtsi2ssl	%ecx, %xmm2
-# CHECK-NEXT:  2      9     1.00                        cvtsi2ssq	%rcx, %xmm2
-# CHECK-NEXT:  2      14    1.00    *                   cvtsi2ssl	(%rax), %xmm2
-# CHECK-NEXT:  2      14    1.00    *                   cvtsi2ssl	(%rax), %xmm2
+# CHECK-NEXT:  2      10    1.00                        cvtsi2ss	%ecx, %xmm2
+# CHECK-NEXT:  2      10    1.00                        cvtsi2ss	%rcx, %xmm2
+# CHECK-NEXT:  1      9     1.00    *                   cvtsi2ssl	(%rax), %xmm2
+# CHECK-NEXT:  1      9     1.00    *                   cvtsi2ssl	(%rax), %xmm2
 # CHECK-NEXT:  2      7     1.00                        cvtss2si	%xmm0, %ecx
 # CHECK-NEXT:  2      7     1.00                        cvtss2si	%xmm0, %rcx
 # CHECK-NEXT:  2      12    1.00    *                   cvtss2si	(%rax), %ecx
@@ -230,7 +230,7 @@ xorps       (%rax), %xmm2
 # CHECK-NEXT:  1      24    19.00   *                   divps	(%rax), %xmm2
 # CHECK-NEXT:  1      19    19.00                       divss	%xmm0, %xmm2
 # CHECK-NEXT:  1      24    19.00   *                   divss	(%rax), %xmm2
-# CHECK-NEXT:  1      5     1.00    *      *      U     ldmxcsr	(%rax)
+# CHECK-NEXT:  1      3     1.00    *      *      U     ldmxcsr	(%rax)
 # CHECK-NEXT:  1      1     0.50    *      *      U     maskmovq	%mm0, %mm1
 # CHECK-NEXT:  1      2     1.00                        maxps	%xmm0, %xmm2
 # CHECK-NEXT:  1      7     1.00    *                   maxps	(%rax), %xmm2
@@ -279,13 +279,13 @@ xorps       (%rax), %xmm2
 # CHECK-NEXT:  1      6     1.00    *                   pminsw	(%rax), %mm2
 # CHECK-NEXT:  1      1     0.50                        pminub	%mm0, %mm2
 # CHECK-NEXT:  1      6     1.00    *                   pminub	(%rax), %mm2
-# CHECK-NEXT:  1      3     1.00                        pmovmskb	%xmm0, %ecx
+# CHECK-NEXT:  1      3     1.00                        pmovmskb	%mm0, %ecx
 # CHECK-NEXT:  1      2     1.00                        pmulhuw	%mm0, %mm2
 # CHECK-NEXT:  1      7     1.00    *                   pmulhuw	(%rax), %mm2
-# CHECK-NEXT:  1      5     1.00    *      *            prefetcht0	(%rax)
-# CHECK-NEXT:  1      5     1.00    *      *            prefetcht1	(%rax)
-# CHECK-NEXT:  1      5     1.00    *      *            prefetcht2	(%rax)
-# CHECK-NEXT:  1      5     1.00    *      *            prefetchnta	(%rax)
+# CHECK-NEXT:  1      3     1.00    *      *            prefetcht0	(%rax)
+# CHECK-NEXT:  1      3     1.00    *      *            prefetcht1	(%rax)
+# CHECK-NEXT:  1      3     1.00    *      *            prefetcht2	(%rax)
+# CHECK-NEXT:  1      3     1.00    *      *            prefetchnta	(%rax)
 # CHECK-NEXT:  1      2     0.50                        psadbw	%mm0, %mm2
 # CHECK-NEXT:  1      7     1.00    *                   psadbw	(%rax), %mm2
 # CHECK-NEXT:  1      1     0.50                        pshufw	$1, %mm0, %mm2
@@ -305,7 +305,7 @@ xorps       (%rax), %xmm2
 # CHECK-NEXT:  1      26    21.00   *                   sqrtps	(%rax), %xmm2
 # CHECK-NEXT:  1      21    21.00                       sqrtss	%xmm0, %xmm2
 # CHECK-NEXT:  1      26    21.00   *                   sqrtss	(%rax), %xmm2
-# CHECK-NEXT:  1      1     1.00    *      *      U     stmxcsr	(%rax)
+# CHECK-NEXT:  1      1     1.00           *      U     stmxcsr	(%rax)
 # CHECK-NEXT:  1      3     1.00                        subps	%xmm0, %xmm2
 # CHECK-NEXT:  1      8     1.00    *                   subps	(%rax), %xmm2
 # CHECK-NEXT:  1      3     1.00                        subss	%xmm0, %xmm2
@@ -337,7 +337,7 @@ xorps       (%rax), %xmm2
 
 # CHECK:      Resource pressure per iteration:
 # CHECK-NEXT: [0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    [10]   [11]   [12]   [13]
-# CHECK-NEXT: 15.00   -      -     47.00  184.00 58.50  66.50  58.00   -     9.00   25.00  9.50   9.50   2.00
+# CHECK-NEXT: 15.00   -      -     46.00  183.00 57.50  65.50  58.00   -     9.00   25.00  9.50   9.50   2.00
 
 # CHECK:      Resource pressure by instruction:
 # CHECK-NEXT: [0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    [10]   [11]   [12]   [13]   Instructions:
@@ -349,18 +349,18 @@ xorps       (%rax), %xmm2
 # CHECK-NEXT:  -      -      -     0.50   0.50   0.50   0.50   1.00    -      -      -      -      -      -     andnps	(%rax), %xmm2
 # CHECK-NEXT:  -      -      -     0.50   0.50   0.50   0.50    -      -      -      -      -      -      -     andps	%xmm0, %xmm2
 # CHECK-NEXT:  -      -      -     0.50   0.50   0.50   0.50   1.00    -      -      -      -      -      -     andps	(%rax), %xmm2
-# CHECK-NEXT:  -      -      -     1.00    -     1.00    -      -      -      -      -      -      -      -     cmpps	$0, %xmm0, %xmm2
-# CHECK-NEXT:  -      -      -     1.00    -     1.00    -     1.00    -      -      -      -      -      -     cmpps	$0, (%rax), %xmm2
-# CHECK-NEXT:  -      -      -     1.00    -     1.00    -      -      -      -      -      -      -      -     cmpss	$0, %xmm0, %xmm2
-# CHECK-NEXT:  -      -      -     1.00    -     1.00    -     1.00    -      -      -      -      -      -     cmpss	$0, (%rax), %xmm2
+# CHECK-NEXT:  -      -      -     1.00    -     1.00    -      -      -      -      -      -      -      -     cmpeqps	%xmm0, %xmm2
+# CHECK-NEXT:  -      -      -     1.00    -     1.00    -     1.00    -      -      -      -      -      -     cmpeqps	(%rax), %xmm2
+# CHECK-NEXT:  -      -      -     1.00    -     1.00    -      -      -      -      -      -      -      -     cmpeqss	%xmm0, %xmm2
+# CHECK-NEXT:  -      -      -     1.00    -     1.00    -     1.00    -      -      -      -      -      -     cmpeqss	(%rax), %xmm2
 # CHECK-NEXT: 1.00    -      -     1.00    -     1.00    -      -      -      -      -      -      -      -     comiss	%xmm0, %xmm1
 # CHECK-NEXT: 1.00    -      -     1.00    -     1.00    -     1.00    -      -      -      -      -      -     comiss	(%rax), %xmm1
 # CHECK-NEXT:  -      -      -      -      -      -     1.00    -      -      -     1.00    -      -      -     cvtpi2ps	%mm0, %xmm2
 # CHECK-NEXT:  -      -      -      -      -      -     1.00   1.00    -      -     1.00    -      -      -     cvtpi2ps	(%rax), %xmm2
 # CHECK-NEXT:  -      -      -      -      -      -     1.00    -      -      -     1.00    -      -      -     cvtps2pi	%xmm0, %mm2
 # CHECK-NEXT:  -      -      -      -      -      -     1.00   1.00    -      -     1.00    -      -      -     cvtps2pi	(%rax), %mm2
-# CHECK-NEXT:  -      -      -      -      -      -     1.00    -      -      -     1.00    -      -      -     cvtsi2ssl	%ecx, %xmm2
-# CHECK-NEXT:  -      -      -      -      -      -     1.00    -      -      -     1.00    -      -      -     cvtsi2ssq	%rcx, %xmm2
+# CHECK-NEXT:  -      -      -      -      -      -     1.00    -      -      -     1.00    -      -      -     cvtsi2ss	%ecx, %xmm2
+# CHECK-NEXT:  -      -      -      -      -      -     1.00    -      -      -     1.00    -      -      -     cvtsi2ss	%rcx, %xmm2
 # CHECK-NEXT:  -      -      -      -      -      -     1.00   1.00    -      -     1.00    -      -      -     cvtsi2ssl	(%rax), %xmm2
 # CHECK-NEXT:  -      -      -      -      -      -     1.00   1.00    -      -     1.00    -      -      -     cvtsi2ssl	(%rax), %xmm2
 # CHECK-NEXT: 1.00    -      -     1.00    -     1.00   1.00    -      -      -     1.00    -      -      -     cvtss2si	%xmm0, %ecx
@@ -389,7 +389,7 @@ xorps       (%rax), %xmm2
 # CHECK-NEXT:  -      -      -     1.00    -     1.00    -     1.00    -      -      -      -      -      -     minss	(%rax), %xmm2
 # CHECK-NEXT:  -      -      -     0.50   0.50   0.50   0.50    -      -      -      -      -      -      -     movaps	%xmm0, %xmm2
 # CHECK-NEXT:  -      -      -      -      -      -     1.00    -      -     1.00   1.00    -      -      -     movaps	%xmm0, (%rax)
-# CHECK-NEXT:  -      -      -     0.50   0.50   0.50   0.50   1.00    -      -      -      -      -      -     movaps	(%rax), %xmm2
+# CHECK-NEXT:  -      -      -      -      -      -      -     1.00    -      -      -      -      -      -     movaps	(%rax), %xmm2
 # CHECK-NEXT:  -      -      -     0.50   0.50   0.50   0.50    -      -      -      -      -      -      -     movhlps	%xmm0, %xmm2
 # CHECK-NEXT:  -      -      -     0.50   0.50   0.50   0.50    -      -      -      -      -      -      -     movlhps	%xmm0, %xmm2
 # CHECK-NEXT:  -      -      -      -      -      -     1.00    -      -     1.00   1.00    -      -      -     movhps	%xmm0, (%rax)
@@ -404,7 +404,7 @@ xorps       (%rax), %xmm2
 # CHECK-NEXT:  -      -      -     0.50   0.50   0.50   0.50   1.00    -      -      -      -      -      -     movss	(%rax), %xmm2
 # CHECK-NEXT:  -      -      -     0.50   0.50   0.50   0.50    -      -      -      -      -      -      -     movups	%xmm0, %xmm2
 # CHECK-NEXT:  -      -      -      -      -      -     1.00    -      -     1.00   1.00    -      -      -     movups	%xmm0, (%rax)
-# CHECK-NEXT:  -      -      -     0.50   0.50   0.50   0.50   1.00    -      -      -      -      -      -     movups	(%rax), %xmm2
+# CHECK-NEXT:  -      -      -      -      -      -      -     1.00    -      -      -      -      -      -     movups	(%rax), %xmm2
 # CHECK-NEXT:  -      -      -      -     1.00    -     1.00    -      -      -      -      -      -      -     mulps	%xmm0, %xmm2
 # CHECK-NEXT:  -      -      -      -     1.00    -     1.00   1.00    -      -      -      -      -      -     mulps	(%rax), %xmm2
 # CHECK-NEXT:  -      -      -      -     1.00    -     1.00    -      -      -      -      -      -      -     mulss	%xmm0, %xmm2
@@ -426,7 +426,7 @@ xorps       (%rax), %xmm2
 # CHECK-NEXT:  -      -      -      -      -     0.50   0.50   1.00    -      -      -     0.50   0.50    -     pminsw	(%rax), %mm2
 # CHECK-NEXT:  -      -      -      -      -     0.50   0.50    -      -      -      -     0.50   0.50    -     pminub	%mm0, %mm2
 # CHECK-NEXT:  -      -      -      -      -     0.50   0.50   1.00    -      -      -     0.50   0.50    -     pminub	(%rax), %mm2
-# CHECK-NEXT: 1.00    -      -     1.00    -     1.00    -      -      -      -      -      -      -      -     pmovmskb	%xmm0, %ecx
+# CHECK-NEXT: 1.00    -      -     1.00    -     1.00    -      -      -      -      -      -      -      -     pmovmskb	%mm0, %ecx
 # CHECK-NEXT:  -      -      -      -      -     1.00    -      -      -      -      -      -      -     1.00   pmulhuw	%mm0, %mm2
 # CHECK-NEXT:  -      -      -      -      -     1.00    -     1.00    -      -      -      -      -     1.00   pmulhuw	(%rax), %mm2
 # CHECK-NEXT:  -      -      -      -      -      -      -     1.00    -      -      -      -      -      -     prefetcht0	(%rax)

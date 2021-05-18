@@ -1,14 +1,13 @@
-//===-- SBEvent.h -----------------------------------------------*- C++ -*-===//
+//===-- SBExpressionOptions.h -----------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_SBExpressionOptions_h_
-#define LLDB_SBExpressionOptions_h_
+#ifndef LLDB_API_SBEXPRESSIONOPTIONS_H
+#define LLDB_API_SBEXPRESSIONOPTIONS_H
 
 #include "lldb/API/SBDefines.h"
 
@@ -87,20 +86,21 @@ public:
 
   bool GetAutoApplyFixIts();
 
+  void SetRetriesWithFixIts(uint64_t retries);
+
+  uint64_t GetRetriesWithFixIts();
+
   bool GetTopLevel();
 
   void SetTopLevel(bool b = true);
-  
+
   // Gets whether we will JIT an expression if it cannot be interpreted
   bool GetAllowJIT();
-  
+
   // Sets whether we will JIT an expression if it cannot be interpreted
   void SetAllowJIT(bool allow);
 
 protected:
-  SBExpressionOptions(
-      lldb_private::EvaluateExpressionOptions &expression_options);
-
   lldb_private::EvaluateExpressionOptions *get() const;
 
   lldb_private::EvaluateExpressionOptions &ref() const;
@@ -111,9 +111,9 @@ protected:
 
 private:
   // This auto_pointer is made in the constructor and is always valid.
-  mutable std::unique_ptr<lldb_private::EvaluateExpressionOptions> m_opaque_ap;
+  mutable std::unique_ptr<lldb_private::EvaluateExpressionOptions> m_opaque_up;
 };
 
 } // namespace lldb
 
-#endif // LLDB_SBExpressionOptions_h_
+#endif // LLDB_API_SBEXPRESSIONOPTIONS_H

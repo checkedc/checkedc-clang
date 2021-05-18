@@ -1,4 +1,4 @@
-; RUN: opt -hotcoldsplit -S < %s | FileCheck %s
+; RUN: opt -hotcoldsplit -hotcoldsplit-threshold=0 -S < %s | FileCheck %s
 
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-apple-macosx10.14.0"
@@ -23,6 +23,24 @@ define void @foo(i32, %struct.__jmp_buf_tag*) {
   ret void
 }
 
+; Don't outline within a noreturn function.
+
+; CHECK: define {{.*}}@xpc_objc_main(i32 {{.*}}) [[XPC_OBJC_MAIN_ATTRS:#[0-9]+]]
+; CHECK-NOT: xpc_objc_main.cold.1
+define void @xpc_objc_main(i32) noreturn {
+  %2 = icmp eq i32 %0, 0
+  tail call void @_Z10sideeffectv()
+  br i1 %2, label %4, label %3
+
+; <label>:3:                                      ; preds = %2
+  call void @_Z10sideeffectv()
+  unreachable
+
+; <label>:4:                                      ; preds = %2
+  ; Crash with an error message, "not supposed to return".
+  unreachable
+}
+
 ; Do outline noreturn calls marked cold.
 
 ; CHECK-LABEL: define {{.*}}@bar(
@@ -33,8 +51,6 @@ define void @bar(i32) {
   br i1 %2, label %sink, label %exit
 
 sink:
-  tail call void @_Z10sideeffectv()
-  tail call void @_Z10sideeffectv()
   tail call void @_Z10sideeffectv()
   call void @llvm.trap()
   unreachable
@@ -63,6 +79,8 @@ define void @baz(i32, %struct.__jmp_buf_tag*) {
 
 ; CHECK-LABEL: define {{.*}}@bar.cold.1(
 ; CHECK: call {{.*}}@llvm.trap(
+
+; CHECK: attributes [[XPC_OBJC_MAIN_ATTRS]] = { noreturn }
 
 declare void @sink() cold
 

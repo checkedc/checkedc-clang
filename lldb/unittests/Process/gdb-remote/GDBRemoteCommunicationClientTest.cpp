@@ -1,9 +1,8 @@
-//===-- GDBRemoteCommunicationClientTest.cpp --------------------*- C++ -*-===//
+//===-- GDBRemoteCommunicationClientTest.cpp ------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 #include "Plugins/Process/gdb-remote/GDBRemoteCommunicationClient.h"
@@ -48,7 +47,7 @@ void HandlePacket(MockServer &server,
                   StringRef response) {
   StringExtractorGDBRemote request;
   ASSERT_EQ(PacketResult::Success, server.GetPacket(request));
-  ASSERT_THAT(request.GetStringRef(), expected);
+  ASSERT_THAT(std::string(request.GetStringRef()), expected);
   ASSERT_EQ(PacketResult::Success, server.SendPacket(response));
 }
 
@@ -289,7 +288,7 @@ TEST_F(GDBRemoteCommunicationClientTest, TestPacketSpeedJSON) {
   server_thread.join();
 
   GTEST_LOG_(INFO) << "Formatted output: " << ss.GetData();
-  auto object_sp = StructuredData::ParseJSON(ss.GetString());
+  auto object_sp = StructuredData::ParseJSON(std::string(ss.GetString()));
   ASSERT_TRUE(bool(object_sp));
   auto dict_sp = object_sp->GetAsDictionary();
   ASSERT_TRUE(bool(dict_sp));
@@ -344,6 +343,25 @@ TEST_F(GDBRemoteCommunicationClientTest, GetMemoryRegionInfo) {
   EXPECT_EQ(MemoryRegionInfo::eNo, region_info.GetWritable());
   EXPECT_EQ(MemoryRegionInfo::eYes, region_info.GetExecutable());
   EXPECT_EQ("/foo/bar.so", region_info.GetName().GetStringRef());
+  EXPECT_EQ(MemoryRegionInfo::eDontKnow, region_info.GetMemoryTagged());
+
+  result = std::async(std::launch::async, [&] {
+    return client.GetMemoryRegionInfo(addr, region_info);
+  });
+
+  HandlePacket(server, "qMemoryRegionInfo:a000",
+               "start:a000;size:2000;flags:;");
+  EXPECT_TRUE(result.get().Success());
+  EXPECT_EQ(MemoryRegionInfo::eNo, region_info.GetMemoryTagged());
+
+  result = std::async(std::launch::async, [&] {
+    return client.GetMemoryRegionInfo(addr, region_info);
+  });
+
+  HandlePacket(server, "qMemoryRegionInfo:a000",
+               "start:a000;size:2000;flags: mt  zz mt  ;");
+  EXPECT_TRUE(result.get().Success());
+  EXPECT_EQ(MemoryRegionInfo::eYes, region_info.GetMemoryTagged());
 }
 
 TEST_F(GDBRemoteCommunicationClientTest, GetMemoryRegionInfoInvalidResponse) {
@@ -361,6 +379,66 @@ TEST_F(GDBRemoteCommunicationClientTest, GetMemoryRegionInfoInvalidResponse) {
     HandlePacket(server, testing::StartsWith("qSupported:"), "");
   }
   EXPECT_FALSE(result.get().Success());
+}
+
+TEST_F(GDBRemoteCommunicationClientTest, SendTraceSupportedTypePacket) {
+  TraceTypeInfo trace_type;
+  std::string error_message;
+  auto callback = [&] {
+    if (llvm::Expected<TraceTypeInfo> trace_type_or_err =
+            client.SendGetSupportedTraceType()) {
+      trace_type = *trace_type_or_err;
+      error_message = "";
+      return true;
+    } else {
+      trace_type = {};
+      error_message = llvm::toString(trace_type_or_err.takeError());
+      return false;
+    }
+  };
+
+  // Success response
+  {
+    std::future<bool> result = std::async(std::launch::async, callback);
+
+    HandlePacket(
+        server, "jLLDBTraceSupportedType",
+        R"({"name":"intel-pt","description":"Intel Processor Trace"}])");
+
+    EXPECT_TRUE(result.get());
+    ASSERT_STREQ(trace_type.name.c_str(), "intel-pt");
+    ASSERT_STREQ(trace_type.description.c_str(), "Intel Processor Trace");
+  }
+
+  // Error response - wrong json
+  {
+    std::future<bool> result = std::async(std::launch::async, callback);
+
+    HandlePacket(server, "jLLDBTraceSupportedType", R"({"type":"intel-pt"}])");
+
+    EXPECT_FALSE(result.get());
+    ASSERT_STREQ(error_message.c_str(), "missing value at (root).name");
+  }
+
+  // Error response
+  {
+    std::future<bool> result = std::async(std::launch::async, callback);
+
+    HandlePacket(server, "jLLDBTraceSupportedType", "E23");
+
+    EXPECT_FALSE(result.get());
+  }
+
+  // Error response with error message
+  {
+    std::future<bool> result = std::async(std::launch::async, callback);
+
+    HandlePacket(server, "jLLDBTraceSupportedType",
+                 "E23;50726F63657373206E6F742072756E6E696E672E");
+
+    EXPECT_FALSE(result.get());
+    ASSERT_STREQ(error_message.c_str(), "Process not running.");
+  }
 }
 
 TEST_F(GDBRemoteCommunicationClientTest, SendStartTracePacket) {
@@ -385,9 +463,9 @@ TEST_F(GDBRemoteCommunicationClientTest, SendStartTracePacket) {
 
   // Since the line is exceeding 80 characters.
   std::string expected_packet1 =
-      R"(jTraceStart:{"buffersize" : 8192,"metabuffersize" : 8192,"params" :)";
+      R"(jTraceStart:{"buffersize":8192,"metabuffersize":8192,"params":)";
   std::string expected_packet2 =
-      R"( {"psb" : 1,"tracetech" : "intel-pt"},"threadid" : 35,"type" : 1})";
+      R"({"psb":1,"tracetech":"intel-pt"},"threadid":35,"type":1})";
   HandlePacket(server, (expected_packet1 + expected_packet2), "1");
   ASSERT_TRUE(error.Success());
   ASSERT_EQ(result.get(), 1u);
@@ -410,8 +488,7 @@ TEST_F(GDBRemoteCommunicationClientTest, SendStopTracePacket) {
     return client.SendStopTracePacket(trace_id, thread_id);
   });
 
-  const char *expected_packet =
-      R"(jTraceStop:{"threadid" : 35,"traceid" : 3})";
+  const char *expected_packet = R"(jTraceStop:{"threadid":35,"traceid":3})";
   HandlePacket(server, expected_packet, "OK");
   ASSERT_TRUE(result.get().Success());
 
@@ -436,8 +513,8 @@ TEST_F(GDBRemoteCommunicationClientTest, SendGetDataPacket) {
   });
 
   std::string expected_packet1 =
-      R"(jTraceBufferRead:{"buffersize" : 32,"offset" : 0,"threadid" : 35,)";
-  std::string expected_packet2 = R"("traceid" : 3})";
+      R"(jTraceBufferRead:{"buffersize":32,"offset":0,"threadid":35,)";
+  std::string expected_packet2 = R"("traceid":3})";
   HandlePacket(server, expected_packet1+expected_packet2, "123456");
   ASSERT_TRUE(result.get().Success());
   ASSERT_EQ(buffer.size(), 3u);
@@ -468,8 +545,8 @@ TEST_F(GDBRemoteCommunicationClientTest, SendGetMetaDataPacket) {
   });
 
   std::string expected_packet1 =
-      R"(jTraceMetaRead:{"buffersize" : 32,"offset" : 0,"threadid" : 35,)";
-  std::string expected_packet2 = R"("traceid" : 3})";
+      R"(jTraceMetaRead:{"buffersize":32,"offset":0,"threadid":35,)";
+  std::string expected_packet2 = R"("traceid":3})";
   HandlePacket(server, expected_packet1+expected_packet2, "123456");
   ASSERT_TRUE(result.get().Success());
   ASSERT_EQ(buffer.size(), 3u);
@@ -498,11 +575,10 @@ TEST_F(GDBRemoteCommunicationClientTest, SendGetTraceConfigPacket) {
   });
 
   const char *expected_packet =
-      R"(jTraceConfigRead:{"threadid" : 35,"traceid" : 3})";
+      R"(jTraceConfigRead:{"threadid":35,"traceid":3})";
   std::string response1 =
-      R"({"buffersize" : 8192,"params" : {"psb" : 1,"tracetech" : "intel-pt"})";
-  std::string response2 =
-      R"(],"metabuffersize" : 8192,"threadid" : 35,"type" : 1}])";
+      R"({"buffersize":8192,"params":{"psb":1,"tracetech":"intel-pt"})";
+  std::string response2 = R"(],"metabuffersize":8192,"threadid":35,"type":1}])";
   HandlePacket(server, expected_packet, response1+response2);
   ASSERT_TRUE(result.get().Success());
   ASSERT_EQ(options.getTraceBufferSize(), 8192u);
@@ -554,4 +630,30 @@ TEST_F(GDBRemoteCommunicationClientTest, SendGetTraceConfigPacket) {
   HandlePacket(server, expected_packet, incorrect_custom_params1+
       incorrect_custom_params2);
   ASSERT_FALSE(result4.get().Success());
+}
+
+TEST_F(GDBRemoteCommunicationClientTest, GetQOffsets) {
+  const auto &GetQOffsets = [&](llvm::StringRef response) {
+    std::future<Optional<QOffsets>> result = std::async(
+        std::launch::async, [&] { return client.GetQOffsets(); });
+
+    HandlePacket(server, "qOffsets", response);
+    return result.get();
+  };
+  EXPECT_EQ((QOffsets{false, {0x1234, 0x1234}}),
+            GetQOffsets("Text=1234;Data=1234"));
+  EXPECT_EQ((QOffsets{false, {0x1234, 0x1234, 0x1234}}),
+            GetQOffsets("Text=1234;Data=1234;Bss=1234"));
+  EXPECT_EQ((QOffsets{true, {0x1234}}), GetQOffsets("TextSeg=1234"));
+  EXPECT_EQ((QOffsets{true, {0x1234, 0x2345}}),
+            GetQOffsets("TextSeg=1234;DataSeg=2345"));
+
+  EXPECT_EQ(llvm::None, GetQOffsets("E05"));
+  EXPECT_EQ(llvm::None, GetQOffsets("Text=bogus"));
+  EXPECT_EQ(llvm::None, GetQOffsets("Text=1234"));
+  EXPECT_EQ(llvm::None, GetQOffsets("Text=1234;Data=1234;"));
+  EXPECT_EQ(llvm::None, GetQOffsets("Text=1234;Data=1234;Bss=1234;"));
+  EXPECT_EQ(llvm::None, GetQOffsets("TEXTSEG=1234"));
+  EXPECT_EQ(llvm::None, GetQOffsets("TextSeg=0x1234"));
+  EXPECT_EQ(llvm::None, GetQOffsets("TextSeg=12345678123456789"));
 }

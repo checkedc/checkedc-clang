@@ -2,7 +2,7 @@
 ; RUN: llc -march=amdgcn -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=SI -check-prefix=FUNC %s
 ; RUN: llc -march=r600 -mcpu=redwood < %s | FileCheck -check-prefix=EG -check-prefix=FUNC %s
 
-declare i32 @llvm.r600.read.tidig.x() #0
+declare i32 @llvm.amdgcn.workitem.id.x() #0
 
 ; FUNC-LABEL: {{^}}test2:
 ; EG: AND_INT {{\*? *}}T{{[0-9]+\.[XYZW], T[0-9]+\.[XYZW], T[0-9]+\.[XYZW]}}
@@ -96,7 +96,7 @@ define amdgpu_kernel void @s_and_multi_use_constant_i32_1(i32 addrspace(1)* %out
 ; FUNC-LABEL: {{^}}v_and_i32_vgpr_vgpr:
 ; SI: v_and_b32_e32 v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}}
 define amdgpu_kernel void @v_and_i32_vgpr_vgpr(i32 addrspace(1)* %out, i32 addrspace(1)* %aptr, i32 addrspace(1)* %bptr) {
-  %tid = call i32 @llvm.r600.read.tidig.x() #0
+  %tid = call i32 @llvm.amdgcn.workitem.id.x() #0
   %gep.a = getelementptr i32, i32 addrspace(1)* %aptr, i32 %tid
   %gep.b = getelementptr i32, i32 addrspace(1)* %bptr, i32 %tid
   %gep.out = getelementptr i32, i32 addrspace(1)* %out, i32 %tid
@@ -112,7 +112,7 @@ define amdgpu_kernel void @v_and_i32_vgpr_vgpr(i32 addrspace(1)* %out, i32 addrs
 ; SI-DAG: {{buffer|flat}}_load_dword [[VB:v[0-9]+]]
 ; SI: v_and_b32_e32 v{{[0-9]+}}, [[SA]], [[VB]]
 define amdgpu_kernel void @v_and_i32_sgpr_vgpr(i32 addrspace(1)* %out, i32 %a, i32 addrspace(1)* %bptr) {
-  %tid = call i32 @llvm.r600.read.tidig.x() #0
+  %tid = call i32 @llvm.amdgcn.workitem.id.x() #0
   %gep.b = getelementptr i32, i32 addrspace(1)* %bptr, i32 %tid
   %gep.out = getelementptr i32, i32 addrspace(1)* %out, i32 %tid
   %b = load i32, i32 addrspace(1)* %gep.b
@@ -126,7 +126,7 @@ define amdgpu_kernel void @v_and_i32_sgpr_vgpr(i32 addrspace(1)* %out, i32 %a, i
 ; SI-DAG: {{buffer|flat}}_load_dword [[VB:v[0-9]+]]
 ; SI: v_and_b32_e32 v{{[0-9]+}}, [[SA]], [[VB]]
 define amdgpu_kernel void @v_and_i32_vgpr_sgpr(i32 addrspace(1)* %out, i32 addrspace(1)* %aptr, i32 %b) {
-  %tid = call i32 @llvm.r600.read.tidig.x() #0
+  %tid = call i32 @llvm.amdgcn.workitem.id.x() #0
   %gep.a = getelementptr i32, i32 addrspace(1)* %aptr, i32 %tid
   %gep.out = getelementptr i32, i32 addrspace(1)* %out, i32 %tid
   %a = load i32, i32 addrspace(1)* %gep.a
@@ -138,7 +138,7 @@ define amdgpu_kernel void @v_and_i32_vgpr_sgpr(i32 addrspace(1)* %out, i32 addrs
 ; FUNC-LABEL: {{^}}v_and_constant_i32
 ; SI: v_and_b32_e32 v{{[0-9]+}}, 0x12d687, v{{[0-9]+}}
 define amdgpu_kernel void @v_and_constant_i32(i32 addrspace(1)* %out, i32 addrspace(1)* %aptr) {
-  %tid = call i32 @llvm.r600.read.tidig.x() #0
+  %tid = call i32 @llvm.amdgcn.workitem.id.x() #0
   %gep = getelementptr i32, i32 addrspace(1)* %aptr, i32 %tid
   %a = load i32, i32 addrspace(1)* %gep, align 4
   %and = and i32 %a, 1234567
@@ -149,7 +149,7 @@ define amdgpu_kernel void @v_and_constant_i32(i32 addrspace(1)* %out, i32 addrsp
 ; FUNC-LABEL: {{^}}v_and_inline_imm_64_i32
 ; SI: v_and_b32_e32 v{{[0-9]+}}, 64, v{{[0-9]+}}
 define amdgpu_kernel void @v_and_inline_imm_64_i32(i32 addrspace(1)* %out, i32 addrspace(1)* %aptr) {
-  %tid = call i32 @llvm.r600.read.tidig.x() #0
+  %tid = call i32 @llvm.amdgcn.workitem.id.x() #0
   %gep = getelementptr i32, i32 addrspace(1)* %aptr, i32 %tid
   %a = load i32, i32 addrspace(1)* %gep, align 4
   %and = and i32 %a, 64
@@ -160,7 +160,7 @@ define amdgpu_kernel void @v_and_inline_imm_64_i32(i32 addrspace(1)* %out, i32 a
 ; FUNC-LABEL: {{^}}v_and_inline_imm_neg_16_i32
 ; SI: v_and_b32_e32 v{{[0-9]+}}, -16, v{{[0-9]+}}
 define amdgpu_kernel void @v_and_inline_imm_neg_16_i32(i32 addrspace(1)* %out, i32 addrspace(1)* %aptr) {
-  %tid = call i32 @llvm.r600.read.tidig.x() #0
+  %tid = call i32 @llvm.amdgcn.workitem.id.x() #0
   %gep = getelementptr i32, i32 addrspace(1)* %aptr, i32 %tid
   %a = load i32, i32 addrspace(1)* %gep, align 4
   %and = and i32 %a, -16
@@ -251,7 +251,7 @@ define amdgpu_kernel void @s_and_multi_use_inline_imm_i64(i64 addrspace(1)* %out
 ; SI: v_and_b32
 ; SI: v_and_b32
 define amdgpu_kernel void @v_and_i64(i64 addrspace(1)* %out, i64 addrspace(1)* %aptr, i64 addrspace(1)* %bptr) {
-  %tid = call i32 @llvm.r600.read.tidig.x() #0
+  %tid = call i32 @llvm.amdgcn.workitem.id.x() #0
   %gep.a = getelementptr i64, i64 addrspace(1)* %aptr, i32 %tid
   %a = load i64, i64 addrspace(1)* %gep.a, align 8
   %gep.b = getelementptr i64, i64 addrspace(1)* %bptr, i32 %tid
@@ -266,7 +266,7 @@ define amdgpu_kernel void @v_and_i64(i64 addrspace(1)* %out, i64 addrspace(1)* %
 ; SI-DAG: v_and_b32_e32 {{v[0-9]+}}, 0x11e, {{v[0-9]+}}
 ; SI: buffer_store_dwordx2
 define amdgpu_kernel void @v_and_constant_i64(i64 addrspace(1)* %out, i64 addrspace(1)* %aptr) {
-  %tid = call i32 @llvm.r600.read.tidig.x() #0
+  %tid = call i32 @llvm.amdgcn.workitem.id.x() #0
   %gep.a = getelementptr i64, i64 addrspace(1)* %aptr, i32 %tid
   %a = load i64, i64 addrspace(1)* %gep.a, align 8
   %and = and i64 %a, 1231231234567
@@ -322,7 +322,7 @@ define amdgpu_kernel void @v_and_multi_use_inline_imm_i64(i64 addrspace(1)* %out
 ; SI-NOT: and
 ; SI: buffer_store_dwordx2
 define amdgpu_kernel void @v_and_i64_32_bit_constant(i64 addrspace(1)* %out, i64 addrspace(1)* %aptr) {
-  %tid = call i32 @llvm.r600.read.tidig.x() #0
+  %tid = call i32 @llvm.amdgcn.workitem.id.x() #0
   %gep.a = getelementptr i64, i64 addrspace(1)* %aptr, i32 %tid
   %a = load i64, i64 addrspace(1)* %gep.a, align 8
   %and = and i64 %a, 1234567
@@ -337,7 +337,7 @@ define amdgpu_kernel void @v_and_i64_32_bit_constant(i64 addrspace(1)* %out, i64
 ; SI-NOT: and
 ; SI: buffer_store_dwordx2
 define amdgpu_kernel void @v_and_inline_imm_i64(i64 addrspace(1)* %out, i64 addrspace(1)* %aptr) {
-  %tid = call i32 @llvm.r600.read.tidig.x() #0
+  %tid = call i32 @llvm.amdgcn.workitem.id.x() #0
   %gep.a = getelementptr i64, i64 addrspace(1)* %aptr, i32 %tid
   %a = load i64, i64 addrspace(1)* %gep.a, align 8
   %and = and i64 %a, 64
@@ -353,7 +353,7 @@ define amdgpu_kernel void @v_and_inline_imm_i64(i64 addrspace(1)* %out, i64 addr
 ; SI-NOT: and
 ; SI: buffer_store_dwordx2 v{{\[}}[[VAL_LO]]:[[VAL_HI]]{{\]}}
 define amdgpu_kernel void @v_and_inline_neg_imm_i64(i64 addrspace(1)* %out, i64 addrspace(1)* %aptr) {
-  %tid = call i32 @llvm.r600.read.tidig.x() #0
+  %tid = call i32 @llvm.amdgcn.workitem.id.x() #0
   %gep.a = getelementptr i64, i64 addrspace(1)* %aptr, i32 %tid
   %a = load i64, i64 addrspace(1)* %gep.a, align 8
   %and = and i64 %a, -8
@@ -405,7 +405,7 @@ define amdgpu_kernel void @s_and_inline_imm_1_i64(i64 addrspace(1)* %out, i64 ad
 ; XSI: s_and_b64 s{{\[[0-9]+:[0-9]+\]}}, s{{\[[0-9]+:[0-9]+\]}}, 1.0
 
 ; SI: s_load_dwordx2
-; SI: s_load_dwordx2
+; SI: s_load_dword
 ; SI-NOT: and
 ; SI: s_and_b32 {{s[0-9]+}}, {{s[0-9]+}}, 0x3ff00000
 ; SI-NOT: and
@@ -420,7 +420,7 @@ define amdgpu_kernel void @s_and_inline_imm_1.0_i64(i64 addrspace(1)* %out, i64 
 ; XSI: s_and_b64 s{{\[[0-9]+:[0-9]+\]}}, s{{\[[0-9]+:[0-9]+\]}}, -1.0
 
 ; SI: s_load_dwordx2
-; SI: s_load_dwordx2
+; SI: s_load_dword
 ; SI-NOT: and
 ; SI: s_and_b32 {{s[0-9]+}}, {{s[0-9]+}}, 0xbff00000
 ; SI-NOT: and
@@ -435,7 +435,7 @@ define amdgpu_kernel void @s_and_inline_imm_neg_1.0_i64(i64 addrspace(1)* %out, 
 ; XSI: s_and_b64 s{{\[[0-9]+:[0-9]+\]}}, s{{\[[0-9]+:[0-9]+\]}}, 0.5
 
 ; SI: s_load_dwordx2
-; SI: s_load_dwordx2
+; SI: s_load_dword
 ; SI-NOT: and
 ; SI: s_and_b32 {{s[0-9]+}}, {{s[0-9]+}}, 0x3fe00000
 ; SI-NOT: and
@@ -450,7 +450,7 @@ define amdgpu_kernel void @s_and_inline_imm_0.5_i64(i64 addrspace(1)* %out, i64 
 ; XSI: s_and_b64 s{{\[[0-9]+:[0-9]+\]}}, s{{\[[0-9]+:[0-9]+\]}}, -0.5
 
 ; SI: s_load_dwordx2
-; SI: s_load_dwordx2
+; SI: s_load_dword
 ; SI-NOT: and
 ; SI: s_and_b32 {{s[0-9]+}}, {{s[0-9]+}}, 0xbfe00000
 ; SI-NOT: and
@@ -463,7 +463,7 @@ define amdgpu_kernel void @s_and_inline_imm_neg_0.5_i64(i64 addrspace(1)* %out, 
 
 ; FUNC-LABEL: {{^}}s_and_inline_imm_2.0_i64:
 ; SI: s_load_dwordx2
-; SI: s_load_dwordx2
+; SI: s_load_dword
 ; SI-NOT: and
 ; SI: s_and_b32 {{s[0-9]+}}, {{s[0-9]+}}, 2.0
 ; SI-NOT: and
@@ -476,7 +476,7 @@ define amdgpu_kernel void @s_and_inline_imm_2.0_i64(i64 addrspace(1)* %out, i64 
 
 ; FUNC-LABEL: {{^}}s_and_inline_imm_neg_2.0_i64:
 ; SI: s_load_dwordx2
-; SI: s_load_dwordx2
+; SI: s_load_dword
 ; SI-NOT: and
 ; SI: s_and_b32 {{s[0-9]+}}, {{s[0-9]+}}, -2.0
 ; SI-NOT: and
@@ -491,7 +491,7 @@ define amdgpu_kernel void @s_and_inline_imm_neg_2.0_i64(i64 addrspace(1)* %out, 
 ; XSI: s_and_b64 s{{\[[0-9]+:[0-9]+\]}}, s{{\[[0-9]+:[0-9]+\]}}, 4.0
 
 ; SI: s_load_dwordx2
-; SI: s_load_dwordx2
+; SI: s_load_dword
 ; SI-NOT: and
 ; SI: s_and_b32 {{s[0-9]+}}, {{s[0-9]+}}, 0x40100000
 ; SI-NOT: and
@@ -506,7 +506,7 @@ define amdgpu_kernel void @s_and_inline_imm_4.0_i64(i64 addrspace(1)* %out, i64 
 ; XSI: s_and_b64 s{{\[[0-9]+:[0-9]+\]}}, s{{\[[0-9]+:[0-9]+\]}}, -4.0
 
 ; SI: s_load_dwordx2
-; SI: s_load_dwordx2
+; SI: s_load_dword
 ; SI-NOT: and
 ; SI: s_and_b32 {{s[0-9]+}}, {{s[0-9]+}}, 0xc0100000
 ; SI-NOT: and
@@ -549,7 +549,7 @@ define amdgpu_kernel void @s_and_inline_imm_f32_neg_4.0_i64(i64 addrspace(1)* %o
 
 ; Shift into upper 32-bits
 ; SI: s_load_dwordx2
-; SI: s_load_dwordx2
+; SI: s_load_dword
 ; SI-NOT: and
 ; SI: s_and_b32 s[[K_HI:[0-9]+]], s{{[0-9]+}}, 4.0
 ; SI-NOT: and
@@ -562,7 +562,7 @@ define amdgpu_kernel void @s_and_inline_high_imm_f32_4.0_i64(i64 addrspace(1)* %
 
 ; FUNC-LABEL: {{^}}s_and_inline_high_imm_f32_neg_4.0_i64:
 ; SI: s_load_dwordx2
-; SI: s_load_dwordx2
+; SI: s_load_dword
 ; SI-NOT: and
 ; SI: s_and_b32 s[[K_HI:[0-9]+]], s{{[0-9]+}}, -4.0
 ; SI-NOT: and

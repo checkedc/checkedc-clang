@@ -1,9 +1,8 @@
-//===-- RegisterContextFreeBSD_i386.cpp ------------------------*- C++ -*-===//
+//===-- RegisterContextFreeBSD_i386.cpp -----------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===---------------------------------------------------------------------===//
 
@@ -36,7 +35,7 @@ struct GPR {
   uint32_t gs;
 };
 
-struct dbreg {
+struct DBG {
   uint32_t dr[8]; /* debug registers */
                   /* Index 0-3: debug address registers */
                   /* Index 4-5: reserved */
@@ -49,14 +48,15 @@ using FPR_i386 = FXSAVE;
 struct UserArea {
   GPR gpr;
   FPR_i386 i387;
+  DBG dbg;
 };
 
 #define DR_SIZE sizeof(uint32_t)
-#define DR_OFFSET(reg_index) (LLVM_EXTENSION offsetof(dbreg, dr[reg_index]))
+#define DR_OFFSET(reg_index)                                                   \
+  (LLVM_EXTENSION offsetof(UserArea, dbg) +                                    \
+   LLVM_EXTENSION offsetof(DBG, dr[reg_index]))
 
-//---------------------------------------------------------------------------
 // Include RegisterInfos_i386 to declare our g_register_infos_i386 structure.
-//---------------------------------------------------------------------------
 #define DECLARE_REGISTER_INFOS_I386_STRUCT
 #include "RegisterInfos_i386.h"
 #undef DECLARE_REGISTER_INFOS_I386_STRUCT
@@ -73,7 +73,7 @@ const RegisterInfo *RegisterContextFreeBSD_i386::GetRegisterInfo() const {
     return g_register_infos_i386;
   default:
     assert(false && "Unhandled target architecture.");
-    return NULL;
+    return nullptr;
   }
 }
 

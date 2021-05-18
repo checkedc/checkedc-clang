@@ -1,15 +1,16 @@
 //===--- NoexceptMoveConstructorCheck.cpp - clang-tidy---------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "NoexceptMoveConstructorCheck.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include "clang/Lex/Lexer.h"
+#include "clang/Tooling/FixIt.h"
 
 using namespace clang::ast_matchers;
 
@@ -18,11 +19,6 @@ namespace tidy {
 namespace performance {
 
 void NoexceptMoveConstructorCheck::registerMatchers(MatchFinder *Finder) {
-  // Only register the matchers for C++11; the functionality currently does not
-  // provide any benefit to other languages, despite being benign.
-  if (!getLangOpts().CPlusPlus11)
-    return;
-
   Finder->addMatcher(
       cxxMethodDecl(anyOf(cxxConstructorDecl(), hasOverloadedOperatorName("=")),
                     unless(isImplicit()), unless(isDeleted()))
@@ -48,9 +44,20 @@ void NoexceptMoveConstructorCheck::check(
       return;
 
     if (!isNoexceptExceptionSpec(ProtoType->getExceptionSpecType())) {
-      diag(Decl->getLocation(), "move %0s should be marked noexcept")
+      auto Diag =
+          diag(Decl->getLocation(), "move %0s should be marked noexcept")
           << MethodType;
-      // FIXME: Add a fixit.
+      // Add FixIt hints.
+      SourceManager &SM = *Result.SourceManager;
+      assert(Decl->getNumParams() > 0);
+      SourceLocation NoexceptLoc = Decl->getParamDecl(Decl->getNumParams() - 1)
+                                       ->getSourceRange()
+                                       .getEnd();
+      if (NoexceptLoc.isValid())
+        NoexceptLoc = Lexer::findLocationAfterToken(
+            NoexceptLoc, tok::r_paren, SM, Result.Context->getLangOpts(), true);
+      if (NoexceptLoc.isValid())
+        Diag << FixItHint::CreateInsertion(NoexceptLoc, " noexcept ");
       return;
     }
 

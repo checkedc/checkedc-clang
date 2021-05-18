@@ -1,9 +1,8 @@
 //===-- PPCMachineFunctionInfo.h - Private data used for PowerPC --*- C++ -*-=//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -23,6 +22,16 @@ namespace llvm {
 /// PPCFunctionInfo - This class is derived from MachineFunction private
 /// PowerPC target-specific information for each MachineFunction.
 class PPCFunctionInfo : public MachineFunctionInfo {
+public:
+  // The value in the ParamType are used to indicate the bitstrings used in the
+  // encoding format.
+  enum ParamType {
+    FixedType = 0x0,
+    ShortFloatPoint = 0x2,
+    LongFloatPoint = 0x3
+  };
+
+private:
   virtual void anchor();
 
   /// FramePointerSaveIndex - Frame index of where the old frame pointer is
@@ -43,7 +52,13 @@ class PPCFunctionInfo : public MachineFunctionInfo {
   /// MustSaveLR - Indicates whether LR is defined (or clobbered) in the current
   /// function.  This is only valid after the initial scan of the function by
   /// PEI.
-  bool MustSaveLR;
+  bool MustSaveLR = false;
+
+  /// MustSaveTOC - Indicates that the TOC save needs to be performed in the
+  /// prologue of the function. This is typically the case when there are
+  /// indirect calls in the function and it is more profitable to save the
+  /// TOC pointer in the prologue than in the block(s) containing the call(s).
+  bool MustSaveTOC = false;
 
   /// Do we have to disable shrink-wrapping? This has to be set if we emit any
   /// instructions that clobber LR in the entry block because discovering this
@@ -60,8 +75,9 @@ class PPCFunctionInfo : public MachineFunctionInfo {
   /// SpillsCR - Indicates whether CR is spilled in the current function.
   bool SpillsCR = false;
 
-  /// Indicates whether VRSAVE is spilled in the current function.
-  bool SpillsVRSAVE = false;
+  /// DisableNonVolatileCR - Indicates whether non-volatile CR fields would be
+  /// disabled.
+  bool DisableNonVolatileCR = false;
 
   /// LRStoreRequired - The bool indicates whether there is some explicit use of
   /// the LR/LR8 stack slot that is not obvious from scanning the code.  This
@@ -101,30 +117,37 @@ class PPCFunctionInfo : public MachineFunctionInfo {
   /// register for parameter passing.
   unsigned VarArgsNumFPR = 0;
 
+  /// FixedParamNum - Number of fixed parameter.
+  unsigned FixedParamNum = 0;
+
+  /// FloatingParamNum - Number of floating point parameter.
+  unsigned FloatingPointParamNum = 0;
+
+  /// ParamType - Encode type for every parameter
+  /// in the order of parameters passing in.
+  /// Bitstring starts from the most significant (leftmost) bit.
+  /// '0'b => fixed parameter.
+  /// '10'b => floating point short parameter.
+  /// '11'b => floating point long parameter.
+  uint32_t ParameterType = 0;
+
   /// CRSpillFrameIndex - FrameIndex for CR spill slot for 32-bit SVR4.
   int CRSpillFrameIndex = 0;
 
   /// If any of CR[2-4] need to be saved in the prologue and restored in the
   /// epilogue then they are added to this array. This is used for the
   /// 64-bit SVR4 ABI.
-  SmallVector<unsigned, 3> MustSaveCRs;
-
-  /// Hold onto our MachineFunction context.
-  MachineFunction &MF;
+  SmallVector<Register, 3> MustSaveCRs;
 
   /// Whether this uses the PIC Base register or not.
   bool UsesPICBase = false;
 
-  /// True if this function has a subset of CSRs that is handled explicitly via
-  /// copies
-  bool IsSplitCSR = false;
-
   /// We keep track attributes for each live-in virtual registers
   /// to use SExt/ZExt flags in later optimization.
-  std::vector<std::pair<unsigned, ISD::ArgFlagsTy>> LiveInAttrs;
+  std::vector<std::pair<Register, ISD::ArgFlagsTy>> LiveInAttrs;
 
 public:
-  explicit PPCFunctionInfo(MachineFunction &MF) : MF(MF) {}
+  explicit PPCFunctionInfo(const MachineFunction &MF);
 
   int getFramePointerSaveIndex() const { return FramePointerSaveIndex; }
   void setFramePointerSaveIndex(int Idx) { FramePointerSaveIndex = Idx; }
@@ -152,6 +175,9 @@ public:
   void setMustSaveLR(bool U) { MustSaveLR = U; }
   bool mustSaveLR() const    { return MustSaveLR; }
 
+  void setMustSaveTOC(bool U) { MustSaveTOC = U; }
+  bool mustSaveTOC() const    { return MustSaveTOC; }
+
   /// We certainly don't want to shrink wrap functions if we've emitted a
   /// MovePCtoLR8 as that has to go into the entry, so the prologue definitely
   /// has to go into the entry block.
@@ -167,8 +193,8 @@ public:
   void setSpillsCR()       { SpillsCR = true; }
   bool isCRSpilled() const { return SpillsCR; }
 
-  void setSpillsVRSAVE()       { SpillsVRSAVE = true; }
-  bool isVRSAVESpilled() const { return SpillsVRSAVE; }
+  void setDisableNonVolatileCR() { DisableNonVolatileCR = true; }
+  bool isNonVolatileCRDisabled() const { return DisableNonVolatileCR; }
 
   void setLRStoreRequired() { LRStoreRequired = true; }
   bool isLRStoreRequired() const { return LRStoreRequired; }
@@ -188,40 +214,44 @@ public:
   unsigned getVarArgsNumGPR() const { return VarArgsNumGPR; }
   void setVarArgsNumGPR(unsigned Num) { VarArgsNumGPR = Num; }
 
+  unsigned getFixedParamNum() const { return FixedParamNum; }
+
+  unsigned getFloatingPointParamNum() const { return FloatingPointParamNum; }
+
+  uint32_t getParameterType() const { return ParameterType; }
+  void appendParameterType(ParamType Type);
+
   unsigned getVarArgsNumFPR() const { return VarArgsNumFPR; }
   void setVarArgsNumFPR(unsigned Num) { VarArgsNumFPR = Num; }
 
   /// This function associates attributes for each live-in virtual register.
-  void addLiveInAttr(unsigned VReg, ISD::ArgFlagsTy Flags) {
+  void addLiveInAttr(Register VReg, ISD::ArgFlagsTy Flags) {
     LiveInAttrs.push_back(std::make_pair(VReg, Flags));
   }
 
   /// This function returns true if the specified vreg is
   /// a live-in register and sign-extended.
-  bool isLiveInSExt(unsigned VReg) const;
+  bool isLiveInSExt(Register VReg) const;
 
   /// This function returns true if the specified vreg is
   /// a live-in register and zero-extended.
-  bool isLiveInZExt(unsigned VReg) const;
+  bool isLiveInZExt(Register VReg) const;
 
   int getCRSpillFrameIndex() const { return CRSpillFrameIndex; }
   void setCRSpillFrameIndex(int idx) { CRSpillFrameIndex = idx; }
 
-  const SmallVectorImpl<unsigned> &
+  const SmallVectorImpl<Register> &
     getMustSaveCRs() const { return MustSaveCRs; }
-  void addMustSaveCR(unsigned Reg) { MustSaveCRs.push_back(Reg); }
+  void addMustSaveCR(Register Reg) { MustSaveCRs.push_back(Reg); }
 
   void setUsesPICBase(bool uses) { UsesPICBase = uses; }
   bool usesPICBase() const { return UsesPICBase; }
 
-  bool isSplitCSR() const { return IsSplitCSR; }
-  void setIsSplitCSR(bool s) { IsSplitCSR = s; }
+  MCSymbol *getPICOffsetSymbol(MachineFunction &MF) const;
 
-  MCSymbol *getPICOffsetSymbol() const;
-
-  MCSymbol *getGlobalEPSymbol() const;
-  MCSymbol *getLocalEPSymbol() const;
-  MCSymbol *getTOCOffsetSymbol() const;
+  MCSymbol *getGlobalEPSymbol(MachineFunction &MF) const;
+  MCSymbol *getLocalEPSymbol(MachineFunction &MF) const;
+  MCSymbol *getTOCOffsetSymbol(MachineFunction &MF) const;
 };
 
 } // end namespace llvm

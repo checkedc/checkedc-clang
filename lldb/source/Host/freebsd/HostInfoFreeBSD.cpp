@@ -1,9 +1,8 @@
-//===-- HostInfoFreeBSD.cpp -------------------------------------*- C++ -*-===//
+//===-- HostInfoFreeBSD.cpp -----------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -65,13 +64,10 @@ FileSpec HostInfoFreeBSD::GetProgramFileSpec() {
   static FileSpec g_program_filespec;
   if (!g_program_filespec) {
     int exe_path_mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, getpid()};
-    size_t exe_path_size;
-    if (sysctl(exe_path_mib, 4, NULL, &exe_path_size, NULL, 0) == 0) {
-      char *exe_path = new char[exe_path_size];
-      if (sysctl(exe_path_mib, 4, exe_path, &exe_path_size, NULL, 0) == 0)
-        g_program_filespec.SetFile(exe_path, FileSpec::Style::native);
-      delete[] exe_path;
-    }
+    char exe_path[PATH_MAX];
+    size_t exe_path_size = sizeof(exe_path);
+    if (sysctl(exe_path_mib, 4, exe_path, &exe_path_size, NULL, 0) == 0)
+      g_program_filespec.SetFile(exe_path, FileSpec::Style::native);
   }
   return g_program_filespec;
 }

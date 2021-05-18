@@ -1,9 +1,8 @@
 //===------ LeonPasses.cpp - Define passes specific to LEON ---------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -11,14 +10,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "LeonPasses.h"
-#include "llvm/CodeGen/ISDOpcodes.h"
+#include "SparcSubtarget.h"
+#include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
-#include "llvm/CodeGen/MachineRegisterInfo.h"
-#include "llvm/IR/DiagnosticInfo.h"
-#include "llvm/IR/LLVMContext.h"
 #include "llvm/Support/raw_ostream.h"
+
 using namespace llvm;
 
 LEONMachineFunctionPass::LEONMachineFunctionPass(char &ID)

@@ -51,12 +51,20 @@ void fl(local int *arg) {}
 // AMDGCN: i32 addrspace(4)* %arg
 void fc(constant int *arg) {}
 
+// SPIR: i32 addrspace(5)* %arg
+// AMDGCN: i32 addrspace(1)* %arg
+void fd(__attribute__((opencl_global_device)) int *arg) {}
+
+// SPIR: i32 addrspace(6)* %arg
+// AMDGCN: i32 addrspace(1)* %arg
+void fh(__attribute__((opencl_global_host)) int *arg) {}
+
 #ifdef CL20
 int i;
-// CL20-DAG: @i = common {{(dso_local )?}}addrspace(1) global i32 0
+// CL20-DAG: @i = {{(dso_local )?}}addrspace(1) global i32 0
 int *ptr;
 // CL20SPIR-DAG: @ptr = {{(common )?}}{{(dso_local )?}}addrspace(1) global i32 addrspace(4)* null
-// CL20AMDGCN-DAG: @ptr = common {{(dso_local )?}}addrspace(1) global i32* null
+// CL20AMDGCN-DAG: @ptr = {{(dso_local )?}}addrspace(1) global i32* null
 #endif
 
 // SPIR: i32* %arg

@@ -1,9 +1,8 @@
 //===-- RISCVInstrInfo.cpp - RISCV Instruction Information ------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -12,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "RISCVInstrInfo.h"
+#include "MCTargetDesc/RISCVMatInt.h"
 #include "RISCV.h"
 #include "RISCVSubtarget.h"
 #include "RISCVTargetMachine.h"
@@ -24,13 +24,17 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/TargetRegistry.h"
 
+using namespace llvm;
+
+#define GEN_CHECK_COMPRESS_INSTR
+#include "RISCVGenCompressInstEmitter.inc"
+
 #define GET_INSTRINFO_CTOR_DTOR
 #include "RISCVGenInstrInfo.inc"
 
-using namespace llvm;
-
-RISCVInstrInfo::RISCVInstrInfo()
-    : RISCVGenInstrInfo(RISCV::ADJCALLSTACKDOWN, RISCV::ADJCALLSTACKUP) {}
+RISCVInstrInfo::RISCVInstrInfo(RISCVSubtarget &STI)
+    : RISCVGenInstrInfo(RISCV::ADJCALLSTACKDOWN, RISCV::ADJCALLSTACKUP),
+      STI(STI) {}
 
 unsigned RISCVInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
                                              int &FrameIndex) const {
@@ -41,6 +45,7 @@ unsigned RISCVInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
   case RISCV::LBU:
   case RISCV::LH:
   case RISCV::LHU:
+  case RISCV::FLH:
   case RISCV::LW:
   case RISCV::FLW:
   case RISCV::LWU:
@@ -66,16 +71,17 @@ unsigned RISCVInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
   case RISCV::SB:
   case RISCV::SH:
   case RISCV::SW:
+  case RISCV::FSH:
   case RISCV::FSW:
   case RISCV::SD:
   case RISCV::FSD:
     break;
   }
 
-  if (MI.getOperand(0).isFI() && MI.getOperand(1).isImm() &&
-      MI.getOperand(1).getImm() == 0) {
-    FrameIndex = MI.getOperand(0).getIndex();
-    return MI.getOperand(2).getReg();
+  if (MI.getOperand(1).isFI() && MI.getOperand(2).isImm() &&
+      MI.getOperand(2).getImm() == 0) {
+    FrameIndex = MI.getOperand(1).getIndex();
+    return MI.getOperand(0).getReg();
   }
 
   return 0;
@@ -83,8 +89,8 @@ unsigned RISCVInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
 
 void RISCVInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator MBBI,
-                                 const DebugLoc &DL, unsigned DstReg,
-                                 unsigned SrcReg, bool KillSrc) const {
+                                 const DebugLoc &DL, MCRegister DstReg,
+                                 MCRegister SrcReg, bool KillSrc) const {
   if (RISCV::GPRRegClass.contains(DstReg, SrcReg)) {
     BuildMI(MBB, MBBI, DL, get(RISCV::ADDI), DstReg)
         .addReg(SrcReg, getKillRegState(KillSrc))
@@ -92,34 +98,60 @@ void RISCVInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     return;
   }
 
-  // FPR->FPR copies
+  // FPR->FPR copies and VR->VR copies.
   unsigned Opc;
-  if (RISCV::FPR32RegClass.contains(DstReg, SrcReg))
+  bool IsScalableVector = false;
+  if (RISCV::FPR16RegClass.contains(DstReg, SrcReg))
+    Opc = RISCV::FSGNJ_H;
+  else if (RISCV::FPR32RegClass.contains(DstReg, SrcReg))
     Opc = RISCV::FSGNJ_S;
   else if (RISCV::FPR64RegClass.contains(DstReg, SrcReg))
     Opc = RISCV::FSGNJ_D;
-  else
+  else if (RISCV::VRRegClass.contains(DstReg, SrcReg)) {
+    Opc = RISCV::PseudoVMV1R_V;
+    IsScalableVector = true;
+  } else if (RISCV::VRM2RegClass.contains(DstReg, SrcReg)) {
+    Opc = RISCV::PseudoVMV2R_V;
+    IsScalableVector = true;
+  } else if (RISCV::VRM4RegClass.contains(DstReg, SrcReg)) {
+    Opc = RISCV::PseudoVMV4R_V;
+    IsScalableVector = true;
+  } else if (RISCV::VRM8RegClass.contains(DstReg, SrcReg)) {
+    Opc = RISCV::PseudoVMV8R_V;
+    IsScalableVector = true;
+  } else
     llvm_unreachable("Impossible reg-to-reg copy");
 
-  BuildMI(MBB, MBBI, DL, get(Opc), DstReg)
-      .addReg(SrcReg, getKillRegState(KillSrc))
-      .addReg(SrcReg, getKillRegState(KillSrc));
+  if (IsScalableVector)
+    BuildMI(MBB, MBBI, DL, get(Opc), DstReg)
+        .addReg(SrcReg, getKillRegState(KillSrc));
+  else
+    BuildMI(MBB, MBBI, DL, get(Opc), DstReg)
+        .addReg(SrcReg, getKillRegState(KillSrc))
+        .addReg(SrcReg, getKillRegState(KillSrc));
 }
 
 void RISCVInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
                                          MachineBasicBlock::iterator I,
-                                         unsigned SrcReg, bool IsKill, int FI,
+                                         Register SrcReg, bool IsKill, int FI,
                                          const TargetRegisterClass *RC,
                                          const TargetRegisterInfo *TRI) const {
   DebugLoc DL;
   if (I != MBB.end())
     DL = I->getDebugLoc();
 
-  unsigned Opcode;
+  MachineFunction *MF = MBB.getParent();
+  const MachineFrameInfo &MFI = MF->getFrameInfo();
+  MachineMemOperand *MMO = MF->getMachineMemOperand(
+      MachinePointerInfo::getFixedStack(*MF, FI), MachineMemOperand::MOStore,
+      MFI.getObjectSize(FI), MFI.getObjectAlign(FI));
 
+  unsigned Opcode;
   if (RISCV::GPRRegClass.hasSubClassEq(RC))
     Opcode = TRI->getRegSizeInBits(RISCV::GPRRegClass) == 32 ?
              RISCV::SW : RISCV::SD;
+  else if (RISCV::FPR16RegClass.hasSubClassEq(RC))
+    Opcode = RISCV::FSH;
   else if (RISCV::FPR32RegClass.hasSubClassEq(RC))
     Opcode = RISCV::FSW;
   else if (RISCV::FPR64RegClass.hasSubClassEq(RC))
@@ -130,23 +162,31 @@ void RISCVInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
   BuildMI(MBB, I, DL, get(Opcode))
       .addReg(SrcReg, getKillRegState(IsKill))
       .addFrameIndex(FI)
-      .addImm(0);
+      .addImm(0)
+      .addMemOperand(MMO);
 }
 
 void RISCVInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                           MachineBasicBlock::iterator I,
-                                          unsigned DstReg, int FI,
+                                          Register DstReg, int FI,
                                           const TargetRegisterClass *RC,
                                           const TargetRegisterInfo *TRI) const {
   DebugLoc DL;
   if (I != MBB.end())
     DL = I->getDebugLoc();
 
-  unsigned Opcode;
+  MachineFunction *MF = MBB.getParent();
+  const MachineFrameInfo &MFI = MF->getFrameInfo();
+  MachineMemOperand *MMO = MF->getMachineMemOperand(
+      MachinePointerInfo::getFixedStack(*MF, FI), MachineMemOperand::MOLoad,
+      MFI.getObjectSize(FI), MFI.getObjectAlign(FI));
 
+  unsigned Opcode;
   if (RISCV::GPRRegClass.hasSubClassEq(RC))
     Opcode = TRI->getRegSizeInBits(RISCV::GPRRegClass) == 32 ?
              RISCV::LW : RISCV::LD;
+  else if (RISCV::FPR16RegClass.hasSubClassEq(RC))
+    Opcode = RISCV::FLH;
   else if (RISCV::FPR32RegClass.hasSubClassEq(RC))
     Opcode = RISCV::FLW;
   else if (RISCV::FPR64RegClass.hasSubClassEq(RC))
@@ -154,27 +194,49 @@ void RISCVInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
   else
     llvm_unreachable("Can't load this register from stack slot");
 
-  BuildMI(MBB, I, DL, get(Opcode), DstReg).addFrameIndex(FI).addImm(0);
+  BuildMI(MBB, I, DL, get(Opcode), DstReg)
+    .addFrameIndex(FI)
+    .addImm(0)
+    .addMemOperand(MMO);
 }
 
-void RISCVInstrInfo::movImm32(MachineBasicBlock &MBB,
-                              MachineBasicBlock::iterator MBBI,
-                              const DebugLoc &DL, unsigned DstReg, uint64_t Val,
-                              MachineInstr::MIFlag Flag) const {
-  assert(isInt<32>(Val) && "Can only materialize 32-bit constants");
+void RISCVInstrInfo::movImm(MachineBasicBlock &MBB,
+                            MachineBasicBlock::iterator MBBI,
+                            const DebugLoc &DL, Register DstReg, uint64_t Val,
+                            MachineInstr::MIFlag Flag) const {
+  MachineFunction *MF = MBB.getParent();
+  MachineRegisterInfo &MRI = MF->getRegInfo();
+  bool IsRV64 = MF->getSubtarget<RISCVSubtarget>().is64Bit();
+  Register SrcReg = RISCV::X0;
+  Register Result = MRI.createVirtualRegister(&RISCV::GPRRegClass);
+  unsigned Num = 0;
 
-  // TODO: If the value can be materialized using only one instruction, only
-  // insert a single instruction.
+  if (!IsRV64 && !isInt<32>(Val))
+    report_fatal_error("Should only materialize 32-bit constants for RV32");
 
-  uint64_t Hi20 = ((Val + 0x800) >> 12) & 0xfffff;
-  uint64_t Lo12 = SignExtend64<12>(Val);
-  BuildMI(MBB, MBBI, DL, get(RISCV::LUI), DstReg)
-      .addImm(Hi20)
-      .setMIFlag(Flag);
-  BuildMI(MBB, MBBI, DL, get(RISCV::ADDI), DstReg)
-      .addReg(DstReg, RegState::Kill)
-      .addImm(Lo12)
-      .setMIFlag(Flag);
+  RISCVMatInt::InstSeq Seq;
+  RISCVMatInt::generateInstSeq(Val, IsRV64, Seq);
+  assert(Seq.size() > 0);
+
+  for (RISCVMatInt::Inst &Inst : Seq) {
+    // Write the final result to DstReg if it's the last instruction in the Seq.
+    // Otherwise, write the result to the temp register.
+    if (++Num == Seq.size())
+      Result = DstReg;
+
+    if (Inst.Opc == RISCV::LUI) {
+      BuildMI(MBB, MBBI, DL, get(RISCV::LUI), Result)
+          .addImm(Inst.Imm)
+          .setMIFlag(Flag);
+    } else {
+      BuildMI(MBB, MBBI, DL, get(Inst.Opc), Result)
+          .addReg(SrcReg, RegState::Kill)
+          .addImm(Inst.Imm)
+          .setMIFlag(Flag);
+    }
+    // Only the first instruction has X0 as its source.
+    SrcReg = Result;
+  }
 }
 
 // The contents of values added to Cond are not examined outside of
@@ -256,7 +318,7 @@ bool RISCVInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
 
   // Handle a single unconditional branch.
   if (NumTerminators == 1 && I->getDesc().isUnconditionalBranch()) {
-    TBB = I->getOperand(0).getMBB();
+    TBB = getBranchDestBlock(*I);
     return false;
   }
 
@@ -270,7 +332,7 @@ bool RISCVInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
   if (NumTerminators == 2 && std::prev(I)->getDesc().isConditionalBranch() &&
       I->getDesc().isUnconditionalBranch()) {
     parseCondBranch(*std::prev(I), TBB, Cond);
-    FBB = I->getOperand(0).getMBB();
+    FBB = getBranchDestBlock(*I);
     return false;
   }
 
@@ -291,9 +353,9 @@ unsigned RISCVInstrInfo::removeBranch(MachineBasicBlock &MBB,
     return 0;
 
   // Remove the branch.
-  I->eraseFromParent();
   if (BytesRemoved)
     *BytesRemoved += getInstSizeInBytes(*I);
+  I->eraseFromParent();
 
   I = MBB.end();
 
@@ -304,9 +366,9 @@ unsigned RISCVInstrInfo::removeBranch(MachineBasicBlock &MBB,
     return 1;
 
   // Remove the branch.
-  I->eraseFromParent();
   if (BytesRemoved)
     *BytesRemoved += getInstSizeInBytes(*I);
+  I->eraseFromParent();
   return 2;
 }
 
@@ -319,7 +381,7 @@ unsigned RISCVInstrInfo::insertBranch(
     *BytesAdded = 0;
 
   // Shouldn't be a fall through.
-  assert(TBB && "InsertBranch must not be told to insert a fallthrough");
+  assert(TBB && "insertBranch must not be told to insert a fallthrough");
   assert((Cond.size() == 3 || Cond.size() == 0) &&
          "RISCV branch conditions have two components!");
 
@@ -361,10 +423,6 @@ unsigned RISCVInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
 
   MachineFunction *MF = MBB.getParent();
   MachineRegisterInfo &MRI = MF->getRegInfo();
-  const auto &TM = static_cast<const RISCVTargetMachine &>(MF->getTarget());
-
-  if (TM.isPositionIndependent())
-    report_fatal_error("Unable to insert indirect branch");
 
   if (!isInt<32>(BrOffset))
     report_fatal_error(
@@ -373,18 +431,16 @@ unsigned RISCVInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
   // FIXME: A virtual register must be used initially, as the register
   // scavenger won't work with empty blocks (SIInstrInfo::insertIndirectBranch
   // uses the same workaround).
-  unsigned ScratchReg = MRI.createVirtualRegister(&RISCV::GPRRegClass);
+  Register ScratchReg = MRI.createVirtualRegister(&RISCV::GPRRegClass);
   auto II = MBB.end();
 
-  MachineInstr &LuiMI = *BuildMI(MBB, II, DL, get(RISCV::LUI), ScratchReg)
-                             .addMBB(&DestBB, RISCVII::MO_HI);
-  BuildMI(MBB, II, DL, get(RISCV::PseudoBRIND))
-      .addReg(ScratchReg, RegState::Kill)
-      .addMBB(&DestBB, RISCVII::MO_LO);
+  MachineInstr &MI = *BuildMI(MBB, II, DL, get(RISCV::PseudoJump))
+                          .addReg(ScratchReg, RegState::Define | RegState::Dead)
+                          .addMBB(&DestBB, RISCVII::MO_CALL);
 
   RS->enterBasicBlockEnd(MBB);
-  unsigned Scav = RS->scavengeRegisterBackwards(
-      RISCV::GPRRegClass, MachineBasicBlock::iterator(LuiMI), false, 0);
+  unsigned Scav = RS->scavengeRegisterBackwards(RISCV::GPRRegClass,
+                                                MI.getIterator(), false, 0);
   MRI.replaceRegWith(ScratchReg, Scav);
   MRI.clearVirtRegs();
   RS->setRegUsed(Scav);
@@ -408,6 +464,7 @@ RISCVInstrInfo::getBranchDestBlock(const MachineInstr &MI) const {
 
 bool RISCVInstrInfo::isBranchOffsetInRange(unsigned BranchOp,
                                            int64_t BrOffset) const {
+  unsigned XLen = STI.getXLen();
   // Ideally we could determine the supported branch offset from the
   // RISCVII::FormMask, but this can't be used for Pseudo instructions like
   // PseudoBR.
@@ -424,6 +481,8 @@ bool RISCVInstrInfo::isBranchOffsetInRange(unsigned BranchOp,
   case RISCV::JAL:
   case RISCV::PseudoBR:
     return isIntN(21, BrOffset);
+  case RISCV::PseudoJump:
+    return isIntN(32, SignExtend64(BrOffset + 0x800, XLen));
   }
 }
 
@@ -431,20 +490,392 @@ unsigned RISCVInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
   unsigned Opcode = MI.getOpcode();
 
   switch (Opcode) {
-  default: { return get(Opcode).getSize(); }
+  default: {
+    if (MI.getParent() && MI.getParent()->getParent()) {
+      const auto MF = MI.getMF();
+      const auto &TM = static_cast<const RISCVTargetMachine &>(MF->getTarget());
+      const MCRegisterInfo &MRI = *TM.getMCRegisterInfo();
+      const MCSubtargetInfo &STI = *TM.getMCSubtargetInfo();
+      const RISCVSubtarget &ST = MF->getSubtarget<RISCVSubtarget>();
+      if (isCompressibleInst(MI, &ST, MRI, STI))
+        return 2;
+    }
+    return get(Opcode).getSize();
+  }
   case TargetOpcode::EH_LABEL:
   case TargetOpcode::IMPLICIT_DEF:
   case TargetOpcode::KILL:
   case TargetOpcode::DBG_VALUE:
     return 0;
+  // These values are determined based on RISCVExpandAtomicPseudoInsts,
+  // RISCVExpandPseudoInsts and RISCVMCCodeEmitter, depending on where the
+  // pseudos are expanded.
+  case RISCV::PseudoCALLReg:
   case RISCV::PseudoCALL:
+  case RISCV::PseudoJump:
   case RISCV::PseudoTAIL:
+  case RISCV::PseudoLLA:
+  case RISCV::PseudoLA:
+  case RISCV::PseudoLA_TLS_IE:
+  case RISCV::PseudoLA_TLS_GD:
     return 8;
-  case TargetOpcode::INLINEASM: {
+  case RISCV::PseudoAtomicLoadNand32:
+  case RISCV::PseudoAtomicLoadNand64:
+    return 20;
+  case RISCV::PseudoMaskedAtomicSwap32:
+  case RISCV::PseudoMaskedAtomicLoadAdd32:
+  case RISCV::PseudoMaskedAtomicLoadSub32:
+    return 28;
+  case RISCV::PseudoMaskedAtomicLoadNand32:
+    return 32;
+  case RISCV::PseudoMaskedAtomicLoadMax32:
+  case RISCV::PseudoMaskedAtomicLoadMin32:
+    return 44;
+  case RISCV::PseudoMaskedAtomicLoadUMax32:
+  case RISCV::PseudoMaskedAtomicLoadUMin32:
+    return 36;
+  case RISCV::PseudoCmpXchg32:
+  case RISCV::PseudoCmpXchg64:
+    return 16;
+  case RISCV::PseudoMaskedCmpXchg32:
+    return 32;
+  case TargetOpcode::INLINEASM:
+  case TargetOpcode::INLINEASM_BR: {
     const MachineFunction &MF = *MI.getParent()->getParent();
     const auto &TM = static_cast<const RISCVTargetMachine &>(MF.getTarget());
     return getInlineAsmLength(MI.getOperand(0).getSymbolName(),
                               *TM.getMCAsmInfo());
   }
   }
+}
+
+bool RISCVInstrInfo::isAsCheapAsAMove(const MachineInstr &MI) const {
+  const unsigned Opcode = MI.getOpcode();
+  switch (Opcode) {
+  default:
+    break;
+  case RISCV::FSGNJ_D:
+  case RISCV::FSGNJ_S:
+    // The canonical floating-point move is fsgnj rd, rs, rs.
+    return MI.getOperand(1).isReg() && MI.getOperand(2).isReg() &&
+           MI.getOperand(1).getReg() == MI.getOperand(2).getReg();
+  case RISCV::ADDI:
+  case RISCV::ORI:
+  case RISCV::XORI:
+    return (MI.getOperand(1).isReg() &&
+            MI.getOperand(1).getReg() == RISCV::X0) ||
+           (MI.getOperand(2).isImm() && MI.getOperand(2).getImm() == 0);
+  }
+  return MI.isAsCheapAsAMove();
+}
+
+Optional<DestSourcePair>
+RISCVInstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
+  if (MI.isMoveReg())
+    return DestSourcePair{MI.getOperand(0), MI.getOperand(1)};
+  switch (MI.getOpcode()) {
+  default:
+    break;
+  case RISCV::ADDI:
+    // Operand 1 can be a frameindex but callers expect registers
+    if (MI.getOperand(1).isReg() && MI.getOperand(2).isImm() &&
+        MI.getOperand(2).getImm() == 0)
+      return DestSourcePair{MI.getOperand(0), MI.getOperand(1)};
+    break;
+  case RISCV::FSGNJ_D:
+  case RISCV::FSGNJ_S:
+    // The canonical floating-point move is fsgnj rd, rs, rs.
+    if (MI.getOperand(1).isReg() && MI.getOperand(2).isReg() &&
+        MI.getOperand(1).getReg() == MI.getOperand(2).getReg())
+      return DestSourcePair{MI.getOperand(0), MI.getOperand(1)};
+    break;
+  }
+  return None;
+}
+
+bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
+                                       StringRef &ErrInfo) const {
+  const MCInstrInfo *MCII = STI.getInstrInfo();
+  MCInstrDesc const &Desc = MCII->get(MI.getOpcode());
+
+  for (auto &OI : enumerate(Desc.operands())) {
+    unsigned OpType = OI.value().OperandType;
+    if (OpType >= RISCVOp::OPERAND_FIRST_RISCV_IMM &&
+        OpType <= RISCVOp::OPERAND_LAST_RISCV_IMM) {
+      const MachineOperand &MO = MI.getOperand(OI.index());
+      if (MO.isImm()) {
+        int64_t Imm = MO.getImm();
+        bool Ok;
+        switch (OpType) {
+        default:
+          llvm_unreachable("Unexpected operand type");
+        case RISCVOp::OPERAND_UIMM4:
+          Ok = isUInt<4>(Imm);
+          break;
+        case RISCVOp::OPERAND_UIMM5:
+          Ok = isUInt<5>(Imm);
+          break;
+        case RISCVOp::OPERAND_UIMM12:
+          Ok = isUInt<12>(Imm);
+          break;
+        case RISCVOp::OPERAND_SIMM12:
+          Ok = isInt<12>(Imm);
+          break;
+        case RISCVOp::OPERAND_UIMM20:
+          Ok = isUInt<20>(Imm);
+          break;
+        case RISCVOp::OPERAND_UIMMLOG2XLEN:
+          if (STI.getTargetTriple().isArch64Bit())
+            Ok = isUInt<6>(Imm);
+          else
+            Ok = isUInt<5>(Imm);
+          break;
+        }
+        if (!Ok) {
+          ErrInfo = "Invalid immediate";
+          return false;
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
+// Return true if get the base operand, byte offset of an instruction and the
+// memory width. Width is the size of memory that is being loaded/stored.
+bool RISCVInstrInfo::getMemOperandWithOffsetWidth(
+    const MachineInstr &LdSt, const MachineOperand *&BaseReg, int64_t &Offset,
+    unsigned &Width, const TargetRegisterInfo *TRI) const {
+  if (!LdSt.mayLoadOrStore())
+    return false;
+
+  // Here we assume the standard RISC-V ISA, which uses a base+offset
+  // addressing mode. You'll need to relax these conditions to support custom
+  // load/stores instructions.
+  if (LdSt.getNumExplicitOperands() != 3)
+    return false;
+  if (!LdSt.getOperand(1).isReg() || !LdSt.getOperand(2).isImm())
+    return false;
+
+  if (!LdSt.hasOneMemOperand())
+    return false;
+
+  Width = (*LdSt.memoperands_begin())->getSize();
+  BaseReg = &LdSt.getOperand(1);
+  Offset = LdSt.getOperand(2).getImm();
+  return true;
+}
+
+bool RISCVInstrInfo::areMemAccessesTriviallyDisjoint(
+    const MachineInstr &MIa, const MachineInstr &MIb) const {
+  assert(MIa.mayLoadOrStore() && "MIa must be a load or store.");
+  assert(MIb.mayLoadOrStore() && "MIb must be a load or store.");
+
+  if (MIa.hasUnmodeledSideEffects() || MIb.hasUnmodeledSideEffects() ||
+      MIa.hasOrderedMemoryRef() || MIb.hasOrderedMemoryRef())
+    return false;
+
+  // Retrieve the base register, offset from the base register and width. Width
+  // is the size of memory that is being loaded/stored (e.g. 1, 2, 4).  If
+  // base registers are identical, and the offset of a lower memory access +
+  // the width doesn't overlap the offset of a higher memory access,
+  // then the memory accesses are different.
+  const TargetRegisterInfo *TRI = STI.getRegisterInfo();
+  const MachineOperand *BaseOpA = nullptr, *BaseOpB = nullptr;
+  int64_t OffsetA = 0, OffsetB = 0;
+  unsigned int WidthA = 0, WidthB = 0;
+  if (getMemOperandWithOffsetWidth(MIa, BaseOpA, OffsetA, WidthA, TRI) &&
+      getMemOperandWithOffsetWidth(MIb, BaseOpB, OffsetB, WidthB, TRI)) {
+    if (BaseOpA->isIdenticalTo(*BaseOpB)) {
+      int LowOffset = std::min(OffsetA, OffsetB);
+      int HighOffset = std::max(OffsetA, OffsetB);
+      int LowWidth = (LowOffset == OffsetA) ? WidthA : WidthB;
+      if (LowOffset + LowWidth <= HighOffset)
+        return true;
+    }
+  }
+  return false;
+}
+
+std::pair<unsigned, unsigned>
+RISCVInstrInfo::decomposeMachineOperandsTargetFlags(unsigned TF) const {
+  const unsigned Mask = RISCVII::MO_DIRECT_FLAG_MASK;
+  return std::make_pair(TF & Mask, TF & ~Mask);
+}
+
+ArrayRef<std::pair<unsigned, const char *>>
+RISCVInstrInfo::getSerializableDirectMachineOperandTargetFlags() const {
+  using namespace RISCVII;
+  static const std::pair<unsigned, const char *> TargetFlags[] = {
+      {MO_CALL, "riscv-call"},
+      {MO_PLT, "riscv-plt"},
+      {MO_LO, "riscv-lo"},
+      {MO_HI, "riscv-hi"},
+      {MO_PCREL_LO, "riscv-pcrel-lo"},
+      {MO_PCREL_HI, "riscv-pcrel-hi"},
+      {MO_GOT_HI, "riscv-got-hi"},
+      {MO_TPREL_LO, "riscv-tprel-lo"},
+      {MO_TPREL_HI, "riscv-tprel-hi"},
+      {MO_TPREL_ADD, "riscv-tprel-add"},
+      {MO_TLS_GOT_HI, "riscv-tls-got-hi"},
+      {MO_TLS_GD_HI, "riscv-tls-gd-hi"}};
+  return makeArrayRef(TargetFlags);
+}
+bool RISCVInstrInfo::isFunctionSafeToOutlineFrom(
+    MachineFunction &MF, bool OutlineFromLinkOnceODRs) const {
+  const Function &F = MF.getFunction();
+
+  // Can F be deduplicated by the linker? If it can, don't outline from it.
+  if (!OutlineFromLinkOnceODRs && F.hasLinkOnceODRLinkage())
+    return false;
+
+  // Don't outline from functions with section markings; the program could
+  // expect that all the code is in the named section.
+  if (F.hasSection())
+    return false;
+
+  // It's safe to outline from MF.
+  return true;
+}
+
+bool RISCVInstrInfo::isMBBSafeToOutlineFrom(MachineBasicBlock &MBB,
+                                            unsigned &Flags) const {
+  // More accurate safety checking is done in getOutliningCandidateInfo.
+  return true;
+}
+
+// Enum values indicating how an outlined call should be constructed.
+enum MachineOutlinerConstructionID {
+  MachineOutlinerDefault
+};
+
+outliner::OutlinedFunction RISCVInstrInfo::getOutliningCandidateInfo(
+    std::vector<outliner::Candidate> &RepeatedSequenceLocs) const {
+
+  // First we need to filter out candidates where the X5 register (IE t0) can't
+  // be used to setup the function call.
+  auto CannotInsertCall = [](outliner::Candidate &C) {
+    const TargetRegisterInfo *TRI = C.getMF()->getSubtarget().getRegisterInfo();
+
+    C.initLRU(*TRI);
+    LiveRegUnits LRU = C.LRU;
+    return !LRU.available(RISCV::X5);
+  };
+
+  llvm::erase_if(RepeatedSequenceLocs, CannotInsertCall);
+
+  // If the sequence doesn't have enough candidates left, then we're done.
+  if (RepeatedSequenceLocs.size() < 2)
+    return outliner::OutlinedFunction();
+
+  unsigned SequenceSize = 0;
+
+  auto I = RepeatedSequenceLocs[0].front();
+  auto E = std::next(RepeatedSequenceLocs[0].back());
+  for (; I != E; ++I)
+    SequenceSize += getInstSizeInBytes(*I);
+
+  // call t0, function = 8 bytes.
+  unsigned CallOverhead = 8;
+  for (auto &C : RepeatedSequenceLocs)
+    C.setCallInfo(MachineOutlinerDefault, CallOverhead);
+
+  // jr t0 = 4 bytes, 2 bytes if compressed instructions are enabled.
+  unsigned FrameOverhead = 4;
+  if (RepeatedSequenceLocs[0].getMF()->getSubtarget()
+          .getFeatureBits()[RISCV::FeatureStdExtC])
+    FrameOverhead = 2;
+
+  return outliner::OutlinedFunction(RepeatedSequenceLocs, SequenceSize,
+                                    FrameOverhead, MachineOutlinerDefault);
+}
+
+outliner::InstrType
+RISCVInstrInfo::getOutliningType(MachineBasicBlock::iterator &MBBI,
+                                 unsigned Flags) const {
+  MachineInstr &MI = *MBBI;
+  MachineBasicBlock *MBB = MI.getParent();
+  const TargetRegisterInfo *TRI =
+      MBB->getParent()->getSubtarget().getRegisterInfo();
+
+  // Positions generally can't safely be outlined.
+  if (MI.isPosition()) {
+    // We can manually strip out CFI instructions later.
+    if (MI.isCFIInstruction())
+      return outliner::InstrType::Invisible;
+
+    return outliner::InstrType::Illegal;
+  }
+
+  // Don't trust the user to write safe inline assembly.
+  if (MI.isInlineAsm())
+    return outliner::InstrType::Illegal;
+
+  // We can't outline branches to other basic blocks.
+  if (MI.isTerminator() && !MBB->succ_empty())
+    return outliner::InstrType::Illegal;
+
+  // We need support for tail calls to outlined functions before return
+  // statements can be allowed.
+  if (MI.isReturn())
+    return outliner::InstrType::Illegal;
+
+  // Don't allow modifying the X5 register which we use for return addresses for
+  // these outlined functions.
+  if (MI.modifiesRegister(RISCV::X5, TRI) ||
+      MI.getDesc().hasImplicitDefOfPhysReg(RISCV::X5))
+    return outliner::InstrType::Illegal;
+
+  // Make sure the operands don't reference something unsafe.
+  for (const auto &MO : MI.operands())
+    if (MO.isMBB() || MO.isBlockAddress() || MO.isCPI())
+      return outliner::InstrType::Illegal;
+
+  // Don't allow instructions which won't be materialized to impact outlining
+  // analysis.
+  if (MI.isMetaInstruction())
+    return outliner::InstrType::Invisible;
+
+  return outliner::InstrType::Legal;
+}
+
+void RISCVInstrInfo::buildOutlinedFrame(
+    MachineBasicBlock &MBB, MachineFunction &MF,
+    const outliner::OutlinedFunction &OF) const {
+
+  // Strip out any CFI instructions
+  bool Changed = true;
+  while (Changed) {
+    Changed = false;
+    auto I = MBB.begin();
+    auto E = MBB.end();
+    for (; I != E; ++I) {
+      if (I->isCFIInstruction()) {
+        I->removeFromParent();
+        Changed = true;
+        break;
+      }
+    }
+  }
+
+  MBB.addLiveIn(RISCV::X5);
+
+  // Add in a return instruction to the end of the outlined frame.
+  MBB.insert(MBB.end(), BuildMI(MF, DebugLoc(), get(RISCV::JALR))
+      .addReg(RISCV::X0, RegState::Define)
+      .addReg(RISCV::X5)
+      .addImm(0));
+}
+
+MachineBasicBlock::iterator RISCVInstrInfo::insertOutlinedCall(
+    Module &M, MachineBasicBlock &MBB, MachineBasicBlock::iterator &It,
+    MachineFunction &MF, const outliner::Candidate &C) const {
+
+  // Add in a call instruction to the outlined function at the given location.
+  It = MBB.insert(It,
+                  BuildMI(MF, DebugLoc(), get(RISCV::PseudoCALLReg), RISCV::X5)
+                      .addGlobalAddress(M.getNamedValue(MF.getName()), 0,
+                                        RISCVII::MO_CALL));
+  return It;
 }

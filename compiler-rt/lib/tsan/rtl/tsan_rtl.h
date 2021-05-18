@@ -1,9 +1,8 @@
 //===-- tsan_rtl.h ----------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -56,19 +55,14 @@ namespace __tsan {
 #if !SANITIZER_GO
 struct MapUnmapCallback;
 #if defined(__mips64) || defined(__aarch64__) || defined(__powerpc__)
-static const uptr kAllocatorRegionSizeLog = 20;
-static const uptr kAllocatorNumRegions =
-    SANITIZER_MMAP_RANGE_SIZE >> kAllocatorRegionSizeLog;
-using ByteMap = TwoLevelByteMap<(kAllocatorNumRegions >> 12), 1 << 12,
-                                LocalAddressSpaceView, MapUnmapCallback>;
+
 struct AP32 {
   static const uptr kSpaceBeg = 0;
   static const u64 kSpaceSize = SANITIZER_MMAP_RANGE_SIZE;
   static const uptr kMetadataSize = 0;
   typedef __sanitizer::CompactSizeClassMap SizeClassMap;
-  static const uptr kRegionSizeLog = kAllocatorRegionSizeLog;
+  static const uptr kRegionSizeLog = 20;
   using AddressSpaceView = LocalAddressSpaceView;
-  using ByteMap = __tsan::ByteMap;
   typedef __tsan::MapUnmapCallback MapUnmapCallback;
   static const uptr kFlags = 0;
 };
@@ -85,10 +79,8 @@ struct AP64 {  // Allocator64 parameters. Deliberately using a short name.
 };
 typedef SizeClassAllocator64<AP64> PrimaryAllocator;
 #endif
-typedef SizeClassAllocatorLocalCache<PrimaryAllocator> AllocatorCache;
-typedef LargeMmapAllocator<MapUnmapCallback> SecondaryAllocator;
-typedef CombinedAllocator<PrimaryAllocator, AllocatorCache,
-    SecondaryAllocator> Allocator;
+typedef CombinedAllocator<PrimaryAllocator> Allocator;
+typedef Allocator::AllocatorCache AllocatorCache;
 Allocator *allocator();
 #endif
 
@@ -246,7 +238,7 @@ class Shadow : public FastState {
       unsigned kS2AccessSize) {
     bool res = false;
     u64 diff = s1.addr0() - s2.addr0();
-    if ((s64)diff < 0) {  // s1.addr0 < s2.addr0  // NOLINT
+    if ((s64)diff < 0) {  // s1.addr0 < s2.addr0
       // if (s1.addr0() + size1) > s2.addr0()) return true;
       if (s1.size() > -diff)
         res = true;
@@ -333,7 +325,6 @@ struct ThreadSignalContext;
 
 struct JmpBuf {
   uptr sp;
-  uptr mangled_sp;
   int int_signal_send;
   bool in_blocking_func;
   uptr in_signal_handler;
@@ -385,6 +376,9 @@ struct ThreadState {
   // taken by epoch between synchs.
   // This way we can save one load from tls.
   u64 fast_synch_epoch;
+  // Technically `current` should be a separate THREADLOCAL variable;
+  // but it is placed here in order to share cache line with previous fields.
+  ThreadState* current;
   // This is a slow path flag. On fast path, fast_state.GetIgnoreBit() is read.
   // We do not distinguish beteween ignoring reads and writes
   // for better performance.
@@ -462,18 +456,28 @@ struct ThreadState {
 #if !SANITIZER_GO
 #if SANITIZER_MAC || SANITIZER_ANDROID
 ThreadState *cur_thread();
+void set_cur_thread(ThreadState *thr);
 void cur_thread_finalize();
+inline void cur_thread_init() { }
 #else
 __attribute__((tls_model("initial-exec")))
 extern THREADLOCAL char cur_thread_placeholder[];
-INLINE ThreadState *cur_thread() {
-  return reinterpret_cast<ThreadState *>(&cur_thread_placeholder);
+inline ThreadState *cur_thread() {
+  return reinterpret_cast<ThreadState *>(cur_thread_placeholder)->current;
 }
-INLINE void cur_thread_finalize() { }
+inline void cur_thread_init() {
+  ThreadState *thr = reinterpret_cast<ThreadState *>(cur_thread_placeholder);
+  if (UNLIKELY(!thr->current))
+    thr->current = thr;
+}
+inline void set_cur_thread(ThreadState *thr) {
+  reinterpret_cast<ThreadState *>(cur_thread_placeholder)->current = thr;
+}
+inline void cur_thread_finalize() { }
 #endif  // SANITIZER_MAC || SANITIZER_ANDROID
 #endif  // SANITIZER_GO
 
-class ThreadContext : public ThreadContextBase {
+class ThreadContext final : public ThreadContextBase {
  public:
   explicit ThreadContext(int tid);
   ~ThreadContext();
@@ -676,6 +680,7 @@ void ALWAYS_INLINE StatSet(ThreadState *thr, StatType typ, u64 n) {
 void MapShadow(uptr addr, uptr size);
 void MapThreadTrace(uptr addr, uptr size, const char *name);
 void DontNeedShadowFor(uptr addr, uptr size);
+void UnmapShadow(ThreadState *thr, uptr addr, uptr size);
 void InitializeShadowMemory();
 void InitializeInterceptors();
 void InitializeLibIgnore();
@@ -755,6 +760,8 @@ void ALWAYS_INLINE MemoryWriteAtomic(ThreadState *thr, uptr pc,
 void MemoryResetRange(ThreadState *thr, uptr pc, uptr addr, uptr size);
 void MemoryRangeFreed(ThreadState *thr, uptr pc, uptr addr, uptr size);
 void MemoryRangeImitateWrite(ThreadState *thr, uptr pc, uptr addr, uptr size);
+void MemoryRangeImitateWriteOrResetRange(ThreadState *thr, uptr pc, uptr addr,
+                                         uptr size);
 
 void ThreadIgnoreBegin(ThreadState *thr, uptr pc, bool save_stack = true);
 void ThreadIgnoreEnd(ThreadState *thr, uptr pc);
@@ -765,9 +772,10 @@ void FuncEntry(ThreadState *thr, uptr pc);
 void FuncExit(ThreadState *thr);
 
 int ThreadCreate(ThreadState *thr, uptr pc, uptr uid, bool detached);
-void ThreadStart(ThreadState *thr, int tid, tid_t os_id, bool workerthread);
+void ThreadStart(ThreadState *thr, int tid, tid_t os_id,
+                 ThreadType thread_type);
 void ThreadFinish(ThreadState *thr);
-int ThreadTid(ThreadState *thr, uptr pc, uptr uid);
+int ThreadConsumeTid(ThreadState *thr, uptr pc, uptr uid);
 void ThreadJoin(ThreadState *thr, uptr pc, int tid);
 void ThreadDetach(ThreadState *thr, uptr pc, int tid);
 void ThreadFinalize(ThreadState *thr);
@@ -805,10 +813,12 @@ void Acquire(ThreadState *thr, uptr pc, uptr addr);
 // approximation of the actual required synchronization.
 void AcquireGlobal(ThreadState *thr, uptr pc);
 void Release(ThreadState *thr, uptr pc, uptr addr);
+void ReleaseStoreAcquire(ThreadState *thr, uptr pc, uptr addr);
 void ReleaseStore(ThreadState *thr, uptr pc, uptr addr);
 void AfterSleep(ThreadState *thr, uptr pc);
 void AcquireImpl(ThreadState *thr, uptr pc, SyncClock *c);
 void ReleaseImpl(ThreadState *thr, uptr pc, SyncClock *c);
+void ReleaseStoreAcquireImpl(ThreadState *thr, uptr pc, SyncClock *c);
 void ReleaseStoreImpl(ThreadState *thr, uptr pc, SyncClock *c);
 void AcquireReleaseImpl(ThreadState *thr, uptr pc, SyncClock *c);
 
@@ -867,6 +877,16 @@ uptr ALWAYS_INLINE HeapEnd() {
   return HeapMemEnd() + PrimaryAllocator::AdditionalSize();
 }
 #endif
+
+ThreadState *FiberCreate(ThreadState *thr, uptr pc, unsigned flags);
+void FiberDestroy(ThreadState *thr, uptr pc, ThreadState *fiber);
+void FiberSwitch(ThreadState *thr, uptr pc, ThreadState *fiber, unsigned flags);
+
+// These need to match __tsan_switch_to_fiber_* flags defined in
+// tsan_interface.h. See documentation there as well.
+enum FiberSwitchFlags {
+  FiberSwitchFlagNoSync = 1 << 0, // __tsan_switch_to_fiber_no_sync
+};
 
 }  // namespace __tsan
 

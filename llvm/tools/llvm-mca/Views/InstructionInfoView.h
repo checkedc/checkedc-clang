@@ -1,9 +1,8 @@
 //===--------------------- InstructionInfoView.h ----------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 /// \file
@@ -35,12 +34,14 @@
 #ifndef LLVM_TOOLS_LLVM_MCA_INSTRUCTIONINFOVIEW_H
 #define LLVM_TOOLS_LLVM_MCA_INSTRUCTIONINFOVIEW_H
 
-#include "Views/View.h"
+#include "Views/InstructionView.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstPrinter.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
+#include "llvm/MCA/CodeEmitter.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "llvm-mca"
@@ -49,19 +50,36 @@ namespace llvm {
 namespace mca {
 
 /// A view that prints out generic instruction information.
-class InstructionInfoView : public View {
-  const llvm::MCSubtargetInfo &STI;
+class InstructionInfoView : public InstructionView {
   const llvm::MCInstrInfo &MCII;
-  llvm::ArrayRef<llvm::MCInst> Source;
-  llvm::MCInstPrinter &MCIP;
+  CodeEmitter &CE;
+  bool PrintEncodings;
+
+  struct InstructionInfoViewData {
+    unsigned NumMicroOpcodes = 0;
+    unsigned Latency = 0;
+    Optional<double> RThroughput = 0.0;
+    bool mayLoad = false;
+    bool mayStore = false;
+    bool hasUnmodeledSideEffects = false;
+  };
+  using IIVDVec = SmallVector<InstructionInfoViewData, 16>;
+
+  /// Place the data into the array of InstructionInfoViewData IIVD.
+  void collectData(MutableArrayRef<InstructionInfoViewData> IIVD) const;
 
 public:
-  InstructionInfoView(const llvm::MCSubtargetInfo &sti,
-                      const llvm::MCInstrInfo &mcii,
-                      llvm::ArrayRef<llvm::MCInst> S, llvm::MCInstPrinter &IP)
-      : STI(sti), MCII(mcii), Source(S), MCIP(IP) {}
+  InstructionInfoView(const llvm::MCSubtargetInfo &ST,
+                      const llvm::MCInstrInfo &II, CodeEmitter &C,
+                      bool ShouldPrintEncodings, llvm::ArrayRef<llvm::MCInst> S,
+                      llvm::MCInstPrinter &IP)
+      : InstructionView(ST, IP, S), MCII(II), CE(C),
+        PrintEncodings(ShouldPrintEncodings) {}
 
   void printView(llvm::raw_ostream &OS) const override;
+  StringRef getNameAsString() const override { return "InstructionInfoView"; }
+  json::Value toJSON() const override;
+  json::Object toJSON(const InstructionInfoViewData &IIVD) const;
 };
 } // namespace mca
 } // namespace llvm

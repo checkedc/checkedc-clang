@@ -1,9 +1,8 @@
 #===----------------------------------------------------------------------===##
 #
-#                     The LLVM Compiler Infrastructure
-#
-# This file is dual licensed under the MIT and the University of Illinois Open
-# Source Licenses. See LICENSE.TXT for details.
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 #===----------------------------------------------------------------------===##
 
@@ -18,17 +17,19 @@ class CXXCompiler(object):
     CM_Compile = 2
     CM_Link = 3
 
-    def __init__(self, path, flags=None, compile_flags=None, link_flags=None,
+    def __init__(self, config, path, flags=None, compile_flags=None, link_flags=None,
                  warning_flags=None, verify_supported=None,
                  verify_flags=None, use_verify=False,
                  modules_flags=None, use_modules=False,
                  use_ccache=False, use_warnings=False, compile_env=None,
                  cxx_type=None, cxx_version=None):
+        self.libcxx_config = config
         self.source_lang = 'c++'
         self.path = path
         self.flags = list(flags or [])
         self.compile_flags = list(compile_flags or [])
         self.link_flags = list(link_flags or [])
+        self.link_libcxxabi_flag = '-lc++abi'
         self.warning_flags = list(warning_flags or [])
         self.verify_supported = verify_supported
         self.use_verify = use_verify
@@ -164,17 +165,34 @@ class CXXCompiler(object):
                                                   cwd=cwd)
         return cmd, out, err, rc
 
-    def link(self, source_files, out=None, flags=[], cwd=None):
-        cmd = self.linkCmd(source_files, out, flags)
+    def link(self, source_files, exec_path=None, flags=[], cwd=None):
+        cmd = self.linkCmd(source_files, exec_path, flags)
         out, err, rc = libcxx.util.executeCommand(cmd, env=self.compile_env,
                                                   cwd=cwd)
+        cs_cmd, cs_out, cs_err, cs_rc = self.codesign(exec_path, cwd)
+        if cs_rc != 0:
+            return cs_cmd, cs_out, cs_err, cs_rc
         return cmd, out, err, rc
 
-    def compileLink(self, source_files, out=None, flags=[],
+    def compileLink(self, source_files, exec_path=None, flags=[],
                     cwd=None):
-        cmd = self.compileLinkCmd(source_files, out, flags)
+        cmd = self.compileLinkCmd(source_files, exec_path, flags)
         out, err, rc = libcxx.util.executeCommand(cmd, env=self.compile_env,
                                                   cwd=cwd)
+        cs_cmd, cs_out, cs_err, cs_rc = self.codesign(exec_path, cwd)
+        if cs_rc != 0:
+            return cs_cmd, cs_out, cs_err, cs_rc
+        return cmd, out, err, rc
+
+    def codesign(self, exec_path, cwd=None):
+        null_op = [], '', '', 0
+        if not exec_path:
+            return null_op
+        codesign_ident = self.libcxx_config.get_lit_conf('llvm_codesign_identity', '')
+        if not codesign_ident:
+            return null_op
+        cmd = ['xcrun', 'codesign', '-s', codesign_ident, exec_path]
+        out, err, rc = libcxx.util.executeCommand(cmd, cwd=cwd)
         return cmd, out, err, rc
 
     def compileLinkTwoSteps(self, source_file, out=None, object_file=None,
@@ -194,7 +212,7 @@ class CXXCompiler(object):
                 return cc_cmd, cc_stdout, cc_stderr, rc
 
             link_cmd, link_stdout, link_stderr, rc = self.link(
-                object_file, out=out, flags=flags, cwd=cwd)
+                object_file, exec_path=out, flags=flags, cwd=cwd)
             return (cc_cmd + ['&&'] + link_cmd, cc_stdout + link_stdout,
                     cc_stderr + link_stderr, rc)
 

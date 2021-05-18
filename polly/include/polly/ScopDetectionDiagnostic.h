@@ -1,9 +1,8 @@
 //===- ScopDetectionDiagnostic.h - Diagnostic for ScopDetection -*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -21,15 +20,10 @@
 #ifndef POLLY_SCOPDETECTIONDIAGNOSTIC_H
 #define POLLY_SCOPDETECTIONDIAGNOSTIC_H
 
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Instruction.h"
 #include <cstddef>
-#include <memory>
-#include <string>
-#include <utility>
-#include <vector>
 
 using namespace llvm;
 
@@ -38,10 +32,8 @@ namespace llvm {
 class AliasSet;
 class BasicBlock;
 class OptimizationRemarkEmitter;
-class raw_ostream;
 class Region;
 class SCEV;
-class Value;
 } // namespace llvm
 
 namespace polly {

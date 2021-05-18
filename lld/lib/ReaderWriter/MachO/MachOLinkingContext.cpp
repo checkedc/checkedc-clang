@@ -1,9 +1,8 @@
 //===- lib/ReaderWriter/MachO/MachOLinkingContext.cpp ---------------------===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -541,6 +540,12 @@ MachOLinkingContext::searchDirForLibrary(StringRef path,
     return llvm::None;
   }
 
+  // Search for stub library
+  fullPath.assign(path);
+  llvm::sys::path::append(fullPath, Twine("lib") + libName + ".tbd");
+  if (fileExists(fullPath))
+    return fullPath.str().copy(_allocator);
+
   // Search for dynamic library
   fullPath.assign(path);
   llvm::sys::path::append(fullPath, Twine("lib") + libName + ".dylib");
@@ -605,7 +610,7 @@ bool MachOLinkingContext::validateImpl() {
   }
 
   // If -exported_symbols_list used, all exported symbols must be defined.
-  if (_exportMode == ExportMode::whiteList) {
+  if (_exportMode == ExportMode::exported) {
     for (const auto &symbol : _exportedSymbols)
       addInitialUndefinedSymbol(symbol.getKey());
   }
@@ -619,7 +624,7 @@ bool MachOLinkingContext::validateImpl() {
     if (needsStubsPass())
       addDeadStripRoot(binderSymbolName());
     // If using -exported_symbols_list, make all exported symbols live.
-    if (_exportMode == ExportMode::whiteList) {
+    if (_exportMode == ExportMode::exported) {
       setGlobalsAreDeadStripRoots(false);
       for (const auto &symbol : _exportedSymbols)
         addDeadStripRoot(symbol.getKey());
@@ -768,8 +773,7 @@ void MachOLinkingContext::registerDylib(MachODylibFile *dylib,
                                         bool upward) const {
   std::lock_guard<std::mutex> lock(_dylibsMutex);
 
-  if (std::find(_allDylibs.begin(),
-                _allDylibs.end(), dylib) == _allDylibs.end())
+  if (!llvm::count(_allDylibs, dylib))
     _allDylibs.push_back(dylib);
   _pathToDylibMap[dylib->installName()] = dylib;
   // If path is different than install name, register path too.
@@ -804,9 +808,9 @@ void MachOLinkingContext::addSectCreateSection(
                                         std::unique_ptr<MemoryBuffer> content) {
 
   if (!_sectCreateFile) {
-    auto sectCreateFile = llvm::make_unique<mach_o::SectCreateFile>();
+    auto sectCreateFile = std::make_unique<mach_o::SectCreateFile>();
     _sectCreateFile = sectCreateFile.get();
-    getNodes().push_back(llvm::make_unique<FileNode>(std::move(sectCreateFile)));
+    getNodes().push_back(std::make_unique<FileNode>(std::move(sectCreateFile)));
   }
 
   assert(_sectCreateFile && "sectcreate file does not exist.");
@@ -832,7 +836,7 @@ void MachOLinkingContext::addExportSymbol(StringRef sym) {
   }
   // Only i386 MacOSX uses old ABI, so don't change those.
   if ((_os != OS::macOSX) || (_arch != arch_x86)) {
-    // ObjC has two differnent ABIs.  Be nice and allow one export list work for
+    // ObjC has two different ABIs.  Be nice and allow one export list work for
     // both ABIs by renaming symbols.
     if (sym.startswith(".objc_class_name_")) {
       std::string abi2className("_OBJC_CLASS_$_");
@@ -854,9 +858,9 @@ bool MachOLinkingContext::exportSymbolNamed(StringRef sym) const {
   case ExportMode::globals:
     llvm_unreachable("exportSymbolNamed() should not be called in this mode");
     break;
-  case ExportMode::whiteList:
+  case ExportMode::exported:
     return _exportedSymbols.count(sym);
-  case ExportMode::blackList:
+  case ExportMode::unexported:
     return !_exportedSymbols.count(sym);
   }
   llvm_unreachable("_exportMode unknown enum value");
@@ -865,11 +869,11 @@ bool MachOLinkingContext::exportSymbolNamed(StringRef sym) const {
 std::string MachOLinkingContext::demangle(StringRef symbolName) const {
   // Only try to demangle symbols if -demangle on command line
   if (!demangleSymbols())
-    return symbolName;
+    return std::string(symbolName);
 
   // Only try to demangle symbols that look like C++ symbols
   if (!symbolName.startswith("__Z"))
-    return symbolName;
+    return std::string(symbolName);
 
   SmallString<256> symBuff;
   StringRef nullTermSym = Twine(symbolName).toNullTerminatedStringRef(symBuff);
@@ -884,7 +888,7 @@ std::string MachOLinkingContext::demangle(StringRef symbolName) const {
     return result;
   }
 
-  return symbolName;
+  return std::string(symbolName);
 }
 
 static void addDependencyInfoHelper(llvm::raw_fd_ostream *DepInfo,
@@ -899,8 +903,8 @@ static void addDependencyInfoHelper(llvm::raw_fd_ostream *DepInfo,
 
 std::error_code MachOLinkingContext::createDependencyFile(StringRef path) {
   std::error_code ec;
-  _dependencyInfo = std::unique_ptr<llvm::raw_fd_ostream>(new
-                         llvm::raw_fd_ostream(path, ec, llvm::sys::fs::F_None));
+  _dependencyInfo = std::unique_ptr<llvm::raw_fd_ostream>(
+      new llvm::raw_fd_ostream(path, ec, llvm::sys::fs::OF_None));
   if (ec) {
     _dependencyInfo.reset();
     return ec;
@@ -1016,13 +1020,12 @@ static bool isLibrary(const std::unique_ptr<Node> &elem) {
 // new undefines from libraries.
 void MachOLinkingContext::finalizeInputFiles() {
   std::vector<std::unique_ptr<Node>> &elements = getNodes();
-  std::stable_sort(elements.begin(), elements.end(),
-                   [](const std::unique_ptr<Node> &a,
-                      const std::unique_ptr<Node> &b) {
-                     return !isLibrary(a) && isLibrary(b);
-                   });
+  llvm::stable_sort(elements, [](const std::unique_ptr<Node> &a,
+                                 const std::unique_ptr<Node> &b) {
+    return !isLibrary(a) && isLibrary(b);
+  });
   size_t numLibs = std::count_if(elements.begin(), elements.end(), isLibrary);
-  elements.push_back(llvm::make_unique<GroupEnd>(numLibs));
+  elements.push_back(std::make_unique<GroupEnd>(numLibs));
 }
 
 llvm::Error MachOLinkingContext::handleLoadedFile(File &file) {

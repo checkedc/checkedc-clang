@@ -1,13 +1,15 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
+
+// These tests require locale for non-char paths
+// UNSUPPORTED: libcpp-has-no-localization
 
 // <filesystem>
 
@@ -28,7 +30,7 @@
 //   path& concat(InputIterator first, InputIterator last);
 
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <string>
 #include <string_view>
@@ -36,8 +38,8 @@
 
 #include "test_macros.h"
 #include "test_iterators.h"
-#include "count_new.hpp"
-#include "filesystem_test_helper.hpp"
+#include "count_new.h"
+#include "filesystem_test_helper.h"
 
 
 struct ConcatOperatorTestcase {
@@ -326,7 +328,7 @@ void test_sfinae() {
   }
 }
 
-int main()
+int main(int, char**)
 {
   using namespace fs;
   for (auto const & TC : Cases) {
@@ -357,7 +359,7 @@ int main()
       const char* E = TC.expect;
       PathReserve(LHS, StrLen(E) + 5);
       {
-        DisableAllocationGuard g;
+        LIBCPP_ONLY(DisableAllocationGuard g);
         path& Ref = (LHS += RHS);
         assert(&Ref == &LHS);
       }
@@ -369,14 +371,14 @@ int main()
       const char* E = TC.expect;
       PathReserve(LHS, StrLen(E) + 5);
       {
-        DisableAllocationGuard g;
+        LIBCPP_ONLY(DisableAllocationGuard g);
         path& Ref = (LHS += RHS);
         assert(&Ref == &LHS);
       }
       assert(LHS == E);
     }
-    doConcatSourceAllocTest<char>(TC);
-    doConcatSourceAllocTest<wchar_t>(TC);
+    LIBCPP_ONLY(doConcatSourceAllocTest<char>(TC));
+    LIBCPP_ONLY(doConcatSourceAllocTest<wchar_t>(TC));
   }
   for (auto const& TC : CharTestCases) {
     doConcatECharTest<char>(TC);
@@ -385,4 +387,6 @@ int main()
     doConcatECharTest<char32_t>(TC);
   }
   test_sfinae();
+
+  return 0;
 }

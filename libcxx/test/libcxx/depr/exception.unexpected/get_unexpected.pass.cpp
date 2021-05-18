@@ -1,20 +1,20 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 // test get_unexpected
 
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_ENABLE_CXX17_REMOVED_UNEXPECTED_FUNCTIONS
 
-// MODULES_DEFINES: _LIBCPP_ENABLE_CXX17_REMOVED_UNEXPECTED_FUNCTIONS
-#define _LIBCPP_ENABLE_CXX17_REMOVED_UNEXPECTED_FUNCTIONS
 #include <exception>
 #include <cassert>
 #include <cstdlib>
+
+#include "test_macros.h"
 
 void f1() {}
 void f2() {}
@@ -24,7 +24,7 @@ void f3()
     std::exit(0);
 }
 
-int main()
+int main(int, char**)
 {
 
     std::unexpected_handler old = std::get_unexpected();
@@ -39,4 +39,6 @@ int main()
     std::set_terminate(f3);
     (*old)();
     assert(0);
+
+  return 0;
 }

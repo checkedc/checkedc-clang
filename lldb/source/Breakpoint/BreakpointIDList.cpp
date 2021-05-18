@@ -1,9 +1,8 @@
-//===-- BreakpointIDList.cpp ------------------------------------*- C++ -*-===//
+//===-- BreakpointIDList.cpp ----------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -19,9 +18,7 @@
 using namespace lldb;
 using namespace lldb_private;
 
-//----------------------------------------------------------------------
 // class BreakpointIDList
-//----------------------------------------------------------------------
 
 BreakpointIDList::BreakpointIDList()
     : m_invalid_id(LLDB_INVALID_BREAK_ID, LLDB_INVALID_BREAK_ID) {}
@@ -125,7 +122,7 @@ void BreakpointIDList::FindAndReplaceIDRanges(Args &old_args, Target *target,
   for (size_t i = 0; i < old_args.size(); ++i) {
     bool is_range = false;
 
-    current_arg = old_args[i].ref;
+    current_arg = old_args[i].ref();
     if (!allow_locations && current_arg.contains('.')) {
       result.AppendErrorWithFormat(
           "Breakpoint locations not allowed, saw location: %s.",
@@ -147,18 +144,18 @@ void BreakpointIDList::FindAndReplaceIDRanges(Args &old_args, Target *target,
         result.SetStatus(eReturnStatusFailed);
         return;
       } else
-        names_found.insert(current_arg);
+        names_found.insert(std::string(current_arg));
     } else if ((i + 2 < old_args.size()) &&
-               BreakpointID::IsRangeIdentifier(old_args[i + 1].ref) &&
+               BreakpointID::IsRangeIdentifier(old_args[i + 1].ref()) &&
                BreakpointID::IsValidIDExpression(current_arg) &&
-               BreakpointID::IsValidIDExpression(old_args[i + 2].ref)) {
+               BreakpointID::IsValidIDExpression(old_args[i + 2].ref())) {
       range_from = current_arg;
-      range_to = old_args[i + 2].ref;
+      range_to = old_args[i + 2].ref();
       is_range = true;
       i = i + 2;
     } else {
       // See if user has specified id.*
-      llvm::StringRef tmp_str = old_args[i].ref;
+      llvm::StringRef tmp_str = old_args[i].ref();
       size_t pos = tmp_str.find('.');
       if (pos != llvm::StringRef::npos) {
         llvm::StringRef bp_id_str = tmp_str.substr(0, pos);
@@ -223,10 +220,10 @@ void BreakpointIDList::FindAndReplaceIDRanges(Args &old_args, Target *target,
         ((start_loc_id != LLDB_INVALID_BREAK_ID) &&
          (end_loc_id == LLDB_INVALID_BREAK_ID))) {
       new_args.Clear();
-      result.AppendErrorWithFormat("Invalid breakpoint id range:  Either "
-                                   "both ends of range must specify"
-                                   " a breakpoint location, or neither can "
-                                   "specify a breakpoint location.\n");
+      result.AppendError("Invalid breakpoint id range:  Either "
+                         "both ends of range must specify"
+                         " a breakpoint location, or neither can "
+                         "specify a breakpoint location.");
       result.SetStatus(eReturnStatusFailed);
       return;
     }

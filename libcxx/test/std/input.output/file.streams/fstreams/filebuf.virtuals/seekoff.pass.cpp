@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -14,12 +13,14 @@
 // pos_type seekpos(pos_type sp,
 //                  ios_base::openmode which = ios_base::in | ios_base::out);
 
+// FILE_DEPENDENCIES: underflow.dat
+
 #include <fstream>
 #include <cassert>
 
 #include "test_macros.h"
 
-int main()
+int main(int, char**)
 {
     {
         char buf[10];
@@ -63,4 +64,6 @@ int main()
         assert(f.sgetc() == L'l');
     }
     std::remove("seekoff.dat");
+
+  return 0;
 }

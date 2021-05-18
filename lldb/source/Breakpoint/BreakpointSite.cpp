@@ -1,9 +1,8 @@
-//===-- BreakpointSite.cpp --------------------------------------*- C++ -*-===//
+//===-- BreakpointSite.cpp ------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -22,7 +21,7 @@ using namespace lldb_private;
 BreakpointSite::BreakpointSite(BreakpointSiteList *list,
                                const BreakpointLocationSP &owner,
                                lldb::addr_t addr, bool use_hardware)
-    : StoppointLocation(GetNextID(), addr, 0, use_hardware),
+    : StoppointSite(GetNextID(), addr, 0, use_hardware),
       m_type(eSoftware), // Process subclasses need to set this correctly using
                          // SetType()
       m_saved_opcode(), m_trap_opcode(),
@@ -49,9 +48,17 @@ break_id_t BreakpointSite::GetNextID() {
 // should continue.
 
 bool BreakpointSite::ShouldStop(StoppointCallbackContext *context) {
-  std::lock_guard<std::recursive_mutex> guard(m_owners_mutex);
-  IncrementHitCount();
-  return m_owners.ShouldStop(context);
+  m_hit_counter.Increment();
+  // ShouldStop can do a lot of work, and might even come come back and hit
+  // this breakpoint site again.  So don't hold the m_owners_mutex the whole
+  // while.  Instead make a local copy of the collection and call ShouldStop on
+  // the copy.
+  BreakpointLocationCollection owners_copy;
+  {
+    std::lock_guard<std::recursive_mutex> guard(m_owners_mutex);
+    owners_copy = m_owners;
+  }
+  return owners_copy.ShouldStop(context);
 }
 
 bool BreakpointSite::IsBreakpointAtThisSite(lldb::break_id_t bp_id) {
@@ -153,40 +160,42 @@ bool BreakpointSite::IntersectsRange(lldb::addr_t addr, size_t size,
                                      lldb::addr_t *intersect_addr,
                                      size_t *intersect_size,
                                      size_t *opcode_offset) const {
-  // We only use software traps for software breakpoints
-  if (!IsHardware()) {
-    if (m_byte_size > 0) {
-      const lldb::addr_t bp_end_addr = m_addr + m_byte_size;
-      const lldb::addr_t end_addr = addr + size;
-      // Is the breakpoint end address before the passed in start address?
-      if (bp_end_addr <= addr)
-        return false;
-      // Is the breakpoint start address after passed in end address?
-      if (end_addr <= m_addr)
-        return false;
-      if (intersect_addr || intersect_size || opcode_offset) {
-        if (m_addr < addr) {
-          if (intersect_addr)
-            *intersect_addr = addr;
-          if (intersect_size)
-            *intersect_size =
-                std::min<lldb::addr_t>(bp_end_addr, end_addr) - addr;
-          if (opcode_offset)
-            *opcode_offset = addr - m_addr;
-        } else {
-          if (intersect_addr)
-            *intersect_addr = m_addr;
-          if (intersect_size)
-            *intersect_size =
-                std::min<lldb::addr_t>(bp_end_addr, end_addr) - m_addr;
-          if (opcode_offset)
-            *opcode_offset = 0;
-        }
-      }
-      return true;
+  // The function should be called only for software breakpoints.
+  lldbassert(GetType() == Type::eSoftware);
+
+  if (m_byte_size == 0)
+    return false;
+
+  const lldb::addr_t bp_end_addr = m_addr + m_byte_size;
+  const lldb::addr_t end_addr = addr + size;
+  // Is the breakpoint end address before the passed in start address?
+  if (bp_end_addr <= addr)
+    return false;
+
+  // Is the breakpoint start address after passed in end address?
+  if (end_addr <= m_addr)
+    return false;
+
+  if (intersect_addr || intersect_size || opcode_offset) {
+    if (m_addr < addr) {
+      if (intersect_addr)
+        *intersect_addr = addr;
+      if (intersect_size)
+        *intersect_size =
+            std::min<lldb::addr_t>(bp_end_addr, end_addr) - addr;
+      if (opcode_offset)
+        *opcode_offset = addr - m_addr;
+    } else {
+      if (intersect_addr)
+        *intersect_addr = m_addr;
+      if (intersect_size)
+        *intersect_size =
+            std::min<lldb::addr_t>(bp_end_addr, end_addr) - m_addr;
+      if (opcode_offset)
+        *opcode_offset = 0;
     }
   }
-  return false;
+  return true;
 }
 
 size_t

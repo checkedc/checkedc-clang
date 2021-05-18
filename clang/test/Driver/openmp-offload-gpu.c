@@ -2,10 +2,14 @@
 /// Perform several driver tests for OpenMP offloading
 ///
 
+// https://PR46644
+// XFAIL: arm64-apple
+
 // REQUIRES: clang-driver
 // REQUIRES: x86-registered-target
 // REQUIRES: powerpc-registered-target
 // REQUIRES: nvptx-registered-target
+// REQUIRES: amdgpu-registered-target
 
 /// ###########################################################################
 
@@ -30,22 +34,6 @@
 
 /// ###########################################################################
 
-/// Check that -lomptarget-nvptx is passed to nvlink.
-// RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp \
-// RUN:          -fopenmp-targets=nvptx64-nvidia-cuda %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-NVLINK %s
-/// Check that the value of --libomptarget-nvptx-path is forwarded to nvlink.
-// RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp \
-// RUN:          --libomptarget-nvptx-path=/path/to/libomptarget/ \
-// RUN:          -fopenmp-targets=nvptx64-nvidia-cuda %s 2>&1 \
-// RUN:   | FileCheck -check-prefixes=CHK-NVLINK,CHK-LIBOMPTARGET-NVPTX-PATH %s
-
-// CHK-NVLINK: nvlink
-// CHK-LIBOMPTARGET-NVPTX-PATH-SAME: "-L/path/to/libomptarget/"
-// CHK-NVLINK-SAME: "-lomptarget-nvptx"
-
-/// ###########################################################################
-
 /// Check cubin file generation and usage by nvlink
 // RUN:   %clang -### -no-canonical-prefixes -target powerpc64le-unknown-linux-gnu -fopenmp=libomp \
 // RUN:          -fopenmp-targets=nvptx64-nvidia-cuda -save-temps %s 2>&1 \
@@ -55,7 +43,7 @@
 // RUN:          -fopenmp-targets=nvptx64-nvidia-cuda %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-CUBIN-NVLINK %s
 
-// CHK-CUBIN-NVLINK: clang{{.*}}" "-o" "[[PTX:.*\.s]]"
+// CHK-CUBIN-NVLINK: clang{{.*}}" {{.*}}"-fopenmp-is-device" {{.*}}"-o" "[[PTX:.*\.s]]"
 // CHK-CUBIN-NVLINK-NEXT: ptxas{{.*}}" "--output-file" "[[CUBIN:.*\.cubin]]" {{.*}}"[[PTX]]"
 // CHK-CUBIN-NVLINK-NEXT: nvlink{{.*}}" {{.*}}"[[CUBIN]]"
 
@@ -169,13 +157,15 @@
 // RUN:   -Xopenmp-target -march=sm_20 --cuda-path=%S/Inputs/CUDA_80/usr/local/cuda \
 // RUN:   -fopenmp-relocatable-target -save-temps -no-canonical-prefixes %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-BCLIB %s
-/// The user can override default detection using --libomptarget-nvptx-path=.
-// RUN:   %clang -### -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda --libomptarget-nvptx-path=%S/Inputs/libomptarget \
+/// The user can override default detection using --libomptarget-nvptx-bc-path=.
+// RUN:   %clang -### -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda \
+// RUN:   --libomptarget-nvptx-bc-path=%S/Inputs/libomptarget/libomptarget-nvptx-test.bc \
 // RUN:   -Xopenmp-target -march=sm_20 --cuda-path=%S/Inputs/CUDA_80/usr/local/cuda \
 // RUN:   -fopenmp-relocatable-target -save-temps -no-canonical-prefixes %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-BCLIB %s
+// RUN:   | FileCheck -check-prefix=CHK-BCLIB-USER %s
 
-// CHK-BCLIB: clang{{.*}}-triple{{.*}}nvptx64-nvidia-cuda{{.*}}-mlink-builtin-bitcode{{.*}}libomptarget-nvptx-sm_20.bc
+// CHK-BCLIB: clang{{.*}}-triple{{.*}}nvptx64-nvidia-cuda{{.*}}-mlink-builtin-bitcode{{.*}}libomptarget-nvptx-cuda_80-sm_20.bc
+// CHK-BCLIB-USER: clang{{.*}}-triple{{.*}}nvptx64-nvidia-cuda{{.*}}-mlink-builtin-bitcode{{.*}}libomptarget-nvptx-test.bc
 // CHK-BCLIB-NOT: {{error:|warning:}}
 
 /// ###########################################################################
@@ -187,7 +177,18 @@
 // RUN:   -fopenmp-relocatable-target -save-temps -no-canonical-prefixes %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-BCLIB-WARN %s
 
-// CHK-BCLIB-WARN: No library 'libomptarget-nvptx-sm_20.bc' found in the default clang lib directory or in LIBRARY_PATH. Expect degraded performance due to no inlining of runtime functions on target devices.
+// CHK-BCLIB-WARN: No library 'libomptarget-nvptx-cuda_80-sm_20.bc' found in the default clang lib directory or in LIBRARY_PATH. Please use --libomptarget-nvptx-bc-path to specify nvptx bitcode library.
+
+/// ###########################################################################
+
+/// Check that the error is thrown when the libomptarget bitcode library does not exist.
+// RUN:   %clang -### -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda \
+// RUN:   -Xopenmp-target -march=sm_20 --cuda-path=%S/Inputs/CUDA_80/usr/local/cuda \
+// RUN:   --libomptarget-nvptx-bc-path=not-exist.bc \
+// RUN:   -fopenmp-relocatable-target -save-temps -no-canonical-prefixes %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-BCLIB-ERROR %s
+
+// CHK-BCLIB-ERROR: Bitcode library 'not-exist.bc' does not exist.
 
 /// Check that debug info is emitted in dwarf-2
 // RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda -Xopenmp-target -march=sm_60 %s -g -O1 --no-cuda-noopt-device-debug 2>&1 \
@@ -254,11 +255,19 @@
 // RUN:   | FileCheck -check-prefix=CUDA_MODE %s
 // RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda -Xopenmp-target -march=sm_60 %s -fno-openmp-cuda-mode -fopenmp-cuda-mode 2>&1 \
 // RUN:   | FileCheck -check-prefix=CUDA_MODE %s
-// CUDA_MODE: clang{{.*}}"-cc1"{{.*}}"-triple" "nvptx64-nvidia-cuda"
+// RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target -march=gfx906 %s -fopenmp-cuda-mode 2>&1 \
+// RUN:   | FileCheck -check-prefix=CUDA_MODE %s
+// RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target -march=gfx906 %s -fno-openmp-cuda-mode -fopenmp-cuda-mode 2>&1 \
+// RUN:   | FileCheck -check-prefix=CUDA_MODE %s
+// CUDA_MODE: clang{{.*}}"-cc1"{{.*}}"-triple" "{{nvptx64-nvidia-cuda|amdgcn-amd-amdhsa}}"
 // CUDA_MODE-SAME: "-fopenmp-cuda-mode"
 // RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda -Xopenmp-target -march=sm_60 %s -fno-openmp-cuda-mode 2>&1 \
 // RUN:   | FileCheck -check-prefix=NO_CUDA_MODE %s
 // RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda -Xopenmp-target -march=sm_60 %s -fopenmp-cuda-mode -fno-openmp-cuda-mode 2>&1 \
+// RUN:   | FileCheck -check-prefix=NO_CUDA_MODE %s
+// RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target -march=gfx906 %s -fno-openmp-cuda-mode 2>&1 \
+// RUN:   | FileCheck -check-prefix=NO_CUDA_MODE %s
+// RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target -march=gfx906 %s -fopenmp-cuda-mode -fno-openmp-cuda-mode 2>&1 \
 // RUN:   | FileCheck -check-prefix=NO_CUDA_MODE %s
 // NO_CUDA_MODE-NOT: "-{{fno-|f}}openmp-cuda-mode"
 
@@ -266,10 +275,28 @@
 // RUN:   | FileCheck -check-prefix=FULL_RUNTIME %s
 // RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda -Xopenmp-target -march=sm_60 %s -fno-openmp-cuda-force-full-runtime -fopenmp-cuda-force-full-runtime 2>&1 \
 // RUN:   | FileCheck -check-prefix=FULL_RUNTIME %s
-// FULL_RUNTIME: clang{{.*}}"-cc1"{{.*}}"-triple" "nvptx64-nvidia-cuda"
+// RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target -march=gfx906 %s -fopenmp-cuda-force-full-runtime 2>&1 \
+// RUN:   | FileCheck -check-prefix=FULL_RUNTIME %s
+// RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target -march=gfx906 %s -fno-openmp-cuda-force-full-runtime -fopenmp-cuda-force-full-runtime 2>&1 \
+// RUN:   | FileCheck -check-prefix=FULL_RUNTIME %s
+// FULL_RUNTIME: clang{{.*}}"-cc1"{{.*}}"-triple" "{{nvptx64-nvidia-cuda|amdgcn-amd-amdhsa}}"
 // FULL_RUNTIME-SAME: "-fopenmp-cuda-force-full-runtime"
 // RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda -Xopenmp-target -march=sm_60 %s -fno-openmp-cuda-force-full-runtime 2>&1 \
 // RUN:   | FileCheck -check-prefix=NO_FULL_RUNTIME %s
 // RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda -Xopenmp-target -march=sm_60 %s -fopenmp-cuda-force-full-runtime -fno-openmp-cuda-force-full-runtime 2>&1 \
 // RUN:   | FileCheck -check-prefix=NO_FULL_RUNTIME %s
+// RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target -march=gfx906 %s -fno-openmp-cuda-force-full-runtime 2>&1 \
+// RUN:   | FileCheck -check-prefix=NO_FULL_RUNTIME %s
+// RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target -march=gfx906 %s -fopenmp-cuda-force-full-runtime -fno-openmp-cuda-force-full-runtime 2>&1 \
+// RUN:   | FileCheck -check-prefix=NO_FULL_RUNTIME %s
 // NO_FULL_RUNTIME-NOT: "-{{fno-|f}}openmp-cuda-force-full-runtime"
+
+// RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda -Xopenmp-target -march=sm_60 %s -fopenmp-cuda-teams-reduction-recs-num=2048 2>&1 \
+// RUN:   | FileCheck -check-prefix=CUDA_RED_RECS %s
+// CUDA_RED_RECS: clang{{.*}}"-cc1"{{.*}}"-triple" "nvptx64-nvidia-cuda"
+// CUDA_RED_RECS-SAME: "-fopenmp-cuda-teams-reduction-recs-num=2048"
+
+// RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=OPENMP_NVPTX_WRAPPERS %s
+// OPENMP_NVPTX_WRAPPERS: clang{{.*}}"-cc1"{{.*}}"-triple" "nvptx64-nvidia-cuda"
+// OPENMP_NVPTX_WRAPPERS-SAME: "-internal-isystem" "{{.*}}openmp_wrappers"

@@ -1,16 +1,5 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-//===--------------- divtf3_test.c - Test __divtf3 ------------------------===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __divtf3 for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
+// REQUIRES: librt_has_divtf3
 
 #include "int_lib.h"
 #include <stdio.h>
@@ -29,8 +18,8 @@ int test__divtf3(long double a, long double b,
     int ret = compareResultLD(x, expectedHi, expectedLo);
 
     if (ret){
-        printf("error in test__divtf3(%.20Lf, %.20Lf) = %.20Lf, "
-               "expected %.20Lf\n", a, b, x,
+        printf("error in test__divtf3(%.20Le, %.20Le) = %.20Le, "
+               "expected %.20Le\n", a, b, x,
                fromRep128(expectedHi, expectedLo));
     }
     return ret;
@@ -43,6 +32,8 @@ char assumption_1[sizeof(long double) * CHAR_BIT == 128] = {0};
 int main()
 {
 #if __LDBL_MANT_DIG__ == 113
+    // Returned NaNs are assumed to be qNaN by default
+
     // qNaN / any = qNaN
     if (test__divtf3(makeQNaN128(),
                      0x1.23456789abcdefp+5L,
@@ -50,17 +41,118 @@ int main()
                      UINT64_C(0x0)))
         return 1;
     // NaN / any = NaN
-    if (test__divtf3(makeNaN128(UINT64_C(0x800030000000)),
+    if (test__divtf3(makeNaN128(UINT64_C(0x30000000)),
                      0x1.23456789abcdefp+5L,
                      UINT64_C(0x7fff800000000000),
                      UINT64_C(0x0)))
         return 1;
-    // inf / any = inf
-    if (test__divtf3(makeInf128(),
-                     0x1.23456789abcdefp+5L,
+    // any / qNaN = qNaN
+    if (test__divtf3(0x1.23456789abcdefp+5L,
+                     makeQNaN128(),
+                     UINT64_C(0x7fff800000000000),
+                     UINT64_C(0x0)))
+        return 1;
+    // any / NaN = NaN
+    if (test__divtf3(0x1.23456789abcdefp+5L,
+                     makeNaN128(UINT64_C(0x30000000)),
+                     UINT64_C(0x7fff800000000000),
+                     UINT64_C(0x0)))
+        return 1;
+
+    // +Inf / positive = +Inf
+    if (test__divtf3(makeInf128(), 3.L,
                      UINT64_C(0x7fff000000000000),
                      UINT64_C(0x0)))
         return 1;
+    // +Inf / negative = -Inf
+    if (test__divtf3(makeInf128(), -3.L,
+                     UINT64_C(0xffff000000000000),
+                     UINT64_C(0x0)))
+        return 1;
+    // -Inf / positive = -Inf
+    if (test__divtf3(makeNegativeInf128(), 3.L,
+                     UINT64_C(0xffff000000000000),
+                     UINT64_C(0x0)))
+        return 1;
+    // -Inf / negative = +Inf
+    if (test__divtf3(makeNegativeInf128(), -3.L,
+                     UINT64_C(0x7fff000000000000),
+                     UINT64_C(0x0)))
+        return 1;
+
+    // Inf / Inf = NaN
+    if (test__divtf3(makeInf128(), makeInf128(),
+                     UINT64_C(0x7fff800000000000),
+                     UINT64_C(0x0)))
+        return 1;
+    // 0.0 / 0.0 = NaN
+    if (test__divtf3(+0x0.0p+0L, +0x0.0p+0L,
+                     UINT64_C(0x7fff800000000000),
+                     UINT64_C(0x0)))
+        return 1;
+    // +0.0 / +Inf = +0.0
+    if (test__divtf3(+0x0.0p+0L, makeInf128(),
+                     UINT64_C(0x0),
+                     UINT64_C(0x0)))
+        return 1;
+    // +Inf / +0.0 = +Inf
+    if (test__divtf3(makeInf128(), +0x0.0p+0L,
+                     UINT64_C(0x7fff000000000000),
+                     UINT64_C(0x0)))
+        return 1;
+
+    // positive / +0.0 = +Inf
+    if (test__divtf3(+1.0L, +0x0.0p+0L,
+                     UINT64_C(0x7fff000000000000),
+                     UINT64_C(0x0)))
+        return 1;
+    // positive / -0.0 = -Inf
+    if (test__divtf3(+1.0L, -0x0.0p+0L,
+                     UINT64_C(0xffff000000000000),
+                     UINT64_C(0x0)))
+        return 1;
+    // negative / +0.0 = -Inf
+    if (test__divtf3(-1.0L, +0x0.0p+0L,
+                     UINT64_C(0xffff000000000000),
+                     UINT64_C(0x0)))
+        return 1;
+    // negative / -0.0 = +Inf
+    if (test__divtf3(-1.0L, -0x0.0p+0L,
+                     UINT64_C(0x7fff000000000000),
+                     UINT64_C(0x0)))
+        return 1;
+
+    // 1/3
+    if (test__divtf3(1.L, 3.L,
+                     UINT64_C(0x3ffd555555555555),
+                     UINT64_C(0x5555555555555555)))
+        return 1;
+    // smallest normal result
+    if (test__divtf3(0x1.0p-16381L, 2.L,
+                     UINT64_C(0x0001000000000000),
+                     UINT64_C(0x0)))
+        return 1;
+
+    // divisor is exactly 1.0
+    if (test__divtf3(0x1.0p+0L,
+                     0x1.0p+0L,
+                     UINT64_C(0x3fff000000000000),
+                     UINT64_C(0x0)))
+        return 1;
+    // divisor is truncated to exactly 1.0 in UQ1.63
+    if (test__divtf3(0x1.0p+0L,
+                     0x1.0000000000000001p+0L,
+                     UINT64_C(0x3ffeffffffffffff),
+                     UINT64_C(0xfffe000000000000)))
+        return 1;
+
+    // smallest normal value divided by 2.0
+    if (test__divtf3(0x1.0p-16382L, 2.L, UINT64_C(0x0000800000000000), UINT64_C(0x0)))
+      return 1;
+    // smallest subnormal result
+    if (test__divtf3(0x1.0p-16382L, 0x1p+112L, UINT64_C(0x0), UINT64_C(0x1)))
+      return 1;
+
     // any / any
     if (test__divtf3(0x1.a23b45362464523375893ab4cdefp+5L,
                      0x1.eedcbaba3a94546558237654321fp-1L,
@@ -86,6 +178,11 @@ int main()
                      0x1.edcba987d6bb3aa467754354321fp-4055L,
                      UINT64_C(0x50bf2e02f0798d36),
                      UINT64_C(0x5e6fcb6b60044078)))
+        return 1;
+    if (test__divtf3(6.72420628622418701252535563464350521E-4932L,
+                     2.L,
+                     UINT64_C(0x0001000000000000),
+                     UINT64_C(0)))
         return 1;
 
 #else

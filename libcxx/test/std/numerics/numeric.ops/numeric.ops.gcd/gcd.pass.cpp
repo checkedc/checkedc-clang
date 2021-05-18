@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <numeric>
 
@@ -18,8 +17,9 @@
 #include <cassert>
 #include <climits>
 #include <cstdint>
-#include <cstdlib>    // for rand()
 #include <type_traits>
+
+#include "test_macros.h"
 
 constexpr struct {
   int x;
@@ -92,9 +92,9 @@ constexpr bool do_test(int = 0)
     return accumulate;
 }
 
-int main()
+int main(int argc, char**)
 {
-    auto non_cce = std::rand(); // a value that can't possibly be constexpr
+    int non_cce = argc; // a value that can't possibly be constexpr
 
     static_assert(do_test<signed char>(), "");
     static_assert(do_test<short>(), "");
@@ -142,4 +142,6 @@ int main()
     static_assert(std::is_same_v<decltype(res), std::int64_t>, "");
     assert(res == 2);
     }
+
+  return 0;
 }

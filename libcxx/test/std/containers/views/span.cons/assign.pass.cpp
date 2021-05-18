@@ -1,13 +1,12 @@
 // -*- C++ -*-
 //===------------------------------ span ---------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===---------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <span>
 
@@ -38,17 +37,17 @@ constexpr int carr3[] = {7,8};
 std::string strs[] = {"ABC", "DEF", "GHI"};
 
 
-int main ()
+int main(int, char**)
 {
 
 //  constexpr dynamically sized assignment
     {
 //  On systems where 'ptrdiff_t' is a synonym for 'int',
-//  the call span(ptr, 0) selects the (pointer, index_type) constructor.
+//  the call span(ptr, 0) selects the (pointer, size_type) constructor.
 //  On systems where 'ptrdiff_t' is NOT a synonym for 'int',
 //  it is ambiguous, because of 0 also being convertible to a null pointer
 //  and so the compiler can't choose between:
-//      span(pointer, index_type)
+//      span(pointer, size_type)
 //  and span(pointer, pointer)
 //  We cast zero to std::ptrdiff_t to remove that ambiguity.
 //  Example:
@@ -56,18 +55,18 @@ int main ()
 //      On darwin i386, ptrdiff_t is the same as int.
         constexpr std::span<const int> spans[] = {
             {},
-            {carr1, static_cast<std::ptrdiff_t>(0)},
-            {carr1,     1},
-            {carr1,     2},
-            {carr1,     3},
-            {carr1,     4},
-            {carr2, static_cast<std::ptrdiff_t>(0)},
-            {carr2,     1},
-            {carr2,     2},
-            {carr2,     3},
-            {carr3, static_cast<std::ptrdiff_t>(0)},
-            {carr3,     1},
-            {carr3,     2}
+            {carr1, static_cast<std::size_t>(0)},
+            {carr1,     1U},
+            {carr1,     2U},
+            {carr1,     3U},
+            {carr1,     4U},
+            {carr2, static_cast<std::size_t>(0)},
+            {carr2,     1U},
+            {carr2,     2U},
+            {carr2,     3U},
+            {carr3, static_cast<std::size_t>(0)},
+            {carr3,     1U},
+            {carr3,     2U}
             };
 
         static_assert(std::size(spans) == 13, "" );
@@ -186,13 +185,14 @@ int main ()
 
 //  constexpr statically sized assignment
     {
-        constexpr std::span<const int,2> spans[] = {
-            {carr1, 2},
-            {carr1 + 1, 2},
-            {carr1 + 2, 2},
-            {carr2, 2},
-            {carr2 + 1, 2},
-            {carr3, 2}
+        using spanType = std::span<const int,2>;
+        constexpr spanType spans[] = {
+            spanType{carr1, 2},
+            spanType{carr1 + 1, 2},
+            spanType{carr1 + 2, 2},
+            spanType{carr2, 2},
+            spanType{carr2 + 1, 2},
+            spanType{carr3, 2}
             };
 
         static_assert(std::size(spans) == 6, "" );
@@ -248,10 +248,11 @@ int main ()
 
 //  statically sized assignment
     {
-        std::span<int,2> spans[] = {
-            {arr,     arr + 2},
-            {arr + 1, arr + 3},
-            {arr + 2, arr + 4}
+        using spanType = std::span<int,2>;
+        spanType spans[] = {
+            spanType{arr,     arr + 2},
+            spanType{arr + 1, arr + 3},
+            spanType{arr + 2, arr + 4}
             };
 
         for (size_t i = 0; i < std::size(spans); ++i)
@@ -280,14 +281,17 @@ int main ()
     }
 
     {
-    std::span<std::string, 1> spans[] = {
-            {strs,     strs + 1},
-            {strs + 1, strs + 2},
-            {strs + 2, strs + 3}
+    using spanType = std::span<std::string, 1>;
+    spanType spans[] = {
+            spanType{strs,     strs + 1},
+            spanType{strs + 1, strs + 2},
+            spanType{strs + 2, strs + 3}
             };
 
         for (size_t i = 0; i < std::size(spans); ++i)
             for (size_t j = i; j < std::size(spans); ++j)
                 assert((doAssign(spans[i], spans[j])));
     }
+
+  return 0;
 }

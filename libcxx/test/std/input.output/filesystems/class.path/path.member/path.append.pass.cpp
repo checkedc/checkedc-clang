@@ -1,13 +1,15 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
+
+// These tests require locale for non-char paths
+// UNSUPPORTED: libcpp-has-no-localization
 
 // <filesystem>
 
@@ -22,16 +24,15 @@
 //      path& append(InputIterator first, InputIterator last);
 
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <string_view>
 #include <cassert>
 
 #include "test_macros.h"
 #include "test_iterators.h"
-#include "count_new.hpp"
-#include "filesystem_test_helper.hpp"
-#include "verbose_assert.h"
+#include "count_new.h"
+#include "filesystem_test_helper.h"
 
 
 struct AppendOperatorTestcase {
@@ -109,7 +110,7 @@ void doAppendSourceAllocTest(AppendOperatorTestcase const& TC)
       DisableAllocationGuard g;
       LHS /= RHS;
     }
-    ASSERT_PRED(PathEq, LHS , E);
+    assert(PathEq(LHS, E));
   }
   // basic_string_view
   {
@@ -185,8 +186,7 @@ void doAppendSourceTest(AppendOperatorTestcase const& TC)
     path Result(L);
     Str RHS(R);
     path& Ref = (Result /= RHS);
-    ASSERT_EQ(Result, E)
-        << DISPLAY(L) << DISPLAY(R);
+    assert(Result == E);
     assert(&Ref == &Result);
   }
   {
@@ -230,8 +230,7 @@ void doAppendSourceTest(AppendOperatorTestcase const& TC)
     path LHS(L);
     Ptr RHS(R);
     path& Ref = LHS.append(RHS, StrEnd(RHS));
-    ASSERT_PRED(PathEq, LHS, E)
-        << DISPLAY(L) << DISPLAY(R);
+    assert(PathEq(LHS, E));
     assert(&Ref == &LHS);
   }
   // iterators
@@ -312,7 +311,7 @@ void test_sfinae()
   }
 }
 
-int main()
+int main(int, char**)
 {
   using namespace fs;
   for (auto const & TC : Cases) {
@@ -322,8 +321,7 @@ int main()
       path LHS(LHS_In);
       path RHS(RHS_In);
       path& Res = (LHS /= RHS);
-      ASSERT_PRED(PathEq, Res, (const char*)TC.expect)
-          << DISPLAY(LHS_In) << DISPLAY(RHS_In);
+      assert(PathEq(Res, (const char*)TC.expect));
       assert(&Res == &LHS);
     }
     doAppendSourceTest<char>    (TC);
@@ -332,8 +330,11 @@ int main()
     doAppendSourceTest<char32_t>(TC);
   }
   for (auto const & TC : LongLHSCases) {
-    doAppendSourceAllocTest<char>(TC);
-    doAppendSourceAllocTest<wchar_t>(TC);
+    (void)TC;
+    LIBCPP_ONLY(doAppendSourceAllocTest<char>(TC));
+    LIBCPP_ONLY(doAppendSourceAllocTest<wchar_t>(TC));
   }
   test_sfinae();
+
+  return 0;
 }

@@ -1,9 +1,8 @@
 //===--- NoInternalDependenciesCheck.cpp - clang-tidy----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -19,9 +18,6 @@ namespace tidy {
 namespace abseil {
 
 void NoInternalDependenciesCheck::registerMatchers(MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus)
-    return;
-
   // TODO: refactor matcher to be configurable or just match on any internal
   // access from outside the enclosing namespace.
 
@@ -38,7 +34,13 @@ void NoInternalDependenciesCheck::check(const MatchFinder::MatchResult &Result) 
   const auto *InternalDependency =
       Result.Nodes.getNodeAs<NestedNameSpecifierLoc>("InternalDep");
 
-  diag(InternalDependency->getBeginLoc(),
+  SourceLocation LocAtFault =
+      Result.SourceManager->getSpellingLoc(InternalDependency->getBeginLoc());
+
+  if (!LocAtFault.isValid())
+    return;
+
+  diag(LocAtFault,
        "do not reference any 'internal' namespaces; those implementation "
        "details are reserved to Abseil");
 }

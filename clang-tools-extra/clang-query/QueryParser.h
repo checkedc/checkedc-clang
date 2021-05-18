@@ -1,9 +1,8 @@
 //===--- QueryParser.h - clang-query ----------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -44,12 +43,13 @@ private:
   template <typename T> struct LexOrCompleteWord;
 
   QueryRef parseSetBool(bool QuerySession::*Var);
+  QueryRef parseSetTraversalKind(TraversalKind QuerySession::*Var);
   template <typename QueryType> QueryRef parseSetOutputKind();
   QueryRef completeMatcherExpression();
 
   QueryRef endQuery(QueryRef Q);
 
-  /// \brief Parse [\p Begin,\p End).
+  /// Parse [\p Begin,\p End).
   ///
   /// \return A reference to the parsed query object, which may be an
   /// \c InvalidQuery if a parse error occurs.

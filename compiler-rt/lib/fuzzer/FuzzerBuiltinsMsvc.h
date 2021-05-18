@@ -1,9 +1,8 @@
 //===- FuzzerBuiltinsMSVC.h - Internal header for builtins ------*- C++ -* ===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 // Wrapper functions and marcos that use intrinsics instead of builtin functions
@@ -13,19 +12,16 @@
 #ifndef LLVM_FUZZER_BUILTINS_MSVC_H
 #define LLVM_FUZZER_BUILTINS_MSVC_H
 
-#include "FuzzerDefs.h"
+#include "FuzzerPlatform.h"
 
 #if LIBFUZZER_MSVC
-#if !defined(_M_ARM) && !defined(_M_X64)
-#error "_BitScanReverse64 unavailable on this platform so MSVC is unsupported."
-#endif
 #include <intrin.h>
 #include <cstdint>
 #include <cstdlib>
 
 // __builtin_return_address() cannot be compiled with MSVC. Use the equivalent
 // from <intrin.h>
-#define GET_CALLER_PC() reinterpret_cast<uintptr_t>(_ReturnAddress())
+#define GET_CALLER_PC() _ReturnAddress()
 
 namespace fuzzer {
 
@@ -41,7 +37,18 @@ inline uint64_t Bswap(uint64_t x) { return _byteswap_uint64(x); }
 // outside of Windows.
 inline uint32_t Clzll(uint64_t X) {
   unsigned long LeadZeroIdx = 0;
+
+#if !defined(_M_ARM) && !defined(_M_X64)
+  // Scan the high 32 bits.
+  if (_BitScanReverse(&LeadZeroIdx, static_cast<unsigned long>(X >> 32)))
+    return static_cast<int>(63 - (LeadZeroIdx + 32)); // Create a bit offset from the MSB.
+  // Scan the low 32 bits.
+  if (_BitScanReverse(&LeadZeroIdx, static_cast<unsigned long>(X)))
+    return static_cast<int>(63 - LeadZeroIdx);
+
+#else
   if (_BitScanReverse64(&LeadZeroIdx, X)) return 63 - LeadZeroIdx;
+#endif
   return 64;
 }
 
@@ -51,7 +58,13 @@ inline uint32_t Clz(uint32_t X) {
   return 32;
 }
 
-inline int Popcountll(unsigned long long X) { return __popcnt64(X); }
+inline int Popcountll(unsigned long long X) {
+#if !defined(_M_ARM) && !defined(_M_X64)
+  return __popcnt(X) + __popcnt(X >> 32);
+#else
+  return __popcnt64(X);
+#endif
+}
 
 }  // namespace fuzzer
 

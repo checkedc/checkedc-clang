@@ -1,9 +1,8 @@
-//===-- OptionValueEnumeration.cpp ------------------------------*- C++ -*-===//
+//===-- OptionValueEnumeration.cpp ----------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -103,21 +102,16 @@ lldb::OptionValueSP OptionValueEnumeration::DeepCopy() const {
   return OptionValueSP(new OptionValueEnumeration(*this));
 }
 
-size_t OptionValueEnumeration::AutoComplete(CommandInterpreter &interpreter,
-                                            CompletionRequest &request) {
-  request.SetWordComplete(false);
-
+void OptionValueEnumeration::AutoComplete(CommandInterpreter &interpreter,
+                                          CompletionRequest &request) {
   const uint32_t num_enumerators = m_enumerations.GetSize();
   if (!request.GetCursorArgumentPrefix().empty()) {
     for (size_t i = 0; i < num_enumerators; ++i) {
       llvm::StringRef name = m_enumerations.GetCStringAtIndex(i).GetStringRef();
-      if (name.startswith(request.GetCursorArgumentPrefix()))
-        request.AddCompletion(name);
+      request.TryCompleteCurrentArg(name);
     }
-  } else {
-    // only suggest "true" or "false" by default
+    return;
+  }
     for (size_t i = 0; i < num_enumerators; ++i)
       request.AddCompletion(m_enumerations.GetCStringAtIndex(i).GetStringRef());
-  }
-  return request.GetNumberOfMatches();
 }

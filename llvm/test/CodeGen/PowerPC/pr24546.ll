@@ -47,8 +47,8 @@ declare double @pow(double, double) #0
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.value(metadata, i64, metadata, metadata) #2
 
-attributes #0 = { nounwind "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="ppc64le" "target-features"="+altivec,+bpermd,+crypto,+direct-move,+extdiv,+power8-vector,+vsx,-qpx" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="ppc64le" "target-features"="+altivec,+bpermd,+crypto,+direct-move,+extdiv,+power8-vector,+vsx,-qpx" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="ppc64le" "target-features"="+altivec,+bpermd,+crypto,+direct-move,+extdiv,+power8-vector,+vsx" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #1 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="ppc64le" "target-features"="+altivec,+bpermd,+crypto,+direct-move,+extdiv,+power8-vector,+vsx" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #2 = { nounwind readnone }
 attributes #3 = { nounwind }
 
@@ -56,7 +56,7 @@ attributes #3 = { nounwind }
 !llvm.module.flags = !{!29, !30}
 !llvm.ident = !{!31}
 
-!0 = distinct !DICompileUnit(language: DW_LANG_C99, file: !1, producer: "clang version 3.8.0 (git://github.com/llvm-mirror/clang.git e0848b6353721eb1b278a5bbea257bbf6316251e) (git://github.com/llvm-mirror/llvm.git 8724a428dfd5e78d7865bb01783708e83f9ed128)", isOptimized: true, runtimeVersion: 0, emissionKind: FullDebug, enums: !2, retainedTypes: !3, globals: !23)
+!0 = distinct !DICompileUnit(language: DW_LANG_C99, file: !1, producer: "clang version 3.8.0", isOptimized: true, runtimeVersion: 0, emissionKind: FullDebug, enums: !2, retainedTypes: !3, globals: !23)
 !1 = !DIFile(filename: "testcase.i", directory: "/tmp/glibc.build")
 !2 = !{}
 !3 = !{!4}
@@ -86,7 +86,7 @@ attributes #3 = { nounwind }
 !28 = !DISubrange(count: 23)
 !29 = !{i32 2, !"Dwarf Version", i32 4}
 !30 = !{i32 2, !"Debug Info Version", i32 3}
-!31 = !{!"clang version 3.8.0 (git://github.com/llvm-mirror/clang.git e0848b6353721eb1b278a5bbea257bbf6316251e) (git://github.com/llvm-mirror/llvm.git 8724a428dfd5e78d7865bb01783708e83f9ed128)"}
+!31 = !{!"clang version 3.8.0"}
 !32 = !DILocation(line: 21, column: 32, scope: !33)
 !33 = distinct !DILexicalBlock(scope: !6, file: !1, line: 21, column: 6)
 !34 = !DILocation(line: 22, column: 15, scope: !35)

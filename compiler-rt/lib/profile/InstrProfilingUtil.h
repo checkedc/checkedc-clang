@@ -1,9 +1,8 @@
 /*===- InstrProfilingUtil.h - Support library for PGO instrumentation -----===*\
 |*
-|*                     The LLVM Compiler Infrastructure
-|*
-|* This file is distributed under the University of Illinois Open Source
-|* License. See LICENSE.TXT for details.
+|* Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+|* See https://llvm.org/LICENSE.txt for license information.
+|* SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 |*
 \*===----------------------------------------------------------------------===*/
 
@@ -24,14 +23,20 @@ unsigned __llvm_profile_get_dir_mode(void);
 
 int lprofLockFd(int fd);
 int lprofUnlockFd(int fd);
+int lprofLockFileHandle(FILE *F);
+int lprofUnlockFileHandle(FILE *F);
 
 /*! Open file \c Filename for read+write with write
  * lock for exclusive access. The caller will block
  * if the lock is already held by another process. */
 FILE *lprofOpenFileEx(const char *Filename);
-/* PS4 doesn't have getenv. Define a shim. */
+/* PS4 doesn't have setenv/getenv/fork. Define a shim. */
 #if __ORBIS__
+#include <sys/types.h>
 static inline char *getenv(const char *name) { return NULL; }
+static inline int setenv(const char *name, const char *value, int overwrite)
+{ return 0; }
+static pid_t fork() { return -1; }
 #endif /* #if __ORBIS__ */
 
 /* GCOV_PREFIX and GCOV_PREFIX_STRIP support */

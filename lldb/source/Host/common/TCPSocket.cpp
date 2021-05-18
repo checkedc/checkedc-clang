@@ -1,9 +1,8 @@
-//===-- TCPSocket.cpp -------------------------------------------*- C++ -*-===//
+//===-- TCPSocket.cpp -----------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -18,9 +17,11 @@
 #include "lldb/Utility/Log.h"
 
 #include "llvm/Config/llvm-config.h"
+#include "llvm/Support/Errno.h"
+#include "llvm/Support/WindowsError.h"
 #include "llvm/Support/raw_ostream.h"
 
-#ifndef LLDB_DISABLE_POSIX
+#if LLDB_ENABLE_POSIX
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
 #include <sys/socket.h>
@@ -41,6 +42,16 @@ typedef const void *set_socket_option_arg_type;
 
 using namespace lldb;
 using namespace lldb_private;
+
+static Status GetLastSocketError() {
+  std::error_code EC;
+#ifdef _WIN32
+  EC = llvm::mapWindowsError(WSAGetLastError());
+#else
+  EC = std::error_code(errno, std::generic_category());
+#endif
+  return EC;
+}
 
 namespace {
 const int kType = SOCK_STREAM;
@@ -118,6 +129,14 @@ std::string TCPSocket::GetRemoteIPAddress() const {
   return "";
 }
 
+std::string TCPSocket::GetRemoteConnectionURI() const {
+  if (m_socket != kInvalidSocketValue) {
+    return std::string(llvm::formatv(
+        "connect://[{0}]:{1}", GetRemoteIPAddress(), GetRemotePortNumber()));
+  }
+  return "";
+}
+
 Status TCPSocket::CreateSocket(int domain) {
   Status error;
   if (IsValid())
@@ -132,8 +151,7 @@ Status TCPSocket::CreateSocket(int domain) {
 Status TCPSocket::Connect(llvm::StringRef name) {
 
   Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_COMMUNICATION));
-  if (log)
-    log->Printf("TCPSocket::%s (host/port = %s)", __FUNCTION__, name.data());
+  LLDB_LOGF(log, "TCPSocket::%s (host/port = %s)", __FUNCTION__, name.data());
 
   Status error;
   std::string host_str;
@@ -142,17 +160,17 @@ Status TCPSocket::Connect(llvm::StringRef name) {
   if (!DecodeHostAndPort(name, host_str, port_str, port, &error))
     return error;
 
-  auto addresses = lldb_private::SocketAddress::GetAddressInfo(
-      host_str.c_str(), NULL, AF_UNSPEC, SOCK_STREAM, IPPROTO_TCP);
-  for (auto address : addresses) {
+  std::vector<SocketAddress> addresses = SocketAddress::GetAddressInfo(
+      host_str.c_str(), nullptr, AF_UNSPEC, SOCK_STREAM, IPPROTO_TCP);
+  for (SocketAddress &address : addresses) {
     error = CreateSocket(address.GetFamily());
     if (error.Fail())
       continue;
 
     address.SetPort(port);
 
-    if (-1 == ::connect(GetNativeSocket(), &address.sockaddr(),
-                        address.GetLength())) {
+    if (-1 == llvm::sys::RetryAfterSignal(-1, ::connect,
+          GetNativeSocket(), &address.sockaddr(), address.GetLength())) {
       CLOSE_SOCKET(GetNativeSocket());
       continue;
     }
@@ -169,8 +187,7 @@ Status TCPSocket::Connect(llvm::StringRef name) {
 
 Status TCPSocket::Listen(llvm::StringRef name, int backlog) {
   Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_CONNECTION));
-  if (log)
-    log->Printf("TCPSocket::%s (%s)", __FUNCTION__, name.data());
+  LLDB_LOGF(log, "TCPSocket::%s (%s)", __FUNCTION__, name.data());
 
   Status error;
   std::string host_str;
@@ -181,15 +198,13 @@ Status TCPSocket::Listen(llvm::StringRef name, int backlog) {
 
   if (host_str == "*")
     host_str = "0.0.0.0";
-  auto addresses = lldb_private::SocketAddress::GetAddressInfo(
-      host_str.c_str(), NULL, AF_UNSPEC, SOCK_STREAM, IPPROTO_TCP);
-  for (auto address : addresses) {
+  std::vector<SocketAddress> addresses = SocketAddress::GetAddressInfo(
+      host_str.c_str(), nullptr, AF_UNSPEC, SOCK_STREAM, IPPROTO_TCP);
+  for (SocketAddress &address : addresses) {
     int fd = Socket::CreateSocket(address.GetFamily(), kType, IPPROTO_TCP,
                                   m_child_processes_inherit, error);
-    if (error.Fail()) {
-      error.Clear();
+    if (error.Fail())
       continue;
-    }
 
     // enable local address reuse
     int option_value = 1;
@@ -210,6 +225,7 @@ Status TCPSocket::Listen(llvm::StringRef name, int backlog) {
       err = ::listen(fd, backlog);
 
     if (-1 == err) {
+      error = GetLastSocketError();
       CLOSE_SOCKET(fd);
       continue;
     }
@@ -222,14 +238,16 @@ Status TCPSocket::Listen(llvm::StringRef name, int backlog) {
     m_listen_sockets[fd] = address;
   }
 
-  if (m_listen_sockets.size() == 0)
-    error.SetErrorString("Failed to connect port");
-  return error;
+  if (m_listen_sockets.empty()) {
+    assert(error.Fail());
+    return error;
+  }
+  return Status();
 }
 
 void TCPSocket::CloseListenSockets() {
   for (auto socket : m_listen_sockets)
-  CLOSE_SOCKET(socket.first);
+    CLOSE_SOCKET(socket.first);
   m_listen_sockets.clear();
 }
 
@@ -267,7 +285,7 @@ Status TCPSocket::Accept(Socket *&conn_socket) {
   // Loop until we are happy with our connection
   while (!accept_connection) {
     accept_loop.Run();
-    
+
     if (error.Fail())
         return error;
 

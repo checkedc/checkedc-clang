@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -15,14 +14,14 @@
 
 // directory_iterator& operator=(directory_iterator const&);
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <set>
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 // The filesystem specification explicitly allows for self-move on
 // the directory iterators. Turn off this warning so we can test it.
@@ -42,7 +41,8 @@ TEST_CASE(test_assignment_signature)
 
 TEST_CASE(test_move_to_end_iterator)
 {
-    const path testDir = StaticEnv::Dir;
+    static_test_env static_env;
+    const path testDir = static_env.Dir;
 
     directory_iterator from(testDir);
     TEST_REQUIRE(from != directory_iterator{});
@@ -57,7 +57,8 @@ TEST_CASE(test_move_to_end_iterator)
 
 TEST_CASE(test_move_from_end_iterator)
 {
-    const path testDir = StaticEnv::Dir;
+    static_test_env static_env;
+    const path testDir = static_env.Dir;
 
     directory_iterator from{};
 
@@ -71,7 +72,8 @@ TEST_CASE(test_move_from_end_iterator)
 
 TEST_CASE(test_move_valid_iterator)
 {
-    const path testDir = StaticEnv::Dir;
+    static_test_env static_env;
+    const path testDir = static_env.Dir;
     const directory_iterator endIt{};
 
     directory_iterator it(testDir);
@@ -101,9 +103,10 @@ TEST_CASE(test_returns_reference_to_self)
 
 TEST_CASE(test_self_move)
 {
+    static_test_env static_env;
     // Create two non-equal iterators that have exactly the same state.
-    directory_iterator it(StaticEnv::Dir);
-    directory_iterator it2(StaticEnv::Dir);
+    directory_iterator it(static_env.Dir);
+    directory_iterator it2(static_env.Dir);
     ++it; ++it2;
     TEST_CHECK(it != it2);
     TEST_CHECK(*it2 == *it);

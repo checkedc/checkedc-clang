@@ -12,7 +12,7 @@ entry:
 
 ; GCN-LABEL: {{^}}func:
 ; GCN: ; NumVgprs: 8
-define void @func() #1 {
+define hidden void @func() #1 {
   call void asm sideeffect "", "~{v0},~{v1},~{v2},~{v3},~{v4},~{v5},~{v6},~{v7}"() #0
   ret void
 }
@@ -63,10 +63,10 @@ define void @func_regular_call() #1 {
 
 ; GCN-LABEL: {{^}}func_tail_call:
 ; GCN: s_waitcnt
-; GCN-NEXT: s_getpc_b64 s[6:7]
-; GCN-NEXT: s_add_u32 s6,
-; GCN-NEXT: s_addc_u32 s7,
-; GCN-NEXT: s_setpc_b64 s[6:7]
+; GCN-NEXT: s_getpc_b64 s[4:5]
+; GCN-NEXT: s_add_u32 s4,
+; GCN-NEXT: s_addc_u32 s5,
+; GCN-NEXT: s_setpc_b64 s[4:5]
 
 ; GCN: ; NumSgprs: 32
 ; GCN: ; NumVgprs: 8

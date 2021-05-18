@@ -1,9 +1,8 @@
-//===-- CompilerDecl.cpp ----------------------------------------*- C++ -*-===//
+//===-- CompilerDecl.cpp --------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -12,10 +11,6 @@
 #include "lldb/Symbol/TypeSystem.h"
 
 using namespace lldb_private;
-
-bool CompilerDecl::IsClang() const {
-  return IsValid() && m_type_system->getKind() == TypeSystem::eKindClang;
-}
 
 ConstString CompilerDecl::GetName() const {
   return m_type_system->DeclGetName(m_opaque_decl);

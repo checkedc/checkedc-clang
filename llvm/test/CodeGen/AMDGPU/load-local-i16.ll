@@ -1,6 +1,6 @@
 ; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap -check-prefixes=GCN,SI,SICIVI,FUNC %s
-; RUN: llc -march=amdgcn -mcpu=tonga -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap -check-prefixes=GCN,SICIVI,GFX89,FUNC %s
-; RUN: llc -march=amdgcn -mcpu=gfx900 -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap -check-prefixes=GCN,GFX9,GFX89,FUNC %s
+; RUN: llc -march=amdgcn -mcpu=tonga -mattr=-enable-ds128 -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap -check-prefixes=GCN,SICIVI,GFX89,FUNC %s
+; RUN: llc -march=amdgcn -mcpu=gfx900 -mattr=-enable-ds128 -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap -check-prefixes=GCN,GFX9,GFX89,FUNC %s
 ; RUN: llc -march=r600 -mcpu=redwood -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap -check-prefix=EG -check-prefix=FUNC %s
 
 ; Testing for ds_read/write_b128
@@ -52,7 +52,7 @@ entry:
 ; GCN-DAG: ds_write_b16
 
 ; EG-DAG: LDS_USHORT_READ_RET
-; EG-DAG: LDS_READ_RET
+; EG-DAG: LDS_USHORT_READ_RET
 define amdgpu_kernel void @local_load_v3i16(<3 x i16> addrspace(3)* %out, <3 x i16> addrspace(3)* %in) {
 entry:
   %ld = load <3 x i16>, <3 x i16> addrspace(3)* %in
@@ -232,10 +232,14 @@ define amdgpu_kernel void @local_sextload_v2i16_to_v2i32(<2 x i32> addrspace(3)*
 ; SICIVI: s_mov_b32 m0
 
 ; GCN: ds_read_b64
-; GCN-DAG: ds_write_b32
-; GCN-DAG: ds_write_b64
+; SI-DAG: ds_write_b32
+; SI-DAG: ds_write_b64
+; CIVI-DAG: ds_write_b96
+; GFX9-DAG: ds_write_b96
 
-; EG: LDS_READ_RET
+; EG: LDS_USHORT_READ_RET
+; EG: LDS_USHORT_READ_RET
+; EG: LDS_USHORT_READ_RET
 define amdgpu_kernel void @local_local_zextload_v3i16_to_v3i32(<3 x i32> addrspace(3)* %out, <3 x i16> addrspace(3)* %in) {
 entry:
   %ld = load <3 x i16>, <3 x i16> addrspace(3)* %in
@@ -249,10 +253,14 @@ entry:
 ; SICIVI: s_mov_b32 m0
 
 ; GCN: ds_read_b64
-; GCN-DAG: ds_write_b32
-; GCN-DAG: ds_write_b64
+; SI-DAG: ds_write_b32
+; SI-DAG: ds_write_b64
+; CIVI-DAG: ds_write_b96
+; GFX9-DAG: ds_write_b96
 
-; EG: LDS_READ_RET
+; EG: LDS_USHORT_READ_RET
+; EG: LDS_USHORT_READ_RET
+; EG: LDS_USHORT_READ_RET
 ; EG-DAG: BFE_INT
 ; EG-DAG: BFE_INT
 ; EG-DAG: BFE_INT

@@ -1,7 +1,8 @@
 // RUN: %clang_cc1 -fsyntax-only -verify %s
-struct A; // expected-note 14 {{forward declaration of 'A'}}
+struct A; // expected-note 15 {{forward declaration of 'A'}}
 
 A f(); // expected-note {{'f' declared here}}
+template <typename T> A ft(T); // expected-note {{'ft' declared here}}
 
 struct B {
   A f(); // expected-note {{'f' declared here}}
@@ -38,7 +39,8 @@ void g() {
   
   A (B::*mfp)() = 0;
   (b.*mfp)(); // expected-error {{calling function with incomplete return type 'A'}}
-  
+
+  ft(42); // expected-error {{calling 'ft<int>' with incomplete return type 'A'}}
 }
 
 
@@ -46,6 +48,10 @@ struct C; // expected-note{{forward declaration}}
 
 void test_incomplete_object_call(C& c) {
   c(); // expected-error{{incomplete type in call to object of type}}
+}
+
+void test_incomplete_object_dtor(C *p) {
+  p.~C(); // expected-error{{member reference type 'C *' is a pointer; did you mean to use '->'?}}
 }
 
 namespace pr18542 {

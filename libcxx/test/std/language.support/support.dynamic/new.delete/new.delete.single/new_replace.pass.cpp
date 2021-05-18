@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -43,8 +42,9 @@ struct A
     ~A() {A_constructed = false;}
 };
 
-int main()
+int main(int, char**)
 {
+    new_called = 0;
     A *ap = new A;
     DoNotOptimize(ap);
     assert(ap);
@@ -54,4 +54,6 @@ int main()
     DoNotOptimize(ap);
     assert(!A_constructed);
     assert(!new_called);
+
+  return 0;
 }

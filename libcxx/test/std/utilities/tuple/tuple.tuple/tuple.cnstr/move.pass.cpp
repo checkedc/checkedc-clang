@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -13,12 +12,13 @@
 
 // tuple(tuple&& u);
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 #include <tuple>
 #include <utility>
 #include <cassert>
 
+#include "test_macros.h"
 #include "MoveOnly.h"
 
 struct ConstructsWithTupleLeaf
@@ -51,7 +51,7 @@ struct move_only_large final {
 template <class Elem>
 void test_sfinae() {
     using Tup = std::tuple<Elem>;
-    using Alloc = std::allocator<void>;
+    using Alloc = std::allocator<int>;
     using Tag = std::allocator_arg_t;
     // special members
     {
@@ -81,7 +81,7 @@ void test_sfinae() {
     }
 }
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::tuple<> T;
@@ -122,4 +122,6 @@ int main()
         test_sfinae<move_only_ebo>();
         test_sfinae<move_only_large>();
     }
+
+  return 0;
 }

@@ -1,24 +1,23 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
-
-// See GCC PR63723.
-// UNSUPPORTED: gcc-4.9
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <experimental/simd>
 //
 // [simd.class]
 // template <class U> simd(U&& value);
 
-#include <cstdint>
 #include <experimental/simd>
+#include <cstdint>
+#include <cassert>
+
+#include "test_macros.h"
 
 namespace ex = std::experimental::parallelism_v2;
 
@@ -79,8 +78,10 @@ void test_broadcast() {
   }
 }
 
-int main() {
+int main(int, char**) {
   test_broadcast<ex::native_simd<int>>();
   test_broadcast<ex::fixed_size_simd<int, 4>>();
   test_broadcast<ex::fixed_size_simd<int, 15>>();
+
+  return 0;
 }

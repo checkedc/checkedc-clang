@@ -15,7 +15,7 @@ template <> struct coroutine_handle<void> {
     return me;
   }
   void operator()() { resume(); }
-  void *address() const { return ptr; }
+  void *address() const noexcept { return ptr; }
   void resume() const { __builtin_coro_resume(ptr); }
   void destroy() const { __builtin_coro_destroy(ptr); }
   bool done() const { return __builtin_coro_done(ptr); }
@@ -72,9 +72,9 @@ struct suspend_always {
   void await_resume() {}
 };
 struct suspend_never {
-  bool await_ready() { return true; }
-  void await_suspend(coroutine_handle<>) {}
-  void await_resume() {}
+  bool await_ready() noexcept { return true; }
+  void await_suspend(coroutine_handle<>) noexcept {}
+  void await_resume() noexcept {}
 };
 
 }}}

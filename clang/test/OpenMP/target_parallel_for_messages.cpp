@@ -1,6 +1,15 @@
-// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 -std=c++11 -o - %s
+// RUN: %clang_cc1 -verify=expected,omp45 -fopenmp -fopenmp-version=45 -ferror-limit 100 -std=c++11 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp -fopenmp-version=50 -ferror-limit 100 -std=c++11 -o - %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 -std=c++11 -o - %s
+// RUN: %clang_cc1 -verify=expected,omp45 -fopenmp-simd -fopenmp-version=45 -ferror-limit 100 -std=c++11 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp-simd -fopenmp-version=50 -ferror-limit 100 -std=c++11 -o - %s -Wuninitialized
+
+void xxx(int argc) {
+  int x; // expected-note {{initialize the variable 'x' to silence this warning}}
+#pragma omp target parallel for
+  for (int i = 0; i < 10; ++i)
+    argc = x; // expected-warning {{variable 'x' is uninitialized when used here}}
+}
 
 void foo() {
 }
@@ -61,7 +70,7 @@ L1:
       break;
     }
   }
-#pragma omp target parallel for default(none)
+#pragma omp target parallel for default(none) // expected-note {{explicit data sharing attribute requested here}}
   for (int i = 0; i < 10; ++i)
     ++argc; // expected-error {{variable 'argc' must have explicitly specified data sharing attributes}}
 
@@ -89,6 +98,21 @@ L1:
 void test_ordered() {
 #pragma omp target parallel for ordered ordered // expected-error {{directive '#pragma omp target parallel for' cannot contain more than one 'ordered' clause}}
   for (int i = 0; i < 16; ++i)
+    ;
+#pragma omp target parallel for order // omp45-error {{unexpected OpenMP clause 'order' in directive '#pragma omp target parallel for'}} expected-error {{expected '(' after 'order'}}
+  for (int i = 0; i < 10; ++i)
+    ;
+#pragma omp target parallel for order( // omp45-error {{unexpected OpenMP clause 'order' in directive '#pragma omp target parallel for'}} expected-error {{expected ')'}} expected-note {{to match this '('}} omp50-error {{expected 'concurrent' in OpenMP clause 'order'}}
+  for (int i = 0; i < 10; ++i)
+    ;
+#pragma omp target parallel for order(none // omp45-error {{unexpected OpenMP clause 'order' in directive '#pragma omp target parallel for'}} expected-error {{expected ')'}} expected-note {{to match this '('}} omp50-error {{expected 'concurrent' in OpenMP clause 'order'}}
+  for (int i = 0; i < 10; ++i)
+    ;
+#pragma omp target parallel for order(concurrent // omp45-error {{unexpected OpenMP clause 'order' in directive '#pragma omp target parallel for'}} expected-error {{expected ')'}} expected-note {{to match this '('}}
+  for (int i = 0; i < 10; ++i)
+    ;
+#pragma omp target parallel for order(concurrent) // omp45-error {{unexpected OpenMP clause 'order' in directive '#pragma omp target parallel for'}}
+  for (int i = 0; i < 10; ++i)
     ;
 }
 

@@ -1,14 +1,13 @@
 //===-- LogFilterRegex.h ----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LogFilterRegex_h
-#define LogFilterRegex_h
+#ifndef LLDB_TOOLS_DEBUGSERVER_SOURCE_MACOSX_DARWINLOG_LOGFILTERREGEX_H
+#define LLDB_TOOLS_DEBUGSERVER_SOURCE_MACOSX_DARWINLOG_LOGFILTERREGEX_H
 
 // C includes
 #include <regex.h>
@@ -41,4 +40,4 @@ private:
   std::string m_error_text;
 };
 
-#endif /* LogFilterSubsystemRegex_hpp */
+#endif // LLDB_TOOLS_DEBUGSERVER_SOURCE_MACOSX_DARWINLOG_LOGFILTERREGEX_H

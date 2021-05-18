@@ -1,11 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+// UNSUPPORTED: clang-8
 
 // <algorithm>
 
@@ -18,28 +19,16 @@
 
 #include "test_macros.h"
 #include "test_iterators.h"
-#include "user_defined_integral.hpp"
-
-// #if TEST_STD_VER > 17
-// TEST_CONSTEXPR bool test_constexpr() {
-//     int ia[] = {1, 2, 3, 4, 5};
-//     int ic[] = {6, 6, 6, 6, 6, 6, 6};
-//
-//     auto p = std::copy_n(std::begin(ia), 4, std::begin(ic));
-//     return std::equal(std::begin(ic), p, std::begin(ia))
-//         && std::all_of(p, std::end(ic), [](int a){return a == 6;})
-//         ;
-//     }
-// #endif
+#include "user_defined_integral.h"
 
 typedef UserDefinedIntegral<unsigned> UDI;
 
 template <class InIter, class OutIter>
-void
-test()
+TEST_CONSTEXPR_CXX20 void
+test_copy_n()
 {
     const unsigned N = 1000;
-    int ia[N];
+    int ia[N] = {};
     for (unsigned i = 0; i < N; ++i)
         ia[i] = i;
     int ib[N] = {0};
@@ -50,44 +39,54 @@ test()
         assert(ia[i] == ib[i]);
 }
 
-int main()
+TEST_CONSTEXPR_CXX20 bool
+test()
 {
-    test<input_iterator<const int*>, output_iterator<int*> >();
-    test<input_iterator<const int*>, input_iterator<int*> >();
-    test<input_iterator<const int*>, forward_iterator<int*> >();
-    test<input_iterator<const int*>, bidirectional_iterator<int*> >();
-    test<input_iterator<const int*>, random_access_iterator<int*> >();
-    test<input_iterator<const int*>, int*>();
+    test_copy_n<input_iterator<const int*>, output_iterator<int*> >();
+    test_copy_n<input_iterator<const int*>, input_iterator<int*> >();
+    test_copy_n<input_iterator<const int*>, forward_iterator<int*> >();
+    test_copy_n<input_iterator<const int*>, bidirectional_iterator<int*> >();
+    test_copy_n<input_iterator<const int*>, random_access_iterator<int*> >();
+    test_copy_n<input_iterator<const int*>, int*>();
 
-    test<forward_iterator<const int*>, output_iterator<int*> >();
-    test<forward_iterator<const int*>, input_iterator<int*> >();
-    test<forward_iterator<const int*>, forward_iterator<int*> >();
-    test<forward_iterator<const int*>, bidirectional_iterator<int*> >();
-    test<forward_iterator<const int*>, random_access_iterator<int*> >();
-    test<forward_iterator<const int*>, int*>();
+    test_copy_n<forward_iterator<const int*>, output_iterator<int*> >();
+    test_copy_n<forward_iterator<const int*>, input_iterator<int*> >();
+    test_copy_n<forward_iterator<const int*>, forward_iterator<int*> >();
+    test_copy_n<forward_iterator<const int*>, bidirectional_iterator<int*> >();
+    test_copy_n<forward_iterator<const int*>, random_access_iterator<int*> >();
+    test_copy_n<forward_iterator<const int*>, int*>();
 
-    test<bidirectional_iterator<const int*>, output_iterator<int*> >();
-    test<bidirectional_iterator<const int*>, input_iterator<int*> >();
-    test<bidirectional_iterator<const int*>, forward_iterator<int*> >();
-    test<bidirectional_iterator<const int*>, bidirectional_iterator<int*> >();
-    test<bidirectional_iterator<const int*>, random_access_iterator<int*> >();
-    test<bidirectional_iterator<const int*>, int*>();
+    test_copy_n<bidirectional_iterator<const int*>, output_iterator<int*> >();
+    test_copy_n<bidirectional_iterator<const int*>, input_iterator<int*> >();
+    test_copy_n<bidirectional_iterator<const int*>, forward_iterator<int*> >();
+    test_copy_n<bidirectional_iterator<const int*>, bidirectional_iterator<int*> >();
+    test_copy_n<bidirectional_iterator<const int*>, random_access_iterator<int*> >();
+    test_copy_n<bidirectional_iterator<const int*>, int*>();
 
-    test<random_access_iterator<const int*>, output_iterator<int*> >();
-    test<random_access_iterator<const int*>, input_iterator<int*> >();
-    test<random_access_iterator<const int*>, forward_iterator<int*> >();
-    test<random_access_iterator<const int*>, bidirectional_iterator<int*> >();
-    test<random_access_iterator<const int*>, random_access_iterator<int*> >();
-    test<random_access_iterator<const int*>, int*>();
+    test_copy_n<random_access_iterator<const int*>, output_iterator<int*> >();
+    test_copy_n<random_access_iterator<const int*>, input_iterator<int*> >();
+    test_copy_n<random_access_iterator<const int*>, forward_iterator<int*> >();
+    test_copy_n<random_access_iterator<const int*>, bidirectional_iterator<int*> >();
+    test_copy_n<random_access_iterator<const int*>, random_access_iterator<int*> >();
+    test_copy_n<random_access_iterator<const int*>, int*>();
 
-    test<const int*, output_iterator<int*> >();
-    test<const int*, input_iterator<int*> >();
-    test<const int*, forward_iterator<int*> >();
-    test<const int*, bidirectional_iterator<int*> >();
-    test<const int*, random_access_iterator<int*> >();
-    test<const int*, int*>();
+    test_copy_n<const int*, output_iterator<int*> >();
+    test_copy_n<const int*, input_iterator<int*> >();
+    test_copy_n<const int*, forward_iterator<int*> >();
+    test_copy_n<const int*, bidirectional_iterator<int*> >();
+    test_copy_n<const int*, random_access_iterator<int*> >();
+    test_copy_n<const int*, int*>();
 
-// #if TEST_STD_VER > 17
-//     static_assert(test_constexpr());
-// #endif
+  return true;
+}
+
+int main(int, char**)
+{
+    test();
+
+#if TEST_STD_VER > 17
+    static_assert(test());
+#endif
+
+  return 0;
 }

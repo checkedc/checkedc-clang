@@ -1,9 +1,8 @@
 //===-- RISCVInstrFormats.td - RISCV Instruction Formats ---*- tablegen -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -50,6 +49,62 @@ def InstFormatCB     : InstFormat<15>;
 def InstFormatCJ     : InstFormat<16>;
 def InstFormatOther  : InstFormat<17>;
 
+class RISCVVConstraint<bits<3> val> {
+  bits<3> Value = val;
+}
+def NoConstraint  : RISCVVConstraint<0b000>;
+def VS2Constraint : RISCVVConstraint<0b001>;
+def VS1Constraint : RISCVVConstraint<0b010>;
+def VMConstraint  : RISCVVConstraint<0b100>;
+
+// Illegal instructions:
+//
+// * The destination vector register group for a masked vector instruction
+// cannot overlap the source mask register (v0), unless the destination vector
+// register is being written with a mask value (e.g., comparisons) or the
+// scalar result of a reduction.
+//
+// * Widening: The destination EEW is greater than the source EEW, the source
+// EMUL is at least 1. The destination vector register group cannot overlap
+// with the source vector register groups besides the highest-numbered part of
+// the destination register group.
+//
+// * Narrowing: The destination EEW is smaller than the source EEW. The
+// destination vector register group cannot overlap with the source vector
+// register groups besides the lowest-numbered part of the source register
+// group.
+//
+// * vmsbf.m/vmsif.m/vmsof.m: The destination register cannot overlap the
+// source register and, if masked, cannot overlap the mask register ('v0').
+//
+// * viota: The destination register cannot overlap the source register and,
+// if masked, cannot overlap the mask register ('v0').
+//
+// * v[f]slide[1]up: The destination vector register group for vslideup cannot
+// overlap the source vector register group.
+//
+// * vrgather: The destination vector register group cannot overlap with the
+// source vector register groups.
+//
+// * vcompress: The destination vector register group cannot overlap the
+// source vector register group or the source mask register
+def WidenV       : RISCVVConstraint<!or(VS2Constraint.Value,
+                                        VS1Constraint.Value,
+                                        VMConstraint.Value)>;
+def WidenW       : RISCVVConstraint<!or(VS1Constraint.Value,
+                                        VMConstraint.Value)>;
+def WidenCvt     : RISCVVConstraint<!or(VS2Constraint.Value,
+                                        VMConstraint.Value)>;
+def Iota         : RISCVVConstraint<!or(VS2Constraint.Value,
+                                        VMConstraint.Value)>;
+def SlideUp      : RISCVVConstraint<!or(VS2Constraint.Value,
+                                        VMConstraint.Value)>;
+def Vrgather     : RISCVVConstraint<!or(VS2Constraint.Value,
+                                        VS1Constraint.Value,
+                                        VMConstraint.Value)>;
+def Vcompress    : RISCVVConstraint<!or(VS2Constraint.Value,
+                                        VS1Constraint.Value)>;
+
 // The following opcode names match those given in Table 19.1 in the
 // RISC-V User-level ISA specification ("RISC-V base opcode map").
 class RISCVOpcode<bits<7> val> {
@@ -72,6 +127,7 @@ def OPC_MSUB      : RISCVOpcode<0b1000111>;
 def OPC_NMSUB     : RISCVOpcode<0b1001011>;
 def OPC_NMADD     : RISCVOpcode<0b1001111>;
 def OPC_OP_FP     : RISCVOpcode<0b1010011>;
+def OPC_OP_V      : RISCVOpcode<0b1010111>;
 def OPC_BRANCH    : RISCVOpcode<0b1100011>;
 def OPC_JALR      : RISCVOpcode<0b1100111>;
 def OPC_JAL       : RISCVOpcode<0b1101111>;
@@ -100,13 +156,65 @@ class RVInst<dag outs, dag ins, string opcodestr, string argstr,
   let Pattern = pattern;
 
   let TSFlags{4-0} = format.Value;
+
+  // Defaults
+  RISCVVConstraint RVVConstraint = NoConstraint;
+  let TSFlags{7-5} = RVVConstraint.Value;
+
+  bits<3> VLMul = 0;
+  let TSFlags{10-8} = VLMul;
+
+  bit HasDummyMask = 0;
+  let TSFlags{11} = HasDummyMask;
+
+  bit WritesElement0 = 0;
+  let TSFlags{12} = WritesElement0;
+
+  bit HasMergeOp = 0;
+  let TSFlags{13} = HasMergeOp;
+
+  bit HasSEWOp = 0;
+  let TSFlags{14} = HasSEWOp;
+
+  bit HasVLOp = 0;
+  let TSFlags{15} = HasVLOp;
 }
 
 // Pseudo instructions
 class Pseudo<dag outs, dag ins, list<dag> pattern, string opcodestr = "", string argstr = "">
-    : RVInst<outs, ins, opcodestr, argstr, pattern, InstFormatPseudo> {
+    : RVInst<outs, ins, opcodestr, argstr, pattern, InstFormatPseudo>,
+      Sched<[]> {
   let isPseudo = 1;
   let isCodeGenOnly = 1;
+}
+
+// Pseudo load instructions.
+class PseudoLoad<string opcodestr, RegisterClass rdty = GPR>
+    : Pseudo<(outs rdty:$rd), (ins bare_symbol:$addr), [], opcodestr, "$rd, $addr"> {
+  let hasSideEffects = 0;
+  let mayLoad = 1;
+  let mayStore = 0;
+  let isCodeGenOnly = 0;
+  let isAsmParserOnly = 1;
+}
+
+class PseudoFloatLoad<string opcodestr, RegisterClass rdty = GPR>
+    : Pseudo<(outs rdty:$rd, GPR:$tmp), (ins bare_symbol:$addr), [], opcodestr, "$rd, $addr, $tmp"> {
+  let hasSideEffects = 0;
+  let mayLoad = 1;
+  let mayStore = 0;
+  let isCodeGenOnly = 0;
+  let isAsmParserOnly = 1;
+}
+
+// Pseudo store instructions.
+class PseudoStore<string opcodestr, RegisterClass rsty = GPR>
+    : Pseudo<(outs rsty:$rs, GPR:$tmp), (ins bare_symbol:$addr), [], opcodestr, "$rs, $addr, $tmp"> {
+  let hasSideEffects = 0;
+  let mayLoad = 0;
+  let mayStore = 1;
+  let isCodeGenOnly = 0;
+  let isAsmParserOnly = 1;
 }
 
 // Instruction formats are listed in the order they appear in the RISC-V

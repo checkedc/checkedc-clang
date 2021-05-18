@@ -1,9 +1,8 @@
 //===-- MachThread.h --------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -11,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __MachThread_h__
-#define __MachThread_h__
+#ifndef LLDB_TOOLS_DEBUGSERVER_SOURCE_MACOSX_MACHTHREAD_H
+#define LLDB_TOOLS_DEBUGSERVER_SOURCE_MACOSX_MACHTHREAD_H
 
 #include <string>
 #include <vector>
@@ -67,10 +66,12 @@ public:
   uint64_t GetSP(uint64_t failValue = INVALID_NUB_ADDRESS); // Get stack pointer
 
   DNBBreakpoint *CurrentBreakpoint();
-  uint32_t EnableHardwareBreakpoint(const DNBBreakpoint *breakpoint);
+  uint32_t EnableHardwareBreakpoint(const DNBBreakpoint *breakpoint,
+                                    bool also_set_on_task);
   uint32_t EnableHardwareWatchpoint(const DNBBreakpoint *watchpoint,
                                     bool also_set_on_task);
-  bool DisableHardwareBreakpoint(const DNBBreakpoint *breakpoint);
+  bool DisableHardwareBreakpoint(const DNBBreakpoint *breakpoint,
+                                 bool also_set_on_task);
   bool DisableHardwareWatchpoint(const DNBBreakpoint *watchpoint,
                                  bool also_set_on_task);
   uint32_t NumSupportedHardwareWatchpoints() const;
@@ -110,7 +111,7 @@ public:
   const char *GetBasicInfoAsString() const;
   const char *GetName();
 
-  DNBArchProtocol *GetArchProtocol() { return m_arch_ap.get(); }
+  DNBArchProtocol *GetArchProtocol() { return m_arch_up.get(); }
 
   ThreadInfo::QoS GetRequestedQoS(nub_addr_t tsd, uint64_t dti_qos_class_index);
   nub_addr_t GetPThreadT();
@@ -147,7 +148,7 @@ protected:
   MachException::Data m_stop_exception; // The best exception that describes why
                                         // this thread is stopped
   std::unique_ptr<DNBArchProtocol>
-      m_arch_ap; // Arch specific information for register state and more
+      m_arch_up; // Arch specific information for register state and more
   const DNBRegisterSetInfo
       *m_reg_sets; // Register set information for this thread
   nub_size_t m_num_reg_sets;

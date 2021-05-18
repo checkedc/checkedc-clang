@@ -1,9 +1,8 @@
 //=== HexagonMCCompound.cpp - Hexagon Compound checker  -------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -11,11 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Hexagon.h"
 #include "MCTargetDesc/HexagonBaseInfo.h"
 #include "MCTargetDesc/HexagonMCInstrInfo.h"
 #include "MCTargetDesc/HexagonMCShuffler.h"
 #include "llvm/MC/MCContext.h"
+#include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -94,7 +93,7 @@ static unsigned getCompoundCandidateGroup(MCInst const &MI, bool IsExtended) {
   case Hexagon::C2_cmpgt:
   case Hexagon::C2_cmpgtu:
     if (IsExtended)
-      return false;
+      return HexagonII::HCG_None;
     DstReg = MI.getOperand(0).getReg();
     Src1Reg = MI.getOperand(1).getReg();
     Src2Reg = MI.getOperand(2).getReg();
@@ -107,7 +106,7 @@ static unsigned getCompoundCandidateGroup(MCInst const &MI, bool IsExtended) {
   case Hexagon::C2_cmpgti:
   case Hexagon::C2_cmpgtui:
     if (IsExtended)
-      return false;
+      return HexagonII::HCG_None;
     // P0 = cmp.eq(Rs,#u2)
     DstReg = MI.getOperand(0).getReg();
     SrcReg = MI.getOperand(1).getReg();
@@ -119,7 +118,7 @@ static unsigned getCompoundCandidateGroup(MCInst const &MI, bool IsExtended) {
     break;
   case Hexagon::A2_tfr:
     if (IsExtended)
-      return false;
+      return HexagonII::HCG_None;
     // Rd = Rs
     DstReg = MI.getOperand(0).getReg();
     SrcReg = MI.getOperand(1).getReg();
@@ -129,7 +128,7 @@ static unsigned getCompoundCandidateGroup(MCInst const &MI, bool IsExtended) {
     break;
   case Hexagon::A2_tfrsi:
     if (IsExtended)
-      return false;
+      return HexagonII::HCG_None;
     // Rd = #u6
     DstReg = MI.getOperand(0).getReg();
     if (HexagonMCInstrInfo::minConstant(MI, 1) <= 63 &&
@@ -139,7 +138,7 @@ static unsigned getCompoundCandidateGroup(MCInst const &MI, bool IsExtended) {
     break;
   case Hexagon::S2_tstbit_i:
     if (IsExtended)
-      return false;
+      return HexagonII::HCG_None;
     DstReg = MI.getOperand(0).getReg();
     Src1Reg = MI.getOperand(1).getReg();
     if ((Hexagon::P0 == DstReg || Hexagon::P1 == DstReg) &&
@@ -211,7 +210,7 @@ static MCInst *getCompoundInsn(MCContext &Context, MCInst const &L,
   case Hexagon::A2_tfrsi:
     Rt = L.getOperand(0);
     compoundOpcode = J4_jumpseti;
-    CompoundInsn = new (Context) MCInst;
+    CompoundInsn = Context.createMCInst();
     CompoundInsn->setOpcode(compoundOpcode);
 
     CompoundInsn->addOperand(Rt);
@@ -224,7 +223,7 @@ static MCInst *getCompoundInsn(MCContext &Context, MCInst const &L,
     Rs = L.getOperand(1);
 
     compoundOpcode = J4_jumpsetr;
-    CompoundInsn = new (Context) MCInst;
+    CompoundInsn = Context.createMCInst();
     CompoundInsn->setOpcode(compoundOpcode);
     CompoundInsn->addOperand(Rt);
     CompoundInsn->addOperand(Rs);
@@ -238,7 +237,7 @@ static MCInst *getCompoundInsn(MCContext &Context, MCInst const &L,
     Rt = L.getOperand(2);
 
     compoundOpcode = cmpeqBitOpcode[getCompoundOp(R)];
-    CompoundInsn = new (Context) MCInst;
+    CompoundInsn = Context.createMCInst();
     CompoundInsn->setOpcode(compoundOpcode);
     CompoundInsn->addOperand(Rs);
     CompoundInsn->addOperand(Rt);
@@ -251,7 +250,7 @@ static MCInst *getCompoundInsn(MCContext &Context, MCInst const &L,
     Rt = L.getOperand(2);
 
     compoundOpcode = cmpgtBitOpcode[getCompoundOp(R)];
-    CompoundInsn = new (Context) MCInst;
+    CompoundInsn = Context.createMCInst();
     CompoundInsn->setOpcode(compoundOpcode);
     CompoundInsn->addOperand(Rs);
     CompoundInsn->addOperand(Rt);
@@ -264,7 +263,7 @@ static MCInst *getCompoundInsn(MCContext &Context, MCInst const &L,
     Rt = L.getOperand(2);
 
     compoundOpcode = cmpgtuBitOpcode[getCompoundOp(R)];
-    CompoundInsn = new (Context) MCInst;
+    CompoundInsn = Context.createMCInst();
     CompoundInsn->setOpcode(compoundOpcode);
     CompoundInsn->addOperand(Rs);
     CompoundInsn->addOperand(Rt);
@@ -282,7 +281,7 @@ static MCInst *getCompoundInsn(MCContext &Context, MCInst const &L,
       compoundOpcode = cmpeqiBitOpcode[getCompoundOp(R)];
 
     Rs = L.getOperand(1);
-    CompoundInsn = new (Context) MCInst;
+    CompoundInsn = Context.createMCInst();
     CompoundInsn->setOpcode(compoundOpcode);
     CompoundInsn->addOperand(Rs);
     CompoundInsn->addOperand(L.getOperand(2));
@@ -300,7 +299,7 @@ static MCInst *getCompoundInsn(MCContext &Context, MCInst const &L,
       compoundOpcode = cmpgtiBitOpcode[getCompoundOp(R)];
 
     Rs = L.getOperand(1);
-    CompoundInsn = new (Context) MCInst;
+    CompoundInsn = Context.createMCInst();
     CompoundInsn->setOpcode(compoundOpcode);
     CompoundInsn->addOperand(Rs);
     CompoundInsn->addOperand(L.getOperand(2));
@@ -311,7 +310,7 @@ static MCInst *getCompoundInsn(MCContext &Context, MCInst const &L,
     LLVM_DEBUG(dbgs() << "CX: C2_cmpgtui\n");
     Rs = L.getOperand(1);
     compoundOpcode = cmpgtuiBitOpcode[getCompoundOp(R)];
-    CompoundInsn = new (Context) MCInst;
+    CompoundInsn = Context.createMCInst();
     CompoundInsn->setOpcode(compoundOpcode);
     CompoundInsn->addOperand(Rs);
     CompoundInsn->addOperand(L.getOperand(2));
@@ -322,7 +321,7 @@ static MCInst *getCompoundInsn(MCContext &Context, MCInst const &L,
     LLVM_DEBUG(dbgs() << "CX: S2_tstbit_i\n");
     Rs = L.getOperand(1);
     compoundOpcode = tstBitOpcode[getCompoundOp(R)];
-    CompoundInsn = new (Context) MCInst;
+    CompoundInsn = Context.createMCInst();
     CompoundInsn->setOpcode(compoundOpcode);
     CompoundInsn->addOperand(Rs);
     CompoundInsn->addOperand(R.getOperand(1));

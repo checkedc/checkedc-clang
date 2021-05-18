@@ -1,9 +1,8 @@
 //===- tools/dsymutil/SymbolMap.cpp ---------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -48,7 +47,7 @@ StringRef SymbolMapTranslator::operator()(StringRef Input) {
     return Translation;
 
   // Objective-C symbols for the MachO symbol table start with a \1. Please see
-  // `CGObjCCommonMac::GetNameForMethod` in clang.
+  // `MangleContext::mangleObjCMethodName` in clang.
   if (Translation[0] == 1)
     return StringRef(Translation).drop_front();
 
@@ -97,7 +96,7 @@ SymbolMapTranslator SymbolMapLoader::Load(StringRef InputFile,
           StringRef UUID(CFStringGetCStringPtr(OldUUID, kCFStringEncodingUTF8));
           SmallString<256> BCSymbolMapPath(SymbolMapPath);
           sys::path::append(BCSymbolMapPath, UUID.str() + ".bcsymbolmap");
-          SymbolMapPath = BCSymbolMapPath.str();
+          SymbolMapPath = std::string(BCSymbolMapPath);
         }
         CFRelease(plist);
       }

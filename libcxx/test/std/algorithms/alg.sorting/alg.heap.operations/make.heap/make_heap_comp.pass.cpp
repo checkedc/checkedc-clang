@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -21,7 +20,8 @@
 #include <cassert>
 
 #include "test_macros.h"
-#include "counting_predicates.hpp"
+#include "counting_predicates.h"
+#include "test_iterators.h"
 
 struct indirect_less
 {
@@ -40,6 +40,11 @@ void test(int N)
         ia[i] = i;
     std::shuffle(ia, ia+N, randomness);
     std::make_heap(ia, ia+N, std::greater<int>());
+    assert(std::is_heap(ia, ia+N, std::greater<int>()));
+
+    std::shuffle(ia, ia+N, randomness);
+    std::make_heap(random_access_iterator<int *>(ia),
+                   random_access_iterator<int *>(ia+N), std::greater<int>());
     assert(std::is_heap(ia, ia+N, std::greater<int>()));
     }
 
@@ -75,7 +80,7 @@ void test(int N)
     delete [] ia;
 }
 
-int main()
+int main(int, char**)
 {
     test(0);
     test(1);
@@ -98,4 +103,6 @@ int main()
     delete [] ia;
     }
 #endif
+
+  return 0;
 }

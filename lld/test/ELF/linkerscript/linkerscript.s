@@ -3,7 +3,7 @@
 # RUN: llvm-mc -filetype=obj -triple=x86_64-unknown-linux \
 # RUN:   %p/Inputs/libsearch-st.s -o %t2.o
 
-# RUN: echo "EXTERN( undef undef2 )" > %t.script
+# RUN: echo "EXTERN( undef undef2 \"undef3\" \"undef4@@other\")" > %t.script
 # RUN: ld.lld %t -o %t2 %t.script
 # RUN: llvm-readobj %t2 > /dev/null
 
@@ -33,16 +33,17 @@
 # RUN: ld.lld %t.script1 -o %t.out
 # RUN: llvm-readobj %t2 > /dev/null
 
+# RUN: rm -rf %t.dir && mkdir -p %t.dir
 # RUN: echo "INCLUDE \"foo.script\"" > %t.script
-# RUN: echo "OUTPUT(\"%t.out\")" > %T/foo.script
-# RUN: not ld.lld %t.script -o %t.out > %t.log 2>&1
+# RUN: echo "OUTPUT(\"%t.out\")" > %t.dir/foo.script
+# RUN: not ld.lld %t.script -o /dev/null > %t.log 2>&1
 # RUN: FileCheck -check-prefix=INCLUDE_ERR %s < %t.log
 # INCLUDE_ERR: error: {{.+}}.script:1: cannot find linker script foo.script
 # INCLUDE_ERR-NEXT: INCLUDE "foo.script"
-# RUN: ld.lld -L %T %t.script %t
+# RUN: ld.lld -L %t.dir %t.script %t
 
 # RUN: echo "FOO(BAR)" > %t.script
-# RUN: not ld.lld -o %t.out %t.script > %t.log 2>&1
+# RUN: not ld.lld -o /dev/null %t.script > %t.log 2>&1
 # RUN: FileCheck -check-prefix=ERR1 %s < %t.log
 
 # ERR1: unknown directive: FOO

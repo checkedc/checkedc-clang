@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -13,11 +12,14 @@
 
 // function(F);
 
+// This test runs in C++03, but we have deprecated using std::function in C++03.
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
+
 #include <functional>
 #include <cassert>
 
 #include "test_macros.h"
-#include "count_new.hpp"
+#include "count_new.h"
 
 class A
 {
@@ -61,42 +63,43 @@ struct LValueCallable {
 };
 #endif
 
-int main()
+int main(int, char**)
 {
+    globalMemCounter.reset();
     assert(globalMemCounter.checkOutstandingNewEq(0));
     {
     std::function<int(int)> f = A();
     assert(A::count == 1);
     assert(globalMemCounter.checkOutstandingNewEq(1));
-    assert(f.target<A>());
-    assert(f.target<int(*)(int)>() == 0);
+    RTTI_ASSERT(f.target<A>());
+    RTTI_ASSERT(f.target<int(*)(int)>() == 0);
     }
     assert(A::count == 0);
     assert(globalMemCounter.checkOutstandingNewEq(0));
     {
     std::function<int(int)> f = g;
     assert(globalMemCounter.checkOutstandingNewEq(0));
-    assert(f.target<int(*)(int)>());
-    assert(f.target<A>() == 0);
+    RTTI_ASSERT(f.target<int(*)(int)>());
+    RTTI_ASSERT(f.target<A>() == 0);
     }
     assert(globalMemCounter.checkOutstandingNewEq(0));
     {
     std::function<int(int)> f = (int (*)(int))0;
     assert(!f);
     assert(globalMemCounter.checkOutstandingNewEq(0));
-    assert(f.target<int(*)(int)>() == 0);
-    assert(f.target<A>() == 0);
+    RTTI_ASSERT(f.target<int(*)(int)>() == 0);
+    RTTI_ASSERT(f.target<A>() == 0);
     }
     {
     std::function<int(const A*, int)> f = &A::foo;
     assert(f);
     assert(globalMemCounter.checkOutstandingNewEq(0));
-    assert(f.target<int (A::*)(int) const>() != 0);
+    RTTI_ASSERT(f.target<int (A::*)(int) const>() != 0);
     }
     {
       std::function<void(int)> f(&g);
       assert(f);
-      assert(f.target<int(*)(int)>() != 0);
+      RTTI_ASSERT(f.target<int(*)(int)>() != 0);
       f(1);
     }
     {
@@ -112,4 +115,6 @@ int main()
         static_assert(!std::is_constructible<Fn, RValueCallable>::value, "");
     }
 #endif
+
+  return 0;
 }

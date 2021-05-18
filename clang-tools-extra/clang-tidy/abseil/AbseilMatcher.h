@@ -1,9 +1,8 @@
 //===- AbseilMatcher.h - clang-tidy ---------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -48,14 +47,18 @@ AST_POLYMORPHIC_MATCHER(
   if (PrefixPosition == StringRef::npos)
     return false;
   Path = Path.drop_front(PrefixPosition + AbslPrefix.size());
-  static const char *AbseilLibraries[] = {
-      "algorithm", "base",     "container",       "debugging", "flags",
-      "hash",      "iterator", "memory",          "meta",      "numeric",
-      "random",    "strings",  "synchronization", "time",      "types",
-      "utility"};
-  return std::any_of(
-      std::begin(AbseilLibraries), std::end(AbseilLibraries),
-      [&](const char *Library) { return Path.startswith(Library); });
+  static const char *AbseilLibraries[] = {"algorithm", "base",
+                                          "container", "debugging",
+                                          "flags",     "hash",
+                                          "iterator",  "memory",
+                                          "meta",      "numeric",
+                                          "random",    "status",
+                                          "strings",   "synchronization",
+                                          "time",      "types",
+                                          "utility"};
+  return llvm::any_of(AbseilLibraries, [&](const char *Library) {
+    return Path.startswith(Library);
+  });
 }
 
 } // namespace ast_matchers

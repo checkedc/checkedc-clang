@@ -1,3 +1,5 @@
+add_llvm_component_group(ARC)
+
 set(LLVM_TARGET_DEFINITIONS ARC.td)
 
 tablegen(LLVM ARCGenAsmWriter.inc -gen-asm-writer)
@@ -20,12 +22,28 @@ add_llvm_target(ARCCodeGen
   ARCISelLowering.cpp
   ARCMachineFunctionInfo.cpp
   ARCMCInstLower.cpp
+  ARCOptAddrMode.cpp
   ARCRegisterInfo.cpp
   ARCSubtarget.cpp
   ARCTargetMachine.cpp
-  )
+
+  LINK_COMPONENTS
+  Analysis
+  AsmPrinter
+  CodeGen
+  Core
+  MC
+  SelectionDAG
+  Support
+  Target
+  TransformUtils
+  ARCDesc
+  ARCInfo
+
+  ADD_TO_COMPONENT
+  ARC
+)
 
 add_subdirectory(Disassembler)
-add_subdirectory(InstPrinter)
 add_subdirectory(MCTargetDesc)
 add_subdirectory(TargetInfo)

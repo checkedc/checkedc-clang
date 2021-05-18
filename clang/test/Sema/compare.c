@@ -1,4 +1,5 @@
 // RUN: %clang_cc1 -triple x86_64-apple-darwin -fsyntax-only -pedantic -verify -Wsign-compare -Wtautological-constant-in-range-compare %s -Wno-unreachable-code
+// RUN: %clang_cc1 -triple x86_64-apple-darwin -fsyntax-only -pedantic -verify -Wsign-compare -Wtype-limits %s -Wno-unreachable-code
 
 int test(char *C) { // nothing here should warn.
   return C != ((void*)0);
@@ -282,6 +283,20 @@ int test5(unsigned int x) {
     && (0 > x)   // expected-warning {{comparison of 0 > unsigned expression is always false}}
     && (x >= 0)  // expected-warning {{comparison of unsigned expression >= 0 is always true}}
     && (0 <= x); // expected-warning {{comparison of 0 <= unsigned expression is always true}}
+}
+
+struct bitfield {
+  int a : 3;
+  unsigned b : 3;
+  long c : 40;
+  unsigned long d : 40;
+};
+
+void test5a(struct bitfield a) {
+  if (a.a < 0) {}
+  if (a.b < 0) {} // expected-warning {{comparison of unsigned expression < 0 is always false}}
+  if (a.c < 0) {}
+  if (a.d < 0) {} // expected-warning {{comparison of unsigned expression < 0 is always false}}
 }
 
 int test6(unsigned i, unsigned power) {

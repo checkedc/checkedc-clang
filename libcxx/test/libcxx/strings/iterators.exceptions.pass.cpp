@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -28,13 +27,13 @@
 #ifndef TEST_HAS_NO_EXCEPTIONS
 static const bool expected = false;
 #else
-// Under libcpp-no-exceptions all noexcept expressions are trivially true, so
+// Under -fno-exceptions all noexcept expressions are trivially true, so
 // any check for a noexcept returning false must actually check for it being
 // true.
 static const bool expected = true;
 #endif
 
-int main()
+int main(int, char**)
 {
 //  basic tests
     static_assert(( std::__libcpp_string_gets_noexcept_iterator<char *>::value), "");
@@ -85,4 +84,6 @@ int main()
     static_assert(( std::__libcpp_string_gets_noexcept_iterator<std::initializer_list<char>::iterator>              ::value), "");
     static_assert(( std::__libcpp_string_gets_noexcept_iterator<std::initializer_list<char>::const_iterator>        ::value), "");
 #endif
+
+  return 0;
 }

@@ -1,9 +1,8 @@
-//===-- BreakpointResolver.cpp ----------------------------------*- C++ -*-===//
+//===-- BreakpointResolver.cpp --------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -32,12 +31,11 @@
 using namespace lldb_private;
 using namespace lldb;
 
-//----------------------------------------------------------------------
 // BreakpointResolver:
-//----------------------------------------------------------------------
 const char *BreakpointResolver::g_ty_to_name[] = {"FileAndLine", "Address",
                                                   "SymbolName",  "SourceRegex",
-                                                  "Exception",   "Unknown"};
+                                                  "Python",   "Exception",
+                                                  "Unknown"};
 
 const char *BreakpointResolver::g_option_names[static_cast<uint32_t>(
     BreakpointResolver::OptionNames::LastOptionName)] = {
@@ -62,7 +60,7 @@ BreakpointResolver::NameToResolverTy(llvm::StringRef name) {
   return UnknownResolver;
 }
 
-BreakpointResolver::BreakpointResolver(Breakpoint *bkpt,
+BreakpointResolver::BreakpointResolver(const BreakpointSP &bkpt,
                                        const unsigned char resolverTy,
                                        lldb::addr_t offset)
     : m_breakpoint(bkpt), m_offset(offset), SubclassID(resolverTy) {}
@@ -83,8 +81,7 @@ BreakpointResolverSP BreakpointResolver::CreateFromStructuredData(
       GetSerializationSubclassKey(), subclass_name);
 
   if (!success) {
-    error.SetErrorStringWithFormat(
-        "Resolver data missing subclass resolver key");
+    error.SetErrorString("Resolver data missing subclass resolver key");
     return result_sp;
   }
 
@@ -165,7 +162,8 @@ StructuredData::DictionarySP BreakpointResolver::WrapOptionsDict(
   return type_dict_sp;
 }
 
-void BreakpointResolver::SetBreakpoint(Breakpoint *bkpt) {
+void BreakpointResolver::SetBreakpoint(const BreakpointSP &bkpt) {
+  assert(bkpt);
   m_breakpoint = bkpt;
   NotifyBreakpointSet();
 }
@@ -297,18 +295,18 @@ void BreakpointResolver::AddLocation(SearchFilter &filter,
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_BREAKPOINTS));
   Address line_start = sc.line_entry.range.GetBaseAddress();
   if (!line_start.IsValid()) {
-    if (log)
-      log->Printf("error: Unable to set breakpoint %s at file address "
-                  "0x%" PRIx64 "\n",
-                  log_ident.str().c_str(), line_start.GetFileAddress());
+    LLDB_LOGF(log,
+              "error: Unable to set breakpoint %s at file address "
+              "0x%" PRIx64 "\n",
+              log_ident.str().c_str(), line_start.GetFileAddress());
     return;
   }
 
   if (!filter.AddressPasses(line_start)) {
-    if (log)
-      log->Printf("Breakpoint %s at file address 0x%" PRIx64
-                  " didn't pass the filter.\n",
-                  log_ident.str().c_str(), line_start.GetFileAddress());
+    LLDB_LOGF(log,
+              "Breakpoint %s at file address 0x%" PRIx64
+              " didn't pass the filter.\n",
+              log_ident.str().c_str(), line_start.GetFileAddress());
   }
 
   // If the line number is before the prologue end, move it there...
@@ -329,18 +327,18 @@ void BreakpointResolver::AddLocation(SearchFilter &filter,
   }
 
   BreakpointLocationSP bp_loc_sp(AddLocation(line_start));
-  if (log && bp_loc_sp && !m_breakpoint->IsInternal()) {
+  if (log && bp_loc_sp && !GetBreakpoint()->IsInternal()) {
     StreamString s;
     bp_loc_sp->GetDescription(&s, lldb::eDescriptionLevelVerbose);
-    log->Printf("Added location (skipped prologue: %s): %s \n",
-                skipped_prologue ? "yes" : "no", s.GetData());
+    LLDB_LOGF(log, "Added location (skipped prologue: %s): %s \n",
+              skipped_prologue ? "yes" : "no", s.GetData());
   }
 }
 
 BreakpointLocationSP BreakpointResolver::AddLocation(Address loc_addr,
                                                      bool *new_location) {
   loc_addr.Slide(m_offset);
-  return m_breakpoint->AddLocation(loc_addr, new_location);
+  return GetBreakpoint()->AddLocation(loc_addr, new_location);
 }
 
 void BreakpointResolver::SetOffset(lldb::addr_t offset) {

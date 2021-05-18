@@ -1,19 +1,18 @@
 //===-- PdbAstBuilder.h -----------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_PLUGINS_SYMBOLFILE_NATIVEPDB_PDBASTBUILDER_H
-#define LLDB_PLUGINS_SYMBOLFILE_NATIVEPDB_PDBASTBUILDER_H
+#ifndef LLDB_SOURCE_PLUGINS_SYMBOLFILE_NATIVEPDB_PDBASTBUILDER_H
+#define LLDB_SOURCE_PLUGINS_SYMBOLFILE_NATIVEPDB_PDBASTBUILDER_H
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringRef.h"
 
-#include "lldb/Symbol/ClangASTImporter.h"
+#include "Plugins/ExpressionParser/Clang/ClangASTImporter.h"
 
 #include "PdbIndex.h"
 #include "PdbSymUid.h"
@@ -51,19 +50,16 @@ struct DeclStatus {
 
 class PdbAstBuilder {
 public:
-  //------------------------------------------------------------------
   // Constructors and Destructors
-  //------------------------------------------------------------------
-  PdbAstBuilder(ObjectFile &obj, PdbIndex &index);
+  PdbAstBuilder(ObjectFile &obj, PdbIndex &index, TypeSystemClang &clang);
 
-  clang::DeclContext &GetTranslationUnitDecl();
+  lldb_private::CompilerDeclContext GetTranslationUnitDecl();
 
-  clang::Decl *GetOrCreateDeclForUid(PdbSymUid uid);
+  llvm::Optional<lldb_private::CompilerDecl>
+  GetOrCreateDeclForUid(PdbSymUid uid);
   clang::DeclContext *GetOrCreateDeclContextForUid(PdbSymUid uid);
   clang::DeclContext *GetParentDeclContext(PdbSymUid uid);
 
-  clang::NamespaceDecl *GetOrCreateNamespaceDecl(llvm::StringRef name,
-                                                 clang::DeclContext &context);
   clang::FunctionDecl *GetOrCreateFunctionDecl(PdbCompilandSymId func_id);
   clang::BlockDecl *GetOrCreateBlockDecl(PdbCompilandSymId block_id);
   clang::VarDecl *GetOrCreateVariableDecl(PdbCompilandSymId scope_id,
@@ -81,9 +77,10 @@ public:
   CompilerDecl ToCompilerDecl(clang::Decl &decl);
   CompilerType ToCompilerType(clang::QualType qt);
   CompilerDeclContext ToCompilerDeclContext(clang::DeclContext &context);
+  clang::Decl *FromCompilerDecl(CompilerDecl decl);
   clang::DeclContext *FromCompilerDeclContext(CompilerDeclContext context);
 
-  ClangASTContext &clang() { return m_clang; }
+  TypeSystemClang &clang() { return m_clang; }
   ClangASTImporter &importer() { return m_importer; }
 
   void Dump(Stream &stream);
@@ -103,7 +100,8 @@ private:
   clang::QualType CreateEnumType(PdbTypeSymId id,
                                  const llvm::codeview::EnumRecord &record);
   clang::QualType
-  CreateProcedureType(const llvm::codeview::ProcedureRecord &proc);
+  CreateFunctionType(TypeIndex args_type_idx, TypeIndex return_type_idx,
+                     llvm::codeview::CallingConvention calling_convention);
   clang::QualType CreateType(PdbTypeSymId type);
 
   void CreateFunctionParameters(PdbCompilandSymId func_id,
@@ -115,6 +113,9 @@ private:
                                      clang::DeclContext &scope);
   clang::DeclContext *
   GetParentDeclContextForSymbol(const llvm::codeview::CVSymbol &sym);
+
+  clang::NamespaceDecl *GetOrCreateNamespaceDecl(const char *name,
+                                                 clang::DeclContext &context);
 
   void ParseAllNamespacesPlusChildrenOf(llvm::Optional<llvm::StringRef> parent);
   void ParseDeclsForSimpleContext(clang::DeclContext &context);
@@ -128,7 +129,7 @@ private:
   clang::QualType CreateSimpleType(TypeIndex ti);
 
   PdbIndex &m_index;
-  ClangASTContext &m_clang;
+  TypeSystemClang &m_clang;
 
   ClangASTImporter m_importer;
 
@@ -141,4 +142,4 @@ private:
 } // namespace npdb
 } // namespace lldb_private
 
-#endif // lldb_Plugins_SymbolFile_PDB_SymbolFilePDB_h_
+#endif // LLDB_SOURCE_PLUGINS_SYMBOLFILE_NATIVEPDB_PDBASTBUILDER_H

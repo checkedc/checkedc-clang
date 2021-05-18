@@ -1,9 +1,8 @@
 //===-- NativeProcessLinux.h ---------------------------------- -*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -22,22 +21,22 @@
 #include "lldb/lldb-types.h"
 
 #include "NativeThreadLinux.h"
+#include "Plugins/Process/POSIX/NativeProcessELF.h"
 #include "ProcessorTrace.h"
-#include "lldb/Host/common/NativeProcessProtocol.h"
 
 namespace lldb_private {
 class Status;
 class Scalar;
 
 namespace process_linux {
-/// @class NativeProcessLinux
+/// \class NativeProcessLinux
 /// Manages communication with the inferior (debugee) process.
 ///
 /// Upon construction, this class prepares and launches an inferior process
 /// for debugging.
 ///
 /// Changes in the inferior process state are broadcasted.
-class NativeProcessLinux : public NativeProcessProtocol {
+class NativeProcessLinux : public NativeProcessELF {
 public:
   class Factory : public NativeProcessProtocol::Factory {
   public:
@@ -50,9 +49,7 @@ public:
            MainLoop &mainloop) const override;
   };
 
-  // ---------------------------------------------------------------------
   // NativeProcessProtocol Interface
-  // ---------------------------------------------------------------------
   Status Resume(const ResumeActionList &resume_actions) override;
 
   Status Halt() override;
@@ -74,12 +71,10 @@ public:
   Status WriteMemory(lldb::addr_t addr, const void *buf, size_t size,
                      size_t &bytes_written) override;
 
-  Status AllocateMemory(size_t size, uint32_t permissions,
-                        lldb::addr_t &addr) override;
+  llvm::Expected<lldb::addr_t> AllocateMemory(size_t size,
+                                              uint32_t permissions) override;
 
-  Status DeallocateMemory(lldb::addr_t addr) override;
-
-  lldb::addr_t GetSharedLibraryInfoAddress() override;
+  llvm::Error DeallocateMemory(lldb::addr_t addr) override;
 
   size_t UpdateThreads() override;
 
@@ -99,6 +94,7 @@ public:
                             lldb::addr_t &load_addr) override;
 
   NativeThreadLinux *GetThreadByID(lldb::tid_t id);
+  NativeThreadLinux *GetCurrentThread();
 
   llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>>
   GetAuxvData() const override {
@@ -121,9 +117,9 @@ public:
 
   Status GetTraceConfig(lldb::user_id_t traceid, TraceOptions &config) override;
 
-  // ---------------------------------------------------------------------
+  virtual llvm::Expected<TraceTypeInfo> GetSupportedTraceType() override;
+
   // Interface used by NativeRegisterContext-derived classes.
-  // ---------------------------------------------------------------------
   static Status PtraceWrapper(int req, lldb::pid_t pid, void *addr = nullptr,
                               void *data = nullptr, size_t data_size = 0,
                               long *result = nullptr);
@@ -133,6 +129,8 @@ public:
 protected:
   llvm::Expected<llvm::ArrayRef<uint8_t>>
   GetSoftwareBreakpointTrapOpcode(size_t size_hint) override;
+
+  llvm::Expected<uint64_t> Syscall(llvm::ArrayRef<uint64_t> args);
 
 private:
   MainLoop::SignalHandleUP m_sigchld_handle;
@@ -147,9 +145,10 @@ private:
   // the relevan breakpoint
   std::map<lldb::tid_t, lldb::addr_t> m_threads_stepping_with_breakpoint;
 
-  // ---------------------------------------------------------------------
+  /// Inferior memory (allocated by us) and its size.
+  llvm::DenseMap<lldb::addr_t, lldb::addr_t> m_allocated_memory;
+
   // Private Instance Methods
-  // ---------------------------------------------------------------------
   NativeProcessLinux(::pid_t pid, int terminal_fd, NativeDelegate &delegate,
                      const ArchSpec &arch, MainLoop &mainloop,
                      llvm::ArrayRef<::pid_t> tids);
@@ -183,7 +182,7 @@ private:
   NativeThreadLinux &AddThread(lldb::tid_t thread_id);
 
   /// Writes a siginfo_t structure corresponding to the given thread ID to the
-  /// memory region pointed to by @p siginfo.
+  /// memory region pointed to by \p siginfo.
   Status GetSignalInfo(lldb::tid_t tid, void *siginfo);
 
   /// Writes the raw event message code (vis-a-vis PTRACE_GETEVENTMSG)

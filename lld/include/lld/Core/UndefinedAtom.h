@@ -1,9 +1,8 @@
 //===- Core/UndefinedAtom.h - An Undefined Atom ---------------------------===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -26,7 +25,7 @@ public:
     /// Normal symbols must be resolved at build time
     canBeNullNever,
 
-    /// This symbol can be missing at runtime and will evalute to nullptr.
+    /// This symbol can be missing at runtime and will evaluate to nullptr.
     /// That is, the static linker still must find a definition (usually
     /// is some shared library), but at runtime, the dynamic loader
     /// will allow the symbol to be missing and resolved to nullptr.

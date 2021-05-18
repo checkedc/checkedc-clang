@@ -1,14 +1,13 @@
 // -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
 
 #include <experimental/coroutine>
 #include <cassert>
@@ -46,7 +45,7 @@ struct Bug {
 struct coro2 {
   struct promise_type {
     suspend_never initial_suspend() { return{}; }
-    suspend_never final_suspend() { return{}; }
+    suspend_never final_suspend() noexcept { return {}; }
     coro2 get_return_object() { return{}; }
     void return_void() {}
     Bug yield_value(int) { return {}; }
@@ -109,9 +108,11 @@ coro2 d() {
   assert(dtor_called == 1);
 }
 
-int main() {
+int main(int, char**) {
   a();
   b();
   c();
   d();
+
+  return 0;
 }

@@ -87,11 +87,11 @@ __except.ret:                                     ; preds = %catch.dispatch.7
 ; CHECK: .seh_proc main
 ; CHECK:         .seh_handler __C_specific_handler, @unwind, @except
 ; CHECK:         pushq   %rbp
-; CHECK:         .seh_pushreg 5
+; CHECK:         .seh_pushreg %rbp
 ; CHECK:         subq    $32, %rsp
 ; CHECK:         .seh_stackalloc 32
 ; CHECK:         leaq    32(%rsp), %rbp
-; CHECK:         .seh_setframe 5, 32
+; CHECK:         .seh_setframe %rbp, 32
 ; CHECK:         .seh_endprologue
 ; CHECK: .Ltmp0:
 ; CHECK:         movl    $1, %ecx
@@ -151,7 +151,7 @@ __except.ret:                                     ; preds = %catch.dispatch.7
 ; CHECK: .LBB1_[[finbb]]:                                # %ehcleanup
 ; CHECK:         movq    %rdx, 16(%rsp)
 ; CHECK:         pushq   %rbp
-; CHECK:         .seh_pushreg 5
+; CHECK:         .seh_pushreg %rbp
 ; CHECK:         subq    $32, %rsp
 ; CHECK:         .seh_stackalloc 32
 ; CHECK:         leaq    32(%rdx), %rbp
@@ -187,9 +187,9 @@ entry:
 ; Function Attrs: nounwind
 declare i32 @puts(i8* nocapture readonly) #3
 
-attributes #0 = { nounwind readnone "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-features"="+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-features"="+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #2 = { noinline nounwind "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-features"="+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #3 = { nounwind "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-features"="+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind readnone "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-features"="+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #1 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-features"="+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #2 = { noinline nounwind "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-features"="+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #3 = { nounwind "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-features"="+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #4 = { noinline }
 attributes #5 = { nounwind }

@@ -1,5 +1,5 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,SI %s
-; RUN: llc -march=amdgcn -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,VI %s
+; RUN: llc -march=amdgcn -mcpu=tahiti -verify-machineinstrs < %s | FileCheck -enable-var-scope --check-prefix=GCN %s
+; RUN: llc -march=amdgcn -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -enable-var-scope --check-prefix=GCN %s
 ; RUN: llc -march=r600 -mcpu=redwood < %s | FileCheck -check-prefix=R600 %s
 
 ; R600: {{^}}s_mad_zext_i32_to_i64:
@@ -36,9 +36,9 @@ define amdgpu_kernel void @s_arg_zext_i1_to_i64(i64 addrspace(1)* %out, i1 zeroe
 }
 
 ; GCN-LABEL: {{^}}s_cmp_zext_i1_to_i64:
-; GCN: s_mov_b32 s{{[0-9]+}}, 0
-; GCN: v_cmp_eq_u32
-; GCN: v_cndmask_b32
+; GCN-DAG: s_mov_b32 s{{[0-9]+}}, 0
+; GCN-DAG: v_cmp_eq_u32
+; GCN:     v_cndmask_b32
 define amdgpu_kernel void @s_cmp_zext_i1_to_i64(i64 addrspace(1)* %out, i32 %a, i32 %b) #0 {
   %cmp = icmp eq i32 %a, %b
   %ext = zext i1 %cmp to i64

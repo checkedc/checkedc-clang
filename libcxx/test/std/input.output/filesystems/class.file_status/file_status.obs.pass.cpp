@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -16,12 +15,14 @@
 // file_type type() const noexcept;
 // perms permissions(p) const noexcept;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 
+#include "test_macros.h"
 
-int main() {
+
+int main(int, char**) {
   using namespace fs;
 
   const file_status st(file_type::regular, perms::owner_read);
@@ -42,4 +43,6 @@ int main() {
                  "operation must return perms");
     assert(st.permissions() == perms::owner_read);
   }
+
+  return 0;
 }

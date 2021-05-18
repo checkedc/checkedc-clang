@@ -2,15 +2,15 @@
 // RUN: llvm-mc -filetype=obj -triple=x86_64-pc-linux %s -o %t.o
 
 // RUN: ld.lld %t.o -o %t
-// RUN: llvm-readobj -file-headers -s -section-data -program-headers -symbols %t \
+// RUN: llvm-readobj --file-headers -S --section-data -l --symbols %t \
 // RUN:   | FileCheck %s --check-prefix=NOHDR
 
 // RUN: ld.lld -eh-frame-hdr -no-eh-frame-hdr %t.o -o %t
-// RUN: llvm-readobj -file-headers -s -section-data -program-headers -symbols %t \
+// RUN: llvm-readobj --file-headers -S --section-data -l --symbols %t \
 // RUN:   | FileCheck %s --check-prefix=NOHDR
 
 // RUN: ld.lld --eh-frame-hdr %t.o -o %t
-// RUN: llvm-readobj -file-headers -s -section-data -program-headers -symbols %t \
+// RUN: llvm-readobj --file-headers -S --section-data -l --symbols %t \
 // RUN:   | FileCheck %s --check-prefix=HDR
 // RUN: llvm-objdump -d %t | FileCheck %s --check-prefix=HDRDISASM
 
@@ -38,15 +38,20 @@ _start:
 // NOHDR:      ProgramHeaders [
 // NOHDR-NOT:   PT_GNU_EH_FRAME
 
-//HDRDISASM:      Disassembly of section foo:
-//HDRDISASM-NEXT: foo:
-//HDRDISASM-NEXT:    201000: 90 nop
-//HDRDISASM-NEXT: Disassembly of section bar:
-//HDRDISASM-NEXT: bar:
-//HDRDISASM-NEXT:    201001: 90 nop
-//HDRDISASM-NEXT: Disassembly of section dah:
-//HDRDISASM-NEXT: dah:
-//HDRDISASM-NEXT:    201002: 90 nop
+// HDRDISASM:      Disassembly of section foo:
+// HDRDISASM-EMPTY:
+// HDRDISASM-NEXT: <foo>:
+// HDRDISASM-NEXT:    2011e4: 90 nop
+// HDRDISASM-EMPTY:
+// HDRDISASM-NEXT: Disassembly of section bar:
+// HDRDISASM-EMPTY:
+// HDRDISASM-NEXT: <bar>:
+// HDRDISASM-NEXT:    2011e5: 90 nop
+// HDRDISASM-EMPTY:
+// HDRDISASM-NEXT: Disassembly of section dah:
+// HDRDISASM-EMPTY:
+// HDRDISASM-NEXT: <dah>:
+// HDRDISASM-NEXT:    2011e6: 90 nop
 
 // HDR:       Section {
 // HDR:         Index:
@@ -63,23 +68,23 @@ _start:
 // HDR-NEXT:    AddressAlignment: 4
 // HDR-NEXT:    EntrySize: 0
 // HDR-NEXT:    SectionData (
-// HDR-NEXT:      0000: 011B033B 24000000 03000000 A80E0000
-// HDR-NEXT:      0010: 40000000 A90E0000 58000000 AA0E0000
+// HDR-NEXT:      0000: 011B033B 24000000 03000000 8C100000
+// HDR-NEXT:      0010: 40000000 8D100000 58000000 8E100000
 // HDR-NEXT:      0020: 70000000
 // HDR-NEXT:    )
 //              Header (always 4 bytes): 0x011B033B
 //                 24000000 = .eh_frame(0x200180) - .eh_frame_hdr(0x200158) - 4
 //                 03000000 = 3 = the number of FDE pointers in the table.
-//              Entry(1): A80E0000 40000000
-//                 480E0000 = 0x201000 - .eh_frame_hdr(0x200158) = 0xEA8
+//              Entry(1): 8C100000 40000000
+//                 480E0000 = 0x2011e4 - .eh_frame_hdr(0x200158) = 0x108C
 //                 40000000 = address of FDE(1) - .eh_frame_hdr(0x200158) =
 //                    = .eh_frame(0x200180) + 24 - 0x200158 = 0x40
-//              Entry(2): A90E0000 58000000
-//                 A90E0000 = 0x201001 - .eh_frame_hdr(0x200158) = 0xEA9
+//              Entry(2): 8D100000 58000000
+//                 A90E0000 = 0x2011e5 - .eh_frame_hdr(0x200158) = 0x108D
 //                 58000000 = address of FDE(2) - .eh_frame_hdr(0x200158) =
 //                    = .eh_frame(0x200180) + 24 + 24 - 0x200158 = 0x58
-//              Entry(3): AA0E0000 70000000
-//                 AA0E0000 = 0x201002 - .eh_frame_hdr(0x200158) = 0xEAA
+//              Entry(3): 8E100000 70000000
+//                 AA0E0000 = 0x2011e6 - .eh_frame_hdr(0x200158) = 0x108E
 //                 70000000 = address of FDE(3) - .eh_frame_hdr(0x200158) =
 //                    = .eh_frame(0x200180) + 24 + 24 + 24 - 0x200158 = 0x70
 // HDR-NEXT:  }
@@ -100,10 +105,10 @@ _start:
 // HDR-NEXT:    SectionData (
 // HDR-NEXT:      0000: 14000000 00000000 017A5200 01781001
 // HDR-NEXT:      0010: 1B0C0708 90010000 14000000 1C000000
-// HDR-NEXT:      0020: 600E0000 01000000 00000000 00000000
-// HDR-NEXT:      0030: 14000000 34000000 490E0000 01000000
+// HDR-NEXT:      0020: 44100000 01000000 00000000 00000000
+// HDR-NEXT:      0030: 14000000 34000000 2D100000 01000000
 // HDR-NEXT:      0040: 00000000 00000000 14000000 4C000000
-// HDR-NEXT:      0050: 320E0000 01000000 00000000 00000000
+// HDR-NEXT:      0050: 16100000 01000000 00000000 00000000
 // HDR-NEXT:      0060: 00000000
 // HDR-NEXT:    )
 //            CIE: 14000000 00000000 017A5200 01781001 1B0C0708 90010000

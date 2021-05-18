@@ -1,19 +1,18 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class year_month_day;
 
 //  constexpr year_month_day(const sys_days& dp) noexcept;
 //
-//  Effects:  Constructs an object of type year_month_day that corresponds 
+//  Effects:  Constructs an object of type year_month_day that corresponds
 //                to the date represented by dp.
 //
 //  Remarks: For any value ymd of type year_month_day for which ymd.ok() is true,
@@ -29,7 +28,7 @@
 
 #include "test_macros.h"
 
-int main()
+int main(int, char**)
 {
     using year           = std::chrono::year;
     using day            = std::chrono::day;
@@ -81,4 +80,6 @@ int main()
     assert( ymd.month() == std::chrono::November);
     assert( ymd.day()   == day{29});
     }
+
+  return 0;
 }

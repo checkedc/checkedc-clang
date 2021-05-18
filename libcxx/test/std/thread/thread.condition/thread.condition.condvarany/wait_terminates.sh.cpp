@@ -1,26 +1,25 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: libcpp-no-exceptions
+// UNSUPPORTED: no-exceptions
 // UNSUPPORTED: libcpp-has-no-threads
 
 // <condition_variable>
 
 // class condition_variable_any;
 
-// RUN: %build
-// RUN: %run 1
-// RUN: %run 2
-// RUN: %run 3
-// RUN: %run 4
-// RUN: %run 5
-// RUN: %run 6
+// RUN: %{build}
+// RUN: %{run} 1
+// RUN: %{run} 2
+// RUN: %{run} 3
+// RUN: %{run} 4
+// RUN: %{run} 5
+// RUN: %{run} 6
 
 // -----------------------------------------------------------------------------
 // Overview
@@ -63,6 +62,8 @@
 #include <string>
 #include <cstdlib>
 #include <cassert>
+
+#include "make_test_thread.h"
 
 void my_terminate() {
   std::_Exit(0); // Use _Exit to prevent cleanup from taking place.
@@ -110,7 +111,7 @@ void signal_me() {
 typedef std::chrono::system_clock Clock;
 typedef std::chrono::milliseconds MS;
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   assert(argc == 2);
   int id = std::stoi(argv[1]);
   assert(id >= 1 && id <= 6);
@@ -119,7 +120,7 @@ int main(int argc, char** argv) {
   try {
     mut.lock();
     assert(pred == false);
-    std::thread(signal_me).detach();
+    support::make_test_thread(signal_me).detach();
     switch (id) {
       case 1: cv.wait(mut); break;
       case 2: cv.wait(mut, pred_function); break;
@@ -131,4 +132,6 @@ int main(int argc, char** argv) {
     }
   } catch (...) {}
   assert(false);
+
+  return 0;
 }

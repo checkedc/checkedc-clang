@@ -1,9 +1,8 @@
-//===-- RenderScriptx86ABIFixups.cpp ----------------------------*- C++ -*-===//
+//===-- RenderScriptx86ABIFixups.cpp --------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -11,7 +10,6 @@
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
@@ -73,7 +71,7 @@ bool isRSAllocationTyCallSite(llvm::Module &module, llvm::CallInst *call_inst) {
   (void)module;
   if (!call_inst->hasByValArgument())
     return false;
-  for (const auto &param : call_inst->operand_values())
+  for (const auto *param : call_inst->operand_values())
     if (isRSAllocationPtrTy(param->getType()))
       return true;
   return false;
@@ -94,9 +92,8 @@ llvm::FunctionType *cloneToStructRetFnTy(llvm::CallInst *call_inst) {
   assert(orig && "CallInst has no called function");
   llvm::FunctionType *orig_type = orig->getFunctionType();
   auto name = orig->getName();
-  if (log)
-    log->Printf("%s - cloning to StructRet function for '%s'", __FUNCTION__,
-                name.str().c_str());
+  LLDB_LOGF(log, "%s - cloning to StructRet function for '%s'", __FUNCTION__,
+            name.str().c_str());
 
   unsigned num_params = orig_type->getNumParams();
   std::vector<llvm::Type *> new_params{num_params + 1, nullptr};
@@ -114,9 +111,9 @@ llvm::FunctionType *cloneToStructRetFnTy(llvm::CallInst *call_inst) {
   if (!return_type_ptr_type)
     return nullptr;
 
-  if (log)
-    log->Printf("%s - return type pointer type for StructRet clone @ '0x%p':\n",
-                __FUNCTION__, (void *)return_type_ptr_type);
+  LLDB_LOGF(log,
+            "%s - return type pointer type for StructRet clone @ '0x%p':\n",
+            __FUNCTION__, (void *)return_type_ptr_type);
   // put the sret pointer argument in place at the beginning of the
   // argument list.
   params.emplace(params.begin(), return_type_ptr_type);
@@ -160,12 +157,11 @@ bool fixupX86StructRetCalls(llvm::Module &module) {
     assert(new_func_type &&
            "failed to clone functionType for Renderscript ABI fixup");
 
-    llvm::CallSite call_site(call_inst);
     llvm::Function *func = call_inst->getCalledFunction();
     assert(func && "cannot resolve function in RenderScriptRuntime");
     // Copy the original call arguments
-    std::vector<llvm::Value *> new_call_args(call_site.arg_begin(),
-                                             call_site.arg_end());
+    std::vector<llvm::Value *> new_call_args(call_inst->arg_begin(),
+                                             call_inst->arg_end());
 
     // Allocate enough space to store the return value of the original function
     // we pass a pointer to this allocation as the StructRet param, and then
@@ -191,14 +187,17 @@ bool fixupX86StructRetCalls(llvm::Module &module) {
         ->setName("new_func_ptr_load_cast");
     // load the new function address ready for a jump
     llvm::LoadInst *new_func_addr_load =
-        new llvm::LoadInst(new_func_ptr, "load_func_pointer", call_inst);
+        new llvm::LoadInst(new_func_ptr->getType()->getPointerElementType(),
+                           new_func_ptr, "load_func_pointer", call_inst);
     // and create a callinstruction from it
-    llvm::CallInst *new_call_inst = llvm::CallInst::Create(
-        new_func_addr_load, new_call_args, "new_func_call", call_inst);
+    llvm::CallInst *new_call_inst =
+        llvm::CallInst::Create(new_func_type, new_func_addr_load, new_call_args,
+                               "new_func_call", call_inst);
     new_call_inst->setCallingConv(call_inst->getCallingConv());
     new_call_inst->setTailCall(call_inst->isTailCall());
-    llvm::LoadInst *lldb_save_result_address =
-        new llvm::LoadInst(return_value_alloc, "save_return_val", call_inst);
+    llvm::LoadInst *lldb_save_result_address = new llvm::LoadInst(
+        return_value_alloc->getType()->getPointerElementType(),
+        return_value_alloc, "save_return_val", call_inst);
 
     // Now remove the old broken call
     call_inst->replaceAllUsesWith(lldb_save_result_address);

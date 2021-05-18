@@ -1,42 +1,39 @@
 //===-- AMDGPUMachineFunctionInfo.cpp ---------------------------------------=//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPUMachineFunction.h"
-#include "AMDGPUSubtarget.h"
 #include "AMDGPUPerfHintAnalysis.h"
+#include "AMDGPUSubtarget.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
+#include "llvm/Target/TargetMachine.h"
 
 using namespace llvm;
 
-AMDGPUMachineFunction::AMDGPUMachineFunction(const MachineFunction &MF) :
-  MachineFunctionInfo(),
-  LocalMemoryObjects(),
-  ExplicitKernArgSize(0),
-  MaxKernArgAlign(0),
-  LDSSize(0),
-  IsEntryFunction(AMDGPU::isEntryFunctionCC(MF.getFunction().getCallingConv())),
-  NoSignedZerosFPMath(MF.getTarget().Options.NoSignedZerosFPMath),
-  MemoryBound(false),
-  WaveLimiter(false) {
+AMDGPUMachineFunction::AMDGPUMachineFunction(const MachineFunction &MF)
+    : MachineFunctionInfo(), Mode(MF.getFunction()),
+      IsEntryFunction(
+          AMDGPU::isEntryFunctionCC(MF.getFunction().getCallingConv())),
+      IsModuleEntryFunction(
+          AMDGPU::isModuleEntryFunctionCC(MF.getFunction().getCallingConv())),
+      NoSignedZerosFPMath(MF.getTarget().Options.NoSignedZerosFPMath) {
   const AMDGPUSubtarget &ST = AMDGPUSubtarget::get(MF);
 
   // FIXME: Should initialize KernArgSize based on ExplicitKernelArgOffset,
   // except reserved size is not correctly aligned.
   const Function &F = MF.getFunction();
 
-  if (auto *Resolver = MF.getMMI().getResolver()) {
-    if (AMDGPUPerfHintAnalysis *PHA = static_cast<AMDGPUPerfHintAnalysis*>(
-          Resolver->getAnalysisIfAvailable(&AMDGPUPerfHintAnalysisID, true))) {
-      MemoryBound = PHA->isMemoryBound(&F);
-      WaveLimiter = PHA->needsWaveLimiter(&F);
-    }
-  }
+  Attribute MemBoundAttr = F.getFnAttribute("amdgpu-memory-bound");
+  MemoryBound = MemBoundAttr.isStringAttribute() &&
+                MemBoundAttr.getValueAsString() == "true";
+
+  Attribute WaveLimitAttr = F.getFnAttribute("amdgpu-wave-limiter");
+  WaveLimiter = WaveLimitAttr.isStringAttribute() &&
+                WaveLimitAttr.getValueAsString() == "true";
 
   CallingConv::ID CC = F.getCallingConv();
   if (CC == CallingConv::AMDGPU_KERNEL || CC == CallingConv::SPIR_KERNEL)
@@ -44,22 +41,38 @@ AMDGPUMachineFunction::AMDGPUMachineFunction(const MachineFunction &MF) :
 }
 
 unsigned AMDGPUMachineFunction::allocateLDSGlobal(const DataLayout &DL,
-                                                  const GlobalValue &GV) {
+                                                  const GlobalVariable &GV) {
   auto Entry = LocalMemoryObjects.insert(std::make_pair(&GV, 0));
   if (!Entry.second)
     return Entry.first->second;
 
-  unsigned Align = GV.getAlignment();
-  if (Align == 0)
-    Align = DL.getABITypeAlignment(GV.getValueType());
+  Align Alignment =
+      DL.getValueOrABITypeAlignment(GV.getAlign(), GV.getValueType());
 
   /// TODO: We should sort these to minimize wasted space due to alignment
   /// padding. Currently the padding is decided by the first encountered use
   /// during lowering.
-  unsigned Offset = LDSSize = alignTo(LDSSize, Align);
+  unsigned Offset = StaticLDSSize = alignTo(StaticLDSSize, Alignment);
 
   Entry.first->second = Offset;
-  LDSSize += DL.getTypeAllocSize(GV.getValueType());
+  StaticLDSSize += DL.getTypeAllocSize(GV.getValueType());
+
+  // Update the LDS size considering the padding to align the dynamic shared
+  // memory.
+  LDSSize = alignTo(StaticLDSSize, DynLDSAlign);
 
   return Offset;
+}
+
+void AMDGPUMachineFunction::setDynLDSAlign(const DataLayout &DL,
+                                           const GlobalVariable &GV) {
+  assert(DL.getTypeAllocSize(GV.getValueType()).isZero());
+
+  Align Alignment =
+      DL.getValueOrABITypeAlignment(GV.getAlign(), GV.getValueType());
+  if (Alignment <= DynLDSAlign)
+    return;
+
+  LDSSize = alignTo(StaticLDSSize, Alignment);
+  DynLDSAlign = Alignment;
 }

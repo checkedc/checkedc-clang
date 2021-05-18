@@ -1,9 +1,8 @@
 //===- Core/SymbolTable.cpp - Main Symbol Table ---------------------------===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -158,21 +157,15 @@ bool SymbolTable::addByName(const Atom &newAtom) {
         useNew = true;
         break;
       }
-      llvm::errs() << "Size mismatch: "
-                   << existing->name() << " (" << existingSize << ") "
-                   << newAtom.name() << " (" << newSize << ")\n";
+      llvm::errs() << "Size mismatch: " << existing->name() << " ("
+                   << existingSize << ") " << newAtom.name() << " (" << newSize
+                   << ")\n";
       LLVM_FALLTHROUGH;
     }
     case MCR_Error:
-      llvm::errs() << "Duplicate symbols: "
-                   << existing->name()
-                   << ":"
-                   << existing->file().path()
-                   << " and "
-                   << newAtom.name()
-                   << ":"
-                   << newAtom.file().path()
-                   << "\n";
+      llvm::errs() << "Duplicate symbols: " << existing->name() << ":"
+                   << existing->file().path() << " and " << newAtom.name()
+                   << ":" << newAtom.file().path() << "\n";
       llvm::report_fatal_error("duplicate symbol error");
       break;
     }

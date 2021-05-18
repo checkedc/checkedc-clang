@@ -5,6 +5,8 @@ class S<string name>: Separate<["--", "-"], name>;
 class R<list<string> prefixes, string name>
   : Option<prefixes, name, KIND_REMAINING_ARGS>;
 
+// Please keep this in sync with the man page in docs/man/lldb.rst
+
 // Attaching options.
 def grp_attach : OptionGroup<"attaching">, HelpText<"ATTACHING">;
 
@@ -95,6 +97,9 @@ def: Flag<["-"], "x">,
   Alias<no_lldbinit>,
   HelpText<"Alias for --no-lldbinit">,
   Group<grp_command>;
+def local_lldbinit: F<"local-lldbinit">,
+  HelpText<"Allow the debugger to parse the .lldbinit files in the current working directory, unless --no-lldbinit is passed.">,
+  Group<grp_command>;
 
 def batch: F<"batch">,
   HelpText<"Tells the debugger to run the commands from -s, -S, -o & -O, and then quit.">,
@@ -114,7 +119,7 @@ def: Flag<["-"], "Q">,
 
 def one_line_on_crash: Separate<["--", "-"], "one-line-on-crash">,
   MetaVarName<"<command>">,
-  HelpText<"When in batch mode, tells the debugger to source this file of lldb commands if the target crashes.">,
+  HelpText<"When in batch mode, tells the debugger to run this one-line lldb command if the target crashes.">,
   Group<grp_command>;
 def: Separate<["-"], "k">,
   Alias<one_line_on_crash>,
@@ -219,11 +224,23 @@ def: Flag<["-"], "d">,
   Alias<debug>,
   HelpText<"Alias for --debug">;
 
-def capture: Separate<["--", "-"], "capture">,
+def capture: F<"capture">,
+  HelpText<"Tells the debugger to capture a reproducer.">;
+def capture_path: Separate<["--", "-"], "capture-path">,
   MetaVarName<"<filename>">,
-  HelpText<"Tells the debugger to capture a reproducer to <filename>.">;
+  HelpText<"Tells the debugger to use the given filename for the reproducer.">;
 def replay: Separate<["--", "-"], "replay">,
   MetaVarName<"<filename>">,
   HelpText<"Tells the debugger to replay a reproducer from <filename>.">;
+def reproducer_finalize: Separate<["--", "-"], "reproducer-finalize">,
+  MetaVarName<"<filename>">;
+def no_version_check: F<"reproducer-no-version-check">,
+  HelpText<"Disable the reproducer version check.">;
+def no_verification: F<"reproducer-no-verify">,
+  HelpText<"Disable the reproducer verification.">;
+def no_generate_on_signal: F<"reproducer-no-generate-on-signal">,
+  HelpText<"Don't generate reproducer when a signal is received.">;
+def generate_on_exit: F<"reproducer-generate-on-exit">,
+  HelpText<"Generate reproducer on exit.">;
 
 def REM : R<["--"], "">;

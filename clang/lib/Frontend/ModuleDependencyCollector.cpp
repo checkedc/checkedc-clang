@@ -1,9 +1,8 @@
 //===--- ModuleDependencyCollector.cpp - Collect module dependencies ------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -99,39 +98,21 @@ struct ModuleDependencyMMCallbacks : public ModuleMapCallbacks {
 
 }
 
-// TODO: move this to Support/Path.h and check for HAVE_REALPATH?
-static bool real_path(StringRef SrcPath, SmallVectorImpl<char> &RealPath) {
-#ifdef LLVM_ON_UNIX
-  char CanonicalPath[PATH_MAX];
-
-  // TODO: emit a warning in case this fails...?
-  if (!realpath(SrcPath.str().c_str(), CanonicalPath))
-    return false;
-
-  SmallString<256> RPath(CanonicalPath);
-  RealPath.swap(RPath);
-  return true;
-#else
-  // FIXME: Add support for systems without realpath.
-  return false;
-#endif
-}
-
 void ModuleDependencyCollector::attachToASTReader(ASTReader &R) {
-  R.addListener(llvm::make_unique<ModuleDependencyListener>(*this));
+  R.addListener(std::make_unique<ModuleDependencyListener>(*this));
 }
 
 void ModuleDependencyCollector::attachToPreprocessor(Preprocessor &PP) {
-  PP.addPPCallbacks(llvm::make_unique<ModuleDependencyPPCallbacks>(
+  PP.addPPCallbacks(std::make_unique<ModuleDependencyPPCallbacks>(
       *this, PP.getSourceManager()));
   PP.getHeaderSearchInfo().getModuleMap().addModuleMapCallbacks(
-      llvm::make_unique<ModuleDependencyMMCallbacks>(*this));
+      std::make_unique<ModuleDependencyMMCallbacks>(*this));
 }
 
 static bool isCaseSensitivePath(StringRef Path) {
   SmallString<256> TmpDest = Path, UpperDest, RealDest;
   // Remove component traversals, links, etc.
-  if (!real_path(Path, TmpDest))
+  if (llvm::sys::fs::real_path(Path, TmpDest))
     return true; // Current default value in vfs.yaml
   Path = TmpDest;
 
@@ -141,7 +122,7 @@ static bool isCaseSensitivePath(StringRef Path) {
   // already expects when sensitivity isn't setup.
   for (auto &C : Path)
     UpperDest.push_back(toUppercase(C));
-  if (real_path(UpperDest, RealDest) && Path.equals(RealDest))
+  if (!llvm::sys::fs::real_path(UpperDest, RealDest) && Path.equals(RealDest))
     return false;
   return true;
 }
@@ -167,7 +148,7 @@ void ModuleDependencyCollector::writeFileMap() {
   std::error_code EC;
   SmallString<256> YAMLPath = VFSDir;
   llvm::sys::path::append(YAMLPath, "vfs.yaml");
-  llvm::raw_fd_ostream OS(YAMLPath, EC, llvm::sys::fs::F_Text);
+  llvm::raw_fd_ostream OS(YAMLPath, EC, llvm::sys::fs::OF_Text);
   if (EC) {
     HasErrors = true;
     return;
@@ -175,72 +156,32 @@ void ModuleDependencyCollector::writeFileMap() {
   VFSWriter.write(OS);
 }
 
-bool ModuleDependencyCollector::getRealPath(StringRef SrcPath,
-                                            SmallVectorImpl<char> &Result) {
-  using namespace llvm::sys;
-  SmallString<256> RealPath;
-  StringRef FileName = path::filename(SrcPath);
-  std::string Dir = path::parent_path(SrcPath).str();
-  auto DirWithSymLink = SymLinkMap.find(Dir);
-
-  // Use real_path to fix any symbolic link component present in a path.
-  // Computing the real path is expensive, cache the search through the
-  // parent path directory.
-  if (DirWithSymLink == SymLinkMap.end()) {
-    if (!real_path(Dir, RealPath))
-      return false;
-    SymLinkMap[Dir] = RealPath.str();
-  } else {
-    RealPath = DirWithSymLink->second;
-  }
-
-  path::append(RealPath, FileName);
-  Result.swap(RealPath);
-  return true;
-}
-
 std::error_code ModuleDependencyCollector::copyToRoot(StringRef Src,
                                                       StringRef Dst) {
   using namespace llvm::sys;
+  llvm::FileCollector::PathCanonicalizer::PathStorage Paths =
+      Canonicalizer.canonicalize(Src);
 
-  // We need an absolute src path to append to the root.
-  SmallString<256> AbsoluteSrc = Src;
-  fs::make_absolute(AbsoluteSrc);
-  // Canonicalize src to a native path to avoid mixed separator styles.
-  path::native(AbsoluteSrc);
-  // Remove redundant leading "./" pieces and consecutive separators.
-  AbsoluteSrc = path::remove_leading_dotslash(AbsoluteSrc);
-
-  // Canonicalize the source path by removing "..", "." components.
-  SmallString<256> VirtualPath = AbsoluteSrc;
-  path::remove_dots(VirtualPath, /*remove_dot_dot=*/true);
-
-  // If a ".." component is present after a symlink component, remove_dots may
-  // lead to the wrong real destination path. Let the source be canonicalized
-  // like that but make sure we always use the real path for the destination.
-  SmallString<256> CopyFrom;
-  if (!getRealPath(AbsoluteSrc, CopyFrom))
-    CopyFrom = VirtualPath;
   SmallString<256> CacheDst = getDest();
 
   if (Dst.empty()) {
     // The common case is to map the virtual path to the same path inside the
     // cache.
-    path::append(CacheDst, path::relative_path(CopyFrom));
+    path::append(CacheDst, path::relative_path(Paths.CopyFrom));
   } else {
     // When collecting entries from input vfsoverlays, copy the external
     // contents into the cache but still map from the source.
     if (!fs::exists(Dst))
       return std::error_code();
     path::append(CacheDst, Dst);
-    CopyFrom = Dst;
+    Paths.CopyFrom = Dst;
   }
 
   // Copy the file into place.
   if (std::error_code EC = fs::create_directories(path::parent_path(CacheDst),
                                                   /*IgnoreExisting=*/true))
     return EC;
-  if (std::error_code EC = fs::copy_file(CopyFrom, CacheDst))
+  if (std::error_code EC = fs::copy_file(Paths.CopyFrom, CacheDst))
     return EC;
 
   // Always map a canonical src path to its real path into the YAML, by doing
@@ -248,7 +189,7 @@ std::error_code ModuleDependencyCollector::copyToRoot(StringRef Src,
   // overlay, which is a way to emulate symlink inside the VFS; this is also
   // needed for correctness, not doing that can lead to module redefinition
   // errors.
-  addFileMapping(VirtualPath, CacheDst);
+  addFileMapping(Paths.VirtualPath, CacheDst);
   return std::error_code();
 }
 

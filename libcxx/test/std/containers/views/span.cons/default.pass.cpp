@@ -1,13 +1,12 @@
 // -*- C++ -*-
 //===------------------------------ span ---------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===---------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <span>
 
@@ -16,6 +15,7 @@
 #include <span>
 #include <cassert>
 #include <string>
+#include <type_traits>
 
 #include "test_macros.h"
 
@@ -65,7 +65,7 @@ void testRuntimeSpan()
 
 struct A{};
 
-int main ()
+int main(int, char**)
 {
     static_assert(testConstexprSpan<int>(),    "");
     static_assert(testConstexprSpan<long>(),   "");
@@ -79,4 +79,10 @@ int main ()
     testRuntimeSpan<A>();
 
     checkCV();
+
+    static_assert( std::is_default_constructible_v<std::span<int, std::dynamic_extent>>, "");
+    static_assert( std::is_default_constructible_v<std::span<int, 0>>, "");
+    static_assert(!std::is_default_constructible_v<std::span<int, 2>>, "");
+
+    return 0;
 }

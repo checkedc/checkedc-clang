@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -triple x86_64-apple-darwin11 -fobjc-runtime-has-weak -fsyntax-only -fobjc-arc -fblocks -verify -Wno-objc-root-class %s
-// RUN: not %clang_cc1 -triple x86_64-apple-darwin11 -fobjc-runtime-has-weak -fsyntax-only -fobjc-arc -fblocks -Wno-objc-root-class -fdiagnostics-parseable-fixits %s 2>&1
+// RUN: %clang_cc1 -triple x86_64-apple-darwin11 -fobjc-runtime-has-weak -fsyntax-only -fobjc-arc -fblocks -verify -Wno-pointer-to-int-cast -Wno-objc-root-class %s
+// RUN: not %clang_cc1 -triple x86_64-apple-darwin11 -fobjc-runtime-has-weak -fsyntax-only -fobjc-arc -fblocks -Wno-pointer-to-int-cast -Wno-objc-root-class -fdiagnostics-parseable-fixits %s 2>&1
 
 typedef unsigned long NSUInteger;
 typedef const void * CFTypeRef;
@@ -114,7 +114,8 @@ void test5() {
 
   __autoreleasing id *a = &x; // expected-error {{initializing '__autoreleasing id *' with an expression of type '__strong id *' changes retain/release properties of pointer}}
 
-  a = &x; // expected-error {{assigning '__strong id *' to '__autoreleasing id *' changes retain/release properties of pointer}}
+  __autoreleasing id *aa;
+  aa = &x; // expected-error {{assigning '__strong id *' to '__autoreleasing id *' changes retain/release properties of pointer}}
 
   extern void test5_helper2(id const *);
   test5_helper2(&x);
@@ -295,6 +296,7 @@ void test11(id op, void *vp) {
   b = (vp == nil);
   b = (nil == vp);
 
+  // FIXME: Shouldn't these be consistent?
   b = (vp == op); // expected-error {{implicit conversion of Objective-C pointer type 'id' to C pointer type 'void *' requires a bridged cast}} expected-note {{use __bridge}} expected-note {{use CFBridgingRetain call}}
   b = (op == vp);
 }
@@ -789,7 +791,7 @@ void test(NSArray *x) {
 
 void foo(NSArray *array) {
   for (NSString *string in array) {
-    for (string in @[@"blah", @"more blah", string]) { // expected-error {{selector element of type 'NSString *const __strong' cannot be a constant l-value}}
+    for (string in @[@"blah", @"more blah", string]) { // expected-error {{selector element of type 'NSString *const __strong' cannot be a constant lvalue}}
     }
   }
 }
@@ -836,4 +838,16 @@ void block_capture_autoreleasing(A * __autoreleasing *a,
     (void)*k; // expected-warning {{block captures an autoreleasing out-parameter, which may result in use-after-free bugs}}
     (void)*l;
   }();
+}
+
+void test_vla_fold_keeps_strong(void) {
+  const unsigned bounds = 1;
+
+  static id array[bounds]; // expected-warning {{variable length array folded to constant array as an extension}}
+  typedef __typeof__(array) array_type;
+  typedef id __strong array_type[1];
+
+  static id weak_array[bounds] __weak; // expected-warning {{variable length array folded to constant array as an extension}}
+  typedef __typeof__(weak_array) weak_array_type;
+  typedef id __weak weak_array_type[1];
 }

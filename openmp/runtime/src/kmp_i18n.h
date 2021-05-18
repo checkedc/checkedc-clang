@@ -4,10 +4,9 @@
 
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.txt for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -33,7 +32,7 @@ extern "C" {
 
    __kmp_i18n_catgets() returns read-only string. It should not be freed.
 
-   KMP_I18N_STR macro simplifies acces to strings in message catalog a bit.
+   KMP_I18N_STR macro simplifies access to strings in message catalog a bit.
    Following two lines are equivalent:
 
    __kmp_i18n_catgets( kmp_i18n_str_Warning )
@@ -104,7 +103,7 @@ struct kmp_msg {
   kmp_msg_type_t type;
   int num;
   char *str;
-  int len;
+  size_t len;
 }; // struct kmp_message
 typedef struct kmp_msg kmp_msg_t;
 

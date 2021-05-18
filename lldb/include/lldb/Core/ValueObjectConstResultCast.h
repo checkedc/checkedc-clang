@@ -1,14 +1,13 @@
 //===-- ValueObjectConstResultCast.h ----------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ValueObjectConstResultCast_h_
-#define liblldb_ValueObjectConstResultCast_h_
+#ifndef LLDB_CORE_VALUEOBJECTCONSTRESULTCAST_H
+#define LLDB_CORE_VALUEOBJECTCONSTRESULTCAST_H
 
 #include "lldb/Core/ValueObjectCast.h"
 #include "lldb/Core/ValueObjectConstResultImpl.h"
@@ -23,19 +22,12 @@
 
 namespace lldb_private {
 class DataExtractor;
-}
-namespace lldb_private {
 class Status;
-}
-namespace lldb_private {
 class ValueObject;
-}
-
-namespace lldb_private {
 
 class ValueObjectConstResultCast : public ValueObjectCast {
 public:
-  ValueObjectConstResultCast(ValueObject &parent, const ConstString &name,
+  ValueObjectConstResultCast(ValueObject &parent, ConstString name,
                              const CompilerType &cast_type,
                              lldb::addr_t live_address = LLDB_INVALID_ADDRESS);
 
@@ -69,9 +61,11 @@ private:
   friend class ValueObjectConstResult;
   friend class ValueObjectConstResultImpl;
 
-  DISALLOW_COPY_AND_ASSIGN(ValueObjectConstResultCast);
+  ValueObjectConstResultCast(const ValueObjectConstResultCast &) = delete;
+  const ValueObjectConstResultCast &
+  operator=(const ValueObjectConstResultCast &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_ValueObjectConstResultCast_h_
+#endif // LLDB_CORE_VALUEOBJECTCONSTRESULTCAST_H

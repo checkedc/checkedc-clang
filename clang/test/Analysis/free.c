@@ -1,22 +1,34 @@
-// RUN: %clang_analyze_cc1 -analyzer-store=region -analyzer-checker=core,unix.Malloc -fblocks -verify %s
-// RUN: %clang_analyze_cc1 -analyzer-store=region -analyzer-checker=core,unix.Malloc -fblocks -verify -analyzer-config unix.Malloc:Optimistic=true %s
+// RUN: %clang_analyze_cc1 -fblocks -verify %s -analyzer-store=region \
+// RUN:   -analyzer-checker=core \
+// RUN:   -analyzer-checker=unix.Malloc
+//
+// RUN: %clang_analyze_cc1 -fblocks -verify %s -analyzer-store=region \
+// RUN:   -analyzer-checker=core \
+// RUN:   -analyzer-checker=unix.Malloc \
+// RUN:   -analyzer-config unix.DynamicMemoryModeling:Optimistic=true
 typedef __typeof(sizeof(int)) size_t;
 void free(void *);
 void *alloca(size_t);
 
 void t1 () {
   int a[] = { 1 };
-  free(a); // expected-warning {{Argument to free() is the address of the local variable 'a', which is not memory allocated by malloc()}}
+  free(a);
+  // expected-warning@-1{{Argument to free() is the address of the local variable 'a', which is not memory allocated by malloc()}}
+  // expected-warning@-2{{attempt to call free on non-heap object 'a'}}
 }
 
 void t2 () {
   int a = 1;
-  free(&a); // expected-warning {{Argument to free() is the address of the local variable 'a', which is not memory allocated by malloc()}}
+  free(&a);
+  // expected-warning@-1{{Argument to free() is the address of the local variable 'a', which is not memory allocated by malloc()}}
+  // expected-warning@-2{{attempt to call free on non-heap object 'a'}}
 }
 
 void t3 () {
   static int a[] = { 1 };
-  free(a); // expected-warning {{Argument to free() is the address of the static variable 'a', which is not memory allocated by malloc()}}
+  free(a);
+  // expected-warning@-1{{Argument to free() is the address of the static variable 'a', which is not memory allocated by malloc()}}
+  // expected-warning@-2{{attempt to call free on non-heap object 'a'}}
 }
 
 void t4 (char *x) {
@@ -65,12 +77,16 @@ void t13 () {
 }
 
 void t14 (char a) {
-  free(&a); // expected-warning {{Argument to free() is the address of the parameter 'a', which is not memory allocated by malloc()}}
+  free(&a);
+  // expected-warning@-1{{Argument to free() is the address of the parameter 'a', which is not memory allocated by malloc()}}
+  // expected-warning@-2{{attempt to call free on non-heap object 'a'}}
 }
 
 static int someGlobal[2];
 void t15 () {
-  free(someGlobal); // expected-warning {{Argument to free() is the address of the global variable 'someGlobal', which is not memory allocated by malloc()}}
+  free(someGlobal);
+  // expected-warning@-1{{Argument to free() is the address of the global variable 'someGlobal', which is not memory allocated by malloc()}}
+  // expected-warning@-2{{attempt to call free on non-heap object 'someGlobal'}}
 }
 
 void t16 (char **x, int offset) {

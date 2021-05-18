@@ -1,26 +1,19 @@
 //===- GCNMinRegStrategy.cpp ----------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+///
+/// \file
+/// This file defines and imlements the class GCNMinRegScheduler, which
+/// implements an experimental, simple scheduler whose main goal is to learn
+/// ways about consuming less possible registers for a region.
+///
+//===----------------------------------------------------------------------===//
 
-#include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/SmallPtrSet.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/ilist_node.h"
-#include "llvm/ADT/simple_ilist.h"
 #include "llvm/CodeGen/ScheduleDAG.h"
-#include "llvm/Support/Allocator.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/raw_ostream.h"
-#include <cassert>
-#include <cstdint>
-#include <limits>
-#include <vector>
-
 using namespace llvm;
 
 #define DEBUG_TYPE "machine-scheduler"
@@ -208,9 +201,8 @@ void GCNMinRegScheduler::bumpPredsPriority(const SUnit *SchedSU, int Priority) {
   LLVM_DEBUG(dbgs() << "Make the predecessors of SU(" << SchedSU->NodeNum
                     << ")'s non-ready successors of " << Priority
                     << " priority in ready queue: ");
-  const auto SetEnd = Set.end();
   for (auto &C : RQ) {
-    if (Set.find(C.SU) != SetEnd) {
+    if (Set.count(C.SU)) {
       C.Priority = Priority;
       LLVM_DEBUG(dbgs() << " SU(" << C.SU->NodeNum << ')');
     }

@@ -1,9 +1,8 @@
 //===--- ParentVirtualCallCheck.cpp - clang-tidy---------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -77,21 +76,23 @@ static std::string getExprAsString(const clang::Expr &E,
   Text.erase(
       llvm::remove_if(
           Text,
-          [](char C) { return std::isspace(static_cast<unsigned char>(C)); }),
+          [](char C) { return llvm::isSpace(static_cast<unsigned char>(C)); }),
       Text.end());
   return Text;
 }
 
 void ParentVirtualCallCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
-      cxxMemberCallExpr(
-          callee(memberExpr(hasDescendant(implicitCastExpr(
-                                hasImplicitDestinationType(pointsTo(
-                                    type(anything()).bind("castToType"))),
-                                hasSourceExpression(cxxThisExpr(hasType(
-                                    type(anything()).bind("thisType")))))))
-                     .bind("member")),
-          callee(cxxMethodDecl(isVirtual()))),
+      traverse(
+          TK_AsIs,
+          cxxMemberCallExpr(
+              callee(memberExpr(hasDescendant(implicitCastExpr(
+                                    hasImplicitDestinationType(pointsTo(
+                                        type(anything()).bind("castToType"))),
+                                    hasSourceExpression(cxxThisExpr(hasType(
+                                        type(anything()).bind("thisType")))))))
+                         .bind("member")),
+              callee(cxxMethodDecl(isVirtual())))),
       this);
 }
 

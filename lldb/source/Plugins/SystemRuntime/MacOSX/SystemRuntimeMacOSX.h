@@ -1,14 +1,13 @@
 //===-- SystemRuntimeMacOSX.h -----------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_SystemRuntimeMacOSX_h_
-#define liblldb_SystemRuntimeMacOSX_h_
+#ifndef LLDB_SOURCE_PLUGINS_SYSTEMRUNTIME_MACOSX_SYSTEMRUNTIMEMACOSX_H
+#define LLDB_SOURCE_PLUGINS_SYSTEMRUNTIME_MACOSX_SYSTEMRUNTIMEMACOSX_H
 
 #include <mutex>
 #include <string>
@@ -35,9 +34,7 @@ public:
 
   ~SystemRuntimeMacOSX() override;
 
-  //------------------------------------------------------------------
   // Static Functions
-  //------------------------------------------------------------------
   static void Initialize();
 
   static void Terminate();
@@ -49,9 +46,7 @@ public:
   static lldb_private::SystemRuntime *
   CreateInstance(lldb_private::Process *process);
 
-  //------------------------------------------------------------------
   // instance methods
-  //------------------------------------------------------------------
 
   void Clear(bool clear_process);
 
@@ -102,9 +97,7 @@ public:
 
   bool SafeToCallFunctionsOnThisThread(lldb::ThreadSP thread_sp) override;
 
-  //------------------------------------------------------------------
   // PluginInterface protocol
-  //------------------------------------------------------------------
   lldb_private::ConstString GetPluginName() override;
 
   uint32_t GetPluginVersion() override;
@@ -293,7 +286,8 @@ private:
   lldb::addr_t m_dispatch_voucher_offsets_addr;
   struct LibdispatchVoucherOffsets m_libdispatch_voucher_offsets;
 
-  DISALLOW_COPY_AND_ASSIGN(SystemRuntimeMacOSX);
+  SystemRuntimeMacOSX(const SystemRuntimeMacOSX &) = delete;
+  const SystemRuntimeMacOSX &operator=(const SystemRuntimeMacOSX &) = delete;
 };
 
-#endif // liblldb_SystemRuntimeMacOSX_h_
+#endif // LLDB_SOURCE_PLUGINS_SYSTEMRUNTIME_MACOSX_SYSTEMRUNTIMEMACOSX_H

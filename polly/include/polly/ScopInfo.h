@@ -1,9 +1,8 @@
 //===- polly/ScopInfo.h -----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -22,94 +21,39 @@
 #include "polly/Support/SCEVAffinator.h"
 #include "polly/Support/ScopHelper.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/MapVector.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SetVector.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringMap.h"
-#include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/iterator_range.h"
 #include "llvm/Analysis/RegionPass.h"
-#include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/Casting.h"
 #include "isl/isl-noexceptions.h"
-#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <forward_list>
-#include <functional>
-#include <list>
-#include <map>
-#include <memory>
-#include <string>
-#include <tuple>
-#include <utility>
-#include <vector>
 
 using namespace llvm;
 
 namespace llvm {
-
-class AssumptionCache;
-class BasicBlock;
-class DataLayout;
-class DominatorTree;
-class Function;
-class Loop;
-class LoopInfo;
-class OptimizationRemarkEmitter;
-class PassRegistry;
-class raw_ostream;
-class ScalarEvolution;
-class SCEV;
-class Type;
-class Value;
-
 void initializeScopInfoRegionPassPass(PassRegistry &);
 void initializeScopInfoWrapperPassPass(PassRegistry &);
 } // end namespace llvm
 
-struct isl_map;
-struct isl_pw_multi_aff;
-struct isl_schedule;
-struct isl_set;
-struct isl_union_map;
-
 namespace polly {
 
 class MemoryAccess;
-class Scop;
-class ScopStmt;
 
 //===---------------------------------------------------------------------===//
 
 extern bool UseInstructionNames;
 
-/// Enumeration of assumptions Polly can take.
-enum AssumptionKind {
-  ALIASING,
-  INBOUNDS,
-  WRAPPING,
-  UNSIGNED,
-  PROFITABLE,
-  ERRORBLOCK,
-  COMPLEXITY,
-  INFINITELOOP,
-  INVARIANTLOAD,
-  DELINEARIZATION,
-};
-
-/// Enum to distinguish between assumptions and restrictions.
-enum AssumptionSign { AS_ASSUMPTION, AS_RESTRICTION };
+// The maximal number of basic sets we allow during domain construction to
+// be created. More complex scops will result in very high compile time and
+// are also unlikely to result in good code.
+extern int const MaxDisjunctsInDomain;
 
 /// The different memory kinds used in Polly.
 ///
@@ -519,6 +463,8 @@ public:
     RT_BAND, ///< Bitwise And
   };
 
+  using SubscriptsTy = SmallVector<const SCEV *, 4>;
+
 private:
   /// A unique identifier for this memory access.
   ///
@@ -630,7 +576,7 @@ private:
   bool IsAffine = true;
 
   /// Subscript expression for each dimension.
-  SmallVector<const SCEV *, 4> Subscripts;
+  SubscriptsTy Subscripts;
 
   /// Relation from statement instances to the accessed array elements.
   ///
@@ -673,7 +619,7 @@ private:
 
   isl::basic_map createBasicAccessMap(ScopStmt *Statement);
 
-  void assumeNoOutOfBound();
+  isl::set assumeNoOutOfBound();
 
   /// Compute bounds on an over approximated  access relation.
   ///
@@ -933,6 +879,11 @@ public:
 
   /// Return the access instruction of this memory access.
   Instruction *getAccessInstruction() const { return AccessInstruction; }
+
+  ///  Return an iterator range containing the subscripts.
+  iterator_range<SubscriptsTy::const_iterator> subscripts() const {
+    return make_range(Subscripts.begin(), Subscripts.end());
+  }
 
   /// Return the number of access function subscript.
   unsigned getNumSubscripts() const { return Subscripts.size(); }
@@ -1664,6 +1615,44 @@ public:
 /// Print ScopStmt S to raw_ostream OS.
 raw_ostream &operator<<(raw_ostream &OS, const ScopStmt &S);
 
+/// Build the conditions sets for the branch condition @p Condition in
+/// the @p Domain.
+///
+/// This will fill @p ConditionSets with the conditions under which control
+/// will be moved from @p TI to its successors. Hence, @p ConditionSets will
+/// have as many elements as @p TI has successors. If @p TI is nullptr the
+/// context under which @p Condition is true/false will be returned as the
+/// new elements of @p ConditionSets.
+bool buildConditionSets(Scop &S, BasicBlock *BB, Value *Condition,
+                        Instruction *TI, Loop *L, __isl_keep isl_set *Domain,
+                        DenseMap<BasicBlock *, isl::set> &InvalidDomainMap,
+                        SmallVectorImpl<__isl_give isl_set *> &ConditionSets);
+
+/// Build condition sets for unsigned ICmpInst(s).
+/// Special handling is required for unsigned operands to ensure that if
+/// MSB (aka the Sign bit) is set for an operands in an unsigned ICmpInst
+/// it should wrap around.
+///
+/// @param IsStrictUpperBound holds information on the predicate relation
+/// between TestVal and UpperBound, i.e,
+/// TestVal < UpperBound  OR  TestVal <= UpperBound
+__isl_give isl_set *
+buildUnsignedConditionSets(Scop &S, BasicBlock *BB, Value *Condition,
+                           __isl_keep isl_set *Domain, const SCEV *SCEV_TestVal,
+                           const SCEV *SCEV_UpperBound,
+                           DenseMap<BasicBlock *, isl::set> &InvalidDomainMap,
+                           bool IsStrictUpperBound);
+
+/// Build the conditions sets for the terminator @p TI in the @p Domain.
+///
+/// This will fill @p ConditionSets with the conditions under which control
+/// will be moved from @p TI to its successors. Hence, @p ConditionSets will
+/// have as many elements as @p TI has successors.
+bool buildConditionSets(Scop &S, BasicBlock *BB, Instruction *TI, Loop *L,
+                        __isl_keep isl_set *Domain,
+                        DenseMap<BasicBlock *, isl::set> &InvalidDomainMap,
+                        SmallVectorImpl<__isl_give isl_set *> &ConditionSets);
+
 /// Static Control Part
 ///
 /// A Scop is the polyhedral representation of a control flow region detected
@@ -1719,12 +1708,6 @@ private:
 
   /// The name of the SCoP (identical to the regions name)
   Optional<std::string> name;
-
-  /// The ID to be assigned to the next Scop in a function
-  static int NextScopID;
-
-  /// The name of the function currently under consideration
-  static std::string CurrentFunc;
 
   // Access functions of the SCoP.
   //
@@ -1822,35 +1805,21 @@ private:
   /// need to be "false". Otherwise they behave the same.
   isl::set InvalidContext;
 
-  /// Helper struct to remember assumptions.
-  struct Assumption {
-    /// The kind of the assumption (e.g., WRAPPING).
-    AssumptionKind Kind;
-
-    /// Flag to distinguish assumptions and restrictions.
-    AssumptionSign Sign;
-
-    /// The valid/invalid context if this is an assumption/restriction.
-    isl::set Set;
-
-    /// The location that caused this assumption.
-    DebugLoc Loc;
-
-    /// An optional block whose domain can simplify the assumption.
-    BasicBlock *BB;
-  };
-
-  /// Collection to hold taken assumptions.
+  /// The context under which the SCoP must have defined behavior. Optimizer and
+  /// code generator can assume that the SCoP will only be executed with
+  /// parameter values within this context. This might be either because we can
+  /// prove that other values are impossible or explicitly have undefined
+  /// behavior, such as due to no-wrap flags. If this becomes too complex, can
+  /// also be nullptr.
   ///
-  /// There are two reasons why we want to record assumptions first before we
-  /// add them to the assumed/invalid context:
-  ///   1) If the SCoP is not profitable or otherwise invalid without the
-  ///      assumed/invalid context we do not have to compute it.
-  ///   2) Information about the context are gathered rather late in the SCoP
-  ///      construction (basically after we know all parameters), thus the user
-  ///      might see overly complicated assumptions to be taken while they will
-  ///      only be simplified later on.
-  SmallVector<Assumption, 8> RecordedAssumptions;
+  /// In contrast to Scop::AssumedContext and Scop::InvalidContext, these do not
+  /// need to be checked at runtime.
+  ///
+  /// Scop::Context on the other side is an overapproximation and does not
+  /// include all requirements, but is always defined. However, there is still
+  /// no guarantee that there is no undefined behavior in
+  /// DefinedBehaviorContext.
+  isl::set DefinedBehaviorContext;
 
   /// The schedule of the SCoP
   ///
@@ -1940,234 +1909,19 @@ private:
   DenseMap<const ScopArrayInfo *, SmallVector<MemoryAccess *, 4>>
       PHIIncomingAccs;
 
-  /// Return the ID for a new Scop within a function
-  static int getNextID(std::string ParentFunc);
-
   /// Scop constructor; invoked from ScopBuilder::buildScop.
   Scop(Region &R, ScalarEvolution &SE, LoopInfo &LI, DominatorTree &DT,
-       ScopDetection::DetectionContext &DC, OptimizationRemarkEmitter &ORE);
+       ScopDetection::DetectionContext &DC, OptimizationRemarkEmitter &ORE,
+       int ID);
 
   //@}
 
   /// Initialize this ScopBuilder.
-  void init(AliasAnalysis &AA, AssumptionCache &AC, DominatorTree &DT,
+  void init(AAResults &AA, AssumptionCache &AC, DominatorTree &DT,
             LoopInfo &LI);
-
-  /// Propagate domains that are known due to graph properties.
-  ///
-  /// As a CFG is mostly structured we use the graph properties to propagate
-  /// domains without the need to compute all path conditions. In particular, if
-  /// a block A dominates a block B and B post-dominates A we know that the
-  /// domain of B is a superset of the domain of A. As we do not have
-  /// post-dominator information available here we use the less precise region
-  /// information. Given a region R, we know that the exit is always executed if
-  /// the entry was executed, thus the domain of the exit is a superset of the
-  /// domain of the entry. In case the exit can only be reached from within the
-  /// region the domains are in fact equal. This function will use this property
-  /// to avoid the generation of condition constraints that determine when a
-  /// branch is taken. If @p BB is a region entry block we will propagate its
-  /// domain to the region exit block. Additionally, we put the region exit
-  /// block in the @p FinishedExitBlocks set so we can later skip edges from
-  /// within the region to that block.
-  ///
-  /// @param BB                 The block for which the domain is currently
-  ///                           propagated.
-  /// @param BBLoop             The innermost affine loop surrounding @p BB.
-  /// @param FinishedExitBlocks Set of region exits the domain was set for.
-  /// @param LI                 The LoopInfo for the current function.
-  /// @param InvalidDomainMap   BB to InvalidDomain map for the BB of current
-  ///                           region.
-  void propagateDomainConstraintsToRegionExit(
-      BasicBlock *BB, Loop *BBLoop,
-      SmallPtrSetImpl<BasicBlock *> &FinishedExitBlocks, LoopInfo &LI,
-      DenseMap<BasicBlock *, isl::set> &InvalidDomainMap);
-
-  /// Compute the union of predecessor domains for @p BB.
-  ///
-  /// To compute the union of all domains of predecessors of @p BB this
-  /// function applies similar reasoning on the CFG structure as described for
-  ///   @see propagateDomainConstraintsToRegionExit
-  ///
-  /// @param BB     The block for which the predecessor domains are collected.
-  /// @param Domain The domain under which BB is executed.
-  /// @param DT     The DominatorTree for the current function.
-  /// @param LI     The LoopInfo for the current function.
-  ///
-  /// @returns The domain under which @p BB is executed.
-  isl::set getPredecessorDomainConstraints(BasicBlock *BB, isl::set Domain,
-                                           DominatorTree &DT, LoopInfo &LI);
-
-  /// Add loop carried constraints to the header block of the loop @p L.
-  ///
-  /// @param L                The loop to process.
-  /// @param LI               The LoopInfo for the current function.
-  /// @param InvalidDomainMap BB to InvalidDomain map for the BB of current
-  ///                         region.
-  ///
-  /// @returns True if there was no problem and false otherwise.
-  bool addLoopBoundsToHeaderDomain(
-      Loop *L, LoopInfo &LI,
-      DenseMap<BasicBlock *, isl::set> &InvalidDomainMap);
-
-  /// Compute the branching constraints for each basic block in @p R.
-  ///
-  /// @param R                The region we currently build branching conditions
-  ///                         for.
-  /// @param DT               The DominatorTree for the current function.
-  /// @param LI               The LoopInfo for the current function.
-  /// @param InvalidDomainMap BB to InvalidDomain map for the BB of current
-  ///                         region.
-  ///
-  /// @returns True if there was no problem and false otherwise.
-  bool buildDomainsWithBranchConstraints(
-      Region *R, DominatorTree &DT, LoopInfo &LI,
-      DenseMap<BasicBlock *, isl::set> &InvalidDomainMap);
-
-  /// Propagate the domain constraints through the region @p R.
-  ///
-  /// @param R                The region we currently build branching conditions
-  /// for.
-  /// @param DT               The DominatorTree for the current function.
-  /// @param LI               The LoopInfo for the current function.
-  /// @param InvalidDomainMap BB to InvalidDomain map for the BB of current
-  ///                         region.
-  ///
-  /// @returns True if there was no problem and false otherwise.
-  bool propagateDomainConstraints(
-      Region *R, DominatorTree &DT, LoopInfo &LI,
-      DenseMap<BasicBlock *, isl::set> &InvalidDomainMap);
-
-  /// Propagate invalid domains of statements through @p R.
-  ///
-  /// This method will propagate invalid statement domains through @p R and at
-  /// the same time add error block domains to them. Additionally, the domains
-  /// of error statements and those only reachable via error statements will be
-  /// replaced by an empty set. Later those will be removed completely.
-  ///
-  /// @param R                The currently traversed region.
-  /// @param DT               The DominatorTree for the current function.
-  /// @param LI               The LoopInfo for the current function.
-  /// @param InvalidDomainMap BB to InvalidDomain map for the BB of current
-  ///                         region.
-  //
-  /// @returns True if there was no problem and false otherwise.
-  bool propagateInvalidStmtDomains(
-      Region *R, DominatorTree &DT, LoopInfo &LI,
-      DenseMap<BasicBlock *, isl::set> &InvalidDomainMap);
-
-  /// Compute the domain for each basic block in @p R.
-  ///
-  /// @param R                The region we currently traverse.
-  /// @param DT               The DominatorTree for the current function.
-  /// @param LI               The LoopInfo for the current function.
-  /// @param InvalidDomainMap BB to InvalidDomain map for the BB of current
-  ///                         region.
-  ///
-  /// @returns True if there was no problem and false otherwise.
-  bool buildDomains(Region *R, DominatorTree &DT, LoopInfo &LI,
-                    DenseMap<BasicBlock *, isl::set> &InvalidDomainMap);
-
-  /// Add parameter constraints to @p C that imply a non-empty domain.
-  isl::set addNonEmptyDomainConstraints(isl::set C) const;
 
   /// Return the access for the base ptr of @p MA if any.
   MemoryAccess *lookupBasePtrAccess(MemoryAccess *MA);
-
-  /// Check if the base ptr of @p MA is in the SCoP but not hoistable.
-  bool hasNonHoistableBasePtrInScop(MemoryAccess *MA, isl::union_map Writes);
-
-  /// Create equivalence classes for required invariant accesses.
-  ///
-  /// These classes will consolidate multiple required invariant loads from the
-  /// same address in order to keep the number of dimensions in the SCoP
-  /// description small. For each such class equivalence class only one
-  /// representing element, hence one required invariant load, will be chosen
-  /// and modeled as parameter. The method
-  /// Scop::getRepresentingInvariantLoadSCEV() will replace each element from an
-  /// equivalence class with the representing element that is modeled. As a
-  /// consequence Scop::getIdForParam() will only return an id for the
-  /// representing element of each equivalence class, thus for each required
-  /// invariant location.
-  void buildInvariantEquivalenceClasses();
-
-  /// Return the context under which the access cannot be hoisted.
-  ///
-  /// @param Access The access to check.
-  /// @param Writes The set of all memory writes in the scop.
-  ///
-  /// @return Return the context under which the access cannot be hoisted or a
-  ///         nullptr if it cannot be hoisted at all.
-  isl::set getNonHoistableCtx(MemoryAccess *Access, isl::union_map Writes);
-
-  /// Verify that all required invariant loads have been hoisted.
-  ///
-  /// Invariant load hoisting is not guaranteed to hoist all loads that were
-  /// assumed to be scop invariant during scop detection. This function checks
-  /// for cases where the hoisting failed, but where it would have been
-  /// necessary for our scop modeling to be correct. In case of insufficient
-  /// hoisting the scop is marked as invalid.
-  ///
-  /// In the example below Bound[1] is required to be invariant:
-  ///
-  /// for (int i = 1; i < Bound[0]; i++)
-  ///   for (int j = 1; j < Bound[1]; j++)
-  ///     ...
-  void verifyInvariantLoads();
-
-  /// Hoist invariant memory loads and check for required ones.
-  ///
-  /// We first identify "common" invariant loads, thus loads that are invariant
-  /// and can be hoisted. Then we check if all required invariant loads have
-  /// been identified as (common) invariant. A load is a required invariant load
-  /// if it was assumed to be invariant during SCoP detection, e.g., to assume
-  /// loop bounds to be affine or runtime alias checks to be placeable. In case
-  /// a required invariant load was not identified as (common) invariant we will
-  /// drop this SCoP. An example for both "common" as well as required invariant
-  /// loads is given below:
-  ///
-  /// for (int i = 1; i < *LB[0]; i++)
-  ///   for (int j = 1; j < *LB[1]; j++)
-  ///     A[i][j] += A[0][0] + (*V);
-  ///
-  /// Common inv. loads: V, A[0][0], LB[0], LB[1]
-  /// Required inv. loads: LB[0], LB[1], (V, if it may alias with A or LB)
-  void hoistInvariantLoads();
-
-  /// Canonicalize arrays with base pointers from the same equivalence class.
-  ///
-  /// Some context: in our normal model we assume that each base pointer is
-  /// related to a single specific memory region, where memory regions
-  /// associated with different base pointers are disjoint. Consequently we do
-  /// not need to compute additional data dependences that model possible
-  /// overlaps of these memory regions. To verify our assumption we compute
-  /// alias checks that verify that modeled arrays indeed do not overlap. In
-  /// case an overlap is detected the runtime check fails and we fall back to
-  /// the original code.
-  ///
-  /// In case of arrays where the base pointers are know to be identical,
-  /// because they are dynamically loaded by accesses that are in the same
-  /// invariant load equivalence class, such run-time alias check would always
-  /// be false.
-  ///
-  /// This function makes sure that we do not generate consistently failing
-  /// run-time checks for code that contains distinct arrays with known
-  /// equivalent base pointers. It identifies for each invariant load
-  /// equivalence class a single canonical array and canonicalizes all memory
-  /// accesses that reference arrays that have base pointers that are known to
-  /// be equal to the base pointer of such a canonical array to this canonical
-  /// array.
-  ///
-  /// We currently do not canonicalize arrays for which certain memory accesses
-  /// have been hoisted as loop invariant.
-  void canonicalizeDynamicBasePtrs();
-
-  /// Check if @p MA can always be hoisted without execution context.
-  bool canAlwaysBeHoisted(MemoryAccess *MA, bool StmtInvalidCtxIsEmpty,
-                          bool MAInvalidCtxIsEmpty,
-                          bool NonHoistableCtxIsEmpty);
-
-  /// Add invariant loads listed in @p InvMAs with the domain of @p Stmt.
-  void addInvariantLoads(ScopStmt &Stmt, InvariantAccessesTy &InvMAs);
 
   /// Create an id for @p Param and store it in the ParameterIds map.
   void createParameterId(const SCEV *Param);
@@ -2175,31 +1929,11 @@ private:
   /// Build the Context of the Scop.
   void buildContext();
 
-  /// Add user provided parameter constraints to context (source code).
-  void addUserAssumptions(AssumptionCache &AC, DominatorTree &DT, LoopInfo &LI,
-                          DenseMap<BasicBlock *, isl::set> &InvalidDomainMap);
-
-  /// Add user provided parameter constraints to context (command line).
-  void addUserContext();
-
   /// Add the bounds of the parameters to the context.
   void addParameterBounds();
 
   /// Simplify the assumed and invalid context.
   void simplifyContexts();
-
-  /// Get the representing SCEV for @p S if applicable, otherwise @p S.
-  ///
-  /// Invariant loads of the same location are put in an equivalence class and
-  /// only one of them is chosen as a representing element that will be
-  /// modeled as a parameter. The others have to be normalized, i.e.,
-  /// replaced by the representing element of their equivalence class, in order
-  /// to get the correct parameter value, e.g., in the SCEVAffinator.
-  ///
-  /// @param S The SCEV to normalize.
-  ///
-  /// @return The representing SCEV for invariant loads or @p S if none.
-  const SCEV *getRepresentingInvariantLoadSCEV(const SCEV *S) const;
 
   /// Create a new SCoP statement for @p BB.
   ///
@@ -2228,147 +1962,12 @@ private:
   void addScopStmt(Region *R, StringRef Name, Loop *SurroundingLoop,
                    std::vector<Instruction *> EntryBlockInstructions);
 
-  /// Update access dimensionalities.
-  ///
-  /// When detecting memory accesses different accesses to the same array may
-  /// have built with different dimensionality, as outer zero-values dimensions
-  /// may not have been recognized as separate dimensions. This function goes
-  /// again over all memory accesses and updates their dimensionality to match
-  /// the dimensionality of the underlying ScopArrayInfo object.
-  void updateAccessDimensionality();
-
-  /// Fold size constants to the right.
-  ///
-  /// In case all memory accesses in a given dimension are multiplied with a
-  /// common constant, we can remove this constant from the individual access
-  /// functions and move it to the size of the memory access. We do this as this
-  /// increases the size of the innermost dimension, consequently widens the
-  /// valid range the array subscript in this dimension can evaluate to, and
-  /// as a result increases the likelihood that our delinearization is
-  /// correct.
-  ///
-  /// Example:
-  ///
-  ///    A[][n]
-  ///    S[i,j] -> A[2i][2j+1]
-  ///    S[i,j] -> A[2i][2j]
-  ///
-  ///    =>
-  ///
-  ///    A[][2n]
-  ///    S[i,j] -> A[i][2j+1]
-  ///    S[i,j] -> A[i][2j]
-  ///
-  /// Constants in outer dimensions can arise when the elements of a parametric
-  /// multi-dimensional array are not elementary data types, but e.g.,
-  /// structures.
-  void foldSizeConstantsToRight();
-
-  /// Fold memory accesses to handle parametric offset.
-  ///
-  /// As a post-processing step, we 'fold' memory accesses to parametric
-  /// offsets in the access functions. @see MemoryAccess::foldAccess for
-  /// details.
-  void foldAccessRelations();
-
-  /// Assume that all memory accesses are within bounds.
-  ///
-  /// After we have built a model of all memory accesses, we need to assume
-  /// that the model we built matches reality -- aka. all modeled memory
-  /// accesses always remain within bounds. We do this as last step, after
-  /// all memory accesses have been modeled and canonicalized.
-  void assumeNoOutOfBounds();
-
-  /// Remove statements from the list of scop statements.
-  ///
-  /// @param ShouldDelete  A function that returns true if the statement passed
-  ///                      to it should be deleted.
-  /// @param AfterHoisting If true, also remove from data access lists.
-  ///                      These lists are filled during
-  ///                      ScopBuilder::buildAccessRelations. Therefore, if this
-  ///                      method is called before buildAccessRelations, false
-  ///                      must be passed.
-  void removeStmts(std::function<bool(ScopStmt &)> ShouldDelete,
-                   bool AfterHoisting = true);
-
   /// Removes @p Stmt from the StmtMap.
   void removeFromStmtMap(ScopStmt &Stmt);
 
   /// Removes all statements where the entry block of the statement does not
   /// have a corresponding domain in the domain map (or it is empty).
   void removeStmtNotInDomainMap();
-
-  /// Mark arrays that have memory accesses with FortranArrayDescriptor.
-  void markFortranArrays();
-
-  /// Finalize all access relations.
-  ///
-  /// When building up access relations, temporary access relations that
-  /// correctly represent each individual access are constructed. However, these
-  /// access relations can be inconsistent or non-optimal when looking at the
-  /// set of accesses as a whole. This function finalizes the memory accesses
-  /// and constructs a globally consistent state.
-  void finalizeAccesses();
-
-  /// Construct the schedule of this SCoP.
-  ///
-  /// @param LI The LoopInfo for the current function.
-  void buildSchedule(LoopInfo &LI);
-
-  /// A loop stack element to keep track of per-loop information during
-  ///        schedule construction.
-  using LoopStackElementTy = struct LoopStackElement {
-    // The loop for which we keep information.
-    Loop *L;
-
-    // The (possibly incomplete) schedule for this loop.
-    isl::schedule Schedule;
-
-    // The number of basic blocks in the current loop, for which a schedule has
-    // already been constructed.
-    unsigned NumBlocksProcessed;
-
-    LoopStackElement(Loop *L, isl::schedule S, unsigned NumBlocksProcessed)
-        : L(L), Schedule(S), NumBlocksProcessed(NumBlocksProcessed) {}
-  };
-
-  /// The loop stack used for schedule construction.
-  ///
-  /// The loop stack keeps track of schedule information for a set of nested
-  /// loops as well as an (optional) 'nullptr' loop that models the outermost
-  /// schedule dimension. The loops in a loop stack always have a parent-child
-  /// relation where the loop at position n is the parent of the loop at
-  /// position n + 1.
-  using LoopStackTy = SmallVector<LoopStackElementTy, 4>;
-
-  /// Construct schedule information for a given Region and add the
-  ///        derived information to @p LoopStack.
-  ///
-  /// Given a Region we derive schedule information for all RegionNodes
-  /// contained in this region ensuring that the assigned execution times
-  /// correctly model the existing control flow relations.
-  ///
-  /// @param R              The region which to process.
-  /// @param LoopStack      A stack of loops that are currently under
-  ///                       construction.
-  /// @param LI The LoopInfo for the current function.
-  void buildSchedule(Region *R, LoopStackTy &LoopStack, LoopInfo &LI);
-
-  /// Build Schedule for the region node @p RN and add the derived
-  ///        information to @p LoopStack.
-  ///
-  /// In case @p RN is a BasicBlock or a non-affine Region, we construct the
-  /// schedule for this @p RN and also finalize loop schedules in case the
-  /// current @p RN completes the loop.
-  ///
-  /// In case @p RN is a not-non-affine Region, we delegate the construction to
-  /// buildSchedule(Region *R, ...).
-  ///
-  /// @param RN             The RegionNode region traversed.
-  /// @param LoopStack      A stack of loops that are currently under
-  ///                       construction.
-  /// @param LI The LoopInfo for the current function.
-  void buildSchedule(RegionNode *RN, LoopStackTy &LoopStack, LoopInfo &LI);
 
   /// Collect all memory access relations of a given type.
   ///
@@ -2392,6 +1991,12 @@ public:
   Scop(const Scop &) = delete;
   Scop &operator=(const Scop &) = delete;
   ~Scop();
+
+  /// Increment actual number of aliasing assumptions taken
+  ///
+  /// @param Step    Number of new aliasing assumptions which should be added to
+  /// the number of already taken assumptions.
+  static void incrementNumberOfAliasingAssumptions(unsigned Step);
 
   /// Get the count of copy statements added to this Scop.
   ///
@@ -2431,6 +2036,18 @@ public:
   /// Add metadata for @p Access.
   void addAccessData(MemoryAccess *Access);
 
+  /// Add new invariant access equivalence class
+  void
+  addInvariantEquivClass(const InvariantEquivClassTy &InvariantEquivClass) {
+    InvariantEquivClasses.emplace_back(InvariantEquivClass);
+  }
+
+  /// Add mapping from invariant loads to the representing invariant load of
+  ///        their equivalence class.
+  void addInvariantLoadMapping(const Value *LoadInst, Value *ClassRep) {
+    InvEquivClassVMap[LoadInst] = ClassRep;
+  }
+
   /// Remove the metadata stored for @p Access.
   void removeAccessData(MemoryAccess *Access);
 
@@ -2448,12 +2065,27 @@ public:
   /// @return The count of parameters used in this Scop.
   size_t getNumParams() const { return Parameters.size(); }
 
+  /// Return whether given SCEV is used as the parameter in this Scop.
+  bool isParam(const SCEV *Param) const { return Parameters.count(Param); }
+
   /// Take a list of parameters and add the new ones to the scop.
   void addParams(const ParameterSetTy &NewParameters);
 
   /// Return an iterator range containing the scop parameters.
   iterator_range<ParameterSetTy::iterator> parameters() const {
     return make_range(Parameters.begin(), Parameters.end());
+  }
+
+  /// Return an iterator range containing invariant accesses.
+  iterator_range<InvariantEquivClassesTy::iterator> invariantEquivClasses() {
+    return make_range(InvariantEquivClasses.begin(),
+                      InvariantEquivClasses.end());
+  }
+
+  /// Return an iterator range containing all the MemoryAccess objects of the
+  /// Scop.
+  iterator_range<AccFuncVector::iterator> access_functions() {
+    return make_range(AccessFunctions.begin(), AccessFunctions.end());
   }
 
   /// Return whether this scop is empty, i.e. contains no statements that
@@ -2584,6 +2216,19 @@ public:
   /// @return The constraint on parameter of this Scop.
   isl::set getContext() const;
 
+  /// Return the context where execution behavior is defined. Might return
+  /// nullptr.
+  isl::set getDefinedBehaviorContext() const { return DefinedBehaviorContext; }
+
+  /// Return the define behavior context, or if not available, its approximation
+  /// from all other contexts.
+  isl::set getBestKnownDefinedBehaviorContext() const {
+    if (DefinedBehaviorContext)
+      return DefinedBehaviorContext;
+
+    return Context.intersect_params(AssumedContext).subtract(InvalidContext);
+  }
+
   /// Return space of isl context parameters.
   ///
   /// Returns the set of context parameters that are currently constrained. In
@@ -2638,6 +2283,10 @@ public:
   bool trackAssumption(AssumptionKind Kind, isl::set Set, DebugLoc Loc,
                        AssumptionSign Sign, BasicBlock *BB);
 
+  /// Add the conditions from @p Set (or subtract them if @p Sign is
+  /// AS_RESTRICTION) to the defined behaviour context.
+  void intersectDefinedBehavior(isl::set Set, AssumptionSign Sign);
+
   /// Add assumptions to assumed context.
   ///
   /// The assumptions added will be assumed to hold during the execution of the
@@ -2656,29 +2305,9 @@ public:
   ///             (needed/assumptions) or negative (invalid/restrictions).
   /// @param BB   The block in which this assumption was taken. Used to
   ///             calculate hotness when emitting remark.
+  /// @param RTC  Does the assumption require a runtime check?
   void addAssumption(AssumptionKind Kind, isl::set Set, DebugLoc Loc,
-                     AssumptionSign Sign, BasicBlock *BB);
-
-  /// Record an assumption for later addition to the assumed context.
-  ///
-  /// This function will add the assumption to the RecordedAssumptions. This
-  /// collection will be added (@see addAssumption) to the assumed context once
-  /// all paramaters are known and the context is fully built.
-  ///
-  /// @param Kind The assumption kind describing the underlying cause.
-  /// @param Set  The relations between parameters that are assumed to hold.
-  /// @param Loc  The location in the source that caused this assumption.
-  /// @param Sign Enum to indicate if the assumptions in @p Set are positive
-  ///             (needed/assumptions) or negative (invalid/restrictions).
-  /// @param BB   The block in which this assumption was taken. If it is
-  ///             set, the domain of that block will be used to simplify the
-  ///             actual assumption in @p Set once it is added. This is useful
-  ///             if the assumption was created prior to the domain.
-  void recordAssumption(AssumptionKind Kind, isl::set Set, DebugLoc Loc,
-                        AssumptionSign Sign, BasicBlock *BB = nullptr);
-
-  /// Add all recorded assumptions to the assumed context.
-  void addRecordedAssumptions();
+                     AssumptionSign Sign, BasicBlock *BB, bool RTC = true);
 
   /// Mark the scop as invalid.
   ///
@@ -2700,58 +2329,29 @@ public:
   /// Return true if and only if the InvalidContext is trivial (=empty).
   bool hasTrivialInvalidContext() const { return InvalidContext.is_empty(); }
 
-  /// A vector of memory accesses that belong to an alias group.
-  using AliasGroupTy = SmallVector<MemoryAccess *, 4>;
-
-  /// A vector of alias groups.
-  using AliasGroupVectorTy = SmallVector<Scop::AliasGroupTy, 4>;
-
-  /// Build the alias checks for this SCoP.
-  bool buildAliasChecks(AliasAnalysis &AA);
-
-  /// Build all alias groups for this SCoP.
-  ///
-  /// @returns True if __no__ error occurred, false otherwise.
-  bool buildAliasGroups(AliasAnalysis &AA);
-
-  /// Build alias groups for all memory accesses in the Scop.
-  ///
-  /// Using the alias analysis and an alias set tracker we build alias sets
-  /// for all memory accesses inside the Scop. For each alias set we then map
-  /// the aliasing pointers back to the memory accesses we know, thus obtain
-  /// groups of memory accesses which might alias. We also collect the set of
-  /// arrays through which memory is written.
-  ///
-  /// @param AA A reference to the alias analysis.
-  ///
-  /// @returns A pair consistent of a vector of alias groups and a set of arrays
-  ///          through which memory is written.
-  std::tuple<AliasGroupVectorTy, DenseSet<const ScopArrayInfo *>>
-  buildAliasGroupsForAccesses(AliasAnalysis &AA);
-
-  ///  Split alias groups by iteration domains.
-  ///
-  ///  We split each group based on the domains of the minimal/maximal accesses.
-  ///  That means two minimal/maximal accesses are only in a group if their
-  ///  access domains intersect. Otherwise, they are in different groups.
-  ///
-  ///  @param AliasGroups The alias groups to split
-  void splitAliasGroupsByDomain(AliasGroupVectorTy &AliasGroups);
-
-  /// Build a given alias group and its access data.
-  ///
-  /// @param AliasGroup     The alias group to build.
-  /// @param HasWriteAccess A set of arrays through which memory is not only
-  ///                       read, but also written.
-  ///
-  /// @returns True if __no__ error occurred, false otherwise.
-  bool buildAliasGroup(Scop::AliasGroupTy &AliasGroup,
-                       DenseSet<const ScopArrayInfo *> HasWriteAccess);
-
   /// Return all alias groups for this SCoP.
   const MinMaxVectorPairVectorTy &getAliasGroups() const {
     return MinMaxAliasGroups;
   }
+
+  void addAliasGroup(MinMaxVectorTy &MinMaxAccessesReadWrite,
+                     MinMaxVectorTy &MinMaxAccessesReadOnly) {
+    MinMaxAliasGroups.emplace_back();
+    MinMaxAliasGroups.back().first = MinMaxAccessesReadWrite;
+    MinMaxAliasGroups.back().second = MinMaxAccessesReadOnly;
+  }
+
+  /// Remove statements from the list of scop statements.
+  ///
+  /// @param ShouldDelete  A function that returns true if the statement passed
+  ///                      to it should be deleted.
+  /// @param AfterHoisting If true, also remove from data access lists.
+  ///                      These lists are filled during
+  ///                      ScopBuilder::buildAccessRelations. Therefore, if this
+  ///                      method is called before buildAccessRelations, false
+  ///                      must be passed.
+  void removeStmts(function_ref<bool(ScopStmt &)> ShouldDelete,
+                   bool AfterHoisting = true);
 
   /// Get an isl string representing the context.
   std::string getContextStr() const;
@@ -2825,11 +2425,6 @@ public:
   /// Add @p LI to the set of required invariant loads.
   void addRequiredInvariantLoad(LoadInst *LI) { DC.RequiredILS.insert(LI); }
 
-  /// Return true if and only if @p LI is a required invariant load.
-  bool isRequiredInvariantLoad(LoadInst *LI) const {
-    return getRequiredInvariantLoads().count(LI);
-  }
-
   /// Return the set of boxed (thus overapproximated) loops.
   const BoxedLoopsSetTy &getBoxedLoops() const { return DC.BoxedLoopsSet; }
 
@@ -2866,7 +2461,7 @@ public:
   ///
   /// @returns The ScopArrayInfo pointer or NULL if no such pointer is
   ///          available.
-  const ScopArrayInfo *getScopArrayInfoOrNull(Value *BasePtr, MemoryKind Kind);
+  ScopArrayInfo *getScopArrayInfoOrNull(Value *BasePtr, MemoryKind Kind);
 
   /// Return the cached ScopArrayInfo object for @p BasePtr.
   ///
@@ -2875,7 +2470,7 @@ public:
   ///
   /// @returns The ScopArrayInfo pointer (may assert if no such pointer is
   ///          available).
-  const ScopArrayInfo *getScopArrayInfo(Value *BasePtr, MemoryKind Kind);
+  ScopArrayInfo *getScopArrayInfo(Value *BasePtr, MemoryKind Kind);
 
   /// Invalidate ScopArrayInfo object for base address.
   ///
@@ -2889,7 +2484,14 @@ public:
     ScopArrayInfoMap.erase(It);
   }
 
+  /// Set new isl context.
   void setContext(isl::set NewContext);
+
+  /// Update maximal loop depth. If @p Depth is smaller than current value,
+  /// then maximal loop depth is not updated.
+  void updateMaxLoopDepth(unsigned Depth) {
+    MaxLoopDepth = std::max(MaxLoopDepth, Depth);
+  }
 
   /// Align the parameters in the statement to the scop context
   void realignParams();
@@ -2904,6 +2506,9 @@ public:
 
   /// Return true if the SCoP contained at least one error block.
   bool hasErrorBlock() const { return HasErrorBlock; }
+
+  /// Notify SCoP that it contains an error block
+  void notifyErrorBlock() { HasErrorBlock = true; }
 
   /// Return true if the underlying region has a single exiting block.
   bool hasSingleExitEdge() const { return HasSingleExitEdge; }
@@ -2941,13 +2546,19 @@ public:
   /// a dummy value of appropriate dimension is returned. This allows to bail
   /// for complex cases without "error handling code" needed on the users side.
   PWACtx getPwAff(const SCEV *E, BasicBlock *BB = nullptr,
-                  bool NonNegative = false);
+                  bool NonNegative = false,
+                  RecordedAssumptionsTy *RecordedAssumptions = nullptr);
 
   /// Compute the isl representation for the SCEV @p E
   ///
   /// This function is like @see Scop::getPwAff() but strips away the invalid
   /// domain part associated with the piecewise affine function.
-  isl::pw_aff getPwAffOnly(const SCEV *E, BasicBlock *BB = nullptr);
+  isl::pw_aff
+  getPwAffOnly(const SCEV *E, BasicBlock *BB = nullptr,
+               RecordedAssumptionsTy *RecordedAssumptions = nullptr);
+
+  /// Check if an <nsw> AddRec for the loop L is cached.
+  bool hasNSWAddRecForLoop(Loop *L) { return Affinator.hasNSWAddRecForLoop(L); }
 
   /// Return the domain of @p Stmt.
   ///
@@ -2958,6 +2569,15 @@ public:
   ///
   /// @param BB The block for which the conditions should be returned.
   isl::set getDomainConditions(BasicBlock *BB) const;
+
+  /// Return the domain of @p BB. If it does not exist, create an empty one.
+  isl::set &getOrInitEmptyDomain(BasicBlock *BB) { return DomainMap[BB]; }
+
+  /// Check if domain is determined for @p BB.
+  bool isDomainDefined(BasicBlock *BB) const { return DomainMap.count(BB) > 0; }
+
+  /// Set domain for @p BB.
+  void setDomain(BasicBlock *BB, isl::set &Domain) { DomainMap[BB] = Domain; }
 
   /// Get a union set containing the iteration domains of all statements.
   isl::union_set getDomains() const;
@@ -3022,11 +2642,6 @@ public:
   ///        that has name @p Name.
   ScopArrayInfo *getArrayInfoByName(const std::string BaseName);
 
-  /// Check whether @p Schedule contains extension nodes.
-  ///
-  /// @return true if @p Schedule contains extension nodes.
-  static bool containsExtensionNode(isl::schedule Schedule);
-
   /// Simplify the SCoP representation.
   ///
   /// @param AfterHoisting Whether it is called after invariant load hoisting.
@@ -3045,6 +2660,19 @@ public:
   /// This function returns a unique index which can be used to identify a
   /// statement.
   long getNextStmtIdx() { return StmtIdx++; }
+
+  /// Get the representing SCEV for @p S if applicable, otherwise @p S.
+  ///
+  /// Invariant loads of the same location are put in an equivalence class and
+  /// only one of them is chosen as a representing element that will be
+  /// modeled as a parameter. The others have to be normalized, i.e.,
+  /// replaced by the representing element of their equivalence class, in order
+  /// to get the correct parameter value, e.g., in the SCEVAffinator.
+  ///
+  /// @param S The SCEV to normalize.
+  ///
+  /// @return The representing SCEV for invariant loads or @p S if none.
+  const SCEV *getRepresentingInvariantLoadSCEV(const SCEV *S) const;
 
   /// Return the MemoryAccess that writes an llvm::Value, represented by a
   /// ScopArrayInfo.
@@ -3140,15 +2768,15 @@ private:
   ScopDetection &SD;
   ScalarEvolution &SE;
   LoopInfo &LI;
-  AliasAnalysis &AA;
+  AAResults &AA;
   DominatorTree &DT;
   AssumptionCache &AC;
   OptimizationRemarkEmitter &ORE;
 
 public:
   ScopInfo(const DataLayout &DL, ScopDetection &SD, ScalarEvolution &SE,
-           LoopInfo &LI, AliasAnalysis &AA, DominatorTree &DT,
-           AssumptionCache &AC, OptimizationRemarkEmitter &ORE);
+           LoopInfo &LI, AAResults &AA, DominatorTree &DT, AssumptionCache &AC,
+           OptimizationRemarkEmitter &ORE);
 
   /// Get the Scop object for the given Region.
   ///

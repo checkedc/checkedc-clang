@@ -1,10 +1,8 @@
-//===-- PlatformiOSSimulatorCoreSimulatorSupport.cpp ---------------*- C++
-//-*-===//
+//===-- PlatformiOSSimulatorCoreSimulatorSupport.cpp ----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -17,7 +15,7 @@
 #include <Foundation/Foundation.h>
 // Project includes
 #include "lldb/Host/PseudoTerminal.h"
-#include "lldb/Target/FileAction.h"
+#include "lldb/Host/FileAction.h"
 
 #include "llvm/ADT/StringRef.h"
 
@@ -52,10 +50,12 @@ using namespace lldb_private;
 - (NSUInteger)state;
 - (BOOL)shutdownWithError:(NSError **)error;
 - (NSUUID *)UDID;
-- (pid_t)spawnWithPath:(NSString *)path
-               options:(NSDictionary *)options
-    terminationHandler:(void (^)(int status))terminationHandler
-                 error:(NSError **)error;
+- (BOOL)spawnWithPath:(NSString *)path
+               options:(nullable NSDictionary<NSString *, id> *)options
+      terminationQueue:(nullable dispatch_queue_t)terminationQueue
+    terminationHandler:(nullable void (^)(int status))terminationHandler
+                   pid:(pid_t *_Nullable)pid
+                 error:(NSError *__autoreleasing _Nullable *_Nullable)error;
 @end
 
 CoreSimulatorSupport::Process::Process(lldb::pid_t p) : m_pid(p), m_error() {}
@@ -383,7 +383,7 @@ bool CoreSimulatorSupport::Device::Shutdown(Status &err) {
 
 static Status HandleFileAction(ProcessLaunchInfo &launch_info,
                                NSMutableDictionary *options, NSString *key,
-                               const int fd, File &file) {
+                               const int fd, lldb::FileSP &file) {
   Status error;
   const FileAction *file_action = launch_info.GetFileActionForFD(fd);
   if (file_action) {
@@ -404,33 +404,35 @@ static Status HandleFileAction(ProcessLaunchInfo &launch_info,
     case FileAction::eFileActionOpen: {
       FileSpec file_spec = file_action->GetFileSpec();
       if (file_spec) {
-        const int master_fd = launch_info.GetPTY().GetMasterFileDescriptor();
+        const int master_fd = launch_info.GetPTY().GetPrimaryFileDescriptor();
         if (master_fd != PseudoTerminal::invalid_fd) {
-          // Check in case our file action open wants to open the slave
-          const char *slave_path = launch_info.GetPTY().GetSlaveName(NULL, 0);
-          if (slave_path) {
-            FileSpec slave_spec(slave_path);
-            if (file_spec == slave_spec) {
-              int slave_fd = launch_info.GetPTY().GetSlaveFileDescriptor();
-              if (slave_fd == PseudoTerminal::invalid_fd)
-                slave_fd = launch_info.GetPTY().OpenSlave(O_RDWR, nullptr, 0);
-              if (slave_fd == PseudoTerminal::invalid_fd) {
-                error.SetErrorStringWithFormat("unable to open slave pty '%s'",
-                                               slave_path);
-                return error; // Failure
-              }
-              [options setValue:[NSNumber numberWithInteger:slave_fd]
-                         forKey:key];
-              return error; // Success
+          // Check in case our file action open wants to open the secondary
+          FileSpec secondary_spec(launch_info.GetPTY().GetSecondaryName());
+          if (file_spec == secondary_spec) {
+            int secondary_fd =
+                launch_info.GetPTY().GetSecondaryFileDescriptor();
+            if (secondary_fd == PseudoTerminal::invalid_fd) {
+              if (llvm::Error Err = launch_info.GetPTY().OpenSecondary(O_RDWR))
+                return Status(std::move(Err));
             }
+            secondary_fd = launch_info.GetPTY().GetSecondaryFileDescriptor();
+            assert(secondary_fd != PseudoTerminal::invalid_fd);
+            [options setValue:[NSNumber numberWithInteger:secondary_fd]
+                       forKey:key];
+            return error; // Success
           }
         }
         Status posix_error;
+        int oflag = file_action->GetActionArgument();
         int created_fd =
-            open(file_spec.GetPath().c_str(), file_action->GetActionArgument(),
-                 S_IRUSR | S_IWUSR);
+            open(file_spec.GetPath().c_str(), oflag, S_IRUSR | S_IWUSR);
         if (created_fd >= 0) {
-          file.SetDescriptor(created_fd, true);
+          auto file_options = File::OpenOptions(0);
+          if ((oflag & O_RDWR) || (oflag & O_RDONLY))
+            file_options |= File::eOpenOptionRead;
+          if ((oflag & O_RDWR) || (oflag & O_RDONLY))
+            file_options |= File::eOpenOptionWrite;
+          file = std::make_shared<NativeFile>(created_fd, file_options, true);
           [options setValue:[NSNumber numberWithInteger:created_fd] forKey:key];
           return error; // Success
         } else {
@@ -461,8 +463,11 @@ CoreSimulatorSupport::Device::Spawn(ProcessLaunchInfo &launch_info) {
                   provided, path will be argv[0] */
 #define kSimDeviceSpawnWaitForDebugger                                         \
   @"wait_for_debugger" /* An NSNumber (bool) */
+#define kSimDeviceSpawnStandalone @"standalone"
 
   NSMutableDictionary *options = [[NSMutableDictionary alloc] init];
+
+  options[kSimDeviceSpawnStandalone] = @(YES);
 
   if (launch_info.GetFlags().Test(lldb::eLaunchFlagDebug))
     [options setObject:@YES forKey:kSimDeviceSpawnWaitForDebugger];
@@ -490,9 +495,9 @@ CoreSimulatorSupport::Device::Spawn(ProcessLaunchInfo &launch_info) {
   [options setObject:env_dict forKey:kSimDeviceSpawnEnvironment];
 
   Status error;
-  File stdin_file;
-  File stdout_file;
-  File stderr_file;
+  lldb::FileSP stdin_file;
+  lldb::FileSP stdout_file;
+  lldb::FileSP stderr_file;
   error = HandleFileAction(launch_info, options, kSimDeviceSpawnStdin,
                            STDIN_FILENO, stdin_file);
 
@@ -520,16 +525,19 @@ CoreSimulatorSupport::Device::Spawn(ProcessLaunchInfo &launch_info) {
 
   NSError *nserror;
 
-  pid_t pid = [m_dev
+  pid_t pid;
+  BOOL success = [m_dev
            spawnWithPath:[NSString stringWithUTF8String:launch_info
                                                             .GetExecutableFile()
                                                             .GetPath()
                                                             .c_str()]
                  options:options
+        terminationQueue:nil
       terminationHandler:nil
+                     pid:&pid
                    error:&nserror];
 
-  if (pid < 0) {
+  if (!success) {
     const char *nserror_string = [[nserror description] UTF8String];
     error.SetErrorString(nserror_string ? nserror_string : "unable to launch");
   }

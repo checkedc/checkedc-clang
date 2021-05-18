@@ -1,11 +1,13 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+// UNSUPPORTED: c++03, c++11
+// UNSUPPORTED: libcpp-has-no-localization
 
 // <iomanip>
 
@@ -17,9 +19,6 @@
 #include <cassert>
 
 #include "test_macros.h"
-
-#if TEST_STD_VER > 11
-// quoted is C++14 only
 
 bool is_skipws ( const std::istream *is ) {
     return ( is->flags() & std::ios_base::skipws ) != 0;
@@ -161,7 +160,7 @@ std::wstring unquote ( const wchar_t *p, wchar_t delim='"', wchar_t escape='\\' 
     return s;
 }
 
-int main()
+int main(int, char**)
 {
     round_trip    (  "" );
     round_trip_ws (  "" );
@@ -208,7 +207,6 @@ int main()
 
     assert ( unquote (  "" ) ==  "" ); // nothing there
     assert ( unquote ( L"" ) == L"" ); // nothing there
-    }
-#else
-int main() {}
-#endif
+
+    return 0;
+}

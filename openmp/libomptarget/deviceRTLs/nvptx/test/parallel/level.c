@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
       check2[id] += omp_get_ancestor_thread_num(0) + 5 * omp_get_team_size(0);
       // Expected to return the current thread num.
       check2[id] += (omp_get_ancestor_thread_num(1) - id);
-      // Exepcted to return the current number of threads.
+      // Expected to return the current number of threads.
       check2[id] += 3 * omp_get_team_size(1);
       // Expected to return -1, see above.
       check2[id] += omp_get_ancestor_thread_num(2) + omp_get_team_size(2);
@@ -68,9 +68,9 @@ int main(int argc, char *argv[]) {
         int check4Inc = omp_get_ancestor_thread_num(0) + 5 * omp_get_team_size(0);
         // Expected to return the parent thread num.
         check4Inc += (omp_get_ancestor_thread_num(1) - id);
-        // Exepcted to return the number of threads in the active parallel region.
+        // Expected to return the number of threads in the active parallel region.
         check4Inc += 3 * omp_get_team_size(1);
-        // Exptected to return 0 and 1.
+        // Expected to return 0 and 1.
         check4Inc += omp_get_ancestor_thread_num(2) + 3 * omp_get_team_size(2);
         // Expected to return -1, see above.
         check4Inc += omp_get_ancestor_thread_num(3) + omp_get_team_size(3);
@@ -134,6 +134,18 @@ int main(int argc, char *argv[]) {
       printf("invalid: check4[%d] should be 0, is %d\n", i, check4[i]);
     }
   }
+
+  // Check for paraller level in non-SPMD kernels.
+  level = 0;
+  #pragma omp target teams distribute num_teams(1) thread_limit(32) reduction(+:level)
+  for (int i=0; i<5032; i+=32) {
+    int ub = (i+32 > 5032) ? 5032 : i+32;
+    #pragma omp parallel for schedule(dynamic)
+    for (int j=i ; j < ub; j++) ;
+    level += omp_get_level();
+  }
+  // CHECK: Integral level = 0.
+  printf("Integral level = %d.\n", level);
 
   return 0;
 }

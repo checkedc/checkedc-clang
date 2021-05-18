@@ -1,9 +1,8 @@
-//===-- PdbIndex.cpp --------------------------------------------*- C++ -*-===//
+//===-- PdbIndex.cpp ------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -40,7 +39,7 @@ PdbIndex::PdbIndex() : m_cus(*this), m_va_to_modi(m_allocator) {}
   }
 
 llvm::Expected<std::unique_ptr<PdbIndex>>
-PdbIndex::create(std::unique_ptr<llvm::pdb::PDBFile> file) {
+PdbIndex::create(llvm::pdb::PDBFile *file) {
   lldbassert(file);
 
   std::unique_ptr<PdbIndex> result(new PdbIndex());
@@ -54,7 +53,7 @@ PdbIndex::create(std::unique_ptr<llvm::pdb::PDBFile> file) {
 
   result->m_tpi->buildHashMap();
 
-  result->m_file = std::move(file);
+  result->m_file = file;
 
   return std::move(result);
 }
@@ -133,9 +132,8 @@ void PdbIndex::BuildAddrToSymbolMap(CompilandIndexItem &cci) {
 
     PdbCompilandSymId cu_sym_id(modi, iter.offset());
 
-    // If the debug info is incorrect, we could have multiple symbols with the
-    // same address.  So use try_emplace instead of insert, and the first one
-    // will win.
+    // It's rare, but we could have multiple symbols with the same address
+    // because of identical comdat folding.  Right now, the first one will win.
     cci.m_symbols_by_va.insert(std::make_pair(va, PdbSymUid(cu_sym_id)));
   }
 }
@@ -187,8 +185,6 @@ std::vector<SymbolAndUid> PdbIndex::FindSymbolsByVa(lldb::addr_t va) {
 }
 
 CVSymbol PdbIndex::ReadSymbolRecord(PdbCompilandSymId cu_sym) const {
-  // We need to subtract 4 here to adjust for the codeview debug magic
-  // at the beginning of the debug info stream.
   const CompilandIndexItem *cci = compilands().GetCompiland(cu_sym.modi);
   auto iter = cci->m_debug_stream.getSymbolArray().at(cu_sym.offset);
   lldbassert(iter != cci->m_debug_stream.getSymbolArray().end());

@@ -1,13 +1,15 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
+
+// This test requires the dylib support introduced in D92769.
+// XFAIL: with_system_cxx_lib=macosx10.15
 
 // <filesystem>
 
@@ -16,13 +18,13 @@
 // bool create_directory(const path& p, const path& attr);
 // bool create_directory(const path& p, const path& attr, error_code& ec) noexcept;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -96,8 +98,40 @@ TEST_CASE(dest_is_file)
     const path file = env.create_file("file", 42);
     std::error_code ec = GetTestEC();
     TEST_CHECK(fs::create_directory(file, ec) == false);
-    TEST_CHECK(!ec);
+    TEST_CHECK(ec);
     TEST_CHECK(is_regular_file(file));
+}
+
+TEST_CASE(dest_part_is_file)
+{
+    scoped_test_env env;
+    const path file = env.create_file("file");
+    const path dir = env.make_env_path("file/dir1");
+    std::error_code ec = GetTestEC();
+    TEST_CHECK(fs::create_directory(dir, ec) == false);
+    TEST_CHECK(ec);
+    TEST_CHECK(is_regular_file(file));
+    TEST_CHECK(!exists(dir));
+}
+
+TEST_CASE(dest_is_symlink_to_dir)
+{
+    scoped_test_env env;
+    const path dir = env.create_dir("dir");
+    const path sym = env.create_symlink(dir, "sym_name");
+    std::error_code ec = GetTestEC();
+    TEST_CHECK(create_directory(sym, ec) == false);
+    TEST_CHECK(!ec);
+}
+
+TEST_CASE(dest_is_symlink_to_file)
+{
+    scoped_test_env env;
+    const path file = env.create_file("file");
+    const path sym = env.create_symlink(file, "sym_name");
+    std::error_code ec = GetTestEC();
+    TEST_CHECK(create_directory(sym, ec) == false);
+    TEST_CHECK(ec);
 }
 
 TEST_SUITE_END()

@@ -1,14 +1,13 @@
 //===-- SBCommunication.h ---------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_SBCommunication_h_
-#define LLDB_SBCommunication_h_
+#ifndef LLDB_API_SBCOMMUNICATION_H
+#define LLDB_API_SBCOMMUNICATION_H
 
 #include "lldb/API/SBDefines.h"
 #include "lldb/API/SBError.h"
@@ -37,6 +36,8 @@ public:
   SBCommunication();
   SBCommunication(const char *broadcaster_name);
   ~SBCommunication();
+
+  explicit operator bool() const;
 
   bool IsValid() const;
 
@@ -71,7 +72,8 @@ public:
                                           void *callback_baton);
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(SBCommunication);
+  SBCommunication(const SBCommunication &) = delete;
+  const SBCommunication &operator=(const SBCommunication &) = delete;
 
   lldb_private::Communication *m_opaque;
   bool m_opaque_owned;
@@ -79,4 +81,4 @@ private:
 
 } // namespace lldb
 
-#endif // LLDB_SBCommunication_h_
+#endif // LLDB_API_SBCOMMUNICATION_H

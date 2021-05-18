@@ -1,25 +1,22 @@
 add_lldb_unittest(LLDBCoreTests
+  CommunicationTest.cpp
   MangledTest.cpp
-  RangeMapTest.cpp
-  RangeTest.cpp
+  ModuleSpecTest.cpp
   RichManglingContextTest.cpp
+  SourceManagerTest.cpp
   StreamCallbackTest.cpp
+  UniqueCStringMapTest.cpp
 
   LINK_LIBS
     lldbCore
     lldbHost
     lldbSymbol
     lldbPluginObjectFileELF
-    lldbPluginSymbolVendorELF
+    lldbPluginObjectFileMachO
+    lldbPluginObjectFilePECOFF
+    lldbPluginSymbolFileSymtab
     lldbUtilityHelpers
+    LLVMTestingSupport
   LINK_COMPONENTS
     Support
   )
-
-add_dependencies(LLDBCoreTests yaml2obj)
-add_definitions(-DYAML2OBJ="$<TARGET_FILE:yaml2obj>")
-
-set(test_inputs
-  mangled-function-names.yaml
-  )
-add_unittest_inputs(LLDBCoreTests "${test_inputs}")

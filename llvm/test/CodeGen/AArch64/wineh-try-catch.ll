@@ -1,6 +1,6 @@
 ; RUN: llc -o - %s -mtriple=aarch64-windows -verify-machineinstrs | FileCheck %s
 ; RUN: llc -o %t -filetype=obj %s -mtriple=aarch64-windows
-; RUN: llvm-readobj -unwind %t | FileCheck %s -check-prefix=UNWIND
+; RUN: llvm-readobj --unwind %t | FileCheck %s -check-prefix=UNWIND
 
 ; We test the following
 ; 1) That the unwind help object is created and that its offset from the stack
@@ -11,23 +11,23 @@
 ;    and the parent function.
 
 ; The following checks that the unwind help object has -2 stored into it at
-; fp - 400 - 256 = fp - 656, which is on-entry sp - 48 + 32 - 656 =
-; on-entry sp - 672.  We check this offset in the table later on.
+; fp + 16, which is on-entry sp - 16.
+; We check this offset in the table later on.
 
 ; CHECK-LABEL: "?func@@YAHXZ":
-; CHECK:       str     x28, [sp, #-48]!
-; CHECK:       str     x21, [sp, #8]
-; CHECK:       stp     x19, x20, [sp, #16]
+; CHECK:       stp     x19, x20, [sp, #-64]!
+; CHECK:       str     x21, [sp, #16]
+; CHECK:       str     x28, [sp, #24]
 ; CHECK:       stp     x29, x30, [sp, #32]
 ; CHECK:       add     x29, sp, #32
 ; CHECK:       sub     sp, sp, #624
 ; CHECK:       mov     x19, sp
-; CHECK:       orr     x1, xzr, #0xfffffffffffffffe
-; CHECK:       stur    x1, [x19]
+; CHECK:       mov     x0, #-2
+; CHECK:       stur    x0, [x29, #16]
 
 ; Now check that x is stored at fp - 20.  We check that this is the same
 ; location accessed from the funclet to retrieve x.
-; CHECK:       orr     w8, wzr, #0x1
+; CHECK:       mov     w8, #1
 ; CHECK:       stur    w8, [x29, [[X_OFFSET:#-[1-9][0-9]+]]
 
 ; Check the offset off the frame pointer at which B is located.
@@ -47,9 +47,9 @@
 ; CHECK-LABEL: "?catch$2@?0??func@@YAHXZ@4HA":
 
 ; Check that the stack space is allocated only for the callee saved registers.
-; CHECK:       str     x28, [sp, #-48]!
-; CHECK:       str     x21, [sp, #8]
-; CHECK:       stp     x19, x20, [sp, #16]
+; CHECK:       stp     x19, x20, [sp, #-48]!
+; CHECK:       str     x21, [sp, #16]
+; CHECK:       str     x28, [sp, #24]
 ; CHECK:       stp     x29, x30, [sp, #32]
 ; CHECK:       add     x20, x19, #12
 
@@ -72,7 +72,7 @@
 
 ; Now check that the offset of the unwind help object from the stack pointer on
 ; entry to func is encoded in cppxdata that is passed to __CxxFrameHandler3.  As
-; computed above, this comes to -672.
+; computed above, this comes to -16.
 ; CHECK-LABEL:        "$cppxdata$?func@@YAHXZ":
 ; CHECK-NEXT:         .word   429065506               ; MagicNumber
 ; CHECK-NEXT:         .word   2                       ; MaxState
@@ -81,7 +81,7 @@
 ; CHECK-NEXT:         .word   ("$tryMap$?func@@YAHXZ")@IMGREL ; TryBlockMap
 ; CHECK-NEXT:         .word   4                       ; IPMapEntries
 ; CHECK-NEXT:         .word   ("$ip2state$?func@@YAHXZ")@IMGREL ; IPToStateXData
-; CHECK-NEXT:         .word   -672                    ; UnwindHelp
+; CHECK-NEXT:         .word   -16                     ; UnwindHelp
 
 ; UNWIND: Function: ?func@@YAHXZ (0x0)
 ; UNWIND: Prologue [
@@ -89,16 +89,16 @@
 ; UNWIND-NEXT: ; sub sp, #624
 ; UNWIND-NEXT: ; add fp, sp, #32
 ; UNWIND-NEXT: ; stp x29, x30, [sp, #32]
-; UNWIND-NEXT: ; stp x19, x20, [sp, #16]
-; UNWIND-NEXT: ; str x21, [sp, #8]
-; UNWIND-NEXT: ; str x28, [sp, #48]!
+; UNWIND-NEXT: ; str x28, [sp, #24]
+; UNWIND-NEXT: ; str x21, [sp, #16]
+; UNWIND-NEXT: ; stp x19, x20, [sp, #-64]!
 ; UNWIND-NEXT: ; end
 ; UNWIND: Function: ?catch$2@?0??func@@YAHXZ@4HA
 ; UNWIND: Prologue [
 ; UNWIND-NEXT: ; stp x29, x30, [sp, #32]
-; UNWIND-NEXT: ; stp x19, x20, [sp, #16]
-; UNWIND-NEXT: ; str x21, [sp, #8]
-; UNWIND-NEXT: ; str x28, [sp, #48]!
+; UNWIND-NEXT: ; str x28, [sp, #24]
+; UNWIND-NEXT: ; str x21, [sp, #16]
+; UNWIND-NEXT: ; stp x19, x20, [sp, #-48]!
 ; UNWIND-NEXT: ; end
 
 target datalayout = "e-m:w-p:64:64-i32:32-i64:64-i128:128-n32:64-S128"

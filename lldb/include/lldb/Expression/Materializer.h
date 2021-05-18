@@ -1,14 +1,13 @@
 //===-- Materializer.h ------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Materializer_h
-#define liblldb_Materializer_h
+#ifndef LLDB_EXPRESSION_MATERIALIZER_H
+#define LLDB_EXPRESSION_MATERIALIZER_H
 
 #include <memory>
 #include <vector>
@@ -23,14 +22,12 @@ namespace lldb_private {
 
 class Materializer {
 public:
-  Materializer();
+  Materializer() = default;
   ~Materializer();
 
   class Dematerializer {
   public:
-    Dematerializer()
-        : m_materializer(nullptr), m_map(nullptr),
-          m_process_address(LLDB_INVALID_ADDRESS) {}
+    Dematerializer() = default;
 
     ~Dematerializer() { Wipe(); }
 
@@ -57,11 +54,11 @@ public:
       }
     }
 
-    Materializer *m_materializer;
+    Materializer *m_materializer = nullptr;
     lldb::ThreadWP m_thread_wp;
     StackID m_stack_id;
-    IRMemoryMap *m_map;
-    lldb::addr_t m_process_address;
+    IRMemoryMap *m_map = nullptr;
+    lldb::addr_t m_process_address = LLDB_INVALID_ADDRESS;
   };
 
   typedef std::shared_ptr<Dematerializer> DematerializerSP;
@@ -116,8 +113,6 @@ public:
     void SetOffset(uint32_t offset) { m_offset = offset; }
 
   protected:
-    void SetSizeAndAlignmentFromType(CompilerType &type);
-
     uint32_t m_alignment;
     uint32_t m_size;
     uint32_t m_offset;
@@ -131,10 +126,10 @@ private:
 
   DematerializerWP m_dematerializer_wp;
   EntityVector m_entities;
-  uint32_t m_current_offset;
-  uint32_t m_struct_alignment;
+  uint32_t m_current_offset = 0;
+  uint32_t m_struct_alignment = 8;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_Materializer_h
+#endif // LLDB_EXPRESSION_MATERIALIZER_H

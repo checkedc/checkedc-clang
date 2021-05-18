@@ -1,9 +1,8 @@
 //===--- TypePromotionInMathFnCheck.cpp - clang-tidy-----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -32,21 +31,18 @@ AST_MATCHER_P(Type, isBuiltinType, BuiltinType::Kind, Kind) {
 TypePromotionInMathFnCheck::TypePromotionInMathFnCheck(
     StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      IncludeStyle(utils::IncludeSorter::parseIncludeStyle(
-          Options.getLocalOrGlobal("IncludeStyle", "llvm"))) {}
+      IncludeInserter(Options.getLocalOrGlobal("IncludeStyle",
+                                               utils::IncludeSorter::IS_LLVM)) {
+}
 
 void TypePromotionInMathFnCheck::registerPPCallbacks(
-    CompilerInstance &Compiler) {
-  IncludeInserter = llvm::make_unique<utils::IncludeInserter>(
-      Compiler.getSourceManager(), Compiler.getLangOpts(), IncludeStyle);
-  Compiler.getPreprocessor().addPPCallbacks(
-      IncludeInserter->CreatePPCallbacks());
+    const SourceManager &SM, Preprocessor *PP, Preprocessor *ModuleExpanderPP) {
+  IncludeInserter.registerPreprocessor(PP);
 }
 
 void TypePromotionInMathFnCheck::storeOptions(
     ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "IncludeStyle",
-                utils::IncludeSorter::toString(IncludeStyle));
+  Options.store(Opts, "IncludeStyle", IncludeInserter.getStyle());
 }
 
 void TypePromotionInMathFnCheck::registerMatchers(MatchFinder *Finder) {
@@ -194,10 +190,9 @@ void TypePromotionInMathFnCheck::check(const MatchFinder::MatchResult &Result) {
   // <math.h>, because the functions we're suggesting moving away from are all
   // declared in <math.h>.
   if (FnInCmath)
-    if (auto IncludeFixit = IncludeInserter->CreateIncludeInsertion(
-            Result.Context->getSourceManager().getFileID(Call->getBeginLoc()),
-            "cmath", /*IsAngled=*/true))
-      Diag << *IncludeFixit;
+    Diag << IncludeInserter.createIncludeInsertion(
+        Result.Context->getSourceManager().getFileID(Call->getBeginLoc()),
+        "<cmath>");
 }
 
 } // namespace performance

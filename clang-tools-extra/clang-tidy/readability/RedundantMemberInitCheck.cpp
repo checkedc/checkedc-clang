@@ -1,9 +1,8 @@
 //===--- RedundantMemberInitCheck.cpp - clang-tidy-------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -21,10 +20,12 @@ namespace clang {
 namespace tidy {
 namespace readability {
 
-void RedundantMemberInitCheck::registerMatchers(MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus)
-    return;
+void RedundantMemberInitCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
+  Options.store(Opts, "IgnoreBaseInCopyConstructors",
+                IgnoreBaseInCopyConstructors);
+}
 
+void RedundantMemberInitCheck::registerMatchers(MatchFinder *Finder) {
   auto Construct =
       cxxConstructExpr(
           hasDeclaration(cxxConstructorDecl(hasParent(
@@ -32,22 +33,31 @@ void RedundantMemberInitCheck::registerMatchers(MatchFinder *Finder) {
           .bind("construct");
 
   Finder->addMatcher(
-      cxxConstructorDecl(
-          unless(isDelegatingConstructor()),
-          ofClass(unless(
-              anyOf(isUnion(), ast_matchers::isTemplateInstantiation()))),
-          forEachConstructorInitializer(
-              cxxCtorInitializer(isWritten(),
-                                 withInitializer(ignoringImplicit(Construct)),
-                                 unless(forField(hasType(isConstQualified()))),
-                                 unless(forField(hasParent(recordDecl(isUnion())))))
-                  .bind("init"))),
+      traverse(
+          TK_AsIs,
+          cxxConstructorDecl(
+              unless(isDelegatingConstructor()),
+              ofClass(unless(
+                  anyOf(isUnion(), ast_matchers::isTemplateInstantiation()))),
+              forEachConstructorInitializer(
+                  cxxCtorInitializer(
+                      isWritten(), withInitializer(ignoringImplicit(Construct)),
+                      unless(forField(hasType(isConstQualified()))),
+                      unless(forField(hasParent(recordDecl(isUnion())))))
+                      .bind("init")))
+              .bind("constructor")),
       this);
 }
 
 void RedundantMemberInitCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Init = Result.Nodes.getNodeAs<CXXCtorInitializer>("init");
   const auto *Construct = Result.Nodes.getNodeAs<CXXConstructExpr>("construct");
+  const auto *ConstructorDecl =
+      Result.Nodes.getNodeAs<CXXConstructorDecl>("constructor");
+
+  if (IgnoreBaseInCopyConstructors && ConstructorDecl->isCopyConstructor() &&
+      Init->isBaseInitializer())
+    return;
 
   if (Construct->getNumArgs() == 0 ||
       Construct->getArg(0)->isDefaultArgument()) {

@@ -1,9 +1,9 @@
-// RUN: %clang_cc1 -fprofile-instrument=clang -fcoverage-mapping -emit-llvm -main-file-name unused_names.c -o - %s > %t
+// RUN: %clang_cc1 -mllvm -emptyline-comment-coverage=false -fprofile-instrument=clang -fcoverage-mapping -emit-llvm -main-file-name unused_names.c -o - %s > %t
 // RUN: FileCheck -input-file %t %s
 // RUN: FileCheck -check-prefix=SYSHEADER -input-file %t %s
 
 // CHECK-DAG: @__profc_bar
-// CHECK-DAG: @__llvm_prf_nm = private constant {{.*}}, section "{{.*__llvm_prf_names|.*lprfn}}"
+// CHECK-DAG: @__llvm_prf_nm = private constant {{.*}}, section "{{.*__llvm_prf_names|\.lprfn\$M}}"
 
 // These are never instantiated, so we shouldn't get counters for them.
 //

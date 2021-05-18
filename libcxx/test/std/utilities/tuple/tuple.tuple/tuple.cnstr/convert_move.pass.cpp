@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -13,12 +12,14 @@
 
 // template <class... UTypes> tuple(tuple<UTypes...>&& u);
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 #include <tuple>
 #include <string>
 #include <memory>
 #include <cassert>
+
+#include "test_macros.h"
 
 struct Explicit {
   int value;
@@ -45,7 +46,21 @@ struct D
     explicit D(int i) : B(i) {}
 };
 
-int main()
+struct BonkersBananas {
+  template <class T>
+  operator T() &&;
+  template <class T, class = void>
+  explicit operator T() && = delete;
+};
+
+void test_bonkers_bananas_conversion() {
+  using ReturnType = std::tuple<int, int>;
+  static_assert(std::is_convertible<BonkersBananas, ReturnType>(), "");
+  static_assert(!std::is_constructible<ReturnType, BonkersBananas>(), "");
+
+}
+
+int main(int, char**)
 {
     {
         typedef std::tuple<long> T0;
@@ -101,4 +116,6 @@ int main()
         std::tuple<Implicit> t2 = std::move(t1);
         assert(std::get<0>(t2).value == 42);
     }
+
+  return 0;
 }

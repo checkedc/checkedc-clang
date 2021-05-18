@@ -1,9 +1,8 @@
-//===-- FileSpecTest.cpp ----------------------------------------*- C++ -*-===//
+//===-- FileSpecTest.cpp --------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -12,6 +11,14 @@
 #include "lldb/Utility/FileSpec.h"
 
 using namespace lldb_private;
+
+static FileSpec PosixSpec(llvm::StringRef path) {
+  return FileSpec(path, FileSpec::Style::posix);
+}
+
+static FileSpec WindowsSpec(llvm::StringRef path) {
+  return FileSpec(path, FileSpec::Style::windows);
+}
 
 TEST(FileSpecTest, FileAndDirectoryComponents) {
   FileSpec fs_posix("/foo/bar", FileSpec::Style::posix);
@@ -107,8 +114,7 @@ TEST(FileSpecTest, AppendPathComponent) {
 }
 
 TEST(FileSpecTest, CopyByAppendingPathComponent) {
-  FileSpec fs = FileSpec("/foo", FileSpec::Style::posix)
-                    .CopyByAppendingPathComponent("bar");
+  FileSpec fs = PosixSpec("/foo").CopyByAppendingPathComponent("bar");
   EXPECT_STREQ("/foo/bar", fs.GetCString());
   EXPECT_STREQ("/foo", fs.GetDirectory().GetCString());
   EXPECT_STREQ("bar", fs.GetFilename().GetCString());
@@ -137,9 +143,7 @@ TEST(FileSpecTest, PrependPathComponent) {
 }
 
 TEST(FileSpecTest, EqualSeparator) {
-  FileSpec backward("C:\\foo\\bar", FileSpec::Style::windows);
-  FileSpec forward("C:/foo/bar", FileSpec::Style::windows);
-  EXPECT_EQ(forward, backward);
+  EXPECT_EQ(WindowsSpec("C:\\foo\\bar"), WindowsSpec("C:/foo/bar"));
 }
 
 TEST(FileSpecTest, EqualDotsWindows) {
@@ -154,9 +158,8 @@ TEST(FileSpecTest, EqualDotsWindows) {
   };
 
   for (const auto &test : tests) {
-    FileSpec one(test.first, FileSpec::Style::windows);
-    FileSpec two(test.second, FileSpec::Style::windows);
-    EXPECT_EQ(one, two);
+    SCOPED_TRACE(llvm::Twine(test.first) + " <=> " + test.second);
+    EXPECT_EQ(WindowsSpec(test.first), WindowsSpec(test.second));
   }
 }
 
@@ -170,9 +173,8 @@ TEST(FileSpecTest, EqualDotsPosix) {
   };
 
   for (const auto &test : tests) {
-    FileSpec one(test.first, FileSpec::Style::posix);
-    FileSpec two(test.second, FileSpec::Style::posix);
-    EXPECT_EQ(one, two);
+    SCOPED_TRACE(llvm::Twine(test.first) + " <=> " + test.second);
+    EXPECT_EQ(PosixSpec(test.first), PosixSpec(test.second));
   }
 }
 
@@ -184,13 +186,23 @@ TEST(FileSpecTest, EqualDotsPosixRoot) {
   };
 
   for (const auto &test : tests) {
-    FileSpec one(test.first, FileSpec::Style::posix);
-    FileSpec two(test.second, FileSpec::Style::posix);
-    EXPECT_EQ(one, two);
+    SCOPED_TRACE(llvm::Twine(test.first) + " <=> " + test.second);
+    EXPECT_EQ(PosixSpec(test.first), PosixSpec(test.second));
   }
 }
 
-TEST(FileSpecTest, GetNormalizedPath) {
+TEST(FileSpecTest, GuessPathStyle) {
+  EXPECT_EQ(FileSpec::Style::posix, FileSpec::GuessPathStyle("/foo/bar.txt"));
+  EXPECT_EQ(FileSpec::Style::posix, FileSpec::GuessPathStyle("//net/bar.txt"));
+  EXPECT_EQ(FileSpec::Style::windows,
+            FileSpec::GuessPathStyle(R"(C:\foo.txt)"));
+  EXPECT_EQ(FileSpec::Style::windows,
+            FileSpec::GuessPathStyle(R"(\\net\foo.txt)"));
+  EXPECT_EQ(llvm::None, FileSpec::GuessPathStyle("foo.txt"));
+  EXPECT_EQ(llvm::None, FileSpec::GuessPathStyle("foo/bar.txt"));
+}
+
+TEST(FileSpecTest, GetPath) {
   std::pair<const char *, const char *> posix_tests[] = {
       {"/foo/.././bar", "/bar"},
       {"/foo/./../bar", "/bar"},
@@ -220,8 +232,7 @@ TEST(FileSpecTest, GetNormalizedPath) {
   };
   for (auto test : posix_tests) {
     SCOPED_TRACE(llvm::Twine("test.first = ") + test.first);
-    EXPECT_EQ(test.second,
-              FileSpec(test.first, FileSpec::Style::posix).GetPath());
+    EXPECT_EQ(test.second, PosixSpec(test.first).GetPath());
   }
 
   std::pair<const char *, const char *> windows_tests[] = {
@@ -235,13 +246,11 @@ TEST(FileSpecTest, GetNormalizedPath) {
       {R"(\\net)", R"(\\net)"},
       {R"(c:\..)", R"(c:\)"},
       {R"(c:\.)", R"(c:\)"},
-      // TODO: fix llvm::sys::path::remove_dots() to return "\" below.
-      {R"(\..)", R"(\..)"},
+      {R"(\..)", R"(\)"},
       //      {R"(c:..)", R"(c:..)"},
       {R"(..)", R"(..)"},
       {R"(.)", R"(.)"},
-      // TODO: fix llvm::sys::path::remove_dots() to return "c:\" below.
-      {R"(c:..\..)", R"(c:\..\..)"},
+      {R"(c:..\..)", R"(c:)"},
       {R"(..\..)", R"(..\..)"},
       {R"(foo\..)", R"(.)"},
       {R"(foo\..\bar)", R"(bar)"},
@@ -252,9 +261,8 @@ TEST(FileSpecTest, GetNormalizedPath) {
       {R"(..\..\foo)", R"(..\..\foo)"},
   };
   for (auto test : windows_tests) {
-    EXPECT_EQ(test.second,
-              FileSpec(test.first, FileSpec::Style::windows).GetPath())
-        << "Original path: " << test.first;
+    SCOPED_TRACE(llvm::Twine("test.first = ") + test.first);
+    EXPECT_EQ(test.second, WindowsSpec(test.first).GetPath());
   }
 }
 
@@ -305,8 +313,8 @@ TEST(FileSpecTest, IsRelative) {
     "/foo/../.",
   };
   for (const auto &path: not_relative) {
-    FileSpec spec(path, FileSpec::Style::posix);
-    EXPECT_FALSE(spec.IsRelative());
+    SCOPED_TRACE(path);
+    EXPECT_FALSE(PosixSpec(path).IsRelative());
   }
   llvm::StringRef is_relative[] = {
     ".",
@@ -323,8 +331,8 @@ TEST(FileSpecTest, IsRelative) {
     "./foo/bar.c"
   };
   for (const auto &path: is_relative) {
-    FileSpec spec(path, FileSpec::Style::posix);
-    EXPECT_TRUE(spec.IsRelative());
+    SCOPED_TRACE(path);
+    EXPECT_TRUE(PosixSpec(path).IsRelative());
   }
 }
 
@@ -368,4 +376,72 @@ TEST(FileSpecTest, RemoveLastPathComponent) {
   EXPECT_STREQ("C:", fs_windows.GetCString());
   EXPECT_FALSE(fs_windows.RemoveLastPathComponent());
   EXPECT_STREQ("C:", fs_windows.GetCString());
+}
+
+TEST(FileSpecTest, Equal) {
+  auto Eq = [](const char *a, const char *b, bool full) {
+    return FileSpec::Equal(PosixSpec(a), PosixSpec(b), full);
+  };
+  EXPECT_TRUE(Eq("/foo/bar", "/foo/bar", true));
+  EXPECT_TRUE(Eq("/foo/bar", "/foo/bar", false));
+
+  EXPECT_FALSE(Eq("/foo/bar", "/foo/baz", true));
+  EXPECT_FALSE(Eq("/foo/bar", "/foo/baz", false));
+
+  EXPECT_FALSE(Eq("/bar/foo", "/baz/foo", true));
+  EXPECT_FALSE(Eq("/bar/foo", "/baz/foo", false));
+
+  EXPECT_FALSE(Eq("/bar/foo", "foo", true));
+  EXPECT_TRUE(Eq("/bar/foo", "foo", false));
+
+  EXPECT_FALSE(Eq("foo", "/bar/foo", true));
+  EXPECT_TRUE(Eq("foo", "/bar/foo", false));
+}
+
+TEST(FileSpecTest, Match) {
+  auto Match = [](const char *pattern, const char *file) {
+    return FileSpec::Match(PosixSpec(pattern), PosixSpec(file));
+  };
+  EXPECT_TRUE(Match("/foo/bar", "/foo/bar"));
+  EXPECT_FALSE(Match("/foo/bar", "/oof/bar"));
+  EXPECT_FALSE(Match("/foo/bar", "/foo/baz"));
+  EXPECT_FALSE(Match("/foo/bar", "bar"));
+  EXPECT_FALSE(Match("/foo/bar", ""));
+
+  EXPECT_TRUE(Match("bar", "/foo/bar"));
+  EXPECT_FALSE(Match("bar", "/foo/baz"));
+  EXPECT_TRUE(Match("bar", "bar"));
+  EXPECT_FALSE(Match("bar", "baz"));
+  EXPECT_FALSE(Match("bar", ""));
+
+  EXPECT_TRUE(Match("", "/foo/bar"));
+  EXPECT_TRUE(Match("", ""));
+
+}
+
+TEST(FileSpecTest, Yaml) {
+  std::string buffer;
+  llvm::raw_string_ostream os(buffer);
+
+  // Serialize.
+  FileSpec fs_windows("F:\\bar", FileSpec::Style::windows);
+  llvm::yaml::Output yout(os);
+  yout << fs_windows;
+  os.flush();
+
+  // Deserialize.
+  FileSpec deserialized;
+  llvm::yaml::Input yin(buffer);
+  yin >> deserialized;
+
+  EXPECT_EQ(deserialized.GetPathStyle(), fs_windows.GetPathStyle());
+  EXPECT_EQ(deserialized.GetFilename(), fs_windows.GetFilename());
+  EXPECT_EQ(deserialized.GetDirectory(), fs_windows.GetDirectory());
+  EXPECT_EQ(deserialized, fs_windows);
+}
+
+TEST(FileSpecTest, OperatorBool) {
+  EXPECT_FALSE(FileSpec());
+  EXPECT_FALSE(FileSpec(""));
+  EXPECT_TRUE(FileSpec("/foo/bar"));
 }

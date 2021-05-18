@@ -1,5 +1,7 @@
 add_lldb_unittest(SymbolFileDWARFTests
+  DWARFASTParserClangTests.cpp
   SymbolFileDWARFTests.cpp
+  XcodeSDKModuleTests.cpp
 
   LINK_LIBS
     lldbCore
@@ -8,7 +10,10 @@ add_lldb_unittest(SymbolFileDWARFTests
     lldbPluginObjectFilePECOFF
     lldbPluginSymbolFileDWARF
     lldbPluginSymbolFilePDB
+    lldbPluginTypeSystemClang
+    lldbPluginPlatformMacOSX
     lldbUtilityHelpers
+    lldbSymbolHelpers
   LINK_COMPONENTS
     Support
     DebugInfoPDB

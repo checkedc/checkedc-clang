@@ -1,6 +1,6 @@
 # REQUIRES: x86, zlib
 # RUN: llvm-mc -filetype=obj -triple i686-linux-gnu -compress-debug-sections=zlib %s -o %t.o
-# RUN: llvm-readobj -sections %t.o | FileCheck -check-prefix=OBJ %s
+# RUN: llvm-readobj --sections %t.o | FileCheck -check-prefix=OBJ %s
 # RUN: not ld.lld %t.o %t.o -o /dev/null 2>&1 | FileCheck -check-prefix=ERROR %s
 
 # OBJ:      Sections [
@@ -13,9 +13,9 @@
 # OBJ-NEXT:     ]
 
 # ERROR:      error: duplicate symbol: main
-# ERROR-NEXT: >>> defined at reduced.c:2 (/tmp/reduced.c:2)
+# ERROR-NEXT: >>> defined at reduced.c:2 ({{[/\\]}}tmp{{[/\\]}}reduced.c:2)
 # ERROR-NEXT: >>>
-# ERROR-NEXT: >>> defined at reduced.c:2 (/tmp/reduced.c:2)
+# ERROR-NEXT: >>> defined at reduced.c:2 ({{[/\\]}}tmp{{[/\\]}}reduced.c:2)
 # ERROR-NEXT: >>>
 
 	.text

@@ -1,23 +1,22 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
+#include <cassert>
 #include <limits>
 #include <sstream>
-#include <iostream>
-#include <cassert>
-#include <iostream>
+#include <string>
+#include <type_traits>
 
-using namespace std;
+#include "test_macros.h"
 
 template <class T>
 bool check_stream_failed(std::string const& val) {
-    istringstream ss(val);
+    std::istringstream ss(val);
     T result;
     return !(ss >> result);
 }
@@ -26,16 +25,16 @@ template<typename T>
 void check_limits()
 {
     const bool is_unsigned = std::is_unsigned<T>::value;
-    T minv = numeric_limits<T>::min();
-    T maxv = numeric_limits<T>::max();
+    T minv = std::numeric_limits<T>::min();
+    T maxv = std::numeric_limits<T>::max();
 
-    ostringstream miniss, maxiss;
+    std::ostringstream miniss, maxiss;
     assert(miniss << minv);
     assert(maxiss << maxv);
     std::string mins = miniss.str();
     std::string maxs = maxiss.str();
 
-    istringstream maxoss(maxs), minoss(mins);
+    std::istringstream maxoss(maxs), minoss(mins);
 
     T new_minv, new_maxv;
     assert(maxoss >> new_maxv);
@@ -52,7 +51,7 @@ void check_limits()
     }
 }
 
-int main()
+int main(int, char**)
 {
     check_limits<short>();
     check_limits<unsigned short>();
@@ -62,4 +61,6 @@ int main()
     check_limits<unsigned long>();
     check_limits<long long>();
     check_limits<unsigned long long>();
+
+  return 0;
 }

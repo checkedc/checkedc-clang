@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -13,7 +12,7 @@
 
 // These compilers have not implemented Core 2094 which makes volatile
 // qualified types trivially copyable.
-// XFAIL: clang-3, clang-4, apple-clang-6, apple-clang-7, apple-clang-8, apple-clang-9.0, gcc
+// XFAIL: clang-4, apple-clang-9.0, gcc
 
 #include <type_traits>
 #include <cassert>
@@ -66,7 +65,7 @@ public:
     C();
 };
 
-int main()
+int main(int, char**)
 {
     test_is_trivially_copyable<int> ();
     test_is_trivially_copyable<const int> ();
@@ -77,4 +76,6 @@ int main()
     test_is_not_trivially_copyable<int&> ();
     test_is_not_trivially_copyable<const A&> ();
     test_is_not_trivially_copyable<B> ();
+
+  return 0;
 }

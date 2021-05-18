@@ -1,14 +1,13 @@
 //===-- MainLoop.h ----------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef lldb_Host_MainLoop_h_
-#define lldb_Host_MainLoop_h_
+#ifndef LLDB_HOST_MAINLOOP_H
+#define LLDB_HOST_MAINLOOP_H
 
 #include "lldb/Host/Config.h"
 #include "lldb/Host/MainLoopBase.h"
@@ -87,7 +86,8 @@ private:
     int m_signo;
 
     friend class MainLoop;
-    DISALLOW_COPY_AND_ASSIGN(SignalHandle);
+    SignalHandle(const SignalHandle &) = delete;
+    const SignalHandle &operator=(const SignalHandle &) = delete;
   };
 
   struct SignalInfo {
@@ -109,4 +109,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // lldb_Host_MainLoop_h_
+#endif // LLDB_HOST_MAINLOOP_H

@@ -1,14 +1,14 @@
 # REQUIRES: ppc
 
-# RUN: llvm-mc -filetype=obj -triple=powerpc64le-unknown-linux %s -o %t
-# RUN: ld.lld %t -o %t2
-# RUN: llvm-objdump -D %t2 | FileCheck %s
-# RUN: llvm-objdump -D %t2 | FileCheck -check-prefix=CHECK-LE %s
+# RUN: llvm-mc -filetype=obj -triple=powerpc64le-unknown-linux %s -o %t.o
+# RUN: ld.lld %t.o -o %t
+# RUN: llvm-nm %t | FileCheck --check-prefix=NM %s
+# RUN: llvm-objdump -d --no-show-raw-insn %t | FileCheck %s
 
-# RUN: llvm-mc -filetype=obj -triple=powerpc64-unknown-linux %s -o %t
-# RUN: ld.lld %t -o %t2
-# RUN: llvm-objdump -D %t2 | FileCheck %s
-# RUN: llvm-objdump -D %t2 | FileCheck -check-prefix=CHECK-BE %s
+# RUN: llvm-mc -filetype=obj -triple=powerpc64-unknown-linux %s -o %t.o
+# RUN: ld.lld %t.o -o %t
+# RUN: llvm-nm %t | FileCheck --check-prefix=NM %s
+# RUN: llvm-objdump -d --no-show-raw-insn %t | FileCheck %s
 
 .text
 .abiversion 2
@@ -23,8 +23,8 @@ _start:
   addi  4, 4, .Lfunc_gep0@l
   # now r4 should contain the address of _start
 
-  lis   5, .TOC.-.Lfunc_gep0@ha
-  addi  5, 5, .TOC.-.Lfunc_gep0@l
+  lis   5, .TOC.-.Lfunc_gep0@ha   # R_PPC64_REL16_HA
+  addi  5, 5, .TOC.-.Lfunc_gep0@l # R_PPC64_REL16_LO
   # now r5 should contain the offset s.t. r4 + r5 = TOC base
 
   # exit 55
@@ -34,16 +34,12 @@ _start:
 .Lfunc_end0:
     .size   _start, .Lfunc_end0-.Lfunc_begin0
 
-// CHECK: 10010000:       {{.*}}     lis 4, 4097
-// CHECK-NEXT: 10010004:       {{.*}}     addi 4, 4, 0
-// CHECK-NEXT: 10010008:       {{.*}}     lis 5, 2
-// CHECK-NEXT: 1001000c:       {{.*}}     addi 5, 5, -32768
+# NM-DAG: 00000000100281f0 d .TOC.
+# NM-DAG: 00000000100101d0 T _start
 
-// CHECK-LE: Disassembly of section .got:
-// CHECK-LE-NEXT: .got:
-// CHECK-LE-NEXT: 10020000:       00 80 02 10
-
-// CHECK-BE: Disassembly of section .got:
-// CHECK-BE-NEXT: .got:
-// CHECK-BE-NEXT: 10020000:       00 00 00 00 {{.*}}
-// CHECK-BE-NEXT: 10020004:       10 02 80 00 {{.*}}
+# 0x100101d0 = (4097<<16) + 464
+# CHECK:      100101d0:       lis 4, 4097
+# CHECK-NEXT: 100101d4:       addi 4, 4, 464
+# .TOC. - _start = (2<<16) - 32736
+# CHECK-NEXT: 100101d8:       lis 5, 2
+# CHECK-NEXT: 100101dc:       addi 5, 5, -32736

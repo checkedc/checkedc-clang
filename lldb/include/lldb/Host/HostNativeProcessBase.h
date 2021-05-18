@@ -1,14 +1,13 @@
 //===-- HostNativeProcessBase.h ---------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef lldb_Host_HostNativeProcessBase_h_
-#define lldb_Host_HostNativeProcessBase_h_
+#ifndef LLDB_HOST_HOSTNATIVEPROCESSBASE_H
+#define LLDB_HOST_HOSTNATIVEPROCESSBASE_H
 
 #include "lldb/Host/HostProcess.h"
 #include "lldb/Utility/Status.h"
@@ -20,7 +19,9 @@ namespace lldb_private {
 class HostThread;
 
 class HostNativeProcessBase {
-  DISALLOW_COPY_AND_ASSIGN(HostNativeProcessBase);
+  HostNativeProcessBase(const HostNativeProcessBase &) = delete;
+  const HostNativeProcessBase &
+  operator=(const HostNativeProcessBase &) = delete;
 
 public:
   HostNativeProcessBase() : m_process(LLDB_INVALID_PROCESS) {}
@@ -36,7 +37,7 @@ public:
 
   lldb::process_t GetSystemHandle() const { return m_process; }
 
-  virtual HostThread
+  virtual llvm::Expected<HostThread>
   StartMonitoring(const Host::MonitorChildProcessCallback &callback,
                   bool monitor_signals) = 0;
 

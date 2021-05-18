@@ -1,26 +1,25 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
 // bool is_empty(path const& p);
 // bool is_empty(path const& p, std::error_code& ec);
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 using namespace fs;
 
@@ -36,7 +35,8 @@ TEST_CASE(signature_test)
 
 TEST_CASE(test_exist_not_found)
 {
-    const path p = StaticEnv::DNE;
+    static_test_env static_env;
+    const path p = static_env.DNE;
     std::error_code ec;
     TEST_CHECK(is_empty(p, ec) == false);
     TEST_CHECK(ec);
@@ -45,8 +45,9 @@ TEST_CASE(test_exist_not_found)
 
 TEST_CASE(test_is_empty_directory)
 {
-    TEST_CHECK(!is_empty(StaticEnv::Dir));
-    TEST_CHECK(!is_empty(StaticEnv::SymlinkToDir));
+    static_test_env static_env;
+    TEST_CHECK(!is_empty(static_env.Dir));
+    TEST_CHECK(!is_empty(static_env.SymlinkToDir));
 }
 
 TEST_CASE(test_is_empty_directory_dynamic)
@@ -59,8 +60,9 @@ TEST_CASE(test_is_empty_directory_dynamic)
 
 TEST_CASE(test_is_empty_file)
 {
-    TEST_CHECK(is_empty(StaticEnv::EmptyFile));
-    TEST_CHECK(!is_empty(StaticEnv::NonEmptyFile));
+    static_test_env static_env;
+    TEST_CHECK(is_empty(static_env.EmptyFile));
+    TEST_CHECK(!is_empty(static_env.NonEmptyFile));
 }
 
 TEST_CASE(test_is_empty_fails)

@@ -78,9 +78,9 @@ The size of data is specified by size suffices:
     xyz               b96                 3
     xyzw              b128                4
     d16_x             b16                 1
-    d16_xy            b16x2               2 for GFX8.0, 1 for GFX8.1 and GFX9
-    d16_xyz           b16x3               3 for GFX8.0, 2 for GFX8.1 and GFX9
-    d16_xyzw          b16x4               4 for GFX8.0, 2 for GFX8.1 and GFX9
+    d16_xy            b16x2               2 for GFX8.0, 1 for GFX8.1 and GFX9+
+    d16_xyz           b16x3               3 for GFX8.0, 2 for GFX8.1 and GFX9+
+    d16_xyzw          b16x4               4 for GFX8.0, 2 for GFX8.1 and GFX9+
     ================= =================== =====================================
 
 .. WARNING::
@@ -153,6 +153,7 @@ For detailed information about operands follow *operand links* in GPU-specific d
 * :doc:`GFX7<AMDGPU/AMDGPUAsmGFX7>`
 * :doc:`GFX8<AMDGPU/AMDGPUAsmGFX8>`
 * :doc:`GFX9<AMDGPU/AMDGPUAsmGFX9>`
+* :doc:`GFX10<AMDGPU/AMDGPUAsmGFX10>`
 
 Modifiers
 =========
@@ -167,4 +168,5 @@ Information about modifiers supported for individual instructions may be found i
 * :doc:`GFX7<AMDGPU/AMDGPUAsmGFX7>`
 * :doc:`GFX8<AMDGPU/AMDGPUAsmGFX8>`
 * :doc:`GFX9<AMDGPU/AMDGPUAsmGFX9>`
+* :doc:`GFX10<AMDGPU/AMDGPUAsmGFX10>`
 

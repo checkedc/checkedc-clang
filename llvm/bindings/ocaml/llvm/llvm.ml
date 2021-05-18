@@ -1,9 +1,8 @@
 (*===-- llvm/llvm.ml - LLVM OCaml Interface -------------------------------===*
  *
- *                     The LLVM Compiler Infrastructure
- *
- * This file is distributed under the University of Illinois Open Source
- * License. See LICENSE.TXT for details.
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See https://llvm.org/LICENSE.txt for license information.
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  *===----------------------------------------------------------------------===*)
 
@@ -245,6 +244,8 @@ module Opcode  = struct
   | CatchPad
   | CleanupPad
   | CatchSwitch
+  | FNeg
+  | CallBr
 end
 
 module LandingPadClauseTy = struct
@@ -313,6 +314,7 @@ module ValueKind = struct
   | GlobalIFunc
   | GlobalVariable
   | UndefValue
+  | PoisonValue
   | Instruction of Opcode.t
 end
 
@@ -546,8 +548,10 @@ external const_null : lltype -> llvalue = "LLVMConstNull"
 external const_all_ones : (*int|vec*)lltype -> llvalue = "LLVMConstAllOnes"
 external const_pointer_null : lltype -> llvalue = "LLVMConstPointerNull"
 external undef : lltype -> llvalue = "LLVMGetUndef"
+external poison : lltype -> llvalue = "LLVMGetPoison"
 external is_null : llvalue -> bool = "llvm_is_null"
 external is_undef : llvalue -> bool = "llvm_is_undef"
+external is_poison : llvalue -> bool = "llvm_is_poison"
 external constexpr_opcode : llvalue -> Opcode.t = "llvm_constexpr_get_opcode"
 
 (*--... Operations on instructions .........................................--*)
@@ -1354,6 +1358,8 @@ external build_is_not_null : llvalue -> string -> llbuilder -> llvalue
                            = "llvm_build_is_not_null"
 external build_ptrdiff : llvalue -> llvalue -> string -> llbuilder -> llvalue
                        = "llvm_build_ptrdiff"
+external build_freeze : llvalue -> string -> llbuilder -> llvalue
+                      = "llvm_build_freeze"
 
 
 (*===-- Memory buffers ----------------------------------------------------===*)

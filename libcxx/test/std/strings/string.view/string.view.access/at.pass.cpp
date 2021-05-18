@@ -1,16 +1,10 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
-// NOTE: Older versions of clang have a bug where they fail to evaluate
-// string_view::at as a constant expression.
-// XFAIL: clang-3.4, clang-3.3
-
 
 // <string_view>
 
@@ -37,7 +31,7 @@ void test ( const CharT *s, size_t len ) {
 #endif
 }
 
-int main () {
+int main(int, char**) {
     test ( "ABCDE", 5 );
     test ( "a", 1 );
 
@@ -60,4 +54,6 @@ int main () {
     static_assert ( sv.at(1) == 'B', "" );
     }
 #endif
+
+  return 0;
 }

@@ -1,9 +1,8 @@
 //===--- URI.h - File URIs with schemes --------------------------*- C++-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -62,6 +61,10 @@ public:
   /// \p HintPath A related path, such as the current file or working directory,
   /// which can help disambiguate when the same file exists in many workspaces.
   static llvm::Expected<std::string> resolve(const URI &U,
+                                             llvm::StringRef HintPath = "");
+
+  /// Same as above, in addition it parses the \p FileURI using URI::parse.
+  static llvm::Expected<std::string> resolve(llvm::StringRef FileURI,
                                              llvm::StringRef HintPath = "");
 
   /// Resolves \p AbsPath into a canonical path of its URI, by converting

@@ -1,12 +1,11 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class weekday;
@@ -45,7 +44,7 @@ constexpr bool testConstexpr()
     return true;
 }
 
-int main()
+int main(int, char**)
 {
     using weekday = std::chrono::weekday;
     using days    = std::chrono::days;
@@ -64,7 +63,9 @@ int main()
             weekday wd1 = weekday{i} + days{j};
             weekday wd2 = days{j} + weekday{i};
             assert(wd1 == wd2);
-            assert((static_cast<unsigned>(wd1) == euclidian_addition<unsigned, 0, 6>(i, j)));
-            assert((static_cast<unsigned>(wd2) == euclidian_addition<unsigned, 0, 6>(i, j)));
+            assert((wd1.c_encoding() == euclidian_addition<unsigned, 0, 6>(i, j)));
+            assert((wd2.c_encoding() == euclidian_addition<unsigned, 0, 6>(i, j)));
         }
+
+  return 0;
 }

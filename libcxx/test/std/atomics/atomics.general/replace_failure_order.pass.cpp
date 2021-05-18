@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -24,18 +23,20 @@
 
 #include <atomic>
 
-int main() {
+#include "test_macros.h"
+
+int main(int, char**) {
     std::atomic<int> i;
     volatile std::atomic<int> v;
     int exp = 0;
 
-    i.compare_exchange_weak(exp, 0, std::memory_order_acq_rel);
-    i.compare_exchange_weak(exp, 0, std::memory_order_release);
+    (void) i.compare_exchange_weak(exp, 0, std::memory_order_acq_rel);
+    (void) i.compare_exchange_weak(exp, 0, std::memory_order_release);
     i.compare_exchange_strong(exp, 0, std::memory_order_acq_rel);
     i.compare_exchange_strong(exp, 0, std::memory_order_release);
 
-    v.compare_exchange_weak(exp, 0, std::memory_order_acq_rel);
-    v.compare_exchange_weak(exp, 0, std::memory_order_release);
+    (void) v.compare_exchange_weak(exp, 0, std::memory_order_acq_rel);
+    (void) v.compare_exchange_weak(exp, 0, std::memory_order_release);
     v.compare_exchange_strong(exp, 0, std::memory_order_acq_rel);
     v.compare_exchange_strong(exp, 0, std::memory_order_release);
 

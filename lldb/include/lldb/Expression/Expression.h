@@ -1,14 +1,13 @@
 //===-- Expression.h --------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Expression_h_
-#define liblldb_Expression_h_
+#ifndef LLDB_EXPRESSION_EXPRESSION_H
+#define LLDB_EXPRESSION_EXPRESSION_H
 
 #include <map>
 #include <string>
@@ -23,8 +22,7 @@ namespace lldb_private {
 
 class RecordingMemoryManager;
 
-//----------------------------------------------------------------------
-/// @class Expression Expression.h "lldb/Expression/Expression.h" Encapsulates
+/// \class Expression Expression.h "lldb/Expression/Expression.h" Encapsulates
 /// a single expression for use in lldb
 ///
 /// LLDB uses expressions for various purposes, notably to call functions
@@ -32,7 +30,6 @@ class RecordingMemoryManager;
 /// objects needed to parse and interpret or JIT an expression.  It uses the
 /// expression parser appropriate to the language of the expression to produce
 /// LLVM IR from the expression.
-//----------------------------------------------------------------------
 class Expression {
 public:
   enum ResultType { eResultTypeAny, eResultTypeId };
@@ -41,68 +38,55 @@ public:
 
   Expression(ExecutionContextScope &exe_scope);
 
-  //------------------------------------------------------------------
   /// Destructor
-  //------------------------------------------------------------------
   virtual ~Expression() {}
 
-  //------------------------------------------------------------------
   /// Return the string that the parser should parse.  Must be a full
   /// translation unit.
-  //------------------------------------------------------------------
   virtual const char *Text() = 0;
 
-  //------------------------------------------------------------------
   /// Return the function name that should be used for executing the
   /// expression.  Text() should contain the definition of this function.
-  //------------------------------------------------------------------
   virtual const char *FunctionName() = 0;
 
-  //------------------------------------------------------------------
   /// Return the language that should be used when parsing.  To use the
   /// default, return eLanguageTypeUnknown.
-  //------------------------------------------------------------------
-  virtual lldb::LanguageType Language() { return lldb::eLanguageTypeUnknown; }
+  virtual lldb::LanguageType Language() const {
+    return lldb::eLanguageTypeUnknown;
+  }
 
-  //------------------------------------------------------------------
+  /// Return the Materializer that the parser should use when registering
+  /// external values.
+  virtual Materializer *GetMaterializer() { return nullptr; }
+
   /// Return the desired result type of the function, or eResultTypeAny if
   /// indifferent.
-  //------------------------------------------------------------------
   virtual ResultType DesiredResultType() { return eResultTypeAny; }
 
-  //------------------------------------------------------------------
   /// Flags
-  //------------------------------------------------------------------
 
-  //------------------------------------------------------------------
   /// Return true if validation code should be inserted into the expression.
-  //------------------------------------------------------------------
   virtual bool NeedsValidation() = 0;
 
-  //------------------------------------------------------------------
   /// Return true if external variables in the expression should be resolved.
-  //------------------------------------------------------------------
   virtual bool NeedsVariableResolution() = 0;
 
   virtual EvaluateExpressionOptions *GetOptions() { return nullptr; };
 
-  //------------------------------------------------------------------
   /// Return the address of the function's JIT-compiled code, or
   /// LLDB_INVALID_ADDRESS if the function is not JIT compiled
-  //------------------------------------------------------------------
   lldb::addr_t StartAddress() { return m_jit_start_addr; }
 
-  //------------------------------------------------------------------
   /// Called to notify the expression that it is about to be executed.
-  //------------------------------------------------------------------
   virtual void WillStartExecuting() {}
 
-  //------------------------------------------------------------------
   /// Called to notify the expression that its execution has finished.
-  //------------------------------------------------------------------
   virtual void DidFinishExecuting() {}
 
   virtual ExpressionTypeSystemHelper *GetTypeSystemHelper() { return nullptr; }
+
+  // LLVM RTTI support
+  virtual bool isA(const void *ClassID) const = 0;
 
 protected:
   lldb::TargetWP m_target_wp; /// Expression's always have to have a target...
@@ -119,4 +103,4 @@ protected:
 
 } // namespace lldb_private
 
-#endif // liblldb_Expression_h_
+#endif // LLDB_EXPRESSION_EXPRESSION_H

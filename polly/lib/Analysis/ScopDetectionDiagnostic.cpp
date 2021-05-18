@@ -1,9 +1,8 @@
 //===- ScopDetectionDiagnostic.cpp - Error diagnostics --------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -46,11 +45,7 @@ using namespace llvm;
 #define DEBUG_TYPE "polly-detect"
 
 #define SCOP_STAT(NAME, DESC)                                                  \
-  {                                                                            \
-    "polly-detect", "NAME", "Number of rejected regions: " DESC, {0}, {        \
-      false                                                                    \
-    }                                                                          \
-  }
+  { "polly-detect", "NAME", "Number of rejected regions: " DESC }
 
 Statistic RejectStatistics[] = {
     SCOP_STAT(CFG, ""),
@@ -230,7 +225,7 @@ std::string ReportUnreachableInExit::getRemarkName() const {
 const Value *ReportUnreachableInExit::getRemarkBB() const { return BB; }
 
 std::string ReportUnreachableInExit::getMessage() const {
-  std::string BBName = BB->getName();
+  std::string BBName = BB->getName().str();
   return "Unreachable in exit block" + BBName;
 }
 
@@ -416,7 +411,7 @@ bool ReportDifferentArrayElementSize::classof(const RejectReason *RR) {
 
 std::string ReportDifferentArrayElementSize::getEndUserMessage() const {
   StringRef BaseName = BaseValue->getName();
-  std::string Name = BaseName.empty() ? "UNKNOWN" : BaseName;
+  std::string Name = BaseName.empty() ? "UNKNOWN" : BaseName.str();
   return "The array \"" + Name +
          "\" is accessed through elements that differ "
          "in size";
@@ -443,7 +438,7 @@ bool ReportNonAffineAccess::classof(const RejectReason *RR) {
 
 std::string ReportNonAffineAccess::getEndUserMessage() const {
   StringRef BaseName = BaseValue->getName();
-  std::string Name = BaseName.empty() ? "UNKNOWN" : BaseName;
+  std::string Name = BaseName.empty() ? "UNKNOWN" : BaseName.str();
   return "The array subscript of \"" + Name + "\" is not affine";
 }
 

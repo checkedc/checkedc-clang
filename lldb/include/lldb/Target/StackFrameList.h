@@ -1,14 +1,13 @@
 //===-- StackFrameList.h ----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_StackFrameList_h_
-#define liblldb_StackFrameList_h_
+#ifndef LLDB_TARGET_STACKFRAMELIST_H
+#define LLDB_TARGET_STACKFRAMELIST_H
 
 #include <memory>
 #include <mutex>
@@ -20,9 +19,7 @@ namespace lldb_private {
 
 class StackFrameList {
 public:
-  //------------------------------------------------------------------
   // Constructors and Destructors
-  //------------------------------------------------------------------
   StackFrameList(Thread &thread, const lldb::StackFrameListSP &prev_frames_sp,
                  bool show_inline_frames);
 
@@ -92,12 +89,12 @@ protected:
 
   bool SetFrameAtIndex(uint32_t idx, lldb::StackFrameSP &frame_sp);
 
-  static void Merge(std::unique_ptr<StackFrameList> &curr_ap,
+  static void Merge(std::unique_ptr<StackFrameList> &curr_up,
                     lldb::StackFrameListSP &prev_sp);
 
   void GetFramesUpTo(uint32_t end_idx);
 
-  void GetOnlyConcreteFramesUpTo(uint32_t end_idx, Unwind *unwinder);
+  void GetOnlyConcreteFramesUpTo(uint32_t end_idx, Unwind &unwinder);
 
   void SynthesizeTailCallFrames(StackFrame &next_frame);
 
@@ -158,9 +155,10 @@ protected:
   const bool m_show_inlined_frames;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(StackFrameList);
+  StackFrameList(const StackFrameList &) = delete;
+  const StackFrameList &operator=(const StackFrameList &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_StackFrameList_h_
+#endif // LLDB_TARGET_STACKFRAMELIST_H

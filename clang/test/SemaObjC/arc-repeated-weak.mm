@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -fsyntax-only -fobjc-runtime-has-weak -fobjc-arc -fblocks -Wno-objc-root-class -std=c++14 -Warc-repeated-use-of-weak -verify %s
-// RUN: %clang_cc1 -fsyntax-only -fobjc-runtime-has-weak -fobjc-weak -fblocks -Wno-objc-root-class -std=c++14 -Warc-repeated-use-of-weak -verify %s
+// RUN: %clang_cc1 -fsyntax-only -fobjc-runtime-has-weak -fobjc-arc -fblocks -Wno-objc-root-class -std=c++11 -Warc-repeated-use-of-weak -verify %s
+// RUN: %clang_cc1 -fsyntax-only -fobjc-runtime-has-weak -fobjc-weak -fblocks -Wno-objc-root-class -std=c++11 -Warc-repeated-use-of-weak -verify %s
 
 @interface Test {
 @public
@@ -467,18 +467,6 @@ void foo() {
   __typeof__(NSBundle2.foo2.weakProp) t5;
 }
 
-void testAuto() {
-  auto __weak wp = NSBundle2.foo2.weakProp;
-}
-
-void testLambdaCaptureInit() {
-  [capture(NSBundle2.foo2.weakProp)] {} ();
-}
-
-void testAutoNew() {
-  auto p = new auto(NSBundle2.foo2.weakProp);
-}
-
 // This used to crash in the constructor of WeakObjectProfileTy when a
 // DeclRefExpr was passed that didn't reference a VarDecl.
 
@@ -497,3 +485,17 @@ void foo1() {
 
 @class NSString;
 static NSString* const kGlobal = @"";
+
+@interface NSDictionary
+- (id)objectForKeyedSubscript:(id)key;
+@end
+
+@interface WeakProp
+@property (weak) NSDictionary *nd;
+@end
+
+@implementation WeakProp
+-(void)m {
+  (void)self.nd[@""]; // no warning
+}
+@end

@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <tuple>
 
@@ -266,9 +265,11 @@ void test_return_type()
     test<13, int const volatile *>();
 }
 
-int main() {
+int main(int, char**) {
     test_constexpr_evaluation();
     test_call_quals_and_arg_types();
     test_return_type();
     test_noexcept();
+
+  return 0;
 }

@@ -1,9 +1,8 @@
 //===-- NativeThreadLinux.h ----------------------------------- -*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -31,9 +30,7 @@ class NativeThreadLinux : public NativeThreadProtocol {
 public:
   NativeThreadLinux(NativeProcessLinux &process, lldb::tid_t tid);
 
-  // ---------------------------------------------------------------------
   // NativeThreadProtocol Interface
-  // ---------------------------------------------------------------------
   std::string GetName() override;
 
   lldb::StateType GetState() override;
@@ -55,15 +52,13 @@ public:
   Status RemoveHardwareBreakpoint(lldb::addr_t addr) override;
 
 private:
-  // ---------------------------------------------------------------------
   // Interface for friend classes
-  // ---------------------------------------------------------------------
 
-  /// Resumes the thread.  If @p signo is anything but
+  /// Resumes the thread.  If \p signo is anything but
   /// LLDB_INVALID_SIGNAL_NUMBER, deliver that signal to the thread.
   Status Resume(uint32_t signo);
 
-  /// Single steps the thread.  If @p signo is anything but
+  /// Single steps the thread.  If \p signo is anything but
   /// LLDB_INVALID_SIGNAL_NUMBER, deliver that signal to the thread.
   Status SingleStep(uint32_t signo);
 
@@ -92,18 +87,14 @@ private:
 
   Status RequestStop();
 
-  // ---------------------------------------------------------------------
   // Private interface
-  // ---------------------------------------------------------------------
   void MaybeLogStateChange(lldb::StateType new_state);
 
   NativeProcessLinux &GetProcess();
 
   void SetStopped();
 
-  // ---------------------------------------------------------------------
   // Member Variables
-  // ---------------------------------------------------------------------
   lldb::StateType m_state;
   ThreadStopInfo m_stop_info;
   std::unique_ptr<NativeRegisterContextLinux> m_reg_context_up;

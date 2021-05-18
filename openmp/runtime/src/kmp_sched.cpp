@@ -4,10 +4,9 @@
 
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.txt for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -39,6 +38,35 @@ char const *traits_t<long>::spec = "ld";
 //-------------------------------------------------------------------------
 #endif
 
+#if KMP_STATS_ENABLED
+#define KMP_STATS_LOOP_END(stat)                                               \
+  {                                                                            \
+    kmp_int64 t;                                                               \
+    kmp_int64 u = (kmp_int64)(*pupper);                                        \
+    kmp_int64 l = (kmp_int64)(*plower);                                        \
+    kmp_int64 i = (kmp_int64)incr;                                             \
+    if (i == 1) {                                                              \
+      t = u - l + 1;                                                           \
+    } else if (i == -1) {                                                      \
+      t = l - u + 1;                                                           \
+    } else if (i > 0) {                                                        \
+      t = (u - l) / i + 1;                                                     \
+    } else {                                                                   \
+      t = (l - u) / (-i) + 1;                                                  \
+    }                                                                          \
+    KMP_COUNT_VALUE(stat, t);                                                  \
+    KMP_POP_PARTITIONED_TIMER();                                               \
+  }
+#else
+#define KMP_STATS_LOOP_END(stat) /* Nothing */
+#endif
+
+static ident_t loc_stub = {0, KMP_IDENT_KMPC, 0, 0, ";unknown;unknown;0;0;;"};
+static inline void check_loc(ident_t *&loc) {
+  if (loc == NULL)
+    loc = &loc_stub; // may need to report location info to ittnotify
+}
+
 template <typename T>
 static void __kmp_for_static_init(ident_t *loc, kmp_int32 global_tid,
                                   kmp_int32 schedtype, kmp_int32 *plastiter,
@@ -63,6 +91,7 @@ static void __kmp_for_static_init(ident_t *loc, kmp_int32 global_tid,
   kmp_uint32 nth;
   UT trip_count;
   kmp_team_t *team;
+  __kmp_assert_valid_gtid(gtid);
   kmp_info_t *th = __kmp_threads[gtid];
 
 #if OMPT_SUPPORT && OMPT_OPTIONAL
@@ -152,10 +181,10 @@ static void __kmp_for_static_init(ident_t *loc, kmp_int32 global_tid,
           &(task_info->task_data), 0, codeptr);
     }
 #endif
+    KMP_STATS_LOOP_END(OMP_loop_static_iterations);
     return;
   }
 
-#if OMP_40_ENABLED
   // Although there are schedule enumerations above kmp_ord_upper which are not
   // schedules for "distribute", the only ones which are useful are dynamic, so
   // cannot be seen here, since this codepath is only executed for static
@@ -166,9 +195,7 @@ static void __kmp_for_static_init(ident_t *loc, kmp_int32 global_tid,
                  kmp_distribute_static; // AC: convert to usual schedule type
     tid = th->th.th_team->t.t_master_tid;
     team = th->th.th_team->t.t_parent;
-  } else
-#endif
-  {
+  } else {
     tid = __kmp_tid_from_gtid(global_tid);
     team = th->th.th_team;
   }
@@ -203,6 +230,7 @@ static void __kmp_for_static_init(ident_t *loc, kmp_int32 global_tid,
           &(task_info->task_data), *pstride, codeptr);
     }
 #endif
+    KMP_STATS_LOOP_END(OMP_loop_static_iterations);
     return;
   }
   nth = team->t.t_nproc;
@@ -232,6 +260,7 @@ static void __kmp_for_static_init(ident_t *loc, kmp_int32 global_tid,
           &(task_info->task_data), *pstride, codeptr);
     }
 #endif
+    KMP_STATS_LOOP_END(OMP_loop_static_iterations);
     return;
   }
 
@@ -246,6 +275,12 @@ static void __kmp_for_static_init(ident_t *loc, kmp_int32 global_tid,
   } else {
     trip_count = (UT)(*plower - *pupper) / (-incr) + 1;
   }
+
+#if KMP_STATS_ENABLED
+  if (KMP_MASTER_GTID(gtid)) {
+    KMP_COUNT_VALUE(OMP_loop_static_total_iterations, trip_count);
+  }
+#endif
 
   if (__kmp_env_consistency_check) {
     /* tripcount overflow? */
@@ -321,7 +356,6 @@ static void __kmp_for_static_init(ident_t *loc, kmp_int32 global_tid,
       *plastiter = (tid == ((trip_count - 1) / (UT)chunk) % nth);
     break;
   }
-#if OMP_45_ENABLED
   case kmp_sch_static_balanced_chunked: {
     T old_upper = *pupper;
     // round up to make sure the chunk is enough to cover all iterations
@@ -343,7 +377,6 @@ static void __kmp_for_static_init(ident_t *loc, kmp_int32 global_tid,
       *plastiter = (tid == ((trip_count - 1) / (UT)chunk));
     break;
   }
-#endif
   default:
     KMP_ASSERT2(0, "__kmpc_for_static_init: unknown scheduling type");
     break;
@@ -352,12 +385,10 @@ static void __kmp_for_static_init(ident_t *loc, kmp_int32 global_tid,
 #if USE_ITT_BUILD
   // Report loop metadata
   if (KMP_MASTER_TID(tid) && __itt_metadata_add_ptr &&
-      __kmp_forkjoin_frames_mode == 3 &&
-#if OMP_40_ENABLED
-      th->th.th_teams_microtask == NULL &&
-#endif
+      __kmp_forkjoin_frames_mode == 3 && th->th.th_teams_microtask == NULL &&
       team->t.t_active_level == 1) {
     kmp_uint64 cur_chunk = chunk;
+    check_loc(loc);
     // Calculate chunk in case it was not specified; it is specified for
     // kmp_sch_static_chunked
     if (schedtype == kmp_sch_static) {
@@ -389,26 +420,7 @@ static void __kmp_for_static_init(ident_t *loc, kmp_int32 global_tid,
   }
 #endif
 
-#if KMP_STATS_ENABLED
-  {
-    kmp_int64 t;
-    kmp_int64 u = (kmp_int64)(*pupper);
-    kmp_int64 l = (kmp_int64)(*plower);
-    kmp_int64 i = (kmp_int64)incr;
-    /* compute trip count */
-    if (i == 1) {
-      t = u - l + 1;
-    } else if (i == -1) {
-      t = l - u + 1;
-    } else if (i > 0) {
-      t = (u - l) / i + 1;
-    } else {
-      t = (l - u) / (-i) + 1;
-    }
-    KMP_COUNT_VALUE(OMP_loop_static_iterations, t);
-    KMP_POP_PARTITIONED_TIMER();
-  }
-#endif
+  KMP_STATS_LOOP_END(OMP_loop_static_iterations);
   return;
 }
 
@@ -420,6 +432,8 @@ static void __kmp_dist_for_static_init(ident_t *loc, kmp_int32 gtid,
                                        typename traits_t<T>::signed_t incr,
                                        typename traits_t<T>::signed_t chunk) {
   KMP_COUNT_BLOCK(OMP_DISTRIBUTE);
+  KMP_PUSH_PARTITIONED_TIMER(OMP_distribute);
+  KMP_PUSH_PARTITIONED_TIMER(OMP_distribute_scheduling);
   typedef typename traits_t<T>::unsigned_t UT;
   typedef typename traits_t<T>::signed_t ST;
   kmp_uint32 tid;
@@ -432,6 +446,7 @@ static void __kmp_dist_for_static_init(ident_t *loc, kmp_int32 gtid,
 
   KMP_DEBUG_ASSERT(plastiter && plower && pupper && pupperDist && pstride);
   KE_TRACE(10, ("__kmpc_dist_for_static_init called (%d)\n", gtid));
+  __kmp_assert_valid_gtid(gtid);
 #ifdef KMP_DEBUG
   {
     char *buff;
@@ -470,10 +485,8 @@ static void __kmp_dist_for_static_init(ident_t *loc, kmp_int32 gtid,
   th = __kmp_threads[gtid];
   nth = th->th.th_team_nproc;
   team = th->th.th_team;
-#if OMP_40_ENABLED
   KMP_DEBUG_ASSERT(th->th.th_teams_microtask); // we are in the teams construct
   nteams = th->th.th_teams_size.nteams;
-#endif
   team_id = team->t.t_master_tid;
   KMP_DEBUG_ASSERT(nteams == (kmp_uint32)team->t.t_parent->t.t_nproc);
 
@@ -649,6 +662,7 @@ end:;
   }
 #endif
   KE_TRACE(10, ("__kmpc_dist_for_static_init: T#%d return\n", gtid));
+  KMP_STATS_LOOP_END(OMP_distribute_iterations);
   return;
 }
 
@@ -662,7 +676,7 @@ static void __kmp_team_static_init(ident_t *loc, kmp_int32 gtid,
   // stride for next chunks calculation.
   // Last iteration flag set for the team that will execute
   // the last iteration of the loop.
-  // The routine is called for dist_schedue(static,chunk) only.
+  // The routine is called for dist_schedule(static,chunk) only.
   typedef typename traits_t<T>::unsigned_t UT;
   typedef typename traits_t<T>::signed_t ST;
   kmp_uint32 team_id;
@@ -676,6 +690,7 @@ static void __kmp_team_static_init(ident_t *loc, kmp_int32 gtid,
 
   KMP_DEBUG_ASSERT(p_last && p_lb && p_ub && p_st);
   KE_TRACE(10, ("__kmp_team_static_init called (%d)\n", gtid));
+  __kmp_assert_valid_gtid(gtid);
 #ifdef KMP_DEBUG
   {
     char *buff;
@@ -712,10 +727,8 @@ static void __kmp_team_static_init(ident_t *loc, kmp_int32 gtid,
   }
   th = __kmp_threads[gtid];
   team = th->th.th_team;
-#if OMP_40_ENABLED
   KMP_DEBUG_ASSERT(th->th.th_teams_microtask); // we are in the teams construct
   nteams = th->th.th_teams_size.nteams;
-#endif
   team_id = team->t.t_master_tid;
   KMP_DEBUG_ASSERT(nteams == (kmp_uint32)team->t.t_parent->t.t_nproc);
 

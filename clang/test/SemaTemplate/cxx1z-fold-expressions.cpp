@@ -92,3 +92,35 @@ template<typename ...T> constexpr auto spaceship3(T ...t) { return (t <=> ... <=
 template<typename ...T> constexpr auto binary_conditional1(T ...t) { return (t ?: ...); } // expected-error {{expected expression}}
 template<typename ...T> constexpr auto binary_conditional2(T ...t) { return (... ?: t); } // expected-error {{expected expression}}
 template<typename ...T> constexpr auto binary_conditional3(T ...t) { return (t ?: ... ?: 0); } // expected-error {{expected expression}}
+
+namespace PR41845 {
+  template <int I> struct Constant {};
+
+  template <int... Is> struct Sum {
+    template <int... Js> using type = Constant<((Is + Js) + ... + 0)>; // expected-error {{pack expansion contains parameter pack 'Js' that has a different length (1 vs. 2) from outer parameter packs}}
+  };
+
+  Sum<1>::type<1, 2> x; // expected-note {{instantiation of}}
+}
+
+namespace PR30738 {
+  namespace N {
+    struct S {};
+  }
+
+  namespace T {
+    void operator+(N::S, N::S) {}
+    template<typename ...Ts> void f() { (Ts{} + ...); }
+  }
+
+  void g() { T::f<N::S, N::S>(); }
+
+  template<typename T, typename ...U> auto h(U ...v) {
+    T operator+(T, T); // expected-note {{candidate}}
+    return (v + ...); // expected-error {{invalid operands}}
+  }
+  int test_h1 = h<N::S>(1, 2, 3);
+  N::S test_h2 = h<N::S>(N::S(), N::S(), N::S());
+  int test_h3 = h<struct X>(1, 2, 3);
+  N::S test_h4 = h<struct X>(N::S(), N::S(), N::S()); // expected-note {{instantiation of}}
+}

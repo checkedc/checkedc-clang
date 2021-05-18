@@ -311,6 +311,20 @@ S9 s9;
 #endif
 
 #if defined(FIRST)
+struct S9b {
+  mutable int x : 2;
+};
+#elif defined(SECOND)
+struct S9b {
+  int x : 2;
+};
+#else
+S9b s9b;
+// expected-error@second.h:* {{'Field::S9b' has different definitions in different modules; first difference is definition in module 'SecondModule' found non-mutable field 'x'}}
+// expected-note@first.h:* {{but in 'FirstModule' found mutable field 'x'}}
+#endif
+
+#if defined(FIRST)
 struct S10 {
   unsigned x = 5;
 };
@@ -372,7 +386,9 @@ S13 s13;
   unsigned c : 1 + 2; \
   s d;                \
   double e = 1.0;     \
-  long f[5];
+  long f[5];          \
+  mutable int g;      \
+  mutable int h : 5;
 
 #if defined(FIRST) || defined(SECOND)
 typedef short s;
@@ -4586,6 +4602,104 @@ int num = bar();
 // expected-note@first.h:* {{but in 'FirstModule' found a different body}}
 #endif
 }
+
+namespace FunctionProtoTypeDecay {
+#if defined(FIRST)
+struct S1 {
+  struct X {};
+  using Y = X(X());
+};
+#elif defined(SECOND)
+struct S1 {
+  struct X {};
+  using Y = X(X(X()));
+};
+#else
+S1 s1;
+// expected-error@first.h:* {{'FunctionProtoTypeDecay::S1::Y' from module 'FirstModule' is not present in definition of 'FunctionProtoTypeDecay::S1' in module 'SecondModule'}}
+// expected-note@second.h:* {{declaration of 'Y' does not match}}
+#endif
+
+#if defined(FIRST)
+struct S2 {
+  struct X {};
+  using Y =
+      X(X(X(X(X(X(X(X(X(X(X(X(X(X(X(X(
+      X(X(X(X(X(X(X(X(X(X(X(X(X(X(X(X(
+      X(X(X(X(X(X(X(X(X(X(X(X(X(X(X(X(
+      X(X(X(X(X(X(X(X(X(X(X(X(X(X(X(X(
+      ))))))))))))))))
+      ))))))))))))))))
+      ))))))))))))))))
+      ))))))))))))))));
+};
+#elif defined(SECOND)
+#else
+S2 s2;
+#endif
+}
+
+namespace TypedefStruct {
+#if defined(FIRST)
+struct T1;
+class S1 {
+  T1* t;
+};
+#elif defined(SECOND)
+typedef struct T1 {} T1;
+class S1 {
+  T1* t;
+};
+#else
+S1 s1;
+#endif
+
+#if defined(FIRST)
+struct T2;
+class S2 {
+  const T2* t = nullptr;
+};
+#elif defined(SECOND)
+typedef struct T2 {} T2;
+class S2 {
+  const T2* t = nullptr;
+};
+#else
+S2 s2;
+#endif
+
+#if defined(FIRST)
+struct T3;
+class S3 {
+  T3* const t = nullptr;
+};
+#elif defined(SECOND)
+typedef struct T3 {} T3;
+class S3 {
+  T3* const t = nullptr;
+};
+#else
+S3 s3;
+#endif
+
+#if defined(FIRST)
+namespace NS4 {
+struct T4;
+} // namespace NS4
+class S4 {
+  NS4::T4* t = 0;
+};
+#elif defined(SECOND)
+namespace NS4 {
+typedef struct T4 {} T4;
+} // namespace NS4
+class S4 {
+  NS4::T4* t = 0;
+};
+#else
+S4 s4;
+#endif
+} // namespace TypedefStruct
 
 // Keep macros contained to one file.
 #ifdef FIRST

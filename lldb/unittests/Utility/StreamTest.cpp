@@ -1,9 +1,8 @@
-//===-- StreamTest.cpp ------------------------------------------*- C++ -*-===//
+//===-- StreamTest.cpp ----------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -37,9 +36,130 @@ struct BinaryStreamTest : StreamTest {
 };
 }
 
+TEST_F(StreamTest, AddressPrefix) {
+  DumpAddress(s.AsRawOstream(), 0x1, 1, "foo");
+  EXPECT_EQ("foo0x01", TakeValue());
+}
+
+TEST_F(StreamTest, AddressEmptyPrefix) {
+  DumpAddress(s.AsRawOstream(), 0x1, 1, nullptr);
+  EXPECT_EQ("0x01", TakeValue());
+  DumpAddress(s.AsRawOstream(), 0x1, 1, "");
+  EXPECT_EQ("0x01", TakeValue());
+}
+
+TEST_F(StreamTest, AddressSuffix) {
+  DumpAddress(s.AsRawOstream(), 0x1, 1, nullptr, "foo");
+  EXPECT_EQ("0x01foo", TakeValue());
+}
+
+TEST_F(StreamTest, AddressNoSuffix) {
+  DumpAddress(s.AsRawOstream(), 0x1, 1, nullptr, nullptr);
+  EXPECT_EQ("0x01", TakeValue());
+  DumpAddress(s.AsRawOstream(), 0x1, 1, nullptr, "");
+  EXPECT_EQ("0x01", TakeValue());
+}
+
+TEST_F(StreamTest, AddressPrefixAndSuffix) {
+  DumpAddress(s.AsRawOstream(), 0x1, 1, "foo", "bar");
+  EXPECT_EQ("foo0x01bar", TakeValue());
+}
+
+TEST_F(StreamTest, AddressSize) {
+  DumpAddress(s.AsRawOstream(), 0x0, 0);
+  EXPECT_EQ("0x0", TakeValue());
+  DumpAddress(s.AsRawOstream(), 0x1, 0);
+  EXPECT_EQ("0x1", TakeValue());
+
+  DumpAddress(s.AsRawOstream(), 0x1, 1);
+  EXPECT_EQ("0x01", TakeValue());
+  DumpAddress(s.AsRawOstream(), 0xf1, 1);
+  EXPECT_EQ("0xf1", TakeValue());
+  DumpAddress(s.AsRawOstream(), 0xff, 1);
+  EXPECT_EQ("0xff", TakeValue());
+  DumpAddress(s.AsRawOstream(), 0x100, 1);
+  EXPECT_EQ("0x100", TakeValue());
+
+  DumpAddress(s.AsRawOstream(), 0xf00, 4);
+  EXPECT_EQ("0x00000f00", TakeValue());
+  DumpAddress(s.AsRawOstream(), 0x100, 8);
+  EXPECT_EQ("0x0000000000000100", TakeValue());
+}
+
+TEST_F(StreamTest, AddressRange) {
+  DumpAddressRange(s.AsRawOstream(), 0x100, 0x101, 2);
+  EXPECT_EQ("[0x0100-0x0101)", TakeValue());
+}
+
+TEST_F(StreamTest, AddressRangeEmptyRange) {
+  DumpAddressRange(s.AsRawOstream(), 0x100, 0x100, 2);
+  EXPECT_EQ("[0x0100-0x0100)", TakeValue());
+  DumpAddressRange(s.AsRawOstream(), 0x0, 0x0, 2);
+  EXPECT_EQ("[0x0000-0x0000)", TakeValue());
+}
+
+TEST_F(StreamTest, AddressRangeInvalidRange) {
+  DumpAddressRange(s.AsRawOstream(), 0x100, 0x0FF, 2);
+  EXPECT_EQ("[0x0100-0x00ff)", TakeValue());
+  DumpAddressRange(s.AsRawOstream(), 0x100, 0x0, 2);
+  EXPECT_EQ("[0x0100-0x0000)", TakeValue());
+}
+
+TEST_F(StreamTest, AddressRangeSize) {
+  DumpAddressRange(s.AsRawOstream(), 0x100, 0x101, 0);
+  EXPECT_EQ("[0x100-0x101)", TakeValue());
+  DumpAddressRange(s.AsRawOstream(), 0x100, 0x101, 2);
+  EXPECT_EQ("[0x0100-0x0101)", TakeValue());
+  DumpAddressRange(s.AsRawOstream(), 0x100, 0x101, 4);
+  EXPECT_EQ("[0x00000100-0x00000101)", TakeValue());
+
+  DumpAddressRange(s.AsRawOstream(), 0x100, 0x101, 4);
+  EXPECT_EQ("[0x00000100-0x00000101)", TakeValue());
+  DumpAddressRange(s.AsRawOstream(), 0x1, 0x101, 4);
+  EXPECT_EQ("[0x00000001-0x00000101)", TakeValue());
+  DumpAddressRange(s.AsRawOstream(), 0x101, 0x1, 4);
+  EXPECT_EQ("[0x00000101-0x00000001)", TakeValue());
+
+  DumpAddressRange(s.AsRawOstream(), 0x1, 0x101, 1);
+  EXPECT_EQ("[0x01-0x101)", TakeValue());
+}
+
 TEST_F(StreamTest, ChangingByteOrder) {
   s.SetByteOrder(lldb::eByteOrderPDP);
   EXPECT_EQ(lldb::eByteOrderPDP, s.GetByteOrder());
+}
+
+TEST_F(StreamTest, SetIndentLevel) {
+  s.Indent("a");
+  EXPECT_EQ("a", TakeValue());
+
+  s.SetIndentLevel(3);
+  s.Indent("a");
+  EXPECT_EQ("   a", TakeValue());
+
+  s.SetIndentLevel(2);
+  s.Indent("a");
+  EXPECT_EQ("  a", TakeValue());
+
+  s.SetIndentLevel(0);
+  s.Indent("a");
+  EXPECT_EQ("a", TakeValue());
+}
+
+TEST_F(StreamTest, Indent) {
+  s.SetIndentLevel(2);
+  const char *nullptr_cstring = nullptr;
+  s.Indent(nullptr_cstring);
+  EXPECT_EQ("  ", TakeValue());
+
+  s.Indent("");
+  EXPECT_EQ("  ", TakeValue());
+
+  s.Indent(" ");
+  EXPECT_EQ("   ", TakeValue());
+
+  s.Indent(" aa");
+  EXPECT_EQ("   aa", TakeValue());
 }
 
 TEST_F(StreamTest, PutChar) {
@@ -122,16 +242,16 @@ TEST_F(StreamTest, PutCharNull) {
   EXPECT_EQ(std::string("a", 1), TakeValue());
 }
 
-TEST_F(StreamTest, PutCStringAsRawHex8) {
-  s.PutCStringAsRawHex8("");
+TEST_F(StreamTest, PutStringAsRawHex8) {
+  s.PutStringAsRawHex8("");
   EXPECT_EQ(0U, s.GetWrittenBytes());
   EXPECT_EQ("", TakeValue());
 
-  s.PutCStringAsRawHex8("foobar");
+  s.PutStringAsRawHex8("foobar");
   EXPECT_EQ(12U, s.GetWrittenBytes());
   EXPECT_EQ("666f6f626172", TakeValue());
 
-  s.PutCStringAsRawHex8(" ");
+  s.PutStringAsRawHex8(" ");
   EXPECT_EQ(2U, s.GetWrittenBytes());
   EXPECT_EQ("20", TakeValue());
 }
@@ -280,9 +400,7 @@ TEST_F(StreamTest, PutMaxHex64ByteOrderLittle) {
   EXPECT_EQ("12341278563412efcdab9078563412", TakeValue());
 }
 
-//------------------------------------------------------------------------------
 // Shift operator tests.
-//------------------------------------------------------------------------------
 
 TEST_F(StreamTest, ShiftOperatorChars) {
   s << 'a' << 'b';
@@ -296,24 +414,6 @@ TEST_F(StreamTest, ShiftOperatorStrings) {
   s << llvm::StringRef("llvm::StringRef\n");
   EXPECT_EQ(24U, s.GetWrittenBytes());
   EXPECT_EQ("cstring\nllvm::StringRef\n", TakeValue());
-}
-
-TEST_F(StreamTest, ShiftOperatorInts) {
-  s << std::numeric_limits<int8_t>::max() << " ";
-  s << std::numeric_limits<int16_t>::max() << " ";
-  s << std::numeric_limits<int32_t>::max() << " ";
-  s << std::numeric_limits<int64_t>::max();
-  EXPECT_EQ(40U, s.GetWrittenBytes());
-  EXPECT_EQ("127 32767 2147483647 9223372036854775807", TakeValue());
-}
-
-TEST_F(StreamTest, ShiftOperatorUInts) {
-  s << std::numeric_limits<uint8_t>::max() << " ";
-  s << std::numeric_limits<uint16_t>::max() << " ";
-  s << std::numeric_limits<uint32_t>::max() << " ";
-  s << std::numeric_limits<uint64_t>::max();
-  EXPECT_EQ(33U, s.GetWrittenBytes());
-  EXPECT_EQ("ff ffff ffffffff ffffffffffffffff", TakeValue());
 }
 
 TEST_F(StreamTest, ShiftOperatorPtr) {
@@ -346,9 +446,7 @@ TEST_F(StreamTest, PutPtr) {
 // that it should use the host byte order.
 const static auto hostByteOrder = lldb::eByteOrderInvalid;
 
-//------------------------------------------------------------------------------
 // PutRawBytes/PutBytesAsRawHex tests.
-//------------------------------------------------------------------------------
 
 TEST_F(StreamTest, PutBytesAsRawHex8ToBigEndian) {
   uint32_t value = 0x12345678;
@@ -406,9 +504,7 @@ TEST_F(StreamTest, PutRawBytesToMixedEndian) {
 #endif
 }
 
-//------------------------------------------------------------------------------
 // ULEB128 support for binary streams.
-//------------------------------------------------------------------------------
 
 TEST_F(BinaryStreamTest, PutULEB128OneByte) {
   auto bytes = s.PutULEB128(0x74ULL);
@@ -494,9 +590,7 @@ TEST_F(BinaryStreamTest, PutULEB128One) {
   EXPECT_EQ(1U, bytes);
 }
 
-//------------------------------------------------------------------------------
 // SLEB128 support for binary streams.
-//------------------------------------------------------------------------------
 
 TEST_F(BinaryStreamTest, PutSLEB128OneByte) {
   auto bytes = s.PutSLEB128(0x74LL);
@@ -582,9 +676,7 @@ TEST_F(BinaryStreamTest, PutSLEB128One) {
   EXPECT_EQ(1U, bytes);
 }
 
-//------------------------------------------------------------------------------
 // SLEB128/ULEB128 support for non-binary streams.
-//------------------------------------------------------------------------------
 
 // The logic for this is very simple, so it should be enough to test some basic
 // use cases.

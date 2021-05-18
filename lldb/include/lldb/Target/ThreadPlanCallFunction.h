@@ -1,14 +1,13 @@
 //===-- ThreadPlanCallFunction.h --------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ThreadPlanCallFunction_h_
-#define liblldb_ThreadPlanCallFunction_h_
+#ifndef LLDB_TARGET_THREADPLANCALLFUNCTION_H
+#define LLDB_TARGET_THREADPLANCALLFUNCTION_H
 
 #include "lldb/Target/Thread.h"
 #include "lldb/Target/ThreadPlan.h"
@@ -147,9 +146,11 @@ protected:
 
 private:
   CompilerType m_return_type;
-  DISALLOW_COPY_AND_ASSIGN(ThreadPlanCallFunction);
+  ThreadPlanCallFunction(const ThreadPlanCallFunction &) = delete;
+  const ThreadPlanCallFunction &
+  operator=(const ThreadPlanCallFunction &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_ThreadPlanCallFunction_h_
+#endif // LLDB_TARGET_THREADPLANCALLFUNCTION_H

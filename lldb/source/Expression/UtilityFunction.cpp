@@ -1,11 +1,12 @@
-//===-- UtilityFunction.cpp -------------------------------------*- C++ -*-===//
+//===-- UtilityFunction.cpp -----------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+#include "lldb/Host/Config.h"
 
 #include <stdio.h>
 #if HAVE_SYS_TYPES_H
@@ -16,7 +17,6 @@
 #include "lldb/Core/Module.h"
 #include "lldb/Core/StreamFile.h"
 #include "lldb/Expression/DiagnosticManager.h"
-#include "lldb/Expression/ExpressionSourceCode.h"
 #include "lldb/Expression/FunctionCaller.h"
 #include "lldb/Expression/IRExecutionUnit.h"
 #include "lldb/Expression/UtilityFunction.h"
@@ -31,23 +31,19 @@
 using namespace lldb_private;
 using namespace lldb;
 
-//------------------------------------------------------------------
+char UtilityFunction::ID;
+
 /// Constructor
 ///
-/// @param[in] text
+/// \param[in] text
 ///     The text of the function.  Must be a full translation unit.
 ///
-/// @param[in] name
+/// \param[in] name
 ///     The name of the function, as used in the text.
-//------------------------------------------------------------------
 UtilityFunction::UtilityFunction(ExecutionContextScope &exe_scope,
-                                 const char *text, const char *name)
+                                 std::string text, std::string name)
     : Expression(exe_scope), m_execution_unit_sp(), m_jit_module_wp(),
-      m_function_text(ExpressionSourceCode::g_expression_prefix),
-      m_function_name(name) {
-  if (text && text[0])
-    m_function_text.append(text);
-}
+      m_function_text(std::move(text)), m_function_name(std::move(name)) {}
 
 UtilityFunction::~UtilityFunction() {
   lldb::ProcessSP process_sp(m_jit_process_wp.lock());

@@ -1,25 +1,12 @@
-//===-- TypeMap.cpp --------------------------------------------*- C++ -*-===//
+//===-- TypeMap.cpp -------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include <vector>
-
-#include "clang/AST/ASTConsumer.h"
-#include "clang/AST/ASTContext.h"
-#include "clang/AST/Decl.h"
-#include "clang/AST/DeclCXX.h"
-#include "clang/AST/DeclGroup.h"
-
-#include "clang/Basic/Builtins.h"
-#include "clang/Basic/IdentifierTable.h"
-#include "clang/Basic/LangOptions.h"
-#include "clang/Basic/SourceManager.h"
-#include "clang/Basic/TargetInfo.h"
 
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/raw_ostream.h"
@@ -31,13 +18,10 @@
 
 using namespace lldb;
 using namespace lldb_private;
-using namespace clang;
 
 TypeMap::TypeMap() : m_types() {}
 
-//----------------------------------------------------------------------
 // Destructor
-//----------------------------------------------------------------------
 TypeMap::~TypeMap() {}
 
 void TypeMap::Insert(const TypeSP &type_sp) {
@@ -62,9 +46,7 @@ bool TypeMap::InsertUnique(const TypeSP &type_sp) {
   return true;
 }
 
-//----------------------------------------------------------------------
 // Find a base type by its unique ID.
-//----------------------------------------------------------------------
 // TypeSP
 // TypeMap::FindType(lldb::user_id_t uid)
 //{
@@ -74,11 +56,9 @@ bool TypeMap::InsertUnique(const TypeSP &type_sp) {
 //    return TypeSP();
 //}
 
-//----------------------------------------------------------------------
 // Find a type by name.
-//----------------------------------------------------------------------
 // TypeMap
-// TypeMap::FindTypes (const ConstString &name)
+// TypeMap::FindTypes (ConstString name)
 //{
 //    // Do we ever need to make a lookup by name map? Here we are doing
 //    // a linear search which isn't going to be fast.
@@ -141,9 +121,9 @@ bool TypeMap::Remove(const lldb::TypeSP &type_sp) {
   return false;
 }
 
-void TypeMap::Dump(Stream *s, bool show_context) {
+void TypeMap::Dump(Stream *s, bool show_context, lldb::DescriptionLevel level) {
   for (iterator pos = m_types.begin(), end = m_types.end(); pos != end; ++pos) {
-    pos->second->Dump(s, show_context);
+    pos->second->Dump(s, show_context, level);
   }
 }
 
@@ -157,7 +137,8 @@ void TypeMap::RemoveMismatchedTypes(const char *qualified_typename,
     type_basename = qualified_typename;
     type_scope = "";
   }
-  return RemoveMismatchedTypes(type_scope, type_basename, type_class,
+  return RemoveMismatchedTypes(std::string(type_scope),
+                               std::string(type_basename), type_class,
                                exact_match);
 }
 

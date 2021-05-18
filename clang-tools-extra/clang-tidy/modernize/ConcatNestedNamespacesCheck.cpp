@@ -1,17 +1,16 @@
 //===--- ConcatNestedNamespacesCheck.cpp - clang-tidy----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "ConcatNestedNamespacesCheck.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include "clang/Lex/Lexer.h"
 #include <algorithm>
-#include <iterator>
 
 namespace clang {
 namespace tidy {
@@ -40,6 +39,7 @@ static bool alreadyConcatenated(std::size_t NumCandidates,
                                 const SourceRange &ReplacementRange,
                                 const SourceManager &Sources,
                                 const LangOptions &LangOpts) {
+  // FIXME: This logic breaks when there is a comment with ':'s in the middle.
   CharSourceRange TextRange =
       Lexer::getAsCharRange(ReplacementRange, Sources, LangOpts);
   StringRef CurrentNamespacesText =
@@ -63,9 +63,6 @@ ConcatNestedNamespacesCheck::concatNamespaces() {
 
 void ConcatNestedNamespacesCheck::registerMatchers(
     ast_matchers::MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus17)
-    return;
-
   Finder->addMatcher(ast_matchers::namespaceDecl().bind("namespace"), this);
 }
 

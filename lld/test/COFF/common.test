@@ -1,5 +1,5 @@
 # REQUIRES: x86
-# RUN: yaml2obj %s > %t.obj
+# RUN: yaml2obj %s -o %t.obj
 # RUN: lld-link /out:%t.exe /entry:main %t.obj %t.obj
 # RUN: llvm-objdump -d %t.exe | FileCheck %s
 
@@ -79,7 +79,7 @@ symbols:
     ComplexType:     IMAGE_SYM_DTYPE_NULL
     StorageClass:    IMAGE_SYM_CLASS_EXTERNAL
   - Name:            bssdata16
-    Value:           16
+    Value:           15
     SectionNumber:   0
     SimpleType:      IMAGE_SYM_TYPE_NULL
     ComplexType:     IMAGE_SYM_DTYPE_NULL

@@ -1,9 +1,8 @@
 //===-- asan_test_utils.h ---------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -74,13 +73,13 @@ NOINLINE void asan_write(T *a) {
   *a = 0;
 }
 
-string RightOOBErrorMessage(int oob_distance, bool is_write);
-string RightOOBWriteMessage(int oob_distance);
-string RightOOBReadMessage(int oob_distance);
-string LeftOOBErrorMessage(int oob_distance, bool is_write);
-string LeftOOBWriteMessage(int oob_distance);
-string LeftOOBReadMessage(int oob_distance);
-string LeftOOBAccessMessage(int oob_distance);
+std::string RightOOBErrorMessage(int oob_distance, bool is_write);
+std::string RightOOBWriteMessage(int oob_distance);
+std::string RightOOBReadMessage(int oob_distance);
+std::string LeftOOBErrorMessage(int oob_distance, bool is_write);
+std::string LeftOOBWriteMessage(int oob_distance);
+std::string LeftOOBReadMessage(int oob_distance);
+std::string LeftOOBAccessMessage(int oob_distance);
 char* MallocAndMemsetString(size_t size, char ch);
 char* MallocAndMemsetString(size_t size);
 

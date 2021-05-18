@@ -175,7 +175,7 @@ namespace PR14577 {
   Outer<T>::Inner1<T>::~Inner1() = delete; // expected-error {{nested name specifier 'Outer<T>::Inner1<T>::' for declaration does not refer into a class, class template or class template partial specialization}}  expected-error {{only functions can have deleted definitions}}
 
   template<typename T>
-  Outer<T>::Inner2<T>::~Inner2() = default; // expected-error {{nested name specifier 'Outer<T>::Inner2<T>::' for declaration does not refer into a class, class template or class template partial specialization}}  expected-error {{only special member functions may be defaulted}}
+  Outer<T>::Inner2<T>::~Inner2() = default; // expected-error {{nested name specifier 'Outer<T>::Inner2<T>::' for declaration does not refer into a class, class template or class template partial specialization}}
 }
 
 extern "C" { // expected-note {{extern "C" language linkage specification begins here}}
@@ -189,11 +189,11 @@ namespace PR15597 {
     ~A() noexcept(true) = default;
   };
   template<typename T> struct B {
-    B() noexcept(false) = default; // expected-error {{does not match the calculated one}}
-    ~B() noexcept(false) = default; // expected-error {{does not match the calculated one}}
+    B() noexcept(false) = default;
+    ~B() noexcept(false) = default;
   };
   A<int> a;
-  B<int> b; // expected-note {{here}}
+  B<int> b;
 }
 
 namespace PR27941 {
@@ -241,4 +241,21 @@ class E {
 template <typename Type>
 E<Type>::E(const int&) {}  // expected-error {{definition of explicitly defaulted function}}
 
+}
+
+namespace P1286R2 {
+  struct X {
+    X();
+  };
+  struct A {
+    struct B {
+      B() noexcept(A::value) = default;
+      X x;
+    };
+    decltype(B()) b;
+    static constexpr bool value = true;
+  };
+  A::B b;
+
+  static_assert(noexcept(A::B()), "");
 }

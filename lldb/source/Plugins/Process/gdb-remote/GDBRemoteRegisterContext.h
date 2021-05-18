@@ -1,14 +1,13 @@
 //===-- GDBRemoteRegisterContext.h ------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef lldb_GDBRemoteRegisterContext_h_
-#define lldb_GDBRemoteRegisterContext_h_
+#ifndef LLDB_SOURCE_PLUGINS_PROCESS_GDB_REMOTE_GDBREMOTEREGISTERCONTEXT_H
+#define LLDB_SOURCE_PLUGINS_PROCESS_GDB_REMOTE_GDBREMOTEREGISTERCONTEXT_H
 
 #include <vector>
 
@@ -28,21 +27,26 @@ namespace process_gdb_remote {
 
 class ThreadGDBRemote;
 class ProcessGDBRemote;
+class GDBRemoteDynamicRegisterInfo;
 
-class GDBRemoteDynamicRegisterInfo : public DynamicRegisterInfo {
+typedef std::shared_ptr<GDBRemoteDynamicRegisterInfo>
+    GDBRemoteDynamicRegisterInfoSP;
+
+class GDBRemoteDynamicRegisterInfo final : public DynamicRegisterInfo {
 public:
   GDBRemoteDynamicRegisterInfo() : DynamicRegisterInfo() {}
 
   ~GDBRemoteDynamicRegisterInfo() override = default;
 
   void HardcodeARMRegisters(bool from_scratch);
+  bool UpdateARM64SVERegistersInfos(uint64_t vg);
 };
 
 class GDBRemoteRegisterContext : public RegisterContext {
 public:
   GDBRemoteRegisterContext(ThreadGDBRemote &thread, uint32_t concrete_frame_idx,
-                           GDBRemoteDynamicRegisterInfo &reg_info,
-                           bool read_all_at_once);
+                           GDBRemoteDynamicRegisterInfoSP reg_info_sp,
+                           bool read_all_at_once, bool write_all_at_once);
 
   ~GDBRemoteRegisterContext() override;
 
@@ -74,6 +78,8 @@ public:
   uint32_t ConvertRegisterKindToRegisterNumber(lldb::RegisterKind kind,
                                                uint32_t num) override;
 
+  bool AArch64SVEReconfigure();
+
 protected:
   friend class ThreadGDBRemote;
 
@@ -89,9 +95,7 @@ protected:
   void SetAllRegisterValid(bool b);
 
   bool GetRegisterIsValid(uint32_t reg) const {
-#if defined(LLDB_CONFIGURATION_DEBUG)
     assert(reg < m_reg_valid.size());
-#endif
     if (reg < m_reg_valid.size())
       return m_reg_valid[reg];
     return false;
@@ -104,17 +108,16 @@ protected:
   }
 
   void SetRegisterIsValid(uint32_t reg, bool valid) {
-#if defined(LLDB_CONFIGURATION_DEBUG)
     assert(reg < m_reg_valid.size());
-#endif
     if (reg < m_reg_valid.size())
       m_reg_valid[reg] = valid;
   }
 
-  GDBRemoteDynamicRegisterInfo &m_reg_info;
+  GDBRemoteDynamicRegisterInfoSP m_reg_info_sp;
   std::vector<bool> m_reg_valid;
   DataExtractor m_reg_data;
   bool m_read_all_at_once;
+  bool m_write_all_at_once;
 
 private:
   // Helper function for ReadRegisterBytes().
@@ -124,10 +127,12 @@ private:
   bool SetPrimordialRegister(const RegisterInfo *reg_info,
                              GDBRemoteCommunicationClient &gdb_comm);
 
-  DISALLOW_COPY_AND_ASSIGN(GDBRemoteRegisterContext);
+  GDBRemoteRegisterContext(const GDBRemoteRegisterContext &) = delete;
+  const GDBRemoteRegisterContext &
+  operator=(const GDBRemoteRegisterContext &) = delete;
 };
 
 } // namespace process_gdb_remote
 } // namespace lldb_private
 
-#endif // lldb_GDBRemoteRegisterContext_h_
+#endif // LLDB_SOURCE_PLUGINS_PROCESS_GDB_REMOTE_GDBREMOTEREGISTERCONTEXT_H

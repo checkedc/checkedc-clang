@@ -8,7 +8,7 @@
 //   test_resource.res
 
 RUN: llvm-cvtres /verbose /out:%t %p/Inputs/test_resource.res
-RUN: llvm-readobj -coff-resources -section-data %t | FileCheck %s
+RUN: llvm-readobj --coff-resources --section-data %t | FileCheck %s
 
 CHECK:     Resources [
 CHECK-NEXT:  Total Number of Resources: 8
@@ -28,10 +28,18 @@ CHECK-NEXT:        Time/Date Stamp: 1970-01-01 00:00:00 (0x0)
 CHECK-NEXT:        Major Version: 0
 CHECK-NEXT:        Minor Version: 0
 CHECK-NEXT:        Characteristics: 0
+CHECK-NEXT:        Data [
+CHECK-NEXT:          DataRVA: 0x0
+CHECK-NEXT:          DataSize: 57
+CHECK-NEXT:          Codepage: 0
+CHECK-NEXT:          Reserved: 0
+CHECK-NEXT:          Data (
+CHECK:               )
+CHECK-NEXT:        ]
 CHECK-NEXT:      ]
 CHECK-NEXT:    ]
 CHECK-NEXT:  ]
-CHECK-NEXT:  Type: kRT_BITMAP (ID 2) [
+CHECK-NEXT:  Type: BITMAP (ID 2) [
 CHECK-NEXT:    Table Offset: 0x50
 CHECK-NEXT:    Number of String Entries: 2
 CHECK-NEXT:    Number of ID Entries: 0
@@ -45,6 +53,14 @@ CHECK-NEXT:        Time/Date Stamp: 1970-01-01 00:00:00 (0x0)
 CHECK-NEXT:        Major Version: 0
 CHECK-NEXT:        Minor Version: 0
 CHECK-NEXT:        Characteristics: 0
+CHECK-NEXT:        Data [
+CHECK-NEXT:          DataRVA: 0x0
+CHECK-NEXT:          DataSize: 808
+CHECK-NEXT:          Codepage: 0
+CHECK-NEXT:          Reserved: 0
+CHECK-NEXT:          Data (
+CHECK:               )
+CHECK-NEXT:        ]
 CHECK-NEXT:      ]
 CHECK-NEXT:    ]
 CHECK-NEXT:    Name: OKAY [
@@ -57,10 +73,18 @@ CHECK-NEXT:        Time/Date Stamp: 1970-01-01 00:00:00 (0x0)
 CHECK-NEXT:        Major Version: 0
 CHECK-NEXT:        Minor Version: 0
 CHECK-NEXT:        Characteristics: 0
+CHECK-NEXT:        Data [
+CHECK-NEXT:          DataRVA: 0x0
+CHECK-NEXT:          DataSize: 808
+CHECK-NEXT:          Codepage: 0
+CHECK-NEXT:          Reserved: 0
+CHECK-NEXT:          Data (
+CHECK:               )
+CHECK-NEXT:        ]
 CHECK-NEXT:      ]
 CHECK-NEXT:    ]
 CHECK-NEXT:  ]
-CHECK-NEXT:  Type: kRT_MENU (ID 4) [
+CHECK-NEXT:  Type: MENU (ID 4) [
 CHECK-NEXT:    Table Offset: 0x70
 CHECK-NEXT:    Number of String Entries: 1
 CHECK-NEXT:    Number of ID Entries: 1
@@ -74,6 +98,14 @@ CHECK-NEXT:        Time/Date Stamp: 1970-01-01 00:00:00 (0x0)
 CHECK-NEXT:        Major Version: 0
 CHECK-NEXT:        Minor Version: 0
 CHECK-NEXT:        Characteristics: 0
+CHECK-NEXT:        Data [
+CHECK-NEXT:          DataRVA: 0x0
+CHECK-NEXT:          DataSize: 48
+CHECK-NEXT:          Codepage: 0
+CHECK-NEXT:          Reserved: 0
+CHECK-NEXT:          Data (
+CHECK:               )
+CHECK-NEXT:        ]
 CHECK-NEXT:      ]
 CHECK-NEXT:    ]
 CHECK-NEXT:    Name: (ID 14432) [
@@ -86,10 +118,18 @@ CHECK-NEXT:        Time/Date Stamp: 1970-01-01 00:00:00 (0x0)
 CHECK-NEXT:        Major Version: 0
 CHECK-NEXT:        Minor Version: 0
 CHECK-NEXT:        Characteristics: 0
+CHECK-NEXT:        Data [
+CHECK-NEXT:          DataRVA: 0x0
+CHECK-NEXT:          DataSize: 46
+CHECK-NEXT:          Codepage: 0
+CHECK-NEXT:          Reserved: 0
+CHECK-NEXT:          Data (
+CHECK:               )
+CHECK-NEXT:        ]
 CHECK-NEXT:      ]
 CHECK-NEXT:    ]
 CHECK-NEXT:  ]
-CHECK-NEXT:  Type: kRT_DIALOG (ID 5) [
+CHECK-NEXT:  Type: DIALOG (ID 5) [
 CHECK-NEXT:    Table Offset: 0x90
 CHECK-NEXT:    Number of String Entries: 1
 CHECK-NEXT:    Number of ID Entries: 0
@@ -103,10 +143,18 @@ CHECK-NEXT:        Time/Date Stamp: 1970-01-01 00:00:00 (0x0)
 CHECK-NEXT:        Major Version: 0
 CHECK-NEXT:        Minor Version: 0
 CHECK-NEXT:        Characteristics: 0
+CHECK-NEXT:        Data [
+CHECK-NEXT:          DataRVA: 0x0
+CHECK-NEXT:          DataSize: 108
+CHECK-NEXT:          Codepage: 0
+CHECK-NEXT:          Reserved: 0
+CHECK-NEXT:          Data (
+CHECK:               )
+CHECK-NEXT:        ]
 CHECK-NEXT:      ]
 CHECK-NEXT:    ]
 CHECK-NEXT:  ]
-CHECK-NEXT:  Type: kRT_ACCELERATOR (ID 9) [
+CHECK-NEXT:  Type: ACCELERATOR (ID 9) [
 CHECK-NEXT:    Table Offset: 0xA8
 CHECK-NEXT:    Number of String Entries: 1
 CHECK-NEXT:    Number of ID Entries: 1
@@ -120,6 +168,14 @@ CHECK-NEXT:        Time/Date Stamp: 1970-01-01 00:00:00 (0x0)
 CHECK-NEXT:        Major Version: 0
 CHECK-NEXT:        Minor Version: 0
 CHECK-NEXT:        Characteristics: 0
+CHECK-NEXT:        Data [
+CHECK-NEXT:          DataRVA: 0x0
+CHECK-NEXT:          DataSize: 24
+CHECK-NEXT:          Codepage: 0
+CHECK-NEXT:          Reserved: 0
+CHECK-NEXT:          Data (
+CHECK:               )
+CHECK-NEXT:        ]
 CHECK-NEXT:      ]
 CHECK-NEXT:    ]
 CHECK-NEXT:    Name: (ID 12) [
@@ -132,6 +188,14 @@ CHECK-NEXT:        Time/Date Stamp: 1970-01-01 00:00:00 (0x0)
 CHECK-NEXT:        Major Version: 0
 CHECK-NEXT:        Minor Version: 0
 CHECK-NEXT:        Characteristics: 0
+CHECK-NEXT:        Data [
+CHECK-NEXT:          DataRVA: 0x0
+CHECK-NEXT:          DataSize: 24
+CHECK-NEXT:          Codepage: 0
+CHECK-NEXT:          Reserved: 0
+CHECK-NEXT:          Data (
+CHECK:               )
+CHECK-NEXT:        ]
 CHECK-NEXT:      ]
 CHECK-NEXT:    ]
 CHECK-NEXT:  ]

@@ -1,4 +1,6 @@
 // RUN: %clang_cc1 -fsyntax-only -verify -fblocks -Wno-objc-root-class %s
+// RUN: %clang_cc1 -fsyntax-only -verify -fblocks -Wno-objc-root-class \
+// RUN:   -fcompatibility-qualified-id-block-type-checking -DCOMPATIBILITY_QUALIFIED_ID_TYPE_CHECKING=1 %s
 // test for block type safety.
 
 @interface Super  @end
@@ -132,12 +134,43 @@ int test4 () {
 @interface NSAllArray (FooConformance) <Foo>
 @end
 
+#ifndef COMPATIBILITY_QUALIFIED_ID_TYPE_CHECKING
+int test5() {
+    // Returned value is used outside of a block, so error on changing
+    // a return type to a more general than expected.
+    NSAllArray *(^block)(id);
+    id <Foo> (^genericBlock)(id);
+    genericBlock = block;
+    block = genericBlock; // expected-error {{incompatible block pointer types assigning to 'NSAllArray *(^)(id)' from 'id<Foo> (^)(id)'}}
+
+    // A parameter is used inside a block, so error on changing a parameter type
+    // to a more specific than an argument type it will be called with.
+    // rdar://problem/52788423
+    void (^blockWithParam)(NSAllArray *);
+    void (^genericBlockWithParam)(id<Foo>);
+    genericBlockWithParam = blockWithParam; // expected-error {{incompatible block pointer types assigning to 'void (^)(id<Foo>)' from 'void (^)(NSAllArray *)'}}
+    blockWithParam = genericBlockWithParam;
+    return 0;
+}
+#else
+// In Apple SDK APIs using NSItemProviderCompletionHandler require to work with
+// blocks that have parameters more specific than in method signatures. As
+// explained in non-compatibility test above, it is not safe in general. But
+// to keep existing code working we support a compatibility mode that uses
+// previous type checking.
 int test5() {
     NSAllArray *(^block)(id);
     id <Foo> (^genericBlock)(id);
     genericBlock = block;
+    block = genericBlock; // expected-error {{incompatible block pointer types assigning to 'NSAllArray *(^)(id)' from 'id<Foo> (^)(id)'}}
+
+    void (^blockWithParam)(NSAllArray *);
+    void (^genericBlockWithParam)(id<Foo>);
+    genericBlockWithParam = blockWithParam;
+    blockWithParam = genericBlockWithParam;
     return 0;
 }
+#endif
 
 // rdar://10798770
 typedef int NSInteger;

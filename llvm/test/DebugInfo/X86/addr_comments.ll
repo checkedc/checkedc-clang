@@ -1,12 +1,14 @@
 ; RUN: llc %s -mtriple=i386-unknown-linux-gnu -filetype=asm -o - | FileCheck %s
 
 ; CHECK:   .section .debug_addr
-; CHECK:   .long   8 # Length of contribution
-; CHECK:   .short  5 # DWARF version number
-; CHECK:   .byte   4 # Address size
-; CHECK:   .byte   0 # Segment selector size
-; CHECK: .Laddr_table_base0:
-; CHECK:   .long   .Lfunc_begin0
+; CHECK-NEXT:   .long   .Ldebug_addr_end0-.Ldebug_addr_start0 # Length of contribution
+; CHECK-NEXT: .Ldebug_addr_start0:
+; CHECK-NEXT:   .short  5 # DWARF version number
+; CHECK-NEXT:   .byte   4 # Address size
+; CHECK-NEXT:   .byte   0 # Segment selector size
+; CHECK-NEXT: .Laddr_table_base0:
+; CHECK-NEXT:   .long   .Lfunc_begin0
+; CHECK-NEXT: .Ldebug_addr_end0:
  
 ; Function Attrs: noinline nounwind optnone uwtable
 define dso_local void @foo() #0 !dbg !7 {
@@ -14,7 +16,7 @@ entry:
   ret void, !dbg !10
 }
 
-attributes #0 = { noinline nounwind optnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { noinline nounwind optnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!3, !4, !5}

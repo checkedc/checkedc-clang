@@ -1,9 +1,8 @@
-//===-- Breakpoint.cpp ------------------------------------------*- C++ -*-===//
+//===-- Breakpoint.cpp ----------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -12,6 +11,7 @@
 #include "lldb/Breakpoint/Breakpoint.h"
 #include "lldb/Breakpoint/BreakpointLocation.h"
 #include "lldb/Breakpoint/BreakpointLocationCollection.h"
+#include "lldb/Breakpoint/BreakpointPrecondition.h"
 #include "lldb/Breakpoint/BreakpointResolver.h"
 #include "lldb/Breakpoint/BreakpointResolverFileLine.h"
 #include "lldb/Core/Address.h"
@@ -30,11 +30,13 @@
 #include "lldb/Utility/Stream.h"
 #include "lldb/Utility/StreamString.h"
 
+#include <memory>
+
 using namespace lldb;
 using namespace lldb_private;
 using namespace llvm;
 
-const ConstString &Breakpoint::GetEventIdentifier() {
+ConstString Breakpoint::GetEventIdentifier() {
   static ConstString g_identifier("event-identifier.breakpoint.changed");
   return g_identifier;
 }
@@ -42,39 +44,41 @@ const ConstString &Breakpoint::GetEventIdentifier() {
 const char *Breakpoint::g_option_names[static_cast<uint32_t>(
     Breakpoint::OptionNames::LastOptionName)]{"Names", "Hardware"};
 
-//----------------------------------------------------------------------
 // Breakpoint constructor
-//----------------------------------------------------------------------
 Breakpoint::Breakpoint(Target &target, SearchFilterSP &filter_sp,
                        BreakpointResolverSP &resolver_sp, bool hardware,
                        bool resolve_indirect_symbols)
     : m_being_created(true), m_hardware(hardware), m_target(target),
       m_filter_sp(filter_sp), m_resolver_sp(resolver_sp),
       m_options_up(new BreakpointOptions(true)), m_locations(*this),
-      m_resolve_indirect_symbols(resolve_indirect_symbols), m_hit_count(0) {
+      m_resolve_indirect_symbols(resolve_indirect_symbols), m_hit_counter() {
   m_being_created = false;
 }
 
-Breakpoint::Breakpoint(Target &new_target, Breakpoint &source_bp)
+Breakpoint::Breakpoint(Target &new_target, const Breakpoint &source_bp)
     : m_being_created(true), m_hardware(source_bp.m_hardware),
       m_target(new_target), m_name_list(source_bp.m_name_list),
-      m_options_up(new BreakpointOptions(*source_bp.m_options_up.get())),
+      m_options_up(new BreakpointOptions(*source_bp.m_options_up)),
       m_locations(*this),
       m_resolve_indirect_symbols(source_bp.m_resolve_indirect_symbols),
-      m_hit_count(0) {
-  // Now go through and copy the filter & resolver:
-  m_resolver_sp = source_bp.m_resolver_sp->CopyForBreakpoint(*this);
-  m_filter_sp = source_bp.m_filter_sp->CopyForBreakpoint(*this);
-}
+      m_hit_counter() {}
 
-//----------------------------------------------------------------------
 // Destructor
-//----------------------------------------------------------------------
 Breakpoint::~Breakpoint() = default;
 
-//----------------------------------------------------------------------
+BreakpointSP Breakpoint::CopyFromBreakpoint(TargetSP new_target,
+    const Breakpoint& bp_to_copy_from) {
+  if (!new_target)
+    return BreakpointSP();
+
+  BreakpointSP bp(new Breakpoint(*new_target, bp_to_copy_from));
+  // Now go through and copy the filter & resolver:
+  bp->m_resolver_sp = bp_to_copy_from.m_resolver_sp->CopyForBreakpoint(bp);
+  bp->m_filter_sp = bp_to_copy_from.m_filter_sp->CreateCopy(new_target);
+  return bp;
+}
+
 // Serialization
-//----------------------------------------------------------------------
 StructuredData::ObjectSP Breakpoint::SerializeToStructuredData() {
   // Serialize the resolver:
   StructuredData::DictionarySP breakpoint_dict_sp(
@@ -124,8 +128,10 @@ StructuredData::ObjectSP Breakpoint::SerializeToStructuredData() {
 }
 
 lldb::BreakpointSP Breakpoint::CreateFromStructuredData(
-    Target &target, StructuredData::ObjectSP &object_data, Status &error) {
+    TargetSP target_sp, StructuredData::ObjectSP &object_data, Status &error) {
   BreakpointSP result_sp;
+  if (!target_sp)
+    return result_sp;
 
   StructuredData::Dictionary *breakpoint_dict = object_data->GetAsDictionary();
 
@@ -138,8 +144,7 @@ lldb::BreakpointSP Breakpoint::CreateFromStructuredData(
   bool success = breakpoint_dict->GetValueForKeyAsDictionary(
       BreakpointResolver::GetSerializationKey(), resolver_dict);
   if (!success) {
-    error.SetErrorStringWithFormat(
-        "Breakpoint data missing toplevel resolver key");
+    error.SetErrorString("Breakpoint data missing toplevel resolver key");
     return result_sp;
   }
 
@@ -159,11 +164,11 @@ lldb::BreakpointSP Breakpoint::CreateFromStructuredData(
       SearchFilter::GetSerializationKey(), filter_dict);
   SearchFilterSP filter_sp;
   if (!success)
-    filter_sp.reset(
-        new SearchFilterForUnconstrainedSearches(target.shared_from_this()));
+    filter_sp =
+        std::make_shared<SearchFilterForUnconstrainedSearches>(target_sp);
   else {
-    filter_sp = SearchFilter::CreateFromStructuredData(target, *filter_dict,
-                                                       create_error);
+    filter_sp = SearchFilter::CreateFromStructuredData(target_sp, *filter_dict,
+        create_error);
     if (create_error.Fail()) {
       error.SetErrorStringWithFormat(
           "Error creating breakpoint filter from data: %s.",
@@ -174,6 +179,7 @@ lldb::BreakpointSP Breakpoint::CreateFromStructuredData(
 
   std::unique_ptr<BreakpointOptions> options_up;
   StructuredData::Dictionary *options_dict;
+  Target& target = *target_sp;
   success = breakpoint_dict->GetValueForKeyAsDictionary(
       BreakpointOptions::GetSerializationKey(), options_dict);
   if (success) {
@@ -191,8 +197,8 @@ lldb::BreakpointSP Breakpoint::CreateFromStructuredData(
   success = breakpoint_dict->GetValueForKeyAsBoolean(
       Breakpoint::GetKey(OptionNames::Hardware), hardware);
 
-  result_sp =
-      target.CreateBreakpoint(filter_sp, resolver_sp, false, hardware, true);
+  result_sp = target.CreateBreakpoint(filter_sp, resolver_sp, false,
+                                      hardware, true);
 
   if (result_sp && options_up) {
     result_sp->m_options_up = std::move(options_up);
@@ -235,15 +241,12 @@ bool Breakpoint::SerializedBreakpointMatchesNames(
     return false;
 
   size_t num_names = names_array->GetSize();
-  std::vector<std::string>::iterator begin = names.begin();
-  std::vector<std::string>::iterator end = names.end();
 
   for (size_t i = 0; i < num_names; i++) {
     llvm::StringRef name;
     if (names_array->GetItemAtIndexAsString(i, name)) {
-      if (std::find(begin, end, name) != end) {
+      if (llvm::is_contained(names, name))
         return true;
-      }
     }
   }
   return false;
@@ -335,7 +338,7 @@ bool Breakpoint::IgnoreCountShouldStop() {
     return true;
 }
 
-uint32_t Breakpoint::GetHitCount() const { return m_hit_count; }
+uint32_t Breakpoint::GetHitCount() const { return m_hit_counter.GetValue(); }
 
 bool Breakpoint::IsOneShot() const { return m_options_up->IsOneShot(); }
 
@@ -495,19 +498,16 @@ void Breakpoint::ClearAllBreakpointSites() {
   m_locations.ClearAllBreakpointSites();
 }
 
-//----------------------------------------------------------------------
 // ModulesChanged: Pass in a list of new modules, and
-//----------------------------------------------------------------------
 
 void Breakpoint::ModulesChanged(ModuleList &module_list, bool load,
                                 bool delete_locations) {
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_BREAKPOINTS));
-  if (log)
-    log->Printf("Breakpoint::ModulesChanged: num_modules: %zu load: %i "
-                "delete_locations: %i\n",
-                module_list.GetSize(), load, delete_locations);
+  LLDB_LOGF(log,
+            "Breakpoint::ModulesChanged: num_modules: %zu load: %i "
+            "delete_locations: %i\n",
+            module_list.GetSize(), load, delete_locations);
 
-  std::lock_guard<std::recursive_mutex> guard(module_list.GetMutex());
   if (load) {
     // The logic for handling new modules is:
     // 1) If the filter rejects this module, then skip it. 2) Run through the
@@ -524,7 +524,7 @@ void Breakpoint::ModulesChanged(ModuleList &module_list, bool load,
     // them after the locations pass.  Have to do it this way because resolving
     // breakpoints will add new locations potentially.
 
-    for (ModuleSP module_sp : module_list.ModulesNoLocking()) {
+    for (ModuleSP module_sp : module_list.Modules()) {
       bool seen = false;
       if (!m_filter_sp->ModulePasses(module_sp))
         continue;
@@ -556,10 +556,10 @@ void Breakpoint::ModulesChanged(ModuleList &module_list, bool load,
             seen = true;
 
           if (!break_loc_sp->ResolveBreakpointSite()) {
-            if (log)
-              log->Printf("Warning: could not set breakpoint site for "
-                          "breakpoint location %d of breakpoint %d.\n",
-                          break_loc_sp->GetID(), GetID());
+            LLDB_LOGF(log,
+                      "Warning: could not set breakpoint site for "
+                      "breakpoint location %d of breakpoint %d.\n",
+                      break_loc_sp->GetID(), GetID());
           }
         }
       }
@@ -588,9 +588,7 @@ void Breakpoint::ModulesChanged(ModuleList &module_list, bool load,
     else
       removed_locations_event = nullptr;
 
-    size_t num_modules = module_list.GetSize();
-    for (size_t i = 0; i < num_modules; i++) {
-      ModuleSP module_sp(module_list.GetModuleAtIndexUnlocked(i));
+    for (ModuleSP module_sp : module_list.Modules()) {
       if (m_filter_sp->ModulePasses(module_sp)) {
         size_t loc_idx = 0;
         size_t num_locations = m_locations.GetSize();
@@ -644,7 +642,8 @@ static bool SymbolContextsMightBeEquivalent(SymbolContext &old_sc,
   } else {
     // Otherwise we will compare by name...
     if (old_sc.comp_unit && new_sc.comp_unit) {
-      if (FileSpec::Equal(*old_sc.comp_unit, *new_sc.comp_unit, true)) {
+      if (old_sc.comp_unit->GetPrimaryFile() ==
+          new_sc.comp_unit->GetPrimaryFile()) {
         // Now check the functions:
         if (old_sc.function && new_sc.function &&
             (old_sc.function->GetName() == new_sc.function->GetName())) {
@@ -665,9 +664,8 @@ static bool SymbolContextsMightBeEquivalent(SymbolContext &old_sc,
 void Breakpoint::ModuleReplaced(ModuleSP old_module_sp,
                                 ModuleSP new_module_sp) {
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_BREAKPOINTS));
-  if (log)
-    log->Printf("Breakpoint::ModulesReplaced for %s\n",
-                old_module_sp->GetSpecificationDescription().c_str());
+  LLDB_LOGF(log, "Breakpoint::ModulesReplaced for %s\n",
+            old_module_sp->GetSpecificationDescription().c_str());
   // First find all the locations that are in the old module
 
   BreakpointLocationCollection old_break_locs;
@@ -971,7 +969,7 @@ void Breakpoint::GetResolverDescription(Stream *s) {
     m_resolver_sp->GetDescription(s);
 }
 
-bool Breakpoint::GetMatchingFileLine(const ConstString &filename,
+bool Breakpoint::GetMatchingFileLine(ConstString filename,
                                      uint32_t line_number,
                                      BreakpointLocationCollection &loc_coll) {
   // TODO: To be correct, this method needs to fill the breakpoint location
@@ -1000,21 +998,6 @@ bool Breakpoint::EvaluatePrecondition(StoppointCallbackContext &context) {
     return true;
 
   return m_precondition_sp->EvaluatePrecondition(context);
-}
-
-bool Breakpoint::BreakpointPrecondition::EvaluatePrecondition(
-    StoppointCallbackContext &context) {
-  return true;
-}
-
-void Breakpoint::BreakpointPrecondition::GetDescription(
-    Stream &stream, lldb::DescriptionLevel level) {}
-
-Status
-Breakpoint::BreakpointPrecondition::ConfigurePrecondition(Args &options) {
-  Status error;
-  error.SetErrorString("Base breakpoint precondition has no options.");
-  return error;
 }
 
 void Breakpoint::SendBreakpointChangedEvent(
@@ -1047,12 +1030,12 @@ Breakpoint::BreakpointEventData::BreakpointEventData(
 
 Breakpoint::BreakpointEventData::~BreakpointEventData() = default;
 
-const ConstString &Breakpoint::BreakpointEventData::GetFlavorString() {
+ConstString Breakpoint::BreakpointEventData::GetFlavorString() {
   static ConstString g_flavor("Breakpoint::BreakpointEventData");
   return g_flavor;
 }
 
-const ConstString &Breakpoint::BreakpointEventData::GetFlavor() const {
+ConstString Breakpoint::BreakpointEventData::GetFlavor() const {
   return BreakpointEventData::GetFlavorString();
 }
 

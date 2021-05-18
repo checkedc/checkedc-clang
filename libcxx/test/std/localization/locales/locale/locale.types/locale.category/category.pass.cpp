@@ -1,16 +1,10 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This test uses new symbols that were not defined in the libc++ shipped on
-// darwin11 and darwin12:
-// XFAIL: availability=macosx10.7
-// XFAIL: availability=macosx10.8
 
 // <locale>
 
@@ -20,11 +14,13 @@
 #include <type_traits>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class T>
 void test(const T &) {}
 
 
-int main()
+int main(int, char**)
 {
     static_assert((std::is_same<std::locale::category, int>::value), "");
     assert(std::locale::none == 0);
@@ -56,4 +52,6 @@ int main()
     test(std::locale::time);
     test(std::locale::messages);
     test(std::locale::all);
+
+  return 0;
 }

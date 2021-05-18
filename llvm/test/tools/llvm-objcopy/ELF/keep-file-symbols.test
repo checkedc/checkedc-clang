@@ -1,8 +1,23 @@
-# RUN: yaml2obj %s > %t
+# RUN: yaml2obj %s -o %t
 # RUN: llvm-objcopy --strip-all --keep-file-symbols %t %t2
 # RUN: llvm-readobj --symbols %t2 | FileCheck %s --check-prefix=STRIPALL
 # RUN: llvm-objcopy --keep-file-symbols --strip-symbol foo %t %t2
 # RUN: llvm-readobj --symbols %t2 | FileCheck %s --check-prefix=STRIP
+
+# RUN: llvm-strip --keep-file-symbols %t -o %t3
+# RUN: llvm-readobj --symbols %t3 | FileCheck %s --check-prefix=STRIPALL
+# RUN: llvm-strip --keep-file-symbols --strip-symbol foo %t -o %t4
+# RUN: llvm-readobj --symbols %t4 | FileCheck %s --check-prefix=STRIP
+
+# RUN: llvm-objcopy --keep-file-symbols --strip-debug %t %t5
+# RUN: llvm-readobj --symbols %t5 | FileCheck %s --check-prefix=STRIPDEBUG
+# RUN: llvm-objcopy --keep-file-symbols --strip-unneeded %t %t6
+# RUN: llvm-readobj --symbols %t6 | FileCheck %s --check-prefix=STRIPDEBUG
+
+# RUN: llvm-strip --keep-file-symbols --strip-debug %t -o %t7
+# RUN: llvm-readobj --symbols %t7 | FileCheck %s --check-prefix=STRIPDEBUG
+# RUN: llvm-strip --keep-file-symbols --strip-unneeded %t -o %t8
+# RUN: llvm-readobj --symbols %t8 | FileCheck %s --check-prefix=STRIPDEBUG
 
 !ELF
 FileHeader:
@@ -11,6 +26,9 @@ FileHeader:
   Type:            ET_REL
   Machine:         EM_X86_64
 Sections:
+  - Name:            .debugfoo
+    Type:            SHT_PROGBITS
+    Content:         "00000000"
   - Name:            .text
     Type:            SHT_PROGBITS
     Flags:           [ SHF_ALLOC, SHF_EXECINSTR ]
@@ -18,14 +36,16 @@ Sections:
     AddressAlign:    0x0000000000000010
     Size:            64
 Symbols:
-  Local:
-    - Name:     foo
-      Type:     STT_FILE
-      Section:  .text
-  Global:
-    - Name:     bar
-      Type:     STT_FUNC
-      Section:  .text
+  - Name:     foo
+    Type:     STT_FILE
+    Section:  .text
+  - Name:     bar
+    Type:     STT_FUNC
+    Section:  .text
+    Binding:  STB_GLOBAL
+  - Name:     debugfoo
+    Section:  .debugfoo
+    Binding:  STB_GLOBAL
 
 #STRIPALL: Symbols [
 #STRIPALL-NEXT:  Symbol {
@@ -76,4 +96,43 @@ Symbols:
 #STRIP-NEXT:    Other: 0
 #STRIP-NEXT:    Section: .text
 #STRIP-NEXT:  }
+#STRIP-NEXT:  Symbol {
+#STRIP-NEXT:    Name: debugfoo
+#STRIP-NEXT:    Value: 0x0
+#STRIP-NEXT:    Size: 0
+#STRIP-NEXT:    Binding: Global
+#STRIP-NEXT:    Type: None
+#STRIP-NEXT:    Other: 0
+#STRIP-NEXT:    Section: .debugfoo
+#STRIP-NEXT:  }
 #STRIP-NEXT:]
+
+#STRIPDEBUG: Symbols [
+#STRIPDEBUG-NEXT:  Symbol {
+#STRIPDEBUG-NEXT:    Name:
+#STRIPDEBUG-NEXT:    Value: 0x0
+#STRIPDEBUG-NEXT:    Size: 0
+#STRIPDEBUG-NEXT:    Binding: Local
+#STRIPDEBUG-NEXT:    Type: None
+#STRIPDEBUG-NEXT:    Other: 0
+#STRIPDEBUG-NEXT:    Section: Undefined
+#STRIPDEBUG-NEXT:  }
+#STRIPDEBUG-NEXT:  Symbol {
+#STRIPDEBUG-NEXT:    Name: foo
+#STRIPDEBUG-NEXT:    Value: 0x0
+#STRIPDEBUG-NEXT:    Size: 0
+#STRIPDEBUG-NEXT:    Binding: Local
+#STRIPDEBUG-NEXT:    Type: File
+#STRIPDEBUG-NEXT:    Other: 0
+#STRIPDEBUG-NEXT:    Section: .text
+#STRIPDEBUG-NEXT:  }
+#STRIPDEBUG-NEXT:  Symbol {
+#STRIPDEBUG-NEXT:    Name: bar
+#STRIPDEBUG-NEXT:    Value: 0x0
+#STRIPDEBUG-NEXT:    Size: 0
+#STRIPDEBUG-NEXT:    Binding: Global
+#STRIPDEBUG-NEXT:    Type: Function
+#STRIPDEBUG-NEXT:    Other: 0
+#STRIPDEBUG-NEXT:    Section: .text
+#STRIPDEBUG-NEXT:  }
+#STRIPDEBUG-NEXT:]

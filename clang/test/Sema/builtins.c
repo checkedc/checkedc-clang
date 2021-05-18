@@ -141,7 +141,7 @@ typedef __typeof(sizeof(int)) size_t;
 size_t strlen(const char *);
 
 void test17() {
-#define ASSERT(...) { int arr[(__VA_ARGS__) ? 1 : -1]; }
+#define ASSERT(...) { enum { folded = (__VA_ARGS__) }; int arr[folded ? 1 : -1]; }
 #define T(...) ASSERT(__builtin_constant_p(__VA_ARGS__))
 #define F(...) ASSERT(!__builtin_constant_p(__VA_ARGS__))
 
@@ -179,12 +179,12 @@ void test17() {
   ASSERT(!OPT("abcd"));
   // In these cases, the strlen is non-constant, but the __builtin_constant_p
   // is 0: the array size is not an ICE but is foldable.
-  ASSERT(!OPT(test17_c));        // expected-warning {{folded}}
-  ASSERT(!OPT(&test17_c[0]));    // expected-warning {{folded}}
-  ASSERT(!OPT((char*)test17_c)); // expected-warning {{folded}}
-  ASSERT(!OPT(test17_d));        // expected-warning {{folded}}
-  ASSERT(!OPT(&test17_d[0]));    // expected-warning {{folded}}
-  ASSERT(!OPT((char*)test17_d)); // expected-warning {{folded}}
+  ASSERT(!OPT(test17_c));        // expected-warning {{folding}}
+  ASSERT(!OPT(&test17_c[0]));    // expected-warning {{folding}}
+  ASSERT(!OPT((char*)test17_c)); // expected-warning {{folding}}
+  ASSERT(!OPT(test17_d));        // expected-warning {{folding}}
+  ASSERT(!OPT(&test17_d[0]));    // expected-warning {{folding}}
+  ASSERT(!OPT((char*)test17_d)); // expected-warning {{folding}}
 
 #undef OPT
 #undef T
@@ -230,14 +230,14 @@ void Test19(void)
                                     // expected-note {{change size argument to be the size of the destination}}
         __builtin___strlcpy_chk(buf, b, sizeof(b), __builtin_object_size(buf, 0)); // expected-warning {{size argument in '__builtin___strlcpy_chk' call appears to be size of the source; expected the size of the destination}} \
                                     // expected-note {{change size argument to be the size of the destination}} \
-				    // expected-warning {{'__builtin___strlcpy_chk' will always overflow; destination buffer has size 20, but size argument is 40}}
+				    // expected-warning {{'strlcpy' will always overflow; destination buffer has size 20, but size argument is 40}}
 
         strlcat(buf, b, sizeof(b)); // expected-warning {{size argument in 'strlcat' call appears to be size of the source; expected the size of the destination}} \
                                     // expected-note {{change size argument to be the size of the destination}}
 				    
         __builtin___strlcat_chk(buf, b, sizeof(b), __builtin_object_size(buf, 0)); // expected-warning {{size argument in '__builtin___strlcat_chk' call appears to be size of the source; expected the size of the destination}} \
                                                                                    // expected-note {{change size argument to be the size of the destination}} \
-				                                                   // expected-warning {{'__builtin___strlcat_chk' will always overflow; destination buffer has size 20, but size argument is 40}}
+				                                                   // expected-warning {{'strlcat' will always overflow; destination buffer has size 20, but size argument is 40}}
 }
 
 // rdar://11076881
@@ -245,7 +245,7 @@ char * Test20(char *p, const char *in, unsigned n)
 {
     static char buf[10];
 
-    __builtin___memcpy_chk (&buf[6], in, 5, __builtin_object_size (&buf[6], 0)); // expected-warning {{'__builtin___memcpy_chk' will always overflow; destination buffer has size 4, but size argument is 5}}
+    __builtin___memcpy_chk (&buf[6], in, 5, __builtin_object_size (&buf[6], 0)); // expected-warning {{'memcpy' will always overflow; destination buffer has size 4, but size argument is 5}}
 
     __builtin___memcpy_chk (p, "abcde", n, __builtin_object_size (p, 0));
 
@@ -253,7 +253,7 @@ char * Test20(char *p, const char *in, unsigned n)
 
     __builtin___memcpy_chk (&buf[5], "abcde", n, __builtin_object_size (&buf[5], 0));
 
-    __builtin___memcpy_chk (&buf[6], "abcde", 5, __builtin_object_size (&buf[6], 0)); // expected-warning {{'__builtin___memcpy_chk' will always overflow; destination buffer has size 4, but size argument is 5}}
+    __builtin___memcpy_chk (&buf[6], "abcde", 5, __builtin_object_size (&buf[6], 0)); // expected-warning {{'memcpy' will always overflow; destination buffer has size 4, but size argument is 5}}
 
     return buf;
 }
@@ -279,6 +279,46 @@ void test_builtin_launder(char *p, void *vp, const void *cvp,
 void test21(const int *ptr) {
   __sync_fetch_and_add(ptr, 1); // expected-error{{address argument to atomic builtin cannot be const-qualified ('const int *' invalid)}}
   __atomic_fetch_add(ptr, 1, 0);  // expected-error {{address argument to atomic operation must be a pointer to non-const type ('const int *' invalid)}}
+}
+
+void test_ei_i42i(_ExtInt(42) *ptr, int value) {
+  __sync_fetch_and_add(ptr, value); // expected-error {{Atomic memory operand must have a power-of-two size}}
+  // expected-warning@+1 {{the semantics of this intrinsic changed with GCC version 4.4 - the newer semantics are provided here}}
+  __sync_nand_and_fetch(ptr, value); // expected-error {{Atomic memory operand must have a power-of-two size}}
+
+  __atomic_fetch_add(ptr, 1, 0); // expected-error {{argument to atomic builtin of type '_ExtInt' is not supported}}
+}
+
+void test_ei_i64i(_ExtInt(64) *ptr, int value) {
+  __sync_fetch_and_add(ptr, value); // expect success
+  // expected-warning@+1 {{the semantics of this intrinsic changed with GCC version 4.4 - the newer semantics are provided here}}
+  __sync_nand_and_fetch(ptr, value); // expect success
+
+  __atomic_fetch_add(ptr, 1, 0); // expected-error {{argument to atomic builtin of type '_ExtInt' is not supported}}
+}
+
+void test_ei_ii42(int *ptr, _ExtInt(42) value) {
+  __sync_fetch_and_add(ptr, value); // expect success
+  // expected-warning@+1 {{the semantics of this intrinsic changed with GCC version 4.4 - the newer semantics are provided here}}
+  __sync_nand_and_fetch(ptr, value); // expect success
+}
+
+void test_ei_ii64(int *ptr, _ExtInt(64) value) {
+  __sync_fetch_and_add(ptr, value); // expect success
+  // expected-warning@+1 {{the semantics of this intrinsic changed with GCC version 4.4 - the newer semantics are provided here}}
+  __sync_nand_and_fetch(ptr, value); // expect success
+}
+
+void test_ei_i42i42(_ExtInt(42) *ptr, _ExtInt(42) value) {
+  __sync_fetch_and_add(ptr, value); // expected-error {{Atomic memory operand must have a power-of-two size}}
+  // expected-warning@+1 {{the semantics of this intrinsic changed with GCC version 4.4 - the newer semantics are provided here}}
+  __sync_nand_and_fetch(ptr, value); // expected-error {{Atomic memory operand must have a power-of-two size}}
+}
+
+void test_ei_i64i64(_ExtInt(64) *ptr, _ExtInt(64) value) {
+  __sync_fetch_and_add(ptr, value); // expect success
+  // expected-warning@+1 {{the semantics of this intrinsic changed with GCC version 4.4 - the newer semantics are provided here}}
+  __sync_nand_and_fetch(ptr, value); // expect success
 }
 
 void test22(void) {
@@ -312,5 +352,30 @@ void test23() {
   char src[1024];
   char buf[10];
   memcpy(buf, src, 11); // expected-warning{{'memcpy' will always overflow; destination buffer has size 10, but size argument is 11}}
-  my_memcpy(buf, src, 11); // expected-warning{{'__builtin___memcpy_chk' will always overflow; destination buffer has size 10, but size argument is 11}}
+  my_memcpy(buf, src, 11); // expected-warning{{'memcpy' will always overflow; destination buffer has size 10, but size argument is 11}}
 }
+
+// Test that __builtin_is_constant_evaluated() is not allowed in C
+int test_cxx_builtin() {
+  // expected-error@+1 {{use of unknown builtin '__builtin_is_constant_evaluated'}}
+  return __builtin_is_constant_evaluated();
+}
+
+void test_builtin_complex() {
+  __builtin_complex(); // expected-error {{too few}}
+  __builtin_complex(1); // expected-error {{too few}}
+  __builtin_complex(1, 2, 3); // expected-error {{too many}}
+
+  _Static_assert(_Generic(__builtin_complex(1.0f, 2.0f), _Complex float: 1, default: 0), "");
+  _Static_assert(_Generic(__builtin_complex(1.0, 2.0), _Complex double: 1, default: 0), "");
+  _Static_assert(_Generic(__builtin_complex(1.0l, 2.0l), _Complex long double: 1, default: 0), "");
+
+  __builtin_complex(1, 2); // expected-error {{argument type 'int' is not a real floating point type}}
+  __builtin_complex(1, 2.0); // expected-error {{argument type 'int' is not a real floating point type}}
+  __builtin_complex(1.0, 2); // expected-error {{argument type 'int' is not a real floating point type}}
+
+  __builtin_complex(1.0, 2.0f); // expected-error {{arguments are of different types ('double' vs 'float')}}
+  __builtin_complex(1.0f, 2.0); // expected-error {{arguments are of different types ('float' vs 'double')}}
+}
+
+_Complex double builtin_complex_static_init = __builtin_complex(1.0, 2.0);

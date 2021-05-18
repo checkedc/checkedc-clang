@@ -17,7 +17,7 @@ struct coro_t {
       return {};
     }
     coro::suspend_never initial_suspend() { return {}; }
-    coro::suspend_never final_suspend() { return {}; }
+    coro::suspend_never final_suspend() noexcept { return {}; }
     void return_void(){}
     void unhandled_exception() noexcept;
   };
@@ -48,29 +48,25 @@ coro_t f() {
 // CHECK: [[CATCHRETDEST]]:
 // CHECK-NEXT: br label %[[TRYCONT:.+]]
 // CHECK: [[TRYCONT]]:
-// CHECK-NEXT: br label %[[RESUMECONT:.+]]
-// CHECK: [[RESUMECONT]]:
 // CHECK-NEXT: br label %[[COROFIN:.+]]
 // CHECK: [[COROFIN]]:
-// CHECK-NEXT: invoke void @"?final_suspend@promise_type@coro_t@@QEAA?AUsuspend_never@coroutines_v1@experimental@std@@XZ"(
+// CHECK-NEXT: call void @"?final_suspend@promise_type@coro_t@@QEAA?AUsuspend_never@coroutines_v1@experimental@std@@XZ"(
 
 // CHECK-LPAD: @_Z1fv(
 // CHECK-LPAD:   invoke void @_Z9may_throwv()
 // CHECK-LPAD:       to label %[[CONT:.+]] unwind label %[[CLEANUP:.+]]
 // CHECK-LPAD: [[CLEANUP]]:
-// CHECK-LPAD:   call void @_ZN7CleanupD1Ev(%struct.Cleanup* %x) #2
+// CHECK-LPAD:   call void @_ZN7CleanupD1Ev(%struct.Cleanup* {{[^,]*}} %x) #2
 // CHECK-LPAD:   br label %[[CATCH:.+]]
 
 // CHECK-LPAD: [[CATCH]]:
 // CHECK-LPAD:    call i8* @__cxa_begin_catch
-// CHECK-LPAD:    call void @_ZN6coro_t12promise_type19unhandled_exceptionEv(%"struct.coro_t::promise_type"* %__promise) #2
+// CHECK-LPAD:    call void @_ZN6coro_t12promise_type19unhandled_exceptionEv(%"struct.coro_t::promise_type"* {{[^,]*}} %__promise) #2
 // CHECK-LPAD:    invoke void @__cxa_end_catch()
 // CHECK-LPAD-NEXT:  to label %[[CATCHRETDEST:.+]] unwind label
 // CHECK-LPAD: [[CATCHRETDEST]]:
 // CHECK-LPAD-NEXT: br label %[[TRYCONT:.+]]
 // CHECK-LPAD: [[TRYCONT]]:
-// CHECK-LPAD: br label %[[RESUMECONT:.+]]
-// CHECK-LPAD: [[RESUMECONT]]:
-// CHECK-LPAD-NEXT: br label %[[COROFIN:.+]]
+// CHECK-LPAD: br label %[[COROFIN:.+]]
 // CHECK-LPAD: [[COROFIN]]:
-// CHECK-LPAD-NEXT: invoke void @_ZN6coro_t12promise_type13final_suspendEv(
+// CHECK-LPAD-NEXT: call void @_ZN6coro_t12promise_type13final_suspendEv(

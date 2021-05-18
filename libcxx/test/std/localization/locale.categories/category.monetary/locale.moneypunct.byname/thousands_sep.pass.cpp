@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -60,7 +59,7 @@ public:
         : std::moneypunct_byname<wchar_t, true>(nm, refs) {}
 };
 
-int main()
+int main(int, char**)
 {
     {
         Fnf f("C", 1);
@@ -104,11 +103,8 @@ int main()
         assert(f.thousands_sep() == ' ');
     }
 // The below tests work around GLIBC's use of U202F as mon_thousands_sep.
-#ifndef TEST_GLIBC_PREREQ
-#define TEST_GLIBC_PREREQ(x, y) 0
-#endif
-#if defined(TEST_HAS_GLIBC) && TEST_GLIBC_PREREQ(2, 27)
-    const wchar_t fr_sep = L'\u202F';
+#if defined(_CS_GNU_LIBC_VERSION)
+    const wchar_t fr_sep = glibc_version_less_than("2.27") ? L' ' : L'\u202F';
 #else
     const wchar_t fr_sep = L' ';
 #endif
@@ -124,19 +120,14 @@ int main()
 // and U002E as mon_decimal_point.
 // TODO: Fix thousands_sep for 'char'.
 // related to https://gcc.gnu.org/bugzilla/show_bug.cgi?id=16006
-#ifndef TEST_HAS_GLIBC
+#if defined(_CS_GNU_LIBC_VERSION)
+    const char sep = ' ';
+    // FIXME libc++ specifically works around \u00A0 by translating it into
+    // a regular space.
+    const wchar_t wsep = glibc_version_less_than("2.27") ? L'\u00A0' : L'\u202F';
+#else
     const char sep = ' ';
     const wchar_t wsep = L' ';
-#elif TEST_GLIBC_PREREQ(2, 27)
-    // FIXME libc++ specifically works around \u00A0 by translating it into
-    // a regular space.
-    const char sep = ' ';
-    const wchar_t wsep = L'\u202F';
-#else
-    // FIXME libc++ specifically works around \u00A0 by translating it into
-    // a regular space.
-    const char sep = ' ';
-    const wchar_t wsep = L'\u00A0';
 #endif
     {
         Fnf f(LOCALE_ru_RU_UTF_8, 1);
@@ -171,4 +162,6 @@ int main()
         Fwt f(LOCALE_zh_CN_UTF_8, 1);
         assert(f.thousands_sep() == L',');
     }
+
+  return 0;
 }

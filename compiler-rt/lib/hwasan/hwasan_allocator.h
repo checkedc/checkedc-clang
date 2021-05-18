@@ -1,9 +1,8 @@
 //===-- hwasan_allocator.h --------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -14,7 +13,6 @@
 #ifndef HWASAN_ALLOCATOR_H
 #define HWASAN_ALLOCATOR_H
 
-#include "interception/interception.h"
 #include "sanitizer_common/sanitizer_allocator.h"
 #include "sanitizer_common/sanitizer_allocator_checks.h"
 #include "sanitizer_common/sanitizer_allocator_interface.h"
@@ -27,17 +25,20 @@
 #error Unsupported platform
 #endif
 
-#if HWASAN_WITH_INTERCEPTORS
-DECLARE_REAL(void *, realloc, void *ptr, uptr size)
-DECLARE_REAL(void, free, void *ptr)
-#endif
-
 namespace __hwasan {
 
 struct Metadata {
-  u32 requested_size : 31;  // sizes are < 2G.
-  u32 right_aligned  : 1;
+  u32 requested_size_low;
+  u32 requested_size_high : 31;
+  u32 right_aligned : 1;
   u32 alloc_context_id;
+  u64 get_requested_size() {
+    return (static_cast<u64>(requested_size_high) << 32) + requested_size_low;
+  }
+  void set_requested_size(u64 size) {
+    requested_size_low = size & ((1ul << 32) - 1);
+    requested_size_high = size >> 32;
+  }
 };
 
 struct HwasanMapUnmapCallback {
@@ -50,7 +51,7 @@ struct HwasanMapUnmapCallback {
   }
 };
 
-static const uptr kMaxAllowedMallocSize = 2UL << 30;  // 2G
+static const uptr kMaxAllowedMallocSize = 1UL << 40;  // 1T
 
 struct AP64 {
   static const uptr kSpaceBeg = ~0ULL;
@@ -62,10 +63,8 @@ struct AP64 {
   static const uptr kFlags = 0;
 };
 typedef SizeClassAllocator64<AP64> PrimaryAllocator;
-typedef SizeClassAllocatorLocalCache<PrimaryAllocator> AllocatorCache;
-typedef LargeMmapAllocator<HwasanMapUnmapCallback> SecondaryAllocator;
-typedef CombinedAllocator<PrimaryAllocator, AllocatorCache,
-                          SecondaryAllocator> Allocator;
+typedef CombinedAllocator<PrimaryAllocator> Allocator;
+typedef Allocator::AllocatorCache AllocatorCache;
 
 void AllocatorSwallowThreadLocalCache(AllocatorCache *cache);
 

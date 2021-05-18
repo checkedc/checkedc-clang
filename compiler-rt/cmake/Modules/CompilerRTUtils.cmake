@@ -128,7 +128,7 @@ macro(test_target_arch arch def)
     if(NOT HAS_${arch}_DEF)
       set(CAN_TARGET_${arch} FALSE)
     elseif(TEST_COMPILE_ONLY)
-      try_compile_only(CAN_TARGET_${arch} ${TARGET_${arch}_CFLAGS})
+      try_compile_only(CAN_TARGET_${arch} FLAGS ${TARGET_${arch}_CFLAGS})
     else()
       set(FLAG_NO_EXCEPTIONS "")
       if(COMPILER_RT_HAS_FNO_EXCEPTIONS_FLAG)
@@ -158,12 +158,16 @@ macro(detect_target_arch)
   check_symbol_exists(__i386__ "" __I386)
   check_symbol_exists(__mips__ "" __MIPS)
   check_symbol_exists(__mips64__ "" __MIPS64)
+  check_symbol_exists(__powerpc__ "" __PPC)
   check_symbol_exists(__powerpc64__ "" __PPC64)
   check_symbol_exists(__powerpc64le__ "" __PPC64LE)
   check_symbol_exists(__riscv "" __RISCV)
   check_symbol_exists(__s390x__ "" __S390X)
+  check_symbol_exists(__sparc "" __SPARC)
+  check_symbol_exists(__sparcv9 "" __SPARCV9)
   check_symbol_exists(__wasm32__ "" __WEBASSEMBLY32)
   check_symbol_exists(__wasm64__ "" __WEBASSEMBLY64)
+  check_symbol_exists(__ve__ "" __VE)
   if(__ARM)
     add_default_target_arch(arm)
   elseif(__AARCH64)
@@ -176,10 +180,12 @@ macro(detect_target_arch)
     add_default_target_arch(mips64)
   elseif(__MIPS)
     add_default_target_arch(mips)
-  elseif(__PPC64)
+  elseif(__PPC64) # must be checked before __PPC
     add_default_target_arch(powerpc64)
   elseif(__PPC64LE)
     add_default_target_arch(powerpc64le)
+  elseif(__PPC)
+    add_default_target_arch(powerpc)
   elseif(__RISCV)
     if(CMAKE_SIZEOF_VOID_P EQUAL "4")
       add_default_target_arch(riscv32)
@@ -190,10 +196,16 @@ macro(detect_target_arch)
     endif()
   elseif(__S390X)
     add_default_target_arch(s390x)
+  elseif(__SPARCV9)
+    add_default_target_arch(sparcv9)
+  elseif(__SPARC)
+    add_default_target_arch(sparc)
   elseif(__WEBASSEMBLY32)
     add_default_target_arch(wasm32)
   elseif(__WEBASSEMBLY64)
     add_default_target_arch(wasm64)
+  elseif(__VE)
+    add_default_target_arch(ve)
   endif()
 endmacro()
 
@@ -233,7 +245,8 @@ macro(load_llvm_config)
     execute_process(
       COMMAND ${LLVM_CONFIG_PATH} "--ldflags" "--libs" "xray"
       RESULT_VARIABLE HAD_ERROR
-      OUTPUT_VARIABLE CONFIG_OUTPUT)
+      OUTPUT_VARIABLE CONFIG_OUTPUT
+      ERROR_QUIET)
     if (HAD_ERROR)
       message(WARNING "llvm-config finding xray failed with status ${HAD_ERROR}")
       set(COMPILER_RT_HAS_LLVMXRAY FALSE)
@@ -241,6 +254,8 @@ macro(load_llvm_config)
       string(REGEX REPLACE "[ \t]*[\r\n]+[ \t]*" ";" CONFIG_OUTPUT ${CONFIG_OUTPUT})
       list(GET CONFIG_OUTPUT 0 LDFLAGS)
       list(GET CONFIG_OUTPUT 1 LIBLIST)
+      file(TO_CMAKE_PATH "${LDFLAGS}" LDFLAGS)
+      file(TO_CMAKE_PATH "${LIBLIST}" LIBLIST)
       set(LLVM_XRAY_LDFLAGS ${LDFLAGS} CACHE STRING "Linker flags for LLVMXRay library")
       set(LLVM_XRAY_LIBLIST ${LIBLIST} CACHE STRING "Library list for LLVMXRay")
       set(COMPILER_RT_HAS_LLVMXRAY TRUE)
@@ -250,16 +265,19 @@ macro(load_llvm_config)
     execute_process(
       COMMAND ${LLVM_CONFIG_PATH} "--ldflags" "--libs" "testingsupport"
       RESULT_VARIABLE HAD_ERROR
-      OUTPUT_VARIABLE CONFIG_OUTPUT)
+      OUTPUT_VARIABLE CONFIG_OUTPUT
+      ERROR_QUIET)
     if (HAD_ERROR)
       message(WARNING "llvm-config finding testingsupport failed with status ${HAD_ERROR}")
-    else()
+    elseif(COMPILER_RT_INCLUDE_TESTS)
       string(REGEX REPLACE "[ \t]*[\r\n]+[ \t]*" ";" CONFIG_OUTPUT ${CONFIG_OUTPUT})
       list(GET CONFIG_OUTPUT 0 LDFLAGS)
       list(GET CONFIG_OUTPUT 1 LIBLIST)
       if (LIBLIST STREQUAL "")
         message(WARNING "testingsupport library not installed, some tests will be skipped")
       else()
+        file(TO_CMAKE_PATH "${LDFLAGS}" LDFLAGS)
+        file(TO_CMAKE_PATH "${LIBLIST}" LIBLIST)
         set(LLVM_TESTINGSUPPORT_LDFLAGS ${LDFLAGS} CACHE STRING "Linker flags for LLVMTestingSupport library")
         set(LLVM_TESTINGSUPPORT_LIBLIST ${LIBLIST} CACHE STRING "Library list for LLVMTestingSupport")
         set(COMPILER_RT_HAS_LLVMTESTINGSUPPORT TRUE)
@@ -317,33 +335,30 @@ macro(construct_compiler_rt_default_triple)
   endif()
 endmacro()
 
-# Filter out generic versions of routines that are re-implemented in
-# architecture specific manner.  This prevents multiple definitions of the
-# same symbols, making the symbol selection non-deterministic.
-function(filter_builtin_sources output_var exclude_or_include excluded_list)
-  if(exclude_or_include STREQUAL "EXCLUDE")
-    set(filter_action GREATER)
-    set(filter_value -1)
-  elseif(exclude_or_include STREQUAL "INCLUDE")
-    set(filter_action LESS)
-    set(filter_value 0)
-  else()
-    message(FATAL_ERROR "filter_builtin_sources called without EXCLUDE|INCLUDE")
-  endif()
-
-  set(intermediate ${ARGN})
-  foreach (_file ${intermediate})
-    get_filename_component(_name_we ${_file} NAME_WE)
-    list(FIND ${excluded_list} ${_name_we} _found)
-    if(_found ${filter_action} ${filter_value})
-      list(REMOVE_ITEM intermediate ${_file})
-    elseif(${_file} MATCHES ".*/.*\\.S" OR ${_file} MATCHES ".*/.*\\.c")
+# Filter out generic versions of routines that are re-implemented in an
+# architecture specific manner. This prevents multiple definitions of the same
+# symbols, making the symbol selection non-deterministic.
+#
+# We follow the convention that a source file that exists in a sub-directory
+# (e.g. `ppc/divtc3.c`) is architecture-specific and that if a generic
+# implementation exists it will be a top-level source file with the same name
+# modulo the file extension (e.g. `divtc3.c`).
+function(filter_builtin_sources inout_var name)
+  set(intermediate ${${inout_var}})
+  foreach(_file ${intermediate})
+    get_filename_component(_file_dir ${_file} DIRECTORY)
+    if (NOT "${_file_dir}" STREQUAL "")
+      # Architecture specific file. If a generic version exists, print a notice
+      # and ensure that it is removed from the file list.
       get_filename_component(_name ${_file} NAME)
-      string(REPLACE ".S" ".c" _cname "${_name}")
-      list(REMOVE_ITEM intermediate ${_cname})
-    endif ()
-  endforeach ()
-  set(${output_var} ${intermediate} PARENT_SCOPE)
+      string(REGEX REPLACE "\\.S$" ".c" _cname "${_name}")
+      if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${_cname}")
+        message(STATUS "For ${name} builtins preferring ${_file} to ${_cname}")
+        list(REMOVE_ITEM intermediate ${_cname})
+      endif()
+    endif()
+  endforeach()
+  set(${inout_var} ${intermediate} PARENT_SCOPE)
 endfunction()
 
 function(get_compiler_rt_target arch variable)
@@ -353,7 +368,7 @@ function(get_compiler_rt_target arch variable)
     # Use exact spelling when building only for the target specified to CMake.
     set(target "${COMPILER_RT_DEFAULT_TARGET_TRIPLE}")
   elseif(ANDROID AND ${arch} STREQUAL "i386")
-    set(target "i686${COMPILER_RT_OS_SUFFIX}${triple_suffix}")
+    set(target "i686${triple_suffix}")
   else()
     set(target "${arch}${triple_suffix}")
   endif()
@@ -363,7 +378,7 @@ endfunction()
 function(get_compiler_rt_install_dir arch install_dir)
   if(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR AND NOT APPLE)
     get_compiler_rt_target(${arch} target)
-    set(${install_dir} ${COMPILER_RT_INSTALL_PATH}/${target}/lib PARENT_SCOPE)
+    set(${install_dir} ${COMPILER_RT_INSTALL_PATH}/lib/${target} PARENT_SCOPE)
   else()
     set(${install_dir} ${COMPILER_RT_LIBRARY_INSTALL_DIR} PARENT_SCOPE)
   endif()
@@ -372,7 +387,7 @@ endfunction()
 function(get_compiler_rt_output_dir arch output_dir)
   if(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR AND NOT APPLE)
     get_compiler_rt_target(${arch} target)
-    set(${output_dir} ${COMPILER_RT_OUTPUT_DIR}/${target}/lib PARENT_SCOPE)
+    set(${output_dir} ${COMPILER_RT_OUTPUT_DIR}/lib/${target} PARENT_SCOPE)
   else()
     set(${output_dir} ${COMPILER_RT_LIBRARY_OUTPUT_DIR} PARENT_SCOPE)
   endif()
@@ -412,4 +427,54 @@ function(compiler_rt_process_sources OUTPUT_VAR)
     endif()
   endif()
   set("${OUTPUT_VAR}" ${sources} ${headers} PARENT_SCOPE)
+endfunction()
+
+# Create install targets for a library and its parent component (if specified).
+function(add_compiler_rt_install_targets name)
+  cmake_parse_arguments(ARG "" "PARENT_TARGET" "" ${ARGN})
+
+  if(ARG_PARENT_TARGET AND NOT TARGET install-${ARG_PARENT_TARGET})
+    # The parent install target specifies the parent component to scrape up
+    # anything not installed by the individual install targets, and to handle
+    # installation when running the multi-configuration generators.
+    add_custom_target(install-${ARG_PARENT_TARGET}
+                      DEPENDS ${ARG_PARENT_TARGET}
+                      COMMAND "${CMAKE_COMMAND}"
+                              -DCMAKE_INSTALL_COMPONENT=${ARG_PARENT_TARGET}
+                              -P "${CMAKE_BINARY_DIR}/cmake_install.cmake")
+    add_custom_target(install-${ARG_PARENT_TARGET}-stripped
+                      DEPENDS ${ARG_PARENT_TARGET}
+                      COMMAND "${CMAKE_COMMAND}"
+                              -DCMAKE_INSTALL_COMPONENT=${ARG_PARENT_TARGET}
+                              -DCMAKE_INSTALL_DO_STRIP=1
+                              -P "${CMAKE_BINARY_DIR}/cmake_install.cmake")
+    set_target_properties(install-${ARG_PARENT_TARGET} PROPERTIES
+                          FOLDER "Compiler-RT Misc")
+    set_target_properties(install-${ARG_PARENT_TARGET}-stripped PROPERTIES
+                          FOLDER "Compiler-RT Misc")
+    add_dependencies(install-compiler-rt install-${ARG_PARENT_TARGET})
+    add_dependencies(install-compiler-rt-stripped install-${ARG_PARENT_TARGET}-stripped)
+  endif()
+
+  # We only want to generate per-library install targets if you aren't using
+  # an IDE because the extra targets get cluttered in IDEs.
+  if(NOT CMAKE_CONFIGURATION_TYPES)
+    add_custom_target(install-${name}
+                      DEPENDS ${name}
+                      COMMAND "${CMAKE_COMMAND}"
+                              -DCMAKE_INSTALL_COMPONENT=${name}
+                              -P "${CMAKE_BINARY_DIR}/cmake_install.cmake")
+    add_custom_target(install-${name}-stripped
+                      DEPENDS ${name}
+                      COMMAND "${CMAKE_COMMAND}"
+                              -DCMAKE_INSTALL_COMPONENT=${name}
+                              -DCMAKE_INSTALL_DO_STRIP=1
+                              -P "${CMAKE_BINARY_DIR}/cmake_install.cmake")
+    # If you have a parent target specified, we bind the new install target
+    # to the parent install target.
+    if(LIB_PARENT_TARGET)
+      add_dependencies(install-${LIB_PARENT_TARGET} install-${name})
+      add_dependencies(install-${LIB_PARENT_TARGET}-stripped install-${name}-stripped)
+    endif()
+  endif()
 endfunction()

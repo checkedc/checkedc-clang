@@ -2,12 +2,12 @@
 
 # Out of range immediates
 ## simm12
-flw ft1, -2049(a0) # CHECK: :[[@LINE]]:10: error: operand must be a symbol with %lo/%pcrel_lo modifier or an integer in the range [-2048, 2047]
-fsw ft2, 2048(a1) # CHECK: :[[@LINE]]:10: error: operand must be a symbol with %lo/%pcrel_lo modifier or an integer in the range [-2048, 2047]
+flw ft1, -2049(a0) # CHECK: :[[@LINE]]:10: error: operand must be a symbol with %lo/%pcrel_lo/%tprel_lo modifier or an integer in the range [-2048, 2047]
+fsw ft2, 2048(a1) # CHECK: :[[@LINE]]:10: error: operand must be a symbol with %lo/%pcrel_lo/%tprel_lo modifier or an integer in the range [-2048, 2047]
 
 # Memory operand not formatted correctly
-flw ft1, a0, -200 # CHECK: :[[@LINE]]:10: error: operand must be a symbol with %lo/%pcrel_lo modifier or an integer in the range [-2048, 2047]
-fsw ft2, a1, 100 # CHECK: :[[@LINE]]:10: error: operand must be a symbol with %lo/%pcrel_lo modifier or an integer in the range [-2048, 2047]
+flw ft1, a0, -200 # CHECK: :[[@LINE]]:14: error: invalid operand for instruction
+fsw ft2, a1, 100 # CHECK: :[[@LINE]]:14: error: invalid operand for instruction
 
 # Invalid register names
 flw ft15, 100(a0) # CHECK: :[[@LINE]]:5: error: invalid operand for instruction
@@ -29,6 +29,6 @@ fmsub.s f14, f15, f16, f17, 0 # CHECK: :[[@LINE]]:29: error: operand must be a v
 fnmsub.s f18, f19, f20, f21, 0b111 # CHECK: :[[@LINE]]:30: error: operand must be a valid floating point rounding mode mnemonic
 
 # Using 'D' instructions for an 'F'-only target
-fadd.d ft0, ft1, ft2 # CHECK: :[[@LINE]]:1: error: instruction use requires an option to be enabled
+fadd.d ft0, ft1, ft2 # CHECK: :[[@LINE]]:1: error: instruction requires the following: 'D' (Double-Precision Floating-Point)
 
 # Using RV64F instructions for RV32 is tested in rv64f-valid.s

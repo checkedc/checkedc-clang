@@ -1,14 +1,16 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 // <numeric>
+// UNSUPPORTED: clang-8
+// UNSUPPORTED: gcc-9
 
+// Became constexpr in C++20
 // template <InputIterator InIter, OutputIterator<auto, const InIter::value_type&> OutIter>
 //   requires HasPlus<InIter::value_type, InIter::reference>
 //         && HasAssign<InIter::value_type,
@@ -20,10 +22,11 @@
 #include <numeric>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_iterators.h"
 
 template <class InIter, class OutIter>
-void
+TEST_CONSTEXPR_CXX20 void
 test()
 {
     int ia[] = {1, 2, 3, 4, 5};
@@ -36,7 +39,8 @@ test()
         assert(ib[i] == ir[i]);
 }
 
-int main()
+TEST_CONSTEXPR_CXX20 bool
+test()
 {
     test<input_iterator<const int*>, output_iterator<int*> >();
     test<input_iterator<const int*>, forward_iterator<int*> >();
@@ -67,4 +71,15 @@ int main()
     test<const int*, bidirectional_iterator<int*> >();
     test<const int*, random_access_iterator<int*> >();
     test<const int*, int*>();
+
+    return true;
+}
+
+int main(int, char**)
+{
+    test();
+#if TEST_STD_VER > 17
+    static_assert(test());
+#endif
+    return 0;
 }

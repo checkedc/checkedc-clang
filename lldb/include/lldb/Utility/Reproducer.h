@@ -1,9 +1,8 @@
 //===-- Reproducer.h --------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -11,16 +10,19 @@
 #define LLDB_UTILITY_REPRODUCER_H
 
 #include "lldb/Utility/FileSpec.h"
-
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/YAMLTraits.h"
 
 #include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace lldb_private {
+class UUID;
 namespace repro {
 
 class Reproducer;
@@ -28,27 +30,18 @@ class Reproducer;
 enum class ReproducerMode {
   Capture,
   Replay,
+  PassiveReplay,
   Off,
 };
 
-/// Abstraction for information associated with a provider. This information
-/// is serialized into an index which is used by the loader.
-struct ProviderInfo {
-  std::string name;
-  std::vector<std::string> files;
-};
-
 /// The provider defines an interface for generating files needed for
-/// reproducing. The provider must populate its ProviderInfo to communicate
-/// its name and files to the index, before registering with the generator,
-/// i.e. in the constructor.
+/// reproducing.
 ///
 /// Different components will implement different providers.
 class ProviderBase {
 public:
   virtual ~ProviderBase() = default;
 
-  const ProviderInfo &GetInfo() const { return m_info; }
   const FileSpec &GetRoot() const { return m_root; }
 
   /// The Keep method is called when it is decided that we need to keep the
@@ -65,11 +58,12 @@ public:
   // Returns the class ID for the dynamic type of this Provider instance.
   virtual const void *DynamicClassID() const = 0;
 
+  virtual llvm::StringRef GetName() const = 0;
+  virtual llvm::StringRef GetFile() const = 0;
+
 protected:
   ProviderBase(const FileSpec &root) : m_root(root) {}
 
-  /// Every provider keeps track of its own files.
-  ProviderInfo m_info;
 private:
   /// Every provider knows where to dump its potential files.
   FileSpec m_root;
@@ -84,6 +78,9 @@ public:
 
   const void *DynamicClassID() const override { return &ThisProviderT::ID; }
 
+  llvm::StringRef GetName() const override { return ThisProviderT::Info::name; }
+  llvm::StringRef GetFile() const override { return ThisProviderT::Info::file; }
+
 protected:
   using ProviderBase::ProviderBase; // Inherit constructor.
 };
@@ -92,8 +89,9 @@ protected:
 /// reproducer. For doing so it relies on providers, who serialize data that
 /// is necessary for reproducing  a failure.
 class Generator final {
+
 public:
-  Generator(const FileSpec &root);
+  Generator(FileSpec root);
   ~Generator();
 
   /// Method to indicate we want to keep the reproducer. If reproducer
@@ -105,9 +103,15 @@ public:
   /// might need to clean up files already written to disk.
   void Discard();
 
+  /// Enable or disable auto generate.
+  void SetAutoGenerate(bool b);
+
+  /// Return whether auto generate is enabled.
+  bool IsAutoGenerate() const;
+
   /// Create and register a new provider.
   template <typename T> T *Create() {
-    std::unique_ptr<ProviderBase> provider = llvm::make_unique<T>(m_root);
+    std::unique_ptr<ProviderBase> provider = std::make_unique<T>(m_root);
     return static_cast<T *>(Register(std::move(provider)));
   }
 
@@ -145,22 +149,45 @@ private:
   FileSpec m_root;
 
   /// Flag to ensure that we never call both keep and discard.
-  bool m_done;
+  bool m_done = false;
+
+  /// Flag to auto generate a reproducer when it would otherwise be discarded.
+  bool m_auto_generate = false;
 };
 
 class Loader final {
 public:
-  Loader(const FileSpec &root);
+  Loader(FileSpec root, bool passive = false);
 
-  llvm::Optional<ProviderInfo> GetProviderInfo(llvm::StringRef name);
+  template <typename T> FileSpec GetFile() {
+    if (!HasFile(T::file))
+      return {};
+
+    return GetRoot().CopyByAppendingPathComponent(T::file);
+  }
+
+  template <typename T> llvm::Expected<std::string> LoadBuffer() {
+    FileSpec file = GetFile<typename T::Info>();
+    llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> buffer =
+        llvm::vfs::getRealFileSystem()->getBufferForFile(file.GetPath());
+    if (!buffer)
+      return llvm::errorCodeToError(buffer.getError());
+    return (*buffer)->getBuffer().str();
+  }
+
   llvm::Error LoadIndex();
 
   const FileSpec &GetRoot() const { return m_root; }
 
+  bool IsPassiveReplay() const { return m_passive_replay; }
+
 private:
-  llvm::StringMap<ProviderInfo> m_provider_info;
+  bool HasFile(llvm::StringRef file);
+
   FileSpec m_root;
+  std::vector<std::string> m_files;
   bool m_loaded;
+  bool m_passive_replay;
 };
 
 /// The reproducer enables clients to obtain access to the Generator and
@@ -170,6 +197,8 @@ public:
   static Reproducer &Instance();
   static llvm::Error Initialize(ReproducerMode mode,
                                 llvm::Optional<FileSpec> root);
+  static void Initialize();
+  static bool Initialized();
   static void Terminate();
 
   Reproducer() = default;
@@ -182,9 +211,12 @@ public:
 
   FileSpec GetReproducerPath() const;
 
+  bool IsCapturing() { return static_cast<bool>(m_generator); };
+  bool IsReplaying() { return static_cast<bool>(m_loader); };
+
 protected:
   llvm::Error SetCapture(llvm::Optional<FileSpec> root);
-  llvm::Error SetReplay(llvm::Optional<FileSpec> root);
+  llvm::Error SetReplay(llvm::Optional<FileSpec> root, bool passive = false);
 
 private:
   static llvm::Optional<Reproducer> &InstanceImpl();
@@ -195,21 +227,26 @@ private:
   mutable std::mutex m_mutex;
 };
 
+class Verifier {
+public:
+  Verifier(Loader *loader) : m_loader(loader) {}
+  void Verify(llvm::function_ref<void(llvm::StringRef)> error_callback,
+              llvm::function_ref<void(llvm::StringRef)> warning_callback,
+              llvm::function_ref<void(llvm::StringRef)> note_callback) const;
+
+private:
+  Loader *m_loader;
+};
+
+struct ReplayOptions {
+  bool verify = true;
+  bool check_version = true;
+};
+
+llvm::Error Finalize(Loader *loader);
+llvm::Error Finalize(const FileSpec &root);
+
 } // namespace repro
 } // namespace lldb_private
-
-LLVM_YAML_IS_DOCUMENT_LIST_VECTOR(lldb_private::repro::ProviderInfo)
-
-namespace llvm {
-namespace yaml {
-
-template <> struct MappingTraits<lldb_private::repro::ProviderInfo> {
-  static void mapping(IO &io, lldb_private::repro::ProviderInfo &info) {
-    io.mapRequired("name", info.name);
-    io.mapOptional("files", info.files);
-  }
-};
-} // namespace yaml
-} // namespace llvm
 
 #endif // LLDB_UTILITY_REPRODUCER_H

@@ -1,9 +1,8 @@
 //===-- PThreadEvent.cpp ----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -106,10 +105,8 @@ void PThreadEvent::ResetEvents(const uint32_t mask) {
   }
 }
 
-//----------------------------------------------------------------------
 // Wait until 'timeout_abstime' for any events that are set in
 // 'mask'. If 'timeout_abstime' is NULL, then wait forever.
-//----------------------------------------------------------------------
 uint32_t
 PThreadEvent::WaitForSetEvents(const uint32_t mask,
                                const struct timespec *timeout_abstime) const {
@@ -150,10 +147,8 @@ PThreadEvent::WaitForSetEvents(const uint32_t mask,
   return 0;
 }
 
-//----------------------------------------------------------------------
 // Wait until 'timeout_abstime' for any events in 'mask' to reset.
 // If 'timeout_abstime' is NULL, then wait forever.
-//----------------------------------------------------------------------
 uint32_t PThreadEvent::WaitForEventsToReset(
     const uint32_t mask, const struct timespec *timeout_abstime) const {
   // DNBLogThreadedIf(LOG_EVENTS, "%p PThreadEvent::%s (0x%8.8x, %p)", this,

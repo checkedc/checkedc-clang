@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -15,6 +14,9 @@
 
 // Ensure that __not_null works for all function types.
 // See https://bugs.llvm.org/show_bug.cgi?id=23589
+
+// This test runs in C++03, but we have deprecated using std::function in C++03.
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
 
 //------------------------------------------------------------------------------
 // TESTING std::function<...>::__not_null(Callable)
@@ -165,14 +167,14 @@ void test_imp() {
     { // Check that the null value is detected
         TestFn tf = nullptr;
         std::function<Fn> f = tf;
-        assert(f.template target<TestFn>() == nullptr);
+        RTTI_ASSERT(f.template target<TestFn>() == nullptr);
     }
     { // Check that the non-null value is detected.
         TestFn tf = Creator<TestFn>::create();
         assert(tf != nullptr);
         std::function<Fn> f = tf;
-        assert(f.template target<TestFn>() != nullptr);
-        assert(*f.template target<TestFn>() == tf);
+        RTTI_ASSERT(f.template target<TestFn>() != nullptr);
+        RTTI_ASSERT(*f.template target<TestFn>() == tf);
     }
 }
 
@@ -240,8 +242,10 @@ void test_md() {
     test_imp<int MemData::*, int(MemData&)>();
 }
 
-int main() {
+int main(int, char**) {
     test_func();
     test_mf();
     test_md();
+
+  return 0;
 }

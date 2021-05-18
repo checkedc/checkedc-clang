@@ -1,6 +1,6 @@
 ; RUN: llvm-mc -triple aarch64-windows -filetype obj -o %t.obj %s
 ; RUN: llvm-readobj -r %t.obj | FileCheck %s
-; RUN: llvm-objdump -d %t.obj | FileCheck %s -check-prefix DISASM
+; RUN: llvm-objdump -d %t.obj | FileCheck %s --check-prefix=DISASM
 
 ; IMAGE_REL_ARM64_ADDR32
 .Linfo_foo:
@@ -89,7 +89,7 @@ tbz x0, #0, target
 ; CHECK:   }
 ; CHECK: ]
 
-; DISASM: 30:       20 1a 09 b0     adrp    x0, #305418240
+; DISASM: 30:       20 1a 09 b0     adrp    x0, 0x12345000
 ; DISASM: 34:       00 14 0d 91     add     x0, x0, #837
 ; DISASM: 38:       00 14 4d 39     ldrb    w0, [x0, #837]
 ; DISASM: 3c:       00 a4 41 f9     ldr     x0, [x0, #840]

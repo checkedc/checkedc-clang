@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 // <optional>
 
 // constexpr optional() noexcept;
@@ -17,7 +16,7 @@
 #include <cassert>
 
 #include "test_macros.h"
-#include "archetypes.hpp"
+#include "archetypes.h"
 
 using std::optional;
 
@@ -62,7 +61,7 @@ test()
     };
 }
 
-int main()
+int main(int, char**)
 {
     test_constexpr<optional<int>>();
     test_constexpr<optional<int*>>();
@@ -78,4 +77,6 @@ int main()
     test_constexpr<optional<NonLiteralTypes::NoCtors&>>();
     test_constexpr<optional<NonLiteralTypes::NoCtors&&>>();
 #endif
+
+  return 0;
 }

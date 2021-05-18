@@ -3,6 +3,8 @@
 
 void clang_analyzer_eval(int);
 
+#define nil ((id)0)
+
 typedef const void * CFTypeRef;
 extern CFTypeRef CFRetain(CFTypeRef cf);
 void CFRelease(CFTypeRef cf);
@@ -1005,3 +1007,91 @@ void testNoCrashWhenAccessPropertyAndThereAreNoDirectBindingsAtAll() {
 
 #endif // non-ARC
 
+@interface ExplicitAccessorInCategory : NSObject
+@property(readonly) int normal;
+- (int)normal;
+@property(readonly) int no_custom_accessor;
+@end
+
+@interface ExplicitAccessorInCategory ()
+@property(readonly) int in_category;
+
+@property(readonly) int still_no_custom_accessor;
+// This is an ordinary method, not a getter.
+- (int)still_no_custom_accessor;
+@end
+
+@interface ExplicitAccessorInCategory ()
+- (int)in_category;
+
+// This is an ordinary method, not a getter.
+- (int)no_custom_accessor;
+@end
+
+@implementation ExplicitAccessorInCategory
+- (void)foo {
+	// Make sure we don't farm bodies for explicit accessors: in particular,
+	// we're not sure that the accessor always returns the same value.
+	clang_analyzer_eval(self.normal == self.normal); // expected-warning{{UNKNOWN}}
+	// Also this used to crash.
+	clang_analyzer_eval(self.in_category == self.in_category); // expected-warning{{UNKNOWN}}
+
+	// When there is no explicit accessor defined (even if it looks like there is),
+	// farm the getter body and see if it does actually always yield the same value.
+	clang_analyzer_eval(self.no_custom_accessor == self.no_custom_accessor); // expected-warning{{TRUE}}
+	clang_analyzer_eval(self.still_no_custom_accessor == self.still_no_custom_accessor); // expected-warning{{TRUE}}
+}
+@end
+
+@interface Shadowed
+@property (assign) NSObject *o;
+- (NSObject *)getShadowedIvar;
+- (void)clearShadowedIvar;
+- (NSObject *)getShadowedProp;
+- (void)clearShadowedProp;
+
+@property (assign) NSObject *o2;
+@end
+
+@implementation Shadowed
+- (NSObject *)getShadowedIvar {
+  return self->_o;
+}
+- (void)clearShadowedIvar {
+  self->_o = nil;
+}
+- (NSObject *)getShadowedProp {
+  return self.o;
+}
+- (void)clearShadowedProp {
+  self.o = nil;
+}
+@end
+
+@interface Shadowing : Shadowed
+@end
+
+@implementation Shadowing
+// Property 'o' is declared in the superclass but synthesized here.
+// This creates a separate ivar that shadows the superclass's ivar,
+// but the old ivar is still accessible from the methods of the superclass.
+// The old property, however, is not accessible with the property syntax
+// even from the superclass methods.
+@synthesize o;
+
+-(void)testPropertyShadowing {
+  NSObject *oo = self.o; // no-crash
+  clang_analyzer_eval(self.o == oo); // expected-warning{{TRUE}}
+  clang_analyzer_eval([self getShadowedIvar] == oo); // expected-warning{{UNKNOWN}}
+  [self clearShadowedIvar];
+  clang_analyzer_eval(self.o == oo); // expected-warning{{TRUE}}
+  clang_analyzer_eval([self getShadowedIvar] == oo); // expected-warning{{UNKNOWN}}
+  clang_analyzer_eval([self getShadowedIvar] == nil); // expected-warning{{TRUE}}
+}
+
+@synthesize o2 = ooo2;
+
+-(void)testPropertyShadowingWithExplicitIvar {
+  NSObject *oo2 = self.o2; // no-crash
+}
+@end

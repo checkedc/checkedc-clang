@@ -1,8 +1,9 @@
+; XFAIL: *
 ; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=tahiti -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GCNMESA -check-prefix=SIMESA %s
 ; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=fiji -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GCNMESA -check-prefix=VIMESA %s
 ; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=gfx900 -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GCNMESA -check-prefix=GFX9MESA %s
-; RUN: llc -march=amdgcn  -mcpu=hawaii -mtriple=amdgcn-unknown-amdhsa -mattr=-code-object-v3 -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=CIHSA -check-prefix=HSA %s
-; RUN: llc -march=amdgcn  -mcpu=fiji -mtriple=amdgcn-unknown-amdhsa -mattr=-code-object-v3 -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=VIHSA -check-prefix=HSA %s
+; RUN: llc -march=amdgcn  -mcpu=hawaii -mtriple=amdgcn-unknown-amdhsa --amdhsa-code-object-version=2 -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=CIHSA -check-prefix=HSA %s
+; RUN: llc -march=amdgcn  -mcpu=fiji -mtriple=amdgcn-unknown-amdhsa --amdhsa-code-object-version=2 -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=VIHSA -check-prefix=HSA %s
 
 ; This ends up using all 256 registers and requires register
 ; scavenging which will fail to find an unsued register.
@@ -22,25 +23,25 @@
 ; MESA-NOT: s_mov_b32 s3
 ; HSA-NOT: s_mov_b32 s7
 
-; GCNMESA-DAG: s_mov_b32 s12, SCRATCH_RSRC_DWORD0
-; GCNMESA-DAG: s_mov_b32 s13, SCRATCH_RSRC_DWORD1
-; GCNMESA-DAG: s_mov_b32 s14, -1
-; SIMESA-DAG: s_mov_b32 s15, 0xe8f000
-; VIMESA-DAG: s_mov_b32 s15, 0xe80000
-; GFX9MESA-DAG: s_mov_b32 s15, 0xe00000
+; GCNMESA-DAG: s_mov_b32 s16, SCRATCH_RSRC_DWORD0
+; GCNMESA-DAG: s_mov_b32 s17, SCRATCH_RSRC_DWORD1
+; GCNMESA-DAG: s_mov_b32 s18, -1
+; SIMESA-DAG: s_mov_b32 s19, 0xe8f000
+; VIMESA-DAG: s_mov_b32 s19, 0xe80000
+; GFX9MESA-DAG: s_mov_b32 s19, 0xe00000
 
 
-; GCNMESAMESA: buffer_store_dword {{v[0-9]+}}, off, s[12:15], s3 offset:{{[0-9]+}} ; 4-byte Folded Spill
+; GCNMESAMESA: buffer_store_dword {{v[0-9]+}}, off, s[16:19], s3 offset:{{[0-9]+}} ; 4-byte Folded Spill
 
-; GCNMESA: buffer_store_dword {{v[0-9]}}, off, s[12:15], s3 offset:{{[0-9]+}}
-; GCNMESA: buffer_store_dword {{v[0-9]}}, off, s[12:15], s3 offset:{{[0-9]+}}
-; GCNMESA: buffer_store_dword {{v[0-9]}}, off, s[12:15], s3 offset:{{[0-9]+}}
-; GCNMESA: buffer_store_dword {{v[0-9]}}, off, s[12:15], s3 offset:{{[0-9]+}}
+; GCNMESA: buffer_store_dword {{v[0-9]}}, off, s[16:19], s3 offset:{{[0-9]+}}
+; GCNMESA: buffer_store_dword {{v[0-9]}}, off, s[16:19], s3 offset:{{[0-9]+}}
+; GCNMESA: buffer_store_dword {{v[0-9]}}, off, s[16:19], s3 offset:{{[0-9]+}}
+; GCNMESA: buffer_store_dword {{v[0-9]}}, off, s[16:19], s3 offset:{{[0-9]+}}
 
-; GCNMESA: buffer_load_dword {{v[0-9]+}}, off, s[12:15], s3 offset:{{[0-9]+}}
-; GCNMESA: buffer_load_dword {{v[0-9]+}}, off, s[12:15], s3 offset:{{[0-9]+}}
-; GCNMESA: buffer_load_dword {{v[0-9]+}}, off, s[12:15], s3 offset:{{[0-9]+}}
-; GCNMESA: buffer_load_dword {{v[0-9]+}}, off, s[12:15], s3 offset:{{[0-9]+}}
+; GCNMESA: buffer_load_dword {{v[0-9]+}}, off, s[16:19], s3 offset:{{[0-9]+}}
+; GCNMESA: buffer_load_dword {{v[0-9]+}}, off, s[16:19], s3 offset:{{[0-9]+}}
+; GCNMESA: buffer_load_dword {{v[0-9]+}}, off, s[16:19], s3 offset:{{[0-9]+}}
+; GCNMESA: buffer_load_dword {{v[0-9]+}}, off, s[16:19], s3 offset:{{[0-9]+}}
 
 
 

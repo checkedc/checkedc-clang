@@ -1,97 +1,37 @@
-//===-- SocketTest.cpp ------------------------------------------*- C++ -*-===//
+//===-- SocketTest.cpp ----------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#include <cstdio>
-#include <functional>
-#include <thread>
-
-#include "gtest/gtest.h"
-
+#include "SocketTestUtilities.h"
+#include "TestingSupport/SubsystemRAII.h"
 #include "lldb/Host/Config.h"
-#include "lldb/Host/Socket.h"
-#include "lldb/Host/common/TCPSocket.h"
-#include "lldb/Host/common/UDPSocket.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Path.h"
-
-#ifndef LLDB_DISABLE_POSIX
-#include "lldb/Host/posix/DomainSocket.h"
-#endif
+#include "lldb/Utility/UriParser.h"
+#include "gtest/gtest.h"
 
 using namespace lldb_private;
 
-class SocketTest : public testing::Test {
-public:
-  void SetUp() override {
-#if defined(_MSC_VER)
-    WSADATA data;
-    ::WSAStartup(MAKEWORD(2, 2), &data);
-#endif
-  }
+struct SocketTestParams {
+  bool is_ipv6;
+  std::string localhost_ip;
+};
 
-  void TearDown() override {
-#if defined(_MSC_VER)
-    ::WSACleanup();
-#endif
-  }
+class SocketTest : public testing::TestWithParam<SocketTestParams> {
+public:
+  SubsystemRAII<Socket> subsystems;
 
 protected:
-  static void AcceptThread(Socket *listen_socket,
-                           bool child_processes_inherit, Socket **accept_socket,
-                           Status *error) {
-    *error = listen_socket->Accept(*accept_socket);
-  }
-
-  template <typename SocketType>
-  void CreateConnectedSockets(
-      llvm::StringRef listen_remote_address,
-      const std::function<std::string(const SocketType &)> &get_connect_addr,
-      std::unique_ptr<SocketType> *a_up, std::unique_ptr<SocketType> *b_up) {
-    bool child_processes_inherit = false;
-    Status error;
-    std::unique_ptr<SocketType> listen_socket_up(
-        new SocketType(true, child_processes_inherit));
-    EXPECT_FALSE(error.Fail());
-    error = listen_socket_up->Listen(listen_remote_address, 5);
-    EXPECT_FALSE(error.Fail());
-    EXPECT_TRUE(listen_socket_up->IsValid());
-
-    Status accept_error;
-    Socket *accept_socket;
-    std::thread accept_thread(AcceptThread, listen_socket_up.get(),
-                              child_processes_inherit, &accept_socket,
-                              &accept_error);
-
-    std::string connect_remote_address = get_connect_addr(*listen_socket_up);
-    std::unique_ptr<SocketType> connect_socket_up(
-        new SocketType(true, child_processes_inherit));
-    EXPECT_FALSE(error.Fail());
-    error = connect_socket_up->Connect(connect_remote_address);
-    EXPECT_FALSE(error.Fail());
-    EXPECT_TRUE(connect_socket_up->IsValid());
-
-    a_up->swap(connect_socket_up);
-    EXPECT_TRUE(error.Success());
-    EXPECT_NE(nullptr, a_up->get());
-    EXPECT_TRUE((*a_up)->IsValid());
-
-    accept_thread.join();
-    b_up->reset(static_cast<SocketType *>(accept_socket));
-    EXPECT_TRUE(accept_error.Success());
-    EXPECT_NE(nullptr, b_up->get());
-    EXPECT_TRUE((*b_up)->IsValid());
-
-    listen_socket_up.reset();
+  bool HostSupportsProtocol() const {
+    if (GetParam().is_ipv6)
+      return HostSupportsIPv6();
+    return HostSupportsIPv4();
   }
 };
 
-TEST_F(SocketTest, DecodeHostAndPort) {
+TEST_P(SocketTest, DecodeHostAndPort) {
   std::string host_str;
   std::string port_str;
   int32_t port;
@@ -157,47 +97,39 @@ TEST_F(SocketTest, DecodeHostAndPort) {
   EXPECT_TRUE(error.Success());
 }
 
-#ifndef LLDB_DISABLE_POSIX
-TEST_F(SocketTest, DomainListenConnectAccept) {
+#if LLDB_ENABLE_POSIX
+TEST_P(SocketTest, DomainListenConnectAccept) {
   llvm::SmallString<64> Path;
   std::error_code EC = llvm::sys::fs::createUniqueDirectory("DomainListenConnectAccept", Path);
   ASSERT_FALSE(EC);
   llvm::sys::path::append(Path, "test");
 
+  // Skip the test if the $TMPDIR is too long to hold a domain socket.
+  if (Path.size() > 107u)
+    return;
+
   std::unique_ptr<DomainSocket> socket_a_up;
   std::unique_ptr<DomainSocket> socket_b_up;
-  CreateConnectedSockets<DomainSocket>(
-      Path, [=](const DomainSocket &) { return Path.str().str(); },
-      &socket_a_up, &socket_b_up);
+  CreateDomainConnectedSockets(Path, &socket_a_up, &socket_b_up);
 }
 #endif
 
-TEST_F(SocketTest, TCPListen0ConnectAccept) {
+TEST_P(SocketTest, TCPListen0ConnectAccept) {
+  if (!HostSupportsProtocol())
+    return;
   std::unique_ptr<TCPSocket> socket_a_up;
   std::unique_ptr<TCPSocket> socket_b_up;
-  CreateConnectedSockets<TCPSocket>(
-      "127.0.0.1:0",
-      [=](const TCPSocket &s) {
-        char connect_remote_address[64];
-        snprintf(connect_remote_address, sizeof(connect_remote_address),
-                 "localhost:%u", s.GetLocalPortNumber());
-        return std::string(connect_remote_address);
-      },
-      &socket_a_up, &socket_b_up);
+  CreateTCPConnectedSockets(GetParam().localhost_ip, &socket_a_up,
+                            &socket_b_up);
 }
 
-TEST_F(SocketTest, TCPGetAddress) {
+TEST_P(SocketTest, TCPGetAddress) {
   std::unique_ptr<TCPSocket> socket_a_up;
   std::unique_ptr<TCPSocket> socket_b_up;
-  CreateConnectedSockets<TCPSocket>(
-      "127.0.0.1:0",
-      [=](const TCPSocket &s) {
-        char connect_remote_address[64];
-        snprintf(connect_remote_address, sizeof(connect_remote_address),
-                 "localhost:%u", s.GetLocalPortNumber());
-        return std::string(connect_remote_address);
-      },
-      &socket_a_up, &socket_b_up);
+  if (!HostSupportsProtocol())
+    return;
+  CreateTCPConnectedSockets(GetParam().localhost_ip, &socket_a_up,
+                            &socket_b_up);
 
   EXPECT_EQ(socket_a_up->GetLocalPortNumber(),
             socket_b_up->GetRemotePortNumber());
@@ -205,30 +137,103 @@ TEST_F(SocketTest, TCPGetAddress) {
             socket_a_up->GetRemotePortNumber());
   EXPECT_NE(socket_a_up->GetLocalPortNumber(),
             socket_b_up->GetLocalPortNumber());
-  EXPECT_STREQ("127.0.0.1", socket_a_up->GetRemoteIPAddress().c_str());
-  EXPECT_STREQ("127.0.0.1", socket_b_up->GetRemoteIPAddress().c_str());
+  EXPECT_STREQ(GetParam().localhost_ip.c_str(),
+               socket_a_up->GetRemoteIPAddress().c_str());
+  EXPECT_STREQ(GetParam().localhost_ip.c_str(),
+               socket_b_up->GetRemoteIPAddress().c_str());
 }
 
-TEST_F(SocketTest, UDPConnect) {
-  Socket *socket;
+TEST_P(SocketTest, UDPConnect) {
+  // UDPSocket::Connect() creates sockets with AF_INET (IPv4).
+  if (!HostSupportsIPv4())
+    return;
+  llvm::Expected<std::unique_ptr<UDPSocket>> socket =
+      UDPSocket::Connect("127.0.0.1:0", /*child_processes_inherit=*/false);
 
-  bool child_processes_inherit = false;
-  auto error = UDPSocket::Connect("127.0.0.1:0", child_processes_inherit,
-                                  socket);
-
-  std::unique_ptr<Socket> socket_up(socket);
-
-  EXPECT_TRUE(error.Success());
-  EXPECT_TRUE(socket_up->IsValid());
+  ASSERT_THAT_EXPECTED(socket, llvm::Succeeded());
+  EXPECT_TRUE(socket.get()->IsValid());
 }
 
-TEST_F(SocketTest, TCPListen0GetPort) {
-  Socket *server_socket;
+TEST_P(SocketTest, TCPListen0GetPort) {
+  if (!HostSupportsIPv4())
+    return;
   Predicate<uint16_t> port_predicate;
   port_predicate.SetValue(0, eBroadcastNever);
-  Status err =
-      Socket::TcpListen("10.10.12.3:0", false, server_socket, &port_predicate);
-  std::unique_ptr<TCPSocket> socket_up((TCPSocket*)server_socket);
-  EXPECT_TRUE(socket_up->IsValid());
-  EXPECT_NE(socket_up->GetLocalPortNumber(), 0);
+  llvm::Expected<std::unique_ptr<TCPSocket>> sock =
+      Socket::TcpListen("10.10.12.3:0", false, &port_predicate);
+  ASSERT_THAT_EXPECTED(sock, llvm::Succeeded());
+  ASSERT_TRUE(sock.get()->IsValid());
+  EXPECT_NE(sock.get()->GetLocalPortNumber(), 0);
 }
+
+TEST_P(SocketTest, TCPGetConnectURI) {
+  std::unique_ptr<TCPSocket> socket_a_up;
+  std::unique_ptr<TCPSocket> socket_b_up;
+  if (!HostSupportsProtocol())
+    return;
+  CreateTCPConnectedSockets(GetParam().localhost_ip, &socket_a_up,
+                            &socket_b_up);
+
+  llvm::StringRef scheme;
+  llvm::StringRef hostname;
+  int port;
+  llvm::StringRef path;
+  std::string uri(socket_a_up->GetRemoteConnectionURI());
+  EXPECT_TRUE(UriParser::Parse(uri, scheme, hostname, port, path));
+  EXPECT_EQ(scheme, "connect");
+  EXPECT_EQ(port, socket_a_up->GetRemotePortNumber());
+}
+
+TEST_P(SocketTest, UDPGetConnectURI) {
+  // UDPSocket::Connect() creates sockets with AF_INET (IPv4).
+  if (!HostSupportsIPv4())
+    return;
+  llvm::Expected<std::unique_ptr<UDPSocket>> socket =
+      UDPSocket::Connect("127.0.0.1:0", /*child_processes_inherit=*/false);
+  ASSERT_THAT_EXPECTED(socket, llvm::Succeeded());
+
+  llvm::StringRef scheme;
+  llvm::StringRef hostname;
+  int port;
+  llvm::StringRef path;
+  std::string uri = socket.get()->GetRemoteConnectionURI();
+  EXPECT_TRUE(UriParser::Parse(uri, scheme, hostname, port, path));
+  EXPECT_EQ(scheme, "udp");
+}
+
+#if LLDB_ENABLE_POSIX
+TEST_P(SocketTest, DomainGetConnectURI) {
+  llvm::SmallString<64> domain_path;
+  std::error_code EC =
+      llvm::sys::fs::createUniqueDirectory("DomainListenConnectAccept", domain_path);
+  ASSERT_FALSE(EC);
+  llvm::sys::path::append(domain_path, "test");
+
+  // Skip the test if the $TMPDIR is too long to hold a domain socket.
+  if (domain_path.size() > 107u)
+    return;
+
+  std::unique_ptr<DomainSocket> socket_a_up;
+  std::unique_ptr<DomainSocket> socket_b_up;
+  CreateDomainConnectedSockets(domain_path, &socket_a_up, &socket_b_up);
+
+  llvm::StringRef scheme;
+  llvm::StringRef hostname;
+  int port;
+  llvm::StringRef path;
+  std::string uri(socket_a_up->GetRemoteConnectionURI());
+  EXPECT_TRUE(UriParser::Parse(uri, scheme, hostname, port, path));
+  EXPECT_EQ(scheme, "unix-connect");
+  EXPECT_EQ(path, domain_path);
+}
+#endif
+
+INSTANTIATE_TEST_CASE_P(
+    SocketTests, SocketTest,
+    testing::Values(SocketTestParams{/*is_ipv6=*/false,
+                                     /*localhost_ip=*/"127.0.0.1"},
+                    SocketTestParams{/*is_ipv6=*/true, /*localhost_ip=*/"::1"}),
+    // Prints "SocketTests/SocketTest.DecodeHostAndPort/ipv4" etc. in test logs.
+    [](const testing::TestParamInfo<SocketTestParams> &info) {
+      return info.param.is_ipv6 ? "ipv6" : "ipv4";
+    });

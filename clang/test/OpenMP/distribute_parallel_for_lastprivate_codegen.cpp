@@ -1,31 +1,31 @@
-// RUN: %clang_cc1 -DLAMBDA -verify -fopenmp -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -emit-llvm %s -o - -Wno-openmp-target | FileCheck %s --check-prefix LAMBDA --check-prefix LAMBDA-64
+// RUN: %clang_cc1 -DLAMBDA -verify -fopenmp -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -emit-llvm %s -o - -Wno-openmp-mapping | FileCheck %s --check-prefix LAMBDA --check-prefix LAMBDA-64
 // RUN: %clang_cc1 -DLAMBDA -fopenmp -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -emit-pch -o %t %s
-// RUN: %clang_cc1 -DLAMBDA -fopenmp -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -Wno-openmp-target | FileCheck %s --check-prefix LAMBDA --check-prefix LAMBDA-64
-// RUN: %clang_cc1 -DLAMBDA -verify -fopenmp -x c++ -std=c++11 -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -emit-llvm %s -o - -Wno-openmp-target | FileCheck %s --check-prefix LAMBDA --check-prefix LAMBDA-32
+// RUN: %clang_cc1 -DLAMBDA -fopenmp -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -Wno-openmp-mapping | FileCheck %s --check-prefix LAMBDA --check-prefix LAMBDA-64
+// RUN: %clang_cc1 -DLAMBDA -verify -fopenmp -x c++ -std=c++11 -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -emit-llvm %s -o - -Wno-openmp-mapping | FileCheck %s --check-prefix LAMBDA --check-prefix LAMBDA-32
 // RUN: %clang_cc1 -DLAMBDA -fopenmp -x c++ -std=c++11 -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -emit-pch -o %t %s
-// RUN: %clang_cc1 -DLAMBDA -fopenmp -x c++ -std=c++11 -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -Wno-openmp-target | FileCheck %s --check-prefix LAMBDA --check-prefix LAMBDA-32
+// RUN: %clang_cc1 -DLAMBDA -fopenmp -x c++ -std=c++11 -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -Wno-openmp-mapping | FileCheck %s --check-prefix LAMBDA --check-prefix LAMBDA-32
 
-// RUN: %clang_cc1 -DLAMBDA -verify -fopenmp-simd -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -emit-llvm %s -o - -Wno-openmp-target | FileCheck --check-prefix SIMD-ONLY0 %s
+// RUN: %clang_cc1 -DLAMBDA -verify -fopenmp-simd -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -emit-llvm %s -o - -Wno-openmp-mapping | FileCheck --check-prefix SIMD-ONLY0 %s
 // RUN: %clang_cc1 -DLAMBDA -fopenmp-simd -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -emit-pch -o %t %s
-// RUN: %clang_cc1 -DLAMBDA -fopenmp-simd -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -Wno-openmp-target | FileCheck --check-prefix SIMD-ONLY0 %s
-// RUN: %clang_cc1 -DLAMBDA -verify -fopenmp-simd -x c++ -std=c++11 -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -emit-llvm %s -o - -Wno-openmp-target | FileCheck --check-prefix SIMD-ONLY0 %s
+// RUN: %clang_cc1 -DLAMBDA -fopenmp-simd -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -Wno-openmp-mapping | FileCheck --check-prefix SIMD-ONLY0 %s
+// RUN: %clang_cc1 -DLAMBDA -verify -fopenmp-simd -x c++ -std=c++11 -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -emit-llvm %s -o - -Wno-openmp-mapping | FileCheck --check-prefix SIMD-ONLY0 %s
 // RUN: %clang_cc1 -DLAMBDA -fopenmp-simd -x c++ -std=c++11 -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -emit-pch -o %t %s
-// RUN: %clang_cc1 -DLAMBDA -fopenmp-simd -x c++ -std=c++11 -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -Wno-openmp-target | FileCheck --check-prefix SIMD-ONLY0 %s
+// RUN: %clang_cc1 -DLAMBDA -fopenmp-simd -x c++ -std=c++11 -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -Wno-openmp-mapping | FileCheck --check-prefix SIMD-ONLY0 %s
 // SIMD-ONLY0-NOT: {{__kmpc|__tgt}}
 
-// RUN: %clang_cc1  -verify -fopenmp -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -emit-llvm %s -o - -Wno-openmp-target | FileCheck %s --check-prefix CHECK --check-prefix CHECK-64
+// RUN: %clang_cc1  -verify -fopenmp -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -emit-llvm %s -o - -Wno-openmp-mapping | FileCheck %s --check-prefix CHECK --check-prefix CHECK-64
 // RUN: %clang_cc1  -fopenmp -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -emit-pch -o %t %s
-// RUN: %clang_cc1  -fopenmp -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -Wno-openmp-target | FileCheck %s --check-prefix CHECK --check-prefix CHECK-64
-// RUN: %clang_cc1  -verify -fopenmp -x c++ -std=c++11 -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -emit-llvm %s -o - -Wno-openmp-target | FileCheck %s --check-prefix CHECK --check-prefix CHECK-32
+// RUN: %clang_cc1  -fopenmp -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -Wno-openmp-mapping | FileCheck %s --check-prefix CHECK --check-prefix CHECK-64
+// RUN: %clang_cc1  -verify -fopenmp -x c++ -std=c++11 -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -emit-llvm %s -o - -Wno-openmp-mapping | FileCheck %s --check-prefix CHECK --check-prefix CHECK-32
 // RUN: %clang_cc1  -fopenmp -x c++ -std=c++11 -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -emit-pch -o %t %s
-// RUN: %clang_cc1  -fopenmp -x c++ -std=c++11 -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -Wno-openmp-target | FileCheck %s --check-prefix CHECK --check-prefix CHECK-32
+// RUN: %clang_cc1  -fopenmp -x c++ -std=c++11 -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -Wno-openmp-mapping | FileCheck %s --check-prefix CHECK --check-prefix CHECK-32
 
-// RUN: %clang_cc1  -verify -fopenmp-simd -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -emit-llvm %s -o - -Wno-openmp-target | FileCheck --check-prefix SIMD-ONLY1 %s
+// RUN: %clang_cc1  -verify -fopenmp-simd -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -emit-llvm %s -o - -Wno-openmp-mapping | FileCheck --check-prefix SIMD-ONLY1 %s
 // RUN: %clang_cc1  -fopenmp-simd -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -emit-pch -o %t %s
-// RUN: %clang_cc1  -fopenmp-simd -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -Wno-openmp-target | FileCheck --check-prefix SIMD-ONLY1 %s
-// RUN: %clang_cc1  -verify -fopenmp-simd -x c++ -std=c++11 -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -emit-llvm %s -o - -Wno-openmp-target | FileCheck --check-prefix SIMD-ONLY1 %s
+// RUN: %clang_cc1  -fopenmp-simd -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -Wno-openmp-mapping | FileCheck --check-prefix SIMD-ONLY1 %s
+// RUN: %clang_cc1  -verify -fopenmp-simd -x c++ -std=c++11 -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -emit-llvm %s -o - -Wno-openmp-mapping | FileCheck --check-prefix SIMD-ONLY1 %s
 // RUN: %clang_cc1  -fopenmp-simd -x c++ -std=c++11 -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -emit-pch -o %t %s
-// RUN: %clang_cc1  -fopenmp-simd -x c++ -std=c++11 -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -Wno-openmp-target | FileCheck --check-prefix SIMD-ONLY1 %s
+// RUN: %clang_cc1  -fopenmp-simd -x c++ -std=c++11 -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -Wno-openmp-mapping | FileCheck --check-prefix SIMD-ONLY1 %s
 // SIMD-ONLY1-NOT: {{__kmpc|__tgt}}
 // expected-no-diagnostics
 #ifndef HEADER
@@ -70,7 +70,7 @@ int main() {
   [&]() {
     static float sfvar;
     // LAMBDA: define{{.*}} internal{{.*}} void [[OUTER_LAMBDA]](
-    // LAMBDA: call i{{[0-9]+}} @__tgt_target_teams(
+    // LAMBDA: call i{{[0-9]+}} @__tgt_target_teams_mapper(%struct.ident_t* @{{.+}},
     // LAMBDA: call void [[OFFLOADING_FUN:@.+]](
 
     // LAMBDA: define{{.+}} void [[OFFLOADING_FUN]](
@@ -106,9 +106,9 @@ int main() {
 
       // init private variables
       // LAMBDA: [[G_IN_REF:%.+]] = load double*, double** [[G_PRIVATE_ADDR]],
+      // LAMBDA: [[G1_IN_REF:%.+]] = load double*, double** [[G1_PRIVATE_ADDR]],
       // LAMBDA: [[SVAR_IN_REF:%.+]] = load i{{[0-9]+}}*, i{{[0-9]+}}** [[SVAR_PRIVATE_ADDR]],
       // LAMBDA: [[SFVAR_IN_REF:%.+]] = load float*, float** [[SFVAR_PRIVATE_ADDR]],
-      // LAMBDA: [[G1_IN_REF:%.+]] = load double*, double** [[G1_PRIVATE_ADDR]],
       // LAMBDA: store double* [[G1_IN_REF]], double** [[TMP_G1]],
       // LAMBDA: [[TMP_G1_VAL:%.+]] = load double*, double** [[TMP_G1]],
       // LAMBDA: store double* [[G1_PRIVATE]], double** [[TMP_G1_PRIVATE]],
@@ -129,7 +129,7 @@ int main() {
       // LAMBDA: store{{.*}} double [[G_PRIV_VAL]], double* [[G_IN_REF]],
       // LAMBDA: [[TMP_G1_PRIV_REF:%.+]] = load double*, double** [[TMP_G1_PRIVATE]],
       // LAMBDA: [[TMP_G1_PRIV_VAL:%.+]] = load double, double* [[TMP_G1_PRIV_REF]],
-      // LAMBDA: store{{.*}} double [[TMP_G1_PRIV_VAL]], double* [[TMP_G1_VAL]],
+      // LAMBDA: store{{.*}} double [[TMP_G1_PRIV_VAL]], double* %
 
       // LAMBDA: [[SVAR_PRIV_VAL:%.+]] = load i{{[0-9]+}}, i{{[0-9]+}}* [[SVAR_PRIVATE]],
       // LAMBDA: store i{{[0-9]+}} [[SVAR_PRIV_VAL]], i{{[0-9]+}}* [[SVAR_IN_REF]],
@@ -176,10 +176,10 @@ int main() {
 
       // init private variables
       // LAMBDA: [[G_IN_REF:%.+]] = load double*, double** [[G_PRIVATE_ADDR]],
+      // LAMBDA: [[G1_IN_REF:%.+]] = load double*, double** [[G1_PRIVATE_ADDR]],
       // LAMBDA: [[SVAR_IN_REF:%.+]] = load i{{[0-9]+}}*, i{{[0-9]+}}** [[SVAR_PRIVATE_ADDR]],
       // LAMBDA: [[SFVAR_IN_REF:%.+]] = load float*, float** [[SFVAR_PRIVATE_ADDR]],
 
-      // LAMBDA: [[G1_IN_REF:%.+]] = load double*, double** [[G1_PRIVATE_ADDR]],
       // LAMBDA: store double* [[G1_PRIVATE]], double** [[TMP_G1_PRIVATE]],
 
       // LAMBDA: call {{.*}}void @__kmpc_for_static_init_4(
@@ -199,7 +199,7 @@ int main() {
       // LAMBDA: store i{{[0-9]+}}* [[SVAR_PRIVATE]], i{{[0-9]+}}** [[SVAR_PRIVATE_ADDR_REF]]
       // LAMBDA: [[SFVAR_PRIVATE_ADDR_REF:%.+]] = getelementptr inbounds %{{.+}}, %{{.+}}* [[ARG:%.+]], i{{[0-9]+}} 0, i{{[0-9]+}} 3
       // LAMBDA: store float* [[SFVAR_PRIVATE]], float** [[SFVAR_PRIVATE_ADDR_REF]]
-      // LAMBDA: call{{.*}} void [[INNER_LAMBDA:@.+]](%{{.+}}* [[ARG]])
+      // LAMBDA: call{{.*}} void [[INNER_LAMBDA:@.+]](%{{.+}}* {{[^,]*}} [[ARG]])
 
       // LAMBDA: call {{.*}}void @__kmpc_for_static_fini(
 
@@ -212,7 +212,7 @@ int main() {
       // LAMBDA: store{{.*}} double [[G_PRIV_VAL]], double* [[G_IN_REF]],
       // LAMBDA: [[TMP_G1_PRIV_REF:%.+]] = load double*, double** [[TMP_G1_PRIVATE]],
       // LAMBDA: [[TMP_G1_PRIV_VAL:%.+]] = load double, double* [[TMP_G1_PRIV_REF]],
-      // LAMBDA: store{{.*}} double [[TMP_G1_PRIV_VAL]], double* [[G1_IN_REF]],
+      // LAMBDA: store{{.*}} double [[TMP_G1_PRIV_VAL]], double* %
       // LAMBDA: [[SVAR_PRIV_VAL:%.+]] = load i{{[0-9]+}}, i{{[0-9]+}}* [[SVAR_PRIVATE]],
       // LAMBDA: store i{{[0-9]+}} [[SVAR_PRIV_VAL]], i{{[0-9]+}}* [[SVAR_IN_REF]],
       // LAMBDA: [[SFVAR_PRIV_VAL:%.+]] = load float, float* [[SFVAR_PRIVATE]],
@@ -222,7 +222,7 @@ int main() {
       // LAMBDA: ret
 
       [&]() {
-	// LAMBDA: define {{.+}} void [[INNER_LAMBDA]](%{{.+}}* [[ARG_PTR:%.+]])
+	// LAMBDA: define {{.+}} void [[INNER_LAMBDA]](%{{.+}}* {{[^,]*}} [[ARG_PTR:%.+]])
 	// LAMBDA: store %{{.+}}* [[ARG_PTR]], %{{.+}}** [[ARG_PTR_REF:%.+]],
 	g = 2;
 	g1 = 2;
@@ -268,8 +268,8 @@ int main() {
 
 // CHECK: define{{.*}} i{{[0-9]+}} @main()
 // CHECK: [[TEST:%.+]] = alloca [[S_FLOAT_TY]],
-// CHECK: call {{.*}} [[S_FLOAT_TY_DEF_CONSTR:@.+]]([[S_FLOAT_TY]]* [[TEST]])
-// CHECK: call i{{[0-9]+}} @__tgt_target_teams(
+// CHECK: call {{.*}} [[S_FLOAT_TY_DEF_CONSTR:@.+]]([[S_FLOAT_TY]]* {{[^,]*}} [[TEST]])
+// CHECK: call i{{[0-9]+}} @__tgt_target_teams_mapper(%struct.ident_t* @{{.+}},
 // CHECK: call void [[OFFLOAD_FUN:@.+]](i{{[0-9]+}} {{.+}}, [2 x i{{[0-9]+}}]* {{.+}}, [2 x [[S_FLOAT_TY]]]* {{.+}}, [[S_FLOAT_TY]]* {{.+}}, i{{[0-9]+}} {{.+}})
 // CHECK: ret
 
@@ -311,8 +311,8 @@ int main() {
 // CHECK: [[T_VAR_ADDR_REF:%.+]] = load i{{[0-9]+}}*, i{{[0-9]+}}** [[T_VAR_ADDR]],
 // CHECK: [[VEC_ADDR_REF:%.+]] = load [2 x i{{[0-9]+}}]*, [2 x i{{[0-9]+}}]** [[VEC_ADDR]],
 // CHECK: [[S_ARR_ADDR_REF:%.+]] = load [2 x [[S_FLOAT_TY]]]*, [2 x [[S_FLOAT_TY]]]** [[S_ARR_ADDR]],
-// CHECK: [[SVAR_ADDR_REF:%.+]] = load i{{[0-9]+}}*, i{{[0-9]+}}** [[SVAR_ADDR]],
 // CHECK: [[VAR_ADDR_REF:%.+]] = load [[S_FLOAT_TY]]*, [[S_FLOAT_TY]]** [[VAR_ADDR]],
+// CHECK: [[SVAR_ADDR_REF:%.+]] = load i{{[0-9]+}}*, i{{[0-9]+}}** [[SVAR_ADDR]],
 // CHECK: store [[S_FLOAT_TY]]* [[VAR_ADDR_REF]], [[S_FLOAT_TY]]** [[TMP]],
 // CHECK: store i{{[0-9]+}} 0, i{{[0-9]+}}* [[OMP_IS_LAST]],
 
@@ -322,13 +322,13 @@ int main() {
 // CHECK: br label %[[S_ARR_CST_LOOP:.+]]
 // CHECK: [[S_ARR_CST_LOOP]]:
 // CHECK: [[S_ARR_CTOR:%.+]] = phi {{.+}}
-// CHECK: call void [[S_FLOAT_TY_DEF_CONSTR]]([[S_FLOAT_TY]]* [[S_ARR_CTOR]])
+// CHECK: call void [[S_FLOAT_TY_DEF_CONSTR]]([[S_FLOAT_TY]]* {{[^,]*}} [[S_ARR_CTOR]])
 // CHECK: [[S_ARR_NEXT:%.+]] = getelementptr {{.+}} [[S_ARR_CTOR]],
 // CHECK: [[S_ARR_DONE:%.+]] = icmp {{.+}} [[S_ARR_NEXT]], [[S_ARR_END]]
 // CHECK: br i1 [[S_ARR_DONE]], label %[[S_ARR_CST_END:.+]], label %[[S_ARR_CST_LOOP]]
 // CHECK: [[S_ARR_CST_END]]:
-// CHECK: [[TMP_REF:%.+]] = load [[S_FLOAT_TY]]*, [[S_FLOAT_TY]]** [[TMP]],
-// CHECK: call void [[S_FLOAT_TY_DEF_CONSTR]]([[S_FLOAT_TY]]* [[VAR_PRIV]])
+// CHECK: [[TMP_REF:%.+]] = load [[S_FLOAT_TY]]*, [[S_FLOAT_TY]]** %
+// CHECK: call void [[S_FLOAT_TY_DEF_CONSTR]]([[S_FLOAT_TY]]* {{[^,]*}} [[VAR_PRIV]])
 // CHECK: store [[S_FLOAT_TY]]* [[VAR_PRIV]], [[S_FLOAT_TY]]** [[TMP_PRIV]],
 
 // the distribute loop
@@ -419,13 +419,13 @@ int main() {
 // CHECK: br label %[[S_ARR_CST_LOOP:.+]]
 // CHECK: [[S_ARR_CST_LOOP]]:
 // CHECK: [[S_ARR_CTOR:%.+]] = phi {{.+}}
-// CHECK: call void [[S_FLOAT_TY_DEF_CONSTR]]([[S_FLOAT_TY]]* [[S_ARR_CTOR]])
+// CHECK: call void [[S_FLOAT_TY_DEF_CONSTR]]([[S_FLOAT_TY]]* {{[^,]*}} [[S_ARR_CTOR]])
 // CHECK: [[S_ARR_NEXT:%.+]] = getelementptr {{.+}} [[S_ARR_CTOR]],
 // CHECK: [[S_ARR_DONE:%.+]] = icmp {{.+}} [[S_ARR_NEXT]], [[S_ARR_END]]
 // CHECK: br i1 [[S_ARR_DONE]], label %[[S_ARR_CST_END:.+]], label %[[S_ARR_CST_LOOP]]
 // CHECK: [[S_ARR_CST_END]]:
-// CHECK: [[VAR_ADDR_REF:%.+]] = load [[S_FLOAT_TY]]*, [[S_FLOAT_TY]]** [[VAR_ADDR]],
-// CHECK: call void [[S_FLOAT_TY_DEF_CONSTR]]([[S_FLOAT_TY]]* [[VAR_PRIV]])
+// CHECK: [[VAR_ADDR_REF:%.+]] = load [[S_FLOAT_TY]]*, [[S_FLOAT_TY]]** %
+// CHECK: call void [[S_FLOAT_TY_DEF_CONSTR]]([[S_FLOAT_TY]]* {{[^,]*}} [[VAR_PRIV]])
 // CHECK: store [[S_FLOAT_TY]]* [[VAR_PRIV]], [[S_FLOAT_TY]]** [[TMP_PRIV]],
 
 // CHECK: call void @__kmpc_for_static_init_4(
@@ -483,8 +483,8 @@ int main() {
 // template tmain
 // CHECK: define{{.*}} i{{[0-9]+}} [[TMAIN_INT:@.+]]()
 // CHECK: [[TEST:%.+]] = alloca [[S_INT_TY]],
-// CHECK: call {{.*}} [[S_INT_TY_DEF_CONSTR:@.+]]([[S_INT_TY]]* [[TEST]])
-// CHECK: call i{{[0-9]+}} @__tgt_target_teams(
+// CHECK: call {{.*}} [[S_INT_TY_DEF_CONSTR:@.+]]([[S_INT_TY]]* {{[^,]*}} [[TEST]])
+// CHECK: call i{{[0-9]+}} @__tgt_target_teams_mapper(%struct.ident_t* @{{.+}},
 // CHECK: call void [[OFFLOAD_FUN_1:@.+]](i{{[0-9]+}} {{.+}}, [2 x i{{[0-9]+}}]* {{.+}}, [2 x [[S_INT_TY]]]* {{.+}}, [[S_INT_TY]]* {{.+}})
 // CHECK: ret
 
@@ -567,7 +567,7 @@ int main() {
 // CHECK: br i1 [[CPY_IS_FINISHED]], label %[[S_ARR_COPY_DONE]], label %[[S_ARR_COPY_BLOCK]]
 // CHECK: [[S_ARR_COPY_DONE]]:
 // CHECK: [[TMP_VAL:%.+]] = load [[S_INT_TY]]*, [[S_INT_TY]]** [[TMP_PRIV]],
-// CHECK: [[VAR_ADDR_REF_BCAST:%.+]] = bitcast [[S_INT_TY]]* [[TMP_REF]] to i8*
+// CHECK: [[VAR_ADDR_REF_BCAST:%.+]] = bitcast [[S_INT_TY]]* %{{.+}} to i8*
 // CHECK: [[TMP_VAL_BCAST:%.+]] = bitcast [[S_INT_TY]]* [[TMP_VAL]] to i8*
 // CHECK: call void @llvm.memcpy.{{.+}}(i8* align {{[0-9]+}} [[VAR_ADDR_REF_BCAST]], i8* align {{[0-9]+}} [[TMP_VAL_BCAST]],{{.+}})
 // CHECK: ret void
@@ -605,6 +605,7 @@ int main() {
 // CHECK: [[VEC_ADDR_REF:%.+]] = load [2 x i{{[0-9]+}}]*, [2 x i{{[0-9]+}}]** [[VEC_ADDR]],
 // CHECK: [[T_VAR_ADDR_REF:%.+]] = load i{{[0-9]+}}*, i{{[0-9]+}}** [[T_VAR_ADDR]],
 // CHECK: [[S_ARR_ADDR_REF:%.+]] = load [2 x [[S_INT_TY]]]*, [2 x [[S_INT_TY]]]** [[S_ARR_ADDR]],
+// CHECK: [[VAR_ADDR_REF:%.+]] = load [[S_INT_TY]]*, [[S_INT_TY]]** [[VAR_ADDR]],
 // CHECK: store i{{[0-9]+}} 0, i{{[0-9]+}}* [[OMP_IS_LAST]],
 
 // call constructor for s_arr
@@ -613,13 +614,12 @@ int main() {
 // CHECK: br label %[[S_ARR_CST_LOOP:.+]]
 // CHECK: [[S_ARR_CST_LOOP]]:
 // CHECK: [[S_ARR_CTOR:%.+]] = phi {{.+}}
-// CHECK: call void [[S_INT_TY_DEF_CONSTR]]([[S_INT_TY]]* [[S_ARR_CTOR]])
+// CHECK: call void [[S_INT_TY_DEF_CONSTR]]([[S_INT_TY]]* {{[^,]*}} [[S_ARR_CTOR]])
 // CHECK: [[S_ARR_NEXT:%.+]] = getelementptr {{.+}} [[S_ARR_CTOR]],
 // CHECK: [[S_ARR_DONE:%.+]] = icmp {{.+}} [[S_ARR_NEXT]], [[S_ARR_END]]
 // CHECK: br i1 [[S_ARR_DONE]], label %[[S_ARR_CST_END:.+]], label %[[S_ARR_CST_LOOP]]
 // CHECK: [[S_ARR_CST_END]]:
-// CHECK: [[VAR_ADDR_REF:%.+]] = load [[S_INT_TY]]*, [[S_INT_TY]]** [[VAR_ADDR]],
-// CHECK: call void [[S_INT_TY_DEF_CONSTR]]([[S_INT_TY]]* [[VAR_PRIV]])
+// CHECK: call void [[S_INT_TY_DEF_CONSTR]]([[S_INT_TY]]* {{[^,]*}} [[VAR_PRIV]])
 // CHECK: store [[S_INT_TY]]* [[VAR_PRIV]], [[S_INT_TY]]** [[TMP_PRIV]],
 
 // CHECK: call void @__kmpc_for_static_init_4(
@@ -667,7 +667,7 @@ int main() {
 // CHECK: br i1 [[CPY_IS_FINISHED]], label %[[S_ARR_COPY_DONE]], label %[[S_ARR_COPY_BLOCK]]
 // CHECK: [[S_ARR_COPY_DONE]]:
 // CHECK: [[TMP_VAL1:%.+]] = load [[S_INT_TY]]*, [[S_INT_TY]]** [[TMP_PRIV]],
-// CHECK: [[VAR_ADDR_REF_BCAST:%.+]] = bitcast [[S_INT_TY]]* [[VAR_ADDR_REF]] to i8*
+// CHECK: [[VAR_ADDR_REF_BCAST:%.+]] = bitcast [[S_INT_TY]]* %{{.+}} to i8*
 // CHECK: [[TMP_VAL1_BCAST:%.+]] = bitcast [[S_INT_TY]]* [[TMP_VAL1]] to i8*
 // CHECK: call void @llvm.memcpy.{{.+}}(i8* align {{[0-9]+}} [[VAR_ADDR_REF_BCAST]], i8* align {{[0-9]+}} [[TMP_VAL1_BCAST]],{{.+}})
 // CHECK: ret void

@@ -3,8 +3,8 @@
 ; Verify analysis remarks are generated when interleaving is not beneficial.
 ; CHECK: remark: vectorization-remarks-profitable.c:5:17: the cost-model indicates that vectorization is not beneficial
 ; CHECK: remark: vectorization-remarks-profitable.c:5:17: the cost-model indicates that interleaving is not beneficial and is explicitly disabled or interleave count is set to 1
-; CHECK: remark: vectorization-remarks-profitable.c:12:17: the cost-model indicates that vectorization is not beneficial
-; CHECK: remark: vectorization-remarks-profitable.c:12:17: the cost-model indicates that interleaving is not beneficial
+; CHECK: remark: vectorization-remarks-profitable.c:11:3: the cost-model indicates that vectorization is not beneficial
+; CHECK: remark: vectorization-remarks-profitable.c:11:3: the cost-model indicates that interleaving is not beneficial
 
 ; First loop.
 ;  #pragma clang loop interleave(disable) unroll(disable)
@@ -76,7 +76,7 @@ for.end:                                          ; preds = %for.body, %entry
   ret void, !dbg !27
 }
 
-attributes #0 = { nounwind uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+mmx,+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+mmx,+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!7, !8}

@@ -1,14 +1,13 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
 // UNSUPPORTED: libcpp-has-no-threads
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <future>
 
@@ -20,6 +19,9 @@
 #include <memory>
 #include <cassert>
 
+#include "make_test_thread.h"
+#include "test_macros.h"
+
 int i = 0;
 
 void func(std::promise<void> p)
@@ -28,13 +30,15 @@ void func(std::promise<void> p)
     i = 1;
 }
 
-int main()
+int main(int, char**)
 {
     {
         std::promise<void> p;
         std::future<void> f = p.get_future();
-        std::thread(func, std::move(p)).detach();
+        support::make_test_thread(func, std::move(p)).detach();
         f.get();
         assert(i == 1);
     }
+
+  return 0;
 }

@@ -60,11 +60,11 @@
     ret void
   }
 
-  define void @memory_alignment(<8 x float>* %vec) {
+  define void @memory_alignment(<16 x float>* %vec) {
   entry:
-    %v = load <8 x float>, <8 x float>* %vec
-    %v2 = insertelement <8 x float> %v, float 0.0, i32 4
-    store <8 x float> %v2, <8 x float>* %vec
+    %v = load <16 x float>, <16 x float>* %vec
+    %v2 = insertelement <16 x float> %v, float 0.0, i32 4
+    store <16 x float> %v2, <16 x float>* %vec
     ret void
   }
 
@@ -312,16 +312,24 @@ body: |
   bb.0.entry:
     liveins: $rdi
   ; CHECK: name: memory_alignment
-  ; CHECK:      $xmm0 = MOVAPSrm $rdi, 1, $noreg, 0, $noreg :: (load 16 from %ir.vec, align 32)
-  ; CHECK-NEXT: $xmm1 = MOVAPSrm $rdi, 1, $noreg, 16, $noreg :: (load 16 from %ir.vec + 16, align 32)
-  ; CHECK:      MOVAPSmr $rdi, 1, $noreg, 0, $noreg, killed $xmm0 :: (store 16 into %ir.vec, align 32)
-  ; CHECK-NEXT: MOVAPSmr killed $rdi, 1, $noreg, 16, $noreg, killed $xmm1 :: (store 16 into %ir.vec + 16, align 32)
-    $xmm0 = MOVAPSrm $rdi, 1, _, 0, _ :: (load 16 from %ir.vec, align 32)
-    $xmm1 = MOVAPSrm $rdi, 1, _, 16, _ :: (load 16 from %ir.vec + 16, align 32)
-    $xmm2 = FsFLD0SS
-    $xmm1 = MOVSSrr killed $xmm1, killed $xmm2
-    MOVAPSmr $rdi, 1, _, 0, _, killed $xmm0 :: (store 16 into %ir.vec, align 32)
-    MOVAPSmr killed $rdi, 1, _, 16, _, killed $xmm1 :: (store 16 into %ir.vec + 16, align 32)
+  ; CHECK:      $xmm0 = MOVAPSrm $rdi, 1, $noreg, 0, $noreg :: (load 16 from %ir.vec, align 64)
+  ; CHECK-NEXT: $xmm1 = MOVAPSrm $rdi, 1, $noreg, 16, $noreg :: (load 16 from %ir.vec + 16, basealign 64)
+  ; CHECK-NEXT: $xmm2 = MOVAPSrm $rdi, 1, $noreg, 32, $noreg :: (load 16 from %ir.vec + 32, align 32, basealign 64)
+  ; CHECK-NEXT: $xmm3 = MOVAPSrm $rdi, 1, $noreg, 48, $noreg :: (load 16 from %ir.vec + 48, basealign 64)
+  ; CHECK:      MOVAPSmr $rdi, 1, $noreg, 0, $noreg, killed $xmm0 :: (store 16 into %ir.vec, align 64)
+  ; CHECK-NEXT: MOVAPSmr $rdi, 1, $noreg, 16, $noreg, killed $xmm1 :: (store 16 into %ir.vec + 16, basealign 64)
+  ; CHECK-NEXT: MOVAPSmr $rdi, 1, $noreg, 32, $noreg, killed $xmm2 :: (store 16 into %ir.vec + 32, align 32, basealign 64)
+  ; CHECK-NEXT: MOVAPSmr killed $rdi, 1, $noreg, 48, $noreg, killed $xmm3 :: (store 16 into %ir.vec + 48, basealign 64)
+    $xmm0 = MOVAPSrm $rdi, 1, _, 0, _ :: (load 16 from %ir.vec, align 64)
+    $xmm1 = MOVAPSrm $rdi, 1, _, 16, _ :: (load 16 from %ir.vec + 16, basealign 64)
+    $xmm2 = MOVAPSrm $rdi, 1, _, 32, _ :: (load 16 from %ir.vec + 32, align 32, basealign 64)
+    $xmm3 = MOVAPSrm $rdi, 1, _, 48, _ :: (load 16 from %ir.vec + 48, basealign 64)
+    $xmm4 = FsFLD0SS
+    $xmm1 = MOVSSrr killed $xmm1, killed $xmm4
+    MOVAPSmr $rdi, 1, _, 0, _, killed $xmm0 :: (store 16 into %ir.vec, align 64)
+    MOVAPSmr $rdi, 1, _, 16, _, killed $xmm1 :: (store 16 into %ir.vec + 16, basealign 64)
+    MOVAPSmr $rdi, 1, _, 32, _, killed $xmm2 :: (store 16 into %ir.vec + 32, align 32, basealign 64)
+    MOVAPSmr killed $rdi, 1, _, 48, _, killed $xmm3 :: (store 16 into %ir.vec + 48, basealign 64)
     RETQ
 ...
 ---
@@ -336,10 +344,10 @@ body: |
   bb.0.entry:
     liveins: $xmm0
   ; CHECK: name: constant_pool_psv
-  ; CHECK:      $xmm0 = ADDSDrm killed $xmm0, $rip, 1, $noreg, %const.0, $noreg :: (load 8 from constant-pool)
-  ; CHECK-NEXT: $xmm0 = ADDSDrm killed $xmm0, $rip, 1, $noreg, %const.0, $noreg :: (load 8 from constant-pool + 8)
-    $xmm0 = ADDSDrm killed $xmm0, $rip, 1, _, %const.0, _ :: (load 8 from constant-pool)
-    $xmm0 = ADDSDrm killed $xmm0, $rip, 1, _, %const.0, _ :: (load 8 from constant-pool + 8)
+  ; CHECK:      $xmm0 = ADDSDrm killed $xmm0, $rip, 1, $noreg, %const.0, $noreg, implicit $mxcsr :: (load 8 from constant-pool)
+  ; CHECK-NEXT: $xmm0 = ADDSDrm killed $xmm0, $rip, 1, $noreg, %const.0, $noreg, implicit $mxcsr :: (load 8 from constant-pool + 8)
+    $xmm0 = ADDSDrm killed $xmm0, $rip, 1, _, %const.0, _, implicit $mxcsr :: (load 8 from constant-pool)
+    $xmm0 = ADDSDrm killed $xmm0, $rip, 1, _, %const.0, _, implicit $mxcsr :: (load 8 from constant-pool + 8)
     RETQ $xmm0
 ...
 ---
@@ -357,10 +365,10 @@ body: |
   bb.0.entry:
     $rsp = frame-setup SUB64ri8 $rsp, 24, implicit-def dead $eflags
     CFI_INSTRUCTION def_cfa_offset 32
-    LD_F80m $rsp, 1, $noreg, 32, $noreg, implicit-def dead $fpsw
+    LD_F80m $rsp, 1, $noreg, 32, $noreg, implicit-def dead $fpsw, implicit $fpcw
   ; CHECK: name: stack_psv
-  ; CHECK: ST_FP80m $rsp, 1, $noreg, 0, $noreg, implicit-def dead $fpsw :: (store 10 into stack, align 16)
-    ST_FP80m $rsp, 1, _, 0, _, implicit-def dead $fpsw :: (store 10 into stack, align 16)
+  ; CHECK: ST_FP80m $rsp, 1, $noreg, 0, $noreg, implicit-def dead $fpsw, implicit $fpcw :: (store 10 into stack, align 16)
+    ST_FP80m $rsp, 1, _, 0, _, implicit-def dead $fpsw, implicit $fpcw :: (store 10 into stack, align 16)
     CALL64pcrel32 &cosl, csr_64, implicit $rsp, implicit-def $rsp, implicit-def $fp0
     $rsp = ADD64ri8 $rsp, 24, implicit-def dead $eflags
     RETQ
@@ -409,7 +417,7 @@ body: |
 
     $eax = MOV32rr $edi, implicit-def $rax
     CMP32ri8 killed $edi, 3, implicit-def $eflags
-    JA_1 %bb.2.def, implicit killed $eflags
+    JCC_1 %bb.2.def, 7, implicit killed $eflags
 
   bb.1.entry:
     successors: %bb.3.lbl1, %bb.4.lbl2, %bb.5.lbl3, %bb.6.lbl4
@@ -465,11 +473,11 @@ body: |
   bb.0.entry:
     liveins: $rdi, $rsi
   ; CHECK-LABEL: name: aa_scope
-  ; CHECK: $xmm0 = MOVSSrm $rsi, 1, $noreg, 0, $noreg :: (load 4 from %ir.c, !alias.scope !9)
-    $xmm0 = MOVSSrm $rsi, 1, _, 0, _ :: (load 4 from %ir.c, !alias.scope !9)
+  ; CHECK: $xmm0 = MOVSSrm_alt $rsi, 1, $noreg, 0, $noreg :: (load 4 from %ir.c, !alias.scope !9)
+    $xmm0 = MOVSSrm_alt $rsi, 1, _, 0, _ :: (load 4 from %ir.c, !alias.scope !9)
   ; CHECK-NEXT: MOVSSmr $rdi, 1, $noreg, 20, $noreg, killed $xmm0 :: (store 4 into %ir.arrayidx.i, !noalias !9)
     MOVSSmr $rdi, 1, _, 20, _, killed $xmm0 :: (store 4 into %ir.arrayidx.i, !noalias !9)
-    $xmm0 = MOVSSrm killed $rsi, 1, _, 0, _ :: (load 4 from %ir.c)
+    $xmm0 = MOVSSrm_alt killed $rsi, 1, _, 0, _ :: (load 4 from %ir.c)
     MOVSSmr killed $rdi, 1, _, 28, _, killed $xmm0 :: (store 4 into %ir.arrayidx)
     RETQ
 ...

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fprofile-instrument=clang -fcoverage-mapping -dump-coverage-mapping -emit-llvm-only %s | FileCheck %s
+// RUN: %clang_cc1 -mllvm -emptyline-comment-coverage=false -fprofile-instrument=clang -fcoverage-mapping -dump-coverage-mapping -emit-llvm-only %s | FileCheck %s
 
 #define WHILE while (0) {}
 
@@ -12,4 +12,5 @@ void counters_in_macro_following_unreachable() {
 }
 // CHECK-NEXT: File 1, 3:15 -> 3:27 = 0
 // CHECK-NEXT: File 1, 3:22 -> 3:23 = #1
+// CHECK-NEXT: Branch,File 1, 3:22 -> 3:23 = 0, 0
 // CHECK-NEXT: File 1, 3:25 -> 3:27 = #1

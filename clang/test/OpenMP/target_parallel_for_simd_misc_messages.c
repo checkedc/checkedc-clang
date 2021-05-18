@@ -1,6 +1,8 @@
-// RUN: %clang_cc1 -fsyntax-only -fopenmp -verify %s
+// RUN: %clang_cc1 -fsyntax-only -fopenmp -fopenmp-version=45 -verify=expected,omp45 %s -Wuninitialized
+// RUN: %clang_cc1 -fsyntax-only -fopenmp -fopenmp-version=50 -verify=expected,omp50 %s -Wuninitialized
 
-// RUN: %clang_cc1 -fsyntax-only -fopenmp-simd -verify %s
+// RUN: %clang_cc1 -fsyntax-only -fopenmp-simd -fopenmp-version=45 -verify=expected,omp45 %s -Wuninitialized
+// RUN: %clang_cc1 -fsyntax-only -fopenmp-simd -fopenmp-version=50 -verify=expected,omp50 %s -Wuninitialized
 
 // expected-error@+1 {{unexpected OpenMP directive '#pragma omp target parallel for simd'}}
 #pragma omp target parallel for simd
@@ -142,11 +144,11 @@ void test_collapse() {
 #pragma omp target parallel for simd collapse(4, 8)
   for (i = 0; i < 16; ++i)
     ; // expected-error {{expected 4 for loops after '#pragma omp target parallel for simd', but found only 1}}
-// expected-error@+1 {{expression is not an integer constant expression}}
+// expected-error@+1 {{integer constant expression}}
 #pragma omp target parallel for simd collapse(2.5)
   for (i = 0; i < 16; ++i)
     ;
-// expected-error@+1 {{expression is not an integer constant expression}}
+// expected-error@+1 {{integer constant expression}}
 #pragma omp target parallel for simd collapse(foo())
   for (i = 0; i < 16; ++i)
     ;
@@ -163,8 +165,8 @@ void test_collapse() {
   for (i = 0; i < 16; ++i)
     ;
 // expected-note@+1 {{defined as firstprivate}}
-#pragma omp target parallel for simd collapse(2) firstprivate(i)
-  for (i = 0; i < 16; ++i)
+#pragma omp target parallel for simd collapse(2) firstprivate(i) // expected-note {{defined as firstprivate}}
+  for (i = 0; i < 16; ++i) // expected-error {{loop iteration variable in the associated loop of 'omp target parallel for simd' directive may not be firstprivate, predetermined as lastprivate}}
 // expected-note@+1 {{variable with automatic storage duration is predetermined as private; perhaps you forget to enclose 'omp for' directive into a parallel or another task region?}}
     for (int j = 0; j < 16; ++j)
 // expected-error@+2 2 {{reduction variable must be shared}}
@@ -377,11 +379,11 @@ void test_safelen() {
 #pragma omp target parallel for simd safelen(4, 8)
   for (i = 0; i < 16; ++i)
     ;
-// expected-error@+1 {{expression is not an integer constant expression}}
+// expected-error@+1 {{integer constant expression}}
 #pragma omp target parallel for simd safelen(2.5)
   for (i = 0; i < 16; ++i)
     ;
-// expected-error@+1 {{expression is not an integer constant expression}}
+// expected-error@+1 {{integer constant expression}}
 #pragma omp target parallel for simd safelen(foo())
   for (i = 0; i < 16; ++i)
     ;
@@ -462,11 +464,11 @@ void test_simdlen() {
 #pragma omp target parallel for simd simdlen(4, 8)
   for (i = 0; i < 16; ++i)
     ;
-// expected-error@+1 {{expression is not an integer constant expression}}
+// expected-error@+1 {{integer constant expression}}
 #pragma omp target parallel for simd simdlen(2.5)
   for (i = 0; i < 16; ++i)
     ;
-// expected-error@+1 {{expression is not an integer constant expression}}
+// expected-error@+1 {{integer constant expression}}
 #pragma omp target parallel for simd simdlen(foo())
   for (i = 0; i < 16; ++i)
     ;
@@ -495,3 +497,88 @@ void test_safelen_simdlen() {
   for (i = 0; i < 16; ++i)
     ;
 }
+
+void test_nontemporal() {
+  int i;
+// omp45-error@+1 {{unexpected OpenMP clause 'nontemporal' in directive '#pragma omp target parallel for simd'}} expected-error@+1 {{expected expression}} expected-error@+1 {{expected ')'}} expected-note@+1 {{to match this '('}}
+#pragma omp target parallel for simd nontemporal(
+  for (i = 0; i < 16; ++i)
+    ;
+// omp45-error@+1 {{unexpected OpenMP clause 'nontemporal' in directive '#pragma omp target parallel for simd'}} expected-error@+1 2 {{expected expression}} expected-error@+1 {{expected ')'}} expected-note@+1 {{to match this '('}}
+#pragma omp target parallel for simd nontemporal(,
+  for (i = 0; i < 16; ++i)
+    ;
+// omp45-error@+1 {{unexpected OpenMP clause 'nontemporal' in directive '#pragma omp target parallel for simd'}} expected-error@+1 2 {{expected expression}}
+#pragma omp target parallel for simd nontemporal(, )
+  for (i = 0; i < 16; ++i)
+    ;
+// omp45-error@+1 {{unexpected OpenMP clause 'nontemporal' in directive '#pragma omp target parallel for simd'}} expected-error@+1 {{expected expression}}
+#pragma omp target parallel for simd nontemporal()
+  for (i = 0; i < 16; ++i)
+    ;
+// omp45-error@+1 {{unexpected OpenMP clause 'nontemporal' in directive '#pragma omp target parallel for simd'}} expected-error@+1 {{expected expression}}
+#pragma omp target parallel for simd nontemporal(int)
+  for (i = 0; i < 16; ++i)
+    ;
+// omp45-error@+1 {{unexpected OpenMP clause 'nontemporal' in directive '#pragma omp target parallel for simd'}} omp50-error@+1 {{expected variable name}}
+#pragma omp target parallel for simd nontemporal(0)
+  for (i = 0; i < 16; ++i)
+    ;
+// omp45-error@+1 {{unexpected OpenMP clause 'nontemporal' in directive '#pragma omp target parallel for simd'}} expected-error@+1 {{use of undeclared identifier 'x'}}
+#pragma omp target parallel for simd nontemporal(x)
+  for (i = 0; i < 16; ++i)
+    ;
+// expected-error@+2 {{use of undeclared identifier 'x'}}
+// omp45-error@+1 {{unexpected OpenMP clause 'nontemporal' in directive '#pragma omp target parallel for simd'}} expected-error@+1 {{use of undeclared identifier 'y'}}
+#pragma omp target parallel for simd nontemporal(x, y)
+  for (i = 0; i < 16; ++i)
+    ;
+// expected-error@+3 {{use of undeclared identifier 'x'}}
+// expected-error@+2 {{use of undeclared identifier 'y'}}
+// omp45-error@+1 {{unexpected OpenMP clause 'nontemporal' in directive '#pragma omp target parallel for simd'}} expected-error@+1 {{use of undeclared identifier 'z'}}
+#pragma omp target parallel for simd nontemporal(x, y, z)
+  for (i = 0; i < 16; ++i)
+    ;
+
+  int x, y;
+// omp45-error@+1 {{unexpected OpenMP clause 'nontemporal' in directive '#pragma omp target parallel for simd'}} expected-error@+1 {{expected ',' or ')' in 'nontemporal' clause}} expected-error@+1 {{expected ')'}} expected-note@+1 {{to match this '('}}
+#pragma omp target parallel for simd nontemporal(x :)
+  for (i = 0; i < 16; ++i)
+    ;
+// omp45-error@+1 {{unexpected OpenMP clause 'nontemporal' in directive '#pragma omp target parallel for simd'}} expected-error@+1 {{expected ')'}} expected-note@+1 {{to match this '('}} expected-error@+1 {{expected ',' or ')' in 'nontemporal' clause}}
+#pragma omp target parallel for simd nontemporal(x :, )
+  for (i = 0; i < 16; ++i)
+    ;
+
+// omp50-note@+2 {{defined as nontemporal}}
+// omp45-error@+1 2 {{unexpected OpenMP clause 'nontemporal' in directive '#pragma omp target parallel for simd'}} omp50-error@+1 {{a variable cannot appear in more than one nontemporal clause}}
+#pragma omp target parallel for simd nontemporal(x) nontemporal(x)
+  for (i = 0; i < 16; ++i)
+    ;
+
+// omp45-error@+1 {{unexpected OpenMP clause 'nontemporal' in directive '#pragma omp target parallel for simd'}}
+#pragma omp target parallel for simd private(x) nontemporal(x)
+  for (i = 0; i < 16; ++i)
+    ;
+
+// omp45-error@+1 {{unexpected OpenMP clause 'nontemporal' in directive '#pragma omp target parallel for simd'}}
+#pragma omp target parallel for simd nontemporal(x) private(x)
+  for (i = 0; i < 16; ++i)
+    ;
+
+// omp45-error@+1 {{unexpected OpenMP clause 'nontemporal' in directive '#pragma omp target parallel for simd'}} expected-note@+1 {{to match this '('}} expected-error@+1 {{expected ',' or ')' in 'nontemporal' clause}} expected-error@+1 {{expected ')'}}
+#pragma omp target parallel for simd nontemporal(x, y : 0)
+  for (i = 0; i < 16; ++i)
+    ;
+
+// omp45-error@+1 {{unexpected OpenMP clause 'nontemporal' in directive '#pragma omp target parallel for simd'}}
+#pragma omp target parallel for simd nontemporal(x) lastprivate(x)
+  for (i = 0; i < 16; ++i)
+    ;
+
+// omp45-error@+1 {{unexpected OpenMP clause 'nontemporal' in directive '#pragma omp target parallel for simd'}}
+#pragma omp target parallel for simd lastprivate(x) nontemporal(x)
+  for (i = 0; i < 16; ++i)
+    ;
+}
+

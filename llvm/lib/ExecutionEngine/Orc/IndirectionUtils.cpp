@@ -1,9 +1,8 @@
 //===---- IndirectionUtils.cpp - Utilities for call indirection in Orc ----===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -11,7 +10,6 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/ExecutionEngine/Orc/OrcABISupport.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -27,19 +25,20 @@ public:
   using CompileFunction = JITCompileCallbackManager::CompileFunction;
 
   CompileCallbackMaterializationUnit(SymbolStringPtr Name,
-                                     CompileFunction Compile, VModuleKey K)
+                                     CompileFunction Compile)
       : MaterializationUnit(SymbolFlagsMap({{Name, JITSymbolFlags::Exported}}),
-                            std::move(K)),
+                            nullptr),
         Name(std::move(Name)), Compile(std::move(Compile)) {}
 
   StringRef getName() const override { return "<Compile Callbacks>"; }
 
 private:
-  void materialize(MaterializationResponsibility R) override {
+  void materialize(std::unique_ptr<MaterializationResponsibility> R) override {
     SymbolMap Result;
     Result[Name] = JITEvaluatedSymbol(Compile(), JITSymbolFlags::Exported);
-    R.resolve(Result);
-    R.emit();
+    // No dependencies, so these calls cannot fail.
+    cantFail(R->notifyResolved(Result));
+    cantFail(R->notifyEmitted());
   }
 
   void discard(const JITDylib &JD, const SymbolStringPtr &Name) override {
@@ -55,8 +54,8 @@ private:
 namespace llvm {
 namespace orc {
 
+TrampolinePool::~TrampolinePool() {}
 void IndirectStubsManager::anchor() {}
-void TrampolinePool::anchor() {}
 
 Expected<JITTargetAddress>
 JITCompileCallbackManager::getCompileCallback(CompileFunction Compile) {
@@ -66,10 +65,9 @@ JITCompileCallbackManager::getCompileCallback(CompileFunction Compile) {
 
     std::lock_guard<std::mutex> Lock(CCMgrMutex);
     AddrToSymbol[*TrampolineAddr] = CallbackName;
-    cantFail(CallbacksJD.define(
-        llvm::make_unique<CompileCallbackMaterializationUnit>(
-            std::move(CallbackName), std::move(Compile),
-            ES.allocateVModule())));
+    cantFail(
+        CallbacksJD.define(std::make_unique<CompileCallbackMaterializationUnit>(
+            std::move(CallbackName), std::move(Compile))));
     return *TrampolineAddr;
   } else
     return TrampolineAddr.takeError();
@@ -101,7 +99,10 @@ JITTargetAddress JITCompileCallbackManager::executeCompileCallback(
       Name = I->second;
   }
 
-  if (auto Sym = ES.lookup(JITDylibSearchList({{&CallbacksJD, true}}), Name))
+  if (auto Sym =
+          ES.lookup(makeJITDylibSearchOrder(
+                        &CallbacksJD, JITDylibLookupFlags::MatchAllSymbols),
+                    Name))
     return Sym->getAddress();
   else {
     llvm::dbgs() << "Didn't find callback.\n";
@@ -120,7 +121,8 @@ createLocalCompileCallbackManager(const Triple &T, ExecutionSession &ES,
     return make_error<StringError>(
         std::string("No callback manager available for ") + T.str(),
         inconvertibleErrorCode());
-  case Triple::aarch64: {
+  case Triple::aarch64:
+  case Triple::aarch64_32: {
     typedef orc::LocalJITCompileCallbackManager<orc::OrcAArch64> CCMgrT;
     return CCMgrT::Create(ES, ErrorHandlerAddress);
     }
@@ -146,7 +148,7 @@ createLocalCompileCallbackManager(const Triple &T, ExecutionSession &ES,
     }
 
     case Triple::x86_64: {
-      if ( T.getOS() == Triple::OSType::Win32 ) {
+      if (T.getOS() == Triple::OSType::Win32) {
         typedef orc::LocalJITCompileCallbackManager<orc::OrcX86_64_Win32> CCMgrT;
         return CCMgrT::Create(ES, ErrorHandlerAddress);
       } else {
@@ -163,50 +165,51 @@ createLocalIndirectStubsManagerBuilder(const Triple &T) {
   switch (T.getArch()) {
     default:
       return [](){
-        return llvm::make_unique<
+        return std::make_unique<
                        orc::LocalIndirectStubsManager<orc::OrcGenericABI>>();
       };
 
     case Triple::aarch64:
+    case Triple::aarch64_32:
       return [](){
-        return llvm::make_unique<
+        return std::make_unique<
                        orc::LocalIndirectStubsManager<orc::OrcAArch64>>();
       };
 
     case Triple::x86:
       return [](){
-        return llvm::make_unique<
+        return std::make_unique<
                        orc::LocalIndirectStubsManager<orc::OrcI386>>();
       };
 
     case Triple::mips:
       return [](){
-          return llvm::make_unique<
+          return std::make_unique<
                       orc::LocalIndirectStubsManager<orc::OrcMips32Be>>();
       };
 
     case Triple::mipsel:
       return [](){
-          return llvm::make_unique<
+          return std::make_unique<
                       orc::LocalIndirectStubsManager<orc::OrcMips32Le>>();
       };
 
     case Triple::mips64:
     case Triple::mips64el:
       return [](){
-          return llvm::make_unique<
+          return std::make_unique<
                       orc::LocalIndirectStubsManager<orc::OrcMips64>>();
       };
-      
+
     case Triple::x86_64:
       if (T.getOS() == Triple::OSType::Win32) {
         return [](){
-          return llvm::make_unique<
+          return std::make_unique<
                      orc::LocalIndirectStubsManager<orc::OrcX86_64_Win32>>();
         };
       } else {
         return [](){
-          return llvm::make_unique<
+          return std::make_unique<
                      orc::LocalIndirectStubsManager<orc::OrcX86_64_SysV>>();
         };
       }
@@ -238,11 +241,11 @@ void makeStub(Function &F, Value &ImplPointer) {
   Module &M = *F.getParent();
   BasicBlock *EntryBlock = BasicBlock::Create(M.getContext(), "entry", &F);
   IRBuilder<> Builder(EntryBlock);
-  LoadInst *ImplAddr = Builder.CreateLoad(&ImplPointer);
+  LoadInst *ImplAddr = Builder.CreateLoad(F.getType(), &ImplPointer);
   std::vector<Value*> CallArgs;
   for (auto &A : F.args())
     CallArgs.push_back(&A);
-  CallInst *Call = Builder.CreateCall(ImplAddr, CallArgs);
+  CallInst *Call = Builder.CreateCall(F.getFunctionType(), ImplAddr, CallArgs);
   Call->setTailCall();
   Call->setAttributes(F.getAttributes());
   if (F.getReturnType()->isVoidTy())

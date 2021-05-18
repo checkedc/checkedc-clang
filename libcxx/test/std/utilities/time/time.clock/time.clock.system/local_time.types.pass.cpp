@@ -1,12 +1,11 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 
@@ -16,8 +15,8 @@
 // using local_seconds = sys_time<seconds>;
 // using local_days    = sys_time<days>;
 
-// [Example: 
-//   sys_seconds{sys_days{1970y/January/1}}.time_since_epoch() is 0s. 
+// [Example:
+//   sys_seconds{sys_days{1970y/January/1}}.time_since_epoch() is 0s.
 //   sys_seconds{sys_days{2000y/January/1}}.time_since_epoch() is 946’684’800s, which is 10’957 * 86’400s.
 // —end example]
 
@@ -27,7 +26,7 @@
 
 #include "test_macros.h"
 
-int main()
+int main(int, char**)
 {
     using local_t = std::chrono::local_t;
     using year    = std::chrono::year;
@@ -35,7 +34,7 @@ int main()
     using seconds = std::chrono::seconds;
     using minutes = std::chrono::minutes;
     using days    = std::chrono::days;
-    
+
     using local_seconds = std::chrono::local_seconds;
     using local_minutes = std::chrono::local_time<minutes>;
     using local_days    = std::chrono::local_days;
@@ -49,7 +48,7 @@ int main()
     ASSERT_SAME_TYPE(std::chrono::time_point<local_t, seconds>, local_seconds);
     ASSERT_SAME_TYPE(std::chrono::time_point<local_t, minutes>, local_minutes);
     ASSERT_SAME_TYPE(std::chrono::time_point<local_t, days>,    local_days);
-    
+
 //  Test some well known values
     local_days d0 = local_days{year{1970}/January/1};
     local_days d1 = local_days{year{2000}/January/1};
@@ -62,4 +61,6 @@ int main()
     ASSERT_SAME_TYPE(decltype(s0.time_since_epoch()), seconds);
     assert( s0.time_since_epoch().count() == 0);
     assert( s1.time_since_epoch().count() == 946684800L);
+
+    return 0;
 }

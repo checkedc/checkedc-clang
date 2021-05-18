@@ -1,9 +1,8 @@
 //===- Strings.cpp -------------------------------------------------------===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -11,6 +10,7 @@
 #include "lld/Common/ErrorHandler.h"
 #include "lld/Common/LLVM.h"
 #include "llvm/Demangle/Demangle.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/GlobPattern.h"
 #include <algorithm>
 #include <mutex>
@@ -19,86 +19,73 @@
 using namespace llvm;
 using namespace lld;
 
-// Returns the demangled C++ symbol name for Name.
-Optional<std::string> lld::demangleItanium(StringRef Name) {
-  // itaniumDemangle can be used to demangle strings other than symbol
-  // names which do not necessarily start with "_Z". Name can be
-  // either a C or C++ symbol. Don't call itaniumDemangle if the name
-  // does not look like a C++ symbol name to avoid getting unexpected
-  // result for a C symbol that happens to match a mangled type name.
-  if (!Name.startswith("_Z"))
-    return None;
+// Returns the demangled C++ symbol name for name.
+std::string lld::demangleItanium(StringRef name) {
+  // demangleItanium() can be called for all symbols. Only demangle C++ symbols,
+  // to avoid getting unexpected result for a C symbol that happens to match a
+  // mangled type name such as "Pi" (which would demangle to "int*").
+  if (!name.startswith("_Z") && !name.startswith("__Z") &&
+      !name.startswith("___Z") && !name.startswith("____Z"))
+    return std::string(name);
 
-  char *Buf = itaniumDemangle(Name.str().c_str(), nullptr, nullptr, nullptr);
-  if (!Buf)
-    return None;
-  std::string S(Buf);
-  free(Buf);
-  return S;
+  return demangle(std::string(name));
 }
 
-Optional<std::string> lld::demangleMSVC(StringRef Name) {
-  std::string Prefix;
-  if (Name.consume_front("__imp_"))
-    Prefix = "__declspec(dllimport) ";
-
-  // Demangle only C++ names.
-  if (!Name.startswith("?"))
-    return None;
-
-  char *Buf = microsoftDemangle(Name.str().c_str(), nullptr, nullptr, nullptr);
-  if (!Buf)
-    return None;
-  std::string S(Buf);
-  free(Buf);
-  return Prefix + S;
-}
-
-StringMatcher::StringMatcher(ArrayRef<StringRef> Pat) {
-  for (StringRef S : Pat) {
-    Expected<GlobPattern> Pat = GlobPattern::create(S);
-    if (!Pat)
-      error(toString(Pat.takeError()));
-    else
-      Patterns.push_back(*Pat);
+SingleStringMatcher::SingleStringMatcher(StringRef Pattern) {
+  if (Pattern.size() > 2 && Pattern.startswith("\"") &&
+      Pattern.endswith("\"")) {
+    ExactMatch = true;
+    ExactPattern = Pattern.substr(1, Pattern.size() - 2);
+  } else {
+    Expected<GlobPattern> Glob = GlobPattern::create(Pattern);
+    if (!Glob) {
+      error(toString(Glob.takeError()));
+      return;
+    }
+    ExactMatch = false;
+    GlobPatternMatcher = *Glob;
   }
 }
 
-bool StringMatcher::match(StringRef S) const {
-  for (const GlobPattern &Pat : Patterns)
-    if (Pat.match(S))
+bool SingleStringMatcher::match(StringRef s) const {
+  return ExactMatch ? (ExactPattern == s) : GlobPatternMatcher.match(s);
+}
+
+bool StringMatcher::match(StringRef s) const {
+  for (const SingleStringMatcher &pat : patterns)
+    if (pat.match(s))
       return true;
   return false;
 }
 
 // Converts a hex string (e.g. "deadbeef") to a vector.
-std::vector<uint8_t> lld::parseHex(StringRef S) {
-  std::vector<uint8_t> Hex;
-  while (!S.empty()) {
-    StringRef B = S.substr(0, 2);
-    S = S.substr(2);
-    uint8_t H;
-    if (!to_integer(B, H, 16)) {
-      error("not a hexadecimal value: " + B);
+std::vector<uint8_t> lld::parseHex(StringRef s) {
+  std::vector<uint8_t> hex;
+  while (!s.empty()) {
+    StringRef b = s.substr(0, 2);
+    s = s.substr(2);
+    uint8_t h;
+    if (!to_integer(b, h, 16)) {
+      error("not a hexadecimal value: " + b);
       return {};
     }
-    Hex.push_back(H);
+    hex.push_back(h);
   }
-  return Hex;
+  return hex;
 }
 
 // Returns true if S is valid as a C language identifier.
-bool lld::isValidCIdentifier(StringRef S) {
-  return !S.empty() && (isAlpha(S[0]) || S[0] == '_') &&
-         std::all_of(S.begin() + 1, S.end(),
-                     [](char C) { return C == '_' || isAlnum(C); });
+bool lld::isValidCIdentifier(StringRef s) {
+  return !s.empty() && (isAlpha(s[0]) || s[0] == '_') &&
+         std::all_of(s.begin() + 1, s.end(),
+                     [](char c) { return c == '_' || isAlnum(c); });
 }
 
 // Write the contents of the a buffer to a file
-void lld::saveBuffer(StringRef Buffer, const Twine &Path) {
-  std::error_code EC;
-  raw_fd_ostream OS(Path.str(), EC, sys::fs::OpenFlags::F_None);
-  if (EC)
-    error("cannot create " + Path + ": " + EC.message());
-  OS << Buffer;
+void lld::saveBuffer(StringRef buffer, const Twine &path) {
+  std::error_code ec;
+  raw_fd_ostream os(path.str(), ec, sys::fs::OpenFlags::OF_None);
+  if (ec)
+    error("cannot create " + path + ": " + ec.message());
+  os << buffer;
 }

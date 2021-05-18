@@ -1,9 +1,8 @@
-//===-- AddressResolverName.cpp ---------------------------------*- C++ -*-===//
+//===-- AddressResolverName.cpp -------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -37,7 +36,8 @@ AddressResolverName::AddressResolverName(const char *func_name,
     : AddressResolver(), m_func_name(func_name), m_class_name(nullptr),
       m_regex(), m_match_type(type) {
   if (m_match_type == AddressResolver::Regexp) {
-    if (!m_regex.Compile(m_func_name.GetStringRef())) {
+    m_regex = RegularExpression(m_func_name.GetStringRef());
+    if (!m_regex.IsValid()) {
       Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_BREAKPOINTS));
 
       if (log)
@@ -47,9 +47,9 @@ AddressResolverName::AddressResolverName(const char *func_name,
   }
 }
 
-AddressResolverName::AddressResolverName(RegularExpression &func_regex)
+AddressResolverName::AddressResolverName(RegularExpression func_regex)
     : AddressResolver(), m_func_name(nullptr), m_class_name(nullptr),
-      m_regex(func_regex), m_match_type(AddressResolver::Regexp) {}
+      m_regex(std::move(func_regex)), m_match_type(AddressResolver::Regexp) {}
 
 AddressResolverName::AddressResolverName(const char *class_name,
                                          const char *method,
@@ -67,8 +67,7 @@ AddressResolverName::~AddressResolverName() = default;
 
 Searcher::CallbackReturn
 AddressResolverName::SearchCallback(SearchFilter &filter,
-                                    SymbolContext &context, Address *addr,
-                                    bool containing) {
+                                    SymbolContext &context, Address *addr) {
   SymbolContextList func_list;
   SymbolContextList sym_list;
 
@@ -87,15 +86,14 @@ AddressResolverName::SearchCallback(SearchFilter &filter,
 
   const bool include_symbols = false;
   const bool include_inlines = true;
-  const bool append = false;
   switch (m_match_type) {
   case AddressResolver::Exact:
     if (context.module_sp) {
       context.module_sp->FindSymbolsWithNameAndType(m_func_name,
                                                     eSymbolTypeCode, sym_list);
-      context.module_sp->FindFunctions(m_func_name, nullptr,
+      context.module_sp->FindFunctions(m_func_name, CompilerDeclContext(),
                                        eFunctionNameTypeAuto, include_symbols,
-                                       include_inlines, append, func_list);
+                                       include_inlines, func_list);
     }
     break;
 
@@ -104,7 +102,7 @@ AddressResolverName::SearchCallback(SearchFilter &filter,
       context.module_sp->FindSymbolsMatchingRegExAndType(
           m_regex, eSymbolTypeCode, sym_list);
       context.module_sp->FindFunctions(m_regex, include_symbols,
-                                       include_inlines, append, func_list);
+                                       include_inlines, func_list);
     }
     break;
 

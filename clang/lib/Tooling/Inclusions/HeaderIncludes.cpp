@@ -1,16 +1,18 @@
 //===--- HeaderIncludes.cpp - Insert/Delete #includes --*- C++ -*----------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "clang/Tooling/Inclusions/HeaderIncludes.h"
+#include "clang/Basic/FileManager.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/Support/FormatVariadic.h"
+#include "llvm/Support/Path.h"
 
 namespace clang {
 namespace tooling {
@@ -41,7 +43,7 @@ unsigned getOffsetAfterTokenSequence(
         GetOffsetAfterSequence) {
   SourceManagerForFile VirtualSM(FileName, Code);
   SourceManager &SM = VirtualSM.get();
-  Lexer Lex(SM.getMainFileID(), SM.getBuffer(SM.getMainFileID()), SM,
+  Lexer Lex(SM.getMainFileID(), SM.getBufferOrFake(SM.getMainFileID()), SM,
             createLangOpts());
   Token Tok;
   // Get the first token.
@@ -51,12 +53,16 @@ unsigned getOffsetAfterTokenSequence(
 
 // Check if a sequence of tokens is like "#<Name> <raw_identifier>". If it is,
 // \p Tok will be the token after this directive; otherwise, it can be any token
-// after the given \p Tok (including \p Tok).
-bool checkAndConsumeDirectiveWithName(Lexer &Lex, StringRef Name, Token &Tok) {
+// after the given \p Tok (including \p Tok). If \p RawIDName is provided, the
+// (second) raw_identifier name is checked.
+bool checkAndConsumeDirectiveWithName(
+    Lexer &Lex, StringRef Name, Token &Tok,
+    llvm::Optional<StringRef> RawIDName = llvm::None) {
   bool Matched = Tok.is(tok::hash) && !Lex.LexFromRawLexer(Tok) &&
                  Tok.is(tok::raw_identifier) &&
                  Tok.getRawIdentifier() == Name && !Lex.LexFromRawLexer(Tok) &&
-                 Tok.is(tok::raw_identifier);
+                 Tok.is(tok::raw_identifier) &&
+                 (!RawIDName || Tok.getRawIdentifier() == *RawIDName);
   if (Matched)
     Lex.LexFromRawLexer(Tok);
   return Matched;
@@ -69,24 +75,46 @@ void skipComments(Lexer &Lex, Token &Tok) {
 }
 
 // Returns the offset after header guard directives and any comments
-// before/after header guards. If no header guard presents in the code, this
-// will returns the offset after skipping all comments from the start of the
-// code.
+// before/after header guards (e.g. #ifndef/#define pair, #pragma once). If no
+// header guard is present in the code, this will return the offset after
+// skipping all comments from the start of the code.
 unsigned getOffsetAfterHeaderGuardsAndComments(StringRef FileName,
                                                StringRef Code,
                                                const IncludeStyle &Style) {
-  return getOffsetAfterTokenSequence(
-      FileName, Code, Style,
-      [](const SourceManager &SM, Lexer &Lex, Token Tok) {
-        skipComments(Lex, Tok);
-        unsigned InitialOffset = SM.getFileOffset(Tok.getLocation());
-        if (checkAndConsumeDirectiveWithName(Lex, "ifndef", Tok)) {
-          skipComments(Lex, Tok);
-          if (checkAndConsumeDirectiveWithName(Lex, "define", Tok))
-            return SM.getFileOffset(Tok.getLocation());
-        }
-        return InitialOffset;
-      });
+  // \p Consume returns location after header guard or 0 if no header guard is
+  // found.
+  auto ConsumeHeaderGuardAndComment =
+      [&](std::function<unsigned(const SourceManager &SM, Lexer &Lex,
+                                 Token Tok)>
+              Consume) {
+        return getOffsetAfterTokenSequence(
+            FileName, Code, Style,
+            [&Consume](const SourceManager &SM, Lexer &Lex, Token Tok) {
+              skipComments(Lex, Tok);
+              unsigned InitialOffset = SM.getFileOffset(Tok.getLocation());
+              return std::max(InitialOffset, Consume(SM, Lex, Tok));
+            });
+      };
+  return std::max(
+      // #ifndef/#define
+      ConsumeHeaderGuardAndComment(
+          [](const SourceManager &SM, Lexer &Lex, Token Tok) -> unsigned {
+            if (checkAndConsumeDirectiveWithName(Lex, "ifndef", Tok)) {
+              skipComments(Lex, Tok);
+              if (checkAndConsumeDirectiveWithName(Lex, "define", Tok) &&
+                  Tok.isAtStartOfLine())
+                return SM.getFileOffset(Tok.getLocation());
+            }
+            return 0;
+          }),
+      // #pragma once
+      ConsumeHeaderGuardAndComment(
+          [](const SourceManager &SM, Lexer &Lex, Token Tok) -> unsigned {
+            if (checkAndConsumeDirectiveWithName(Lex, "pragma", Tok,
+                                                 StringRef("once")))
+              return SM.getFileOffset(Tok.getLocation());
+            return 0;
+          }));
 }
 
 // Check if a sequence of tokens is like
@@ -147,18 +175,34 @@ inline StringRef trimInclude(StringRef IncludeName) {
 const char IncludeRegexPattern[] =
     R"(^[\t\ ]*#[\t\ ]*(import|include)[^"<]*(["<][^">]*[">]))";
 
+// The filename of Path excluding extension.
+// Used to match implementation with headers, this differs from sys::path::stem:
+//  - in names with multiple dots (foo.cu.cc) it terminates at the *first*
+//  - an empty stem is never returned: /foo/.bar.x => .bar
+//  - we don't bother to handle . and .. specially
+StringRef matchingStem(llvm::StringRef Path) {
+  StringRef Name = llvm::sys::path::filename(Path);
+  return Name.substr(0, Name.find('.', 1));
+}
+
 } // anonymous namespace
 
 IncludeCategoryManager::IncludeCategoryManager(const IncludeStyle &Style,
                                                StringRef FileName)
     : Style(Style), FileName(FileName) {
-  FileStem = llvm::sys::path::stem(FileName);
-  for (const auto &Category : Style.IncludeCategories)
-    CategoryRegexs.emplace_back(Category.Regex, llvm::Regex::IgnoreCase);
+  for (const auto &Category : Style.IncludeCategories) {
+    CategoryRegexs.emplace_back(Category.Regex, Category.RegexIsCaseSensitive
+                                                    ? llvm::Regex::NoFlags
+                                                    : llvm::Regex::IgnoreCase);
+  }
   IsMainFile = FileName.endswith(".c") || FileName.endswith(".cc") ||
                FileName.endswith(".cpp") || FileName.endswith(".c++") ||
                FileName.endswith(".cxx") || FileName.endswith(".m") ||
                FileName.endswith(".mm");
+  if (!Style.IncludeIsMainSourceRegex.empty()) {
+    llvm::Regex MainFileRegex(Style.IncludeIsMainSourceRegex);
+    IsMainFile |= MainFileRegex.match(FileName);
+  }
 }
 
 int IncludeCategoryManager::getIncludePriority(StringRef IncludeName,
@@ -174,16 +218,48 @@ int IncludeCategoryManager::getIncludePriority(StringRef IncludeName,
   return Ret;
 }
 
+int IncludeCategoryManager::getSortIncludePriority(StringRef IncludeName,
+                                                   bool CheckMainHeader) const {
+  int Ret = INT_MAX;
+  for (unsigned i = 0, e = CategoryRegexs.size(); i != e; ++i)
+    if (CategoryRegexs[i].match(IncludeName)) {
+      Ret = Style.IncludeCategories[i].SortPriority;
+      if (Ret == 0)
+        Ret = Style.IncludeCategories[i].Priority;
+      break;
+    }
+  if (CheckMainHeader && IsMainFile && Ret > 0 && isMainHeader(IncludeName))
+    Ret = 0;
+  return Ret;
+}
 bool IncludeCategoryManager::isMainHeader(StringRef IncludeName) const {
   if (!IncludeName.startswith("\""))
     return false;
-  StringRef HeaderStem =
-      llvm::sys::path::stem(IncludeName.drop_front(1).drop_back(1));
-  if (FileStem.startswith(HeaderStem) ||
-      FileStem.startswith_lower(HeaderStem)) {
+
+  IncludeName =
+      IncludeName.drop_front(1).drop_back(1); // remove the surrounding "" or <>
+  // Not matchingStem: implementation files may have compound extensions but
+  // headers may not.
+  StringRef HeaderStem = llvm::sys::path::stem(IncludeName);
+  StringRef FileStem = llvm::sys::path::stem(FileName); // foo.cu for foo.cu.cc
+  StringRef MatchingFileStem = matchingStem(FileName);  // foo for foo.cu.cc
+  // main-header examples:
+  //  1) foo.h => foo.cc
+  //  2) foo.h => foo.cu.cc
+  //  3) foo.proto.h => foo.proto.cc
+  //
+  // non-main-header examples:
+  //  1) foo.h => bar.cc
+  //  2) foo.proto.h => foo.cc
+  StringRef Matching;
+  if (MatchingFileStem.startswith_lower(HeaderStem))
+    Matching = MatchingFileStem; // example 1), 2)
+  else if (FileStem.equals_lower(HeaderStem))
+    Matching = FileStem; // example 3)
+  if (!Matching.empty()) {
     llvm::Regex MainIncludeRegex(HeaderStem.str() + Style.IncludeIsMainRegex,
                                  llvm::Regex::IgnoreCase);
-    if (MainIncludeRegex.match(FileStem))
+    if (MainIncludeRegex.match(Matching))
       return true;
   }
   return false;
@@ -276,7 +352,7 @@ HeaderIncludes::insert(llvm::StringRef IncludeName, bool IsAngled) const {
           (!IsAngled && StringRef(Inc.Name).startswith("\"")))
         return llvm::None;
   std::string Quoted =
-      llvm::formatv(IsAngled ? "<{0}>" : "\"{0}\"", IncludeName);
+      std::string(llvm::formatv(IsAngled ? "<{0}>" : "\"{0}\"", IncludeName));
   StringRef QuotedName = Quoted;
   int Priority = Categories.getIncludePriority(
       QuotedName, /*CheckMainHeader=*/FirstIncludeOffset < 0);
@@ -293,7 +369,8 @@ HeaderIncludes::insert(llvm::StringRef IncludeName, bool IsAngled) const {
     }
   }
   assert(InsertOffset <= Code.size());
-  std::string NewInclude = llvm::formatv("#include {0}\n", QuotedName);
+  std::string NewInclude =
+      std::string(llvm::formatv("#include {0}\n", QuotedName));
   // When inserting headers at end of the code, also append '\n' to the code
   // if it does not end with '\n'.
   // FIXME: when inserting multiple #includes at the end of code, only one
@@ -324,7 +401,6 @@ tooling::Replacements HeaderIncludes::remove(llvm::StringRef IncludeName,
   }
   return Result;
 }
-
 
 } // namespace tooling
 } // namespace clang

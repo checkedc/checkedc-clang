@@ -1,4 +1,5 @@
-; RUN: opt -scalar-evolution -analyze < %s | FileCheck %s
+; RUN: opt -scalar-evolution -analyze -enable-new-pm=0 < %s | FileCheck %s
+; RUN: opt "-passes=print<scalar-evolution>" -disable-output < %s 2>&1 | FileCheck %s
 ;
 ; This checks if the min and max expressions are properly recognized by
 ; ScalarEvolution even though they the ICmpInst and SelectInst have different
@@ -33,7 +34,7 @@ bb2:                                              ; preds = %bb1
   %tmp9 = select i1 %tmp4, i64 %tmp5, i64 %tmp6
 ;                  min(N, i+3)
 ; CHECK:           select i1 %tmp4, i64 %tmp5, i64 %tmp6
-; CHECK-NEXT:  --> (-1 + (-1 * ((-1 + (-1 * (sext i32 {3,+,1}<nuw><%bb1> to i64))<nsw>)<nsw> smax (-1 + (-1 * (sext i32 %N to i64))<nsw>)<nsw>))<nsw>)<nsw>
+; CHECK-NEXT:  --> ((sext i32 {3,+,1}<nuw><%bb1> to i64) smin (sext i32 %N to i64))
   %tmp11 = getelementptr inbounds i32, i32* %A, i64 %tmp9
   %tmp12 = load i32, i32* %tmp11, align 4
   %tmp13 = shl nsw i32 %tmp12, 1

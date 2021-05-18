@@ -62,6 +62,24 @@ public:
   operator const B(); // expected-warning{{conversion function converting 'B' to itself will never be used}}
 };
 
+class BaseA {};
+class DerivedA;
+
+class BaseB {
+  virtual operator BaseA &() = 0;
+  virtual operator DerivedA &() = 0;
+};
+
+class DerivedA : public BaseA, BaseB {
+  virtual operator BaseA &();    // OK. Overrides BaseB::operatorBaseA&()
+  virtual operator DerivedA &(); // OK. Overrides BaseB::operatorDerivedA&()
+};
+
+class DerivedB : public BaseA {
+  virtual operator DerivedB &(); // expected-warning{{conversion function converting 'DerivedB' to itself will never be used}}
+  virtual operator BaseA &();    // expected-warning{{conversion function converting 'DerivedB' to its base class 'BaseA' will never be used}}
+};
+
 // This used to crash Clang.
 struct Flip;
 struct Flop {
@@ -211,7 +229,7 @@ namespace smart_ptr {
   // expected-note@-2 {{candidate constructor (the implicit move constructor) not}}
 #endif
 
-    explicit X(Y);
+    explicit X(Y); // expected-note {{not a candidate}}
   };
 
   Y make_Y();
@@ -330,7 +348,7 @@ namespace rdar8018274 {
   };
 
   void test2(UeberDerived ud) {
-    int i = ud; // expected-error{{ambiguous conversion from derived class 'rdar8018274::SuperDerived' to base class 'rdar8018274::Base'}}
+    int i = ud; // expected-error{{ambiguous conversion from derived class 'rdar8018274::UeberDerived' to base class 'rdar8018274::Base'}}
   }
 
   struct Base2 {

@@ -1,19 +1,18 @@
 //===-- Watchpoint.h --------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Watchpoint_h_
-#define liblldb_Watchpoint_h_
+#ifndef LLDB_BREAKPOINT_WATCHPOINT_H
+#define LLDB_BREAKPOINT_WATCHPOINT_H
 
 #include <memory>
 #include <string>
 
-#include "lldb/Breakpoint/StoppointLocation.h"
+#include "lldb/Breakpoint/StoppointSite.h"
 #include "lldb/Breakpoint/WatchpointOptions.h"
 #include "lldb/Symbol/CompilerType.h"
 #include "lldb/Target/Target.h"
@@ -23,7 +22,7 @@
 namespace lldb_private {
 
 class Watchpoint : public std::enable_shared_from_this<Watchpoint>,
-                   public StoppointLocation {
+                   public StoppointSite {
 public:
   class WatchpointEventData : public EventData {
   public:
@@ -32,9 +31,9 @@ public:
 
     ~WatchpointEventData() override;
 
-    static const ConstString &GetFlavorString();
+    static ConstString GetFlavorString();
 
-    const ConstString &GetFlavor() const override;
+    ConstString GetFlavor() const override;
 
     lldb::WatchpointEventType GetWatchpointEventType() const;
 
@@ -55,7 +54,8 @@ public:
     lldb::WatchpointEventType m_watchpoint_event;
     lldb::WatchpointSP m_new_watchpoint_sp;
 
-    DISALLOW_COPY_AND_ASSIGN(WatchpointEventData);
+    WatchpointEventData(const WatchpointEventData &) = delete;
+    const WatchpointEventData &operator=(const WatchpointEventData &) = delete;
   };
 
   Watchpoint(Target &target, lldb::addr_t addr, uint32_t size,
@@ -70,7 +70,6 @@ public:
   // This doesn't really enable/disable the watchpoint.   It is currently just
   // for use in the Process plugin's {Enable,Disable}Watchpoint, which should
   // be used instead.
-  
   void SetEnabled(bool enabled, bool notify = true);
 
   bool IsHardware() const override;
@@ -98,30 +97,22 @@ public:
   Target &GetTarget() { return m_target; }
   const Status &GetError() { return m_error; }
 
-  //------------------------------------------------------------------
   /// Returns the WatchpointOptions structure set for this watchpoint.
   ///
-  /// @return
+  /// \return
   ///     A pointer to this watchpoint's WatchpointOptions.
-  //------------------------------------------------------------------
   WatchpointOptions *GetOptions() { return &m_options; }
 
-  //------------------------------------------------------------------
   /// Set the callback action invoked when the watchpoint is hit.
   ///
-  /// @param[in] callback
+  /// \param[in] callback
   ///    The method that will get called when the watchpoint is hit.
-  /// @param[in] callback_baton
+  /// \param[in] callback_baton
   ///    A void * pointer that will get passed back to the callback function.
-  /// @param[in] is_synchronous
+  /// \param[in] is_synchronous
   ///    If \b true the callback will be run on the private event thread
   ///    before the stop event gets reported.  If false, the callback will get
   ///    handled on the public event thread after the stop has been posted.
-  ///
-  /// @return
-  ///    \b true if the process should stop when you hit the watchpoint.
-  ///    \b false if it should continue.
-  //------------------------------------------------------------------
   void SetCallback(WatchpointHitCallback callback, void *callback_baton,
                    bool is_synchronous = false);
 
@@ -131,36 +122,28 @@ public:
 
   void ClearCallback();
 
-  //------------------------------------------------------------------
   /// Invoke the callback action when the watchpoint is hit.
   ///
-  /// @param[in] context
+  /// \param[in] context
   ///     Described the watchpoint event.
   ///
-  /// @return
+  /// \return
   ///     \b true if the target should stop at this watchpoint and \b false not.
-  //------------------------------------------------------------------
   bool InvokeCallback(StoppointCallbackContext *context);
 
-  //------------------------------------------------------------------
   // Condition
-  //------------------------------------------------------------------
-  //------------------------------------------------------------------
   /// Set the watchpoint's condition.
   ///
-  /// @param[in] condition
+  /// \param[in] condition
   ///    The condition expression to evaluate when the watchpoint is hit.
   ///    Pass in nullptr to clear the condition.
-  //------------------------------------------------------------------
   void SetCondition(const char *condition);
 
-  //------------------------------------------------------------------
   /// Return a pointer to the text of the condition expression.
   ///
-  /// @return
+  /// \return
   ///    A pointer to the condition expression text, or nullptr if no
   //     condition has been set.
-  //------------------------------------------------------------------
   const char *GetConditionText() const;
 
   void TurnOnEphemeralMode();
@@ -175,11 +158,9 @@ private:
   friend class Target;
   friend class WatchpointList;
 
-  void ResetHitCount() { m_hit_count = 0; }
-
   void ResetHistoricValues() {
-    m_old_value_sp.reset(nullptr);
-    m_new_value_sp.reset(nullptr);
+    m_old_value_sp.reset();
+    m_new_value_sp.reset();
   }
 
   Target &m_target;
@@ -214,17 +195,18 @@ private:
                  // the callback machinery.
   bool m_being_created;
 
-  std::unique_ptr<UserExpression> m_condition_ap; // The condition to test.
+  std::unique_ptr<UserExpression> m_condition_up; // The condition to test.
 
-  void SetID(lldb::watch_id_t id) { m_loc_id = id; }
+  void SetID(lldb::watch_id_t id) { m_id = id; }
 
   void SendWatchpointChangedEvent(lldb::WatchpointEventType eventKind);
 
   void SendWatchpointChangedEvent(WatchpointEventData *data);
 
-  DISALLOW_COPY_AND_ASSIGN(Watchpoint);
+  Watchpoint(const Watchpoint &) = delete;
+  const Watchpoint &operator=(const Watchpoint &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_Watchpoint_h_
+#endif // LLDB_BREAKPOINT_WATCHPOINT_H

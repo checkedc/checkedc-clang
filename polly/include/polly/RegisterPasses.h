@@ -1,9 +1,8 @@
 //===------ polly/RegisterPasses.h - Register the Polly passes *- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -14,9 +13,10 @@
 #ifndef POLLY_REGISTER_PASSES_H
 #define POLLY_REGISTER_PASSES_H
 
-#include "llvm/IR/LegacyPassManager.h"
-
 namespace llvm {
+class PassRegistry;
+class PassBuilder;
+struct PassPluginLibraryInfo;
 namespace legacy {
 class PassManagerBase;
 } // namespace legacy
@@ -24,6 +24,9 @@ class PassManagerBase;
 
 namespace polly {
 void initializePollyPasses(llvm::PassRegistry &Registry);
-void registerPollyPasses(llvm::legacy::PassManagerBase &PM);
+void registerPollyPasses(llvm::PassBuilder &PB);
 } // namespace polly
+
+llvm::PassPluginLibraryInfo getPollyPluginInfo();
+
 #endif

@@ -1,9 +1,8 @@
 //===-- DNBDataRef.h --------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -20,8 +19,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __DNBDataRef_h__
-#define __DNBDataRef_h__
+#ifndef LLDB_TOOLS_DEBUGSERVER_SOURCE_DNBDATAREF_H
+#define LLDB_TOOLS_DEBUGSERVER_SOURCE_DNBDATAREF_H
 
 #include "DNBDefs.h"
 #include <limits.h>
@@ -32,7 +31,7 @@
 class DNBDataRef {
 public:
   // For use with Dump
-  typedef enum {
+  enum Type {
     TypeUInt8 = 0,
     TypeChar,
     TypeUInt16,
@@ -41,7 +40,7 @@ public:
     TypePointer,
     TypeULEB128,
     TypeSLEB128
-  } Type;
+  };
   typedef uint32_t offset_t;
   typedef nub_addr_t addr_t;
 
@@ -122,4 +121,4 @@ protected:
   addr_t m_addrDATA;
 };
 
-#endif // #ifndef __DNBDataRef_h__
+#endif // LLDB_TOOLS_DEBUGSERVER_SOURCE_DNBDATAREF_H

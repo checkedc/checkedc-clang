@@ -1,9 +1,8 @@
 //===-- AMDGPUNoteType.h - AMDGPU ELF PT_NOTE section info-------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -17,6 +16,7 @@
 #ifndef LLVM_LIB_TARGET_AMDGPU_AMDGPUPTNOTE_H
 #define LLVM_LIB_TARGET_AMDGPU_AMDGPUPTNOTE_H
 
+namespace llvm {
 namespace AMDGPU {
 
 namespace ElfNote {
@@ -42,7 +42,7 @@ enum NoteType{
     NT_AMDGPU_HSA_HLDEBUG_TARGET = 102
 };
 
-}
-}
-
+} // End namespace ElfNote
+} // End namespace AMDGPU
+} // End namespace llvm
 #endif // LLVM_LIB_TARGET_AMDGPU_AMDGPUNOTETYPE_H

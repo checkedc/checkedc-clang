@@ -1,9 +1,8 @@
 //===- Timer.h ----------------------------------------------*- C++ -*-===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -13,6 +12,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringRef.h"
 #include <assert.h>
+#include <atomic>
 #include <chrono>
 #include <map>
 #include <memory>
@@ -22,36 +22,35 @@ namespace lld {
 class Timer;
 
 struct ScopedTimer {
-  explicit ScopedTimer(Timer &T);
+  explicit ScopedTimer(Timer &t);
 
   ~ScopedTimer();
 
   void stop();
 
-  Timer *T = nullptr;
+  std::chrono::time_point<std::chrono::high_resolution_clock> startTime;
+
+  Timer *t = nullptr;
 };
 
 class Timer {
 public:
-  Timer(llvm::StringRef Name, Timer &Parent);
+  Timer(llvm::StringRef name, Timer &parent);
 
   static Timer &root();
 
-  void start();
-  void stop();
+  void addToTotal(std::chrono::nanoseconds time) { total += time.count(); }
   void print();
 
   double millis() const;
 
 private:
-  explicit Timer(llvm::StringRef Name);
-  void print(int Depth, double TotalDuration, bool Recurse = true) const;
+  explicit Timer(llvm::StringRef name);
+  void print(int depth, double totalDuration, bool recurse = true) const;
 
-  std::chrono::time_point<std::chrono::high_resolution_clock> StartTime;
-  std::chrono::nanoseconds Total;
-  std::vector<Timer *> Children;
-  std::string Name;
-  Timer *Parent;
+  std::atomic<std::chrono::nanoseconds::rep> total;
+  std::vector<Timer *> children;
+  std::string name;
 };
 
 } // namespace lld

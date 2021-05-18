@@ -1,41 +1,28 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 // test aligned operator delete replacement.
 
-// UNSUPPORTED: sanitizer-new-delete, c++98, c++03, c++11, c++14
-
-// Older Clang versions do not support this
-// UNSUPPORTED: clang-3, apple-clang-7, apple-clang-8
+// UNSUPPORTED: sanitizer-new-delete, c++03, c++11, c++14
 
 // None of the current GCC compilers support this.
 // UNSUPPORTED: gcc-5, gcc-6
 
-// Aligned allocation was not provided before macosx10.12 and as a result we
-// get availability errors when the deployment target is older than macosx10.13.
-// However, AppleClang 10 (and older) don't trigger availability errors.
-// XFAIL: !(apple-clang-9 || apple-clang-10) && availability=macosx10.12
-// XFAIL: !(apple-clang-9 || apple-clang-10) && availability=macosx10.11
-// XFAIL: !(apple-clang-9 || apple-clang-10) && availability=macosx10.10
-// XFAIL: !(apple-clang-9 || apple-clang-10) && availability=macosx10.9
-// XFAIL: !(apple-clang-9 || apple-clang-10) && availability=macosx10.8
-// XFAIL: !(apple-clang-9 || apple-clang-10) && availability=macosx10.7
-
-// On AppleClang 10 (and older), instead of getting an availability failure
-// like above, we get a link error when we link against a dylib that does
-// not export the aligned allocation functions.
-// XFAIL: (apple-clang-9 || apple-clang-10) && with_system_cxx_lib=macosx10.12
-// XFAIL: (apple-clang-9 || apple-clang-10) && with_system_cxx_lib=macosx10.11
-// XFAIL: (apple-clang-9 || apple-clang-10) && with_system_cxx_lib=macosx10.10
-// XFAIL: (apple-clang-9 || apple-clang-10) && with_system_cxx_lib=macosx10.9
-// XFAIL: (apple-clang-9 || apple-clang-10) && with_system_cxx_lib=macosx10.8
-// XFAIL: (apple-clang-9 || apple-clang-10) && with_system_cxx_lib=macosx10.7
+// Aligned allocation was not provided before macosx10.14 and as a result we
+// get availability errors when the deployment target is older than macosx10.14.
+// However, support for that was broken prior to Clang 8 and AppleClang 11.
+// UNSUPPORTED: apple-clang-9, apple-clang-10
+// UNSUPPORTED: clang-5, clang-6, clang-7
+// XFAIL: with_system_cxx_lib=macosx10.13
+// XFAIL: with_system_cxx_lib=macosx10.12
+// XFAIL: with_system_cxx_lib=macosx10.11
+// XFAIL: with_system_cxx_lib=macosx10.10
+// XFAIL: with_system_cxx_lib=macosx10.9
 
 // On Windows libc++ doesn't provide its own definitions for new/delete
 // but instead depends on the ones in VCRuntime. However VCRuntime does not
@@ -82,7 +69,7 @@ void operator delete [] (void* p, std::align_val_t) TEST_NOEXCEPT
 struct alignas(OverAligned) A {};
 struct alignas(std::max_align_t) B {};
 
-int main()
+int main(int, char**)
 {
     reset();
     {
@@ -112,4 +99,6 @@ int main()
         assert(0 == unsized_delete_nothrow_called);
         assert(1 == aligned_delete_called);
     }
+
+  return 0;
 }

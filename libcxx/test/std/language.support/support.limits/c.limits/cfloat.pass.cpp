@@ -1,13 +1,15 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
- // test cfloat
+// Before Clang 9.0, <float.h> does not define FLT_HAS_SUBNORM & friends in C++.
+// XFAIL: clang-4, clang-5, clang-6, clang-7, clang-8
+
+// test cfloat
 
 #include <cfloat>
 
@@ -25,7 +27,7 @@
 #error FLT_RADIX not defined
 #endif
 
-#if TEST_STD_VER > 14 && defined(TEST_HAS_C11_FEATURES) && 0
+#if TEST_STD_VER > 14
 #ifndef FLT_HAS_SUBNORM
 #error FLT_HAS_SUBNORM not defined
 #endif
@@ -55,7 +57,7 @@
 #error DECIMAL_DIG not defined
 #endif
 
-#if TEST_STD_VER > 14 && defined(TEST_HAS_C11_FEATURES) && 0
+#if TEST_STD_VER > 14
 #ifndef FLT_DECIMAL_DIG
 #error FLT_DECIMAL_DIG not defined
 #endif
@@ -165,7 +167,7 @@
 #error LDBL_MIN not defined
 #endif
 
-#if TEST_STD_VER > 14 && defined(TEST_HAS_C11_FEATURES) && 0
+#if TEST_STD_VER > 14
 #ifndef FLT_TRUE_MIN
 #error FLT_TRUE_MIN not defined
 #endif
@@ -179,6 +181,8 @@
 #endif
 #endif
 
-int main()
+int main(int, char**)
 {
+
+  return 0;
 }

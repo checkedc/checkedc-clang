@@ -1,9 +1,8 @@
 //===- IslAst.h - Interface to the isl code generator -----------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -22,34 +21,14 @@
 #ifndef POLLY_ISLAST_H
 #define POLLY_ISLAST_H
 
-#include "polly/Config/config.h"
 #include "polly/ScopPass.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/PassManager.h"
-#include "isl/ast.h"
 #include "isl/ctx.h"
-#include <memory>
-
-namespace llvm {
-
-class PassRegistry;
-class raw_ostream;
-
-void initializeIslAstInfoWrapperPassPass(PassRegistry &);
-} // namespace llvm
-
-struct isl_ast_build;
-struct isl_ast_expr;
-struct isl_ast_node;
-struct isl_pw_aff;
-struct isl_pw_multi_aff;
-struct isl_union_map;
 
 namespace polly {
 
 struct Dependences;
-class MemoryAccess;
-class Scop;
 
 class IslAst {
 public:

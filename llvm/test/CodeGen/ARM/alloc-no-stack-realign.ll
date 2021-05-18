@@ -5,7 +5,7 @@
 ; objects that are assumed to be 64-byte aligned.
 @T3_retval = common global <16 x float> zeroinitializer, align 16
 
-define void @test1(<16 x float>* noalias sret %agg.result) nounwind ssp "no-realign-stack" {
+define void @test1(<16 x float>* noalias sret(<16 x float>) %agg.result) nounwind ssp "no-realign-stack" {
 entry:
 ; CHECK-LABEL: test1:
 ; CHECK: ldr     r[[R1:[0-9]+]], [pc, r[[R1]]]
@@ -34,7 +34,7 @@ entry:
 ; CHECK: vst1.64 {{{d[0-9]+}}, {{d[0-9]+}}}, [r[[R1]]:128]
 ; CHECK: vst1.32 {{{d[0-9]+}}, {{d[0-9]+}}}, [r0:128]!
 ; CHECK: vst1.64 {{{d[0-9]+}}, {{d[0-9]+}}}, [r0:128]
- %retval = alloca <16 x float>, align 16
+ %retval = alloca <16 x float>, align 64
  %0 = load <16 x float>, <16 x float>* @T3_retval, align 16
  store <16 x float> %0, <16 x float>* %retval
  %1 = load <16 x float>, <16 x float>* %retval
@@ -42,7 +42,7 @@ entry:
  ret void
 }
 
-define void @test2(<16 x float>* noalias sret %agg.result) nounwind ssp {
+define void @test2(<16 x float>* noalias sret(<16 x float>) %agg.result) nounwind ssp {
 entry:
 ; CHECK-LABEL: test2:
 ; CHECK: ldr     r[[R1:[0-9]+]], [pc, r[[R1]]]
@@ -73,7 +73,7 @@ entry:
 ; CHECK: vst1.64 {{{d[0-9]+}}, {{d[0-9]+}}}, [r0:128]
 
 
-%retval = alloca <16 x float>, align 16
+%retval = alloca <16 x float>, align 64
  %0 = load <16 x float>, <16 x float>* @T3_retval, align 16
  store <16 x float> %0, <16 x float>* %retval
  %1 = load <16 x float>, <16 x float>* %retval

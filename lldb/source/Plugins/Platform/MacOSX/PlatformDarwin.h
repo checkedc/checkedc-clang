@@ -1,19 +1,21 @@
 //===-- PlatformDarwin.h ----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_PlatformDarwin_h_
-#define liblldb_PlatformDarwin_h_
-
+#ifndef LLDB_SOURCE_PLUGINS_PLATFORM_MACOSX_PLATFORMDARWIN_H
+#define LLDB_SOURCE_PLUGINS_PLATFORM_MACOSX_PLATFORMDARWIN_H
 
 #include "Plugins/Platform/POSIX/PlatformPOSIX.h"
 #include "lldb/Host/FileSystem.h"
+#include "lldb/Host/ProcessLaunchInfo.h"
+#include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/FileSpec.h"
+#include "lldb/Utility/StructuredData.h"
+#include "lldb/Utility/XcodeSDK.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/FileSystem.h"
 
@@ -26,9 +28,12 @@ public:
 
   ~PlatformDarwin() override;
 
-  //------------------------------------------------------------
+  lldb_private::Status PutFile(const lldb_private::FileSpec &source,
+                               const lldb_private::FileSpec &destination,
+                               uint32_t uid = UINT32_MAX,
+                               uint32_t gid = UINT32_MAX) override;
+
   // lldb_private::Platform functions
-  //------------------------------------------------------------
   lldb_private::Status
   ResolveSymbolFile(lldb_private::Target &target,
                     const lldb_private::ModuleSpec &sym_spec,
@@ -42,7 +47,7 @@ public:
   GetSharedModule(const lldb_private::ModuleSpec &module_spec,
                   lldb_private::Process *process, lldb::ModuleSP &module_sp,
                   const lldb_private::FileSpecList *module_search_paths_ptr,
-                  lldb::ModuleSP *old_module_sp_ptr,
+                  llvm::SmallVectorImpl<lldb::ModuleSP> *old_modules,
                   bool *did_create_ptr) override;
 
   size_t GetSoftwareBreakpointTrapOpcode(
@@ -61,8 +66,13 @@ public:
   bool x86GetSupportedArchitectureAtIndex(uint32_t idx,
                                           lldb_private::ArchSpec &arch);
 
-  int32_t GetResumeCountForLaunchInfo(
+  uint32_t GetResumeCountForLaunchInfo(
       lldb_private::ProcessLaunchInfo &launch_info) override;
+
+  lldb::ProcessSP DebugProcess(lldb_private::ProcessLaunchInfo &launch_info,
+                               lldb_private::Debugger &debugger,
+                               lldb_private::Target *target,
+                               lldb_private::Status &error) override;
 
   void CalculateTrapHandlerSymbolNames() override;
 
@@ -82,13 +92,45 @@ public:
   static std::tuple<llvm::VersionTuple, llvm::StringRef>
   ParseVersionBuildDir(llvm::StringRef str);
 
-  enum SDKType : unsigned {
-    MacOSX = 0,
-    iPhoneSimulator,
-    iPhoneOS,
-  };
+  llvm::Expected<lldb_private::StructuredData::DictionarySP>
+  FetchExtendedCrashInformation(lldb_private::Process &process) override;
+
+  /// Return the toolchain directory the current LLDB instance is located in.
+  static lldb_private::FileSpec GetCurrentToolchainDirectory();
+
+  /// Return the command line tools directory the current LLDB instance is
+  /// located in.
+  static lldb_private::FileSpec GetCurrentCommandLineToolsDirectory();
 
 protected:
+  struct CrashInfoAnnotations {
+    uint64_t version;          // unsigned long
+    uint64_t message;          // char *
+    uint64_t signature_string; // char *
+    uint64_t backtrace;        // char *
+    uint64_t message2;         // char *
+    uint64_t thread;           // uint64_t
+    uint64_t dialog_mode;      // unsigned int
+    uint64_t abort_cause;      // unsigned int
+  };
+
+  /// Extract the `__crash_info` annotations from each of of the target's
+  /// modules.
+  ///
+  /// If the platform have a crashed processes with a `__crash_info` section,
+  /// extract the section to gather the messages annotations and the abort
+  /// cause.
+  ///
+  /// \param[in] process
+  ///     The crashed process.
+  ///
+  /// \return
+  ///     A  structured data array containing at each entry in each entry, the
+  ///     module spec, its UUID, the crash messages and the abort cause.
+  ///     \b nullptr if process has no crash information annotations.
+  lldb_private::StructuredData::ArraySP
+  ExtractCrashInfoAnnotations(lldb_private::Process &process);
+
   void ReadLibdispatchOffsetsAddress(lldb_private::Process *process);
 
   void ReadLibdispatchOffsets(lldb_private::Process *process);
@@ -96,16 +138,11 @@ protected:
   virtual lldb_private::Status GetSharedModuleWithLocalCache(
       const lldb_private::ModuleSpec &module_spec, lldb::ModuleSP &module_sp,
       const lldb_private::FileSpecList *module_search_paths_ptr,
-      lldb::ModuleSP *old_module_sp_ptr, bool *did_create_ptr);
-
-  static bool SDKSupportsModules(SDKType sdk_type, llvm::VersionTuple version);
-
-  static bool SDKSupportsModules(SDKType desired_type,
-                                 const lldb_private::FileSpec &sdk_path);
+      llvm::SmallVectorImpl<lldb::ModuleSP> *old_modules, bool *did_create_ptr);
 
   struct SDKEnumeratorInfo {
     lldb_private::FileSpec found_path;
-    SDKType sdk_type;
+    lldb_private::XcodeSDK::Type sdk_type;
   };
 
   static lldb_private::FileSystem::EnumerateDirectoryResult
@@ -113,29 +150,32 @@ protected:
                       llvm::StringRef path);
 
   static lldb_private::FileSpec
-  FindSDKInXcodeForModules(SDKType sdk_type,
+  FindSDKInXcodeForModules(lldb_private::XcodeSDK::Type sdk_type,
                            const lldb_private::FileSpec &sdks_spec);
 
   static lldb_private::FileSpec
-  GetSDKDirectoryForModules(PlatformDarwin::SDKType sdk_type);
+  GetSDKDirectoryForModules(lldb_private::XcodeSDK::Type sdk_type);
 
-  void
-  AddClangModuleCompilationOptionsForSDKType(lldb_private::Target *target,
-                                             std::vector<std::string> &options,
-                                             SDKType sdk_type);
+  void AddClangModuleCompilationOptionsForSDKType(
+      lldb_private::Target *target, std::vector<std::string> &options,
+      lldb_private::XcodeSDK::Type sdk_type);
 
-  const char *GetDeveloperDirectory();
+  lldb_private::Status FindBundleBinaryInExecSearchPaths(
+      const lldb_private::ModuleSpec &module_spec,
+      lldb_private::Process *process, lldb::ModuleSP &module_sp,
+      const lldb_private::FileSpecList *module_search_paths_ptr,
+      llvm::SmallVectorImpl<lldb::ModuleSP> *old_modules, bool *did_create_ptr);
 
-  lldb_private::Status
-  FindBundleBinaryInExecSearchPaths (const lldb_private::ModuleSpec &module_spec, lldb_private::Process *process,
-                                     lldb::ModuleSP &module_sp, const lldb_private::FileSpecList *module_search_paths_ptr, 
-                                     lldb::ModuleSP *old_module_sp_ptr, bool *did_create_ptr);
+  static std::string FindComponentInPath(llvm::StringRef path,
+                                         llvm::StringRef component);
 
   std::string m_developer_directory;
-
+  llvm::StringMap<std::string> m_sdk_path;
+  std::mutex m_sdk_path_mutex;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(PlatformDarwin);
+  PlatformDarwin(const PlatformDarwin &) = delete;
+  const PlatformDarwin &operator=(const PlatformDarwin &) = delete;
 };
 
-#endif // liblldb_PlatformDarwin_h_
+#endif // LLDB_SOURCE_PLUGINS_PLATFORM_MACOSX_PLATFORMDARWIN_H

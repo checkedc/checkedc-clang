@@ -1,14 +1,13 @@
 // -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
 // <variant>
 
@@ -21,12 +20,12 @@
 #include <type_traits>
 #include <variant>
 
-#include "archetypes.hpp"
+#include "archetypes.h"
 #include "test_macros.h"
-#include "variant_test_helpers.hpp"
+#include "variant_test_helpers.h"
 
 
-int main() {
+int main(int, char**) {
   {
     using V = std::variant<int, long>;
     constexpr V v;
@@ -51,4 +50,6 @@ int main() {
     assert(v.valueless_by_exception());
   }
 #endif
+
+  return 0;
 }

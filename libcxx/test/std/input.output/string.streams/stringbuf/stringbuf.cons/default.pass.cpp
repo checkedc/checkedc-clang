@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -12,10 +11,17 @@
 // template <class charT, class traits = char_traits<charT>, class Allocator = allocator<charT> >
 // class basic_stringbuf
 
-// explicit basic_stringbuf(ios_base::openmode which = ios_base::in | ios_base::out);
+// explicit basic_stringbuf(ios_base::openmode which = ios_base::in | ios_base::out); // before C++20
+// basic_stringbuf() : basic_stringbuf(ios_base::in | ios_base::out) {}               // C++20
+// explicit basic_stringbuf(ios_base::openmode which);                                // C++20
 
 #include <sstream>
 #include <cassert>
+
+#include "test_macros.h"
+#if TEST_STD_VER >= 11
+#include "test_convertible.h"
+#endif
 
 template<typename CharT>
 struct testbuf
@@ -32,7 +38,7 @@ struct testbuf
     }
 };
 
-int main()
+int main(int, char**)
 {
     {
         std::stringbuf buf;
@@ -50,4 +56,14 @@ int main()
         testbuf<wchar_t> buf;
         buf.check();
     }
+
+#if TEST_STD_VER >= 11
+    {
+      typedef std::stringbuf B;
+      static_assert(test_convertible<B>(), "");
+      static_assert(!test_convertible<B, std::ios_base::openmode>(), "");
+    }
+#endif
+
+    return 0;
 }

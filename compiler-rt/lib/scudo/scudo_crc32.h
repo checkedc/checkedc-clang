@@ -1,9 +1,8 @@
 //===-- scudo_crc32.h -------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -86,7 +85,7 @@ static const u32 CRC32Table[] = {
   0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
 };
 
-INLINE u32 computeSoftwareCRC32(u32 Crc, uptr Data) {
+inline u32 computeSoftwareCRC32(u32 Crc, uptr Data) {
   for (uptr i = 0; i < sizeof(Data); i++) {
     Crc = CRC32Table[(Crc ^ Data) & 0xff] ^ (Crc >> 8);
     Data >>= 8;

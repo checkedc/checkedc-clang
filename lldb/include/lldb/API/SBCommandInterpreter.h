@@ -1,14 +1,13 @@
 //===-- SBCommandInterpreter.h ----------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_SBCommandInterpreter_h_
-#define LLDB_SBCommandInterpreter_h_
+#ifndef LLDB_API_SBCOMMANDINTERPRETER_H
+#define LLDB_API_SBCOMMANDINTERPRETER_H
 
 #include <memory>
 
@@ -16,52 +15,6 @@
 #include "lldb/API/SBDefines.h"
 
 namespace lldb {
-
-class LLDB_API SBCommandInterpreterRunOptions {
-  friend class SBDebugger;
-  friend class SBCommandInterpreter;
-
-public:
-  SBCommandInterpreterRunOptions();
-  ~SBCommandInterpreterRunOptions();
-
-  bool GetStopOnContinue() const;
-
-  void SetStopOnContinue(bool);
-
-  bool GetStopOnError() const;
-
-  void SetStopOnError(bool);
-
-  bool GetStopOnCrash() const;
-
-  void SetStopOnCrash(bool);
-
-  bool GetEchoCommands() const;
-
-  void SetEchoCommands(bool);
-
-  bool GetEchoCommentCommands() const;
-
-  void SetEchoCommentCommands(bool echo);
-
-  bool GetPrintResults() const;
-
-  void SetPrintResults(bool);
-
-  bool GetAddToHistory() const;
-
-  void SetAddToHistory(bool);
-
-private:
-  lldb_private::CommandInterpreterRunOptions *get() const;
-
-  lldb_private::CommandInterpreterRunOptions &ref() const;
-
-  // This is set in the constructor and will always be valid.
-  mutable std::unique_ptr<lldb_private::CommandInterpreterRunOptions>
-      m_opaque_up;
-};
 
 class SBCommandInterpreter {
 public:
@@ -88,6 +41,8 @@ public:
 
   static bool EventIsCommandInterpreterEvent(const lldb::SBEvent &event);
 
+  explicit operator bool() const;
+
   bool IsValid() const;
 
   bool CommandExists(const char *cmd);
@@ -110,15 +65,89 @@ public:
 
   lldb::SBCommand AddMultiwordCommand(const char *name, const char *help);
 
+  /// Add a new command to the lldb::CommandInterpreter.
+  ///
+  /// The new command won't support autorepeat. If you need this functionality,
+  /// use the override of this function that accepts the \a auto_repeat_command
+  /// parameter.
+  ///
+  /// \param[in] name
+  ///     The name of the command.
+  ///
+  /// \param[in] impl
+  ///     The handler of this command.
+  ///
+  /// \param[in] help
+  ///     The general description to show as part of the help message of this
+  ///     command.
+  ///
+  /// \return
+  ///     A lldb::SBCommand representing the newly created command.
   lldb::SBCommand AddCommand(const char *name,
                              lldb::SBCommandPluginInterface *impl,
                              const char *help);
 
+  /// Add a new command to the lldb::CommandInterpreter.
+  ///
+  /// The new command won't support autorepeat. If you need this functionality,
+  /// use the override of this function that accepts the \a auto_repeat_command
+  /// parameter.
+  ///
+  /// \param[in] name
+  ///     The name of the command.
+  ///
+  /// \param[in] impl
+  ///     The handler of this command.
+  ///
+  /// \param[in] help
+  ///     The general description to show as part of the help message of this
+  ///     command.
+  ///
+  /// \param[in] syntax
+  ///     The syntax to show as part of the help message of this command. This
+  ///     could include a description of the different arguments and flags this
+  ///     command accepts.
+  ///
+  /// \return
+  ///     A lldb::SBCommand representing the newly created command.
   lldb::SBCommand AddCommand(const char *name,
                              lldb::SBCommandPluginInterface *impl,
                              const char *help, const char *syntax);
 
+  /// Add a new command to the lldb::CommandInterpreter.
+  ///
+  /// \param[in] name
+  ///     The name of the command.
+  ///
+  /// \param[in] impl
+  ///     The handler of this command.
+  ///
+  /// \param[in] help
+  ///     The general description to show as part of the help message of this
+  ///     command.
+  ///
+  /// \param[in] syntax
+  ///     The syntax to show as part of the help message of this command. This
+  ///     could include a description of the different arguments and flags this
+  ///     command accepts.
+  ///
+  /// \param[in] auto_repeat_command
+  ///     Autorepeating is triggered when the user presses Enter successively
+  ///     after executing a command. If \b nullptr is provided, the previous
+  ///     exact command will be repeated. If \b "" is provided, autorepeating
+  ///     is disabled. Otherwise, the provided string is used as a repeat
+  ///     command.
+  ///
+  /// \return
+  ///     A lldb::SBCommand representing the newly created command.
+  lldb::SBCommand AddCommand(const char *name,
+                             lldb::SBCommandPluginInterface *impl,
+                             const char *help, const char *syntax,
+                             const char *auto_repeat_command);
+
   void SourceInitFileInHomeDirectory(lldb::SBCommandReturnObject &result);
+  void SourceInitFileInHomeDirectory(lldb::SBCommandReturnObject &result,
+                                     bool is_repl);
 
   void
   SourceInitFileInCurrentWorkingDirectory(lldb::SBCommandReturnObject &result);
@@ -189,16 +218,13 @@ public:
       lldb_private::CommandInterpreter *interpreter_ptr =
           nullptr); // Access using SBDebugger::GetCommandInterpreter();
 
-  //----------------------------------------------------------------------
   /// Return true if the command interpreter is the active IO handler.
   ///
   /// This indicates that any input coming into the debugger handles will
   /// go to the command interpreter and will result in LLDB command line
   /// commands being executed.
-  //----------------------------------------------------------------------
   bool IsActive();
 
-  //----------------------------------------------------------------------
   /// Get the string that needs to be written to the debugger stdin file
   /// handle when a control character is typed.
   ///
@@ -207,43 +233,34 @@ public:
   /// terminal, so this function allows GUI programs to emulate this
   /// functionality.
   ///
-  /// @param[in] ch
+  /// \param[in] ch
   ///     The character that was typed along with the control key
   ///
-  /// @return
+  /// \return
   ///     The string that should be written into the file handle that is
   ///     feeding the input stream for the debugger, or nullptr if there is
   ///     no string for this control key.
-  //----------------------------------------------------------------------
   const char *GetIOHandlerControlSequence(char ch);
 
   bool GetPromptOnQuit();
 
   void SetPromptOnQuit(bool b);
 
-  //----------------------------------------------------------------------
   /// Sets whether the command interpreter should allow custom exit codes
   /// for the 'quit' command.
-  //----------------------------------------------------------------------
   void AllowExitCodeOnQuit(bool allow);
 
-  //----------------------------------------------------------------------
   /// Returns true if the user has called the 'quit' command with a custom exit
   /// code.
-  //----------------------------------------------------------------------
   bool HasCustomQuitExitCode();
 
-  //----------------------------------------------------------------------
   /// Returns the exit code that the user has specified when running the
   /// 'quit' command. Returns 0 if the user hasn't called 'quit' at all or
   /// without a custom exit code.
-  //----------------------------------------------------------------------
   int GetQuitStatus();
 
-  //----------------------------------------------------------------------
   /// Resolve the command just as HandleCommand would, expanding abbreviations
   /// and aliases.  If successful, result->GetOutput has the full expansion.
-  //----------------------------------------------------------------------
   void ResolveCommand(const char *command_line, SBCommandReturnObject &result);
 
 protected:
@@ -255,8 +272,6 @@ protected:
 
 private:
   friend class SBDebugger;
-
-  static void InitializeSWIG();
 
   lldb_private::CommandInterpreter *m_opaque_ptr;
 };
@@ -274,6 +289,8 @@ public:
 class SBCommand {
 public:
   SBCommand();
+
+  explicit operator bool() const;
 
   bool IsValid();
 
@@ -294,13 +311,89 @@ public:
   lldb::SBCommand AddMultiwordCommand(const char *name,
                                       const char *help = nullptr);
 
+  /// Add a new subcommand to the lldb::SBCommand.
+  ///
+  /// The new command won't support autorepeat. If you need this functionality,
+  /// use the override of this function that accepts the \a auto_repeat
+  /// parameter.
+  ///
+  /// \param[in] name
+  ///     The name of the command.
+  ///
+  /// \param[in] impl
+  ///     The handler of this command.
+  ///
+  /// \param[in] help
+  ///     The general description to show as part of the help message of this
+  ///     command.
+  ///
+  /// \return
+  ///     A lldb::SBCommand representing the newly created command.
   lldb::SBCommand AddCommand(const char *name,
                              lldb::SBCommandPluginInterface *impl,
                              const char *help = nullptr);
 
+  /// Add a new subcommand to the lldb::SBCommand.
+  ///
+  /// The new command won't support autorepeat. If you need this functionality,
+  /// use the override of this function that accepts the \a auto_repeat_command
+  /// parameter.
+  ///
+  /// \param[in] name
+  ///     The name of the command.
+  ///
+  /// \param[in] impl
+  ///     The handler of this command.
+  ///
+  /// \param[in] help
+  ///     The general description to show as part of the help message of this
+  ///     command.
+  ///
+  /// \param[in] syntax
+  ///     The syntax to show as part of the help message of this command. This
+  ///     could include a description of the different arguments and flags this
+  ///     command accepts.
+  ///
+  /// \return
+  ///     A lldb::SBCommand representing the newly created command.
   lldb::SBCommand AddCommand(const char *name,
                              lldb::SBCommandPluginInterface *impl,
                              const char *help, const char *syntax);
+
+  /// Add a new subcommand to the lldb::SBCommand.
+  ///
+  /// The new command won't support autorepeat. If you need this functionality,
+  /// use the override of this function that accepts the \a auto_repeat_command
+  /// parameter.
+  ///
+  /// \param[in] name
+  ///     The name of the command.
+  ///
+  /// \param[in] impl
+  ///     The handler of this command.
+  ///
+  /// \param[in] help
+  ///     The general description to show as part of the help message of this
+  ///     command.
+  ///
+  /// \param[in] syntax
+  ///     The syntax to show as part of the help message of this command. This
+  ///     could include a description of the different arguments and flags this
+  ///     command accepts.
+  ///
+  /// \param[in] auto_repeat_command
+  ///     Autorepeating is triggered when the user presses Enter successively
+  ///     after executing a command. If \b nullptr is provided, the previous
+  ///     exact command will be repeated. If \b "" is provided, autorepeating
+  ///     is disabled. Otherwise, the provided string is used as a repeat
+  ///     command.
+  ///
+  /// \return
+  ///     A lldb::SBCommand representing the newly created command.
+  lldb::SBCommand AddCommand(const char *name,
+                             lldb::SBCommandPluginInterface *impl,
+                             const char *help, const char *syntax,
+                             const char *auto_repeat_command);
 
 private:
   friend class SBDebugger;
@@ -313,4 +406,4 @@ private:
 
 } // namespace lldb
 
-#endif // LLDB_SBCommandInterpreter_h_
+#endif // LLDB_API_SBCOMMANDINTERPRETER_H

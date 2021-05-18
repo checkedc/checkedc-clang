@@ -1,14 +1,13 @@
 //===-- NativeRegisterContext.h ---------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_NativeRegisterContext_h_
-#define liblldb_NativeRegisterContext_h_
+#ifndef LLDB_HOST_COMMON_NATIVEREGISTERCONTEXT_H
+#define LLDB_HOST_COMMON_NATIVEREGISTERCONTEXT_H
 
 #include "lldb/Host/common/NativeWatchpointList.h"
 #include "lldb/lldb-private.h"
@@ -17,12 +16,12 @@ namespace lldb_private {
 
 class NativeThreadProtocol;
 
+enum class ExpeditedRegs { Minimal, Full };
+
 class NativeRegisterContext
     : public std::enable_shared_from_this<NativeRegisterContext> {
 public:
-  //------------------------------------------------------------------
   // Constructors and Destructors
-  //------------------------------------------------------------------
   NativeRegisterContext(NativeThreadProtocol &thread);
 
   virtual ~NativeRegisterContext();
@@ -30,9 +29,7 @@ public:
   // void
   // InvalidateIfNeeded (bool force);
 
-  //------------------------------------------------------------------
   // Subclasses must override these functions
-  //------------------------------------------------------------------
   // virtual void
   // InvalidateAllRegisters () = 0;
 
@@ -61,9 +58,7 @@ public:
   uint32_t ConvertRegisterKindToRegisterNumber(uint32_t kind,
                                                uint32_t num) const;
 
-  //------------------------------------------------------------------
   // Subclasses can override these functions if desired
-  //------------------------------------------------------------------
   virtual uint32_t NumSupportedHardwareBreakpoints();
 
   virtual uint32_t SetHardwareBreakpoint(lldb::addr_t addr, size_t size);
@@ -81,6 +76,8 @@ public:
                                          uint32_t watch_flags);
 
   virtual bool ClearHardwareWatchpoint(uint32_t hw_index);
+
+  virtual Status ClearWatchpointHit(uint32_t hw_index);
 
   virtual Status ClearAllHardwareWatchpoints();
 
@@ -116,12 +113,15 @@ public:
                              lldb::addr_t dst_addr, size_t dst_len,
                              const RegisterValue &reg_value);
 
-  //------------------------------------------------------------------
   // Subclasses should not override these
-  //------------------------------------------------------------------
   virtual lldb::tid_t GetThreadID() const;
 
   virtual NativeThreadProtocol &GetThread() { return m_thread; }
+
+  virtual std::vector<uint32_t>
+  GetExpeditedRegisters(ExpeditedRegs expType) const;
+
+  virtual bool RegisterOffsetIsDynamic() const { return false; }
 
   const RegisterInfo *GetRegisterInfoByName(llvm::StringRef reg_name,
                                             uint32_t start_idx = 0);
@@ -171,21 +171,19 @@ public:
   // }
 
 protected:
-  //------------------------------------------------------------------
   // Classes that inherit from RegisterContext can see and modify these
-  //------------------------------------------------------------------
   NativeThreadProtocol
       &m_thread; // The thread that this register context belongs to.
   // uint32_t m_stop_id;             // The stop ID that any data in this
   // context is valid for
 
 private:
-  //------------------------------------------------------------------
   // For RegisterContext only
-  //------------------------------------------------------------------
-  DISALLOW_COPY_AND_ASSIGN(NativeRegisterContext);
+  NativeRegisterContext(const NativeRegisterContext &) = delete;
+  const NativeRegisterContext &
+  operator=(const NativeRegisterContext &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_NativeRegisterContext_h_
+#endif // LLDB_HOST_COMMON_NATIVEREGISTERCONTEXT_H

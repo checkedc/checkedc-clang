@@ -1,5 +1,7 @@
 ; RUN: opt -mtriple=amdgcn-unknown-amdhsa -S -amdgpu-annotate-kernel-features < %s | FileCheck -check-prefix=HSA %s
 
+target datalayout = "e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:32-p6:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5"
+
 declare i32 @llvm.amdgcn.workgroup.id.x() #0
 declare i32 @llvm.amdgcn.workgroup.id.y() #0
 declare i32 @llvm.amdgcn.workgroup.id.z() #0
@@ -11,6 +13,9 @@ declare i32 @llvm.amdgcn.workitem.id.z() #0
 declare i8 addrspace(4)* @llvm.amdgcn.dispatch.ptr() #0
 declare i8 addrspace(4)* @llvm.amdgcn.queue.ptr() #0
 declare i8 addrspace(4)* @llvm.amdgcn.kernarg.segment.ptr() #0
+
+declare i1 @llvm.amdgcn.is.shared(i8* nocapture) #2
+declare i1 @llvm.amdgcn.is.private(i8* nocapture) #2
 
 ; HSA: define amdgpu_kernel void @use_tgid_x(i32 addrspace(1)* %ptr) #1 {
 define amdgpu_kernel void @use_tgid_x(i32 addrspace(1)* %ptr) #1 {
@@ -231,10 +236,51 @@ define amdgpu_kernel void @use_flat_to_constant_addrspacecast(i32* %ptr) #1 {
   ret void
 }
 
+; HSA: define amdgpu_kernel void @use_is_shared(i8* %ptr) #11 {
+define amdgpu_kernel void @use_is_shared(i8* %ptr) #1 {
+  %is.shared = call i1 @llvm.amdgcn.is.shared(i8* %ptr)
+  %ext = zext i1 %is.shared to i32
+  store i32 %ext, i32 addrspace(1)* undef
+  ret void
+}
+
+; HSA: define amdgpu_kernel void @use_is_private(i8* %ptr) #11 {
+define amdgpu_kernel void @use_is_private(i8* %ptr) #1 {
+  %is.private = call i1 @llvm.amdgcn.is.private(i8* %ptr)
+  %ext = zext i1 %is.private to i32
+  store i32 %ext, i32 addrspace(1)* undef
+  ret void
+}
+
+; HSA: define amdgpu_kernel void @use_alloca() #13 {
+define amdgpu_kernel void @use_alloca() #1 {
+  %alloca = alloca i32, addrspace(5)
+  store i32 0, i32 addrspace(5)* %alloca
+  ret void
+}
+
+; HSA: define amdgpu_kernel void @use_alloca_non_entry_block() #13 {
+define amdgpu_kernel void @use_alloca_non_entry_block() #1 {
+entry:
+  br label %bb
+
+bb:
+  %alloca = alloca i32, addrspace(5)
+  store i32 0, i32 addrspace(5)* %alloca
+  ret void
+}
+
+; HSA: define void @use_alloca_func() #13 {
+define void @use_alloca_func() #1 {
+  %alloca = alloca i32, addrspace(5)
+  store i32 0, i32 addrspace(5)* %alloca
+  ret void
+}
+
 attributes #0 = { nounwind readnone speculatable }
 attributes #1 = { nounwind }
 
-; HSA: attributes #0 = { nounwind readnone speculatable }
+; HSA: attributes #0 = { nounwind readnone speculatable willreturn }
 ; HSA: attributes #1 = { nounwind }
 ; HSA: attributes #2 = { nounwind "amdgpu-work-group-id-y" }
 ; HSA: attributes #3 = { nounwind "amdgpu-work-group-id-z" }
@@ -247,3 +293,4 @@ attributes #1 = { nounwind }
 ; HSA: attributes #10 = { nounwind "amdgpu-dispatch-ptr" }
 ; HSA: attributes #11 = { nounwind "amdgpu-queue-ptr" }
 ; HSA: attributes #12 = { nounwind "amdgpu-kernarg-segment-ptr" }
+; HSA: attributes #13 = { nounwind "amdgpu-stack-objects" }

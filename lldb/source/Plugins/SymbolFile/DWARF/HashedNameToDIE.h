@@ -1,14 +1,13 @@
 //===-- HashedNameToDIE.h ---------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SymbolFileDWARF_HashedNameToDIE_h_
-#define SymbolFileDWARF_HashedNameToDIE_h_
+#ifndef LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_HASHEDNAMETODIE_H
+#define LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_HASHEDNAMETODIE_H
 
 #include <vector>
 
@@ -25,38 +24,49 @@ class DWARFMappedHash {
 public:
   enum AtomType : uint16_t {
     eAtomTypeNULL = 0u,
-    eAtomTypeDIEOffset = 1u, // DIE offset, check form for encoding
-    eAtomTypeCUOffset = 2u,  // DIE offset of the compiler unit header that
-                             // contains the item in question
-    eAtomTypeTag = 3u, // DW_TAG_xxx value, should be encoded as DW_FORM_data1
-                       // (if no tags exceed 255) or DW_FORM_data2
-    eAtomTypeNameFlags = 4u,   // Flags from enum NameFlags
-    eAtomTypeTypeFlags = 5u,   // Flags from enum TypeFlags,
-    eAtomTypeQualNameHash = 6u // A 32 bit hash of the full qualified name
-                               // (since all hash entries are basename only)
-    // For example a type like "std::vector<int>::iterator" would have a name of
-    // "iterator"
-    // and a 32 bit hash for "std::vector<int>::iterator" to allow us to not
-    // have to pull
-    // in debug info for a type when we know the fully qualified name.
+    /// DIE offset, check form for encoding.
+    eAtomTypeDIEOffset = 1u,
+    /// DIE offset of the compiler unit header that contains the item in
+    /// question.
+    eAtomTypeCUOffset = 2u,
+    /// DW_TAG_xxx value, should be encoded as DW_FORM_data1 (if no tags exceed
+    /// 255) or DW_FORM_data2.
+    eAtomTypeTag = 3u,
+    // Flags from enum NameFlags.
+    eAtomTypeNameFlags = 4u,
+    // Flags from enum TypeFlags.
+    eAtomTypeTypeFlags = 5u,
+    /// A 32 bit hash of the full qualified name (since all hash entries are
+    /// basename only) For example a type like "std::vector<int>::iterator"
+    /// would have a name of "iterator" and a 32 bit hash for
+    /// "std::vector<int>::iterator" to allow us to not have to pull in debug
+    /// info for a type when we know the fully qualified name.
+    eAtomTypeQualNameHash = 6u
   };
 
-  // Bit definitions for the eAtomTypeTypeFlags flags
+  /// Bit definitions for the eAtomTypeTypeFlags flags.
   enum TypeFlags {
-    // Always set for C++, only set for ObjC if this is the
-    // @implementation for class
+    /// Always set for C++, only set for ObjC if this is the
+    /// @implementation for class.
     eTypeFlagClassIsImplementation = (1u << 1)
   };
 
   struct DIEInfo {
-    dw_offset_t cu_offset;
-    dw_offset_t offset; // The DIE offset
-    dw_tag_t tag;
-    uint32_t type_flags;          // Any flags for this DIEInfo
-    uint32_t qualified_name_hash; // A 32 bit hash of the fully qualified name
+    dw_offset_t die_offset = DW_INVALID_OFFSET;
+    dw_tag_t tag = llvm::dwarf::DW_TAG_null;
 
-    DIEInfo();
-    DIEInfo(dw_offset_t c, dw_offset_t o, dw_tag_t t, uint32_t f, uint32_t h);
+    /// Any flags for this DIEInfo.
+    uint32_t type_flags = 0;
+
+    /// A 32 bit hash of the fully qualified name.
+    uint32_t qualified_name_hash = 0;
+
+    DIEInfo() = default;
+    DIEInfo(dw_offset_t o, dw_tag_t t, uint32_t f, uint32_t h);
+
+    explicit operator DIERef() const {
+      return DIERef(llvm::None, DIERef::Section::DebugInfo, die_offset);
+    }
   };
 
   struct Atom {
@@ -88,7 +98,7 @@ public:
 
     bool HashDataHasFixedByteSize() const;
 
-    // DIE offset base so die offsets in hash_data can be CU relative
+    /// DIE offset base so die offsets in hash_data can be CU relative.
     dw_offset_t die_base_offset;
     AtomArray atoms;
     uint32_t atom_mask;
@@ -105,12 +115,10 @@ public:
 
     bool Read(const lldb_private::DWARFDataExtractor &data,
               lldb::offset_t *offset_ptr, DIEInfo &hash_data) const;
-
-    void Dump(lldb_private::Stream &strm, const DIEInfo &hash_data) const;
   };
 
-  // A class for reading and using a saved hash table from a block of data
-  // in memory
+  /// A class for reading and using a saved hash table from a block of data in
+  /// memory.
   class MemoryTable
       : public MappedHash::MemoryTable<uint32_t, DWARFMappedHash::Header,
                                        DIEInfoArray> {
@@ -124,33 +132,36 @@ public:
     bool ReadHashData(uint32_t hash_data_offset,
                       HashData &hash_data) const override;
 
-    size_t
+    void
     AppendAllDIEsThatMatchingRegex(const lldb_private::RegularExpression &regex,
                                    DIEInfoArray &die_info_array) const;
 
-    size_t AppendAllDIEsInRange(const uint32_t die_offset_start,
-                                const uint32_t die_offset_end,
-                                DIEInfoArray &die_info_array) const;
+    void AppendAllDIEsInRange(const uint32_t die_offset_start,
+                              const uint32_t die_offset_end,
+                              DIEInfoArray &die_info_array) const;
 
-    size_t FindByName(llvm::StringRef name, DIEArray &die_offsets);
+    bool FindByName(llvm::StringRef name,
+                    llvm::function_ref<bool(DIERef ref)> callback);
 
-    size_t FindByNameAndTag(llvm::StringRef name, const dw_tag_t tag,
-                            DIEArray &die_offsets);
+    void FindByNameAndTag(llvm::StringRef name, const dw_tag_t tag,
+                          llvm::function_ref<bool(DIERef ref)> callback);
 
-    size_t FindByNameAndTagAndQualifiedNameHash(
+    void FindByNameAndTagAndQualifiedNameHash(
         llvm::StringRef name, const dw_tag_t tag,
-        const uint32_t qualified_name_hash, DIEArray &die_offsets);
+        const uint32_t qualified_name_hash,
+        llvm::function_ref<bool(DIERef ref)> callback);
 
-    size_t FindCompleteObjCClassByName(llvm::StringRef name,
-                                       DIEArray &die_offsets,
-                                       bool must_be_implementation);
+    void
+    FindCompleteObjCClassByName(llvm::StringRef name,
+                                llvm::function_ref<bool(DIERef ref)> callback,
+                                bool must_be_implementation);
 
   protected:
     Result AppendHashDataForRegularExpression(
         const lldb_private::RegularExpression &regex,
         lldb::offset_t *hash_data_offset_ptr, Pair &pair) const;
 
-    size_t FindByName(llvm::StringRef name, DIEInfoArray &die_info_array);
+    void FindByName(llvm::StringRef name, DIEInfoArray &die_info_array);
 
     Result GetHashDataForName(llvm::StringRef name,
                               lldb::offset_t *hash_data_offset_ptr,
@@ -161,29 +172,30 @@ public:
     std::string m_name;
   };
 
-  static void ExtractDIEArray(const DIEInfoArray &die_info_array,
-                              DIEArray &die_offsets);
+  static bool ExtractDIEArray(const DIEInfoArray &die_info_array,
+                              llvm::function_ref<bool(DIERef ref)> callback);
 
 protected:
   static void ExtractDIEArray(const DIEInfoArray &die_info_array,
-                              const dw_tag_t tag, DIEArray &die_offsets);
+                              const dw_tag_t tag,
+                              llvm::function_ref<bool(DIERef ref)> callback);
 
   static void ExtractDIEArray(const DIEInfoArray &die_info_array,
                               const dw_tag_t tag,
                               const uint32_t qualified_name_hash,
-                              DIEArray &die_offsets);
+                              llvm::function_ref<bool(DIERef ref)> callback);
 
   static void
   ExtractClassOrStructDIEArray(const DIEInfoArray &die_info_array,
                                bool return_implementation_only_if_available,
-                               DIEArray &die_offsets);
+                               llvm::function_ref<bool(DIERef ref)> callback);
 
-  static void ExtractTypesFromDIEArray(const DIEInfoArray &die_info_array,
-                                       uint32_t type_flag_mask,
-                                       uint32_t type_flag_value,
-                                       DIEArray &die_offsets);
+  static void
+  ExtractTypesFromDIEArray(const DIEInfoArray &die_info_array,
+                           uint32_t type_flag_mask, uint32_t type_flag_value,
+                           llvm::function_ref<bool(DIERef ref)> callback);
 
   static const char *GetAtomTypeName(uint16_t atom);
 };
 
-#endif // SymbolFileDWARF_HashedNameToDIE_h_
+#endif // LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_HASHEDNAMETODIE_H

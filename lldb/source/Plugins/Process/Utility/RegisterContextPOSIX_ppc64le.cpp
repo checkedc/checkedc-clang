@@ -1,9 +1,8 @@
-//===-- RegisterContextPOSIX_ppc64le.cpp -------------------------*- C++-*-===//
+//===-- RegisterContextPOSIX_ppc64le.cpp ----------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -116,7 +115,7 @@ RegisterContextPOSIX_ppc64le::RegisterContextPOSIX_ppc64le(
     Thread &thread, uint32_t concrete_frame_idx,
     RegisterInfoInterface *register_info)
     : RegisterContext(thread, concrete_frame_idx) {
-  m_register_info_ap.reset(register_info);
+  m_register_info_up.reset(register_info);
 }
 
 void RegisterContextPOSIX_ppc64le::InvalidateAllRegisters() {}
@@ -137,14 +136,14 @@ size_t RegisterContextPOSIX_ppc64le::GetRegisterCount() {
 }
 
 size_t RegisterContextPOSIX_ppc64le::GetGPRSize() {
-  return m_register_info_ap->GetGPRSize();
+  return m_register_info_up->GetGPRSize();
 }
 
 const RegisterInfo *RegisterContextPOSIX_ppc64le::GetRegisterInfo() {
   // Commonly, this method is overridden and g_register_infos is copied and
   // specialized. So, use GetRegisterInfo() rather than g_register_infos in
   // this scope.
-  return m_register_info_ap->GetRegisterInfo();
+  return m_register_info_up->GetRegisterInfo();
 }
 
 const RegisterInfo *
@@ -152,7 +151,7 @@ RegisterContextPOSIX_ppc64le::GetRegisterInfoAtIndex(size_t reg) {
   if (reg < k_num_registers_ppc64le)
     return &GetRegisterInfo()[reg];
   else
-    return NULL;
+    return nullptr;
 }
 
 size_t RegisterContextPOSIX_ppc64le::GetRegisterSetCount() {
@@ -169,7 +168,7 @@ const RegisterSet *RegisterContextPOSIX_ppc64le::GetRegisterSet(size_t set) {
   if (IsRegisterSetAvailable(set))
     return &g_reg_sets_ppc64le[set];
   else
-    return NULL;
+    return nullptr;
 }
 
 const char *RegisterContextPOSIX_ppc64le::GetRegisterName(unsigned reg) {
@@ -177,36 +176,8 @@ const char *RegisterContextPOSIX_ppc64le::GetRegisterName(unsigned reg) {
   return GetRegisterInfo()[reg].name;
 }
 
-lldb::ByteOrder RegisterContextPOSIX_ppc64le::GetByteOrder() {
-  // Get the target process whose privileged thread was used for the register
-  // read.
-  lldb::ByteOrder byte_order = eByteOrderInvalid;
-  Process *process = CalculateProcess().get();
-
-  if (process)
-    byte_order = process->GetByteOrder();
-  return byte_order;
-}
-
 bool RegisterContextPOSIX_ppc64le::IsRegisterSetAvailable(size_t set_index) {
   size_t num_sets = k_num_register_sets;
 
   return (set_index < num_sets);
-}
-
-// Used when parsing DWARF and EH frame information and any other object file
-// sections that contain register numbers in them.
-uint32_t RegisterContextPOSIX_ppc64le::ConvertRegisterKindToRegisterNumber(
-    lldb::RegisterKind kind, uint32_t num) {
-  const uint32_t num_regs = GetRegisterCount();
-
-  assert(kind < kNumRegisterKinds);
-  for (uint32_t reg_idx = 0; reg_idx < num_regs; ++reg_idx) {
-    const RegisterInfo *reg_info = GetRegisterInfoAtIndex(reg_idx);
-
-    if (reg_info->kinds[kind] == num)
-      return reg_idx;
-  }
-
-  return LLDB_INVALID_REGNUM;
 }

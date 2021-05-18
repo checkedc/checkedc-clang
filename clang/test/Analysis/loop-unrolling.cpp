@@ -347,9 +347,9 @@ int simple_known_bound_loop() {
 int simple_unknown_bound_loop() {
   for (int i = 2; i < getNum(); i++) {
 #ifdef DFS
-    clang_analyzer_numTimesReached(); // expected-warning {{10}}
+    clang_analyzer_numTimesReached(); // expected-warning {{16}}
 #else
-    clang_analyzer_numTimesReached(); // expected-warning {{13}}
+    clang_analyzer_numTimesReached(); // expected-warning {{8}}
 #endif
   }
   return 0;
@@ -368,10 +368,10 @@ int nested_inlined_unroll1() {
 int nested_inlined_no_unroll1() {
   int k;
   for (int i = 0; i < 9; i++) {
-#ifdef ANALYZER_CM_Z3
-    clang_analyzer_numTimesReached(); // expected-warning {{13}}
+#ifdef DFS
+    clang_analyzer_numTimesReached(); // expected-warning {{18}}
 #else
-    clang_analyzer_numTimesReached(); // expected-warning {{15}}
+    clang_analyzer_numTimesReached(); // expected-warning {{14}}
 #endif
     k = simple_unknown_bound_loop();  // reevaluation without inlining, splits the state as well
   }
@@ -497,5 +497,17 @@ int num_steps_over_limit3() {
 void pr34943() {
   for (int i = 0; i < 6L; ++i) {
     clang_analyzer_numTimesReached(); // expected-warning {{6}}
+  }
+}
+
+void parm_by_value_as_loop_counter(int i) {
+  for (i = 0; i < 10; ++i) {
+    clang_analyzer_numTimesReached(); // expected-warning {{10}}
+  }
+}
+
+void parm_by_ref_as_loop_counter(int &i) {
+  for (i = 0; i < 10; ++i) {
+    clang_analyzer_numTimesReached(); // expected-warning {{4}}
   }
 }

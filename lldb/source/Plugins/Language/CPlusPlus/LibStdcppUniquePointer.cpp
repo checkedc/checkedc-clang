@@ -1,9 +1,8 @@
-//===-- LibStdcppUniquePointer.cpp ------------------------------*- C++ -*-===//
+//===-- LibStdcppUniquePointer.cpp ----------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -35,14 +34,19 @@ public:
 
   bool MightHaveChildren() override;
 
-  size_t GetIndexOfChildWithName(const ConstString &name) override;
+  size_t GetIndexOfChildWithName(ConstString name) override;
 
   bool GetSummary(Stream &stream, const TypeSummaryOptions &options);
 
 private:
-  ValueObjectSP m_ptr_obj;
-  ValueObjectSP m_obj_obj;
-  ValueObjectSP m_del_obj;
+  // The lifetime of a ValueObject and all its derivative ValueObjects
+  // (children, clones, etc.) is managed by a ClusterManager. These
+  // objects are only destroyed when every shared pointer to any of them
+  // is destroyed, so we must not store a shared pointer to any ValueObject
+  // derived from our backend ValueObject (since we're in the same cluster).
+  ValueObject* m_ptr_obj = nullptr;
+  ValueObject* m_obj_obj = nullptr;
+  ValueObject* m_del_obj = nullptr;
 
   ValueObjectSP GetTuple();
 };
@@ -93,17 +97,17 @@ bool LibStdcppUniquePtrSyntheticFrontEnd::Update() {
 
   ValueObjectSP ptr_obj = tuple_frontend->GetChildAtIndex(0);
   if (ptr_obj)
-    m_ptr_obj = ptr_obj->Clone(ConstString("pointer"));
+    m_ptr_obj = ptr_obj->Clone(ConstString("pointer")).get();
 
   ValueObjectSP del_obj = tuple_frontend->GetChildAtIndex(1);
   if (del_obj)
-    m_del_obj = del_obj->Clone(ConstString("deleter"));
+    m_del_obj = del_obj->Clone(ConstString("deleter")).get();
 
   if (m_ptr_obj) {
     Status error;
     ValueObjectSP obj_obj = m_ptr_obj->Dereference(error);
     if (error.Success()) {
-      m_obj_obj = obj_obj->Clone(ConstString("object"));
+      m_obj_obj = obj_obj->Clone(ConstString("object")).get();
     }
   }
 
@@ -114,12 +118,12 @@ bool LibStdcppUniquePtrSyntheticFrontEnd::MightHaveChildren() { return true; }
 
 lldb::ValueObjectSP
 LibStdcppUniquePtrSyntheticFrontEnd::GetChildAtIndex(size_t idx) {
-  if (idx == 0)
-    return m_ptr_obj;
-  if (idx == 1)
-    return m_del_obj;
-  if (idx == 2)
-    return m_obj_obj;
+  if (idx == 0 && m_ptr_obj)
+    return m_ptr_obj->GetSP();
+  if (idx == 1 && m_del_obj)
+    return m_del_obj->GetSP();
+  if (idx == 2 && m_obj_obj)
+    return m_obj_obj->GetSP();
   return lldb::ValueObjectSP();
 }
 
@@ -130,13 +134,12 @@ size_t LibStdcppUniquePtrSyntheticFrontEnd::CalculateNumChildren() {
 }
 
 size_t LibStdcppUniquePtrSyntheticFrontEnd::GetIndexOfChildWithName(
-    const ConstString &name) {
-  if (name == ConstString("ptr") || name == ConstString("pointer"))
+    ConstString name) {
+  if (name == "ptr" || name == "pointer")
     return 0;
-  if (name == ConstString("del") || name == ConstString("deleter"))
+  if (name == "del" || name == "deleter")
     return 1;
-  if (name == ConstString("obj") || name == ConstString("object") ||
-      name == ConstString("$$dereference$$"))
+  if (name == "obj" || name == "object" || name == "$$dereference$$")
     return 2;
   return UINT32_MAX;
 }

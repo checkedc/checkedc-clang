@@ -1,9 +1,8 @@
-//===-- RegisterContextPOSIX_x86.cpp ----------------------------*- C++ -*-===//
+//===-- RegisterContextPOSIX_x86.cpp --------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -120,20 +119,21 @@ static_assert((sizeof(g_gpr_regnums_x86_64) / sizeof(g_gpr_regnums_x86_64[0])) -
               "g_gpr_regnums_x86_64 has wrong number of register infos");
 
 static const uint32_t g_lldb_regnums_x86_64[] = {
-    lldb_fctrl_x86_64,     lldb_fstat_x86_64, lldb_ftag_x86_64,
-    lldb_fop_x86_64,       lldb_fiseg_x86_64, lldb_fioff_x86_64,
-    lldb_foseg_x86_64,     lldb_fooff_x86_64, lldb_mxcsr_x86_64,
-    lldb_mxcsrmask_x86_64, lldb_st0_x86_64,   lldb_st1_x86_64,
-    lldb_st2_x86_64,       lldb_st3_x86_64,   lldb_st4_x86_64,
-    lldb_st5_x86_64,       lldb_st6_x86_64,   lldb_st7_x86_64,
-    lldb_mm0_x86_64,       lldb_mm1_x86_64,   lldb_mm2_x86_64,
-    lldb_mm3_x86_64,       lldb_mm4_x86_64,   lldb_mm5_x86_64,
-    lldb_mm6_x86_64,       lldb_mm7_x86_64,   lldb_xmm0_x86_64,
-    lldb_xmm1_x86_64,      lldb_xmm2_x86_64,  lldb_xmm3_x86_64,
-    lldb_xmm4_x86_64,      lldb_xmm5_x86_64,  lldb_xmm6_x86_64,
-    lldb_xmm7_x86_64,      lldb_xmm8_x86_64,  lldb_xmm9_x86_64,
-    lldb_xmm10_x86_64,     lldb_xmm11_x86_64, lldb_xmm12_x86_64,
-    lldb_xmm13_x86_64,     lldb_xmm14_x86_64, lldb_xmm15_x86_64,
+    lldb_fctrl_x86_64,  lldb_fstat_x86_64, lldb_ftag_x86_64,
+    lldb_fop_x86_64,    lldb_fiseg_x86_64, lldb_fioff_x86_64,
+    lldb_fip_x86_64,    lldb_foseg_x86_64, lldb_fooff_x86_64,
+    lldb_fdp_x86_64,    lldb_mxcsr_x86_64, lldb_mxcsrmask_x86_64,
+    lldb_st0_x86_64,    lldb_st1_x86_64,   lldb_st2_x86_64,
+    lldb_st3_x86_64,    lldb_st4_x86_64,   lldb_st5_x86_64,
+    lldb_st6_x86_64,    lldb_st7_x86_64,   lldb_mm0_x86_64,
+    lldb_mm1_x86_64,    lldb_mm2_x86_64,   lldb_mm3_x86_64,
+    lldb_mm4_x86_64,    lldb_mm5_x86_64,   lldb_mm6_x86_64,
+    lldb_mm7_x86_64,    lldb_xmm0_x86_64,  lldb_xmm1_x86_64,
+    lldb_xmm2_x86_64,   lldb_xmm3_x86_64,  lldb_xmm4_x86_64,
+    lldb_xmm5_x86_64,   lldb_xmm6_x86_64,  lldb_xmm7_x86_64,
+    lldb_xmm8_x86_64,   lldb_xmm9_x86_64,  lldb_xmm10_x86_64,
+    lldb_xmm11_x86_64,  lldb_xmm12_x86_64, lldb_xmm13_x86_64,
+    lldb_xmm14_x86_64,  lldb_xmm15_x86_64,
     LLDB_INVALID_REGNUM // Register sets must be terminated with
                         // LLDB_INVALID_REGNUM.
 };
@@ -276,6 +276,84 @@ uint32_t RegisterContextPOSIX_x86::g_invalidate_r15[] = {
     lldb_r15_x86_64, lldb_r15d_x86_64, lldb_r15w_x86_64, lldb_r15l_x86_64,
     LLDB_INVALID_REGNUM};
 
+uint32_t RegisterContextPOSIX_x86::g_contained_fip[] = {lldb_fip_x86_64,
+                                                        LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_contained_fdp[] = {lldb_fdp_x86_64,
+                                                        LLDB_INVALID_REGNUM};
+
+uint32_t RegisterContextPOSIX_x86::g_invalidate_fip[] = {
+    lldb_fip_x86_64, lldb_fioff_x86_64, lldb_fiseg_x86_64, LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_invalidate_fdp[] = {
+    lldb_fdp_x86_64, lldb_fooff_x86_64, lldb_foseg_x86_64, LLDB_INVALID_REGNUM};
+
+uint32_t RegisterContextPOSIX_x86::g_contained_st0_32[] = {lldb_st0_i386,
+                                                           LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_contained_st1_32[] = {lldb_st1_i386,
+                                                           LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_contained_st2_32[] = {lldb_st2_i386,
+                                                           LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_contained_st3_32[] = {lldb_st3_i386,
+                                                           LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_contained_st4_32[] = {lldb_st4_i386,
+                                                           LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_contained_st5_32[] = {lldb_st5_i386,
+                                                           LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_contained_st6_32[] = {lldb_st6_i386,
+                                                           LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_contained_st7_32[] = {lldb_st7_i386,
+                                                           LLDB_INVALID_REGNUM};
+
+uint32_t RegisterContextPOSIX_x86::g_invalidate_st0_32[] = {
+    lldb_st0_i386, lldb_mm0_i386, LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_invalidate_st1_32[] = {
+    lldb_st1_i386, lldb_mm1_i386, LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_invalidate_st2_32[] = {
+    lldb_st2_i386, lldb_mm2_i386, LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_invalidate_st3_32[] = {
+    lldb_st3_i386, lldb_mm3_i386, LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_invalidate_st4_32[] = {
+    lldb_st4_i386, lldb_mm4_i386, LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_invalidate_st5_32[] = {
+    lldb_st5_i386, lldb_mm5_i386, LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_invalidate_st6_32[] = {
+    lldb_st6_i386, lldb_mm6_i386, LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_invalidate_st7_32[] = {
+    lldb_st7_i386, lldb_mm7_i386, LLDB_INVALID_REGNUM};
+
+uint32_t RegisterContextPOSIX_x86::g_contained_st0_64[] = {lldb_st0_x86_64,
+                                                           LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_contained_st1_64[] = {lldb_st1_x86_64,
+                                                           LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_contained_st2_64[] = {lldb_st2_x86_64,
+                                                           LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_contained_st3_64[] = {lldb_st3_x86_64,
+                                                           LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_contained_st4_64[] = {lldb_st4_x86_64,
+                                                           LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_contained_st5_64[] = {lldb_st5_x86_64,
+                                                           LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_contained_st6_64[] = {lldb_st6_x86_64,
+                                                           LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_contained_st7_64[] = {lldb_st7_x86_64,
+                                                           LLDB_INVALID_REGNUM};
+
+uint32_t RegisterContextPOSIX_x86::g_invalidate_st0_64[] = {
+    lldb_st0_x86_64, lldb_mm0_x86_64, LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_invalidate_st1_64[] = {
+    lldb_st1_x86_64, lldb_mm1_x86_64, LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_invalidate_st2_64[] = {
+    lldb_st2_x86_64, lldb_mm2_x86_64, LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_invalidate_st3_64[] = {
+    lldb_st3_x86_64, lldb_mm3_x86_64, LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_invalidate_st4_64[] = {
+    lldb_st4_x86_64, lldb_mm4_x86_64, LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_invalidate_st5_64[] = {
+    lldb_st5_x86_64, lldb_mm5_x86_64, LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_invalidate_st6_64[] = {
+    lldb_st6_x86_64, lldb_mm6_x86_64, LLDB_INVALID_REGNUM};
+uint32_t RegisterContextPOSIX_x86::g_invalidate_st7_64[] = {
+    lldb_st7_x86_64, lldb_mm7_x86_64, LLDB_INVALID_REGNUM};
+
 // Number of register sets provided by this context.
 enum { k_num_extended_register_sets = 1, k_num_register_sets = 3 };
 
@@ -319,7 +397,7 @@ RegisterContextPOSIX_x86::RegisterContextPOSIX_x86(
     Thread &thread, uint32_t concrete_frame_idx,
     RegisterInfoInterface *register_info)
     : RegisterContext(thread, concrete_frame_idx) {
-  m_register_info_ap.reset(register_info);
+  m_register_info_up.reset(register_info);
 
   switch (register_info->m_target_arch.GetMachine()) {
   case llvm::Triple::x86:
@@ -405,7 +483,7 @@ size_t RegisterContextPOSIX_x86::GetRegisterCount() {
 }
 
 size_t RegisterContextPOSIX_x86::GetGPRSize() {
-  return m_register_info_ap->GetGPRSize();
+  return m_register_info_up->GetGPRSize();
 }
 
 size_t RegisterContextPOSIX_x86::GetFXSAVEOffset() {
@@ -416,7 +494,7 @@ const RegisterInfo *RegisterContextPOSIX_x86::GetRegisterInfo() {
   // Commonly, this method is overridden and g_register_infos is copied and
   // specialized. So, use GetRegisterInfo() rather than g_register_infos in
   // this scope.
-  return m_register_info_ap->GetRegisterInfo();
+  return m_register_info_up->GetRegisterInfo();
 }
 
 const RegisterInfo *
@@ -424,7 +502,7 @@ RegisterContextPOSIX_x86::GetRegisterInfoAtIndex(size_t reg) {
   if (reg < m_reg_info.num_registers)
     return &GetRegisterInfo()[reg];
   else
-    return NULL;
+    return nullptr;
 }
 
 size_t RegisterContextPOSIX_x86::GetRegisterSetCount() {
@@ -439,33 +517,22 @@ size_t RegisterContextPOSIX_x86::GetRegisterSetCount() {
 
 const RegisterSet *RegisterContextPOSIX_x86::GetRegisterSet(size_t set) {
   if (IsRegisterSetAvailable(set)) {
-    switch (m_register_info_ap->m_target_arch.GetMachine()) {
+    switch (m_register_info_up->m_target_arch.GetMachine()) {
     case llvm::Triple::x86:
       return &g_reg_sets_i386[set];
     case llvm::Triple::x86_64:
       return &g_reg_sets_x86_64[set];
     default:
       assert(false && "Unhandled target architecture.");
-      return NULL;
+      return nullptr;
     }
   }
-  return NULL;
+  return nullptr;
 }
 
 const char *RegisterContextPOSIX_x86::GetRegisterName(unsigned reg) {
   assert(reg < m_reg_info.num_registers && "Invalid register offset.");
   return GetRegisterInfo()[reg].name;
-}
-
-lldb::ByteOrder RegisterContextPOSIX_x86::GetByteOrder() {
-  // Get the target process whose privileged thread was used for the register
-  // read.
-  lldb::ByteOrder byte_order = eByteOrderInvalid;
-  Process *process = CalculateProcess().get();
-
-  if (process)
-    byte_order = process->GetByteOrder();
-  return byte_order;
 }
 
 // Parse ymm registers and into xmm.bytes and ymmh.bytes.
@@ -475,22 +542,13 @@ bool RegisterContextPOSIX_x86::CopyYMMtoXSTATE(uint32_t reg,
     return false;
 
   if (byte_order == eByteOrderLittle) {
-    ::memcpy(m_fpr.fxsave.xmm[reg - m_reg_info.first_ymm].bytes,
-             m_ymm_set.ymm[reg - m_reg_info.first_ymm].bytes, sizeof(XMMReg));
-    ::memcpy(m_fpr.xsave.ymmh[reg - m_reg_info.first_ymm].bytes,
-             m_ymm_set.ymm[reg - m_reg_info.first_ymm].bytes + sizeof(XMMReg),
-             sizeof(YMMHReg));
+    uint32_t reg_no = reg - m_reg_info.first_ymm;
+    YMMToXState(m_ymm_set.ymm[reg_no],
+        m_fpr.fxsave.xmm[reg_no].bytes,
+        m_fpr.xsave.ymmh[reg_no].bytes);
     return true;
   }
 
-  if (byte_order == eByteOrderBig) {
-    ::memcpy(m_fpr.fxsave.xmm[reg - m_reg_info.first_ymm].bytes,
-             m_ymm_set.ymm[reg - m_reg_info.first_ymm].bytes + sizeof(XMMReg),
-             sizeof(XMMReg));
-    ::memcpy(m_fpr.xsave.ymmh[reg - m_reg_info.first_ymm].bytes,
-             m_ymm_set.ymm[reg - m_reg_info.first_ymm].bytes, sizeof(YMMHReg));
-    return true;
-  }
   return false; // unsupported or invalid byte order
 }
 
@@ -501,24 +559,13 @@ bool RegisterContextPOSIX_x86::CopyXSTATEtoYMM(uint32_t reg,
     return false;
 
   if (byte_order == eByteOrderLittle) {
-    ::memcpy(m_ymm_set.ymm[reg - m_reg_info.first_ymm].bytes,
-             m_fpr.fxsave.xmm[reg - m_reg_info.first_ymm].bytes,
-             sizeof(XMMReg));
-    ::memcpy(m_ymm_set.ymm[reg - m_reg_info.first_ymm].bytes + sizeof(XMMReg),
-             m_fpr.xsave.ymmh[reg - m_reg_info.first_ymm].bytes,
-             sizeof(YMMHReg));
+    uint32_t reg_no = reg - m_reg_info.first_ymm;
+    m_ymm_set.ymm[reg_no] = XStateToYMM(
+        m_fpr.fxsave.xmm[reg_no].bytes,
+        m_fpr.xsave.ymmh[reg_no].bytes);
     return true;
   }
 
-  if (byte_order == eByteOrderBig) {
-    ::memcpy(m_ymm_set.ymm[reg - m_reg_info.first_ymm].bytes + sizeof(XMMReg),
-             m_fpr.fxsave.xmm[reg - m_reg_info.first_ymm].bytes,
-             sizeof(XMMReg));
-    ::memcpy(m_ymm_set.ymm[reg - m_reg_info.first_ymm].bytes,
-             m_fpr.xsave.ymmh[reg - m_reg_info.first_ymm].bytes,
-             sizeof(YMMHReg));
-    return true;
-  }
   return false; // unsupported or invalid byte order
 }
 
@@ -529,21 +576,4 @@ bool RegisterContextPOSIX_x86::IsRegisterSetAvailable(size_t set_index) {
   if (GetFPRType() == eXSAVE) // ...and to start with AVX registers.
     ++num_sets;
   return (set_index < num_sets);
-}
-
-// Used when parsing DWARF and EH frame information and any other object file
-// sections that contain register numbers in them.
-uint32_t RegisterContextPOSIX_x86::ConvertRegisterKindToRegisterNumber(
-    lldb::RegisterKind kind, uint32_t num) {
-  const uint32_t num_regs = GetRegisterCount();
-
-  assert(kind < kNumRegisterKinds);
-  for (uint32_t reg_idx = 0; reg_idx < num_regs; ++reg_idx) {
-    const RegisterInfo *reg_info = GetRegisterInfoAtIndex(reg_idx);
-
-    if (reg_info->kinds[kind] == num)
-      return reg_idx;
-  }
-
-  return LLDB_INVALID_REGNUM;
 }

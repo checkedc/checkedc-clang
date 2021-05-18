@@ -1,10 +1,9 @@
 // -*- C++ -*-
 //===--------------------------- stddef.h ---------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -32,7 +31,7 @@ Types:
 
     ptrdiff_t
     size_t
-    max_align_t
+    max_align_t // C++11
     nullptr_t
 
 */
@@ -51,12 +50,6 @@ extern "C++" {
 #include <__nullptr>
 using std::nullptr_t;
 }
-
-// Re-use the compiler's <stddef.h> max_align_t where possible.
-#if !defined(__CLANG_MAX_ALIGN_T_DEFINED) && !defined(_GCC_MAX_ALIGN_T) && \
-    !defined(__DEFINED_max_align_t) && !defined(__NetBSD__)
-typedef long double max_align_t;
-#endif
 
 #endif
 

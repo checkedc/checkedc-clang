@@ -1,14 +1,13 @@
-//===-- ValueObjectDynamicValue.h -------------------------------*- C++ -*-===//
+//===-- ValueObjectCast.h ---------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ValueObjectCast_h_
-#define liblldb_ValueObjectCast_h_
+#ifndef LLDB_CORE_VALUEOBJECTCAST_H
+#define LLDB_CORE_VALUEOBJECTCAST_H
 
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Symbol/CompilerType.h"
@@ -21,22 +20,17 @@
 
 namespace lldb_private {
 class ConstString;
-}
 
-namespace lldb_private {
-
-//---------------------------------------------------------------------------------
 // A ValueObject that represents a given value represented as a different type.
-//---------------------------------------------------------------------------------
 class ValueObjectCast : public ValueObject {
 public:
   ~ValueObjectCast() override;
 
   static lldb::ValueObjectSP Create(ValueObject &parent,
-                                    const ConstString &name,
+                                    ConstString name,
                                     const CompilerType &cast_type);
 
-  uint64_t GetByteSize() override;
+  llvm::Optional<uint64_t> GetByteSize() override;
 
   size_t CalculateNumChildren(uint32_t max) override;
 
@@ -53,7 +47,7 @@ public:
   }
 
 protected:
-  ValueObjectCast(ValueObject &parent, const ConstString &name,
+  ValueObjectCast(ValueObject &parent, ConstString name,
                   const CompilerType &cast_type);
 
   bool UpdateValue() override;
@@ -63,9 +57,10 @@ protected:
   CompilerType m_cast_type;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(ValueObjectCast);
+  ValueObjectCast(const ValueObjectCast &) = delete;
+  const ValueObjectCast &operator=(const ValueObjectCast &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_ValueObjectCast_h_
+#endif // LLDB_CORE_VALUEOBJECTCAST_H

@@ -1,9 +1,8 @@
 //===--- InefficientAlgorithmCheck.cpp - clang-tidy------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -28,11 +27,6 @@ static bool areTypesCompatible(QualType Left, QualType Right) {
 }
 
 void InefficientAlgorithmCheck::registerMatchers(MatchFinder *Finder) {
-  // Only register the matchers for C++; the functionality currently does not
-  // provide any benefit to other languages, despite being benign.
-  if (!getLangOpts().CPlusPlus)
-    return;
-
   const auto Algorithms =
       hasAnyName("::std::find", "::std::count", "::std::equal_range",
                  "::std::lower_bound", "::std::upper_bound");
@@ -41,7 +35,8 @@ void InefficientAlgorithmCheck::registerMatchers(MatchFinder *Finder) {
       "::std::unordered_set", "::std::unordered_map",
       "::std::unordered_multiset", "::std::unordered_multimap"));
 
-  const auto Matcher =
+  const auto Matcher = traverse(
+      TK_AsIs,
       callExpr(
           callee(functionDecl(Algorithms)),
           hasArgument(
@@ -60,7 +55,7 @@ void InefficientAlgorithmCheck::registerMatchers(MatchFinder *Finder) {
                          hasDeclaration(equalsBoundNode("IneffContObj"))))))))),
           hasArgument(2, expr().bind("AlgParam")),
           unless(isInTemplateInstantiation()))
-          .bind("IneffAlg");
+          .bind("IneffAlg"));
 
   Finder->addMatcher(Matcher, this);
 }

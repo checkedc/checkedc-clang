@@ -1,9 +1,8 @@
-//===-- OptionValueProperties.cpp --------------------------------*- C++-*-===//
+//===-- OptionValueProperties.cpp -----------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -21,7 +20,7 @@
 using namespace lldb;
 using namespace lldb_private;
 
-OptionValueProperties::OptionValueProperties(const ConstString &name)
+OptionValueProperties::OptionValueProperties(ConstString name)
     : OptionValue(), m_name(name), m_properties(), m_name_to_index() {}
 
 OptionValueProperties::OptionValueProperties(
@@ -61,14 +60,14 @@ void OptionValueProperties::Initialize(const PropertyDefinitions &defs) {
 }
 
 void OptionValueProperties::SetValueChangedCallback(
-    uint32_t property_idx, OptionValueChangedCallback callback, void *baton) {
+    uint32_t property_idx, std::function<void()> callback) {
   Property *property = ProtectedGetPropertyAtIndex(property_idx);
   if (property)
-    property->SetValueChangedCallback(callback, baton);
+    property->SetValueChangedCallback(std::move(callback));
 }
 
-void OptionValueProperties::AppendProperty(const ConstString &name,
-                                           const ConstString &desc,
+void OptionValueProperties::AppendProperty(ConstString name,
+                                           ConstString desc,
                                            bool is_global,
                                            const OptionValueSP &value_sp) {
   Property property(name, desc, is_global, value_sp);
@@ -99,7 +98,7 @@ void OptionValueProperties::AppendProperty(const ConstString &name,
 //
 lldb::OptionValueSP
 OptionValueProperties::GetValueForKey(const ExecutionContext *exe_ctx,
-                                      const ConstString &key,
+                                      ConstString key,
                                       bool will_modify) const {
   lldb::OptionValueSP value_sp;
   size_t idx = m_name_to_index.Find(key, SIZE_MAX);
@@ -148,38 +147,6 @@ OptionValueProperties::GetSubValue(const ExecutionContext *exe_ctx,
     }
     return return_val_sp;
   }
-  case '{':
-    // Predicate matching for predicates like
-    // "<setting-name>{<predicate>}"
-    // strings are parsed by the current OptionValueProperties subclass to mean
-    // whatever they want to. For instance a subclass of OptionValueProperties
-    // for a lldb_private::Target might implement: "target.run-
-    // args{arch==i386}"   -- only set run args if the arch is i386 "target
-    // .run-args{path=/tmp/a/b/c/a.out}" -- only set run args if the path
-    // matches "target.run-args{basename==test&&arch==x86_64}" -- only set run
-    // args if executable basename is "test" and arch is "x86_64"
-    if (sub_name[1]) {
-      llvm::StringRef predicate_start = sub_name.drop_front();
-      size_t pos = predicate_start.find_first_of('}');
-      if (pos != llvm::StringRef::npos) {
-        auto predicate = predicate_start.take_front(pos);
-        auto rest = predicate_start.drop_front(pos);
-        if (PredicateMatches(exe_ctx, predicate)) {
-          if (!rest.empty()) {
-            // Still more subvalue string to evaluate
-            return value_sp->GetSubValue(exe_ctx, rest,
-                                          will_modify, error);
-          } else {
-            // We have a match!
-            break;
-          }
-        }
-      }
-    }
-    // Predicate didn't match or wasn't correctly formed
-    value_sp.reset();
-    break;
-
   case '[':
     // Array or dictionary access for subvalues like: "[12]"       -- access
     // 12th array element "['hello']"  -- dictionary access of key named hello
@@ -205,7 +172,6 @@ Status OptionValueProperties::SetSubValue(const ExecutionContext *exe_ctx,
     if (Properties::IsSettingExperimental(part))
       name_contains_experimental = true;
 
-  
   lldb::OptionValueSP value_sp(GetSubValue(exe_ctx, name, will_modify, error));
   if (value_sp)
     error = value_sp->SetValueFromString(value, op);
@@ -220,14 +186,14 @@ Status OptionValueProperties::SetSubValue(const ExecutionContext *exe_ctx,
 }
 
 uint32_t
-OptionValueProperties::GetPropertyIndex(const ConstString &name) const {
+OptionValueProperties::GetPropertyIndex(ConstString name) const {
   return m_name_to_index.Find(name, SIZE_MAX);
 }
 
 const Property *
 OptionValueProperties::GetProperty(const ExecutionContext *exe_ctx,
                                    bool will_modify,
-                                   const ConstString &name) const {
+                                   ConstString name) const {
   return GetPropertyAtIndex(
       exe_ctx, will_modify,
       m_name_to_index.Find(name, SIZE_MAX));
@@ -519,11 +485,10 @@ bool OptionValueProperties::SetPropertyAtIndexAsUInt64(
   return false;
 }
 
-bool OptionValueProperties::Clear() {
+void OptionValueProperties::Clear() {
   const size_t num_properties = m_properties.size();
   for (size_t i = 0; i < num_properties; ++i)
     m_properties[i].GetValue()->Clear();
-  return true;
 }
 
 Status OptionValueProperties::SetValueFromString(llvm::StringRef value,
@@ -668,7 +633,7 @@ void OptionValueProperties::Apropos(
 
 lldb::OptionValuePropertiesSP
 OptionValueProperties::GetSubProperty(const ExecutionContext *exe_ctx,
-                                      const ConstString &name) {
+                                      ConstString name) {
   lldb::OptionValueSP option_value_sp(GetValueForKey(exe_ctx, name, false));
   if (option_value_sp) {
     OptionValueProperties *ov_properties = option_value_sp->GetAsProperties();

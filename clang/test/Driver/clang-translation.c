@@ -3,8 +3,7 @@
 // I386: "-S"
 // I386: "-disable-free"
 // I386: "-mrelocation-model" "static"
-// I386: "-mdisable-fp-elim"
-// I386: "-masm-verbose"
+// I386: "-mframe-pointer=all"
 // I386: "-munwind-tables"
 // I386: "-Os"
 // I386: "-fvisibility"
@@ -120,6 +119,36 @@
 // RUN: FileCheck -check-prefix=ARMv7_THREAD_POINTER_NON %s
 // ARMv7_THREAD_POINTER_NON-NOT: "-target-feature" "+read-tp-hard"
 
+// RUN: %clang -target aarch64-linux -### -S %s -arch armv8a 2>&1 | \
+// RUN: FileCheck -check-prefix=ARMv8_THREAD_POINTER_NON %s
+// ARMv8_THREAD_POINTER_NON-NOT: "-target-feature" "+tpidr-el1"
+// ARMv8_THREAD_POINTER_NON-NOT: "-target-feature" "+tpidr-el2"
+// ARMv8_THREAD_POINTER_NON-NOT: "-target-feature" "+tpidr-el3"
+
+// RUN: %clang -target aarch64-linux -### -S %s -arch armv8a -mtp=el0 2>&1 | \
+// RUN: FileCheck -check-prefix=ARMv8_THREAD_POINTER_EL0 %s
+// ARMv8_THREAD_POINTER_EL0-NOT: "-target-feature" "+tpidr-el1"
+// ARMv8_THREAD_POINTER_EL0-NOT: "-target-feature" "+tpidr-el2"
+// ARMv8_THREAD_POINTER_EL0-NOT: "-target-feature" "+tpidr-el3"
+
+// RUN: %clang -target aarch64-linux -### -S %s -arch armv8a -mtp=el1 2>&1 | \
+// RUN: FileCheck -check-prefix=ARMv8_THREAD_POINTER_EL1 %s
+// ARMv8_THREAD_POINTER_EL1: "-target-feature" "+tpidr-el1"
+// ARMv8_THREAD_POINTER_EL1-NOT: "-target-feature" "+tpidr-el2"
+// ARMv8_THREAD_POINTER_EL1-NOT: "-target-feature" "+tpidr-el3"
+
+// RUN: %clang -target aarch64-linux -### -S %s -arch armv8a -mtp=el2 2>&1 | \
+// RUN: FileCheck -check-prefix=ARMv8_THREAD_POINTER_EL2 %s
+// ARMv8_THREAD_POINTER_EL2-NOT: "-target-feature" "+tpidr-el1"
+// ARMv8_THREAD_POINTER_EL2: "-target-feature" "+tpidr-el2"
+// ARMv8_THREAD_POINTER_EL2-NOT: "-target-feature" "+tpidr-el3"
+
+// RUN: %clang -target aarch64-linux -### -S %s -arch armv8a -mtp=el3 2>&1 | \
+// RUN: FileCheck -check-prefix=ARMv8_THREAD_POINTER_EL3 %s
+// ARMv8_THREAD_POINTER_EL3-NOT: "-target-feature" "+tpidr-el1"
+// ARMv8_THREAD_POINTER_EL3-NOT: "-target-feature" "+tpidr-el2"
+// ARMv8_THREAD_POINTER_EL3: "-target-feature" "+tpidr-el3"
+
 // RUN: %clang -target powerpc64-unknown-linux-gnu \
 // RUN: -### -S %s -mcpu=G5 2>&1 | FileCheck -check-prefix=PPCG5 %s
 // PPCG5: clang
@@ -137,12 +166,6 @@
 // PPCPWR8: clang
 // PPCPWR8: "-cc1"
 // PPCPWR8: "-target-cpu" "pwr8"
-
-// RUN: %clang -target powerpc64-unknown-linux-gnu \
-// RUN: -### -S %s -mcpu=a2q 2>&1 | FileCheck -check-prefix=PPCA2Q %s
-// PPCA2Q: clang
-// PPCA2Q: "-cc1"
-// PPCA2Q: "-target-cpu" "a2q"
 
 // RUN: %clang -target powerpc64-unknown-linux-gnu \
 // RUN: -### -S %s -mcpu=630 2>&1 | FileCheck -check-prefix=PPC630 %s
@@ -247,6 +270,18 @@
 // PPC64NS: "-target-cpu" "ppc64"
 
 // RUN: %clang -target powerpc-fsl-linux -### -S %s \
+// RUN: -mcpu=e500 2>&1 | FileCheck -check-prefix=PPCE500 %s
+// PPCE500: clang
+// PPCE500: "-cc1"
+// PPCE500: "-target-cpu" "e500"
+
+// RUN: %clang -target powerpc-fsl-linux -### -S %s \
+// RUN: -mcpu=8548 2>&1 | FileCheck -check-prefix=PPC8548 %s
+// PPC8548: clang
+// PPC8548: "-cc1"
+// PPC8548: "-target-cpu" "e500"
+
+// RUN: %clang -target powerpc-fsl-linux -### -S %s \
 // RUN: -mcpu=e500mc 2>&1 | FileCheck -check-prefix=PPCE500MC %s
 // PPCE500MC: clang
 // PPCE500MC: "-cc1"
@@ -288,6 +323,7 @@
 // ANDROID-X86_64: "-target-cpu" "x86-64"
 // ANDROID-X86_64: "-target-feature" "+sse4.2"
 // ANDROID-X86_64: "-target-feature" "+popcnt"
+// ANDROID-X86_64: "-target-feature" "+cx16"
 
 // RUN: %clang -target mips-linux-gnu -### -S %s 2>&1 | \
 // RUN: FileCheck -check-prefix=MIPS %s

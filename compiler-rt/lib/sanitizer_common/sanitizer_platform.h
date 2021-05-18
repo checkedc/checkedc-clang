@@ -1,9 +1,8 @@
 //===-- sanitizer_platform.h ------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -14,16 +13,29 @@
 #define SANITIZER_PLATFORM_H
 
 #if !defined(__linux__) && !defined(__FreeBSD__) && !defined(__NetBSD__) && \
-  !defined(__OpenBSD__) && !defined(__APPLE__) && !defined(_WIN32) && \
+  !defined(__APPLE__) && !defined(_WIN32) && \
   !defined(__Fuchsia__) && !defined(__rtems__) && \
   !(defined(__sun__) && defined(__svr4__))
 # error "This operating system is not supported"
+#endif
+
+// Get __GLIBC__ on a glibc platform. Exclude Android: features.h includes C
+// function declarations into a .S file which doesn't compile.
+// https://crbug.com/1162741
+#if __has_include(<features.h>) && !defined(__ANDROID__)
+#include <features.h>
 #endif
 
 #if defined(__linux__)
 # define SANITIZER_LINUX   1
 #else
 # define SANITIZER_LINUX   0
+#endif
+
+#if defined(__GLIBC__)
+# define SANITIZER_GLIBC   1
+#else
+# define SANITIZER_GLIBC   0
 #endif
 
 #if defined(__FreeBSD__)
@@ -36,12 +48,6 @@
 # define SANITIZER_NETBSD 1
 #else
 # define SANITIZER_NETBSD 0
-#endif
-
-#if defined(__OpenBSD__)
-# define SANITIZER_OPENBSD 1
-#else
-# define SANITIZER_OPENBSD 0
 #endif
 
 #if defined(__sun__) && defined(__svr4__)
@@ -113,7 +119,7 @@
 
 #define SANITIZER_POSIX \
   (SANITIZER_FREEBSD || SANITIZER_LINUX || SANITIZER_MAC || \
-    SANITIZER_NETBSD || SANITIZER_OPENBSD || SANITIZER_SOLARIS)
+    SANITIZER_NETBSD || SANITIZER_SOLARIS)
 
 #if __LP64__ || defined(_WIN64)
 #  define SANITIZER_WORDSIZE 64
@@ -131,6 +137,12 @@
 # define SANITIZER_X32 1
 #else
 # define SANITIZER_X32 0
+#endif
+
+#if defined(__i386__) || defined(_M_IX86)
+# define SANITIZER_I386 1
+#else
+# define SANITIZER_I386 0
 #endif
 
 #if defined(__mips__)
@@ -214,6 +226,12 @@
 # define SANITIZER_MYRIAD2 0
 #endif
 
+#if defined(__riscv) && (__riscv_xlen == 64)
+#define SANITIZER_RISCV64 1
+#else
+#define SANITIZER_RISCV64 0
+#endif
+
 // By default we allow to use SizeClassAllocator64 on 64-bit platform.
 // But in some cases (e.g. AArch64's 39-bit address space) SizeClassAllocator64
 // does not work well and we need to fallback to SizeClassAllocator32.
@@ -233,7 +251,13 @@
 // FIXME: this value should be different on different platforms.  Larger values
 // will still work but will consume more memory for TwoLevelByteMap.
 #if defined(__mips__)
+#if SANITIZER_GO && defined(__mips64)
+#define SANITIZER_MMAP_RANGE_SIZE FIRST_32_SECOND_64(1ULL << 32, 1ULL << 47)
+#else
 # define SANITIZER_MMAP_RANGE_SIZE FIRST_32_SECOND_64(1ULL << 32, 1ULL << 40)
+#endif
+#elif SANITIZER_RISCV64
+#define SANITIZER_MMAP_RANGE_SIZE FIRST_32_SECOND_64(1ULL << 32, 1ULL << 38)
 #elif defined(__aarch64__)
 # if SANITIZER_MAC
 // Darwin iOS/ARM64 has a 36-bit VMA, 64GiB VM
@@ -241,15 +265,26 @@
 # else
 #  define SANITIZER_MMAP_RANGE_SIZE FIRST_32_SECOND_64(1ULL << 32, 1ULL << 48)
 # endif
+#elif defined(__sparc__)
+#define SANITIZER_MMAP_RANGE_SIZE FIRST_32_SECOND_64(1ULL << 32, 1ULL << 52)
 #else
 # define SANITIZER_MMAP_RANGE_SIZE FIRST_32_SECOND_64(1ULL << 32, 1ULL << 47)
 #endif
 
-// The AArch64 linux port uses the canonical syscall set as mandated by
-// the upstream linux community for all new ports. Other ports may still
-// use legacy syscalls.
+// Whether the addresses are sign-extended from the VMA range to the word.
+// The SPARC64 Linux port implements this to split the VMA space into two
+// non-contiguous halves with a huge hole in the middle.
+#if defined(__sparc__) && SANITIZER_WORDSIZE == 64
+#define SANITIZER_SIGN_EXTENDED_ADDRESSES 1
+#else
+#define SANITIZER_SIGN_EXTENDED_ADDRESSES 0
+#endif
+
+// The AArch64 and RISC-V linux ports use the canonical syscall set as
+// mandated by the upstream linux community for all new ports. Other ports
+// may still use legacy syscalls.
 #ifndef SANITIZER_USES_CANONICAL_LINUX_SYSCALLS
-# if defined(__aarch64__) && SANITIZER_LINUX
+# if (defined(__aarch64__) || defined(__riscv)) && SANITIZER_LINUX
 # define SANITIZER_USES_CANONICAL_LINUX_SYSCALLS 1
 # else
 # define SANITIZER_USES_CANONICAL_LINUX_SYSCALLS 0
@@ -286,10 +321,10 @@
 # define MSC_PREREQ(version) 0
 #endif
 
-#if defined(__arm64__) && SANITIZER_IOS
-# define SANITIZER_NON_UNIQUE_TYPEINFO 1
-#else
+#if SANITIZER_MAC && !(defined(__arm64__) && SANITIZER_IOS)
 # define SANITIZER_NON_UNIQUE_TYPEINFO 0
+#else
+# define SANITIZER_NON_UNIQUE_TYPEINFO 1
 #endif
 
 // On linux, some architectures had an ABI transition from 64-bit long double
@@ -315,7 +350,7 @@
 #endif
 
 #if SANITIZER_FREEBSD || SANITIZER_MAC || SANITIZER_NETBSD || \
-  SANITIZER_OPENBSD || SANITIZER_SOLARIS
+  SANITIZER_SOLARIS
 # define SANITIZER_MADVISE_DONTNEED MADV_FREE
 #else
 # define SANITIZER_MADVISE_DONTNEED MADV_DONTNEED

@@ -1,18 +1,21 @@
 //===------------------------- dynamic_cast.pass.cpp ----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+// XFAIL: gcc-7, gcc-8, gcc-9
 
 #include <cassert>
 
 // This test explicitly tests dynamic cast with types that have inaccessible
 // bases.
 #if defined(__clang__)
-#pragma clang diagnostic ignored "-Winaccessible-base"
+#   pragma clang diagnostic ignored "-Winaccessible-base"
+#elif defined(__GNUC__) && (__GNUC__ >= 10)
+#   pragma GCC diagnostic ignored "-Winaccessible-base"
 #endif
 
 typedef char Pad1[43981];
@@ -144,11 +147,13 @@ void test()
 
 }  // t5
 
-int main()
+int main(int, char**)
 {
     t1::test();
     t2::test();
     t3::test();
     t4::test();
     t5::test();
+
+    return 0;
 }

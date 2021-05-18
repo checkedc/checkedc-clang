@@ -1,9 +1,8 @@
 //===--- UnconventionalAssignOperatorCheck.cpp - clang-tidy -----*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -19,11 +18,6 @@ namespace misc {
 
 void UnconventionalAssignOperatorCheck::registerMatchers(
     ast_matchers::MatchFinder *Finder) {
-  // Only register the matchers for C++; the functionality currently does not
-  // provide any benefit to other languages, despite being benign.
-  if (!getLangOpts().CPlusPlus)
-    return;
-
   const auto HasGoodReturnType = cxxMethodDecl(returns(lValueReferenceType(
       pointee(unless(isConstQualified()),
               anyOf(autoType(), hasDeclaration(equalsBoundNode("class")))))));
@@ -61,7 +55,12 @@ void UnconventionalAssignOperatorCheck::registerMatchers(
       anyOf(unaryOperator(hasOperatorName("*"), hasUnaryOperand(cxxThisExpr())),
             cxxOperatorCallExpr(argumentCountIs(1),
                                 callee(unresolvedLookupExpr()),
-                                hasArgument(0, cxxThisExpr())))))));
+                                hasArgument(0, cxxThisExpr())),
+            cxxOperatorCallExpr(
+                hasOverloadedOperatorName("="),
+                hasArgument(
+                    0, unaryOperator(hasOperatorName("*"),
+                                     hasUnaryOperand(cxxThisExpr())))))))));
   const auto IsGoodAssign = cxxMethodDecl(IsAssign, HasGoodReturnType);
 
   Finder->addMatcher(returnStmt(IsBadReturnStatement, forFunction(IsGoodAssign))
@@ -76,7 +75,10 @@ void UnconventionalAssignOperatorCheck::check(
   } else {
     static const char *const Messages[][2] = {
         {"ReturnType", "operator=() should return '%0&'"},
-        {"ArgumentType", "operator=() should take '%0 const&', '%0&&' or '%0'"},
+        {"ArgumentType",
+         getLangOpts().CPlusPlus11
+             ? "operator=() should take '%0 const&', '%0&&' or '%0'"
+             : "operator=() should take '%0 const&' or '%0'"},
         {"cv", "operator=() should not be marked '%1'"}};
 
     const auto *Method = Result.Nodes.getNodeAs<CXXMethodDecl>("method");

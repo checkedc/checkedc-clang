@@ -1,25 +1,22 @@
 //===- ErrorCollector.cpp -------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===-----------------------------------------------------------------------===/
 
 #include "ErrorCollector.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/WithColor.h"
+#include "llvm/Support/raw_ostream.h"
 #include <vector>
 
 using namespace llvm;
 using namespace llvm::elfabi;
 
-void ErrorCollector::escalateToFatal() {
-  ErrorsAreFatal = true;
-}
+void ErrorCollector::escalateToFatal() { ErrorsAreFatal = true; }
 
 void ErrorCollector::addError(Error &&Err, StringRef Tag) {
   if (Err) {
@@ -49,9 +46,7 @@ void ErrorCollector::log(raw_ostream &OS) {
   }
 }
 
-bool ErrorCollector::allErrorsHandled() const {
-  return Errors.empty();
-}
+bool ErrorCollector::allErrorsHandled() const { return Errors.empty(); }
 
 ErrorCollector::~ErrorCollector() {
   if (ErrorsAreFatal && !allErrorsHandled())

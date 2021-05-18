@@ -1,14 +1,13 @@
 //===-- BreakpointResolverScripted.h -----------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_BreakpointResolverScripted_h_
-#define liblldb_BreakpointResolverScripted_h_
+#ifndef LLDB_BREAKPOINT_BREAKPOINTRESOLVERSCRIPTED_H
+#define LLDB_BREAKPOINT_BREAKPOINTRESOLVERSCRIPTED_H
 
 #include "lldb/lldb-forward.h"
 #include "lldb/Breakpoint/BreakpointResolver.h"
@@ -17,33 +16,30 @@
 
 namespace lldb_private {
 
-//----------------------------------------------------------------------
-/// @class BreakpointResolverScripted BreakpointResolverScripted.h
+/// \class BreakpointResolverScripted BreakpointResolverScripted.h
 /// "lldb/Breakpoint/BreakpointResolverScripted.h" This class sets breakpoints
 /// on a given Address.  This breakpoint only takes once, and then it won't
 /// attempt to reset itself.
-//----------------------------------------------------------------------
 
 class BreakpointResolverScripted : public BreakpointResolver {
 public:
-  BreakpointResolverScripted(Breakpoint *bkpt,
+  BreakpointResolverScripted(const lldb::BreakpointSP &bkpt,
                              const llvm::StringRef class_name,
                              lldb::SearchDepth depth,
-                             StructuredDataImpl *args_data,
-                             ScriptInterpreter &script_interp);
+                             StructuredDataImpl *args_data);
 
-  ~BreakpointResolverScripted() override;
+  ~BreakpointResolverScripted() override = default;
 
   static BreakpointResolver *
-  CreateFromStructuredData(Breakpoint *bkpt,
+  CreateFromStructuredData(const lldb::BreakpointSP &bkpt,
                            const StructuredData::Dictionary &options_dict,
                            Status &error);
 
   StructuredData::ObjectSP SerializeToStructuredData() override;
 
   Searcher::CallbackReturn SearchCallback(SearchFilter &filter,
-                                          SymbolContext &context, Address *addr,
-                                          bool containing) override;
+                                          SymbolContext &context,
+                                          Address *addr) override;
 
   lldb::SearchDepth GetDepth() override;
 
@@ -57,12 +53,13 @@ public:
     return V->getResolverID() == BreakpointResolver::PythonResolver;
   }
 
-  lldb::BreakpointResolverSP CopyForBreakpoint(Breakpoint &breakpoint) override;
+  lldb::BreakpointResolverSP
+  CopyForBreakpoint(lldb::BreakpointSP &breakpoint) override;
 
 protected:
   void NotifyBreakpointSet() override;
 private:
-  void CreateImplementationIfNeeded();
+  void CreateImplementationIfNeeded(lldb::BreakpointSP bkpt);
   ScriptInterpreter *GetScriptInterpreter();
   
   std::string m_class_name;
@@ -73,9 +70,11 @@ private:
                                   // SBStructuredData).
   StructuredData::GenericSP m_implementation_sp;
 
-  DISALLOW_COPY_AND_ASSIGN(BreakpointResolverScripted);
+  BreakpointResolverScripted(const BreakpointResolverScripted &) = delete;
+  const BreakpointResolverScripted &
+  operator=(const BreakpointResolverScripted &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_BreakpointResolverScripted_h_
+#endif // LLDB_BREAKPOINT_BREAKPOINTRESOLVERSCRIPTED_H

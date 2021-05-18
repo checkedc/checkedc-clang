@@ -1,14 +1,13 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 // <queue>
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 // UNSUPPORTED: clang-5, apple-clang-9
 // UNSUPPORTED: libcpp-no-deduction-guides
 // Clang 5 will generate bad implicit deduction guides
@@ -34,7 +33,7 @@
 
 struct A {};
 
-int main()
+int main(int, char**)
 {
 
 //  Test the explicit deduction guides
@@ -76,16 +75,18 @@ int main()
 //  This one is odd - you can pass an allocator in to use, but the allocator
 //  has to match the type of the one used by the underlying container
     typedef short T;
-    typedef test_allocator<T> A;
-    typedef std::deque<T, A> C;
+    typedef test_allocator<T> Alloc;
+    typedef std::deque<T, Alloc> Container;
 
-    C c{0,1,2,3};
-    std::queue<T, C> source(c);
-    std::queue que(source, A(2)); // queue(queue &, allocator)
+    Container c{0,1,2,3};
+    std::queue<T, Container> source(c);
+    std::queue que(source, Alloc(2)); // queue(queue &, allocator)
     static_assert(std::is_same_v<decltype(que)::value_type, T>, "");
-    static_assert(std::is_same_v<decltype(que)::container_type, C>, "");
+    static_assert(std::is_same_v<decltype(que)::container_type, Container>, "");
     assert(que.size() == 4);
     assert(que.back() == 3);
     }
 
+
+  return 0;
 }

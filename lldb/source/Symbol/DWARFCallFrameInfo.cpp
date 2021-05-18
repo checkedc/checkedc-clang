@@ -1,9 +1,8 @@
-//===-- DWARFCallFrameInfo.cpp ----------------------------------*- C++ -*-===//
+//===-- DWARFCallFrameInfo.cpp --------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -20,16 +19,15 @@
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Timer.h"
 #include <list>
+#include <cstring>
 
 using namespace lldb;
 using namespace lldb_private;
 
-//----------------------------------------------------------------------
 // GetDwarfEHPtr
 //
 // Used for calls when the value type is specified by a DWARF EH Frame pointer
 // encoding.
-//----------------------------------------------------------------------
 static uint64_t
 GetGNUEHPointer(const DataExtractor &DE, offset_t *offset_ptr,
                 uint32_t eh_ptr_enc, addr_t pc_rel_addr, addr_t text_addr,
@@ -41,9 +39,7 @@ GetGNUEHPointer(const DataExtractor &DE, offset_t *offset_ptr,
   uint64_t baseAddress = 0;
   uint64_t addressValue = 0;
   const uint32_t addr_size = DE.GetAddressByteSize();
-#ifdef LLDB_CONFIGURATION_DEBUG
   assert(addr_size == 4 || addr_size == 8);
-#endif
 
   bool signExtendValue = false;
   // Decode the base part or adjust our offset
@@ -151,8 +147,15 @@ DWARFCallFrameInfo::DWARFCallFrameInfo(ObjectFile &objfile,
                                        SectionSP &section_sp, Type type)
     : m_objfile(objfile), m_section_sp(section_sp), m_type(type) {}
 
-bool DWARFCallFrameInfo::GetUnwindPlan(Address addr, UnwindPlan &unwind_plan) {
+bool DWARFCallFrameInfo::GetUnwindPlan(const Address &addr,
+                                       UnwindPlan &unwind_plan) {
+  return GetUnwindPlan(AddressRange(addr, 1), unwind_plan);
+}
+
+bool DWARFCallFrameInfo::GetUnwindPlan(const AddressRange &range,
+                                       UnwindPlan &unwind_plan) {
   FDEEntryMap::Entry fde_entry;
+  Address addr = range.GetBaseAddress();
 
   // Make sure that the Address we're searching for is the same object file as
   // this DWARFCallFrameInfo, we only store File offsets in m_fde_index.
@@ -161,9 +164,9 @@ bool DWARFCallFrameInfo::GetUnwindPlan(Address addr, UnwindPlan &unwind_plan) {
       module_sp->GetObjectFile() != &m_objfile)
     return false;
 
-  if (!GetFDEEntryByFileAddress(addr.GetFileAddress(), fde_entry))
-    return false;
-  return FDEToUnwindPlan(fde_entry.data, addr, unwind_plan);
+  if (llvm::Optional<FDEEntryMap::Entry> entry = GetFirstFDEEntryInRange(range))
+    return FDEToUnwindPlan(entry->data, addr, unwind_plan);
+  return false;
 }
 
 bool DWARFCallFrameInfo::GetAddressRange(Address addr, AddressRange &range) {
@@ -188,23 +191,21 @@ bool DWARFCallFrameInfo::GetAddressRange(Address addr, AddressRange &range) {
   return true;
 }
 
-bool DWARFCallFrameInfo::GetFDEEntryByFileAddress(
-    addr_t file_addr, FDEEntryMap::Entry &fde_entry) {
-  if (m_section_sp.get() == nullptr || m_section_sp->IsEncrypted())
-    return false;
+llvm::Optional<DWARFCallFrameInfo::FDEEntryMap::Entry>
+DWARFCallFrameInfo::GetFirstFDEEntryInRange(const AddressRange &range) {
+  if (!m_section_sp || m_section_sp->IsEncrypted())
+    return llvm::None;
 
   GetFDEIndex();
 
-  if (m_fde_index.IsEmpty())
-    return false;
+  addr_t start_file_addr = range.GetBaseAddress().GetFileAddress();
+  const FDEEntryMap::Entry *fde =
+      m_fde_index.FindEntryThatContainsOrFollows(start_file_addr);
+  if (fde && fde->DoesIntersect(
+                 FDEEntryMap::Range(start_file_addr, range.GetByteSize())))
+    return *fde;
 
-  FDEEntryMap::Entry *fde = m_fde_index.FindEntryThatContains(file_addr);
-
-  if (fde == nullptr)
-    return false;
-
-  fde_entry = *fde;
-  return true;
+  return llvm::None;
 }
 
 void DWARFCallFrameInfo::GetFunctionAddressAndSizeVector(
@@ -231,7 +232,7 @@ DWARFCallFrameInfo::GetCIE(dw_offset_t cie_offset) {
 
   if (pos != m_cie_map.end()) {
     // Parse and cache the CIE
-    if (pos->second.get() == nullptr)
+    if (pos->second == nullptr)
       pos->second = ParseCIE(cie_offset);
 
     return pos->second.get();
@@ -418,8 +419,7 @@ void DWARFCallFrameInfo::GetFDEIndex() {
   if (m_fde_index_initialized) // if two threads hit the locker
     return;
 
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat, "%s - %s", LLVM_PRETTY_FUNCTION,
+  LLDB_SCOPED_TIMERF("%s - %s", LLVM_PRETTY_FUNCTION,
                      m_objfile.GetFileSpec().GetFilename().AsCString(""));
 
   bool clear_address_zeroth_bit = false;
@@ -601,6 +601,9 @@ bool DWARFCallFrameInfo::FDEToUnwindPlan(dw_offset_t dwarf_offset,
     }
     offset += aug_data_len;
   }
+  unwind_plan.SetUnwindPlanForSignalTrap(
+    strchr(cie->augmentation, 'S') ? eLazyBoolYes : eLazyBoolNo);
+
   Address lsda_data;
   Address personality_function_ptr;
 
@@ -686,7 +689,7 @@ bool DWARFCallFrameInfo::FDEToUnwindPlan(dw_offset_t dwarf_offset,
           UnwindPlan::Row *newrow = new UnwindPlan::Row;
           *newrow = *row.get();
           row.reset(newrow);
-          row->SetOffset(m_cfi_data.GetPointer(&offset) -
+          row->SetOffset(m_cfi_data.GetAddress(&offset) -
                          startaddr.GetFileAddress());
           break;
         }
@@ -769,13 +772,12 @@ bool DWARFCallFrameInfo::FDEToUnwindPlan(dw_offset_t dwarf_offset,
           // useful for compilers that move epilogue code into the body of a
           // function.)
           if (stack.empty()) {
-            if (log)
-              log->Printf("DWARFCallFrameInfo::%s(dwarf_offset: %" PRIx32
-                          ", startaddr: %" PRIx64
-                          " encountered DW_CFA_restore_state but state stack "
-                          "is empty. Corrupt unwind info?",
-                          __FUNCTION__, dwarf_offset,
-                          startaddr.GetFileAddress());
+            LLDB_LOGF(log,
+                      "DWARFCallFrameInfo::%s(dwarf_offset: %" PRIx32
+                      ", startaddr: %" PRIx64
+                      " encountered DW_CFA_restore_state but state stack "
+                      "is empty. Corrupt unwind info?",
+                      __FUNCTION__, dwarf_offset, startaddr.GetFileAddress());
             break;
           }
           lldb::addr_t offset = row->GetOffset();
@@ -999,61 +1001,6 @@ bool DWARFCallFrameInfo::HandleCommonDwarfOpcode(uint8_t primary_opcode,
       uint32_t block_len = (uint32_t)m_cfi_data.GetULEB128(&offset);
       const uint8_t *block_data =
           (const uint8_t *)m_cfi_data.GetData(&offset, block_len);
-      //#if defined(__i386__) || defined(__x86_64__)
-      //              // The EH frame info for EIP and RIP contains code that
-      //              looks for traps to
-      //              // be a specific type and increments the PC.
-      //              // For i386:
-      //              // DW_CFA_val_expression where:
-      //              // eip = DW_OP_breg6(+28), DW_OP_deref, DW_OP_dup,
-      //              DW_OP_plus_uconst(0x34),
-      //              //       DW_OP_deref, DW_OP_swap, DW_OP_plus_uconst(0),
-      //              DW_OP_deref,
-      //              //       DW_OP_dup, DW_OP_lit3, DW_OP_ne, DW_OP_swap,
-      //              DW_OP_lit4, DW_OP_ne,
-      //              //       DW_OP_and, DW_OP_plus
-      //              // This basically does a:
-      //              // eip = ucontenxt.mcontext32->gpr.eip;
-      //              // if (ucontenxt.mcontext32->exc.trapno != 3 &&
-      //              ucontenxt.mcontext32->exc.trapno != 4)
-      //              //   eip++;
-      //              //
-      //              // For x86_64:
-      //              // DW_CFA_val_expression where:
-      //              // rip =  DW_OP_breg3(+48), DW_OP_deref, DW_OP_dup,
-      //              DW_OP_plus_uconst(0x90), DW_OP_deref,
-      //              //          DW_OP_swap, DW_OP_plus_uconst(0),
-      //              DW_OP_deref_size(4), DW_OP_dup, DW_OP_lit3,
-      //              //          DW_OP_ne, DW_OP_swap, DW_OP_lit4, DW_OP_ne,
-      //              DW_OP_and, DW_OP_plus
-      //              // This basically does a:
-      //              // rip = ucontenxt.mcontext64->gpr.rip;
-      //              // if (ucontenxt.mcontext64->exc.trapno != 3 &&
-      //              ucontenxt.mcontext64->exc.trapno != 4)
-      //              //   rip++;
-      //              // The trap comparisons and increments are not needed as
-      //              it hoses up the unwound PC which
-      //              // is expected to point at least past the instruction that
-      //              causes the fault/trap. So we
-      //              // take it out by trimming the expression right at the
-      //              first "DW_OP_swap" opcodes
-      //              if (block_data != NULL && thread->GetPCRegNum(Thread::GCC)
-      //              == reg_num)
-      //              {
-      //                  if (thread->Is64Bit())
-      //                  {
-      //                      if (block_len > 9 && block_data[8] == DW_OP_swap
-      //                      && block_data[9] == DW_OP_plus_uconst)
-      //                          block_len = 8;
-      //                  }
-      //                  else
-      //                  {
-      //                      if (block_len > 8 && block_data[7] == DW_OP_swap
-      //                      && block_data[8] == DW_OP_plus_uconst)
-      //                          block_len = 7;
-      //                  }
-      //              }
-      //#endif
       reg_location.SetIsDWARFExpression(block_data, block_len);
       row.SetRegisterInfo(reg_num, reg_location);
       return true;

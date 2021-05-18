@@ -1,16 +1,14 @@
 // -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11
-// UNSUPPORTED: clang-3.3, clang-3.4, clang-3.5, clang-3.6, clang-3.7, clang-3.8, clang-3.9
-// UNSUPPORTED: apple-clang-6, apple-clang-7, apple-clang-8
+// UNSUPPORTED: c++03, c++11
+
 // Note: libc++ supports string_view before C++17, but literals were introduced in C++14
 
 #include <string_view>
@@ -24,7 +22,7 @@
     typedef std::string_view   u8string_view;
 #endif
 
-int main()
+int main(int, char**)
 {
     using namespace std::literals::string_view_literals;
 
@@ -40,7 +38,7 @@ int main()
     std::u16string_view ufoo;
     std::u32string_view Ufoo;
 
-    
+
     foo  =    ""sv;     assert(  foo.size() == 0);
     u8foo = u8""sv;     assert(u8foo.size() == 0);
     Lfoo  =  L""sv;     assert( Lfoo.size() == 0);
@@ -70,4 +68,6 @@ int main()
     static_assert(noexcept( L"ABC"sv), "");
     static_assert(noexcept( u"ABC"sv), "");
     static_assert(noexcept( U"ABC"sv), "");
+
+  return 0;
 }

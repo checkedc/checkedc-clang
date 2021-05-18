@@ -1,9 +1,8 @@
 //===-- ClangDoc.cpp - ClangDoc ---------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -30,13 +29,13 @@ namespace doc {
 class MapperActionFactory : public tooling::FrontendActionFactory {
 public:
   MapperActionFactory(ClangDocContext CDCtx) : CDCtx(CDCtx) {}
-  clang::FrontendAction *create() override;
+  std::unique_ptr<FrontendAction> create() override;
 
 private:
   ClangDocContext CDCtx;
 };
 
-clang::FrontendAction *MapperActionFactory::create() {
+std::unique_ptr<FrontendAction> MapperActionFactory::create() {
   class ClangDocAction : public clang::ASTFrontendAction {
   public:
     ClangDocAction(ClangDocContext CDCtx) : CDCtx(CDCtx) {}
@@ -44,18 +43,18 @@ clang::FrontendAction *MapperActionFactory::create() {
     std::unique_ptr<clang::ASTConsumer>
     CreateASTConsumer(clang::CompilerInstance &Compiler,
                       llvm::StringRef InFile) override {
-      return llvm::make_unique<MapASTVisitor>(&Compiler.getASTContext(), CDCtx);
+      return std::make_unique<MapASTVisitor>(&Compiler.getASTContext(), CDCtx);
     }
 
   private:
     ClangDocContext CDCtx;
   };
-  return new ClangDocAction(CDCtx);
+  return std::make_unique<ClangDocAction>(CDCtx);
 }
 
 std::unique_ptr<tooling::FrontendActionFactory>
 newMapperActionFactory(ClangDocContext CDCtx) {
-  return llvm::make_unique<MapperActionFactory>(CDCtx);
+  return std::make_unique<MapperActionFactory>(CDCtx);
 }
 
 } // namespace doc

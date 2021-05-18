@@ -1,25 +1,20 @@
 //===-- RegisterContextPOSIX_powerpc.h --------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_RegisterContextPOSIX_powerpc_h_
-#define liblldb_RegisterContextPOSIX_powerpc_h_
+#ifndef LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_REGISTERCONTEXTPOSIX_POWERPC_H
+#define LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_REGISTERCONTEXTPOSIX_POWERPC_H
 
 #include "RegisterContext_powerpc.h"
 #include "RegisterInfoInterface.h"
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Utility/Log.h"
 
-class ProcessMonitor;
-
-// ---------------------------------------------------------------------------
 // Internal codes for all powerpc registers.
-// ---------------------------------------------------------------------------
 enum {
   k_first_gpr_powerpc,
   gpr_r0_powerpc = k_first_gpr_powerpc,
@@ -168,9 +163,6 @@ public:
 
   const char *GetRegisterName(unsigned reg);
 
-  uint32_t ConvertRegisterKindToRegisterNumber(lldb::RegisterKind kind,
-                                               uint32_t num) override;
-
 protected:
   uint64_t
       m_gpr_powerpc[k_num_gpr_registers_powerpc]; // general purpose registers.
@@ -178,7 +170,7 @@ protected:
       m_fpr_powerpc[k_num_fpr_registers_powerpc]; // floating point registers.
   uint32_t m_vmx_powerpc[k_num_vmx_registers_powerpc][4];
   std::unique_ptr<lldb_private::RegisterInfoInterface>
-      m_register_info_ap; // Register Info Interface (FreeBSD or Linux)
+      m_register_info_up; // Register Info Interface (FreeBSD or Linux)
 
   // Determines if an extended register set is supported on the processor
   // running the inferior process.
@@ -192,8 +184,6 @@ protected:
 
   bool IsVMX(unsigned reg);
 
-  lldb::ByteOrder GetByteOrder();
-
   virtual bool ReadGPR() = 0;
   virtual bool ReadFPR() = 0;
   virtual bool ReadVMX() = 0;
@@ -202,4 +192,4 @@ protected:
   virtual bool WriteVMX() = 0;
 };
 
-#endif // liblldb_RegisterContextPOSIX_powerpc_h_
+#endif // LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_REGISTERCONTEXTPOSIX_POWERPC_H

@@ -15,11 +15,11 @@
 ; RUN: llc < %s -march=mips64 -mcpu=mips64 -relocation-model=pic | \
 ; RUN:   FileCheck %s -check-prefixes=ALL,64R1-R5,GP64-NOT-R6
 ; RUN: llc < %s -march=mips64 -mcpu=mips64r2 -relocation-model=pic | \
-; RUN:   FileCheck %s -check-prefixes=ALL,64R1-R5,GP64,GP64-NOT-R6
+; RUN:   FileCheck %s -check-prefixes=ALL,64R1-R5,GP64-NOT-R6
 ; RUN: llc < %s -march=mips64 -mcpu=mips64r3 -relocation-model=pic | \
-; RUN:   FileCheck %s -check-prefixes=ALL,64R1-R5,GP64,GP64-NOT-R6
+; RUN:   FileCheck %s -check-prefixes=ALL,64R1-R5,GP64-NOT-R6
 ; RUN: llc < %s -march=mips64 -mcpu=mips64r5 -relocation-model=pic | \
-; RUN:   FileCheck %s -check-prefixes=ALL,64R1-R5,GP64,GP64-NOT-R6
+; RUN:   FileCheck %s -check-prefixes=ALL,64R1-R5,GP64-NOT-R6
 ; RUN: llc < %s -march=mips64 -mcpu=mips64r6 -relocation-model=pic | \
 ; RUN:   FileCheck %s -check-prefixes=ALL,64R6
 ; RUN: llc < %s -march=mips -mcpu=mips32r3 -mattr=+micromips -relocation-model=pic | \
@@ -154,6 +154,9 @@ entry:
 
   ; M2:         mult    $4, $5
   ; M2:         mflo    $2
+
+  ; M4:         mult    $4, $5
+  ; M4:         mflo    $1
 
   ; 32R1-R5:    mul     $2, $4, $5
   ; 32R6:       mul     $2, $4, $5

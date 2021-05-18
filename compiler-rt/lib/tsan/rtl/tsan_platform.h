@@ -1,9 +1,8 @@
 //===-- tsan_platform.h -----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -458,9 +457,11 @@ struct Mapping47 {
   static const uptr kAppMemEnd     = 0x00e000000000ull;
 };
 
+#define TSAN_RUNTIME_VMA 1
+
 #elif SANITIZER_GO && defined(__aarch64__)
 
-/* Go on linux/aarch64 (48-bit VMA)
+/* Go on linux/aarch64 (48-bit VMA) and darwin/aarch64 (47-bit VMA)
 0000 0000 1000 - 0000 1000 0000: executable
 0000 1000 0000 - 00c0 0000 0000: -
 00c0 0000 0000 - 00e0 0000 0000: heap
@@ -487,6 +488,30 @@ struct Mapping {
 // Indicates the runtime will define the memory regions at runtime.
 #define TSAN_RUNTIME_VMA 1
 
+#elif SANITIZER_GO && defined(__mips64)
+/*
+Go on linux/mips64 (47-bit VMA)
+0000 0000 1000 - 0000 1000 0000: executable
+0000 1000 0000 - 00c0 0000 0000: -
+00c0 0000 0000 - 00e0 0000 0000: heap
+00e0 0000 0000 - 2000 0000 0000: -
+2000 0000 0000 - 3000 0000 0000: shadow
+3000 0000 0000 - 3000 0000 0000: -
+3000 0000 0000 - 4000 0000 0000: metainfo (memory blocks and sync objects)
+4000 0000 0000 - 6000 0000 0000: -
+6000 0000 0000 - 6200 0000 0000: traces
+6200 0000 0000 - 8000 0000 0000: -
+*/
+struct Mapping {
+  static const uptr kMetaShadowBeg = 0x300000000000ull;
+  static const uptr kMetaShadowEnd = 0x400000000000ull;
+  static const uptr kTraceMemBeg = 0x600000000000ull;
+  static const uptr kTraceMemEnd = 0x620000000000ull;
+  static const uptr kShadowBeg = 0x200000000000ull;
+  static const uptr kShadowEnd = 0x300000000000ull;
+  static const uptr kAppMemBeg = 0x000000001000ull;
+  static const uptr kAppMemEnd = 0x00e000000000ull;
+};
 #else
 # error "Unknown platform"
 #endif
@@ -1012,13 +1037,14 @@ void FlushShadowMemory();
 void WriteMemoryProfile(char *buf, uptr buf_size, uptr nthread, uptr nlive);
 int ExtractResolvFDs(void *state, int *fds, int nfd);
 int ExtractRecvmsgFDs(void *msg, int *fds, int nfd);
+uptr ExtractLongJmpSp(uptr *env);
 void ImitateTlsWrite(ThreadState *thr, uptr tls_addr, uptr tls_size);
 
-int call_pthread_cancel_with_cleanup(int(*fn)(void *c, void *m,
-    void *abstime), void *c, void *m, void *abstime,
-    void(*cleanup)(void *arg), void *arg);
+int call_pthread_cancel_with_cleanup(int (*fn)(void *arg),
+                                     void (*cleanup)(void *arg), void *arg);
 
 void DestroyThreadState();
+void PlatformCleanUpThreadState(ThreadState *thr);
 
 }  // namespace __tsan
 

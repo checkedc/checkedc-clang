@@ -2,7 +2,7 @@
 # RUN: llvm-mc -filetype=obj -triple=x86_64-linux %s -o %t.o
 # RUN: echo "SECTIONS { .data 0x4000 : {*(.data)} .dynsym 0x2000 : {*(.dynsym)} .dynstr : {*(.dynstr)} }" > %t.script
 # RUN: ld.lld --hash-style=sysv -o %t.so --script %t.script %t.o -shared
-# RUN: llvm-objdump -section-headers %t.so | FileCheck %s
+# RUN: llvm-objdump --section-headers %t.so | FileCheck %s
 
 # Note: how the layout is done:
 #  we need to layout 2 segments, each contains sections:
@@ -22,10 +22,10 @@
 # must take responsibility to make sure this does not happen.
 
 # CHECK:      Sections:
-# CHECK-NEXT: Idx Name          Size      Address          Type
+# CHECK-NEXT: Idx Name          Size     VMA              Type
 # CHECK-NEXT:   0               00000000 0000000000000000
-# CHECK-NEXT:   1 .data         00000008 0000000000004000
-# CHECK-NEXT:   2 .dynamic      00000060 0000000000004008
+# CHECK-NEXT:   1 .dynamic      00000060 0000000000000000
+# CHECK-NEXT:   2 .data         00000008 0000000000004000
 # CHECK-NEXT:   3 .dynsym       00000018 0000000000002000
 # CHECK-NEXT:   4 .dynstr       00000001 0000000000002018
 # CHECK-NEXT:   5 .hash         00000010 000000000000201c

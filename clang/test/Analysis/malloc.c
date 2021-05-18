@@ -2,7 +2,7 @@
 // RUN:   -analyzer-checker=core \
 // RUN:   -analyzer-checker=alpha.deadcode.UnreachableCode \
 // RUN:   -analyzer-checker=alpha.core.CastSize \
-// RUN:   -analyzer-checker=unix.Malloc \
+// RUN:   -analyzer-checker=unix \
 // RUN:   -analyzer-checker=debug.ExprInspection
 
 #include "Inputs/system-header-simulator.h"
@@ -791,7 +791,8 @@ void mallocEscapeMalloc() {
 void mallocMalloc() {
   int *p = malloc(12);
   p = malloc(12);
-} // expected-warning {{Potential leak of memory pointed to by}}
+} // expected-warning {{Potential leak of memory pointed to by}}\
+  // expected-warning {{Potential leak of memory pointed to by}}
 
 void mallocFreeMalloc() {
   int *p = malloc(12);
@@ -1793,6 +1794,67 @@ void testNoCrashOnOffendingParameter() {
   void* ptr;
   allocateSomeMemory(offendingParameter, &ptr);
 } // expected-warning {{Potential leak of memory pointed to by 'ptr'}}
+
+
+// Test a false positive caused by a bug in liveness analysis.
+struct A {
+  int *buf;
+};
+struct B {
+  struct A *a;
+};
+void livenessBugRealloc(struct A *a) {
+  a->buf = realloc(a->buf, sizeof(int)); // no-warning
+}
+void testLivenessBug(struct B *in_b) {
+  struct B *b = in_b;
+  livenessBugRealloc(b->a);
+ ((void) 0); // An attempt to trick liveness analysis.
+  livenessBugRealloc(b->a);
+}
+
+struct ListInfo {
+  struct ListInfo *next;
+};
+
+struct ConcreteListItem {
+  struct ListInfo li;
+  int i;
+};
+
+void list_add(struct ListInfo *list, struct ListInfo *item);
+
+void testCStyleListItems(struct ListInfo *list) {
+  struct ConcreteListItem *x = malloc(sizeof(struct ConcreteListItem));
+  list_add(list, &x->li); // will free 'x'.
+}
+
+// MEM34-C. Only free memory allocated dynamically
+// Second non-compliant example.
+// https://wiki.sei.cmu.edu/confluence/display/c/MEM34-C.+Only+free+memory+allocated+dynamically
+enum { BUFSIZE = 256 };
+
+void MEM34_C(void) {
+  char buf[BUFSIZE];
+  char *p = (char *)realloc(buf, 2 * BUFSIZE);
+  // expected-warning@-1{{Argument to realloc() is the address of the local \
+variable 'buf', which is not memory allocated by malloc() [unix.Malloc]}}
+  if (p == NULL) {
+    /* Handle error */
+  }
+}
+
+(*crash_a)(); // expected-warning{{type specifier missing}}
+// A CallEvent without a corresponding FunctionDecl.
+crash_b() { crash_a(); } // no-crash
+// expected-warning@-1{{type specifier missing}} expected-warning@-1{{non-void}}
+
+long *global_a;
+void realloc_crash() {
+  long *c = global_a;
+  c--;
+  realloc(c, 8); // no-crash
+} // expected-warning{{Potential memory leak [unix.Malloc]}}
 
 // ----------------------------------------------------------------------------
 // False negatives.

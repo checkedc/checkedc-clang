@@ -1,9 +1,8 @@
 //===- lib/ReaderWriter/MachO/GOTPass.cpp -----------------------*- C++ -*-===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -110,7 +109,7 @@ private:
         assert(target != nullptr);
 
         if (!shouldReplaceTargetWithGOTAtom(target, canBypassGOT)) {
-          // Update reference kind to reflect that target is a direct accesss.
+          // Update reference kind to reflect that target is a direct access.
           _archHandler.updateReferenceToGOT(ref, false);
         } else {
           // Replace the target with a reference to a GOT entry.
@@ -177,8 +176,8 @@ private:
 
 void addGOTPass(PassManager &pm, const MachOLinkingContext &ctx) {
   assert(ctx.needsGOTPass());
-  pm.add(llvm::make_unique<GOTPass>(ctx));
+  pm.add(std::make_unique<GOTPass>(ctx));
 }
 
-} // end namesapce mach_o
-} // end namesapce lld
+} // end namespace mach_o
+} // end namespace lld

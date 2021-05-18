@@ -1,16 +1,5 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-//===-- popcountsi2_test.c - Test __popcountsi2 ---------------------------===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __popcountsi2 for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
+// REQUIRES: librt_has_popcountsi2
 
 #include "int_lib.h"
 #include <stdio.h>
@@ -18,7 +7,7 @@
 
 // Returns: count of 1 bits
 
-COMPILER_RT_ABI si_int __popcountsi2(si_int a);
+COMPILER_RT_ABI int __popcountsi2(si_int a);
 
 int naive_popcount(si_int a)
 {

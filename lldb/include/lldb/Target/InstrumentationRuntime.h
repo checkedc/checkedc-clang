@@ -1,14 +1,13 @@
 //===-- InstrumentationRuntime.h --------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_InstrumentationRuntime_h_
-#define liblldb_InstrumentationRuntime_h_
+#ifndef LLDB_TARGET_INSTRUMENTATIONRUNTIME_H
+#define LLDB_TARGET_INSTRUMENTATIONRUNTIME_H
 
 #include <map>
 #include <vector>
@@ -54,7 +53,7 @@ protected:
   lldb::ModuleSP GetRuntimeModuleSP() { return m_runtime_module; }
 
   void SetRuntimeModuleSP(lldb::ModuleSP module_sp) {
-    m_runtime_module = module_sp;
+    m_runtime_module = std::move(module_sp);
   }
 
   lldb::user_id_t GetBreakpointID() const { return m_breakpoint_id; }
@@ -93,4 +92,4 @@ public:
 
 } // namespace lldb_private
 
-#endif // liblldb_InstrumentationRuntime_h_
+#endif // LLDB_TARGET_INSTRUMENTATIONRUNTIME_H

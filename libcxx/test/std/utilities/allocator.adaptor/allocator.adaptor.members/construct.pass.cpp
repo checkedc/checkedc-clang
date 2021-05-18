@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <memory>
 
@@ -20,6 +19,7 @@
 #include <cassert>
 #include <string>
 
+#include "test_macros.h"
 #include "allocators.h"
 
 struct B
@@ -111,7 +111,19 @@ struct F
 
 bool F::constructed = false;
 
-int main()
+struct G
+{
+    static bool constructed;
+
+    typedef std::allocator<G> allocator_type;
+
+    G(std::allocator_arg_t, allocator_type&&) { assert(false); }
+    G(allocator_type&) { constructed = true; }
+};
+
+bool G::constructed = false;
+
+int main(int, char**)
 {
 
     {
@@ -185,4 +197,17 @@ int main()
         assert(A3<F>::constructed);
         s->~S();
     }
+
+    // LWG 2586
+    // Test that is_constructible uses an lvalue ref so the correct constructor
+    // is picked.
+    {
+        std::scoped_allocator_adaptor<G::allocator_type> sa;
+        G* ptr = sa.allocate(1);
+        sa.construct(ptr);
+        assert(G::constructed);
+        sa.deallocate(ptr, 1);
+    }
+
+  return 0;
 }

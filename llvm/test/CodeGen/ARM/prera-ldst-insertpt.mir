@@ -1,4 +1,6 @@
 # RUN: llc -run-pass arm-prera-ldst-opt %s -o - | FileCheck %s
+# RUN: llc -run-pass arm-prera-ldst-opt -arm-prera-ldst-opt-reorder-limit=3 %s -o - | FileCheck %s
+# RUN: llc -run-pass arm-prera-ldst-opt -arm-prera-ldst-opt-reorder-limit=2 %s -o - | FileCheck %s --check-prefix=CHECK-LIMIT
 --- |
   target triple = "thumbv7---eabi"
 
@@ -15,7 +17,7 @@
 ---
 # CHECK-LABEL: name: a
 name:            a
-alignment:       1
+alignment:       2
 tracksRegLiveness: true
 liveins:
   - { reg: '$r0', virtual-reg: '%0' }
@@ -58,7 +60,7 @@ body:             |
 ---
 # CHECK-LABEL: name: b
 name:            b
-alignment:       1
+alignment:       2
 tracksRegLiveness: true
 liveins:
   - { reg: '$r0', virtual-reg: '%0' }
@@ -79,11 +81,17 @@ body:             |
 
     ; Make sure we move the paired stores next to each other, and
     ; insert them in an appropriate location.
-    ; CHECK: t2STRi12 {{.*}}, 0
+    ; CHECK:      t2STRi12 {{.*}}, 0
     ; CHECK-NEXT: t2STRi12 {{.*}}, 4
     ; CHECK-NEXT: t2STRi12 {{.*}}, 8
     ; CHECK-NEXT: t2MUL
     ; CHECK-NEXT: t2MOVi32imm
+
+    ; CHECK-LIMIT-LABEL: name: b
+    ; CHECK-LIMIT:      t2STRi12 {{.*}}, 0
+    ; CHECK-LIMIT-NEXT: t2STRi12 {{.*}}, 4
+    ; CHECK-LIMIT-NEXT: t2MUL
+    ; CHECK-LIMIT-NEXT: t2STRi12 {{.*}}, 8
 
     %4 : rgpr = t2MUL %1, %1, 14, $noreg
     %5 : rgpr = t2MOVi32imm -858993459

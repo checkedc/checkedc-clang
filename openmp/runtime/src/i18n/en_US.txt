@@ -3,10 +3,9 @@
 #
 #//===----------------------------------------------------------------------===//
 #//
-#//                     The LLVM Compiler Infrastructure
-#//
-#// This file is dual licensed under the MIT and the University of Illinois Open
-#// Source Licenses. See LICENSE.txt for details.
+#// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+#// See https://llvm.org/LICENSE.txt for license information.
+#// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #//
 #//===----------------------------------------------------------------------===//
 #
@@ -99,10 +98,10 @@ ThreadIDsNotUnique           "thread ids not unique"
 UsingPthread                 "using pthread info"
 LegacyApicIDsNotUnique       "legacy APIC ids not unique"
 x2ApicIDsNotUnique           "x2APIC ids not unique"
-DisplayEnvBegin		     "OPENMP DISPLAY ENVIRONMENT BEGIN"
-DisplayEnvEnd		     "OPENMP DISPLAY ENVIRONMENT END"
-Device			     "[device]"
-Host			     "[host]"
+DisplayEnvBegin              "OPENMP DISPLAY ENVIRONMENT BEGIN"
+DisplayEnvEnd                "OPENMP DISPLAY ENVIRONMENT END"
+Device                       "[device]"
+Host                         "[host]"
 Tile                         "tile"
 
 
@@ -294,7 +293,7 @@ AffUseGlobCpuid              "%1$s: Affinity capable, using global cpuid info"
 AffCapableUseFlat            "%1$s: Affinity capable, using default \"flat\" topology"
 AffNotCapableUseLocCpuid     "%1$s: Affinity not capable, using local cpuid info"
 AffNotCapableUseCpuinfo      "%1$s: Affinity not capable, using cpuinfo file"
-AffFlatTopology              "%1$s: Affinity not capable, assumming \"flat\" topology"
+AffFlatTopology              "%1$s: Affinity not capable, assuming \"flat\" topology"
 InitOSProcSetRespect         "%1$s: Initial OS proc set respected: %2$s"
 InitOSProcSetNotRespect      "%1$s: Initial OS proc set not respected: %2$s"
 AvailableOSProc              "%1$s: %2$d available OS procs"
@@ -325,7 +324,7 @@ WrongMessageCatalog          "Incompatible message catalog \"%1$s\": Version \"%
 StgIgnored                   "%1$s: ignored because %2$s has been defined"
                                  # %1, -- name of ignored variable, %2 -- name of variable with higher priority.
 OBSOLETE                     "%1$s: overrides %3$s specified before"
-                                 # %1, %2 -- name and value of the overriding variable, %3 -- name of overriden variable.
+                                 # %1, %2 -- name and value of the overriding variable, %3 -- name of overridden variable.
 AffTilesNoHWLOC              "%1$s: Tiles are only supported if KMP_TOPOLOGY_METHOD=hwloc, using granularity=package instead"
 AffTilesNoTiles              "%1$s: Tiles requested but were not detected on this HW, using granularity=package instead"
 TopologyExtraTile            "%1$s: %2$d packages x %3$d tiles/pkg x %4$d cores/tile x %5$d threads/core (%6$d total cores)"
@@ -373,7 +372,7 @@ AffParseFilename             "%1$s: parsing %2$s."
 MsgExiting                   "%1$s - exiting."
 IncompatibleLibrary          "Incompatible %1$s library with version %2$s found."
 IttFunctionError             "ittnotify: Function %1$s failed:"
-IttUnknownError              "ittnofify: Error #%1$d."
+IttUnknownError              "ittnotify: Error #%1$d."
 EnvMiddleWarn                "%1$s must be set prior to first parallel region or certain API calls; ignored."
 CnsLockNotDestroyed          "Lock initialized at %1$s(%2$d) was not destroyed"
                                  # %1, %2, %3, %4 -- file, line, func, col
@@ -418,6 +417,8 @@ AffUsingHwloc                "%1$s: Affinity capable, using hwloc."
 AffIgnoringHwloc             "%1$s: Ignoring hwloc mechanism."
 AffHwlocErrorOccurred        "%1$s: Hwloc failed in %2$s. Relying on internal affinity mechanisms."
 EnvSerialWarn                "%1$s must be set prior to OpenMP runtime library initialization; ignored."
+EnvMwaitWarn                 "You have enabled the use of umonitor/umwait. If the CPU doesn't have that enabled "
+                             "you'll get an illegal instruction exception."
 EnvVarDeprecated             "%1$s variable deprecated, please use %2$s instead."
 RedMethodNotSupported        "KMP_FORCE_REDUCTION: %1$s method is not supported; using critical."
 AffHWSubsetNoHWLOC           "KMP_HW_SUBSET ignored: unsupported item requested for non-HWLOC topology method (KMP_TOPOLOGY_METHOD)"
@@ -426,7 +427,8 @@ AffHWSubsetManyTiles         "KMP_HW_SUBSET ignored: too many L2 Caches requeste
 AffHWSubsetManyProcs         "KMP_HW_SUBSET ignored: too many Procs requested."
 HierSchedInvalid             "Hierarchy ignored: unsupported level: %1$s."
 AffFormatDefault             "OMP: pid %1$s tid %2$s thread %3$s bound to OS proc set {%4$s}"
-
+APIDeprecated                "%1$s routine deprecated, please use %2$s instead."
+GompFeatureNotSupported      "libgomp compatibility layer does not support OpenMP feature: %1$s"
 
 # --------------------------------------------------------------------------------------------------
 -*- HINTS -*-
@@ -490,4 +492,3 @@ SystemLimitOnThreads         "System-related limit on the number of threads."
 # --------------------------------------------------------------------------------------------------
 # end of file #
 # --------------------------------------------------------------------------------------------------
-

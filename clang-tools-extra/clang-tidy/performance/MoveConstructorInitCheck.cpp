@@ -1,9 +1,8 @@
 //===--- MoveConstructorInitCheck.cpp - clang-tidy-------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -24,23 +23,20 @@ namespace performance {
 MoveConstructorInitCheck::MoveConstructorInitCheck(StringRef Name,
                                                    ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      IncludeStyle(utils::IncludeSorter::parseIncludeStyle(
-          Options.getLocalOrGlobal("IncludeStyle", "llvm"))) {}
+      Inserter(Options.getLocalOrGlobal("IncludeStyle",
+                                        utils::IncludeSorter::IS_LLVM)) {}
 
 void MoveConstructorInitCheck::registerMatchers(MatchFinder *Finder) {
-  // Only register the matchers for C++11; the functionality currently does not
-  // provide any benefit to other languages, despite being benign.
-  if (!getLangOpts().CPlusPlus11)
-    return;
-
   Finder->addMatcher(
-      cxxConstructorDecl(
-          unless(isImplicit()), isMoveConstructor(),
-          hasAnyConstructorInitializer(
-              cxxCtorInitializer(
-                  withInitializer(cxxConstructExpr(hasDeclaration(
-                      cxxConstructorDecl(isCopyConstructor()).bind("ctor")))))
-                  .bind("move-init"))),
+      traverse(TK_AsIs,
+               cxxConstructorDecl(
+                   unless(isImplicit()), isMoveConstructor(),
+                   hasAnyConstructorInitializer(
+                       cxxCtorInitializer(
+                           withInitializer(cxxConstructExpr(hasDeclaration(
+                               cxxConstructorDecl(isCopyConstructor())
+                                   .bind("ctor")))))
+                           .bind("move-init")))),
       this);
 }
 
@@ -92,15 +88,13 @@ void MoveConstructorInitCheck::check(const MatchFinder::MatchResult &Result) {
   }
 }
 
-void MoveConstructorInitCheck::registerPPCallbacks(CompilerInstance &Compiler) {
-  Inserter.reset(new utils::IncludeInserter(
-      Compiler.getSourceManager(), Compiler.getLangOpts(), IncludeStyle));
-  Compiler.getPreprocessor().addPPCallbacks(Inserter->CreatePPCallbacks());
+void MoveConstructorInitCheck::registerPPCallbacks(
+    const SourceManager &SM, Preprocessor *PP, Preprocessor *ModuleExpanderPP) {
+  Inserter.registerPreprocessor(PP);
 }
 
 void MoveConstructorInitCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "IncludeStyle",
-                utils::IncludeSorter::toString(IncludeStyle));
+  Options.store(Opts, "IncludeStyle", Inserter.getStyle());
 }
 
 } // namespace performance

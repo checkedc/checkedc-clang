@@ -1,9 +1,8 @@
 //==-- AArch64MCInstLower.cpp - Convert AArch64 MachineInstr to an MCInst --==//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -149,6 +148,8 @@ MCOperand AArch64MCInstLower::lowerSymbolOperandELF(const MachineOperand &MO,
       RefFlags |= AArch64MCExpr::VK_TLSDESC;
       break;
     }
+  } else if (MO.getTargetFlags() & AArch64II::MO_PREL) {
+    RefFlags |= AArch64MCExpr::VK_PREL;
   } else {
     // No modifier means this is a generic reference, classified as absolute for
     // the cases where it matters (:abs_g0: etc).
@@ -202,6 +203,12 @@ MCOperand AArch64MCInstLower::lowerSymbolOperandCOFF(const MachineOperand &MO,
     RefFlags |= AArch64MCExpr::VK_SABS;
   } else {
     RefFlags |= AArch64MCExpr::VK_ABS;
+
+    if ((MO.getTargetFlags() & AArch64II::MO_FRAGMENT) == AArch64II::MO_PAGE)
+      RefFlags |= AArch64MCExpr::VK_PAGE;
+    else if ((MO.getTargetFlags() & AArch64II::MO_FRAGMENT) ==
+             AArch64II::MO_PAGEOFF)
+      RefFlags |= AArch64MCExpr::VK_PAGEOFF | AArch64MCExpr::VK_NC;
   }
 
   if ((MO.getTargetFlags() & AArch64II::MO_FRAGMENT) == AArch64II::MO_G3)

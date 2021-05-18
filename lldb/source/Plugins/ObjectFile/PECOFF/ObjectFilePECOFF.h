@@ -1,23 +1,22 @@
 //===-- ObjectFilePECOFF.h --------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ObjectFilePECOFF_h_
-#define liblldb_ObjectFilePECOFF_h_
+#ifndef LLDB_SOURCE_PLUGINS_OBJECTFILE_PECOFF_OBJECTFILEPECOFF_H
+#define LLDB_SOURCE_PLUGINS_OBJECTFILE_PECOFF_OBJECTFILEPECOFF_H
 
 #include <vector>
 
 #include "lldb/Symbol/ObjectFile.h"
-#include "llvm/Object/Binary.h"
+#include "llvm/Object/COFF.h"
 
 class ObjectFilePECOFF : public lldb_private::ObjectFile {
 public:
-  typedef enum MachineType {
+  enum MachineType {
     MachineUnknown = 0x0,
     MachineAm33 = 0x1d3,
     MachineAmd64 = 0x8664,
@@ -40,7 +39,7 @@ public:
     MachineSh5 = 0x1a8,
     MachineThumb = 0x1c2,
     MachineWcemIpsv2 = 0x169
-  } MachineType;
+  };
 
   ObjectFilePECOFF(const lldb::ModuleSP &module_sp, lldb::DataBufferSP &data_sp,
                    lldb::offset_t data_offset,
@@ -53,9 +52,7 @@ public:
 
   ~ObjectFilePECOFF() override;
 
-  //------------------------------------------------------------------
   // Static Functions
-  //------------------------------------------------------------------
   static void Initialize();
 
   static void Terminate();
@@ -88,6 +85,13 @@ public:
 
   static lldb::SymbolType MapSymbolType(uint16_t coff_symbol_type);
 
+  // LLVM RTTI support
+  static char ID;
+  bool isA(const void *ClassID) const override {
+    return ClassID == &ID || ObjectFile::isA(ClassID);
+  }
+  static bool classof(const ObjectFile *obj) { return obj->isA(&ID); }
+
   bool ParseHeader() override;
 
   bool SetLoadAddress(lldb_private::Target &target, lldb::addr_t value,
@@ -112,26 +116,33 @@ public:
 
   lldb_private::ArchSpec GetArchitecture() override;
 
-  bool GetUUID(lldb_private::UUID *uuid) override;
+  lldb_private::UUID GetUUID() override;
 
   uint32_t GetDependentModules(lldb_private::FileSpecList &files) override;
 
-  virtual lldb_private::Address GetEntryPointAddress() override;
+  lldb_private::Address GetEntryPointAddress() override;
+
+  lldb_private::Address GetBaseAddress() override;
 
   ObjectFile::Type CalculateType() override;
 
   ObjectFile::Strata CalculateStrata() override;
 
-  //------------------------------------------------------------------
   // PluginInterface protocol
-  //------------------------------------------------------------------
   lldb_private::ConstString GetPluginName() override;
 
   uint32_t GetPluginVersion() override;
 
   bool IsWindowsSubsystem();
 
+  uint32_t GetRVA(const lldb_private::Address &addr) const;
+  lldb_private::Address GetAddress(uint32_t rva);
+  lldb::addr_t GetFileAddress(uint32_t rva) const;
+
   lldb_private::DataExtractor ReadImageData(uint32_t offset, size_t size);
+  lldb_private::DataExtractor ReadImageDataByRVA(uint32_t rva, size_t size);
+
+  std::unique_ptr<lldb_private::CallFrameInfo> CreateCallFrameInfo() override;
 
 protected:
   bool NeedsEndianSwap() const;
@@ -174,45 +185,46 @@ protected:
   } data_directory_t;
 
   typedef struct coff_opt_header {
-    uint16_t magic;
-    uint8_t major_linker_version;
-    uint8_t minor_linker_version;
-    uint32_t code_size;
-    uint32_t data_size;
-    uint32_t bss_size;
-    uint32_t entry;
-    uint32_t code_offset;
-    uint32_t data_offset;
+    uint16_t magic = 0;
+    uint8_t major_linker_version = 0;
+    uint8_t minor_linker_version = 0;
+    uint32_t code_size = 0;
+    uint32_t data_size = 0;
+    uint32_t bss_size = 0;
+    uint32_t entry = 0;
+    uint32_t code_offset = 0;
+    uint32_t data_offset = 0;
 
-    uint64_t image_base;
-    uint32_t sect_alignment;
-    uint32_t file_alignment;
-    uint16_t major_os_system_version;
-    uint16_t minor_os_system_version;
-    uint16_t major_image_version;
-    uint16_t minor_image_version;
-    uint16_t major_subsystem_version;
-    uint16_t minor_subsystem_version;
-    uint32_t reserved1;
-    uint32_t image_size;
-    uint32_t header_size;
-    uint32_t checksum;
-    uint16_t subsystem;
-    uint16_t dll_flags;
-    uint64_t stack_reserve_size;
-    uint64_t stack_commit_size;
-    uint64_t heap_reserve_size;
-    uint64_t heap_commit_size;
-    uint32_t loader_flags;
+    uint64_t image_base = 0;
+    uint32_t sect_alignment = 0;
+    uint32_t file_alignment = 0;
+    uint16_t major_os_system_version = 0;
+    uint16_t minor_os_system_version = 0;
+    uint16_t major_image_version = 0;
+    uint16_t minor_image_version = 0;
+    uint16_t major_subsystem_version = 0;
+    uint16_t minor_subsystem_version = 0;
+    uint32_t reserved1 = 0;
+    uint32_t image_size = 0;
+    uint32_t header_size = 0;
+    uint32_t checksum = 0;
+    uint16_t subsystem = 0;
+    uint16_t dll_flags = 0;
+    uint64_t stack_reserve_size = 0;
+    uint64_t stack_commit_size = 0;
+    uint64_t heap_reserve_size = 0;
+    uint64_t heap_commit_size = 0;
+    uint32_t loader_flags = 0;
     //    uint32_t	num_data_dir_entries;
     std::vector<data_directory>
         data_dirs; // will contain num_data_dir_entries entries
   } coff_opt_header_t;
 
-  typedef enum coff_data_dir_type {
+  enum coff_data_dir_type {
     coff_data_dir_export_table = 0,
     coff_data_dir_import_table = 1,
-  } coff_data_dir_type;
+    coff_data_dir_exception_table = 3
+  };
 
   typedef struct section_header {
     char name[8];
@@ -271,6 +283,8 @@ protected:
   void DumpDependentModules(lldb_private::Stream *s);
 
   llvm::StringRef GetSectionName(const section_header_t &sect);
+  static lldb::SectionType GetSectionType(llvm::StringRef sect_name,
+                                          const section_header_t &sect);
 
   typedef std::vector<section_header_t> SectionHeaderColl;
   typedef SectionHeaderColl::iterator SectionHeaderCollIter;
@@ -279,7 +293,6 @@ protected:
 private:
   bool CreateBinary();
 
-private:
   dos_header_t m_dos_header;
   coff_header_t m_coff_header;
   coff_opt_header_t m_coff_header_opt;
@@ -287,8 +300,8 @@ private:
   lldb::addr_t m_image_base;
   lldb_private::Address m_entry_point_address;
   llvm::Optional<lldb_private::FileSpecList> m_deps_filespec;
-  typedef llvm::object::OwningBinary<llvm::object::Binary> OWNBINType;
-  llvm::Optional<OWNBINType> m_owningbin;
+  std::unique_ptr<llvm::object::COFFObjectFile> m_binary;
+  lldb_private::UUID m_uuid;
 };
 
-#endif // liblldb_ObjectFilePECOFF_h_
+#endif // LLDB_SOURCE_PLUGINS_OBJECTFILE_PECOFF_OBJECTFILEPECOFF_H

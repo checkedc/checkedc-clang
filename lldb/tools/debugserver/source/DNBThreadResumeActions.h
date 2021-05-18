@@ -1,9 +1,8 @@
 //===-- DNBThreadResumeActions.h --------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -11,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __DNBThreadResumeActions_h__
-#define __DNBThreadResumeActions_h__
+#ifndef LLDB_TOOLS_DEBUGSERVER_SOURCE_DNBTHREADRESUMEACTIONS_H
+#define LLDB_TOOLS_DEBUGSERVER_SOURCE_DNBTHREADRESUMEACTIONS_H
 
 #include <vector>
 
@@ -63,4 +62,4 @@ protected:
   mutable std::vector<bool> m_signal_handled;
 };
 
-#endif // #ifndef __DNBThreadResumeActions_h__
+#endif // LLDB_TOOLS_DEBUGSERVER_SOURCE_DNBTHREADRESUMEACTIONS_H

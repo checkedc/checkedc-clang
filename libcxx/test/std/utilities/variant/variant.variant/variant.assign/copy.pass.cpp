@@ -1,26 +1,19 @@
 // -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
-// The following compilers don't generate constexpr special members correctly.
-// XFAIL: clang-3.5, clang-3.6, clang-3.7, clang-3.8
-// XFAIL: apple-clang-6, apple-clang-7, apple-clang-8.0
-
-// XFAIL: availability=macosx10.13
-// XFAIL: availability=macosx10.12
-// XFAIL: availability=macosx10.11
-// XFAIL: availability=macosx10.10
-// XFAIL: availability=macosx10.9
-// XFAIL: availability=macosx10.8
-// XFAIL: availability=macosx10.7
+// Throwing bad_variant_access is supported starting in macosx10.13
+// XFAIL: with_system_cxx_lib=macosx10.12 && !no-exceptions
+// XFAIL: with_system_cxx_lib=macosx10.11 && !no-exceptions
+// XFAIL: with_system_cxx_lib=macosx10.10 && !no-exceptions
+// XFAIL: with_system_cxx_lib=macosx10.9 && !no-exceptions
 
 // <variant>
 
@@ -460,7 +453,7 @@ void test_copy_assignment_different_index() {
   {
     using V = std::variant<int, CopyAssign, unsigned>;
     CopyAssign::reset();
-    V v1(std::in_place_type<unsigned>, 43);
+    V v1(std::in_place_type<unsigned>, 43u);
     V v2(std::in_place_type<CopyAssign>, 42);
     assert(CopyAssign::copy_construct == 0);
     assert(CopyAssign::move_construct == 0);
@@ -554,7 +547,7 @@ void test_copy_assignment_different_index() {
     struct {
       constexpr Result<int> operator()() const {
         using V = std::variant<int, TCopyAssign, unsigned>;
-        V v(std::in_place_type<unsigned>, 43);
+        V v(std::in_place_type<unsigned>, 43u);
         V v2(std::in_place_type<TCopyAssign>, 42);
         v = v2;
         return {v.index(), std::get<1>(v).value};
@@ -591,7 +584,7 @@ void test_constexpr_copy_assignment() {
 #endif // > C++17
 }
 
-int main() {
+int main(int, char**) {
   test_copy_assignment_empty_empty();
   test_copy_assignment_non_empty_empty();
   test_copy_assignment_empty_non_empty();
@@ -600,4 +593,6 @@ int main() {
   test_copy_assignment_sfinae();
   test_copy_assignment_not_noexcept();
   test_constexpr_copy_assignment();
+
+  return 0;
 }

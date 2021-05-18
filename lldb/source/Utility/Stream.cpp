@@ -1,9 +1,8 @@
-//===-- Stream.cpp ----------------------------------------------*- C++ -*-===//
+//===-- Stream.cpp --------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -12,6 +11,7 @@
 #include "lldb/Utility/Endian.h"
 #include "lldb/Utility/VASPrintf.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/Support/Format.h"
 #include "llvm/Support/LEB128.h"
 
 #include <string>
@@ -22,17 +22,16 @@
 using namespace lldb;
 using namespace lldb_private;
 
-Stream::Stream(uint32_t flags, uint32_t addr_size, ByteOrder byte_order)
+Stream::Stream(uint32_t flags, uint32_t addr_size, ByteOrder byte_order,
+               bool colors)
     : m_flags(flags), m_addr_size(addr_size), m_byte_order(byte_order),
-      m_indent_level(0), m_forwarder(*this) {}
+      m_indent_level(0), m_forwarder(*this, colors) {}
 
-Stream::Stream()
+Stream::Stream(bool colors)
     : m_flags(0), m_addr_size(4), m_byte_order(endian::InlHostByteOrder()),
-      m_indent_level(0), m_forwarder(*this) {}
+      m_indent_level(0), m_forwarder(*this, colors) {}
 
-//------------------------------------------------------------------
 // Destructor
-//------------------------------------------------------------------
 Stream::~Stream() {}
 
 ByteOrder Stream::SetByteOrder(ByteOrder byte_order) {
@@ -41,14 +40,10 @@ ByteOrder Stream::SetByteOrder(ByteOrder byte_order) {
   return old_byte_order;
 }
 
-//------------------------------------------------------------------
 // Put an offset "uval" out to the stream using the printf format in "format".
-//------------------------------------------------------------------
 void Stream::Offset(uint32_t uval, const char *format) { Printf(format, uval); }
 
-//------------------------------------------------------------------
 // Put an SLEB128 "uval" out to the stream using the printf format in "format".
-//------------------------------------------------------------------
 size_t Stream::PutSLEB128(int64_t sval) {
   if (m_flags.Test(eBinary))
     return llvm::encodeSLEB128(sval, m_forwarder);
@@ -56,9 +51,7 @@ size_t Stream::PutSLEB128(int64_t sval) {
     return Printf("0x%" PRIi64, sval);
 }
 
-//------------------------------------------------------------------
 // Put an ULEB128 "uval" out to the stream using the printf format in "format".
-//------------------------------------------------------------------
 size_t Stream::PutULEB128(uint64_t uval) {
   if (m_flags.Test(eBinary))
     return llvm::encodeULEB128(uval, m_forwarder);
@@ -66,9 +59,7 @@ size_t Stream::PutULEB128(uint64_t uval) {
     return Printf("0x%" PRIx64, uval);
 }
 
-//------------------------------------------------------------------
 // Print a raw NULL terminated C string to the stream.
-//------------------------------------------------------------------
 size_t Stream::PutCString(llvm::StringRef str) {
   size_t bytes_written = 0;
   bytes_written = Write(str.data(), str.size());
@@ -79,49 +70,40 @@ size_t Stream::PutCString(llvm::StringRef str) {
   return bytes_written;
 }
 
-//------------------------------------------------------------------
 // Print a double quoted NULL terminated C string to the stream using the
 // printf format in "format".
-//------------------------------------------------------------------
 void Stream::QuotedCString(const char *cstr, const char *format) {
   Printf(format, cstr);
 }
 
-//------------------------------------------------------------------
 // Put an address "addr" out to the stream with optional prefix and suffix
 // strings.
-//------------------------------------------------------------------
-void Stream::Address(uint64_t addr, uint32_t addr_size, const char *prefix,
-                     const char *suffix) {
+void lldb_private::DumpAddress(llvm::raw_ostream &s, uint64_t addr,
+                               uint32_t addr_size, const char *prefix,
+                               const char *suffix) {
   if (prefix == nullptr)
     prefix = "";
   if (suffix == nullptr)
     suffix = "";
-  //    int addr_width = m_addr_size << 1;
-  //    Printf ("%s0x%0*" PRIx64 "%s", prefix, addr_width, addr, suffix);
-  Printf("%s0x%0*" PRIx64 "%s", prefix, addr_size * 2, (uint64_t)addr, suffix);
+  s << prefix << llvm::format_hex(addr, 2 + 2 * addr_size) << suffix;
 }
 
-//------------------------------------------------------------------
 // Put an address range out to the stream with optional prefix and suffix
 // strings.
-//------------------------------------------------------------------
-void Stream::AddressRange(uint64_t lo_addr, uint64_t hi_addr,
-                          uint32_t addr_size, const char *prefix,
-                          const char *suffix) {
+void lldb_private::DumpAddressRange(llvm::raw_ostream &s, uint64_t lo_addr,
+                                    uint64_t hi_addr, uint32_t addr_size,
+                                    const char *prefix, const char *suffix) {
   if (prefix && prefix[0])
-    PutCString(prefix);
-  Address(lo_addr, addr_size, "[");
-  Address(hi_addr, addr_size, "-", ")");
+    s << prefix;
+  DumpAddress(s, lo_addr, addr_size, "[");
+  DumpAddress(s, hi_addr, addr_size, "-", ")");
   if (suffix && suffix[0])
-    PutCString(suffix);
+    s << suffix;
 }
 
 size_t Stream::PutChar(char ch) { return Write(&ch, 1); }
 
-//------------------------------------------------------------------
 // Print some formatted output to the stream.
-//------------------------------------------------------------------
 size_t Stream::Printf(const char *format, ...) {
   va_list args;
   va_start(args, format);
@@ -130,9 +112,7 @@ size_t Stream::Printf(const char *format, ...) {
   return result;
 }
 
-//------------------------------------------------------------------
 // Print some formatted output to the stream.
-//------------------------------------------------------------------
 size_t Stream::PrintfVarArg(const char *format, va_list args) {
   llvm::SmallString<1024> buf;
   VASprintf(buf, format, args);
@@ -144,35 +124,22 @@ size_t Stream::PrintfVarArg(const char *format, va_list args) {
   return Write(buf.c_str(), length);
 }
 
-//------------------------------------------------------------------
 // Print and End of Line character to the stream
-//------------------------------------------------------------------
 size_t Stream::EOL() { return PutChar('\n'); }
 
-//------------------------------------------------------------------
-// Indent the current line using the current indentation level and print an
-// optional string following the indentation spaces.
-//------------------------------------------------------------------
-size_t Stream::Indent(const char *s) {
-  return Printf("%*.*s%s", m_indent_level, m_indent_level, "", s ? s : "");
-}
-
 size_t Stream::Indent(llvm::StringRef str) {
-  return Printf("%*.*s%s", m_indent_level, m_indent_level, "",
-                str.str().c_str());
+  const size_t ind_length = PutCString(std::string(m_indent_level, ' '));
+  const size_t str_length = PutCString(str);
+  return ind_length + str_length;
 }
 
-//------------------------------------------------------------------
 // Stream a character "ch" out to this stream.
-//------------------------------------------------------------------
 Stream &Stream::operator<<(char ch) {
   PutChar(ch);
   return *this;
 }
 
-//------------------------------------------------------------------
 // Stream the NULL terminated C string out to this stream.
-//------------------------------------------------------------------
 Stream &Stream::operator<<(const char *s) {
   Printf("%s", s);
   return *this;
@@ -183,126 +150,44 @@ Stream &Stream::operator<<(llvm::StringRef str) {
   return *this;
 }
 
-//------------------------------------------------------------------
 // Stream the pointer value out to this stream.
-//------------------------------------------------------------------
 Stream &Stream::operator<<(const void *p) {
-  Printf("0x%.*tx", (int)sizeof(const void *) * 2, (ptrdiff_t)p);
+  Printf("0x%.*tx", static_cast<int>(sizeof(const void *)) * 2, (ptrdiff_t)p);
   return *this;
 }
 
-//------------------------------------------------------------------
-// Stream a uint8_t "uval" out to this stream.
-//------------------------------------------------------------------
-Stream &Stream::operator<<(uint8_t uval) {
-  PutHex8(uval);
-  return *this;
-}
-
-//------------------------------------------------------------------
-// Stream a uint16_t "uval" out to this stream.
-//------------------------------------------------------------------
-Stream &Stream::operator<<(uint16_t uval) {
-  PutHex16(uval, m_byte_order);
-  return *this;
-}
-
-//------------------------------------------------------------------
-// Stream a uint32_t "uval" out to this stream.
-//------------------------------------------------------------------
-Stream &Stream::operator<<(uint32_t uval) {
-  PutHex32(uval, m_byte_order);
-  return *this;
-}
-
-//------------------------------------------------------------------
-// Stream a uint64_t "uval" out to this stream.
-//------------------------------------------------------------------
-Stream &Stream::operator<<(uint64_t uval) {
-  PutHex64(uval, m_byte_order);
-  return *this;
-}
-
-//------------------------------------------------------------------
-// Stream a int8_t "sval" out to this stream.
-//------------------------------------------------------------------
-Stream &Stream::operator<<(int8_t sval) {
-  Printf("%i", (int)sval);
-  return *this;
-}
-
-//------------------------------------------------------------------
-// Stream a int16_t "sval" out to this stream.
-//------------------------------------------------------------------
-Stream &Stream::operator<<(int16_t sval) {
-  Printf("%i", (int)sval);
-  return *this;
-}
-
-//------------------------------------------------------------------
-// Stream a int32_t "sval" out to this stream.
-//------------------------------------------------------------------
-Stream &Stream::operator<<(int32_t sval) {
-  Printf("%i", (int)sval);
-  return *this;
-}
-
-//------------------------------------------------------------------
-// Stream a int64_t "sval" out to this stream.
-//------------------------------------------------------------------
-Stream &Stream::operator<<(int64_t sval) {
-  Printf("%" PRIi64, sval);
-  return *this;
-}
-
-//------------------------------------------------------------------
 // Get the current indentation level
-//------------------------------------------------------------------
-int Stream::GetIndentLevel() const { return m_indent_level; }
+unsigned Stream::GetIndentLevel() const { return m_indent_level; }
 
-//------------------------------------------------------------------
 // Set the current indentation level
-//------------------------------------------------------------------
-void Stream::SetIndentLevel(int indent_level) { m_indent_level = indent_level; }
+void Stream::SetIndentLevel(unsigned indent_level) {
+  m_indent_level = indent_level;
+}
 
-//------------------------------------------------------------------
 // Increment the current indentation level
-//------------------------------------------------------------------
-void Stream::IndentMore(int amount) { m_indent_level += amount; }
+void Stream::IndentMore(unsigned amount) { m_indent_level += amount; }
 
-//------------------------------------------------------------------
 // Decrement the current indentation level
-//------------------------------------------------------------------
-void Stream::IndentLess(int amount) {
+void Stream::IndentLess(unsigned amount) {
   if (m_indent_level >= amount)
     m_indent_level -= amount;
   else
     m_indent_level = 0;
 }
 
-//------------------------------------------------------------------
 // Get the address size in bytes
-//------------------------------------------------------------------
 uint32_t Stream::GetAddressByteSize() const { return m_addr_size; }
 
-//------------------------------------------------------------------
 // Set the address size in bytes
-//------------------------------------------------------------------
 void Stream::SetAddressByteSize(uint32_t addr_size) { m_addr_size = addr_size; }
 
-//------------------------------------------------------------------
 // The flags get accessor
-//------------------------------------------------------------------
 Flags &Stream::GetFlags() { return m_flags; }
 
-//------------------------------------------------------------------
 // The flags const get accessor
-//------------------------------------------------------------------
 const Flags &Stream::GetFlags() const { return m_flags; }
 
-//------------------------------------------------------------------
 // The byte order get accessor
-//------------------------------------------------------------------
 
 lldb::ByteOrder Stream::GetByteOrder() const { return m_byte_order; }
 
@@ -360,10 +245,10 @@ size_t Stream::PutHex16(uint16_t uvalue, ByteOrder byte_order) {
 
   if (byte_order == eByteOrderLittle) {
     for (size_t byte = 0; byte < sizeof(uvalue); ++byte)
-      _PutHex8((uint8_t)(uvalue >> (byte * 8)), false);
+      _PutHex8(static_cast<uint8_t>(uvalue >> (byte * 8)), false);
   } else {
     for (size_t byte = sizeof(uvalue) - 1; byte < sizeof(uvalue); --byte)
-      _PutHex8((uint8_t)(uvalue >> (byte * 8)), false);
+      _PutHex8(static_cast<uint8_t>(uvalue >> (byte * 8)), false);
   }
   return *delta;
 }
@@ -376,10 +261,10 @@ size_t Stream::PutHex32(uint32_t uvalue, ByteOrder byte_order) {
 
   if (byte_order == eByteOrderLittle) {
     for (size_t byte = 0; byte < sizeof(uvalue); ++byte)
-      _PutHex8((uint8_t)(uvalue >> (byte * 8)), false);
+      _PutHex8(static_cast<uint8_t>(uvalue >> (byte * 8)), false);
   } else {
     for (size_t byte = sizeof(uvalue) - 1; byte < sizeof(uvalue); --byte)
-      _PutHex8((uint8_t)(uvalue >> (byte * 8)), false);
+      _PutHex8(static_cast<uint8_t>(uvalue >> (byte * 8)), false);
   }
   return *delta;
 }
@@ -392,10 +277,10 @@ size_t Stream::PutHex64(uint64_t uvalue, ByteOrder byte_order) {
 
   if (byte_order == eByteOrderLittle) {
     for (size_t byte = 0; byte < sizeof(uvalue); ++byte)
-      _PutHex8((uint8_t)(uvalue >> (byte * 8)), false);
+      _PutHex8(static_cast<uint8_t>(uvalue >> (byte * 8)), false);
   } else {
     for (size_t byte = sizeof(uvalue) - 1; byte < sizeof(uvalue); --byte)
-      _PutHex8((uint8_t)(uvalue >> (byte * 8)), false);
+      _PutHex8(static_cast<uint8_t>(uvalue >> (byte * 8)), false);
   }
   return *delta;
 }
@@ -404,11 +289,11 @@ size_t Stream::PutMaxHex64(uint64_t uvalue, size_t byte_size,
                            lldb::ByteOrder byte_order) {
   switch (byte_size) {
   case 1:
-    return PutHex8((uint8_t)uvalue);
+    return PutHex8(static_cast<uint8_t>(uvalue));
   case 2:
-    return PutHex16((uint16_t)uvalue, byte_order);
+    return PutHex16(static_cast<uint16_t>(uvalue), byte_order);
   case 4:
-    return PutHex32((uint32_t)uvalue, byte_order);
+    return PutHex32(static_cast<uint32_t>(uvalue), byte_order);
   case 8:
     return PutHex64(uvalue, byte_order);
   }
@@ -451,7 +336,7 @@ size_t Stream::PutRawBytes(const void *s, size_t src_len,
   if (dst_byte_order == eByteOrderInvalid)
     dst_byte_order = m_byte_order;
 
-  const uint8_t *src = (const uint8_t *)s;
+  const uint8_t *src = static_cast<const uint8_t *>(s);
   bool binary_was_set = m_flags.Test(eBinary);
   if (!binary_was_set)
     m_flags.Set(eBinary);
@@ -478,7 +363,7 @@ size_t Stream::PutBytesAsRawHex8(const void *s, size_t src_len,
   if (dst_byte_order == eByteOrderInvalid)
     dst_byte_order = m_byte_order;
 
-  const uint8_t *src = (const uint8_t *)s;
+  const uint8_t *src = static_cast<const uint8_t *>(s);
   bool binary_is_set = m_flags.Test(eBinary);
   m_flags.Clear(eBinary);
   if (src_byte_order == dst_byte_order) {
@@ -494,14 +379,12 @@ size_t Stream::PutBytesAsRawHex8(const void *s, size_t src_len,
   return *delta;
 }
 
-size_t Stream::PutCStringAsRawHex8(const char *s) {
+size_t Stream::PutStringAsRawHex8(llvm::StringRef s) {
   ByteDelta delta(*this);
   bool binary_is_set = m_flags.Test(eBinary);
   m_flags.Clear(eBinary);
-  while(*s) {
-    _PutHex8(*s, false);
-    ++s;
-  }
+  for (char c : s)
+    _PutHex8(c, false);
   if (binary_is_set)
     m_flags.Set(eBinary);
   return *delta;

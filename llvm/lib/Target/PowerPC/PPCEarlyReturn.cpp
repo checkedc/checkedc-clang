@@ -1,9 +1,8 @@
 //===------------- PPCEarlyReturn.cpp - Form Early Returns ----------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -36,10 +35,6 @@ using namespace llvm;
 #define DEBUG_TYPE "ppc-early-ret"
 STATISTIC(NumBCLR, "Number of early conditional returns");
 STATISTIC(NumBLR,  "Number of early returns");
-
-namespace llvm {
-  void initializePPCEarlyReturnPass(PassRegistry&);
-}
 
 namespace {
   // PPCEarlyReturn pass - For simple functions without epilogue code, move
@@ -82,8 +77,9 @@ protected:
             if (J->getOperand(0).getMBB() == &ReturnMBB) {
               // This is an unconditional branch to the return. Replace the
               // branch with a blr.
-              BuildMI(**PI, J, J->getDebugLoc(), TII->get(I->getOpcode()))
-                  .copyImplicitOps(*I);
+              MachineInstr *MI = ReturnMBB.getParent()->CloneMachineInstr(&*I);
+              (*PI)->insert(J, MI);
+
               MachineBasicBlock::iterator K = J--;
               K->eraseFromParent();
               BlockChanged = true;
@@ -94,10 +90,13 @@ protected:
             if (J->getOperand(2).getMBB() == &ReturnMBB) {
               // This is a conditional branch to the return. Replace the branch
               // with a bclr.
-              BuildMI(**PI, J, J->getDebugLoc(), TII->get(PPC::BCCLR))
-                  .addImm(J->getOperand(0).getImm())
-                  .addReg(J->getOperand(1).getReg())
-                  .copyImplicitOps(*I);
+              MachineInstr *MI = ReturnMBB.getParent()->CloneMachineInstr(&*I);
+              MI->setDesc(TII->get(PPC::BCCLR));
+              MachineInstrBuilder(*ReturnMBB.getParent(), MI)
+                  .add(J->getOperand(0))
+                  .add(J->getOperand(1));
+              (*PI)->insert(J, MI);
+
               MachineBasicBlock::iterator K = J--;
               K->eraseFromParent();
               BlockChanged = true;
@@ -108,11 +107,13 @@ protected:
             if (J->getOperand(1).getMBB() == &ReturnMBB) {
               // This is a conditional branch to the return. Replace the branch
               // with a bclr.
-              BuildMI(
-                  **PI, J, J->getDebugLoc(),
-                  TII->get(J->getOpcode() == PPC::BC ? PPC::BCLR : PPC::BCLRn))
-                  .addReg(J->getOperand(0).getReg())
-                  .copyImplicitOps(*I);
+              MachineInstr *MI = ReturnMBB.getParent()->CloneMachineInstr(&*I);
+              MI->setDesc(
+                  TII->get(J->getOpcode() == PPC::BC ? PPC::BCLR : PPC::BCLRn));
+              MachineInstrBuilder(*ReturnMBB.getParent(), MI)
+                  .add(J->getOperand(0));
+              (*PI)->insert(J, MI);
+
               MachineBasicBlock::iterator K = J--;
               K->eraseFromParent();
               BlockChanged = true;
@@ -184,11 +185,11 @@ public:
       // nothing to do.
       if (MF.size() < 2)
         return Changed;
-
-      for (MachineFunction::iterator I = MF.begin(); I != MF.end();) {
+      
+      // We can't use a range-based for loop due to clobbering the iterator.
+      for (MachineFunction::iterator I = MF.begin(), E = MF.end(); I != E;) {
         MachineBasicBlock &B = *I++;
-        if (processBlock(B))
-          Changed = true;
+        Changed |= processBlock(B);
       }
 
       return Changed;

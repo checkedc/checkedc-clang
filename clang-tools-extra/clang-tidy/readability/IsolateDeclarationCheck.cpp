@@ -1,9 +1,8 @@
 //===--- IsolateDeclarationCheck.cpp - clang-tidy -------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -138,7 +137,7 @@ declRanges(const DeclStmt *DS, const SourceManager &SM,
   // Consider the following case: 'int * pointer, value = 42;'
   // Created slices (inclusive)    [  ][       ] [         ]
   // Because 'getBeginLoc' points to the start of the variable *name*, the
-  // location of the pointer must be determined separatly.
+  // location of the pointer must be determined separately.
   SourceLocation Start = findStartOfIndirection(
       FirstDecl->getLocation(),
       countIndirections(FirstDecl->getType().IgnoreParens().getTypePtr()), SM,
@@ -151,7 +150,7 @@ declRanges(const DeclStmt *DS, const SourceManager &SM,
   if (FirstDecl->getType()->isFunctionPointerType())
     Start = findPreviousTokenKind(Start, SM, LangOpts, tok::l_paren);
 
-  // It is popssible that a declarator is wrapped with parens.
+  // It is possible that a declarator is wrapped with parens.
   // Example: 'float (((*f_ptr2)))[42], *f_ptr3, ((f_value2)) = 42.f;'
   // The slice for the type-part must not contain these parens. Consequently
   // 'Start' is moved to the most left paren if there are parens.

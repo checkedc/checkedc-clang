@@ -12,7 +12,7 @@ export template x;      // expected-error {{expected '<' after 'template'}}
 export template<class T> class x0; // expected-warning {{exported templates are unsupported}}
 template < ;            // expected-error {{expected template parameter}} \
 // expected-error{{expected ',' or '>' in template-parameter-list}} \
-// expected-warning {{declaration does not declare anything}}
+// expected-error {{declaration does not declare anything}}
 template <int +> struct x1; // expected-error {{expected ',' or '>' in template-parameter-list}}
 
 // verifies that we only walk to the ',' & still produce errors on the rest of the template parameters
@@ -128,8 +128,13 @@ void f2() {
 
 
 // PR3844
-template <> struct S<int> { }; // expected-error{{explicit specialization of non-template struct 'S'}}
-template <> union U<int> { }; // expected-error{{explicit specialization of non-template union 'U'}}
+template <> struct S<int> { }; // expected-error{{explicit specialization of undeclared template struct 'S'}}
+template <> union U<int> { }; // expected-error{{explicit specialization of undeclared template union 'U'}}
+
+struct SS;
+union UU;
+template <> struct SS<int> { }; // expected-error{{explicit specialization of non-template struct 'SS'}}
+template <> union UU<int> { }; // expected-error{{explicit specialization of non-template union 'UU'}}
 
 namespace PR6184 {
   namespace N {
@@ -228,13 +233,13 @@ namespace broken_baseclause {
 template<typename T>
 struct base { };
 
-struct t1 : base<int,
-  public:  // expected-error {{expected expression}}
-};  // expected-error {{expected class name}}
+struct t1 : base<int, // expected-note {{to match this '<'}}
+  public:  // expected-error {{expected expression}} expected-error {{expected '>'}}
+};
 // expected-error@-1 {{expected '{' after base class list}}
-struct t2 : base<int,
-  public  // expected-error {{expected expression}}
-};  // expected-error {{expected class name}}
+struct t2 : base<int, // expected-note {{to match this '<'}}
+  public  // expected-error {{expected expression}} expected-error {{expected '>'}}
+};
 // expected-error@-1 {{expected '{' after base class list}}
 
 }
@@ -247,4 +252,46 @@ namespace class_scope_instantiation {
     extern template // expected-error {{expected member name or ';'}}
       void f(double);
   };
+}
+
+namespace PR42071 {
+  template<int SomeTemplateName<void>> struct A; // expected-error {{parameter name cannot have template arguments}}
+  template<int operator+> struct B; // expected-error {{'operator+' cannot be the name of a parameter}}
+  struct Q {};
+  template<int Q::N> struct C; // expected-error {{parameter declarator cannot be qualified}}
+  template<int f(int a = 0)> struct D; // expected-error {{default arguments can only be specified for parameters in a function declaration}}
+}
+
+namespace AnnotateAfterInvalidTemplateId {
+  template<int I, int J> struct A { };
+  template<int J> struct A<0, J> { }; // expected-note {{J = 0}}
+  template<int I> struct A<I, 0> { }; // expected-note {{I = 0}}
+
+  void f() { A<0, 0>::f(); } // expected-error {{ambiguous partial specializations}}
+}
+
+namespace PR45063 {
+  template<class=class a::template b<>> struct X {}; // expected-error {{undeclared identifier 'a'}}
+}
+
+namespace NoCrashOnEmptyNestedNameSpecifier {
+  template <typename FnT,
+            typename T = typename ABC<FnT>::template arg_t<0>> // expected-error {{no template named 'ABC'}}
+  void foo(FnT) {}
+}
+
+namespace PR45239 {
+  // Ensure we don't crash here. We used to deallocate the TemplateIdAnnotation
+  // before we'd parsed it.
+  template<int> int b;
+  template<int> auto f() -> b<0>; // expected-error +{{}}
+}
+
+namespace PR46231 {
+  template; // expected-error {{declaration does not declare anything}}
+  template<>; // expected-error {{declaration does not declare anything}}
+  template<int>; // expected-error {{declaration does not declare anything}}
+  template int; // expected-error {{declaration does not declare anything}}
+  template<> int; // expected-error {{declaration does not declare anything}}
+  template<int> int; // expected-error {{declaration does not declare anything}}
 }

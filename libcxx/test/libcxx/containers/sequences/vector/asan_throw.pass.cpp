@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: libcpp-no-exceptions
+// UNSUPPORTED: no-exceptions
 // Test asan vector annotations with a class that throws in a CTOR.
 
 #include <vector>
@@ -51,6 +50,7 @@ public:
             throw 0;
         }
     }
+    ThrowOnCopy& operator=(ThrowOnCopy const&) = default;
 
     bool should_throw;
 };
@@ -220,7 +220,7 @@ void test_resize_param() {
   assert(is_contiguous_container_asan_correct(v));
 }
 
-int main() {
+int main(int, char**) {
   test_push_back();
   test_emplace_back();
   test_insert_range();
@@ -231,4 +231,6 @@ int main() {
   test_insert_n2();
   test_resize();
   test_resize_param();
+
+  return 0;
 }

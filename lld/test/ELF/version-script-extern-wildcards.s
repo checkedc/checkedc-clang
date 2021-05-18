@@ -4,10 +4,9 @@
 # RUN: echo "FOO { global: extern \"C++\" { foo*; }; };" > %t.script
 # RUN: echo "BAR { global: extern \"C++\" { zed*; bar; }; };" >> %t.script
 # RUN: ld.lld --version-script %t.script -shared %t.o -o %t.so
-# RUN: llvm-readobj -V -dyn-symbols %t.so | FileCheck %s
+# RUN: llvm-readobj -V --dyn-syms %t.so | FileCheck %s
 
-# CHECK:  Version symbols {
-# CHECK:   Symbols [
+# CHECK:  VersionSymbols [
 # CHECK:    Name: _Z3bari
 # CHECK:    Name: _Z3fooi@@FOO
 # CHECK:    Name: _Z3zedi@@BAR

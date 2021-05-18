@@ -14,26 +14,30 @@ define i32 @div8() nounwind {
 ; CHECK:       ## %bb.0: ## %entry
 ; CHECK-NEXT:    pushq %rbp
 ; CHECK-NEXT:    movq %rsp, %rbp
+; CHECK-NEXT:    ## implicit-def: $rax
+; CHECK-NEXT:    movb %al, %cl
 ; CHECK-NEXT:    xorl %eax, %eax
-; CHECK-NEXT:    movb %al, %cl
-; CHECK-NEXT:    ## implicit-def: $rdx
-; CHECK-NEXT:    movb %dl, %sil
-; CHECK-NEXT:    movzbw %cl, %ax
-; CHECK-NEXT:    divb %sil
+; CHECK-NEXT:    ## kill: def $al killed $al killed $eax
+; CHECK-NEXT:    movzbw %al, %ax
+; CHECK-NEXT:    divb %cl
 ; CHECK-NEXT:    movb %al, {{[-0-9]+}}(%r{{[sb]}}p) ## 1-byte Spill
-; CHECK-NEXT:    movzbw %cl, %ax
-; CHECK-NEXT:    divb %sil
+; CHECK-NEXT:    xorl %eax, %eax
+; CHECK-NEXT:    ## kill: def $al killed $al killed $eax
+; CHECK-NEXT:    movzbw %al, %ax
+; CHECK-NEXT:    divb %cl
 ; CHECK-NEXT:    shrw $8, %ax
-; CHECK-NEXT:    movb %al, %cl
-; CHECK-NEXT:    cmpb %sil, %cl
+; CHECK-NEXT:    ## kill: def $al killed $al killed $ax
+; CHECK-NEXT:    cmpb %cl, %al
 ; CHECK-NEXT:    jae LBB0_2
 ; CHECK-NEXT:  ## %bb.1: ## %"39"
 ; CHECK-NEXT:    movb {{[-0-9]+}}(%r{{[sb]}}p), %al ## 1-byte Reload
-; CHECK-NEXT:    movzbl %al, %ecx
-; CHECK-NEXT:    ## implicit-def: $edx
-; CHECK-NEXT:    imull %edx, %ecx
-; CHECK-NEXT:    addl %edx, %ecx
-; CHECK-NEXT:    cmpl %edx, %ecx
+; CHECK-NEXT:    movzbl %al, %eax
+; CHECK-NEXT:    ## implicit-def: $ecx
+; CHECK-NEXT:    imull %ecx, %eax
+; CHECK-NEXT:    ## implicit-def: $ecx
+; CHECK-NEXT:    addl %ecx, %eax
+; CHECK-NEXT:    ## implicit-def: $ecx
+; CHECK-NEXT:    cmpl %ecx, %eax
 ; CHECK-NEXT:    je LBB0_3
 ; CHECK-NEXT:  LBB0_2: ## %"40"
 ; CHECK-NEXT:    ud2

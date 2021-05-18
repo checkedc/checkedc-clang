@@ -1,9 +1,8 @@
-//===-- HostNativeThreadBase.cpp --------------------------------*- C++ -*-===//
+//===-- HostNativeThreadBase.cpp ------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -63,8 +62,7 @@ HostNativeThreadBase::ThreadCreateTrampoline(lldb::thread_arg_t arg) {
   thread_arg_t thread_arg = info->thread_arg;
 
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_THREAD));
-  if (log)
-    log->Printf("thread created");
+  LLDB_LOGF(log, "thread created");
 
   delete info;
   return thread_fptr(thread_arg);

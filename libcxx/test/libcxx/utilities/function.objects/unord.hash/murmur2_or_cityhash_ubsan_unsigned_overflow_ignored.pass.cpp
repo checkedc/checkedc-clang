@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -29,13 +28,15 @@ void test(const void* key, int len) {
   }
 }
 
-int main() {
+int main(int, char**) {
   const std::string TestCases[] = {
-      "abcdaoeuaoeclaoeoaeuaoeuaousaotehu]+}sthoasuthaoesutahoesutaohesutaoeusaoetuhasoetuhaoseutaoseuthaoesutaohes"
+      "abcdaoeuaoeclaoeoaeuaoeuaousaotehu]+}sthoasuthaoesutahoesutaohesutaoeusaoetuhasoetuhaoseutaoseuthaoesutaohes",
       "00000000000000000000000000000000000000000000000000000000000000000000000",
       "1237546895+54+4554985416849484213464984765465464654564565645645646546456546546"
   };
   const size_t NumCases = sizeof(TestCases)/sizeof(TestCases[0]);
   for (size_t i=0; i < NumCases; ++i)
     test(TestCases[i].data(), TestCases[i].length());
+
+  return 0;
 }

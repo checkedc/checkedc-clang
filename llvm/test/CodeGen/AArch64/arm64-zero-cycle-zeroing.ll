@@ -4,8 +4,8 @@
 ; RUN: llc < %s -mtriple=aarch64-linux-gnu -mattr=+zcz-gp                 | FileCheck %s -check-prefixes=ALL,ZEROGP,NONEFP
 ; RUN: llc < %s -mtriple=aarch64-linux-gnu -mattr=+zcz-fp                 | FileCheck %s -check-prefixes=ALL,NONEGP,ZEROFP
 ; RUN: llc < %s -mtriple=arm64-apple-ios   -mcpu=cyclone                  | FileCheck %s -check-prefixes=ALL,ZEROGP,NONEFP
+; RUN: llc < %s -mtriple=arm64-linux-gnu   -mcpu=apple-a10                | FileCheck %s -check-prefixes=ALL,ZEROGP,ZEROFP
 ; RUN: llc < %s -mtriple=arm64-apple-ios   -mcpu=cyclone -mattr=+fullfp16 | FileCheck %s -check-prefixes=ALL,ZEROGP,NONE16
-; RUN: llc < %s -mtriple=aarch64-linux-gnu -mcpu=exynos-m1                | FileCheck %s -check-prefixes=ALL,NONEGP,ZEROFP
 ; RUN: llc < %s -mtriple=aarch64-linux-gnu -mcpu=exynos-m3                | FileCheck %s -check-prefixes=ALL,NONEGP,ZEROFP
 ; RUN: llc < %s -mtriple=aarch64-linux-gnu -mcpu=kryo                     | FileCheck %s -check-prefixes=ALL,ZEROGP,ZEROFP
 ; RUN: llc < %s -mtriple=aarch64-linux-gnu -mcpu=falkor                   | FileCheck %s -check-prefixes=ALL,ZEROGP,ZEROFP
@@ -27,10 +27,10 @@ entry:
 ; NONE16: fmov s1, wzr
 ; NONE16: fmov d2, xzr
 ; NONE16: movi{{(.16b)?}} v3{{(.2d)?}}, #0
-; ZEROFP: ldr h0,{{.*}}
-; ZEROFP: movi v{{[0-3]+}}.2d, #0
-; ZEROFP: movi v{{[0-3]+}}.2d, #0
-; ZEROFP: movi v{{[0-3]+}}.2d, #0
+; ZEROFP-DAG: ldr h0,{{.*}}
+; ZEROFP-DAG: movi v{{[0-3]+}}.2d, #0
+; ZEROFP-DAG: movi v{{[0-3]+}}.2d, #0
+; ZEROFP-DAG: movi v{{[0-3]+}}.2d, #0
 ; ZERO16: movi v{{[0-3]+}}.2d, #0
 ; ZERO16: movi v{{[0-3]+}}.2d, #0
 ; ZERO16: movi v{{[0-3]+}}.2d, #0

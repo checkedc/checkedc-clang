@@ -7,16 +7,16 @@
 # RUN: llvm-mc %s -triple=riscv64 -mattr=+d \
 # RUN:     | FileCheck -check-prefix=CHECK-ALIAS %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 -mattr=+d < %s \
-# RUN:     | llvm-objdump -d -mattr=+d -riscv-no-aliases - \
+# RUN:     | llvm-objdump -d --mattr=+d -M no-aliases - \
 # RUN:     | FileCheck -check-prefix=CHECK-INST %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 -mattr=+d < %s \
-# RUN:     | llvm-objdump -d -mattr=+d - \
+# RUN:     | llvm-objdump -d --mattr=+d - \
 # RUN:     | FileCheck -check-prefix=CHECK-ALIAS %s
 # RUN: llvm-mc -filetype=obj -triple riscv64 -mattr=+d < %s \
-# RUN:     | llvm-objdump -d -mattr=+d -riscv-no-aliases - \
+# RUN:     | llvm-objdump -d --mattr=+d -M no-aliases - \
 # RUN:     | FileCheck -check-prefix=CHECK-INST %s
 # RUN: llvm-mc -filetype=obj -triple riscv64 -mattr=+d < %s \
-# RUN:     | llvm-objdump -d -mattr=+d - \
+# RUN:     | llvm-objdump -d --mattr=+d - \
 # RUN:     | FileCheck -check-prefix=CHECK-ALIAS %s
 
 ##===----------------------------------------------------------------------===##
@@ -42,6 +42,13 @@ fgt.d x4, f5, f6
 # CHECK-INST: fle.d t2, fs1, fs0
 # CHECK-ALIAS: fle.d t2, fs1, fs0
 fge.d x7, f8, f9
+
+# CHECK-INST: fld ft0, 0(a0)
+# CHECK-ALIAS: fld ft0, 0(a0)
+fld f0, (x10)
+# CHECK-INST: fsd ft0, 0(a0)
+# CHECK-ALIAS: fsd ft0, 0(a0)
+fsd f0, (x10)
 
 ##===----------------------------------------------------------------------===##
 ## Aliases which omit the rounding mode.

@@ -1,9 +1,8 @@
 //===-- AMDGPUAnnotateUniformValues.cpp - ---------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -14,15 +13,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPU.h"
-#include "AMDGPUIntrinsicInfo.h"
+#include "Utils/AMDGPUBaseInfo.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Analysis/LegacyDivergenceAnalysis.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/MemoryDependenceAnalysis.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/raw_ostream.h"
+#include "llvm/InitializePasses.h"
 
 #define DEBUG_TYPE "amdgpu-annotate-uniform"
 
@@ -36,7 +33,7 @@ class AMDGPUAnnotateUniformValues : public FunctionPass,
   MemoryDependenceResults *MDR;
   LoopInfo *LI;
   DenseMap<Value*, GetElementPtrInst*> noClobberClones;
-  bool isKernelFunc;
+  bool isEntryFunc;
 
 public:
   static char ID;
@@ -108,9 +105,11 @@ bool AMDGPUAnnotateUniformValues::isClobberedInFunction(LoadInst * Load) {
   for (auto &BB : Checklist) {
     BasicBlock::iterator StartIt = (!L && (BB == Load->getParent())) ?
       BasicBlock::iterator(Load) : BB->end();
-    auto Q = MDR->getPointerDependencyFrom(MemoryLocation(Ptr), true,
-                                           StartIt, BB, Load);
-    if (Q.isClobber() || Q.isUnknown())
+    auto Q = MDR->getPointerDependencyFrom(
+        MemoryLocation::getBeforeOrAfter(Ptr), true, StartIt, BB, Load);
+    if (Q.isClobber() || Q.isUnknown() ||
+        // Store defines the load and thus clobbers it.
+        (Q.isDef() && Q.getInst()->mayWriteToMemory()))
       return true;
   }
   return false;
@@ -128,14 +127,24 @@ void AMDGPUAnnotateUniformValues::visitLoadInst(LoadInst &I) {
   auto isGlobalLoad = [&](LoadInst &Load)->bool {
     return Load.getPointerAddressSpace() == AMDGPUAS::GLOBAL_ADDRESS;
   };
-  // We're tracking up to the Function boundaries
-  // We cannot go beyond because of FunctionPass restrictions
-  // Thus we can ensure that memory not clobbered for memory
-  // operations that live in kernel only.
-  bool NotClobbered = isKernelFunc &&   !isClobberedInFunction(&I);
+  // We're tracking up to the Function boundaries, and cannot go beyond because
+  // of FunctionPass restrictions. We can ensure that is memory not clobbered
+  // for memory operations that are live in to entry points only.
   Instruction *PtrI = dyn_cast<Instruction>(Ptr);
-  if (!PtrI && NotClobbered && isGlobalLoad(I)) {
-    if (isa<Argument>(Ptr) || isa<GlobalValue>(Ptr)) {
+
+  if (!isEntryFunc) {
+    if (PtrI)
+      setUniformMetadata(PtrI);
+    return;
+  }
+
+  bool NotClobbered = false;
+  bool GlobalLoad = isGlobalLoad(I);
+  if (PtrI)
+    NotClobbered = GlobalLoad && !isClobberedInFunction(&I);
+  else if (isa<Argument>(Ptr) || isa<GlobalValue>(Ptr)) {
+    if (GlobalLoad && !isClobberedInFunction(&I)) {
+      NotClobbered = true;
       // Lookup for the existing GEP
       if (noClobberClones.count(Ptr)) {
         PtrI = noClobberClones[Ptr];
@@ -171,7 +180,7 @@ bool AMDGPUAnnotateUniformValues::runOnFunction(Function &F) {
   DA  = &getAnalysis<LegacyDivergenceAnalysis>();
   MDR = &getAnalysis<MemoryDependenceWrapperPass>().getMemDep();
   LI  = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
-  isKernelFunc = F.getCallingConv() == CallingConv::AMDGPU_KERNEL;
+  isEntryFunc = AMDGPU::isEntryFunctionCC(F.getCallingConv());
 
   visit(F);
   noClobberClones.clear();

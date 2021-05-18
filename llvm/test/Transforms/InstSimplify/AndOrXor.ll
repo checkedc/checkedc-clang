@@ -89,6 +89,28 @@ define i64 @pow2b(i32 %x) {
   ret i64 %e2
 }
 
+; Power-of-2-or-zero value has no bits in common with its decrement.
+
+define i32 @pow2_decrement(i32 %p) {
+; CHECK-LABEL: @pow2_decrement(
+; CHECK-NEXT:    ret i32 0
+;
+  %x = shl i32 1, %p
+  %a = add i32 %x, -1
+  %r = and i32 %a, %x
+  ret i32 %r
+}
+
+define <2 x i32> @pow2_decrement_commute_vec(<2 x i32> %p) {
+; CHECK-LABEL: @pow2_decrement_commute_vec(
+; CHECK-NEXT:    ret <2 x i32> zeroinitializer
+;
+  %x = and <2 x i32> %p, <i32 2048, i32 2048>
+  %a = add <2 x i32> %x, <i32 -1, i32 -1>
+  %r = and <2 x i32> %x, %a
+  ret <2 x i32> %r
+}
+
 define i1 @and_of_icmps0(i32 %b) {
 ; CHECK-LABEL: @and_of_icmps0(
 ; CHECK-NEXT:    ret i1 false
@@ -361,112 +383,6 @@ define i32 @neg_nuw(i32 %x) {
   ret i32 %neg
 }
 
-define i1 @and_icmp1(i32 %x, i32 %y) {
-; CHECK-LABEL: @and_icmp1(
-; CHECK-NEXT:    [[TMP1:%.*]] = icmp ult i32 [[X:%.*]], [[Y:%.*]]
-; CHECK-NEXT:    ret i1 [[TMP1]]
-;
-  %1 = icmp ult i32 %x, %y
-  %2 = icmp ne i32 %y, 0
-  %3 = and i1 %1, %2
-  ret i1 %3
-}
-
-define i1 @and_icmp2(i32 %x, i32 %y) {
-; CHECK-LABEL: @and_icmp2(
-; CHECK-NEXT:    [[TMP1:%.*]] = icmp ugt i32 [[X:%.*]], [[Y:%.*]]
-; CHECK-NEXT:    ret i1 [[TMP1]]
-;
-  %1 = icmp ugt i32 %x, %y
-  %2 = icmp ne i32 %x, 0
-  %3 = and i1 %1, %2
-  ret i1 %3
-}
-
-define i1 @and_icmp3(i32 %x, i32 %y) {
-; CHECK-LABEL: @and_icmp3(
-; CHECK-NEXT:    ret i1 false
-;
-  %1 = icmp ult i32 %x, %y
-  %2 = icmp eq i32 %y, 0
-  %3 = and i1 %1, %2
-  ret i1 %3
-}
-
-define i1 @and_icmp4(i32 %x, i32 %y) {
-; CHECK-LABEL: @and_icmp4(
-; CHECK-NEXT:    ret i1 false
-;
-  %1 = icmp ugt i32 %x, %y
-  %2 = icmp eq i32 %x, 0
-  %3 = and i1 %1, %2
-  ret i1 %3
-}
-
-define i1 @or_icmp1(i32 %x, i32 %y) {
-; CHECK-LABEL: @or_icmp1(
-; CHECK-NEXT:    [[TMP1:%.*]] = icmp ne i32 [[Y:%.*]], 0
-; CHECK-NEXT:    ret i1 [[TMP1]]
-;
-  %1 = icmp ult i32 %x, %y
-  %2 = icmp ne i32 %y, 0
-  %3 = or i1 %1, %2
-  ret i1 %3
-}
-
-define i1 @or_icmp2(i32 %x, i32 %y) {
-; CHECK-LABEL: @or_icmp2(
-; CHECK-NEXT:    [[TMP1:%.*]] = icmp ne i32 [[X:%.*]], 0
-; CHECK-NEXT:    ret i1 [[TMP1]]
-;
-  %1 = icmp ugt i32 %x, %y
-  %2 = icmp ne i32 %x, 0
-  %3 = or i1 %1, %2
-  ret i1 %3
-}
-
-define i1 @or_icmp3(i32 %x, i32 %y) {
-; CHECK-LABEL: @or_icmp3(
-; CHECK-NEXT:    ret i1 true
-;
-  %1 = icmp uge i32 %x, %y
-  %2 = icmp ne i32 %y, 0
-  %3 = or i1 %1, %2
-  ret i1 %3
-}
-
-define i1 @or_icmp4(i32 %x, i32 %y) {
-; CHECK-LABEL: @or_icmp4(
-; CHECK-NEXT:    ret i1 true
-;
-  %1 = icmp ule i32 %x, %y
-  %2 = icmp ne i32 %x, 0
-  %3 = or i1 %1, %2
-  ret i1 %3
-}
-
-define i1 @or_icmp5(i32 %x, i32 %y) {
-; CHECK-LABEL: @or_icmp5(
-; CHECK-NEXT:    [[TMP1:%.*]] = icmp uge i32 [[X:%.*]], [[Y:%.*]]
-; CHECK-NEXT:    ret i1 [[TMP1]]
-;
-  %1 = icmp uge i32 %x, %y
-  %2 = icmp eq i32 %y, 0
-  %3 = or i1 %1, %2
-  ret i1 %3
-}
-
-define i1 @or_icmp6(i32 %x, i32 %y) {
-; CHECK-LABEL: @or_icmp6(
-; CHECK-NEXT:    [[TMP1:%.*]] = icmp ule i32 [[X:%.*]], [[Y:%.*]]
-; CHECK-NEXT:    ret i1 [[TMP1]]
-;
-  %1 = icmp ule i32 %x, %y
-  %2 = icmp eq i32 %x, 0
-  %3 = or i1 %1, %2
-  ret i1 %3
-}
-
 ; PR27869 - Look through casts to eliminate cmps and bitwise logic.
 
 define i32 @and_of_zexted_icmps(i32 %i) {
@@ -558,6 +474,8 @@ define <2 x i3> @and_of_different_cast_icmps_vec(<2 x i8> %i, <2 x i16> %j) {
   %and = and <2 x i3> %conv0, %conv1
   ret <2 x i3> %and
 }
+
+; limit
 
 define i32 @or_of_zexted_icmps(i32 %i) {
 ; CHECK-LABEL: @or_of_zexted_icmps(
@@ -967,168 +885,274 @@ define i32 @reversed_not(i32 %a) {
 
 define i64 @shl_or_and1(i32 %a, i1 %b) {
 ; CHECK-LABEL: @shl_or_and1(
-; CHECK-NEXT:    [[TMP2:%.*]] = zext i1 [[B:%.*]] to i64
-; CHECK-NEXT:    ret i64 [[TMP2]]
+; CHECK-NEXT:    [[T2:%.*]] = zext i1 [[B:%.*]] to i64
+; CHECK-NEXT:    ret i64 [[T2]]
 ;
-  %tmp1 = zext i32 %a to i64
-  %tmp2 = zext i1 %b to i64
-  %tmp3 = shl nuw i64 %tmp1, 32
-  %tmp4 = or i64 %tmp2, %tmp3
-  %tmp5 = and i64 %tmp4, 1
-  ret i64 %tmp5
+  %t1 = zext i32 %a to i64
+  %t2 = zext i1 %b to i64
+  %t3 = shl nuw i64 %t1, 32
+  %t4 = or i64 %t2, %t3
+  %t5 = and i64 %t4, 1
+  ret i64 %t5
 }
 
 define i64 @shl_or_and2(i32 %a, i1 %b) {
 ; CHECK-LABEL: @shl_or_and2(
-; CHECK-NEXT:    [[TMP1:%.*]] = zext i1 [[B:%.*]] to i64
-; CHECK-NEXT:    [[TMP3:%.*]] = shl nuw i64 [[TMP1]], 32
-; CHECK-NEXT:    ret i64 [[TMP3]]
+; CHECK-NEXT:    [[T1:%.*]] = zext i1 [[B:%.*]] to i64
+; CHECK-NEXT:    [[T3:%.*]] = shl nuw i64 [[T1]], 32
+; CHECK-NEXT:    ret i64 [[T3]]
 ;
-  %tmp1 = zext i1 %b to i64
-  %tmp2 = zext i32 %a to i64
-  %tmp3 = shl nuw i64 %tmp1, 32
-  %tmp4 = or i64 %tmp2, %tmp3
-  %tmp5 = and i64 %tmp4, 4294967296
-  ret i64 %tmp5
+  %t1 = zext i1 %b to i64
+  %t2 = zext i32 %a to i64
+  %t3 = shl nuw i64 %t1, 32
+  %t4 = or i64 %t2, %t3
+  %t5 = and i64 %t4, 4294967296
+  ret i64 %t5
 }
 
 ; concatenate two 32-bit integers and extract lower 32-bit
 define i64 @shl_or_and3(i32 %a, i32 %b) {
 ; CHECK-LABEL: @shl_or_and3(
-; CHECK-NEXT:    [[TMP2:%.*]] = zext i32 [[B:%.*]] to i64
-; CHECK-NEXT:    ret i64 [[TMP2]]
+; CHECK-NEXT:    [[T2:%.*]] = zext i32 [[B:%.*]] to i64
+; CHECK-NEXT:    ret i64 [[T2]]
 ;
-  %tmp1 = zext i32 %a to i64
-  %tmp2 = zext i32 %b to i64
-  %tmp3 = shl nuw i64 %tmp1, 32
-  %tmp4 = or i64 %tmp2, %tmp3
-  %tmp5 = and i64 %tmp4, 4294967295
-  ret i64 %tmp5
+  %t1 = zext i32 %a to i64
+  %t2 = zext i32 %b to i64
+  %t3 = shl nuw i64 %t1, 32
+  %t4 = or i64 %t2, %t3
+  %t5 = and i64 %t4, 4294967295
+  ret i64 %t5
 }
 
 ; concatenate two 16-bit integers and extract higher 16-bit
 define i32 @shl_or_and4(i16 %a, i16 %b) {
 ; CHECK-LABEL: @shl_or_and4(
-; CHECK-NEXT:    [[TMP1:%.*]] = zext i16 [[A:%.*]] to i32
-; CHECK-NEXT:    [[TMP3:%.*]] = shl nuw i32 [[TMP1]], 16
-; CHECK-NEXT:    ret i32 [[TMP3]]
+; CHECK-NEXT:    [[T1:%.*]] = zext i16 [[A:%.*]] to i32
+; CHECK-NEXT:    [[T3:%.*]] = shl nuw i32 [[T1]], 16
+; CHECK-NEXT:    ret i32 [[T3]]
 ;
-  %tmp1 = zext i16 %a to i32
-  %tmp2 = zext i16 %b to i32
-  %tmp3 = shl nuw i32 %tmp1, 16
-  %tmp4 = or i32 %tmp2, %tmp3
-  %tmp5 = and i32 %tmp4, 4294901760 ; mask with 0xFFFF0000
-  ret i32 %tmp5
+  %t1 = zext i16 %a to i32
+  %t2 = zext i16 %b to i32
+  %t3 = shl nuw i32 %t1, 16
+  %t4 = or i32 %t2, %t3
+  %t5 = and i32 %t4, 4294901760 ; mask with 0xFFFF0000
+  ret i32 %t5
 }
 
 define i128 @shl_or_and5(i64 %a, i1 %b) {
 ; CHECK-LABEL: @shl_or_and5(
-; CHECK-NEXT:    [[TMP2:%.*]] = zext i1 [[B:%.*]] to i128
-; CHECK-NEXT:    ret i128 [[TMP2]]
+; CHECK-NEXT:    [[T2:%.*]] = zext i1 [[B:%.*]] to i128
+; CHECK-NEXT:    ret i128 [[T2]]
 ;
-  %tmp1 = zext i64 %a to i128
-  %tmp2 = zext i1 %b to i128
-  %tmp3 = shl nuw i128 %tmp1, 64
-  %tmp4 = or i128 %tmp2, %tmp3
-  %tmp5 = and i128 %tmp4, 1
-  ret i128 %tmp5
+  %t1 = zext i64 %a to i128
+  %t2 = zext i1 %b to i128
+  %t3 = shl nuw i128 %t1, 64
+  %t4 = or i128 %t2, %t3
+  %t5 = and i128 %t4, 1
+  ret i128 %t5
 }
 
 ; A variation of above test cases; it fails due to the mask value
 define i32 @shl_or_and6(i16 %a, i16 %b) {
 ; CHECK-LABEL: @shl_or_and6(
-; CHECK-NEXT:    [[TMP1:%.*]] = zext i16 [[A:%.*]] to i32
-; CHECK-NEXT:    [[TMP2:%.*]] = zext i16 [[B:%.*]] to i32
-; CHECK-NEXT:    [[TMP3:%.*]] = shl nuw i32 [[TMP1]], 16
-; CHECK-NEXT:    [[TMP4:%.*]] = or i32 [[TMP2]], [[TMP3]]
-; CHECK-NEXT:    [[TMP5:%.*]] = and i32 [[TMP4]], -65535
-; CHECK-NEXT:    ret i32 [[TMP5]]
+; CHECK-NEXT:    [[T1:%.*]] = zext i16 [[A:%.*]] to i32
+; CHECK-NEXT:    [[T2:%.*]] = zext i16 [[B:%.*]] to i32
+; CHECK-NEXT:    [[T3:%.*]] = shl nuw i32 [[T1]], 16
+; CHECK-NEXT:    [[T4:%.*]] = or i32 [[T2]], [[T3]]
+; CHECK-NEXT:    [[T5:%.*]] = and i32 [[T4]], -65535
+; CHECK-NEXT:    ret i32 [[T5]]
 ;
-  %tmp1 = zext i16 %a to i32
-  %tmp2 = zext i16 %b to i32
-  %tmp3 = shl nuw i32 %tmp1, 16
-  %tmp4 = or i32 %tmp2, %tmp3
-  %tmp5 = and i32 %tmp4, 4294901761 ; mask with 0xFFFF0001
-  ret i32 %tmp5
+  %t1 = zext i16 %a to i32
+  %t2 = zext i16 %b to i32
+  %t3 = shl nuw i32 %t1, 16
+  %t4 = or i32 %t2, %t3
+  %t5 = and i32 %t4, 4294901761 ; mask with 0xFFFF0001
+  ret i32 %t5
 }
 
 ; A variation of above test cases; it fails due to the mask value
 define i32 @shl_or_and7(i16 %a, i16 %b) {
 ; CHECK-LABEL: @shl_or_and7(
-; CHECK-NEXT:    [[TMP1:%.*]] = zext i16 [[A:%.*]] to i32
-; CHECK-NEXT:    [[TMP2:%.*]] = zext i16 [[B:%.*]] to i32
-; CHECK-NEXT:    [[TMP3:%.*]] = shl nuw i32 [[TMP1]], 16
-; CHECK-NEXT:    [[TMP4:%.*]] = or i32 [[TMP2]], [[TMP3]]
-; CHECK-NEXT:    [[TMP5:%.*]] = and i32 [[TMP4]], -131072
-; CHECK-NEXT:    ret i32 [[TMP5]]
+; CHECK-NEXT:    [[T1:%.*]] = zext i16 [[A:%.*]] to i32
+; CHECK-NEXT:    [[T2:%.*]] = zext i16 [[B:%.*]] to i32
+; CHECK-NEXT:    [[T3:%.*]] = shl nuw i32 [[T1]], 16
+; CHECK-NEXT:    [[T4:%.*]] = or i32 [[T2]], [[T3]]
+; CHECK-NEXT:    [[T5:%.*]] = and i32 [[T4]], -131072
+; CHECK-NEXT:    ret i32 [[T5]]
 ;
-  %tmp1 = zext i16 %a to i32
-  %tmp2 = zext i16 %b to i32
-  %tmp3 = shl nuw i32 %tmp1, 16
-  %tmp4 = or i32 %tmp2, %tmp3
-  %tmp5 = and i32 %tmp4, 4294836224 ; mask with 0xFFFE0000
-  ret i32 %tmp5
+  %t1 = zext i16 %a to i32
+  %t2 = zext i16 %b to i32
+  %t3 = shl nuw i32 %t1, 16
+  %t4 = or i32 %t2, %t3
+  %t5 = and i32 %t4, 4294836224 ; mask with 0xFFFE0000
+  ret i32 %t5
 }
 
 ; A variation of above test cases; it fails due to the mask value
 define i32 @shl_or_and8(i16 %a, i16 %b) {
 ; CHECK-LABEL: @shl_or_and8(
-; CHECK-NEXT:    [[TMP1:%.*]] = zext i16 [[A:%.*]] to i32
-; CHECK-NEXT:    [[TMP2:%.*]] = zext i16 [[B:%.*]] to i32
-; CHECK-NEXT:    [[TMP3:%.*]] = shl nuw i32 [[TMP1]], 16
-; CHECK-NEXT:    [[TMP4:%.*]] = or i32 [[TMP2]], [[TMP3]]
-; CHECK-NEXT:    [[TMP5:%.*]] = and i32 [[TMP4]], 131071
-; CHECK-NEXT:    ret i32 [[TMP5]]
+; CHECK-NEXT:    [[T1:%.*]] = zext i16 [[A:%.*]] to i32
+; CHECK-NEXT:    [[T2:%.*]] = zext i16 [[B:%.*]] to i32
+; CHECK-NEXT:    [[T3:%.*]] = shl nuw i32 [[T1]], 16
+; CHECK-NEXT:    [[T4:%.*]] = or i32 [[T2]], [[T3]]
+; CHECK-NEXT:    [[T5:%.*]] = and i32 [[T4]], 131071
+; CHECK-NEXT:    ret i32 [[T5]]
 ;
-  %tmp1 = zext i16 %a to i32
-  %tmp2 = zext i16 %b to i32
-  %tmp3 = shl nuw i32 %tmp1, 16
-  %tmp4 = or i32 %tmp2, %tmp3
-  %tmp5 = and i32 %tmp4, 131071 ; mask with 0x1FFFF
-  ret i32 %tmp5
+  %t1 = zext i16 %a to i32
+  %t2 = zext i16 %b to i32
+  %t3 = shl nuw i32 %t1, 16
+  %t4 = or i32 %t2, %t3
+  %t5 = and i32 %t4, 131071 ; mask with 0x1FFFF
+  ret i32 %t5
 }
 
 define <2 x i64> @shl_or_and1v(<2 x i32> %a, <2 x i1> %b) {
 ; CHECK-LABEL: @shl_or_and1v(
-; CHECK-NEXT:    [[TMP2:%.*]] = zext <2 x i1> [[B:%.*]] to <2 x i64>
-; CHECK-NEXT:    ret <2 x i64> [[TMP2]]
+; CHECK-NEXT:    [[T2:%.*]] = zext <2 x i1> [[B:%.*]] to <2 x i64>
+; CHECK-NEXT:    ret <2 x i64> [[T2]]
 ;
-  %tmp1 = zext <2 x i32> %a to <2 x i64>
-  %tmp2 = zext <2 x i1> %b to <2 x i64>
-  %tmp3 = shl nuw <2 x i64> %tmp1, <i64 32, i64 32>
-  %tmp4 = or <2 x i64> %tmp3, %tmp2
-  %tmp5 = and <2 x i64> %tmp4, <i64 1, i64 1>
-  ret <2 x i64> %tmp5
+  %t1 = zext <2 x i32> %a to <2 x i64>
+  %t2 = zext <2 x i1> %b to <2 x i64>
+  %t3 = shl nuw <2 x i64> %t1, <i64 32, i64 32>
+  %t4 = or <2 x i64> %t3, %t2
+  %t5 = and <2 x i64> %t4, <i64 1, i64 1>
+  ret <2 x i64> %t5
 }
 
 define <2 x i64> @shl_or_and2v(<2 x i32> %a, <2 x i1> %b) {
 ; CHECK-LABEL: @shl_or_and2v(
-; CHECK-NEXT:    [[TMP1:%.*]] = zext <2 x i1> [[B:%.*]] to <2 x i64>
-; CHECK-NEXT:    [[TMP3:%.*]] = shl nuw <2 x i64> [[TMP1]], <i64 32, i64 32>
-; CHECK-NEXT:    ret <2 x i64> [[TMP3]]
+; CHECK-NEXT:    [[T1:%.*]] = zext <2 x i1> [[B:%.*]] to <2 x i64>
+; CHECK-NEXT:    [[T3:%.*]] = shl nuw <2 x i64> [[T1]], <i64 32, i64 32>
+; CHECK-NEXT:    ret <2 x i64> [[T3]]
 ;
-  %tmp1 = zext <2 x i1> %b to <2 x i64>
-  %tmp2 = zext <2 x i32> %a to <2 x i64>
-  %tmp3 = shl nuw <2 x i64> %tmp1, <i64 32, i64 32>
-  %tmp4 = or <2 x i64> %tmp2, %tmp3
-  %tmp5 = and <2 x i64> %tmp4, <i64 4294967296, i64 4294967296>
-  ret <2 x i64> %tmp5
+  %t1 = zext <2 x i1> %b to <2 x i64>
+  %t2 = zext <2 x i32> %a to <2 x i64>
+  %t3 = shl nuw <2 x i64> %t1, <i64 32, i64 32>
+  %t4 = or <2 x i64> %t2, %t3
+  %t5 = and <2 x i64> %t4, <i64 4294967296, i64 4294967296>
+  ret <2 x i64> %t5
 }
 
-define <2 x i32> @shl_or_and3v(<2 x i16> %a, <2 x i16> %b) {
 ; A variation of above test case, but fails due to the mask value
+define <2 x i32> @shl_or_and3v(<2 x i16> %a, <2 x i16> %b) {
 ; CHECK-LABEL: @shl_or_and3v(
-; CHECK-NEXT:    [[TMP1:%.*]] = zext <2 x i16> [[A:%.*]] to <2 x i32>
-; CHECK-NEXT:    [[TMP2:%.*]] = zext <2 x i16> [[B:%.*]] to <2 x i32>
-; CHECK-NEXT:    [[TMP3:%.*]] = shl nuw <2 x i32> [[TMP1]], <i32 16, i32 16>
-; CHECK-NEXT:    [[TMP4:%.*]] = or <2 x i32> [[TMP2]], [[TMP3]]
-; CHECK-NEXT:    [[TMP5:%.*]] = and <2 x i32> [[TMP4]], <i32 -65535, i32 -65535>
-; CHECK-NEXT:    ret <2 x i32> [[TMP5]]
+; CHECK-NEXT:    [[T1:%.*]] = zext <2 x i16> [[A:%.*]] to <2 x i32>
+; CHECK-NEXT:    [[T2:%.*]] = zext <2 x i16> [[B:%.*]] to <2 x i32>
+; CHECK-NEXT:    [[T3:%.*]] = shl nuw <2 x i32> [[T1]], <i32 16, i32 16>
+; CHECK-NEXT:    [[T4:%.*]] = or <2 x i32> [[T2]], [[T3]]
+; CHECK-NEXT:    [[T5:%.*]] = and <2 x i32> [[T4]], <i32 -65535, i32 -65535>
+; CHECK-NEXT:    ret <2 x i32> [[T5]]
 ;
-  %tmp1 = zext <2 x i16> %a to <2 x i32>
-  %tmp2 = zext <2 x i16> %b to <2 x i32>
-  %tmp3 = shl nuw <2 x i32> %tmp1, <i32 16, i32 16>
-  %tmp4 = or <2 x i32> %tmp2, %tmp3
-  %tmp5 = and <2 x i32> %tmp4, <i32 4294901761, i32 4294901761> ; mask with 0xFFFF0001
-  ret <2 x i32> %tmp5
+  %t1 = zext <2 x i16> %a to <2 x i32>
+  %t2 = zext <2 x i16> %b to <2 x i32>
+  %t3 = shl nuw <2 x i32> %t1, <i32 16, i32 16>
+  %t4 = or <2 x i32> %t2, %t3
+  %t5 = and <2 x i32> %t4, <i32 4294901761, i32 4294901761> ; mask with 0xFFFF0001
+  ret <2 x i32> %t5
+}
+
+define i8 @and_add_sub(i8 %x) {
+; CHECK-LABEL: @and_add_sub(
+; CHECK-NEXT:    ret i8 0
+;
+  %a = add i8 %x, -1
+  %s = sub i8 0, %x
+  %r = and i8 %a, %s
+  ret i8 %r
+}
+
+define <2 x i8> @and_sub_add(<2 x i8> %x) {
+; CHECK-LABEL: @and_sub_add(
+; CHECK-NEXT:    ret <2 x i8> zeroinitializer
+;
+  %a = add <2 x i8> %x, <i8 -4, i8 -4>
+  %s = sub <2 x i8> <i8 3, i8 3>, %x
+  %r = and <2 x i8> %s, %a
+  ret <2 x i8> %r
+}
+
+define i89 @or_add_sub(i89 %x) {
+; CHECK-LABEL: @or_add_sub(
+; CHECK-NEXT:    ret i89 -1
+;
+  %a = add i89 %x, 5
+  %s = sub i89 -6, %x
+  %r = or i89 %a, %s
+  ret i89 %r
+}
+
+define <3 x i8> @or_sub_add(<3 x i8> %x) {
+; CHECK-LABEL: @or_sub_add(
+; CHECK-NEXT:    ret <3 x i8> <i8 -1, i8 -1, i8 -1>
+;
+  %a = add <3 x i8> %x, <i8 42, i8 -12, i8 0>
+  %s = sub <3 x i8> <i8 -43, i8 11, i8 -1>, %x
+  %r = or <3 x i8> %s, %a
+  ret <3 x i8> %r
+}
+
+
+define <2 x i17> @xor_add_sub(<2 x i17> %x) {
+; CHECK-LABEL: @xor_add_sub(
+; CHECK-NEXT:    ret <2 x i17> <i17 -1, i17 -1>
+;
+  %a = add <2 x i17> %x, <i17 3000, i17 23>
+  %s = sub <2 x i17> <i17 -3001, i17 -24>, %x
+  %r = xor <2 x i17> %a, %s
+  ret <2 x i17> %r
+}
+
+define i8 @xor_sub_add(i8 %x) {
+; CHECK-LABEL: @xor_sub_add(
+; CHECK-NEXT:    ret i8 -1
+;
+  %a = add i8 %x, 33
+  %s = sub i8 -34, %x
+  %r = xor i8 %s, %a
+  ret i8 %r
+}
+
+; Negative test
+
+define i8 @and_add_sub_wrong_const(i8 %x) {
+; CHECK-LABEL: @and_add_sub_wrong_const(
+; CHECK-NEXT:    [[A:%.*]] = add i8 [[X:%.*]], 6
+; CHECK-NEXT:    [[S:%.*]] = sub i8 -6, [[X]]
+; CHECK-NEXT:    [[R:%.*]] = and i8 [[A]], [[S]]
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %a = add i8 %x, 6
+  %s = sub i8 -6, %x
+  %r = and i8 %a, %s
+  ret i8 %r
+}
+
+; Negative test
+
+define i8 @or_add_sub_wrong_var(i8 %x, i8 %y) {
+; CHECK-LABEL: @or_add_sub_wrong_var(
+; CHECK-NEXT:    [[A:%.*]] = add i8 [[X:%.*]], 5
+; CHECK-NEXT:    [[S:%.*]] = sub i8 -6, [[Y:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = or i8 [[A]], [[S]]
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %a = add i8 %x, 5
+  %s = sub i8 -6, %y
+  %r = or i8 %a, %s
+  ret i8 %r
+}
+
+; Negative test
+
+define i8 @xor_add_sub_wrong_op(i8 %x) {
+; CHECK-LABEL: @xor_add_sub_wrong_op(
+; CHECK-NEXT:    [[A:%.*]] = add i8 [[X:%.*]], 5
+; CHECK-NEXT:    [[S:%.*]] = sub i8 [[X]], -6
+; CHECK-NEXT:    [[R:%.*]] = xor i8 [[A]], [[S]]
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %a = add i8 %x, 5
+  %s = sub i8 %x, -6
+  %r = xor i8 %a, %s
+  ret i8 %r
 }

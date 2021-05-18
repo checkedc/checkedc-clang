@@ -1,20 +1,20 @@
 // RUN: %clang_cc1 -triple i686-windows-msvc -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -emit-llvm -o - %s | FileCheck -allow-deprecated-dag-overlap %s -check-prefix CHECK-MS -check-prefix CHECK-MS-DYNAMIC
 // RUN: %clang_cc1 -triple i686-windows-msvc -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -flto-visibility-public-std -emit-llvm -o - %s | FileCheck -allow-deprecated-dag-overlap %s -check-prefix CHECK-MS -check-prefix CHECK-MS-STATIC
 
-// RUN: %clang_cc1 -triple i686-windows-itanium -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -emit-llvm -o - %s | FileCheck -allow-deprecated-dag-overlap %s -check-prefix CHECK-IA -check-prefix CHECK-DYNAMIC-IA -check-prefix CHECK-DYNAMIC-NODECL-IA -check-prefix CHECK-DYANMIC-IA-CXA-ATEXIT
-// RUN: %clang_cc1 -triple i686-windows-itanium -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -flto-visibility-public-std -emit-llvm -o - %s | FileCheck -allow-deprecated-dag-overlap %s -check-prefix CHECK-IA -check-prefix CHECK-STATIC-IA -check-prefix CHECK-STATIC-NODECL-IA -check-prefix CHECK-IA-STATIC-CXA-ATEXIT
-// RUN: %clang_cc1 -triple i686-windows-itanium -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -DIMPORT_DECLARATIONS -emit-llvm -o - %s | FileCheck -allow-deprecated-dag-overlap %s -check-prefix CHECK-IA -check-prefix CHECK-DYNAMIC-IA -check-prefix CHECK-DYNAMIC-IMPORT-IA -check-prefix CHECK-DYANMIC-IA-CXA-ATEXIT
-// RUN: %clang_cc1 -triple i686-windows-itanium -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -flto-visibility-public-std -DIMPORT_DECLARATIONS -emit-llvm -o - %s | FileCheck -allow-deprecated-dag-overlap %s -check-prefix CHECK-IA -check-prefix CHECK-STATIC-IA -check-prefix CHECK-STATIC-IMPORT-IA -check-prefix CHECK-IA-STATIC-CXA-ATEXIT
-// RUN: %clang_cc1 -triple i686-windows-itanium -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -DEXPORT_DECLARATIONS -emit-llvm -o - %s | FileCheck -allow-deprecated-dag-overlap %s -check-prefix CHECK-IA -check-prefix CHECK-DYNAMIC-IA -check-prefix CHECK-DYANMIC-IA-CXA-ATEXIT
-// RUN: %clang_cc1 -triple i686-windows-itanium -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -flto-visibility-public-std -DEXPORT_DECLARATIONS -emit-llvm -o - %s | FileCheck -allow-deprecated-dag-overlap %s -check-prefix CHECK-IA -check-prefix CHECK-STATIC-IA -check-prefix CHECK-IA-STATIC-CXA-ATEXIT
-// RUN: %clang_cc1 -triple i686-windows-itanium -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -DDECL -emit-llvm -o - %s | FileCheck -allow-deprecated-dag-overlap %s -check-prefix CHECK-IA -check-prefix CHECK-DYNAMIC-IA -check-prefix CHECK-DYNAMIC-DECL-IA -check-prefix CHECK-DYANMIC-IA-CXA-ATEXIT
-// RUN: %clang_cc1 -triple i686-windows-itanium -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -flto-visibility-public-std -DDECL -emit-llvm -o - %s | FileCheck -allow-deprecated-dag-overlap %s -check-prefix CHECK-IA -check-prefix CHECK-STATIC-IA -check-prefix CHECK-STATIC-DECL-IA -check-prefix CHECK-IA-STATIC-CXA-ATEXIT
+// RUN: %clang_cc1 -triple i686-windows-itanium -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -emit-llvm -o - %s | FileCheck -allow-deprecated-dag-overlap %s -check-prefix CHECK-IA -check-prefix CHECK-DYNAMIC-IA -check-prefix CHECK-DYNAMIC-NODECL-IA
+// RUN: %clang_cc1 -triple i686-windows-itanium -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -flto-visibility-public-std -emit-llvm -o - %s | FileCheck -allow-deprecated-dag-overlap %s -check-prefix CHECK-IA -check-prefix CHECK-STATIC-IA -check-prefix CHECK-STATIC-NODECL-IA
+// RUN: %clang_cc1 -triple i686-windows-itanium -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -DIMPORT_DECLARATIONS -emit-llvm -o - %s | FileCheck -allow-deprecated-dag-overlap %s -check-prefix CHECK-IA -check-prefix CHECK-DYNAMIC-IA -check-prefix CHECK-DYNAMIC-IMPORT-IA
+// RUN: %clang_cc1 -triple i686-windows-itanium -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -flto-visibility-public-std -DIMPORT_DECLARATIONS -emit-llvm -o - %s | FileCheck -allow-deprecated-dag-overlap %s -check-prefix CHECK-IA -check-prefix CHECK-STATIC-IA -check-prefix CHECK-STATIC-IMPORT-IA
+// RUN: %clang_cc1 -triple i686-windows-itanium -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -DEXPORT_DECLARATIONS -emit-llvm -o - %s | FileCheck -allow-deprecated-dag-overlap %s -check-prefix CHECK-IA -check-prefix CHECK-DYNAMIC-IA
+// RUN: %clang_cc1 -triple i686-windows-itanium -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -flto-visibility-public-std -DEXPORT_DECLARATIONS -emit-llvm -o - %s | FileCheck -allow-deprecated-dag-overlap %s -check-prefix CHECK-IA -check-prefix CHECK-STATIC-IA
+// RUN: %clang_cc1 -triple i686-windows-itanium -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -DDECL -emit-llvm -o - %s | FileCheck -allow-deprecated-dag-overlap %s -check-prefix CHECK-IA -check-prefix CHECK-DYNAMIC-IA -check-prefix CHECK-DYNAMIC-DECL-IA
+// RUN: %clang_cc1 -triple i686-windows-itanium -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -flto-visibility-public-std -DDECL -emit-llvm -o - %s | FileCheck -allow-deprecated-dag-overlap %s -check-prefix CHECK-IA -check-prefix CHECK-STATIC-IA -check-prefix CHECK-STATIC-DECL-IA
 // %clang_cc1 -triple i686-windows-itanium -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -fno-use-cxa-atexit -emit-llvm -o - %s | FileCheck %s -check-prefix CHECK-IA -check-prefix CHECK-DYNAMIC-IA -check-prefix CHECK-DYNAMIC-IA-ATEXIT
 // %clang_cc1 -triple i686-windows-itanium -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -fno-use-cxa-atexit -emit-llvm -o - %s | FileCheck %s -check-prefix CHECK-IA -check-prefix CHECK-STATIC-IA -check-prefix CHECK-STATIC-IA-ATEXIT
 
 // RUN: %clang_cc1 -triple i686-windows-gnu -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -emit-llvm -o - %s | FileCheck -allow-deprecated-dag-overlap %s -check-prefix CHECK-IA -check-prefix CHECK-STATIC-IA
 // RUN: %clang_cc1 -triple i686-windows-gnu -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -flto-visibility-public-std -emit-llvm -o - %s | FileCheck -allow-deprecated-dag-overlap %s -check-prefix CHECK-IA -check-prefix CHECK-STATIC-IA
-// RUN: %clang_cc1 -triple i686-windows-cygnus -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -emit-llvm -o - %s | FileCheck -allow-deprecated-dag-overlap %s -check-prefix CHECK-IA -check-prefix CHECK-DYNAMIC-IA
+// RUN: %clang_cc1 -triple i686-windows-cygnus -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -emit-llvm -o - %s | FileCheck -allow-deprecated-dag-overlap %s -check-prefix CHECK-IA -check-prefix CHECK-STATIC-IA
 // RUN: %clang_cc1 -triple i686-windows-cygnus -std=c++11 -fdeclspec -fms-compatibility -fexceptions -fcxx-exceptions -flto-visibility-public-std -emit-llvm -o - %s | FileCheck -allow-deprecated-dag-overlap %s -check-prefix CHECK-IA -check-prefix CHECK-STATIC-IA
 
 #if defined(IMPORT_DECLARATIONS)
@@ -108,15 +108,15 @@ void l() {
 // CHECK-MS-DAG: @_Init_thread_epoch = external thread_local global i32
 // CHECK-MS-DAG: declare dso_local i32 @__tlregdtor(void ()*)
 // CHECK-MS-DAG: declare dso_local i32 @atexit(void ()*)
-// CHECK-MS-DYNAMIC-DAG: declare dllimport {{.*}} void @_CxxThrowException
+// CHECK-MS-DYNAMIC-DAG: declare {{.*}} void @_CxxThrowException
 // CHECK-MS-STATIC-DAG: declare {{.*}} void @_CxxThrowException
-// CHECK-MS-DAG: declare dso_local noalias i8* @"??2@YAPAXI@Z"
+// CHECK-MS-DAG: declare dso_local nonnull i8* @"??2@YAPAXI@Z"
 // CHECK-MS-DAG: declare dso_local void @_Init_thread_header(i32*)
 // CHECK-MS-DAG: declare dso_local void @_Init_thread_footer(i32*)
 
 // CHECK-IA-DAG: @_ZTH1t = dso_local alias void (), void ()* @__tls_init
 // CHECK-IA-DAG: declare dso_local i32 @__gxx_personality_v0(...)
-// CHECK-IA-DAG: define linkonce_odr hidden void @__clang_call_terminate(i8*)
+// CHECK-IA-DAG: define linkonce_odr hidden void @__clang_call_terminate(i8* %0)
 
 // CHECK-DYNAMIC-IA-DAG: declare dllimport i32 @__cxa_thread_atexit(void (i8*)*, i8*, i8*)
 // CHECK-DYNAMIC-IA-DAG: declare dllimport i32 @__cxa_atexit(void (i8*)*, i8*, i8*)
@@ -129,7 +129,7 @@ void l() {
 // CHECK-DYNAMIC-NODECL-IA-DAG: declare dllimport i32 @__cxa_guard_acquire(i64*)
 // CHECK-DYNAMIC-IMPORT-IA-DAG: declare dllimport i32 @__cxa_guard_acquire(i64*)
 // CHECK-DYNAMIC-EXPORT-IA-DAG: declare dllexport i32 @__cxa_guard_acquire(i64*)
-// CHECK-IA-DAG: declare dso_local noalias i8* @_Znwj(i32)
+// CHECK-IA-DAG: declare dso_local nonnull i8* @_Znwj(i32)
 // CHECK-DYNAMIC-DECL-IA-DAG: declare dllimport void @__cxa_guard_release(i64*)
 // CHECK-DYNAMIC-NODECL-IA-DAG: declare dllimport void @__cxa_guard_release(i64*)
 // CHECK-DYNAMIC-IMPORT-IA-DAG: declare dllimport void @__cxa_guard_release(i64*)
@@ -147,7 +147,7 @@ void l() {
 // CHECK-STATIC-NODECL-IA-DAG: declare dso_local i32 @__cxa_guard_acquire(i64*)
 // CHECK-STATIC-IMPORT-IA-DAG: declare dso_local i32 @__cxa_guard_acquire(i64*)
 // CHECK-STATIC-EXPORT-IA-DAG: declare dso_local i32 @__cxa_guard_acquire(i64*)
-// CHECK-IA-DAG: declare dso_local noalias i8* @_Znwj(i32)
+// CHECK-IA-DAG: declare dso_local nonnull i8* @_Znwj(i32)
 // CHECK-STATIC-DECL-IA-DAG: declare dso_local void @__cxa_guard_release(i64*)
 // CHECK-STATIC-NODECL-IA-DAG: declare dso_local void @__cxa_guard_release(i64*)
 // CHECK-STATIC-IMPORT-IA-DAG: declare dso_local void @__cxa_guard_release(i64*)
@@ -156,4 +156,3 @@ void l() {
 // CHECK-STATIC-NODECL-IA-DAG: declare dso_local void @_ZSt9terminatev()
 // CHECK-STATIC-IMPORT-IA-DAG: declare dso_local void @_ZSt9terminatev()
 // CHECK-STATIC-EXPORT-IA-DAG: declare dso_local dllexport void @_ZSt9terminatev()
-

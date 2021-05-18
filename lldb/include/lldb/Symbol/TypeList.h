@@ -1,14 +1,13 @@
 //===-- TypeList.h ----------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_TypeList_h_
-#define liblldb_TypeList_h_
+#ifndef LLDB_SYMBOL_TYPELIST_H
+#define LLDB_SYMBOL_TYPELIST_H
 
 #include "lldb/Symbol/Type.h"
 #include "lldb/Utility/Iterable.h"
@@ -20,9 +19,7 @@ namespace lldb_private {
 
 class TypeList {
 public:
-  //------------------------------------------------------------------
   // Constructors and Destructors
-  //------------------------------------------------------------------
   TypeList();
 
   virtual ~TypeList();
@@ -31,14 +28,13 @@ public:
 
   void Dump(Stream *s, bool show_context);
 
-  //    lldb::TypeSP
-  //    FindType(lldb::user_id_t uid);
-
-  TypeList FindTypes(const ConstString &name);
+  TypeList FindTypes(ConstString name);
 
   void Insert(const lldb::TypeSP &type);
 
   uint32_t GetSize() const;
+
+  bool Empty() const { return !GetSize(); }
 
   lldb::TypeSP GetTypeAtIndex(uint32_t idx);
 
@@ -67,9 +63,10 @@ private:
 
   collection m_types;
 
-  DISALLOW_COPY_AND_ASSIGN(TypeList);
+  TypeList(const TypeList &) = delete;
+  const TypeList &operator=(const TypeList &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_TypeList_h_
+#endif // LLDB_SYMBOL_TYPELIST_H

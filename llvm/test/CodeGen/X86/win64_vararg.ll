@@ -6,9 +6,9 @@
 define void @average_va(i32 %count, ...) nounwind {
 entry:
 ; CHECK: pushq
-; CHECK: movq   %r9, 40(%rsp)
-; CHECK: movq   %r8, 32(%rsp)
-; CHECK: movq   %rdx, 24(%rsp)
+; CHECK-DAG: movq   %r9, 40(%rsp)
+; CHECK-DAG: movq   %r8, 32(%rsp)
+; CHECK-DAG: movq   %rdx, 24(%rsp)
 ; CHECK: leaq   24(%rsp), %rax
 
   %ap = alloca i8*, align 8                       ; <i8**> [#uses=1]
@@ -110,7 +110,7 @@ entry:
   ret i32 %tmp
 }
 
-define void @sret_arg(i32* sret %agg.result, i8* nocapture readnone %format, ...) {
+define void @sret_arg(i32* sret(i32) %agg.result, i8* nocapture readnone %format, ...) {
 entry:
   %ap = alloca i8*
   %ap_i8 = bitcast i8** %ap to i8*

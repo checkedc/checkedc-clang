@@ -1,9 +1,8 @@
-//===-- NativeRegisterContextLinux_s390x.cpp --------------------*- C++ -*-===//
+//===-- NativeRegisterContextLinux_s390x.cpp ------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -19,16 +18,13 @@
 
 #include "Plugins/Process/Utility/RegisterContextLinux_s390x.h"
 
-#include <asm/ptrace.h>
 #include <linux/uio.h>
 #include <sys/ptrace.h>
 
 using namespace lldb_private;
 using namespace lldb_private::process_linux;
 
-// ----------------------------------------------------------------------------
 // Private namespace.
-// ----------------------------------------------------------------------------
 
 namespace {
 // s390x 64-bit general purpose registers.
@@ -90,9 +86,7 @@ static const RegisterSet g_reg_sets_s390x[k_num_register_sets] = {
 
 #define REG_CONTEXT_SIZE (sizeof(s390_regs) + sizeof(s390_fp_regs) + 4)
 
-// ----------------------------------------------------------------------------
 // Required ptrace defines.
-// ----------------------------------------------------------------------------
 
 #define NT_S390_LAST_BREAK 0x306  /* s390 breaking event address */
 #define NT_S390_SYSTEM_CALL 0x307 /* s390 system call restart data */
@@ -100,13 +94,11 @@ static const RegisterSet g_reg_sets_s390x[k_num_register_sets] = {
 std::unique_ptr<NativeRegisterContextLinux>
 NativeRegisterContextLinux::CreateHostNativeRegisterContextLinux(
     const ArchSpec &target_arch, NativeThreadProtocol &native_thread) {
-  return llvm::make_unique<NativeRegisterContextLinux_s390x>(target_arch,
+  return std::make_unique<NativeRegisterContextLinux_s390x>(target_arch,
                                                              native_thread);
 }
 
-// ----------------------------------------------------------------------------
 // NativeRegisterContextLinux_s390x members.
-// ----------------------------------------------------------------------------
 
 static RegisterInfoInterface *
 CreateRegisterInfoInterface(const ArchSpec &target_arch) {
@@ -117,8 +109,8 @@ CreateRegisterInfoInterface(const ArchSpec &target_arch) {
 
 NativeRegisterContextLinux_s390x::NativeRegisterContextLinux_s390x(
     const ArchSpec &target_arch, NativeThreadProtocol &native_thread)
-    : NativeRegisterContextLinux(native_thread,
-                                 CreateRegisterInfoInterface(target_arch)) {
+    : NativeRegisterContextRegisterInfo(
+          native_thread, CreateRegisterInfoInterface(target_arch)) {
   // Set up data about ranges of valid registers.
   switch (target_arch.GetMachine()) {
   case llvm::Triple::systemz:
@@ -203,13 +195,12 @@ NativeRegisterContextLinux_s390x::ReadRegister(const RegisterInfo *reg_info,
                   reg_info->name);
 
   if (IsGPR(reg)) {
-    s390_regs regs;
-    Status error = DoReadGPR(&regs, sizeof(regs));
+    Status error = ReadGPR();
     if (error.Fail())
       return error;
 
-    uint8_t *src = (uint8_t *)&regs + reg_info->byte_offset;
-    assert(reg_info->byte_offset + reg_info->byte_size <= sizeof(regs));
+    uint8_t *src = (uint8_t *)&m_regs + reg_info->byte_offset;
+    assert(reg_info->byte_offset + reg_info->byte_size <= sizeof(m_regs));
     switch (reg_info->byte_size) {
     case 4:
       reg_value.SetUInt32(*(uint32_t *)src);
@@ -225,14 +216,13 @@ NativeRegisterContextLinux_s390x::ReadRegister(const RegisterInfo *reg_info,
   }
 
   if (IsFPR(reg)) {
-    s390_fp_regs fp_regs;
-    Status error = DoReadFPR(&fp_regs, sizeof(fp_regs));
+    Status error = ReadFPR();
     if (error.Fail())
       return error;
 
     // byte_offset is just the offset within FPR, not the whole user area.
-    uint8_t *src = (uint8_t *)&fp_regs + reg_info->byte_offset;
-    assert(reg_info->byte_offset + reg_info->byte_size <= sizeof(fp_regs));
+    uint8_t *src = (uint8_t *)&m_fp_regs + reg_info->byte_offset;
+    assert(reg_info->byte_offset + reg_info->byte_size <= sizeof(m_fp_regs));
     switch (reg_info->byte_size) {
     case 4:
       reg_value.SetUInt32(*(uint32_t *)src);
@@ -282,13 +272,12 @@ Status NativeRegisterContextLinux_s390x::WriteRegister(
                   reg_info->name);
 
   if (IsGPR(reg)) {
-    s390_regs regs;
-    Status error = DoReadGPR(&regs, sizeof(regs));
+    Status error = ReadGPR();
     if (error.Fail())
       return error;
 
-    uint8_t *dst = (uint8_t *)&regs + reg_info->byte_offset;
-    assert(reg_info->byte_offset + reg_info->byte_size <= sizeof(regs));
+    uint8_t *dst = (uint8_t *)&m_regs + reg_info->byte_offset;
+    assert(reg_info->byte_offset + reg_info->byte_size <= sizeof(m_regs));
     switch (reg_info->byte_size) {
     case 4:
       *(uint32_t *)dst = reg_value.GetAsUInt32();
@@ -300,18 +289,17 @@ Status NativeRegisterContextLinux_s390x::WriteRegister(
       assert(false && "Unhandled data size.");
       return Status("unhandled byte size: %" PRIu32, reg_info->byte_size);
     }
-    return DoWriteGPR(&regs, sizeof(regs));
+    return WriteGPR();
   }
 
   if (IsFPR(reg)) {
-    s390_fp_regs fp_regs;
-    Status error = DoReadFPR(&fp_regs, sizeof(fp_regs));
+    Status error = ReadFPR();
     if (error.Fail())
       return error;
 
     // byte_offset is just the offset within fp_regs, not the whole user area.
-    uint8_t *dst = (uint8_t *)&fp_regs + reg_info->byte_offset;
-    assert(reg_info->byte_offset + reg_info->byte_size <= sizeof(fp_regs));
+    uint8_t *dst = (uint8_t *)&m_fp_regs + reg_info->byte_offset;
+    assert(reg_info->byte_offset + reg_info->byte_size <= sizeof(m_fp_regs));
     switch (reg_info->byte_size) {
     case 4:
       *(uint32_t *)dst = reg_value.GetAsUInt32();
@@ -323,7 +311,7 @@ Status NativeRegisterContextLinux_s390x::WriteRegister(
       assert(false && "Unhandled data size.");
       return Status("unhandled byte size: %" PRIu32, reg_info->byte_size);
     }
-    return DoWriteFPR(&fp_regs, sizeof(fp_regs));
+    return WriteFPR();
   }
 
   if (reg == lldb_last_break_s390x) {
@@ -343,30 +331,18 @@ Status NativeRegisterContextLinux_s390x::ReadAllRegisterValues(
   Status error;
 
   data_sp.reset(new DataBufferHeap(REG_CONTEXT_SIZE, 0));
-  if (!data_sp) {
-    error.SetErrorStringWithFormat(
-        "failed to allocate DataBufferHeap instance of size %" PRIu64,
-        REG_CONTEXT_SIZE);
-    return error;
-  }
-
   uint8_t *dst = data_sp->GetBytes();
-  if (dst == nullptr) {
-    error.SetErrorStringWithFormat("DataBufferHeap instance of size %" PRIu64
-                                   " returned a null pointer",
-                                   REG_CONTEXT_SIZE);
-    return error;
-  }
-
-  error = DoReadGPR(dst, sizeof(s390_regs));
-  dst += sizeof(s390_regs);
+  error = ReadGPR();
   if (error.Fail())
     return error;
+  memcpy(dst, GetGPRBuffer(), GetGPRSize());
+  dst += GetGPRSize();
 
-  error = DoReadFPR(dst, sizeof(s390_fp_regs));
-  dst += sizeof(s390_fp_regs);
+  error = ReadFPR();
   if (error.Fail())
     return error;
+  memcpy(dst, GetFPRBuffer(), GetFPRSize());
+  dst += GetFPRSize();
 
   // Ignore errors if the regset is unsupported (happens on older kernels).
   DoReadRegisterSet(NT_S390_SYSTEM_CALL, dst, 4);
@@ -401,7 +377,7 @@ Status NativeRegisterContextLinux_s390x::WriteAllRegisterValues(
     return error;
   }
 
-  uint8_t *src = data_sp->GetBytes();
+  const uint8_t *src = data_sp->GetBytes();
   if (src == nullptr) {
     error.SetErrorStringWithFormat("NativeRegisterContextLinux_s390x::%s "
                                    "DataBuffer::GetBytes() returned a null "
@@ -410,13 +386,15 @@ Status NativeRegisterContextLinux_s390x::WriteAllRegisterValues(
     return error;
   }
 
-  error = DoWriteGPR(src, sizeof(s390_regs));
-  src += sizeof(s390_regs);
+  memcpy(GetGPRBuffer(), src, GetGPRSize());
+  src += GetGPRSize();
+  error = WriteGPR();
   if (error.Fail())
     return error;
 
-  error = DoWriteFPR(src, sizeof(s390_fp_regs));
-  src += sizeof(s390_fp_regs);
+  memcpy(GetFPRBuffer(), src, GetFPRSize());
+  src += GetFPRSize();
+  error = WriteFPR();
   if (error.Fail())
     return error;
 
@@ -462,26 +440,24 @@ Status NativeRegisterContextLinux_s390x::PokeUserArea(uint32_t offset,
                                            m_thread.GetID(), &parea);
 }
 
-Status NativeRegisterContextLinux_s390x::DoReadGPR(void *buf, size_t buf_size) {
-  assert(buf_size == sizeof(s390_regs));
-  return PeekUserArea(offsetof(user_regs_struct, psw), buf, buf_size);
+Status NativeRegisterContextLinux_s390x::ReadGPR() {
+  return PeekUserArea(offsetof(user_regs_struct, psw), GetGPRBuffer(),
+                      GetGPRSize());
 }
 
-Status NativeRegisterContextLinux_s390x::DoWriteGPR(void *buf,
-                                                    size_t buf_size) {
-  assert(buf_size == sizeof(s390_regs));
-  return PokeUserArea(offsetof(user_regs_struct, psw), buf, buf_size);
+Status NativeRegisterContextLinux_s390x::WriteGPR() {
+  return PokeUserArea(offsetof(user_regs_struct, psw), GetGPRBuffer(),
+                      GetGPRSize());
 }
 
-Status NativeRegisterContextLinux_s390x::DoReadFPR(void *buf, size_t buf_size) {
-  assert(buf_size == sizeof(s390_fp_regs));
-  return PeekUserArea(offsetof(user_regs_struct, fp_regs), buf, buf_size);
+Status NativeRegisterContextLinux_s390x::ReadFPR() {
+  return PeekUserArea(offsetof(user_regs_struct, fp_regs), GetGPRBuffer(),
+                      GetGPRSize());
 }
 
-Status NativeRegisterContextLinux_s390x::DoWriteFPR(void *buf,
-                                                    size_t buf_size) {
-  assert(buf_size == sizeof(s390_fp_regs));
-  return PokeUserArea(offsetof(user_regs_struct, fp_regs), buf, buf_size);
+Status NativeRegisterContextLinux_s390x::WriteFPR() {
+  return PokeUserArea(offsetof(user_regs_struct, fp_regs), GetGPRBuffer(),
+                      GetGPRSize());
 }
 
 Status NativeRegisterContextLinux_s390x::DoReadRegisterSet(uint32_t regset,

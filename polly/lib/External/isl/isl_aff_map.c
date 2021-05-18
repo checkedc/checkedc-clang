@@ -132,13 +132,15 @@ __isl_give isl_basic_map *isl_basic_map_from_multi_aff2(
 	__isl_take isl_multi_aff *maff, int rational)
 {
 	int i;
+	isl_size dim;
 	isl_space *space;
 	isl_basic_map *bmap;
 
-	if (!maff)
-		return NULL;
+	dim = isl_multi_aff_dim(maff, isl_dim_out);
+	if (dim < 0)
+		goto error;
 
-	if (isl_space_dim(maff->space, isl_dim_out) != maff->n)
+	if (dim != maff->n)
 		isl_die(isl_multi_aff_get_ctx(maff), isl_error_internal,
 			"invalid space", goto error);
 
@@ -198,7 +200,7 @@ __isl_give isl_basic_set *isl_basic_set_from_multi_aff(
 {
 	if (check_input_is_set(isl_multi_aff_peek_space(ma)) < 0)
 		ma = isl_multi_aff_free(ma);
-	return bset_from_bmap(isl_basic_map_from_multi_aff(ma));
+	return bset_from_bmap(basic_map_from_multi_aff(ma));
 }
 
 /* Construct a map mapping the domain of the multi-affine expression
@@ -327,10 +329,12 @@ __isl_give isl_set *isl_set_from_pw_aff(__isl_take isl_pw_aff *pwaff)
 /* Construct a map mapping the domain of the piecewise multi-affine expression
  * to its range, with each dimension in the range equated to the
  * corresponding affine expression on its cell.
+ * If "pma" lives in a set space, then the result is actually a set.
  *
  * If the domain of "pma" is rational, then so is the constructed "map".
  */
-__isl_give isl_map *isl_map_from_pw_multi_aff(__isl_take isl_pw_multi_aff *pma)
+__isl_give isl_map *isl_map_from_pw_multi_aff_internal(
+	__isl_take isl_pw_multi_aff *pma)
 {
 	int i;
 	isl_map *map;
@@ -361,11 +365,22 @@ __isl_give isl_map *isl_map_from_pw_multi_aff(__isl_take isl_pw_multi_aff *pma)
 	return map;
 }
 
+/* Construct a map mapping the domain of the piecewise multi-affine expression
+ * to its range, with each dimension in the range equated to the
+ * corresponding affine expression on its cell.
+ */
+__isl_give isl_map *isl_map_from_pw_multi_aff(__isl_take isl_pw_multi_aff *pma)
+{
+	if (check_input_is_map(isl_pw_multi_aff_peek_space(pma)) < 0)
+		pma = isl_pw_multi_aff_free(pma);
+	return isl_map_from_pw_multi_aff_internal(pma);
+}
+
 __isl_give isl_set *isl_set_from_pw_multi_aff(__isl_take isl_pw_multi_aff *pma)
 {
 	if (check_input_is_set(isl_pw_multi_aff_peek_space(pma)) < 0)
 		pma = isl_pw_multi_aff_free(pma);
-	return set_from_map(isl_map_from_pw_multi_aff(pma));
+	return set_from_map(isl_map_from_pw_multi_aff_internal(pma));
 }
 
 /* Construct a set or map mapping the shared (parameter) domain
@@ -377,11 +392,13 @@ static __isl_give isl_map *map_from_multi_pw_aff(
 	__isl_take isl_multi_pw_aff *mpa)
 {
 	int i;
+	isl_size dim;
 	isl_space *space;
 	isl_map *map;
 
-	if (!mpa)
-		return NULL;
+	dim = isl_multi_pw_aff_dim(mpa, isl_dim_out);
+	if (dim < 0)
+		goto error;
 
 	if (isl_space_dim(mpa->space, isl_dim_out) != mpa->n)
 		isl_die(isl_multi_pw_aff_get_ctx(mpa), isl_error_internal,

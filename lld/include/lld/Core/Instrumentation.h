@@ -1,9 +1,8 @@
 //===- include/Core/Instrumentation.h - Instrumentation API ---------------===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -59,7 +58,7 @@ public:
 /// Each thread has its own task stack and tasks nest recursively on that stack.
 /// A task cannot transfer threads.
 ///
-/// SBRM is used to ensure task starts and ends are ballanced. The lifetime of
+/// SBRM is used to ensure task starts and ends are balanced. The lifetime of
 /// a task is either the lifetime of this object, or until end is called.
 class ScopedTask {
   __itt_domain *_domain;

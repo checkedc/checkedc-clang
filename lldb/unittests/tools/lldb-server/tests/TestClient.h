@@ -1,18 +1,17 @@
 //===-- TestClient.h --------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_SERVER_TESTS_TESTCLIENT_H
-#define LLDB_SERVER_TESTS_TESTCLIENT_H
+#ifndef LLDB_UNITTESTS_TOOLS_LLDB_SERVER_TESTS_TESTCLIENT_H
+#define LLDB_UNITTESTS_TOOLS_LLDB_SERVER_TESTS_TESTCLIENT_H
 
 #include "MessageObjects.h"
 #include "Plugins/Process/gdb-remote/GDBRemoteCommunicationClient.h"
-#include "lldb/Target/ProcessLaunchInfo.h"
+#include "lldb/Host/ProcessLaunchInfo.h"
 #include "lldb/Utility/ArchSpec.h"
 #include "lldb/Utility/Connection.h"
 #include "llvm/ADT/Optional.h"
@@ -110,4 +109,4 @@ TestClient::SendMessage(llvm::StringRef Message, CreateArgs &&... Args) {
 
 } // namespace llgs_tests
 
-#endif // LLDB_SERVER_TESTS_TESTCLIENT_H
+#endif // LLDB_UNITTESTS_TOOLS_LLDB_SERVER_TESTS_TESTCLIENT_H

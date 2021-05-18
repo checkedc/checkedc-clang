@@ -1,10 +1,10 @@
 ; RUN: llc -disable-lsr -march=hexagon -enable-pipeliner  \
-; RUN:     -debug-only=pipeliner < %s 2>&1 > /dev/null | FileCheck %s
+; RUN:     -debug-only=pipeliner < %s 2>&1 > /dev/null -pipeliner-experimental-cg=true | FileCheck %s
 ; REQUIRES: asserts
 ;
 ; Test that checks if the ResMII is 1.
 
-; CHECK: MII = 1 (rec=1, res=1)
+; CHECK: MII = 1 MAX_II = 11 (rec=1, res=1)
 
 ; Function Attrs: nounwind
 define void @f0(i32* nocapture %a0, i32 %a1) #0 {

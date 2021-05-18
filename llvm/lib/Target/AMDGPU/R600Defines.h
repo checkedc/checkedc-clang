@@ -1,17 +1,14 @@
 //===-- R600Defines.h - R600 Helper Macros ----------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 /// \file
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_LIB_TARGET_AMDGPU_R600DEFINES_H
 #define LLVM_LIB_TARGET_AMDGPU_R600DEFINES_H
-
-#include "llvm/MC/MCRegisterInfo.h"
 
 // Operand Flags
 #define MO_FLAG_CLAMP (1 << 0)

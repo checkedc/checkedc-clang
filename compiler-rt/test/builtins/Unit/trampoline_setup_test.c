@@ -1,14 +1,5 @@
 // RUN: %clang_builtins %s %librt -fnested-functions -o %t && %run %t
-/* ===-- trampoline_setup_test.c - Test __trampoline_setup -----------------===
- *
- *                     The LLVM Compiler Infrastructure
- *
- * This file is dual licensed under the MIT and the University of Illinois Open
- * Source Licenses. See LICENSE.TXT for details.
- *
- * ===----------------------------------------------------------------------===
- */
-
+// REQUIRES: librt_has_trampoline_setup
 
 #include <stdio.h>
 #include <string.h>

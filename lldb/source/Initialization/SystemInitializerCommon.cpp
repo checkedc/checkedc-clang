@@ -1,34 +1,31 @@
-//===-- SystemInitializerCommon.cpp -----------------------------*- C++ -*-===//
+//===-- SystemInitializerCommon.cpp ---------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Initialization/SystemInitializerCommon.h"
 
-#include "Plugins/Instruction/ARM/EmulateInstructionARM.h"
-#include "Plugins/Instruction/MIPS/EmulateInstructionMIPS.h"
-#include "Plugins/Instruction/MIPS64/EmulateInstructionMIPS64.h"
-#include "Plugins/ObjectContainer/BSD-Archive/ObjectContainerBSDArchive.h"
-#include "Plugins/ObjectContainer/Universal-Mach-O/ObjectContainerUniversalMachO.h"
 #include "Plugins/Process/gdb-remote/ProcessGDBRemoteLog.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Host/HostInfo.h"
+#include "lldb/Host/Socket.h"
 #include "lldb/Utility/Log.h"
-#include "lldb/Utility/Reproducer.h"
+#include "lldb/Utility/ReproducerProvider.h"
 #include "lldb/Utility/Timer.h"
+#include "lldb/lldb-private.h"
 
 #if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
 #include "Plugins/Process/POSIX/ProcessPOSIXLog.h"
 #endif
 
-#if defined(_MSC_VER)
+#if defined(_WIN32)
 #include "Plugins/Process/Windows/Common/ProcessWindowsLog.h"
 #include "lldb/Host/windows/windows.h"
+#include <crtdbg.h>
 #endif
 
 #include "llvm/Support/TargetSelect.h"
@@ -42,9 +39,60 @@ SystemInitializerCommon::SystemInitializerCommon() {}
 
 SystemInitializerCommon::~SystemInitializerCommon() {}
 
-llvm::Error
-SystemInitializerCommon::Initialize(const InitializerOptions &options) {
-#if defined(_MSC_VER)
+/// Initialize the FileSystem based on the current reproducer mode.
+static llvm::Error InitializeFileSystem() {
+  auto &r = repro::Reproducer::Instance();
+  if (repro::Loader *loader = r.GetLoader()) {
+    FileSpec vfs_mapping = loader->GetFile<FileProvider::Info>();
+    if (vfs_mapping) {
+      if (llvm::Error e = FileSystem::Initialize(vfs_mapping))
+        return e;
+    } else {
+      FileSystem::Initialize();
+    }
+
+    // Set the current working directory form the reproducer.
+    llvm::Expected<std::string> working_dir =
+        repro::GetDirectoryFrom<WorkingDirectoryProvider>(loader);
+    if (!working_dir)
+      return working_dir.takeError();
+    if (std::error_code ec = FileSystem::Instance()
+                                 .GetVirtualFileSystem()
+                                 ->setCurrentWorkingDirectory(*working_dir)) {
+      return llvm::errorCodeToError(ec);
+    }
+
+    // Set the home directory from the reproducer.
+    llvm::Expected<std::string> home_dir =
+        repro::GetDirectoryFrom<HomeDirectoryProvider>(loader);
+    if (!home_dir)
+      return home_dir.takeError();
+    FileSystem::Instance().SetHomeDirectory(*home_dir);
+
+    return llvm::Error::success();
+  }
+
+  if (repro::Generator *g = r.GetGenerator()) {
+    repro::VersionProvider &vp = g->GetOrCreate<repro::VersionProvider>();
+    vp.SetVersion(lldb_private::GetVersion());
+
+    repro::FileProvider &fp = g->GetOrCreate<repro::FileProvider>();
+    FileSystem::Initialize(fp.GetFileCollector());
+
+    fp.RecordInterestingDirectory(
+        g->GetOrCreate<repro::WorkingDirectoryProvider>().GetDirectory());
+    fp.RecordInterestingDirectory(
+        g->GetOrCreate<repro::HomeDirectoryProvider>().GetDirectory());
+
+    return llvm::Error::success();
+  }
+
+  FileSystem::Initialize();
+  return llvm::Error::success();
+}
+
+llvm::Error SystemInitializerCommon::Initialize() {
+#if defined(_WIN32)
   const char *disable_crash_dialog_var = getenv("LLDB_DISABLE_CRASH_DIALOG");
   if (disable_crash_dialog_var &&
       llvm::StringRef(disable_crash_dialog_var).equals_lower("true")) {
@@ -66,39 +114,31 @@ SystemInitializerCommon::Initialize(const InitializerOptions &options) {
   }
 #endif
 
-  ReproducerMode mode = ReproducerMode::Off;
-  if (options.reproducer_capture)
-    mode = ReproducerMode::Capture;
-  if (options.reproducer_replay)
-    mode = ReproducerMode::Replay;
+  // If the reproducer wasn't initialized before, we can safely assume it's
+  // off.
+  if (!Reproducer::Initialized()) {
+    if (auto e = Reproducer::Initialize(ReproducerMode::Off, llvm::None))
+      return e;
+  }
 
-  if (auto e = Reproducer::Initialize(mode, FileSpec(options.reproducer_path)))
+  if (auto e = InitializeFileSystem())
     return e;
 
-  FileSystem::Initialize();
   Log::Initialize();
   HostInfo::Initialize();
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat, LLVM_PRETTY_FUNCTION);
+
+  llvm::Error error = Socket::Initialize();
+  if (error)
+    return error;
+
+  LLDB_SCOPED_TIMER();
 
   process_gdb_remote::ProcessGDBRemoteLog::Initialize();
-
-  // Initialize plug-ins
-  ObjectContainerBSDArchive::Initialize();
-
-  EmulateInstructionARM::Initialize();
-  EmulateInstructionMIPS::Initialize();
-  EmulateInstructionMIPS64::Initialize();
-
-  //----------------------------------------------------------------------
-  // Apple/Darwin hosted plugins
-  //----------------------------------------------------------------------
-  ObjectContainerUniversalMachO::Initialize();
 
 #if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
   ProcessPOSIXLog::Initialize();
 #endif
-#if defined(_MSC_VER)
+#if defined(_WIN32)
   ProcessWindowsLog::Initialize();
 #endif
 
@@ -106,20 +146,13 @@ SystemInitializerCommon::Initialize(const InitializerOptions &options) {
 }
 
 void SystemInitializerCommon::Terminate() {
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat, LLVM_PRETTY_FUNCTION);
-  ObjectContainerBSDArchive::Terminate();
+  LLDB_SCOPED_TIMER();
 
-  EmulateInstructionARM::Terminate();
-  EmulateInstructionMIPS::Terminate();
-  EmulateInstructionMIPS64::Terminate();
-
-  ObjectContainerUniversalMachO::Terminate();
-
-#if defined(_MSC_VER)
+#if defined(_WIN32)
   ProcessWindowsLog::Terminate();
 #endif
 
+  Socket::Terminate();
   HostInfo::Terminate();
   Log::DisableAllLogChannels();
   FileSystem::Terminate();

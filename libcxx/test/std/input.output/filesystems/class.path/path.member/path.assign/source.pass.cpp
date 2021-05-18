@@ -1,13 +1,15 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
+
+// These tests require locale for non-char paths
+// UNSUPPORTED: libcpp-has-no-localization
 
 // <filesystem>
 
@@ -22,22 +24,21 @@
 //      path& assign(InputIterator first, InputIterator last);
 
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <string_view>
 #include <cassert>
 
 #include "test_macros.h"
 #include "test_iterators.h"
-#include "count_new.hpp"
-#include "filesystem_test_helper.hpp"
-#include <iostream>
+#include "count_new.h"
+#include "filesystem_test_helper.h"
 
 
 template <class CharT>
 void RunTestCase(MultiStringType const& MS) {
   using namespace fs;
-  const char* Expect = MS;
+  const fs::path::value_type* Expect = MS;
   const CharT* TestPath = MS;
   const CharT* TestPathEnd = StrEnd(TestPath);
   const std::size_t Size = TestPathEnd - TestPath;
@@ -213,9 +214,9 @@ void test_sfinae() {
   }
 }
 
-void RunStringMoveTest(const char* Expect) {
+void RunStringMoveTest(const fs::path::value_type* Expect) {
   using namespace fs;
-  std::string ss(Expect);
+  fs::path::string_type ss(Expect);
   path p;
   {
     DisableAllocationGuard g; ((void)g);
@@ -225,11 +226,11 @@ void RunStringMoveTest(const char* Expect) {
   assert(p == Expect);
   {
     // Signature test
-    ASSERT_NOEXCEPT(p = std::move(ss));
+    LIBCPP_ONLY(ASSERT_NOEXCEPT(p = std::move(ss)));
   }
 }
 
-int main() {
+int main(int, char**) {
   for (auto const& MS : PathList) {
     RunTestCase<char>(MS);
     RunTestCase<wchar_t>(MS);
@@ -238,4 +239,6 @@ int main() {
     RunStringMoveTest(MS);
   }
   test_sfinae();
+
+  return 0;
 }

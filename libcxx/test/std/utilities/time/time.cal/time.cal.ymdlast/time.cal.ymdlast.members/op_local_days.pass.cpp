@@ -1,12 +1,11 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class year_month_day_last;
@@ -20,7 +19,7 @@
 
 #include "test_macros.h"
 
-int main()
+int main(int, char**)
 {
     using year                = std::chrono::year;
     using month_day_last      = std::chrono::month_day_last;
@@ -34,7 +33,7 @@ int main()
     { // Last day in Jan 1970 was the 31st
     constexpr year_month_day_last ymdl{year{1970}, month_day_last{std::chrono::January}};
     constexpr local_days sd{ymdl};
-    
+
     static_assert(sd.time_since_epoch() == days{30}, "");
     }
 
@@ -58,4 +57,6 @@ int main()
 
     assert(sd.time_since_epoch() == days{-(10957+33)});
     }
+
+  return 0;
 }

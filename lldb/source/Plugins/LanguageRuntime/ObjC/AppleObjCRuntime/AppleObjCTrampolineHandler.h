@@ -1,14 +1,13 @@
 //===-- AppleObjCTrampolineHandler.h ----------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef lldb_AppleObjCTrampolineHandler_h_
-#define lldb_AppleObjCTrampolineHandler_h_
+#ifndef LLDB_SOURCE_PLUGINS_LANGUAGERUNTIME_OBJC_APPLEOBJCRUNTIME_APPLEOBJCTRAMPOLINEHANDLER_H
+#define LLDB_SOURCE_PLUGINS_LANGUAGERUNTIME_OBJC_APPLEOBJCRUNTIME_APPLEOBJCTRAMPOLINEHANDLER_H
 
 #include <map>
 #include <mutex>
@@ -37,7 +36,7 @@ public:
 
   struct DispatchFunction {
   public:
-    typedef enum { eFixUpNone, eFixUpFixed, eFixUpToFix } FixUpState;
+    enum FixUpState { eFixUpNone, eFixUpFixed, eFixUpToFix };
 
     const char *name;
     bool stret_return;
@@ -48,6 +47,9 @@ public:
 
   lldb::addr_t SetupDispatchFunction(Thread &thread,
                                      ValueList &dispatch_values);
+  const DispatchFunction *FindDispatchFunction(lldb::addr_t addr);
+  void ForEachDispatchFunction(std::function<void(lldb::addr_t, 
+                                                  const DispatchFunction &)>);
 
 private:
   static const char *g_lookup_implementation_function_name;
@@ -75,8 +77,9 @@ private:
     class VTableRegion {
     public:
       VTableRegion()
-          : m_valid(false), m_owner(NULL), m_header_addr(LLDB_INVALID_ADDRESS),
-            m_code_start_addr(0), m_code_end_addr(0), m_next_region(0) {}
+          : m_valid(false), m_owner(nullptr),
+            m_header_addr(LLDB_INVALID_ADDRESS), m_code_start_addr(0),
+            m_code_end_addr(0), m_next_region(0) {}
 
       VTableRegion(AppleObjCVTables *owner, lldb::addr_t header_addr);
 
@@ -96,7 +99,6 @@ private:
 
       void Dump(Stream &s);
 
-    public:
       bool m_valid;
       AppleObjCVTables *m_owner;
       lldb::addr_t m_header_addr;
@@ -136,11 +138,13 @@ private:
   };
 
   static const DispatchFunction g_dispatch_functions[];
+  static const char *g_opt_dispatch_names[];
 
-  typedef std::map<lldb::addr_t, int> MsgsendMap; // This table maps an dispatch
+  using MsgsendMap = std::map<lldb::addr_t, int>; // This table maps an dispatch
                                                   // fn address to the index in
                                                   // g_dispatch_functions
   MsgsendMap m_msgSend_map;
+  MsgsendMap m_opt_dispatch_map;
   lldb::ProcessWP m_process_wp;
   lldb::ModuleSP m_objc_module_sp;
   const char *m_lookup_implementation_function_code;
@@ -150,9 +154,9 @@ private:
   lldb::addr_t m_impl_stret_fn_addr;
   lldb::addr_t m_msg_forward_addr;
   lldb::addr_t m_msg_forward_stret_addr;
-  std::unique_ptr<AppleObjCVTables> m_vtables_ap;
+  std::unique_ptr<AppleObjCVTables> m_vtables_up;
 };
 
 } // namespace lldb_private
 
-#endif // lldb_AppleObjCTrampolineHandler_h_
+#endif // LLDB_SOURCE_PLUGINS_LANGUAGERUNTIME_OBJC_APPLEOBJCRUNTIME_APPLEOBJCTRAMPOLINEHANDLER_H

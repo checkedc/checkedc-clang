@@ -13,7 +13,7 @@ void caller(void (*f)()) {
   f();
 }
 
-// CHECK: define weak_odr hidden void @__cfi_check_fail(i8*, i8*)
+// CHECK: define weak_odr hidden void @__cfi_check_fail(i8* %0, i8* %1)
 // CHECK: store i8* %0, i8** %[[ALLOCA0:.*]], align 8
 // CHECK: store i8* %1, i8** %[[ALLOCA1:.*]], align 8
 // CHECK: %[[DATA:.*]] = load i8*, i8** %[[ALLOCA0]], align 8
@@ -22,7 +22,7 @@ void caller(void (*f)()) {
 // CHECK: br i1 %[[ICMP_NOT_NULL]], label %[[CONT0:.*]], label %[[TRAP:.*]],
 
 // CHECK: [[TRAP]]:
-// CHECK-NEXT:   call void @llvm.trap()
+// CHECK-NEXT:   call void @llvm.ubsantrap(i8 2)
 // CHECK-NEXT:   unreachable
 
 // CHECK: [[CONT0]]:
@@ -45,7 +45,7 @@ void caller(void (*f)()) {
 // CHECK:   br i1 %[[NOT_1]], label %[[CONT2:.*]], label %[[HANDLE1:.*]], !nosanitize
 
 // CHECK: [[HANDLE1]]:
-// CHECK-NEXT:   call void @llvm.trap()
+// CHECK-NEXT:   call void @llvm.ubsantrap(i8 2)
 // CHECK-NEXT:   unreachable
 
 // CHECK: [[CONT2]]:
@@ -53,7 +53,7 @@ void caller(void (*f)()) {
 // CHECK:   br i1 %[[NOT_2]], label %[[CONT3:.*]], label %[[HANDLE2:.*]], !nosanitize
 
 // CHECK: [[HANDLE2]]:
-// CHECK-NEXT:   call void @llvm.trap()
+// CHECK-NEXT:   call void @llvm.ubsantrap(i8 2)
 // CHECK-NEXT:   unreachable
 
 // CHECK: [[CONT3]]:
@@ -61,7 +61,7 @@ void caller(void (*f)()) {
 // CHECK:   br i1 %[[NOT_3]], label %[[CONT4:.*]], label %[[HANDLE3:.*]], !nosanitize
 
 // CHECK: [[HANDLE3]]:
-// CHECK-NEXT:   call void @llvm.trap()
+// CHECK-NEXT:   call void @llvm.ubsantrap(i8 2)
 // CHECK-NEXT:   unreachable
 
 // CHECK: [[CONT4]]:
@@ -69,7 +69,7 @@ void caller(void (*f)()) {
 // CHECK:   br i1 %[[NOT_4]], label %[[CONT5:.*]], label %[[HANDLE4:.*]], !nosanitize
 
 // CHECK: [[HANDLE4]]:
-// CHECK-NEXT:   call void @llvm.trap()
+// CHECK-NEXT:   call void @llvm.ubsantrap(i8 2)
 // CHECK-NEXT:   unreachable
 
 // CHECK: [[CONT5]]:

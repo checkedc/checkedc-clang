@@ -1,14 +1,13 @@
 //===-- FormatManager.h -----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef lldb_FormatManager_h_
-#define lldb_FormatManager_h_
+#ifndef LLDB_DATAFORMATTERS_FORMATMANAGER_H
+#define LLDB_DATAFORMATTERS_FORMATMANAGER_H
 
 #include <atomic>
 #include <initializer_list>
@@ -35,7 +34,7 @@ namespace lldb_private {
 // this file's objects directly
 
 class FormatManager : public IFormatChangeListener {
-  typedef FormatMap<ConstString, TypeSummaryImpl> NamedSummariesMap;
+  typedef FormattersContainer<TypeSummaryImpl> NamedSummariesMap;
   typedef TypeCategoryMap::MapType::iterator CategoryMapIterator;
 
 public:
@@ -51,30 +50,21 @@ public:
   }
 
   void
-  EnableCategory(const ConstString &category_name,
+  EnableCategory(ConstString category_name,
                  TypeCategoryMap::Position pos = TypeCategoryMap::Default) {
-    EnableCategory(category_name, pos,
-                   std::initializer_list<lldb::LanguageType>());
+    EnableCategory(category_name, pos, {});
   }
 
-  void EnableCategory(const ConstString &category_name,
+  void EnableCategory(ConstString category_name,
                       TypeCategoryMap::Position pos, lldb::LanguageType lang) {
-    std::initializer_list<lldb::LanguageType> langs = {lang};
-    EnableCategory(category_name, pos, langs);
-  }
-
-  void EnableCategory(const ConstString &category_name,
-                      TypeCategoryMap::Position pos = TypeCategoryMap::Default,
-                      std::initializer_list<lldb::LanguageType> langs = {}) {
     TypeCategoryMap::ValueSP category_sp;
     if (m_categories_map.Get(category_name, category_sp) && category_sp) {
       m_categories_map.Enable(category_sp, pos);
-      for (const lldb::LanguageType lang : langs)
-        category_sp->AddLanguage(lang);
+      category_sp->AddLanguage(lang);
     }
   }
 
-  void DisableCategory(const ConstString &category_name) {
+  void DisableCategory(ConstString category_name) {
     m_categories_map.Disable(category_name);
   }
 
@@ -92,7 +82,7 @@ public:
 
   void DisableAllCategories();
 
-  bool DeleteCategory(const ConstString &category_name) {
+  bool DeleteCategory(ConstString category_name) {
     return m_categories_map.Delete(category_name);
   }
 
@@ -113,7 +103,7 @@ public:
     return GetCategory(ConstString(category_name));
   }
 
-  lldb::TypeCategoryImplSP GetCategory(const ConstString &category_name,
+  lldb::TypeCategoryImplSP GetCategory(ConstString category_name,
                                        bool can_create = true);
 
   lldb::TypeFormatImplSP
@@ -125,18 +115,8 @@ public:
   lldb::TypeFilterImplSP
   GetFilterForType(lldb::TypeNameSpecifierImplSP type_sp);
 
-#ifndef LLDB_DISABLE_PYTHON
   lldb::ScriptedSyntheticChildrenSP
   GetSyntheticForType(lldb::TypeNameSpecifierImplSP type_sp);
-#endif
-
-#ifndef LLDB_DISABLE_PYTHON
-  lldb::SyntheticChildrenSP
-  GetSyntheticChildrenForType(lldb::TypeNameSpecifierImplSP type_sp);
-#endif
-
-  lldb::TypeValidatorImplSP
-  GetValidatorForType(lldb::TypeNameSpecifierImplSP type_sp);
 
   lldb::TypeFormatImplSP GetFormat(ValueObject &valobj,
                                    lldb::DynamicValueType use_dynamic);
@@ -144,13 +124,8 @@ public:
   lldb::TypeSummaryImplSP GetSummaryFormat(ValueObject &valobj,
                                            lldb::DynamicValueType use_dynamic);
 
-#ifndef LLDB_DISABLE_PYTHON
   lldb::SyntheticChildrenSP
   GetSyntheticChildren(ValueObject &valobj, lldb::DynamicValueType use_dynamic);
-#endif
-
-  lldb::TypeValidatorImplSP GetValidator(ValueObject &valobj,
-                                         lldb::DynamicValueType use_dynamic);
 
   bool
   AnyMatches(ConstString type_name,
@@ -168,13 +143,6 @@ public:
   static char GetFormatAsFormatChar(lldb::Format format);
 
   static const char *GetFormatAsCString(lldb::Format format);
-
-  // if the user tries to add formatters for, say, "struct Foo" those will not
-  // match any type because of the way we strip qualifiers from typenames this
-  // method looks for the case where the user is adding a
-  // "class","struct","enum" or "union" Foo and strips the unnecessary
-  // qualifier
-  static ConstString GetValidTypeName(const ConstString &type);
 
   // when DataExtractor dumps a vectorOfT, it uses a predefined format for each
   // item this method returns it, or eFormatInvalid if vector_format is not a
@@ -195,7 +163,6 @@ public:
   GetPossibleMatches(ValueObject &valobj, lldb::DynamicValueType use_dynamic) {
     FormattersMatchVector matches;
     GetPossibleMatches(valobj, valobj.GetCompilerType(),
-                       lldb_private::eFormatterChoiceCriterionDirectChoice,
                        use_dynamic, matches, false, false, false, true);
     return matches;
   }
@@ -208,11 +175,8 @@ public:
   GetCandidateLanguages(lldb::LanguageType lang_type);
 
 private:
-  static std::vector<lldb::LanguageType>
-  GetCandidateLanguages(ValueObject &valobj);
-
   static void GetPossibleMatches(ValueObject &valobj,
-                                 CompilerType compiler_type, uint32_t reason,
+                                 CompilerType compiler_type,
                                  lldb::DynamicValueType use_dynamic,
                                  FormattersMatchVector &entries,
                                  bool did_strip_ptr, bool did_strip_ref,
@@ -230,14 +194,10 @@ private:
   ConstString m_system_category_name;
   ConstString m_vectortypes_category_name;
 
-  lldb::TypeFormatImplSP GetHardcodedFormat(FormattersMatchData &);
-
-  lldb::TypeSummaryImplSP GetHardcodedSummaryFormat(FormattersMatchData &);
-
-  lldb::SyntheticChildrenSP
-  GetHardcodedSyntheticChildren(FormattersMatchData &);
-
-  lldb::TypeValidatorImplSP GetHardcodedValidator(FormattersMatchData &);
+  template <typename ImplSP>
+  ImplSP Get(ValueObject &valobj, lldb::DynamicValueType use_dynamic);
+  template <typename ImplSP> ImplSP GetCached(FormattersMatchData &match_data);
+  template <typename ImplSP> ImplSP GetHardcoded(FormattersMatchData &);
 
   TypeCategoryMap &GetCategories() { return m_categories_map; }
 
@@ -256,4 +216,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // lldb_FormatManager_h_
+#endif // LLDB_DATAFORMATTERS_FORMATMANAGER_H

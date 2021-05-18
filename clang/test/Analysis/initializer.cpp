@@ -1,7 +1,17 @@
-// RUN: %clang_analyze_cc1 -analyzer-checker=core,unix.Malloc,cplusplus.NewDeleteLeaks,debug.ExprInspection -analyzer-config c++-inlining=constructors -std=c++11 -verify %s
-// RUN: %clang_analyze_cc1 -analyzer-checker=core,unix.Malloc,cplusplus.NewDeleteLeaks,debug.ExprInspection -analyzer-config c++-inlining=constructors -std=c++17 -DCPLUSPLUS17 -verify %s
-// RUN: %clang_analyze_cc1 -analyzer-checker=core,unix.Malloc,cplusplus.NewDeleteLeaks,debug.ExprInspection -analyzer-config c++-inlining=constructors -std=c++11 -DTEST_INLINABLE_ALLOCATORS -verify %s
-// RUN: %clang_analyze_cc1 -analyzer-checker=core,unix.Malloc,cplusplus.NewDeleteLeaks,debug.ExprInspection -analyzer-config c++-inlining=constructors -std=c++17 -DCPLUSPLUS17 -DTEST_INLINABLE_ALLOCATORS -verify %s
+// RUN: %clang_analyze_cc1 -w -verify %s\
+// RUN:   -analyzer-checker=core,unix.Malloc,cplusplus.NewDeleteLeaks\
+// RUN:   -analyzer-checker=debug.ExprInspection -std=c++11
+// RUN: %clang_analyze_cc1 -w -verify %s\
+// RUN:   -analyzer-checker=core,unix.Malloc,cplusplus.NewDeleteLeaks\
+// RUN:   -analyzer-checker=debug.ExprInspection -std=c++17
+// RUN: %clang_analyze_cc1 -w -verify %s\
+// RUN:   -analyzer-checker=core,unix.Malloc,cplusplus.NewDeleteLeaks\
+// RUN:   -analyzer-checker=debug.ExprInspection -std=c++11\
+// RUN:   -DTEST_INLINABLE_ALLOCATORS
+// RUN: %clang_analyze_cc1 -w -verify %s\
+// RUN:   -analyzer-checker=core,unix.Malloc,cplusplus.NewDeleteLeaks\
+// RUN:   -analyzer-checker=debug.ExprInspection -std=c++17\
+// RUN:   -DTEST_INLINABLE_ALLOCATORS
 
 void clang_analyzer_eval(bool);
 
@@ -232,7 +242,7 @@ void foo() {
 
   D d = {}; // no-crash
 
-#ifdef CPLUSPLUS17
+#if __cplusplus >= 201703L
   C cd = {{}}; // no-crash
   const C &cdl = {{}}; // no-crash
   C &&cdr = {{}}; // no-crash
@@ -242,4 +252,117 @@ void foo() {
   B &&bcr = C({{}}); // no-crash
 #endif
 }
+} // namespace CXX17_aggregate_construction
+
+namespace CXX17_transparent_init_list_exprs {
+class A {};
+
+class B: private A {};
+
+B boo();
+void foo1() {
+  B b { boo() }; // no-crash
 }
+
+class C: virtual public A {};
+
+C coo();
+void foo2() {
+  C c { coo() }; // no-crash
+}
+
+B foo_recursive() {
+  B b { foo_recursive() };
+}
+} // namespace CXX17_transparent_init_list_exprs
+
+namespace skip_vbase_initializer_side_effects {
+int glob;
+struct S {
+  S() { ++glob; }
+};
+
+struct A {
+  A() {}
+  A(S s) {}
+};
+
+struct B : virtual A {
+  B() : A(S()) {}
+};
+
+struct C : B {
+  C() {}
+};
+
+void foo() {
+  glob = 0;
+  B b;
+  clang_analyzer_eval(glob == 1); // expected-warning{{TRUE}}
+  C c; // no-crash
+  clang_analyzer_eval(glob == 1); // expected-warning{{TRUE}}
+}
+} // namespace skip_vbase_initializer_side_effects
+
+namespace dont_skip_vbase_initializers_in_most_derived_class {
+struct A {
+  static int a;
+  A() { a = 0; }
+  A(int x) { a = x; }
+};
+
+struct B {
+  static int b;
+  B() { b = 0; }
+  B(int y) { b = y; }
+};
+
+struct C : virtual A {
+  C() : A(1) {}
+};
+struct D : C, virtual B {
+  D() : B(2) {}
+};
+
+void testD() {
+  D d;
+  clang_analyzer_eval(A::a == 0); // expected-warning{{TRUE}}
+  clang_analyzer_eval(B::b == 2); // expected-warning{{TRUE}}
+}
+
+struct E : virtual B, C {
+  E() : B(2) {}
+};
+
+void testE() {
+  E e;
+  clang_analyzer_eval(A::a == 0); // expected-warning{{TRUE}}
+  clang_analyzer_eval(B::b == 2); // expected-warning{{TRUE}}
+}
+
+struct F : virtual A, virtual B {
+  F() : A(1) {}
+};
+struct G : F {
+  G(): B(2) {}
+};
+
+void testG() {
+  G g;
+  clang_analyzer_eval(A::a == 0); // expected-warning{{TRUE}}
+  clang_analyzer_eval(B::b == 2); // expected-warning{{TRUE}}
+}
+
+struct H : virtual B, virtual A {
+  H(): A(1) {}
+};
+struct I : H {
+  I(): B(2) {}
+};
+
+void testI() {
+  I i;
+  clang_analyzer_eval(A::a == 0); // expected-warning{{TRUE}}
+  clang_analyzer_eval(B::b == 2); // expected-warning{{TRUE}}
+}
+} // namespace dont_skip_vbase_initializers_in_most_derived_class

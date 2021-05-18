@@ -1,9 +1,8 @@
 //===------ PollyIRBuilder.cpp --------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -17,7 +16,6 @@
 #include "polly/Support/ScopHelper.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Metadata.h"
-#include "llvm/Support/Debug.h"
 
 using namespace llvm;
 using namespace polly;
@@ -28,24 +26,22 @@ static const int MaxArraysInAliasScops = 10;
 ///
 /// The MDNode looks like this (if arg0/arg1 are not null):
 ///
-///    '!n = metadata !{metadata !n, arg0, arg1}'
+///    '!n = distinct !{!n, arg0, arg1}'
 ///
 /// @return The self referencing id metadata node.
 static MDNode *getID(LLVMContext &Ctx, Metadata *arg0 = nullptr,
                      Metadata *arg1 = nullptr) {
   MDNode *ID;
   SmallVector<Metadata *, 3> Args;
-  // Use a temporary node to safely create a unique pointer for the first arg.
-  auto TempNode = MDNode::getTemporary(Ctx, None);
   // Reserve operand 0 for loop id self reference.
-  Args.push_back(TempNode.get());
+  Args.push_back(nullptr);
 
   if (arg0)
     Args.push_back(arg0);
   if (arg1)
     Args.push_back(arg1);
 
-  ID = MDNode::get(Ctx, Args);
+  ID = MDNode::getDistinct(Ctx, Args);
   ID->replaceOperandWith(0, ID);
   return ID;
 }
@@ -192,6 +188,28 @@ void ScopAnnotator::annotateSecondLevel(llvm::Instruction *Inst,
   Inst->setMetadata("noalias", SecondLevelOtherAliasScopeList);
 }
 
+/// Find the base pointer of an array access.
+///
+/// This should be equivalent to ScalarEvolution::getPointerBase, which we
+/// cannot use here the IR is still under construction which ScalarEvolution
+/// assumes to not be modified.
+static Value *findBasePtr(Value *Val) {
+  while (true) {
+    if (auto *Gep = dyn_cast<GEPOperator>(Val)) {
+      Val = Gep->getPointerOperand();
+      continue;
+    }
+    if (auto *Cast = dyn_cast<BitCastOperator>(Val)) {
+      Val = Cast->getOperand(0);
+      continue;
+    }
+
+    break;
+  }
+
+  return Val;
+}
+
 void ScopAnnotator::annotate(Instruction *Inst) {
   if (!Inst->mayReadOrWriteMemory())
     return;
@@ -213,15 +231,7 @@ void ScopAnnotator::annotate(Instruction *Inst) {
   if (!Ptr)
     return;
 
-  auto *PtrSCEV = SE->getSCEV(Ptr);
-  auto *BaseSCEV = SE->getPointerBase(PtrSCEV);
-  auto *SU = dyn_cast<SCEVUnknown>(BaseSCEV);
-
-  if (!SU)
-    return;
-
-  auto *BasePtr = SU->getValue();
-
+  Value *BasePtr = findBasePtr(Ptr);
   if (!BasePtr)
     return;
 

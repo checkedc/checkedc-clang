@@ -1,13 +1,12 @@
 // -*- C++ -*-
 //===------------------------------ span ---------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===---------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <span>
 
@@ -17,6 +16,7 @@
 //     constexpr span(const Container& cont);
 //
 // Remarks: These constructors shall not participate in overload resolution unless:
+//   — extent == dynamic_extent,
 //   — Container is not a specialization of span,
 //   — Container is not a specialization of array,
 //   — is_array_v<Container> is false,
@@ -24,12 +24,12 @@
 //   — remove_pointer_t<decltype(data(cont))>(*)[] is convertible to ElementType(*)[].
 //
 
-
 #include <span>
 #include <cassert>
-#include <list>
-#include <forward_list>
 #include <deque>
+#include <forward_list>
+#include <list>
+#include <vector>
 
 #include "test_macros.h"
 
@@ -62,56 +62,61 @@ private:
     const T *data() const {return nullptr;}
 };
 
+template<class T, size_t extent, class container>
+std::span<T, extent> createImplicitSpan(container c) {
+    return {c}; // expected-error {{chosen constructor is explicit in copy-initialization}}
+}
 
-int main ()
+int main(int, char**)
 {
+
+//  Making non-const spans from const sources (a temporary binds to `const &`)
+    {
+    std::span<int>    s1{IsAContainer<int>()};          // expected-error {{no matching constructor for initialization of 'std::span<int>'}}
+    std::span<int>    s3{std::vector<int>()};           // expected-error {{no matching constructor for initialization of 'std::span<int>'}}
+    }
 
 //  Missing size and/or data
     {
-    std::span<int>    s1{IsAContainer<int>()};          // expected-error {{no matching constructor for initialization of 'std::span<int>'}}
-    std::span<int, 0> s2{IsAContainer<int>()};          // expected-error {{no matching constructor for initialization of 'std::span<int, 0>'}}
-    std::span<int>    s3{NotAContainerNoData<int>()};   // expected-error {{no matching constructor for initialization of 'std::span<int>'}}
-    std::span<int, 0> s4{NotAContainerNoData<int>()};   // expected-error {{no matching constructor for initialization of 'std::span<int, 0>'}}
-    std::span<int>    s5{NotAContainerNoSize<int>()};   // expected-error {{no matching constructor for initialization of 'std::span<int>'}}
-    std::span<int, 0> s6{NotAContainerNoSize<int>()};   // expected-error {{no matching constructor for initialization of 'std::span<int, 0>'}}
-    std::span<int>    s7{NotAContainerPrivate<int>()};  // expected-error {{no matching constructor for initialization of 'std::span<int>'}}
-    std::span<int, 0> s8{NotAContainerPrivate<int>()};  // expected-error {{no matching constructor for initialization of 'std::span<int, 0>'}}
+    std::span<const int>    s1{NotAContainerNoData<int>()};   // expected-error {{no matching constructor for initialization of 'std::span<const int>'}}
+    std::span<const int>    s3{NotAContainerNoSize<int>()};   // expected-error {{no matching constructor for initialization of 'std::span<const int>'}}
+    std::span<const int>    s5{NotAContainerPrivate<int>()};  // expected-error {{no matching constructor for initialization of 'std::span<const int>'}}
 
 //  Again with the standard containers
-    std::span<int>    s11{std::deque<int>()};           // expected-error {{no matching constructor for initialization of 'std::span<int>'}}
-    std::span<int, 0> s12{std::deque<int>()};           // expected-error {{no matching constructor for initialization of 'std::span<int, 0>'}}
-    std::span<int>    s13{std::list<int>()};            // expected-error {{no matching constructor for initialization of 'std::span<int>'}}
-    std::span<int, 0> s14{std::list<int>()};            // expected-error {{no matching constructor for initialization of 'std::span<int, 0>'}}
-    std::span<int>    s15{std::forward_list<int>()};    // expected-error {{no matching constructor for initialization of 'std::span<int>'}}
-    std::span<int, 0> s16{std::forward_list<int>()};    // expected-error {{no matching constructor for initialization of 'std::span<int, 0>'}}
+    std::span<const int>    s11{std::deque<int>()};           // expected-error {{no matching constructor for initialization of 'std::span<const int>'}}
+    std::span<const int>    s13{std::list<int>()};            // expected-error {{no matching constructor for initialization of 'std::span<const int>'}}
+    std::span<const int>    s15{std::forward_list<int>()};    // expected-error {{no matching constructor for initialization of 'std::span<const int>'}}
     }
 
 //  Not the same type
     {
-    std::span<float>    s1{IsAContainer<int>()};   // expected-error {{no matching constructor for initialization of 'std::span<float>'}}
-    std::span<float, 0> s2{IsAContainer<int>()};   // expected-error {{no matching constructor for initialization of 'std::span<float, 0>'}}
+    IsAContainer<int> c;
+    std::span<float>    s1{c};   // expected-error {{no matching constructor for initialization of 'std::span<float>'}}
     }
 
-//  CV wrong (dynamically sized)
+//  CV wrong
     {
-    std::span<               int> s1{IsAContainer<const          int>()};   // expected-error {{no matching constructor for initialization of 'std::span<int>'}}
-    std::span<               int> s2{IsAContainer<      volatile int>()};   // expected-error {{no matching constructor for initialization of 'std::span<int>'}}
-    std::span<               int> s3{IsAContainer<const volatile int>()};   // expected-error {{no matching constructor for initialization of 'std::span<int>'}}
-    std::span<const          int> s4{IsAContainer<      volatile int>()};   // expected-error {{no matching constructor for initialization of 'std::span<const int>'}}
-    std::span<const          int> s5{IsAContainer<const volatile int>()};   // expected-error {{no matching constructor for initialization of 'std::span<const int>'}}
-    std::span<      volatile int> s6{IsAContainer<const          int>()};   // expected-error {{no matching constructor for initialization of 'std::span<volatile int>'}}
-    std::span<      volatile int> s7{IsAContainer<const volatile int>()};   // expected-error {{no matching constructor for initialization of 'std::span<volatile int>'}}
+    IsAContainer<const          int> c;
+    IsAContainer<const volatile int> cv;
+    IsAContainer<      volatile int> v;
+
+    std::span<               int> s1{c};    // expected-error {{no matching constructor for initialization of 'std::span<int>'}}
+    std::span<               int> s2{v};    // expected-error {{no matching constructor for initialization of 'std::span<int>'}}
+    std::span<               int> s3{cv};   // expected-error {{no matching constructor for initialization of 'std::span<int>'}}
+    std::span<const          int> s4{v};    // expected-error {{no matching constructor for initialization of 'std::span<const int>'}}
+    std::span<const          int> s5{cv};   // expected-error {{no matching constructor for initialization of 'std::span<const int>'}}
+    std::span<      volatile int> s6{c};    // expected-error {{no matching constructor for initialization of 'std::span<volatile int>'}}
+    std::span<      volatile int> s7{cv};   // expected-error {{no matching constructor for initialization of 'std::span<volatile int>'}}
     }
 
-//  CV wrong (statically sized)
+// explicit constructor necessary
     {
-    std::span<               int,1> s1{IsAContainer<const          int>()}; // expected-error {{no matching constructor for initialization of 'std::span<int, 1>'}}
-    std::span<               int,1> s2{IsAContainer<      volatile int>()}; // expected-error {{no matching constructor for initialization of 'std::span<int, 1>'}}
-    std::span<               int,1> s3{IsAContainer<const volatile int>()}; // expected-error {{no matching constructor for initialization of 'std::span<int, 1>'}}
-    std::span<const          int,1> s4{IsAContainer<      volatile int>()}; // expected-error {{no matching constructor for initialization of 'std::span<const int, 1>'}}
-    std::span<const          int,1> s5{IsAContainer<const volatile int>()}; // expected-error {{no matching constructor for initialization of 'std::span<const int, 1>'}}
-    std::span<      volatile int,1> s6{IsAContainer<const          int>()}; // expected-error {{no matching constructor for initialization of 'std::span<volatile int, 1>'}}
-    std::span<      volatile int,1> s7{IsAContainer<const volatile int>()}; // expected-error {{no matching constructor for initialization of 'std::span<volatile int, 1>'}}
+    IsAContainer<int> c;
+    const IsAContainer<int> cc;
+
+    createImplicitSpan<int, 1>(c);
+    createImplicitSpan<int, 1>(cc);
     }
 
+  return 0;
 }

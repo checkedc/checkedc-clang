@@ -1,14 +1,13 @@
 //===-- LLVMUserExpression.h ------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_LLVMUserExpression_h
-#define liblldb_LLVMUserExpression_h
+#ifndef LLDB_EXPRESSION_LLVMUSEREXPRESSION_H
+#define LLDB_EXPRESSION_LLVMUSEREXPRESSION_H
 
 #include <map>
 #include <string>
@@ -20,8 +19,7 @@
 
 namespace lldb_private {
 
-//----------------------------------------------------------------------
-/// @class LLVMUserExpression LLVMUserExpression.h
+/// \class LLVMUserExpression LLVMUserExpression.h
 /// "lldb/Expression/LLVMUserExpression.h" Encapsulates a one-time expression
 /// for use in lldb.
 ///
@@ -31,9 +29,16 @@ namespace lldb_private {
 /// expression. The actual parsing part will be provided by the specific
 /// implementations of LLVMUserExpression - which will be vended through the
 /// appropriate TypeSystem.
-//----------------------------------------------------------------------
 class LLVMUserExpression : public UserExpression {
+  // LLVM RTTI support
+  static char ID;
+
 public:
+  bool isA(const void *ClassID) const override {
+    return ClassID == &ID || UserExpression::isA(ClassID);
+  }
+  static bool classof(const Expression *obj) { return obj->isA(&ID); }
+
   // The IRPasses struct is filled in by a runtime after an expression is
   // compiled and can be used to to run fixups/analysis passes as required.
   // EarlyPasses are run on the generated module before lldb runs its own IR
@@ -60,13 +65,11 @@ public:
 
   bool CanInterpret() override { return m_can_interpret; }
 
-  //------------------------------------------------------------------
+  Materializer *GetMaterializer() override { return m_materializer_up.get(); }
+
   /// Return the string that the parser should parse.  Must be a full
   /// translation unit.
-  //------------------------------------------------------------------
   const char *Text() override { return m_transformed_text.c_str(); }
-
-  lldb::ModuleSP GetJITModule() override;
 
 protected:
   lldb::ExpressionResults
@@ -98,26 +101,10 @@ protected:
 
   std::shared_ptr<IRExecutionUnit>
       m_execution_unit_sp; ///< The execution unit the expression is stored in.
-  std::unique_ptr<Materializer> m_materializer_ap; ///< The materializer to use
-                                                   ///when running the
-                                                   ///expression.
+  std::unique_ptr<Materializer> m_materializer_up; ///< The materializer to use
+                                                   /// when running the
+                                                   /// expression.
   lldb::ModuleWP m_jit_module_wp;
-  bool m_enforce_valid_object; ///< True if the expression parser should enforce
-                               ///the presence of a valid class pointer
-  /// in order to generate the expression as a method.
-  bool m_in_cplusplus_method;  ///< True if the expression is compiled as a C++
-                               ///member function (true if it was parsed
-                               /// when exe_ctx was in a C++ method).
-  bool m_in_objectivec_method; ///< True if the expression is compiled as an
-                               ///Objective-C method (true if it was parsed
-                               /// when exe_ctx was in an Objective-C method).
-  bool m_in_static_method; ///< True if the expression is compiled as a static
-                           ///(or class) method (currently true if it
-  /// was parsed when exe_ctx was in an Objective-C class method).
-  bool m_needs_object_ptr; ///< True if "this" or "self" must be looked up and
-                           ///passed in.  False if the expression
-                           /// doesn't really use them and they can be NULL.
-  bool m_const_object;     ///< True if "this" is const.
   Target *m_target; ///< The target for storing persistent data like types and
                     ///variables.
 

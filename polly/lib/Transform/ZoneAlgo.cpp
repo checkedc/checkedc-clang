@@ -1,9 +1,8 @@
 //===------ ZoneAlgo.cpp ----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -542,6 +541,13 @@ isl::union_map ZoneAlgorithm::computePerPHI(const ScopArrayInfo *SAI) {
   if (It != PerPHIMaps.end())
     return It->second;
 
+  // Cannot reliably compute immediate predecessor for undefined executions, so
+  // bail out if we do not know. This in particular applies to undefined control
+  // flow.
+  isl::set DefinedContext = S->getDefinedBehaviorContext();
+  if (!DefinedContext)
+    return nullptr;
+
   assert(SAI->isPHIKind());
 
   // { DomainPHIWrite[] -> Scatter[] }
@@ -564,6 +570,10 @@ isl::union_map ZoneAlgorithm::computePerPHI(const ScopArrayInfo *SAI) {
 
   // { DomainPHIRead[] -> Scatter[] }
   isl::map PHIWriteTimes = BeforeRead.intersect_range(WriteTimes);
+
+  // Remove instances outside the context.
+  PHIWriteTimes = PHIWriteTimes.intersect_params(DefinedContext);
+
   isl::map LastPerPHIWrites = PHIWriteTimes.lexmax();
 
   // { DomainPHIRead[] -> DomainPHIWrite[] }
@@ -1021,6 +1031,13 @@ void ZoneAlgorithm::computeNormalizedPHIs() {
       auto *PHI = cast<PHINode>(MA->getAccessInstruction());
       const ScopArrayInfo *SAI = MA->getOriginalScopArrayInfo();
 
+      // Determine which instance of the PHI statement corresponds to which
+      // incoming value. Skip if we cannot determine PHI predecessors.
+      // { PHIDomain[] -> IncomingDomain[] }
+      isl::union_map PerPHI = computePerPHI(SAI);
+      if (!PerPHI)
+        continue;
+
       // { PHIDomain[] -> PHIValInst[] }
       isl::map PHIValInst = makeValInst(PHI, &Stmt, Stmt.getSurroundingLoop());
 
@@ -1043,11 +1060,6 @@ void ZoneAlgorithm::computeNormalizedPHIs() {
 
         IncomingValInsts = IncomingValInsts.add_map(IncomingValInst);
       }
-
-      // Determine which instance of the PHI statement corresponds to which
-      // incoming value.
-      // { PHIDomain[] -> IncomingDomain[] }
-      isl::union_map PerPHI = computePerPHI(SAI);
 
       // { PHIValInst[] -> IncomingValInst[] }
       isl::union_map PHIMap =

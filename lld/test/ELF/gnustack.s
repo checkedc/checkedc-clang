@@ -2,13 +2,16 @@
 # RUN: llvm-mc -filetype=obj -triple=x86_64-unknown-linux %s -o %t1
 
 # RUN: ld.lld %t1 -z execstack -o %t
-# RUN: llvm-readobj --program-headers -s %t | FileCheck --check-prefix=RWX %s
+# RUN: llvm-readobj --program-headers -S %t | FileCheck --check-prefix=RWX %s
 
 # RUN: ld.lld %t1 -o %t
-# RUN: llvm-readobj --program-headers -s %t | FileCheck --check-prefix=RW %s
+# RUN: llvm-readobj --program-headers -S %t | FileCheck --check-prefix=RW %s
 
 # RUN: ld.lld %t1 -o %t -z noexecstack
-# RUN: llvm-readobj --program-headers -s %t | FileCheck --check-prefix=RW %s
+# RUN: llvm-readobj --program-headers -S %t | FileCheck --check-prefix=RW %s
+
+# RUN: ld.lld %t1 -o %t -z nognustack
+# RUN: llvm-readobj --program-headers -s %t | FileCheck --check-prefix=NOGNUSTACK %s
 
 # RW:      Type: PT_GNU_STACK
 # RW-NEXT: Offset: 0x0
@@ -34,6 +37,8 @@
 # RWX-NEXT:   PF_X
 # RWX-NEXT: ]
 # RWX-NEXT: Alignment: 0
+
+# NOGNUSTACK-NOT: Type: PT_GNU_STACK
 
 .globl _start
 _start:

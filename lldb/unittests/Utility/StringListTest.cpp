@@ -1,14 +1,14 @@
-//===-- StringListTest.cpp ---------------------------------------*- C++ -*-===//
+//===-- StringListTest.cpp ------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Utility/StringList.h"
 #include "lldb/Utility/StreamString.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 using namespace lldb_private;
@@ -215,8 +215,7 @@ TEST(StringListTest, SplitIntoLinesEmpty) {
 
 TEST(StringListTest, LongestCommonPrefixEmpty) {
   StringList s;
-  std::string prefix = "this should be cleared";
-  s.LongestCommonPrefix(prefix);
+  std::string prefix = s.LongestCommonPrefix();
   EXPECT_EQ("", prefix);
 }
 
@@ -227,8 +226,7 @@ TEST(StringListTest, LongestCommonPrefix) {
   s.AppendString("foo");
   s.AppendString("foozar");
 
-  std::string prefix = "this should be cleared";
-  s.LongestCommonPrefix(prefix);
+  std::string prefix = s.LongestCommonPrefix();
   EXPECT_EQ("foo", prefix);
 }
 
@@ -236,8 +234,7 @@ TEST(StringListTest, LongestCommonPrefixSingleElement) {
   StringList s;
   s.AppendString("foo");
 
-  std::string prefix = "this should be cleared";
-  s.LongestCommonPrefix(prefix);
+  std::string prefix = s.LongestCommonPrefix();
   EXPECT_EQ("foo", prefix);
 }
 
@@ -246,8 +243,7 @@ TEST(StringListTest, LongestCommonPrefixDuplicateElement) {
   s.AppendString("foo");
   s.AppendString("foo");
 
-  std::string prefix = "this should be cleared";
-  s.LongestCommonPrefix(prefix);
+  std::string prefix = s.LongestCommonPrefix();
   EXPECT_EQ("foo", prefix);
 }
 
@@ -258,8 +254,7 @@ TEST(StringListTest, LongestCommonPrefixNoPrefix) {
   s.AppendString("2foo");
   s.AppendString("3foozar");
 
-  std::string prefix = "this should be cleared";
-  s.LongestCommonPrefix(prefix);
+  std::string prefix = s.LongestCommonPrefix();
   EXPECT_EQ("", prefix);
 }
 
@@ -509,4 +504,21 @@ TEST(StringListTest, GetMaxStringLengthMixed) {
 TEST(StringListTest, GetMaxStringLengthEmpty) {
   StringList s;
   EXPECT_EQ(0U, s.GetMaxStringLength());
+}
+
+TEST(StringListTest, ForRangeEmpty) {
+  StringList s;
+  for (const std::string &e : s)
+    FAIL() << "Shouldn't have hit an element in for range" << e;
+}
+
+TEST(StringListTest, ForRange) {
+  StringList s;
+  s.AppendString("a");
+  s.AppendString("b");
+  s.AppendString("c");
+  std::vector<std::string> recorded;
+  for (const std::string &e : s)
+    recorded.push_back(e);
+  EXPECT_THAT(recorded, testing::ElementsAre("a", "b", "c"));
 }

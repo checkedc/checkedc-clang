@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -12,17 +11,18 @@
 // template<BidirectionalIterator Iter>
 //   requires ShuffleIterator<Iter>
 //         && LessThanComparable<Iter::value_type>
-//   bool
+//   constexpr bool  // constexpr in C++20
 //   next_permutation(Iter first, Iter last);
 
 #include <algorithm>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_iterators.h"
 
 #include <cstdio>
 
-int factorial(int x)
+TEST_CONSTEXPR_CXX14 int factorial(int x)
 {
     int r = 1;
     for (; x; --x)
@@ -31,7 +31,7 @@ int factorial(int x)
 }
 
 template <class Iter>
-void
+TEST_CONSTEXPR_CXX20 bool
 test()
 {
     int ia[] = {1, 2, 3, 4, 5, 6};
@@ -56,11 +56,20 @@ test()
         } while (x);
         assert(count == factorial(e));
     }
+    return true;
 }
 
-int main()
+int main(int, char**)
 {
     test<bidirectional_iterator<int*> >();
     test<random_access_iterator<int*> >();
     test<int*>();
+
+#if TEST_STD_VER >= 20
+    static_assert(test<bidirectional_iterator<int*>>());
+    static_assert(test<random_access_iterator<int*>>());
+    static_assert(test<int*>());
+#endif
+
+    return 0;
 }

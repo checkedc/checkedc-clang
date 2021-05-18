@@ -1,9 +1,8 @@
-//===--- DanglingHandleCheck.cpp - clang-tidy------------------------------===//
+//===-- OptionsUtils.cpp - clang-tidy -------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -23,13 +22,13 @@ std::vector<std::string> parseStringList(StringRef Option) {
   for (StringRef &Name : Names) {
     Name = Name.trim();
     if (!Name.empty())
-      Result.push_back(Name);
+      Result.emplace_back(Name);
   }
   return Result;
 }
 
 std::string serializeStringList(ArrayRef<std::string> Strings) {
-  return llvm::join(Strings.begin(), Strings.end(), StringsDelimiter);
+  return llvm::join(Strings, StringsDelimiter);
 }
 
 } // namespace options

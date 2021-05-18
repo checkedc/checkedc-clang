@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -17,22 +16,12 @@
 
 #include <valarray>
 #include <cassert>
-#include <sstream>
 #include <cstddef>
 
-bool is_about(double x, double y, int p)
-{
-    std::ostringstream o;
-    o.precision(p);
-    scientific(o);
-    o << x;
-    std::string a = o.str();
-    o.str("");
-    o << y;
-    return a == o.str();
-}
+#include "test_macros.h"
+#include "valarray_helper.h"
 
-int main()
+int main(int, char**)
 {
     {
         typedef double T;
@@ -51,4 +40,6 @@ int main()
         for (std::size_t i = 0; i < v3.size(); ++i)
             assert(is_about(v3[i], a3[i], 10));
     }
+
+  return 0;
 }

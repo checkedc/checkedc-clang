@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -12,13 +11,10 @@
 // const charT& front() const;
 //       charT& front();
 
-#ifdef _LIBCPP_DEBUG
-#define _LIBCPP_ASSERT(x, m) ((x) ? (void)0 : std::exit(0))
-#endif
-
 #include <string>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 template <class S>
@@ -26,13 +22,17 @@ void
 test(S s)
 {
     const S& cs = s;
+    ASSERT_SAME_TYPE(decltype( s.front()), typename S::reference);
+    ASSERT_SAME_TYPE(decltype(cs.front()), typename S::const_reference);
+    LIBCPP_ASSERT_NOEXCEPT(    s.front());
+    LIBCPP_ASSERT_NOEXCEPT(   cs.front());
     assert(&cs.front() == &cs[0]);
     assert(&s.front() == &s[0]);
     s.front() = typename S::value_type('z');
     assert(s.front() == typename S::value_type('z'));
 }
 
-int main()
+int main(int, char**)
 {
     {
     typedef std::string S;
@@ -46,11 +46,6 @@ int main()
     test(S("1234567890123456789012345678901234567890"));
     }
 #endif
-#ifdef _LIBCPP_DEBUG
-    {
-        std::string s;
-        char c = s.front();
-        assert(false);
-    }
-#endif
+
+    return 0;
 }

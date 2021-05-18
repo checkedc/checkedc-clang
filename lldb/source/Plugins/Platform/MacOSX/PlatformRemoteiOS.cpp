@@ -1,9 +1,8 @@
-//===-- PlatformRemoteiOS.cpp -----------------------------------*- C++ -*-===//
+//===-- PlatformRemoteiOS.cpp ---------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -26,14 +25,12 @@
 using namespace lldb;
 using namespace lldb_private;
 
-//------------------------------------------------------------------
+LLDB_PLUGIN_DEFINE(PlatformRemoteiOS)
+
 // Static Variables
-//------------------------------------------------------------------
 static uint32_t g_initialize_count = 0;
 
-//------------------------------------------------------------------
 // Static Functions
-//------------------------------------------------------------------
 void PlatformRemoteiOS::Initialize() {
   PlatformDarwin::Initialize();
 
@@ -66,8 +63,8 @@ PlatformSP PlatformRemoteiOS::CreateInstance(bool force, const ArchSpec *arch) {
     const char *triple_cstr =
         arch ? arch->GetTriple().getTriple().c_str() : "<null>";
 
-    log->Printf("PlatformRemoteiOS::%s(force=%s, arch={%s,%s})", __FUNCTION__,
-                force ? "true" : "false", arch_name, triple_cstr);
+    LLDB_LOGF(log, "PlatformRemoteiOS::%s(force=%s, arch={%s,%s})",
+              __FUNCTION__, force ? "true" : "false", arch_name, triple_cstr);
   }
 
   bool create = force;
@@ -116,14 +113,14 @@ PlatformSP PlatformRemoteiOS::CreateInstance(bool force, const ArchSpec *arch) {
 
   if (create) {
     if (log)
-      log->Printf("PlatformRemoteiOS::%s() creating platform", __FUNCTION__);
+      LLDB_LOGF(log, "PlatformRemoteiOS::%s() creating platform", __FUNCTION__);
 
     return lldb::PlatformSP(new PlatformRemoteiOS());
   }
 
   if (log)
-    log->Printf("PlatformRemoteiOS::%s() aborting creation of platform",
-                __FUNCTION__);
+    LLDB_LOGF(log, "PlatformRemoteiOS::%s() aborting creation of platform",
+              __FUNCTION__);
 
   return lldb::PlatformSP();
 }
@@ -137,9 +134,7 @@ const char *PlatformRemoteiOS::GetDescriptionStatic() {
   return "Remote iOS platform plug-in.";
 }
 
-//------------------------------------------------------------------
 /// Default Constructor
-//------------------------------------------------------------------
 PlatformRemoteiOS::PlatformRemoteiOS()
     : PlatformRemoteDarwinDevice() {}
 
@@ -148,14 +143,10 @@ bool PlatformRemoteiOS::GetSupportedArchitectureAtIndex(uint32_t idx,
   return ARMGetSupportedArchitectureAtIndex(idx, arch);
 }
 
-
-void PlatformRemoteiOS::GetDeviceSupportDirectoryNames (std::vector<std::string> &dirnames) 
-{
-    dirnames.clear();
-    dirnames.push_back("iOS DeviceSupport");
+llvm::StringRef PlatformRemoteiOS::GetDeviceSupportDirectoryName() {
+  return "iOS DeviceSupport";
 }
 
-std::string PlatformRemoteiOS::GetPlatformName ()
-{
-    return "iPhoneOS.platform";
+llvm::StringRef PlatformRemoteiOS::GetPlatformName() {
+  return "iPhoneOS.platform";
 }

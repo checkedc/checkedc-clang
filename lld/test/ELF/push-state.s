@@ -19,20 +19,20 @@
 // RUN: ld.lld -shared %t3.o -soname libfoo -o %t.so
 
 // RUN: ld.lld -o %t.exe -push-state -as-needed %t.so %t1.o
-// RUN: llvm-readobj -dynamic-table %t.exe | FileCheck -check-prefix=AS-NEEDED %s
+// RUN: llvm-readobj --dynamic-table %t.exe | FileCheck -check-prefix=AS-NEEDED %s
 // AS-NEEDED-NOT: NEEDED Shared library: [libfoo]
 
 // RUN: ld.lld -o %t.exe -push-state -as-needed -pop-state %t.so %t1.o
-// RUN: llvm-readobj -dynamic-table %t.exe | FileCheck -check-prefix=NO-AS-NEEDED %s
+// RUN: llvm-readobj --dynamic-table %t.exe | FileCheck -check-prefix=NO-AS-NEEDED %s
 // NO-AS-NEEDED: NEEDED Shared library: [libfoo]
 
 
 // RUN: mkdir -p %t.dir
 // RUN: cp %t.so %t.dir/libfoo.so
 // RUN: ld.lld -o %t.exe -L%t.dir -push-state -static -pop-state  %t1.o -lfoo
-// RUN: not ld.lld -o %t.exe -L%t.dir -push-state -static %t1.o -lfoo
+// RUN: not ld.lld -o /dev/null -L%t.dir -push-state -static %t1.o -lfoo
 
-// RUN: not ld.lld -o %t.exe -pop-state %t.a %t1.o -M 2>&1 | FileCheck -check-prefix=ERR %s
+// RUN: not ld.lld -o /dev/null -pop-state %t.a %t1.o -M 2>&1 | FileCheck -check-prefix=ERR %s
 // ERR: error: unbalanced --push-state/--pop-state
 
 .globl _start

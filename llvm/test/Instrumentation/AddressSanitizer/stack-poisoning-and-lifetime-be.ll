@@ -1,8 +1,10 @@
 ; Regular stack poisoning.
-; RUN: opt < %s -asan -asan-module -asan-use-after-scope=0 -S | FileCheck --check-prefixes=CHECK,ENTRY,EXIT %s
+; RUN: opt < %s -asan -asan-module -enable-new-pm=0 -asan-use-after-scope=0 -S | FileCheck --check-prefixes=CHECK,ENTRY,EXIT %s
+; RUN: opt < %s -passes='asan-pipeline' -asan-use-after-scope=0 -S | FileCheck --check-prefixes=CHECK,ENTRY,EXIT %s
 
 ; Stack poisoning with stack-use-after-scope.
-; RUN: opt < %s -asan -asan-module -asan-use-after-scope=1 -S | FileCheck --check-prefixes=CHECK,ENTRY-UAS,EXIT-UAS %s
+; RUN: opt < %s -asan -asan-module -enable-new-pm=0 -asan-use-after-scope=1 -S | FileCheck --check-prefixes=CHECK,ENTRY-UAS,EXIT-UAS %s
+; RUN: opt < %s -passes='asan-pipeline' -asan-use-after-scope=1 -S | FileCheck --check-prefixes=CHECK,ENTRY-UAS,EXIT-UAS %s
 
 target datalayout = "E-m:e-i64:64-n32:64"
 target triple = "powerpc64-unknown-linux-gnu"
@@ -159,14 +161,14 @@ entry:
 
   ; CHECK-NEXT: call void @llvm.lifetime.end.p0i8(i64 40, i8* %zz)
 
-  ; CHECK-LABEL: <label>
+  ; CHECK: {{^[0-9]+}}:
 
   ; CHECK-NEXT: [[OFFSET:%[0-9]+]] = add i64 [[SHADOW_BASE]], 0
   ; CHECK-NEXT: call void @__asan_set_shadow_f5(i64 [[OFFSET]], i64 128)
 
   ; CHECK-NOT: add i64 [[SHADOW_BASE]]
 
-  ; CHECK-LABEL: <label>
+  ; CHECK: {{^[0-9]+}}:
 
   ; 00000000
   ; EXIT-NEXT: [[OFFSET:%[0-9]+]] = add i64 [[SHADOW_BASE]], 0
@@ -205,7 +207,7 @@ entry:
   ; CHECK-NOT: add i64 [[SHADOW_BASE]]
 
   ret void
-  ; CHECK-LABEL: <label>
+  ; CHECK: {{^[0-9]+}}:
   ; CHECK: ret void
 }
 

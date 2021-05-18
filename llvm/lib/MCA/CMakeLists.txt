@@ -1,4 +1,5 @@
-add_llvm_library(LLVMMCA
+add_llvm_component_library(LLVMMCA
+  CodeEmitter.cpp
   Context.cpp
   HWEventListener.cpp
   HardwareUnits/HardwareUnit.cpp
@@ -14,10 +15,15 @@ add_llvm_library(LLVMMCA
   Stages/EntryStage.cpp
   Stages/ExecuteStage.cpp
   Stages/InstructionTables.cpp
+  Stages/MicroOpQueueStage.cpp
   Stages/RetireStage.cpp
   Stages/Stage.cpp
   Support.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/MCA
+
+  LINK_COMPONENTS
+  MC
+  Support
   )

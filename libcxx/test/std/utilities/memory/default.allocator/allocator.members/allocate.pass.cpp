@@ -1,24 +1,25 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+// UNSUPPORTED: clang-8
+// UNSUPPORTED: gcc-8, gcc-9
 
 // <memory>
 
 // allocator:
-// pointer allocate(size_type n, allocator<void>::const_pointer hint=0);
+// constexpr T* allocate(size_t n);
 
 #include <memory>
 #include <cassert>
 #include <cstddef>       // for std::max_align_t
-#include <iostream>
 
 #include "test_macros.h"
-#include "count_new.hpp"
+#include "count_new.h"
 
 
 #ifdef TEST_HAS_NO_ALIGNED_ALLOCATION
@@ -77,30 +78,21 @@ void test_aligned() {
     assert(globalMemCounter.checkLastDeleteAlignEq(ExpectAligned ? Align : 0));
     assert(T::constructed == 0);
   }
-  globalMemCounter.reset();
-  {
-    globalMemCounter.last_new_size = 0;
-    globalMemCounter.last_new_align = 0;
-    T* volatile ap2 = a.allocate(11, (const void*)5);
-    DoNotOptimize(ap2);
-    assert(globalMemCounter.checkOutstandingNewEq(1));
-    assert(globalMemCounter.checkNewCalledEq(1));
-    assert(globalMemCounter.checkAlignedNewCalledEq(ExpectAligned));
-    assert(globalMemCounter.checkLastNewSizeEq(11 * sizeof(T)));
-    assert(globalMemCounter.checkLastNewAlignEq(ExpectAligned ? Align : 0));
-    assert(T::constructed == 0);
-    globalMemCounter.last_delete_align = 0;
-    a.deallocate(ap2, 11);
-    DoNotOptimize(ap2);
-    assert(globalMemCounter.checkOutstandingNewEq(0));
-    assert(globalMemCounter.checkDeleteCalledEq(1));
-    assert(globalMemCounter.checkAlignedDeleteCalledEq(ExpectAligned));
-    assert(globalMemCounter.checkLastDeleteAlignEq(ExpectAligned ? Align : 0));
-    assert(T::constructed == 0);
-  }
 }
 
-int main() {
+#if TEST_STD_VER > 17
+template <size_t Align>
+constexpr bool test_aligned_constexpr() {
+    typedef AlignedType<Align> T;
+    std::allocator<T> a;
+    T* ap = a.allocate(3);
+    a.deallocate(ap, 3);
+
+    return true;
+}
+#endif
+
+int main(int, char**) {
     test_aligned<1>();
     test_aligned<2>();
     test_aligned<4>();
@@ -109,4 +101,17 @@ int main() {
     test_aligned<MaxAligned>();
     test_aligned<OverAligned>();
     test_aligned<OverAligned * 2>();
+
+#if TEST_STD_VER > 17
+    static_assert(test_aligned_constexpr<1>());
+    static_assert(test_aligned_constexpr<2>());
+    static_assert(test_aligned_constexpr<4>());
+    static_assert(test_aligned_constexpr<8>());
+    static_assert(test_aligned_constexpr<16>());
+    static_assert(test_aligned_constexpr<MaxAligned>());
+    static_assert(test_aligned_constexpr<OverAligned>());
+    static_assert(test_aligned_constexpr<OverAligned * 2>());
+#endif
+
+  return 0;
 }

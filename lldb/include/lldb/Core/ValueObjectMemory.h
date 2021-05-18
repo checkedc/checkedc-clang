@@ -1,14 +1,13 @@
 //===-- ValueObjectMemory.h -----------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ValueObjectMemory_h_
-#define liblldb_ValueObjectMemory_h_
+#ifndef LLDB_CORE_VALUEOBJECTMEMORY_H
+#define LLDB_CORE_VALUEOBJECTMEMORY_H
 
 #include "lldb/Core/Address.h"
 #include "lldb/Core/ValueObject.h"
@@ -24,14 +23,9 @@
 
 namespace lldb_private {
 class ExecutionContextScope;
-}
 
-namespace lldb_private {
-
-//----------------------------------------------------------------------
 // A ValueObject that represents memory at a given address, viewed as some
 // set lldb type.
-//----------------------------------------------------------------------
 class ValueObjectMemory : public ValueObject {
 public:
   ~ValueObjectMemory() override;
@@ -46,7 +40,7 @@ public:
                                     const Address &address,
                                     const CompilerType &ast_type);
 
-  uint64_t GetByteSize() override;
+  llvm::Optional<uint64_t> GetByteSize() override;
 
   ConstString GetTypeName() override;
 
@@ -70,17 +64,18 @@ protected:
   CompilerType m_compiler_type;
 
 private:
-  ValueObjectMemory(ExecutionContextScope *exe_scope, llvm::StringRef name,
+  ValueObjectMemory(ExecutionContextScope *exe_scope,
+                    ValueObjectManager &manager, llvm::StringRef name,
                     const Address &address, lldb::TypeSP &type_sp);
 
-  ValueObjectMemory(ExecutionContextScope *exe_scope, llvm::StringRef name,
+  ValueObjectMemory(ExecutionContextScope *exe_scope,
+                    ValueObjectManager &manager, llvm::StringRef name,
                     const Address &address, const CompilerType &ast_type);
-  //------------------------------------------------------------------
   // For ValueObject only
-  //------------------------------------------------------------------
-  DISALLOW_COPY_AND_ASSIGN(ValueObjectMemory);
+  ValueObjectMemory(const ValueObjectMemory &) = delete;
+  const ValueObjectMemory &operator=(const ValueObjectMemory &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_ValueObjectMemory_h_
+#endif // LLDB_CORE_VALUEOBJECTMEMORY_H

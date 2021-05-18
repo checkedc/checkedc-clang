@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -21,21 +20,9 @@
 #include "test_macros.h"
 #include "test_iterators.h"
 
-#if TEST_STD_VER > 17
-TEST_CONSTEXPR bool test_constexpr() {
-    int ia[] = {1, 2, 2, 3, 3, 3, 4, 4, 4, 4};
-    int ib[] = {2, 4};
-    int ic[] = {3, 3, 3, 3};
-
-    return  std::includes(std::begin(ia), std::end(ia), std::begin(ib), std::end(ib))
-        && !std::includes(std::begin(ia), std::end(ia), std::begin(ic), std::end(ic))
-           ;
-    }
-#endif
-
 template <class Iter1, class Iter2>
-void
-test()
+TEST_CONSTEXPR_CXX20
+void test()
 {
     int ia[] = {1, 2, 2, 3, 3, 3, 4, 4, 4, 4};
     const unsigned sa = sizeof(ia)/sizeof(ia[0]);
@@ -63,7 +50,8 @@ test()
     assert(!std::includes(Iter1(ia), Iter1(ia+sa), Iter2(id), Iter2(id+4)));
 }
 
-int main()
+TEST_CONSTEXPR_CXX20
+bool do_tests()
 {
     test<input_iterator<const int*>, input_iterator<const int*> >();
     test<input_iterator<const int*>, forward_iterator<const int*> >();
@@ -95,7 +83,14 @@ int main()
     test<const int*, random_access_iterator<const int*> >();
     test<const int*, const int*>();
 
+    return true;
+}
+
+int main(int, char**)
+{
+    do_tests();
 #if TEST_STD_VER > 17
-   static_assert(test_constexpr());
+    static_assert(do_tests());
 #endif
+    return 0;
 }

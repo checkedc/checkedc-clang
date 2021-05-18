@@ -1,6 +1,7 @@
 # RUN: llvm-mc -triple=aarch64 -mattr=+fp-armv8 -disassemble < %s | FileCheck %s
 # RUN: llvm-mc -triple=arm64 -mattr=+fp-armv8 -disassemble < %s | FileCheck %s
 # RUN: llvm-mc -triple=arm64 -mattr=+fp-armv8,+fullfp16 -disassemble < %s | FileCheck %s --check-prefix=CHECK --check-prefix=FP16
+# RUN: llvm-mc -triple=arm64 -mattr=+v8.2a -disassemble < %s | FileCheck %s --check-prefix=CHECK-V82
 # RUN: llvm-mc -triple=arm64 -mattr=+v8.3a -disassemble < %s | FileCheck %s --check-prefix=CHECK-V83
 
 #------------------------------------------------------------------------------
@@ -624,7 +625,8 @@
 
 # CHECK: bfi      x4, x5, #52, #11
 # CHECK: bfxil    xzr, x4, #0, #1
-# CHECK: bfc      x4, #1, #6
+# CHECK: bfi      x4, xzr, #1, #6
+# CHECK-V82: bfc      x4, #1, #6
 # CHECK: bfxil    x5, x6, #12, #52
 0xa4 0x28 0x4c 0xb3
 0x9f 0x0 0x40 0xb3
@@ -717,7 +719,8 @@
 # CHECK: bfxil    w9, w10, #0, #32
 # CHECK: bfi      w11, w12, #31, #1
 # CHECK: bfi      w13, w14, #29, #3
-# CHECK: bfc      xzr, #10, #11
+# CHECK-V82: bfc      xzr, #10, #11
+# CHECK: bfi      xzr, xzr, #10, #11
 0x49 0x1 0x0 0x33
 0x62 0x0 0x41 0xb3
 0x93 0xfe 0x40 0xb3
@@ -3030,6 +3033,7 @@
 # CHECK: wfi
 # CHECK: sev
 # CHECK: sevl
+# CHECK: dgh
 0x1f 0x20 0x3 0xd5
 0xff 0x2f 0x3 0xd5
 0x1f 0x20 0x3 0xd5
@@ -3038,6 +3042,7 @@
 0x7f 0x20 0x3 0xd5
 0x9f 0x20 0x3 0xd5
 0xbf 0x20 0x3 0xd5
+0xdf,0x20,0x3,0xd5
 
 # CHECK: clrex
 # CHECK: clrex    #0
@@ -3274,7 +3279,7 @@
 # CHECK: msr      {{SPSel|SPSEL}}, x12
 # CHECK: msr      {{nzcv|NZCV}}, x12
 # CHECK: msr      {{daif|DAIF}}, x12
-# CHECK: msr      {{CurrentEL|CURRENTEL}}, x12
+# CHECK: msr      S3_0_C4_C2_2, x12
 # CHECK: msr      {{SPSR_irq|SPSR_IRQ}}, x12
 # CHECK: msr      {{SPSR_abt|SPSR_ABT}}, x12
 # CHECK: msr      {{SPSR_und|SPSR_UND}}, x12
@@ -3510,6 +3515,7 @@
 # CHECK: mrs      x9, {{id_mmfr2_el1|ID_MMFR2_EL1}}
 # CHECK: mrs      x9, {{id_mmfr3_el1|ID_MMFR3_EL1}}
 # CHECK: mrs      x9, {{id_mmfr4_el1|ID_MMFR4_EL1}}
+# CHECK: mrs      x9, {{id_mmfr5_el1|ID_MMFR5_EL1}}
 # CHECK: mrs      x9, {{id_isar0_el1|ID_ISAR0_EL1}}
 # CHECK: mrs      x9, {{id_isar1_el1|ID_ISAR1_EL1}}
 # CHECK: mrs      x9, {{id_isar2_el1|ID_ISAR2_EL1}}
@@ -3527,6 +3533,7 @@
 # CHECK: mrs      x9, {{id_aa64afr1_el1|ID_AA64AFR1_EL1}}
 # CHECK: mrs      x9, {{id_aa64isar0_el1|ID_AA64ISAR0_EL1}}
 # CHECK: mrs      x9, {{id_aa64isar1_el1|ID_AA64ISAR1_EL1}}
+# CHECK: mrs      x9, {{id_aa64isar2_el1|ID_AA64ISAR2_EL1}}
 # CHECK: mrs      x9, {{id_aa64mmfr0_el1|ID_AA64MMFR0_EL1}}
 # CHECK: mrs      x9, {{id_aa64mmfr1_el1|ID_AA64MMFR1_EL1}}
 # CHECK: mrs      x9, {{sctlr_el1|SCTLR_EL1}}
@@ -4066,6 +4073,7 @@
 0xc9 0x1 0x38 0xd5
 0xe9 0x1 0x38 0xd5
 0xc9 0x2 0x38 0xd5
+0xc9 0x3 0x38 0xd5
 0x9 0x2 0x38 0xd5
 0x29 0x2 0x38 0xd5
 0x49 0x2 0x38 0xd5
@@ -4083,6 +4091,7 @@
 0xa9 0x5 0x38 0xd5
 0x9 0x6 0x38 0xd5
 0x29 0x6 0x38 0xd5
+0x49 0x06 0x38 0xd5
 0x9 0x7 0x38 0xd5
 0x29 0x7 0x38 0xd5
 0x9 0x10 0x38 0xd5

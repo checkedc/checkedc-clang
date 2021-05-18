@@ -1,13 +1,12 @@
 //===--- VirtualFileHelper.h ------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
-/// \brief This file defines an utility class for tests that needs a source
+/// This file defines an utility class for tests that needs a source
 /// manager for a virtual file with customizable content.
 ///
 //===----------------------------------------------------------------------===//
@@ -23,7 +22,7 @@
 
 namespace clang {
 
-/// \brief Class that provides easy access to a SourceManager and that allows to
+/// Class that provides easy access to a SourceManager and that allows to
 /// map virtual files conveniently.
 class VirtualFileHelper {
   struct VirtualFile {
@@ -39,13 +38,13 @@ public:
         DiagnosticPrinter(llvm::outs(), &*DiagOpts),
         Files((FileSystemOptions())) {}
 
-  /// \brief Create a virtual file \p FileName, with content \p Code.
+  /// Create a virtual file \p FileName, with content \p Code.
   void mapFile(llvm::StringRef FileName, llvm::StringRef Code) {
     VirtualFile VF = { FileName, Code };
     VirtualFiles.push_back(VF);
   }
 
-  /// \brief Create a new \c SourceManager with the virtual files and contents
+  /// Create a new \c SourceManager with the virtual files and contents
   /// mapped to it.
   SourceManager &getNewSourceManager() {
     Sources.reset(new SourceManager(Diagnostics, Files));
@@ -53,7 +52,7 @@ public:
     return *Sources;
   }
 
-  /// \brief Map the virtual file contents in the given \c SourceManager.
+  /// Map the virtual file contents in the given \c SourceManager.
   void mapVirtualFiles(SourceManager &SM) const {
     for (llvm::SmallVectorImpl<VirtualFile>::const_iterator
              I = VirtualFiles.begin(),

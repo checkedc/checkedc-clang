@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -14,13 +13,13 @@
 // map& operator=(const map& m);
 
 #include <map>
-#include <cassert>
-#include <vector>
 #include <algorithm>
+#include <cassert>
+#include <cstdio>
 #include <iterator>
+#include <vector>
 
-#include <iostream>
-
+#include "test_macros.h"
 #include "../../../test_compare.h"
 #include "test_allocator.h"
 #include "min_allocator.h"
@@ -78,7 +77,8 @@ public:
 bool balanced_allocs() {
     std::vector<int> temp1, temp2;
 
-    std::cout << "Allocations = " << ca_allocs.size() << ", deallocatons = " << ca_deallocs.size() << std::endl;
+    std::printf("Allocations = %zu, deallocations = %zu\n", ca_allocs.size(),
+                ca_deallocs.size());
     if (ca_allocs.size() != ca_deallocs.size())
         return false;
 
@@ -86,30 +86,35 @@ bool balanced_allocs() {
     std::sort(temp1.begin(), temp1.end());
     temp2.clear();
     std::unique_copy(temp1.begin(), temp1.end(), std::back_inserter<std::vector<int>>(temp2));
-    std::cout << "There were " << temp2.size() << " different allocators\n";
+    std::printf("There were %zu different allocators\n", temp2.size());
 
     for (std::vector<int>::const_iterator it = temp2.begin(); it != temp2.end(); ++it ) {
-        std::cout << *it << ": " << std::count(ca_allocs.begin(), ca_allocs.end(), *it) << " vs " << std::count(ca_deallocs.begin(), ca_deallocs.end(), *it) << std::endl;
-        if ( std::count(ca_allocs.begin(), ca_allocs.end(), *it) != std::count(ca_deallocs.begin(), ca_deallocs.end(), *it))
+        std::ptrdiff_t const allocs = std::count(ca_allocs.begin(), ca_allocs.end(), *it);
+        std::ptrdiff_t const deallocs = std::count(ca_deallocs.begin(), ca_deallocs.end(), *it);
+        std::printf("%d: %td vs %td\n", *it, allocs, deallocs);
+        if (allocs != deallocs)
             return false;
-        }
+    }
 
     temp1 = ca_allocs;
     std::sort(temp1.begin(), temp1.end());
     temp2.clear();
     std::unique_copy(temp1.begin(), temp1.end(), std::back_inserter<std::vector<int>>(temp2));
-    std::cout << "There were " << temp2.size() << " different (de)allocators\n";
+    std::printf("There were %zu different (de)allocators\n", temp2.size());
+
     for (std::vector<int>::const_iterator it = ca_deallocs.begin(); it != ca_deallocs.end(); ++it ) {
-        std::cout << *it << ": " << std::count(ca_allocs.begin(), ca_allocs.end(), *it) << " vs " << std::count(ca_deallocs.begin(), ca_deallocs.end(), *it) << std::endl;
-        if ( std::count(ca_allocs.begin(), ca_allocs.end(), *it) != std::count(ca_deallocs.begin(), ca_deallocs.end(), *it))
+        std::ptrdiff_t const allocs = std::count(ca_allocs.begin(), ca_allocs.end(), *it);
+        std::ptrdiff_t const deallocs = std::count(ca_deallocs.begin(), ca_deallocs.end(), *it);
+        std::printf("%d: %td vs %td\n", *it, allocs, deallocs);
+        if (allocs != deallocs)
             return false;
-        }
+    }
 
     return true;
-    }
+}
 #endif
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::pair<const int, double> V;
@@ -338,4 +343,6 @@ int main()
     }
     assert(balanced_allocs());
 #endif
+
+  return 0;
 }

@@ -1,4 +1,5 @@
-; RUN: llc < %s -filetype=obj | llvm-readobj - -codeview | FileCheck %s
+; RUN: llc < %s -filetype=obj | llvm-readobj - --codeview | FileCheck %s
+; RUN: llc < %s | llvm-mc -filetype=obj --triple=x86_64-windows | llvm-readobj - --codeview | FileCheck %s
 
 ; Command to generate enum-co.ll
 ; $ clang++ enum-co.cpp -S -emit-llvm -g -gcodeview -o enum-co.ll
@@ -70,8 +71,8 @@
 ; CHECK:     TypeLeafKind: LF_ENUM (0x1507)
 ; CHECK:     NumEnumerators: 2
 ; CHECK:     Properties [ (0x208)
-; CHECK        HasUniqueName (0x200)
-; CHECK        Nested (0x8)
+; CHECK:       HasUniqueName (0x200)
+; CHECK:       Nested (0x8)
 ; CHECK:     ]
 ; CHECK:     UnderlyingType: int (0x74)
 ; CHECK:     FieldListType: <field list> ({{.*}})
@@ -123,7 +124,7 @@ entry:
   ret void, !dbg !46
 }
 
-attributes #0 = { noinline nounwind optnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { noinline nounwind optnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone speculatable }
 
 !llvm.dbg.cu = !{!0}
@@ -149,8 +150,8 @@ attributes #1 = { nounwind readnone speculatable }
 !16 = !{null}
 !17 = !{}
 !18 = !DICompositeType(tag: DW_TAG_enumeration_type, name: "NestedEnum", scope: !19, file: !1, line: 16, baseType: !4, size: 32, elements: !24, identifier: ".?AW4NestedEnum@Union@Struct@?1??Func@@YAXXZ@")
-!19 = distinct !DICompositeType(tag: DW_TAG_union_type, name: "Union", scope: !20, file: !1, line: 15, size: 8, flags: DIFlagTypePassByValue | DIFlagTrivial, elements: !23, identifier: ".?ATUnion@Struct@?1??Func@@YAXXZ@")
-!20 = distinct !DICompositeType(tag: DW_TAG_structure_type, name: "Struct", scope: !14, file: !1, line: 14, size: 8, flags: DIFlagTypePassByValue | DIFlagTrivial, elements: !21, identifier: ".?AUStruct@?1??Func@@YAXXZ@")
+!19 = distinct !DICompositeType(tag: DW_TAG_union_type, name: "Union", scope: !20, file: !1, line: 15, size: 8, flags: DIFlagTypePassByValue, elements: !23, identifier: ".?ATUnion@Struct@?1??Func@@YAXXZ@")
+!20 = distinct !DICompositeType(tag: DW_TAG_structure_type, name: "Struct", scope: !14, file: !1, line: 14, size: 8, flags: DIFlagTypePassByValue, elements: !21, identifier: ".?AUStruct@?1??Func@@YAXXZ@")
 !21 = !{!19, !22}
 !22 = !DIDerivedType(tag: DW_TAG_member, name: "U", scope: !20, file: !1, line: 18, baseType: !19, size: 8)
 !23 = !{!18}

@@ -83,6 +83,10 @@ from multiple translation units.
 
    constexpr int f10() { return 0; } // OK: constexpr function implies inline.
 
+   // OK: C++14 variable templates are inline.
+   template <class T>
+   constexpr T pi = T(3.1415926L);
+
 Options
 -------
 
@@ -96,5 +100,5 @@ Options
 
 .. option:: UseHeaderFileExtension
 
-   When non-zero, the check will use the file extension to distinguish header
-   files. Default is `1`.
+   When `true`, the check will use the file extension to distinguish header
+   files. Default is `true`.

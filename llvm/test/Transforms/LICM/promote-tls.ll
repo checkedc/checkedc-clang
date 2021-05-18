@@ -1,5 +1,5 @@
-; RUN: opt -tbaa -basicaa -licm -S < %s | FileCheck %s
-; RUN: opt -aa-pipeline=type-based-aa,basic-aa -passes='require<aa>,require<targetir>,require<scalar-evolution>,require<opt-remark-emit>,loop(licm)' -S %s | FileCheck %s
+; RUN: opt -tbaa -basic-aa -licm -S < %s | FileCheck %s
+; RUN: opt -aa-pipeline=tbaa,basic-aa -passes='require<aa>,require<targetir>,require<scalar-evolution>,require<opt-remark-emit>,loop(licm)' -S %s | FileCheck %s
 
 ; If we can prove a local is thread local, we can insert stores during
 ; promotion which wouldn't be legal otherwise.
@@ -21,6 +21,8 @@ entry:
   br label %for.body.lr.ph
 
 for.body.lr.ph:                                   ; preds = %entry
+; CHECK-LABEL: for.body.lr.ph:
+; CHECK-NEXT: %addr.promoted = load i32, i32* %addr, align 4
   br label %for.header
 
 for.header:
@@ -33,7 +35,7 @@ for.header:
 
 early-exit:
 ; CHECK-LABEL: early-exit:
-; CHECK: store i32 %new1.lcssa, i32* %addr, align 1
+; CHECK: store i32 %new1.lcssa, i32* %addr, align 4
   ret i32* null
 
 for.body:
@@ -45,7 +47,7 @@ for.body:
 
 for.cond.for.end_crit_edge:                       ; preds = %for.body
 ; CHECK-LABEL: for.cond.for.end_crit_edge:
-; CHECK: store i32 %new.lcssa, i32* %addr, align 1
+; CHECK: store i32 %new.lcssa, i32* %addr, align 4
   %split = phi i32* [ %addr, %for.body ]
   ret i32* null
 }
@@ -59,6 +61,8 @@ entry:
   br label %for.body.lr.ph
 
 for.body.lr.ph:                                   ; preds = %entry
+; CHECK-LABEL: for.body.lr.ph:
+; CHECK-NEXT: %addr.promoted = load i32, i32* %addr, align 4
   br label %for.header
 
 for.header:
@@ -71,7 +75,7 @@ for.header:
 
 early-exit:
 ; CHECK-LABEL: early-exit:
-; CHECK: store i32 %new1.lcssa, i32* %addr, align 1
+; CHECK: store i32 %new1.lcssa, i32* %addr, align 4
   ret i32* null
 
 for.body:
@@ -83,7 +87,7 @@ for.body:
 
 for.cond.for.end_crit_edge:                       ; preds = %for.body
 ; CHECK-LABEL: for.cond.for.end_crit_edge:
-; CHECK: store i32 %new.lcssa, i32* %addr, align 1
+; CHECK: store i32 %new.lcssa, i32* %addr, align 4
   %split = phi i32* [ %addr, %for.body ]
   ret i32* null
 }

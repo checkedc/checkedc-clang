@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -15,15 +14,17 @@
 //     size_t operator()(type_index index) const;
 // };
 
+// UNSUPPORTED: no-rtti
+
 #include <typeindex>
 #include <type_traits>
 
 #include "test_macros.h"
 #if TEST_STD_VER >= 11
-#include "poisoned_hash_helper.hpp"
+#include "poisoned_hash_helper.h"
 #endif
 
-int main()
+int main(int, char**)
 {
   {
     typedef std::hash<std::type_index> H;
@@ -35,4 +36,6 @@ int main()
     test_hash_enabled_for_type<std::type_index>(std::type_index(typeid(int)));
   }
 #endif
+
+  return 0;
 }

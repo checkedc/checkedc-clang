@@ -1,9 +1,8 @@
 //===--- RawStringLiteralCheck.cpp - clang-tidy----------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -112,17 +111,12 @@ RawStringLiteralCheck::RawStringLiteralCheck(StringRef Name,
     DisallowedChars.set(static_cast<unsigned char>(C));
 }
 
-void RawStringLiteralCheck::storeOptions(ClangTidyOptions::OptionMap &Options) {
-  ClangTidyCheck::storeOptions(Options);
-  this->Options.store(Options, "ReplaceShorterLiterals",
-                      ReplaceShorterLiterals);
+void RawStringLiteralCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
+  Options.store(Opts, "DelimiterStem", DelimiterStem);
+  Options.store(Opts, "ReplaceShorterLiterals", ReplaceShorterLiterals);
 }
 
 void RawStringLiteralCheck::registerMatchers(MatchFinder *Finder) {
-  // Raw string literals require C++11 or later.
-  if (!getLangOpts().CPlusPlus11)
-    return;
-
   Finder->addMatcher(
       stringLiteral(unless(hasParent(predefinedExpr()))).bind("lit"), this);
 }

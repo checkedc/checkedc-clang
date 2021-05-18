@@ -51,8 +51,7 @@ entry:
 ; ASM: callq   escape
 ; ASM: #DEBUG_VALUE: f:x <- 1
 ; ASM: movl    $1, global(%rip)
-; FIXME: Needs a fix to LiveDebugVariables
-; ASMX: #DEBUG_VALUE: f:x <- [DW_OP_plus_uconst [[OFF_X]]] [$rsp+0]
+; ASM: #DEBUG_VALUE: f:x <- [DW_OP_plus_uconst [[OFF_X]]] [$rsp+0]
 ; ASM: movl    $2, [[OFF_X]](%rsp)
 ; ASM: callq   escape
 ; ASM: retq

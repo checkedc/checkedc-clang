@@ -1,9 +1,8 @@
 //===--- NarrowingConversionsCheck.cpp - clang-tidy------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -27,8 +26,15 @@ NarrowingConversionsCheck::NarrowingConversionsCheck(StringRef Name,
                                                      ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
       WarnOnFloatingPointNarrowingConversion(
-          Options.get("WarnOnFloatingPointNarrowingConversion", 1)),
-      PedanticMode(Options.get("PedanticMode", 0)) {}
+          Options.get("WarnOnFloatingPointNarrowingConversion", true)),
+      PedanticMode(Options.get("PedanticMode", false)) {}
+
+void NarrowingConversionsCheck::storeOptions(
+    ClangTidyOptions::OptionMap &Opts) {
+  Options.store(Opts, "WarnOnFloatingPointNarrowingConversion",
+                WarnOnFloatingPointNarrowingConversion);
+  Options.store(Opts, "PedanticMode", PedanticMode);
+}
 
 void NarrowingConversionsCheck::registerMatchers(MatchFinder *Finder) {
   // ceil() and floor() are guaranteed to return integers, even though the type
@@ -40,26 +46,31 @@ void NarrowingConversionsCheck::registerMatchers(MatchFinder *Finder) {
   //   i = 0.5;
   //   void f(int); f(0.5);
   Finder->addMatcher(
-      implicitCastExpr(hasImplicitDestinationType(builtinType()),
-                       hasSourceExpression(hasType(builtinType())),
-                       unless(hasSourceExpression(IsCeilFloorCallExpr)),
-                       unless(hasParent(castExpr())),
-                       unless(isInTemplateInstantiation()))
-          .bind("cast"),
+      traverse(TK_AsIs, implicitCastExpr(
+                            hasImplicitDestinationType(
+                                hasUnqualifiedDesugaredType(builtinType())),
+                            hasSourceExpression(hasType(
+                                hasUnqualifiedDesugaredType(builtinType()))),
+                            unless(hasSourceExpression(IsCeilFloorCallExpr)),
+                            unless(hasParent(castExpr())),
+                            unless(isInTemplateInstantiation()))
+                            .bind("cast")),
       this);
 
   // Binary operators:
   //   i += 0.5;
-  Finder->addMatcher(binaryOperator(isAssignmentOperator(),
-                                    hasLHS(expr(hasType(builtinType()))),
-                                    hasRHS(expr(hasType(builtinType()))),
-                                    unless(hasRHS(IsCeilFloorCallExpr)),
-                                    unless(isInTemplateInstantiation()),
-                                    // The `=` case generates an implicit cast
-                                    // which is covered by the previous matcher.
-                                    unless(hasOperatorName("=")))
-                         .bind("binary_op"),
-                     this);
+  Finder->addMatcher(
+      binaryOperator(
+          isAssignmentOperator(),
+          hasLHS(expr(hasType(hasUnqualifiedDesugaredType(builtinType())))),
+          hasRHS(expr(hasType(hasUnqualifiedDesugaredType(builtinType())))),
+          unless(hasRHS(IsCeilFloorCallExpr)),
+          unless(isInTemplateInstantiation()),
+          // The `=` case generates an implicit cast
+          // which is covered by the previous matcher.
+          unless(hasOperatorName("=")))
+          .bind("binary_op"),
+      this);
 }
 
 static const BuiltinType *getBuiltinType(const Expr &E) {
@@ -71,9 +82,8 @@ static QualType getUnqualifiedType(const Expr &E) {
 }
 
 static APValue getConstantExprValue(const ASTContext &Ctx, const Expr &E) {
-  llvm::APSInt IntegerConstant;
-  if (E.isIntegerConstantExpr(IntegerConstant, Ctx))
-    return APValue(IntegerConstant);
+  if (auto IntegerConstant = E.getIntegerConstantExpr(Ctx))
+    return APValue(*IntegerConstant);
   APValue Constant;
   if (Ctx.getLangOpts().CPlusPlus && E.isCXX11ConstantExpr(Ctx, &Constant))
     return Constant;
@@ -441,7 +451,6 @@ void NarrowingConversionsCheck::check(const MatchFinder::MatchResult &Result) {
     return handleImplicitCast(*Result.Context, *Cast);
   llvm_unreachable("must be binary operator or cast expression");
 }
-
 } // namespace cppcoreguidelines
 } // namespace tidy
 } // namespace clang

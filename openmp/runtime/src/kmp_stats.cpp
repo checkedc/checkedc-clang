@@ -4,10 +4,9 @@
 
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.txt for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -68,11 +67,13 @@ static uint32_t statsPrinted = 0;
 // output interface
 static kmp_stats_output_module *__kmp_stats_global_output = NULL;
 
-double logHistogram::binMax[] = {
-    1.e1l,  1.e2l,  1.e3l,  1.e4l,  1.e5l,  1.e6l,  1.e7l,  1.e8l,
-    1.e9l,  1.e10l, 1.e11l, 1.e12l, 1.e13l, 1.e14l, 1.e15l, 1.e16l,
-    1.e17l, 1.e18l, 1.e19l, 1.e20l, 1.e21l, 1.e22l, 1.e23l, 1.e24l,
-    1.e25l, 1.e26l, 1.e27l, 1.e28l, 1.e29l, 1.e30l};
+double logHistogram::binMax[] = {1.e1l, 1.e2l, 1.e3l, 1.e4l, 1.e5l, 1.e6l,
+                                 1.e7l, 1.e8l, 1.e9l, 1.e10l, 1.e11l, 1.e12l,
+                                 1.e13l, 1.e14l, 1.e15l, 1.e16l, 1.e17l, 1.e18l,
+                                 1.e19l, 1.e20l, 1.e21l, 1.e22l, 1.e23l, 1.e24l,
+                                 1.e25l, 1.e26l, 1.e27l, 1.e28l, 1.e29l, 1.e30l,
+                                 // Always have infinity be the last value
+                                 std::numeric_limits<double>::infinity()};
 
 /* ************* statistic member functions ************* */
 
@@ -134,7 +135,7 @@ void statistic::scale(double factor) {
 }
 
 std::string statistic::format(char unit, bool total) const {
-  std::string result = formatSI(sampleCount, 9, ' ');
+  std::string result = formatSI((double)sampleCount, 9, ' ');
 
   if (sampleCount == 0) {
     result = result + std::string(", ") + formatSI(0.0, 9, unit);
@@ -182,13 +183,10 @@ uint32_t logHistogram::findBin(double sample) {
   // According to a micro-architect this is likely to be faster than a binary
   // search, since
   // it will only have one branch mis-predict
-  for (int b = 0; b < numBins; b++)
+  for (int b = 0; b < numBins - 1; b++)
     if (binMax[b] > v)
       return b;
-  fprintf(stderr,
-          "Trying to add a sample that is too large into a histogram\n");
-  KMP_ASSERT(0);
-  return -1;
+  return numBins - 1;
 }
 
 void logHistogram::addSample(double sample) {
@@ -225,8 +223,12 @@ std::string logHistogram::format(char unit) const {
     result << "\n";
   }
   for (int i = minBin(); i <= maxBin(); i++) {
-    result << "10**" << i << "<=v<10**" << (i + 1) << ", "
-           << formatSI(count(i), 9, ' ') << ", " << formatSI(total(i), 9, unit);
+    result << "10**" << i << "<=v<";
+    if (i + 1 == numBins - 1)
+      result << "infinity, ";
+    else
+      result << "10**" << (i + 1) << ", ";
+    result << formatSI(count(i), 9, ' ') << ", " << formatSI(total(i), 9, unit);
     if (i != maxBin())
       result << "\n";
   }
@@ -271,7 +273,7 @@ void explicitTimer::stop(tsc_tick_count tick,
 /* ************* partitionedTimers member functions ************* */
 partitionedTimers::partitionedTimers() { timer_stack.reserve(8); }
 
-// initialize the paritioned timers to an initial timer
+// initialize the partitioned timers to an initial timer
 void partitionedTimers::init(explicitTimer timer) {
   KMP_DEBUG_ASSERT(this->timer_stack.size() == 0);
   timer_stack.push_back(timer);
@@ -462,7 +464,7 @@ int kmp_stats_output_module::printPerThreadFlag = 0;
 int kmp_stats_output_module::printPerThreadEventsFlag = 0;
 
 static char const *lastName(char *name) {
-  int l = strlen(name);
+  int l = (int)strlen(name);
   for (int i = l - 1; i >= 0; --i) {
     if (name[i] == '.')
       name[i] = '_';
@@ -547,7 +549,6 @@ static std::string generateFilename(char const *prototype,
 // of __kmp_stats_global_output
 void kmp_stats_output_module::init() {
 
-  fprintf(stderr, "*** Stats enabled OpenMP* runtime ***\n");
   char *statsFileName = getenv("KMP_STATS_FILE");
   eventsFileName = getenv("KMP_STATS_EVENTS_FILE");
   plotFileName = getenv("KMP_STATS_PLOT_FILE");
@@ -611,7 +612,7 @@ void kmp_stats_output_module::printTimerStats(FILE *statsOut,
               totalStats[s].format(tag, true).c_str());
   }
 
-  // Print historgram of statistics
+  // Print histogram of statistics
   if (theStats[0].haveHist()) {
     fprintf(statsOut, "\nTimer distributions\n");
     for (int s = 0; s < TIMER_LAST; s++) {
@@ -658,7 +659,7 @@ void kmp_stats_output_module::printCounters(FILE *statsOut,
   for (int c = 0; c < COUNTER_LAST; c++) {
     counter const *stat = &theCounters[c];
     fprintf(statsOut, "%-25s, %s\n", counter::name(counter_e(c)),
-            formatSI(stat->getValue(), 9, ' ').c_str());
+            formatSI((double)stat->getValue(), 9, ' ').c_str());
   }
 }
 
@@ -670,16 +671,18 @@ void kmp_stats_output_module::printEvents(FILE *eventsOut,
   for (int i = 0; i < theEvents->size(); i++) {
     kmp_stats_event ev = theEvents->at(i);
     rgb_color color = getEventColor(ev.getTimerName());
-    fprintf(eventsOut, "%d %lu %lu %1.1f rgb(%1.1f,%1.1f,%1.1f) %s\n", gtid,
-            ev.getStart(), ev.getStop(), 1.2 - (ev.getNestLevel() * 0.2),
-            color.r, color.g, color.b, timeStat::name(ev.getTimerName()));
+    fprintf(eventsOut, "%d %llu %llu %1.1f rgb(%1.1f,%1.1f,%1.1f) %s\n", gtid,
+            static_cast<unsigned long long>(ev.getStart()),
+            static_cast<unsigned long long>(ev.getStop()),
+            1.2 - (ev.getNestLevel() * 0.2), color.r, color.g, color.b,
+            timeStat::name(ev.getTimerName()));
   }
   return;
 }
 
 void kmp_stats_output_module::windupExplicitTimers() {
   // Wind up any explicit timers. We assume that it's fair at this point to just
-  // walk all the explcit timers in all threads and say "it's over".
+  // walk all the explicit timers in all threads and say "it's over".
   // If the timer wasn't running, this won't record anything anyway.
   kmp_stats_list::iterator it;
   for (it = __kmp_stats_list->begin(); it != __kmp_stats_list->end(); it++) {
@@ -692,8 +695,7 @@ void kmp_stats_output_module::windupExplicitTimers() {
 void kmp_stats_output_module::printPloticusFile() {
   int i;
   int size = __kmp_stats_list->size();
-  FILE *plotOut = fopen(plotFileName, "w+");
-
+  kmp_safe_raii_file_t plotOut(plotFileName, "w+");
   fprintf(plotOut, "#proc page\n"
                    "   pagesize: 15 10\n"
                    "   scale: 1.0\n\n");
@@ -746,7 +748,6 @@ void kmp_stats_output_module::printPloticusFile() {
   fprintf(plotOut, "#proc legend\n"
                    "   format: down\n"
                    "   location: max max\n\n");
-  fclose(plotOut);
   return;
 }
 
@@ -797,14 +798,16 @@ void kmp_stats_output_module::outputStats(const char *heading) {
                                        normal timer stats */
   statistic allCounters[COUNTER_LAST];
 
-  FILE *statsOut =
-      !outputFileName.empty() ? fopen(outputFileName.c_str(), "a+") : stderr;
-  if (!statsOut)
-    statsOut = stderr;
+  kmp_safe_raii_file_t statsOut;
+  if (!outputFileName.empty()) {
+    statsOut.open(outputFileName.c_str(), "a+");
+  } else {
+    statsOut.set_stderr();
+  }
 
-  FILE *eventsOut;
+  kmp_safe_raii_file_t eventsOut;
   if (eventPrintingEnabled()) {
-    eventsOut = fopen(eventsFileName, "w+");
+    eventsOut.open(eventsFileName, "w+");
   }
 
   printHeaderInfo(statsOut);
@@ -849,22 +852,18 @@ void kmp_stats_output_module::outputStats(const char *heading) {
     for (counter_e c = counter_e(0); c < COUNTER_LAST; c = counter_e(c + 1)) {
       if (counter::masterOnly(c) && t != 0)
         continue;
-      allCounters[c].addSample((*it)->getCounter(c)->getValue());
+      allCounters[c].addSample((double)(*it)->getCounter(c)->getValue());
     }
   }
 
   if (eventPrintingEnabled()) {
     printPloticusFile();
-    fclose(eventsOut);
   }
 
   fprintf(statsOut, "Aggregate for all threads\n");
   printTimerStats(statsOut, &allStats[0], &totalStats[0]);
   fprintf(statsOut, "\n");
   printCounterStats(statsOut, &allCounters[0]);
-
-  if (statsOut != stderr)
-    fclose(statsOut);
 }
 
 /* *************  exported C functions ************** */

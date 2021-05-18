@@ -21,13 +21,14 @@
 // CHECK: Language options:
 // CHECK:   C99: Yes
 // CHECK:   Objective-C: Yes
-// CHECK:   modules extension to C: Yes
+// CHECK:   modules semantics: Yes
 // CHECK:   Module features:
 // CHECK:     myfeature
 
 // CHECK: Target options:
 // CHECK:     Triple:
 // CHECK:     CPU:
+// CHECK:     TuneCPU:
 // CHECK:     ABI:
 
 // CHECK: Header search options:

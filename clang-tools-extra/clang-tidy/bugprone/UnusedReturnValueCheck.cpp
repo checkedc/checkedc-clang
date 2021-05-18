@@ -1,9 +1,8 @@
 //===--- UnusedReturnValueCheck.cpp - clang-tidy---------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -44,7 +43,90 @@ UnusedReturnValueCheck::UnusedReturnValueCheck(llvm::StringRef Name,
                                    "::std::unique;"
                                    "::std::unique_ptr::release;"
                                    "::std::basic_string::empty;"
-                                   "::std::vector::empty")) {}
+                                   "::std::vector::empty;"
+                                   "::std::back_inserter;"
+                                   "::std::distance;"
+                                   "::std::find;"
+                                   "::std::find_if;"
+                                   "::std::inserter;"
+                                   "::std::lower_bound;"
+                                   "::std::make_pair;"
+                                   "::std::map::count;"
+                                   "::std::map::find;"
+                                   "::std::map::lower_bound;"
+                                   "::std::multimap::equal_range;"
+                                   "::std::multimap::upper_bound;"
+                                   "::std::set::count;"
+                                   "::std::set::find;"
+                                   "::std::setfill;"
+                                   "::std::setprecision;"
+                                   "::std::setw;"
+                                   "::std::upper_bound;"
+                                   "::std::vector::at;"
+                                   // C standard library
+                                   "::bsearch;"
+                                   "::ferror;"
+                                   "::feof;"
+                                   "::isalnum;"
+                                   "::isalpha;"
+                                   "::isblank;"
+                                   "::iscntrl;"
+                                   "::isdigit;"
+                                   "::isgraph;"
+                                   "::islower;"
+                                   "::isprint;"
+                                   "::ispunct;"
+                                   "::isspace;"
+                                   "::isupper;"
+                                   "::iswalnum;"
+                                   "::iswprint;"
+                                   "::iswspace;"
+                                   "::isxdigit;"
+                                   "::memchr;"
+                                   "::memcmp;"
+                                   "::strcmp;"
+                                   "::strcoll;"
+                                   "::strncmp;"
+                                   "::strpbrk;"
+                                   "::strrchr;"
+                                   "::strspn;"
+                                   "::strstr;"
+                                   "::wcscmp;"
+                                   // POSIX
+                                   "::access;"
+                                   "::bind;"
+                                   "::connect;"
+                                   "::difftime;"
+                                   "::dlsym;"
+                                   "::fnmatch;"
+                                   "::getaddrinfo;"
+                                   "::getopt;"
+                                   "::htonl;"
+                                   "::htons;"
+                                   "::iconv_open;"
+                                   "::inet_addr;"
+                                   "::isascii;"
+                                   "::isatty;"
+                                   "::mmap;"
+                                   "::newlocale;"
+                                   "::openat;"
+                                   "::pathconf;"
+                                   "::pthread_equal;"
+                                   "::pthread_getspecific;"
+                                   "::pthread_mutex_trylock;"
+                                   "::readdir;"
+                                   "::readlink;"
+                                   "::recvmsg;"
+                                   "::regexec;"
+                                   "::scandir;"
+                                   "::semget;"
+                                   "::setjmp;"
+                                   "::shm_open;"
+                                   "::shmget;"
+                                   "::sigismember;"
+                                   "::strcasecmp;"
+                                   "::strsignal;"
+                                   "::ttyname")) {}
 
 void UnusedReturnValueCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "CheckedFunctions", CheckedFunctions);

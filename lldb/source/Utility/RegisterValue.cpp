@@ -1,15 +1,13 @@
-//===-- RegisterValue.cpp ---------------------------------------*- C++ -*-===//
+//===-- RegisterValue.cpp -------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Utility/RegisterValue.h"
 
-#include "lldb/Utility/Args.h"
 #include "lldb/Utility/DataExtractor.h"
 #include "lldb/Utility/Scalar.h"
 #include "lldb/Utility/Status.h"
@@ -140,34 +138,10 @@ bool RegisterValue::GetScalarValue(Scalar &scalar) const {
   case eTypeInvalid:
     break;
   case eTypeBytes: {
-    switch (buffer.length) {
-    default:
-      break;
-    case 1:
-      scalar = *(const uint8_t *)buffer.bytes;
+    DataExtractor data(buffer.bytes, buffer.length, buffer.byte_order, 1);
+    if (scalar.SetValueFromData(data, lldb::eEncodingUint,
+	  buffer.length).Success())
       return true;
-    case 2:
-      scalar = *(const uint16_t *)buffer.bytes;
-      return true;
-    case 4:
-      scalar = *(const uint32_t *)buffer.bytes;
-      return true;
-    case 8:
-      scalar = *(const uint64_t *)buffer.bytes;
-      return true;
-    case 16:
-    case 32:
-      if (buffer.length % sizeof(uint64_t) == 0) {
-        const auto length_in_bits = buffer.length * 8;
-        const auto length_in_uint64 = buffer.length / sizeof(uint64_t);
-        scalar =
-            llvm::APInt(length_in_bits,
-                        llvm::ArrayRef<uint64_t>((const uint64_t *)buffer.bytes,
-                                                 length_in_uint64));
-        return true;
-      }
-      break;
-    }
   } break;
   case eTypeUInt8:
   case eTypeUInt16:
@@ -329,6 +303,35 @@ static bool ParseVectorEncoding(const RegisterInfo *reg_info,
   return true;
 }
 
+static bool UInt64ValueIsValidForByteSize(uint64_t uval64,
+                                          size_t total_byte_size) {
+  if (total_byte_size > 8)
+    return false;
+
+  if (total_byte_size == 8)
+    return true;
+
+  const uint64_t max =
+      (static_cast<uint64_t>(1) << static_cast<uint64_t>(total_byte_size * 8)) -
+      1;
+  return uval64 <= max;
+}
+
+static bool SInt64ValueIsValidForByteSize(int64_t sval64,
+                                          size_t total_byte_size) {
+  if (total_byte_size > 8)
+    return false;
+
+  if (total_byte_size == 8)
+    return true;
+
+  const int64_t max = (static_cast<int64_t>(1)
+                       << static_cast<uint64_t>(total_byte_size * 8 - 1)) -
+                      1;
+  const int64_t min = ~(max);
+  return min <= sval64 && sval64 <= max;
+}
+
 Status RegisterValue::SetValueFromString(const RegisterInfo *reg_info,
                                          llvm::StringRef value_str) {
   Status error;
@@ -367,7 +370,7 @@ Status RegisterValue::SetValueFromString(const RegisterInfo *reg_info,
       break;
     }
 
-    if (!Args::UInt64ValueIsValidForByteSize(uval64, byte_size)) {
+    if (!UInt64ValueIsValidForByteSize(uval64, byte_size)) {
       error.SetErrorStringWithFormat(
           "value 0x%" PRIx64
           " is too large to fit in a %u byte unsigned integer value",
@@ -396,7 +399,7 @@ Status RegisterValue::SetValueFromString(const RegisterInfo *reg_info,
       break;
     }
 
-    if (!Args::SInt64ValueIsValidForByteSize(ival64, byte_size)) {
+    if (!SInt64ValueIsValidForByteSize(ival64, byte_size)) {
       error.SetErrorStringWithFormat(
           "value 0x%" PRIx64
           " is too large to fit in a %u byte signed integer value",
@@ -412,7 +415,7 @@ Status RegisterValue::SetValueFromString(const RegisterInfo *reg_info,
     break;
 
   case eEncodingIEEE754: {
-    std::string value_string = value_str;
+    std::string value_string = std::string(value_str);
     if (byte_size == sizeof(float)) {
       if (::sscanf(value_string.c_str(), "%f", &flt_val) != 1) {
         error.SetErrorStringWithFormat("'%s' is not a valid float string value",
@@ -518,7 +521,7 @@ uint16_t RegisterValue::GetAsUInt16(uint16_t fail_value,
       break;
     case 1:
     case 2:
-      return *(const uint16_t *)buffer.bytes;
+      return *reinterpret_cast<const uint16_t *>(buffer.bytes);
     }
   } break;
   }
@@ -548,7 +551,7 @@ uint32_t RegisterValue::GetAsUInt32(uint32_t fail_value,
     case 1:
     case 2:
     case 4:
-      return *(const uint32_t *)buffer.bytes;
+      return *reinterpret_cast<const uint32_t *>(buffer.bytes);
     }
   } break;
   }
@@ -579,11 +582,11 @@ uint64_t RegisterValue::GetAsUInt64(uint64_t fail_value,
     case 1:
       return *(const uint8_t *)buffer.bytes;
     case 2:
-      return *(const uint16_t *)buffer.bytes;
+      return *reinterpret_cast<const uint16_t *>(buffer.bytes);
     case 4:
-      return *(const uint32_t *)buffer.bytes;
+      return *reinterpret_cast<const uint32_t *>(buffer.bytes);
     case 8:
-      return *(const uint64_t *)buffer.bytes;
+      return *reinterpret_cast<const uint64_t *>(buffer.bytes);
     }
   } break;
   }
@@ -618,7 +621,7 @@ llvm::APInt RegisterValue::GetAsUInt128(const llvm::APInt &fail_value,
     case 8:
     case 16:
       return llvm::APInt(BITWIDTH_INT128, NUM_OF_WORDS_INT128,
-                         ((const type128 *)buffer.bytes)->x);
+                         (reinterpret_cast<const type128 *>(buffer.bytes))->x);
     }
   } break;
   }
@@ -699,7 +702,8 @@ const void *RegisterValue::GetBytes() const {
   case eTypeFloat:
   case eTypeDouble:
   case eTypeLongDouble:
-    return m_scalar.GetBytes();
+    m_scalar.GetBytes(buffer.bytes);
+    return buffer.bytes;
   case eTypeBytes:
     return buffer.bytes;
   }
@@ -781,7 +785,7 @@ bool RegisterValue::operator==(const RegisterValue &rhs) const {
       if (buffer.length != rhs.buffer.length)
         return false;
       else {
-        uint8_t length = buffer.length;
+        uint16_t length = buffer.length;
         if (length > kMaxRegisterByteSize)
           length = kMaxRegisterByteSize;
         return memcmp(buffer.bytes, rhs.buffer.bytes, length) == 0;

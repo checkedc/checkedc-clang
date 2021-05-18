@@ -1,9 +1,8 @@
-//===-- ProcessorTraceMonitorTest.cpp ------------------------- -*- C++ -*-===//
+//===-- ProcessorTraceMonitorTest.cpp -------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -32,7 +31,7 @@ TEST(CyclicBuffer, EdgeCases) {
   uint8_t cyclic_buffer[6] = {'l', 'i', 'c', 'c', 'y', 'c'};
 
   // We will always leave the last bytes untouched
-  // so that string comparisions work.
+  // so that string comparisons work.
   char smaller_buffer[4] = {};
 
   // empty buffer to read into
@@ -71,7 +70,7 @@ TEST(CyclicBuffer, EqualSizeBuffer) {
   char cyclic[] = "cyclic";
   for (size_t i = 0; i < sizeof(cyclic); i++) {
     // We will always leave the last bytes untouched
-    // so that string comparisions work.
+    // so that string comparisons work.
     char equal_size_buffer[7] = {};
     bytes_read =
         ReadCylicBufferWrapper(equal_size_buffer, sizeof(cyclic_buffer),
@@ -86,7 +85,7 @@ TEST(CyclicBuffer, SmallerSizeBuffer) {
   uint8_t cyclic_buffer[6] = {'l', 'i', 'c', 'c', 'y', 'c'};
 
   // We will always leave the last bytes untouched
-  // so that string comparisions work.
+  // so that string comparisons work.
   char smaller_buffer[4] = {};
   bytes_read =
       ReadCylicBufferWrapper(smaller_buffer, (sizeof(smaller_buffer) - 1),
@@ -137,7 +136,7 @@ TEST(CyclicBuffer, BiggerSizeBuffer) {
   char cyclic[] = "cyclic";
   for (size_t i = 0; i < sizeof(cyclic); i++) {
     // We will always leave the last bytes untouched
-    // so that string comparisions work.
+    // so that string comparisons work.
     char bigger_buffer[10] = {};
     bytes_read =
         ReadCylicBufferWrapper(bigger_buffer, (sizeof(bigger_buffer) - 1),

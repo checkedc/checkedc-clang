@@ -77,13 +77,32 @@ define i64 @test6(i64 %x) {
 define i64 @test7(i64 %x) {
 ; CHECK-LABEL: test7:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    orr x8, xzr, #0xffffffffffff
+; CHECK-NEXT:    mov x8, #281474976710655
 ; CHECK-NEXT:    add x8, x0, x8
 ; CHECK-NEXT:    cmp x0, #0 // =0
 ; CHECK-NEXT:    csel x8, x8, x0, lt
 ; CHECK-NEXT:    asr x0, x8, #48
 ; CHECK-NEXT:    ret
   %div = sdiv i64 %x, 281474976710656
+  ret i64 %div
+}
+
+define i64 @test8(i64 %x) {
+; ISEL-LABEL: test8:
+; ISEL:       // %bb.0:
+; ISEL-NEXT:    cmp x0, #0 // =0
+; ISEL-NEXT:    cinc x8, x0, lt
+; ISEL-NEXT:    asr x0, x8, #1
+; ISEL-NEXT:    ret
+;
+; FAST-LABEL: test8:
+; FAST:       // %bb.0:
+; FAST-NEXT:    add x8, x0, #1 // =1
+; FAST-NEXT:    cmp x0, #0 // =0
+; FAST-NEXT:    csel x8, x8, x0, lt
+; FAST-NEXT:    asr x0, x8, #1
+; FAST-NEXT:    ret
+  %div = sdiv i64 %x, 2
   ret i64 %div
 }
 

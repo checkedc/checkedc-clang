@@ -1,9 +1,8 @@
 //===--- Sparc.cpp - Implement Sparc target feature support ---------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -148,19 +147,20 @@ void SparcTargetInfo::getTargetDefines(const LangOptions &Opts,
 void SparcV8TargetInfo::getTargetDefines(const LangOptions &Opts,
                                          MacroBuilder &Builder) const {
   SparcTargetInfo::getTargetDefines(Opts, Builder);
-  switch (getCPUGeneration(CPU)) {
-  case CG_V8:
+  if (getTriple().getOS() == llvm::Triple::Solaris)
     Builder.defineMacro("__sparcv8");
-    if (getTriple().getOS() != llvm::Triple::Solaris)
+  else {
+    switch (getCPUGeneration(CPU)) {
+    case CG_V8:
+      Builder.defineMacro("__sparcv8");
       Builder.defineMacro("__sparcv8__");
-    break;
-  case CG_V9:
-    Builder.defineMacro("__sparcv9");
-    if (getTriple().getOS() != llvm::Triple::Solaris) {
+      break;
+    case CG_V9:
+      Builder.defineMacro("__sparcv9");
       Builder.defineMacro("__sparcv9__");
       Builder.defineMacro("__sparc_v9__");
+      break;
     }
-    break;
   }
   if (getTriple().getVendor() == llvm::Triple::Myriad) {
     std::string MyriadArchValue, Myriad2Value;
@@ -228,6 +228,12 @@ void SparcV8TargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__myriad2__", Myriad2Value);
     Builder.defineMacro("__myriad2", Myriad2Value);
   }
+  if (getCPUGeneration(CPU) == CG_V9) {
+    Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_1");
+    Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2");
+    Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4");
+    Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_8");
+  }
 }
 
 void SparcV9TargetInfo::getTargetDefines(const LangOptions &Opts,
@@ -241,6 +247,11 @@ void SparcV9TargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__sparc_v9__");
     Builder.defineMacro("__sparcv9__");
   }
+
+  Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_1");
+  Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2");
+  Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4");
+  Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_8");
 }
 
 void SparcV9TargetInfo::fillValidCPUList(

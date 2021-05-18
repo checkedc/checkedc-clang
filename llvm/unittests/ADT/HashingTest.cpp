@@ -1,9 +1,8 @@
 //===- llvm/unittest/ADT/HashingTest.cpp ----------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -100,6 +99,17 @@ TEST(HashingTest, HashValueStdPair) {
   NonPOD obj1(1, 2), obj2(3, 4), obj3(5, 6);
   EXPECT_EQ(hash_combine(obj1, hash_combine(obj2, obj3)),
             hash_value(std::make_pair(obj1, std::make_pair(obj2, obj3))));
+}
+
+TEST(HashingTest, HashValueStdTuple) {
+  EXPECT_EQ(hash_combine(), hash_value(std::make_tuple()));
+  EXPECT_EQ(hash_combine(42), hash_value(std::make_tuple(42)));
+  EXPECT_EQ(hash_combine(42, 'c'), hash_value(std::make_tuple(42, 'c')));
+
+  EXPECT_NE(hash_combine(43, 42), hash_value(std::make_tuple(42, 43)));
+  EXPECT_NE(hash_combine(42, 43), hash_value(std::make_tuple(42ull, 43ull)));
+  EXPECT_NE(hash_combine(42, 43), hash_value(std::make_tuple(42, 43ull)));
+  EXPECT_NE(hash_combine(42, 43), hash_value(std::make_tuple(42ull, 43)));
 }
 
 TEST(HashingTest, HashValueStdString) {

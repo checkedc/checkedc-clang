@@ -1,17 +1,18 @@
 // -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
 
 #include <experimental/coroutine>
 #include <cassert>
+
+#include "test_macros.h"
 
 using namespace std::experimental;
 
@@ -25,7 +26,7 @@ template <typename R> struct func {
     R result;
     func get_return_object() { return {this}; }
     suspend_always initial_suspend() { return {}; }
-    suspend_never final_suspend() { return {}; }
+    suspend_never final_suspend() noexcept { return {}; }
     void return_void() {}
     template <typename F>
     suspend_always yield_value(F&& f) {
@@ -81,7 +82,9 @@ int Do(int acc, int n, func<int> f) {
   return acc;
 }
 
-int main() {
+int main(int, char**) {
   int result = Do(1, 10, [](int a, int b) {return a + b;});
   assert(result == 46);
+
+  return 0;
 }

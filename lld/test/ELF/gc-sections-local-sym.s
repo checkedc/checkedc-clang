@@ -1,7 +1,10 @@
 // REQUIRES: x86
+
+/// When copying local symbols, skip those defined in discarded sections.
+
 // RUN: llvm-mc -filetype=obj -triple=x86_64-unknown-linux %s -o %t
 // RUN: ld.lld %t -o %t2 -shared --gc-sections
-// RUN: llvm-readobj -t -s -section-data %t2 | FileCheck %s
+// RUN: llvm-readobj --symbols -S --section-data %t2 | FileCheck %s
 
 .global foo
 foo:
@@ -36,7 +39,7 @@ zed:
 // CHECK-NEXT:   }
 // CHECK-NEXT:   Symbol {
 // CHECK-NEXT:     Name: _DYNAMIC
-// CHECK-NEXT:     Value: 0x1000
+// CHECK-NEXT:     Value:
 // CHECK-NEXT:     Size: 0
 // CHECK-NEXT:     Binding: Local
 // CHECK-NEXT:     Type: None

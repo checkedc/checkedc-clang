@@ -1,5 +1,3 @@
-; REQUIRES: object-emission
-
 ; RUN: %llc_dwarf -O0 -filetype=obj < %s > %t
 ; RUN: llvm-dwarfdump -v %t | FileCheck %s
 
@@ -17,7 +15,7 @@
 ; 4294967295.
 
 ; CHECK: DW_TAG_subprogram [
-; CHECK: DW_AT_vtable_elem_location [DW_FORM_exprloc]  (<0x2> 10 00 )
+; CHECK: DW_AT_vtable_elem_location [DW_FORM_exprloc]  (DW_OP_constu 0x0)
 
 ; CHECK: DW_TAG_subprogram [
 ; CHECK-NOT: DW_AT_vtable_elem_location

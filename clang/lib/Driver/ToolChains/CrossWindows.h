@@ -1,9 +1,8 @@
 //===--- CrossWindows.h - CrossWindows ToolChain Implementation -*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -12,6 +11,7 @@
 
 #include "Cuda.h"
 #include "Gnu.h"
+#include "clang/Basic/LangOptions.h"
 #include "clang/Driver/Tool.h"
 #include "clang/Driver/ToolChain.h"
 
@@ -34,8 +34,7 @@ public:
 
 class LLVM_LIBRARY_VISIBILITY Linker : public Tool {
 public:
-  Linker(const ToolChain &TC)
-      : Tool("CrossWindows::Linker", "ld", TC, RF_Full) {}
+  Linker(const ToolChain &TC) : Tool("CrossWindows::Linker", "ld", TC) {}
 
   bool hasIntegratedCPP() const override { return false; }
   bool isLinkJob() const override { return true; }
@@ -61,8 +60,9 @@ public:
   bool isPIEDefault() const override;
   bool isPICDefaultForced() const override;
 
-  unsigned int GetDefaultStackProtectorLevel(bool KernelOrKext) const override {
-    return 0;
+  LangOptions::StackProtectorMode
+  GetDefaultStackProtectorLevel(bool KernelOrKext) const override {
+    return LangOptions::SSPOff;
   }
 
   void

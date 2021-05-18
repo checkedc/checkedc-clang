@@ -1,14 +1,13 @@
 //===-- Socket.h ------------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Host_Socket_h_
-#define liblldb_Host_Socket_h_
+#ifndef LLDB_HOST_SOCKET_H
+#define LLDB_HOST_SOCKET_H
 
 #include <memory>
 #include <string>
@@ -32,24 +31,29 @@ class StringRef;
 
 namespace lldb_private {
 
-#if defined(_MSC_VER)
+#if defined(_WIN32)
 typedef SOCKET NativeSocket;
 #else
 typedef int NativeSocket;
 #endif
+class TCPSocket;
+class UDPSocket;
 
 class Socket : public IOObject {
 public:
-  typedef enum {
+  enum SocketProtocol {
     ProtocolTcp,
     ProtocolUdp,
     ProtocolUnixDomain,
     ProtocolUnixAbstract
-  } SocketProtocol;
+  };
 
   static const NativeSocket kInvalidSocketValue;
 
   ~Socket() override;
+
+  static llvm::Error Initialize();
+  static void Terminate();
 
   static std::unique_ptr<Socket> Create(const SocketProtocol protocol,
                                         bool child_processes_inherit,
@@ -62,13 +66,16 @@ public:
   // Initialize a Tcp Socket object in listening mode.  listen and accept are
   // implemented separately because the caller may wish to manipulate or query
   // the socket after it is initialized, but before entering a blocking accept.
-  static Status TcpListen(llvm::StringRef host_and_port,
-                          bool child_processes_inherit, Socket *&socket,
-                          Predicate<uint16_t> *predicate, int backlog = 5);
-  static Status TcpConnect(llvm::StringRef host_and_port,
-                           bool child_processes_inherit, Socket *&socket);
-  static Status UdpConnect(llvm::StringRef host_and_port,
-                           bool child_processes_inherit, Socket *&socket);
+  static llvm::Expected<std::unique_ptr<TCPSocket>>
+  TcpListen(llvm::StringRef host_and_port, bool child_processes_inherit,
+            Predicate<uint16_t> *predicate, int backlog = 5);
+
+  static llvm::Expected<std::unique_ptr<Socket>>
+  TcpConnect(llvm::StringRef host_and_port, bool child_processes_inherit);
+
+  static llvm::Expected<std::unique_ptr<UDPSocket>>
+  UdpConnect(llvm::StringRef host_and_port, bool child_processes_inherit);
+
   static Status UnixDomainConnect(llvm::StringRef host_and_port,
                                   bool child_processes_inherit,
                                   Socket *&socket);
@@ -100,6 +107,9 @@ public:
                                 std::string &host_str, std::string &port_str,
                                 int32_t &port, Status *error_ptr);
 
+  // If this Socket is connected then return the URI used to connect.
+  virtual std::string GetRemoteConnectionURI() const { return ""; };
+
 protected:
   Socket(SocketProtocol protocol, bool should_close,
          bool m_child_process_inherit);
@@ -117,8 +127,9 @@ protected:
   SocketProtocol m_protocol;
   NativeSocket m_socket;
   bool m_child_processes_inherit;
+  bool m_should_close_fd;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_Host_Socket_h_
+#endif // LLDB_HOST_SOCKET_H

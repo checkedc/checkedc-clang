@@ -54,7 +54,7 @@ struct S {
 void S::g(int i = []{return 1;}(),
           int j = []{return 2; }()) {}
 
-// CHECK-LABEL: define void @_Z6test_S1S
+// CHECK-LABEL: define{{.*}} void @_Z6test_S1S
 void test_S(S s) {
   // CHECK: call i32 @_ZZN1S1fEiiEd0_NKUlvE_clEv
   // CHECK-NEXT: call i32 @_ZZN1S1fEiiEd0_NKUlvE0_clEv
@@ -94,7 +94,7 @@ struct ST {
          T = []{return T(3);}());
 };
 
-// CHECK-LABEL: define void @_Z7test_ST2STIdE
+// CHECK-LABEL: define{{.*}} void @_Z7test_ST2STIdE
 void test_ST(ST<double> st) {
   // CHECK: call double @_ZZN2STIdE1fEddEd0_NKUlvE_clEv
   // CHECK-NEXT: call double @_ZZN2STIdE1fEddEd0_NKUlvE0_clEv
@@ -171,25 +171,31 @@ template<> double StaticMembers<double>::z = []{return 42; }();
 template<typename T>
 void func_template(T = []{ return T(); }());
 
-// CHECK-LABEL: define void @_Z17use_func_templatev()
+// CHECK-LABEL: define{{.*}} void @_Z17use_func_templatev()
 void use_func_template() {
   // CHECK: call i32 @"_ZZ13func_templateIiEvT_ENK3$_3clEv"
   func_template<int>();
 }
 
 namespace std {
-  struct type_info;
+  struct type_info {
+    bool before(const type_info &) const noexcept;
+  };
 }
 namespace PR12123 {
   struct A { virtual ~A(); } g;
+  struct C { virtual ~C(); } k;
   struct B {
     void f(const std::type_info& x = typeid([]()->A& { return g; }()));
     void h();
+    void j(bool cond = typeid([]() -> A & { return g; }()).before(typeid([]() -> C & { return k; }())));
   };
-  void B::h() { f(); }
+  void B::h() { f(); j(); }
 }
 
-// CHECK-LABEL: define linkonce_odr dereferenceable({{[0-9]+}}) %"struct.PR12123::A"* @_ZZN7PR121231B1fERKSt9type_infoEd_NKUlvE_clEv
+// CHECK-LABEL: define linkonce_odr nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) %"struct.PR12123::A"* @_ZZN7PR121231B1fERKSt9type_infoEd_NKUlvE_clEv
+// CHECK-LABEL: define linkonce_odr nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) %"struct.PR12123::A"* @_ZZN7PR121231B1jEbEd_NKUlvE_clEv
+// CHECK-LABEL: define linkonce_odr nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) %"struct.PR12123::C"* @_ZZN7PR121231B1jEbEd_NKUlvE0_clEv
 
 // CHECK-LABEL: define {{.*}} @_Z{{[0-9]*}}testVarargsLambdaNumberingv(
 inline int testVarargsLambdaNumbering() {

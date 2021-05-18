@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <memory>
 
@@ -129,7 +128,7 @@ void test_sfinae() {
     static_assert(std::is_nothrow_constructible<U1C, U1&&>::value, "");
   }
   { // Test that non-reference destination deleters can be constructed
-    // from any source deleter type with a sutible conversion. Including
+    // from any source deleter type with a suitable conversion. Including
     // reference types.
     using U1 = std::unique_ptr<VT, GenericConvertingDeleter<0> >;
     using U2 = std::unique_ptr<VT, GenericConvertingDeleter<0> &>;
@@ -205,7 +204,7 @@ void test_deleter_value_category() {
 }
 
 
-int main() {
+int main(int, char**) {
   {
     test_sfinae</*IsArray*/false>();
     test_noexcept<false>();
@@ -216,4 +215,6 @@ int main() {
     test_noexcept<true>();
     test_deleter_value_category<true>();
   }
+
+  return 0;
 }

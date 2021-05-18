@@ -1,4 +1,4 @@
-; RUN: llc -march=hexagon -enable-pipeliner < %s | FileCheck %s
+; RUN: llc -march=hexagon -enable-pipeliner < %s -pipeliner-experimental-cg=true | FileCheck %s
 
 ; A test that the Phi rewrite logic is correct.
 
@@ -7,9 +7,9 @@
 ; CHECK: .LBB0_[[LOOP]]:
 ; CHECK: memh([[REG0]]+#0) = #0
 
-define void @f0() #0 {
+define void @f0(i32 %a0) #0 {
 b0:
-  %v0 = add i32 undef, -4
+  %v0 = add i32 %a0, -4
   br label %b1
 
 b1:                                               ; preds = %b1, %b0

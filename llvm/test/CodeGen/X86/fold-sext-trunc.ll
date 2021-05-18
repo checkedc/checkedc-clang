@@ -1,14 +1,15 @@
-; RUN: llc < %s -mtriple=x86_64-- | grep movslq | count 1
+; RUN: llc < %s -mtriple=x86_64-- | FileCheck %s
 ; RUN: llc < %s -O0 -mtriple=x86_64-unknown-unknown -mcpu=x86-64 -stop-after livedebugvalues -o - | FileCheck %s -check-prefix=MIR
 ; PR4050
 
 %0 = type { i64 }
 %struct.S1 = type { i16, i32 }
 
-@g_10 = external global %struct.S1
+@g_10 = external dso_local global %struct.S1
 
 declare void @func_28(i64, i64)
 
+; CHECK: movslq  g_10+4(%rip), %rdi
 define void @int322(i32 %foo) !dbg !5 {
 entry:
   %val = load i64, i64* getelementptr (%0, %0* bitcast (%struct.S1* @g_10 to %0*), i32 0, i32 0), !dbg !16

@@ -1,18 +1,16 @@
 //===--- RuntimeDebugBuilder.cpp - Helper to insert prints into LLVM-IR ---===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
 //===----------------------------------------------------------------------===//
 
 #include "polly/CodeGen/RuntimeDebugBuilder.h"
-#include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/IR/Module.h"
-#include "llvm/Support/Debug.h"
 #include <string>
 #include <vector>
 
@@ -223,7 +221,7 @@ void RuntimeDebugBuilder::createGPUPrinterT(PollyIRBuilder &Builder,
 
     Ty = Val->getType();
     Ptr = Builder.CreatePointerBitCastOrAddrSpaceCast(Ptr, Ty->getPointerTo(5));
-    Builder.CreateAlignedStore(Val, Ptr, 4);
+    Builder.CreateAlignedStore(Val, Ptr, Align(4));
 
     if (Ty->isFloatingPointTy())
       str += "%f";

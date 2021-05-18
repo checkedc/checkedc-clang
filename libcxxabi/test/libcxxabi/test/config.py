@@ -1,9 +1,8 @@
 #===----------------------------------------------------------------------===##
 #
-#                     The LLVM Compiler Infrastructure
-#
-# This file is dual licensed under the MIT and the University of Illinois Open
-# Source Licenses. See LICENSE.TXT for details.
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 #===----------------------------------------------------------------------===##
 import os
@@ -39,13 +38,8 @@ class Configuration(LibcxxConfiguration):
 
     def configure_features(self):
         super(Configuration, self).configure_features()
-        if not self.get_lit_bool('enable_exceptions', True):
-            self.config.available_features.add('libcxxabi-no-exceptions')
         if not self.has_cpp_feature('noexcept_function_type', 201510):
             self.config.available_features.add('libcxxabi-no-noexcept-function-type')
-        # test_exception_storage_nodynmem.pass.cpp fails under this specific configuration
-        if self.get_lit_bool('cxx_ext_threads', False) and self.get_lit_bool('libcxxabi_shared', False):
-            self.config.available_features.add('libcxxabi-shared-externally-threaded')
         if not self.get_lit_bool('llvm_unwinder', False):
             self.config.available_features.add('libcxxabi-has-system-unwinder')
 
@@ -56,13 +50,11 @@ class Configuration(LibcxxConfiguration):
         ]
         if self.get_lit_bool('enable_exceptions', True):
             self.cxx.compile_flags += ['-funwind-tables']
-        else:
-            self.cxx.compile_flags += ['-fno-exceptions', '-DLIBCXXABI_HAS_NO_EXCEPTIONS']
         if not self.get_lit_bool('enable_threads', True):
             self.cxx.compile_flags += ['-D_LIBCXXABI_HAS_NO_THREADS']
             self.config.available_features.add('libcxxabi-no-threads')
         super(Configuration, self).configure_compile_flags()
-    
+
     def configure_compile_flags_header_includes(self):
         self.configure_config_site_header()
         cxx_headers = self.get_lit_conf(
@@ -91,9 +83,3 @@ class Configuration(LibcxxConfiguration):
                 self.lit_config.fatal("libunwind_headers='%s' is not a directory."
                                       % libunwind_headers)
             self.cxx.compile_flags += ['-I' + libunwind_headers]
-
-    def configure_compile_flags_exceptions(self):
-        pass
-
-    def configure_compile_flags_rtti(self):
-        pass

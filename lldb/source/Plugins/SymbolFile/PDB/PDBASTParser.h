@@ -1,18 +1,17 @@
 //===-- PDBASTParser.h ------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_PLUGINS_SYMBOLFILE_PDB_PDBASTPARSER_H
-#define LLDB_PLUGINS_SYMBOLFILE_PDB_PDBASTPARSER_H
+#ifndef LLDB_SOURCE_PLUGINS_SYMBOLFILE_PDB_PDBASTPARSER_H
+#define LLDB_SOURCE_PLUGINS_SYMBOLFILE_PDB_PDBASTPARSER_H
 
 #include "lldb/lldb-forward.h"
 
-#include "lldb/Symbol/ClangASTImporter.h"
+#include "Plugins/ExpressionParser/Clang/ClangASTImporter.h"
 
 class SymbolFilePDB;
 
@@ -24,7 +23,7 @@ class RecordDecl;
 } // namespace clang
 
 namespace lldb_private {
-class ClangASTContext;
+class TypeSystemClang;
 class CompilerType;
 } // namespace lldb_private
 
@@ -43,7 +42,7 @@ class PDBSymbolTypeUDT;
 
 class PDBASTParser {
 public:
-  PDBASTParser(lldb_private::ClangASTContext &ast);
+  PDBASTParser(lldb_private::TypeSystemClang &ast);
   ~PDBASTParser();
 
   lldb::TypeSP CreateLLDBTypeFromPDBType(const llvm::pdb::PDBSymbol &type);
@@ -104,7 +103,7 @@ private:
                   lldb_private::CompilerType &record_type,
                   const llvm::pdb::PDBSymbolFunc &method) const;
 
-  lldb_private::ClangASTContext &m_ast;
+  lldb_private::TypeSystemClang &m_ast;
   lldb_private::ClangASTImporter m_ast_importer;
 
   CXXRecordDeclToUidMap m_forward_decl_to_uid;
@@ -114,4 +113,4 @@ private:
   DeclContextToUidMap m_decl_context_to_uid;
 };
 
-#endif // LLDB_PLUGINS_SYMBOLFILE_PDB_PDBASTPARSER_H
+#endif // LLDB_SOURCE_PLUGINS_SYMBOLFILE_PDB_PDBASTPARSER_H

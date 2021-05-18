@@ -1,9 +1,8 @@
-//===-- StatusTest.cpp ------------------------------------------*- C++ -*-===//
+//===-- StatusTest.cpp ----------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -11,7 +10,7 @@
 #include "gtest/gtest.h"
 
 #ifdef _WIN32
-#include <winerror.h>
+#include <windows.h>
 #endif
 
 using namespace lldb_private;
@@ -42,6 +41,15 @@ TEST(StatusTest, ErrorConstructor) {
   EXPECT_TRUE(foo.Success());
 }
 
+TEST(StatusTest, ErrorCodeConstructor) {
+  EXPECT_TRUE(Status(std::error_code()).Success());
+
+  Status eagain = std::error_code(EAGAIN, std::generic_category());
+  EXPECT_TRUE(eagain.Fail());
+  EXPECT_EQ(eErrorTypePOSIX, eagain.GetType());
+  EXPECT_EQ(Status::ValueType(EAGAIN), eagain.GetError());
+}
+
 TEST(StatusTest, ErrorConversion) {
   EXPECT_FALSE(bool(Status().ToError()));
 
@@ -63,14 +71,26 @@ TEST(StatusTest, ErrorWin32) {
   EXPECT_FALSE(success.ToError());
   EXPECT_TRUE(success.Success());
 
+  WCHAR name[128]{};
+  ULONG nameLen = llvm::array_lengthof(name);
+  ULONG langs = 0;
+  GetUserPreferredUILanguages(MUI_LANGUAGE_NAME, &langs,
+                              reinterpret_cast<PZZWSTR>(&name), &nameLen);
+  // Skip the following tests on non-English, non-US, locales because the
+  // formatted messages will be different.
+  bool skip = wcscmp(L"en-US", name) != 0;
+
   auto s = Status(ERROR_ACCESS_DENIED, ErrorType::eErrorTypeWin32);
   EXPECT_TRUE(s.Fail());
-  EXPECT_STREQ("Access is denied. ", s.AsCString());
+  if (!skip)
+    EXPECT_STREQ("Access is denied. ", s.AsCString());
 
   s.SetError(ERROR_IPSEC_IKE_TIMED_OUT, ErrorType::eErrorTypeWin32);
-  EXPECT_STREQ("Negotiation timed out ", s.AsCString());
+  if (!skip)
+    EXPECT_STREQ("Negotiation timed out ", s.AsCString());
 
   s.SetError(16000, ErrorType::eErrorTypeWin32);
-  EXPECT_STREQ("unknown error", s.AsCString());
+  if (!skip)
+    EXPECT_STREQ("unknown error", s.AsCString());
 }
 #endif

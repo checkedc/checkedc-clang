@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -19,6 +18,9 @@
 #include <new>
 #include <cstdlib>
 #include <cassert>
+
+#include "make_test_thread.h"
+#include "test_macros.h"
 
 class G
 {
@@ -42,11 +44,11 @@ public:
 int G::n_alive = 0;
 bool G::op_run = false;
 
-int main()
+int main(int, char**)
 {
     {
         G g;
-        std::thread t0(g);
+        std::thread t0 = support::make_test_thread(g);
         std::thread::id id0 = t0.get_id();
         std::thread t1;
         std::thread::id id1 = t1.get_id();
@@ -55,4 +57,6 @@ int main()
         assert(t1.get_id() == std::thread::id());
         t0.join();
     }
+
+  return 0;
 }

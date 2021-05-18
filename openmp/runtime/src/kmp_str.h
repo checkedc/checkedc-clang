@@ -4,10 +4,9 @@
 
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.txt for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -47,10 +46,10 @@ typedef struct kmp_str_buf kmp_str_buf_t;
   }
 
 void __kmp_str_buf_clear(kmp_str_buf_t *buffer);
-void __kmp_str_buf_reserve(kmp_str_buf_t *buffer, int size);
+void __kmp_str_buf_reserve(kmp_str_buf_t *buffer, size_t size);
 void __kmp_str_buf_detach(kmp_str_buf_t *buffer);
 void __kmp_str_buf_free(kmp_str_buf_t *buffer);
-void __kmp_str_buf_cat(kmp_str_buf_t *buffer, char const *str, int len);
+void __kmp_str_buf_cat(kmp_str_buf_t *buffer, char const *str, size_t len);
 void __kmp_str_buf_catbuf(kmp_str_buf_t *dest, const kmp_str_buf_t *src);
 int __kmp_str_buf_vprint(kmp_str_buf_t *buffer, char const *format,
                          va_list args);
@@ -73,16 +72,16 @@ struct kmp_str_fname {
 typedef struct kmp_str_fname kmp_str_fname_t;
 void __kmp_str_fname_init(kmp_str_fname_t *fname, char const *path);
 void __kmp_str_fname_free(kmp_str_fname_t *fname);
-// Compares file name with specified patern. If pattern is NULL, any fname
+// Compares file name with specified pattern. If pattern is NULL, any fname
 // matched.
 int __kmp_str_fname_match(kmp_str_fname_t const *fname, char const *pattern);
 
 /* The compiler provides source locations in string form
-   ";file;func;line;col;;". It is not convenient for manupulation. This
+   ";file;func;line;col;;". It is not convenient for manipulation. This
    structure keeps source location in more convenient form.
    Usage:
 
-   kmp_str_loc_t loc = __kmp_str_loc_init( ident->psource, 0 );
+   kmp_str_loc_t loc = __kmp_str_loc_init(ident->psource, false);
    // use loc.file, loc.func, loc.line, loc.col.
    // loc.fname is available if second argument of __kmp_str_loc_init is true.
    __kmp_str_loc_free( & loc );
@@ -99,7 +98,8 @@ struct kmp_str_loc {
   int col;
 }; // struct kmp_str_loc
 typedef struct kmp_str_loc kmp_str_loc_t;
-kmp_str_loc_t __kmp_str_loc_init(char const *psource, int init_fname);
+kmp_str_loc_t __kmp_str_loc_init(char const *psource, bool init_fname);
+void __kmp_str_loc_numbers(char const *Psource, int *Line, int *Col);
 void __kmp_str_loc_free(kmp_str_loc_t *loc);
 
 int __kmp_str_eqf(char const *lhs, char const *rhs);

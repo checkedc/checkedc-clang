@@ -7,7 +7,7 @@
 void test0(Test0 *t0, id value) {
   t0.value = value;
 }
-// CHECK-LABEL: define void @test0(
+// CHECK-LABEL: define{{.*}} void @test0(
 // CHECK: call void @llvm.objc.storeStrong
 // CHECK: call void @llvm.objc.storeStrong
 // CHECK: @objc_msgSend
@@ -95,7 +95,7 @@ void test3(Test3 *t) {
   id x = t.copyMachine;
   x = [t copyMachine];
 }
-// CHECK:    define void @test3([[TEST3:%.*]]*
+// CHECK:    define{{.*}} void @test3([[TEST3:%.*]]*
 //   Prologue.
 // CHECK:      [[T:%.*]] = alloca [[TEST3]]*,
 // CHECK-NEXT: [[X:%.*]] = alloca i8*,
@@ -126,7 +126,7 @@ void test3(Test3 *t) {
 }
 // CHECK:    define internal i8* @"\01-[Test3 copyMachine]"(
 // CHECK:      [[T0:%.*]] = call i8* @test3_helper()
-// CHECK-NEXT: [[T1:%.*]] = call i8* @llvm.objc.retainAutoreleasedReturnValue(i8* [[T0]])
+// CHECK-NEXT: [[T1:%.*]] = notail call i8* @llvm.objc.retainAutoreleasedReturnValue(i8* [[T0]])
 // CHECK-NEXT: ret i8* [[T1]]
 - (void) setCopyMachine: (id) x {}
 @end

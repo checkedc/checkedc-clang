@@ -13,8 +13,9 @@ set(LLVM_LINK_COMPONENTS
   PowerPC
   )
 
-add_llvm_unittest(LLVMExegesisPowerPCTests
+add_llvm_target_unittest(LLVMExegesisPowerPCTests
   AnalysisTest.cpp
+  SnippetGeneratorTest.cpp
   TargetTest.cpp
   )
 target_link_libraries(LLVMExegesisPowerPCTests PRIVATE

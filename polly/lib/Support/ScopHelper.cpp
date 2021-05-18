@@ -1,9 +1,8 @@
 //===- ScopHelper.cpp - Some Helper Functions for Scop.  ------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -17,14 +16,10 @@
 #include "polly/Support/SCEVValidator.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/RegionInfo.h"
-#include "llvm/Analysis/RegionInfoImpl.h"
 #include "llvm/Analysis/ScalarEvolution.h"
-#include "llvm/Analysis/ScalarEvolutionExpander.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
-#include "llvm/IR/CFG.h"
-#include "llvm/IR/IntrinsicInst.h"
-#include "llvm/Support/Debug.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/ScalarEvolutionExpander.h"
 
 using namespace llvm;
 using namespace polly;
@@ -226,6 +221,16 @@ void polly::splitEntryBlockForAlloca(BasicBlock *EntryBlock, Pass *P) {
   polly::splitEntryBlockForAlloca(EntryBlock, DT, LI, RI);
 }
 
+void polly::recordAssumption(polly::RecordedAssumptionsTy *RecordedAssumptions,
+                             polly::AssumptionKind Kind, isl::set Set,
+                             DebugLoc Loc, polly::AssumptionSign Sign,
+                             BasicBlock *BB, bool RTC) {
+  assert((Set.is_params() || BB) &&
+         "Assumptions without a basic block must be parameter sets");
+  if (RecordedAssumptions)
+    RecordedAssumptions->push_back({Kind, Sign, Set, Loc, BB, RTC});
+}
+
 /// The SCEVExpander will __not__ generate any code for an existing SDiv/SRem
 /// instruction but just use it, if it is referenced as a SCEVUnknown. We want
 /// however to generate new code if the instruction is in the analyzed region
@@ -238,8 +243,8 @@ struct ScopExpander : SCEVVisitor<ScopExpander, const SCEV *> {
   explicit ScopExpander(const Region &R, ScalarEvolution &SE,
                         const DataLayout &DL, const char *Name, ValueMapT *VMap,
                         BasicBlock *RTCBB)
-      : Expander(SCEVExpander(SE, DL, Name)), SE(SE), Name(Name), R(R),
-        VMap(VMap), RTCBB(RTCBB) {}
+      : Expander(SE, DL, Name, /*PreserveLCSSA=*/false), SE(SE), Name(Name),
+        R(R), VMap(VMap), RTCBB(RTCBB) {}
 
   Value *expandCodeFor(const SCEV *E, Type *Ty, Instruction *I) {
     // If we generate code in the region we will immediately fall back to the
@@ -336,6 +341,9 @@ private:
   ///
   ///{
   const SCEV *visitConstant(const SCEVConstant *E) { return E; }
+  const SCEV *visitPtrToIntExpr(const SCEVPtrToIntExpr *E) {
+    return SE.getPtrToIntExpr(visit(E->getOperand()), E->getType());
+  }
   const SCEV *visitTruncateExpr(const SCEVTruncateExpr *E) {
     return SE.getTruncateExpr(visit(E->getOperand()), E->getType());
   }
@@ -374,6 +382,18 @@ private:
     for (const SCEV *Op : E->operands())
       NewOps.push_back(visit(Op));
     return SE.getSMaxExpr(NewOps);
+  }
+  const SCEV *visitUMinExpr(const SCEVUMinExpr *E) {
+    SmallVector<const SCEV *, 4> NewOps;
+    for (const SCEV *Op : E->operands())
+      NewOps.push_back(visit(Op));
+    return SE.getUMinExpr(NewOps);
+  }
+  const SCEV *visitSMinExpr(const SCEVSMinExpr *E) {
+    SmallVector<const SCEV *, 4> NewOps;
+    for (const SCEV *Op : E->operands())
+      NewOps.push_back(visit(Op));
+    return SE.getSMinExpr(NewOps);
   }
   const SCEV *visitAddRecExpr(const SCEVAddRecExpr *E) {
     SmallVector<const SCEV *, 4> NewOps;
@@ -452,6 +472,80 @@ Value *polly::getConditionFromTerminator(Instruction *TI) {
     return SI->getCondition();
 
   return nullptr;
+}
+
+Loop *polly::getLoopSurroundingScop(Scop &S, LoopInfo &LI) {
+  // Start with the smallest loop containing the entry and expand that
+  // loop until it contains all blocks in the region. If there is a loop
+  // containing all blocks in the region check if it is itself contained
+  // and if so take the parent loop as it will be the smallest containing
+  // the region but not contained by it.
+  Loop *L = LI.getLoopFor(S.getEntry());
+  while (L) {
+    bool AllContained = true;
+    for (auto *BB : S.blocks())
+      AllContained &= L->contains(BB);
+    if (AllContained)
+      break;
+    L = L->getParentLoop();
+  }
+
+  return L ? (S.contains(L) ? L->getParentLoop() : L) : nullptr;
+}
+
+unsigned polly::getNumBlocksInLoop(Loop *L) {
+  unsigned NumBlocks = L->getNumBlocks();
+  SmallVector<BasicBlock *, 4> ExitBlocks;
+  L->getExitBlocks(ExitBlocks);
+
+  for (auto ExitBlock : ExitBlocks) {
+    if (isa<UnreachableInst>(ExitBlock->getTerminator()))
+      NumBlocks++;
+  }
+  return NumBlocks;
+}
+
+unsigned polly::getNumBlocksInRegionNode(RegionNode *RN) {
+  if (!RN->isSubRegion())
+    return 1;
+
+  Region *R = RN->getNodeAs<Region>();
+  return std::distance(R->block_begin(), R->block_end());
+}
+
+Loop *polly::getRegionNodeLoop(RegionNode *RN, LoopInfo &LI) {
+  if (!RN->isSubRegion()) {
+    BasicBlock *BB = RN->getNodeAs<BasicBlock>();
+    Loop *L = LI.getLoopFor(BB);
+
+    // Unreachable statements are not considered to belong to a LLVM loop, as
+    // they are not part of an actual loop in the control flow graph.
+    // Nevertheless, we handle certain unreachable statements that are common
+    // when modeling run-time bounds checks as being part of the loop to be
+    // able to model them and to later eliminate the run-time bounds checks.
+    //
+    // Specifically, for basic blocks that terminate in an unreachable and
+    // where the immediate predecessor is part of a loop, we assume these
+    // basic blocks belong to the loop the predecessor belongs to. This
+    // allows us to model the following code.
+    //
+    // for (i = 0; i < N; i++) {
+    //   if (i > 1024)
+    //     abort();            <- this abort might be translated to an
+    //                            unreachable
+    //
+    //   A[i] = ...
+    // }
+    if (!L && isa<UnreachableInst>(BB->getTerminator()) && BB->getPrevNode())
+      L = LI.getLoopFor(BB->getPrevNode());
+    return L;
+  }
+
+  Region *NonAffineSubRegion = RN->getNodeAs<Region>();
+  Loop *L = LI.getLoopFor(NonAffineSubRegion->getEntry());
+  while (L && NonAffineSubRegion->contains(L))
+    L = L->getParentLoop();
+  return L;
 }
 
 static bool hasVariantIndex(GetElementPtrInst *Gep, Loop *L, Region &R,
@@ -575,55 +669,6 @@ llvm::BasicBlock *polly::getUseBlock(const llvm::Use &U) {
     return PHI->getIncomingBlock(U);
 
   return UI->getParent();
-}
-
-std::tuple<std::vector<const SCEV *>, std::vector<int>>
-polly::getIndexExpressionsFromGEP(GetElementPtrInst *GEP, ScalarEvolution &SE) {
-  std::vector<const SCEV *> Subscripts;
-  std::vector<int> Sizes;
-
-  Type *Ty = GEP->getPointerOperandType();
-
-  bool DroppedFirstDim = false;
-
-  for (unsigned i = 1; i < GEP->getNumOperands(); i++) {
-
-    const SCEV *Expr = SE.getSCEV(GEP->getOperand(i));
-
-    if (i == 1) {
-      if (auto *PtrTy = dyn_cast<PointerType>(Ty)) {
-        Ty = PtrTy->getElementType();
-      } else if (auto *ArrayTy = dyn_cast<ArrayType>(Ty)) {
-        Ty = ArrayTy->getElementType();
-      } else {
-        Subscripts.clear();
-        Sizes.clear();
-        break;
-      }
-      if (auto *Const = dyn_cast<SCEVConstant>(Expr))
-        if (Const->getValue()->isZero()) {
-          DroppedFirstDim = true;
-          continue;
-        }
-      Subscripts.push_back(Expr);
-      continue;
-    }
-
-    auto *ArrayTy = dyn_cast<ArrayType>(Ty);
-    if (!ArrayTy) {
-      Subscripts.clear();
-      Sizes.clear();
-      break;
-    }
-
-    Subscripts.push_back(Expr);
-    if (!(DroppedFirstDim && i == 2))
-      Sizes.push_back(ArrayTy->getNumElements());
-
-    Ty = ArrayTy->getElementType();
-  }
-
-  return std::make_tuple(Subscripts, Sizes);
 }
 
 llvm::Loop *polly::getFirstNonBoxedLoopFor(llvm::Loop *L, llvm::LoopInfo &LI,

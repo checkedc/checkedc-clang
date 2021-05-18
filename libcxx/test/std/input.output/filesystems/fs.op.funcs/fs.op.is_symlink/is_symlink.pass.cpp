@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -15,13 +14,13 @@
 // bool is_symlink(path const& p);
 // bool is_symlink(path const& p, std::error_code& ec) noexcept;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 using namespace fs;
 
@@ -63,16 +62,17 @@ TEST_CASE(is_symlink_status_test)
 
 TEST_CASE(static_env_test)
 {
+    static_test_env static_env;
     struct TestCase {
         path p;
         bool expect;
     };
     const TestCase testCases[] = {
-        {StaticEnv::File, false},
-        {StaticEnv::Dir, false},
-        {StaticEnv::SymlinkToFile, true},
-        {StaticEnv::SymlinkToDir, true},
-        {StaticEnv::BadSymlink, true}
+        {static_env.File, false},
+        {static_env.Dir, false},
+        {static_env.SymlinkToFile, true},
+        {static_env.SymlinkToDir, true},
+        {static_env.BadSymlink, true}
     };
     for (auto& TC : testCases) {
         TEST_CHECK(is_symlink(TC.p) == TC.expect);
@@ -81,7 +81,8 @@ TEST_CASE(static_env_test)
 
 TEST_CASE(test_exist_not_found)
 {
-    const path p = StaticEnv::DNE;
+    static_test_env static_env;
+    const path p = static_env.DNE;
     TEST_CHECK(is_symlink(p) == false);
     std::error_code ec;
     TEST_CHECK(is_symlink(p, ec) == false);

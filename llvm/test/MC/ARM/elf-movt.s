@@ -1,8 +1,8 @@
 @ RUN: llvm-mc %s -triple=armv7-linux-gnueabi | FileCheck -check-prefix=ASM %s
 @ RUN: llvm-mc %s -triple=armv7-linux-gnueabi -filetype=obj -o %t.o
-@ RUN: llvm-objdump -d -r %t.o -triple=armv7-linux-gnueabi | FileCheck -check-prefix=OBJ %s
+@ RUN: llvm-objdump -d -r %t.o --triple=armv7-linux-gnueabi | FileCheck --check-prefix=OBJ %s
 @ RUN: llvm-mc %s -triple=thumbv7-linux-gnueabi -filetype=obj -o %t.o
-@ RUN: llvm-objdump -d -r %t.o -triple=thumbv7-linux-gnueabi | FileCheck -check-prefix=THUMB %s
+@ RUN: llvm-objdump -d -r %t.o --triple=thumbv7-linux-gnueabi | FileCheck --check-prefix=THUMB %s
 
 	.syntax unified
 	.text
@@ -30,7 +30,8 @@ bar:
 @ ASM-NEXT:     movt    r0, :upper16:((foo-bar)+1234)
 
 @OBJ:      Disassembly of section .text:
-@OBJ-NEXT: barf:
+@OBJ-EMPTY:
+@OBJ-NEXT: <barf>:
 @OBJ-NEXT: 0:             f0 0f 0f e3     movw    r0, #65520
 @OBJ-NEXT: 00000000:         R_ARM_MOVW_PREL_NC   GOT
 @OBJ-NEXT: 4:             f4 0f 4f e3     movt    r0, #65524
@@ -43,7 +44,8 @@ bar:
 @OBJ-NEXT: 14:            00 00 40 e3     movt    r0, #0
 
 @THUMB:      Disassembly of section .text:
-@THUMB-NEXT: barf:
+@THUMB-EMPTY:
+@THUMB-NEXT: <barf>:
 @THUMB-NEXT: 0:             4f f6 f0 70     movw    r0, #65520
 @THUMB-NEXT: 00000000:         R_ARM_THM_MOVW_PREL_NC GOT
 @THUMB-NEXT: 4:             cf f6 f4 70     movt    r0, #65524

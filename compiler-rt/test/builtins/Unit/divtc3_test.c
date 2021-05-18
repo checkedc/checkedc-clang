@@ -1,24 +1,17 @@
 // RUN: %clang_builtins %s %librt -lm -o %t && %run %t
-//===-- divtc3_test.c - Test __divtc3 -------------------------------------===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __divtc3 for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
+// REQUIRES: librt_has_divtc3
+// REQUIRES: c99-complex
 
+//
+// Bug 42493
+// XFAIL: sparc-target-arch
+//
 #include <stdio.h>
 
 #include "int_lib.h"
 #include <math.h>
 #include <complex.h>
 
-// REQUIRES: c99-complex
 
 // Returns: the quotient of (a + ib) / (c + id)
 

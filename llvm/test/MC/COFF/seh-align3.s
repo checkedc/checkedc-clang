@@ -1,6 +1,6 @@
 // This test checks the alignment and padding of the unwind info.
 
-// RUN: llvm-mc -triple x86_64-pc-win32 -filetype=obj %s | llvm-readobj -s -sd -sr -u | FileCheck %s
+// RUN: llvm-mc -triple x86_64-pc-win32 -filetype=obj %s | llvm-readobj -S --sd --sr -u - | FileCheck %s
 
 // CHECK:      Sections [
 // CHECK:        Section {
@@ -68,9 +68,9 @@
     .def func; .scl 2; .type 32; .endef
     .seh_proc func
     push %r12
-    .seh_pushreg 12
+    .seh_pushreg %r12
     push %r13
-    .seh_pushreg 13
+    .seh_pushreg %r13
     .seh_handler __C_specific_handler, @except, @unwind
     .seh_handlerdata
     .long 0xcafebabe

@@ -1,9 +1,8 @@
 //===-- clang-doc/ClangDocTest.h ------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -44,6 +43,9 @@ void CheckFunctionInfo(FunctionInfo *Expected, FunctionInfo *Actual);
 void CheckEnumInfo(EnumInfo *Expected, EnumInfo *Actual);
 void CheckNamespaceInfo(NamespaceInfo *Expected, NamespaceInfo *Actual);
 void CheckRecordInfo(RecordInfo *Expected, RecordInfo *Actual);
+void CheckBaseRecordInfo(BaseRecordInfo *Expected, BaseRecordInfo *Actual);
+
+void CheckIndex(Index &Expected, Index &Actual);
 
 } // namespace doc
 } // namespace clang

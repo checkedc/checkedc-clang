@@ -1,15 +1,14 @@
 //===-- CoreMedia.h -----------------------------------------------*- C++
 //-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_CoreMedia_h_
-#define liblldb_CoreMedia_h_
+#ifndef LLDB_SOURCE_PLUGINS_LANGUAGE_OBJC_COREMEDIA_H
+#define LLDB_SOURCE_PLUGINS_LANGUAGE_OBJC_COREMEDIA_H
 
 #include "lldb/Core/ValueObject.h"
 #include "lldb/DataFormatters/TypeSummary.h"
@@ -23,4 +22,4 @@ bool CMTimeSummaryProvider(ValueObject &valobj, Stream &stream,
 } // namespace formatters
 } // namespace lldb_private
 
-#endif // liblldb_CF_h_
+#endif // LLDB_SOURCE_PLUGINS_LANGUAGE_OBJC_COREMEDIA_H

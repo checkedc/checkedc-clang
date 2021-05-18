@@ -1,9 +1,8 @@
 //===-- sanitizer_flags.h ---------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -41,16 +40,21 @@ COMMON_FLAG(bool, fast_unwind_on_check, false,
 COMMON_FLAG(bool, fast_unwind_on_fatal, false,
             "If available, use the fast frame-pointer-based unwinder on fatal "
             "errors.")
-COMMON_FLAG(bool, fast_unwind_on_malloc, true,
+// ARM thumb/thumb2 frame pointer is inconsistent on GCC and Clang [1]
+// and fast-unwider is also unreliable with mixing arm and thumb code [2].
+// [1] https://gcc.gnu.org/bugzilla/show_bug.cgi?id=92172
+// [2] https://bugs.llvm.org/show_bug.cgi?id=44158
+COMMON_FLAG(bool, fast_unwind_on_malloc,
+            !(SANITIZER_LINUX && !SANITIZER_ANDROID && SANITIZER_ARM),
             "If available, use the fast frame-pointer-based unwinder on "
             "malloc/free.")
 COMMON_FLAG(bool, handle_ioctl, false, "Intercept and handle ioctl requests.")
 COMMON_FLAG(int, malloc_context_size, 1,
             "Max number of stack frames kept for each allocation/deallocation.")
 COMMON_FLAG(
-    const char *, log_path, "stderr",
+    const char *, log_path, nullptr,
     "Write logs to \"log_path.pid\". The special values are \"stdout\" and "
-    "\"stderr\". The default is \"stderr\".")
+    "\"stderr\". If unspecified, defaults to \"stderr\".")
 COMMON_FLAG(
     bool, log_exe_name, false,
     "Mention name of executable when reporting error and "
@@ -78,8 +82,9 @@ COMMON_FLAG(bool, print_summary, true,
             "If false, disable printing error summaries in addition to error "
             "reports.")
 COMMON_FLAG(int, print_module_map, 0,
-            "OS X only (0 - don't print, 1 - print only once before process "
-            "exits, 2 - print after each report).")
+            "Print the process module map where supported (0 - don't print, "
+            "1 - print only once before process exits, 2 - print after each "
+            "report).")
 COMMON_FLAG(bool, check_printf, true, "Check printf arguments.")
 #define COMMON_FLAG_HANDLE_SIGNAL_HELP(signal) \
     "Controls custom tool's " #signal " handler (0 - do not registers the " \
@@ -133,6 +138,9 @@ COMMON_FLAG(uptr, soft_rss_limit_mb, 0,
             " until the RSS goes below the soft limit."
             " This limit does not affect memory allocations other than"
             " malloc/new.")
+COMMON_FLAG(uptr, max_allocation_size_mb, 0,
+            "If non-zero, malloc/new calls larger than this size will return "
+            "nullptr (or crash if allocator_may_return_null=false).")
 COMMON_FLAG(bool, heap_profile, false, "Experimental heap profiler, asan-only")
 COMMON_FLAG(s32, allocator_release_to_os_interval_ms,
             ((bool)SANITIZER_FUCHSIA || (bool)SANITIZER_WINDOWS) ? -1 : 5000,
@@ -193,6 +201,9 @@ COMMON_FLAG(bool, intercept_strtok, true,
 COMMON_FLAG(bool, intercept_strpbrk, true,
             "If set, uses custom wrappers for strpbrk function "
             "to find more errors.")
+COMMON_FLAG(
+    bool, intercept_strcmp, true,
+    "If set, uses custom wrappers for strcmp functions to find more errors.")
 COMMON_FLAG(bool, intercept_strlen, true,
             "If set, uses custom wrappers for strlen and strnlen functions "
             "to find more errors.")
@@ -219,9 +230,9 @@ COMMON_FLAG(bool, intercept_stat, true,
 COMMON_FLAG(bool, intercept_send, true,
             "If set, uses custom wrappers for send* functions "
             "to find more errors.")
-COMMON_FLAG(bool, decorate_proc_maps, false, "If set, decorate sanitizer "
-                                             "mappings in /proc/self/maps with "
-                                             "user-readable names")
+COMMON_FLAG(bool, decorate_proc_maps, (bool)SANITIZER_ANDROID,
+            "If set, decorate sanitizer mappings in /proc/self/maps with "
+            "user-readable names")
 COMMON_FLAG(int, exitcode, 1, "Override the program exit status if the tool "
                               "found an error")
 COMMON_FLAG(

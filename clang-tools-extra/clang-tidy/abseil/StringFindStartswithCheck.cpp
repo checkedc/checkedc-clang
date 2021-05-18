@@ -1,9 +1,8 @@
 //===--- StringFindStartswithCheck.cc - clang-tidy---------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -13,8 +12,8 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Frontend/CompilerInstance.h"
-
-#include <cassert>
+#include "clang/Lex/Lexer.h"
+#include "clang/Lex/Preprocessor.h"
 
 using namespace clang::ast_matchers;
 
@@ -27,8 +26,8 @@ StringFindStartswithCheck::StringFindStartswithCheck(StringRef Name,
     : ClangTidyCheck(Name, Context),
       StringLikeClasses(utils::options::parseStringList(
           Options.get("StringLikeClasses", "::std::basic_string"))),
-      IncludeStyle(utils::IncludeSorter::parseIncludeStyle(
-          Options.getLocalOrGlobal("IncludeStyle", "llvm"))),
+      IncludeInserter(Options.getLocalOrGlobal("IncludeStyle",
+                                               utils::IncludeSorter::IS_LLVM)),
       AbseilStringsMatchHeader(
           Options.get("AbseilStringsMatchHeader", "absl/strings/match.h")) {}
 
@@ -51,9 +50,9 @@ void StringFindStartswithCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
       // Match [=!]= with a zero on one side and a string.find on the other.
       binaryOperator(
-          anyOf(hasOperatorName("=="), hasOperatorName("!=")),
-          hasEitherOperand(ignoringParenImpCasts(ZeroLiteral)),
-          hasEitherOperand(ignoringParenImpCasts(StringFind.bind("findexpr"))))
+          hasAnyOperatorName("==", "!="),
+          hasOperands(ignoringParenImpCasts(ZeroLiteral),
+                      ignoringParenImpCasts(StringFind.bind("findexpr"))))
           .bind("expr"),
       this);
 }
@@ -106,28 +105,21 @@ void StringFindStartswithCheck::check(const MatchFinder::MatchResult &Result) {
 
   // Create a preprocessor #include FixIt hint (CreateIncludeInsertion checks
   // whether this already exists).
-  auto IncludeHint = IncludeInserter->CreateIncludeInsertion(
-      Source.getFileID(ComparisonExpr->getBeginLoc()), AbseilStringsMatchHeader,
-      false);
-  if (IncludeHint) {
-    Diagnostic << *IncludeHint;
-  }
+  Diagnostic << IncludeInserter.createIncludeInsertion(
+      Source.getFileID(ComparisonExpr->getBeginLoc()),
+      AbseilStringsMatchHeader);
 }
 
 void StringFindStartswithCheck::registerPPCallbacks(
-    CompilerInstance &Compiler) {
-  IncludeInserter = llvm::make_unique<clang::tidy::utils::IncludeInserter>(
-      Compiler.getSourceManager(), Compiler.getLangOpts(), IncludeStyle);
-  Compiler.getPreprocessor().addPPCallbacks(
-      IncludeInserter->CreatePPCallbacks());
+    const SourceManager &SM, Preprocessor *PP, Preprocessor *ModuleExpanderPP) {
+  IncludeInserter.registerPreprocessor(PP);
 }
 
 void StringFindStartswithCheck::storeOptions(
     ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "StringLikeClasses",
                 utils::options::serializeStringList(StringLikeClasses));
-  Options.store(Opts, "IncludeStyle",
-                utils::IncludeSorter::toString(IncludeStyle));
+  Options.store(Opts, "IncludeStyle", IncludeInserter.getStyle());
   Options.store(Opts, "AbseilStringsMatchHeader", AbseilStringsMatchHeader);
 }
 

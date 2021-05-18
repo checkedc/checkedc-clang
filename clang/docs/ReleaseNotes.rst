@@ -1,6 +1,6 @@
-=======================================
-Clang 8.0.0 (In-Progress) Release Notes
-=======================================
+========================================
+Clang 12.0.0 (In-Progress) Release Notes
+========================================
 
 .. contents::
    :local:
@@ -10,7 +10,7 @@ Written by the `LLVM Team <https://llvm.org/>`_
 
 .. warning::
 
-   These are in-progress notes for the upcoming Clang 8 release.
+   These are in-progress notes for the upcoming Clang 12 release.
    Release notes for previous releases can be found on
    `the Download Page <https://releases.llvm.org/download.html>`_.
 
@@ -18,7 +18,7 @@ Introduction
 ============
 
 This document contains the release notes for the Clang C/C++/Objective-C
-frontend, part of the LLVM Compiler Infrastructure, release 8.0.0. Here we
+frontend, part of the LLVM Compiler Infrastructure, release 12.0.0. Here we
 describe the status of Clang in some detail, including major
 improvements from the previous release and new feature work. For the
 general LLVM release notes, see `the LLVM
@@ -30,13 +30,13 @@ For more information about Clang or LLVM, including information about the
 latest release, please see the `Clang Web Site <https://clang.llvm.org>`_ or the
 `LLVM Web Site <https://llvm.org>`_.
 
-Note that if you are reading this file from a Subversion checkout or the
+Note that if you are reading this file from a Git checkout or the
 main Clang web page, this document applies to the *next* release, not
 the current one. To see the release notes for a specific release, please
 see the `releases page <https://llvm.org/releases/>`_.
 
-What's New in Clang 8.0.0?
-==========================
+What's New in Clang 12.0.0?
+===========================
 
 Some of the major new features and improvements to Clang are listed
 here. Generic improvements to Clang as a whole or to its underlying
@@ -46,97 +46,62 @@ sections with improvements to Clang's support for those languages.
 Major New Features
 ------------------
 
-- Clang supports use of a profile remapping file, which permits
-  profile data captured for one version of a program to be applied
-  when building another version where symbols have changed (for
-  example, due to renaming a class or namespace).
-  See the :doc:`UsersManual` for details.
+- ...
 
 Improvements to Clang's diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- ``-Wextra-semi-stmt`` is a new diagnostic that diagnoses extra semicolons,
-  much like ``-Wextra-semi``. This new diagnostic diagnoses all *unnecessary*
-  null statements (expression statements without an expression), unless: the
-  semicolon directly follows a macro that was expanded to nothing or if the
-  semicolon is within the macro itself. This applies to macros defined in system
-  headers as well as user-defined macros.
-
-  .. code-block:: c++
-
-      #define MACRO(x) int x;
-      #define NULLMACRO(varname)
-
-      void test() {
-        ; // <- warning: ';' with no preceding expression is a null statement
-
-        while (true)
-          ; // OK, it is needed.
-
-        switch (my_enum) {
-        case E1:
-          // stuff
-          break;
-        case E2:
-          ; // OK, it is needed.
-        }
-
-        MACRO(v0;) // Extra semicolon, but within macro, so ignored.
-
-        MACRO(v1); // <- warning: ';' with no preceding expression is a null statement
-
-        NULLMACRO(v2); // ignored, NULLMACRO expanded to nothing.
-      }
-
-- ``-Wempty-init-stmt`` is a new diagnostic that diagnoses empty init-statements
-  of ``if``, ``switch``, ``range-based for``, unless: the semicolon directly
-  follows a macro that was expanded to nothing or if the semicolon is within the
-  macro itself (both macros from system headers, and normal macros). This
-  diagnostic is in the ``-Wextra-semi-stmt`` group and is enabled in
-  ``-Wextra``.
-
-  .. code-block:: c++
-
-      void test() {
-        if(; // <- warning: init-statement of 'if' is a null statement
-           true)
-          ;
-
-        switch (; // <- warning: init-statement of 'switch' is a null statement
-                x) {
-          ...
-        }
-
-        for (; // <- warning: init-statement of 'range-based for' is a null statement
-             int y : S())
-          ;
-      }
-
+- ...
 
 Non-comprehensive list of changes in this release
 -------------------------------------------------
 
-- The experimental feature Pretokenized Headers (PTH) was removed in its
-  entirely from Clang. The feature did not properly work with about 1/3 of the
-  possible tokens available and was unmaintained.
+- The builtin intrinsics ``__builtin_bitreverse8``, ``__builtin_bitreverse16``,
+  ``__builtin_bitreverse32`` and ``__builtin_bitreverse64`` may now be used
+  within constant expressions.
 
-- The internals of libc++ include directory detection on MacOS have changed.
-  Instead of running a search based on the ``-resource-dir`` flag, the search
-  is now based on the path of the compiler in the filesystem. The default
-  behaviour should not change. However, if you override ``-resource-dir``
-  manually and rely on the old behaviour you will need to add appropriate
-  compiler flags for finding the corresponding libc++ include directory.
+- The builtin intrinsics ``__builtin_rotateleft8``, ``__builtin_rotateleft16``,
+  ``__builtin_rotateleft32`` and ``__builtin_rotateleft64`` may now be used
+  within constant expressions.
+
+- The builtin intrinsics ``__builtin_rotateright8``, ``__builtin_rotateright16``,
+  ``__builtin_rotateright32`` and ``__builtin_rotateright64`` may now be used
+  within constant expressions.
 
 New Compiler Flags
 ------------------
 
-- ``-fprofile-filter-files=[regexes]`` and ``-fprofile-exclude-files=[regexes]``.
-
-  Clang has now options to filter or exclude some files when
-  instrumenting for gcov-based profiling.
-  See the :doc:`UsersManual` for details.
-
 - ...
+
+- -fpch-codegen and -fpch-debuginfo generate shared code and/or debuginfo
+  for contents of a precompiled header in a separate object file. This object
+  file needs to be linked in, but its contents do not need to be generated
+  for other objects using the precompiled header. This should usually save
+  compile time. If not using clang-cl, the separate object file needs to
+  be created explicitly from the precompiled header.
+  Example of use:
+
+  .. code-block:: console
+
+    $ clang++ -x c++-header header.h -o header.pch -fpch-codegen -fpch-debuginfo
+    $ clang++ -c header.pch -o shared.o
+    $ clang++ -c source.cpp -o source.o -include-pch header.pch
+    $ clang++ -o binary source.o shared.o
+
+  - Using -fpch-instantiate-templates when generating the precompiled header
+    usually increases the amount of code/debuginfo that can be shared.
+  - In some cases, especially when building with optimizations enabled, using
+    -fpch-codegen may generate so much code in the shared object that compiling
+    it may be a net loss in build time.
+  - Since headers may bring in private symbols of other libraries, it may be
+    sometimes necessary to discard unused symbols (such as by adding
+    -Wl,--gc-sections on ELF platforms to the linking command, and possibly
+    adding -fdata-sections -ffunction-sections to the command generating
+    the shared object).
+- New option ``-fbinutils-version=`` specifies the targeted binutils version.
+  For example, ``-fbinutils-version=2.35`` means compatibility with GNU as/ld
+  before 2.35 is not needed: new features can be used and there is no need to
+  work around old GNU as/ld bugs.
 
 Deprecated Compiler Flags
 -------------------------
@@ -149,50 +114,46 @@ future versions of Clang.
 Modified Compiler Flags
 -----------------------
 
-- As of clang 8, `alignof` and `_Alignof` return the ABI alignment of a type,
-  as opposed to the preferred alignment. `__alignof` still returns the
-  preferred alignment. `-fclang-abi-compat=7` (and previous) will make
-  `alignof` and `_Alignof` return preferred alignment again.
+- On ELF, ``-gz`` now defaults to ``-gz=zlib`` with the integrated assembler.
+  It produces ``SHF_COMPRESSED`` style compression of debug information. GNU
+  binutils 2.26 or newer, or lld is required to link produced object files. Use
+  ``-gz=zlib-gnu`` to get the old behavior.
+- Now that `this` pointers are tagged with `nonnull` and `dereferenceable(N)`,
+  `-fno-delete-null-pointer-checks` has gained the power to remove the
+  `nonnull` attribute on `this` for configurations that need it to be nullable.
+- ``-gsplit-dwarf`` no longer implies ``-g2``.
+- ``-fasynchronous-unwind-tables`` is now the default on Linux AArch64/PowerPC.
+  This behavior matches newer GCC.
+  (`D91760 <https://reviews.llvm.org/D91760>`_)
+  (`D92054 <https://reviews.llvm.org/D92054>`_)
 
+Removed Compiler Flags
+-------------------------
+
+The following options no longer exist.
+
+- clang-cl's ``/Zd`` flag no longer exist. But ``-gline-tables-only`` still
+  exists and does the same thing.
 
 New Pragmas in Clang
 --------------------
 
-- Clang now supports adding multiple `#pragma clang attribute` attributes into
-  a scope of pushed attributes.
+- ...
 
 Attribute Changes in Clang
 --------------------------
 
-- ...
+- Added support for the C++20 likelihood attributes ``[[likely]]`` and
+  ``[[unlikely]]``. As an extension they can be used in C++11 and newer.
+  This extension is enabled by default.
 
 Windows Support
 ---------------
-
-- clang-cl now supports the use of the precompiled header options /Yc and /Yu
-  without the filename argument. When these options are used without the
-  filename, a `#pragma hdrstop` inside the source marks the end of the
-  precompiled code.
-
-- clang-cl has a new command-line option, ``/Zc:dllexportInlines-``, similar to
-  ``-fvisibility-inlines-hidden`` on non-Windows, that makes class-level
-  `dllexport` and `dllimport` attributes not apply to inline member functions.
-  This can significantly reduce compile and link times. See the `User's Manual
-  <UsersManual.html#the-zc-dllexportinlines-option>`_ for more info.
-- ...
-
 
 C Language Changes in Clang
 ---------------------------
 
 - ...
-
-...
-
-C11 Feature Support
-^^^^^^^^^^^^^^^^^^^
-
-...
 
 C++ Language Changes in Clang
 -----------------------------
@@ -201,13 +162,10 @@ C++ Language Changes in Clang
 
 C++1z Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
-
 ...
 
 Objective-C Language Changes in Clang
 -------------------------------------
-
-...
 
 OpenCL C Language Changes in Clang
 ----------------------------------
@@ -217,152 +175,155 @@ OpenCL C Language Changes in Clang
 ABI Changes in Clang
 --------------------
 
-- `_Alignof` and `alignof` now return the ABI alignment of a type, as opposed
-  to the preferred alignment.
-
-  - This is more in keeping with the language of the standards, as well as
-    being compatible with gcc
-  - `__alignof` and `__alignof__` still return the preferred alignment of
-    a type
-  - This shouldn't break any ABI except for things that explicitly ask for
-    `alignas(alignof(T))`.
-  - If you have interfaces that break with this change, you may wish to switch
-    to `alignas(__alignof(T))`, instead of using the `-fclang-abi-compat`
-    switch.
-
 OpenMP Support in Clang
-----------------------------------
+-----------------------
 
-- Support relational-op != (not-equal) as one of the canonical forms of random
-  access iterator.
-
-- Added support for mapping of the lambdas in target regions.
-
-- Added parsing/sema analysis for OpenMP 5.0 requires directive.
-
-- Various bugfixes and improvements.
-
-New features supported for Cuda devices:
-
-- Added support for the reductions across the teams.
-
-- Extended number of constructs that can be executed in SPMD mode.
-
-- Fixed support for lastprivate/reduction variables in SPMD constructs.
-
-- General performance improvement.
+- ...
 
 CUDA Support in Clang
 ---------------------
 
+- ...
+
+X86 Support in Clang
+--------------------
+
+- The x86 intrinsics ``_mm_popcnt_u32``, ``_mm_popcnt_u64``, ``_popcnt32``,
+  ``_popcnt64``, ``__popcntd`` and ``__popcntq``  may now be used within
+  constant expressions.
+
+- The x86 intrinsics ``_bit_scan_forward``, ``__bsfd`` and ``__bsfq`` may now
+  be used within constant expressions.
+
+- The x86 intrinsics ``_bit_scan_reverse``, ``__bsrd`` and ``__bsrq`` may now
+  be used within constant expressions.
+
+- The x86 intrinsics ``__bswap``, ``__bswapd``, ``__bswap64`` and ``__bswapq``
+  may now be used within constant expressions.
+
+- The x86 intrinsics ``_castf32_u32``, ``_castf64_u64``, ``_castu32_f32`` and
+  ``_castu64_f64`` may now be used within constant expressions.
+
+- The x86 intrinsics ``__rolb``, ``__rolw``, ``__rold``, ``__rolq`, ``_rotl``,
+  ``_rotwl`` and ``_lrotl`` may now be used within constant expressions.
+
+- The x86 intrinsics ``__rorb``, ``__rorw``, ``__rord``, ``__rorq`, ``_rotr``,
+  ``_rotwr`` and ``_lrotr`` may now be used within constant expressions.
+
+- Support for ``-march=alderlake``, ``-march=sapphirerapids`` and
+  ``-march=znver3`` was added.
+
+- Support for ``-march=x86-64-v[234]`` has been added.
+  See :doc:`UsersManual` for details about these micro-architecture levels.
+
+- The -mtune command line option is no longer ignored for X86. This can be used
+  to request microarchitectural optimizations independent on -march. -march=<cpu>
+  implies -mtune=<cpu>. -mtune=generic is the default with no -march or -mtune
+  specified.
+
+- Support for ``HRESET`` instructions has been added.
+
+- Support for ``UINTR`` instructions has been added.
+
+- Support for ``AVXVNNI`` instructions has been added.
 
 Internal API Changes
 --------------------
 
-These are major API changes that have happened since the 7.0.0 release of
+These are major API changes that have happened since the 11.0.0 release of
 Clang. If upgrading an external codebase that uses Clang as a library,
 this section should help get you past the largest hurdles of upgrading.
 
--  ...
+- ...
+
+Build System Changes
+--------------------
+
+These are major changes to the build system that have happened since the 11.0.0
+release of Clang. Users of the build system should adjust accordingly.
+
+- ...
 
 AST Matchers
 ------------
 
-- ...
+- The behavior of TK_IgnoreUnlessSpelledInSource with the traverse() matcher
+  has been changed to no longer match on template instantiations or on
+  implicit nodes which are not spelled in the source.
+
+- The TK_IgnoreImplicitCastsAndParentheses traversal kind was removed. It
+  is recommended to use TK_IgnoreUnlessSpelledInSource instead.
+
+- The behavior of the forEach() matcher was changed to not internally ignore
+  implicit and parenthesis nodes.
 
 clang-format
 ------------
 
+- Option ``BitFieldColonSpacing`` has been added that decides how
+  space should be added around identifier, colon and bit-width in
+  bitfield definitions.
 
-- ...
+  .. code-block:: c++
+
+    // Both (default)
+    struct F {
+      unsigned dscp : 6;
+      unsigned ecn  : 2; // AlignConsecutiveBitFields=true
+    };
+    // None
+    struct F {
+      unsigned dscp:6;
+      unsigned ecn :2;
+    };
+    // Before
+    struct F {
+      unsigned dscp :6;
+      unsigned ecn  :2;
+    };
+    // After
+    struct F {
+      unsigned dscp: 6;
+      unsigned ecn : 2;
+    };
+
+
+- Experimental Support in clang-format for concepts has been improved, to
+  aid this the follow options have been added
+
+- Option ``IndentRequires`` has been added to indent the ``requires`` keyword
+  in templates.
+
+- Option ``BreakBeforeConceptDeclarations`` has been added to aid the formatting of concepts.
+
+- Option ``IndentPragmas`` has been added to allow #pragma to indented with the current scope
+  level. This is especially useful when using #pragma to mark OpenMP sections of code.
+
+- Option ``SpaceBeforeCaseColon`` has been added to add a space before the
+  colon in a case or default statement.
+
+- Option ``StatementAttributeLikeMacros`` has been added to declare
+  macros which are not parsed as a type in front of a statement. See
+  the documentation for an example.
+
+- Options ``AlignConsecutiveAssignments``, ``AlignConsecutiveBitFields``,
+  ``AlignConsecutiveDeclarations`` and ``AlignConsecutiveMacros`` have been modified to allow
+  alignment across empty lines and/or comments.
 
 libclang
 --------
 
-...
-
+- ...
 
 Static Analyzer
 ---------------
 
 - ...
 
-...
-
 .. _release-notes-ubsan:
 
 Undefined Behavior Sanitizer (UBSan)
 ------------------------------------
-
-* The Implicit Conversion Sanitizer (``-fsanitize=implicit-conversion``) group
-  was extended. One more type of issues is caught - implicit integer sign change.
-  (``-fsanitize=implicit-integer-sign-change``).
-  This makes the Implicit Conversion Sanitizer feature-complete,
-  with only missing piece being bitfield handling.
-  While there is a ``-Wsign-conversion`` diagnostic group that catches this kind
-  of issues, it is both noisy, and does not catch **all** the cases.
-
-  .. code-block:: c++
-
-      bool consume(unsigned int val);
-
-      void test(int val) {
-        (void)consume(val); // If the value was negative, it is now large positive.
-        (void)consume((unsigned int)val); // OK, the conversion is explicit.
-      }
-
-  Like some other ``-fsanitize=integer`` checks, these issues are **not**
-  undefined behaviour. But they are not *always* intentional, and are somewhat
-  hard to track down. This group is **not** enabled by ``-fsanitize=undefined``,
-  but the ``-fsanitize=implicit-integer-sign-change`` check
-  is enabled by ``-fsanitize=integer``.
-  (as is ``-fsanitize=implicit-integer-truncation`` check)
-
-* The Implicit Conversion Sanitizer (``-fsanitize=implicit-conversion``) has
-  learned to sanitize compound assignment operators.
-
-* ``alignment`` check has learned to sanitize the assume_aligned-like attributes:
-
-  .. code-block:: c++
-
-      typedef char **__attribute__((align_value(1024))) aligned_char;
-      struct ac_struct {
-        aligned_char a;
-      };
-      char **load_from_ac_struct(struct ac_struct *x) {
-        return x->a; // <- check that loaded 'a' is aligned
-      }
-
-      char **passthrough(__attribute__((align_value(1024))) char **x) {
-        return x; // <- check the pointer passed as function argument
-      }
-
-      char **__attribute__((alloc_align(2)))
-      alloc_align(int size, unsigned long alignment);
-
-      char **caller(int size) {
-        return alloc_align(size, 1024); // <- check returned pointer
-      }
-
-      char **__attribute__((assume_aligned(1024))) get_ptr();
-
-      char **caller2() {
-        return get_ptr(); // <- check returned pointer
-      }
-
-      void *caller3(char **x) {
-        return __builtin_assume_aligned(x, 1024);  // <- check returned pointer
-      }
-
-      void *caller4(char **x, unsigned long offset) {
-        return __builtin_assume_aligned(x, 1024, offset);  // <- check returned pointer accounting for the offest
-      }
-
-      void process(char *data, int width) {
-          #pragma omp for simd aligned(data : 1024) // <- aligned clause will be checked.
-          for (int x = 0; x < width; x++)
-          data[x] *= data[x];
-      }
 
 Core Analysis Improvements
 ==========================
@@ -389,7 +350,7 @@ Additional Information
 
 A wide variety of additional information is available on the `Clang web
 page <https://clang.llvm.org/>`_. The web page contains versions of the
-API documentation which are up-to-date with the Subversion version of
+API documentation which are up-to-date with the Git version of
 the source code. You can access versions of these documents specific to
 this release by going into the "``clang/docs/``" directory in the Clang
 tree.

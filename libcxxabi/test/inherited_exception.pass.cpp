@@ -1,9 +1,8 @@
 //===--------------------- inherited_exception.cpp ------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -11,10 +10,10 @@
 //
 //  C++ ABI 15.3:
 //  A handler is a match for an exception object of type E if
-//  /  *  The handler is of type cv T or cv T& and E and T are the same type   \
-//  |     (ignoring the top-level cv-qualifiers), or                           |
-//  |  *  the handler is of type cv T or cv T& and T is an unambiguous base    |
-//  \     class of E, or                                                       /
+//  >  *  The handler is of type cv T or cv T& and E and T are the same type   <
+//  >     (ignoring the top-level cv-qualifiers), or                           <
+//  >  *  the handler is of type cv T or cv T& and T is an unambiguous base    <
+//  >     class of E, or                                                       <
 //     *  the handler is of type cv1 T* cv2 and E is a pointer type that can
 //        be converted to the type of the handler by either or both of
 //          o  a standard pointer conversion (4.10 [conv.ptr]) not involving
@@ -25,7 +24,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: libcxxabi-no-exceptions
+// UNSUPPORTED: no-exceptions
+
+// FIXME: GCC doesn't allow turning off the warning for exceptions being caught
+//        by earlier handlers, which this test is exercising. We have to disable
+//        warnings altogether to remove the error.
+//        See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=97675.
+// ADDITIONAL_COMPILE_FLAGS: -Wno-error
 
 // Clang emits  warnings about exceptions of type 'Child' being caught by
 // an earlier handler of type 'Base'. Congrats clang, you've just
@@ -72,7 +77,7 @@ void f3() {
   throw static_cast<Base2*>(&child);
 }
 
-int main()
+int main(int, char**)
 {
     try
     {
@@ -171,4 +176,6 @@ int main()
     {
         assert(false);
     }
+
+    return 0;
 }

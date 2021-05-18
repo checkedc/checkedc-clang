@@ -1,9 +1,8 @@
 //===--- BracesAroundStatementsCheck.cpp - clang-tidy ---------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -43,7 +42,7 @@ SourceLocation forwardSkipWhitespaceAndComments(SourceLocation Loc,
       Loc = Loc.getLocWithOffset(1);
 
     tok::TokenKind TokKind = getTokenKind(Loc, SM, Context);
-    if (TokKind == tok::NUM_TOKENS || TokKind != tok::comment)
+    if (TokKind != tok::comment)
       return Loc;
 
     // Fast-forward current token.
@@ -124,7 +123,10 @@ void BracesAroundStatementsCheck::storeOptions(
 }
 
 void BracesAroundStatementsCheck::registerMatchers(MatchFinder *Finder) {
-  Finder->addMatcher(ifStmt().bind("if"), this);
+  Finder->addMatcher(
+      ifStmt(unless(allOf(isConstexpr(), isInTemplateInstantiation())))
+          .bind("if"),
+      this);
   Finder->addMatcher(whileStmt().bind("while"), this);
   Finder->addMatcher(doStmt().bind("do"), this);
   Finder->addMatcher(forStmt().bind("for"), this);

@@ -1,7 +1,7 @@
 ! RUN: llvm-mc %s -arch=sparcv9 -show-encoding | FileCheck %s
-! RUN: llvm-mc %s -arch=sparcv9 -filetype=obj | llvm-readobj -r | FileCheck %s --check-prefix=CHECK-OBJ
+! RUN: llvm-mc %s -arch=sparcv9 -filetype=obj | llvm-readobj -r - | FileCheck %s --check-prefix=CHECK-OBJ
 
-        ! CHECK-OBJ: Format: ELF64-sparc
+        ! CHECK-OBJ: Format: elf64-sparc
         ! CHECK-OBJ: Relocations [
         ! CHECK-OBJ: 0x{{[0-9,A-F]+}} R_SPARC_WDISP30 foo
         ! CHECK-OBJ: 0x{{[0-9,A-F]+}} R_SPARC_LO10 sym
@@ -49,6 +49,10 @@
         ! CHECK: or %g1, sym, %g3 ! encoding: [0x86,0x10,0b011AAAAA,A]
         ! CHECK-NEXT:                  !   fixup A - offset: 0, value: sym, kind: fixup_sparc_13
         or %g1, sym, %g3
+
+        ! CHECK: or %g1, sym+4, %g3 ! encoding: [0x86,0x10,0b011AAAAA,A]
+        ! CHECK-NEXT:                  ! fixup A - offset: 0, value: sym+4, kind: fixup_sparc_13
+        or %g1, (sym+4), %g3
 
         ! This test needs to placed last in the file
         ! CHECK: .half	a-.Ltmp0

@@ -1,25 +1,23 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
 // space_info space(const path& p);
 // space_info space(const path& p, error_code& ec) noexcept;
 
-#include "filesystem_include.hpp"
-#include <sys/statvfs.h>
+#include "filesystem_include.h"
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 using namespace fs;
 
@@ -45,11 +43,12 @@ TEST_CASE(signature_test)
 
 TEST_CASE(test_error_reporting)
 {
+    static_test_env static_env;
     auto checkThrow = [](path const& f, const std::error_code& ec)
     {
 #ifndef TEST_HAS_NO_EXCEPTIONS
         try {
-            space(f);
+            (void)space(f);
             return false;
         } catch (filesystem_error const& err) {
             return err.path1() == f
@@ -63,8 +62,8 @@ TEST_CASE(test_error_reporting)
     };
     const path cases[] = {
         "",
-        StaticEnv::DNE,
-        StaticEnv::BadSymlink
+        static_env.DNE,
+        static_env.BadSymlink
     };
     for (auto& p : cases) {
         const auto expect = static_cast<std::uintmax_t>(-1);
@@ -80,37 +79,28 @@ TEST_CASE(test_error_reporting)
 
 TEST_CASE(basic_space_test)
 {
+    static_test_env static_env;
+
     // All the test cases should reside on the same filesystem and therefore
     // should have the same expected result. Compute this expected result
     // one and check that it looks semi-sane.
-    struct statvfs expect;
-    TEST_REQUIRE(::statvfs(StaticEnv::Dir.c_str(), &expect) != -1);
-    TEST_CHECK(expect.f_bavail > 0);
-    TEST_CHECK(expect.f_bfree > 0);
-    TEST_CHECK(expect.f_bsize > 0);
-    TEST_CHECK(expect.f_blocks > 0);
-    TEST_REQUIRE(expect.f_frsize > 0);
-    auto do_mult = [&](std::uintmax_t val) {
-        std::uintmax_t fsize = expect.f_frsize;
-        std::uintmax_t new_val = val * fsize;
-        TEST_CHECK(new_val / fsize == val); // Test for overflow
-        return new_val;
-    };
     const std::uintmax_t bad_value = static_cast<std::uintmax_t>(-1);
-    const std::uintmax_t expect_capacity = do_mult(expect.f_blocks);
-    const std::uintmax_t expect_free = do_mult(expect.f_bfree);
-    const std::uintmax_t expect_avail = do_mult(expect.f_bavail);
+    std::uintmax_t expect_capacity;
+    std::uintmax_t expect_free;
+    std::uintmax_t expect_avail;
+    TEST_REQUIRE(utils::space(static_env.Dir.string(), expect_capacity,
+                              expect_free, expect_avail));
 
     // Other processes running on the operating system may have changed
     // the amount of space available. Check that these are within tolerances.
     // Currently 5% of capacity
     const std::uintmax_t delta = expect_capacity / 20;
     const path cases[] = {
-        StaticEnv::File,
-        StaticEnv::Dir,
-        StaticEnv::Dir2,
-        StaticEnv::SymlinkToFile,
-        StaticEnv::SymlinkToDir
+        static_env.File,
+        static_env.Dir,
+        static_env.Dir2,
+        static_env.SymlinkToFile,
+        static_env.SymlinkToDir
     };
     for (auto& p : cases) {
         std::error_code ec = GetTestEC();

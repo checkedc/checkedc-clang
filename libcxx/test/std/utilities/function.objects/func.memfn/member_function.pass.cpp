@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -19,13 +18,13 @@
 
 struct A
 {
-    char test0() {return 'a';}
-    char test1(int) {return 'b';}
-    char test2(int, double) {return 'c';}
+    TEST_CONSTEXPR_CXX14 char test0() {return 'a';}
+    TEST_CONSTEXPR_CXX14 char test1(int) {return 'b';}
+    TEST_CONSTEXPR_CXX14 char test2(int, double) {return 'c';}
 };
 
 template <class F>
-void
+TEST_CONSTEXPR_CXX20 bool
 test0(F f)
 {
     {
@@ -36,10 +35,11 @@ test0(F f)
     const F& cf = f;
     assert(cf(ap) == 'a');
     }
+    return true;
 }
 
 template <class F>
-void
+TEST_CONSTEXPR_CXX20 bool
 test1(F f)
 {
     {
@@ -50,10 +50,11 @@ test1(F f)
     const F& cf = f;
     assert(cf(ap, 2) == 'b');
     }
+    return true;
 }
 
 template <class F>
-void
+TEST_CONSTEXPR_CXX20 bool
 test2(F f)
 {
     {
@@ -64,9 +65,10 @@ test2(F f)
     const F& cf = f;
     assert(cf(ap, 2, 3.5) == 'c');
     }
+    return true;
 }
 
-int main()
+int main(int, char**)
 {
     test0(std::mem_fn(&A::test0));
     test1(std::mem_fn(&A::test1));
@@ -74,4 +76,12 @@ int main()
 #if TEST_STD_VER >= 11
     static_assert((noexcept(std::mem_fn(&A::test0))), ""); // LWG#2489
 #endif
+
+#if TEST_STD_VER >= 20
+    static_assert(test0(std::mem_fn(&A::test0)));
+    static_assert(test1(std::mem_fn(&A::test1)));
+    static_assert(test2(std::mem_fn(&A::test2)));
+#endif
+
+    return 0;
 }

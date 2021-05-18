@@ -1,9 +1,8 @@
 //===------- X86InsertPrefetch.cpp - Insert cache prefetch hints ----------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -34,7 +33,8 @@ using namespace sampleprof;
 
 static cl::opt<std::string>
     PrefetchHintsFile("prefetch-hints-file",
-                      cl::desc("Path to the prefetch hints profile."),
+                      cl::desc("Path to the prefetch hints profile. See also "
+                               "-x86-discriminate-memops"),
                       cl::Hidden);
 namespace {
 
@@ -79,8 +79,8 @@ ErrorOr<PrefetchHints> getPrefetchHints(const FunctionSamples *TopSamples,
 // The prefetch instruction can't take memory operands involving vector
 // registers.
 bool IsMemOpCompatibleWithPrefetch(const MachineInstr &MI, int Op) {
-  unsigned BaseReg = MI.getOperand(Op + X86::AddrBaseReg).getReg();
-  unsigned IndexReg = MI.getOperand(Op + X86::AddrIndexReg).getReg();
+  Register BaseReg = MI.getOperand(Op + X86::AddrBaseReg).getReg();
+  Register IndexReg = MI.getOperand(Op + X86::AddrIndexReg).getReg();
   return (BaseReg == 0 ||
           X86MCRegisterClasses[X86::GR64RegClassID].contains(BaseReg) ||
           X86MCRegisterClasses[X86::GR32RegClassID].contains(BaseReg)) &&
@@ -108,7 +108,7 @@ bool X86InsertPrefetch::findPrefetchInfo(const FunctionSamples *TopSamples,
                                          Prefetches &Prefetches) const {
   assert(Prefetches.empty() &&
          "Expected caller passed empty PrefetchInfo vector.");
-  static const std::pair<const StringRef, unsigned> HintTypes[] = {
+  static constexpr std::pair<StringLiteral, unsigned> HintTypes[] = {
       {"_nta_", X86::PREFETCHNTA},
       {"_t0_", X86::PREFETCHT0},
       {"_t1_", X86::PREFETCHT1},
@@ -173,7 +173,7 @@ bool X86InsertPrefetch::doInitialization(Module &M) {
 
 void X86InsertPrefetch::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
-  AU.addRequired<MachineModuleInfo>();
+  MachineFunctionPass::getAnalysisUsage(AU);
 }
 
 bool X86InsertPrefetch::runOnMachineFunction(MachineFunction &MF) {
@@ -214,10 +214,10 @@ bool X86InsertPrefetch::runOnMachineFunction(MachineFunction &MF) {
             MF.CreateMachineInstr(Desc, Current->getDebugLoc(), true);
         MachineInstrBuilder MIB(MF, PFetch);
 
-        assert(X86::AddrBaseReg == 0 && X86::AddrScaleAmt == 1 &&
-               X86::AddrIndexReg == 2 && X86::AddrDisp == 3 &&
-               X86::AddrSegmentReg == 4 &&
-               "Unexpected change in X86 operand offset order.");
+        static_assert(X86::AddrBaseReg == 0 && X86::AddrScaleAmt == 1 &&
+                          X86::AddrIndexReg == 2 && X86::AddrDisp == 3 &&
+                          X86::AddrSegmentReg == 4,
+                      "Unexpected change in X86 operand offset order.");
 
         // This assumes X86::AddBaseReg = 0, {...}ScaleAmt = 1, etc.
         // FIXME(mtrofin): consider adding a:

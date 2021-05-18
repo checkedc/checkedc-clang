@@ -1,9 +1,8 @@
-//===-- ThreadGDBRemote.cpp -------------------------------------*- C++ -*-===//
+//===-- ThreadGDBRemote.cpp -----------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -21,18 +20,18 @@
 #include "lldb/Utility/DataExtractor.h"
 #include "lldb/Utility/State.h"
 #include "lldb/Utility/StreamString.h"
+#include "lldb/Utility/StringExtractorGDBRemote.h"
 
 #include "ProcessGDBRemote.h"
 #include "ProcessGDBRemoteLog.h"
-#include "lldb/Utility/StringExtractorGDBRemote.h"
+
+#include <memory>
 
 using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::process_gdb_remote;
 
-//----------------------------------------------------------------------
 // Thread Registers
-//----------------------------------------------------------------------
 
 ThreadGDBRemote::ThreadGDBRemote(Process &process, lldb::tid_t tid)
     : Thread(process, tid), m_thread_name(), m_dispatch_queue_name(),
@@ -43,6 +42,14 @@ ThreadGDBRemote::ThreadGDBRemote(Process &process, lldb::tid_t tid)
   Log *log(GetLogIfAnyCategoriesSet(GDBR_LOG_THREAD));
   LLDB_LOG(log, "this = {0}, pid = {1}, tid = {2}", this, process.GetID(),
            GetID());
+  // At this point we can clone reg_info for architectures supporting
+  // run-time update to register sizes and offsets..
+  auto &gdb_process = static_cast<ProcessGDBRemote &>(process);
+  if (!gdb_process.m_register_info_sp->IsReconfigurable())
+    m_reg_info_sp = gdb_process.m_register_info_sp;
+  else
+    m_reg_info_sp = std::make_shared<GDBRemoteDynamicRegisterInfo>(
+        *gdb_process.m_register_info_sp);
 }
 
 ThreadGDBRemote::~ThreadGDBRemote() {
@@ -216,8 +223,7 @@ StructuredData::ObjectSP ThreadGDBRemote::FetchThreadExtendedInfo() {
   StructuredData::ObjectSP object_sp;
   const lldb::user_id_t tid = GetProtocolID();
   Log *log(GetLogIfAnyCategoriesSet(GDBR_LOG_THREAD));
-  if (log)
-    log->Printf("Fetching extended information for thread %4.4" PRIx64, tid);
+  LLDB_LOGF(log, "Fetching extended information for thread %4.4" PRIx64, tid);
   ProcessSP process_sp(GetProcess());
   if (process_sp) {
     ProcessGDBRemote *gdb_process =
@@ -231,9 +237,8 @@ void ThreadGDBRemote::WillResume(StateType resume_state) {
   int signo = GetResumeSignal();
   const lldb::user_id_t tid = GetProtocolID();
   Log *log(GetLogIfAnyCategoriesSet(GDBR_LOG_THREAD));
-  if (log)
-    log->Printf("Resuming thread: %4.4" PRIx64 " with state: %s.", tid,
-                StateAsCString(resume_state));
+  LLDB_LOGF(log, "Resuming thread: %4.4" PRIx64 " with state: %s.", tid,
+            StateAsCString(resume_state));
 
   ProcessSP process_sp(GetProcess());
   if (process_sp) {
@@ -304,18 +309,17 @@ ThreadGDBRemote::CreateRegisterContextForFrame(StackFrame *frame) {
     if (process_sp) {
       ProcessGDBRemote *gdb_process =
           static_cast<ProcessGDBRemote *>(process_sp.get());
-      // read_all_registers_at_once will be true if 'p' packet is not
-      // supported.
+      bool pSupported =
+          gdb_process->GetGDBRemote().GetpPacketSupported(GetID());
       bool read_all_registers_at_once =
-          !gdb_process->GetGDBRemote().GetpPacketSupported(GetID());
-      reg_ctx_sp.reset(new GDBRemoteRegisterContext(
-          *this, concrete_frame_idx, gdb_process->m_register_info,
-          read_all_registers_at_once));
+          !pSupported || gdb_process->m_use_g_packet_for_reading;
+      bool write_all_registers_at_once = !pSupported;
+      reg_ctx_sp = std::make_shared<GDBRemoteRegisterContext>(
+          *this, concrete_frame_idx, m_reg_info_sp, read_all_registers_at_once,
+          write_all_registers_at_once);
     }
   } else {
-    Unwind *unwinder = GetUnwinder();
-    if (unwinder != nullptr)
-      reg_ctx_sp = unwinder->CreateRegisterContextForFrame(frame);
+    reg_ctx_sp = GetUnwinder().CreateRegisterContextForFrame(frame);
   }
   return reg_ctx_sp;
 }

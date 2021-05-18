@@ -1,9 +1,8 @@
 //===-- CanonicalIncludes.h - remap #include header -------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -22,6 +21,7 @@
 
 #include "clang/Lex/Preprocessor.h"
 #include "llvm/ADT/StringMap.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Regex.h"
 #include <mutex>
 #include <string>
@@ -35,37 +35,34 @@ namespace clangd {
 /// Only const methods (i.e. mapHeader) in this class are thread safe.
 class CanonicalIncludes {
 public:
-  CanonicalIncludes() = default;
-
   /// Adds a string-to-string mapping from \p Path to \p CanonicalPath.
   void addMapping(llvm::StringRef Path, llvm::StringRef CanonicalPath);
 
-  /// Maps files with last path components matching \p Suffix to \p
-  /// CanonicalPath.
-  void addPathSuffixMapping(llvm::StringRef Suffix,
-                            llvm::StringRef CanonicalPath);
-
-  /// Sets the canonical include for any symbol with \p QualifiedName.
-  /// Symbol mappings take precedence over header mappings.
-  void addSymbolMapping(llvm::StringRef QualifiedName,
-                        llvm::StringRef CanonicalPath);
-
   /// Returns the canonical include for symbol with \p QualifiedName.
-  /// \p Headers is the include stack: Headers.front() is the file declaring the
-  /// symbol, and Headers.back() is the main file.
-  llvm::StringRef mapHeader(llvm::ArrayRef<std::string> Headers,
+  /// \p Header is the file the declaration was reachable from.
+  /// Header itself will be returned if there is no relevant mapping.
+  llvm::StringRef mapHeader(llvm::StringRef Header,
                             llvm::StringRef QualifiedName) const;
+
+  /// Adds mapping for system headers and some special symbols (e.g. STL symbols
+  /// in <iosfwd> need to be mapped individually). Approximately, the following
+  /// system headers are handled:
+  ///   - C++ standard library e.g. bits/basic_string.h$ -> <string>
+  ///   - Posix library e.g. bits/pthreadtypes.h$ -> <pthread.h>
+  ///   - Compiler extensions, e.g. include/avx512bwintrin.h$ -> <immintrin.h>
+  /// The mapping is hardcoded and hand-maintained, so it might not cover all
+  /// headers.
+  void addSystemHeadersMapping(const LangOptions &Language);
 
 private:
   /// A map from full include path to a canonical path.
   llvm::StringMap<std::string> FullPathMapping;
   /// A map from a suffix (one or components of a path) to a canonical path.
-  llvm::StringMap<std::string> SuffixHeaderMapping;
-  /// Maximum number of path components stored in a key of SuffixHeaderMapping.
-  /// Used to reduce the number of lookups into SuffixHeaderMapping.
-  int MaxSuffixComponents = 0;
+  /// Used only for mapping standard headers.
+  const llvm::StringMap<llvm::StringRef> *StdSuffixHeaderMapping = nullptr;
   /// A map from fully qualified symbol names to header names.
-  llvm::StringMap<std::string> SymbolMapping;
+  /// Used only for mapping standard symbols.
+  const llvm::StringMap<llvm::StringRef> *StdSymbolMapping = nullptr;
 };
 
 /// Returns a CommentHandler that parses pragma comment on include files to
@@ -74,18 +71,23 @@ private:
 ///
 /// Currently it only supports IWYU private pragma:
 /// https://github.com/include-what-you-use/include-what-you-use/blob/master/docs/IWYUPragmas.md#iwyu-pragma-private
+///
+/// We ignore other pragmas:
+/// - keep: this is common but irrelevant: we do not currently remove includes
+/// - export: this is common and potentially interesting, there are three cases:
+///    * Points to a public header (common): we can suppress include2 if you
+///      already have include1. Only marginally useful.
+///    * Points to a private header annotated with `private` (somewhat commmon):
+///      Not incrementally useful as we support private.
+///    * Points to a private header without pragmas (rare). This is a reversed
+///      private pragma, and is valuable but too rare to be worthwhile.
+/// - no_include: this is about as common as private, but only affects the
+///   current file, so the value is smaller. We could add support.
+/// - friend: this is less common than private, has implementation difficulties,
+///   and affects behavior in a limited scope.
+/// - associated: extremely rare
 std::unique_ptr<CommentHandler>
 collectIWYUHeaderMaps(CanonicalIncludes *Includes);
-
-/// Adds mapping for system headers and some special symbols (e.g. STL symbols
-/// in <iosfwd> need to be mapped individually). Approximately, the following
-/// system headers are handled:
-///   - C++ standard library e.g. bits/basic_string.h$ -> <string>
-///   - Posix library e.g. bits/pthreadtypes.h$ -> <pthread.h>
-///   - Compiler extensions, e.g. include/avx512bwintrin.h$ -> <immintrin.h>
-/// The mapping is hardcoded and hand-maintained, so it might not cover all
-/// headers.
-void addSystemHeadersMapping(CanonicalIncludes *Includes);
 
 } // namespace clangd
 } // namespace clang

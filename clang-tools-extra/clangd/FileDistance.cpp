@@ -1,9 +1,8 @@
 //===--- FileDistance.cpp - File contents container -------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -32,7 +31,7 @@
 //===-------------------------------------------------------------------------//
 
 #include "FileDistance.h"
-#include "Logger.h"
+#include "support/Logger.h"
 #include "llvm/ADT/STLExtras.h"
 #include <queue>
 
@@ -59,8 +58,7 @@ const llvm::hash_code FileDistance::RootHash =
 FileDistance::FileDistance(llvm::StringMap<SourceParams> Sources,
                            const FileDistanceOptions &Opts)
     : Opts(Opts) {
-  llvm::DenseMap<llvm::hash_code, llvm::SmallVector<llvm::hash_code, 4>>
-      DownEdges;
+  llvm::DenseMap<llvm::hash_code, llvm::SmallVector<llvm::hash_code>> DownEdges;
   // Compute the best distance following only up edges.
   // Keep track of down edges, in case we can use them to improve on this.
   for (const auto &S : Sources) {
@@ -119,7 +117,7 @@ FileDistance::FileDistance(llvm::StringMap<SourceParams> Sources,
 unsigned FileDistance::distance(llvm::StringRef Path) {
   auto Canonical = canonicalize(Path);
   unsigned Cost = Unreachable;
-  llvm::SmallVector<llvm::hash_code, 16> Ancestors;
+  llvm::SmallVector<llvm::hash_code> Ancestors;
   // Walk up ancestors until we find a path we know the distance for.
   for (llvm::StringRef Rest = Canonical; !Rest.empty();
        Rest = parent_path(Rest, llvm::sys::path::Style::posix)) {
@@ -178,7 +176,7 @@ FileDistance &URIDistance::forScheme(llvm::StringRef Scheme) {
 }
 
 static std::pair<std::string, int> scopeToPath(llvm::StringRef Scope) {
-  llvm::SmallVector<llvm::StringRef, 4> Split;
+  llvm::SmallVector<llvm::StringRef> Split;
   Scope.split(Split, "::", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
   return {"/" + llvm::join(Split, "/"), Split.size()};
 }
@@ -209,7 +207,7 @@ createScopeFileDistance(llvm::ArrayRef<std::string> QueryScopes) {
     Param.MaxUpTraversals = std::max(Path.second - 1, 0);
     Sources[Path.first] = std::move(Param);
   }
-  return FileDistance(Sources, Opts);
+  return FileDistance(std::move(Sources), Opts);
 }
 
 ScopeDistance::ScopeDistance(llvm::ArrayRef<std::string> QueryScopes)

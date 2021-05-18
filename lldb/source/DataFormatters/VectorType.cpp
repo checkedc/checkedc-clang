@@ -1,9 +1,8 @@
-//===-- VectorType.cpp ------------------------------------------*- C++ -*-===//
+//===-- VectorType.cpp ----------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -16,6 +15,7 @@
 #include "lldb/Target/Target.h"
 
 #include "lldb/Utility/LLDBAssert.h"
+#include "lldb/Utility/Log.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -220,13 +220,8 @@ public:
     CompilerType parent_type(m_backend.GetCompilerType());
     CompilerType element_type;
     parent_type.IsVectorType(&element_type, nullptr);
-    TargetSP target_sp(m_backend.GetTargetSP());
-    m_child_type = ::GetCompilerTypeForFormat(
-        m_parent_format, element_type,
-        target_sp
-            ? target_sp->GetScratchTypeSystemForLanguage(nullptr,
-                                                         lldb::eLanguageTypeC)
-            : nullptr);
+    m_child_type = ::GetCompilerTypeForFormat(m_parent_format, element_type,
+                                              parent_type.GetTypeSystem());
     m_num_children = ::CalculateNumChildren(parent_type, m_child_type);
     m_item_format = GetItemFormatForFormat(m_parent_format, m_child_type);
     return false;
@@ -234,7 +229,7 @@ public:
 
   bool MightHaveChildren() override { return true; }
 
-  size_t GetIndexOfChildWithName(const ConstString &name) override {
+  size_t GetIndexOfChildWithName(ConstString name) override {
     const char *item_name = name.GetCString();
     uint32_t idx = ExtractIndexFromString(item_name);
     if (idx < UINT32_MAX && idx >= CalculateNumChildren())

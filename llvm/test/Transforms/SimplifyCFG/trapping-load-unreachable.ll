@@ -1,4 +1,4 @@
-; RUN: opt < %s -simplifycfg -S | FileCheck %s
+; RUN: opt < %s -simplifycfg -simplifycfg-require-and-preserve-domtree=1 -S | FileCheck %s
 ; PR2967
 
 target datalayout =
@@ -13,7 +13,7 @@ entry:
 bb:             ; preds = %entry
         %1 = load volatile i32, i32* null
         unreachable
-        
+
         br label %return
 return:         ; preds = %entry
         ret void
@@ -122,4 +122,4 @@ F:
   ret void
 }
 
-attributes #0 = { "null-pointer-is-valid"="true" }
+attributes #0 = { null_pointer_is_valid }

@@ -1,9 +1,8 @@
 //===- LanaiSubtarget.cpp - Lanai Subtarget Information -----------*- C++ -*-=//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -24,11 +23,11 @@
 using namespace llvm;
 
 void LanaiSubtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
-  std::string CPUName = CPU;
+  std::string CPUName = std::string(CPU);
   if (CPUName.empty())
     CPUName = "generic";
 
-  ParseSubtargetFeatures(CPUName, FS);
+  ParseSubtargetFeatures(CPUName, /*TuneCPU*/ CPUName, FS);
 }
 
 LanaiSubtarget &LanaiSubtarget::initializeSubtargetDependencies(StringRef CPU,
@@ -42,6 +41,6 @@ LanaiSubtarget::LanaiSubtarget(const Triple &TargetTriple, StringRef Cpu,
                                const TargetOptions & /*Options*/,
                                CodeModel::Model /*CodeModel*/,
                                CodeGenOpt::Level /*OptLevel*/)
-    : LanaiGenSubtargetInfo(TargetTriple, Cpu, FeatureString),
+    : LanaiGenSubtargetInfo(TargetTriple, Cpu, /*TuneCPU*/ Cpu, FeatureString),
       FrameLowering(initializeSubtargetDependencies(Cpu, FeatureString)),
       InstrInfo(), TLInfo(TM, *this), TSInfo() {}

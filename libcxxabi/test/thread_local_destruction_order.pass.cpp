@@ -1,21 +1,31 @@
 //===-------------- thread_local_destruction_order.pass.cpp ---------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// Darwin TLV finalization routines fail when creating a thread-local variable
-// in the destructor for another thread-local variable:
-// http://lists.llvm.org/pipermail/cfe-dev/2016-November/051376.html
-// XFAIL: darwin
-// UNSUPPORTED: c++98, c++03
+// Darwin TLV finalization routines used to fail when creating a thread-local
+// variable in the destructor for another thread-local variable:
+//  - http://lists.llvm.org/pipermail/cfe-dev/2016-November/051376.html
+//  - rdar://29523281
+// This was fixed in dyld in macos 10.15.
+//
+// XFAIL: macosx10.14
+// XFAIL: macosx10.13
+// XFAIL: macosx10.12
+// XFAIL: macosx10.11
+// XFAIL: macosx10.10
+// XFAIL: macosx10.9
+
+// UNSUPPORTED: c++03
 // UNSUPPORTED: libcxxabi-no-threads
 
 #include <cassert>
 #include <thread>
+
+#include "make_test_thread.h"
 
 int seq = 0;
 
@@ -48,10 +58,10 @@ void thread_fn() {
   thread_local CreatesThreadLocalInDestructor<0> creates_tl0;
 }
 
-int main() {
+int main(int, char**) {
   static OrderChecker fn_static{6};
 
-  std::thread{thread_fn}.join();
+  support::make_test_thread(thread_fn).join();
   assert(seq == 3);
 
   thread_local OrderChecker fn_thread_local{4};

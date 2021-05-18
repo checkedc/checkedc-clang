@@ -1,12 +1,10 @@
 //===-- MachTask.h ----------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//----------------------------------------------------------------------
 //
 //  MachTask.h
 //  debugserver
@@ -15,8 +13,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __MachTask_h__
-#define __MachTask_h__
+#ifndef LLDB_TOOLS_DEBUGSERVER_SOURCE_MACOSX_MACHTASK_H
+#define LLDB_TOOLS_DEBUGSERVER_SOURCE_MACOSX_MACHTASK_H
 
 #include <mach/mach.h>
 #include <sys/socket.h>
@@ -46,9 +44,7 @@ struct MachMallocEvent {
 
 class MachTask {
 public:
-  //------------------------------------------------------------------
   // Constructors and Destructors
-  //------------------------------------------------------------------
   MachTask(MachProcess *process);
   virtual ~MachTask();
 
@@ -71,7 +67,7 @@ public:
   kern_return_t RestoreExceptionPortInfo();
   kern_return_t ShutDownExcecptionThread();
 
-  bool StartExceptionThread(DNBError &err);
+  bool StartExceptionThread(bool unmask_signals, DNBError &err);
   nub_addr_t GetDYLDAllImageInfosAddress(DNBError &err);
   kern_return_t BasicInfo(struct task_basic_info *info);
   static kern_return_t BasicInfo(task_t task, struct task_basic_info *info);
@@ -89,6 +85,7 @@ public:
   const MachProcess *Process() const { return m_process; }
 
   nub_size_t PageSize();
+  void TaskWillExecProcessesSuspended() { m_exec_will_be_suspended = true; }
 
 protected:
   MachProcess *m_process; // The mach process that owns this MachTask
@@ -101,13 +98,19 @@ protected:
                                 // need it
   mach_port_t m_exception_port; // Exception port on which we will receive child
                                 // exceptions
+  bool m_exec_will_be_suspended; // If this task exec's another process, that
+                                // process will be launched suspended and we will
+                                // need to execute one extra Resume to get it
+                                // to progress from dyld_start.
+  bool m_do_double_resume;      // next time we task_resume(), do it twice to
+                                // fix a too-high suspend count.
 
   typedef std::map<mach_vm_address_t, size_t> allocation_collection;
   allocation_collection m_allocations;
 
 private:
-  MachTask(const MachTask &);               // Outlaw
-  MachTask &operator=(const MachTask &rhs); // Outlaw
+  MachTask(const MachTask &) = delete;
+  MachTask &operator=(const MachTask &rhs) = delete;
 };
 
-#endif // __MachTask_h__
+#endif // LLDB_TOOLS_DEBUGSERVER_SOURCE_MACOSX_MACHTASK_H

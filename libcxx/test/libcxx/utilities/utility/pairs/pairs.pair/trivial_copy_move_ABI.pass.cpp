@@ -1,14 +1,10 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
-// The test fails due to the missing is_trivially_constructible intrinsic.
-// XFAIL: gcc-4.9
 
 // <utility>
 
@@ -25,6 +21,7 @@
 #include <utility>
 #include <type_traits>
 #include <cstdlib>
+#include <cstddef>
 #include <cassert>
 
 #include "test_macros.h"
@@ -81,7 +78,7 @@ static_assert(HasTrivialABI<Trivial>::value, "");
 #endif
 
 
-int main()
+void test_trivial()
 {
     {
         typedef std::pair<int, short> P;
@@ -144,4 +141,17 @@ int main()
         static_assert(HasTrivialABI<P>::value, "");
     }
 #endif
+}
+
+void test_layout() {
+    typedef std::pair<std::pair<char, char>, char> PairT;
+    static_assert(sizeof(PairT) == 3, "");
+    static_assert(TEST_ALIGNOF(PairT) == TEST_ALIGNOF(char), "");
+    static_assert(offsetof(PairT, first) == 0, "");
+}
+
+int main(int, char**) {
+    test_trivial();
+    test_layout();
+    return 0;
 }

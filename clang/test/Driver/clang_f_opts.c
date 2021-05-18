@@ -12,7 +12,7 @@
 // CHECK-OPTIONS2: -fno-gnu-keywords
 // CHECK-OPTIONS2: -fno-builtin
 // CHECK-OPTIONS2: -fshort-enums
-// CHECK-OPTIONS2: -fno-common
+// CHECK-OPTIONS2-NOT: -fcommon
 // CHECK-OPTIONS2: -fno-show-source-location
 
 // RUN: %clang -### -S -Wwrite-strings %s 2>&1 | FileCheck -check-prefix=WRITE-STRINGS1 %s
@@ -68,27 +68,6 @@
 // RUN: %clang -### -S -fauto-profile=%S/Inputs/file.prof -fno-profile-sample-use -fauto-profile %s 2>&1 | FileCheck -check-prefix=CHECK-AUTO-PROFILE %s
 // RUN: %clang -### -S -fauto-profile=%S/Inputs/file.prof -fno-auto-profile -fprofile-sample-use %s 2>&1 | FileCheck -check-prefix=CHECK-AUTO-PROFILE %s
 
-// RUN: %clang -### -S -fprofile-arcs %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-ARCS %s
-// RUN: %clang -### -S -fno-profile-arcs -fprofile-arcs %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-ARCS %s
-// RUN: %clang -### -S -fno-profile-arcs %s 2>&1 | FileCheck -check-prefix=CHECK-NO-PROFILE-ARCS %s
-// RUN: %clang -### -S -fprofile-arcs -fno-profile-arcs %s 2>&1 | FileCheck -check-prefix=CHECK-NO-PROFILE-ARCS %s
-// CHECK-PROFILE-ARCS: "-femit-coverage-data"
-// CHECK-NO-PROFILE-ARCS-NOT: "-femit-coverage-data"
-
-// RUN: %clang -### -S -fprofile-dir=abc %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-DIR-UNUSED %s
-// RUN: %clang -### -S -ftest-coverage -fprofile-dir=abc %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-DIR-UNUSED %s
-// RUN: %clang -### -S -fprofile-arcs -fprofile-dir=abc %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-DIR %s
-// RUN: %clang -### -S --coverage -fprofile-dir=abc %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-DIR %s
-// RUN: %clang -### -S -fprofile-arcs -fno-profile-arcs -fprofile-dir=abc %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-DIR-NEITHER %s
-// CHECK-PROFILE-DIR: "-coverage-data-file" "abc
-// CHECK-PROFILE-DIR-UNUSED: argument unused
-// CHECK-PROFILE-DIR-UNUSED-NOT: "-coverage-data-file" "abc
-// CHECK-PROFILE-DIR-NEITHER-NOT: argument unused
-
-// RUN: %clang -### -fprofile-arcs -ftest-coverage %s 2>&1 | FileCheck -check-prefix=CHECK-u %s
-// RUN: %clang -### --coverage %s 2>&1 | FileCheck -check-prefix=CHECK-u %s
-// CHECK-u-NOT: "-u{{.*}}"
-
 // RUN: %clang -### -S -fprofile-generate %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-GENERATE-LLVM %s
 // RUN: %clang -### -S -fprofile-instr-generate %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-GENERATE %s
 // RUN: %clang -### -S -fprofile-generate=/some/dir %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-GENERATE-DIR %s
@@ -121,6 +100,8 @@
 // RUN: %clang -### -S -fcoverage-mapping -fno-coverage-mapping %s 2>&1 | FileCheck -check-prefix=CHECK-DISABLE-COVERAGE %s
 // RUN: %clang -### -S -fprofile-instr-generate -fcoverage-mapping -fno-coverage-mapping %s 2>&1 | FileCheck -check-prefix=CHECK-DISABLE-COVERAGE %s
 // RUN: %clang -### -S -fprofile-remapping-file foo/bar.txt %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-REMAP %s
+// RUN: %clang -### -S -forder-file-instrumentation %s 2>&1 | FileCheck -check-prefix=CHECK-ORDERFILE-INSTR %s
+// RUN: %clang -### -flto -forder-file-instrumentation %s 2>&1 | FileCheck -check-prefix=CHECK-ORDERFILE-INSTR-LTO %s
 // CHECK-PROFILE-GENERATE: "-fprofile-instrument=clang"
 // CHECK-PROFILE-GENERATE-LLVM: "-fprofile-instrument=llvm"
 // CHECK-PROFILE-GENERATE-DIR: "-fprofile-instrument-path=/some/dir{{/|\\\\}}{{.*}}"
@@ -132,6 +113,10 @@
 // CHECK-COVERAGE-AND-GEN: '-fcoverage-mapping' only allowed with '-fprofile-instr-generate'
 // CHECK-DISABLE-COVERAGE-NOT: "-fcoverage-mapping"
 // CHECK-PROFILE-REMAP: "-fprofile-remapping-file=foo/bar.txt"
+// CHECK-ORDERFILE-INSTR: "-forder-file-instrumentation"
+// CHECK-ORDERFILE-INSTR: "-enable-order-file-instrumentation"
+// CHECK-ORDERFILE-INSTR-LTO: "-forder-file-instrumentation"
+// CHECK-ORDERFILE-INSTR-LTO-NOT: "-enable-order-file-instrumentation"
 
 // RUN: %clang -### -S -fprofile-use %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-USE %s
 // RUN: %clang -### -S -fprofile-instr-use %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-USE %s
@@ -150,7 +135,7 @@
 // RUN: %clang -### -S -fno-tree-vectorize -fvectorize %s 2>&1 | FileCheck -check-prefix=CHECK-VECTORIZE %s
 // RUN: %clang -### -S -fno-tree-vectorize %s 2>&1 | FileCheck -check-prefix=CHECK-NO-VECTORIZE %s
 // RUN: %clang -### -S -ftree-vectorize -fno-vectorize %s 2>&1 | FileCheck -check-prefix=CHECK-NO-VECTORIZE %s
-// RUN: %clang -### -S -O %s 2>&1 | FileCheck -check-prefix=CHECK-VECTORIZE %s
+// RUN: %clang -### -S -O %s 2>&1 | FileCheck -check-prefix=CHECK-NO-VECTORIZE %s
 // RUN: %clang -### -S -O2 %s 2>&1 | FileCheck -check-prefix=CHECK-VECTORIZE %s
 // RUN: %clang -### -S -Os %s 2>&1 | FileCheck -check-prefix=CHECK-VECTORIZE %s
 // RUN: %clang -### -S -O3 %s 2>&1 | FileCheck -check-prefix=CHECK-VECTORIZE %s
@@ -172,7 +157,7 @@
 // RUN: %clang -### -S -fno-tree-slp-vectorize -fslp-vectorize %s 2>&1 | FileCheck -check-prefix=CHECK-SLP-VECTORIZE %s
 // RUN: %clang -### -S -fno-tree-slp-vectorize %s 2>&1 | FileCheck -check-prefix=CHECK-NO-SLP-VECTORIZE %s
 // RUN: %clang -### -S -ftree-slp-vectorize -fno-slp-vectorize %s 2>&1 | FileCheck -check-prefix=CHECK-NO-SLP-VECTORIZE %s
-// RUN: %clang -### -S -O %s 2>&1 | FileCheck -check-prefix=CHECK-SLP-VECTORIZE %s
+// RUN: %clang -### -S -O %s 2>&1 | FileCheck -check-prefix=CHECK-NO-SLP-VECTORIZE %s
 // RUN: %clang -### -S -O2 %s 2>&1 | FileCheck -check-prefix=CHECK-SLP-VECTORIZE %s
 // RUN: %clang -### -S -Os %s 2>&1 | FileCheck -check-prefix=CHECK-SLP-VECTORIZE %s
 // RUN: %clang -### -S -Oz %s 2>&1 | FileCheck -check-prefix=CHECK-SLP-VECTORIZE %s
@@ -191,6 +176,22 @@
 // CHECK-EXTENDED-IDENTIFIERS: "-cc1"
 // CHECK-EXTENDED-IDENTIFIERS-NOT: "-fextended-identifiers"
 // CHECK-NO-EXTENDED-IDENTIFIERS: error: unsupported option '-fno-extended-identifiers'
+
+// RUN: %clang -### -S -frounding-math %s 2>&1 | FileCheck -check-prefix=CHECK-ROUNDING-MATH %s
+// CHECK-ROUNDING-MATH: "-cc1"
+// CHECK-ROUNDING-MATH: "-frounding-math"
+// CHECK-ROUNDING-MATH-NOT: "-fno-rounding-math"
+// RUN: %clang -### -S %s 2>&1 | FileCheck -check-prefix=CHECK-ROUNDING-MATH-NOT %s
+// RUN: %clang -### -S -ffp-model=imprecise %s 2>&1 | FileCheck -check-prefix=CHECK-FPMODEL %s
+// CHECK-FPMODEL: unsupported argument 'imprecise' to option 'ffp-model='
+// RUN: %clang -### -S -ffp-model=precise %s 2>&1 | FileCheck -check-prefix=IGNORE %s
+// RUN: %clang -### -S -ffp-model=strict %s 2>&1 | FileCheck -check-prefix=IGNORE %s
+// RUN: %clang -### -S -ffp-model=fast %s 2>&1 | FileCheck -check-prefix=IGNORE %s
+// RUN: %clang -### -S -ffp-exception-behavior=trap %s 2>&1 | FileCheck -check-prefix=CHECK-FPEB %s
+// CHECK-FPEB: unsupported argument 'trap' to option 'ffp-exception-behavior='
+// RUN: %clang -### -S -ffp-exception-behavior=maytrap %s 2>&1 | FileCheck -check-prefix=IGNORE %s
+// RUN: %clang -### -S -ffp-exception-behavior=ignore %s 2>&1 | FileCheck -check-prefix=IGNORE %s
+// RUN: %clang -### -S -ffp-exception-behavior=strict %s 2>&1 | FileCheck -check-prefix=IGNORE %s
 
 // RUN: %clang -### -S -fno-pascal-strings -mpascal-strings %s 2>&1 | FileCheck -check-prefix=CHECK-M-PASCAL-STRINGS %s
 // CHECK-M-PASCAL-STRINGS: "-fpascal-strings"
@@ -266,9 +267,6 @@
 // RUN:     -frename-registers                                                \
 // RUN:     -fschedule-insns2                                                 \
 // RUN:     -fsingle-precision-constant                                       \
-// RUN:     -ftree_loop_im                                                    \
-// RUN:     -ftree_loop_ivcanon                                               \
-// RUN:     -ftree_loop_linear                                                \
 // RUN:     -funsafe-loop-optimizations                                       \
 // RUN:     -fuse-linker-plugin                                               \
 // RUN:     -fvect-cost-model                                                 \
@@ -282,7 +280,6 @@
 // RUN:     -fno-inline-small-functions -finline-small-functions              \
 // RUN:     -fno-fat-lto-objects -ffat-lto-objects                            \
 // RUN:     -fno-merge-constants -fmerge-constants                            \
-// RUN:     -fno-merge-all-constants -fmerge-all-constants                    \
 // RUN:     -fno-caller-saves -fcaller-saves                                  \
 // RUN:     -fno-reorder-blocks -freorder-blocks                              \
 // RUN:     -fno-schedule-insns2 -fschedule-insns2                            \
@@ -314,7 +311,6 @@
 // RUN: -fprefetch-loop-arrays                                                \
 // RUN: -fprofile-correction                                                  \
 // RUN: -fprofile-values                                                      \
-// RUN: -frounding-math                                                       \
 // RUN: -fschedule-insns                                                      \
 // RUN: -fsignaling-nans                                                      \
 // RUN: -fstrength-reduce                                                     \
@@ -343,9 +339,6 @@
 // RUN: -frename-registers                                                    \
 // RUN: -fschedule-insns2                                                     \
 // RUN: -fsingle-precision-constant                                           \
-// RUN: -ftree_loop_im                                                        \
-// RUN: -ftree_loop_ivcanon                                                   \
-// RUN: -ftree_loop_linear                                                    \
 // RUN: -funsafe-loop-optimizations                                           \
 // RUN: -fuse-linker-plugin                                                   \
 // RUN: -fvect-cost-model                                                     \
@@ -379,7 +372,6 @@
 // CHECK-WARNING-DAG: optimization flag '-fprefetch-loop-arrays' is not supported
 // CHECK-WARNING-DAG: optimization flag '-fprofile-correction' is not supported
 // CHECK-WARNING-DAG: optimization flag '-fprofile-values' is not supported
-// CHECK-WARNING-DAG: optimization flag '-frounding-math' is not supported
 // CHECK-WARNING-DAG: optimization flag '-fschedule-insns' is not supported
 // CHECK-WARNING-DAG: optimization flag '-fsignaling-nans' is not supported
 // CHECK-WARNING-DAG: optimization flag '-fstrength-reduce' is not supported
@@ -408,9 +400,6 @@
 // CHECK-WARNING-DAG: optimization flag '-frename-registers' is not supported
 // CHECK-WARNING-DAG: optimization flag '-fschedule-insns2' is not supported
 // CHECK-WARNING-DAG: optimization flag '-fsingle-precision-constant' is not supported
-// CHECK-WARNING-DAG: optimization flag '-ftree_loop_im' is not supported
-// CHECK-WARNING-DAG: optimization flag '-ftree_loop_ivcanon' is not supported
-// CHECK-WARNING-DAG: optimization flag '-ftree_loop_linear' is not supported
 // CHECK-WARNING-DAG: optimization flag '-funsafe-loop-optimizations' is not supported
 // CHECK-WARNING-DAG: optimization flag '-fuse-linker-plugin' is not supported
 // CHECK-WARNING-DAG: optimization flag '-fvect-cost-model' is not supported
@@ -470,20 +459,12 @@
 // RUN: %clang -target x86_64-unknown-none-none -### -fno-short-wchar -fshort-wchar %s 2>&1 | FileCheck -check-prefix=CHECK-WCHAR2 -check-prefix=DELIMITERS %s
 // Make sure we don't match the -NOT lines with the linker invocation.
 // Delimiters match the start of the cc1 and the start of the linker lines
-// DELIMITERS: {{^ *"}}
+// DELIMITERS: {{^ (\(in-process\)|")}}
 // CHECK-WCHAR1: -fwchar-type=int
 // CHECK-WCHAR1-NOT: -fwchar-type=short
 // CHECK-WCHAR2: -fwchar-type=short
 // CHECK-WCHAR2-NOT: -fwchar-type=int
 // DELIMITERS: {{^ *"}}
-
-// RUN: %clang -### -fno-experimental-new-pass-manager -fexperimental-new-pass-manager %s 2>&1 | FileCheck --check-prefix=CHECK-PM --check-prefix=CHECK-NEW-PM %s
-// RUN: %clang -### -fexperimental-new-pass-manager -fno-experimental-new-pass-manager %s 2>&1 | FileCheck --check-prefix=CHECK-PM --check-prefix=CHECK-NO-NEW-PM %s
-// CHECK-PM-NOT: argument unused
-// CHECK-NEW-PM: -fexperimental-new-pass-manager
-// CHECK-NEW-PM-NOT: -fno-experimental-new-pass-manager
-// CHECK-NO-NEW-PM: -fno-experimental-new-pass-manager
-// CHECK-NO-NEW-PM-NOT: -fexperimental-new-pass-manager
 
 // RUN: %clang -### -S -fstrict-return %s 2>&1 | FileCheck -check-prefix=CHECK-STRICT-RETURN %s
 // RUN: %clang -### -S -fno-strict-return %s 2>&1 | FileCheck -check-prefix=CHECK-NO-STRICT-RETURN %s
@@ -519,17 +500,16 @@
 // CHECK-CF-PROTECTION-BRANCH: -fcf-protection=branch
 // CHECK-NO-CF-PROTECTION-BRANCH-NOT: -fcf-protection=branch
 
+// RUN: %clang -### -S -fdebug-compilation-dir . %s 2>&1 | FileCheck -check-prefix=CHECK-DEBUG-COMPILATION-DIR %s
+// RUN: %clang -### -S -fdebug-compilation-dir=. %s 2>&1 | FileCheck -check-prefix=CHECK-DEBUG-COMPILATION-DIR %s
+// RUN: %clang -### -fdebug-compilation-dir . -x assembler %s 2>&1 | FileCheck -check-prefix=CHECK-DEBUG-COMPILATION-DIR %s
+// RUN: %clang -### -fdebug-compilation-dir=. -x assembler %s 2>&1 | FileCheck -check-prefix=CHECK-DEBUG-COMPILATION-DIR %s
+// CHECK-DEBUG-COMPILATION-DIR: "-fdebug-compilation-dir" "."
+
 // RUN: %clang -### -S -fdiscard-value-names %s 2>&1 | FileCheck -check-prefix=CHECK-DISCARD-NAMES %s
 // RUN: %clang -### -S -fno-discard-value-names %s 2>&1 | FileCheck -check-prefix=CHECK-NO-DISCARD-NAMES %s
 // CHECK-DISCARD-NAMES: "-discard-value-names"
 // CHECK-NO-DISCARD-NAMES-NOT: "-discard-value-names"
-//
-// RUN: %clang -### -S -fmerge-all-constants %s 2>&1 | FileCheck -check-prefix=CHECK-MERGE-ALL-CONSTANTS %s
-// RUN: %clang -### -S -fno-merge-all-constants %s 2>&1 | FileCheck -check-prefix=CHECK-NO-MERGE-ALL-CONSTANTS %s
-// RUN: %clang -### -S -fmerge-all-constants -fno-merge-all-constants %s 2>&1 | FileCheck -check-prefix=CHECK-NO-MERGE-ALL-CONSTANTS %s
-// RUN: %clang -### -S -fno-merge-all-constants -fmerge-all-constants %s 2>&1 | FileCheck -check-prefix=CHECK-MERGE-ALL-CONSTANTS %s
-// CHECK-NO-MERGE-ALL-CONSTANTS-NOT: "-fmerge-all-constants"
-// CHECK-MERGE-ALL-CONSTANTS: "-fmerge-all-constants"
 
 // RUN: %clang -### -S -fdelete-null-pointer-checks %s 2>&1 | FileCheck -check-prefix=CHECK-NULL-POINTER-CHECKS %s
 // RUN: %clang -### -S -fno-delete-null-pointer-checks %s 2>&1 | FileCheck -check-prefix=CHECK-NO-NULL-POINTER-CHECKS %s
@@ -537,11 +517,6 @@
 // RUN: %clang -### -S -fno-delete-null-pointer-checks -fdelete-null-pointer-checks %s 2>&1 | FileCheck -check-prefix=CHECK-NULL-POINTER-CHECKS %s
 // CHECK-NO-NULL-POINTER-CHECKS: "-fno-delete-null-pointer-checks"
 // CHECK-NULL-POINTER-CHECKS-NOT: "-fno-delete-null-pointer-checks"
-
-// RUN: %clang -### -S -fomit-frame-pointer -pg %s 2>&1 | FileCheck -check-prefix=CHECK-NO-MIX-OMIT-FP-PG %s
-// RUN: %clang -### -S -fomit-frame-pointer -fno-omit-frame-pointer -pg %s 2>&1 | FileCheck -check-prefix=CHECK-MIX-NO-OMIT-FP-PG %s
-// CHECK-NO-MIX-OMIT-FP-PG: '-fomit-frame-pointer' not allowed with '-pg'
-// CHECK-MIX-NO-OMIT-FP-PG-NOT: '-fomit-frame-pointer' not allowed with '-pg'
 
 // RUN: %clang -### -S -target x86_64-unknown-linux -frecord-gcc-switches %s 2>&1 | FileCheck -check-prefix=CHECK-RECORD-GCC-SWITCHES %s
 // RUN: %clang -### -S -target x86_64-unknown-linux -fno-record-gcc-switches %s 2>&1 | FileCheck -check-prefix=CHECK-NO-RECORD-GCC-SWITCHES %s
@@ -557,6 +532,17 @@
 // CHECK-RECORD-GCC-SWITCHES: "-record-command-line"
 // CHECK-NO-RECORD-GCC-SWITCHES-NOT: "-record-command-line"
 // CHECK-RECORD-GCC-SWITCHES-ERROR: error: unsupported option '-frecord-command-line' for target
+// Test when clang is in a path containing a space.
+// The initial `rm` is a workaround for https://openradar.appspot.com/FB8914243
+// (Scenario: Run tests once, `clang` gets copied and run at new location and signature
+// is cached at the new clang's inode, then clang is changed, tests run again, old signature
+// is still cached with old clang's inode, so it won't execute this time. Removing the dir
+// first guarantees a new inode without old cache entries.)
+// RUN: rm -rf "%t.r/with spaces"
+// RUN: mkdir -p "%t.r/with spaces"
+// RUN: cp %clang "%t.r/with spaces/clang"
+// RUN: "%t.r/with spaces/clang" -### -S -target x86_64-unknown-linux -frecord-gcc-switches %s 2>&1 | FileCheck -check-prefix=CHECK-RECORD-GCC-SWITCHES-ESCAPED %s
+// CHECK-RECORD-GCC-SWITCHES-ESCAPED: "-record-command-line" "{{.+}}with\\ spaces{{.+}}"
 
 // RUN: %clang -### -S -ftrivial-auto-var-init=uninitialized %s 2>&1 | FileCheck -check-prefix=CHECK-TRIVIAL-UNINIT %s
 // RUN: %clang -### -S -ftrivial-auto-var-init=pattern %s 2>&1 | FileCheck -check-prefix=CHECK-TRIVIAL-PATTERN %s
@@ -566,3 +552,19 @@
 // CHECK-TRIVIAL-PATTERN-NOT: hasn't been enabled
 // CHECK-TRIVIAL-ZERO-GOOD-NOT: hasn't been enabled
 // CHECK-TRIVIAL-ZERO-BAD: hasn't been enabled
+
+// RUN: %clang -### -S -ftrivial-auto-var-init=pattern -ftrivial-auto-var-init-stop-after=1 %s 2>&1 | FileCheck -check-prefix=CHECK-TRIVIAL-PATTERN-STOP-AFTER %s
+// RUN: %clang -### -S -ftrivial-auto-var-init=zero -enable-trivial-auto-var-init-zero-knowing-it-will-be-removed-from-clang -ftrivial-auto-var-init-stop-after=1 %s 2>&1 | FileCheck -check-prefix=CHECK-TRIVIAL-ZERO-STOP-AFTER %s
+// RUN: %clang -### -S -ftrivial-auto-var-init-stop-after=0 %s 2>&1 | FileCheck -check-prefix=CHECK-TRIVIAL-STOP-AFTER-MISSING-DEPENDENCY %s
+// RUN: %clang -### -S -ftrivial-auto-var-init=pattern -ftrivial-auto-var-init-stop-after=0 %s 2>&1 | FileCheck -check-prefix=CHECK-TRIVIAL-PATTERN-STOP-AFTER-INVALID-VALUE %s
+// RUN: %clang -### -S -ftrivial-auto-var-init=zero -enable-trivial-auto-var-init-zero-knowing-it-will-be-removed-from-clang -ftrivial-auto-var-init-stop-after=0 %s 2>&1 | FileCheck -check-prefix=CHECK-TRIVIAL-ZERO-STOP-AFTER-INVALID-VALUE %s
+// CHECK-TRIVIAL-PATTERN-STOP-AFTER-NOT: is used without -ftrivial-auto-var-init
+// CHECK-TRIVIAL-PATTERN-STOP-AFTER-NOT: only accepts positive integers
+// CHECK-TRIVIAL-ZERO-STOP-AFTER-NOT: is used without -ftrivial-auto-var-init
+// CHECK-TRIVIAL-ZERO-STOP-AFTER-NOT: only accepts positive integers
+// CHECK-TRIVIAL-STOP-AFTER-MISSING-DEPENDENCY: used without -ftrivial-auto-var-init
+// CHECK-TRIVIAL-PATTERN-STOP-AFTER-INVALID-VALUE: only accepts positive integers
+// CHECK-TRIVIAL-ZERO-STOP-AFTER-INVALID-VALUE: only accepts positive integers
+
+// RUN: %clang -### -S -fno-temp-file %s 2>&1 | FileCheck -check-prefix=CHECK-NO-TEMP-FILE %s
+// CHECK-NO-TEMP-FILE: "-fno-temp-file"

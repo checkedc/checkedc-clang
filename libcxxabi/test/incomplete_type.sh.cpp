@@ -1,12 +1,11 @@
 //===------------------------- incomplete_type.cpp --------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// http://mentorembedded.github.io/cxx-abi/abi.html#rtti-layout
+// https://itanium-cxx-abi.github.io/cxx-abi/abi.html#rtti-layout
 
 // Two abi::__pbase_type_info objects can always be compared for equality
 // (i.e. of the types represented) or ordering by comparison of their name
@@ -14,16 +13,17 @@
 // incomplete flags set, equality can be tested by comparing the type_info
 // addresses.
 
-// UNSUPPORTED: libcxxabi-no-exceptions
+// UNSUPPORTED: no-exceptions
+// UNSUPPORTED: no-rtti
 
-// NOTE: Pass -lc++abi explicitly and before -lc++ so that -lc++ doesn't drag
+// NOTE: Link libc++abi explicitly and before libc++ so that libc++ doesn't drag
 // in the system libc++abi installation on OS X. (DYLD_LIBRARY_PATH is ignored
 // for shell tests because of Apple security features).
 
-// RUN: %cxx %flags %compile_flags -c %s -o %t.one.o
-// RUN: %cxx %flags %compile_flags -c %s -o %t.two.o -DTU_ONE
-// RUN: %cxx %flags %t.one.o %t.two.o -lc++abi %link_flags -o %t.exe
-// RUN: %t.exe
+// RUN: %{cxx} %{flags} %{compile_flags} -Wno-unreachable-code -c %s -o %t.one.o
+// RUN: %{cxx} %{flags} %{compile_flags} -Wno-unreachable-code -c %s -o %t.two.o -DTU_ONE
+// RUN: %{cxx} %{flags} %t.one.o %t.two.o %{link_libcxxabi} %{link_flags} -o %t.exe
+// RUN: %{exec} %t.exe
 
 #include <stdio.h>
 #include <cstring>
@@ -83,7 +83,7 @@ void ThrowNullptr() { throw nullptr; }
 
 struct IncompleteAtThrow {};
 
-int main() {
+int main(int, char**) {
   AssertIncompleteTypeInfoEquals(ReturnTypeInfoNeverDefinedMP(), typeid(int NeverDefined::*));
   try {
     ThrowNeverDefinedMP();
@@ -205,7 +205,8 @@ int main() {
     assert(!p);
   }
   catch(...) { assert(!"FAIL: Didn't catch nullptr as NeverDefined::*" ); }
-
 #endif
+
+  return 0;
 }
 #endif

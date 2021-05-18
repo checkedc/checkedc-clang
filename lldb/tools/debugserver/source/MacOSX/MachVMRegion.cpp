@@ -1,9 +1,8 @@
 //===-- MachVMRegion.cpp ----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -123,7 +122,7 @@ bool MachVMRegion::GetRegionForAddress(nub_addr_t addr) {
   m_start = addr;
   m_depth = 1024;
   mach_msg_type_number_t info_size = kRegionInfoSize;
-  assert(sizeof(info_size) == 4);
+  static_assert(sizeof(info_size) == 4, "");
   m_err =
       ::mach_vm_region_recurse(m_task, &m_start, &m_size, &m_depth,
                                (vm_region_recurse_info_t)&m_data, &info_size);

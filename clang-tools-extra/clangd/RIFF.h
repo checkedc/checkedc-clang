@@ -1,9 +1,8 @@
 //===--- RIFF.h - Binary container file format -------------------*- C++-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -44,6 +43,9 @@ using FourCC = std::array<char, 4>;
 // Get a FourCC from a string literal, e.g. fourCC("RIFF").
 inline constexpr FourCC fourCC(const char (&Literal)[5]) {
   return FourCC{{Literal[0], Literal[1], Literal[2], Literal[3]}};
+}
+inline constexpr llvm::StringRef fourCCStr(const FourCC &Data) {
+  return llvm::StringRef(&Data[0], Data.size());
 }
 // A chunk is a section in a RIFF container.
 struct Chunk {

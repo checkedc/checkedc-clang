@@ -1,14 +1,16 @@
 // RUN: %clang_cc1 -triple i686-pc-linux-gnu -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -triple riscv32 -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -triple riscv64 -emit-llvm -o - %s | FileCheck %s
 
 // CHECK: @b = external thread_local global
 // CHECK: @d.e = internal thread_local global
 // CHECK: @d.f = internal thread_local global
 // CHECK: @f.a = internal thread_local(initialexec) global
-// CHECK: @a = thread_local global
-// CHECK: @g = thread_local global
-// CHECK: @h = thread_local(localdynamic) global
-// CHECK: @i = thread_local(initialexec) global
-// CHECK: @j = thread_local(localexec) global
+// CHECK: @a ={{.*}} thread_local global
+// CHECK: @g ={{.*}} thread_local global
+// CHECK: @h ={{.*}} thread_local(localdynamic) global
+// CHECK: @i ={{.*}} thread_local(initialexec) global
+// CHECK: @j ={{.*}} thread_local(localexec) global
 
 // CHECK-NOT: @_ZTW
 // CHECK-NOT: @_ZTH

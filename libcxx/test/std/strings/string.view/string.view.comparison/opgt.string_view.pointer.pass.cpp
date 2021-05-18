@@ -1,24 +1,23 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 // <string>
 
 // constexpr template<class charT, class traits, class Allocator>
-//   bool operator>(const charT* lhs, basic_string_wiew<charT,traits> rhs);
+//   bool operator>(const charT* lhs, basic_string_view<charT,traits> rhs);
 // constexpr template<class charT, class traits, class Allocator>
-//   bool operator>(basic_string_wiew<charT,traits> lhs, const charT* rhs);
+//   bool operator>(basic_string_view<charT,traits> lhs, const charT* rhs);
 
 #include <string_view>
 #include <cassert>
 
 #include "test_macros.h"
-#include "constexpr_char_traits.hpp"
+#include "constexpr_char_traits.h"
 
 template <class S>
 void
@@ -28,7 +27,7 @@ test(const typename S::value_type* lhs, const S& rhs, bool x, bool y)
     assert((rhs > lhs) == y);
 }
 
-int main()
+int main(int, char**)
 {
     {
     typedef std::string_view S;
@@ -69,4 +68,6 @@ int main()
     static_assert (  "abcde0" > sv2, "" );
     }
 #endif
+
+  return 0;
 }

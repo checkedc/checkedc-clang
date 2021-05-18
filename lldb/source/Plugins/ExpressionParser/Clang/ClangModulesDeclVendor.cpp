@@ -1,17 +1,15 @@
-//===-- ClangModulesDeclVendor.cpp ------------------------------*- C++ -*-===//
+//===-- ClangModulesDeclVendor.cpp ----------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
-#include <mutex>
 
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendActions.h"
+#include "clang/Frontend/TextDiagnosticPrinter.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Parse/Parser.h"
@@ -23,16 +21,23 @@
 
 #include "ClangHost.h"
 #include "ClangModulesDeclVendor.h"
+#include "ModuleDependencyCollector.h"
 
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Core/ModuleList.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Symbol/CompileUnit.h"
+#include "lldb/Symbol/SourceModule.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/LLDBAssert.h"
 #include "lldb/Utility/Log.h"
+#include "lldb/Utility/ReproducerProvider.h"
 #include "lldb/Utility/StreamString.h"
+
+#include <memory>
+#include <mutex>
 
 using namespace lldb_private;
 
@@ -51,10 +56,21 @@ public:
 
   void DumpDiagnostics(Stream &error_stream);
 
+  void BeginSourceFile(const clang::LangOptions &LangOpts,
+                       const clang::Preprocessor *PP = nullptr) override;
+  void EndSourceFile() override;
+
 private:
   typedef std::pair<clang::DiagnosticsEngine::Level, std::string>
       IDAndDiagnostic;
   std::vector<IDAndDiagnostic> m_diagnostics;
+  /// The DiagnosticPrinter used for creating the full diagnostic messages
+  /// that are stored in m_diagnostics.
+  std::shared_ptr<clang::TextDiagnosticPrinter> m_diag_printer;
+  /// Output stream of m_diag_printer.
+  std::shared_ptr<llvm::raw_string_ostream> m_os;
+  /// Output string filled by m_os. Will be reused for different diagnostics.
+  std::string m_output;
   Log *m_log;
 };
 
@@ -70,19 +86,19 @@ public:
 
   ~ClangModulesDeclVendorImpl() override = default;
 
-  bool AddModule(ModulePath &path, ModuleVector *exported_modules,
+  bool AddModule(const SourceModule &module, ModuleVector *exported_modules,
                  Stream &error_stream) override;
 
   bool AddModulesForCompileUnit(CompileUnit &cu, ModuleVector &exported_modules,
                                 Stream &error_stream) override;
 
-  uint32_t FindDecls(const ConstString &name, bool append, uint32_t max_matches,
-                     std::vector<clang::NamedDecl *> &decls) override;
+  uint32_t FindDecls(ConstString name, bool append, uint32_t max_matches,
+                     std::vector<CompilerDecl> &decls) override;
 
-  void ForEachMacro(const ModuleVector &modules,
-                    std::function<bool(const std::string &)> handler) override;
+  void ForEachMacro(
+      const ModuleVector &modules,
+      std::function<bool(llvm::StringRef, llvm::StringRef)> handler) override;
 
-  clang::ExternalASTMerger::ImporterSource GetImporterSource() override;
 private:
   void
   ReportModuleExportsHelper(std::set<ClangModulesDeclVendor::ModuleID> &exports,
@@ -107,23 +123,30 @@ private:
   typedef std::set<ModuleID> ImportedModuleSet;
   ImportedModuleMap m_imported_modules;
   ImportedModuleSet m_user_imported_modules;
-  const clang::ExternalASTMerger::OriginMap m_origin_map;
+  // We assume that every ASTContext has an TypeSystemClang, so we also store
+  // a custom TypeSystemClang for our internal ASTContext.
+  std::unique_ptr<TypeSystemClang> m_ast_context;
 };
 } // anonymous namespace
 
 StoringDiagnosticConsumer::StoringDiagnosticConsumer() {
   m_log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS);
+
+  clang::DiagnosticOptions *m_options = new clang::DiagnosticOptions();
+  m_os = std::make_shared<llvm::raw_string_ostream>(m_output);
+  m_diag_printer =
+      std::make_shared<clang::TextDiagnosticPrinter>(*m_os, m_options);
 }
 
 void StoringDiagnosticConsumer::HandleDiagnostic(
     clang::DiagnosticsEngine::Level DiagLevel, const clang::Diagnostic &info) {
-  llvm::SmallVector<char, 256> diagnostic_string;
+  // Print the diagnostic to m_output.
+  m_output.clear();
+  m_diag_printer->HandleDiagnostic(DiagLevel, info);
+  m_os->flush();
 
-  info.FormatDiagnostic(diagnostic_string);
-
-  m_diagnostics.push_back(
-      IDAndDiagnostic(DiagLevel, std::string(diagnostic_string.data(),
-                                             diagnostic_string.size())));
+  // Store the diagnostic for later.
+  m_diagnostics.push_back(IDAndDiagnostic(DiagLevel, m_output));
 }
 
 void StoringDiagnosticConsumer::ClearDiagnostics() { m_diagnostics.clear(); }
@@ -141,7 +164,17 @@ void StoringDiagnosticConsumer::DumpDiagnostics(Stream &error_stream) {
   }
 }
 
-ClangModulesDeclVendor::ClangModulesDeclVendor() {}
+void StoringDiagnosticConsumer::BeginSourceFile(
+    const clang::LangOptions &LangOpts, const clang::Preprocessor *PP) {
+  m_diag_printer->BeginSourceFile(LangOpts, PP);
+}
+
+void StoringDiagnosticConsumer::EndSourceFile() {
+  m_diag_printer->EndSourceFile();
+}
+
+ClangModulesDeclVendor::ClangModulesDeclVendor()
+    : ClangDeclVendor(eClangModuleDeclVendor) {}
 
 ClangModulesDeclVendor::~ClangModulesDeclVendor() {}
 
@@ -153,7 +186,13 @@ ClangModulesDeclVendorImpl::ClangModulesDeclVendorImpl(
     : m_diagnostics_engine(std::move(diagnostics_engine)),
       m_compiler_invocation(std::move(compiler_invocation)),
       m_compiler_instance(std::move(compiler_instance)),
-      m_parser(std::move(parser)), m_origin_map() {}
+      m_parser(std::move(parser)) {
+
+  // Initialize our TypeSystemClang.
+  m_ast_context =
+      std::make_unique<TypeSystemClang>("ClangModulesDeclVendor ASTContext",
+                                        m_compiler_instance->getASTContext());
+}
 
 void ClangModulesDeclVendorImpl::ReportModuleExportsHelper(
     std::set<ClangModulesDeclVendor::ModuleID> &exports,
@@ -183,7 +222,7 @@ void ClangModulesDeclVendorImpl::ReportModuleExports(
   }
 }
 
-bool ClangModulesDeclVendorImpl::AddModule(ModulePath &path,
+bool ClangModulesDeclVendorImpl::AddModule(const SourceModule &module,
                                            ModuleVector *exported_modules,
                                            Stream &error_stream) {
   // Fail early.
@@ -198,7 +237,7 @@ bool ClangModulesDeclVendorImpl::AddModule(ModulePath &path,
 
   std::vector<ConstString> imported_module;
 
-  for (ConstString path_component : path) {
+  for (ConstString path_component : module.path) {
     imported_module.push_back(path_component);
   }
 
@@ -213,11 +252,42 @@ bool ClangModulesDeclVendorImpl::AddModule(ModulePath &path,
     }
   }
 
-  if (!m_compiler_instance->getPreprocessor()
-           .getHeaderSearchInfo()
-           .lookupModule(path[0].GetStringRef())) {
+  clang::HeaderSearch &HS =
+    m_compiler_instance->getPreprocessor().getHeaderSearchInfo();
+
+  if (module.search_path) {
+    auto path_begin = llvm::sys::path::begin(module.search_path.GetStringRef());
+    auto path_end = llvm::sys::path::end(module.search_path.GetStringRef());
+    auto sysroot_begin = llvm::sys::path::begin(module.sysroot.GetStringRef());
+    auto sysroot_end = llvm::sys::path::end(module.sysroot.GetStringRef());
+    // FIXME: Use C++14 std::equal(it, it, it, it) variant once it's available.
+    bool is_system_module = (std::distance(path_begin, path_end) >=
+                             std::distance(sysroot_begin, sysroot_end)) &&
+                            std::equal(sysroot_begin, sysroot_end, path_begin);
+    // No need to inject search paths to modules in the sysroot.
+    if (!is_system_module) {
+      auto error = [&]() {
+        error_stream.Printf("error: No module map file in %s\n",
+                            module.search_path.AsCString());
+        return false;
+      };
+
+      bool is_system = true;
+      bool is_framework = false;
+      auto dir =
+          HS.getFileMgr().getDirectory(module.search_path.GetStringRef());
+      if (!dir)
+        return error();
+      auto *file = HS.lookupModuleMapFile(*dir, is_framework);
+      if (!file)
+        return error();
+      if (!HS.loadModuleMapFile(file, is_system))
+        return error();
+    }
+  }
+  if (!HS.lookupModule(module.path.front().GetStringRef())) {
     error_stream.Printf("error: Header search couldn't locate module %s\n",
-                        path[0].AsCString());
+                        module.path.front().AsCString());
     return false;
   }
 
@@ -229,7 +299,7 @@ bool ClangModulesDeclVendorImpl::AddModule(ModulePath &path,
     clang::SourceManager &source_manager =
         m_compiler_instance->getASTContext().getSourceManager();
 
-    for (ConstString path_component : path) {
+    for (ConstString path_component : module.path) {
       clang_path.push_back(std::make_pair(
           &m_compiler_instance->getASTContext().Idents.get(
               path_component.GetStringRef()),
@@ -249,19 +319,18 @@ bool ClangModulesDeclVendorImpl::AddModule(ModulePath &path,
   if (!top_level_module) {
     diagnostic_consumer->DumpDiagnostics(error_stream);
     error_stream.Printf("error: Couldn't load top-level module %s\n",
-                        path[0].AsCString());
+                        module.path.front().AsCString());
     return false;
   }
 
   clang::Module *submodule = top_level_module;
 
-  for (size_t ci = 1; ci < path.size(); ++ci) {
-    llvm::StringRef component = path[ci].GetStringRef();
-    submodule = submodule->findSubmodule(component.str());
+  for (auto &component : llvm::ArrayRef<ConstString>(module.path).drop_front()) {
+    submodule = submodule->findSubmodule(component.GetStringRef());
     if (!submodule) {
       diagnostic_consumer->DumpDiagnostics(error_stream);
       error_stream.Printf("error: Couldn't load submodule %s\n",
-                          component.str().c_str());
+                          component.GetCString());
       return false;
     }
   }
@@ -288,12 +357,16 @@ bool ClangModulesDeclVendor::LanguageSupportsClangModules(
   switch (language) {
   default:
     return false;
-  // C++ and friends to be added
   case lldb::LanguageType::eLanguageTypeC:
   case lldb::LanguageType::eLanguageTypeC11:
   case lldb::LanguageType::eLanguageTypeC89:
   case lldb::LanguageType::eLanguageTypeC99:
+  case lldb::LanguageType::eLanguageTypeC_plus_plus:
+  case lldb::LanguageType::eLanguageTypeC_plus_plus_03:
+  case lldb::LanguageType::eLanguageTypeC_plus_plus_11:
+  case lldb::LanguageType::eLanguageTypeC_plus_plus_14:
   case lldb::LanguageType::eLanguageTypeObjC:
+  case lldb::LanguageType::eLanguageTypeObjC_plus_plus:
     return true;
   }
 }
@@ -302,30 +375,19 @@ bool ClangModulesDeclVendorImpl::AddModulesForCompileUnit(
     CompileUnit &cu, ClangModulesDeclVendor::ModuleVector &exported_modules,
     Stream &error_stream) {
   if (LanguageSupportsClangModules(cu.GetLanguage())) {
-    std::vector<ConstString> imported_modules = cu.GetImportedModules();
-
-    for (ConstString imported_module : imported_modules) {
-      std::vector<ConstString> path;
-
-      path.push_back(imported_module);
-
-      if (!AddModule(path, &exported_modules, error_stream)) {
+    for (auto &imported_module : cu.GetImportedModules())
+      if (!AddModule(imported_module, &exported_modules, error_stream))
         return false;
-      }
-    }
-
-    return true;
   }
-
   return true;
 }
 
 // ClangImporter::lookupValue
 
 uint32_t
-ClangModulesDeclVendorImpl::FindDecls(const ConstString &name, bool append,
+ClangModulesDeclVendorImpl::FindDecls(ConstString name, bool append,
                                       uint32_t max_matches,
-                                      std::vector<clang::NamedDecl *> &decls) {
+                                      std::vector<CompilerDecl> &decls) {
   if (!m_enabled) {
     return 0;
   }
@@ -351,7 +413,7 @@ ClangModulesDeclVendorImpl::FindDecls(const ConstString &name, bool append,
     if (num_matches >= max_matches)
       return num_matches;
 
-    decls.push_back(named_decl);
+    decls.push_back(m_ast_context->GetCompilerDecl(named_decl));
     ++num_matches;
   }
 
@@ -360,7 +422,7 @@ ClangModulesDeclVendorImpl::FindDecls(const ConstString &name, bool append,
 
 void ClangModulesDeclVendorImpl::ForEachMacro(
     const ClangModulesDeclVendor::ModuleVector &modules,
-    std::function<bool(const std::string &)> handler) {
+    std::function<bool(llvm::StringRef, llvm::StringRef)> handler) {
   if (!m_enabled) {
     return;
   }
@@ -430,7 +492,8 @@ void ClangModulesDeclVendorImpl::ForEachMacro(
 
     if (macro_info) {
       std::string macro_expansion = "#define ";
-      macro_expansion.append(mi->first->getName().str());
+      llvm::StringRef macro_identifier = mi->first->getName();
+      macro_expansion.append(macro_identifier.str());
 
       {
         if (macro_info->isFunctionLike()) {
@@ -515,7 +578,7 @@ void ClangModulesDeclVendorImpl::ForEachMacro(
           }
         }
 
-        if (handler(macro_expansion)) {
+        if (handler(macro_identifier, macro_expansion)) {
           return;
         }
       }
@@ -533,12 +596,6 @@ ClangModulesDeclVendorImpl::DoGetModule(clang::ModuleIdPath path,
 
   return m_compiler_instance->loadModule(path.front().second, path, visibility,
                                          is_inclusion_directive);
-}
-
-clang::ExternalASTMerger::ImporterSource
-ClangModulesDeclVendorImpl::GetImporterSource() {
-  return {m_compiler_instance->getASTContext(),
-          m_compiler_instance->getFileManager(), m_origin_map};
 }
 
 static const char *ModuleImportBufferName = "LLDBModulesMemoryBuffer";
@@ -576,14 +633,14 @@ ClangModulesDeclVendor::Create(Target &target) {
 
   {
     llvm::SmallString<128> path;
-    auto props = ModuleList::GetGlobalModuleListProperties();
+    const auto &props = ModuleList::GetGlobalModuleListProperties();
     props.GetClangModulesCachePath().GetPath(path);
     std::string module_cache_argument("-fmodules-cache-path=");
-    module_cache_argument.append(path.str());
+    module_cache_argument.append(std::string(path.str()));
     compiler_invocation_arguments.push_back(module_cache_argument);
   }
 
-  FileSpecList &module_search_paths = target.GetClangModuleSearchPaths();
+  FileSpecList module_search_paths = target.GetClangModuleSearchPaths();
 
   for (size_t spi = 0, spe = module_search_paths.GetSize(); spi < spe; ++spi) {
     const FileSpec &search_path = module_search_paths.GetFileSpecAtIndex(spi);
@@ -610,9 +667,13 @@ ClangModulesDeclVendor::Create(Target &target) {
   std::vector<const char *> compiler_invocation_argument_cstrs;
   compiler_invocation_argument_cstrs.reserve(
       compiler_invocation_arguments.size());
-  for (const std::string &arg : compiler_invocation_arguments) {
+  for (const std::string &arg : compiler_invocation_arguments)
     compiler_invocation_argument_cstrs.push_back(arg.c_str());
-  }
+
+  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS));
+  LLDB_LOG(log, "ClangModulesDeclVendor's compiler flags {0:$[ ]}",
+           llvm::make_range(compiler_invocation_arguments.begin(),
+                            compiler_invocation_arguments.end()));
 
   std::shared_ptr<clang::CompilerInvocation> invocation =
       clang::createInvocationFromCommandLine(compiler_invocation_argument_cstrs,
@@ -632,6 +693,20 @@ ClangModulesDeclVendor::Create(Target &target) {
   std::unique_ptr<clang::CompilerInstance> instance(
       new clang::CompilerInstance);
 
+  // When capturing a reproducer, hook up the file collector with clang to
+  // collector modules and headers.
+  if (repro::Generator *g = repro::Reproducer::Instance().GetGenerator()) {
+    repro::FileProvider &fp = g->GetOrCreate<repro::FileProvider>();
+    instance->setModuleDepCollector(
+        std::make_shared<ModuleDependencyCollectorAdaptor>(
+            fp.GetFileCollector()));
+    clang::DependencyOutputOptions &opts = instance->getDependencyOutputOpts();
+    opts.IncludeSystemHeaders = true;
+    opts.IncludeModuleFiles = true;
+  }
+
+  // Make sure clang uses the same VFS as LLDB.
+  instance->createFileManager(FileSystem::Instance().GetVirtualFileSystem());
   instance->setDiagnostics(diagnostics_engine.get());
   instance->setInvocation(invocation);
 
@@ -651,7 +726,7 @@ ClangModulesDeclVendor::Create(Target &target) {
 
   instance->getPreprocessor().enableIncrementalProcessing();
 
-  instance->createModuleManager();
+  instance->createASTReader();
 
   instance->createSema(action->getTranslationUnitKind(), nullptr);
 

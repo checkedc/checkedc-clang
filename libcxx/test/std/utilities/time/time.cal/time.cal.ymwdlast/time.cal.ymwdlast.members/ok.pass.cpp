@@ -1,12 +1,11 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class year_month_weekday_last;
@@ -20,7 +19,7 @@
 
 #include "test_macros.h"
 
-int main()
+int main(int, char**)
 {
     using year                    = std::chrono::year;
     using month                   = std::chrono::month;
@@ -38,11 +37,11 @@ int main()
 
     static_assert(!year_month_weekday_last{year{-32768}, January, weekday_last{Tuesday}}.ok(),    ""); // Bad year
     static_assert(!year_month_weekday_last{year{2019},   month{}, weekday_last{Tuesday}}.ok(),    ""); // Bad month
-    static_assert(!year_month_weekday_last{year{2019},   January, weekday_last{weekday{7}}}.ok(), ""); // Bad day
+    static_assert(!year_month_weekday_last{year{2019},   January, weekday_last{weekday{8}}}.ok(), ""); // Bad day
 
     static_assert(!year_month_weekday_last{year{-32768}, month{}, weekday_last{Tuesday}}.ok(),    ""); // Bad year & month
-    static_assert(!year_month_weekday_last{year{2019},   month{}, weekday_last{weekday{7}}}.ok(), ""); // Bad month & day
-    static_assert(!year_month_weekday_last{year{-32768}, January, weekday_last{weekday{7}}}.ok(), ""); // Bad year & day
+    static_assert(!year_month_weekday_last{year{2019},   month{}, weekday_last{weekday{8}}}.ok(), ""); // Bad month & day
+    static_assert(!year_month_weekday_last{year{-32768}, January, weekday_last{weekday{8}}}.ok(), ""); // Bad year & day
 
     static_assert( year_month_weekday_last{year{2019},   January, weekday_last{Tuesday}}.ok(),    ""); // All OK
 
@@ -70,4 +69,6 @@ int main()
         year_month_weekday_last ym{year{i}, January, weekday_last{Tuesday}};
         assert((ym.ok() == year{i}.ok()));
     }
+
+  return 0;
 }

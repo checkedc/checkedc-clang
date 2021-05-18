@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: clang-3.3, clang-3.4, clang-3.5
+// REQUIRES: asan
 
 // <vector>
 
@@ -22,14 +21,13 @@
 #include "test_iterators.h"
 #include "test_macros.h"
 
-#ifndef _LIBCPP_HAS_NO_ASAN
 extern "C" void __sanitizer_set_death_callback(void (*callback)(void));
 
 void do_exit() {
   exit(0);
 }
 
-int main()
+int main(int, char**)
 {
 #if TEST_STD_VER >= 11
     {
@@ -68,6 +66,3 @@ int main()
         ((void)foo);
     }
 }
-#else
-int main () { return 0; }
-#endif

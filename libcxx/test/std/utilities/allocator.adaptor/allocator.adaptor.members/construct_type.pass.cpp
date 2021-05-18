@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <scoped_allocator>
 
@@ -23,8 +22,10 @@
 #include <tuple>
 #include <cassert>
 #include <cstdlib>
-#include "uses_alloc_types.hpp"
-#include "controlled_allocators.hpp"
+#include "uses_alloc_types.h"
+#include "controlled_allocators.h"
+
+#include "test_macros.h"
 
 // - If uses_allocator_v<T, inner_allocator_type> is false and
 //   is_constructible_v<T, Args...> is true, calls
@@ -126,8 +127,10 @@ void test_bullet_three() {
     POuter.reset();
 }
 
-int main() {
+int main(int, char**) {
     test_bullet_one();
     test_bullet_two();
     test_bullet_three();
+
+  return 0;
 }

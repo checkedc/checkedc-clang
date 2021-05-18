@@ -181,10 +181,31 @@ incompatible with the flags that gdb specifies.
 //  send:    pid:3500;name:612e6f7574;
 //
 //  The request packet has a criteria to search for, followed by
-//  a specific name.  Other name_match: values include
-//  starts_with, ends_with, contains, regex.  You can specify a pid
-//  to search for, a uid, all_users, triple, etc etc.  The testsuite
-//  only ever searches for name_match:equals.
+//  a specific name.  
+//
+//  KEY           VALUE     DESCRIPTION
+//  ===========   ========  ================================================
+//  "name"        ascii-hex An ASCII hex string that contains the name of 
+//                          the process that will be matched.
+//  "name_match"  enum      One of: "equals", "starts_with", "ends_with", 
+//                          "contains" or "regex"
+//  "pid"         integer   A string value containing the decimal process ID
+//  "parent_pid"  integer   A string value containing the decimal parent 
+//                          process ID
+//  "uid"         integer   A string value containing the decimal user ID
+//  "gid"         integer   A string value containing the decimal group ID
+//  "euid"        integer   A string value containing the decimal effective user ID
+//  "egid"        integer   A string value containing the decimal effective group ID
+//  "all_users"   bool      A boolean value that specifies if processes should
+//                          be listed for all users, not just the user that the 
+//                          platform is running as
+//  "triple"      ascii-hex An ASCII hex target triple string ("x86_64", 
+//                          "x86_64-apple-macosx", "armv7-apple-ios")
+//
+//  If no criteria is given, qfProcessInfo will request a list of every process.
+//
+//  The lldb testsuite currently only uses name_match:equals and the
+//  no-criteria mode to list every process.
 //
 //  The response should include any information about the process that
 //  can be retrieved in semicolon-separated name:value fields.
@@ -195,6 +216,14 @@ incompatible with the flags that gdb specifies.
 //  the search, qsProcessInfo should be sent.
 //
 //  If no process match is found, Exx should be returned.
+//
+//  Sample packet/response:
+//  send packet: $qfProcessInfo#00
+//  read packet: $pid:60001;ppid:59948;uid:7746;gid:11;euid:7746;egid:11;name:6c6c6462;triple:7838365f36342d6170706c652d6d61636f7378;#00
+//  send packet: $qsProcessInfo#00
+//  read packet: $pid:59992;ppid:192;uid:7746;gid:11;euid:7746;egid:11;name:6d64776f726b6572;triple:7838365f36342d6170706c652d6d61636f7378;#00
+//  send packet: $qsProcessInfo#00
+//  read packet: $E04#00
 
 //----------------------------------------------------------------------
 // qsProcessInfo
@@ -207,6 +236,27 @@ incompatible with the flags that gdb specifies.
 // 
 //  Continues to return the results of the qfProcessInfo.  Once all matches
 //  have been sent, Exx is returned to indicate end of matches.
+
+//----------------------------------------------------------------------
+// qPathComplete
+//
+// BRIEF
+//   Get a list of matched disk files/directories by passing a boolean flag
+//   and a partial path.
+//
+// EXAMPLE
+//
+//   receive: qPathComplete:0,6d61696e
+//   send:    M6d61696e2e637070
+//   receive: qPathComplete:1,746573
+//   send:    M746573742f,74657374732f
+//
+//   If the first argument is zero, the result should contain all
+//   files (including directories) starting with the given path. If the
+//   argument is one, the result should contain only directories.
+//
+//   The result should be a comma-separated list of hex-encoded paths.
+//   Paths denoting a directory should end with a directory separator ('/' or '\').
 
 //----------------------------------------------------------------------
 // vFile:size:
@@ -322,7 +372,7 @@ incompatible with the flags that gdb specifies.
 //  response is F followed by the opened file descriptor in base 10.
 //  "F-1,errno" with the errno if an error occurs.
 //
-//  COMPATABILITY
+//  COMPATIBILITY
 //    The gdb-remote serial protocol documentatio defines a vFile:open:
 //    packet which uses incompatible flag values, e.g. 1 means O_WRONLY
 //    in gdb's vFile:open:, but it means eOpenOptionRead to lldb's
@@ -361,6 +411,11 @@ incompatible with the flags that gdb specifies.
 //
 //  Response is F, followed by the number of bytes read (base 10), a
 //  semicolon, followed by the data in the binary-escaped-data encoding.
+//
+//  COMPATIBILITY
+//    The gdb-remote serial protocol documentation says that numbers
+//    in "vFile:" packets should be hexadecimal. Instead lldb uses
+//    decimal.
 
 
 //----------------------------------------------------------------------
@@ -380,7 +435,11 @@ incompatible with the flags that gdb specifies.
 //     3. binary-escaped-data to be written
 //
 //  Response is F, followed by the number of bytes written (base 10)
-
+//
+//  COMPATIBILITY
+//    The gdb-remote serial protocol documentation says that numbers
+//    in "vFile:" packets should be hexadecimal. Instead lldb uses
+//    decimal.
 
 
 

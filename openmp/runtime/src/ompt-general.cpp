@@ -4,10 +4,9 @@
 
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.txt for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -45,6 +44,20 @@
 #ifndef OMPT_STR_MATCH
 #define OMPT_STR_MATCH(haystack, needle) (!strcasecmp(haystack, needle))
 #endif
+
+// prints for an enabled OMP_TOOL_VERBOSE_INIT.
+// In the future a prefix could be added in the first define, the second define
+// omits the prefix to allow for continued lines. Example: "PREFIX: Start
+// tool... Success." instead of "PREFIX: Start tool... PREFIX: Success."
+#define OMPT_VERBOSE_INIT_PRINT(...)                                           \
+  if (verbose_init)                                                            \
+  fprintf(verbose_file, __VA_ARGS__)
+#define OMPT_VERBOSE_INIT_CONTINUED_PRINT(...)                                 \
+  if (verbose_init)                                                            \
+  fprintf(verbose_file, __VA_ARGS__)
+
+static FILE *verbose_file;
+static int verbose_init;
 
 /*****************************************************************************
  * types
@@ -231,6 +244,9 @@ ompt_try_start_tool(unsigned int omp_version, const char *runtime_version) {
   const char *sep = ":";
 #endif
 
+  OMPT_VERBOSE_INIT_PRINT("----- START LOGGING OF TOOL REGISTRATION -----\n");
+  OMPT_VERBOSE_INIT_PRINT("Search for OMP tool in current address space... ");
+
 #if KMP_OS_DARWIN
   // Try in the current address space
   ret = ompt_tool_darwin(omp_version, runtime_version);
@@ -241,34 +257,114 @@ ompt_try_start_tool(unsigned int omp_version, const char *runtime_version) {
 #else
 #error Activation of OMPT is not supported on this platform.
 #endif
-  if (ret)
+  if (ret) {
+    OMPT_VERBOSE_INIT_CONTINUED_PRINT("Sucess.\n");
+    OMPT_VERBOSE_INIT_PRINT(
+        "Tool was started and is using the OMPT interface.\n");
+    OMPT_VERBOSE_INIT_PRINT("----- END LOGGING OF TOOL REGISTRATION -----\n");
     return ret;
+  }
 
   // Try tool-libraries-var ICV
+  OMPT_VERBOSE_INIT_CONTINUED_PRINT("Failed.\n");
   const char *tool_libs = getenv("OMP_TOOL_LIBRARIES");
   if (tool_libs) {
+    OMPT_VERBOSE_INIT_PRINT("Searching tool libraries...\n");
+    OMPT_VERBOSE_INIT_PRINT("OMP_TOOL_LIBRARIES = %s\n", tool_libs);
     char *libs = __kmp_str_format("%s", tool_libs);
     char *buf;
     char *fname = __kmp_str_token(libs, sep, &buf);
+    // Reset dl-error
+    dlerror();
+
     while (fname) {
 #if KMP_OS_UNIX
+      OMPT_VERBOSE_INIT_PRINT("Opening %s... ", fname);
       void *h = dlopen(fname, RTLD_LAZY);
-      if (h) {
+      if (!h) {
+        OMPT_VERBOSE_INIT_CONTINUED_PRINT("Failed: %s\n", dlerror());
+      } else {
+        OMPT_VERBOSE_INIT_CONTINUED_PRINT("Success. \n");
+        OMPT_VERBOSE_INIT_PRINT("Searching for ompt_start_tool in %s... ",
+                                fname);
         start_tool = (ompt_start_tool_t)dlsym(h, "ompt_start_tool");
+        if (!start_tool) {
+          OMPT_VERBOSE_INIT_CONTINUED_PRINT("Failed: %s\n", dlerror());
+        } else
 #elif KMP_OS_WINDOWS
+      OMPT_VERBOSE_INIT_PRINT("Opening %s... ", fname);
       HMODULE h = LoadLibrary(fname);
-      if (h) {
+      if (!h) {
+        OMPT_VERBOSE_INIT_CONTINUED_PRINT("Failed: Error %u\n", GetLastError());
+      } else {
+        OMPT_VERBOSE_INIT_CONTINUED_PRINT("Success. \n");
+        OMPT_VERBOSE_INIT_PRINT("Searching for ompt_start_tool in %s... ",
+                                fname);
         start_tool = (ompt_start_tool_t)GetProcAddress(h, "ompt_start_tool");
+        if (!start_tool) {
+          OMPT_VERBOSE_INIT_CONTINUED_PRINT("Failed: Error %s\n",
+                                            GetLastError());
+        } else
 #else
 #error Activation of OMPT is not supported on this platform.
 #endif
-        if (start_tool && (ret = (*start_tool)(omp_version, runtime_version)))
-          break;
+        {// if (start_tool)
+          ret = (*start_tool)(omp_version, runtime_version);
+          if (ret) {
+            OMPT_VERBOSE_INIT_CONTINUED_PRINT("Success.\n");
+            OMPT_VERBOSE_INIT_PRINT(
+                "Tool was started and is using the OMPT interface.\n");
+            break;
+          }
+          OMPT_VERBOSE_INIT_CONTINUED_PRINT(
+              "Found but not using the OMPT interface.\n");
+          OMPT_VERBOSE_INIT_PRINT("Continuing search...\n");
+        }
       }
       fname = __kmp_str_token(NULL, sep, &buf);
     }
     __kmp_str_free(&libs);
+  } else {
+    OMPT_VERBOSE_INIT_PRINT("No OMP_TOOL_LIBRARIES defined.\n");
   }
+
+  // usable tool found in tool-libraries
+  if (ret) {
+    OMPT_VERBOSE_INIT_PRINT("----- END LOGGING OF TOOL REGISTRATION -----\n");
+    return ret;
+  }
+
+#if KMP_OS_UNIX
+  { // Non-standard: load archer tool if application is built with TSan
+    const char *fname = "libarcher.so";
+    OMPT_VERBOSE_INIT_PRINT(
+        "...searching tool libraries failed. Using archer tool.\n");
+    OMPT_VERBOSE_INIT_PRINT("Opening %s... ", fname);
+    void *h = dlopen(fname, RTLD_LAZY);
+    if (h) {
+      OMPT_VERBOSE_INIT_CONTINUED_PRINT("Success.\n");
+      OMPT_VERBOSE_INIT_PRINT("Searching for ompt_start_tool in %s... ", fname);
+      start_tool = (ompt_start_tool_t)dlsym(h, "ompt_start_tool");
+      if (start_tool) {
+        ret = (*start_tool)(omp_version, runtime_version);
+        if (ret) {
+          OMPT_VERBOSE_INIT_CONTINUED_PRINT("Success.\n");
+          OMPT_VERBOSE_INIT_PRINT(
+              "Tool was started and is using the OMPT interface.\n");
+          OMPT_VERBOSE_INIT_PRINT(
+              "----- END LOGGING OF TOOL REGISTRATION -----\n");
+          return ret;
+        }
+        OMPT_VERBOSE_INIT_CONTINUED_PRINT(
+            "Found but not using the OMPT interface.\n");
+      } else {
+        OMPT_VERBOSE_INIT_CONTINUED_PRINT("Failed: %s\n", dlerror());
+      }
+    }
+  }
+#endif
+  OMPT_VERBOSE_INIT_PRINT("No OMP tool loaded.\n");
+  OMPT_VERBOSE_INIT_PRINT("----- END LOGGING OF TOOL REGISTRATION -----\n");
   return ret;
 }
 
@@ -296,11 +392,27 @@ void ompt_pre_init() {
   else if (OMPT_STR_MATCH(ompt_env_var, "enabled"))
     tool_setting = omp_tool_enabled;
 
+  const char *ompt_env_verbose_init = getenv("OMP_TOOL_VERBOSE_INIT");
+  // possible options: disabled | stdout | stderr | <filename>
+  // if set, not empty and not disabled -> prepare for logging
+  if (ompt_env_verbose_init && strcmp(ompt_env_verbose_init, "") &&
+      !OMPT_STR_MATCH(ompt_env_verbose_init, "disabled")) {
+    verbose_init = 1;
+    if (OMPT_STR_MATCH(ompt_env_verbose_init, "STDERR"))
+      verbose_file = stderr;
+    else if (OMPT_STR_MATCH(ompt_env_verbose_init, "STDOUT"))
+      verbose_file = stdout;
+    else
+      verbose_file = fopen(ompt_env_verbose_init, "w");
+  } else
+    verbose_init = 0;
+
 #if OMPT_DEBUG
   printf("ompt_pre_init(): tool_setting = %d\n", tool_setting);
 #endif
   switch (tool_setting) {
   case omp_tool_disabled:
+    OMPT_VERBOSE_INIT_PRINT("OMP tool disabled. \n");
     break;
 
   case omp_tool_unset:
@@ -322,6 +434,8 @@ void ompt_pre_init() {
             ompt_env_var);
     break;
   }
+  if (verbose_init && verbose_file != stderr && verbose_file != stdout)
+    fclose(verbose_file);
 #if OMPT_DEBUG
   printf("ompt_pre_init(): ompt_enabled = %d\n", ompt_enabled);
 #endif
@@ -362,10 +476,11 @@ void ompt_post_init() {
           ompt_thread_initial, __ompt_get_thread_data_internal());
     }
     ompt_data_t *task_data;
-    __ompt_get_task_info_internal(0, NULL, &task_data, NULL, NULL, NULL);
-    if (ompt_enabled.ompt_callback_task_create) {
-      ompt_callbacks.ompt_callback(ompt_callback_task_create)(
-          NULL, NULL, task_data, ompt_task_initial, 0, NULL);
+    ompt_data_t *parallel_data;
+    __ompt_get_task_info_internal(0, NULL, &task_data, NULL, &parallel_data, NULL);
+    if (ompt_enabled.ompt_callback_implicit_task) {
+      ompt_callbacks.ompt_callback(ompt_callback_implicit_task)(
+          ompt_scope_begin, parallel_data, task_data, 1, 1, ompt_task_initial);
     }
 
     ompt_set_thread_state(root_thread, ompt_state_work_serial);
@@ -430,10 +545,8 @@ OMPT_API_ROUTINE ompt_set_result_t ompt_set_callback(ompt_callbacks_t which,
 
 #define ompt_event_macro(event_name, callback_type, event_id)                  \
   case event_name:                                                             \
-    if (ompt_event_implementation_status(event_name)) {                        \
-      ompt_callbacks.ompt_callback(event_name) = (callback_type)callback;      \
-      ompt_enabled.event_name = (callback != 0);                               \
-    }                                                                          \
+    ompt_callbacks.ompt_callback(event_name) = (callback_type)callback;        \
+    ompt_enabled.event_name = (callback != 0);                                 \
     if (callback)                                                              \
       return ompt_event_implementation_status(event_name);                     \
     else                                                                       \
@@ -450,19 +563,21 @@ OMPT_API_ROUTINE ompt_set_result_t ompt_set_callback(ompt_callbacks_t which,
 
 OMPT_API_ROUTINE int ompt_get_callback(ompt_callbacks_t which,
                                        ompt_callback_t *callback) {
+  if (!ompt_enabled.enabled)
+    return ompt_get_callback_failure;
+
   switch (which) {
 
 #define ompt_event_macro(event_name, callback_type, event_id)                  \
-  case event_name:                                                             \
-    if (ompt_event_implementation_status(event_name)) {                        \
-      ompt_callback_t mycb =                                                   \
-          (ompt_callback_t)ompt_callbacks.ompt_callback(event_name);           \
-      if (mycb) {                                                              \
-        *callback = mycb;                                                      \
-        return ompt_get_callback_success;                                      \
-      }                                                                        \
+  case event_name: {                                                           \
+    ompt_callback_t mycb =                                                     \
+        (ompt_callback_t)ompt_callbacks.ompt_callback(event_name);             \
+    if (ompt_enabled.event_name && mycb) {                                     \
+      *callback = mycb;                                                        \
+      return ompt_get_callback_success;                                        \
     }                                                                          \
-    return ompt_get_callback_failure;
+    return ompt_get_callback_failure;                                          \
+  }
 
     FOREACH_OMPT_EVENT(ompt_event_macro)
 
@@ -480,11 +595,15 @@ OMPT_API_ROUTINE int ompt_get_callback(ompt_callbacks_t which,
 OMPT_API_ROUTINE int ompt_get_parallel_info(int ancestor_level,
                                             ompt_data_t **parallel_data,
                                             int *team_size) {
+  if (!ompt_enabled.enabled)
+    return 0;
   return __ompt_get_parallel_info_internal(ancestor_level, parallel_data,
                                            team_size);
 }
 
 OMPT_API_ROUTINE int ompt_get_state(ompt_wait_id_t *wait_id) {
+  if (!ompt_enabled.enabled)
+    return ompt_state_work_serial;
   int thread_state = __ompt_get_state_internal(wait_id);
 
   if (thread_state == ompt_state_undefined) {
@@ -499,6 +618,8 @@ OMPT_API_ROUTINE int ompt_get_state(ompt_wait_id_t *wait_id) {
  ****************************************************************************/
 
 OMPT_API_ROUTINE ompt_data_t *ompt_get_thread_data(void) {
+  if (!ompt_enabled.enabled)
+    return NULL;
   return __ompt_get_thread_data_internal();
 }
 
@@ -507,14 +628,15 @@ OMPT_API_ROUTINE int ompt_get_task_info(int ancestor_level, int *type,
                                         ompt_frame_t **task_frame,
                                         ompt_data_t **parallel_data,
                                         int *thread_num) {
+  if (!ompt_enabled.enabled)
+    return 0;
   return __ompt_get_task_info_internal(ancestor_level, type, task_data,
                                        task_frame, parallel_data, thread_num);
 }
 
 OMPT_API_ROUTINE int ompt_get_task_memory(void **addr, size_t *size,
                                           int block) {
-  // stub
-  return 0;
+  return __ompt_get_task_memory_internal(addr, size, block);
 }
 
 /*****************************************************************************
@@ -581,7 +703,7 @@ OMPT_API_ROUTINE int ompt_get_place_num(void) {
 #if !KMP_AFFINITY_SUPPORTED
   return -1;
 #else
-  if (__kmp_get_gtid() < 0)
+  if (!ompt_enabled.enabled || __kmp_get_gtid() < 0)
     return -1;
 
   int gtid;
@@ -602,7 +724,7 @@ OMPT_API_ROUTINE int ompt_get_partition_place_nums(int place_nums_size,
 #if !KMP_AFFINITY_SUPPORTED
   return 0;
 #else
-  if (__kmp_get_gtid() < 0)
+  if (!ompt_enabled.enabled || __kmp_get_gtid() < 0)
     return 0;
 
   int i, gtid, place_num, first_place, last_place, start, end;
@@ -637,7 +759,7 @@ OMPT_API_ROUTINE int ompt_get_partition_place_nums(int place_nums_size,
  ****************************************************************************/
 
 OMPT_API_ROUTINE int ompt_get_proc_id(void) {
-  if (__kmp_get_gtid() < 0)
+  if (!ompt_enabled.enabled || __kmp_get_gtid() < 0)
     return -1;
 #if KMP_OS_LINUX
   return sched_getcpu();
@@ -689,9 +811,7 @@ OMPT_API_ROUTINE uint64_t ompt_get_unique_id(void) {
   return __ompt_get_unique_id_internal();
 }
 
-OMPT_API_ROUTINE void ompt_finalize_tool(void) {
-  // stub
-}
+OMPT_API_ROUTINE void ompt_finalize_tool(void) { __kmp_internal_end_atexit(); }
 
 /*****************************************************************************
  * Target
@@ -720,5 +840,5 @@ static ompt_interface_fn_t ompt_fn_lookup(const char *s) {
 
   FOREACH_OMPT_INQUIRY_FN(ompt_interface_fn)
 
-  return (ompt_interface_fn_t)0;
+  return NULL;
 }

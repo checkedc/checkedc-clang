@@ -1,9 +1,8 @@
 //===-- hwasan.h ------------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -22,16 +21,16 @@
 #include "hwasan_flags.h"
 #include "ubsan/ubsan_platform.h"
 
-#ifndef HWASAN_REPLACE_OPERATORS_NEW_AND_DELETE
-# define HWASAN_REPLACE_OPERATORS_NEW_AND_DELETE 1
-#endif
-
 #ifndef HWASAN_CONTAINS_UBSAN
 # define HWASAN_CONTAINS_UBSAN CAN_SANITIZE_UB
 #endif
 
 #ifndef HWASAN_WITH_INTERCEPTORS
 #define HWASAN_WITH_INTERCEPTORS 0
+#endif
+
+#ifndef HWASAN_REPLACE_OPERATORS_NEW_AND_DELETE
+#define HWASAN_REPLACE_OPERATORS_NEW_AND_DELETE HWASAN_WITH_INTERCEPTORS
 #endif
 
 typedef u8 tag_t;
@@ -44,6 +43,11 @@ const uptr kAddressTagMask = 0xFFUL << kAddressTagShift;
 // Minimal alignment of the shadow base address. Determines the space available
 // for threads and stack histories. This is an ABI constant.
 const unsigned kShadowBaseAlignment = 32;
+
+const unsigned kRecordAddrBaseTagShift = 3;
+const unsigned kRecordFPShift = 48;
+const unsigned kRecordFPLShift = 4;
+const unsigned kRecordFPModulus = 1 << (64 - kRecordFPShift + kRecordFPLShift);
 
 static inline tag_t GetTagFromPointer(uptr p) {
   return p >> kAddressTagShift;
@@ -68,19 +72,17 @@ extern int hwasan_inited;
 extern bool hwasan_init_is_running;
 extern int hwasan_report_count;
 
-bool ProtectRange(uptr beg, uptr end);
 bool InitShadow();
+void InitPrctl();
 void InitThreads();
-void MadviseShadow();
-char *GetProcSelfMaps();
 void InitializeInterceptors();
 
 void HwasanAllocatorInit();
-void HwasanAllocatorThreadFinish();
 
 void *hwasan_malloc(uptr size, StackTrace *stack);
 void *hwasan_calloc(uptr nmemb, uptr size, StackTrace *stack);
 void *hwasan_realloc(void *ptr, uptr size, StackTrace *stack);
+void *hwasan_reallocarray(void *ptr, uptr nmemb, uptr size, StackTrace *stack);
 void *hwasan_valloc(uptr size, StackTrace *stack);
 void *hwasan_pvalloc(uptr size, StackTrace *stack);
 void *hwasan_aligned_alloc(uptr alignment, uptr size, StackTrace *stack);
@@ -89,42 +91,19 @@ int hwasan_posix_memalign(void **memptr, uptr alignment, uptr size,
                         StackTrace *stack);
 void hwasan_free(void *ptr, StackTrace *stack);
 
-void InstallTrapHandler();
 void InstallAtExitHandler();
-
-const char *GetStackOriginDescr(u32 id, uptr *pc);
-const char *GetStackFrameDescr(uptr pc);
-
-void EnterSymbolizer();
-void ExitSymbolizer();
-bool IsInSymbolizer();
-
-struct SymbolizerScope {
-  SymbolizerScope() { EnterSymbolizer(); }
-  ~SymbolizerScope() { ExitSymbolizer(); }
-};
-
-void GetStackTrace(BufferedStackTrace *stack, uptr max_s, uptr pc, uptr bp,
-                   void *context, bool request_fast_unwind);
-
-// Returns a "chained" origin id, pointing to the given stack trace followed by
-// the previous origin id.
-u32 ChainOrigin(u32 id, StackTrace *stack);
-
-const int STACK_TRACE_TAG_POISON = StackTrace::TAG_CUSTOM + 1;
 
 #define GET_MALLOC_STACK_TRACE                                            \
   BufferedStackTrace stack;                                               \
-  if (hwasan_inited)                                                       \
-  GetStackTrace(&stack, common_flags()->malloc_context_size,              \
-                StackTrace::GetCurrentPc(), GET_CURRENT_FRAME(), nullptr, \
-                common_flags()->fast_unwind_on_malloc)
+  if (hwasan_inited)                                                      \
+    stack.Unwind(StackTrace::GetCurrentPc(), GET_CURRENT_FRAME(),         \
+                 nullptr, common_flags()->fast_unwind_on_malloc,          \
+                 common_flags()->malloc_context_size)
 
 #define GET_FATAL_STACK_TRACE_PC_BP(pc, bp)              \
   BufferedStackTrace stack;                              \
-  if (hwasan_inited)                                       \
-  GetStackTrace(&stack, kStackTraceMax, pc, bp, nullptr, \
-                common_flags()->fast_unwind_on_fatal)
+  if (hwasan_inited)                                     \
+    stack.Unwind(pc, bp, nullptr, common_flags()->fast_unwind_on_fatal)
 
 #define GET_FATAL_STACK_TRACE_HERE \
   GET_FATAL_STACK_TRACE_PC_BP(StackTrace::GetCurrentPc(), GET_CURRENT_FRAME())
@@ -134,16 +113,6 @@ const int STACK_TRACE_TAG_POISON = StackTrace::TAG_CUSTOM + 1;
     GET_FATAL_STACK_TRACE_HERE;     \
     stack.Print();                  \
   }
-
-class ScopedThreadLocalStateBackup {
- public:
-  ScopedThreadLocalStateBackup() { Backup(); }
-  ~ScopedThreadLocalStateBackup() { Restore(); }
-  void Backup();
-  void Restore();
- private:
-  u64 va_arg_overflow_size_tls;
-};
 
 void HwasanTSDInit();
 void HwasanTSDThreadInit();
@@ -172,5 +141,25 @@ void AndroidTestTlsSlot();
     }                             \
     RunFreeHooks(ptr);            \
   } while (false)
+
+#if HWASAN_WITH_INTERCEPTORS && defined(__aarch64__)
+// For both bionic and glibc __sigset_t is an unsigned long.
+typedef unsigned long __hw_sigset_t;
+// Setjmp and longjmp implementations are platform specific, and hence the
+// interception code is platform specific too.  As yet we've only implemented
+// the interception for AArch64.
+typedef unsigned long long __hw_register_buf[22];
+struct __hw_jmp_buf_struct {
+  // NOTE: The machine-dependent definition of `__sigsetjmp'
+  // assume that a `__hw_jmp_buf' begins with a `__hw_register_buf' and that
+  // `__mask_was_saved' follows it.  Do not move these members or add others
+  // before it.
+  __hw_register_buf __jmpbuf; // Calling environment.
+  int __mask_was_saved;       // Saved the signal mask?
+  __hw_sigset_t __saved_mask; // Saved signal mask.
+};
+typedef struct __hw_jmp_buf_struct __hw_jmp_buf[1];
+typedef struct __hw_jmp_buf_struct __hw_sigjmp_buf[1];
+#endif // HWASAN_WITH_INTERCEPTORS && __aarch64__
 
 #endif  // HWASAN_H

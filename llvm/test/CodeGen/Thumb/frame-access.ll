@@ -13,9 +13,9 @@
 
 declare void @llvm.va_start(i8*)
 declare dso_local i32 @g(i32*, i32, i32, i32, i32, i32) local_unnamed_addr
-declare dso_local i32 @f(i32*, i32, i32, i32, %struct.S* byval align 4) local_unnamed_addr
+declare dso_local i32 @f(i32*, i32, i32, i32, %struct.S* byval(%struct.S) align 4) local_unnamed_addr
 declare dso_local i32 @h(i32*, i32*, i32*) local_unnamed_addr
-declare dso_local i32 @u(i32*, i32*, i32*, %struct.S* byval align 4, %struct.S* byval align 4) local_unnamed_addr
+declare dso_local i32 @u(i32*, i32*, i32*, %struct.S* byval(%struct.S) align 4, %struct.S* byval(%struct.S) align 4) local_unnamed_addr
 
 ;
 ; Test access to arguments, passed on stack (including varargs)
@@ -36,11 +36,10 @@ entry:
 }
 ; CHECK-LABEL: test_args_sp
 ; Load `e`
-; CHECK:       ldr    r0, [sp, #40]
-; CHECK-NEXT:  mov    r5, sp
-; CHECK-NEXT:  str    r3, [r5]
+; CHECK:       ldr    r0, [sp, #32]
+; CHECK-NEXT:  str    r3, [sp]
 ; Pass `e` on stack
-; CHECK-NEXT:  str    r0, [r5, #4]
+; CHECK-NEXT:  str    r0, [sp, #4]
 ; CHECK:       bl    g
 
 ; int test_varargs_sp(int a, ...) {
@@ -92,10 +91,9 @@ entry:
 ; CHECK-NEXT:  mov  sp, r4
 ; Load `e` via FP
 ; CHECK:       ldr r0, [r7, #8]
-; CHECK-NEXT:  mov r5, sp
-; CHECK-NEXT:  str r3, [r5]
+; CHECK-NEXT:  str r3, [sp]
 ; Pass `e` as argument
-; CHECK-NEXT:  str r0, [r5, #4]
+; CHECK-NEXT:  str r0, [sp, #4]
 ; CHECK:       bl    g
 
 ; int test_varargs_realign(int a, ...) {
@@ -126,7 +124,7 @@ entry:
 ; CHECK-NEXT:  lsls r4, r4, #4
 ; CHECK-NEXT:  mov  sp, r4
 ; Incoming register varargs stored via FP
-; CHECK: mov	r0, r7
+; CHECK:      mov r0, r7
 ; CHECK-NEXT: adds r0, #8
 ; CHECK-NEXT: stm r0!, {r1, r2, r3}
 ; VLAs present, access via FP
@@ -147,9 +145,9 @@ entry:
 ; CHECK:       sub sp, #4
 ; Load `e` via FP
 ; CHECK:       ldr r5, [r7, #8]
-; CHECK-NEXT:  mov r0, sp
 ; Pass `d` and `e` as arguments
-; CHECK-NEXT:  stm r0!, {r3, r5}
+; CHECK-NEXT:  str r3, [sp]
+; CHECK-NEXT:  str r5, [sp, #4]
 ; CHECK:       bl  g
 
 ; int test_varargs_vla(int a, ...) {
@@ -173,9 +171,9 @@ entry:
 ; Setup frame pointer
 ; CHECK:       add r7, sp, #8
 ; Register varargs stored via FP
-; CHECK:       str r3, [r7, #16]
-; CHECK-NEXT:  str r2, [r7, #12]
-; CHECK-NEXT:  str r1, [r7, #8]
+; CHECK-DAG:  str r3, [r7, #16]
+; CHECK-DAG:  str r2, [r7, #12]
+; CHECK-DAG:  str r1, [r7, #8]
 
 ; Moving SP, access via SP
 ; int test_args_moving_sp(int a, int b, int c, int d, int e) {
@@ -189,7 +187,7 @@ entry:
   %arraydecay = getelementptr inbounds [4 x i32], [4 x i32]* %v, i32 0, i32 0
   %add = add nsw i32 %c, %b
   %add1 = add nsw i32 %add, %d
-  %call = call i32 @f(i32* nonnull %arraydecay, i32 %a, i32 %add1, i32 %e, %struct.S* byval nonnull align 4 @s)
+  %call = call i32 @f(i32* nonnull %arraydecay, i32 %a, i32 %add1, i32 %e, %struct.S* byval(%struct.S) nonnull align 4 @s)
   %add.ptr = getelementptr inbounds [4 x i32], [4 x i32]* %v, i32 0, i32 1
   %add.ptr5 = getelementptr inbounds [4 x i32], [4 x i32]* %v, i32 0, i32 2
   %call6 = call i32 @h(i32* nonnull %arraydecay, i32* nonnull %add.ptr, i32* nonnull %add.ptr5)
@@ -201,11 +199,13 @@ entry:
 ; CHECK:       push {r4, r5, r6, r7, lr}
 ; 20 bytes locals
 ; CHECK:       sub sp, #20
+; Setup base pointer
+; CHECK:       mov r6, sp
 ; Allocate outgoing arguments space
 ; CHECK:       sub sp, #508
 ; CHECK:       sub sp, #4
-; Load `e` via SP, 552 = 512 + 20 + 20
-; CHECK:       ldr r3, [sp, #552]
+; Load `e` via BP, 40 = 20 + 20
+; CHECK:       ldr r3, [r6, #40]
 ; CHECK:       bl  f
 ; Stack restored before next call
 ; CHECK-NEXT:  add sp, #508
@@ -226,7 +226,7 @@ entry:
   %1 = bitcast %struct.__va_list* %ap to i8*
   call void @llvm.va_start(i8* nonnull %1)
   %arraydecay = getelementptr inbounds [4 x i32], [4 x i32]* %v, i32 0, i32 0
-  %call = call i32 @f(i32* nonnull %arraydecay, i32 %a, i32 0, i32 0, %struct.S* byval nonnull align 4 @s)
+  %call = call i32 @f(i32* nonnull %arraydecay, i32 %a, i32 0, i32 0, %struct.S* byval(%struct.S) nonnull align 4 @s)
   %add.ptr = getelementptr inbounds [4 x i32], [4 x i32]* %v, i32 0, i32 1
   %add.ptr5 = getelementptr inbounds [4 x i32], [4 x i32]* %v, i32 0, i32 2
   %call6 = call i32 @h(i32* nonnull %arraydecay, i32* nonnull %add.ptr, i32* nonnull %add.ptr5)
@@ -237,11 +237,12 @@ entry:
 ; Three incoming register varargs
 ; CHECK:       sub sp, #12
 ; 16 bytes callee-saves
-; CHECK:       push {r4, r5, r7, lr}
+; CHECK:       push {r4, r5, r6, lr}
 ; 20 bytes locals
 ; CHECK:       sub sp, #20
-; Incoming varargs stored via SP, 36 = 20 + 16
-; CHECK:       add r0, sp, #36
+; Incoming varargs stored via BP, 36 = 20 + 16
+; CHECK:       mov r0, r6
+; CHECK-NEXT:  adds r0, #36
 ; CHECK-NEXT:  stm r0!, {r1, r2, r3}
 
 ;
@@ -388,25 +389,27 @@ entry:
   %2 = bitcast i32* %y to i8*
   %3 = bitcast i32* %z to i8*
   %arraydecay = getelementptr inbounds [4 x i32], [4 x i32]* %v, i32 0, i32 0
-  %call = call i32 @u(i32* nonnull %arraydecay, i32* nonnull %x, i32* nonnull %y, %struct.S* byval nonnull align 4 @s, %struct.S* byval nonnull align 4 @s)
-  %call2 = call i32 @u(i32* nonnull %arraydecay, i32* nonnull %y, i32* nonnull %z, %struct.S* byval nonnull align 4 @s, %struct.S* byval nonnull align 4 @s)
+  %call = call i32 @u(i32* nonnull %arraydecay, i32* nonnull %x, i32* nonnull %y, %struct.S* byval(%struct.S) nonnull align 4 @s, %struct.S* byval(%struct.S) nonnull align 4 @s)
+  %call2 = call i32 @u(i32* nonnull %arraydecay, i32* nonnull %y, i32* nonnull %z, %struct.S* byval(%struct.S) nonnull align 4 @s, %struct.S* byval(%struct.S) nonnull align 4 @s)
   %add = add nsw i32 %call2, %call
   ret i32 %add
 }
 ; CHECK-LABEL: test_local_moving_sp
 ; Locals area
 ; CHECK:      sub sp, #36
+; Setup BP
+; CHECK:      mov r6, sp
 ; Outoging arguments
 ; CHECK:      sub sp, #508
 ; CHECK-NEXT: sub sp, #508
 ; CHECK-NEXT: sub sp, #8
-; Argument addresses computed relative to SP
-; CHECK:      add  r4, sp, #1020
-; CHECK-NEXT: adds r4, #24
-; CHECK:      add  r1, sp, #1020
-; CHECK-NEXT: adds r1, #20
-; CHECK:      add  r5, sp, #1020
-; CHECK-NEXT: adds r5, #16
+; Argument addresses computed relative to BP
+; CHECK:      adds r4, r6, #7
+; CHECK-NEXT: adds r4, #13
+; CHECK:      adds r1, r6, #7
+; CHECK-NEXT: adds r1, #9
+; CHECK:      adds r5, r6, #7
+; CHECK-NEXT: adds r5, #5
 ; CHECK:      bl   u
 ; Stack restored before next call
 ; CHECK:      add  sp, #508

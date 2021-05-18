@@ -1,10 +1,25 @@
-// RUN: %clang_cc1 -verify -fopenmp %s -Wno-openmp-target
-// RUN: %clang_cc1 -verify -fopenmp -std=c++98 %s -Wno-openmp-target
-// RUN: %clang_cc1 -verify -fopenmp -std=c++11 %s -Wno-openmp-target
+// RUN: %clang_cc1 -verify=expected,omp45 -fopenmp -fopenmp-version=45 %s -Wno-openmp-mapping -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp45 -fopenmp -fopenmp-version=45 -std=c++98 %s -Wno-openmp-mapping -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp45 -fopenmp -fopenmp-version=45 -std=c++11 %s -Wno-openmp-mapping -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp -fopenmp-version=50 %s -Wno-openmp-mapping -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp -fopenmp-version=50 -std=c++98 %s -Wno-openmp-mapping -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp -fopenmp-version=50 -std=c++11 %s -Wno-openmp-mapping -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wno-openmp-target
-// RUN: %clang_cc1 -verify -fopenmp-simd -std=c++98 %s -Wno-openmp-target
-// RUN: %clang_cc1 -verify -fopenmp-simd -std=c++11 %s -Wno-openmp-target
+// RUN: %clang_cc1 -verify=expected,omp45 -fopenmp-simd -fopenmp-version=45 %s -Wno-openmp-mapping -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp45 -fopenmp-simd -fopenmp-version=45 -std=c++98 %s -Wno-openmp-mapping -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp45 -fopenmp-simd -fopenmp-version=45 -std=c++11 %s -Wno-openmp-mapping -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp-simd -fopenmp-version=50 %s -Wno-openmp-mapping -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp-simd -fopenmp-version=50 -std=c++98 %s -Wno-openmp-mapping -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp50 -fopenmp-simd -fopenmp-version=50 -std=c++11 %s -Wno-openmp-mapping -Wuninitialized
+
+extern int omp_default_mem_alloc;
+void xxx(int argc) {
+  int fp; // expected-note {{initialize the variable 'fp' to silence this warning}}
+#pragma omp target
+#pragma omp teams distribute parallel for simd reduction(+:fp) // expected-warning {{variable 'fp' is uninitialized when used here}}
+  for (int i = 0; i < 10; ++i)
+    ;
+}
 
 void foo() {
 }
@@ -79,7 +94,7 @@ T tmain(T argc) {
   const T d = T();       // expected-note 4 {{'d' defined here}}
   const T da[5] = {T()}; // expected-note 2 {{'da' defined here}}
   T qa[5] = {T()};
-  T i;
+  T i, z;
   T &j = i;                    // expected-note 4 {{'j' defined here}}
   S3 &p = k;                   // expected-note 2 {{'p' defined here}}
   const T &r = da[(int)i];     // expected-note 2 {{'r' defined here}}
@@ -119,13 +134,13 @@ T tmain(T argc) {
 #pragma omp teams distribute parallel for simd reduction(foo : argc) //expected-error {{incorrect reduction identifier, expected one of '+', '-', '*', '&', '|', '^', '&&', '||', 'min' or 'max' or declare reduction for type 'float'}} expected-error {{incorrect reduction identifier, expected one of '+', '-', '*', '&', '|', '^', '&&', '||', 'min' or 'max' or declare reduction for type 'int'}}
   for (int j=0; j<100; j++) foo();
 #pragma omp target
-#pragma omp teams distribute parallel for simd reduction(&& : argc)
+#pragma omp teams distribute parallel for simd reduction(&& : argc) allocate , allocate(, allocate(omp_default , allocate(omp_default_mem_alloc, allocate(omp_default_mem_alloc:, allocate(omp_default_mem_alloc: argc, allocate(omp_default_mem_alloc: argv), allocate(argv) // expected-error {{expected '(' after 'allocate'}} expected-error 2 {{expected expression}} expected-error 2 {{expected ')'}} expected-error {{use of undeclared identifier 'omp_default'}} expected-note 2 {{to match this '('}}
   for (int j=0; j<100; j++) foo();
 #pragma omp target
 #pragma omp teams distribute parallel for simd reduction(^ : T) // expected-error {{'T' does not refer to a value}}
   for (int j=0; j<100; j++) foo();
 #pragma omp target
-#pragma omp teams distribute parallel for simd reduction(+ : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 3 {{const-qualified variable cannot be reduction}} expected-error 2 {{'operator+' is a private member of 'S2'}}
+#pragma omp teams distribute parallel for simd reduction(+ : z, a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 3 {{const-qualified variable cannot be reduction}} expected-error 2 {{'operator+' is a private member of 'S2'}}
   for (int j=0; j<100; j++) foo();
 #pragma omp target
 #pragma omp teams distribute parallel for simd reduction(min : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 4 {{arguments of OpenMP clause 'reduction' for 'min' or 'max' must be of arithmetic type}} expected-error 3 {{const-qualified variable cannot be reduction}}
@@ -196,7 +211,7 @@ int main(int argc, char **argv) {
   int qa[5] = {0};
   S4 e(4);
   S5 g(5);
-  int i;
+  int i, z;
   int &j = i;                  // expected-note 2 {{'j' defined here}}
   S3 &p = k;                   // expected-note 2 {{'p' defined here}}
   const int &r = da[i];        // expected-note {{'r' defined here}}
@@ -236,16 +251,16 @@ int main(int argc, char **argv) {
 #pragma omp teams distribute parallel for simd reduction(~ : argc) // expected-error {{expected unqualified-id}}
   for (int j=0; j<100; j++) foo();
 #pragma omp target
-#pragma omp teams distribute parallel for simd reduction(&& : argc)
+#pragma omp teams distribute parallel for simd reduction(&& : argc, z)
   for (int j=0; j<100; j++) foo();
 #pragma omp target
 #pragma omp teams distribute parallel for simd reduction(^ : S1) // expected-error {{'S1' does not refer to a value}}
   for (int j=0; j<100; j++) foo();
 #pragma omp target
-#pragma omp teams distribute parallel for simd reduction(+ : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 2 {{const-qualified variable cannot be reduction}} expected-error {{'operator+' is a private member of 'S2'}}
+#pragma omp teams distribute parallel for simd reduction(+ : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 2 {{const-qualified variable cannot be reduction}} expected-error {{'operator+' is a private member of 'S2'}} expected-error {{incomplete type 'S1' where a complete type is required}}
   for (int j=0; j<100; j++) foo();
 #pragma omp target
-#pragma omp teams distribute parallel for simd reduction(min : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 2 {{arguments of OpenMP clause 'reduction' for 'min' or 'max' must be of arithmetic type}} expected-error 2 {{const-qualified variable cannot be reduction}}
+#pragma omp teams distribute parallel for simd reduction(min : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 2 {{arguments of OpenMP clause 'reduction' for 'min' or 'max' must be of arithmetic type}} expected-error 2 {{const-qualified variable cannot be reduction}} expected-error {{incomplete type 'S1' where a complete type is required}}
   for (int j=0; j<100; j++) foo();
 #pragma omp target
 #pragma omp teams distribute parallel for simd reduction(max : h.b) // expected-error {{expected variable name, array element or array section}}
@@ -301,6 +316,9 @@ int main(int argc, char **argv) {
   static int m;
 #pragma omp target
 #pragma omp teams distribute parallel for simd reduction(+ : m) // OK
+  for (int j=0; j<100; j++) foo();
+#pragma omp target
+#pragma omp teams distribute parallel for simd reduction(task, + : m) // omp45-error 2 {{expected expression}} omp45-warning {{missing ':' after reduction identifier - ignoring}} omp50-error {{'reduction' clause with 'task' modifier allowed only on non-simd parallel or worksharing constructs}}
   for (int j=0; j<100; j++) foo();
 
   return tmain(argc) + tmain(fl); // expected-note {{in instantiation of function template specialization 'tmain<int>' requested here}} expected-note {{in instantiation of function template specialization 'tmain<float>' requested here}}

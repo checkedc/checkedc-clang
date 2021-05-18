@@ -1,9 +1,8 @@
 //===- TGLexer.cpp - Lexer for TableGen -----------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -12,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "TGLexer.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Config/config.h" // for strtoull()/strtoll() define
@@ -37,6 +37,7 @@ struct {
   const char *Word;
 } PreprocessorDirs[] = {
   { tgtok::Ifdef, "ifdef" },
+  { tgtok::Ifndef, "ifndef" },
   { tgtok::Else, "else" },
   { tgtok::Endif, "endif" },
   { tgtok::Define, "define" }
@@ -51,7 +52,7 @@ TGLexer::TGLexer(SourceMgr &SM, ArrayRef<std::string> Macros) : SrcMgr(SM) {
 
   // Pretend that we enter the "top-level" include file.
   PrepIncludeStack.push_back(
-      make_unique<std::vector<PreprocessorControlDesc>>());
+      std::make_unique<std::vector<PreprocessorControlDesc>>());
 
   // Put all macros defined in the command line into the DefinedMacros set.
   std::for_each(Macros.begin(), Macros.end(),
@@ -149,7 +150,7 @@ tgtok::TokKind TGLexer::LexToken(bool FileOrLineStart) {
   case EOF:
     // Lex next token, if we just left an include file.
     // Note that leaving an include file means that the next
-    // symbol is located at the end of 'include "..."'
+    // symbol is located at the end of the 'include "..."'
     // construct, so LexToken() is called with default
     // false parameter.
     if (processEOF())
@@ -160,7 +161,6 @@ tgtok::TokKind TGLexer::LexToken(bool FileOrLineStart) {
 
   case ':': return tgtok::colon;
   case ';': return tgtok::semi;
-  case '.': return tgtok::period;
   case ',': return tgtok::comma;
   case '<': return tgtok::less;
   case '>': return tgtok::greater;
@@ -179,6 +179,19 @@ tgtok::TokKind TGLexer::LexToken(bool FileOrLineStart) {
     }
 
     return tgtok::paste;
+
+  // The period is a separate case so we can recognize the "..."
+  // range punctuator.
+  case '.':
+    if (peekNextChar(0) == '.') {
+      ++CurPtr; // Eat second dot.
+      if (peekNextChar(0) == '.') {
+        ++CurPtr; // Eat third dot.
+        return tgtok::dotdotdot;
+      }
+      return ReturnError(TokStart, "Invalid '..' punctuation");
+    }
+    return tgtok::dot;
 
   case '\r':
     PrintFatalError("getNextChar() must never return '\r'");
@@ -325,13 +338,8 @@ tgtok::TokKind TGLexer::LexIdentifier() {
   while (isalpha(*CurPtr) || isdigit(*CurPtr) || *CurPtr == '_')
     ++CurPtr;
 
-  // Check to see if this identifier is a keyword.
+  // Check to see if this identifier is a reserved keyword.
   StringRef Str(IdentStart, CurPtr-IdentStart);
-
-  if (Str == "include") {
-    if (LexInclude()) return tgtok::Error;
-    return Lex();
-  }
 
   tgtok::TokKind Kind = StringSwitch<tgtok::TokKind>(Str)
     .Case("int", tgtok::Int)
@@ -343,6 +351,8 @@ tgtok::TokKind TGLexer::LexIdentifier() {
     .Case("dag", tgtok::Dag)
     .Case("class", tgtok::Class)
     .Case("def", tgtok::Def)
+    .Case("true", tgtok::TrueVal)
+    .Case("false", tgtok::FalseVal)
     .Case("foreach", tgtok::Foreach)
     .Case("defm", tgtok::Defm)
     .Case("defset", tgtok::Defset)
@@ -350,10 +360,26 @@ tgtok::TokKind TGLexer::LexIdentifier() {
     .Case("field", tgtok::Field)
     .Case("let", tgtok::Let)
     .Case("in", tgtok::In)
+    .Case("defvar", tgtok::Defvar)
+    .Case("include", tgtok::Include)
+    .Case("if", tgtok::If)
+    .Case("then", tgtok::Then)
+    .Case("else", tgtok::ElseKW)
+    .Case("assert", tgtok::Assert)
     .Default(tgtok::Id);
 
-  if (Kind == tgtok::Id)
-    CurStrVal.assign(Str.begin(), Str.end());
+  // A couple of tokens require special processing.
+  switch (Kind) {
+    case tgtok::Include:
+      if (LexInclude()) return tgtok::Error;
+      return Lex();
+    case tgtok::Id:
+      CurStrVal.assign(Str.begin(), Str.end());
+      break;
+    default:
+      break;
+  }
+
   return Kind;
 }
 
@@ -379,21 +405,13 @@ bool TGLexer::LexInclude() {
     return true;
   }
 
-  DependenciesMapTy::const_iterator Found = Dependencies.find(IncludedFile);
-  if (Found != Dependencies.end()) {
-    PrintError(getLoc(),
-               "File '" + IncludedFile + "' has already been included.");
-    SrcMgr.PrintMessage(Found->second, SourceMgr::DK_Note,
-                        "previously included here");
-    return true;
-  }
-  Dependencies.insert(std::make_pair(IncludedFile, getLoc()));
+  Dependencies.insert(IncludedFile);
   // Save the line number and lex buffer of the includer.
   CurBuf = SrcMgr.getMemoryBuffer(CurBuffer)->getBuffer();
   CurPtr = CurBuf.begin();
 
   PrepIncludeStack.push_back(
-      make_unique<std::vector<PreprocessorControlDesc>>());
+      std::make_unique<std::vector<PreprocessorControlDesc>>());
   return false;
 }
 
@@ -523,7 +541,7 @@ tgtok::TokKind TGLexer::LexBracket() {
     }
   }
 
-  return ReturnError(CodeStart-2, "Unterminated Code Block");
+  return ReturnError(CodeStart - 2, "Unterminated code block");
 }
 
 /// LexExclaim - Lex '!' and '![a-zA-Z]+'.
@@ -545,6 +563,7 @@ tgtok::TokKind TGLexer::LexExclaim() {
     .Case("ge", tgtok::XGe)
     .Case("gt", tgtok::XGt)
     .Case("if", tgtok::XIf)
+    .Case("cond", tgtok::XCond)
     .Case("isa", tgtok::XIsA)
     .Case("head", tgtok::XHead)
     .Case("tail", tgtok::XTail)
@@ -552,8 +571,12 @@ tgtok::TokKind TGLexer::LexExclaim() {
     .Case("con", tgtok::XConcat)
     .Case("dag", tgtok::XDag)
     .Case("add", tgtok::XADD)
+    .Case("sub", tgtok::XSUB)
+    .Case("mul", tgtok::XMUL)
+    .Case("not", tgtok::XNOT)
     .Case("and", tgtok::XAND)
     .Case("or", tgtok::XOR)
+    .Case("xor", tgtok::XXOR)
     .Case("shl", tgtok::XSHL)
     .Case("sra", tgtok::XSRA)
     .Case("srl", tgtok::XSRL)
@@ -562,8 +585,14 @@ tgtok::TokKind TGLexer::LexExclaim() {
     .Case("subst", tgtok::XSubst)
     .Case("foldl", tgtok::XFoldl)
     .Case("foreach", tgtok::XForEach)
+    .Case("filter", tgtok::XFilter)
     .Case("listconcat", tgtok::XListConcat)
+    .Case("listsplat", tgtok::XListSplat)
     .Case("strconcat", tgtok::XStrConcat)
+    .Case("interleave", tgtok::XInterleave)
+    .Case("substr", tgtok::XSubstr)
+    .Cases("setdagop", "setop", tgtok::XSetDagOp) // !setop is deprecated.
+    .Cases("getdagop", "getop", tgtok::XGetDagOp) // !getop is deprecated.
     .Default(tgtok::Error);
 
   return Kind != tgtok::Error ? Kind : ReturnError(Start-1, "Unknown operator");
@@ -674,12 +703,19 @@ tgtok::TokKind TGLexer::lexPreprocessor(
     PrintFatalError("lexPreprocessor() called for unknown "
                     "preprocessor directive");
 
-  if (Kind == tgtok::Ifdef) {
+  if (Kind == tgtok::Ifdef || Kind == tgtok::Ifndef) {
     StringRef MacroName = prepLexMacroName();
+    StringRef IfTokName = Kind == tgtok::Ifdef ? "#ifdef" : "#ifndef";
     if (MacroName.empty())
-      return ReturnError(TokStart, "Expected macro name after #ifdef");
+      return ReturnError(TokStart, "Expected macro name after " + IfTokName);
 
     bool MacroIsDefined = DefinedMacros.count(MacroName) != 0;
+
+    // Canonicalize ifndef to ifdef equivalent
+    if (Kind == tgtok::Ifndef) {
+      MacroIsDefined = !MacroIsDefined;
+      Kind = tgtok::Ifdef;
+    }
 
     // Regardless of whether we are processing tokens or not,
     // we put the #ifdef control on stack.
@@ -687,8 +723,8 @@ tgtok::TokKind TGLexer::lexPreprocessor(
         {Kind, MacroIsDefined, SMLoc::getFromPointer(TokStart)});
 
     if (!prepSkipDirectiveEnd())
-      return ReturnError(CurPtr,
-                         "Only comments are supported after #ifdef NAME");
+      return ReturnError(CurPtr, "Only comments are supported after " +
+                                     IfTokName + " NAME");
 
     // If we were not processing tokens before this #ifdef,
     // then just return back to the lines skipping code.
@@ -712,7 +748,7 @@ tgtok::TokKind TGLexer::lexPreprocessor(
     // Check if this #else is correct before calling prepSkipDirectiveEnd(),
     // which will move CurPtr away from the beginning of #else.
     if (PrepIncludeStack.back()->empty())
-      return ReturnError(TokStart, "#else without #ifdef");
+      return ReturnError(TokStart, "#else without #ifdef or #ifndef");
 
     PreprocessorControlDesc IfdefEntry = PrepIncludeStack.back()->back();
 

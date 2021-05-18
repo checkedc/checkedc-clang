@@ -1,9 +1,12 @@
 // REQUIRES: x86
+
+/// Alignment of the copy relocated symbol is respected.
+
 // RUN: llvm-mc -filetype=obj -triple=x86_64-pc-linux %s -o %t.o
 // RUN: llvm-mc -filetype=obj -triple=x86_64-pc-linux %p/Inputs/relocation-copy-align.s -o %t2.o
 // RUN: ld.lld -shared %t2.o -o %t.so
 // RUN: ld.lld %t.o %t.so -o %t3
-// RUN: llvm-readobj -s -r --expand-relocs %t3 | FileCheck %s
+// RUN: llvm-readobj -S -r --expand-relocs %t3 | FileCheck %s
 
 .global _start
 _start:

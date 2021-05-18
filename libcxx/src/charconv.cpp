@@ -1,9 +1,8 @@
 //===------------------------- charconv.cpp -------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -33,7 +32,7 @@ static constexpr char cDigitsLut[200] = {
 
 template <typename T>
 inline _LIBCPP_INLINE_VISIBILITY char*
-append1(char* buffer, T i)
+append1(char* buffer, T i) noexcept
 {
     *buffer = '0' + static_cast<char>(i);
     return buffer + 1;
@@ -41,7 +40,7 @@ append1(char* buffer, T i)
 
 template <typename T>
 inline _LIBCPP_INLINE_VISIBILITY char*
-append2(char* buffer, T i)
+append2(char* buffer, T i) noexcept
 {
     memcpy(buffer, &cDigitsLut[(i)*2], 2);
     return buffer + 2;
@@ -49,60 +48,62 @@ append2(char* buffer, T i)
 
 template <typename T>
 inline _LIBCPP_INLINE_VISIBILITY char*
-append3(char* buffer, T i)
+append3(char* buffer, T i) noexcept
 {
     return append2(append1(buffer, (i) / 100), (i) % 100);
 }
 
 template <typename T>
 inline _LIBCPP_INLINE_VISIBILITY char*
-append4(char* buffer, T i)
+append4(char* buffer, T i) noexcept
 {
     return append2(append2(buffer, (i) / 100), (i) % 100);
 }
 
-char*
-__u32toa(uint32_t value, char* buffer)
+template <typename T>
+inline _LIBCPP_INLINE_VISIBILITY char*
+append2_no_zeros(char* buffer, T v) noexcept
 {
-    if (value < 10000)
+    if (v < 10)
+        return append1(buffer, v);
+    else
+        return append2(buffer, v);
+}
+
+template <typename T>
+inline _LIBCPP_INLINE_VISIBILITY char*
+append4_no_zeros(char* buffer, T v) noexcept
+{
+    if (v < 100)
+        return append2_no_zeros(buffer, v);
+    else if (v < 1000)
+        return append3(buffer, v);
+    else
+        return append4(buffer, v);
+}
+
+template <typename T>
+inline _LIBCPP_INLINE_VISIBILITY char*
+append8_no_zeros(char* buffer, T v) noexcept
+{
+    if (v < 10000)
     {
-        if (value < 100)
-        {
-            if (value < 10)
-                buffer = append1(buffer, value);
-            else
-                buffer = append2(buffer, value);
-        }
-        else
-        {
-            if (value < 1000)
-                buffer = append3(buffer, value);
-            else
-                buffer = append4(buffer, value);
-        }
+        buffer = append4_no_zeros(buffer, v);
     }
-    else if (value < 100000000)
+    else
     {
-        // value = bbbbcccc
-        const uint32_t b = value / 10000;
-        const uint32_t c = value % 10000;
+        buffer = append4_no_zeros(buffer, v / 10000);
+        buffer = append4(buffer, v % 10000);
+    }
+    return buffer;
+}
 
-        if (value < 1000000)
-        {
-            if (value < 100000)
-                buffer = append1(buffer, b);
-            else
-                buffer = append2(buffer, b);
-        }
-        else
-        {
-            if (value < 10000000)
-                buffer = append3(buffer, b);
-            else
-                buffer = append4(buffer, b);
-        }
-
-        buffer = append4(buffer, c);
+char*
+__u32toa(uint32_t value, char* buffer) _NOEXCEPT
+{
+    if (value < 100000000)
+    {
+        buffer = append8_no_zeros(buffer, value);
     }
     else
     {
@@ -110,11 +111,7 @@ __u32toa(uint32_t value, char* buffer)
         const uint32_t a = value / 100000000;  // 1 to 42
         value %= 100000000;
 
-        if (a < 10)
-            buffer = append1(buffer, a);
-        else
-            buffer = append2(buffer, a);
-
+        buffer = append2_no_zeros(buffer, a);
         buffer = append4(buffer, value / 10000);
         buffer = append4(buffer, value % 10000);
     }
@@ -123,76 +120,19 @@ __u32toa(uint32_t value, char* buffer)
 }
 
 char*
-__u64toa(uint64_t value, char* buffer)
+__u64toa(uint64_t value, char* buffer) _NOEXCEPT
 {
     if (value < 100000000)
     {
         uint32_t v = static_cast<uint32_t>(value);
-        if (v < 10000)
-        {
-            if (v < 100)
-            {
-                if (v < 10)
-                    buffer = append1(buffer, v);
-                else
-                    buffer = append2(buffer, v);
-            }
-            else
-            {
-                if (v < 1000)
-                    buffer = append3(buffer, v);
-                else
-                    buffer = append4(buffer, v);
-            }
-        }
-        else
-        {
-            // value = bbbbcccc
-            const uint32_t b = v / 10000;
-            const uint32_t c = v % 10000;
-
-            if (v < 1000000)
-            {
-                if (v < 100000)
-                    buffer = append1(buffer, b);
-                else
-                    buffer = append2(buffer, b);
-            }
-            else
-            {
-                if (v < 10000000)
-                    buffer = append3(buffer, b);
-                else
-                    buffer = append4(buffer, b);
-            }
-
-            buffer = append4(buffer, c);
-        }
+        buffer = append8_no_zeros(buffer, v);
     }
     else if (value < 10000000000000000)
     {
         const uint32_t v0 = static_cast<uint32_t>(value / 100000000);
         const uint32_t v1 = static_cast<uint32_t>(value % 100000000);
 
-        const uint32_t b0 = v0 / 10000;
-        const uint32_t c0 = v0 % 10000;
-
-        if (v0 < 1000000)
-        {
-            if (v0 < 100000)
-                buffer = append1(buffer, b0);
-            else
-                buffer = append2(buffer, b0);
-        }
-        else
-        {
-            if (v0 < 10000000)
-                buffer = append3(buffer, b0);
-            else
-                buffer = append4(buffer, b0);
-        }
-
-        buffer = append4(buffer, c0);
+        buffer = append8_no_zeros(buffer, v0);
         buffer = append4(buffer, v1 / 10000);
         buffer = append4(buffer, v1 % 10000);
     }
@@ -202,20 +142,7 @@ __u64toa(uint64_t value, char* buffer)
             static_cast<uint32_t>(value / 10000000000000000);  // 1 to 1844
         value %= 10000000000000000;
 
-        if (a < 100)
-        {
-            if (a < 10)
-                buffer = append1(buffer, a);
-            else
-                buffer = append2(buffer, a);
-        }
-        else
-        {
-            if (a < 1000)
-                buffer = append3(buffer, a);
-            else
-                buffer = append4(buffer, a);
-        }
+        buffer = append4_no_zeros(buffer, a);
 
         const uint32_t v0 = static_cast<uint32_t>(value / 100000000);
         const uint32_t v1 = static_cast<uint32_t>(value % 100000000);

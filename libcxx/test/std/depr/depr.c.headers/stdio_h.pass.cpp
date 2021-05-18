@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -104,7 +103,7 @@
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations" // for tmpnam
 #endif
 
-int main()
+int main(int, char**)
 {
     FILE* fp = 0;
     fpos_t fpos = fpos_t();
@@ -157,13 +156,19 @@ int main()
     static_assert((std::is_same<decltype(ungetc(0,fp)), int>::value), "");
     static_assert((std::is_same<decltype(fread((void*)0,0,0,fp)), size_t>::value), "");
     static_assert((std::is_same<decltype(fwrite((const void*)arr,1,0,fp)), size_t>::value), "");
+#ifndef _LIBCPP_HAS_NO_FGETPOS_FSETPOS
     static_assert((std::is_same<decltype(fgetpos(fp, &fpos)), int>::value), "");
+#endif
     static_assert((std::is_same<decltype(fseek(fp, 0,0)), int>::value), "");
+#ifndef _LIBCPP_HAS_NO_FGETPOS_FSETPOS
     static_assert((std::is_same<decltype(fsetpos(fp, &fpos)), int>::value), "");
+#endif
     static_assert((std::is_same<decltype(ftell(fp)), long>::value), "");
     static_assert((std::is_same<decltype(rewind(fp)), void>::value), "");
     static_assert((std::is_same<decltype(clearerr(fp)), void>::value), "");
     static_assert((std::is_same<decltype(feof(fp)), int>::value), "");
     static_assert((std::is_same<decltype(ferror(fp)), int>::value), "");
     static_assert((std::is_same<decltype(perror("")), void>::value), "");
+
+  return 0;
 }

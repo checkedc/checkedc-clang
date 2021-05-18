@@ -19,7 +19,7 @@ Should be working on UNIX operating systems.
 Prerequisites
 -------------
 
-1. **python** interpreter (version 2.7, 3.2, 3.3, 3.4, 3.5).
+1. **python** interpreter (version 3.6 or later).
 
 
 How to use
@@ -138,7 +138,7 @@ how to fix it, include that as well. Patches are also welcome.
 License
 -------
 
-The project is licensed under University of Illinois/NCSA Open Source License.
+The project is licensed under Apache-2.0 with LLVM exceptions.
 See LICENSE.TXT for details.
 
   [1]: http://clang.llvm.org/docs/JSONCompilationDatabase.html

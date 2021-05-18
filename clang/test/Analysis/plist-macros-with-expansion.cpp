@@ -1,11 +1,9 @@
-// RUN: %clang_analyze_cc1 -analyzer-checker=core -verify %s
-//
-// RUN: %clang_analyze_cc1 -analyzer-checker=core %s  \
+// RUN: %clang_analyze_cc1 -std=c++14 -analyzer-checker=core %s  \
 // RUN:   -analyzer-output=plist -o %t.plist \
 // RUN:   -analyzer-config expand-macros=true
 //
 // Check the actual plist output.
-//   RUN: cat %t.plist | %diff_plist \
+//   RUN: %normalize_plist <%t.plist | diff -ub \
 //   RUN:   %S/Inputs/expected-plists/plist-macros-with-expansion.cpp.plist -
 //
 // Check the macro expansions from the plist output here, to make the test more
@@ -440,3 +438,108 @@ void test() {
 }
 // CHECK: <key>name</key><string>YET_ANOTHER_SET_TO_NULL</string>
 // CHECK-NEXT: <key>expansion</key><string>print((void *)5); print((void *)&quot;Remember the Vasa&quot;); ptr = nullptr;</string>
+
+int garbage_value;
+
+#define REC_MACRO_FUNC(REC_MACRO_PARAM) garbage_##REC_MACRO_PARAM
+#define value REC_MACRO_FUNC(value)
+
+void recursiveMacroUser() {
+  if (value == 0)
+    1 / value; // expected-warning{{Division by zero}}
+               // expected-warning@-1{{expression result unused}}
+}
+
+// CHECK: <key>name</key><string>value</string>
+// CHECK-NEXT: <key>expansion</key><string>garbage_</string>
+
+#define FOO(x) int foo() { return x; }
+#define APPLY_ZERO1(function) function(0)
+
+APPLY_ZERO1(FOO)
+void useZeroApplier1() { (void)(1 / foo()); } // expected-warning{{Division by zero}}
+
+// CHECK: <key>name</key><string>APPLY_ZERO1</string>
+// CHECK-NEXT: <key>expansion</key><string>int foo() { return x; }(0)</string>
+
+#define BAR(x) int bar() { return x; }
+#define APPLY_ZERO2 BAR(0)
+
+APPLY_ZERO2
+void useZeroApplier2() { (void)(1 / bar()); } // expected-warning{{Division by zero}}
+
+// CHECK: <key>name</key><string>APPLY_ZERO2</string>
+// CHECK-NEXT: <key>expansion</key><string>int bar() { return 0; }</string>
+
+void foo(int &x, const char *str);
+
+#define PARAMS_RESOLVE_TO_VA_ARGS(i, fmt) foo(i, fmt); \
+  i = 0;
+#define DISPATCH(...) PARAMS_RESOLVE_TO_VA_ARGS(__VA_ARGS__);
+
+void mulitpleParamsResolveToVA_ARGS(void) {
+  int x = 1;
+  DISPATCH(x, "LF1M healer");
+  (void)(10 / x); // expected-warning{{Division by zero}}
+}
+// CHECK: <key>name</key><string>DISPATCH</string>
+// CHECK-NEXT: <key>expansion</key><string>foo(x, &quot;LF1M healer&quot;);x = 0;;</string>
+
+void variadicCFunction(int &x, const char *str, ...);
+
+#define CONCAT_VA_ARGS(i, fmt, ...) variadicCFunction(i, fmt, ##__VA_ARGS__); \
+  i = 0;
+
+void concatVA_ARGS(void) {
+  int x = 1;
+  CONCAT_VA_ARGS(x, "You need to construct additional pylons.", 'c', 9);
+  (void)(10 / x); // expected-warning{{Division by zero}}
+}
+// CHECK: <key>name</key><string>CONCAT_VA_ARGS</string>
+// CHECK-NEXT: <key>expansion</key><string>variadicCFunction(x, &quot;You need to construct additional pylons.&quot;,&apos;c&apos;, 9);x = 0;</string>
+
+void concatVA_ARGSEmpty(void) {
+  int x = 1;
+  CONCAT_VA_ARGS(x, "You need to construct");
+  (void)(10 / x); // expected-warning{{Division by zero}}
+}
+// FIXME: The comma shouldn't be present after the last argument.
+// CHECK: <key>name</key><string>CONCAT_VA_ARGS</string>
+// CHECK-NEXT: <key>expansion</key><string>variadicCFunction(x, &quot;You need to construct&quot;,);x = 0;</string>
+
+#define STRINGIFIED_VA_ARGS(i, fmt, ...) variadicCFunction(i, fmt, #__VA_ARGS__); \
+  i = 0;
+
+void stringifyVA_ARGS(void) {
+  int x = 1;
+  STRINGIFIED_VA_ARGS(x, "Additional supply depots required.", 'a', 10);
+  (void)(10 / x); // expected-warning{{Division by zero}}
+}
+
+// FIXME: Stringify and escape __VA_ARGS__ correctly.
+// CHECK: <key>name</key><string>STRINGIFIED_VA_ARGS</string>
+// CHECK-NEXT: <key>expansion</key><string>variadicCFunction(x, &quot;Additional supply depots required.&quot;,  &quot;&apos;a&apos;&quot;, 10);x = 0;</string>
+
+void stringifyVA_ARGSEmpty(void) {
+  int x = 1;
+  STRINGIFIED_VA_ARGS(x, "Additional supply depots required.");
+  (void)(10 / x); // expected-warning{{Division by zero}}
+}
+
+// FIXME: Stringify and escape __VA_ARGS__ correctly.
+// CHECK: <key>name</key><string>STRINGIFIED_VA_ARGS</string>
+// CHECK-NEXT: <key>expansion</key><string>variadicCFunction(x, &quot;Additional supply depots required.&quot;, &quot;)&quot;;x = 0;</string>
+
+// bz44493: Support GNU-style named variadic arguments in plister
+#define BZ44493_GNUVA(i, args...)  --(i);
+
+int bz44493(void) {
+  int a = 2;
+  BZ44493_GNUVA(a);
+  BZ44493_GNUVA(a, "arg2");
+  (void)(10 / a); // expected-warning{{Division by zero}}
+  return 0;
+}
+
+// CHECK: <key>name</key><string>BZ44493_GNUVA</string>
+// CHECK-NEXT: <key>expansion</key><string>--(a);</string>

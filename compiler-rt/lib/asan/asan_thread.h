@@ -1,15 +1,14 @@
 //===-- asan_thread.h -------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
 // This file is a part of AddressSanitizer, an address sanity checker.
 //
-// ASan-private header for asan_thread.cc.
+// ASan-private header for asan_thread.cpp.
 //===----------------------------------------------------------------------===//
 
 #ifndef ASAN_THREAD_H
@@ -36,7 +35,7 @@ class AsanThread;
 
 // These objects are created for every thread and are never deleted,
 // so we can find them by tid even if the thread is long dead.
-class AsanThreadContext : public ThreadContextBase {
+class AsanThreadContext final : public ThreadContextBase {
  public:
   explicit AsanThreadContext(int tid)
       : ThreadContextBase(tid), announced(false),
@@ -70,8 +69,7 @@ class AsanThread {
   struct InitOptions;
   void Init(const InitOptions *options = nullptr);
 
-  thread_return_t ThreadStart(tid_t os_id,
-                              atomic_uintptr_t *signal_thread_is_registered);
+  thread_return_t ThreadStart(tid_t os_id);
 
   uptr stack_top();
   uptr stack_bottom();
@@ -131,6 +129,10 @@ class AsanThread {
   AsanThreadLocalMallocStorage &malloc_storage() { return malloc_storage_; }
   AsanStats &stats() { return stats_; }
 
+  void *extra_spill_area() { return &extra_spill_area_; }
+
+  void *get_arg() { return arg_; }
+
  private:
   // NOTE: There is no AsanThread constructor. It is allocated
   // via mmap() and *must* be valid in zero-initialized state.
@@ -166,18 +168,7 @@ class AsanThread {
   AsanThreadLocalMallocStorage malloc_storage_;
   AsanStats stats_;
   bool unwinding_;
-};
-
-// ScopedUnwinding is a scope for stacktracing member of a context
-class ScopedUnwinding {
- public:
-  explicit ScopedUnwinding(AsanThread *t) : thread(t) {
-    t->setUnwinding(true);
-  }
-  ~ScopedUnwinding() { thread->setUnwinding(false); }
-
- private:
-  AsanThread *thread;
+  uptr extra_spill_area_;
 };
 
 // Returns a single instance of registry.

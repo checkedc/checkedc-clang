@@ -1,15 +1,10 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
-// Usage of is_trivially_constructible is broken with these compilers.
-// See https://bugs.llvm.org/show_bug.cgi?id=31016
-// XFAIL: clang-3.7, apple-clang-7 && c++17
 
 // <iterator>
 
@@ -43,7 +38,7 @@ void operator ()() const {}
 #endif
 
 
-int main()
+int main(int, char**)
 {
     {
     typedef std::istream_iterator<int> T;
@@ -62,4 +57,6 @@ int main()
     test_trivial<S>()();
     test_trivial<std::string>()();
 #endif
+
+  return 0;
 }

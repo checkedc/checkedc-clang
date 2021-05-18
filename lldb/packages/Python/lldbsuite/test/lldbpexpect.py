@@ -1,4 +1,3 @@
-from __future__ import print_function
 from __future__ import absolute_import
 
 # System modules
@@ -12,84 +11,66 @@ import six
 import lldb
 from .lldbtest import *
 from . import lldbutil
+from lldbsuite.test.decorators import *
 
-if sys.platform.startswith('win32'):
-    class PExpectTest(TestBase):
-        pass
-else:
-    import pexpect
+@skipIfRemote
+@skipIfWindows  # llvm.org/pr22274: need a pexpect replacement for windows
+class PExpectTest(TestBase):
 
-    class PExpectTest(TestBase):
+    NO_DEBUG_INFO_TESTCASE = True
+    PROMPT = "(lldb) "
 
-        mydir = TestBase.compute_mydir(__file__)
+    def expect_prompt(self):
+        self.child.expect_exact(self.PROMPT)
 
-        def setUp(self):
-            TestBase.setUp(self)
+    def launch(self, executable=None, extra_args=None, timeout=30, dimensions=None):
+        logfile = getattr(sys.stdout, 'buffer',
+                            sys.stdout) if self.TraceOn() else None
 
-        def launchArgs(self):
-            pass
+        args = ['--no-lldbinit', '--no-use-colors']
+        for cmd in self.setUpCommands():
+            args += ['-O', cmd]
+        if executable is not None:
+            args += ['--file', executable]
+        if extra_args is not None:
+            args.extend(extra_args)
 
-        def launch(self, timeout=None):
-            if timeout is None:
-                timeout = 30
-            logfile = sys.stdout if self.TraceOn() else None
-            self.child = pexpect.spawn(
-                '%s --no-use-colors %s' %
-                (lldbtest_config.lldbExec, self.launchArgs()), logfile=logfile)
-            self.child.timeout = timeout
-            self.timeout = timeout
+        env = dict(os.environ)
+        env["TERM"]="vt100"
 
-        def expect(self, patterns=None, timeout=None, exact=None):
-            if patterns is None:
-                return None
-            if timeout is None:
-                timeout = self.timeout
-            if exact is None:
-                exact = False
-            if exact:
-                return self.child.expect_exact(patterns, timeout=timeout)
-            else:
-                return self.child.expect(patterns, timeout=timeout)
+        import pexpect
+        self.child = pexpect.spawn(
+                lldbtest_config.lldbExec, args=args, logfile=logfile,
+                timeout=timeout, dimensions=dimensions, env=env)
+        self.expect_prompt()
+        for cmd in self.setUpCommands():
+            self.child.expect_exact(cmd)
+            self.expect_prompt()
+        if executable is not None:
+            self.child.expect_exact("target create")
+            self.child.expect_exact("Current executable set to")
+            self.expect_prompt()
 
-        def expectall(self, patterns=None, timeout=None, exact=None):
-            if patterns is None:
-                return None
-            if timeout is None:
-                timeout = self.timeout
-            if exact is None:
-                exact = False
-            for pattern in patterns:
-                self.expect(pattern, timeout=timeout, exact=exact)
+    def expect(self, cmd, substrs=None):
+        self.assertNotIn('\n', cmd)
+        self.child.sendline(cmd)
+        # If 'substrs' is a string then this code would just check that every
+        # character of the string is in the output.
+        assert not isinstance(substrs, six.string_types), \
+            "substrs must be a collection of strings"
+        if substrs is not None:
+            for s in substrs:
+                self.child.expect_exact(s)
+        self.expect_prompt()
 
-        def sendimpl(
-                self,
-                sender,
-                command,
-                patterns=None,
-                timeout=None,
-                exact=None):
-            sender(command)
-            return self.expect(patterns=patterns, timeout=timeout, exact=exact)
+    def quit(self, gracefully=True):
+        self.child.sendeof()
+        self.child.close(force=not gracefully)
+        self.child = None
 
-        def send(self, command, patterns=None, timeout=None, exact=None):
-            return self.sendimpl(
-                self.child.send,
-                command,
-                patterns,
-                timeout,
-                exact)
-
-        def sendline(self, command, patterns=None, timeout=None, exact=None):
-            return self.sendimpl(
-                self.child.sendline,
-                command,
-                patterns,
-                timeout,
-                exact)
-
-        def quit(self, gracefully=None):
-            if gracefully is None:
-                gracefully = True
-            self.child.sendeof()
-            self.child.close(force=not gracefully)
-            self.child = None
+    def cursor_forward_escape_seq(self, chars_to_move):
+        """
+        Returns the escape sequence to move the cursor forward/right
+        by a certain amount of characters.
+        """
+        return b"\x1b\[" + str(chars_to_move).encode("utf-8") + b"C"

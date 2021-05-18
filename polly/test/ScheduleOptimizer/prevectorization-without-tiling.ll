@@ -1,4 +1,4 @@
-; RUN: opt -S %loadPolly -basicaa -polly-opt-isl -polly-tiling=false \
+; RUN: opt -S %loadPolly -basic-aa -polly-opt-isl -polly-tiling=false \
 ; RUN: -polly-pattern-matching-based-opts=false -polly-vectorizer=polly \
 ; RUN: -polly-ast -analyze < %s | FileCheck %s
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
@@ -53,7 +53,7 @@ for.end30:                                        ; preds = %for.inc28
   ret void
 }
 
-attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 ; CHECK: #pragma known-parallel
 ; CHECK: for (int c0 = 0; c0 <= 1535; c0 += 1)

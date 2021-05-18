@@ -1,15 +1,18 @@
-//===-- ClangUtilityFunction.cpp ---------------------------------*- C++-*-===//
+//===-- ClangUtilityFunction.cpp ------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+#include "lldb/Host/Config.h"
 
 #include "ClangUtilityFunction.h"
 #include "ClangExpressionDeclMap.h"
 #include "ClangExpressionParser.h"
+#include "ClangExpressionSourceCode.h"
+#include "ClangPersistentVariables.h"
 
 #include <stdio.h>
 #if HAVE_SYS_TYPES_H
@@ -19,7 +22,6 @@
 
 #include "lldb/Core/Module.h"
 #include "lldb/Core/StreamFile.h"
-#include "lldb/Expression/ExpressionSourceCode.h"
 #include "lldb/Expression/IRExecutionUnit.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Target/ExecutionContext.h"
@@ -30,33 +32,34 @@
 
 using namespace lldb_private;
 
-//------------------------------------------------------------------
+char ClangUtilityFunction::ID;
+
 /// Constructor
 ///
-/// @param[in] text
+/// \param[in] text
 ///     The text of the function.  Must be a full translation unit.
 ///
-/// @param[in] name
+/// \param[in] name
 ///     The name of the function, as used in the text.
-//------------------------------------------------------------------
 ClangUtilityFunction::ClangUtilityFunction(ExecutionContextScope &exe_scope,
-                                           const char *text, const char *name)
-    : UtilityFunction(exe_scope, text, name) {}
+                                           std::string text, std::string name)
+    : UtilityFunction(
+          exe_scope,
+          std::string(ClangExpressionSourceCode::g_expression_prefix) + text,
+          std::move(name)) {}
 
 ClangUtilityFunction::~ClangUtilityFunction() {}
 
-//------------------------------------------------------------------
 /// Install the utility function into a process
 ///
-/// @param[in] diagnostic_manager
+/// \param[in] diagnostic_manager
 ///     A diagnostic manager to report errors and warnings to.
 ///
-/// @param[in] exe_ctx
+/// \param[in] exe_ctx
 ///     The execution context to install the utility function to.
 ///
-/// @return
+/// \return
 ///     True on success (no errors); false otherwise.
-//------------------------------------------------------------------
 bool ClangUtilityFunction::Install(DiagnosticManager &diagnostic_manager,
                                    ExecutionContext &exe_ctx) {
   if (m_jit_start_addr != LLDB_INVALID_ADDRESS) {
@@ -91,7 +94,7 @@ bool ClangUtilityFunction::Install(DiagnosticManager &diagnostic_manager,
 
   ResetDeclMap(exe_ctx, keep_result_in_memory);
 
-  if (!DeclMap()->WillParse(exe_ctx, NULL)) {
+  if (!DeclMap()->WillParse(exe_ctx, nullptr)) {
     diagnostic_manager.PutString(
         eDiagnosticSeverityError,
         "current process state is unsuitable for expression parsing");
@@ -156,6 +159,14 @@ bool ClangUtilityFunction::Install(DiagnosticManager &diagnostic_manager,
 
 void ClangUtilityFunction::ClangUtilityFunctionHelper::ResetDeclMap(
     ExecutionContext &exe_ctx, bool keep_result_in_memory) {
-  m_expr_decl_map_up.reset(
-      new ClangExpressionDeclMap(keep_result_in_memory, nullptr, exe_ctx));
+  std::shared_ptr<ClangASTImporter> ast_importer;
+  auto *state = exe_ctx.GetTargetSP()->GetPersistentExpressionStateForLanguage(
+      lldb::eLanguageTypeC);
+  if (state) {
+    auto *persistent_vars = llvm::cast<ClangPersistentVariables>(state);
+    ast_importer = persistent_vars->GetClangASTImporter();
+  }
+  m_expr_decl_map_up = std::make_unique<ClangExpressionDeclMap>(
+      keep_result_in_memory, nullptr, exe_ctx.GetTargetSP(), ast_importer,
+      nullptr);
 }

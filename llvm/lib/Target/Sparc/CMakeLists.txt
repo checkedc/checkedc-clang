@@ -1,3 +1,5 @@
+add_llvm_component_group(Sparc HAS_JIT)
+
 set(LLVM_TARGET_DEFINITIONS Sparc.td)
 
 tablegen(LLVM SparcGenAsmMatcher.inc -gen-asm-matcher)
@@ -26,10 +28,23 @@ add_llvm_target(SparcCodeGen
   SparcTargetMachine.cpp
   SparcMCInstLower.cpp
   SparcTargetObjectFile.cpp
+
+  LINK_COMPONENTS
+  AsmPrinter
+  CodeGen
+  Core
+  MC
+  SelectionDAG
+  SparcDesc
+  SparcInfo
+  Support
+  Target
+
+  ADD_TO_COMPONENT
+  Sparc
   )
 
 add_subdirectory(AsmParser)
 add_subdirectory(Disassembler)
-add_subdirectory(InstPrinter)
 add_subdirectory(MCTargetDesc)
 add_subdirectory(TargetInfo)

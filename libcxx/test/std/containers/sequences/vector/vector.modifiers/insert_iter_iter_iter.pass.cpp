@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -22,7 +21,12 @@
 #include "min_allocator.h"
 #include "asan_testing.h"
 
-int main()
+namespace adl {
+struct S {};
+void make_move_iterator(S*) {}
+}
+
+int main(int, char**)
 {
     {
         typedef std::vector<int> V;
@@ -172,4 +176,11 @@ int main()
             assert(v[j] == 0);
     }
 #endif
+
+    {
+        std::vector<adl::S> s;
+        s.insert(s.end(), input_iterator<adl::S*>(), input_iterator<adl::S*>());
+    }
+
+  return 0;
 }

@@ -2,6 +2,7 @@
 // RUN: %clang_cc1 %s -fblocks -pedantic -verify -triple=mips64-linux-gnu
 // RUN: %clang_cc1 %s -fblocks -pedantic -verify -triple=x86_64-unknown-linux
 // RUN: %clang_cc1 %s -fblocks -pedantic -verify -triple=x86_64-unknown-linux-gnux32
+// RUN: %clang_cc1 %s -fblocks -pedantic -pedantic -verify -triple=arm64_32-apple-ios7.0
 
 // rdar://6097662
 typedef int (*T)[2];
@@ -68,9 +69,15 @@ void test2(int i) {
   char c = (char __attribute__((may_alias))) i;
 }
 
-// vector size too large
-int __attribute__ ((vector_size(8192))) x1; // expected-error {{vector size too large}}
-typedef int __attribute__ ((ext_vector_type(8192))) x2; // expected-error {{vector size too large}}
+// vector size
+int __attribute__((vector_size(123456))) v1;
+int __attribute__((vector_size(0x1000000000))) v2;         // expected-error {{vector size too large}}
+int __attribute__((vector_size((__int128_t)1 << 100))) v3; // expected-error {{vector size too large}}
+int __attribute__((vector_size(0))) v4;                    // expected-error {{zero vector size}}
+typedef int __attribute__((ext_vector_type(123456))) e1;
+typedef int __attribute__((ext_vector_type(0x100000000))) e2;      // expected-error {{vector size too large}}
+typedef int __attribute__((vector_size((__int128_t)1 << 100))) e3; // expected-error {{vector size too large}}
+typedef int __attribute__((ext_vector_type(0))) e4;                // expected-error {{zero vector size}}
 
 // no support for vector enum type
 enum { e_2 } x3 __attribute__((vector_size(64))); // expected-error {{invalid vector element type}}

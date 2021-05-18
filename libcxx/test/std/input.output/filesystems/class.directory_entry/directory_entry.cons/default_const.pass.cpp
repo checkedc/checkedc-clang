@@ -1,14 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
-// XFAIL: apple-clang-7, clang-3.7, clang-3.8
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -16,11 +14,13 @@
 
 //          directory_entry() noexcept = default;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 
-int main() {
+#include "test_macros.h"
+
+int main(int, char**) {
   using namespace fs;
   // Default
   {
@@ -29,4 +29,6 @@ int main() {
     const directory_entry e;
     assert(e.path() == path());
   }
+
+  return 0;
 }

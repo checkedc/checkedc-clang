@@ -1,9 +1,8 @@
 //===--- ReturnBracedInitListCheck.cpp - clang-tidy------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -20,10 +19,6 @@ namespace tidy {
 namespace modernize {
 
 void ReturnBracedInitListCheck::registerMatchers(MatchFinder *Finder) {
-  // Only register the matchers for C++.
-  if (!getLangOpts().CPlusPlus11)
-    return;
-
   // Skip list initialization and constructors with an initializer list.
   auto ConstructExpr =
       cxxConstructExpr(
@@ -36,11 +31,13 @@ void ReturnBracedInitListCheck::registerMatchers(MatchFinder *Finder) {
       has(ConstructExpr), has(cxxFunctionalCastExpr(has(ConstructExpr)))));
 
   Finder->addMatcher(
-      functionDecl(isDefinition(), // Declarations don't have return statements.
+      traverse(TK_AsIs,
+               functionDecl(
+                   isDefinition(), // Declarations don't have return statements.
                    returns(unless(anyOf(builtinType(), autoType()))),
                    hasDescendant(returnStmt(hasReturnValue(
                        has(cxxConstructExpr(has(CtorAsArgument)))))))
-          .bind("fn"),
+                   .bind("fn")),
       this);
 }
 

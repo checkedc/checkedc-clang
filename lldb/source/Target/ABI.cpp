@@ -1,21 +1,23 @@
-//===-- ABI.cpp -------------------------------------------------*- C++ -*-===//
+//===-- ABI.cpp -----------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Target/ABI.h"
-#include "Plugins/ExpressionParser/Clang/ClangPersistentVariables.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/Value.h"
 #include "lldb/Core/ValueObjectConstResult.h"
+#include "lldb/Expression/ExpressionVariable.h"
 #include "lldb/Symbol/CompilerType.h"
 #include "lldb/Symbol/TypeSystem.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Thread.h"
+#include "lldb/Utility/Log.h"
+#include "llvm/Support/TargetRegistry.h"
+#include <cctype>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -40,38 +42,22 @@ ABI::FindPlugin(lldb::ProcessSP process_sp, const ArchSpec &arch) {
 
 ABI::~ABI() = default;
 
-bool ABI::GetRegisterInfoByName(const ConstString &name, RegisterInfo &info) {
+bool RegInfoBasedABI::GetRegisterInfoByName(llvm::StringRef name,
+                                            RegisterInfo &info) {
   uint32_t count = 0;
   const RegisterInfo *register_info_array = GetRegisterInfoArray(count);
   if (register_info_array) {
-    const char *unique_name_cstr = name.GetCString();
     uint32_t i;
     for (i = 0; i < count; ++i) {
-      if (register_info_array[i].name == unique_name_cstr) {
+      const char *reg_name = register_info_array[i].name;
+      if (reg_name == name) {
         info = register_info_array[i];
         return true;
       }
     }
     for (i = 0; i < count; ++i) {
-      if (register_info_array[i].alt_name == unique_name_cstr) {
-        info = register_info_array[i];
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-bool ABI::GetRegisterInfoByKind(RegisterKind reg_kind, uint32_t reg_num,
-                                RegisterInfo &info) {
-  if (reg_kind < eRegisterKindEHFrame || reg_kind >= kNumRegisterKinds)
-    return false;
-
-  uint32_t count = 0;
-  const RegisterInfo *register_info_array = GetRegisterInfoArray(count);
-  if (register_info_array) {
-    for (uint32_t i = 0; i < count; ++i) {
-      if (register_info_array[i].kinds[reg_kind] == reg_num) {
+      const char *reg_alt_name = register_info_array[i].alt_name;
+      if (reg_alt_name == name) {
         info = register_info_array[i];
         return true;
       }
@@ -104,12 +90,10 @@ ValueObjectSP ABI::GetReturnValueObject(Thread &thread, CompilerType &ast_type,
             ast_type.GetMinimumLanguage());
 
     if (!persistent_expression_state)
-      return ValueObjectSP();
+      return {};
 
-    auto prefix = persistent_expression_state->GetPersistentVariablePrefix();
     ConstString persistent_variable_name =
-        persistent_expression_state->GetNextPersistentVariableName(target,
-                                                                   prefix);
+        persistent_expression_state->GetNextPersistentVariableName();
 
     lldb::ValueObjectSP const_valobj_sp;
 
@@ -125,11 +109,11 @@ ValueObjectSP ABI::GetReturnValueObject(Thread &thread, CompilerType &ast_type,
 
     return_valobj_sp = const_valobj_sp;
 
-    ExpressionVariableSP clang_expr_variable_sp(
+    ExpressionVariableSP expr_variable_sp(
         persistent_expression_state->CreatePersistentVariable(
             return_valobj_sp));
 
-    assert(clang_expr_variable_sp);
+    assert(expr_variable_sp);
 
     // Set flags and live data as appropriate
 
@@ -141,22 +125,21 @@ ValueObjectSP ABI::GetReturnValueObject(Thread &thread, CompilerType &ast_type,
       // we don't do anything with these for now
       break;
     case Value::eValueTypeScalar:
-    case Value::eValueTypeVector:
-      clang_expr_variable_sp->m_flags |=
-          ClangExpressionVariable::EVIsFreezeDried;
-      clang_expr_variable_sp->m_flags |=
-          ClangExpressionVariable::EVIsLLDBAllocated;
-      clang_expr_variable_sp->m_flags |=
-          ClangExpressionVariable::EVNeedsAllocation;
+      expr_variable_sp->m_flags |=
+          ExpressionVariable::EVIsFreezeDried;
+      expr_variable_sp->m_flags |=
+          ExpressionVariable::EVIsLLDBAllocated;
+      expr_variable_sp->m_flags |=
+          ExpressionVariable::EVNeedsAllocation;
       break;
     case Value::eValueTypeLoadAddress:
-      clang_expr_variable_sp->m_live_sp = live_valobj_sp;
-      clang_expr_variable_sp->m_flags |=
-          ClangExpressionVariable::EVIsProgramReference;
+      expr_variable_sp->m_live_sp = live_valobj_sp;
+      expr_variable_sp->m_flags |=
+          ExpressionVariable::EVIsProgramReference;
       break;
     }
 
-    return_valobj_sp = clang_expr_variable_sp->GetValueObject();
+    return_valobj_sp = expr_variable_sp->GetValueObject();
   }
   return return_valobj_sp;
 }
@@ -210,4 +193,79 @@ bool ABI::GetFallbackRegisterLocation(
   }
 
   return false;
+}
+
+std::unique_ptr<llvm::MCRegisterInfo> ABI::MakeMCRegisterInfo(const ArchSpec &arch) {
+  std::string triple = arch.GetTriple().getTriple();
+  std::string lookup_error;
+  const llvm::Target *target =
+      llvm::TargetRegistry::lookupTarget(triple, lookup_error);
+  if (!target) {
+    LLDB_LOG(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS),
+             "Failed to create an llvm target for {0}: {1}", triple,
+             lookup_error);
+    return nullptr;
+  }
+  std::unique_ptr<llvm::MCRegisterInfo> info_up(
+      target->createMCRegInfo(triple));
+  assert(info_up);
+  return info_up;
+}
+
+void RegInfoBasedABI::AugmentRegisterInfo(RegisterInfo &info) {
+  if (info.kinds[eRegisterKindEHFrame] != LLDB_INVALID_REGNUM &&
+      info.kinds[eRegisterKindDWARF] != LLDB_INVALID_REGNUM)
+    return;
+
+  RegisterInfo abi_info;
+  if (!GetRegisterInfoByName(info.name, abi_info))
+    return;
+
+  if (info.kinds[eRegisterKindEHFrame] == LLDB_INVALID_REGNUM)
+    info.kinds[eRegisterKindEHFrame] = abi_info.kinds[eRegisterKindEHFrame];
+  if (info.kinds[eRegisterKindDWARF] == LLDB_INVALID_REGNUM)
+    info.kinds[eRegisterKindDWARF] = abi_info.kinds[eRegisterKindDWARF];
+  if (info.kinds[eRegisterKindGeneric] == LLDB_INVALID_REGNUM)
+    info.kinds[eRegisterKindGeneric] = abi_info.kinds[eRegisterKindGeneric];
+}
+
+void MCBasedABI::AugmentRegisterInfo(RegisterInfo &info) {
+  uint32_t eh, dwarf;
+  std::tie(eh, dwarf) = GetEHAndDWARFNums(info.name);
+
+  if (info.kinds[eRegisterKindEHFrame] == LLDB_INVALID_REGNUM)
+    info.kinds[eRegisterKindEHFrame] = eh;
+  if (info.kinds[eRegisterKindDWARF] == LLDB_INVALID_REGNUM)
+    info.kinds[eRegisterKindDWARF] = dwarf;
+  if (info.kinds[eRegisterKindGeneric] == LLDB_INVALID_REGNUM)
+    info.kinds[eRegisterKindGeneric] = GetGenericNum(info.name);
+}
+
+std::pair<uint32_t, uint32_t>
+MCBasedABI::GetEHAndDWARFNums(llvm::StringRef name) {
+  std::string mc_name = GetMCName(name.str());
+  for (char &c : mc_name)
+    c = std::toupper(c);
+  int eh = -1;
+  int dwarf = -1;
+  for (unsigned reg = 0; reg < m_mc_register_info_up->getNumRegs(); ++reg) {
+    if (m_mc_register_info_up->getName(reg) == mc_name) {
+      eh = m_mc_register_info_up->getDwarfRegNum(reg, /*isEH=*/true);
+      dwarf = m_mc_register_info_up->getDwarfRegNum(reg, /*isEH=*/false);
+      break;
+    }
+  }
+  return std::pair<uint32_t, uint32_t>(eh == -1 ? LLDB_INVALID_REGNUM : eh,
+                                       dwarf == -1 ? LLDB_INVALID_REGNUM
+                                                   : dwarf);
+}
+
+void MCBasedABI::MapRegisterName(std::string &name, llvm::StringRef from_prefix,
+                                 llvm::StringRef to_prefix) {
+  llvm::StringRef name_ref = name;
+  if (!name_ref.consume_front(from_prefix))
+    return;
+  uint64_t _;
+  if (name_ref.empty() || to_integer(name_ref, _, 10))
+    name = (to_prefix + name_ref).str();
 }

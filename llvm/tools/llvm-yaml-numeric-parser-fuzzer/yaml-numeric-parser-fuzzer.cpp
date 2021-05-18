@@ -1,9 +1,8 @@
-//===--- special-case-list-fuzzer.cpp - Fuzzer for special case lists -----===//
+//===-- yaml-numeric-parser-fuzzer.cpp - Fuzzer for YAML numeric parser ---===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -40,7 +39,7 @@ inline bool isNumericRegex(llvm::StringRef S) {
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
   std::string Input(reinterpret_cast<const char *>(Data), Size);
-  Input.erase(std::remove(Input.begin(), Input.end(), 0), Input.end());
+  llvm::erase_value(Input, 0);
   if (!Input.empty() && llvm::yaml::isNumeric(Input) != isNumericRegex(Input))
     LLVM_BUILTIN_TRAP;
   return 0;

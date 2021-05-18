@@ -1,14 +1,13 @@
 //===-- ConnectionFileDescriptorPosix.h -------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Host_posix_ConnectionFileDescriptorPosix_h_
-#define liblldb_Host_posix_ConnectionFileDescriptorPosix_h_
+#ifndef LLDB_HOST_POSIX_CONNECTIONFILEDESCRIPTORPOSIX_H
+#define LLDB_HOST_POSIX_CONNECTIONFILEDESCRIPTORPOSIX_H
 
 #include <atomic>
 #include <memory>
@@ -117,9 +116,11 @@ protected:
 private:
   void InitializeSocket(Socket *socket);
 
-  DISALLOW_COPY_AND_ASSIGN(ConnectionFileDescriptor);
+  ConnectionFileDescriptor(const ConnectionFileDescriptor &) = delete;
+  const ConnectionFileDescriptor &
+  operator=(const ConnectionFileDescriptor &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_ConnectionFileDescriptor_h_
+#endif // LLDB_HOST_POSIX_CONNECTIONFILEDESCRIPTORPOSIX_H

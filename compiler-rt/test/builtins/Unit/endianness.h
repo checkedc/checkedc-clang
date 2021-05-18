@@ -1,18 +1,3 @@
-/* ===-- endianness.h - configuration header for libgcc replacement --------===
- *
- *		       The LLVM Compiler Infrastructure
- *
- * This file is dual licensed under the MIT and the University of Illinois Open
- * Source Licenses. See LICENSE.TXT for details.
- *
- * ===----------------------------------------------------------------------===
- *
- * This file is a configuration header for libgcc replacement.
- * This file is not part of the interface of this library.
- *
- * ===----------------------------------------------------------------------===
- */
-
 #ifndef ENDIANNESS_H
 #define ENDIANNESS_H
 

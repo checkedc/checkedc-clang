@@ -10,7 +10,7 @@
 int ReturnInt(); // expected-note 0+ {{declared here}}
 
 struct PODType { // expected-note 0+ {{declared here}}
-  int value;
+  int value; // expected-note 0-2 {{declared here}}
   int value2;
 };
 
@@ -152,7 +152,7 @@ void test_basic_start_static_2_2() {
 #else
   ATTR static PODType pod; // expected-error {{variable does not have a constant initializer}}
 // expected-note@-1 {{required by 'require_constant_initialization' attribute here}}
-// expected-note@-2 {{non-constexpr constructor 'PODType' cannot be used in a constant expression}}
+// expected-note-re@-2 {{{{non-constexpr constructor|subobject of type 'int' is not initialized}}}}
 #endif
   ATTR static PODType pot2 = {ReturnInt()}; // expected-error {{variable does not have a constant initializer}}
                                             // expected-note@-1 {{required by 'require_constant_initialization' attribute here}}
@@ -185,13 +185,13 @@ struct TT2 {
   ATTR static constexpr LitType lit = {};
   ATTR static const NonLit non_lit;
   ATTR static const NonLit non_lit_list_init;
-  ATTR static const NonLit non_lit_copy_init; // expected-note {{required by 'require_constant_initialization' attribute here}}
+  ATTR static const NonLit non_lit_copy_init;
 #endif
 };
 PODType TT2::pod_noinit; // expected-note 0+ {{declared here}}
 #if __cplusplus >= 201103L
 // expected-error@-2 {{variable does not have a constant initializer}}
-// expected-note@-3 {{non-constexpr constructor 'PODType' cannot be used in a constant expression}}
+// expected-note-re@-3 {{{{non-constexpr constructor|subobject of type 'int' is not initialized}}}}
 #endif
 PODType TT2::pod_copy_init(TT2::pod_noinit); // expected-error {{variable does not have a constant initializer}}
 #if __cplusplus >= 201103L
@@ -203,8 +203,9 @@ PODType TT2::pod_copy_init(TT2::pod_noinit); // expected-error {{variable does n
 #if __cplusplus >= 201402L
 const NonLit TT2::non_lit(42);
 const NonLit TT2::non_lit_list_init = {42};
-const NonLit TT2::non_lit_copy_init = 42; // expected-error {{variable does not have a constant initializer}}
-// expected-note@-1 {{subexpression not valid in a constant expression}}
+// FIXME: This is invalid, but we incorrectly elide the copy. It's OK if we
+// start diagnosing this.
+const NonLit TT2::non_lit_copy_init = 42;
 #endif
 
 #if __cplusplus >= 201103L
@@ -299,6 +300,17 @@ ATTR TestCtor<NotC> t(42); // expected-error {{variable does not have a constant
 // Test various array types
 ATTR const char *foo[] = {"abc", "def"};
 ATTR PODType bar[] = {{}, {123, 456}};
+
+
+namespace AttrAddedTooLate {
+  struct A {
+    static const int n = 0; // expected-note {{here}}
+  };
+  ATTR const int A::n; // expected-warning {{added after initialization}}
+
+  int m = 0; // expected-note {{here}}
+  extern ATTR int m; // expected-warning {{added after initialization}}
+}
 
 #elif defined(TEST_TWO) // Test for duplicate warnings
 struct NotC {

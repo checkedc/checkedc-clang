@@ -1,14 +1,13 @@
 //===-- ThreadPlanStepThrough.h ---------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ThreadPlanStepThrough_h_
-#define liblldb_ThreadPlanStepThrough_h_
+#ifndef LLDB_TARGET_THREADPLANSTEPTHROUGH_H
+#define LLDB_TARGET_THREADPLANSTEPTHROUGH_H
 
 #include "lldb/Target/Thread.h"
 #include "lldb/Target/ThreadPlan.h"
@@ -54,9 +53,11 @@ private:
   StackID m_return_stack_id;
   bool m_stop_others;
 
-  DISALLOW_COPY_AND_ASSIGN(ThreadPlanStepThrough);
+  ThreadPlanStepThrough(const ThreadPlanStepThrough &) = delete;
+  const ThreadPlanStepThrough &
+  operator=(const ThreadPlanStepThrough &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_ThreadPlanStepThrough_h_
+#endif // LLDB_TARGET_THREADPLANSTEPTHROUGH_H

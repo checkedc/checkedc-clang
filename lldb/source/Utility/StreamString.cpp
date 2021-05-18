@@ -1,9 +1,8 @@
-//===-- StreamString.cpp ----------------------------------------*- C++ -*-===//
+//===-- StreamString.cpp --------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -25,7 +24,7 @@ void StreamString::Flush() {
 }
 
 size_t StreamString::WriteImpl(const void *s, size_t length) {
-  m_packet.append(reinterpret_cast<const char *>(s), length);
+  m_packet.append(static_cast<const char *>(s), length);
   return length;
 }
 

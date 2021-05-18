@@ -1,9 +1,8 @@
 //===------ ISLTools.cpp ----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -13,7 +12,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "polly/Support/ISLTools.h"
-#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/raw_ostream.h"
+#include <cassert>
+#include <vector>
 
 using namespace polly;
 
@@ -63,9 +64,9 @@ isl::basic_map makeTupleSwapBasicMap(isl::space FromSpace1,
   isl::space MapSpace = FromSpace.map_from_domain_and_range(ToSpace);
 
   isl::basic_map Result = isl::basic_map::universe(MapSpace);
-  for (auto i = Dims1 - Dims1; i < Dims1; i += 1)
+  for (unsigned i = 0u; i < Dims1; i += 1)
     Result = Result.equate(isl::dim::in, i, isl::dim::out, Dims2 + i);
-  for (auto i = Dims2 - Dims2; i < Dims2; i += 1) {
+  for (unsigned i = 0u; i < Dims2; i += 1) {
     Result = Result.equate(isl::dim::in, Dims1 + i, isl::dim::out, i);
   }
 
@@ -158,8 +159,13 @@ isl::set polly::singleton(isl::union_set USet, isl::space ExpectedSpace) {
 
 unsigned polly::getNumScatterDims(const isl::union_map &Schedule) {
   unsigned Dims = 0;
-  for (isl::map Map : Schedule.get_map_list())
+  for (isl::map Map : Schedule.get_map_list()) {
+    // Map.dim would return UINT_MAX.
+    if (!Map)
+      continue;
+
     Dims = std::max(Dims, Map.dim(isl::dim::out));
+  }
   return Dims;
 }
 
@@ -434,11 +440,17 @@ isl::map polly::distributeDomain(isl::map Map) {
 
   isl::space Space = Map.get_space();
   isl::space DomainSpace = Space.domain();
+  if (!DomainSpace)
+    return {};
   unsigned DomainDims = DomainSpace.dim(isl::dim::set);
   isl::space RangeSpace = Space.range().unwrap();
   isl::space Range1Space = RangeSpace.domain();
+  if (!Range1Space)
+    return {};
   unsigned Range1Dims = Range1Space.dim(isl::dim::set);
   isl::space Range2Space = RangeSpace.range();
+  if (!Range2Space)
+    return {};
   unsigned Range2Dims = Range2Space.dim(isl::dim::set);
 
   isl::space OutputSpace =
@@ -506,6 +518,18 @@ isl::map polly::intersectRange(isl::map Map, isl::union_set Range) {
   return Map.intersect_range(RangeSet);
 }
 
+isl::map polly::subtractParams(isl::map Map, isl::set Params) {
+  auto MapSpace = Map.get_space();
+  auto ParamsMap = isl::map::universe(MapSpace).intersect_params(Params);
+  return Map.subtract(ParamsMap);
+}
+
+isl::set polly::subtractParams(isl::set Set, isl::set Params) {
+  isl::space SetSpace = Set.get_space();
+  isl::set ParamsSet = isl::set::universe(SetSpace).intersect_params(Params);
+  return Set.subtract(ParamsSet);
+}
+
 isl::val polly::getConstant(isl::pw_aff PwAff, bool Max, bool Min) {
   assert(!Max || !Min); // Cannot return min and max at the same time.
   isl::val Result;
@@ -571,6 +595,10 @@ static void foreachPoint(isl::basic_set BSet,
 /// Ordering is based on the lower bounds of the set's dimensions. First
 /// dimensions are considered first.
 static int flatCompare(const isl::basic_set &A, const isl::basic_set &B) {
+  // Quick bail-out on out-of-quota.
+  if (!A || !B)
+    return 0;
+
   unsigned ALen = A.dim(isl::dim::set);
   unsigned BLen = B.dim(isl::dim::set);
   unsigned Len = std::min(ALen, BLen);
@@ -640,11 +668,11 @@ static int structureCompare(const isl::space &ASpace, const isl::space &BSpace,
   }
 
   std::string AName;
-  if (ASpace.has_tuple_name(isl::dim::set))
+  if (!ASpace.is_params() && ASpace.has_tuple_name(isl::dim::set))
     AName = ASpace.get_tuple_name(isl::dim::set);
 
   std::string BName;
-  if (BSpace.has_tuple_name(isl::dim::set))
+  if (!BSpace.is_params() && BSpace.has_tuple_name(isl::dim::set))
     BName = BSpace.get_tuple_name(isl::dim::set);
 
   int NameCompare = AName.compare(BName);
@@ -719,7 +747,7 @@ static void printSortedPolyhedra(isl::union_set USet, llvm::raw_ostream &OS,
   }
 
   // Sort the polyhedra.
-  llvm::sort(BSets.begin(), BSets.end(), orderComparer);
+  llvm::sort(BSets, orderComparer);
 
   // Print the polyhedra.
   bool First = true;

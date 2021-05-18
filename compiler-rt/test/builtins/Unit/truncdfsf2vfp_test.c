@@ -1,16 +1,5 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-//===-- truncdfsf2vfp_test.c - Test __truncdfsf2vfp -----------------------===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __truncdfsf2vfp for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
+// REQUIRES: librt_has_truncdfsf2vfp
 
 #include "int_lib.h"
 #include <stdio.h>
@@ -20,7 +9,7 @@
 
 extern COMPILER_RT_ABI float __truncdfsf2vfp(double a);
 
-#if __arm__ && __VFP_FP__
+#if defined(__arm__) && defined(__ARM_FP) && (__ARM_FP & 0x8)
 int test__truncdfsf2vfp(double a)
 {
     float actual = __truncdfsf2vfp(a);
@@ -34,7 +23,7 @@ int test__truncdfsf2vfp(double a)
 
 int main()
 {
-#if __arm__ && __VFP_FP__
+#if defined(__arm__) && defined(__ARM_FP) && (__ARM_FP & 0x8)
     if (test__truncdfsf2vfp(0.0))
         return 1;
     if (test__truncdfsf2vfp(1.0))

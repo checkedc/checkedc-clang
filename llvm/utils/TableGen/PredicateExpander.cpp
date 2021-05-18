@@ -1,9 +1,8 @@
 //===--------------------- PredicateExpander.cpp --------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 /// \file
@@ -199,6 +198,18 @@ void PredicateExpander::expandCheckIsImmOperand(raw_ostream &OS, int OpIndex) {
      << "getOperand(" << OpIndex << ").isImm() ";
 }
 
+void PredicateExpander::expandCheckFunctionPredicateWithTII(
+    raw_ostream &OS, StringRef MCInstFn, StringRef MachineInstrFn,
+    StringRef TIIPtr) {
+  if (!shouldExpandForMC()) {
+    OS << (TIIPtr.empty() ? "TII" : TIIPtr) << "->" << MachineInstrFn;
+    OS << (isByRef() ? "(MI)" : "(*MI)");
+    return;
+  }
+
+  OS << MCInstFn << (isByRef() ? "(MI" : "(*MI") << ", MCII)";
+}
+
 void PredicateExpander::expandCheckFunctionPredicate(raw_ostream &OS,
                                                      StringRef MCInstFn,
                                                      StringRef MachineInstrFn) {
@@ -359,10 +370,18 @@ void PredicateExpander::expandPredicate(raw_ostream &OS, const Record *Rec) {
     return expandPredicateSequence(OS, Rec->getValueAsListOfDefs("Predicates"),
                                    /* AllOf */ false);
 
-  if (Rec->isSubClassOf("CheckFunctionPredicate"))
+  if (Rec->isSubClassOf("CheckFunctionPredicate")) {
     return expandCheckFunctionPredicate(
         OS, Rec->getValueAsString("MCInstFnName"),
         Rec->getValueAsString("MachineInstrFnName"));
+  }
+
+  if (Rec->isSubClassOf("CheckFunctionPredicateWithTII")) {
+    return expandCheckFunctionPredicateWithTII(
+        OS, Rec->getValueAsString("MCInstFnName"),
+        Rec->getValueAsString("MachineInstrFnName"),
+        Rec->getValueAsString("TIIPtrName"));
+  }
 
   if (Rec->isSubClassOf("CheckNonPortable"))
     return expandCheckNonPortable(OS, Rec->getValueAsString("CodeBlock"));

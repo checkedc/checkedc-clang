@@ -3,7 +3,7 @@
 # RUN: llvm-mc %s -triple=riscv32 \
 # RUN:     | FileCheck -check-prefixes=CHECK-EXPAND,CHECK-ALIAS %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 < %s \
-# RUN:     | llvm-objdump -riscv-no-aliases -d -r - \
+# RUN:     | llvm-objdump -M no-aliases -d -r - \
 # RUN:     | FileCheck -check-prefixes=CHECK-OBJ-NOALIAS,CHECK-EXPAND,CHECK-INST %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 < %s \
 # RUN:     | llvm-objdump -d -r - \
@@ -14,6 +14,8 @@
 # CHECK-ALIAS....Match the alias (tests instr. to alias mapping)
 # CHECK-EXPAND...Match canonical instr. unconditionally (tests alias expansion)
 
+# Needed for testing valid %pcrel_lo expressions
+.Lpcrel_hi0: auipc a0, %pcrel_hi(foo)
 
 # CHECK-INST: addi a0, zero, 0
 # CHECK-ALIAS: mv a0, zero
@@ -71,16 +73,13 @@ li x12, 0xFFFFFFFF
 
 # CHECK-EXPAND: addi a0, zero, 1110
 li a0, %lo(0x123456)
-# CHECK-OBJ-NOALIAS: addi a0, zero, 0
-# CHECK-OBJ: R_RISCV_PCREL_LO12
-li a0, %pcrel_lo(0x123456)
 
 # CHECK-OBJ-NOALIAS: addi a0, zero, 0
 # CHECK-OBJ: R_RISCV_LO12
 li a0, %lo(foo)
 # CHECK-OBJ-NOALIAS: addi a0, zero, 0
 # CHECK-OBJ: R_RISCV_PCREL_LO12
-li a0, %pcrel_lo(foo)
+li a0, %pcrel_lo(.Lpcrel_hi0)
 
 .equ CONST, 0x123456
 # CHECK-EXPAND: lui a0, 291
@@ -104,3 +103,37 @@ rdcycleh x27
 # CHECK-INST: csrrs t3, timeh, zero
 # CHECK-ALIAS: rdtimeh t3
 rdtimeh x28
+
+# CHECK-EXPAND: lb a0, 0(a1)
+lb x10, (x11)
+# CHECK-EXPAND: lh a0, 0(a1)
+lh x10, (x11)
+# CHECK-EXPAND: lw a0, 0(a1)
+lw x10, (x11)
+# CHECK-EXPAND: lbu a0, 0(a1)
+lbu x10, (x11)
+# CHECK-EXPAND: lhu a0, 0(a1)
+lhu x10, (x11)
+
+# CHECK-EXPAND: sb a0, 0(a1)
+sb x10, (x11)
+# CHECK-EXPAND: sh a0, 0(a1)
+sh x10, (x11)
+# CHECK-EXPAND: sw a0, 0(a1)
+sw x10, (x11)
+
+# CHECK-EXPAND: slli a0, a1, 24
+# CHECK-EXPAND: srai a0, a0, 24
+sext.b x10, x11
+
+# CHECK-EXPAND: slli a0, a1, 16
+# CHECK-EXPAND: srai a0, a0, 16
+sext.h x10, x11
+
+# CHECK-INST: andi a0, a1, 255
+# CHECK-ALIAS: andi a0, a1, 255
+zext.b x10, x11
+
+# CHECK-EXPAND: slli a0, a1, 16
+# CHECK-EXPAND: srli a0, a0, 16
+zext.h x10, x11

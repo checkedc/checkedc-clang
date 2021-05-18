@@ -45,46 +45,40 @@ define i37 @fshl_i37(i37 %x, i37 %y, i37 %z) nounwind {
 ; X32-SSE2-NEXT:    pushl %ebx
 ; X32-SSE2-NEXT:    pushl %edi
 ; X32-SSE2-NEXT:    pushl %esi
-; X32-SSE2-NEXT:    pushl %eax
-; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %edi
 ; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %esi
-; X32-SSE2-NEXT:    andl $31, %esi
-; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; X32-SSE2-NEXT:    andl $31, %eax
-; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %ebp
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %ebx
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %edi
+; X32-SSE2-NEXT:    shldl $27, %ebx, %edi
+; X32-SSE2-NEXT:    shll $27, %ebx
+; X32-SSE2-NEXT:    shrdl $1, %edi, %ebx
+; X32-SSE2-NEXT:    shrl %edi
 ; X32-SSE2-NEXT:    pushl $0
 ; X32-SSE2-NEXT:    pushl $37
-; X32-SSE2-NEXT:    pushl %eax
+; X32-SSE2-NEXT:    pushl {{[0-9]+}}(%esp)
 ; X32-SSE2-NEXT:    pushl {{[0-9]+}}(%esp)
 ; X32-SSE2-NEXT:    calll __umoddi3
 ; X32-SSE2-NEXT:    addl $16, %esp
-; X32-SSE2-NEXT:    movl %eax, %ebx
-; X32-SSE2-NEXT:    movl %edx, (%esp) # 4-byte Spill
-; X32-SSE2-NEXT:    movl %ebp, %edx
-; X32-SSE2-NEXT:    movl %ebx, %ecx
-; X32-SSE2-NEXT:    shll %cl, %ebp
-; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; X32-SSE2-NEXT:    shldl %cl, %edx, %eax
-; X32-SSE2-NEXT:    xorl %ecx, %ecx
-; X32-SSE2-NEXT:    testb $32, %bl
-; X32-SSE2-NEXT:    cmovnel %ebp, %eax
-; X32-SSE2-NEXT:    cmovnel %ecx, %ebp
-; X32-SSE2-NEXT:    xorl %edx, %edx
-; X32-SSE2-NEXT:    movb $37, %cl
-; X32-SSE2-NEXT:    subb %bl, %cl
-; X32-SSE2-NEXT:    shrdl %cl, %esi, %edi
-; X32-SSE2-NEXT:    shrl %cl, %esi
+; X32-SSE2-NEXT:    movl %eax, %edx
+; X32-SSE2-NEXT:    movl %edx, %ecx
+; X32-SSE2-NEXT:    notb %cl
+; X32-SSE2-NEXT:    shrdl %cl, %edi, %ebx
+; X32-SSE2-NEXT:    shrl %cl, %edi
+; X32-SSE2-NEXT:    xorl %eax, %eax
 ; X32-SSE2-NEXT:    testb $32, %cl
-; X32-SSE2-NEXT:    cmovnel %esi, %edi
-; X32-SSE2-NEXT:    cmovnel %edx, %esi
-; X32-SSE2-NEXT:    orl %eax, %esi
-; X32-SSE2-NEXT:    orl %ebp, %edi
-; X32-SSE2-NEXT:    orl %ebx, (%esp) # 4-byte Folded Spill
-; X32-SSE2-NEXT:    cmovel {{[0-9]+}}(%esp), %edi
-; X32-SSE2-NEXT:    cmovel {{[0-9]+}}(%esp), %esi
-; X32-SSE2-NEXT:    movl %edi, %eax
+; X32-SSE2-NEXT:    cmovnel %edi, %ebx
+; X32-SSE2-NEXT:    cmovnel %eax, %edi
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    movl %edx, %ecx
+; X32-SSE2-NEXT:    shll %cl, %eax
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %ebp
+; X32-SSE2-NEXT:    shldl %cl, %ebp, %esi
+; X32-SSE2-NEXT:    testb $32, %dl
+; X32-SSE2-NEXT:    cmovnel %eax, %esi
+; X32-SSE2-NEXT:    movl $0, %ecx
+; X32-SSE2-NEXT:    cmovnel %ecx, %eax
+; X32-SSE2-NEXT:    orl %ebx, %eax
+; X32-SSE2-NEXT:    orl %edi, %esi
 ; X32-SSE2-NEXT:    movl %esi, %edx
-; X32-SSE2-NEXT:    addl $4, %esp
 ; X32-SSE2-NEXT:    popl %esi
 ; X32-SSE2-NEXT:    popl %edi
 ; X32-SSE2-NEXT:    popl %ebx
@@ -93,28 +87,18 @@ define i37 @fshl_i37(i37 %x, i37 %y, i37 %z) nounwind {
 ;
 ; X64-AVX2-LABEL: fshl_i37:
 ; X64-AVX2:       # %bb.0:
-; X64-AVX2-NEXT:    movq %rdx, %r8
-; X64-AVX2-NEXT:    movabsq $137438953471, %rax # imm = 0x1FFFFFFFFF
-; X64-AVX2-NEXT:    andq %rax, %rsi
-; X64-AVX2-NEXT:    andq %rax, %r8
-; X64-AVX2-NEXT:    movabsq $-2492803253203993461, %rcx # imm = 0xDD67C8A60DD67C8B
-; X64-AVX2-NEXT:    movq %r8, %rax
-; X64-AVX2-NEXT:    mulq %rcx
+; X64-AVX2-NEXT:    movq %rdx, %rcx
+; X64-AVX2-NEXT:    movabsq $-2492803253203993461, %rdx # imm = 0xDD67C8A60DD67C8B
+; X64-AVX2-NEXT:    movq %rcx, %rax
+; X64-AVX2-NEXT:    mulq %rdx
 ; X64-AVX2-NEXT:    shrq $5, %rdx
-; X64-AVX2-NEXT:    leaq (%rdx,%rdx,8), %rax
-; X64-AVX2-NEXT:    leaq (%rdx,%rax,4), %rax
-; X64-AVX2-NEXT:    subq %rax, %r8
+; X64-AVX2-NEXT:    leal (%rdx,%rdx,8), %eax
+; X64-AVX2-NEXT:    leal (%rdx,%rax,4), %eax
+; X64-AVX2-NEXT:    subl %eax, %ecx
+; X64-AVX2-NEXT:    shlq $27, %rsi
+; X64-AVX2-NEXT:    # kill: def $cl killed $cl killed $rcx
+; X64-AVX2-NEXT:    shldq %cl, %rsi, %rdi
 ; X64-AVX2-NEXT:    movq %rdi, %rax
-; X64-AVX2-NEXT:    movl %r8d, %ecx
-; X64-AVX2-NEXT:    shlq %cl, %rax
-; X64-AVX2-NEXT:    movl $37, %ecx
-; X64-AVX2-NEXT:    subl %r8d, %ecx
-; X64-AVX2-NEXT:    # kill: def $cl killed $cl killed $ecx
-; X64-AVX2-NEXT:    shrq %cl, %rsi
-; X64-AVX2-NEXT:    orq %rax, %rsi
-; X64-AVX2-NEXT:    testq %r8, %r8
-; X64-AVX2-NEXT:    cmoveq %rdi, %rsi
-; X64-AVX2-NEXT:    movq %rsi, %rax
 ; X64-AVX2-NEXT:    retq
   %f = call i37 @llvm.fshl.i37(i37 %x, i37 %y, i37 %z)
   ret i37 %f
@@ -235,41 +219,41 @@ define i37 @fshr_i37(i37 %x, i37 %y, i37 %z) nounwind {
 ; X32-SSE2-NEXT:    pushl %ebx
 ; X32-SSE2-NEXT:    pushl %edi
 ; X32-SSE2-NEXT:    pushl %esi
-; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %esi
-; X32-SSE2-NEXT:    andl $31, %esi
-; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; X32-SSE2-NEXT:    andl $31, %eax
 ; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %ebp
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %ebx
 ; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %edi
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %esi
+; X32-SSE2-NEXT:    shldl $1, %edi, %esi
+; X32-SSE2-NEXT:    addl %edi, %edi
 ; X32-SSE2-NEXT:    pushl $0
 ; X32-SSE2-NEXT:    pushl $37
-; X32-SSE2-NEXT:    pushl %eax
+; X32-SSE2-NEXT:    pushl {{[0-9]+}}(%esp)
 ; X32-SSE2-NEXT:    pushl {{[0-9]+}}(%esp)
 ; X32-SSE2-NEXT:    calll __umoddi3
 ; X32-SSE2-NEXT:    addl $16, %esp
-; X32-SSE2-NEXT:    movl %eax, %ebx
-; X32-SSE2-NEXT:    movb $37, %cl
-; X32-SSE2-NEXT:    subb %bl, %cl
-; X32-SSE2-NEXT:    movl %ebp, %eax
-; X32-SSE2-NEXT:    shll %cl, %ebp
-; X32-SSE2-NEXT:    shldl %cl, %eax, %edi
+; X32-SSE2-NEXT:    addb $27, %al
+; X32-SSE2-NEXT:    movl %eax, %edx
+; X32-SSE2-NEXT:    notb %dl
+; X32-SSE2-NEXT:    movl %edx, %ecx
+; X32-SSE2-NEXT:    shldl %cl, %edi, %esi
+; X32-SSE2-NEXT:    shldl $27, %ebp, %ebx
+; X32-SSE2-NEXT:    shll $27, %ebp
+; X32-SSE2-NEXT:    movl %eax, %ecx
+; X32-SSE2-NEXT:    shrdl %cl, %ebx, %ebp
+; X32-SSE2-NEXT:    shrl %cl, %ebx
+; X32-SSE2-NEXT:    xorl %ecx, %ecx
+; X32-SSE2-NEXT:    testb $32, %al
+; X32-SSE2-NEXT:    cmovnel %ebx, %ebp
+; X32-SSE2-NEXT:    cmovnel %ecx, %ebx
 ; X32-SSE2-NEXT:    xorl %eax, %eax
-; X32-SSE2-NEXT:    testb $32, %cl
-; X32-SSE2-NEXT:    cmovnel %ebp, %edi
-; X32-SSE2-NEXT:    cmovnel %eax, %ebp
-; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; X32-SSE2-NEXT:    movl %ebx, %ecx
-; X32-SSE2-NEXT:    shrdl %cl, %esi, %eax
-; X32-SSE2-NEXT:    shrl %cl, %esi
-; X32-SSE2-NEXT:    testb $32, %bl
-; X32-SSE2-NEXT:    cmovnel %esi, %eax
-; X32-SSE2-NEXT:    movl $0, %ecx
-; X32-SSE2-NEXT:    cmovnel %ecx, %esi
-; X32-SSE2-NEXT:    orl %edi, %esi
-; X32-SSE2-NEXT:    orl %ebp, %eax
-; X32-SSE2-NEXT:    orl %ebx, %edx
-; X32-SSE2-NEXT:    cmovel {{[0-9]+}}(%esp), %eax
-; X32-SSE2-NEXT:    cmovel {{[0-9]+}}(%esp), %esi
+; X32-SSE2-NEXT:    movl %edx, %ecx
+; X32-SSE2-NEXT:    shll %cl, %edi
+; X32-SSE2-NEXT:    testb $32, %dl
+; X32-SSE2-NEXT:    cmovnel %edi, %esi
+; X32-SSE2-NEXT:    cmovnel %eax, %edi
+; X32-SSE2-NEXT:    orl %ebp, %edi
+; X32-SSE2-NEXT:    orl %ebx, %esi
+; X32-SSE2-NEXT:    movl %edi, %eax
 ; X32-SSE2-NEXT:    movl %esi, %edx
 ; X32-SSE2-NEXT:    popl %esi
 ; X32-SSE2-NEXT:    popl %edi
@@ -279,28 +263,19 @@ define i37 @fshr_i37(i37 %x, i37 %y, i37 %z) nounwind {
 ;
 ; X64-AVX2-LABEL: fshr_i37:
 ; X64-AVX2:       # %bb.0:
-; X64-AVX2-NEXT:    movq %rdx, %r8
-; X64-AVX2-NEXT:    movabsq $137438953471, %rax # imm = 0x1FFFFFFFFF
-; X64-AVX2-NEXT:    movq %rsi, %r9
-; X64-AVX2-NEXT:    andq %rax, %r9
-; X64-AVX2-NEXT:    andq %rax, %r8
-; X64-AVX2-NEXT:    movabsq $-2492803253203993461, %rcx # imm = 0xDD67C8A60DD67C8B
-; X64-AVX2-NEXT:    movq %r8, %rax
-; X64-AVX2-NEXT:    mulq %rcx
+; X64-AVX2-NEXT:    movq %rdx, %rcx
+; X64-AVX2-NEXT:    movabsq $-2492803253203993461, %rdx # imm = 0xDD67C8A60DD67C8B
+; X64-AVX2-NEXT:    movq %rcx, %rax
+; X64-AVX2-NEXT:    mulq %rdx
 ; X64-AVX2-NEXT:    shrq $5, %rdx
-; X64-AVX2-NEXT:    leaq (%rdx,%rdx,8), %rax
-; X64-AVX2-NEXT:    leaq (%rdx,%rax,4), %rax
-; X64-AVX2-NEXT:    subq %rax, %r8
-; X64-AVX2-NEXT:    movl %r8d, %ecx
-; X64-AVX2-NEXT:    shrq %cl, %r9
-; X64-AVX2-NEXT:    movl $37, %ecx
-; X64-AVX2-NEXT:    subl %r8d, %ecx
-; X64-AVX2-NEXT:    # kill: def $cl killed $cl killed $ecx
-; X64-AVX2-NEXT:    shlq %cl, %rdi
-; X64-AVX2-NEXT:    orq %r9, %rdi
-; X64-AVX2-NEXT:    testq %r8, %r8
-; X64-AVX2-NEXT:    cmoveq %rsi, %rdi
-; X64-AVX2-NEXT:    movq %rdi, %rax
+; X64-AVX2-NEXT:    leal (%rdx,%rdx,8), %eax
+; X64-AVX2-NEXT:    leal (%rdx,%rax,4), %eax
+; X64-AVX2-NEXT:    subl %eax, %ecx
+; X64-AVX2-NEXT:    addl $27, %ecx
+; X64-AVX2-NEXT:    shlq $27, %rsi
+; X64-AVX2-NEXT:    # kill: def $cl killed $cl killed $rcx
+; X64-AVX2-NEXT:    shrdq %cl, %rdi, %rsi
+; X64-AVX2-NEXT:    movq %rsi, %rax
 ; X64-AVX2-NEXT:    retq
   %f = call i37 @llvm.fshr.i37(i37 %x, i37 %y, i37 %z)
   ret i37 %f
@@ -316,6 +291,486 @@ define i7 @fshr_i7_const_fold() nounwind {
 ; ANY-NEXT:    ret{{[l|q]}}
   %f = call i7 @llvm.fshr.i7(i7 112, i7 127, i7 2)
   ret i7 %f
+}
+
+; demanded bits tests
+
+define i32 @fshl_i32_demandedbits(i32 %a0, i32 %a1) nounwind {
+; X32-SSE2-LABEL: fshl_i32_demandedbits:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %ecx
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    shldl $9, %ecx, %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshl_i32_demandedbits:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %edi, %eax
+; X64-AVX2-NEXT:    shldl $9, %esi, %eax
+; X64-AVX2-NEXT:    retq
+  %x = or i32 %a0, 2147483648
+  %y = or i32 %a1, 1
+  %res = call i32 @llvm.fshl.i32(i32 %x, i32 %y, i32 9)
+  ret i32 %res
+}
+
+define i32 @fshr_i32_demandedbits(i32 %a0, i32 %a1) nounwind {
+; X32-SSE2-LABEL: fshr_i32_demandedbits:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %ecx
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    shrdl $9, %ecx, %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshr_i32_demandedbits:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %edi, %eax
+; X64-AVX2-NEXT:    shldl $23, %esi, %eax
+; X64-AVX2-NEXT:    retq
+  %x = or i32 %a0, 2147483648
+  %y = or i32 %a1, 1
+  %res = call i32 @llvm.fshr.i32(i32 %x, i32 %y, i32 9)
+  ret i32 %res
+}
+
+; undef handling
+
+define i32 @fshl_i32_undef0(i32 %a0, i32 %a1) nounwind {
+; X32-SSE2-LABEL: fshl_i32_undef0:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movb {{[0-9]+}}(%esp), %cl
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    shldl %cl, %eax, %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshl_i32_undef0:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %esi, %ecx
+; X64-AVX2-NEXT:    # kill: def $cl killed $cl killed $ecx
+; X64-AVX2-NEXT:    shldl %cl, %edi, %eax
+; X64-AVX2-NEXT:    retq
+  %res = call i32 @llvm.fshl.i32(i32 undef, i32 %a0, i32 %a1)
+  ret i32 %res
+}
+
+define i32 @fshl_i32_undef0_msk(i32 %a0, i32 %a1) nounwind {
+; X32-SSE2-LABEL: fshl_i32_undef0_msk:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %ecx
+; X32-SSE2-NEXT:    andl $7, %ecx
+; X32-SSE2-NEXT:    # kill: def $cl killed $cl killed $ecx
+; X32-SSE2-NEXT:    shldl %cl, %eax, %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshl_i32_undef0_msk:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %esi, %ecx
+; X64-AVX2-NEXT:    andl $7, %ecx
+; X64-AVX2-NEXT:    # kill: def $cl killed $cl killed $ecx
+; X64-AVX2-NEXT:    shldl %cl, %edi, %eax
+; X64-AVX2-NEXT:    retq
+  %m = and i32 %a1, 7
+  %res = call i32 @llvm.fshl.i32(i32 undef, i32 %a0, i32 %m)
+  ret i32 %res
+}
+
+define i32 @fshl_i32_undef0_cst(i32 %a0) nounwind {
+; X32-SSE2-LABEL: fshl_i32_undef0_cst:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    shrl $23, %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshl_i32_undef0_cst:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %edi, %eax
+; X64-AVX2-NEXT:    shrl $23, %eax
+; X64-AVX2-NEXT:    retq
+  %res = call i32 @llvm.fshl.i32(i32 undef, i32 %a0, i32 9)
+  ret i32 %res
+}
+
+define i32 @fshl_i32_undef1(i32 %a0, i32 %a1) nounwind {
+; X32-SSE2-LABEL: fshl_i32_undef1:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movb {{[0-9]+}}(%esp), %cl
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    shldl %cl, %eax, %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshl_i32_undef1:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %esi, %ecx
+; X64-AVX2-NEXT:    movl %edi, %eax
+; X64-AVX2-NEXT:    # kill: def $cl killed $cl killed $ecx
+; X64-AVX2-NEXT:    shldl %cl, %eax, %eax
+; X64-AVX2-NEXT:    retq
+  %res = call i32 @llvm.fshl.i32(i32 %a0, i32 undef, i32 %a1)
+  ret i32 %res
+}
+
+define i32 @fshl_i32_undef1_msk(i32 %a0, i32 %a1) nounwind {
+; X32-SSE2-LABEL: fshl_i32_undef1_msk:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    movb {{[0-9]+}}(%esp), %cl
+; X32-SSE2-NEXT:    andb $7, %cl
+; X32-SSE2-NEXT:    shll %cl, %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshl_i32_undef1_msk:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %esi, %ecx
+; X64-AVX2-NEXT:    movl %edi, %eax
+; X64-AVX2-NEXT:    andb $7, %cl
+; X64-AVX2-NEXT:    # kill: def $cl killed $cl killed $ecx
+; X64-AVX2-NEXT:    shll %cl, %eax
+; X64-AVX2-NEXT:    retq
+  %m = and i32 %a1, 7
+  %res = call i32 @llvm.fshl.i32(i32 %a0, i32 undef, i32 %m)
+  ret i32 %res
+}
+
+define i32 @fshl_i32_undef1_cst(i32 %a0) nounwind {
+; X32-SSE2-LABEL: fshl_i32_undef1_cst:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    shll $9, %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshl_i32_undef1_cst:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %edi, %eax
+; X64-AVX2-NEXT:    shll $9, %eax
+; X64-AVX2-NEXT:    retq
+  %res = call i32 @llvm.fshl.i32(i32 %a0, i32 undef, i32 9)
+  ret i32 %res
+}
+
+define i32 @fshl_i32_undef2(i32 %a0, i32 %a1) nounwind {
+; X32-SSE2-LABEL: fshl_i32_undef2:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %ecx
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    shldl %cl, %ecx, %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshl_i32_undef2:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %edi, %eax
+; X64-AVX2-NEXT:    shldl %cl, %esi, %eax
+; X64-AVX2-NEXT:    retq
+  %res = call i32 @llvm.fshl.i32(i32 %a0, i32 %a1, i32 undef)
+  ret i32 %res
+}
+
+define i32 @fshr_i32_undef0(i32 %a0, i32 %a1) nounwind {
+; X32-SSE2-LABEL: fshr_i32_undef0:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movb {{[0-9]+}}(%esp), %cl
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    shrdl %cl, %eax, %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshr_i32_undef0:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %esi, %ecx
+; X64-AVX2-NEXT:    movl %edi, %eax
+; X64-AVX2-NEXT:    # kill: def $cl killed $cl killed $ecx
+; X64-AVX2-NEXT:    shrdl %cl, %eax, %eax
+; X64-AVX2-NEXT:    retq
+  %res = call i32 @llvm.fshr.i32(i32 undef, i32 %a0, i32 %a1)
+  ret i32 %res
+}
+
+define i32 @fshr_i32_undef0_msk(i32 %a0, i32 %a1) nounwind {
+; X32-SSE2-LABEL: fshr_i32_undef0_msk:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    movb {{[0-9]+}}(%esp), %cl
+; X32-SSE2-NEXT:    andb $7, %cl
+; X32-SSE2-NEXT:    shrl %cl, %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshr_i32_undef0_msk:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %esi, %ecx
+; X64-AVX2-NEXT:    movl %edi, %eax
+; X64-AVX2-NEXT:    andb $7, %cl
+; X64-AVX2-NEXT:    # kill: def $cl killed $cl killed $ecx
+; X64-AVX2-NEXT:    shrl %cl, %eax
+; X64-AVX2-NEXT:    retq
+  %m = and i32 %a1, 7
+  %res = call i32 @llvm.fshr.i32(i32 undef, i32 %a0, i32 %m)
+  ret i32 %res
+}
+
+define i32 @fshr_i32_undef0_cst(i32 %a0) nounwind {
+; X32-SSE2-LABEL: fshr_i32_undef0_cst:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    shrl $9, %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshr_i32_undef0_cst:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %edi, %eax
+; X64-AVX2-NEXT:    shrl $9, %eax
+; X64-AVX2-NEXT:    retq
+  %res = call i32 @llvm.fshr.i32(i32 undef, i32 %a0, i32 9)
+  ret i32 %res
+}
+
+define i32 @fshr_i32_undef1(i32 %a0, i32 %a1) nounwind {
+; X32-SSE2-LABEL: fshr_i32_undef1:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movb {{[0-9]+}}(%esp), %cl
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    shrdl %cl, %eax, %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshr_i32_undef1:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %esi, %ecx
+; X64-AVX2-NEXT:    # kill: def $cl killed $cl killed $ecx
+; X64-AVX2-NEXT:    shrdl %cl, %edi, %eax
+; X64-AVX2-NEXT:    retq
+  %res = call i32 @llvm.fshr.i32(i32 %a0, i32 undef, i32 %a1)
+  ret i32 %res
+}
+
+define i32 @fshr_i32_undef1_msk(i32 %a0, i32 %a1) nounwind {
+; X32-SSE2-LABEL: fshr_i32_undef1_msk:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %ecx
+; X32-SSE2-NEXT:    andl $7, %ecx
+; X32-SSE2-NEXT:    # kill: def $cl killed $cl killed $ecx
+; X32-SSE2-NEXT:    shrdl %cl, %eax, %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshr_i32_undef1_msk:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %esi, %ecx
+; X64-AVX2-NEXT:    andl $7, %ecx
+; X64-AVX2-NEXT:    # kill: def $cl killed $cl killed $ecx
+; X64-AVX2-NEXT:    shrdl %cl, %edi, %eax
+; X64-AVX2-NEXT:    retq
+  %m = and i32 %a1, 7
+  %res = call i32 @llvm.fshr.i32(i32 %a0, i32 undef, i32 %m)
+  ret i32 %res
+}
+
+define i32 @fshr_i32_undef1_cst(i32 %a0) nounwind {
+; X32-SSE2-LABEL: fshr_i32_undef1_cst:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    shll $23, %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshr_i32_undef1_cst:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %edi, %eax
+; X64-AVX2-NEXT:    shll $23, %eax
+; X64-AVX2-NEXT:    retq
+  %res = call i32 @llvm.fshr.i32(i32 %a0, i32 undef, i32 9)
+  ret i32 %res
+}
+
+define i32 @fshr_i32_undef2(i32 %a0, i32 %a1) nounwind {
+; X32-SSE2-LABEL: fshr_i32_undef2:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %ecx
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    shrdl %cl, %ecx, %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshr_i32_undef2:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %esi, %eax
+; X64-AVX2-NEXT:    shrdl %cl, %edi, %eax
+; X64-AVX2-NEXT:    retq
+  %res = call i32 @llvm.fshr.i32(i32 %a0, i32 %a1, i32 undef)
+  ret i32 %res
+}
+
+; shift zero args
+
+define i32 @fshl_i32_zero0(i32 %a0, i32 %a1) nounwind {
+; X32-SSE2-LABEL: fshl_i32_zero0:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movb {{[0-9]+}}(%esp), %cl
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %edx
+; X32-SSE2-NEXT:    xorl %eax, %eax
+; X32-SSE2-NEXT:    shldl %cl, %edx, %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshl_i32_zero0:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %esi, %ecx
+; X64-AVX2-NEXT:    xorl %eax, %eax
+; X64-AVX2-NEXT:    # kill: def $cl killed $cl killed $ecx
+; X64-AVX2-NEXT:    shldl %cl, %edi, %eax
+; X64-AVX2-NEXT:    retq
+  %res = call i32 @llvm.fshl.i32(i32 0, i32 %a0, i32 %a1)
+  ret i32 %res
+}
+
+define i32 @fshl_i32_zero0_cst(i32 %a0) nounwind {
+; X32-SSE2-LABEL: fshl_i32_zero0_cst:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    shrl $23, %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshl_i32_zero0_cst:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %edi, %eax
+; X64-AVX2-NEXT:    shrl $23, %eax
+; X64-AVX2-NEXT:    retq
+  %res = call i32 @llvm.fshl.i32(i32 0, i32 %a0, i32 9)
+  ret i32 %res
+}
+
+define i32 @fshl_i32_zero1(i32 %a0, i32 %a1) nounwind {
+; X32-SSE2-LABEL: fshl_i32_zero1:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movb {{[0-9]+}}(%esp), %cl
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    xorl %edx, %edx
+; X32-SSE2-NEXT:    shldl %cl, %edx, %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshl_i32_zero1:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %esi, %ecx
+; X64-AVX2-NEXT:    movl %edi, %eax
+; X64-AVX2-NEXT:    xorl %edx, %edx
+; X64-AVX2-NEXT:    # kill: def $cl killed $cl killed $ecx
+; X64-AVX2-NEXT:    shldl %cl, %edx, %eax
+; X64-AVX2-NEXT:    retq
+  %res = call i32 @llvm.fshl.i32(i32 %a0, i32 0, i32 %a1)
+  ret i32 %res
+}
+
+define i32 @fshl_i32_zero1_cst(i32 %a0) nounwind {
+; X32-SSE2-LABEL: fshl_i32_zero1_cst:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    shll $9, %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshl_i32_zero1_cst:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %edi, %eax
+; X64-AVX2-NEXT:    shll $9, %eax
+; X64-AVX2-NEXT:    retq
+  %res = call i32 @llvm.fshl.i32(i32 %a0, i32 0, i32 9)
+  ret i32 %res
+}
+
+define i32 @fshr_i32_zero0(i32 %a0, i32 %a1) nounwind {
+; X32-SSE2-LABEL: fshr_i32_zero0:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movb {{[0-9]+}}(%esp), %cl
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    xorl %edx, %edx
+; X32-SSE2-NEXT:    shrdl %cl, %edx, %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshr_i32_zero0:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %esi, %ecx
+; X64-AVX2-NEXT:    movl %edi, %eax
+; X64-AVX2-NEXT:    xorl %edx, %edx
+; X64-AVX2-NEXT:    # kill: def $cl killed $cl killed $ecx
+; X64-AVX2-NEXT:    shrdl %cl, %edx, %eax
+; X64-AVX2-NEXT:    retq
+  %res = call i32 @llvm.fshr.i32(i32 0, i32 %a0, i32 %a1)
+  ret i32 %res
+}
+
+define i32 @fshr_i32_zero0_cst(i32 %a0) nounwind {
+; X32-SSE2-LABEL: fshr_i32_zero0_cst:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    shrl $9, %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshr_i32_zero0_cst:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %edi, %eax
+; X64-AVX2-NEXT:    shrl $9, %eax
+; X64-AVX2-NEXT:    retq
+  %res = call i32 @llvm.fshr.i32(i32 0, i32 %a0, i32 9)
+  ret i32 %res
+}
+
+define i32 @fshr_i32_zero1(i32 %a0, i32 %a1) nounwind {
+; X32-SSE2-LABEL: fshr_i32_zero1:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movb {{[0-9]+}}(%esp), %cl
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %edx
+; X32-SSE2-NEXT:    xorl %eax, %eax
+; X32-SSE2-NEXT:    shrdl %cl, %edx, %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshr_i32_zero1:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %esi, %ecx
+; X64-AVX2-NEXT:    xorl %eax, %eax
+; X64-AVX2-NEXT:    # kill: def $cl killed $cl killed $ecx
+; X64-AVX2-NEXT:    shrdl %cl, %edi, %eax
+; X64-AVX2-NEXT:    retq
+  %res = call i32 @llvm.fshr.i32(i32 %a0, i32 0, i32 %a1)
+  ret i32 %res
+}
+
+define i32 @fshr_i32_zero1_cst(i32 %a0) nounwind {
+; X32-SSE2-LABEL: fshr_i32_zero1_cst:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    shll $23, %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshr_i32_zero1_cst:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %edi, %eax
+; X64-AVX2-NEXT:    shll $23, %eax
+; X64-AVX2-NEXT:    retq
+  %res = call i32 @llvm.fshr.i32(i32 %a0, i32 0, i32 9)
+  ret i32 %res
+}
+
+; shift by zero
+
+define i32 @fshl_i32_zero2(i32 %a0, i32 %a1) nounwind {
+; X32-SSE2-LABEL: fshl_i32_zero2:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshl_i32_zero2:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %edi, %eax
+; X64-AVX2-NEXT:    retq
+  %res = call i32 @llvm.fshl.i32(i32 %a0, i32 %a1, i32 0)
+  ret i32 %res
+}
+
+define i32 @fshr_i32_zero2(i32 %a0, i32 %a1) nounwind {
+; X32-SSE2-LABEL: fshr_i32_zero2:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: fshr_i32_zero2:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movl %esi, %eax
+; X64-AVX2-NEXT:    retq
+  %res = call i32 @llvm.fshr.i32(i32 %a0, i32 %a1, i32 0)
+  ret i32 %res
 }
 
 ; With constant shift amount, this is 'shrd' or 'shld'.
@@ -438,3 +893,71 @@ define <4 x i32> @fshr_v4i32_shift_by_bitwidth(<4 x i32> %x, <4 x i32> %y) nounw
   ret <4 x i32> %f
 }
 
+%struct.S = type { [11 x i8], i8 }
+define void @PR45265(i32 %0, %struct.S* nocapture readonly %1) nounwind {
+; X32-SSE2-LABEL: PR45265:
+; X32-SSE2:       # %bb.0:
+; X32-SSE2-NEXT:    pushl %ebx
+; X32-SSE2-NEXT:    pushl %edi
+; X32-SSE2-NEXT:    pushl %esi
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-SSE2-NEXT:    movl {{[0-9]+}}(%esp), %ecx
+; X32-SSE2-NEXT:    leal (%eax,%eax,2), %edx
+; X32-SSE2-NEXT:    movzwl 8(%ecx,%edx,4), %esi
+; X32-SSE2-NEXT:    movsbl 10(%ecx,%edx,4), %edi
+; X32-SSE2-NEXT:    movl %edi, %ebx
+; X32-SSE2-NEXT:    shll $16, %ebx
+; X32-SSE2-NEXT:    orl %esi, %ebx
+; X32-SSE2-NEXT:    movl 4(%ecx,%edx,4), %ecx
+; X32-SSE2-NEXT:    shrdl $8, %ebx, %ecx
+; X32-SSE2-NEXT:    xorl %eax, %ecx
+; X32-SSE2-NEXT:    sarl $31, %eax
+; X32-SSE2-NEXT:    sarl $31, %edi
+; X32-SSE2-NEXT:    shldl $24, %ebx, %edi
+; X32-SSE2-NEXT:    xorl %eax, %edi
+; X32-SSE2-NEXT:    orl %edi, %ecx
+; X32-SSE2-NEXT:    jne .LBB44_1
+; X32-SSE2-NEXT:  # %bb.2:
+; X32-SSE2-NEXT:    popl %esi
+; X32-SSE2-NEXT:    popl %edi
+; X32-SSE2-NEXT:    popl %ebx
+; X32-SSE2-NEXT:    jmp _Z3foov # TAILCALL
+; X32-SSE2-NEXT:  .LBB44_1:
+; X32-SSE2-NEXT:    popl %esi
+; X32-SSE2-NEXT:    popl %edi
+; X32-SSE2-NEXT:    popl %ebx
+; X32-SSE2-NEXT:    retl
+;
+; X64-AVX2-LABEL: PR45265:
+; X64-AVX2:       # %bb.0:
+; X64-AVX2-NEXT:    movslq %edi, %rax
+; X64-AVX2-NEXT:    leaq (%rax,%rax,2), %rcx
+; X64-AVX2-NEXT:    movsbq 10(%rsi,%rcx,4), %rdx
+; X64-AVX2-NEXT:    shlq $16, %rdx
+; X64-AVX2-NEXT:    movzwl 8(%rsi,%rcx,4), %edi
+; X64-AVX2-NEXT:    orq %rdx, %rdi
+; X64-AVX2-NEXT:    movq (%rsi,%rcx,4), %rcx
+; X64-AVX2-NEXT:    shrdq $40, %rdi, %rcx
+; X64-AVX2-NEXT:    cmpq %rax, %rcx
+; X64-AVX2-NEXT:    jne .LBB44_1
+; X64-AVX2-NEXT:  # %bb.2:
+; X64-AVX2-NEXT:    jmp _Z3foov # TAILCALL
+; X64-AVX2-NEXT:  .LBB44_1:
+; X64-AVX2-NEXT:    retq
+  %3 = sext i32 %0 to i64
+  %4 = getelementptr inbounds %struct.S, %struct.S* %1, i64 %3
+  %5 = bitcast %struct.S* %4 to i88*
+  %6 = load i88, i88* %5, align 1
+  %7 = ashr i88 %6, 40
+  %8 = trunc i88 %7 to i64
+  %9 = icmp eq i64 %8, %3
+  br i1 %9, label %10, label %11
+
+10:
+  tail call void @_Z3foov()
+  br label %11
+
+11:
+  ret void
+}
+declare dso_local void @_Z3foov()

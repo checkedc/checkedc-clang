@@ -1,5 +1,7 @@
 ; RUN: llc -verify-machineinstrs -mtriple=aarch64-apple-ios -o - %s | FileCheck %s
 ; RUN: llc -O0 -fast-isel -verify-machineinstrs -mtriple=aarch64-apple-ios -o - %s | FileCheck %s --check-prefix=CHECK-O0
+; RUN: llc -verify-machineinstrs -mtriple=arm64_32-apple-ios -o - %s | FileCheck %s
+; RUN: llc -O0 -fast-isel -verify-machineinstrs -mtriple=arm64_32-apple-ios -o - %s | FileCheck %s --check-prefix=CHECK-O0
 
 ; CHECK-LABEL: test1
 ; CHECK: bl      _gen
@@ -8,7 +10,7 @@
 ; CHECK-O0-LABEL: test1
 ; CHECK-O0: bl      _gen
 ; CHECK-O0: sxth    [[TMP:w.*]], w0
-; CHECK-O0: add     w0, [[TMP]], w1, sxtb
+; CHECK-O0: add     {{w[0-9]+}}, [[TMP]], w1, sxtb
 define i16 @test1(i32) {
 entry:
   %call = call swiftcc { i16, i8 } @gen(i32 %0)
@@ -201,10 +203,10 @@ declare swiftcc { double, double, double, double, i32, i32, i32, i32 } @gen6()
 ; CHECK-DAG:   mov      w3, w0
 ; CHECK:   ret
 ; CHECK-O0-LABEL: _gen7
-; CHECK-O0:  str     w0, [sp, #12]
-; CHECK-O0:  ldr     w1, [sp, #12]
-; CHECK-O0:  ldr     w2, [sp, #12]
-; CHECK-O0:  ldr     w3, [sp, #12]
+; CHECK-O0:  mov w3, w0
+; CHECK-O0:  mov w0, w3
+; CHECK-O0:  mov w1, w3
+; CHECK-O0:  mov w2, w3
 define swiftcc { i32, i32, i32, i32 } @gen7(i32 %key) {
   %v0 = insertvalue { i32, i32, i32, i32 } undef, i32 %key, 0
   %v1 = insertvalue { i32, i32, i32, i32 } %v0, i32 %key, 1
@@ -219,10 +221,10 @@ define swiftcc { i32, i32, i32, i32 } @gen7(i32 %key) {
 ; CHECK:  mov      w3, w0
 ; CHECK:  ret
 ; CHECK-O0-LABEL: _gen9
-; CHECK-O0:  str     w0, [sp, #12]
-; CHECK-O0:  ldr     w1, [sp, #12]
-; CHECK-O0:  ldr     w2, [sp, #12]
-; CHECK-O0:  ldr     w3, [sp, #12]
+; CHECK-O0:  mov w3, w0
+; CHECK-O0:  mov w0, w3
+; CHECK-O0:  mov w1, w3
+; CHECK-O0:  mov w2, w3
 define swiftcc { i8, i8, i8, i8 } @gen9(i8 %key) {
   %v0 = insertvalue { i8, i8, i8, i8 } undef, i8 %key, 0
   %v1 = insertvalue { i8, i8, i8, i8 } %v0, i8 %key, 1

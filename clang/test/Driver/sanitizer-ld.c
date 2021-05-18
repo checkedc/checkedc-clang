@@ -16,6 +16,14 @@
 // CHECK-ASAN-LINUX: "-lrt"
 // CHECK-ASAN-LINUX: "-ldl"
 
+// RUN: %clang -fsanitize=address -fno-sanitize-link-runtime %s -### -o %t.o 2>&1 \
+// RUN:     -target x86_64-unknown-linux -fuse-ld=ld \
+// RUN:     -resource-dir=%S/Inputs/resource_dir \
+// RUN:     --sysroot=%S/Inputs/basic_linux_tree \
+// RUN:   | FileCheck --check-prefix=CHECK-ASAN-NO-LINK-RUNTIME-LINUX %s
+//
+// CHECK-ASAN-NO-LINK-RUNTIME-LINUX-NOT: libclang_rt.asan
+
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
 // RUN:     -target i386-unknown-linux -fuse-ld=ld -fsanitize=address -shared-libsan \
 // RUN:     -resource-dir=%S/Inputs/resource_dir \
@@ -239,6 +247,14 @@
 // CHECK-TSAN-LINUX-CXX: "-lrt"
 // CHECK-TSAN-LINUX-CXX: "-ldl"
 
+// RUN: %clang -fsanitize=thread -fno-sanitize-link-runtime %s -### -o %t.o 2>&1 \
+// RUN:     -target x86_64-unknown-linux -fuse-ld=ld \
+// RUN:     -resource-dir=%S/Inputs/resource_dir \
+// RUN:     --sysroot=%S/Inputs/basic_linux_tree \
+// RUN:   | FileCheck --check-prefix=CHECK-TSAN-NO-LINK-RUNTIME-LINUX %s
+//
+// CHECK-TSAN-NO-LINK-RUNTIME-LINUX-NOT: libclang_rt.tsan
+
 // RUN: %clangxx -no-canonical-prefixes %s -### -o %t.o 2>&1 \
 // RUN:     -target x86_64-unknown-linux -fuse-ld=ld -stdlib=platform -lstdc++ \
 // RUN:     -fsanitize=memory \
@@ -258,7 +274,20 @@
 // CHECK-MSAN-LINUX-CXX: "-lrt"
 // CHECK-MSAN-LINUX-CXX: "-ldl"
 
+// RUN: %clang -fsanitize=memory -fno-sanitize-link-runtime %s -### -o %t.o 2>&1 \
+// RUN:     -target x86_64-unknown-linux -fuse-ld=ld \
+// RUN:     -resource-dir=%S/Inputs/resource_dir \
+// RUN:     --sysroot=%S/Inputs/basic_linux_tree \
+// RUN:   | FileCheck --check-prefix=CHECK-MSAN-NO-LINK-RUNTIME-LINUX %s
+//
+// CHECK-MSAN-NO-LINK-RUNTIME-LINUX-NOT: libclang_rt.msan
+
 // RUN: %clang -fsanitize=undefined %s -### -o %t.o 2>&1 \
+// RUN:     -target i386-unknown-linux -fuse-ld=ld \
+// RUN:     --sysroot=%S/Inputs/basic_linux_tree \
+// RUN:   | FileCheck --check-prefix=CHECK-UBSAN-LINUX %s
+
+// RUN: %clang -fsanitize=float-divide-by-zero %s -### -o %t.o 2>&1 \
 // RUN:     -target i386-unknown-linux -fuse-ld=ld \
 // RUN:     --sysroot=%S/Inputs/basic_linux_tree \
 // RUN:   | FileCheck --check-prefix=CHECK-UBSAN-LINUX %s
@@ -277,6 +306,14 @@
 // CHECK-UBSAN-LINUX-NOT: libclang_rt.ubsan_standalone_cxx
 // CHECK-UBSAN-LINUX-NOT: "-lstdc++"
 // CHECK-UBSAN-LINUX: "-lpthread"
+
+// RUN: %clang -fsanitize=undefined -fno-sanitize-link-runtime %s -### -o %t.o 2>&1 \
+// RUN:     -target x86_64-unknown-linux -fuse-ld=ld \
+// RUN:     -resource-dir=%S/Inputs/resource_dir \
+// RUN:     --sysroot=%S/Inputs/basic_linux_tree \
+// RUN:   | FileCheck --check-prefix=CHECK-UBSAN-NO-LINK-RUNTIME-LINUX %s
+//
+// CHECK-UBSAN-NO-LINK-RUNTIME-LINUX-NOT: libclang_rt.undefined
 
 // RUN: %clang -fsanitize=undefined %s -### -o %t.o 2>&1 \
 // RUN:     -target i386-unknown-linux -fuse-ld=ld \
@@ -404,6 +441,14 @@
 // CHECK-LSAN-LINUX: "-lpthread"
 // CHECK-LSAN-LINUX: "-ldl"
 
+// RUN: %clang -fsanitize=leak -fno-sanitize-link-runtime %s -### -o %t.o 2>&1 \
+// RUN:     -target x86_64-unknown-linux -fuse-ld=ld \
+// RUN:     -resource-dir=%S/Inputs/resource_dir \
+// RUN:     --sysroot=%S/Inputs/basic_linux_tree \
+// RUN:   | FileCheck --check-prefix=CHECK-LSAN-NO-LINK-RUNTIME-LINUX %s
+//
+// CHECK-LSAN-NO-LINK-RUNTIME-LINUX-NOT: libclang_rt.lsan
+
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
 // RUN:  -target x86_64-unknown-linux -fuse-ld=ld -fsanitize=leak -fsanitize-coverage=func \
 // RUN:  --sysroot=%S/Inputs/basic_linux_tree \
@@ -526,7 +571,7 @@
 // RUN:   | FileCheck --check-prefix=CHECK-CFI-CROSS-DSO-DIAG-ANDROID %s
 // CHECK-CFI-CROSS-DSO-DIAG-ANDROID: "{{.*}}ld{{(.exe)?}}"
 // CHECK-CFI-CROSS-DSO-DIAG-ANDROID: "{{[^"]*}}libclang_rt.ubsan_standalone-aarch64-android.so"
-// CHECK-CFI-CROSS-DSO-DIAG-ANDROID: "-export-dynamic-symbol=__cfi_check"
+// CHECK-CFI-CROSS-DSO-DIAG-ANDROID: "--export-dynamic-symbol=__cfi_check"
 
 // RUN: %clangxx -fsanitize=address %s -### -o %t.o 2>&1 \
 // RUN:     -mmacosx-version-min=10.6 \
@@ -570,6 +615,16 @@
 // CHECK-SHADOWCALLSTACK-LINUX-AARCH64: '-fsanitize=shadow-call-stack' only allowed with '-ffixed-x18'
 
 // RUN: %clang -fsanitize=shadow-call-stack %s -### -o %t.o 2>&1 \
+// RUN:     -target riscv32-unknown-elf -fuse-ld=ld \
+// RUN:   | FileCheck --check-prefix=CHECK-SHADOWCALLSTACK-ELF-RISCV32 %s
+// CHECK-SHADOWCALLSTACK-ELF-RISCV32: '-fsanitize=shadow-call-stack' only allowed with '-ffixed-x18'
+
+// RUN: %clang -fsanitize=shadow-call-stack %s -### -o %t.o 2>&1 \
+// RUN:     -target riscv64-unknown-linux -fuse-ld=ld \
+// RUN:   | FileCheck --check-prefix=CHECK-SHADOWCALLSTACK-LINUX-RISCV64 %s
+// CHECK-SHADOWCALLSTACK-LINUX-RISCV64: '-fsanitize=shadow-call-stack' only allowed with '-ffixed-x18'
+
+// RUN: %clang -fsanitize=shadow-call-stack %s -### -o %t.o 2>&1 \
 // RUN:     -target aarch64-unknown-linux -fuse-ld=ld -ffixed-x18 \
 // RUN:   | FileCheck --check-prefix=CHECK-SHADOWCALLSTACK-LINUX-AARCH64-X18 %s
 // RUN: %clang -fsanitize=shadow-call-stack %s -### -o %t.o 2>&1 \
@@ -611,16 +666,16 @@
 // RUN:     -target x86_64-pc-windows \
 // RUN:     --sysroot=%S/Inputs/basic_linux_tree \
 // RUN:   | FileCheck --check-prefix=CHECK-CFI-STATS-WIN64 %s
-// CHECK-CFI-STATS-WIN64: "--dependent-lib={{[^"]*}}clang_rt.stats_client-x86_64.lib"
-// CHECK-CFI-STATS-WIN64: "--dependent-lib={{[^"]*}}clang_rt.stats-x86_64.lib"
+// CHECK-CFI-STATS-WIN64: "--dependent-lib=clang_rt.stats_client-x86_64.lib"
+// CHECK-CFI-STATS-WIN64: "--dependent-lib=clang_rt.stats-x86_64.lib"
 // CHECK-CFI-STATS-WIN64: "--linker-option=/include:__sanitizer_stats_register"
 
 // RUN: %clang -fsanitize=cfi -fsanitize-stats %s -### -o %t.o 2>&1 \
 // RUN:     -target i686-pc-windows \
 // RUN:     --sysroot=%S/Inputs/basic_linux_tree \
 // RUN:   | FileCheck --check-prefix=CHECK-CFI-STATS-WIN32 %s
-// CHECK-CFI-STATS-WIN32: "--dependent-lib={{[^"]*}}clang_rt.stats_client-i386.lib"
-// CHECK-CFI-STATS-WIN32: "--dependent-lib={{[^"]*}}clang_rt.stats-i386.lib"
+// CHECK-CFI-STATS-WIN32: "--dependent-lib=clang_rt.stats_client-i386.lib"
+// CHECK-CFI-STATS-WIN32: "--dependent-lib=clang_rt.stats-i386.lib"
 // CHECK-CFI-STATS-WIN32: "--linker-option=/include:___sanitizer_stats_register"
 
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
@@ -679,16 +734,6 @@
 // RUN:     -nostdlib \
 // RUN:   | FileCheck --check-prefix=CHECK-NOLIB-PS4 %s
 // CHECK-NOLIB-PS4-NOT: SceDbgAddressSanitizer_stub_weak
-
-// RUN: %clang -fsanitize=efficiency-cache-frag %s -### -o %t.o 2>&1 \
-// RUN:     -target x86_64-unknown-linux -fuse-ld=ld \
-// RUN:   | FileCheck --check-prefix=CHECK-ESAN-LINUX %s
-// RUN: %clang -fsanitize=efficiency-working-set %s -### -o %t.o 2>&1 \
-// RUN:     -target x86_64-unknown-linux -fuse-ld=ld \
-// RUN:   | FileCheck --check-prefix=CHECK-ESAN-LINUX %s
-//
-// CHECK-ESAN-LINUX: "{{(.*[^-.0-9A-Z_a-z])?}}ld{{(.exe)?}}"
-// CHECK-ESAN-LINUX: libclang_rt.esan-x86_64.a
 
 // RUN: %clang -fsanitize=scudo %s -### -o %t.o 2>&1 \
 // RUN:     -target i386-unknown-linux -fuse-ld=ld \

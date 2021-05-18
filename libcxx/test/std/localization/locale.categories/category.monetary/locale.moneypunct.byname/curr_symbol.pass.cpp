@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
-// XFAIL: apple-darwin
+// XFAIL: darwin
 //
 // NetBSD does not support LC_MONETARY at the moment
 // XFAIL: netbsd
@@ -62,7 +61,7 @@ public:
         : std::moneypunct_byname<wchar_t, true>(nm, refs) {}
 };
 
-int main()
+int main(int, char**)
 {
     {
         Fnf f("C", 1);
@@ -117,17 +116,14 @@ int main()
 
     {
         Fnf f(LOCALE_ru_RU_UTF_8, 1);
+#if defined(_CS_GNU_LIBC_VERSION)
         // GLIBC <= 2.23 uses currency_symbol="<U0440><U0443><U0431>"
         // GLIBC >= 2.24 uses currency_symbol="<U20BD>"
         // See also: http://www.fileformat.info/info/unicode/char/20bd/index.htm
-#if defined(TEST_GLIBC_PREREQ)
-    #if TEST_GLIBC_PREREQ(2, 24)
-        #define TEST_GLIBC_2_24_CURRENCY_SYMBOL
-    #endif
-#endif
-
-#if defined(TEST_GLIBC_2_24_CURRENCY_SYMBOL)
-        assert(f.curr_symbol() == " \u20BD");
+        if (!glibc_version_less_than("2.24"))
+          assert(f.curr_symbol() == " \u20BD");
+        else
+          assert(f.curr_symbol() == " \xD1\x80\xD1\x83\xD0\xB1");
 #else
         assert(f.curr_symbol() == " \xD1\x80\xD1\x83\xD0\xB1");
 #endif
@@ -138,8 +134,11 @@ int main()
     }
     {
         Fwf f(LOCALE_ru_RU_UTF_8, 1);
-#if defined(TEST_GLIBC_2_24_CURRENCY_SYMBOL)
-        assert(f.curr_symbol() == L" \u20BD");
+#if defined(_CS_GNU_LIBC_VERSION)
+        if (!glibc_version_less_than("2.24"))
+          assert(f.curr_symbol() == L" \u20BD");
+        else
+          assert(f.curr_symbol() == L" \x440\x443\x431");
 #else
         assert(f.curr_symbol() == L" \x440\x443\x431");
 #endif
@@ -166,4 +165,6 @@ int main()
         Fwt f(LOCALE_zh_CN_UTF_8, 1);
         assert(f.curr_symbol() == L"CNY ");
     }
+
+  return 0;
 }

@@ -1,27 +1,23 @@
 //===-- ObjectFileBreakpad.h ---------------------------------- -*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_PLUGINS_OBJECTFILE_BREAKPAD_OBJECTFILEBREAKPAD_H
-#define LLDB_PLUGINS_OBJECTFILE_BREAKPAD_OBJECTFILEBREAKPAD_H
+#ifndef LLDB_SOURCE_PLUGINS_OBJECTFILE_BREAKPAD_OBJECTFILEBREAKPAD_H
+#define LLDB_SOURCE_PLUGINS_OBJECTFILE_BREAKPAD_OBJECTFILEBREAKPAD_H
 
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Utility/ArchSpec.h"
-#include "llvm/ADT/Triple.h"
 
 namespace lldb_private {
 namespace breakpad {
 
 class ObjectFileBreakpad : public ObjectFile {
 public:
-  //------------------------------------------------------------------
   // Static Functions
-  //------------------------------------------------------------------
   static void Initialize();
   static void Terminate();
 
@@ -47,16 +43,19 @@ public:
                                         lldb::offset_t length,
                                         ModuleSpecList &specs);
 
-  //------------------------------------------------------------------
   // PluginInterface protocol
-  //------------------------------------------------------------------
   ConstString GetPluginName() override { return GetPluginNameStatic(); }
 
   uint32_t GetPluginVersion() override { return 1; }
 
-  //------------------------------------------------------------------
+  // LLVM RTTI support
+  static char ID;
+  bool isA(const void *ClassID) const override {
+    return ClassID == &ID || ObjectFile::isA(ClassID);
+  }
+  static bool classof(const ObjectFile *obj) { return obj->isA(&ID); }
+
   // ObjectFile Protocol.
-  //------------------------------------------------------------------
 
   bool ParseHeader() override;
 
@@ -84,9 +83,7 @@ public:
 
   ArchSpec GetArchitecture() override { return m_arch; }
 
-  bool GetUUID(UUID *uuid) override;
-
-  FileSpecList GetDebugSymbolFilePaths() override { return FileSpecList(); }
+  UUID GetUUID() override { return m_uuid; }
 
   uint32_t GetDependentModules(FileSpecList &files) override { return 0; }
 
@@ -106,4 +103,4 @@ private:
 
 } // namespace breakpad
 } // namespace lldb_private
-#endif // LLDB_PLUGINS_OBJECTFILE_BREAKPAD_OBJECTFILEBREAKPAD_H
+#endif // LLDB_SOURCE_PLUGINS_OBJECTFILE_BREAKPAD_OBJECTFILEBREAKPAD_H

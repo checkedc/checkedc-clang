@@ -53,7 +53,7 @@ invoke.cont:                                      ; preds = %entry
 define internal i32 @try_except_filter_catchall() #0 {
 entry:
   %0 = call i8* @llvm.frameaddress(i32 1)
-  %1 = call i8* @llvm.x86.seh.recoverfp(i8* bitcast (void ()* @try_except to i8*), i8* %0)
+  %1 = call i8* @llvm.eh.recoverfp(i8* bitcast (void ()* @try_except to i8*), i8* %0)
   %2 = call i8* @llvm.localrecover(i8* bitcast (void ()* @try_except to i8*), i8* %1, i32 0)
   %__exception_code = bitcast i8* %2 to i32*
   %3 = getelementptr inbounds i8, i8* %0, i32 -20
@@ -169,7 +169,7 @@ declare void @crash() #0
 define internal i32 @nested_exceptions_filter_catchall() #0 {
 entry:
   %0 = call i8* @llvm.frameaddress(i32 1)
-  %1 = call i8* @llvm.x86.seh.recoverfp(i8* bitcast (void ()* @nested_exceptions to i8*), i8* %0)
+  %1 = call i8* @llvm.eh.recoverfp(i8* bitcast (void ()* @nested_exceptions to i8*), i8* %0)
   %2 = call i8* @llvm.localrecover(i8* bitcast (void ()* @nested_exceptions to i8*), i8* %1, i32 0)
   %__exception_code3 = bitcast i8* %2 to i32*
   %3 = getelementptr inbounds i8, i8* %0, i32 -20
@@ -213,7 +213,7 @@ __except:
 declare i8* @llvm.frameaddress(i32) #1
 
 ; Function Attrs: nounwind readnone
-declare i8* @llvm.x86.seh.recoverfp(i8*, i8*) #1
+declare i8* @llvm.eh.recoverfp(i8*, i8*) #1
 
 ; Function Attrs: nounwind readnone
 declare i8* @llvm.localrecover(i8*, i8*, i32) #1
@@ -225,7 +225,7 @@ declare i32 @_except_handler3(...)
 ; Function Attrs: nounwind
 declare void @llvm.localescape(...) #2
 
-attributes #0 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone }
 attributes #2 = { nounwind }
 attributes #3 = { noinline }

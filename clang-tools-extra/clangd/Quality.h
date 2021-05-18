@@ -1,9 +1,8 @@
 //===--- Quality.h - Ranking alternatives for ambiguous queries --*- C++-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -30,16 +29,18 @@
 
 #include "ExpectedTypes.h"
 #include "FileDistance.h"
+#include "TUScheduler.h"
 #include "clang/Sema/CodeCompleteConsumer.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 #include <algorithm>
 #include <functional>
 #include <vector>
 
 namespace llvm {
 class raw_ostream;
-}
+} // namespace llvm
 
 namespace clang {
 class CodeCompletionResult;
@@ -78,15 +79,19 @@ struct SymbolQualitySignals {
   void merge(const Symbol &IndexResult);
 
   // Condense these signals down to a single number, higher is better.
-  float evaluate() const;
+  float evaluateHeuristics() const;
 };
 llvm::raw_ostream &operator<<(llvm::raw_ostream &,
                               const SymbolQualitySignals &);
 
 /// Attributes of a symbol-query pair that affect how much we like it.
 struct SymbolRelevanceSignals {
+  /// The name of the symbol (for ContextWords). Must be explicitly assigned.
+  llvm::StringRef Name;
   /// 0-1+ fuzzy-match score for unqualified name. Must be explicitly assigned.
   float NameMatch = 1;
+  /// Lowercase words relevant to the context (e.g. near the completion point).
+  llvm::StringSet<>* ContextWords = nullptr;
   bool Forbidden = false; // Unavailable (e.g const) or inaccessible (private).
   /// Whether fixits needs to be applied for that completion or not.
   bool NeedsFixIts = false;
@@ -132,17 +137,55 @@ struct SymbolRelevanceSignals {
   // Whether the item matches the type expected in the completion context.
   bool TypeMatchesPreferred = false;
 
+  /// Length of the unqualified partial name of Symbol typed in
+  /// CompletionPrefix.
+  unsigned FilterLength = 0;
+
+  const ASTSignals *MainFileSignals = nullptr;
+  /// Number of references to the candidate in the main file.
+  unsigned MainFileRefs = 0;
+  /// Number of unique symbols in the main file which belongs to candidate's
+  /// namespace. This indicates how relevant the namespace is in the current
+  /// file.
+  unsigned ScopeRefsInFile = 0;
+
+  /// Set of derived signals computed by calculateDerivedSignals(). Must not be
+  /// set explicitly.
+  struct DerivedSignals {
+    /// Whether Name contains some word from context.
+    bool NameMatchesContext = false;
+    /// Min distance between SymbolURI and all the headers included by the TU.
+    unsigned FileProximityDistance = FileDistance::Unreachable;
+    /// Min distance between SymbolScope and all the available scopes.
+    unsigned ScopeProximityDistance = FileDistance::Unreachable;
+  };
+
+  DerivedSignals calculateDerivedSignals() const;
+
   void merge(const CodeCompletionResult &SemaResult);
   void merge(const Symbol &IndexResult);
+  void computeASTSignals(const CodeCompletionResult &SemaResult);
 
   // Condense these signals down to a single number, higher is better.
-  float evaluate() const;
+  float evaluateHeuristics() const;
 };
 llvm::raw_ostream &operator<<(llvm::raw_ostream &,
                               const SymbolRelevanceSignals &);
 
 /// Combine symbol quality and relevance into a single score.
 float evaluateSymbolAndRelevance(float SymbolQuality, float SymbolRelevance);
+
+/// Same semantics as CodeComplete::Score. Quality score and Relevance score
+/// have been removed since DecisionForest cannot assign individual scores to
+/// Quality and Relevance signals.
+struct DecisionForestScores {
+  float Total = 0.f;
+  float ExcludingName = 0.f;
+};
+
+DecisionForestScores
+evaluateDecisionForest(const SymbolQualitySignals &Quality,
+                       const SymbolRelevanceSignals &Relevance, float Base);
 
 /// TopN<T> is a lossy container that preserves only the "best" N elements.
 template <typename T, typename Compare = std::greater<T>> class TopN {
@@ -191,7 +234,6 @@ std::string sortText(float Score, llvm::StringRef Tiebreak = "");
 struct SignatureQualitySignals {
   uint32_t NumberOfParameters = 0;
   uint32_t NumberOfOptionalParameters = 0;
-  bool ContainsActiveParameter = false;
   CodeCompleteConsumer::OverloadCandidate::CandidateKind Kind =
       CodeCompleteConsumer::OverloadCandidate::CandidateKind::CK_Function;
 };

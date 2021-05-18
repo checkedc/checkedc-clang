@@ -1,9 +1,8 @@
 //===-- ARMTargetMachine.h - Define TargetMachine for ARM -------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -70,6 +69,14 @@ public:
             TargetTriple.getSubArch() == Triple::ARMSubArch_v7em) ||
            TargetTriple.isOSWindows() ||
            TargetABI == ARMBaseTargetMachine::ARM_ABI_AAPCS16;
+  }
+
+  bool targetSchedulesPostRAScheduling() const override { return true; };
+
+  /// Returns true if a cast between SrcAS and DestAS is a noop.
+  bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override {
+    // Addrspacecasts are always noops.
+    return true;
   }
 };
 

@@ -1,19 +1,16 @@
 //===-- lldb-versioning.h ----------------------------------------*- C++
 //-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_lldb_versioning_h_
-#define LLDB_lldb_versioning_h_
+#ifndef LLDB_LLDB_VERSIONING_H
+#define LLDB_LLDB_VERSIONING_H
 
-//----------------------------------------------------------------------
 // LLDB API version
-//----------------------------------------------------------------------
 #define LLDB_API_MAJOR_VERSION 1
 #define LLDB_API_MINOR_VERSION 0
 
@@ -1542,4 +1539,4 @@
        // defined(LLDB_API_MINOR_VERSION_WANTED) && defined
        // (LLDB_API_MAJOR_VERSION)
 
-#endif // LLDB_lldb_versioning_h_
+#endif // LLDB_LLDB_VERSIONING_H

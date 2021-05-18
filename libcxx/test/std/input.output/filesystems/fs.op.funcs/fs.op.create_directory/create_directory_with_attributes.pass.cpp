@@ -1,26 +1,28 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
+
+// This test requires the dylib support introduced in D92769.
+// XFAIL: with_system_cxx_lib=macosx10.15
 
 // <filesystem>
 
 // bool create_directory(const path& p, const path& attr);
 // bool create_directory(const path& p, const path& attr, error_code& ec) noexcept;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 using namespace fs;
 
@@ -96,8 +98,21 @@ TEST_CASE(dest_is_file)
     const path attr_dir = env.create_dir("attr_dir");
     std::error_code ec = GetTestEC();
     TEST_CHECK(fs::create_directory(file, attr_dir, ec) == false);
-    TEST_CHECK(!ec);
+    TEST_CHECK(ec);
     TEST_CHECK(is_regular_file(file));
+}
+
+TEST_CASE(dest_part_is_file)
+{
+    scoped_test_env env;
+    const path file = env.create_file("file", 42);
+    const path dir = env.make_env_path("file/dir1");
+    const path attr_dir = env.create_dir("attr_dir");
+    std::error_code ec = GetTestEC();
+    TEST_CHECK(fs::create_directory(dir, attr_dir, ec) == false);
+    TEST_CHECK(ec);
+    TEST_CHECK(is_regular_file(file));
+    TEST_CHECK(!exists(dir));
 }
 
 TEST_CASE(attr_dir_is_invalid) {
@@ -118,14 +133,38 @@ TEST_CASE(attr_dir_is_invalid) {
   }
 }
 
-TEST_CASE(dest_is_symlink) {
+TEST_CASE(dest_is_symlink_to_unexisting) {
   scoped_test_env env;
-  const path dir = env.create_dir("dir");
+  const path attr_dir = env.create_dir("attr_dir");
   const path sym = env.create_symlink("dne_sym", "dne_sym_name");
   {
     std::error_code ec = GetTestEC();
-    TEST_CHECK(create_directory(sym, dir, ec) == false);
+    TEST_CHECK(create_directory(sym, attr_dir, ec) == false);
+    TEST_CHECK(ec);
+  }
+}
+
+TEST_CASE(dest_is_symlink_to_dir) {
+  scoped_test_env env;
+  const path dir = env.create_dir("dir");
+  const path sym = env.create_symlink(dir, "sym_name");
+  const path attr_dir = env.create_dir("attr_dir");
+  {
+    std::error_code ec = GetTestEC();
+    TEST_CHECK(create_directory(sym, attr_dir, ec) == false);
     TEST_CHECK(!ec);
+  }
+}
+
+TEST_CASE(dest_is_symlink_to_file) {
+  scoped_test_env env;
+  const path file = env.create_file("file");
+  const path sym = env.create_symlink(file, "sym_name");
+  const path attr_dir = env.create_dir("attr_dir");
+  {
+    std::error_code ec = GetTestEC();
+    TEST_CHECK(create_directory(sym, attr_dir, ec) == false);
+    TEST_CHECK(ec);
   }
 }
 

@@ -2,7 +2,7 @@
 // RUN: %clang_cc1 -std=c++11 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors -fno-spell-checking
 // RUN: %clang_cc1 -std=c++14 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors -fno-spell-checking
 // RUN: %clang_cc1 -std=c++17 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors -fno-spell-checking
-// RUN: %clang_cc1 -std=c++2a %s -verify -fexceptions -fcxx-exceptions -pedantic-errors -fno-spell-checking
+// RUN: %clang_cc1 -std=c++20 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors -fno-spell-checking
 
 namespace std {
   struct type_info {};
@@ -69,9 +69,9 @@ namespace dr603 { // dr603: yes
 namespace dr606 { // dr606: yes
 #if __cplusplus >= 201103L
   template<typename T> struct S {};
-  template<typename T> void f(S<T> &&); // expected-note {{no known conversion from 'S<int>' to 'S<int> &&'}}
+  template<typename T> void f(S<T> &&); // expected-note {{expects an rvalue}}
   template<typename T> void g(T &&);
-  template<typename T> void h(const T &&); // expected-note {{no known conversion from 'S<int>' to 'const dr606::S<int> &&'}}
+  template<typename T> void h(const T &&); // expected-note {{expects an rvalue}}
 
   void test(S<int> s) {
     f(s); // expected-error {{no match}}
@@ -317,7 +317,10 @@ namespace dr635 { // dr635: yes
 namespace dr637 { // dr637: yes
   void f(int i) {
     i = ++i + 1;
-    i = i++ + 1; // expected-warning {{unsequenced}}
+    i = i++ + 1;
+#if __cplusplus < 201703L
+    // expected-warning@-2 {{unsequenced}}
+#endif
   }
 }
 
@@ -373,7 +376,7 @@ namespace dr641 { // dr641: yes
     struct abc : xyz {};
 
     template<typename T>
-    void use(T &); // expected-note {{expects an l-value}}
+    void use(T &); // expected-note {{expects an lvalue}}
     void test() {
       use<xyz>(xyz()); // expected-error {{no match}}
       use<const xyz>(xyz());
@@ -479,12 +482,21 @@ namespace dr647 { // dr647: yes
   // This is partially superseded by dr1358.
   struct A {
     constexpr virtual void f() const;
-    constexpr virtual void g() const {} // expected-error {{virtual function cannot be constexpr}}
+    constexpr virtual void g() const {}
+#if __cplusplus <= 201703L
+    // expected-error@-2 {{virtual function cannot be constexpr}}
+#endif
   };
 
-  struct X { virtual void f() const; }; // expected-note {{overridden}}
+  struct X { virtual void f() const; };
+#if __cplusplus <= 201703L
+  // expected-note@-2 {{overridden}}
+#endif
   struct B : X {
-    constexpr void f() const {} // expected-error {{virtual function cannot be constexpr}}
+    constexpr void f() const {}
+#if __cplusplus <= 201703L
+    // expected-error@-2 {{virtual function cannot be constexpr}}
+#endif
   };
 
   struct NonLiteral { NonLiteral() {} }; // expected-note {{not an aggregate and has no constexpr constructors}}
@@ -494,7 +506,7 @@ namespace dr647 { // dr647: yes
     constexpr C(NonLiteral, int) {} // expected-error {{not a literal type}}
     constexpr C() try {} catch (...) {}
 #if __cplusplus <= 201703L
-    // expected-error@-2 {{function try block in constexpr constructor is a C++2a extension}}
+    // expected-error@-2 {{function try block in constexpr constructor is a C++20 extension}}
 #endif
 #if __cplusplus < 201402L
     // expected-error@-5 {{use of this statement in a constexpr constructor is a C++14 extension}}
@@ -539,9 +551,9 @@ namespace dr648 { // dr648: yes
 
 #if __cplusplus >= 201103L
 namespace dr649 { // dr649: yes
-  alignas(0x20000000) int n; // expected-error {{requested alignment}}
-  struct alignas(0x20000000) X {}; // expected-error {{requested alignment}}
-  struct Y { int n alignas(0x20000000); }; // expected-error {{requested alignment}}
+  alignas(0x40000000) int n; // expected-error {{requested alignment}}1
+  struct alignas(0x40000000) X {}; // expected-error {{requested alignment}}
+  struct Y { int n alignas(0x40000000); }; // expected-error {{requested alignment}}
   struct alignas(256) Z {};
   // This part is superseded by dr2130 and eventually by aligned allocation support.
   auto *p = new Z;
@@ -573,10 +585,10 @@ namespace dr652 { // dr652: yes
 // dr653 FIXME: add codegen test
 
 #if __cplusplus >= 201103L
-namespace dr654 { // dr654: yes
+namespace dr654 { // dr654: sup 1423
   void f() {
     if (nullptr) {} // expected-warning {{implicit conversion of nullptr constant to 'bool'}}
-    bool b = nullptr; // expected-warning {{implicit conversion of nullptr constant to 'bool'}}
+    bool b = nullptr; // expected-error {{cannot initialize a variable of type 'bool' with an rvalue of type 'nullptr_t'}}
     if (nullptr == 0) {}
     if (nullptr != 0) {}
     if (nullptr <= 0) {} // expected-error {{invalid operands}}
@@ -978,14 +990,19 @@ namespace dr684 { // dr684: sup 1454
 }
 #endif
 
-#if __cplusplus >= 201103L
 namespace dr685 { // dr685: yes
   enum E : long { e };
+#if __cplusplus < 201103L
+    // expected-error@-2 {{enumeration types with a fixed underlying type are a C++11 extension}}
+#endif
   void f(int);
   int f(long);
   int a = f(e);
 
   enum G : short { g };
+#if __cplusplus < 201103L
+    // expected-error@-2 {{enumeration types with a fixed underlying type are a C++11 extension}}
+#endif
   int h(short);
   void h(long);
   int b = h(g);
@@ -998,11 +1015,11 @@ namespace dr685 { // dr685: yes
   void j(long); // expected-note {{candidate}}
   int d = j(g); // expected-error {{ambiguous}}
 
-  int k(short); // expected-note {{candidate}}
-  void k(int); // expected-note {{candidate}}
-  int x = k(g); // expected-error {{ambiguous}}
+  // Valid per dr1601
+  int k(short);
+  void k(int);
+  int x = k(g);
 }
-#endif
 
 namespace dr686 { // dr686: yes
   void f() {
@@ -1048,10 +1065,13 @@ namespace dr686 { // dr686: yes
   template<struct R {} *> struct Y; // expected-error {{cannot be defined in a type specifier}}
 }
 
-namespace dr687 { // dr687 still open
+namespace dr687 { // dr687 (9 c++20, but the issue is still considered open)
   template<typename T> void f(T a) {
-    // FIXME: This is valid in C++20.
-    g<int>(a); // expected-error {{undeclared}} expected-error {{'('}}
+    // This is valid in C++20.
+    g<int>(a);
+#if __cplusplus <= 201703L
+    // expected-error@-2 {{C++20 extension}}
+#endif
 
     // This is not.
     template g<int>(a); // expected-error {{expected expression}}
@@ -1118,5 +1138,22 @@ namespace dr692 { // dr692: no
     template<class T, class... U> void f(T*, U...){} // expected-note {{candidate}} expected-error 0-1{{C++11}}
     template<class T> void f(T){} // expected-note {{candidate}}
     template void f(int*); // expected-error {{ambiguous}}
+  }
+}
+
+namespace dr696 { // dr696: yes
+  void f(const int*);
+  void g() {
+    const int N = 10; // expected-note 1+{{here}}
+    struct A {
+      void h() {
+        int arr[N]; (void)arr;
+        f(&N); // expected-error {{declared in enclosing}}
+      }
+    };
+#if __cplusplus >= 201103L
+    (void) [] { int arr[N]; (void)arr; };
+    (void) [] { f(&N); }; // expected-error {{cannot be implicitly captured}} expected-note {{here}}
+#endif
   }
 }

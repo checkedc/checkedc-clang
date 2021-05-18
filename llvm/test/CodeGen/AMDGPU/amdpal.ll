@@ -1,4 +1,5 @@
-; RUN: llc < %s -mtriple=amdgcn--amdpal -mcpu=tahiti | FileCheck --check-prefix=PAL --enable-var-scope %s
+; RUN: llc < %s -mtriple=amdgcn--amdpal -mcpu=tahiti | FileCheck --check-prefixes=PAL,CI --enable-var-scope %s
+; RUN: llc < %s -mtriple=amdgcn--amdpal -mcpu=tonga | FileCheck --check-prefixes=PAL,VI --enable-var-scope %s
 
 ; PAL-NOT: .AMDGPU.config
 ; PAL-LABEL: {{^}}simple:
@@ -55,11 +56,13 @@ entry:
 ; Check code sequence for amdpal use of scratch for alloca in a compute shader.
 ; The scratch descriptor is loaded from offset 0x10 of the GIT, rather than offset
 ; 0 in a graphics shader.
+; Prior to GCN3 s_load_dword offsets are dwords, so the offset will be 0x4.
 
 ; PAL-LABEL: {{^}}scratch2_cs:
 ; PAL: s_movk_i32 s{{[0-9]+}}, 0x1234
 ; PAL: s_mov_b32 s[[GITPTR:[0-9]+]], s0
-; PAL: s_load_dwordx4 s{{\[}}[[SCRATCHDESC:[0-9]+]]:{{[0-9]+]}}, s{{\[}}[[GITPTR]]:{{[0-9]+\]}}, 0x10
+; CI: s_load_dwordx4 s{{\[}}[[SCRATCHDESC:[0-9]+]]:{{[0-9]+]}}, s{{\[}}[[GITPTR]]:{{[0-9]+\]}}, 0x4
+; VI: s_load_dwordx4 s{{\[}}[[SCRATCHDESC:[0-9]+]]:{{[0-9]+]}}, s{{\[}}[[GITPTR]]:{{[0-9]+\]}}, 0x10
 ; PAL: buffer_store{{.*}}, s{{\[}}[[SCRATCHDESC]]:
 
 define amdgpu_cs void @scratch2_cs(i32 inreg, i32 inreg, i32 inreg, <3 x i32> inreg, i32 inreg, <3 x i32> %coord, <2 x i32> %in, i32 %extra, i32 %idx) #0 {
@@ -74,14 +77,21 @@ entry:
   %e = getelementptr [2 x i32], [2 x i32] addrspace(5)* %v1a, i32 0, i32 %idx
   %x = load i32, i32 addrspace(5)* %e
   %xf = bitcast i32 %x to float
-  call void @llvm.amdgcn.buffer.store.f32(float %xf, <4 x i32> undef, i32 0, i32 0, i1 0, i1 0)
+  call void @llvm.amdgcn.raw.buffer.store.f32(float %xf, <4 x i32> undef, i32 0, i32 0, i32 0)
   ret void
 }
 
 attributes #0 = { nounwind "amdgpu-git-ptr-high"="0x1234" }
 
-declare void @llvm.amdgcn.buffer.store.f32(float, <4 x i32>, i32, i32, i1, i1)
+declare void @llvm.amdgcn.raw.buffer.store.f32(float, <4 x i32>, i32, i32, i32 immarg)
 
 
-; Check we have CS_NUM_USED_VGPRS in PAL metadata.
-; PAL: .amd_amdgpu_pal_metadata {{.*}},0x10000027,
+; PAL:         .amdgpu_pal_metadata
+; PAL-NEXT: ---
+; PAL-NEXT: amdpal.pipelines:
+; PAL-NEXT:   - .hardware_stages:
+; PAL-NEXT:       .cs:
+; PAL-NEXT:         .entry_point:    scratch2_cs
+; PAL-NEXT:         .scratch_memory_size: 0x10
+; PAL-NEXT:         .sgpr_count:     0x
+; PAL-NEXT:         .vgpr_count:     0x

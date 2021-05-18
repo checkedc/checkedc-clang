@@ -1,9 +1,8 @@
 //===--- NVPTX.h - Declare NVPTX target feature support ---------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -31,9 +30,24 @@ static const unsigned NVPTXAddrSpaceMap[] = {
     0, // opencl_private
     // FIXME: generic has to be added to the target
     0, // opencl_generic
+    1, // opencl_global_device
+    1, // opencl_global_host
     1, // cuda_device
     4, // cuda_constant
     3, // cuda_shared
+    0, // ptr32_sptr
+    0, // ptr32_uptr
+    0  // ptr64
+};
+
+/// The DWARF address class. Taken from
+/// https://docs.nvidia.com/cuda/archive/10.0/ptx-writers-guide-to-interoperability/index.html#cuda-specific-dwarf
+static const int NVPTXDWARFAddrSpaceMap[] = {
+    -1, // Default, opencl_private or opencl_generic - not defined
+    5,  // opencl_global
+    -1,
+    8,  // opencl_local or cuda_shared
+    4,  // opencl_constant or cuda_constant
 };
 
 class LLVM_LIBRARY_VISIBILITY NVPTXTargetInfo : public TargetInfo {
@@ -113,16 +127,30 @@ public:
 
   void setSupportedOpenCLOpts() override {
     auto &Opts = getSupportedOpenCLOpts();
-    Opts.support("cl_clang_storage_class_specifiers");
-    Opts.support("cl_khr_gl_sharing");
-    Opts.support("cl_khr_icd");
+    Opts["cl_clang_storage_class_specifiers"] = true;
+    Opts["__cl_clang_function_pointers"] = true;
+    Opts["__cl_clang_variadic_functions"] = true;
 
-    Opts.support("cl_khr_fp64");
-    Opts.support("cl_khr_byte_addressable_store");
-    Opts.support("cl_khr_global_int32_base_atomics");
-    Opts.support("cl_khr_global_int32_extended_atomics");
-    Opts.support("cl_khr_local_int32_base_atomics");
-    Opts.support("cl_khr_local_int32_extended_atomics");
+    Opts["cl_khr_fp64"] = true;
+    Opts["cl_khr_byte_addressable_store"] = true;
+    Opts["cl_khr_global_int32_base_atomics"] = true;
+    Opts["cl_khr_global_int32_extended_atomics"] = true;
+    Opts["cl_khr_local_int32_base_atomics"] = true;
+    Opts["cl_khr_local_int32_extended_atomics"] = true;
+  }
+
+  /// \returns If a target requires an address within a target specific address
+  /// space \p AddressSpace to be converted in order to be used, then return the
+  /// corresponding target specific DWARF address space.
+  ///
+  /// \returns Otherwise return None and no conversion will be emitted in the
+  /// DWARF.
+  Optional<unsigned>
+  getDWARFAddressSpace(unsigned AddressSpace) const override {
+    if (AddressSpace >= llvm::array_lengthof(NVPTXDWARFAddrSpaceMap) ||
+        NVPTXDWARFAddrSpaceMap[AddressSpace] < 0)
+      return llvm::None;
+    return NVPTXDWARFAddrSpaceMap[AddressSpace];
   }
 
   CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
@@ -134,6 +162,8 @@ public:
       return HostTarget->checkCallingConvention(CC);
     return CCCR_Warning;
   }
+
+  bool hasExtIntType() const override { return true; }
 };
 } // namespace targets
 } // namespace clang

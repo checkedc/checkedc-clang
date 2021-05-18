@@ -1,7 +1,7 @@
 # REQUIRES: x86
 # RUN: llvm-mc -filetype=obj -triple=x86_64-pc-linux %s -o %t.o
 # RUN: ld.lld %t.o -o %t
-# RUN: llvm-objdump -t -section-headers %t | FileCheck %s
+# RUN: llvm-objdump -t --section-headers %t | FileCheck %s
 
 ## This checks that:
 ## 1) Address of _etext is the first location after the last read-only loadable segment.
@@ -12,25 +12,25 @@
 ## 3) Address of _end is different from _edata because of 2.
 ## 4) Addresses of _edata == edata, _end == end and _etext == etext.
 # CHECK:      Sections:
-# CHECK-NEXT:  Idx Name          Size      Address          Type
+# CHECK-NEXT:  Idx Name          Size     VMA              Type
 # CHECK-NEXT:    0               00000000 0000000000000000
-# CHECK-NEXT:    1 .text         00000001 0000000000201000 TEXT
-# CHECK-NEXT:    2 .data         00000002 0000000000202000 DATA
-# CHECK-NEXT:    3 .bss          00000006 0000000000202004 BSS
+# CHECK-NEXT:    1 .text         00000001 0000000000201158 TEXT
+# CHECK-NEXT:    2 .data         00000002 0000000000202159 DATA
+# CHECK-NEXT:    3 .bss          00000006 000000000020215c BSS
 # CHECK:      SYMBOL TABLE:
-# CHECK-NEXT:  0000000000202002         .data 00000000 _edata
-# CHECK-NEXT:  000000000020200a         .bss  00000000 _end
-# CHECK-NEXT:  0000000000201001         .text 00000000 _etext
-# CHECK-NEXT:  0000000000201000         .text 00000000 _start
-# CHECK-NEXT:  0000000000202002         .data 00000000 edata
-# CHECK-NEXT:  000000000020200a         .bss  00000000 end
-# CHECK-NEXT:  0000000000201001         .text 00000000 etext
+# CHECK-NEXT:  000000000020215b g       .data 0000000000000000 _edata
+# CHECK-NEXT:  0000000000202162 g       .bss  0000000000000000 _end
+# CHECK-NEXT:  0000000000201159 g       .text 0000000000000000 _etext
+# CHECK-NEXT:  0000000000201158 g       .text 0000000000000000 _start
+# CHECK-NEXT:  000000000020215b g       .data 0000000000000000 edata
+# CHECK-NEXT:  0000000000202162 g       .bss  0000000000000000 end
+# CHECK-NEXT:  0000000000201159 g       .text 0000000000000000 etext
 
 # RUN: ld.lld -r %t.o -o %t2
 # RUN: llvm-objdump -t %t2 | FileCheck %s --check-prefix=RELOCATABLE
-# RELOCATABLE:       0000000000000000 *UND* 00000000 _edata
-# RELOCATABLE-NEXT:  0000000000000000 *UND* 00000000 _end
-# RELOCATABLE-NEXT:  0000000000000000 *UND* 00000000 _etext
+# RELOCATABLE:       0000000000000000 *UND* 0000000000000000 _edata
+# RELOCATABLE-NEXT:  0000000000000000 *UND* 0000000000000000 _end
+# RELOCATABLE-NEXT:  0000000000000000 *UND* 0000000000000000 _etext
 
 .global _start,_end,_etext,_edata,end,etext,edata
 .text

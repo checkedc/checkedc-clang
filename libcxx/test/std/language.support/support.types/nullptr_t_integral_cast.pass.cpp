@@ -1,15 +1,14 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// NOTE: nullptr_t emulation cannot handle a reinterpret_cast to an
-// integral type
-// XFAIL: c++98, c++03
+// NOTE: nullptr_t emulation (used in libc++ ABI v.1) cannot handle a
+// reinterpret_cast to an integral type
+// UNSUPPORTED: c++03
 
 // typedef decltype(nullptr) nullptr_t;
 
@@ -17,8 +16,12 @@
 #include <cstddef>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::ptrdiff_t i = reinterpret_cast<std::ptrdiff_t>(nullptr);
     assert(i == 0);
+
+  return 0;
 }

@@ -1,9 +1,8 @@
-//===--- Env33CCheck.cpp - clang-tidy--------------------------------------===//
+//===-- CommandProcessorCheck.cpp - clang-tidy ----------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -20,8 +19,7 @@ namespace cert {
 void CommandProcessorCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
       callExpr(
-          callee(functionDecl(anyOf(hasName("::system"), hasName("::popen"),
-                                    hasName("::_popen")))
+          callee(functionDecl(hasAnyName("::system", "::popen", "::_popen"))
                      .bind("func")),
           // Do not diagnose when the call expression passes a null pointer
           // constant to system(); that only checks for the presence of a

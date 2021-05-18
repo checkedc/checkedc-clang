@@ -1,6 +1,6 @@
 ; RUN: llc -amdgpu-scalarize-global-loads=false -march=amdgcn -verify-machineinstrs -enable-unsafe-fp-math < %s | FileCheck -enable-var-scope -check-prefix=GCN -check-prefix=SI -check-prefix=SIVI %s
 ; RUN: llc -amdgpu-scalarize-global-loads=false -march=amdgcn -mcpu=fiji -mattr=-flat-for-global -verify-machineinstrs -enable-unsafe-fp-math < %s | FileCheck -enable-var-scope -check-prefix=GCN -check-prefix=VI -check-prefix=SIVI %s
-; RUN: llc -amdgpu-scalarize-global-loads=false -march=amdgcn -mcpu=gfx900 -mattr=-flat-for-global,-fp64-fp16-denormals -verify-machineinstrs -enable-unsafe-fp-math < %s | FileCheck -enable-var-scope -check-prefix=GCN -check-prefix=GFX9 %s
+; RUN: llc -amdgpu-scalarize-global-loads=false -march=amdgcn -mcpu=gfx900 -mattr=-flat-for-global -denormal-fp-math=preserve-sign -verify-machineinstrs -enable-unsafe-fp-math < %s | FileCheck -enable-var-scope -check-prefix=GCN -check-prefix=GFX9 %s
 
 ; GCN-LABEL: {{^}}fptrunc_f32_to_f16:
 ; GCN: buffer_load_dword v[[A_F32:[0-9]+]]
@@ -99,7 +99,7 @@ define amdgpu_kernel void @fneg_fptrunc_f32_to_f16(
     float addrspace(1)* %a) {
 entry:
   %a.val = load float, float addrspace(1)* %a
-  %a.fneg = fsub float -0.0, %a.val
+  %a.fneg = fneg float %a.val
   %r.val = fptrunc float %a.fneg to half
   store half %r.val, half addrspace(1)* %r
   ret void
@@ -132,7 +132,7 @@ define amdgpu_kernel void @fneg_fabs_fptrunc_f32_to_f16(
 entry:
   %a.val = load float, float addrspace(1)* %a
   %a.fabs = call float @llvm.fabs.f32(float %a.val)
-  %a.fneg.fabs = fsub float -0.0, %a.fabs
+  %a.fneg.fabs = fneg float %a.fabs
   %r.val = fptrunc float %a.fneg.fabs to half
   store half %r.val, half addrspace(1)* %r
   ret void

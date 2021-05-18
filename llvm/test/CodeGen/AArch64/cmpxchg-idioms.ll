@@ -1,6 +1,8 @@
 ; RUN: llc -mtriple=aarch64-apple-ios7.0 -o - %s | FileCheck %s
+; RUN: llc -mtriple=aarch64-apple-ios7.0 -mattr=+outline-atomics -o - %s | FileCheck %s --check-prefix=OUTLINE-ATOMICS
 
 define i32 @test_return(i32* %p, i32 %oldval, i32 %newval) {
+; OUTLINE-ATOMICS: bl ___aarch64_cas4_acq_rel
 ; CHECK-LABEL: test_return:
 
 ; CHECK: [[LOOP:LBB[0-9]+_[0-9]+]]:
@@ -12,7 +14,7 @@ define i32 @test_return(i32* %p, i32 %oldval, i32 %newval) {
 ; CHECK: cbnz [[STATUS]], [[LOOP]]
 
 ; CHECK-NOT: cmp {{w[0-9]+}}, {{w[0-9]+}}
-; CHECK: orr w0, wzr, #0x1
+; CHECK: mov w0, #1
 ; CHECK: ret
 
 ; CHECK: [[FAILED]]:
@@ -27,6 +29,7 @@ define i32 @test_return(i32* %p, i32 %oldval, i32 %newval) {
 }
 
 define i1 @test_return_bool(i8* %value, i8 %oldValue, i8 %newValue) {
+; OUTLINE-ATOMICS: bl ___aarch64_cas1_acq_rel
 ; CHECK-LABEL: test_return_bool:
 
 ; CHECK: [[LOOP:LBB[0-9]+_[0-9]+]]:
@@ -39,7 +42,7 @@ define i1 @test_return_bool(i8* %value, i8 %oldValue, i8 %newValue) {
 
 ; CHECK-NOT: cmp {{w[0-9]+}}, {{w[0-9]+}}
   ; FIXME: DAG combine should be able to deal with this.
-; CHECK: orr [[TMP:w[0-9]+]], wzr, #0x1
+; CHECK: mov [[TMP:w[0-9]+]], #1
 ; CHECK: eor w0, [[TMP]], #0x1
 ; CHECK: ret
 
@@ -55,6 +58,7 @@ define i1 @test_return_bool(i8* %value, i8 %oldValue, i8 %newValue) {
 }
 
 define void @test_conditional(i32* %p, i32 %oldval, i32 %newval) {
+; OUTLINE-ATOMICS: bl ___aarch64_cas4_acq_rel
 ; CHECK-LABEL: test_conditional:
 
 ; CHECK: [[LOOP:LBB[0-9]+_[0-9]+]]:
@@ -92,6 +96,7 @@ declare void @bar()
 declare void @baz()
 
 define i1 @test_conditional2(i32 %a, i32 %b, i32* %c) {
+; OUTLINE-ATOMICS: bl ___aarch64_cas4_acq_rel
 ; CHECK-LABEL: test_conditional2:
 ; CHECK: [[LOOP:LBB[0-9]+_[0-9]+]]:
 ; CHECK: ldaxr [[LOADED:w[0-9]+]], [x19]
@@ -100,7 +105,7 @@ define i1 @test_conditional2(i32 %a, i32 %b, i32* %c) {
 
 ; CHECK: stlxr [[STATUS:w[0-9]+]], w20, [x19]
 ; CHECK: cbnz [[STATUS]], [[LOOP]]
-; CHECK: orr [[STATUS]], wzr, #0x1
+; CHECK: mov [[STATUS]], #1
 ; CHECK: b [[PH:LBB[0-9]+_[0-9]+]]
 
 ; CHECK: [[FAILED]]:
@@ -108,10 +113,10 @@ define i1 @test_conditional2(i32 %a, i32 %b, i32* %c) {
 
 ; verify the preheader is simplified by simplifycfg.
 ; CHECK: [[PH]]:
-; CHECK: orr w22, wzr, #0x2
-; CHECK-NOT: orr w22, wzr, #0x4
+; CHECK: mov w22, #2
+; CHECK-NOT: mov w22, #4
 ; CHECK-NOT: cmn w22, #4
-; CHECK: b [[LOOP2:LBB[0-9]+_[0-9]+]]
+; CHECK: [[LOOP2:LBB[0-9]+_[0-9]+]]: ; %for.cond
 ; CHECK-NOT: b.ne [[LOOP2]]
 ; CHECK-NOT: b {{LBB[0-9]+_[0-9]+}}
 ; CHECK: bl _foo

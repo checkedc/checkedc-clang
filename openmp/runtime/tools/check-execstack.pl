@@ -3,10 +3,9 @@
 #
 #//===----------------------------------------------------------------------===//
 #//
-#//                     The LLVM Compiler Infrastructure
-#//
-#// This file is dual licensed under the MIT and the University of Illinois Open
-#// Source Licenses. See LICENSE.txt for details.
+#// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+#// See https://llvm.org/LICENSE.txt for license information.
+#// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #//
 #//===----------------------------------------------------------------------===//
 #
@@ -75,7 +74,7 @@ B<check-execstack.pl> -- Check whether stack is executable, issue an error if so
 
 =head1 SYNOPSIS
 
-B<check-execstack.pl> I<optiion>... I<file>...
+B<check-execstack.pl> I<option>... I<file>...
 
 =head1 DESCRIPTION
 

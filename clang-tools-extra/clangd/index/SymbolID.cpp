@@ -1,13 +1,13 @@
 //===--- SymbolID.cpp --------------------------------------------*- C++-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "SymbolID.h"
+#include "support/Logger.h"
 #include "llvm/Support/SHA1.h"
 
 namespace clang {
@@ -35,12 +35,10 @@ std::string SymbolID::str() const { return llvm::toHex(raw()); }
 
 llvm::Expected<SymbolID> SymbolID::fromStr(llvm::StringRef Str) {
   if (Str.size() != RawSize * 2)
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "Bad ID length");
+    return error("Bad ID length");
   for (char C : Str)
     if (!llvm::isHexDigit(C))
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "Bad hex ID");
+      return error("Bad hex ID");
   return fromRaw(llvm::fromHex(Str));
 }
 
@@ -50,7 +48,8 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const SymbolID &ID) {
 
 llvm::hash_code hash_value(const SymbolID &ID) {
   // We already have a good hash, just return the first bytes.
-  assert(sizeof(size_t) <= SymbolID::RawSize && "size_t longer than SHA1!");
+  static_assert(sizeof(size_t) <= SymbolID::RawSize,
+                "size_t longer than SHA1!");
   size_t Result;
   memcpy(&Result, ID.raw().data(), sizeof(size_t));
   return llvm::hash_code(Result);

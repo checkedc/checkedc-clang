@@ -1,11 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+// UNSUPPORTED: c++03
 
 #include <cstddef>
 #include <type_traits>
@@ -16,7 +17,7 @@
 #include <stdio.h>
 #include "test_macros.h"
 
-int main()
+int main(int, char**)
 {
 
 #if TEST_STD_VER > 17
@@ -41,4 +42,12 @@ int main()
                   std::alignment_of<void*>::value,
                   "std::alignment_of<std::max_align_t>::value >= "
                   "std::alignment_of<void*>::value");
+
+#ifdef __STDCPP_DEFAULT_NEW_ALIGNMENT__
+    static_assert(std::alignment_of<std::max_align_t>::value <=
+                  __STDCPP_DEFAULT_NEW_ALIGNMENT__,
+                  "max_align_t alignment is no larger than new alignment");
+#endif
+
+  return 0;
 }

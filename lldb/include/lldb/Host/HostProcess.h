@@ -1,20 +1,17 @@
 //===-- HostProcess.h ------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef lldb_Host_HostProcess_h_
-#define lldb_Host_HostProcess_h_
+#ifndef LLDB_HOST_HOSTPROCESS_H
+#define LLDB_HOST_HOSTPROCESS_H
 
 #include "lldb/Host/Host.h"
 #include "lldb/lldb-types.h"
 
-//----------------------------------------------------------------------
-/// @class HostInfo HostInfo.h "lldb/Host/HostProcess.h"
 /// A class that represents a running process on the host machine.
 ///
 /// HostProcess allows querying and manipulation of processes running on the
@@ -27,7 +24,6 @@
 /// statically to the concrete Process implementation for that platform.  See
 /// HostInfo for more details.
 ///
-//----------------------------------------------------------------------
 
 namespace lldb_private {
 
@@ -46,8 +42,9 @@ public:
   lldb::pid_t GetProcessId() const;
   bool IsRunning() const;
 
-  HostThread StartMonitoring(const Host::MonitorChildProcessCallback &callback,
-                             bool monitor_signals);
+  llvm::Expected<HostThread>
+  StartMonitoring(const Host::MonitorChildProcessCallback &callback,
+                  bool monitor_signals);
 
   HostNativeProcessBase &GetNativeProcess();
   const HostNativeProcessBase &GetNativeProcess() const;

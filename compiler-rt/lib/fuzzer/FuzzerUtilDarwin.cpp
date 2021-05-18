@@ -1,14 +1,13 @@
 //===- FuzzerUtilDarwin.cpp - Misc utils ----------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 // Misc utils for Darwin.
 //===----------------------------------------------------------------------===//
-#include "FuzzerDefs.h"
+#include "FuzzerPlatform.h"
 #if LIBFUZZER_APPLE
 #include "FuzzerCommand.h"
 #include "FuzzerIO.h"
@@ -18,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <unistd.h>
 
 // There is no header for this on macOS so declare here
 extern "C" char **environ;
@@ -155,6 +155,14 @@ int ExecuteCommand(const Command &Cmd) {
     }
   }
   return ProcessStatus;
+}
+
+void DiscardOutput(int Fd) {
+  FILE* Temp = fopen("/dev/null", "w");
+  if (!Temp)
+    return;
+  dup2(fileno(Temp), Fd);
+  fclose(Temp);
 }
 
 } // namespace fuzzer

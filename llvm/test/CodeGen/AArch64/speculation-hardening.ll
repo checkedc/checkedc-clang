@@ -1,9 +1,9 @@
-; RUN: sed -e 's/SLHATTR/speculative_load_hardening/' %s | llc -verify-machineinstrs -mtriple=aarch64-none-linux-gnu | FileCheck %s --check-prefixes=CHECK,SLH --dump-input-on-failure
-; RUN: sed -e 's/SLHATTR//' %s | llc -verify-machineinstrs -mtriple=aarch64-none-linux-gnu | FileCheck %s --check-prefixes=CHECK,NOSLH --dump-input-on-failure
-; RUN: sed -e 's/SLHATTR/speculative_load_hardening/' %s | llc -verify-machineinstrs -mtriple=aarch64-none-linux-gnu -global-isel | FileCheck %s --check-prefixes=CHECK,SLH --dump-input-on-failure
-; RUN sed -e 's/SLHATTR//' %s | llc -verify-machineinstrs -mtriple=aarch64-none-linux-gnu -global-isel | FileCheck %s --check-prefixes=CHECK,NOSLH --dump-input-on-failure
-; RUN: sed -e 's/SLHATTR/speculative_load_hardening/' %s | llc -verify-machineinstrs -mtriple=aarch64-none-linux-gnu -fast-isel | FileCheck %s --check-prefixes=CHECK,SLH --dump-input-on-failure
-; RUN: sed -e 's/SLHATTR//' %s | llc -verify-machineinstrs -mtriple=aarch64-none-linux-gnu -fast-isel | FileCheck %s --check-prefixes=CHECK,NOSLH --dump-input-on-failure
+; RUN: sed -e 's/SLHATTR/speculative_load_hardening/' %s | llc -verify-machineinstrs -mtriple=aarch64-none-linux-gnu | FileCheck %s --check-prefixes=CHECK,SLH
+; RUN: sed -e 's/SLHATTR//' %s | llc -verify-machineinstrs -mtriple=aarch64-none-linux-gnu | FileCheck %s --check-prefixes=CHECK,NOSLH
+; RUN: sed -e 's/SLHATTR/speculative_load_hardening/' %s | llc -verify-machineinstrs -mtriple=aarch64-none-linux-gnu -global-isel | FileCheck %s --check-prefixes=CHECK,SLH
+; RUN: sed -e 's/SLHATTR//' %s | llc -verify-machineinstrs -mtriple=aarch64-none-linux-gnu -global-isel | FileCheck %s --check-prefixes=CHECK,NOSLH
+; RUN: sed -e 's/SLHATTR/speculative_load_hardening/' %s | llc -verify-machineinstrs -mtriple=aarch64-none-linux-gnu -fast-isel | FileCheck %s --check-prefixes=CHECK,SLH
+; RUN: sed -e 's/SLHATTR//' %s | llc -verify-machineinstrs -mtriple=aarch64-none-linux-gnu -fast-isel | FileCheck %s --check-prefixes=CHECK,NOSLH
 
 define i32 @f(i8* nocapture readonly %p, i32 %i, i32 %N) local_unnamed_addr SLHATTR {
 ; CHECK-LABEL: f
@@ -13,12 +13,12 @@ entry:
 ; NOSLH-NOT:  cmp sp, #0
 ; NOSLH-NOT:  csetm x16, ne
 
-; SLH:  mov x17, sp
-; SLH:  and x17, x17, x16
-; SLH:  mov sp, x17
-; NOSLH-NOT:  mov x17, sp
-; NOSLH-NOT:  and x17, x17, x16
-; NOSLH-NOT:  mov sp, x17
+; SLH:  mov [[TMPREG:x[0-9]+]], sp
+; SLH:  and [[TMPREG]], [[TMPREG]], x16
+; SLH:  mov sp, [[TMPREG]]
+; NOSLH-NOT:  mov [[TMPREG:x[0-9]+]], sp
+; NOSLH-NOT:  and [[TMPREG]], [[TMPREG]], x16
+; NOSLH-NOT:  mov sp, [[TMPREG]]
   %call = tail call i32 @tail_callee(i32 %i)
 ; SLH:  cmp sp, #0
 ; SLH:  csetm x16, ne
@@ -26,12 +26,11 @@ entry:
 ; NOSLH-NOT:  csetm x16, ne
   %cmp = icmp slt i32 %call, %N
   br i1 %cmp, label %if.then, label %return
-; GlobalISel lowers the branch to a b.ne sometimes instead of b.ge as expected..
-; CHECK: b.[[COND:(ge)|(lt)|(ne)]]
+; CHECK: b.[[COND:(ge)|(lt)|(ne)|(eq)]]
 
 if.then:                                          ; preds = %entry
-; NOSLH-NOT: csel x16, x16, xzr, {{(lt)|(ge)|(eq)}}
-; SLH-DAG: csel x16, x16, xzr, {{(lt)|(ge)|(eq)}}
+; NOSLH-NOT: csel x16, x16, xzr, {{(lt)|(ge)|(eq)|(ne)}}
+; SLH-DAG: csel x16, x16, xzr, {{(lt)|(ge)|(eq)|(ne)}}
   %idxprom = sext i32 %i to i64
   %arrayidx = getelementptr inbounds i8, i8* %p, i64 %idxprom
   %0 = load i8, i8* %arrayidx, align 1
@@ -43,29 +42,26 @@ if.then:                                          ; preds = %entry
 ; NOSLH-NOT: csel x16, x16, xzr, [[COND]]
 return:                                           ; preds = %entry, %if.then
   %retval.0 = phi i32 [ %conv, %if.then ], [ 0, %entry ]
-; SLH:  mov x17, sp
-; SLH:  and x17, x17, x16
-; SLH:  mov sp, x17
-; NOSLH-NOT:  mov x17, sp
-; NOSLH-NOT:  and x17, x17, x16
-; NOSLH-NOT:  mov sp, x17
+; SLH:  mov [[TMPREG:x[0-9]+]], sp
+; SLH:  and [[TMPREG]], [[TMPREG]], x16
+; SLH:  mov sp, [[TMPREG]]
+; NOSLH-NOT:  mov [[TMPREG:x[0-9]+]], sp
+; NOSLH-NOT:  and [[TMPREG]], [[TMPREG]], x16
+; NOSLH-NOT:  mov sp, [[TMPREG]]
   ret i32 %retval.0
 }
 
 ; Make sure that for a tail call, taint doesn't get put into SP twice.
 define i32 @tail_caller(i32 %a) local_unnamed_addr SLHATTR {
 ; CHECK-LABEL: tail_caller:
-; SLH:     mov     x17, sp
-; SLH:     and     x17, x17, x16
-; SLH:     mov     sp, x17
-; NOSLH-NOT:     mov     x17, sp
-; NOSLH-NOT:     and     x17, x17, x16
-; NOSLH-NOT:     mov     sp, x17
-;  GlobalISel doesn't optimize tail calls (yet?), so only check that
-;  cross-call taint register setup code is missing if a tail call was
-;  actually produced.
-; SLH:     {{(bl tail_callee[[:space:]] cmp sp, #0)|(b tail_callee)}}
-; SLH-NOT: cmp sp, #0
+; SLH:     mov [[TMPREG:x[0-9]+]], sp
+; SLH:     and [[TMPREG]], [[TMPREG]], x16
+; SLH:     mov sp, [[TMPREG]]
+; NOSLH-NOT:     mov [[TMPREG:x[0-9]+]], sp
+; NOSLH-NOT:     and [[TMPREG]], [[TMPREG]], x16
+; NOSLH-NOT:     mov sp, [[TMPREG]]
+; SLH:     b tail_callee
+; SLH-NOT:        cmp sp, #0
   %call = tail call i32 @tail_callee(i32 %a)
   ret i32 %call
 }
@@ -128,7 +124,7 @@ lpad:
   %l7 = icmp sgt i32 %l0, %l1
   br i1 %l7, label %then, label %else
 ; GlobalISel lowers the branch to a b.ne sometimes instead of b.ge as expected..
-; CHECK: b.[[COND:(le)|(gt)|(ne)]]
+; CHECK: b.[[COND:(le)|(gt)|(ne)|(eq)]]
 
 then:
 ; SLH-DAG: csel x16, x16, xzr, [[COND]]
@@ -136,7 +132,7 @@ then:
   br label %postif
 
 else:
-; SLH-DAG: csel x16, x16, xzr, {{(gt)|(le)|(eq)}}
+; SLH-DAG: csel x16, x16, xzr, {{(gt)|(le)|(eq)|(ne)}}
   %l11 = sdiv i32 %l1, %l0
   br label %postif
 

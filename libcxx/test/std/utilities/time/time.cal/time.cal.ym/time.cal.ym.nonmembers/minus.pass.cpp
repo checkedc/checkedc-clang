@@ -1,12 +1,11 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <chrono>
 // class year_month;
@@ -28,9 +27,7 @@
 
 #include "test_macros.h"
 
-#include <iostream>
-
-int main()
+int main(int, char**)
 {
     using year       = std::chrono::year;
     using years      = std::chrono::years;
@@ -80,11 +77,12 @@ int main()
         for (int j = 1; j <= 12; ++j)
     {
         months diff = year_month{y, month(i)} - year_month{y, month(j)};
-        std::cout << "i: " << i << " j: " << j << " -> " << diff.count() << std::endl;
         assert(diff.count() == i - j);
     }
 
 //  TODO: different year
 
     }
+
+  return 0;
 }

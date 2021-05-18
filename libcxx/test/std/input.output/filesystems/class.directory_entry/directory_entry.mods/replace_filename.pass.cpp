@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -18,13 +17,13 @@
 // void assign(path const&);
 // void replace_filename(path const&);
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 TEST_SUITE(directory_entry_mods_suite)
 
@@ -54,6 +53,7 @@ TEST_CASE(test_replace_filename_method) {
 TEST_CASE(test_replace_filename_ec_method) {
   using namespace fs;
 
+  static_test_env static_env;
   {
     directory_entry e;
     path replace;
@@ -76,9 +76,9 @@ TEST_CASE(test_replace_filename_ec_method) {
     TEST_CHECK(ErrorIs(ec, std::errc::no_such_file_or_directory));
   }
   {
-    const path p = StaticEnv::EmptyFile;
-    const path expect = StaticEnv::NonEmptyFile;
-    const path replace = StaticEnv::NonEmptyFile.filename();
+    const path p = static_env.EmptyFile;
+    const path expect = static_env.NonEmptyFile;
+    const path replace = static_env.NonEmptyFile.filename();
     TEST_REQUIRE(expect.parent_path() == p.parent_path());
     directory_entry e(p);
     TEST_CHECK(e.path() == p);

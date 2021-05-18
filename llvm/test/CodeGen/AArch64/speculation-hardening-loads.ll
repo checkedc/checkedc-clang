@@ -1,4 +1,4 @@
-; RUN: llc < %s -verify-machineinstrs -mtriple=aarch64-none-linux-gnu | FileCheck %s --dump-input-on-failure
+; RUN: llc < %s -verify-machineinstrs -mtriple=aarch64-none-linux-gnu | FileCheck %s
 
 define i128 @ldp_single_csdb(i128* %p) speculative_load_hardening {
 entry:
@@ -11,10 +11,10 @@ entry:
 ; CHECK-NEXT: and   x8, x8, x16
 ; CHECK-NEXT: and   x1, x1, x16
 ; CHECK-NEXT: csdb
-; CHECK-NEXT: mov x17, sp
-; CHECK-NEXT: and x17, x17, x16
+; CHECK-NEXT: mov [[TMPREG:x[0-9]+]], sp
+; CHECK-NEXT: and [[TMPREG]], [[TMPREG]], x16
 ; CHECK-NEXT: mov x0, x8
-; CHECK-NEXT: mov sp, x17
+; CHECK-NEXT: mov sp, [[TMPREG]]
 ; CHECK-NEXT: ret
 }
 
@@ -29,9 +29,9 @@ entry:
 ; CHECK-NEXT: and   x0, x0, x16
 ; CHECK-NEXT: csdb
 ; CHECK-NEXT: ldr   d0, [x0]
-; CHECK-NEXT: mov x17, sp
-; CHECK-NEXT: and x17, x17, x16
-; CHECK-NEXT: mov sp, x17
+; CHECK-NEXT: mov [[TMPREG:x[0-9]+]], sp
+; CHECK-NEXT: and [[TMPREG]], [[TMPREG]], x16
+; CHECK-NEXT: mov sp, [[TMPREG]]
 ; CHECK-NEXT: ret
 }
 
@@ -51,12 +51,12 @@ entry:
 ; CHECK-NEXT: and x8, x8, x16
 ; csdb instruction must occur before the add instruction with w8 as operand.
 ; CHECK-NEXT: csdb
-; CHECK-NEXT: mov x17, sp
 ; CHECK-NEXT: add w9, w1, w8
 ; CHECK-NEXT: cmp x8, #0
-; CHECK-NEXT: and x17, x17, x16
 ; CHECK-NEXT: csel w0, w1, w9, eq
-; CHECK-NEXT: mov sp, x17
+; CHECK-NEXT: mov [[TMPREG:x[0-9]+]], sp
+; CHECK-NEXT: and [[TMPREG]], [[TMPREG]], x16
+; CHECK-NEXT: mov sp, [[TMPREG]]
 ; CHECK-NEXT: ret
 }
 
@@ -76,12 +76,12 @@ entry:
 ; CHECK-NEXT: and w8, w8, w16
 ; csdb instruction must occur before the add instruction with x8 as operand.
 ; CHECK-NEXT: csdb
-; CHECK-NEXT: mov x17, sp
 ; CHECK-NEXT: add x9, x1, x8
 ; CHECK-NEXT: cmp w8, #0
-; CHECK-NEXT: and x17, x17, x16
 ; CHECK-NEXT: csel x0, x1, x9, eq
-; CHECK-NEXT: mov sp, x17
+; CHECK-NEXT: mov [[TMPREG:x[0-9]+]], sp
+; CHECK-NEXT: and [[TMPREG]], [[TMPREG]], x16
+; CHECK-NEXT: mov sp, [[TMPREG]]
 ; CHECK-NEXT: ret
 }
 
@@ -90,7 +90,7 @@ define i64 @no_masking_with_full_control_flow_barriers(i64 %a, i64 %b, i64* %p) 
 ; CHECK: dsb sy
 ; CHECK: isb
 entry:
-  %0 = tail call i64 asm "autia1716", "={x17},{x16},0"(i64 %b, i64 %a)
+  %0 = tail call i64 asm "hint #12", "={x17},{x16},0"(i64 %b, i64 %a)
   %X = load i64, i64* %p, align 8
   %ret = add i64 %X, %0
 ; CHECK-NOT: csdb
@@ -112,11 +112,11 @@ entry:
 ; CHECK-NEXT:  and     x1, x1, x16
 ; CHECK-NEXT:  csdb
 ; CHECK-NEXT:  ldr     d0, [x1]
-; CHECK-NEXT:  mov     x17, sp
-; CHECK-NEXT:  and     x17, x17, x16
 ; CHECK-NEXT:  mov     v0.d[1], v0.d[0]
 ; CHECK-NEXT:  str     q0, [x0]
-; CHECK-NEXT:  mov     sp, x17
+; CHECK-NEXT:  mov     [[TMPREG:x[0-9]+]], sp
+; CHECK-NEXT:  and     [[TMPREG]], [[TMPREG]], x16
+; CHECK-NEXT:  mov     sp, [[TMPREG]]
 ; CHECK-NEXT:  ret
 }
 
@@ -129,9 +129,9 @@ entry:
 ; CHECK-NEXT:  and     x1, x1, x16
 ; CHECK-NEXT:  csdb
 ; CHECK-NEXT:  ld1     { v0.d }[0], [x1]
-; CHECK-NEXT:  mov     x17, sp
-; CHECK-NEXT:  and     x17, x17, x16
-; CHECK-NEXT:  mov     sp, x17
+; CHECK-NEXT:  mov     [[TMPREG:x[0-9]+]], sp
+; CHECK-NEXT:  and     [[TMPREG]], [[TMPREG]], x16
+; CHECK-NEXT:  mov     sp, [[TMPREG]]
 ; CHECK-NEXT:  ret
   %0 = load double, double* %b, align 16
   %vld1_lane = insertelement <2 x double> <double undef, double 0.000000e+00>, double %0, i32 0
@@ -147,9 +147,9 @@ entry:
 ; CHECK-NEXT:  .cfi_def_cfa_offset 16
 ; CHECK-NEXT:  ldr     w8, [sp, #12]
 ; CHECK-NEXT:  add     sp, sp, #16
-; CHECK-NEXT:  mov     x17, sp
-; CHECK-NEXT:  and     x17, x17, x16
-; CHECK-NEXT:  mov     sp, x17
+; CHECK-NEXT:  mov     [[TMPREG:x[0-9]+]], sp
+; CHECK-NEXT:  and     [[TMPREG]], [[TMPREG]], x16
+; CHECK-NEXT:  mov     sp, [[TMPREG]]
 ; CHECK-NEXT:  ret
   %a = alloca i32, align 4
   %val = load volatile i32, i32* %a, align 4

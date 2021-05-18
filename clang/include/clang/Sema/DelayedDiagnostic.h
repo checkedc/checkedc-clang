@@ -1,9 +1,8 @@
 //===- DelayedDiagnostic.h - Delayed declarator diagnostics -----*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -58,21 +57,16 @@ public:
   /// The target is the base class.
   enum BaseNonce { Base };
 
-  AccessedEntity(PartialDiagnostic::StorageAllocator &Allocator,
-                 MemberNonce _,
-                 CXXRecordDecl *NamingClass,
-                 DeclAccessPair FoundDecl,
-                 QualType BaseObjectType)
+  AccessedEntity(PartialDiagnostic::DiagStorageAllocator &Allocator,
+                 MemberNonce _, CXXRecordDecl *NamingClass,
+                 DeclAccessPair FoundDecl, QualType BaseObjectType)
       : Access(FoundDecl.getAccess()), IsMember(true),
         Target(FoundDecl.getDecl()), NamingClass(NamingClass),
-        BaseObjectType(BaseObjectType), Diag(0, Allocator) {
-  }
+        BaseObjectType(BaseObjectType), Diag(0, Allocator) {}
 
-  AccessedEntity(PartialDiagnostic::StorageAllocator &Allocator,
-                 BaseNonce _,
-                 CXXRecordDecl *BaseClass,
-                 CXXRecordDecl *DerivedClass,
-                 AccessSpecifier Access)
+  AccessedEntity(PartialDiagnostic::DiagStorageAllocator &Allocator,
+                 BaseNonce _, CXXRecordDecl *BaseClass,
+                 CXXRecordDecl *DerivedClass, AccessSpecifier Access)
       : Access(Access), IsMember(false), Target(BaseClass),
         NamingClass(DerivedClass), Diag(0, Allocator) {}
 

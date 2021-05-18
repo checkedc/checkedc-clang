@@ -1,9 +1,8 @@
 //===--- RedundantStrcatCallsCheck.cpp - clang-tidy------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -26,8 +25,6 @@ namespace abseil {
 //    argument.
 
 void RedundantStrcatCallsCheck::registerMatchers(MatchFinder* Finder) {
-  if (!getLangOpts().CPlusPlus) 
-  	return;
   const auto CallToStrcat =
       callExpr(callee(functionDecl(hasName("::absl::StrCat"))));
   const auto CallToStrappend =
@@ -50,6 +47,8 @@ struct StrCatCheckResult {
 };
 
 void RemoveCallLeaveArgs(const CallExpr* Call, StrCatCheckResult* CheckResult) {
+  if (Call->getNumArgs() == 0)
+    return;
   // Remove 'Foo('
   CheckResult->Hints.push_back(
       FixItHint::CreateRemoval(CharSourceRange::getCharRange(
@@ -67,11 +66,12 @@ const clang::CallExpr* ProcessArgument(const Expr* Arg,
   static const auto* const Strcat = new auto(hasName("::absl::StrCat"));
   const auto IsStrcat = cxxBindTemporaryExpr(
       has(callExpr(callee(functionDecl(*Strcat))).bind("StrCat")));
-  if (const auto* SubStrcatCall = selectFirst<const CallExpr>(
+  if (const auto *SubStrcatCall = selectFirst<const CallExpr>(
           "StrCat",
-          match(stmt(anyOf(
-                    cxxConstructExpr(IsAlphanum, hasArgument(0, IsStrcat)),
-                    IsStrcat)),
+          match(stmt(traverse(TK_AsIs,
+                              anyOf(cxxConstructExpr(IsAlphanum,
+                                                     hasArgument(0, IsStrcat)),
+                                    IsStrcat))),
                 *Arg->IgnoreParenImpCasts(), *Result.Context))) {
     RemoveCallLeaveArgs(SubStrcatCall, CheckResult);
     return SubStrcatCall;

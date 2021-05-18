@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -11,15 +10,16 @@
 
 // template <class... Types> class tuple;
 
-// constexpr tuple();
+// explicit(see-below) constexpr tuple();
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 #include <tuple>
 #include <string>
 #include <cassert>
 #include <type_traits>
 
+#include "test_macros.h"
 #include "DefaultOnly.h"
 
 struct NoDefault {
@@ -45,7 +45,7 @@ struct IllFormedDefault {
     int value;
 };
 
-int main()
+int main(int, char**)
 {
     {
         std::tuple<> t;
@@ -107,4 +107,11 @@ int main()
         IllFormedDefault v(0);
         std::tuple<IllFormedDefault> t(v);
     }
+    {
+        struct Base { };
+        struct Derived : Base { protected: Derived() = default; };
+        static_assert(!std::is_default_constructible<std::tuple<Derived, int> >::value, "");
+    }
+
+    return 0;
 }

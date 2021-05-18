@@ -2,10 +2,9 @@
 
 #===-- generate_netbsd_ioctls.awk ------------------------------------------===#
 #
-#                     The LLVM Compiler Infrastructure
-#
-# This file is distributed under the University of Illinois Open Source
-# License. See LICENSE.TXT for details.
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 #===------------------------------------------------------------------------===#
 #
@@ -13,6 +12,12 @@
 #  - include/sanitizer/sanitizer_interceptors_ioctl_netbsd.inc
 #
 # This script reads public headers from a NetBSD host.
+#
+# This script shall be executed only on the newest NetBSD version.
+# This script will emit compat code for the older releases.
+#
+# NetBSD minimal version supported 9.0.
+# NetBSD current version supported 9.99.26.
 #
 #===------------------------------------------------------------------------===#
 
@@ -152,7 +157,6 @@ FNR == 1 {
       $0 ~ /JOY_GET_X_OFFSET/ ||
       $0 ~ /CHIOGPICKER/ ||
       $0 ~ /SLIOCGUNIT/ ||
-      $0 ~ /SATIOSBUFSIZE/ ||
       $0 ~ /TUNSLMODE/ ||
       $0 ~ /CBQ_IF_ATTACH/ ||
       $0 ~ /CDNR_IF_ATTACH/ ||
@@ -249,6 +253,12 @@ END {
     exit(abnormal_exit)
   }
 
+  # Add compat entries
+  add_compat("dev/filemon/filemon.h (compat <= 9.99.26)", "FILEMON_SET_FD", "READWRITE", "sizeof(int)")
+  add_compat("", "FILEMON_SET_PID", "READWRITE", "sizeof(int)")
+  add_compat("dev/usb/urio.h (compat <= 9.99.43)", "URIO_SEND_COMMAND", "READWRITE", "struct_urio_command_sz")
+  add_compat("", "URIO_RECV_COMMAND", "READWRITE", "struct_urio_command_sz")
+
   # Generate sanitizer_interceptors_ioctl_netbsd.inc
 
   # open pipe
@@ -256,10 +266,9 @@ END {
 
   pcmd("//===-- sanitizer_interceptors_ioctl_netbsd.inc -----------------*- C++ -*-===//")
   pcmd("//")
-  pcmd("//                     The LLVM Compiler Infrastructure")
-  pcmd("//")
-  pcmd("// This file is distributed under the University of Illinois Open Source")
-  pcmd("// License. See LICENSE.TXT for details.")
+  pcmd("// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.")
+  pcmd("// See https://llvm.org/LICENSE.txt for license information.")
+  pcmd("// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception")
   pcmd("//")
   pcmd("//===----------------------------------------------------------------------===//")
   pcmd("//")
@@ -307,6 +316,9 @@ END {
   pcmd("")
 
   for (i = 0; i < ioctl_table_max; i++) {
+    if (i in fname && fname[i] == "dev/nvmm/nvmm_ioctl.h") {
+      pcmd("#if defined(__x86_64__)")
+    }
     if (i in fname) {
       pcmd("  /* Entries from file: " fname[i] " */")
     }
@@ -318,10 +330,14 @@ END {
     }
 
     pcmd("  _(" ioctl_name[i] ", " ioctl_mode[i] "," type ");")
+
+    if (ioctl_name[i] == "NVMM_IOC_CTL") {
+      pcmd("#endif")
+    }
   }
 
   pcmd("#undef _")
-  pcmd("}")
+  pcmd("}   // NOLINT")
   pcmd("")
   pcmd("static bool ioctl_initialized = false;")
   pcmd("")
@@ -485,6 +501,8 @@ function get_type(string)
     return "sizeof(u16)"
   } else if (string == "u_int32_t" || string == "uint32_t") {
     return "sizeof(u32)"
+  } else if (string == "u_int64_t" || string == "uint64_t") {
+    return "sizeof(u64)"
   } else if (string ~ /\*$/) {
     return "sizeof(uptr)"
   } else if (string == "off_t") {
@@ -626,6 +644,10 @@ function get_type(string)
     return "struct_RF_ProgressInfo_sz"
   } else if (string == "nvlist_ref_t") {
     return "struct_nvlist_ref_sz"
+  } else if (string == "spi_ioctl_transfer_t") {
+    return "struct_spi_ioctl_transfer_sz"
+  } else if (string == "spi_ioctl_configure_t") {
+    return "struct_spi_ioctl_configure_sz"
   } else {
     print "Unrecognized entry: " string
     print "Aborting"
@@ -634,4 +656,15 @@ function get_type(string)
   }
 
   return string
+}
+
+function add_compat(path, name, mode, type)
+{
+  if (path != "") {
+    fname[ioctl_table_max] = path
+  }
+  ioctl_name[ioctl_table_max] = name
+  ioctl_mode[ioctl_table_max] = mode
+  ioctl_type[ioctl_table_max] = type
+  ioctl_table_max++
 }

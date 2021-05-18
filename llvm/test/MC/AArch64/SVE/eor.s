@@ -3,7 +3,7 @@
 // RUN: not llvm-mc -triple=aarch64 -show-encoding < %s 2>&1 \
 // RUN:        | FileCheck %s --check-prefix=CHECK-ERROR
 // RUN: llvm-mc -triple=aarch64 -filetype=obj -mattr=+sve < %s \
-// RUN:        | llvm-objdump -d -mattr=+sve - | FileCheck %s --check-prefix=CHECK-INST
+// RUN:        | llvm-objdump -d --mattr=+sve - | FileCheck %s --check-prefix=CHECK-INST
 // RUN: llvm-mc -triple=aarch64 -filetype=obj -mattr=+sve < %s \
 // RUN:        | llvm-objdump -d - | FileCheck %s --check-prefix=CHECK-UNKNOWN
 
@@ -108,6 +108,28 @@ eor     p15.b, p15/z, p15.b, p15.b
 // CHECK-ENCODING: [0xef,0x7f,0x0f,0x25]
 // CHECK-ERROR: instruction requires: sve
 // CHECK-UNKNOWN: ef 7f 0f 25 <unknown>
+
+
+// --------------------------------------------------------------------------//
+// Test aliases.
+
+eor     z0.s, z0.s, z0.s
+// CHECK-INST: eor     z0.d, z0.d, z0.d
+// CHECK-ENCODING: [0x00,0x30,0xa0,0x04]
+// CHECK-ERROR: instruction requires: sve
+// CHECK-UNKNOWN: 00 30 a0 04 <unknown>
+
+eor     z0.h, z0.h, z0.h
+// CHECK-INST: eor     z0.d, z0.d, z0.d
+// CHECK-ENCODING: [0x00,0x30,0xa0,0x04]
+// CHECK-ERROR: instruction requires: sve
+// CHECK-UNKNOWN: 00 30 a0 04 <unknown>
+
+eor     z0.b, z0.b, z0.b
+// CHECK-INST: eor     z0.d, z0.d, z0.d
+// CHECK-ENCODING: [0x00,0x30,0xa0,0x04]
+// CHECK-ERROR: instruction requires: sve
+// CHECK-UNKNOWN: 00 30 a0 04 <unknown>
 
 
 // --------------------------------------------------------------------------//

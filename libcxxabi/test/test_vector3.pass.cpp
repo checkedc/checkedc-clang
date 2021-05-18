@@ -1,13 +1,12 @@
 //===------------------------- test_vector3.cpp ---------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: libcxxabi-no-exceptions
+// UNSUPPORTED: no-exceptions
 
 #include "cxxabi.h"
 
@@ -17,6 +16,11 @@
 #include <exception>
 
 #include <memory>
+
+// Disable warning about throw always calling terminate.
+#if defined(__GNUC__) && !defined(__clang__)
+# pragma GCC diagnostic ignored "-Wterminate"
+#endif
 
 // use dtors instead of try/catch
 namespace test1 {
@@ -48,7 +52,7 @@ void destroy(void* v)
   t->~T();
 }
 
-int main()
+int main(int, char**)
 {
   std::set_terminate(my_terminate);
   {
@@ -57,4 +61,6 @@ int main()
   __cxxabiv1::__cxa_vec_dtor(a, 10, sizeof(test1::A), destroy<test1::A>);
   assert(false);
   }
+
+  return 0;
 }

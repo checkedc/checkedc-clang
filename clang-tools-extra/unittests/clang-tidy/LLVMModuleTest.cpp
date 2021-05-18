@@ -3,7 +3,7 @@
 #include "llvm/IncludeOrderCheck.h"
 #include "gtest/gtest.h"
 
-using namespace clang::tidy::llvm;
+using namespace clang::tidy::llvm_check;
 
 namespace clang {
 namespace tidy {
@@ -211,6 +211,15 @@ TEST(LLVMHeaderGuardCheckTest, FixHeaderGuards) {
                                          "#endif  /* LLVM_ADT_FOO_H\\ \n"
                                          " FOO */",
                                          "include/llvm/ADT/foo.h", None));
+
+  EXPECT_EQ("#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_FOO_H\n"
+            "#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_FOO_H\n"
+            "\n"
+            "\n"
+            "#endif\n",
+            runHeaderGuardCheck(
+                "", "/llvm-project/clang-tools-extra/clangd/foo.h",
+                StringRef("header is missing header guard")));
 }
 #endif
 

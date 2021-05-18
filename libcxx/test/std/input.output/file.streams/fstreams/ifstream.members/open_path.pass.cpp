@@ -1,13 +1,23 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
+// UNSUPPORTED: libcpp-has-no-filesystem-library
+
+// Filesystem is supported on Apple platforms starting with macosx10.15.
+// UNSUPPORTED: with_system_cxx_lib=macosx10.14
+// UNSUPPORTED: with_system_cxx_lib=macosx10.13
+// UNSUPPORTED: with_system_cxx_lib=macosx10.12
+// UNSUPPORTED: with_system_cxx_lib=macosx10.11
+// UNSUPPORTED: with_system_cxx_lib=macosx10.10
+// UNSUPPORTED: with_system_cxx_lib=macosx10.9
+
+// FILE_DEPENDENCIES: test.dat
 
 // <fstream>
 
@@ -20,7 +30,9 @@
 #include <filesystem>
 #include <cassert>
 
-int main() {
+#include "test_macros.h"
+
+int main(int, char**) {
   {
     std::ifstream fs;
     assert(!fs.is_open());
@@ -45,4 +57,6 @@ int main() {
     fs >> c;
     assert(c == L'r');
   }
+
+  return 0;
 }

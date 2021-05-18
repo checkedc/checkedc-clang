@@ -1,12 +1,15 @@
-; RUN: opt < %s -wasm-lower-em-ehsjlj -S | FileCheck %s
+; RUN: opt < %s -wasm-lower-em-ehsjlj -S | FileCheck %s --check-prefixes=CHECK,NO-TLS
+; RUN: opt < %s -wasm-lower-em-ehsjlj -S --mattr=+atomics,+bulk-memory | FileCheck %s --check-prefixes=CHECK,TLS
 
 target datalayout = "e-m:e-p:32:32-i64:64-n32:64-S128"
 target triple = "wasm32-unknown-unknown"
 
 @_ZTIi = external constant i8*
 @_ZTIc = external constant i8*
-; CHECK-DAG: __THREW__ = external global i32
-; CHECK-DAG: __threwValue = external global i32
+; NO-TLS-DAG: __THREW__ = external global i32
+; NO-TLS-DAG: __threwValue = external global i32
+; TLS-DAG: __THREW__ = external thread_local(localexec) global i32
+; TLS-DAG: __threwValue = external thread_local(localexec) global i32
 
 ; Test invoke instruction with clauses (try-catch block)
 define void @clause() personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*) {
@@ -16,7 +19,7 @@ entry:
           to label %invoke.cont unwind label %lpad
 ; CHECK: entry:
 ; CHECK-NEXT: store i32 0, i32* @__THREW__
-; CHECK-NEXT: call void @__invoke_void_i32(void (i32)* @foo, i32 3)
+; CHECK-NEXT: call cc{{.*}} void @__invoke_void_i32(void (i32)* @foo, i32 3)
 ; CHECK-NEXT: %[[__THREW__VAL:.*]] = load i32, i32* @__THREW__
 ; CHECK-NEXT: store i32 0, i32* @__THREW__
 ; CHECK-NEXT: %cmp = icmp eq i32 %[[__THREW__VAL]], 1
@@ -72,7 +75,7 @@ entry:
           to label %invoke.cont unwind label %lpad
 ; CHECK: entry:
 ; CHECK-NEXT: store i32 0, i32* @__THREW__
-; CHECK-NEXT: call void @__invoke_void_i32(void (i32)* @foo, i32 3)
+; CHECK-NEXT: call cc{{.*}} void @__invoke_void_i32(void (i32)* @foo, i32 3)
 ; CHECK-NEXT: %[[__THREW__VAL:.*]] = load i32, i32* @__THREW__
 ; CHECK-NEXT: store i32 0, i32* @__THREW__
 ; CHECK-NEXT: %cmp = icmp eq i32 %[[__THREW__VAL]], 1
@@ -123,7 +126,7 @@ entry:
           to label %invoke.cont unwind label %lpad
 ; CHECK: entry:
 ; CHECK-NEXT: store i32 0, i32* @__THREW__
-; CHECK-NEXT: %0 = call noalias i8* @"__invoke_i8*_i8_i8"(i8* (i8, i8)* @bar, i8 signext 1, i8 zeroext 2)
+; CHECK-NEXT: %0 = call cc{{.*}} noalias i8* @"__invoke_i8*_i8_i8"(i8* (i8, i8)* @bar, i8 signext 1, i8 zeroext 2)
 
 invoke.cont:                                      ; preds = %entry
   br label %try.cont

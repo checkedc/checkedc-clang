@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -15,19 +14,16 @@
 
 // path lexically_normal() const;
 
-#include "filesystem_include.hpp"
-#include <type_traits>
-#include <vector>
-#include <iostream>
-#include <cassert>
+#include "filesystem_include.h"
+#include <cstdio>
+#include <string>
 
 #include "test_macros.h"
-#include "test_iterators.h"
-#include "count_new.hpp"
-#include "filesystem_test_helper.hpp"
+#include "count_new.h"
+#include "filesystem_test_helper.h"
 
 
-int main() {
+int main(int, char**) {
   // clang-format off
   struct {
     std::string input;
@@ -131,11 +127,11 @@ int main() {
     const fs::path output = p.lexically_normal();
     if (!PathEq(output, TC.expect)) {
       Failed = true;
-      std::cerr << "TEST CASE #" << ID << " FAILED: \n";
-      std::cerr << "  Input: '" << TC.input << "'\n";
-      std::cerr << "  Expected: '" << TC.expect << "'\n";
-      std::cerr << "  Output: '" << output.native() << "'";
-      std::cerr << std::endl;
+      std::fprintf(stderr, "TEST CASE #%d FAILED:\n"
+                  "  Input: '%s'\n"
+                  "  Expected: '%s'\n"
+                  "  Output: '%s'\n",
+        ID, TC.input.c_str(), TC.expect.c_str(), output.string().c_str());
     }
   }
   return Failed;

@@ -1,9 +1,8 @@
 //===-- WasmException.h - Wasm Exception Framework -------------*- C++ -*--===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -33,6 +32,7 @@ protected:
   // Compute the call site table for wasm EH.
   void computeCallSiteTable(
       SmallVectorImpl<CallSiteEntry> &CallSites,
+      SmallVectorImpl<CallSiteRange> &CallSiteRanges,
       const SmallVectorImpl<const LandingPadInfo *> &LandingPads,
       const SmallVectorImpl<unsigned> &FirstActions) override;
 };

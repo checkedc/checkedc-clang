@@ -1,8 +1,8 @@
 // REQUIRES: arm
 // RUN: llvm-mc -arm-add-build-attributes -filetype=obj -triple=thumbv7a-none-linux-gnueabi %s -o %t
 // RUN: llvm-mc -arm-add-build-attributes -filetype=obj -triple=thumbv7a-none-linux-gnueabi %S/Inputs/far-arm-thumb-abs.s -o %tfar
-// RUN: ld.lld  %t %tfar -o %t2 2>&1
-// RUN: llvm-objdump -d -triple=thumbv7a-none-linux-gnueabi %t2
+// RUN: ld.lld  %t %tfar -o %t2
+// RUN: llvm-objdump -d --triple=thumbv7a-none-linux-gnueabi %t2
  .syntax unified
  .thumb
  .section .text, "ax",%progbits
@@ -17,6 +17,7 @@ _start:
  beq.w too_far3
 
 // CHECK: Disassembly of section .text:
+// CHECK-EMPTY:
 // CHECK-NEXT: _start:
 // CHECK-NEXT:    20000:       00 f0 04 f8     bl      #8
 // CHECK-NEXT:    20004:       00 f0 07 b8     b.w     #14 <__Thumbv7ABSLongThunk_too_far2>

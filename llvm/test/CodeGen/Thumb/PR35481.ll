@@ -13,7 +13,7 @@ entry:
 ; CHECK-NEXT: mov lr, r7
 ; CHECK-NEXT: pop {r7}
 ; CHECK-NEXT: add sp, #4
-; CHECK-V47: bx lr
+; CHECK-V4T: bx lr
 ; CHECK-V8M: b g
 }
 
@@ -21,4 +21,4 @@ declare <4 x i32> @g(i32, i32, i32, i32) local_unnamed_addr
 
 declare i32 @h(i32) local_unnamed_addr
 
-attributes #0 = { "disable-tail-calls"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" }
+attributes #0 = { "disable-tail-calls"="false" "frame-pointer"="all" }

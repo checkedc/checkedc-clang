@@ -1,5 +1,7 @@
 // RUN: %clang_cc1 %s --std=c++11 -triple x86_64-unknown-linux -emit-llvm -o - \
 // RUN:   -verify -verify-ignore-unexpected=note
+// RUN: %clang_cc1 %s --std=c++11 -triple x86_64-unknown-linux -emit-llvm -o - \
+// RUN:   -verify=expected,omp -verify-ignore-unexpected=note -fopenmp
 
 // Note: This test won't work with -fsyntax-only, because some of these errors
 // are emitted during codegen.
@@ -90,3 +92,8 @@ __host__ __device__ void fn_ptr_template() {
 static __host__ __device__ void hd_func() { device_fn(); }
 __global__ void kernel() { hd_func(); }
 void host_func(void) { kernel<<<1, 1>>>(); }
+
+// Should allow host function call kernel template with device function argument.
+__device__ void f();
+template<void(*F)()> __global__ void t() { F(); }
+__host__ void g() { t<f><<<1,1>>>(); }

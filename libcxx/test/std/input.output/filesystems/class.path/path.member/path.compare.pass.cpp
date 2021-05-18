@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -27,16 +26,15 @@
 // size_t hash_value(path const&) noexcept;
 
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <vector>
 #include <cassert>
 
 #include "test_macros.h"
 #include "test_iterators.h"
-#include "count_new.hpp"
-#include "filesystem_test_helper.hpp"
-#include "verbose_assert.h"
+#include "count_new.h"
+#include "filesystem_test_helper.h"
 
 struct PathCompareTest {
   const char* LHS;
@@ -67,8 +65,8 @@ const PathCompareTest CompareTestCases[] =
     {"/foo/bar/", "/foo/bar", 1}, // trailing separator
     {"foo", "/foo", -1}, // if !this->has_root_directory() and p.has_root_directory(), a value less than 0.
     {"/foo", "foo", 1}, //  if this->has_root_directory() and !p.has_root_directory(), a value greater than 0.
-    {"//" LONGA "////" LONGB "/" LONGC "///" LONGD, "//" LONGA "/" LONGB "/" LONGC "/" LONGD, 0},
-    { LONGA "/" LONGB "/" LONGC, LONGA "/" LONGB "/" LONGB, 1}
+    {("//" LONGA "////" LONGB "/" LONGC "///" LONGD), ("//" LONGA "/" LONGB "/" LONGC "/" LONGD), 0},
+    {(LONGA "/" LONGB "/" LONGC), (LONGA "/" LONGB "/" LONGB), 1}
 
 };
 #undef LONGA
@@ -100,11 +98,10 @@ void test_compare_basic()
       int ret4 = normalize_ret(p1.compare(RV));
 
       g.release();
-      ASSERT_EQ(ret1, ret2);
-      ASSERT_EQ(ret1, ret3);
-      ASSERT_EQ(ret1, ret4);
-      ASSERT_EQ(ret1, E)
-          << DISPLAY(TC.LHS) << DISPLAY(TC.RHS);
+      assert(ret1 == ret2);
+      assert(ret1 == ret3);
+      assert(ret1 == ret4);
+      assert(ret1 == E);
 
       // check signatures
       ASSERT_NOEXCEPT(p1.compare(p2));
@@ -185,7 +182,9 @@ void test_compare_elements() {
   }
 }
 
-int main() {
+int main(int, char**) {
   test_compare_basic();
   test_compare_elements();
+
+  return 0;
 }

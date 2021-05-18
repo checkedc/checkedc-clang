@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -12,15 +11,20 @@
 
 // notify_all_at_thread_exit(...) requires move semantics to transfer the
 // unique_lock.
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
+
+// PR30202 was fixed starting in macosx10.13.
+// UNSUPPORTED: with_system_cxx_lib=macosx10.12
+// UNSUPPORTED: with_system_cxx_lib=macosx10.11
+// UNSUPPORTED: with_system_cxx_lib=macosx10.10
+// UNSUPPORTED: with_system_cxx_lib=macosx10.9
 
 // <condition_variable>
 
-// void
-//   notify_all_at_thread_exit(condition_variable& cond, unique_lock<mutex> lk);
+// void notify_all_at_thread_exit(condition_variable& cond, unique_lock<mutex> lk);
 
 // Test that this function works with threads that were not created by
-// std::thread. See: https://bugs.llvm.org/show_bug.cgi?id=30202
+// std::thread. See https://llvm.org/PR30202
 
 
 #include <condition_variable>
@@ -29,6 +33,8 @@
 #include <chrono>
 #include <cassert>
 #include <pthread.h>
+
+#include "test_macros.h"
 
 std::condition_variable cv;
 std::mutex mut;
@@ -46,7 +52,7 @@ void* func(void*)
     return nullptr;
 }
 
-int main()
+int main(int, char**)
 {
     {
     std::unique_lock<std::mutex> lk(mut);
@@ -73,4 +79,6 @@ int main()
     assert(t1-t0 > ms(250));
     t.join();
     }
+
+  return 0;
 }

@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -29,10 +28,14 @@
 //     typedef std::reverse_iterator<const_iterator>    const_reverse_iterator;
 // };
 
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_ENABLE_CXX20_REMOVED_ALLOCATOR_MEMBERS
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
+
 #include <vector>
 #include <iterator>
 #include <type_traits>
 
+#include "test_macros.h"
 #include "test_allocator.h"
 #include "../../Copyable.h"
 #include "min_allocator.h"
@@ -79,7 +82,7 @@ test()
         std::reverse_iterator<typename C::const_iterator> >::value), "");
 }
 
-int main()
+int main(int, char**)
 {
     test<int, test_allocator<int> >();
     test<int*, std::allocator<int*> >();
@@ -105,4 +108,6 @@ int main()
 //         typename std::iterator_traits<typename C::const_iterator>::difference_type>::value), "");
     }
 #endif
+
+  return 0;
 }

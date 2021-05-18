@@ -8,6 +8,9 @@
 ; RUN: opt -aa-pipeline=basic-aa -passes='cgscc(devirt<1>(function-attrs,function(gvn,instcombine)))' -S < %s | FileCheck %s --check-prefix=CHECK --check-prefix=AFTER --check-prefix=AFTER1
 ; RUN: opt -aa-pipeline=basic-aa -passes='cgscc(devirt<2>(function-attrs,function(gvn,instcombine)))' -S < %s | FileCheck %s --check-prefix=CHECK --check-prefix=AFTER --check-prefix=AFTER2
 ;
+; RUN: not --crash opt -abort-on-max-devirt-iterations-reached -aa-pipeline=basic-aa -passes='cgscc(devirt<1>(function-attrs,function(gvn,instcombine)))' -S < %s
+; RUN: opt -abort-on-max-devirt-iterations-reached -aa-pipeline=basic-aa -passes='cgscc(devirt<2>(function-attrs,function(gvn,instcombine)))' -S < %s
+;
 ; We also verify that the real O2 pipeline catches these cases.
 ; RUN: opt -aa-pipeline=basic-aa -passes='default<O2>' -S < %s | FileCheck %s --check-prefix=CHECK --check-prefix=AFTER --check-prefix=AFTER2
 
@@ -96,7 +99,7 @@ entry:
 }
 
 declare i8* @memcpy(i8*, i8*, i64)
-; CHECK-LABEL: declare i8* @memcpy(
+; CHECK-LABEL: i8* @memcpy(
 
 ; The @test3 function checks that when we refine an indirect call to an
 ; intrinsic we still revisit the SCC pass. This also covers cases where the

@@ -1,6 +1,6 @@
 # REQUIRES: x86
 # RUN: llvm-mc -filetype=obj -triple=x86_64-unknown-linux -dwarf-version=5 %s -o %t.o
-# RUN: not ld.lld %t.o -o %t1 2>&1 | FileCheck %s
+# RUN: not ld.lld %t.o -o /dev/null 2>&1 | FileCheck %s
 
 # Check we do not crash and able to report the source location.
 
@@ -27,8 +27,7 @@
 main:
 .Lfunc_begin0:
  .file 0 "/home/path" "test.cpp" md5 0x8ed32099ab837bd13543fd3e8102739f
- .file 1 "test.cpp" md5 0x8ed32099ab837bd13543fd3e8102739f
- .loc 1 3 10 prologue_end
+ .loc 0 3 10 prologue_end
  jmp _Z3foov
 .Lfunc_end0:
 

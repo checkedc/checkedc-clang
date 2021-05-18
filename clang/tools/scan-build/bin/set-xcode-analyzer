@@ -5,8 +5,8 @@
 # This one has the scripting bridge enabled.
 
 import sys
-if sys.version_info < (2, 7):
-    print "set-xcode-analyzer requires Python 2.7 or later"
+if sys.version_info < (3, 6):
+    print "set-xcode-analyzer requires Python 3.6 or later"
     sys.exit(1)
 
 import os
@@ -42,7 +42,7 @@ def ModifySpec(path, isBuiltinAnalyzer, pathToChecker):
         if line.find("Static Analyzer") >= 0:
           foundAnalyzer = True
       else:
-        m = re.search('^(\s*ExecPath\s*=\s*")', line)
+        m = re.search(r'^(\s*ExecPath\s*=\s*")', line)
         if m:
           line = "".join([m.group(0), pathToChecker, '";\n'])
           # Do not modify further ExecPath's later in the xcspec.

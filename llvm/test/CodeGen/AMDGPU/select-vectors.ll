@@ -66,8 +66,11 @@ define amdgpu_kernel void @v_select_v16i8(<16 x i8> addrspace(1)* %out, <16 x i8
 }
 
 ; GCN-LABEL: {{^}}select_v4i8:
-; GCN: v_cndmask_b32
-; GCN-NOT: cndmask
+; GFX89: s_cselect_b32
+; GFX89-NOT: s_cselect_b32
+
+; SI: v_cndmask_b32
+; SI-NOT: cndmask
 define amdgpu_kernel void @select_v4i8(<4 x i8> addrspace(1)* %out, <4 x i8> %a, <4 x i8> %b, i8 %c) #0 {
   %cmp = icmp eq i8 %c, 0
   %select = select i1 %cmp, <4 x i8> %a, <4 x i8> %b
@@ -79,8 +82,8 @@ define amdgpu_kernel void @select_v4i8(<4 x i8> addrspace(1)* %out, <4 x i8> %a,
 ; GFX89: s_load_dword
 ; GFX89: s_load_dword
 ; GFX89: s_load_dword
-; GFX89: v_cndmask_b32
-; GFX89-NOT: v_cndmask_b32
+; GFX89: s_cselect_b32
+; GFX89-NOT: s_cselect_b32
 
 ; SI: v_cndmask_b32_e32
 ; SI-NOT: v_cndmask_b32e
@@ -112,6 +115,7 @@ define amdgpu_kernel void @v_select_v2i16(<2 x i16> addrspace(1)* %out, <2 x i16
 
 ; GFX89: v_cndmask_b32_e32
 ; GFX89: cndmask
+; VI: cndmask
 ; GFX89-NOT: cndmask
 define amdgpu_kernel void @v_select_v3i16(<3 x i16> addrspace(1)* %out, <3 x i16> addrspace(1)* %a.ptr, <3 x i16> addrspace(1)* %b.ptr, i32 %c) #0 {
   %a = load <3 x i16>, <3 x i16> addrspace(1)* %a.ptr
@@ -230,6 +234,21 @@ define amdgpu_kernel void @s_select_v2f32(<2 x float> addrspace(1)* %out, <2 x f
   ret void
 }
 
+; GCN-LABEL: {{^}}s_select_v3f32:
+; GCN: v_cmp_eq_u32_e64 vcc, s{{[0-9]+}}, 0{{$}}
+
+; GCN: v_cndmask_b32_e32
+; GCN: v_cndmask_b32_e32
+; GCN: v_cndmask_b32_e32
+
+; GCN: buffer_store_dwordx
+define amdgpu_kernel void @s_select_v3f32(<3 x float> addrspace(1)* %out, <3 x float> %a, <3 x float> %b, i32 %c) #0 {
+  %cmp = icmp eq i32 %c, 0
+  %select = select i1 %cmp, <3 x float> %a, <3 x float> %b
+  store <3 x float> %select, <3 x float> addrspace(1)* %out, align 16
+  ret void
+}
+
 ; GCN-LABEL: {{^}}s_select_v4f32:
 ; GCN: s_load_dwordx4
 ; GCN: s_load_dwordx4
@@ -262,6 +281,23 @@ bb:
   %val = load <4 x float>, <4 x float> addrspace(1)* %in
   %tmp3 = select i1 %tmp2, <4 x float> %val, <4 x float> zeroinitializer
   store <4 x float> %tmp3, <4 x float> addrspace(1)* %out, align 16
+  ret void
+}
+
+; GCN-LABEL: {{^}}s_select_v5f32:
+; GCN: v_cmp_eq_u32_e64 vcc, s{{[0-9]+}}, 0{{$}}
+
+; GCN: v_cndmask_b32_e32
+; GCN: v_cndmask_b32_e32
+; GCN: v_cndmask_b32_e32
+; GCN: v_cndmask_b32_e32
+; GCN: v_cndmask_b32_e32
+
+; GCN: buffer_store_dwordx
+define amdgpu_kernel void @s_select_v5f32(<5 x float> addrspace(1)* %out, <5 x float> %a, <5 x float> %b, i32 %c) #0 {
+  %cmp = icmp eq i32 %c, 0
+  %select = select i1 %cmp, <5 x float> %a, <5 x float> %b
+  store <5 x float> %select, <5 x float> addrspace(1)* %out, align 16
   ret void
 }
 

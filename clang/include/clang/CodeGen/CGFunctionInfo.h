@@ -1,9 +1,8 @@
 //==-- CGFunctionInfo.h - Representation of function argument/return types -==//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -16,7 +15,6 @@
 #ifndef LLVM_CLANG_CODEGEN_CGFUNCTIONINFO_H
 #define LLVM_CLANG_CODEGEN_CGFUNCTIONINFO_H
 
-#include "clang/AST/Attr.h"
 #include "clang/AST/CanonicalType.h"
 #include "clang/AST/CharUnits.h"
 #include "clang/AST/Decl.h"
@@ -46,9 +44,22 @@ public:
     /// but also emit a zero/sign extension attribute.
     Extend,
 
-    /// Indirect - Pass the argument indirectly via a hidden pointer
-    /// with the specified alignment (0 indicates default alignment).
+    /// Indirect - Pass the argument indirectly via a hidden pointer with the
+    /// specified alignment (0 indicates default alignment) and address space.
     Indirect,
+
+    /// IndirectAliased - Similar to Indirect, but the pointer may be to an
+    /// object that is otherwise referenced.  The object is known to not be
+    /// modified through any other references for the duration of the call, and
+    /// the callee must not itself modify the object.  Because C allows
+    /// parameter variables to be modified and guarantees that they have unique
+    /// addresses, the callee must defensively copy the object into a local
+    /// variable if it might be modified or its address might be compared.
+    /// Since those are uncommon, in principle this convention allows programs
+    /// to avoid copies in more situations.  However, it may introduce *extra*
+    /// copies if the callee fails to prove that a copy is unnecessary and the
+    /// caller naturally produces an unaliased object for the argument.
+    IndirectAliased,
 
     /// Ignore - Ignore the argument (treat as void). Useful for void and
     /// empty structs.
@@ -88,18 +99,20 @@ private:
     unsigned AllocaFieldIndex; // isInAlloca()
   };
   Kind TheKind;
+  unsigned IndirectAddrSpace : 24; // isIndirect()
   bool PaddingInReg : 1;
   bool InAllocaSRet : 1;    // isInAlloca()
+  bool InAllocaIndirect : 1;// isInAlloca()
   bool IndirectByVal : 1;   // isIndirect()
   bool IndirectRealign : 1; // isIndirect()
   bool SRetAfterThis : 1;   // isIndirect()
   bool InReg : 1;           // isDirect() || isExtend() || isIndirect()
   bool CanBeFlattened: 1;   // isDirect()
   bool SignExt : 1;         // isExtend()
-  bool SuppressSRet : 1;    // isIndirect()
 
   bool canHavePaddingType() const {
-    return isDirect() || isExtend() || isIndirect() || isExpand();
+    return isDirect() || isExtend() || isIndirect() || isIndirectAliased() ||
+           isExpand();
   }
   void setPaddingType(llvm::Type *T) {
     assert(canHavePaddingType());
@@ -111,15 +124,13 @@ private:
     UnpaddedCoerceAndExpandType = T;
   }
 
-  ABIArgInfo(Kind K)
-      : TheKind(K), PaddingInReg(false), InReg(false), SuppressSRet(false) {
-  }
-
 public:
-  ABIArgInfo()
-      : TypeData(nullptr), PaddingType(nullptr), DirectOffset(0),
-        TheKind(Direct), PaddingInReg(false), InReg(false),
-        SuppressSRet(false) {}
+  ABIArgInfo(Kind K = Direct)
+      : TypeData(nullptr), PaddingType(nullptr), DirectOffset(0), TheKind(K),
+        IndirectAddrSpace(0), PaddingInReg(false), InAllocaSRet(false),
+        InAllocaIndirect(false), IndirectByVal(false), IndirectRealign(false),
+        SRetAfterThis(false), InReg(false), CanBeFlattened(false),
+        SignExt(false) {}
 
   static ABIArgInfo getDirect(llvm::Type *T = nullptr, unsigned Offset = 0,
                               llvm::Type *Padding = nullptr,
@@ -185,15 +196,29 @@ public:
     AI.setPaddingType(Padding);
     return AI;
   }
+
+  /// Pass this in memory using the IR byref attribute.
+  static ABIArgInfo getIndirectAliased(CharUnits Alignment, unsigned AddrSpace,
+                                       bool Realign = false,
+                                       llvm::Type *Padding = nullptr) {
+    auto AI = ABIArgInfo(IndirectAliased);
+    AI.setIndirectAlign(Alignment);
+    AI.setIndirectRealign(Realign);
+    AI.setPaddingType(Padding);
+    AI.setIndirectAddrSpace(AddrSpace);
+    return AI;
+  }
+
   static ABIArgInfo getIndirectInReg(CharUnits Alignment, bool ByVal = true,
                                      bool Realign = false) {
     auto AI = getIndirect(Alignment, ByVal, Realign);
     AI.setInReg(true);
     return AI;
   }
-  static ABIArgInfo getInAlloca(unsigned FieldIndex) {
+  static ABIArgInfo getInAlloca(unsigned FieldIndex, bool Indirect = false) {
     auto AI = ABIArgInfo(InAlloca);
     AI.setInAllocaFieldIndex(FieldIndex);
+    AI.setInAllocaIndirect(Indirect);
     return AI;
   }
   static ABIArgInfo getExpand() {
@@ -263,6 +288,7 @@ public:
   bool isExtend() const { return TheKind == Extend; }
   bool isIgnore() const { return TheKind == Ignore; }
   bool isIndirect() const { return TheKind == Indirect; }
+  bool isIndirectAliased() const { return TheKind == IndirectAliased; }
   bool isExpand() const { return TheKind == Expand; }
   bool isCoerceAndExpand() const { return TheKind == CoerceAndExpand; }
 
@@ -342,11 +368,11 @@ public:
 
   // Indirect accessors
   CharUnits getIndirectAlign() const {
-    assert(isIndirect() && "Invalid kind!");
+    assert((isIndirect() || isIndirectAliased()) && "Invalid kind!");
     return CharUnits::fromQuantity(IndirectAlign);
   }
   void setIndirectAlign(CharUnits IA) {
-    assert(isIndirect() && "Invalid kind!");
+    assert((isIndirect() || isIndirectAliased()) && "Invalid kind!");
     IndirectAlign = IA.getQuantity();
   }
 
@@ -359,12 +385,22 @@ public:
     IndirectByVal = IBV;
   }
 
+  unsigned getIndirectAddrSpace() const {
+    assert(isIndirectAliased() && "Invalid kind!");
+    return IndirectAddrSpace;
+  }
+
+  void setIndirectAddrSpace(unsigned AddrSpace) {
+    assert(isIndirectAliased() && "Invalid kind!");
+    IndirectAddrSpace = AddrSpace;
+  }
+
   bool getIndirectRealign() const {
-    assert(isIndirect() && "Invalid kind!");
+    assert((isIndirect() || isIndirectAliased()) && "Invalid kind!");
     return IndirectRealign;
   }
   void setIndirectRealign(bool IR) {
-    assert(isIndirect() && "Invalid kind!");
+    assert((isIndirect() || isIndirectAliased()) && "Invalid kind!");
     IndirectRealign = IR;
   }
 
@@ -384,6 +420,15 @@ public:
   void setInAllocaFieldIndex(unsigned FieldIndex) {
     assert(isInAlloca() && "Invalid kind!");
     AllocaFieldIndex = FieldIndex;
+  }
+
+  unsigned getInAllocaIndirect() const {
+    assert(isInAlloca() && "Invalid kind!");
+    return InAllocaIndirect;
+  }
+  void setInAllocaIndirect(bool Indirect) {
+    assert(isInAlloca() && "Invalid kind!");
+    InAllocaIndirect = Indirect;
   }
 
   /// Return true if this field of an inalloca struct should be returned
@@ -406,16 +451,6 @@ public:
   void setCanBeFlattened(bool Flatten) {
     assert(isDirect() && "Invalid kind!");
     CanBeFlattened = Flatten;
-  }
-
-  bool getSuppressSRet() const {
-    assert(isIndirect() && "Invalid kind!");
-    return SuppressSRet;
-  }
-
-  void setSuppressSRet(bool Suppress) {
-    assert(isIndirect() && "Invalid kind!");
-    SuppressSRet = Suppress;
   }
 
   void dump() const;
@@ -441,31 +476,30 @@ public:
   ///
   /// If FD is not null, this will consider pass_object_size params in FD.
   static RequiredArgs forPrototypePlus(const FunctionProtoType *prototype,
-                                       unsigned additional,
-                                       const FunctionDecl *FD) {
+                                       unsigned additional) {
     if (!prototype->isVariadic()) return All;
-    if (FD)
-      additional +=
-          llvm::count_if(FD->parameters(), [](const ParmVarDecl *PVD) {
-            return PVD->hasAttr<PassObjectSizeAttr>();
+
+    if (prototype->hasExtParameterInfos())
+      additional += llvm::count_if(
+          prototype->getExtParameterInfos(),
+          [](const FunctionProtoType::ExtParameterInfo &ExtInfo) {
+            return ExtInfo.hasPassObjectSize();
           });
+
     return RequiredArgs(prototype->getNumParams() + additional);
   }
 
-  static RequiredArgs forPrototype(const FunctionProtoType *prototype,
-                                   const FunctionDecl *FD) {
-    return forPrototypePlus(prototype, 0, FD);
-  }
-
-  static RequiredArgs forPrototype(CanQual<FunctionProtoType> prototype,
-                                   const FunctionDecl *FD) {
-    return forPrototype(prototype.getTypePtr(), FD);
-  }
-
   static RequiredArgs forPrototypePlus(CanQual<FunctionProtoType> prototype,
-                                       unsigned additional,
-                                       const FunctionDecl *FD) {
-    return forPrototypePlus(prototype.getTypePtr(), additional, FD);
+                                       unsigned additional) {
+    return forPrototypePlus(prototype.getTypePtr(), additional);
+  }
+
+  static RequiredArgs forPrototype(const FunctionProtoType *prototype) {
+    return forPrototypePlus(prototype, 0);
+  }
+
+  static RequiredArgs forPrototype(CanQual<FunctionProtoType> prototype) {
+    return forPrototypePlus(prototype.getTypePtr(), 0);
   }
 
   bool allowsOptionalArgs() const { return NumRequired != ~0U; }
@@ -513,6 +547,9 @@ class CGFunctionInfo final
 
   /// Whether this is a chain call.
   unsigned ChainCall : 1;
+
+  /// Whether this function is a CMSE nonsecure call
+  unsigned CmseNSCall : 1;
 
   /// Whether this function is noreturn.
   unsigned NoReturn : 1;
@@ -580,12 +617,11 @@ public:
   typedef const ArgInfo *const_arg_iterator;
   typedef ArgInfo *arg_iterator;
 
-  typedef llvm::iterator_range<arg_iterator> arg_range;
-  typedef llvm::iterator_range<const_arg_iterator> const_arg_range;
-
-  arg_range arguments() { return arg_range(arg_begin(), arg_end()); }
-  const_arg_range arguments() const {
-    return const_arg_range(arg_begin(), arg_end());
+  MutableArrayRef<ArgInfo> arguments() {
+    return MutableArrayRef<ArgInfo>(arg_begin(), NumArgs);
+  }
+  ArrayRef<ArgInfo> arguments() const {
+    return ArrayRef<ArgInfo>(arg_begin(), NumArgs);
   }
 
   const_arg_iterator arg_begin() const { return getArgsBuffer() + 1; }
@@ -604,6 +640,8 @@ public:
   bool isInstanceMethod() const { return InstanceMethod; }
 
   bool isChainCall() const { return ChainCall; }
+
+  bool isCmseNSCall() const { return CmseNSCall; }
 
   bool isNoReturn() const { return NoReturn; }
 
@@ -642,7 +680,8 @@ public:
   FunctionType::ExtInfo getExtInfo() const {
     return FunctionType::ExtInfo(isNoReturn(), getHasRegParm(), getRegParm(),
                                  getASTCallingConvention(), isReturnsRetained(),
-                                 isNoCallerSavedRegs(), isNoCfCheck());
+                                 isNoCallerSavedRegs(), isNoCfCheck(),
+                                 isCmseNSCall());
   }
 
   CanQualType getReturnType() const { return getArgsBuffer()[0].type; }
@@ -683,6 +722,7 @@ public:
     ID.AddBoolean(HasRegParm);
     ID.AddInteger(RegParm);
     ID.AddBoolean(NoCfCheck);
+    ID.AddBoolean(CmseNSCall);
     ID.AddInteger(Required.getOpaqueData());
     ID.AddBoolean(HasExtParameterInfos);
     if (HasExtParameterInfos) {
@@ -710,6 +750,7 @@ public:
     ID.AddBoolean(info.getHasRegParm());
     ID.AddInteger(info.getRegParm());
     ID.AddBoolean(info.getNoCfCheck());
+    ID.AddBoolean(info.getCmseNSCall());
     ID.AddInteger(required.getOpaqueData());
     ID.AddBoolean(!paramInfos.empty());
     if (!paramInfos.empty()) {

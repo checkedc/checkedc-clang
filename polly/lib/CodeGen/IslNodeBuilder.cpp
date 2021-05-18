@@ -1,9 +1,8 @@
 //===- IslNodeBuilder.cpp - Translate an isl AST into a LLVM-IR AST -------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -17,12 +16,11 @@
 #include "polly/CodeGen/CodeGeneration.h"
 #include "polly/CodeGen/IslAst.h"
 #include "polly/CodeGen/IslExprBuilder.h"
-#include "polly/CodeGen/LoopGenerators.h"
+#include "polly/CodeGen/LoopGeneratorsGOMP.h"
+#include "polly/CodeGen/LoopGeneratorsKMP.h"
 #include "polly/CodeGen/RuntimeDebugBuilder.h"
-#include "polly/Config/config.h"
 #include "polly/Options.h"
 #include "polly/ScopInfo.h"
-#include "polly/Support/GICHelper.h"
 #include "polly/Support/ISLTools.h"
 #include "polly/Support/SCEVValidator.h"
 #include "polly/Support/ScopHelper.h"
@@ -81,6 +79,9 @@ STATISTIC(ParallelLoops, "Number of generated parallel for-loops");
 STATISTIC(VectorLoops, "Number of generated vector for-loops");
 STATISTIC(IfConditions, "Number of generated if-conditions");
 
+/// OpenMP backend options
+enum class OpenMPBackend { GNU, LLVM };
+
 static cl::opt<bool> PollyGenerateRTCPrint(
     "polly-codegen-emit-rtc-print",
     cl::desc("Emit code that prints the runtime check result dynamically."),
@@ -99,6 +100,12 @@ static cl::opt<int> PollyTargetFirstLevelCacheLineSize(
     "polly-target-first-level-cache-line-size",
     cl::desc("The size of the first level cache line size specified in bytes."),
     cl::Hidden, cl::init(64), cl::ZeroOrMore, cl::cat(PollyCategory));
+
+static cl::opt<OpenMPBackend> PollyOmpBackend(
+    "polly-omp-backend", cl::desc("Choose the OpenMP library to use:"),
+    cl::values(clEnumValN(OpenMPBackend::GNU, "GNU", "GNU OpenMP"),
+               clEnumValN(OpenMPBackend::LLVM, "LLVM", "LLVM OpenMP")),
+    cl::Hidden, cl::init(OpenMPBackend::GNU), cl::cat(PollyCategory));
 
 isl::ast_expr IslNodeBuilder::getUpperBound(isl::ast_node For,
                                             ICmpInst::Predicate &Predicate) {
@@ -224,11 +231,12 @@ void addReferencesFromStmt(const ScopStmt *Stmt, void *UserPtr,
 
   if (Stmt->isBlockStmt())
     findReferencesInBlock(References, Stmt, Stmt->getBasicBlock());
-  else {
-    assert(Stmt->isRegionStmt() &&
-           "Stmt was neither block nor region statement");
+  else if (Stmt->isRegionStmt()) {
     for (BasicBlock *BB : Stmt->getRegion()->blocks())
       findReferencesInBlock(References, Stmt, BB);
+  } else {
+    assert(Stmt->isCopyStmt());
+    // Copy Stmts have no instructions that we need to consider.
   }
 
   for (auto &Access : *Stmt) {
@@ -669,10 +677,21 @@ void IslNodeBuilder::createForParallel(__isl_take isl_ast_node *For) {
   }
 
   ValueMapT NewValues;
-  ParallelLoopGenerator ParallelLoopGen(Builder, LI, DT, DL);
 
-  IV = ParallelLoopGen.createParallelLoop(ValueLB, ValueUB, ValueInc,
-                                          SubtreeValues, NewValues, &LoopBody);
+  std::unique_ptr<ParallelLoopGenerator> ParallelLoopGenPtr;
+
+  switch (PollyOmpBackend) {
+  case OpenMPBackend::GNU:
+    ParallelLoopGenPtr.reset(
+        new ParallelLoopGeneratorGOMP(Builder, LI, DT, DL));
+    break;
+  case OpenMPBackend::LLVM:
+    ParallelLoopGenPtr.reset(new ParallelLoopGeneratorKMP(Builder, LI, DT, DL));
+    break;
+  }
+
+  IV = ParallelLoopGenPtr->createParallelLoop(
+      ValueLB, ValueUB, ValueInc, SubtreeValues, NewValues, &LoopBody);
   BasicBlock::iterator AfterLoop = Builder.GetInsertPoint();
   Builder.SetInsertPoint(&*LoopBody);
 
@@ -1194,7 +1213,7 @@ Value *IslNodeBuilder::preloadUnconditionally(isl_set *AccessRange,
   Ptr = Builder.CreatePointerCast(Ptr, Ty->getPointerTo(AS), Name + ".cast");
   PreloadVal = Builder.CreateLoad(Ptr, Name + ".load");
   if (LoadInst *PreloadInst = dyn_cast<LoadInst>(PreloadVal))
-    PreloadInst->setAlignment(dyn_cast<LoadInst>(AccInst)->getAlignment());
+    PreloadInst->setAlignment(cast<LoadInst>(AccInst)->getAlign());
 
   // TODO: This is only a hot fix for SCoP sequences that use the same load
   //       instruction contained and hoisted by one of the SCoPs.
@@ -1376,8 +1395,8 @@ bool IslNodeBuilder::preloadInvariantEquivClass(
 
   BasicBlock *EntryBB = &Builder.GetInsertBlock()->getParent()->getEntryBlock();
   auto *Alloca = new AllocaInst(AccInstTy, DL.getAllocaAddrSpace(),
-                                AccInst->getName() + ".preload.s2a");
-  Alloca->insertBefore(&*EntryBB->getFirstInsertionPt());
+                                AccInst->getName() + ".preload.s2a",
+                                &*EntryBB->getFirstInsertionPt());
   Builder.CreateStore(PreloadVal, Alloca);
   ValueMapT PreloadedPointer;
   PreloadedPointer[PreloadVal] = AccInst;
@@ -1477,7 +1496,8 @@ void IslNodeBuilder::allocateNewArrays(BBPair StartExitBlocks) {
 
       auto *CreatedArray = new AllocaInst(NewArrayType, DL.getAllocaAddrSpace(),
                                           SAI->getName(), &*InstIt);
-      CreatedArray->setAlignment(PollyTargetFirstLevelCacheLineSize);
+      if (PollyTargetFirstLevelCacheLineSize)
+        CreatedArray->setAlignment(Align(PollyTargetFirstLevelCacheLineSize));
       SAI->setBasePtr(CreatedArray);
     }
   }

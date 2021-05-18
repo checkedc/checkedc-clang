@@ -12,12 +12,12 @@
     ret i32 %c
   }
 
-  attributes #0 = { "no-frame-pointer-elim"="false" }
+  attributes #0 = { "frame-pointer"="none" }
 
 ...
 ---
 name:            test
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 frameInfo:
   stackSize:       4

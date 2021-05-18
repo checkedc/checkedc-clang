@@ -1,9 +1,8 @@
 //===--- InefficientStringConcatenationCheck.cpp - clang-tidy--------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -25,13 +24,10 @@ void InefficientStringConcatenationCheck::storeOptions(
 InefficientStringConcatenationCheck::InefficientStringConcatenationCheck(
     StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      StrictMode(Options.getLocalOrGlobal("StrictMode", 0)) {}
+      StrictMode(Options.getLocalOrGlobal("StrictMode", false)) {}
 
 void InefficientStringConcatenationCheck::registerMatchers(
     MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus)
-    return;
-
   const auto BasicStringType =
       hasType(qualType(hasUnqualifiedDesugaredType(recordType(
           hasDeclaration(cxxRecordDecl(hasName("::std::basic_string")))))));

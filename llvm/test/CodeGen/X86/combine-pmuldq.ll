@@ -91,18 +91,15 @@ define <4 x i64> @combine_shuffle_zero_pmuludq_256(<8 x i32> %a0, <8 x i32> %a1)
 define <8 x i64> @combine_zext_pmuludq_256(<8 x i32> %a) {
 ; SSE-LABEL: combine_zext_pmuludq_256:
 ; SSE:       # %bb.0:
-; SSE-NEXT:    pshufd {{.*#+}} xmm2 = xmm1[2,3,0,1]
-; SSE-NEXT:    pmovzxdq {{.*#+}} xmm3 = xmm2[0],zero,xmm2[1],zero
-; SSE-NEXT:    pshufd {{.*#+}} xmm2 = xmm0[2,3,0,1]
-; SSE-NEXT:    pmovzxdq {{.*#+}} xmm4 = xmm2[0],zero,xmm2[1],zero
+; SSE-NEXT:    pshufd {{.*#+}} xmm3 = xmm1[2,1,3,3]
 ; SSE-NEXT:    pmovzxdq {{.*#+}} xmm2 = xmm1[0],zero,xmm1[1],zero
+; SSE-NEXT:    pshufd {{.*#+}} xmm1 = xmm0[2,1,3,3]
 ; SSE-NEXT:    pmovzxdq {{.*#+}} xmm0 = xmm0[0],zero,xmm0[1],zero
-; SSE-NEXT:    movdqa {{.*#+}} xmm1 = [715827883,715827883]
-; SSE-NEXT:    pmuludq %xmm1, %xmm0
-; SSE-NEXT:    pmuludq %xmm1, %xmm2
-; SSE-NEXT:    pmuludq %xmm1, %xmm4
-; SSE-NEXT:    pmuludq %xmm1, %xmm3
-; SSE-NEXT:    movdqa %xmm4, %xmm1
+; SSE-NEXT:    movdqa {{.*#+}} xmm4 = [715827883,715827883]
+; SSE-NEXT:    pmuludq %xmm4, %xmm0
+; SSE-NEXT:    pmuludq %xmm4, %xmm1
+; SSE-NEXT:    pmuludq %xmm4, %xmm2
+; SSE-NEXT:    pmuludq %xmm4, %xmm3
 ; SSE-NEXT:    retq
 ;
 ; AVX2-LABEL: combine_zext_pmuludq_256:
@@ -131,13 +128,13 @@ define <8 x i64> @combine_zext_pmuludq_256(<8 x i32> %a) {
   ret <8 x i64> %2
 }
 
-define void @PR39398() {
+define void @PR39398(i32 %a0) {
 ; SSE-LABEL: PR39398:
 ; SSE:       # %bb.0: # %bb
 ; SSE-NEXT:    .p2align 4, 0x90
 ; SSE-NEXT:  .LBB5_1: # %bb10
 ; SSE-NEXT:    # =>This Inner Loop Header: Depth=1
-; SSE-NEXT:    cmpl $232, %eax
+; SSE-NEXT:    cmpl $232, %edi
 ; SSE-NEXT:    jne .LBB5_1
 ; SSE-NEXT:  # %bb.2: # %bb34
 ; SSE-NEXT:    retq
@@ -147,7 +144,7 @@ define void @PR39398() {
 ; AVX-NEXT:    .p2align 4, 0x90
 ; AVX-NEXT:  .LBB5_1: # %bb10
 ; AVX-NEXT:    # =>This Inner Loop Header: Depth=1
-; AVX-NEXT:    cmpl $232, %eax
+; AVX-NEXT:    cmpl $232, %edi
 ; AVX-NEXT:    jne .LBB5_1
 ; AVX-NEXT:  # %bb.2: # %bb34
 ; AVX-NEXT:    retq
@@ -168,10 +165,125 @@ bb10:                                             ; preds = %bb10, %bb
   %tmp27 = select <4 x i1> undef, <4 x i64> zeroinitializer, <4 x i64> %tmp25
   %tmp28 = add <4 x i64> zeroinitializer, %tmp26
   %tmp29 = add <4 x i64> zeroinitializer, %tmp27
-  %tmp33 = icmp eq i32 undef, 232
+  %tmp33 = icmp eq i32 %a0, 232
   br i1 %tmp33, label %bb34, label %bb10
 
 bb34:                                             ; preds = %bb10
   %tmp35 = add <4 x i64> %tmp29, %tmp28
   ret void
 }
+
+define i32 @PR43159(<4 x i32>* %a0) {
+; SSE-LABEL: PR43159:
+; SSE:       # %bb.0: # %entry
+; SSE-NEXT:    movdqa (%rdi), %xmm0
+; SSE-NEXT:    movdqa {{.*#+}} xmm1 = [1645975491,344322273,2164392969,1916962805]
+; SSE-NEXT:    pshufd {{.*#+}} xmm2 = xmm1[1,1,3,3]
+; SSE-NEXT:    pshufd {{.*#+}} xmm3 = xmm0[1,1,3,3]
+; SSE-NEXT:    pmuludq %xmm2, %xmm3
+; SSE-NEXT:    movdqa %xmm0, %xmm2
+; SSE-NEXT:    psrld $1, %xmm2
+; SSE-NEXT:    pblendw {{.*#+}} xmm2 = xmm0[0,1,2,3],xmm2[4,5],xmm0[6,7]
+; SSE-NEXT:    pmuludq %xmm1, %xmm2
+; SSE-NEXT:    pshufd {{.*#+}} xmm1 = xmm2[1,1,3,3]
+; SSE-NEXT:    pblendw {{.*#+}} xmm1 = xmm1[0,1],xmm3[2,3],xmm1[4,5],xmm3[6,7]
+; SSE-NEXT:    psubd %xmm3, %xmm0
+; SSE-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[1,1,3,3]
+; SSE-NEXT:    pmuludq {{.*}}(%rip), %xmm0
+; SSE-NEXT:    pxor %xmm2, %xmm2
+; SSE-NEXT:    pblendw {{.*#+}} xmm2 = xmm2[0,1],xmm0[2,3],xmm2[4,5],xmm0[6,7]
+; SSE-NEXT:    paddd %xmm1, %xmm2
+; SSE-NEXT:    movdqa %xmm2, %xmm0
+; SSE-NEXT:    psrld $7, %xmm0
+; SSE-NEXT:    psrld $6, %xmm2
+; SSE-NEXT:    movd %xmm2, %edi
+; SSE-NEXT:    pextrd $1, %xmm0, %esi
+; SSE-NEXT:    pextrd $2, %xmm2, %edx
+; SSE-NEXT:    pextrd $3, %xmm0, %ecx
+; SSE-NEXT:    jmp foo # TAILCALL
+;
+; AVX2-LABEL: PR43159:
+; AVX2:       # %bb.0: # %entry
+; AVX2-NEXT:    vmovdqa (%rdi), %xmm0
+; AVX2-NEXT:    vmovdqa {{.*#+}} xmm1 = [1645975491,344322273,2164392969,1916962805]
+; AVX2-NEXT:    vpshufd {{.*#+}} xmm2 = xmm1[1,1,3,3]
+; AVX2-NEXT:    vpsrlvd {{.*}}(%rip), %xmm0, %xmm3
+; AVX2-NEXT:    vpshufd {{.*#+}} xmm4 = xmm3[1,1,3,3]
+; AVX2-NEXT:    vpmuludq %xmm2, %xmm4, %xmm2
+; AVX2-NEXT:    vpmuludq %xmm1, %xmm3, %xmm1
+; AVX2-NEXT:    vpshufd {{.*#+}} xmm1 = xmm1[1,1,3,3]
+; AVX2-NEXT:    vpblendd {{.*#+}} xmm1 = xmm1[0],xmm2[1],xmm1[2],xmm2[3]
+; AVX2-NEXT:    vpsubd %xmm2, %xmm0, %xmm0
+; AVX2-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[1,1,3,3]
+; AVX2-NEXT:    vpbroadcastd {{.*#+}} xmm2 = [2147483648,2147483648,2147483648,2147483648]
+; AVX2-NEXT:    vpmuludq %xmm2, %xmm0, %xmm0
+; AVX2-NEXT:    vpxor %xmm2, %xmm2, %xmm2
+; AVX2-NEXT:    vpblendd {{.*#+}} xmm0 = xmm2[0],xmm0[1],xmm2[2],xmm0[3]
+; AVX2-NEXT:    vpaddd %xmm1, %xmm0, %xmm0
+; AVX2-NEXT:    vpsrlvd {{.*}}(%rip), %xmm0, %xmm0
+; AVX2-NEXT:    vmovd %xmm0, %edi
+; AVX2-NEXT:    vpextrd $1, %xmm0, %esi
+; AVX2-NEXT:    vpextrd $2, %xmm0, %edx
+; AVX2-NEXT:    vpextrd $3, %xmm0, %ecx
+; AVX2-NEXT:    jmp foo # TAILCALL
+;
+; AVX512VL-LABEL: PR43159:
+; AVX512VL:       # %bb.0: # %entry
+; AVX512VL-NEXT:    vmovdqa (%rdi), %xmm0
+; AVX512VL-NEXT:    vmovdqa {{.*#+}} xmm1 = [1645975491,344322273,2164392969,1916962805]
+; AVX512VL-NEXT:    vpshufd {{.*#+}} xmm2 = xmm1[1,1,3,3]
+; AVX512VL-NEXT:    vpsrlvd {{.*}}(%rip), %xmm0, %xmm3
+; AVX512VL-NEXT:    vpshufd {{.*#+}} xmm4 = xmm3[1,1,3,3]
+; AVX512VL-NEXT:    vpmuludq %xmm2, %xmm4, %xmm2
+; AVX512VL-NEXT:    vpmuludq %xmm1, %xmm3, %xmm1
+; AVX512VL-NEXT:    vpshufd {{.*#+}} xmm1 = xmm1[1,1,3,3]
+; AVX512VL-NEXT:    vpblendd {{.*#+}} xmm1 = xmm1[0],xmm2[1],xmm1[2],xmm2[3]
+; AVX512VL-NEXT:    vpsubd %xmm2, %xmm0, %xmm0
+; AVX512VL-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[1,1,3,3]
+; AVX512VL-NEXT:    vpbroadcastd {{.*#+}} xmm2 = [2147483648,2147483648,2147483648,2147483648]
+; AVX512VL-NEXT:    vpmuludq %xmm2, %xmm0, %xmm0
+; AVX512VL-NEXT:    vpxor %xmm2, %xmm2, %xmm2
+; AVX512VL-NEXT:    vpblendd {{.*#+}} xmm0 = xmm2[0],xmm0[1],xmm2[2],xmm0[3]
+; AVX512VL-NEXT:    vpaddd %xmm1, %xmm0, %xmm0
+; AVX512VL-NEXT:    vpsrlvd {{.*}}(%rip), %xmm0, %xmm0
+; AVX512VL-NEXT:    vmovd %xmm0, %edi
+; AVX512VL-NEXT:    vpextrd $1, %xmm0, %esi
+; AVX512VL-NEXT:    vpextrd $2, %xmm0, %edx
+; AVX512VL-NEXT:    vpextrd $3, %xmm0, %ecx
+; AVX512VL-NEXT:    jmp foo # TAILCALL
+;
+; AVX512DQVL-LABEL: PR43159:
+; AVX512DQVL:       # %bb.0: # %entry
+; AVX512DQVL-NEXT:    vmovdqa (%rdi), %xmm0
+; AVX512DQVL-NEXT:    vmovdqa {{.*#+}} xmm1 = [1645975491,344322273,2164392969,1916962805]
+; AVX512DQVL-NEXT:    vpshufd {{.*#+}} xmm2 = xmm1[1,1,3,3]
+; AVX512DQVL-NEXT:    vpsrlvd {{.*}}(%rip), %xmm0, %xmm3
+; AVX512DQVL-NEXT:    vpshufd {{.*#+}} xmm4 = xmm3[1,1,3,3]
+; AVX512DQVL-NEXT:    vpmuludq %xmm2, %xmm4, %xmm2
+; AVX512DQVL-NEXT:    vpmuludq %xmm1, %xmm3, %xmm1
+; AVX512DQVL-NEXT:    vpshufd {{.*#+}} xmm1 = xmm1[1,1,3,3]
+; AVX512DQVL-NEXT:    vpblendd {{.*#+}} xmm1 = xmm1[0],xmm2[1],xmm1[2],xmm2[3]
+; AVX512DQVL-NEXT:    vpsubd %xmm2, %xmm0, %xmm0
+; AVX512DQVL-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[1,1,3,3]
+; AVX512DQVL-NEXT:    vpbroadcastd {{.*#+}} xmm2 = [2147483648,2147483648,2147483648,2147483648]
+; AVX512DQVL-NEXT:    vpmuludq %xmm2, %xmm0, %xmm0
+; AVX512DQVL-NEXT:    vpxor %xmm2, %xmm2, %xmm2
+; AVX512DQVL-NEXT:    vpblendd {{.*#+}} xmm0 = xmm2[0],xmm0[1],xmm2[2],xmm0[3]
+; AVX512DQVL-NEXT:    vpaddd %xmm1, %xmm0, %xmm0
+; AVX512DQVL-NEXT:    vpsrlvd {{.*}}(%rip), %xmm0, %xmm0
+; AVX512DQVL-NEXT:    vmovd %xmm0, %edi
+; AVX512DQVL-NEXT:    vpextrd $1, %xmm0, %esi
+; AVX512DQVL-NEXT:    vpextrd $2, %xmm0, %edx
+; AVX512DQVL-NEXT:    vpextrd $3, %xmm0, %ecx
+; AVX512DQVL-NEXT:    jmp foo # TAILCALL
+entry:
+  %0 = load <4 x i32>, <4 x i32>* %a0, align 16
+  %div = udiv <4 x i32> %0, <i32 167, i32 237, i32 254, i32 177>
+  %ext0 = extractelement <4 x i32> %div, i32 0
+  %ext1 = extractelement <4 x i32> %div, i32 1
+  %ext2 = extractelement <4 x i32> %div, i32 2
+  %ext3 = extractelement <4 x i32> %div, i32 3
+  %call = tail call i32 @foo(i32 %ext0, i32 %ext1, i32 %ext2, i32 %ext3)
+  ret i32 %call
+}
+declare dso_local i32 @foo(i32, i32, i32, i32)

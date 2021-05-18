@@ -1,13 +1,15 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
+
+// Test failure not investigated on GCC 5.
+// UNSUPPORTED: gcc-5
 
 // <algorithm>
 
@@ -33,9 +35,11 @@ template <class PopulationIterator, class SampleIterator> void test() {
                             SampleIterator(oa), os, g);
 }
 
-int main() {
+int main(int, char**) {
   // expected-error-re@algorithm:* {{static_assert failed{{( due to requirement '.*')?}} "SampleIterator must meet the requirements of RandomAccessIterator"}}
   // expected-error@algorithm:* 2 {{does not provide a subscript operator}}
   // expected-error@algorithm:* {{invalid operands}}
   test<input_iterator<int *>, output_iterator<int *> >();
+
+  return 0;
 }

@@ -3,7 +3,7 @@
 // RUN: not llvm-mc -triple=aarch64 -show-encoding < %s 2>&1 \
 // RUN:        | FileCheck %s --check-prefix=CHECK-ERROR
 // RUN: llvm-mc -triple=aarch64 -filetype=obj -mattr=+sve < %s \
-// RUN:        | llvm-objdump -d -mattr=+sve - | FileCheck %s --check-prefix=CHECK-INST
+// RUN:        | llvm-objdump -d --mattr=+sve - | FileCheck %s --check-prefix=CHECK-INST
 // RUN: llvm-mc -triple=aarch64 -filetype=obj -mattr=+sve < %s \
 // RUN:        | llvm-objdump -d - | FileCheck %s --check-prefix=CHECK-UNKNOWN
 
@@ -56,19 +56,37 @@ decp    xzr, p15.d
 // CHECK-UNKNOWN: ff 89 ed 25 <unknown>
 
 decp    z31.h, p15
-// CHECK-INST: decp    z31.h, p15
+// CHECK-INST: decp    z31.h, p15.h
+// CHECK-ENCODING: [0xff,0x81,0x6d,0x25]
+// CHECK-ERROR: instruction requires: sve
+// CHECK-UNKNOWN: ff 81 6d 25 <unknown>
+
+decp    z31.h, p15.h
+// CHECK-INST: decp    z31.h, p15.h
 // CHECK-ENCODING: [0xff,0x81,0x6d,0x25]
 // CHECK-ERROR: instruction requires: sve
 // CHECK-UNKNOWN: ff 81 6d 25 <unknown>
 
 decp    z31.s, p15
-// CHECK-INST: decp    z31.s, p15
+// CHECK-INST: decp    z31.s, p15.s
+// CHECK-ENCODING: [0xff,0x81,0xad,0x25]
+// CHECK-ERROR: instruction requires: sve
+// CHECK-UNKNOWN: ff 81 ad 25 <unknown>
+
+decp    z31.s, p15.s
+// CHECK-INST: decp    z31.s, p15.s
 // CHECK-ENCODING: [0xff,0x81,0xad,0x25]
 // CHECK-ERROR: instruction requires: sve
 // CHECK-UNKNOWN: ff 81 ad 25 <unknown>
 
 decp    z31.d, p15
-// CHECK-INST: decp    z31.d, p15
+// CHECK-INST: decp    z31.d, p15.d
+// CHECK-ENCODING: [0xff,0x81,0xed,0x25]
+// CHECK-ERROR: instruction requires: sve
+// CHECK-UNKNOWN: ff 81 ed 25 <unknown>
+
+decp    z31.d, p15.d
+// CHECK-INST: decp    z31.d, p15.d
 // CHECK-ENCODING: [0xff,0x81,0xed,0x25]
 // CHECK-ERROR: instruction requires: sve
 // CHECK-UNKNOWN: ff 81 ed 25 <unknown>
@@ -83,7 +101,7 @@ movprfx z31, z6
 // CHECK-ERROR: instruction requires: sve
 // CHECK-UNKNOWN: df bc 20 04 <unknown>
 
-decp    z31.d, p15
+decp    z31.d, p15.d
 // CHECK-INST: decp	z31.d, p15
 // CHECK-ENCODING: [0xff,0x81,0xed,0x25]
 // CHECK-ERROR: instruction requires: sve

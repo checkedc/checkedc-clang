@@ -1,9 +1,8 @@
 //===--- TypeTraits.h - clang-tidy-------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -28,6 +27,9 @@ bool isTriviallyDefaultConstructible(QualType Type, const ASTContext &Context);
 /// Returns `true` if `RecordDecl` is trivially default constructible.
 bool recordIsTriviallyDefaultConstructible(const RecordDecl &RecordDecl,
                                            const ASTContext &Context);
+
+/// Returns `true` if `Type` is trivially destructible.
+bool isTriviallyDestructible(QualType Type);
 
 /// Returns true if `Type` has a non-trivial move constructor.
 bool hasNonTrivialMoveConstructor(QualType Type);

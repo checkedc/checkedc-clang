@@ -1,14 +1,13 @@
 //===-- ThreadSpec.h --------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ThreadSpec_h_
-#define liblldb_ThreadSpec_h_
+#ifndef LLDB_TARGET_THREADSPEC_H
+#define LLDB_TARGET_THREADSPEC_H
 
 #include "lldb/Utility/StructuredData.h"
 #include "lldb/lldb-private.h"
@@ -35,10 +34,6 @@ class ThreadSpec {
 public:
   ThreadSpec();
 
-  ThreadSpec(const ThreadSpec &rhs);
-
-  const ThreadSpec &operator=(const ThreadSpec &rhs);
-
   static std::unique_ptr<ThreadSpec>
   CreateFromStructuredData(const StructuredData::Dictionary &data_dict,
                            Status &error);
@@ -51,9 +46,11 @@ public:
 
   void SetTID(lldb::tid_t tid) { m_tid = tid; }
 
-  void SetName(llvm::StringRef name) { m_name = name; }
+  void SetName(llvm::StringRef name) { m_name = std::string(name); }
 
-  void SetQueueName(llvm::StringRef queue_name) { m_queue_name = queue_name; }
+  void SetQueueName(llvm::StringRef queue_name) {
+    m_queue_name = std::string(queue_name);
+  }
 
   uint32_t GetIndex() const { return m_index; }
 
@@ -131,4 +128,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_ThreadSpec_h_
+#endif // LLDB_TARGET_THREADSPEC_H

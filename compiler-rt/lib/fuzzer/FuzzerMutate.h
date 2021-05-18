@@ -1,9 +1,8 @@
 //===- FuzzerMutate.h - Internal header for the Fuzzer ----------*- C++ -* ===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 // fuzzer::MutationDispatcher
@@ -25,8 +24,11 @@ public:
   ~MutationDispatcher() {}
   /// Indicate that we are about to start a new sequence of mutations.
   void StartMutationSequence();
-  /// Print the current sequence of mutations.
-  void PrintMutationSequence();
+  /// Print the current sequence of mutations. Only prints the full sequence
+  /// when Verbose is true.
+  void PrintMutationSequence(bool Verbose = true);
+  /// Return the current sequence of mutations.
+  std::string MutationSequence();
   /// Indicate that the current sequence of mutations was successful.
   void RecordSuccessfulMutationSequence();
   /// Mutates data by invoking user-provided mutator.
@@ -41,9 +43,9 @@ public:
   size_t Mutate_InsertByte(uint8_t *Data, size_t Size, size_t MaxSize);
   /// Mutates data by inserting several repeated bytes.
   size_t Mutate_InsertRepeatedBytes(uint8_t *Data, size_t Size, size_t MaxSize);
-  /// Mutates data by chanding one byte.
+  /// Mutates data by changing one byte.
   size_t Mutate_ChangeByte(uint8_t *Data, size_t Size, size_t MaxSize);
-  /// Mutates data by chanding one bit.
+  /// Mutates data by changing one bit.
   size_t Mutate_ChangeBit(uint8_t *Data, size_t Size, size_t MaxSize);
   /// Mutates data by copying/inserting a part of data into a different place.
   size_t Mutate_CopyPart(uint8_t *Data, size_t Size, size_t MaxSize);
@@ -64,7 +66,7 @@ public:
   /// Change a 1-, 2-, 4-, or 8-byte integer in interesting ways.
   size_t Mutate_ChangeBinaryInteger(uint8_t *Data, size_t Size, size_t MaxSize);
 
-  /// CrossOver Data with some other element of the corpus.
+  /// CrossOver Data with CrossOverWith.
   size_t Mutate_CrossOver(uint8_t *Data, size_t Size, size_t MaxSize);
 
   /// Applies one of the configured mutations.
@@ -89,7 +91,7 @@ public:
 
   void PrintRecommendedDictionary();
 
-  void SetCorpus(const InputCorpus *Corpus) { this->Corpus = Corpus; }
+  void SetCrossOverWith(const Unit *U) { CrossOverWith = U; }
 
   Random &GetRand() { return Rand; }
 
@@ -127,9 +129,6 @@ public:
 
   // Dictionary provided by the user via -dict=DICT_FILE.
   Dictionary ManualDictionary;
-  // Temporary dictionary modified by the fuzzer itself,
-  // recreated periodically.
-  Dictionary TempAutoDictionary;
   // Persistent dictionary modified by the fuzzer, consists of
   // entries that led to successful discoveries in the past mutations.
   Dictionary PersistentAutoDictionary;
@@ -140,7 +139,7 @@ public:
   DictionaryEntry CmpDictionaryEntriesDeque[kCmpDictionaryEntriesDequeSize];
   size_t CmpDictionaryEntriesDequeIdx = 0;
 
-  const InputCorpus *Corpus = nullptr;
+  const Unit *CrossOverWith = nullptr;
   Vector<uint8_t> MutateInPlaceHere;
   Vector<uint8_t> MutateWithMaskTemp;
   // CustomCrossOver needs its own buffer as a custom implementation may call

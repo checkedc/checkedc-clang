@@ -67,10 +67,10 @@ int printf(char const *, ...);
 
 void test() {
   typedef signed long int superint; // no diag
-  printf("%f", (superint) 42);
+  printf("%ld", (superint)42);
 
   typedef signed long int superint2; // no diag
-  printf("%f", static_cast<superint2>(42));
+  printf("%ld", static_cast<superint2>(42));
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-local-typedef"
@@ -108,13 +108,13 @@ void template_fun_user() {
 }
 
 void typedef_in_nested_name() {
-  typedef struct {
-    typedef int Foo;
-  } A;
+  typedef struct { // expected-warning {{add a tag name}}
+    typedef int Foo; // expected-note {{}}
+  } A; // expected-note {{}}
   A::Foo adsf;
 
-  using A2 = struct {
-    typedef int Foo;
+  using A2 = struct { // expected-warning {{add a tag name}} expected-note {{this alias declaration}}
+    typedef int Foo; // expected-note {{}}
   };
   A2::Foo adsf2;
 }

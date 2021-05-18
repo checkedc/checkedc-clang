@@ -1,4 +1,4 @@
-# RUN: yaml2obj %s > %t
+# RUN: yaml2obj %s -o %t
 # RUN: llvm-objcopy --remove-section .text --keep-symbol foo %t %t2
 # RUN: llvm-readobj --symbols %t2 | FileCheck %s
 
@@ -16,12 +16,11 @@ Sections:
     AddressAlign:    0x0000000000000010
     Size:            64
 Symbols:
-  Local:
-    - Name:     foo
-      Type:     STT_FUNC
-      Section:  .text
-      Value:    0x1000
-      Size:     8
+  - Name:     foo
+    Type:     STT_FUNC
+    Section:  .text
+    Value:    0x1000
+    Size:     8
 
 #CHECK: Symbols [
 #CHECK-NEXT:  Symbol {

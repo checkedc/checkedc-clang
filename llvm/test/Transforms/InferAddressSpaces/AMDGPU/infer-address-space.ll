@@ -1,4 +1,5 @@
 ; RUN: opt -S -mtriple=amdgcn-amd-amdhsa -infer-address-spaces %s | FileCheck %s
+; RUN: opt -S -mtriple=amdgcn-amd-amdhsa -passes=infer-address-spaces %s | FileCheck %s
 ; Ports of most of test/CodeGen/NVPTX/access-non-generic.ll
 
 @scalar = internal addrspace(3) global float 0.0, align 4
@@ -166,6 +167,15 @@ loop:                                             ; preds = %loop, %entry
 
 exit:                                             ; preds = %loop
   ret void
+}
+
+; CHECK-LABEL: @select_bug(
+; CHECK: %add.ptr157 = getelementptr inbounds i64, i64* undef, i64 select (i1 icmp ne (i32* inttoptr (i64 4873 to i32*), i32* null), i64 73, i64 93)
+; CHECK: %cmp169 = icmp uge i64* undef, %add.ptr157
+define void @select_bug() #0 {
+  %add.ptr157 = getelementptr inbounds i64, i64* undef, i64 select (i1 icmp ne (i32* inttoptr (i64 4873 to i32*), i32* null), i64 73, i64 93)
+  %cmp169 = icmp uge i64* undef, %add.ptr157
+  unreachable
 }
 
 declare void @llvm.amdgcn.s.barrier() #1

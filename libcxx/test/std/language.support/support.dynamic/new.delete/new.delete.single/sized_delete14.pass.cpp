@@ -1,24 +1,19 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 // test sized operator delete replacement.
 
-// UNSUPPORTED: sanitizer-new-delete, c++98, c++03, c++11
+// UNSUPPORTED: sanitizer-new-delete, c++03, c++11
 
 // NOTE: Clang does not enable sized-deallocation in C++14 and beyond by
 // default. It is only enabled when -fsized-deallocation is given.
 // (except clang-3.6 which temporarily enabled sized-deallocation)
 // UNSUPPORTED: clang, apple-clang
-
-// NOTE: GCC 4.9.1 does not support sized-deallocation in C++14. However
-// GCC 5.1 does.
-// XFAIL: gcc-4.7, gcc-4.8, gcc-4.9
 
 #include <new>
 #include <cstddef>
@@ -49,7 +44,7 @@ void operator delete(void* p, std::size_t) TEST_NOEXCEPT
     std::free(p);
 }
 
-int main()
+int main(int, char**)
 {
     int *x = new int(42);
     DoNotOptimize(x);
@@ -62,4 +57,6 @@ int main()
     assert(0 == unsized_delete_called);
     assert(1 == sized_delete_called);
     assert(0 == unsized_delete_nothrow_called);
+
+  return 0;
 }

@@ -50,7 +50,7 @@ to be deleted.
   int* NonOwner = new int(42); // First warning here, since new must land in an owner
   delete NonOwner; // Second warning here, since only owners are allowed to be deleted
 
-  // Example Good, Ownership correclty stated
+  // Example Good, Ownership correctly stated
   gsl::owner<int*> Owner = new int(42); // Good
   delete Owner; // Good as well, statically enforced, that only owners get deleted
   
@@ -171,6 +171,6 @@ Suppose you have code like the following:
 The semantic of a ``gsl::owner<T*>`` is mostly like a ``std::unique_ptr<T>``, therefore
 assignment of two ``gsl::owner<T*>`` is considered a move, which requires that the 
 resource ``Owner2`` must have been released before the assignment.
-This kind of condition could be catched in later improvements of this check with 
+This kind of condition could be caught in later improvements of this check with 
 flowsensitive analysis. Currently, the `Clang Static Analyzer` catches this bug
 for dynamic memory, but not for general types of resources.

@@ -1,9 +1,8 @@
-//===-- RegisterContextPOSIX_s390x.cpp --------------------------*- C++ -*-===//
+//===-- RegisterContextPOSIX_s390x.cpp ------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -82,7 +81,7 @@ RegisterContextPOSIX_s390x::RegisterContextPOSIX_s390x(
     Thread &thread, uint32_t concrete_frame_idx,
     RegisterInfoInterface *register_info)
     : RegisterContext(thread, concrete_frame_idx) {
-  m_register_info_ap.reset(register_info);
+  m_register_info_up.reset(register_info);
 
   switch (register_info->m_target_arch.GetMachine()) {
   case llvm::Triple::systemz:
@@ -106,7 +105,7 @@ void RegisterContextPOSIX_s390x::Invalidate() {}
 void RegisterContextPOSIX_s390x::InvalidateAllRegisters() {}
 
 const RegisterInfo *RegisterContextPOSIX_s390x::GetRegisterInfo() {
-  return m_register_info_ap->GetRegisterInfo();
+  return m_register_info_up->GetRegisterInfo();
 }
 
 const RegisterInfo *
@@ -114,7 +113,7 @@ RegisterContextPOSIX_s390x::GetRegisterInfoAtIndex(size_t reg) {
   if (reg < m_reg_info.num_registers)
     return &GetRegisterInfo()[reg];
   else
-    return NULL;
+    return nullptr;
 }
 
 size_t RegisterContextPOSIX_s390x::GetRegisterCount() {
@@ -152,41 +151,13 @@ size_t RegisterContextPOSIX_s390x::GetRegisterSetCount() {
 
 const RegisterSet *RegisterContextPOSIX_s390x::GetRegisterSet(size_t set) {
   if (IsRegisterSetAvailable(set)) {
-    switch (m_register_info_ap->m_target_arch.GetMachine()) {
+    switch (m_register_info_up->m_target_arch.GetMachine()) {
     case llvm::Triple::systemz:
       return &g_reg_sets_s390x[set];
     default:
       assert(false && "Unhandled target architecture.");
-      return NULL;
+      return nullptr;
     }
   }
-  return NULL;
-}
-
-lldb::ByteOrder RegisterContextPOSIX_s390x::GetByteOrder() {
-  // Get the target process whose privileged thread was used for the register
-  // read.
-  lldb::ByteOrder byte_order = eByteOrderInvalid;
-  Process *process = CalculateProcess().get();
-
-  if (process)
-    byte_order = process->GetByteOrder();
-  return byte_order;
-}
-
-// Used when parsing DWARF and EH frame information and any other object file
-// sections that contain register numbers in them.
-uint32_t RegisterContextPOSIX_s390x::ConvertRegisterKindToRegisterNumber(
-    lldb::RegisterKind kind, uint32_t num) {
-  const uint32_t num_regs = GetRegisterCount();
-
-  assert(kind < kNumRegisterKinds);
-  for (uint32_t reg_idx = 0; reg_idx < num_regs; ++reg_idx) {
-    const RegisterInfo *reg_info = GetRegisterInfoAtIndex(reg_idx);
-
-    if (reg_info->kinds[kind] == num)
-      return reg_idx;
-  }
-
-  return LLDB_INVALID_REGNUM;
+  return nullptr;
 }

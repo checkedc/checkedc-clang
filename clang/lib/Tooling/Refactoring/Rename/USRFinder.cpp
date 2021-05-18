@@ -1,9 +1,8 @@
 //===--- USRFinder.cpp - Clang refactoring library ------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -16,6 +15,7 @@
 #include "clang/AST/AST.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Basic/SourceManager.h"
 #include "clang/Index/USRGeneration.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Tooling/Refactoring/RecursiveSymbolVisitor.h"
@@ -133,13 +133,13 @@ const NamedDecl *getNamedDeclFor(const ASTContext &Context,
 }
 
 std::string getUSRForDecl(const Decl *Decl) {
-  llvm::SmallVector<char, 128> Buff;
+  llvm::SmallString<128> Buff;
 
   // FIXME: Add test for the nullptr case.
   if (Decl == nullptr || index::generateUSRForDecl(Decl, Buff))
     return "";
 
-  return std::string(Buff.data(), Buff.size());
+  return std::string(Buff);
 }
 
 } // end namespace tooling

@@ -1,22 +1,20 @@
 //===-- Symtab.h ------------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Symtab_h_
-#define liblldb_Symtab_h_
+#ifndef LLDB_SYMBOL_SYMTAB_H
+#define LLDB_SYMBOL_SYMTAB_H
 
-#include <mutex>
-#include <vector>
-
-#include "lldb/Core/RangeMap.h"
 #include "lldb/Core/UniqueCStringMap.h"
 #include "lldb/Symbol/Symbol.h"
+#include "lldb/Utility/RangeMap.h"
 #include "lldb/lldb-private.h"
+#include <mutex>
+#include <vector>
 
 namespace lldb_private {
 
@@ -25,17 +23,13 @@ public:
   typedef std::vector<uint32_t> IndexCollection;
   typedef UniqueCStringMap<uint32_t> NameToIndexMap;
 
-  typedef enum Debug {
+  enum Debug {
     eDebugNo,  // Not a debug symbol
     eDebugYes, // A debug symbol
     eDebugAny
-  } Debug;
+  };
 
-  typedef enum Visibility {
-    eVisibilityAny,
-    eVisibilityExtern,
-    eVisibilityPrivate
-  } Visibility;
+  enum Visibility { eVisibilityAny, eVisibilityExtern, eVisibilityPrivate };
 
   Symtab(ObjectFile *objfile);
   ~Symtab();
@@ -46,8 +40,12 @@ public:
   uint32_t AddSymbol(const Symbol &symbol);
   size_t GetNumSymbols() const;
   void SectionFileAddressesChanged();
-  void Dump(Stream *s, Target *target, SortOrder sort_type);
-  void Dump(Stream *s, Target *target, std::vector<uint32_t> &indexes) const;
+  void
+  Dump(Stream *s, Target *target, SortOrder sort_type,
+       Mangled::NamePreference name_preference = Mangled::ePreferDemangled);
+  void Dump(Stream *s, Target *target, std::vector<uint32_t> &indexes,
+            Mangled::NamePreference name_preference =
+                Mangled::ePreferDemangled) const;
   uint32_t GetIndexForSymbol(const Symbol *symbol) const;
   std::recursive_mutex &GetMutex() { return m_mutex; }
   Symbol *FindSymbolByID(lldb::user_id_t uid) const;
@@ -56,13 +54,11 @@ public:
   Symbol *FindSymbolWithType(lldb::SymbolType symbol_type,
                              Debug symbol_debug_type,
                              Visibility symbol_visibility, uint32_t &start_idx);
-  //----------------------------------------------------------------------
   /// Get the parent symbol for the given symbol.
   ///
   /// Many symbols in symbol tables are scoped by other symbols that
   /// contain one or more symbol. This function will look for such a
   /// containing symbol and return it if there is one.
-  //----------------------------------------------------------------------
   const Symbol *GetParent(Symbol *symbol) const;
   uint32_t AppendSymbolIndexesWithType(lldb::SymbolType symbol_type,
                                        std::vector<uint32_t> &indexes,
@@ -78,16 +74,16 @@ public:
                                        std::vector<uint32_t> &matches,
                                        uint32_t start_idx = 0,
                                        uint32_t end_index = UINT32_MAX) const;
-  uint32_t AppendSymbolIndexesWithName(const ConstString &symbol_name,
+  uint32_t AppendSymbolIndexesWithName(ConstString symbol_name,
                                        std::vector<uint32_t> &matches);
-  uint32_t AppendSymbolIndexesWithName(const ConstString &symbol_name,
+  uint32_t AppendSymbolIndexesWithName(ConstString symbol_name,
                                        Debug symbol_debug_type,
                                        Visibility symbol_visibility,
                                        std::vector<uint32_t> &matches);
-  uint32_t AppendSymbolIndexesWithNameAndType(const ConstString &symbol_name,
+  uint32_t AppendSymbolIndexesWithNameAndType(ConstString symbol_name,
                                               lldb::SymbolType symbol_type,
                                               std::vector<uint32_t> &matches);
-  uint32_t AppendSymbolIndexesWithNameAndType(const ConstString &symbol_name,
+  uint32_t AppendSymbolIndexesWithNameAndType(ConstString symbol_name,
                                               lldb::SymbolType symbol_type,
                                               Debug symbol_debug_type,
                                               Visibility symbol_visibility,
@@ -100,19 +96,19 @@ public:
       const RegularExpression &regex, lldb::SymbolType symbol_type,
       Debug symbol_debug_type, Visibility symbol_visibility,
       std::vector<uint32_t> &indexes);
-  size_t FindAllSymbolsWithNameAndType(const ConstString &name,
-                                       lldb::SymbolType symbol_type,
-                                       std::vector<uint32_t> &symbol_indexes);
-  size_t FindAllSymbolsWithNameAndType(const ConstString &name,
-                                       lldb::SymbolType symbol_type,
-                                       Debug symbol_debug_type,
-                                       Visibility symbol_visibility,
-                                       std::vector<uint32_t> &symbol_indexes);
-  size_t FindAllSymbolsMatchingRexExAndType(
+  void FindAllSymbolsWithNameAndType(ConstString name,
+                                     lldb::SymbolType symbol_type,
+                                     std::vector<uint32_t> &symbol_indexes);
+  void FindAllSymbolsWithNameAndType(ConstString name,
+                                     lldb::SymbolType symbol_type,
+                                     Debug symbol_debug_type,
+                                     Visibility symbol_visibility,
+                                     std::vector<uint32_t> &symbol_indexes);
+  void FindAllSymbolsMatchingRexExAndType(
       const RegularExpression &regex, lldb::SymbolType symbol_type,
       Debug symbol_debug_type, Visibility symbol_visibility,
       std::vector<uint32_t> &symbol_indexes);
-  Symbol *FindFirstSymbolWithNameAndType(const ConstString &name,
+  Symbol *FindFirstSymbolWithNameAndType(ConstString name,
                                          lldb::SymbolType symbol_type,
                                          Debug symbol_debug_type,
                                          Visibility symbol_visibility);
@@ -120,8 +116,8 @@ public:
   Symbol *FindSymbolContainingFileAddress(lldb::addr_t file_addr);
   void ForEachSymbolContainingFileAddress(
       lldb::addr_t file_addr, std::function<bool(Symbol *)> const &callback);
-  size_t FindFunctionSymbols(const ConstString &name, uint32_t name_type_mask,
-                             SymbolContextList &sc_list);
+  void FindFunctionSymbols(ConstString name, uint32_t name_type_mask,
+                           SymbolContextList &sc_list);
   void CalculateSymbolSizes();
 
   void SortSymbolIndexesByValue(std::vector<uint32_t> &indexes,
@@ -147,7 +143,29 @@ protected:
   typedef std::vector<Symbol> collection;
   typedef collection::iterator iterator;
   typedef collection::const_iterator const_iterator;
-  typedef RangeDataVector<lldb::addr_t, lldb::addr_t, uint32_t>
+  class FileRangeToIndexMapCompare {
+  public:
+    FileRangeToIndexMapCompare(const Symtab &symtab) : m_symtab(symtab) {}
+    bool operator()(const uint32_t a_data, const uint32_t b_data) const {
+      return rank(a_data) > rank(b_data);
+    }
+
+  private:
+    // How much preferred is this symbol?
+    int rank(const uint32_t data) const {
+      const Symbol &symbol = *m_symtab.SymbolAtIndex(data);
+      if (symbol.IsExternal())
+        return 3;
+      if (symbol.IsWeak())
+        return 2;
+      if (symbol.IsDebug())
+        return 0;
+      return 1;
+    }
+    const Symtab &m_symtab;
+  };
+  typedef RangeDataVector<lldb::addr_t, lldb::addr_t, uint32_t, 0,
+                          FileRangeToIndexMapCompare>
       FileRangeToIndexMap;
   void InitNameIndexes();
   void InitAddressIndexes();
@@ -198,7 +216,7 @@ private:
                                         SymbolContextList &sc_list);
 
   void RegisterMangledNameEntry(
-      NameToIndexMap::Entry &entry, std::set<const char *> &class_contexts,
+      uint32_t value, std::set<const char *> &class_contexts,
       std::vector<std::pair<NameToIndexMap::Entry, const char *>> &backlog,
       RichManglingContext &rmc);
 
@@ -206,9 +224,10 @@ private:
                             const char *decl_context,
                             const std::set<const char *> &class_contexts);
 
-  DISALLOW_COPY_AND_ASSIGN(Symtab);
+  Symtab(const Symtab &) = delete;
+  const Symtab &operator=(const Symtab &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_Symtab_h_
+#endif // LLDB_SYMBOL_SYMTAB_H

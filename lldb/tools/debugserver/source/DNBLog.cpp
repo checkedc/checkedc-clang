@@ -1,9 +1,8 @@
 //===-- DNBLog.cpp ----------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -79,10 +78,8 @@ void _DNBLog(uint32_t flags, const char *format, ...) {
   va_end(args);
 }
 
-//----------------------------------------------------------------------
 // Print debug strings if and only if the global g_debug is set to
 // a non-zero value.
-//----------------------------------------------------------------------
 void _DNBLogDebug(const char *format, ...) {
   if (DNBLogEnabled() && g_debug) {
     va_list args;
@@ -92,10 +89,8 @@ void _DNBLogDebug(const char *format, ...) {
   }
 }
 
-//----------------------------------------------------------------------
 // Print debug strings if and only if the global g_debug is set to
 // a non-zero value.
-//----------------------------------------------------------------------
 void _DNBLogDebugVerbose(const char *format, ...) {
   if (DNBLogEnabled() && g_debug && g_verbose) {
     va_list args;
@@ -107,10 +102,8 @@ void _DNBLogDebugVerbose(const char *format, ...) {
 
 static uint32_t g_message_id = 0;
 
-//----------------------------------------------------------------------
 // Prefix the formatted log string with process and thread IDs and
 // suffix it with a newline.
-//----------------------------------------------------------------------
 void _DNBLogThreaded(const char *format, ...) {
   if (DNBLogEnabled()) {
     // PTHREAD_MUTEX_LOCKER(locker, GetLogThreadedMutex());
@@ -151,10 +144,8 @@ void _DNBLogThreaded(const char *format, ...) {
   }
 }
 
-//----------------------------------------------------------------------
 // Prefix the formatted log string with process and thread IDs and
 // suffix it with a newline.
-//----------------------------------------------------------------------
 void _DNBLogThreadedIf(uint32_t log_bit, const char *format, ...) {
   if (DNBLogEnabled() && (log_bit & g_log_bits) == log_bit) {
     // PTHREAD_MUTEX_LOCKER(locker, GetLogThreadedMutex());
@@ -196,9 +187,7 @@ void _DNBLogThreadedIf(uint32_t log_bit, const char *format, ...) {
   }
 }
 
-//----------------------------------------------------------------------
 // Printing of errors that are not fatal.
-//----------------------------------------------------------------------
 void _DNBLogError(const char *format, ...) {
   if (DNBLogEnabled()) {
     char *arg_msg = NULL;
@@ -214,10 +203,8 @@ void _DNBLogError(const char *format, ...) {
   }
 }
 
-//----------------------------------------------------------------------
 // Printing of errors that ARE fatal. Exit with ERR exit code
 // immediately.
-//----------------------------------------------------------------------
 void _DNBLogFatalError(int err, const char *format, ...) {
   if (DNBLogEnabled()) {
     char *arg_msg = NULL;
@@ -234,10 +221,8 @@ void _DNBLogFatalError(int err, const char *format, ...) {
   }
 }
 
-//----------------------------------------------------------------------
 // Printing of warnings that are not fatal only if verbose mode is
 // enabled.
-//----------------------------------------------------------------------
 void _DNBLogVerbose(const char *format, ...) {
   if (DNBLogEnabled() && g_verbose) {
     va_list args;
@@ -247,10 +232,8 @@ void _DNBLogVerbose(const char *format, ...) {
   }
 }
 
-//----------------------------------------------------------------------
 // Printing of warnings that are not fatal only if verbose mode is
 // enabled.
-//----------------------------------------------------------------------
 void _DNBLogWarningVerbose(const char *format, ...) {
   if (DNBLogEnabled() && g_verbose) {
     char *arg_msg = NULL;
@@ -266,9 +249,7 @@ void _DNBLogWarningVerbose(const char *format, ...) {
     }
   }
 }
-//----------------------------------------------------------------------
 // Printing of warnings that are not fatal.
-//----------------------------------------------------------------------
 void _DNBLogWarning(const char *format, ...) {
   if (DNBLogEnabled()) {
     char *arg_msg = NULL;

@@ -1,4 +1,4 @@
-; RUN: llc < %s -mtriple=x86_64-netbsd | FileCheck %s
+; RUN: llc < %s -mtriple=x86_64-netbsd -use-ctors | FileCheck %s
 
 ; Check that our compiler never emits global constructors
 ; inside the .init_array section when building for a non supported target.
@@ -16,7 +16,7 @@
 
 @c1 = global %class.C zeroinitializer, align 1
 @d1 = global %class.D zeroinitializer, align 1
-@llvm.global_ctors = appending global [2 x { i32, void ()* }] [{ i32, void ()* } { i32 101, void ()* @_GLOBAL__I_000101 }, { i32, void ()* } { i32 65535, void ()* @_GLOBAL__I_a }]
+@llvm.global_ctors = appending global [2 x { i32, void ()*, i8* }] [{ i32, void ()*, i8* } { i32 101, void ()* @_GLOBAL__I_000101, i8* null }, { i32, void ()*, i8* } { i32 65535, void ()* @_GLOBAL__I_a, i8* null }]
 
 define linkonce_odr void @_ZN1CC1Ev(%class.C* nocapture %this) {
 entry:

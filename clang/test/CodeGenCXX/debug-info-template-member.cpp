@@ -1,6 +1,6 @@
 // RUN: %clang_cc1 -emit-llvm -debug-info-kind=limited -triple x86_64-apple-darwin %s -o - | FileCheck %s
 
-// CHECK: @x = global %"struct.outer<foo>::inner" zeroinitializer, align 4, !dbg [[X:![0-9]+]]
+// CHECK: @x ={{.*}} global %"struct.outer<foo>::inner" zeroinitializer, align 4, !dbg [[X:![0-9]+]]
 
 struct MyClass {
   template <int i> int add(int j) {
@@ -30,7 +30,7 @@ inline int add3(int x) {
 // CHECK: {{![0-9]+}} = distinct !DIGlobalVariable(
 // CHECK-SAME: name: "var"
 // CHECK-SAME: templateParams: {{![0-9]+}}
-// CHECK: !DITemplateTypeParameter(name: "P", type: {{![0-9]+}})
+// CHECK: !DITemplateTypeParameter(name: "T", type: {{![0-9]+}})
 // CHECK: {{![0-9]+}} = distinct !DIGlobalVariable(
 // CHECK-SAME: name: "varray"
 // CHECK-SAME: templateParams: {{![0-9]+}}

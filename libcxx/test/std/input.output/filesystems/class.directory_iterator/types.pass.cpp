@@ -1,13 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -19,14 +18,14 @@
 // typedef ... reference;
 // typedef ... iterator_category
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 
 #include "test_macros.h"
 
 
-int main() {
+int main(int, char**) {
     using namespace fs;
     using D = directory_iterator;
     ASSERT_SAME_TYPE(D::value_type, directory_entry);
@@ -34,4 +33,6 @@ int main() {
     ASSERT_SAME_TYPE(D::pointer, const directory_entry*);
     ASSERT_SAME_TYPE(D::reference, const directory_entry&);
     ASSERT_SAME_TYPE(D::iterator_category, std::input_iterator_tag);
+
+  return 0;
 }

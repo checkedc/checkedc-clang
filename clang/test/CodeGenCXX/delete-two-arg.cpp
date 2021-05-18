@@ -6,7 +6,7 @@ typedef __typeof(sizeof(int)) size_t;
 namespace test1 {
   struct A { void operator delete(void*,size_t); int x; };
 
-  // CHECK-LABEL: define void @_ZN5test11aEPNS_1AE(
+  // CHECK-LABEL: define{{.*}} void @_ZN5test11aEPNS_1AE(
   void a(A *x) {
     // CHECK:      load
     // CHECK-NEXT: icmp eq {{.*}}, null
@@ -25,9 +25,9 @@ namespace test2 {
     void operator delete[](void *, size_t);
   };
 
-  // CHECK: define [[A:%.*]]* @_ZN5test24testEv()
+  // CHECK: define{{.*}} [[A:%.*]]* @_ZN5test24testEv()
   A *test() {
-    // CHECK:      [[NEW:%.*]] = call i8* @_Znaj(i32 44)
+    // CHECK:      [[NEW:%.*]] = call noalias nonnull i8* @_Znaj(i32 44)
     // CHECK-NEXT: [[T0:%.*]] = bitcast i8* [[NEW]] to i32*
     // CHECK-NEXT: store i32 10, i32* [[T0]]
     // CHECK-NEXT: [[T1:%.*]] = getelementptr inbounds i8, i8* [[NEW]], i32 4
@@ -36,7 +36,7 @@ namespace test2 {
     return ::new A[10];
   }
 
-  // CHECK-LABEL: define void @_ZN5test24testEPNS_1AE(
+  // CHECK-LABEL: define{{.*}} void @_ZN5test24testEPNS_1AE(
   void test(A *p) {
     // CHECK:      [[P:%.*]] = alloca [[A]]*, align 4
     // CHECK-NEXT: store [[A]]* {{%.*}}, [[A]]** [[P]], align 4
@@ -58,13 +58,13 @@ namespace test3 {
   struct A {
     int x;
     void operator delete[](void *, size_t);
-  };  
+  };
   struct B : A {};
 
-  // CHECK-LABEL: define void @_ZN5test34testEv()
+  // CHECK-LABEL: define{{.*}} void @_ZN5test34testEv()
   void test() {
-    // CHECK:      call i8* @_Znaj(i32 24)
-    // CHECK-NEXT: bitcast
+    // CHECK:      [[CALL:%.*]] = call noalias nonnull i8* @_Znaj(i32 24)
+    // CHECK-NEXT: bitcast i8* [[CALL]] to i32*
     // CHECK-NEXT: store i32 5
     (void) new B[5];
   }

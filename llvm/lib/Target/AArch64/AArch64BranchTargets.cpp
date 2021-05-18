@@ -1,9 +1,8 @@
 //===-- AArch64BranchTargets.cpp -- Harden code using v8.5-A BTI extension -==//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -17,6 +16,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "AArch64MachineFunctionInfo.h"
 #include "AArch64Subtarget.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -58,13 +58,13 @@ FunctionPass *llvm::createAArch64BranchTargetsPass() {
 }
 
 bool AArch64BranchTargets::runOnMachineFunction(MachineFunction &MF) {
-  const Function &F = MF.getFunction();
-  if (!F.hasFnAttribute("branch-target-enforcement"))
+  if (!MF.getInfo<AArch64FunctionInfo>()->branchTargetEnforcement())
     return false;
 
   LLVM_DEBUG(
       dbgs() << "********** AArch64 Branch Targets  **********\n"
              << "********** Function: " << MF.getName() << '\n');
+  const Function &F = MF.getFunction();
 
   // LLVM does not consider basic blocks which are the targets of jump tables
   // to be address-taken (the address can't escape anywhere else), but they are
@@ -119,9 +119,15 @@ void AArch64BranchTargets::addBTI(MachineBasicBlock &MBB, bool CouldCall,
 
   auto MBBI = MBB.begin();
 
-  // PACI[AB]SP are implicitly BTI JC, so no BTI instruction needed there.
-  if (MBBI != MBB.end() && (MBBI->getOpcode() == AArch64::PACIASP ||
-                            MBBI->getOpcode() == AArch64::PACIBSP))
+  // Skip the meta instuctions, those will be removed anyway.
+  for (; MBBI != MBB.end() && MBBI->isMetaInstruction(); ++MBBI)
+    ;
+
+  // SCTLR_EL1.BT[01] is set to 0 by default which means
+  // PACI[AB]SP are implicitly BTI C so no BTI C instruction is needed there.
+  if (MBBI != MBB.end() && HintNum == 34 &&
+      (MBBI->getOpcode() == AArch64::PACIASP ||
+       MBBI->getOpcode() == AArch64::PACIBSP))
     return;
 
   BuildMI(MBB, MBB.begin(), MBB.findDebugLoc(MBB.begin()),

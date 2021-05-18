@@ -1,9 +1,8 @@
 //===- Target.cpp ---------------------------------------------------------===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -29,6 +28,7 @@
 #include "OutputSections.h"
 #include "SymbolTable.h"
 #include "Symbols.h"
+#include "SyntheticSections.h"
 #include "lld/Common/ErrorHandler.h"
 #include "llvm/Object/ELF.h"
 
@@ -38,17 +38,17 @@ using namespace llvm::ELF;
 using namespace lld;
 using namespace lld::elf;
 
-TargetInfo *elf::Target;
+const TargetInfo *elf::target;
 
-std::string lld::toString(RelType Type) {
-  StringRef S = getELFRelocationTypeName(elf::Config->EMachine, Type);
-  if (S == "Unknown")
-    return ("Unknown (" + Twine(Type) + ")").str();
-  return S;
+std::string lld::toString(RelType type) {
+  StringRef s = getELFRelocationTypeName(elf::config->emachine, type);
+  if (s == "Unknown")
+    return ("Unknown (" + Twine(type) + ")").str();
+  return std::string(s);
 }
 
 TargetInfo *elf::getTarget() {
-  switch (Config->EMachine) {
+  switch (config->emachine) {
   case EM_386:
   case EM_IAMCU:
     return getX86TargetInfo();
@@ -63,7 +63,7 @@ TargetInfo *elf::getTarget() {
   case EM_HEXAGON:
     return getHexagonTargetInfo();
   case EM_MIPS:
-    switch (Config->EKind) {
+    switch (config->ekind) {
     case ELF32LEKind:
       return getMipsTargetInfo<ELF32LE>();
     case ELF32BEKind:
@@ -86,36 +86,42 @@ TargetInfo *elf::getTarget() {
   case EM_SPARCV9:
     return getSPARCV9TargetInfo();
   case EM_X86_64:
-    if (Config->EKind == ELF32LEKind)
-      return getX32TargetInfo();
     return getX86_64TargetInfo();
   }
   llvm_unreachable("unknown target machine");
 }
 
-template <class ELFT> static ErrorPlace getErrPlace(const uint8_t *Loc) {
-  for (InputSectionBase *D : InputSections) {
-    auto *IS = cast<InputSection>(D);
-    if (!IS->getParent())
+template <class ELFT> static ErrorPlace getErrPlace(const uint8_t *loc) {
+  assert(loc != nullptr);
+  for (InputSectionBase *d : inputSections) {
+    auto *isec = cast<InputSection>(d);
+    if (!isec->getParent() || (isec->type & SHT_NOBITS))
       continue;
 
-    uint8_t *ISLoc = IS->getParent()->Loc + IS->OutSecOff;
-    if (ISLoc <= Loc && Loc < ISLoc + IS->getSize())
-      return {IS, IS->template getLocation<ELFT>(Loc - ISLoc) + ": "};
+    const uint8_t *isecLoc =
+        Out::bufferStart
+            ? (Out::bufferStart + isec->getParent()->offset + isec->outSecOff)
+            : isec->data().data();
+    if (isecLoc == nullptr) {
+      assert(isa<SyntheticSection>(isec) && "No data but not synthetic?");
+      continue;
+    }
+    if (isecLoc <= loc && loc < isecLoc + isec->getSize())
+      return {isec, isec->template getLocation<ELFT>(loc - isecLoc) + ": "};
   }
   return {};
 }
 
-ErrorPlace elf::getErrorPlace(const uint8_t *Loc) {
-  switch (Config->EKind) {
+ErrorPlace elf::getErrorPlace(const uint8_t *loc) {
+  switch (config->ekind) {
   case ELF32LEKind:
-    return getErrPlace<ELF32LE>(Loc);
+    return getErrPlace<ELF32LE>(loc);
   case ELF32BEKind:
-    return getErrPlace<ELF32BE>(Loc);
+    return getErrPlace<ELF32BE>(loc);
   case ELF64LEKind:
-    return getErrPlace<ELF64LE>(Loc);
+    return getErrPlace<ELF64LE>(loc);
   case ELF64BEKind:
-    return getErrPlace<ELF64BE>(Loc);
+    return getErrPlace<ELF64BE>(loc);
   default:
     llvm_unreachable("unknown ELF type");
   }
@@ -123,62 +129,64 @@ ErrorPlace elf::getErrorPlace(const uint8_t *Loc) {
 
 TargetInfo::~TargetInfo() {}
 
-int64_t TargetInfo::getImplicitAddend(const uint8_t *Buf, RelType Type) const {
+int64_t TargetInfo::getImplicitAddend(const uint8_t *buf, RelType type) const {
   return 0;
 }
 
-bool TargetInfo::usesOnlyLowPageBits(RelType Type) const { return false; }
+bool TargetInfo::usesOnlyLowPageBits(RelType type) const { return false; }
 
-bool TargetInfo::needsThunk(RelExpr Expr, RelType Type, const InputFile *File,
-                            uint64_t BranchAddr, const Symbol &S) const {
+bool TargetInfo::needsThunk(RelExpr expr, RelType type, const InputFile *file,
+                            uint64_t branchAddr, const Symbol &s,
+                            int64_t a) const {
   return false;
 }
 
-bool TargetInfo::adjustPrologueForCrossSplitStack(uint8_t *Loc, uint8_t *End,
-                                                  uint8_t StOther) const {
+bool TargetInfo::adjustPrologueForCrossSplitStack(uint8_t *loc, uint8_t *end,
+                                                  uint8_t stOther) const {
   llvm_unreachable("Target doesn't support split stacks.");
 }
 
-bool TargetInfo::inBranchRange(RelType Type, uint64_t Src, uint64_t Dst) const {
+bool TargetInfo::inBranchRange(RelType type, uint64_t src, uint64_t dst) const {
   return true;
 }
 
-void TargetInfo::writeIgotPlt(uint8_t *Buf, const Symbol &S) const {
-  writeGotPlt(Buf, S);
+RelExpr TargetInfo::adjustTlsExpr(RelType type, RelExpr expr) const {
+  return expr;
 }
 
-RelExpr TargetInfo::adjustRelaxExpr(RelType Type, const uint8_t *Data,
-                                    RelExpr Expr) const {
-  return Expr;
+RelExpr TargetInfo::adjustGotPcExpr(RelType type, int64_t addend,
+                                    const uint8_t *data) const {
+  return R_GOT_PC;
 }
 
-void TargetInfo::relaxGot(uint8_t *Loc, uint64_t Val) const {
+void TargetInfo::relaxGot(uint8_t *loc, const Relocation &rel,
+                          uint64_t val) const {
   llvm_unreachable("Should not have claimed to be relaxable");
 }
 
-void TargetInfo::relaxTlsGdToLe(uint8_t *Loc, RelType Type,
-                                uint64_t Val) const {
+void TargetInfo::relaxTlsGdToLe(uint8_t *loc, const Relocation &rel,
+                                uint64_t val) const {
   llvm_unreachable("Should not have claimed to be relaxable");
 }
 
-void TargetInfo::relaxTlsGdToIe(uint8_t *Loc, RelType Type,
-                                uint64_t Val) const {
+void TargetInfo::relaxTlsGdToIe(uint8_t *loc, const Relocation &rel,
+                                uint64_t val) const {
   llvm_unreachable("Should not have claimed to be relaxable");
 }
 
-void TargetInfo::relaxTlsIeToLe(uint8_t *Loc, RelType Type,
-                                uint64_t Val) const {
+void TargetInfo::relaxTlsIeToLe(uint8_t *loc, const Relocation &rel,
+                                uint64_t val) const {
   llvm_unreachable("Should not have claimed to be relaxable");
 }
 
-void TargetInfo::relaxTlsLdToLe(uint8_t *Loc, RelType Type,
-                                uint64_t Val) const {
+void TargetInfo::relaxTlsLdToLe(uint8_t *loc, const Relocation &rel,
+                                uint64_t val) const {
   llvm_unreachable("Should not have claimed to be relaxable");
 }
 
-uint64_t TargetInfo::getImageBase() {
+uint64_t TargetInfo::getImageBase() const {
   // Use -image-base if set. Fall back to the target default if not.
-  if (Config->ImageBase)
-    return *Config->ImageBase;
-  return Config->Pic ? 0 : DefaultImageBase;
+  if (config->imageBase)
+    return *config->imageBase;
+  return config->isPic ? 0 : defaultImageBase;
 }

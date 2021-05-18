@@ -3,13 +3,13 @@
 ;   - all the function attributes are shown, including those of declarations
 ;   - works on top of -print-after and -filter-print-funcs
 ;
-; RUN: opt < %s 2>&1 -disable-output \
+; RUN: opt -enable-new-pm=0 < %s 2>&1 -disable-output \
 ; RUN: 	   -simplifycfg -print-after=simplifycfg -print-module-scope \
 ; RUN:	   | FileCheck %s -check-prefix=CFG
 ; RUN: opt < %s 2>&1 -disable-output \
 ; RUN: 	   -passes=simplify-cfg -print-after-all -print-module-scope \
 ; RUN:	   | FileCheck %s -check-prefix=CFG
-; RUN: opt < %s 2>&1 -disable-output \
+; RUN: opt -enable-new-pm=0 < %s 2>&1 -disable-output \
 ; RUN: 	   -simplifycfg -print-after=simplifycfg -filter-print-funcs=foo -print-module-scope \
 ; RUN:	   | FileCheck %s -check-prefix=FOO
 ; RUN: opt < %s 2>&1 -disable-output \
@@ -51,10 +51,10 @@ define void @bar() #0 {
 
 declare void @baz() #1
 
-attributes #0 = { nounwind "no-frame-pointer-elim"="true" }
+attributes #0 = { nounwind "frame-pointer"="all" }
 
 attributes #1 = { nounwind readnone ssp "use-soft-float"="false" }
-; FOO: attributes #{{[0-9]}} = { nounwind "no-frame-pointer-elim"="true" }
+; FOO: attributes #{{[0-9]}} = { nounwind "frame-pointer"="all" }
 
 ; FOO: attributes #{{[0-9]}} = { nounwind readnone ssp "use-soft-float"="false" }
 

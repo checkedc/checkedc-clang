@@ -1,5 +1,5 @@
-# RUN: llc -mtriple=x86_64-linux-gnu -mattr=+avx512f                       -run-pass=regbankselect %s -o - | FileCheck %s --check-prefix=CHECK --check-prefix=FAST
-# RUN: llc -mtriple=x86_64-linux-gnu -mattr=+avx512f -regbankselect-greedy -run-pass=regbankselect %s -o - | FileCheck %s --check-prefix=CHECK --check-prefix=GREEDY
+# RUN: llc -mtriple=x86_64-linux-gnu -mattr=+avx512f                       -run-pass=regbankselect %s -o - | FileCheck %s
+# RUN: llc -mtriple=x86_64-linux-gnu -mattr=+avx512f -regbankselect-greedy -run-pass=regbankselect %s -o - | FileCheck %s
 
 --- |
 
@@ -29,7 +29,7 @@
 ---
 name:            test_mul_vec512
 # CHECK-LABEL: name:  test_mul_vec512
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: false
 # CHECK:       registers:
@@ -49,7 +49,7 @@ body:             |
 ---
 name:            test_add_vec512
 # CHECK-LABEL: name:  test_add_vec512
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: false
 # CHECK:       registers:
@@ -69,7 +69,7 @@ body:             |
 ---
 name:            test_sub_vec512
 # CHECK-LABEL: name:  test_sub_vec512
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: false
 # CHECK:       registers:
@@ -89,7 +89,7 @@ body:             |
 
 name:            test_load_v16i32_noalign
 # CHECK-LABEL: name:  test_load_v16i32_noalign
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: false
 # CHECK:       registers:
@@ -111,7 +111,7 @@ body:             |
 ---
 name:            test_store_v16i32_noalign
 # CHECK-LABEL: name:  test_store_v16i32_noalign
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: false
 # CHECK:       registers:

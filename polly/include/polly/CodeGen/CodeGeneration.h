@@ -1,28 +1,19 @@
 //===- polly/CodeGeneration.h - The Polly code generator --------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #ifndef POLLY_CODEGENERATION_H
 #define POLLY_CODEGENERATION_H
 
-#include "IRBuilder.h"
-#include "polly/Config/config.h"
+#include "polly/CodeGen/IRBuilder.h"
 #include "polly/ScopPass.h"
 #include "llvm/IR/PassManager.h"
 
-namespace llvm {
-
-class BasicBlock;
-} // namespace llvm
-
 namespace polly {
-
-class Scop;
 
 enum VectorizerChoice {
   VECTORIZER_NONE,

@@ -1,17 +1,16 @@
 //===--- IdentifierNamingCheck.h - clang-tidy -------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_IDENTIFIERNAMINGCHECK_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_IDENTIFIERNAMINGCHECK_H
 
-#include "../ClangTidy.h"
-
+#include "../utils/RenamerClangTidyCheck.h"
+#include "llvm/ADT/Optional.h"
 namespace clang {
 
 class MacroInfo;
@@ -32,15 +31,12 @@ namespace readability {
 /// different rules for different kind of identifier. In general, the
 /// rules are falling back to a more generic rule if the specific case is not
 /// configured.
-class IdentifierNamingCheck : public ClangTidyCheck {
+class IdentifierNamingCheck final : public RenamerClangTidyCheck {
 public:
   IdentifierNamingCheck(StringRef Name, ClangTidyContext *Context);
+  ~IdentifierNamingCheck();
 
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
-  void registerMatchers(ast_matchers::MatchFinder *Finder) override;
-  void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
-  void registerPPCallbacks(CompilerInstance &Compiler) override;
-  void onEndOfTranslationUnit() override;
 
   enum CaseType {
     CT_AnyCase = 0,
@@ -56,53 +52,69 @@ public:
     NamingStyle() = default;
 
     NamingStyle(llvm::Optional<CaseType> Case, const std::string &Prefix,
-                const std::string &Suffix)
-        : Case(Case), Prefix(Prefix), Suffix(Suffix) {}
+                const std::string &Suffix, const std::string &IgnoredRegexpStr);
+    NamingStyle(const NamingStyle &O) = delete;
+    NamingStyle &operator=(NamingStyle &&O) = default;
+    NamingStyle(NamingStyle &&O) = default;
 
     llvm::Optional<CaseType> Case;
     std::string Prefix;
     std::string Suffix;
+    // Store both compiled and non-compiled forms so original value can be
+    // serialized
+    llvm::Regex IgnoredRegexp;
+    std::string IgnoredRegexpStr;
   };
 
-  /// \brief Holds an identifier name check failure, tracking the kind of the
-  /// identifer, its possible fixup and the starting locations of all the
-  /// identifier usages.
-  struct NamingCheckFailure {
-    std::string KindName;
-    std::string Fixup;
+  struct FileStyle {
+    FileStyle() : IsActive(false), IgnoreMainLikeFunctions(false) {}
+    FileStyle(SmallVectorImpl<Optional<NamingStyle>> &&Styles,
+              bool IgnoreMainLike)
+        : Styles(std::move(Styles)), IsActive(true),
+          IgnoreMainLikeFunctions(IgnoreMainLike) {}
 
-    /// \brief Whether the failure should be fixed or not.
-    ///
-    /// ie: if the identifier was used or declared within a macro we won't offer
-    /// a fixup for safety reasons.
-    bool ShouldFix;
+    ArrayRef<Optional<NamingStyle>> getStyles() const {
+      assert(IsActive);
+      return Styles;
+    }
+    bool isActive() const { return IsActive; }
+    bool isIgnoringMainLikeFunction() const { return IgnoreMainLikeFunctions; }
 
-    /// \brief A set of all the identifier usages starting SourceLocation, in
-    /// their encoded form.
-    llvm::DenseSet<unsigned> RawUsageLocs;
-
-    NamingCheckFailure() : ShouldFix(true) {}
+  private:
+    SmallVector<Optional<NamingStyle>, 0> Styles;
+    bool IsActive;
+    bool IgnoreMainLikeFunctions;
   };
-
-  typedef std::pair<SourceLocation, std::string> NamingCheckId;
-
-  typedef llvm::DenseMap<NamingCheckId, NamingCheckFailure>
-      NamingCheckFailureMap;
-
-  /// Check Macros for style violations.
-  void checkMacro(SourceManager &sourceMgr, const Token &MacroNameTok,
-                  const MacroInfo *MI);
-
-  /// Add a usage of a macro if it already has a violation.
-  void expandMacro(const Token &MacroNameTok, const MacroInfo *MI);
 
 private:
-  std::vector<llvm::Optional<NamingStyle>> NamingStyles;
-  bool IgnoreFailedSplit;
-  NamingCheckFailureMap NamingCheckFailures;
+  llvm::Optional<FailureInfo>
+  GetDeclFailureInfo(const NamedDecl *Decl,
+                     const SourceManager &SM) const override;
+  llvm::Optional<FailureInfo>
+  GetMacroFailureInfo(const Token &MacroNameTok,
+                      const SourceManager &SM) const override;
+  DiagInfo GetDiagInfo(const NamingCheckId &ID,
+                       const NamingCheckFailure &Failure) const override;
+
+  const FileStyle &getStyleForFile(StringRef FileName) const;
+
+  /// Stores the style options as a vector, indexed by the specified \ref
+  /// StyleKind, for a given directory.
+  mutable llvm::StringMap<FileStyle> NamingStylesCache;
+  FileStyle *MainFileStyle;
+  ClangTidyContext *const Context;
+  const std::string CheckName;
+  const bool GetConfigPerFile;
+  const bool IgnoreFailedSplit;
 };
 
 } // namespace readability
+template <>
+struct OptionEnumMapping<readability::IdentifierNamingCheck::CaseType> {
+  static llvm::ArrayRef<
+      std::pair<readability::IdentifierNamingCheck::CaseType, StringRef>>
+  getEnumMapping();
+};
 } // namespace tidy
 } // namespace clang
 

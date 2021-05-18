@@ -144,7 +144,7 @@ Example:
  +  C(std::string S) : S(std::move(S)) {}
    };
 
-.. _Clang Compiler User’s Manual - Microsoft extensions: http://clang.llvm.org/docs/UsersManual.html#microsoft-extensions
+.. _Clang Compiler User’s Manual - Microsoft extensions: https://clang.llvm.org/docs/UsersManual.html#microsoft-extensions
 
 .. seealso::
 
@@ -162,5 +162,5 @@ Options
 
 .. option:: ValuesOnly
 
-   When non-zero, the check only warns about copied parameters that are already
-   passed by value. Default is `0`.
+   When `true`, the check only warns about copied parameters that are already
+   passed by value. Default is `false`.

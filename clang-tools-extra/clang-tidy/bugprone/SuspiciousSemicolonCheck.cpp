@@ -1,9 +1,8 @@
 //===--- SuspiciousSemicolonCheck.cpp - clang-tidy-------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -21,7 +20,8 @@ namespace bugprone {
 void SuspiciousSemicolonCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
       stmt(anyOf(ifStmt(hasThen(nullStmt().bind("semi")),
-                        unless(hasElse(stmt()))),
+                        unless(hasElse(stmt())),
+                        unless(isConstexpr())),
                  forStmt(hasBody(nullStmt().bind("semi"))),
                  cxxForRangeStmt(hasBody(nullStmt().bind("semi"))),
                  whileStmt(hasBody(nullStmt().bind("semi")))))
@@ -54,10 +54,10 @@ void SuspiciousSemicolonCheck::check(const MatchFinder::MatchResult &Result) {
 
   SourceLocation LocEnd = Semicolon->getEndLoc();
   FileID FID = SM.getFileID(LocEnd);
-  llvm::MemoryBuffer *Buffer = SM.getBuffer(FID, LocEnd);
+  llvm::MemoryBufferRef Buffer = SM.getBufferOrFake(FID, LocEnd);
   Lexer Lexer(SM.getLocForStartOfFile(FID), Ctxt.getLangOpts(),
-              Buffer->getBufferStart(), SM.getCharacterData(LocEnd) + 1,
-              Buffer->getBufferEnd());
+              Buffer.getBufferStart(), SM.getCharacterData(LocEnd) + 1,
+              Buffer.getBufferEnd());
   if (Lexer.LexFromRawLexer(Token))
     return;
 

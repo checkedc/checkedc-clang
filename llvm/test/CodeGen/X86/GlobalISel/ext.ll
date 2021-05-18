@@ -89,12 +89,8 @@ define i32 @test_sext_i8(i8 %val) {
 ; X64-LABEL: test_sext_i8:
 ; X64:       # %bb.0:
 ; X64-NEXT:    movl %edi, %eax
-; X64-NEXT:    movl $24, %ecx
-; X64-NEXT:    # kill: def $cl killed $ecx
-; X64-NEXT:    shll %cl, %eax
-; X64-NEXT:    movl $24, %ecx
-; X64-NEXT:    # kill: def $cl killed $ecx
-; X64-NEXT:    sarl %cl, %eax
+; X64-NEXT:    shll $24, %eax
+; X64-NEXT:    sarl $24, %eax
 ; X64-NEXT:    retq
 ;
 ; X32-LABEL: test_sext_i8:
@@ -109,12 +105,8 @@ define i32 @test_sext_i16(i16 %val) {
 ; X64-LABEL: test_sext_i16:
 ; X64:       # %bb.0:
 ; X64-NEXT:    movl %edi, %eax
-; X64-NEXT:    movl $16, %ecx
-; X64-NEXT:    # kill: def $cl killed $ecx
-; X64-NEXT:    shll %cl, %eax
-; X64-NEXT:    movl $16, %ecx
-; X64-NEXT:    # kill: def $cl killed $ecx
-; X64-NEXT:    sarl %cl, %eax
+; X64-NEXT:    shll $16, %eax
+; X64-NEXT:    sarl $16, %eax
 ; X64-NEXT:    retq
 ;
 ; X32-LABEL: test_sext_i16:
@@ -125,3 +117,22 @@ define i32 @test_sext_i16(i16 %val) {
   ret i32 %r
 }
 
+define i16 @test_zext_i8_to_i16(i8 %x, i8 %y) {
+; X64-LABEL: test_zext_i8_to_i16:
+; X64:       # %bb.0:
+; X64-NEXT:    addb %dil, %sil
+; X64-NEXT:    movzbl %sil, %eax
+; X64-NEXT:    # kill: def $ax killed $ax killed $eax
+; X64-NEXT:    retq
+;
+; X32-LABEL: test_zext_i8_to_i16:
+; X32:       # %bb.0:
+; X32-NEXT:    movb {{[0-9]+}}(%esp), %al
+; X32-NEXT:    addb {{[0-9]+}}(%esp), %al
+; X32-NEXT:    movzbl %al, %eax
+; X32-NEXT:    # kill: def $ax killed $ax killed $eax
+; X32-NEXT:    retl
+  %a = add i8 %x, %y
+  %b = zext i8 %a to i16
+  ret i16 %b
+}

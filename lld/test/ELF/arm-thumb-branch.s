@@ -6,8 +6,8 @@
 // RUN:          .callee1 : { *(.callee_low) } \
 // RUN:          .caller : { *(.text) } \
 // RUN:          .callee2 : { *(.callee_high) } } " > %t.script
-// RUN: ld.lld --script %t.script %t %tfar -o %t2 2>&1
-// RUN: llvm-objdump -d -triple=thumbv7a-none-linux-gnueabi %t2 | FileCheck  %s
+// RUN: ld.lld --script %t.script %t %tfar -o %t2
+// RUN: llvm-objdump -d --triple=thumbv7a-none-linux-gnueabi %t2 | FileCheck  %s
 
  .syntax unified
  .thumb
@@ -40,10 +40,13 @@ callee_high:
  bx lr
 
 // CHECK: Disassembly of section .callee1:
-// CHECK-NEXT: callee_low:
+// CHECK-EMPTY:
+// CHECK-NEXT: <callee_low>:
 // CHECK-NEXT:      b4:       70 47   bx      lr
+// CHECK-EMPTY:
 // CHECK-NEXT: Disassembly of section .caller:
-// CHECK-NEXT: _start:
+// CHECK-EMPTY:
+// CHECK-NEXT: <_start>:
 // CHECK-NEXT:   10000:       f0 f7 58 f8     bl      #-65360
 // CHECK-NEXT:   10004:       f0 f7 56 b8     b.w     #-65364
 // CHECK-NEXT:   10008:       30 f4 54 a8     beq.w   #-65368
@@ -55,6 +58,8 @@ callee_high:
 // CHECK-NEXT:   10020:       3f f3 ff af     bgt.w   #1048574
 // CHECK-NEXT:   10024:       70 47   bx      lr
 // CHECK-NEXT:   10026:
+// CHECK-EMPTY:
 // CHECK-NEXT: Disassembly of section .callee2:
-// CHECK-NEXT: callee_high:
+// CHECK-EMPTY:
+// CHECK-NEXT: <callee_high>:
 // CHECK-NEXT:   10028:       70 47   bx      lr

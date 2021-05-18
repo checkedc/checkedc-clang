@@ -1,9 +1,8 @@
 (*===-- llvm_scalar_opts.mli - LLVM OCaml Interface -----------*- OCaml -*-===*
  *
- *                     The LLVM Compiler Infrastructure
- *
- * This file is distributed under the University of Illinois Open Source
- * License. See LICENSE.TXT for details.
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See https://llvm.org/LICENSE.txt for license information.
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  *===----------------------------------------------------------------------===*)
 
@@ -16,6 +15,11 @@
 external add_aggressive_dce
   : [< Llvm.PassManager.any ] Llvm.PassManager.t -> unit
   = "llvm_add_aggressive_dce"
+
+(** See the [llvm::createDCEPass] function. *)
+external add_dce
+  : [< Llvm.PassManager.any ] Llvm.PassManager.t -> unit
+  = "llvm_add_dce"
 
 (** See the [llvm::createAlignmentFromAssumptionsPass] function. *)
 external add_alignment_from_assumptions
@@ -157,11 +161,6 @@ external add_tail_call_elimination
   : [< Llvm.PassManager.any ] Llvm.PassManager.t -> unit
   = "llvm_add_tail_call_elimination"
 
-(** See the [llvm::createConstantPropagationPass] function. *)
-external add_constant_propagation
-  : [< Llvm.PassManager.any ] Llvm.PassManager.t -> unit
-  = "llvm_add_constant_propagation"
-
 (** See the [llvm::createDemoteMemoryToRegisterPass] function. *)
 external add_memory_to_register_demotion
   : [< Llvm.PassManager.any ] Llvm.PassManager.t -> unit
@@ -186,6 +185,11 @@ external add_early_cse
 external add_lower_expect_intrinsic
   : [< Llvm.PassManager.any ] Llvm.PassManager.t -> unit
   = "llvm_add_lower_expect_intrinsic"
+
+(** See the [llvm::createLowerConstantIntrinsicsPass] function. *)
+external add_lower_constant_intrinsics
+  : [< Llvm.PassManager.any ] Llvm.PassManager.t -> unit
+  = "llvm_add_lower_constant_intrinsics"
 
 (** See the [llvm::createTypeBasedAliasAnalysisPass] function. *)
 external add_type_based_alias_analysis

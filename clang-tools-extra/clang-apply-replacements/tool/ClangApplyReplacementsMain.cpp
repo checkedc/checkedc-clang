@@ -1,14 +1,13 @@
 //===-- ClangApplyReplacementsMain.cpp - Main file for the tool -----------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
 /// \file
-/// \brief This file provides the main function for the
+/// This file provides the main function for the
 /// clang-apply-replacements tool.
 ///
 //===----------------------------------------------------------------------===//
@@ -153,7 +152,7 @@ int main(int argc, char **argv) {
 
     // Write new file to disk
     std::error_code EC;
-    llvm::raw_fd_ostream FileStream(FileName, EC, llvm::sys::fs::F_None);
+    llvm::raw_fd_ostream FileStream(FileName, EC, llvm::sys::fs::OF_None);
     if (EC) {
       llvm::errs() << "Could not open " << FileName << " for writing\n";
       continue;

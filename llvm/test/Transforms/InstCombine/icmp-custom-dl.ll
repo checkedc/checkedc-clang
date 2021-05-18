@@ -8,8 +8,8 @@ declare i32 @test58_d(i64 )
 define i1 @test59(i8* %foo) {
 ; CHECK-LABEL: @test59(
 ; CHECK-NEXT:    [[GEP1:%.*]] = getelementptr inbounds i8, i8* [[FOO:%.*]], i32 8
-; CHECK-NEXT:    [[TMP1:%.*]] = ptrtoint i8* [[GEP1]] to i32
-; CHECK-NEXT:    [[USE:%.*]] = zext i32 [[TMP1]] to i64
+; CHECK-NEXT:    [[TMP1:%.*]] = ptrtoint i8* [[GEP1]] to i40
+; CHECK-NEXT:    [[USE:%.*]] = zext i40 [[TMP1]] to i64
 ; CHECK-NEXT:    [[CALL:%.*]] = call i32 @test58_d(i64 [[USE]])
 ; CHECK-NEXT:    ret i1 true
 ;
@@ -45,7 +45,7 @@ define i1 @test60(i8* %foo, i64 %i, i64 %j) {
 ; CHECK-LABEL: @test60(
 ; CHECK-NEXT:    [[TMP1:%.*]] = trunc i64 [[I:%.*]] to i32
 ; CHECK-NEXT:    [[TMP2:%.*]] = trunc i64 [[J:%.*]] to i32
-; CHECK-NEXT:    [[GEP1_IDX:%.*]] = shl nuw i32 [[TMP1]], 2
+; CHECK-NEXT:    [[GEP1_IDX:%.*]] = shl nsw i32 [[TMP1]], 2
 ; CHECK-NEXT:    [[TMP3:%.*]] = icmp slt i32 [[GEP1_IDX]], [[TMP2]]
 ; CHECK-NEXT:    ret i1 [[TMP3]]
 ;
@@ -61,7 +61,7 @@ define i1 @test60_as1(i8 addrspace(1)* %foo, i64 %i, i64 %j) {
 ; CHECK-LABEL: @test60_as1(
 ; CHECK-NEXT:    [[TMP1:%.*]] = trunc i64 [[I:%.*]] to i16
 ; CHECK-NEXT:    [[TMP2:%.*]] = trunc i64 [[J:%.*]] to i16
-; CHECK-NEXT:    [[GEP1_IDX:%.*]] = shl nuw i16 [[TMP1]], 2
+; CHECK-NEXT:    [[GEP1_IDX:%.*]] = shl nsw i16 [[TMP1]], 2
 ; CHECK-NEXT:    [[TMP3:%.*]] = icmp slt i16 [[GEP1_IDX]], [[TMP2]]
 ; CHECK-NEXT:    ret i1 [[TMP3]]
 ;
@@ -93,7 +93,7 @@ define i1 @test60_addrspacecast(i8* %foo, i64 %i, i64 %j) {
 
 define i1 @test60_addrspacecast_smaller(i8* %foo, i16 %i, i64 %j) {
 ; CHECK-LABEL: @test60_addrspacecast_smaller(
-; CHECK-NEXT:    [[GEP1_IDX:%.*]] = shl nuw i16 [[I:%.*]], 2
+; CHECK-NEXT:    [[GEP1_IDX:%.*]] = shl nsw i16 [[I:%.*]], 2
 ; CHECK-NEXT:    [[TMP1:%.*]] = trunc i64 [[J:%.*]] to i16
 ; CHECK-NEXT:    [[TMP2:%.*]] = icmp slt i16 [[GEP1_IDX]], [[TMP1]]
 ; CHECK-NEXT:    ret i1 [[TMP2]]
@@ -183,10 +183,10 @@ define i1 @test62_as1(i8 addrspace(1)* %a) {
 ; Variation of the above with an ashr
 define i1 @icmp_and_ashr_multiuse(i32 %X) {
 ; CHECK-LABEL: @icmp_and_ashr_multiuse(
-; CHECK-NEXT:    [[AND:%.*]] = and i32 [[X:%.*]], 240
-; CHECK-NEXT:    [[AND2:%.*]] = and i32 [[X]], 496
-; CHECK-NEXT:    [[TOBOOL:%.*]] = icmp ne i32 [[AND]], 224
-; CHECK-NEXT:    [[TOBOOL2:%.*]] = icmp ne i32 [[AND2]], 432
+; CHECK-NEXT:    [[TMP1:%.*]] = and i32 [[X:%.*]], 240
+; CHECK-NEXT:    [[TOBOOL:%.*]] = icmp ne i32 [[TMP1]], 224
+; CHECK-NEXT:    [[TMP2:%.*]] = and i32 [[X]], 496
+; CHECK-NEXT:    [[TOBOOL2:%.*]] = icmp ne i32 [[TMP2]], 432
 ; CHECK-NEXT:    [[AND3:%.*]] = and i1 [[TOBOOL]], [[TOBOOL2]]
 ; CHECK-NEXT:    ret i1 [[AND3]]
 ;
@@ -196,6 +196,24 @@ define i1 @icmp_and_ashr_multiuse(i32 %X) {
   %tobool = icmp ne i32 %and, 14
   %tobool2 = icmp ne i32 %and2, 27
   %and3 = and i1 %tobool, %tobool2
+  ret i1 %and3
+}
+
+define i1 @icmp_and_ashr_multiuse_logical(i32 %X) {
+; CHECK-LABEL: @icmp_and_ashr_multiuse_logical(
+; CHECK-NEXT:    [[TMP1:%.*]] = and i32 [[X:%.*]], 240
+; CHECK-NEXT:    [[TOBOOL:%.*]] = icmp ne i32 [[TMP1]], 224
+; CHECK-NEXT:    [[TMP2:%.*]] = and i32 [[X]], 496
+; CHECK-NEXT:    [[TOBOOL2:%.*]] = icmp ne i32 [[TMP2]], 432
+; CHECK-NEXT:    [[AND3:%.*]] = and i1 [[TOBOOL]], [[TOBOOL2]]
+; CHECK-NEXT:    ret i1 [[AND3]]
+;
+  %shr = ashr i32 %X, 4
+  %and = and i32 %shr, 15
+  %and2 = and i32 %shr, 31 ; second use of the shift
+  %tobool = icmp ne i32 %and, 14
+  %tobool2 = icmp ne i32 %and2, 27
+  %and3 = select i1 %tobool, i1 %tobool2, i1 false
   ret i1 %and3
 }
 

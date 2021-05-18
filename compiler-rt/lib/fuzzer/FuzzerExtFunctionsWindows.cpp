@@ -1,16 +1,15 @@
 //=== FuzzerExtWindows.cpp - Interface to external functions --------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 // Implementation of FuzzerExtFunctions for Windows. Uses alternatename when
 // compiled with MSVC. Uses weak aliases when compiled with clang. Unfortunately
 // the method each compiler supports is not supported by the other.
 //===----------------------------------------------------------------------===//
-#include "FuzzerDefs.h"
+#include "FuzzerPlatform.h"
 #if LIBFUZZER_WINDOWS
 
 #include "FuzzerExtFunctions.h"
@@ -50,7 +49,7 @@ extern "C" {
     Printf("ERROR: Function \"%s\" not defined.\n", #NAME); \
     exit(1);                                                \
   }                                                         \
-  EXTERNAL_FUNC(NAME, NAME##Def) RETURN_TYPE NAME FUNC_SIG;
+  EXTERNAL_FUNC(NAME, NAME##Def) RETURN_TYPE NAME FUNC_SIG
 
 #include "FuzzerExtFunctions.def"
 

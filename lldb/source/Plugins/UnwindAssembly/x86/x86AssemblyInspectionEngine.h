@@ -1,14 +1,13 @@
 //===-- x86AssemblyInspectionEngine.h ---------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_x86AssemblyInspectionEngine_h_
-#define liblldb_x86AssemblyInspectionEngine_h_
+#ifndef LLDB_SOURCE_PLUGINS_UNWINDASSEMBLY_X86_X86ASSEMBLYINSPECTIONENGINE_H
+#define LLDB_SOURCE_PLUGINS_UNWINDASSEMBLY_X86_X86ASSEMBLYINSPECTIONENGINE_H
 
 #include "llvm-c/Disassembler.h"
 
@@ -115,7 +114,19 @@ private:
   bool call_next_insn_pattern_p();
   bool mov_reg_to_local_stack_frame_p(int &regno, int &rbp_offset);
   bool ret_pattern_p();
+  bool jmp_to_reg_p();
+  bool pc_rel_branch_or_jump_p (const int instruction_length, int &offset);
+  bool non_local_branch_p (const lldb::addr_t current_func_text_offset, 
+                           const lldb_private::AddressRange &func_range,
+                           const int instruction_length);
+  bool local_branch_p (const lldb::addr_t current_func_text_offset, 
+                       const lldb_private::AddressRange &func_range,
+                       const int instruction_length,
+                       lldb::addr_t &target_insn_offset);
+  uint16_t extract_2(uint8_t *b);
+  int16_t extract_2_signed(uint8_t *b);
   uint32_t extract_4(uint8_t *b);
+  int32_t extract_4_signed(uint8_t *b);
 
   bool instruction_length(uint8_t *insn, int &length, uint32_t buffer_remaining_bytes);
 
@@ -180,9 +191,11 @@ private:
 
   ::LLVMDisasmContextRef m_disasm_context;
 
-  DISALLOW_COPY_AND_ASSIGN(x86AssemblyInspectionEngine);
+  x86AssemblyInspectionEngine(const x86AssemblyInspectionEngine &) = delete;
+  const x86AssemblyInspectionEngine &
+  operator=(const x86AssemblyInspectionEngine &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_x86AssemblyInspectionEngine_h_
+#endif // LLDB_SOURCE_PLUGINS_UNWINDASSEMBLY_X86_X86ASSEMBLYINSPECTIONENGINE_H

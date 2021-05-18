@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -13,8 +12,13 @@
 
 // explicit codecvt(size_t refs = 0);
 
+// This test runs in C++20, but we have deprecated codecvt<char(16|32), char, mbstate_t> in C++20.
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
+
 #include <locale>
 #include <cassert>
+
+#include "test_macros.h"
 
 //#ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
 
@@ -36,7 +40,7 @@ int my_facet::count = 0;
 
 //#endif
 
-int main()
+int main(int, char**)
 {
 //#ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
     {
@@ -55,4 +59,6 @@ int main()
     }
     assert(my_facet::count == 0);
 //#endif
+
+  return 0;
 }

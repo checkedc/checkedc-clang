@@ -1,33 +1,26 @@
 //===-- Memory.h ------------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Memory_h_
-#define liblldb_Memory_h_
+#ifndef LLDB_TARGET_MEMORY_H
+#define LLDB_TARGET_MEMORY_H
 
+#include "lldb/Utility/RangeMap.h"
+#include "lldb/lldb-private.h"
 #include <map>
 #include <mutex>
 #include <vector>
 
-
-#include "lldb/Core/RangeMap.h"
-#include "lldb/lldb-private.h"
-
 namespace lldb_private {
-//----------------------------------------------------------------------
 // A class to track memory that was read from a live process between
 // runs.
-//----------------------------------------------------------------------
 class MemoryCache {
 public:
-  //------------------------------------------------------------------
   // Constructors and Destructors
-  //------------------------------------------------------------------
   MemoryCache(Process &process);
 
   ~MemoryCache();
@@ -52,11 +45,9 @@ public:
 
 protected:
   typedef std::map<lldb::addr_t, lldb::DataBufferSP> BlockMap;
-  typedef RangeArray<lldb::addr_t, lldb::addr_t, 4> InvalidRanges;
+  typedef RangeVector<lldb::addr_t, lldb::addr_t, 4> InvalidRanges;
   typedef Range<lldb::addr_t, lldb::addr_t> AddrRange;
-  //------------------------------------------------------------------
   // Classes that inherit from MemoryCache can see and modify these
-  //------------------------------------------------------------------
   std::recursive_mutex m_mutex;
   BlockMap m_L1_cache; // A first level memory cache whose chunk sizes vary that
                        // will be used only if the memory read fits entirely in
@@ -68,7 +59,8 @@ protected:
   uint32_t m_L2_cache_line_byte_size;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(MemoryCache);
+  MemoryCache(const MemoryCache &) = delete;
+  const MemoryCache &operator=(const MemoryCache &) = delete;
 };
 
     
@@ -114,16 +106,12 @@ protected:
   RangeVector<lldb::addr_t, uint32_t> m_reserved_blocks;
 };
 
-//----------------------------------------------------------------------
 // A class that can track allocated memory and give out allocated memory
 // without us having to make an allocate/deallocate call every time we need
 // some memory in a process that is being debugged.
-//----------------------------------------------------------------------
 class AllocatedMemoryCache {
 public:
-  //------------------------------------------------------------------
   // Constructors and Destructors
-  //------------------------------------------------------------------
   AllocatedMemoryCache(Process &process);
 
   ~AllocatedMemoryCache();
@@ -141,18 +129,17 @@ protected:
   AllocatedBlockSP AllocatePage(uint32_t byte_size, uint32_t permissions,
                                 uint32_t chunk_size, Status &error);
 
-  //------------------------------------------------------------------
   // Classes that inherit from MemoryCache can see and modify these
-  //------------------------------------------------------------------
   Process &m_process;
   std::recursive_mutex m_mutex;
   typedef std::multimap<uint32_t, AllocatedBlockSP> PermissionsToBlockMap;
   PermissionsToBlockMap m_memory_map;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(AllocatedMemoryCache);
+  AllocatedMemoryCache(const AllocatedMemoryCache &) = delete;
+  const AllocatedMemoryCache &operator=(const AllocatedMemoryCache &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_Memory_h_
+#endif // LLDB_TARGET_MEMORY_H

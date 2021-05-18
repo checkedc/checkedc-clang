@@ -1,9 +1,8 @@
 //===- TemplateBase.cpp - Common template AST class implementation --------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -17,6 +16,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/AST/DependenceFlags.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/PrettyPrinter.h"
@@ -112,84 +112,60 @@ TemplateArgument::CreatePackCopy(ASTContext &Context,
   return TemplateArgument(Args.copy(Context));
 }
 
-bool TemplateArgument::isDependent() const {
+TemplateArgumentDependence TemplateArgument::getDependence() const {
+  auto Deps = TemplateArgumentDependence::None;
   switch (getKind()) {
   case Null:
     llvm_unreachable("Should not have a NULL template argument");
 
   case Type:
-    return getAsType()->isDependentType() ||
-           isa<PackExpansionType>(getAsType());
+    Deps = toTemplateArgumentDependence(getAsType()->getDependence());
+    if (isa<PackExpansionType>(getAsType()))
+      Deps |= TemplateArgumentDependence::Dependent;
+    return Deps;
 
   case Template:
-    return getAsTemplate().isDependent();
+    return toTemplateArgumentDependence(getAsTemplate().getDependence());
 
   case TemplateExpansion:
-    return true;
+    return TemplateArgumentDependence::Dependent |
+           TemplateArgumentDependence::Instantiation;
 
-  case Declaration:
-    if (DeclContext *DC = dyn_cast<DeclContext>(getAsDecl()))
-      return DC->isDependentContext();
-    return getAsDecl()->getDeclContext()->isDependentContext();
+  case Declaration: {
+    auto *DC = dyn_cast<DeclContext>(getAsDecl());
+    if (!DC)
+      DC = getAsDecl()->getDeclContext();
+    if (DC->isDependentContext())
+      Deps = TemplateArgumentDependence::Dependent |
+             TemplateArgumentDependence::Instantiation;
+    return Deps;
+  }
 
   case NullPtr:
-    return false;
-
   case Integral:
-    // Never dependent
-    return false;
+    return TemplateArgumentDependence::None;
 
   case Expression:
-    return (getAsExpr()->isTypeDependent() || getAsExpr()->isValueDependent() ||
-            isa<PackExpansionExpr>(getAsExpr()));
+    Deps = toTemplateArgumentDependence(getAsExpr()->getDependence());
+    if (isa<PackExpansionExpr>(getAsExpr()))
+      Deps |= TemplateArgumentDependence::Dependent |
+              TemplateArgumentDependence::Instantiation;
+    return Deps;
 
   case Pack:
     for (const auto &P : pack_elements())
-      if (P.isDependent())
-        return true;
-    return false;
+      Deps |= P.getDependence();
+    return Deps;
   }
+  llvm_unreachable("unhandled ArgKind");
+}
 
-  llvm_unreachable("Invalid TemplateArgument Kind!");
+bool TemplateArgument::isDependent() const {
+  return getDependence() & TemplateArgumentDependence::Dependent;
 }
 
 bool TemplateArgument::isInstantiationDependent() const {
-  switch (getKind()) {
-  case Null:
-    llvm_unreachable("Should not have a NULL template argument");
-
-  case Type:
-    return getAsType()->isInstantiationDependentType();
-
-  case Template:
-    return getAsTemplate().isInstantiationDependent();
-
-  case TemplateExpansion:
-    return true;
-
-  case Declaration:
-    if (DeclContext *DC = dyn_cast<DeclContext>(getAsDecl()))
-      return DC->isDependentContext();
-    return getAsDecl()->getDeclContext()->isDependentContext();
-
-  case NullPtr:
-    return false;
-
-  case Integral:
-    // Never dependent
-    return false;
-
-  case Expression:
-    return getAsExpr()->isInstantiationDependent();
-
-  case Pack:
-    for (const auto &P : pack_elements())
-      if (P.isInstantiationDependent())
-        return true;
-    return false;
-  }
-
-  llvm_unreachable("Invalid TemplateArgument Kind!");
+  return getDependence() & TemplateArgumentDependence::Instantiation;
 }
 
 bool TemplateArgument::isPackExpansion() const {
@@ -216,38 +192,7 @@ bool TemplateArgument::isPackExpansion() const {
 }
 
 bool TemplateArgument::containsUnexpandedParameterPack() const {
-  switch (getKind()) {
-  case Null:
-  case Declaration:
-  case Integral:
-  case TemplateExpansion:
-  case NullPtr:
-    break;
-
-  case Type:
-    if (getAsType()->containsUnexpandedParameterPack())
-      return true;
-    break;
-
-  case Template:
-    if (getAsTemplate().containsUnexpandedParameterPack())
-      return true;
-    break;
-
-  case Expression:
-    if (getAsExpr()->containsUnexpandedParameterPack())
-      return true;
-    break;
-
-  case Pack:
-    for (const auto &P : pack_elements())
-      if (P.containsUnexpandedParameterPack())
-        return true;
-
-    break;
-  }
-
-  return false;
+  return getDependence() & TemplateArgumentDependence::UnexpandedPack;
 }
 
 Optional<unsigned> TemplateArgument::getNumTemplateExpansions() const {
@@ -299,6 +244,7 @@ void TemplateArgument::Profile(llvm::FoldingSetNodeID &ID,
     break;
 
   case Declaration:
+    getParamTypeForDecl().Profile(ID);
     ID.AddPointer(getAsDecl()? getAsDecl()->getCanonicalDecl() : nullptr);
     break;
 
@@ -343,10 +289,13 @@ bool TemplateArgument::structurallyEquals(const TemplateArgument &Other) const {
   case Null:
   case Type:
   case Expression:
-  case Template:
-  case TemplateExpansion:
   case NullPtr:
     return TypeOrValue.V == Other.TypeOrValue.V;
+
+  case Template:
+  case TemplateExpansion:
+    return TemplateArg.Name == Other.TemplateArg.Name &&
+           TemplateArg.NumExpansions == Other.TemplateArg.NumExpansions;
 
   case Declaration:
     return getAsDecl() == Other.getAsDecl();
@@ -371,7 +320,7 @@ TemplateArgument TemplateArgument::getPackExpansionPattern() const {
 
   switch (getKind()) {
   case Type:
-    return getAsType()->getAs<PackExpansionType>()->getPattern();
+    return getAsType()->castAs<PackExpansionType>()->getPattern();
 
   case Expression:
     return cast<PackExpansionExpr>(getAsExpr())->getPattern();
@@ -407,13 +356,16 @@ void TemplateArgument::print(const PrintingPolicy &Policy,
 
   case Declaration: {
     NamedDecl *ND = getAsDecl();
-    Out << '&';
-    if (ND->getDeclName()) {
-      // FIXME: distinguish between pointer and reference args?
-      ND->printQualifiedName(Out);
-    } else {
-      Out << "(anonymous)";
+    if (getParamTypeForDecl()->isRecordType()) {
+      if (auto *TPO = dyn_cast<TemplateParamObjectDecl>(ND)) {
+        // FIXME: Include the type if it's not obvious from the context.
+        TPO->printAsInit(Out);
+        break;
+      }
     }
+    if (!getParamTypeForDecl()->isReferenceType())
+      Out << '&';
+    ND->printQualifiedName(Out);
     break;
   }
 
@@ -507,8 +459,8 @@ SourceRange TemplateArgumentLoc::getSourceRange() const {
   llvm_unreachable("Invalid TemplateArgument Kind!");
 }
 
-const DiagnosticBuilder &clang::operator<<(const DiagnosticBuilder &DB,
-                                           const TemplateArgument &Arg) {
+template <typename T>
+static const T &DiagTemplateArg(const T &DB, const TemplateArgument &Arg) {
   switch (Arg.getKind()) {
   case TemplateArgument::Null:
     // This is bad, but not as bad as crashing because of argument
@@ -561,8 +513,24 @@ const DiagnosticBuilder &clang::operator<<(const DiagnosticBuilder &DB,
   llvm_unreachable("Invalid TemplateArgument Kind!");
 }
 
+const StreamingDiagnostic &clang::operator<<(const StreamingDiagnostic &DB,
+                                             const TemplateArgument &Arg) {
+  return DiagTemplateArg(DB, Arg);
+}
+
+clang::TemplateArgumentLocInfo::TemplateArgumentLocInfo(
+    ASTContext &Ctx, NestedNameSpecifierLoc QualifierLoc,
+    SourceLocation TemplateNameLoc, SourceLocation EllipsisLoc) {
+  TemplateTemplateArgLocInfo *Template = new (Ctx) TemplateTemplateArgLocInfo;
+  Template->Qualifier = QualifierLoc.getNestedNameSpecifier();
+  Template->QualifierLocData = QualifierLoc.getOpaqueData();
+  Template->TemplateNameLoc = TemplateNameLoc;
+  Template->EllipsisLoc = EllipsisLoc;
+  Pointer = Template;
+}
+
 const ASTTemplateArgumentListInfo *
-ASTTemplateArgumentListInfo::Create(ASTContext &C,
+ASTTemplateArgumentListInfo::Create(const ASTContext &C,
                                     const TemplateArgumentListInfo &List) {
   std::size_t size = totalSizeToAlloc<TemplateArgumentLoc>(List.size());
   void *Mem = C.Allocate(size, alignof(ASTTemplateArgumentListInfo));
@@ -602,20 +570,14 @@ void ASTTemplateKWAndArgsInfo::initializeFrom(SourceLocation TemplateKWLoc) {
 
 void ASTTemplateKWAndArgsInfo::initializeFrom(
     SourceLocation TemplateKWLoc, const TemplateArgumentListInfo &Info,
-    TemplateArgumentLoc *OutArgArray, bool &Dependent,
-    bool &InstantiationDependent, bool &ContainsUnexpandedParameterPack) {
+    TemplateArgumentLoc *OutArgArray, TemplateArgumentDependence &Deps) {
   this->TemplateKWLoc = TemplateKWLoc;
   LAngleLoc = Info.getLAngleLoc();
   RAngleLoc = Info.getRAngleLoc();
   NumTemplateArgs = Info.size();
 
   for (unsigned i = 0; i != NumTemplateArgs; ++i) {
-    Dependent = Dependent || Info[i].getArgument().isDependent();
-    InstantiationDependent = InstantiationDependent ||
-                             Info[i].getArgument().isInstantiationDependent();
-    ContainsUnexpandedParameterPack =
-        ContainsUnexpandedParameterPack ||
-        Info[i].getArgument().containsUnexpandedParameterPack();
+    Deps |= Info[i].getArgument().getDependence();
 
     new (&OutArgArray[i]) TemplateArgumentLoc(Info[i]);
   }

@@ -1,15 +1,14 @@
 
 //===-- SBTypeEnumMember.h --------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_SBTypeEnumMember_h_
-#define LLDB_SBTypeEnumMember_h_
+#ifndef LLDB_API_SBTYPEENUMMEMBER_H
+#define LLDB_API_SBTYPEENUMMEMBER_H
 
 #include "lldb/API/SBDefines.h"
 
@@ -24,6 +23,8 @@ public:
   ~SBTypeEnumMember();
 
   SBTypeEnumMember &operator=(const SBTypeEnumMember &rhs);
+
+  explicit operator bool() const;
 
   bool IsValid() const;
 
@@ -63,6 +64,8 @@ public:
 
   SBTypeEnumMemberList &operator=(const SBTypeEnumMemberList &rhs);
 
+  explicit operator bool() const;
+
   bool IsValid();
 
   void Append(SBTypeEnumMember entry);
@@ -72,9 +75,9 @@ public:
   uint32_t GetSize();
 
 private:
-  std::unique_ptr<lldb_private::TypeEnumMemberListImpl> m_opaque_ap;
+  std::unique_ptr<lldb_private::TypeEnumMemberListImpl> m_opaque_up;
 };
 
 } // namespace lldb
 
-#endif // LLDB_SBTypeEnumMember_h_
+#endif // LLDB_API_SBTYPEENUMMEMBER_H

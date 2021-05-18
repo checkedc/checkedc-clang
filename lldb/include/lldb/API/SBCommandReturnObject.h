@@ -1,14 +1,13 @@
 //===-- SBCommandReturnObject.h ---------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_SBCommandReturnObject_h_
-#define LLDB_SBCommandReturnObject_h_
+#ifndef LLDB_API_SBCOMMANDRETURNOBJECT_H
+#define LLDB_API_SBCOMMANDRETURNOBJECT_H
 
 #include <stdio.h>
 
@@ -16,22 +15,28 @@
 
 #include "lldb/API/SBDefines.h"
 
+namespace lldb_private {
+class SBCommandReturnObjectImpl;
+}
+
 namespace lldb {
 
 class LLDB_API SBCommandReturnObject {
 public:
   SBCommandReturnObject();
 
+  SBCommandReturnObject(lldb_private::CommandReturnObject &ref);
+
+  // rvalue ctor+assignment are incompatible with Reproducers.
+
   SBCommandReturnObject(const lldb::SBCommandReturnObject &rhs);
 
   ~SBCommandReturnObject();
 
-  const lldb::SBCommandReturnObject &
+  lldb::SBCommandReturnObject &
   operator=(const lldb::SBCommandReturnObject &rhs);
 
-  SBCommandReturnObject(lldb_private::CommandReturnObject *ptr);
-
-  lldb_private::CommandReturnObject *Release();
+  explicit operator bool() const;
 
   bool IsValid() const;
 
@@ -39,13 +44,21 @@ public:
 
   const char *GetError();
 
-  size_t PutOutput(FILE *fh);
+  size_t PutOutput(FILE *fh); // DEPRECATED
+
+  size_t PutOutput(SBFile file);
+
+  size_t PutOutput(FileSP file);
 
   size_t GetOutputSize();
 
   size_t GetErrorSize();
 
-  size_t PutError(FILE *fh);
+  size_t PutError(FILE *fh); // DEPRECATED
+
+  size_t PutError(SBFile file);
+
+  size_t PutError(FileSP file);
 
   void Clear();
 
@@ -63,14 +76,21 @@ public:
 
   bool GetDescription(lldb::SBStream &description);
 
-  // deprecated, these two functions do not take ownership of file handle
-  void SetImmediateOutputFile(FILE *fh);
+  void SetImmediateOutputFile(FILE *fh); // DEPRECATED
 
-  void SetImmediateErrorFile(FILE *fh);
+  void SetImmediateErrorFile(FILE *fh); // DEPRECATED
 
-  void SetImmediateOutputFile(FILE *fh, bool transfer_ownership);
+  void SetImmediateOutputFile(FILE *fh, bool transfer_ownership); // DEPRECATED
 
-  void SetImmediateErrorFile(FILE *fh, bool transfer_ownership);
+  void SetImmediateErrorFile(FILE *fh, bool transfer_ownership); // DEPRECATED
+
+  void SetImmediateOutputFile(SBFile file);
+
+  void SetImmediateErrorFile(SBFile file);
+
+  void SetImmediateOutputFile(FileSP file);
+
+  void SetImmediateErrorFile(FileSP file);
 
   void PutCString(const char *string, int len = -1);
 
@@ -85,6 +105,9 @@ public:
 
   void SetError(const char *error_cstr);
 
+  // ref() is internal for LLDB only.
+  lldb_private::CommandReturnObject &ref() const;
+
 protected:
   friend class SBCommandInterpreter;
   friend class SBOptions;
@@ -95,14 +118,10 @@ protected:
 
   lldb_private::CommandReturnObject &operator*() const;
 
-  lldb_private::CommandReturnObject &ref() const;
-
-  void SetLLDBObjectPtr(lldb_private::CommandReturnObject *ptr);
-
 private:
-  std::unique_ptr<lldb_private::CommandReturnObject> m_opaque_ap;
+  std::unique_ptr<lldb_private::SBCommandReturnObjectImpl> m_opaque_up;
 };
 
 } // namespace lldb
 
-#endif // LLDB_SBCommandReturnObject_h_
+#endif // LLDB_API_SBCOMMANDRETURNOBJECT_H

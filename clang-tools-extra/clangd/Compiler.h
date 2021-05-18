@@ -1,24 +1,27 @@
 //===--- Compiler.h ----------------------------------------------*- C++-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
 // Shared utilities for invoking the clang compiler.
-// ClangdUnit takes care of much of this, but some features like CodeComplete
-// run their own compile actions that share logic.
+// Most callers will use this through Preamble/ParsedAST, but some features like
+// CodeComplete run their own compile actions that share these low-level pieces.
 //
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_COMPILER_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_COMPILER_H
 
+#include "GlobalCompilationDatabase.h"
+#include "TidyProvider.h"
+#include "index/Index.h"
+#include "support/ThreadsafeFS.h"
 #include "clang/Frontend/CompilerInstance.h"
-#include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/PrecompiledPreamble.h"
+#include "clang/Tooling/CompilationDatabase.h"
 
 namespace clang {
 namespace clangd {
@@ -31,6 +34,32 @@ public:
   void HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
                         const clang::Diagnostic &Info) override;
 };
+
+// Options to run clang e.g. when parsing AST.
+struct ParseOptions {
+  // (empty at present, formerly controlled recovery AST, include-fixer etc)
+};
+
+/// Information required to run clang, e.g. to parse AST or do code completion.
+struct ParseInputs {
+  tooling::CompileCommand CompileCommand;
+  const ThreadsafeFS *TFS;
+  std::string Contents;
+  // Version identifier for Contents, provided by the client and opaque to us.
+  std::string Version = "null";
+  // Prevent reuse of the cached preamble/AST. Slow! Useful to workaround
+  // clangd's assumption that missing header files will stay missing.
+  bool ForceRebuild = false;
+  // Used to recover from diagnostics (e.g. find missing includes for symbol).
+  const SymbolIndex *Index = nullptr;
+  ParseOptions Opts = ParseOptions();
+  TidyProviderRef ClangTidyProvider = {};
+};
+
+/// Builds compiler invocation that could be used to build AST or preamble.
+std::unique_ptr<CompilerInvocation>
+buildCompilerInvocation(const ParseInputs &Inputs, clang::DiagnosticConsumer &D,
+                        std::vector<std::string> *CC1Args = nullptr);
 
 /// Creates a compiler instance, configured so that:
 ///   - Contents of the parsed file are remapped to \p MainFile.
@@ -45,7 +74,6 @@ public:
 std::unique_ptr<CompilerInstance> prepareCompilerInstance(
     std::unique_ptr<clang::CompilerInvocation>, const PrecompiledPreamble *,
     std::unique_ptr<llvm::MemoryBuffer> MainFile,
-    std::shared_ptr<PCHContainerOperations>,
     IntrusiveRefCntPtr<llvm::vfs::FileSystem>, DiagnosticConsumer &);
 
 } // namespace clangd

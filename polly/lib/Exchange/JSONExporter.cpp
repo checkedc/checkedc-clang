@@ -1,9 +1,8 @@
 //===-- JSONExporter.cpp  - Export Scops as JSON  -------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -19,18 +18,14 @@
 #include "polly/ScopPass.h"
 #include "polly/Support/ScopLocation.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/Analysis/RegionInfo.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
-#include "isl/constraint.h"
 #include "isl/map.h"
-#include "isl/printer.h"
 #include "isl/set.h"
-#include "isl/union_map.h"
 #include <memory>
 #include <string>
 #include <system_error>
@@ -85,7 +80,7 @@ struct JSONImporter : public ScopPass {
 } // namespace
 
 static std::string getFileName(Scop &S, StringRef Suffix = "") {
-  std::string FunctionName = S.getFunction().getName();
+  std::string FunctionName = S.getFunction().getName().str();
   std::string FileName = FunctionName + "___" + S.getNameStr() + ".jscop";
 
   if (Suffix != "")
@@ -183,9 +178,9 @@ static void exportScop(Scop &S) {
 
   // Write to file.
   std::error_code EC;
-  ToolOutputFile F(FileName, EC, llvm::sys::fs::F_Text);
+  ToolOutputFile F(FileName, EC, llvm::sys::fs::OF_Text);
 
-  std::string FunctionName = S.getFunction().getName();
+  std::string FunctionName = S.getFunction().getName().str();
   errs() << "Writing JScop '" << S.getNameStr() << "' in function '"
          << FunctionName << "' to '" << FileName << "'.\n";
 
@@ -220,8 +215,8 @@ static bool importContext(Scop &S, const json::Object &JScop) {
     return false;
   }
 
-  isl::set NewContext =
-      isl::set{S.getIslCtx().get(), JScop.getString("context").getValue()};
+  isl::set NewContext = isl::set{S.getIslCtx().get(),
+                                 JScop.getString("context").getValue().str()};
 
   // Check whether the context was parsed successfully.
   if (!NewContext) {
@@ -310,7 +305,7 @@ static bool importSchedule(Scop &S, const json::Object &JScop,
     // that stores the reference to the ScopStmt this schedule belongs to.
     Map = isl_map_set_tuple_id(Map, isl_dim_in,
                                isl_space_get_tuple_id(Space, isl_dim_set));
-    for (unsigned i = 0; i < isl_space_dim(Space, isl_dim_param); i++) {
+    for (isl_size i = 0; i < isl_space_dim(Space, isl_dim_param); i++) {
       isl_id *Id = isl_space_get_dim_id(Space, isl_dim_param, i);
       Map = isl_map_set_dim_id(Map, isl_dim_param, i, Id);
     }
@@ -484,7 +479,7 @@ importAccesses(Scop &S, const json::Object &JScop, const DataLayout &DL,
       // We need to copy the isl_ids for the parameter dimensions to the new
       // map. Without doing this the current map would have different
       // ids then the new one, even though both are named identically.
-      for (unsigned i = 0; i < isl_map_dim(CurrentAccessMap, isl_dim_param);
+      for (isl_size i = 0; i < isl_map_dim(CurrentAccessMap, isl_dim_param);
            i++) {
         isl_id *Id = isl_map_get_dim_id(CurrentAccessMap, isl_dim_param, i);
         NewAccessMap = isl_map_set_dim_id(NewAccessMap, isl_dim_param, i, Id);
@@ -533,7 +528,7 @@ importAccesses(Scop &S, const json::Object &JScop, const DataLayout &DL,
         // Statistics.
         ++NewAccessMapFound;
         if (NewAccessStrings)
-          NewAccessStrings->push_back(Accesses);
+          NewAccessStrings->push_back(Accesses.str());
         MA->setNewAccessRelation(isl::manage(NewAccessMap));
       } else {
         isl_map_free(NewAccessMap);
@@ -656,8 +651,9 @@ static bool importArrays(Scop &S, const json::Object &JScop) {
 
   for (; ArrayIdx < Arrays.size(); ArrayIdx++) {
     const json::Object &Array = *Arrays[ArrayIdx].getAsObject();
-    auto *ElementType = parseTextType(
-        Array.get("type")->getAsString().getValue(), S.getSE()->getContext());
+    auto *ElementType =
+        parseTextType(Array.get("type")->getAsString().getValue().str(),
+                      S.getSE()->getContext());
     if (!ElementType) {
       errs() << "Error while parsing element type for new array.\n";
       return false;
@@ -665,7 +661,7 @@ static bool importArrays(Scop &S, const json::Object &JScop) {
     const json::Array &SizesArray = *Array.getArray("sizes");
     std::vector<unsigned> DimSizes;
     for (unsigned i = 0; i < SizesArray.size(); i++) {
-      auto Size = std::stoi(SizesArray[i].getAsString().getValue());
+      auto Size = std::stoi(SizesArray[i].getAsString().getValue().str());
 
       // Check if the size if positive.
       if (Size <= 0) {
@@ -677,7 +673,7 @@ static bool importArrays(Scop &S, const json::Object &JScop) {
     }
 
     auto NewSAI = S.createScopArrayInfo(
-        ElementType, Array.getString("name").getValue(), DimSizes);
+        ElementType, Array.getString("name").getValue().str(), DimSizes);
 
     if (Array.get("allocation")) {
       NewSAI->setIsOnHeap(Array.getString("allocation").getValue() == "heap");
@@ -700,7 +696,7 @@ static bool importScop(Scop &S, const Dependences &D, const DataLayout &DL,
                        std::vector<std::string> *NewAccessStrings = nullptr) {
   std::string FileName = ImportDir + "/" + getFileName(S, ImportPostfix);
 
-  std::string FunctionName = S.getFunction().getName();
+  std::string FunctionName = S.getFunction().getName().str();
   errs() << "Reading JScop '" << S.getNameStr() << "' in function '"
          << FunctionName << "' from '" << FileName << "'.\n";
   ErrorOr<std::unique_ptr<MemoryBuffer>> result =

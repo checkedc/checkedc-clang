@@ -1,9 +1,8 @@
 //===--- UseBoolLiteralsCheck.cpp - clang-tidy-----------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -23,27 +22,31 @@ UseBoolLiteralsCheck::UseBoolLiteralsCheck(StringRef Name,
     : ClangTidyCheck(Name, Context),
       IgnoreMacros(Options.getLocalOrGlobal("IgnoreMacros", true)) {}
 
-void UseBoolLiteralsCheck::registerMatchers(MatchFinder *Finder) {
-  if (!getLangOpts().CPlusPlus)
-    return;
+void UseBoolLiteralsCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
+  Options.store(Opts, "IgnoreMacros", IgnoreMacros);
+}
 
+void UseBoolLiteralsCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
-      implicitCastExpr(
-          has(ignoringParenImpCasts(integerLiteral().bind("literal"))),
-          hasImplicitDestinationType(qualType(booleanType())),
-          unless(isInTemplateInstantiation()),
-          anyOf(hasParent(explicitCastExpr().bind("cast")), anything())),
+      traverse(
+          TK_AsIs,
+          implicitCastExpr(
+              has(ignoringParenImpCasts(integerLiteral().bind("literal"))),
+              hasImplicitDestinationType(qualType(booleanType())),
+              unless(isInTemplateInstantiation()),
+              anyOf(hasParent(explicitCastExpr().bind("cast")), anything()))),
       this);
 
   Finder->addMatcher(
-      conditionalOperator(
-          hasParent(implicitCastExpr(
-              hasImplicitDestinationType(qualType(booleanType())),
-              unless(isInTemplateInstantiation()))),
-          eachOf(hasTrueExpression(
-                     ignoringParenImpCasts(integerLiteral().bind("literal"))),
-                 hasFalseExpression(
-                     ignoringParenImpCasts(integerLiteral().bind("literal"))))),
+      traverse(TK_AsIs,
+               conditionalOperator(
+                   hasParent(implicitCastExpr(
+                       hasImplicitDestinationType(qualType(booleanType())),
+                       unless(isInTemplateInstantiation()))),
+                   eachOf(hasTrueExpression(ignoringParenImpCasts(
+                              integerLiteral().bind("literal"))),
+                          hasFalseExpression(ignoringParenImpCasts(
+                              integerLiteral().bind("literal")))))),
       this);
 }
 

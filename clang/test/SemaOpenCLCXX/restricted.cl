@@ -1,9 +1,9 @@
-// RUN: %clang_cc1 %s -triple spir-unknown-unknown -cl-std=c++ -pedantic -verify -fsyntax-only
+// RUN: %clang_cc1 %s -triple spir-unknown-unknown -cl-std=clc++ -pedantic -verify -fsyntax-only
 
 // This test checks that various C/C++/OpenCL C constructs are not available in
-// OpenCL C++, according to OpenCL C++ 1.0 Specification Section 2.9.
+// C++ for OpenCL.
 
-// Test that typeid is not available in OpenCL C++.
+// Test that typeid is not available.
 namespace std {
   // Provide a dummy std::type_info so that we can use typeid.
   class type_info {
@@ -11,9 +11,9 @@ namespace std {
   };
 }
 __constant std::type_info int_ti = typeid(int);
-// expected-error@-1 {{'typeid' is not supported in OpenCL C++}}
+// expected-error@-1 {{'typeid' is not supported in C++ for OpenCL}}
 
-// Test that dynamic_cast is not available in OpenCL C++.
+// Test that dynamic_cast is not available in C++ for OpenCL.
 class A {
 public:
   int a;
@@ -25,39 +25,21 @@ class B : public A {
 
 B *test_dynamic_cast(B *p) {
   return dynamic_cast<B *>(p);
-  // expected-error@-1 {{'dynamic_cast' is not supported in OpenCL C++}}
+  // expected-error@-1 {{'dynamic_cast' is not supported in C++ for OpenCL}}
 }
 
 // Test storage class qualifiers.
 __constant _Thread_local int a = 1;
-// expected-error@-1 {{OpenCL C++ version 1.0 does not support the '_Thread_local' storage class specifier}}
+// expected-error@-1 {{C++ for OpenCL version 1.0 does not support the '_Thread_local' storage class specifier}}
+// expected-warning@-2 {{'_Thread_local' is a C11 extension}}
+// expected-error@-3 {{thread-local storage is not supported for the current target}}
 __constant __thread int b = 2;
-// expected-error@-1 {{OpenCL C++ version 1.0 does not support the '__thread' storage class specifier}}
+// expected-error@-1 {{C++ for OpenCL version 1.0 does not support the '__thread' storage class specifier}}
+// expected-error@-2 {{thread-local storage is not supported for the current target}}
 kernel void test_storage_classes() {
   register int x;
-  // expected-error@-1 {{OpenCL C++ version 1.0 does not support the 'register' storage class specifier}}
+  // expected-error@-1 {{C++ for OpenCL version 1.0 does not support the 'register' storage class specifier}}
   thread_local int y;
-  // expected-error@-1 {{OpenCL C++ version 1.0 does not support the 'thread_local' storage class specifier}}
-}
-
-// Test that access qualifiers are reserved keywords.
-kernel void test_access_qualifiers() {
-  int read_only;
-  // expected-error@-1 {{'read_only' is a reserved keyword in OpenCL C++}}
-  // expected-warning@-2 {{declaration does not declare anything}}
-  int __read_only;
-  // expected-error@-1 {{'__read_only' is a reserved keyword in OpenCL C++}}
-  // expected-warning@-2 {{declaration does not declare anything}}
-  int write_only;
-  // expected-error@-1 {{'write_only' is a reserved keyword in OpenCL C++}}
-  // expected-warning@-2 {{declaration does not declare anything}}
-  int __write_only;
-  // expected-error@-1 {{'__write_only' is a reserved keyword in OpenCL C++}}
-  // expected-warning@-2 {{declaration does not declare anything}}
-  int read_write;
-  // expected-error@-1 {{'read_write' is a reserved keyword in OpenCL C++}}
-  // expected-warning@-2 {{declaration does not declare anything}}
-  int __read_write;
-  // expected-error@-1 {{'__read_write' is a reserved keyword in OpenCL C++}}
-  // expected-warning@-2 {{declaration does not declare anything}}
+  // expected-error@-1 {{C++ for OpenCL version 1.0 does not support the 'thread_local' storage class specifier}}
+  // expected-error@-2 {{thread-local storage is not supported for the current target}}
 }

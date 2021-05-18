@@ -47,15 +47,21 @@ if (LLVM_TREE_AVAILABLE)
          ${LLVM_INCLUDE_TESTS})
   option(COMPILER_RT_ENABLE_WERROR "Fail and stop if warning is triggered"
          ${LLVM_ENABLE_WERROR})
-  # Use just-built Clang to compile/link tests on all platforms, except for
-  # Windows where we need to use clang-cl instead.
-  if(NOT MSVC)
-    set(COMPILER_RT_TEST_COMPILER ${LLVM_RUNTIME_OUTPUT_INTDIR}/clang)
-    set(COMPILER_RT_TEST_CXX_COMPILER ${LLVM_RUNTIME_OUTPUT_INTDIR}/clang++)
+
+  # Use just-built Clang to compile/link tests on all platforms.
+  if (CMAKE_CROSSCOMPILING)
+    if (CMAKE_HOST_WIN32)
+      set(_host_executable_suffix ".exe")
+    else()
+      set(_host_executable_suffix "")
+    endif()
   else()
-    set(COMPILER_RT_TEST_COMPILER ${LLVM_RUNTIME_OUTPUT_INTDIR}/clang.exe)
-    set(COMPILER_RT_TEST_CXX_COMPILER ${LLVM_RUNTIME_OUTPUT_INTDIR}/clang++.exe)
+    set(_host_executable_suffix ${CMAKE_EXECUTABLE_SUFFIX})
   endif()
+  set(COMPILER_RT_TEST_COMPILER
+    ${LLVM_RUNTIME_OUTPUT_INTDIR}/clang${_host_executable_suffix})
+  set(COMPILER_RT_TEST_CXX_COMPILER
+    ${LLVM_RUNTIME_OUTPUT_INTDIR}/clang++${_host_executable_suffix})
 else()
     # Take output dir and install path from the user.
   set(COMPILER_RT_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR} CACHE PATH
@@ -95,15 +101,22 @@ else(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR)
 endif()
 
 if(APPLE)
-  # On Darwin if /usr/include doesn't exist, the user probably has Xcode but not
-  # the command line tools. If this is the case, we need to find the OS X
-  # sysroot to pass to clang.
-  if(NOT EXISTS /usr/include)
-    execute_process(COMMAND xcodebuild -version -sdk macosx Path
+  # On Darwin if /usr/include/c++ doesn't exist, the user probably has Xcode but
+  # not the command line tools (or is using macOS 10.14 or newer). If this is
+  # the case, we need to find the OS X sysroot to pass to clang.
+  if(NOT EXISTS /usr/include/c++)
+    execute_process(COMMAND xcrun -sdk macosx --show-sdk-path
        OUTPUT_VARIABLE OSX_SYSROOT
        ERROR_QUIET
        OUTPUT_STRIP_TRAILING_WHITESPACE)
-    set(OSX_SYSROOT_FLAG "-isysroot${OSX_SYSROOT}")
+    if (NOT OSX_SYSROOT OR NOT EXISTS ${OSX_SYSROOT})
+      message(WARNING "Detected OSX_SYSROOT ${OSX_SYSROOT} does not exist")
+    else()
+      message(STATUS "Found OSX_SYSROOT: ${OSX_SYSROOT}")
+      set(OSX_SYSROOT_FLAG "-isysroot${OSX_SYSROOT}")
+    endif()
+  else()
+    set(OSX_SYSROOT_FLAG "")
   endif()
 
   option(COMPILER_RT_ENABLE_IOS "Enable building for iOS" On)
@@ -157,16 +170,8 @@ macro(test_targets)
       add_default_target_arch(${COMPILER_RT_DEFAULT_TARGET_ARCH})
     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "i[2-6]86|x86|amd64")
       if(NOT MSVC)
-        if(CMAKE_SYSTEM_NAME MATCHES "OpenBSD")
-          if (CMAKE_SIZEOF_VOID_P EQUAL 4)
-            test_target_arch(i386 __i386__ "-m32")
-          else()
-            test_target_arch(x86_64 "" "-m64")
-          endif()
-        else()
-          test_target_arch(x86_64 "" "-m64")
-          test_target_arch(i386 __i386__ "-m32")
-        endif()
+        test_target_arch(x86_64 "" "-m64")
+        test_target_arch(i386 __i386__ "-m32")
       else()
         if (CMAKE_SIZEOF_VOID_P EQUAL 4)
           test_target_arch(i386 "" "")
@@ -174,31 +179,28 @@ macro(test_targets)
           test_target_arch(x86_64 "" "")
         endif()
       endif()
+    elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "powerpc64le")
+      test_target_arch(powerpc64le "" "-m64")
     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "powerpc")
-      # Strip out -nodefaultlibs when calling TEST_BIG_ENDIAN. Configuration
-      # will fail with this option when building with a sanitizer.
-      cmake_push_check_state()
-      string(REPLACE "-nodefaultlibs" "" CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS})
-      TEST_BIG_ENDIAN(HOST_IS_BIG_ENDIAN)
-      cmake_pop_check_state()
-
-      if(HOST_IS_BIG_ENDIAN)
-        test_target_arch(powerpc64 "" "-m64")
-      else()
-        test_target_arch(powerpc64le "" "-m64")
+      if(CMAKE_SYSTEM_NAME MATCHES "AIX")
+        test_target_arch(powerpc "" "-m32")
       endif()
+      test_target_arch(powerpc64 "" "-m64")
     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "s390x")
       test_target_arch(s390x "" "")
+    elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "sparc")
+      test_target_arch(sparc "" "-m32")
+      test_target_arch(sparcv9 "" "-m64")
     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "mipsel|mips64el")
       # Gcc doesn't accept -m32/-m64 so we do the next best thing and use
       # -mips32r2/-mips64r2. We don't use -mips1/-mips3 because we want to match
       # clang's default CPU's. In the 64-bit case, we must also specify the ABI
       # since the default ABI differs between gcc and clang.
       # FIXME: Ideally, we would build the N32 library too.
-      test_target_arch(mipsel "" "-mips32r2" "-mabi=32")
+      test_target_arch(mipsel "" "-mips32r2" "-mabi=32" "-D_LARGEFILE_SOURCE" "-D_FILE_OFFSET_BITS=64")
       test_target_arch(mips64el "" "-mips64r2" "-mabi=64")
     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "mips")
-      test_target_arch(mips "" "-mips32r2" "-mabi=32")
+      test_target_arch(mips "" "-mips32r2" "-mabi=32" "-D_LARGEFILE_SOURCE" "-D_FILE_OFFSET_BITS=64")
       test_target_arch(mips64 "" "-mips64r2" "-mabi=64")
     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "arm")
       if(WIN32)
@@ -220,6 +222,8 @@ macro(test_targets)
       test_target_arch(wasm32 "" "--target=wasm32-unknown-unknown")
     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "wasm64")
       test_target_arch(wasm64 "" "--target=wasm64-unknown-unknown")
+    elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "ve")
+      test_target_arch(ve "__ve__" "--target=ve-unknown-none")
     endif()
     set(COMPILER_RT_OS_SUFFIX "")
   endif()

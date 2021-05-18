@@ -38,7 +38,7 @@
   }
   
   ; Function Attrs: norecurse nounwind readnone
-  define i64 @testADDCo(i64 %a, i64 %b) local_unnamed_addr #0 {
+  define i64 @testADDC_rec(i64 %a, i64 %b) local_unnamed_addr #0 {
   entry:
     %add = add nsw i64 %b, %a
     %cmp = icmp eq i64 %add, 0
@@ -62,7 +62,7 @@
   }
   
   ; Function Attrs: norecurse nounwind readnone
-  define signext i32 @testANDo(i64 %a, i64 %b) local_unnamed_addr #0 {
+  define signext i32 @testAND_rec(i64 %a, i64 %b) local_unnamed_addr #0 {
   entry:
     %and = and i64 %b, %a
     %tobool = icmp eq i64 %and, 0
@@ -72,7 +72,7 @@
   }
   
   ; Function Attrs: norecurse nounwind readnone
-  define i64 @testAND8o(i64 %a, i64 %b) local_unnamed_addr #0 {
+  define i64 @testAND8_rec(i64 %a, i64 %b) local_unnamed_addr #0 {
   entry:
     %and = and i64 %b, %a
     %tobool = icmp eq i64 %and, 0
@@ -506,7 +506,7 @@
   }
   
   ; Function Attrs: norecurse nounwind readnone
-  define i64 @testRLDCLo(i64 %a, i64 %b) local_unnamed_addr #0 {
+  define i64 @testRLDCL_rec(i64 %a, i64 %b) local_unnamed_addr #0 {
   entry:
     %and = and i64 %b, 63
     %shl = shl i64 %a, %and
@@ -530,7 +530,7 @@
   }
   
   ; Function Attrs: norecurse nounwind readnone
-  define i64 @testRLDCRo(i64 %a, i64 %b) local_unnamed_addr #0 {
+  define i64 @testRLDCR_rec(i64 %a, i64 %b) local_unnamed_addr #0 {
   entry:
     %and = and i64 %b, 63
     %shl = shl i64 %a, %and
@@ -551,7 +551,15 @@
   }
   
   ; Function Attrs: norecurse nounwind readnone
-  define i64 @testRLDICLo(i64 %a, i64 %b) local_unnamed_addr #0 {
+  define i64 @testRLDICL_MB0(i64 %a) local_unnamed_addr #0 {
+  entry:
+    %shr = lshr i64 %a, 11
+    %and = and i64 %shr, 16777215
+    ret i64 %and
+  }
+  
+  ; Function Attrs: norecurse nounwind readnone
+  define i64 @testRLDICL_rec(i64 %a, i64 %b) local_unnamed_addr #0 {
   entry:
     %shr = lshr i64 %a, 11
     %and = and i64 %shr, 16777215
@@ -561,7 +569,7 @@
   }
   
   ; Function Attrs: norecurse nounwind readnone
-  define i64 @testRLDICLo2(i64 %a, i64 %b) local_unnamed_addr #0 {
+  define i64 @testRLDICL_rec2(i64 %a, i64 %b) local_unnamed_addr #0 {
   entry:
     %shr = lshr i64 %a, 11
     %and = and i64 %shr, 16777215
@@ -571,7 +579,7 @@
   }
 
   ; Function Attrs: norecurse nounwind readnone
-  define i64 @testRLDICLo3(i64 %a, i64 %b) local_unnamed_addr #0 {
+  define i64 @testRLDICL_rec3(i64 %a, i64 %b) local_unnamed_addr #0 {
   entry:
     %shr = lshr i64 %a, 11
     %and = and i64 %shr, 16777215
@@ -613,7 +621,7 @@
   }
   
   ; Function Attrs: norecurse nounwind readnone
-  define zeroext i32 @testRLWINMo(i32 zeroext %a, i32 zeroext %b) local_unnamed_addr #0 {
+  define zeroext i32 @testRLWINM_rec(i32 zeroext %a, i32 zeroext %b) local_unnamed_addr #0 {
   entry:
     %and = and i32 %a, 255
     %tobool = icmp eq i32 %and, 0
@@ -622,7 +630,7 @@
   }
   
   ; Function Attrs: norecurse nounwind readnone
-  define zeroext i32 @testRLWINMo2(i32 zeroext %a, i32 zeroext %b) local_unnamed_addr #0 {
+  define zeroext i32 @testRLWINM_rec2(i32 zeroext %a, i32 zeroext %b) local_unnamed_addr #0 {
   entry:
     %and = and i32 %a, 255
     %tobool = icmp eq i32 %and, 0
@@ -631,7 +639,7 @@
   }
 
   ; Function Attrs: norecurse nounwind readnone
-  define i64 @testRLWINM8o(i64 %a, i64 %b) local_unnamed_addr #0 {
+  define i64 @testRLWINM8_rec(i64 %a, i64 %b) local_unnamed_addr #0 {
   entry:
     %a.tr = trunc i64 %a to i32
     %0 = shl i32 %a.tr, 4
@@ -650,7 +658,7 @@
   }
   
   ; Function Attrs: norecurse nounwind readnone
-  define i64 @testSLDo(i64 %a, i64 %b) local_unnamed_addr #0 {
+  define i64 @testSLD_rec(i64 %a, i64 %b) local_unnamed_addr #0 {
   entry:
     %shl = shl i64 %a, %b
     %tobool = icmp eq i64 %shl, 0
@@ -666,7 +674,7 @@
   }
   
   ; Function Attrs: norecurse nounwind readnone
-  define i64 @testSRDo(i64 %a, i64 %b) local_unnamed_addr #0 {
+  define i64 @testSRD_rec(i64 %a, i64 %b) local_unnamed_addr #0 {
   entry:
     %shr = lshr i64 %a, %b
     %tobool = icmp eq i64 %shr, 0
@@ -682,7 +690,7 @@
   }
   
   ; Function Attrs: norecurse nounwind readnone
-  define zeroext i32 @testSLWo(i32 zeroext %a, i32 zeroext %b) local_unnamed_addr #0 {
+  define zeroext i32 @testSLW_rec(i32 zeroext %a, i32 zeroext %b) local_unnamed_addr #0 {
   entry:
     %shl = shl i32 %a, %b
     %tobool = icmp eq i32 %shl, 0
@@ -698,7 +706,7 @@
   }
   
   ; Function Attrs: norecurse nounwind readnone
-  define zeroext i32 @testSRWo(i32 zeroext %a, i32 zeroext %b) local_unnamed_addr #0 {
+  define zeroext i32 @testSRW_rec(i32 zeroext %a, i32 zeroext %b) local_unnamed_addr #0 {
   entry:
     %shr = lshr i32 %a, %b
     %tobool = icmp eq i32 %shr, 0
@@ -714,7 +722,7 @@
   }
   
   ; Function Attrs: norecurse nounwind readnone
-  define signext i32 @testSRAWo(i32 signext %a, i32 signext %b) local_unnamed_addr #0 {
+  define signext i32 @testSRAW_rec(i32 signext %a, i32 signext %b) local_unnamed_addr #0 {
   entry:
     %shr = ashr i32 %a, %b
     %tobool = icmp eq i32 %shr, 0
@@ -730,7 +738,7 @@
   }
   
   ; Function Attrs: norecurse nounwind readnone
-  define i64 @testSRADo(i64 %a, i64 %b) local_unnamed_addr #0 {
+  define i64 @testSRAD_rec(i64 %a, i64 %b) local_unnamed_addr #0 {
   entry:
     %shr = ashr i64 %a, %b
     %tobool = icmp eq i64 %shr, 0
@@ -975,10 +983,10 @@
     ret i64 %xor
   }
   
-  attributes #0 = { norecurse nounwind readnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="pwr9" "target-features"="+altivec,+bpermd,+crypto,+direct-move,+extdiv,+htm,+power8-vector,+power9-vector,+vsx,-qpx" "unsafe-fp-math"="false" "use-soft-float"="false" }
-  attributes #1 = { norecurse nounwind readonly "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="pwr9" "target-features"="+altivec,+bpermd,+crypto,+direct-move,+extdiv,+htm,+power8-vector,+power9-vector,+vsx,-qpx" "unsafe-fp-math"="false" "use-soft-float"="false" }
-  attributes #2 = { norecurse nounwind readonly "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="pwr9" "target-features"="+altivec,+bpermd,+crypto,+direct-move,+extdiv,+htm,+power8-vector,+power9-vector,-vsx,-qpx" "unsafe-fp-math"="false" "use-soft-float"="false" }
-  attributes #3 = { norecurse nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="pwr9" "target-features"="+altivec,+bpermd,+crypto,+direct-move,+extdiv,+htm,+power8-vector,+power9-vector,+vsx,-qpx" "unsafe-fp-math"="false" "use-soft-float"="false" }
+  attributes #0 = { norecurse nounwind readnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="pwr9" "target-features"="+altivec,+bpermd,+crypto,+direct-move,+extdiv,+htm,+power8-vector,+power9-vector,+vsx" "unsafe-fp-math"="false" "use-soft-float"="false" }
+  attributes #1 = { norecurse nounwind readonly "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="pwr9" "target-features"="+altivec,+bpermd,+crypto,+direct-move,+extdiv,+htm,+power8-vector,+power9-vector,+vsx" "unsafe-fp-math"="false" "use-soft-float"="false" }
+  attributes #2 = { norecurse nounwind readonly "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="pwr9" "target-features"="+altivec,+bpermd,+crypto,+direct-move,+extdiv,+htm,+power8-vector,+power9-vector,-vsx" "unsafe-fp-math"="false" "use-soft-float"="false" }
+  attributes #3 = { norecurse nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="pwr9" "target-features"="+altivec,+bpermd,+crypto,+direct-move,+extdiv,+htm,+power8-vector,+power9-vector,+vsx" "unsafe-fp-math"="false" "use-soft-float"="false" }
   
   !llvm.module.flags = !{!0, !1}
   !llvm.ident = !{!2}
@@ -1004,7 +1012,7 @@
 ---
 name:            testADD4
 # CHECK-ALL: name: testADD4
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -1063,7 +1071,7 @@ body:             |
 ---
 name:            testADD8
 # CHECK-ALL: name: testADD8
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -1116,7 +1124,7 @@ body:             |
 ---
 name:            testADDC
 # CHECK-ALL: name: testADDC
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -1180,7 +1188,7 @@ body:             |
 ---
 name:            testADDC8
 # CHECK-ALL: name: testADDC8
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -1236,9 +1244,9 @@ body:             |
 
 ...
 ---
-name:            testADDCo
-# CHECK-ALL: name: testADDCo
-alignment:       4
+name:            testADDC_rec
+# CHECK-ALL: name: testADDC_rec
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -1284,8 +1292,8 @@ body:             |
     %1 = LI 433
     %0 = COPY $x3
     %2 = COPY %0.sub_32
-    %3 = ADDCo %1, %2, implicit-def $cr0, implicit-def $carry
-    ; CHECK: ADDICo %2, 433, implicit-def $cr0, implicit-def $carry
+    %3 = ADDC_rec %1, %2, implicit-def $cr0, implicit-def $carry
+    ; CHECK: ADDIC_rec %2, 433, implicit-def $cr0, implicit-def $carry
     ; CHECK-LATE: addic. 3, 3, 433
     %4 = COPY killed $cr0
     %5 = COPY %4.sub_eq
@@ -1299,7 +1307,7 @@ body:             |
 ---
 name:            testADDI
 # CHECK-ALL: name: testADDI
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -1349,7 +1357,7 @@ body:             |
 ---
 name:            testADDI8
 # CHECK-ALL: name: testADDI8
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -1397,9 +1405,9 @@ body:             |
 
 ...
 ---
-name:            testANDo
-# CHECK-ALL: name: testANDo
-alignment:       4
+name:            testAND_rec
+# CHECK-ALL: name: testAND_rec
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -1443,8 +1451,8 @@ body:             |
     %1 = LI 78
     %0 = COPY $x3
     %2 = COPY %0.sub_32
-    %3 = ANDo %1, %2, implicit-def $cr0
-    ; CHECK: ANDIo %2, 78, implicit-def $cr0
+    %3 = AND_rec %1, %2, implicit-def $cr0
+    ; CHECK: ANDI_rec %2, 78, implicit-def $cr0
     ; CHECK-LATE: andi. 5, 3, 78
     %4 = COPY killed $cr0
     %5 = ISEL %2, %1, %4.sub_eq
@@ -1454,9 +1462,9 @@ body:             |
 
 ...
 ---
-name:            testAND8o
-# CHECK-ALL: name: testAND8o
-alignment:       4
+name:            testAND8_rec
+# CHECK-ALL: name: testAND8_rec
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -1497,8 +1505,8 @@ body:             |
   
     %1 = LI8 321
     %0 = COPY $x3
-    %2 = AND8o %1, %0, implicit-def $cr0
-    ; CHECK: ANDIo8 %0, 321, implicit-def $cr0
+    %2 = AND8_rec %1, %0, implicit-def $cr0
+    ; CHECK: ANDI8_rec %0, 321, implicit-def $cr0
     ; CHECK-LATE: andi. 5, 3, 321
     %3 = COPY killed $cr0
     %4 = ISEL8 %1, %0, %3.sub_eq
@@ -1509,7 +1517,7 @@ body:             |
 ---
 name:            testCMPD
 # CHECK-ALL: name: testCMPD
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -1563,7 +1571,7 @@ body:             |
 ---
 name:            testCMPDI
 # CHECK-ALL: name: testCMPDI
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -1607,7 +1615,7 @@ body:             |
     %0 = LI8 89
     %2 = CMPDI %0, 87
     %4 = ISEL8 $zero8, %0, %2.sub_gt
-    ; CHECK: LI8 0
+    ; CHECK: ADDI8 %1, 0
     %5 = ADD8 killed %4, %1
     $x3 = COPY %5
     BLR8 implicit $lr8, implicit $rm, implicit $x3
@@ -1616,7 +1624,7 @@ body:             |
 ---
 name:            testCMPDI_F
 # CHECK-ALL: name: testCMPDI_F
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -1669,7 +1677,7 @@ body:             |
 ---
 name:            testCMPLD
 # CHECK-ALL: name: testCMPLD
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -1723,7 +1731,7 @@ body:             |
 ---
 name:            testCMPLDI
 # CHECK-ALL: name: testCMPLDI
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -1776,7 +1784,7 @@ body:             |
 ---
 name:            testCMPW
 # CHECK-ALL: name: testCMPW
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -1835,7 +1843,7 @@ body:             |
 ---
 name:            testCMPWI
 # CHECK-ALL: name: testCMPWI
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -1894,7 +1902,7 @@ body:             |
 ---
 name:            testCMPLW
 # CHECK-ALL: name: testCMPLW
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -1958,7 +1966,7 @@ body:             |
 ---
 name:            testCMPLWI
 # CHECK-ALL: name: testCMPLWI
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -2009,7 +2017,7 @@ body:             |
     %3 = LI -3
     %4 = CMPLWI %3, 87
     %6 = ISEL $zero, %3, %4.sub_gt
-    ; CHECK: LI 0
+    ; CHECK: ADDI killed %2, 0
     %7 = ADD4 killed %6, killed %2
     %9 = IMPLICIT_DEF
     %8 = INSERT_SUBREG %9, killed %7, 1
@@ -2021,7 +2029,7 @@ body:             |
 ---
 name:            testLBZUX
 # CHECK-ALL: name: testLBZUX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -2099,7 +2107,7 @@ body:             |
 ---
 name:            testLBZX
 # CHECK-ALL: name: testLBZX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -2178,7 +2186,7 @@ body:             |
 ---
 name:            testLHZUX
 # CHECK-ALL: name: testLHZUX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -2256,7 +2264,7 @@ body:             |
 ---
 name:            testLHZX
 # CHECK-ALL: name: testLHZX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -2333,7 +2341,7 @@ body:             |
 ---
 name:            testLHAUX
 # CHECK-ALL: name: testLHAUX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -2411,7 +2419,7 @@ body:             |
 ---
 name:            testLHAX
 # CHECK-ALL: name: testLHAX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -2490,7 +2498,7 @@ body:             |
 ---
 name:            testLWZUX
 # CHECK-ALL: name: testLWZUX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -2571,7 +2579,7 @@ body:             |
 ---
 name:            testLWZX
 # CHECK-ALL: name: testLWZX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -2650,7 +2658,7 @@ body:             |
 ---
 name:            testLWAX
 # CHECK-ALL: name: testLWAX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -2723,7 +2731,7 @@ body:             |
 ---
 name:            testLDUX
 # CHECK-ALL: name: testLDUX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -2798,7 +2806,7 @@ body:             |
 ---
 name:            testLDX
 # CHECK-ALL: name: testLDX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -2871,7 +2879,7 @@ body:             |
 ---
 name:            testLFDUX
 # CHECK-ALL: name: testLFDUX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -2946,7 +2954,7 @@ body:             |
 ---
 name:            testLFDX
 # CHECK-ALL: name: testLFDX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -3019,7 +3027,7 @@ body:             |
 ---
 name:            testLFSUX
 # CHECK-ALL: name: testLFSUX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -3074,23 +3082,23 @@ frameInfo:
 fixedStack:      
 stack:           
   - { id: 0, name: '', type: default, offset: 0, size: 16, alignment: 16, 
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true, 
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -16, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
   - { id: 1, name: '', type: default, offset: 0, size: 4, alignment: 4, 
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true, 
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -20, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
   - { id: 2, name: '', type: default, offset: 0, size: 4, alignment: 4, 
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true, 
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -24, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
   - { id: 3, name: '', type: default, offset: 0, size: 4, alignment: 4, 
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true, 
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -28, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
   - { id: 4, name: '', type: default, offset: 0, size: 4, alignment: 4, 
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true, 
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -32, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
 constants:       
@@ -3136,7 +3144,7 @@ body:             |
 ---
 name:            testLFSX
 # CHECK-ALL: name: testLFSX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -3209,7 +3217,7 @@ body:             |
 ---
 name:            testLXSDX
 # CHECK-ALL: name: testLXSDX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -3282,7 +3290,7 @@ body:             |
 ---
 name:            testLXSSPX
 # CHECK-ALL: name: testLXSSPX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -3355,7 +3363,7 @@ body:             |
 ---
 name:            testLXVX
 # CHECK-ALL: name: testLXVX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -3428,7 +3436,7 @@ body:             |
 ---
 name:            testOR
 # CHECK-ALL: name: testOR
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -3479,7 +3487,7 @@ body:             |
 ---
 name:            testOR8
 # CHECK-ALL: name: testOR8
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -3528,7 +3536,7 @@ body:             |
 ---
 name:            testORI
 # CHECK-ALL: name: testORI
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -3574,7 +3582,7 @@ body:             |
 ---
 name:            testORI8
 # CHECK-ALL: name: testORI8
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -3620,7 +3628,7 @@ body:             |
 ---
 name:            testRLDCL
 # CHECK-ALL: name: testRLDCL
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -3671,9 +3679,9 @@ body:             |
 
 ...
 ---
-name:            testRLDCLo
-# CHECK-ALL: name: testRLDCLo
-alignment:       4
+name:            testRLDCL_rec
+# CHECK-ALL: name: testRLDCL_rec
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -3718,9 +3726,9 @@ body:             |
     %0 = COPY $x3
     %2 = RLDICL %1, 0, 58
     %3 = LI 37
-    %4 = RLDCLo %0, killed %3, 0, implicit-def $cr0
-    ; CHECK: RLDICLo %0, 37, 0, implicit-def $cr0
-    ; CHECK-LATE: rldicl. 5, 3, 37, 0
+    %4 = RLDCL_rec %0, killed %3, 0, implicit-def $cr0
+    ; CHECK: RLDICL_rec %0, 37, 0, implicit-def $cr0
+    ; CHECK-LATE: rotldi. 5, 3, 37
     %5 = COPY killed $cr0
     %6 = ISEL8 %2, %0, %5.sub_eq
     $x3 = COPY %6
@@ -3730,7 +3738,7 @@ body:             |
 ---
 name:            testRLDCR
 # CHECK-ALL: name: testRLDCR
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -3781,9 +3789,9 @@ body:             |
 
 ...
 ---
-name:            testRLDCRo
-# CHECK-ALL: name: testRLDCRo
-alignment:       4
+name:            testRLDCR_rec
+# CHECK-ALL: name: testRLDCR_rec
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -3828,8 +3836,8 @@ body:             |
     %0 = COPY $x3
     %2 = RLDICL %1, 0, 58
     %3 = LI 18
-    %4 = RLDCRo %0, killed %3, 0, implicit-def $cr0
-    ; CHECK: RLDICRo %0, 18, 0, implicit-def $cr0
+    %4 = RLDCR_rec %0, killed %3, 0, implicit-def $cr0
+    ; CHECK: RLDICR_rec %0, 18, 0, implicit-def $cr0
     ; CHECK-LATE: rldicr. 5, 3, 18, 0
     %5 = COPY killed $cr0
     %6 = ISEL8 %2, %0, %5.sub_eq
@@ -3840,7 +3848,7 @@ body:             |
 ---
 name:            testRLDICL
 # CHECK-ALL: name: testRLDICL
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -3884,9 +3892,55 @@ body:             |
 
 ...
 ---
-name:            testRLDICLo
-# CHECK-ALL: name: testRLDICLo
-alignment:       4
+name:            testRLDICL_MB0
+# CHECK-ALL: name: testRLDICL_MB0
+alignment:       16
+exposesReturnsTwice: false
+legalized:       false
+regBankSelected: false
+selected:        false
+tracksRegLiveness: true
+registers:       
+  - { id: 0, class: g8rc, preferred-register: '' }
+  - { id: 1, class: g8rc, preferred-register: '' }
+liveins:         
+  - { reg: '$x3', virtual-reg: '%0' }
+frameInfo:       
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    0
+  adjustsStack:    false
+  hasCalls:        false
+  stackProtector:  ''
+  maxCallFrameSize: 4294967295
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+  savePoint:       ''
+  restorePoint:    ''
+fixedStack:      
+stack:           
+constants:       
+body:             |
+  bb.0.entry:
+    liveins: $x3
+  
+    %0 = LI8 32
+    %1 = RLDICL %0, 60, 0
+    ; CHECK: LI8 2
+    ; CHECK-LATE: li 3, 2
+    $x3 = COPY %1
+    BLR8 implicit $lr8, implicit $rm, implicit $x3
+
+...
+---
+name:            testRLDICL_rec
+# CHECK-ALL: name: testRLDICL_rec
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -3927,8 +3981,8 @@ body:             |
   
     %1 = COPY $x4
     %0 = LI8 -1
-    %2 = RLDICLo %0, 53, 48, implicit-def $cr0
-    ; CHECK: ANDIo8 %0, 65535
+    %2 = RLDICL_rec %0, 53, 48, implicit-def $cr0
+    ; CHECK: ANDI8_rec %0, 65535
     ; CHECK-LATE: li 3, -1
     ; CHECK-LATE: andi. 3, 3, 65535
     %3 = COPY killed $cr0
@@ -3938,9 +3992,9 @@ body:             |
 
 ...
 ---
-name:            testRLDICLo2
-# CHECK-ALL: name: testRLDICLo2
-alignment:       4
+name:            testRLDICL_rec2
+# CHECK-ALL: name: testRLDICL_rec2
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -3981,9 +4035,9 @@ body:             |
   
     %1 = COPY $x4
     %0 = LI8 200
-    %2 = RLDICLo %0, 61, 3, implicit-def $cr0
+    %2 = RLDICL_rec %0, 61, 3, implicit-def $cr0
     ; CHECK: LI8 25
-    ; CHECK: ANDIo8 %0, 25
+    ; CHECK: ANDI8_rec %0, 25
     ; CHECK-LATE-NOT: andi.
     %3 = COPY killed $cr0
     %4 = ISEL8 %1, %2, %3.sub_eq
@@ -3992,9 +4046,9 @@ body:             |
 
 ...
 ---
-name:            testRLDICLo3
-# CHECK-ALL: name: testRLDICLo3
-alignment:       4
+name:            testRLDICL_rec3
+# CHECK-ALL: name: testRLDICL_rec3
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -4035,8 +4089,8 @@ body:             |
   
     %1 = COPY $x4
     %0 = LI8 2
-    %2 = RLDICLo %0, 32, 32, implicit-def $cr0
-    ; CHECK: ANDIo8 %0, 0
+    %2 = RLDICL_rec %0, 32, 32, implicit-def $cr0
+    ; CHECK: ANDI8_rec %0, 0
     ; CHECK-LATE: li 3, 2
     ; CHECK-LATE: andi. 3, 3, 0
     %3 = COPY killed $cr0
@@ -4048,7 +4102,7 @@ body:             |
 ---
 name:            testRLWINM
 # CHECK-ALL: name: testRLWINM
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -4100,7 +4154,7 @@ body:             |
 ---
 name:            testRLWINMFullReg
 # CHECK-ALL: name: testRLWINMFullReg
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -4152,7 +4206,7 @@ body:             |
 ---
 name:            testRLWINMFullRegOutOfRange
 # CHECK-ALL: name: testRLWINMFullRegOutOfRange
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -4204,7 +4258,7 @@ body:             |
 ---
 name:            testRLWINM8
 # CHECK-ALL: name: testRLWINM8
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -4248,9 +4302,9 @@ body:             |
 
 ...
 ---
-name:            testRLWINMo
-# CHECK-ALL: name: testRLWINMo
-alignment:       4
+name:            testRLWINM_rec
+# CHECK-ALL: name: testRLWINM_rec
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -4298,9 +4352,9 @@ body:             |
     %0 = COPY $x3
     %2 = COPY %1.sub_32
     %3 = LI -22
-    %4 = RLWINMo %3, 0, 24, 31, implicit-def $cr0
+    %4 = RLWINM_rec %3, 0, 24, 31, implicit-def $cr0
     ; CHECK: LI -22
-    ; CHECK: ANDIo %3, 65514
+    ; CHECK: ANDI_rec %3, 65514
     ; CHECK-LATE: li 3, -22
     ; CHECK-LATE: andi. 5, 3, 234
     %5 = COPY killed $cr0
@@ -4313,9 +4367,9 @@ body:             |
 
 ...
 ---
-name:            testRLWINMo2
-# CHECK-ALL: name: testRLWINMo2
-alignment:       4
+name:            testRLWINM_rec2
+# CHECK-ALL: name: testRLWINM_rec2
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -4363,9 +4417,9 @@ body:             |
     %0 = COPY $x3
     %2 = COPY %1.sub_32
     %3 = LI -22
-    %4 = RLWINMo %3, 5, 24, 31, implicit-def $cr0
+    %4 = RLWINM_rec %3, 5, 24, 31, implicit-def $cr0
     ; CHECK: LI -22
-    ; CHECK-NOT: ANDIo8 %3, 65514
+    ; CHECK-NOT: ANDI8_rec %3, 65514
     ; CHECK-LATE-NOT: andi.
     %5 = COPY killed $cr0
     %6 = ISEL %2, %3, %5.sub_eq
@@ -4377,9 +4431,9 @@ body:             |
 
 ...
 ---
-name:            testRLWINM8o
-# CHECK-ALL: name: testRLWINM8o
-alignment:       4
+name:            testRLWINM8_rec
+# CHECK-ALL: name: testRLWINM8_rec
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -4425,8 +4479,8 @@ body:             |
     %1 = COPY $x4
     %0 = COPY $x3
     %2 = LI8 -18
-    %3 = RLWINM8o %2, 4, 20, 27, implicit-def $cr0
-    ; CHECK: ANDIo8 %2, 3808
+    %3 = RLWINM8_rec %2, 4, 20, 27, implicit-def $cr0
+    ; CHECK: ANDI8_rec %2, 3808
     ; CHECK-LATE: li 3, -18
     ; CHECK-LATE: andi. 3, 3, 3808
     %7 = COPY killed $cr0
@@ -4439,7 +4493,7 @@ body:             |
 ---
 name:            testSLD
 # CHECK-ALL: name: testSLD
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -4488,9 +4542,9 @@ body:             |
 
 ...
 ---
-name:            testSLDo
-# CHECK-ALL: name: testSLDo
-alignment:       4
+name:            testSLD_rec
+# CHECK-ALL: name: testSLD_rec
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -4533,8 +4587,8 @@ body:             |
     %1 = COPY $x4
     %0 = COPY $x3
     %2 = LI 17
-    %3 = SLDo %0, killed %2, implicit-def $cr0
-    ; CHECK: RLDICRo %0, 17, 46, implicit-def $cr0
+    %3 = SLD_rec %0, killed %2, implicit-def $cr0
+    ; CHECK: RLDICR_rec %0, 17, 46, implicit-def $cr0
     ; CHECK-LATE: rldicr. 5, 3, 17, 46
     %4 = COPY killed $cr0
     %5 = ISEL8 %1, %0, %4.sub_eq
@@ -4545,7 +4599,7 @@ body:             |
 ---
 name:            testSRD
 # CHECK-ALL: name: testSRD
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -4594,9 +4648,9 @@ body:             |
 
 ...
 ---
-name:            testSRDo
-# CHECK-ALL: name: testSRDo
-alignment:       4
+name:            testSRD_rec
+# CHECK-ALL: name: testSRD_rec
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -4639,8 +4693,8 @@ body:             |
     %1 = COPY $x4
     %0 = COPY $x3
     %2 = LI 17
-    %3 = SRDo %0, killed %2, implicit-def $cr0
-    ; CHECK: RLDICLo %0, 47, 17, implicit-def $cr0
+    %3 = SRD_rec %0, killed %2, implicit-def $cr0
+    ; CHECK: RLDICL_rec %0, 47, 17, implicit-def $cr0
     ; CHECK-LATE: rldicl. 5, 3, 47, 17
     %4 = COPY killed $cr0
     %5 = ISEL8 %1, %0, %4.sub_eq
@@ -4651,7 +4705,7 @@ body:             |
 ---
 name:            testSLW
 # CHECK-ALL: name: testSLW
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -4706,9 +4760,9 @@ body:             |
 
 ...
 ---
-name:            testSLWo
-# CHECK-ALL: name: testSLWo
-alignment:       4
+name:            testSLW_rec
+# CHECK-ALL: name: testSLW_rec
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -4756,8 +4810,8 @@ body:             |
     %0 = COPY $x3
     %2 = LI 11
     %3 = COPY %0.sub_32
-    %4 = SLWo %3, %2, implicit-def $cr0
-    ; CHECK: RLWINMo %3, 11, 0, 20, implicit-def $cr0
+    %4 = SLW_rec %3, %2, implicit-def $cr0
+    ; CHECK: RLWINM_rec %3, 11, 0, 20, implicit-def $cr0
     ; CHECK-LATE: rlwinm. 5, 3, 11, 0, 20
     %5 = COPY killed $cr0
     %6 = ISEL %2, %3, %5.sub_eq
@@ -4771,7 +4825,7 @@ body:             |
 ---
 name:            testSRW
 # CHECK-ALL: name: testSRW
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -4826,9 +4880,9 @@ body:             |
 
 ...
 ---
-name:            testSRWo
-# CHECK-ALL: name: testSRWo
-alignment:       4
+name:            testSRW_rec
+# CHECK-ALL: name: testSRW_rec
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -4876,8 +4930,8 @@ body:             |
     %0 = COPY $x3
     %2 = LI 7
     %3 = COPY %0.sub_32
-    %4 = SRWo %3, %2, implicit-def $cr0
-    ; CHECK: RLWINMo %3, 25, 7, 31
+    %4 = SRW_rec %3, %2, implicit-def $cr0
+    ; CHECK: RLWINM_rec %3, 25, 7, 31
     ; CHECK-LATE: rlwinm. 5, 3, 25, 7, 31
     %5 = COPY killed $cr0
     %6 = ISEL %2, %3, %5.sub_eq
@@ -4891,7 +4945,7 @@ body:             |
 ---
 name:            testSRAW
 # CHECK-ALL: name: testSRAW
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -4944,9 +4998,9 @@ body:             |
 
 ...
 ---
-name:            testSRAWo
-# CHECK-ALL: name: testSRAWo
-alignment:       4
+name:            testSRAW_rec
+# CHECK-ALL: name: testSRAW_rec
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -4992,8 +5046,8 @@ body:             |
     %0 = COPY $x3
     %2 = LI 8
     %3 = COPY %0.sub_32
-    %4 = SRAWo killed %3, %2, implicit-def dead $carry, implicit-def $cr0
-    ; CHECK: SRAWIo killed %3, 8, implicit-def dead $carry, implicit-def $cr0
+    %4 = SRAW_rec killed %3, %2, implicit-def dead $carry, implicit-def $cr0
+    ; CHECK: SRAWI_rec killed %3, 8, implicit-def dead $carry, implicit-def $cr0
     ; CHECK-LATE: srawi. 3, 3, 8
     %5 = COPY killed $cr0
     %6 = ISEL %2, %4, %5.sub_eq
@@ -5005,7 +5059,7 @@ body:             |
 ---
 name:            testSRAD
 # CHECK-ALL: name: testSRAD
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -5054,9 +5108,9 @@ body:             |
 
 ...
 ---
-name:            testSRADo
-# CHECK-ALL: name: testSRADo
-alignment:       4
+name:            testSRAD_rec
+# CHECK-ALL: name: testSRAD_rec
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -5099,8 +5153,8 @@ body:             |
     %1 = COPY $x4
     %0 = COPY $x3
     %2 = LI 61
-    %3 = SRADo %0, killed %2, implicit-def dead $carry, implicit-def $cr0
-    ; CHECK: SRADIo %0, 61, implicit-def dead $carry, implicit-def $cr0
+    %3 = SRAD_rec %0, killed %2, implicit-def dead $carry, implicit-def $cr0
+    ; CHECK: SRADI_rec %0, 61, implicit-def dead $carry, implicit-def $cr0
     ; CHECK-LATE: sradi. 3, 3, 61
     %4 = COPY killed $cr0
     %5 = ISEL8 %1, %3, %4.sub_eq
@@ -5111,7 +5165,7 @@ body:             |
 ---
 name:            testSTBUX
 # CHECK-ALL: name: testSTBUX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -5186,7 +5240,7 @@ body:             |
 ---
 name:            testSTBX
 # CHECK-ALL: name: testSTBX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -5259,7 +5313,7 @@ body:             |
 ---
 name:            testSTHUX
 # CHECK-ALL: name: testSTHUX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -5334,7 +5388,7 @@ body:             |
 ---
 name:            testSTHX
 # CHECK-ALL: name: testSTHX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -5407,7 +5461,7 @@ body:             |
 ---
 name:            testSTWUX
 # CHECK-ALL: name: testSTWUX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -5482,7 +5536,7 @@ body:             |
 ---
 name:            testSTWX
 # CHECK-ALL: name: testSTWX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -5555,7 +5609,7 @@ body:             |
 ---
 name:            testSTDUX
 # CHECK-ALL: name: testSTDUX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -5628,7 +5682,7 @@ body:             |
 ---
 name:            testSTDX
 # CHECK-ALL: name: testSTDX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -5699,7 +5753,7 @@ body:             |
 ---
 name:            testSTFSX
 # CHECK-ALL: name: testSTFSX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -5770,7 +5824,7 @@ body:             |
 ---
 name:            testSTFSUX
 # CHECK-ALL: name: testSTFSUX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -5843,7 +5897,7 @@ body:             |
 ---
 name:            testSTFDX
 # CHECK-ALL: name: testSTFDX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -5914,7 +5968,7 @@ body:             |
 ---
 name:            testSTFDUX
 # CHECK-ALL: name: testSTFDUX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -5987,7 +6041,7 @@ body:             |
 ---
 name:            testSTXSSPX
 # CHECK-ALL: name: testSTXSSPX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -6039,7 +6093,7 @@ body:             |
 ---
 name:            testSTXSDX
 # CHECK-ALL: name: testSTXSDX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -6091,7 +6145,7 @@ body:             |
 ---
 name:            testSTXVX
 # CHECK-ALL: name: testSTXVX
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -6143,7 +6197,7 @@ body:             |
 ---
 name:            testSUBFC
 # CHECK-ALL: name: testSUBFC
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -6207,7 +6261,7 @@ body:             |
 ---
 name:            testSUBFC8
 # CHECK-ALL: name: testSUBFC8
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -6265,7 +6319,7 @@ body:             |
 ---
 name:            testXOR
 # CHECK-ALL: name: testXOR
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -6316,7 +6370,7 @@ body:             |
 ---
 name:            testXOR8
 # CHECK-ALL: name: testXOR8
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -6365,7 +6419,7 @@ body:             |
 ---
 name:            testXORI
 # CHECK-ALL: name: testXORI
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -6411,7 +6465,7 @@ body:             |
 ---
 name:            testXOR8I
 # CHECK-ALL: name: testXOR8I
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false

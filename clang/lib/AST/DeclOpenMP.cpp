@@ -1,9 +1,8 @@
 //===--- DeclOpenMP.cpp - Declaration OpenMP AST Node Implementation ------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 /// \file
@@ -24,16 +23,14 @@ using namespace clang;
 // OMPThreadPrivateDecl Implementation.
 //===----------------------------------------------------------------------===//
 
-void OMPThreadPrivateDecl::anchor() { }
+void OMPThreadPrivateDecl::anchor() {}
 
 OMPThreadPrivateDecl *OMPThreadPrivateDecl::Create(ASTContext &C,
                                                    DeclContext *DC,
                                                    SourceLocation L,
                                                    ArrayRef<Expr *> VL) {
-  OMPThreadPrivateDecl *D =
-      new (C, DC, additionalSizeToAlloc<Expr *>(VL.size()))
-          OMPThreadPrivateDecl(OMPThreadPrivate, DC, L);
-  D->NumVars = VL.size();
+  auto *D = OMPDeclarativeDirective::createDirective<OMPThreadPrivateDecl>(
+      C, DC, llvm::None, VL.size(), L);
   D->setVars(VL);
   return D;
 }
@@ -41,16 +38,42 @@ OMPThreadPrivateDecl *OMPThreadPrivateDecl::Create(ASTContext &C,
 OMPThreadPrivateDecl *OMPThreadPrivateDecl::CreateDeserialized(ASTContext &C,
                                                                unsigned ID,
                                                                unsigned N) {
-  OMPThreadPrivateDecl *D = new (C, ID, additionalSizeToAlloc<Expr *>(N))
-      OMPThreadPrivateDecl(OMPThreadPrivate, nullptr, SourceLocation());
-  D->NumVars = N;
-  return D;
+  return OMPDeclarativeDirective::createEmptyDirective<OMPThreadPrivateDecl>(
+      C, ID, 0, N);
 }
 
 void OMPThreadPrivateDecl::setVars(ArrayRef<Expr *> VL) {
-  assert(VL.size() == NumVars &&
+  assert(VL.size() == Data->getNumChildren() &&
          "Number of variables is not the same as the preallocated buffer");
-  std::uninitialized_copy(VL.begin(), VL.end(), getTrailingObjects<Expr *>());
+  llvm::copy(VL, getVars().begin());
+}
+
+//===----------------------------------------------------------------------===//
+// OMPAllocateDecl Implementation.
+//===----------------------------------------------------------------------===//
+
+void OMPAllocateDecl::anchor() { }
+
+OMPAllocateDecl *OMPAllocateDecl::Create(ASTContext &C, DeclContext *DC,
+                                         SourceLocation L, ArrayRef<Expr *> VL,
+                                         ArrayRef<OMPClause *> CL) {
+  auto *D = OMPDeclarativeDirective::createDirective<OMPAllocateDecl>(
+      C, DC, CL, VL.size(), L);
+  D->setVars(VL);
+  return D;
+}
+
+OMPAllocateDecl *OMPAllocateDecl::CreateDeserialized(ASTContext &C, unsigned ID,
+                                                     unsigned NVars,
+                                                     unsigned NClauses) {
+  return OMPDeclarativeDirective::createEmptyDirective<OMPAllocateDecl>(
+      C, ID, NClauses, NVars, SourceLocation());
+}
+
+void OMPAllocateDecl::setVars(ArrayRef<Expr *> VL) {
+  assert(VL.size() == Data->getNumChildren() &&
+         "Number of variables is not the same as the preallocated buffer");
+  llvm::copy(VL, getVars().begin());
 }
 
 //===----------------------------------------------------------------------===//
@@ -62,27 +85,14 @@ void OMPRequiresDecl::anchor() {}
 OMPRequiresDecl *OMPRequiresDecl::Create(ASTContext &C, DeclContext *DC,
                                          SourceLocation L,
                                          ArrayRef<OMPClause *> CL) {
-  OMPRequiresDecl *D =
-      new (C, DC, additionalSizeToAlloc<OMPClause *>(CL.size()))
-      OMPRequiresDecl(OMPRequires, DC, L);
-  D->NumClauses = CL.size();
-  D->setClauses(CL);
-  return D;
+  return OMPDeclarativeDirective::createDirective<OMPRequiresDecl>(C, DC, CL, 0,
+                                                                   L);
 }
 
 OMPRequiresDecl *OMPRequiresDecl::CreateDeserialized(ASTContext &C, unsigned ID,
                                                      unsigned N) {
-  OMPRequiresDecl *D = new (C, ID, additionalSizeToAlloc<OMPClause *>(N))
-      OMPRequiresDecl(OMPRequires, nullptr, SourceLocation());
-  D->NumClauses = N;
-  return D;
-}
-
-void OMPRequiresDecl::setClauses(ArrayRef<OMPClause *> CL) {
-  assert(CL.size() == NumClauses &&
-         "Number of clauses is not the same as the preallocated buffer");
-  std::uninitialized_copy(CL.begin(), CL.end(),
-                          getTrailingObjects<OMPClause *>());
+  return OMPDeclarativeDirective::createEmptyDirective<OMPRequiresDecl>(
+      C, ID, N, 0, SourceLocation());
 }
 
 //===----------------------------------------------------------------------===//
@@ -120,6 +130,38 @@ OMPDeclareReductionDecl *OMPDeclareReductionDecl::getPrevDeclInScope() {
 const OMPDeclareReductionDecl *
 OMPDeclareReductionDecl::getPrevDeclInScope() const {
   return cast_or_null<OMPDeclareReductionDecl>(
+      PrevDeclInScope.get(getASTContext().getExternalSource()));
+}
+
+//===----------------------------------------------------------------------===//
+// OMPDeclareMapperDecl Implementation.
+//===----------------------------------------------------------------------===//
+
+void OMPDeclareMapperDecl::anchor() {}
+
+OMPDeclareMapperDecl *OMPDeclareMapperDecl::Create(
+    ASTContext &C, DeclContext *DC, SourceLocation L, DeclarationName Name,
+    QualType T, DeclarationName VarName, ArrayRef<OMPClause *> Clauses,
+    OMPDeclareMapperDecl *PrevDeclInScope) {
+  return OMPDeclarativeDirective::createDirective<OMPDeclareMapperDecl>(
+      C, DC, Clauses, 1, L, Name, T, VarName, PrevDeclInScope);
+}
+
+OMPDeclareMapperDecl *OMPDeclareMapperDecl::CreateDeserialized(ASTContext &C,
+                                                               unsigned ID,
+                                                               unsigned N) {
+  return OMPDeclarativeDirective::createEmptyDirective<OMPDeclareMapperDecl>(
+      C, ID, N, 1, SourceLocation(), DeclarationName(), QualType(),
+      DeclarationName(), /*PrevDeclInScope=*/nullptr);
+}
+
+OMPDeclareMapperDecl *OMPDeclareMapperDecl::getPrevDeclInScope() {
+  return cast_or_null<OMPDeclareMapperDecl>(
+      PrevDeclInScope.get(getASTContext().getExternalSource()));
+}
+
+const OMPDeclareMapperDecl *OMPDeclareMapperDecl::getPrevDeclInScope() const {
+  return cast_or_null<OMPDeclareMapperDecl>(
       PrevDeclInScope.get(getASTContext().getExternalSource()));
 }
 

@@ -1,9 +1,8 @@
 //===--- DurationFactoryScaleCheck.cpp - clang-tidy -----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -24,19 +23,14 @@ namespace abseil {
 // `FactoryName`, return `None`.
 static llvm::Optional<DurationScale>
 getScaleForFactory(llvm::StringRef FactoryName) {
-  static const std::unordered_map<std::string, DurationScale> ScaleMap(
-      {{"Nanoseconds", DurationScale::Nanoseconds},
-       {"Microseconds", DurationScale::Microseconds},
-       {"Milliseconds", DurationScale::Milliseconds},
-       {"Seconds", DurationScale::Seconds},
-       {"Minutes", DurationScale::Minutes},
-       {"Hours", DurationScale::Hours}});
-
-  auto ScaleIter = ScaleMap.find(FactoryName);
-  if (ScaleIter == ScaleMap.end())
-    return llvm::None;
-
-  return ScaleIter->second;
+  return llvm::StringSwitch<llvm::Optional<DurationScale>>(FactoryName)
+      .Case("Nanoseconds", DurationScale::Nanoseconds)
+      .Case("Microseconds", DurationScale::Microseconds)
+      .Case("Milliseconds", DurationScale::Milliseconds)
+      .Case("Seconds", DurationScale::Seconds)
+      .Case("Minutes", DurationScale::Minutes)
+      .Case("Hours", DurationScale::Hours)
+      .Default(llvm::None);
 }
 
 // Given either an integer or float literal, return its value.
@@ -52,7 +46,7 @@ static double GetValue(const IntegerLiteral *IntLit,
 
 // Given the scale of a duration and a `Multiplier`, determine if `Multiplier`
 // would produce a new scale.  If so, return a tuple containing the new scale
-// and a suitable Multipler for that scale, otherwise `None`.
+// and a suitable Multiplier for that scale, otherwise `None`.
 static llvm::Optional<std::tuple<DurationScale, double>>
 GetNewScaleSingleStep(DurationScale OldScale, double Multiplier) {
   switch (OldScale) {
@@ -210,7 +204,7 @@ void DurationFactoryScaleCheck::check(const MatchFinder::MatchResult &Result) {
       diag(Call->getBeginLoc(), "internal duration scaling can be removed")
           << FixItHint::CreateReplacement(
                  Call->getSourceRange(),
-                 (llvm::Twine(getFactoryForScale(*NewScale)) + "(" +
+                 (llvm::Twine(getDurationFactoryForScale(*NewScale)) + "(" +
                   tooling::fixit::getText(*Remainder, *Result.Context) + ")")
                      .str());
     }
@@ -223,7 +217,7 @@ void DurationFactoryScaleCheck::check(const MatchFinder::MatchResult &Result) {
     diag(Call->getBeginLoc(), "internal duration scaling can be removed")
         << FixItHint::CreateReplacement(
                Call->getSourceRange(),
-               (llvm::Twine(getFactoryForScale(*NewScale)) + "(" +
+               (llvm::Twine(getDurationFactoryForScale(*NewScale)) + "(" +
                 tooling::fixit::getText(*Remainder, *Result.Context) + ")")
                    .str());
   }

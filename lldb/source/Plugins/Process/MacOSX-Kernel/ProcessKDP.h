@@ -1,15 +1,13 @@
 //===-- ProcessKDP.h --------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ProcessKDP_h_
-#define liblldb_ProcessKDP_h_
-
+#ifndef LLDB_SOURCE_PLUGINS_PROCESS_MACOSX_KERNEL_PROCESSKDP_H
+#define LLDB_SOURCE_PLUGINS_PROCESS_MACOSX_KERNEL_PROCESSKDP_H
 
 #include <list>
 #include <vector>
@@ -31,12 +29,11 @@ class ThreadKDP;
 
 class ProcessKDP : public lldb_private::Process {
 public:
-  //------------------------------------------------------------------
   // Constructors and Destructors
-  //------------------------------------------------------------------
   static lldb::ProcessSP
   CreateInstance(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp,
-                 const lldb_private::FileSpec *crash_file_path);
+                 const lldb_private::FileSpec *crash_file_path,
+                 bool can_connect);
 
   static void Initialize();
 
@@ -48,23 +45,17 @@ public:
 
   static const char *GetPluginDescriptionStatic();
 
-  //------------------------------------------------------------------
   // Constructors and Destructors
-  //------------------------------------------------------------------
   ProcessKDP(lldb::TargetSP target_sp, lldb::ListenerSP listener);
 
   ~ProcessKDP() override;
 
-  //------------------------------------------------------------------
   // Check if a given Process
-  //------------------------------------------------------------------
   bool CanDebug(lldb::TargetSP target_sp,
                 bool plugin_specified_by_name) override;
   lldb_private::CommandObject *GetPluginCommandObject() override;
 
-  //------------------------------------------------------------------
   // Creating a new process, or attaching to an existing one
-  //------------------------------------------------------------------
   lldb_private::Status WillLaunch(lldb_private::Module *module) override;
 
   lldb_private::Status
@@ -77,8 +68,7 @@ public:
   WillAttachToProcessWithName(const char *process_name,
                               bool wait_for_launch) override;
 
-  lldb_private::Status DoConnectRemote(lldb_private::Stream *strm,
-                                       llvm::StringRef remote_url) override;
+  lldb_private::Status DoConnectRemote(llvm::StringRef remote_url) override;
 
   lldb_private::Status DoAttachToProcessWithID(
       lldb::pid_t pid,
@@ -94,16 +84,12 @@ public:
 
   lldb_private::DynamicLoader *GetDynamicLoader() override;
 
-  //------------------------------------------------------------------
   // PluginInterface protocol
-  //------------------------------------------------------------------
   lldb_private::ConstString GetPluginName() override;
 
   uint32_t GetPluginVersion() override;
 
-  //------------------------------------------------------------------
   // Process Control
-  //------------------------------------------------------------------
   lldb_private::Status WillResume() override;
 
   lldb_private::Status DoResume() override;
@@ -118,14 +104,10 @@ public:
 
   void RefreshStateAfterStop() override;
 
-  //------------------------------------------------------------------
   // Process Queries
-  //------------------------------------------------------------------
   bool IsAlive() override;
 
-  //------------------------------------------------------------------
   // Process Memory
-  //------------------------------------------------------------------
   size_t DoReadMemory(lldb::addr_t addr, void *buf, size_t size,
                       lldb_private::Status &error) override;
 
@@ -137,18 +119,14 @@ public:
 
   lldb_private::Status DoDeallocateMemory(lldb::addr_t ptr) override;
 
-  //----------------------------------------------------------------------
   // Process Breakpoints
-  //----------------------------------------------------------------------
   lldb_private::Status
   EnableBreakpointSite(lldb_private::BreakpointSite *bp_site) override;
 
   lldb_private::Status
   DisableBreakpointSite(lldb_private::BreakpointSite *bp_site) override;
 
-  //----------------------------------------------------------------------
   // Process Watchpoints
-  //----------------------------------------------------------------------
   lldb_private::Status EnableWatchpoint(lldb_private::Watchpoint *wp,
                                         bool notify = true) override;
 
@@ -161,9 +139,7 @@ protected:
   friend class ThreadKDP;
   friend class CommunicationKDP;
 
-  //----------------------------------------------------------------------
   // Accessors
-  //----------------------------------------------------------------------
   bool IsRunning(lldb::StateType state) {
     return state == lldb::eStateRunning || IsStepping(state);
   }
@@ -182,8 +158,8 @@ protected:
 
   void Clear();
 
-  bool UpdateThreadList(lldb_private::ThreadList &old_thread_list,
-                        lldb_private::ThreadList &new_thread_list) override;
+  bool DoUpdateThreadList(lldb_private::ThreadList &old_thread_list,
+                          lldb_private::ThreadList &new_thread_list) override;
 
   enum {
     eBroadcastBitAsyncContinue = (1 << 0),
@@ -192,9 +168,7 @@ protected:
 
   lldb::ThreadSP GetKernelThread();
 
-  //------------------------------------------------------------------
   /// Broadcaster event bits definitions.
-  //------------------------------------------------------------------
   CommunicationKDP m_comm;
   lldb_private::Broadcaster m_async_broadcaster;
   lldb_private::HostThread m_async_thread;
@@ -210,11 +184,10 @@ protected:
   static void *AsyncThread(void *arg);
 
 private:
-  //------------------------------------------------------------------
   // For ProcessKDP only
-  //------------------------------------------------------------------
 
-  DISALLOW_COPY_AND_ASSIGN(ProcessKDP);
+  ProcessKDP(const ProcessKDP &) = delete;
+  const ProcessKDP &operator=(const ProcessKDP &) = delete;
 };
 
-#endif // liblldb_ProcessKDP_h_
+#endif // LLDB_SOURCE_PLUGINS_PROCESS_MACOSX_KERNEL_PROCESSKDP_H

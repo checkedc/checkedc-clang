@@ -17,7 +17,5 @@ static_library("Disassembler") {
     "//llvm/lib/Target/WebAssembly/TargetInfo",
   ]
   include_dirs = [ ".." ]
-  sources = [
-    "WebAssemblyDisassembler.cpp",
-  ]
+  sources = [ "WebAssemblyDisassembler.cpp" ]
 }

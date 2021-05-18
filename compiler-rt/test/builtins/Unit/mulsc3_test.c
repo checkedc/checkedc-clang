@@ -1,23 +1,12 @@
 // RUN: %clang_builtins %s %librt -lm -o %t && %run %t
-//===-- mulsc3_test.c - Test __mulsc3 -------------------------------------===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __mulsc3 for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
+// REQUIRES: librt_has_mulsc3
+// REQUIRES: c99-complex
 
 #include "int_lib.h"
 #include <math.h>
 #include <complex.h>
 #include <stdio.h>
 
-// REQUIRES: c99-complex
 
 // Returns: the product of a + ib and c + id
 

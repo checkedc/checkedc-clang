@@ -4,10 +4,9 @@
 
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.txt for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -31,7 +30,7 @@ extern "C" {
    just before version string. */
 #define KMP_VERSION_MAGIC_STR "\x00@(#) "
 #define KMP_VERSION_MAGIC_LEN 6 // Length of KMP_VERSION_MAGIC_STR.
-#define KMP_VERSION_PREF_STR "Intel(R) OMP "
+#define KMP_VERSION_PREF_STR "LLVM OMP "
 #define KMP_VERSION_PREFIX KMP_VERSION_MAGIC_STR KMP_VERSION_PREF_STR
 
 /* declare all the version string constants for KMP_VERSION env. variable */

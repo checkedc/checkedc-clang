@@ -1,9 +1,8 @@
 //===- KaleidoscopeJIT.h - A simple JIT for Kaleidoscope --------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -22,6 +21,7 @@
 #include "llvm/ExecutionEngine/Orc/IRCompileLayer.h"
 #include "llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
 #include "llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h"
+#include "llvm/ExecutionEngine/Orc/TargetProcessControl.h"
 #include "llvm/ExecutionEngine/SectionMemoryManager.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/LLVMContext.h"
@@ -32,49 +32,68 @@ namespace orc {
 
 class KaleidoscopeJIT {
 private:
-  ExecutionSession ES;
-  RTDyldObjectLinkingLayer ObjectLayer;
-  IRCompileLayer CompileLayer;
+  std::unique_ptr<TargetProcessControl> TPC;
+  std::unique_ptr<ExecutionSession> ES;
 
   DataLayout DL;
   MangleAndInterner Mangle;
-  ThreadSafeContext Ctx;
+
+  RTDyldObjectLinkingLayer ObjectLayer;
+  IRCompileLayer CompileLayer;
+
+  JITDylib &MainJD;
 
 public:
-  KaleidoscopeJIT(JITTargetMachineBuilder JTMB, DataLayout DL)
-      : ObjectLayer(ES,
-                    []() { return llvm::make_unique<SectionMemoryManager>(); }),
-        CompileLayer(ES, ObjectLayer, ConcurrentIRCompiler(std::move(JTMB))),
-        DL(std::move(DL)), Mangle(ES, this->DL),
-        Ctx(llvm::make_unique<LLVMContext>()) {
-    ES.getMainJITDylib().setGenerator(
-        cantFail(DynamicLibrarySearchGenerator::GetForCurrentProcess(DL)));
+  KaleidoscopeJIT(std::unique_ptr<TargetProcessControl> TPC,
+                  std::unique_ptr<ExecutionSession> ES,
+                  JITTargetMachineBuilder JTMB, DataLayout DL)
+      : TPC(std::move(TPC)), ES(std::move(ES)), DL(std::move(DL)),
+        Mangle(*this->ES, this->DL),
+        ObjectLayer(*this->ES,
+                    []() { return std::make_unique<SectionMemoryManager>(); }),
+        CompileLayer(*this->ES, ObjectLayer,
+                     std::make_unique<ConcurrentIRCompiler>(std::move(JTMB))),
+        MainJD(this->ES->createBareJITDylib("<main>")) {
+    MainJD.addGenerator(
+        cantFail(DynamicLibrarySearchGenerator::GetForCurrentProcess(
+            DL.getGlobalPrefix())));
+  }
+
+  ~KaleidoscopeJIT() {
+    if (auto Err = ES->endSession())
+      ES->reportError(std::move(Err));
   }
 
   static Expected<std::unique_ptr<KaleidoscopeJIT>> Create() {
-    auto JTMB = JITTargetMachineBuilder::detectHost();
+    auto SSP = std::make_shared<SymbolStringPool>();
+    auto TPC = SelfTargetProcessControl::Create(SSP);
+    if (!TPC)
+      return TPC.takeError();
 
-    if (!JTMB)
-      return JTMB.takeError();
+    auto ES = std::make_unique<ExecutionSession>(std::move(SSP));
 
-    auto DL = JTMB->getDefaultDataLayoutForTarget();
+    JITTargetMachineBuilder JTMB((*TPC)->getTargetTriple());
+
+    auto DL = JTMB.getDefaultDataLayoutForTarget();
     if (!DL)
       return DL.takeError();
 
-    return llvm::make_unique<KaleidoscopeJIT>(std::move(*JTMB), std::move(*DL));
+    return std::make_unique<KaleidoscopeJIT>(std::move(*TPC), std::move(ES),
+                                             std::move(JTMB), std::move(*DL));
   }
 
   const DataLayout &getDataLayout() const { return DL; }
 
-  LLVMContext &getContext() { return *Ctx.getContext(); }
+  JITDylib &getMainJITDylib() { return MainJD; }
 
-  Error addModule(std::unique_ptr<Module> M) {
-    return CompileLayer.add(ES.getMainJITDylib(),
-                            ThreadSafeModule(std::move(M), Ctx));
+  Error addModule(ThreadSafeModule TSM, ResourceTrackerSP RT = nullptr) {
+    if (!RT)
+      RT = MainJD.getDefaultResourceTracker();
+    return CompileLayer.add(RT, std::move(TSM));
   }
 
   Expected<JITEvaluatedSymbol> lookup(StringRef Name) {
-    return ES.lookup({&ES.getMainJITDylib()}, Mangle(Name.str()));
+    return ES->lookup({&MainJD}, Mangle(Name.str()));
   }
 };
 

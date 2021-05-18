@@ -1,73 +1,76 @@
 //===-- DeclVendor.h --------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_DeclVendor_h_
-#define liblldb_DeclVendor_h_
+#ifndef LLDB_SYMBOL_DECLVENDOR_H
+#define LLDB_SYMBOL_DECLVENDOR_H
 
-#include "lldb/Core/ClangForward.h"
 #include "lldb/lldb-defines.h"
-
-#include "clang/AST/ExternalASTMerger.h"
 
 #include <vector>
 
 namespace lldb_private {
 
-//----------------------------------------------------------------------
 // The Decl vendor class is intended as a generic interface to search for named
 // declarations that are not necessarily backed by a specific symbol file.
-//----------------------------------------------------------------------
 class DeclVendor {
 public:
-  //------------------------------------------------------------------
+  enum DeclVendorKind {
+    eClangDeclVendor,
+    eClangModuleDeclVendor,
+    eAppleObjCDeclVendor,
+    eLastClangDeclVendor,
+  };
   // Constructors and Destructors
-  //------------------------------------------------------------------
-  DeclVendor() {}
+  DeclVendor(DeclVendorKind kind) : m_kind(kind) {}
 
   virtual ~DeclVendor() {}
 
-  //------------------------------------------------------------------
+  DeclVendorKind GetKind() const { return m_kind; }
+
   /// Look up the set of Decls that the DeclVendor currently knows about
   /// matching a given name.
   ///
-  /// @param[in] name
+  /// \param[in] name
   ///     The name to look for.
   ///
-  /// @param[in] append
+  /// \param[in] append
   ///     If true, FindDecls will clear "decls" when it starts.
   ///
-  /// @param[in] max_matches
+  /// \param[in] max_matches
   ///     The maximum number of Decls to return.  UINT32_MAX means "as
   ///     many as possible."
   ///
-  /// @return
+  /// \return
   ///     The number of Decls added to decls; will not exceed
   ///     max_matches.
-  //------------------------------------------------------------------
-  virtual uint32_t FindDecls(const ConstString &name, bool append,
+  virtual uint32_t FindDecls(ConstString name, bool append,
                              uint32_t max_matches,
-                             std::vector<clang::NamedDecl *> &decls) = 0;
+                             std::vector<CompilerDecl> &decls) = 0;
 
-  //------------------------------------------------------------------
-  /// Interface for ExternalASTMerger.  Returns an ImporterSource 
-  /// allowing type completion.
+  /// Look up the types that the DeclVendor currently knows about matching a
+  /// given name.
   ///
-  /// @return
-  ///     An ImporterSource for this DeclVendor.
-  //------------------------------------------------------------------
-  virtual clang::ExternalASTMerger::ImporterSource GetImporterSource() = 0;
+  /// \param[in] name
+  ///     The name to look for.
+  ///
+  /// \param[in] max_matches
+  //      The maximum number of matches. UINT32_MAX means "as many as possible".
+  ///
+  /// \return
+  ///     The vector of CompilerTypes that was found.
+  std::vector<CompilerType> FindTypes(ConstString name, uint32_t max_matches);
 
 private:
-  //------------------------------------------------------------------
   // For DeclVendor only
-  //------------------------------------------------------------------
-  DISALLOW_COPY_AND_ASSIGN(DeclVendor);
+  DeclVendor(const DeclVendor &) = delete;
+  const DeclVendor &operator=(const DeclVendor &) = delete;
+
+  const DeclVendorKind m_kind;
 };
 
 } // namespace lldb_private

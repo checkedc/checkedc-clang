@@ -205,7 +205,7 @@ entry:
 ; GCN-NOT: and
 ; GCN-NOT: lshr
 ; GCN: v_mul_hi_u32_u24_e32 v[[MUL_HI:[0-9]+]],
-; GCN-NEXT: v_and_b32_e32 v[[HI:[0-9]+]], 1, v[[MUL_HI]]
+; GCN: v_and_b32_e32 v[[HI:[0-9]+]], 1, v[[MUL_HI]]
 ; GCN-NEXT: buffer_store_dword v[[HI]]
 define amdgpu_kernel void @test_umulhi24_i33(i32 addrspace(1)* %out, i33 %a, i33 %b) {
 entry:
@@ -249,8 +249,8 @@ entry:
 ; GCN-DAG: v_and_b32_e32 v1, [[U23_MASK]], v1
 ; GCN-DAG: v_mul_u32_u24_e32 v0, 0xea, v0
 ; GCN-DAG: v_mul_u32_u24_e32 v1, 0x39b, v1
-; GCN: v_and_b32_e32 v1, s6, v1
-; GCN: v_and_b32_e32 v0, 0x7ffffe, v0
+; GCN-DAG: v_and_b32_e32 v1, s4, v1
+; GCN-DAG: v_and_b32_e32 v0, 0x7ffffe, v0
 ; GCN: v_mul_u32_u24_e32 v0, v0, v1
 ; GCN: v_and_b32_e32 v0, 0x1fffe, v0
 ; GCN: v_mul_u32_u24_e32 v0, 0x63, v0

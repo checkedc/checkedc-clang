@@ -1,4 +1,4 @@
-; RUN: llc -march=hexagon -enable-pipeliner -pipeliner-max-stages=3 < %s | FileCheck %s
+; RUN: llc -march=hexagon -enable-pipeliner -pipeliner-max-stages=3 < %s -pipeliner-experimental-cg=true | FileCheck %s
 
 %s.0 = type { i16, i8, i8, i16, i8, i8, i16, i8, i8, i8, i8, i8, i8, i8, i8, i8, i8, i8, i8, i8, i8, i32, i16, i8, i8, %s.1, [2 x [16 x %s.2]], i32 (i8*, i8*, i8*, i8*, i8*)*, %s.3*, %s.3*, [120 x i8], i8, i8, %s.4*, [2 x [120 x [8 x i8]]], [56 x i8], [2 x [121 x %s.5]], [2 x %s.5], %s.5*, %s.5*, i32, i32, i16, i8, i8, %s.7, %s.9, %s.11, %s.8*, %s.8* }
 %s.1 = type { i8, i8, i8, i8, i8, i8, i8, i8, i32, i8, [16 x i8], i8, [4 x i8], [32 x i16], [32 x i16], [2 x i8], [4 x i8], [2 x [4 x i8]], [2 x [4 x i8]], i32, i32, i16, i8 }
@@ -14,7 +14,7 @@
 %s.11 = type { i32, i32, i8* }
 
 ; Function Attrs: nounwind
-define void @f0(%s.0* %a0, i8* %a1, i16* %a2, i16** %a3, i16** %a4) #0 {
+define void @f0(%s.0* %a0, i8* %a1, i16* %a2, i16** %a3, i16** %a4, i32 %a5) #0 {
 b0:
   %v0 = load i8, i8* %a1, align 1, !tbaa !0
   %v1 = icmp eq i8 %v0, 1
@@ -47,7 +47,7 @@ b1:                                               ; preds = %b1, %b0
   store i16* %v17, i16** %a4, align 4, !tbaa !3
   store i16 0, i16* %v16, align 2, !tbaa !5
   %v18 = add nsw i32 %v3, 8
-  %v19 = icmp slt i32 %v18, undef
+  %v19 = icmp slt i32 %v18, %a5
   br i1 %v19, label %b1, label %b2
 
 b2:                                               ; preds = %b1, %b0

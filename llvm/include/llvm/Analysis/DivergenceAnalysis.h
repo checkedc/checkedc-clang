@@ -1,9 +1,8 @@
 //===- llvm/Analysis/DivergenceAnalysis.h - Divergence Analysis -*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -60,8 +59,10 @@ public:
   /// \brief Mark \p UniVal as a value that is always uniform.
   void addUniformOverride(const Value &UniVal);
 
-  /// \brief Mark \p DivVal as a value that is always divergent.
-  void markDivergent(const Value &DivVal);
+  /// \brief Mark \p DivVal as a value that is always divergent. Will not do so
+  /// if `isAlwaysUniform(DivVal)`.
+  /// \returns Whether the tracked divergence state of \p DivVal changed.
+  bool markDivergent(const Value &DivVal);
 
   /// \brief Propagate divergence to all instructions in the region.
   /// Divergence is seeded by calls to \p markDivergent.
@@ -74,44 +75,40 @@ public:
   /// operands
   bool isAlwaysUniform(const Value &Val) const;
 
-  /// \brief Whether \p Val is a divergent value
+  /// \brief Whether \p Val is divergent at its definition.
   bool isDivergent(const Value &Val) const;
+
+  /// \brief Whether \p U is divergent. Uses of a uniform value can be
+  /// divergent.
+  bool isDivergentUse(const Use &U) const;
 
   void print(raw_ostream &OS, const Module *) const;
 
 private:
-  bool updateTerminator(const Instruction &Term) const;
-  bool updatePHINode(const PHINode &Phi) const;
+  /// \brief Mark \p Term as divergent and push all Instructions that become
+  /// divergent as a result on the worklist.
+  void analyzeControlDivergence(const Instruction &Term);
+  /// \brief Mark all phi nodes in \p JoinBlock as divergent and push them on
+  /// the worklist.
+  void taintAndPushPhiNodes(const BasicBlock &JoinBlock);
 
-  /// \brief Computes whether \p Inst is divergent based on the
-  /// divergence of its operands.
-  ///
-  /// \returns Whether \p Inst is divergent.
-  ///
-  /// This should only be called for non-phi, non-terminator instructions.
-  bool updateNormalInstruction(const Instruction &Inst) const;
+  /// \brief Identify all Instructions that become divergent because \p DivExit
+  /// is a divergent loop exit of \p DivLoop. Mark those instructions as
+  /// divergent and push them on the worklist.
+  void propagateLoopExitDivergence(const BasicBlock &DivExit,
+                                   const Loop &DivLoop);
 
-  /// \brief Mark users of live-out users as divergent.
-  ///
-  /// \param LoopHeader the header of the divergent loop.
-  ///
-  /// Marks all users of live-out values of the loop headed by \p LoopHeader
-  /// as divergent and puts them on the worklist.
-  void taintLoopLiveOuts(const BasicBlock &LoopHeader);
+  /// \brief Internal implementation function for propagateLoopExitDivergence.
+  void analyzeLoopExitDivergence(const BasicBlock &DivExit,
+                                 const Loop &OuterDivLoop);
 
-  /// \brief Push all users of \p Val (in the region) to the worklist
+  /// \brief Mark all instruction as divergent that use a value defined in \p
+  /// OuterDivLoop. Push their users on the worklist.
+  void analyzeTemporalDivergence(const Instruction &I,
+                                 const Loop &OuterDivLoop);
+
+  /// \brief Push all users of \p Val (in the region) to the worklist.
   void pushUsers(const Value &I);
-
-  /// \brief Push all phi nodes in @block to the worklist
-  void pushPHINodes(const BasicBlock &Block);
-
-  /// \brief Mark \p Block as join divergent
-  ///
-  /// A block is join divergent if two threads may reach it from different
-  /// incoming blocks at the same time.
-  void markBlockJoinDivergent(const BasicBlock &Block) {
-    DivergentJoinBlocks.insert(&Block);
-  }
 
   /// \brief Whether \p Val is divergent when read in \p ObservingBlock.
   bool isTemporalDivergent(const BasicBlock &ObservingBlock,
@@ -121,31 +118,13 @@ private:
   ///
   /// (see markBlockJoinDivergent).
   bool isJoinDivergent(const BasicBlock &Block) const {
-    return DivergentJoinBlocks.find(&Block) != DivergentJoinBlocks.end();
+    return DivergentJoinBlocks.contains(&Block);
   }
-
-  /// \brief Propagate control-induced divergence to users (phi nodes and
-  /// instructions).
-  //
-  // \param JoinBlock is a divergent loop exit or join point of two disjoint
-  // paths.
-  // \returns Whether \p JoinBlock is a divergent loop exit of \p TermLoop.
-  bool propagateJoinDivergence(const BasicBlock &JoinBlock,
-                               const Loop *TermLoop);
-
-  /// \brief Propagate induced value divergence due to control divergence in \p
-  /// Term.
-  void propagateBranchDivergence(const Instruction &Term);
-
-  /// \brief Propagate divergent caused by a divergent loop exit.
-  ///
-  /// \param ExitingLoop is a divergent loop.
-  void propagateLoopDivergence(const Loop &ExitingLoop);
 
 private:
   const Function &F;
   // If regionLoop != nullptr, analysis is only performed within \p RegionLoop.
-  // Otw, analyze the whole function
+  // Otherwise, analyze the whole function
   const Loop *RegionLoop;
 
   const DominatorTree &DT;
@@ -164,7 +143,7 @@ private:
   DenseSet<const Value *> UniformOverrides;
 
   // Blocks with joining divergent control from different predecessors.
-  DenseSet<const BasicBlock *> DivergentJoinBlocks;
+  DenseSet<const BasicBlock *> DivergentJoinBlocks; // FIXME Deprecated
 
   // Detected/marked divergent values.
   DenseSet<const Value *> DivergentValues;
@@ -190,11 +169,18 @@ public:
   /// The GPU kernel this analysis result is for
   const Function &getFunction() const { return DA.getFunction(); }
 
-  /// Whether \p V is divergent.
+  /// Whether \p V is divergent at its definition.
   bool isDivergent(const Value &V) const;
 
-  /// Whether \p V is uniform/non-divergent
+  /// Whether \p U is divergent. Uses of a uniform value can be divergent.
+  bool isDivergentUse(const Use &U) const;
+
+  /// Whether \p V is uniform/non-divergent.
   bool isUniform(const Value &V) const { return !isDivergent(V); }
+
+  /// Whether \p U is uniform/non-divergent. Uses of a uniform value can be
+  /// divergent.
+  bool isUniformUse(const Use &U) const { return !isDivergentUse(U); }
 
   /// Print all divergent values in the kernel.
   void print(raw_ostream &OS, const Module *) const;

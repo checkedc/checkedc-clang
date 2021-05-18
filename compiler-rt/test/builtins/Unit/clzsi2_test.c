@@ -1,16 +1,5 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-//===-- clzsi2_test.c - Test __clzsi2 -------------------------------------===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file tests __clzsi2 for the compiler_rt library.
-//
-//===----------------------------------------------------------------------===//
+// REQUIRES: librt_has_clzsi2
 
 #include "int_lib.h"
 #include <stdio.h>
@@ -19,11 +8,11 @@
 
 // Precondition: a != 0
 
-COMPILER_RT_ABI si_int __clzsi2(si_int a);
+COMPILER_RT_ABI int __clzsi2(si_int a);
 
-int test__clzsi2(si_int a, si_int expected)
+int test__clzsi2(si_int a, int expected)
 {
-    si_int x = __clzsi2(a);
+    int x = __clzsi2(a);
     if (x != expected)
         printf("error in __clzsi2(0x%X) = %d, expected %d\n", a, x, expected);
     return x != expected;

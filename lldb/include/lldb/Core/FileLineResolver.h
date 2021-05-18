@@ -1,14 +1,13 @@
 //===-- FileLineResolver.h --------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_FileLineResolver_h_
-#define liblldb_FileLineResolver_h_
+#ifndef LLDB_CORE_FILELINERESOLVER_H
+#define LLDB_CORE_FILELINERESOLVER_H
 
 #include "lldb/Core/SearchFilter.h"
 #include "lldb/Symbol/SymbolContext.h"
@@ -19,18 +18,11 @@
 
 namespace lldb_private {
 class Address;
-}
-namespace lldb_private {
 class Stream;
-}
 
-namespace lldb_private {
-
-//----------------------------------------------------------------------
-/// @class FileLineResolver FileLineResolver.h "lldb/Core/FileLineResolver.h"
+/// \class FileLineResolver FileLineResolver.h "lldb/Core/FileLineResolver.h"
 /// This class finds address for source file and line.  Optionally, it will
 /// look for inlined instances of the file and line specification.
-//----------------------------------------------------------------------
 
 class FileLineResolver : public Searcher {
 public:
@@ -45,8 +37,8 @@ public:
   ~FileLineResolver() override;
 
   Searcher::CallbackReturn SearchCallback(SearchFilter &filter,
-                                          SymbolContext &context, Address *addr,
-                                          bool containing) override;
+                                          SymbolContext &context,
+                                          Address *addr) override;
 
   lldb::SearchDepth GetDepth() override;
 
@@ -66,9 +58,10 @@ protected:
                   // functions or not.
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(FileLineResolver);
+  FileLineResolver(const FileLineResolver &) = delete;
+  const FileLineResolver &operator=(const FileLineResolver &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_FileLineResolver_h_
+#endif // LLDB_CORE_FILELINERESOLVER_H

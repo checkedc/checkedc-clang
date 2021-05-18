@@ -1,14 +1,13 @@
 //===-- SBLaunchInfo.h ------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_SBLaunchInfo_h_
-#define LLDB_SBLaunchInfo_h_
+#ifndef LLDB_API_SBLAUNCHINFO_H
+#define LLDB_API_SBLAUNCHINFO_H
 
 #include "lldb/API/SBDefines.h"
 
@@ -27,6 +26,10 @@ public:
 
   ~SBLaunchInfo();
 
+  SBLaunchInfo(const SBLaunchInfo &rhs);
+
+  SBLaunchInfo &operator=(const SBLaunchInfo &rhs);
+
   lldb::pid_t GetProcessID();
 
   uint32_t GetUserID();
@@ -43,7 +46,6 @@ public:
 
   SBFileSpec GetExecutableFile();
 
-  //----------------------------------------------------------------------
   /// Set the executable file that will be used to launch the process and
   /// optionally set it as the first argument in the argument vector.
   ///
@@ -58,33 +60,28 @@ public:
   /// SBTarget::Launch(...), the target will use the resolved executable
   /// path that was used to create the target.
   ///
-  /// @param[in] exe_file
+  /// \param[in] exe_file
   ///     The override path to use when launching the executable.
   ///
-  /// @param[in] add_as_first_arg
+  /// \param[in] add_as_first_arg
   ///     If true, then the path will be inserted into the argument vector
   ///     prior to launching. Otherwise the argument vector will be left
   ///     alone.
-  //----------------------------------------------------------------------
   void SetExecutableFile(SBFileSpec exe_file, bool add_as_first_arg);
 
-  //----------------------------------------------------------------------
   /// Get the listener that will be used to receive process events.
   ///
   /// If no listener has been set via a call to
   /// SBLaunchInfo::SetListener(), then an invalid SBListener will be
   /// returned (SBListener::IsValid() will return false). If a listener
   /// has been set, then the valid listener object will be returned.
-  //----------------------------------------------------------------------
   SBListener GetListener();
 
-  //----------------------------------------------------------------------
   /// Set the listener that will be used to receive process events.
   ///
   /// By default the SBDebugger, which has a listener, that the SBTarget
   /// belongs to will listen for the process events. Calling this function
   /// allows a different listener to be used to listen for process events.
-  //----------------------------------------------------------------------
   void SetListener(SBListener &listener);
 
   uint32_t GetNumArguments();
@@ -97,7 +94,40 @@ public:
 
   const char *GetEnvironmentEntryAtIndex(uint32_t idx);
 
+  /// Update this object with the given environment variables.
+  ///
+  /// If append is false, the provided environment will replace the existing
+  /// environment. Otherwise, existing values will be updated of left untouched
+  /// accordingly.
+  ///
+  /// \param [in] envp
+  ///     The new environment variables as a list of strings with the following
+  ///     format
+  ///         name=value
+  ///
+  /// \param [in] append
+  ///     Flag that controls whether to replace the existing environment.
   void SetEnvironmentEntries(const char **envp, bool append);
+
+  /// Update this object with the given environment variables.
+  ///
+  /// If append is false, the provided environment will replace the existing
+  /// environment. Otherwise, existing values will be updated of left untouched
+  /// accordingly.
+  ///
+  /// \param [in] env
+  ///     The new environment variables.
+  ///
+  /// \param [in] append
+  ///     Flag that controls whether to replace the existing environment.
+  void SetEnvironment(const SBEnvironment &env, bool append);
+
+  /// Return the environment variables of this object.
+  ///
+  /// \return
+  ///     An lldb::SBEnvironment object which is a copy of the SBLaunchInfo's
+  ///     environment.
+  SBEnvironment GetEnvironment();
 
   void Clear();
 
@@ -153,4 +183,4 @@ protected:
 
 } // namespace lldb
 
-#endif // LLDB_SBLaunchInfo_h_
+#endif // LLDB_API_SBLAUNCHINFO_H

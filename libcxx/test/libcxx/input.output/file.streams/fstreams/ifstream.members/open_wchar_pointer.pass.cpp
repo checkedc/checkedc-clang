@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -14,10 +13,14 @@
 
 // void open(const wchar_t* s, ios_base::openmode mode = ios_base::in);
 
+// FILE_DEPENDENCIES: test.dat
+
 #include <fstream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
 #ifdef _LIBCPP_HAS_OPEN_WITH_WCHAR
     {
@@ -45,4 +48,6 @@ int main()
         assert(c == L'r');
     }
 #endif
+
+  return 0;
 }

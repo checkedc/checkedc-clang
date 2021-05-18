@@ -1,4 +1,5 @@
-; RUN: opt < %s -analyze -scalar-evolution | FileCheck %s
+; RUN: opt < %s -analyze -enable-new-pm=0 -scalar-evolution | FileCheck %s
+; RUN: opt < %s -disable-output "-passes=print<scalar-evolution>" 2>&1 | FileCheck %s
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
@@ -80,7 +81,7 @@ return:         ; preds = %bb5
 ; CHECK-NEXT:    -->  (sext i16 {%Start,+,-1}<%bb3> to i32)
 ; CHECK:       Loop %bb3: Unpredictable backedge-taken count.
 ; CHECK-NEXT:  Loop %bb3: Unpredictable max backedge-taken count.
-; CHECK-NEXT:  Loop %bb3: Predicated backedge-taken count is (2 + (sext i16 %Start to i32) + ((-2 + (-1 * (sext i16 %Start to i32))<nsw>) smax (-1 + (-1 * %M))))
+; CHECK-NEXT:  Loop %bb3: Predicated backedge-taken count is (1 + (sext i16 %Start to i32) + (-1 * ((1 + (sext i16 %Start to i32))<nsw> smin %M)))
 ; CHECK-NEXT:  Predicates:
 ; CHECK-NEXT:    {%Start,+,-1}<%bb3> Added Flags: <nssw>
 

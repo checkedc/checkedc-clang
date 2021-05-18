@@ -1,9 +1,8 @@
 //===--- CodeCompletionStrings.cpp -------------------------------*- C++-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -12,6 +11,9 @@
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/RawCommentList.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Sema/CodeCompleteConsumer.h"
+#include "llvm/Support/JSON.h"
+#include <limits>
 #include <utility>
 
 namespace clang {
@@ -28,6 +30,21 @@ void appendEscapeSnippet(const llvm::StringRef Text, std::string *Out) {
     if (Character == '$' || Character == '}' || Character == '\\')
       Out->push_back('\\');
     Out->push_back(Character);
+  }
+}
+
+void appendOptionalChunk(const CodeCompletionString &CCS, std::string *Out) {
+  for (const CodeCompletionString::Chunk &C : CCS) {
+    switch (C.Kind) {
+    case CodeCompletionString::CK_Optional:
+      assert(C.Optional &&
+             "Expected the optional code completion string to be non-null.");
+      appendOptionalChunk(*C.Optional, Out);
+      break;
+    default:
+      *Out += C.Text;
+      break;
+    }
   }
 }
 
@@ -70,12 +87,32 @@ std::string getDeclComment(const ASTContext &Ctx, const NamedDecl &Decl) {
   assert(!Ctx.getSourceManager().isLoadedSourceLocation(RC->getBeginLoc()));
   std::string Doc =
       RC->getFormattedText(Ctx.getSourceManager(), Ctx.getDiagnostics());
-  return looksLikeDocComment(Doc) ? Doc : "";
+  if (!looksLikeDocComment(Doc))
+    return "";
+  // Clang requires source to be UTF-8, but doesn't enforce this in comments.
+  if (!llvm::json::isUTF8(Doc))
+    Doc = llvm::json::fixUTF8(Doc);
+  return Doc;
 }
 
 void getSignature(const CodeCompletionString &CCS, std::string *Signature,
-                  std::string *Snippet, std::string *RequiredQualifiers) {
-  unsigned ArgCount = 0;
+                  std::string *Snippet, std::string *RequiredQualifiers,
+                  bool CompletingPattern) {
+  // Placeholder with this index will be ${0:…} to mark final cursor position.
+  // Usually we do not add $0, so the cursor is placed at end of completed text.
+  unsigned CursorSnippetArg = std::numeric_limits<unsigned>::max();
+  if (CompletingPattern) {
+    // In patterns, it's best to place the cursor at the last placeholder, to
+    // handle cases like
+    //    namespace ${1:name} {
+    //      ${0:decls}
+    //    }
+    CursorSnippetArg =
+        llvm::count_if(CCS, [](const CodeCompletionString::Chunk &C) {
+          return C.Kind == CodeCompletionString::CK_Placeholder;
+        });
+  }
+  unsigned SnippetArg = 0;
   bool HadObjCArguments = false;
   for (const auto &Chunk : CCS) {
     // Informative qualifier chunks only clutter completion results, skip
@@ -122,11 +159,16 @@ void getSignature(const CodeCompletionString &CCS, std::string *Signature,
       *Snippet += Chunk.Text;
       break;
     case CodeCompletionString::CK_Optional:
+      assert(Chunk.Optional);      
+      // No need to create placeholders for default arguments in Snippet.
+      appendOptionalChunk(*Chunk.Optional, Signature);
       break;
     case CodeCompletionString::CK_Placeholder:
       *Signature += Chunk.Text;
-      ++ArgCount;
-      *Snippet += "${" + std::to_string(ArgCount) + ':';
+      ++SnippetArg;
+      *Snippet +=
+          "${" +
+          std::to_string(SnippetArg == CursorSnippetArg ? 0 : SnippetArg) + ':';
       appendEscapeSnippet(Chunk.Text, Snippet);
       *Snippet += '}';
       break;

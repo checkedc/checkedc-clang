@@ -1,9 +1,8 @@
 //===- Ownership.h - Parser ownership helpers -------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -117,7 +116,7 @@ namespace llvm {
 
   template <class T>
   struct PointerLikeTypeTraits<clang::OpaquePtr<T>> {
-    enum { NumLowBitsAvailable = 0 };
+    static constexpr int NumLowBitsAvailable = 0;
 
     static inline void *getAsVoidPointer(clang::OpaquePtr<T> P) {
       // FIXME: Doesn't work? return P.getAs< void >();
@@ -129,22 +128,18 @@ namespace llvm {
     }
   };
 
-  template <class T>
-  struct isPodLike<clang::OpaquePtr<T>> { static const bool value = true; };
-
 } // namespace llvm
 
 namespace clang {
 
   // Basic
-  class DiagnosticBuilder;
+class StreamingDiagnostic;
 
-  // Determines whether the low bit of the result pointer for the
-  // given UID is always zero. If so, ActionResult will use that bit
-  // for it's "invalid" flag.
-  template<class Ptr>
-  struct IsResultPtrLowBitFree {
-    static const bool value = false;
+// Determines whether the low bit of the result pointer for the
+// given UID is always zero. If so, ActionResult will use that bit
+// for it's "invalid" flag.
+template <class Ptr> struct IsResultPtrLowBitFree {
+  static const bool value = false;
   };
 
   /// ActionResult - This structure is used while parsing/acting on
@@ -282,9 +277,14 @@ namespace clang {
 
   inline ExprResult ExprError() { return ExprResult(true); }
   inline StmtResult StmtError() { return StmtResult(true); }
+  inline TypeResult TypeError() { return TypeResult(true); }
 
-  inline ExprResult ExprError(const DiagnosticBuilder&) { return ExprError(); }
-  inline StmtResult StmtError(const DiagnosticBuilder&) { return StmtError(); }
+  inline ExprResult ExprError(const StreamingDiagnostic &) {
+    return ExprError();
+  }
+  inline StmtResult StmtError(const StreamingDiagnostic &) {
+    return StmtError();
+  }
 
   inline ExprResult ExprEmpty() { return ExprResult(false); }
   inline StmtResult StmtEmpty() { return StmtResult(false); }

@@ -1,4 +1,4 @@
-; RUN: opt < %s -basicaa -aa-eval -print-all-alias-modref-info -disable-output 2>&1 | FileCheck %s
+; RUN: opt < %s -basic-aa -aa-eval -print-all-alias-modref-info -disable-output 2>&1 | FileCheck %s
 
 target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"
 target triple = "i386-unknown-linux-gnu"
@@ -117,3 +117,13 @@ entry:
   %2 = load i32, i32* %1
   ret i32 %2
 }
+
+; CHECK-LABEL: Function: one_size_unknown:
+; CHECK: NoModRef:  Ptr: i8* %p.minus1	<->  call void @llvm.memset.p0i8.i32(i8* %p, i8 0, i32 %size, i1 false)
+define void @one_size_unknown(i8* %p, i32 %size) {
+  %p.minus1 = getelementptr inbounds i8, i8* %p, i32 -1
+  call void @llvm.memset.p0i8.i32(i8* %p, i8 0, i32 %size, i1 false)
+  ret void
+}
+
+declare void @llvm.memset.p0i8.i32(i8*, i8, i32, i1)

@@ -1,16 +1,15 @@
 //===--- MakeSmartPtrCheck.h - clang-tidy------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_MAKE_SMART_PTR_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_MAKE_SMART_PTR_H
 
-#include "../ClangTidy.h"
+#include "../ClangTidyCheck.h"
 #include "../utils/IncludeInserter.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchersInternal.h"
@@ -27,7 +26,8 @@ public:
   MakeSmartPtrCheck(StringRef Name, ClangTidyContext *Context,
                     StringRef MakeSmartPtrFunctionName);
   void registerMatchers(ast_matchers::MatchFinder *Finder) final;
-  void registerPPCallbacks(clang::CompilerInstance &Compiler) override;
+  void registerPPCallbacks(const SourceManager &SM, Preprocessor *PP,
+                           Preprocessor *ModuleExpanderPP) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) final;
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
 
@@ -41,16 +41,16 @@ protected:
   virtual SmartPtrTypeMatcher getSmartPointerTypeMatcher() const = 0;
 
   /// Returns whether the C++ version is compatible with current check.
-  virtual bool isLanguageVersionSupported(const LangOptions &LangOpts) const;
+  bool isLanguageVersionSupported(const LangOptions &LangOpts) const override;
 
   static const char PointerType[];
 
 private:
-  std::unique_ptr<utils::IncludeInserter> Inserter;
-  const utils::IncludeSorter::IncludeStyle IncludeStyle;
+  utils::IncludeInserter Inserter;
   const std::string MakeSmartPtrFunctionHeader;
   const std::string MakeSmartPtrFunctionName;
   const bool IgnoreMacros;
+  const bool IgnoreDefaultInitialization;
 
   void checkConstruct(SourceManager &SM, ASTContext *Ctx,
                       const CXXConstructExpr *Construct, const QualType *Type,

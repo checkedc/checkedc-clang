@@ -1,19 +1,18 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
 // enum class file_type;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <cassert>
 
@@ -22,7 +21,7 @@
 
 constexpr fs::file_type ME(int val) { return static_cast<fs::file_type>(val); }
 
-int main() {
+int main(int, char**) {
   typedef fs::file_type E;
   static_assert(std::is_enum<E>::value, "");
 
@@ -30,9 +29,10 @@ int main() {
   typedef std::underlying_type<E>::type UT;
   static_assert(!std::is_convertible<E, UT>::value, "");
 
-  static_assert(std::is_same<UT, signed char>::value, ""); // Implementation detail
+  LIBCPP_ONLY(static_assert(std::is_same<UT, signed char>::value, "")); // Implementation detail
 
-  static_assert(
+  // The standard doesn't specify the numeric values of the enum.
+  LIBCPP_STATIC_ASSERT(
           E::none == ME(0) &&
           E::not_found == ME(-1) &&
           E::regular == ME(1) &&
@@ -44,4 +44,6 @@ int main() {
           E::socket == ME(7) &&
           E::unknown == ME(8),
         "Expected enumeration values do not match");
+
+  return 0;
 }

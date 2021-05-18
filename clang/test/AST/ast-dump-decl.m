@@ -1,4 +1,13 @@
-// RUN: %clang_cc1 -Wno-unused -fblocks -ast-dump -ast-dump-filter Test %s | FileCheck -strict-whitespace %s
+// Test without serialization:
+// RUN: %clang_cc1 -Wno-unused -fblocks -ast-dump -ast-dump-filter Test %s \
+// RUN: | FileCheck --strict-whitespace %s
+//
+// Test with serialization:
+// RUN: %clang_cc1 -Wno-unused -fblocks -emit-pch -o %t %s
+// RUN: %clang_cc1 -x objective-c -Wno-unused -fblocks -include-pch %t \
+// RUN: -ast-dump-all -ast-dump-filter Test /dev/null \
+// RUN: | sed -e "s/ <undeserialized declarations>//" -e "s/ imported//" \
+// RUN: | FileCheck --strict-whitespace %s
 
 @protocol P
 @end
@@ -28,20 +37,18 @@
 @interface testObjCMethodDecl : A {
 }
 - (int) TestObjCMethodDecl: (int)i, ...;
-// CHECK:      ObjCMethodDecl{{.*}} - TestObjCMethodDecl: 'int'
+// CHECK:      ObjCMethodDecl{{.*}} - TestObjCMethodDecl: 'int' variadic
 // CHECK-NEXT:   ParmVarDecl{{.*}} i 'int'
-// CHECK-NEXT:   ...
 @end
 
 @implementation testObjCMethodDecl
 - (int) TestObjCMethodDecl: (int)i, ... {
   return 0;
 }
-// CHECK:      ObjCMethodDecl{{.*}} - TestObjCMethodDecl: 'int'
+// CHECK:      ObjCMethodDecl{{.*}} - TestObjCMethodDecl: 'int' variadic
 // CHECK-NEXT:   ImplicitParamDecl{{.*}} self
 // CHECK-NEXT:   ImplicitParamDecl{{.*}} _cmd
 // CHECK-NEXT:   ParmVarDecl{{.*}} i 'int'
-// CHECK-NEXT:   ...
 // CHECK-NEXT:   CompoundStmt
 @end
 
@@ -137,9 +144,8 @@ void TestBlockDecl(int x) {
   ^(int y, ...){ x; };
 }
 // CHECK:      FunctionDecl{{.*}}TestBlockDecl
-// CHECK:      BlockDecl
+// CHECK:      BlockDecl {{.+}} <col:3, col:21> col:3 variadic
 // CHECK-NEXT:   ParmVarDecl{{.*}} y 'int'
-// CHECK-NEXT:   ...
 // CHECK-NEXT:   capture ParmVar{{.*}} 'x' 'int'
 // CHECK-NEXT:   CompoundStmt
 

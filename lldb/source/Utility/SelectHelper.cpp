@@ -1,9 +1,8 @@
-//===-- SelectHelper.cpp ----------------------------------------*- C++ -*-===//
+//===-- SelectHelper.cpp --------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -93,7 +92,7 @@ static void updateMaxFd(llvm::Optional<lldb::socket_t> &vold,
 
 lldb_private::Status SelectHelper::Select() {
   lldb_private::Status error;
-#ifdef _MSC_VER
+#ifdef _WIN32
   // On windows FD_SETSIZE limits the number of file descriptors, not their
   // numeric value.
   lldbassert(m_fd_map.size() <= FD_SETSIZE);
@@ -108,7 +107,7 @@ lldb_private::Status SelectHelper::Select() {
   for (auto &pair : m_fd_map) {
     pair.second.PrepareForSelect();
     const lldb::socket_t fd = pair.first;
-#if !defined(__APPLE__) && !defined(_MSC_VER)
+#if !defined(__APPLE__) && !defined(_WIN32)
     lldbassert(fd < static_cast<int>(FD_SETSIZE));
     if (fd >= static_cast<int>(FD_SETSIZE)) {
       error.SetErrorStringWithFormat("%i is too large for select()", fd);
@@ -133,9 +132,7 @@ lldb_private::Status SelectHelper::Select() {
   fd_set *read_fdset_ptr = nullptr;
   fd_set *write_fdset_ptr = nullptr;
   fd_set *error_fdset_ptr = nullptr;
-//----------------------------------------------------------------------
 // Initialize and zero out the fdsets
-//----------------------------------------------------------------------
 #if defined(__APPLE__)
   llvm::SmallVector<fd_set, 1> read_fdset;
   llvm::SmallVector<fd_set, 1> write_fdset;
@@ -177,9 +174,7 @@ lldb_private::Status SelectHelper::Select() {
     error_fdset_ptr = &error_fdset;
   }
 #endif
-  //----------------------------------------------------------------------
   // Set the FD bits in the fdsets for read/write/error
-  //----------------------------------------------------------------------
   for (auto &pair : m_fd_map) {
     const lldb::socket_t fd = pair.first;
 
@@ -193,17 +188,13 @@ lldb_private::Status SelectHelper::Select() {
       FD_SET(fd, error_fdset_ptr);
   }
 
-  //----------------------------------------------------------------------
   // Setup our timeout time value if needed
-  //----------------------------------------------------------------------
   struct timeval *tv_ptr = nullptr;
   struct timeval tv = {0, 0};
 
-  while (1) {
+  while (true) {
     using namespace std::chrono;
-    //------------------------------------------------------------------
     // Setup out relative timeout based on the end time if we have one
-    //------------------------------------------------------------------
     if (m_end_time.hasValue()) {
       tv_ptr = &tv;
       const auto remaining_dur = duration_cast<microseconds>(

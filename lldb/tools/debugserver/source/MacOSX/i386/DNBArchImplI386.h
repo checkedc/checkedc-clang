@@ -1,9 +1,8 @@
 //===-- DNBArchImplI386.h ---------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -11,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __DNBArchImplI386_h__
-#define __DNBArchImplI386_h__
+#ifndef LLDB_TOOLS_DEBUGSERVER_SOURCE_MACOSX_I386_DNBARCHIMPLI386_H
+#define LLDB_TOOLS_DEBUGSERVER_SOURCE_MACOSX_I386_DNBARCHIMPLI386_H
 
 #if defined(__i386__) || defined(__x86_64__)
 
@@ -32,33 +31,38 @@ public:
 
   static void Initialize();
 
-  virtual bool GetRegisterValue(uint32_t set, uint32_t reg,
-                                DNBRegisterValue *value);
-  virtual bool SetRegisterValue(uint32_t set, uint32_t reg,
-                                const DNBRegisterValue *value);
-  virtual nub_size_t GetRegisterContext(void *buf, nub_size_t buf_len);
-  virtual nub_size_t SetRegisterContext(const void *buf, nub_size_t buf_len);
-  virtual uint32_t SaveRegisterState();
-  virtual bool RestoreRegisterState(uint32_t save_id);
+  bool GetRegisterValue(uint32_t set, uint32_t reg,
+                        DNBRegisterValue *value) override;
+  bool SetRegisterValue(uint32_t set, uint32_t reg,
+                        const DNBRegisterValue *value) override;
+  nub_size_t GetRegisterContext(void *buf, nub_size_t buf_len) override;
+  nub_size_t SetRegisterContext(const void *buf, nub_size_t buf_len) override;
+  uint32_t SaveRegisterState() override;
+  bool RestoreRegisterState(uint32_t save_id) override;
 
-  virtual kern_return_t GetRegisterState(int set, bool force);
-  virtual kern_return_t SetRegisterState(int set);
-  virtual bool RegisterSetStateIsValid(int set) const;
+  kern_return_t GetRegisterState(int set, bool force) override;
+  kern_return_t SetRegisterState(int set) override;
+  bool RegisterSetStateIsValid(int set) const override;
 
-  virtual uint64_t GetPC(uint64_t failValue); // Get program counter
-  virtual kern_return_t SetPC(uint64_t value);
-  virtual uint64_t GetSP(uint64_t failValue); // Get stack pointer
-  virtual void ThreadWillResume();
-  virtual bool ThreadDidStop();
-  virtual bool NotifyException(MachException::Data &exc);
+  uint64_t GetPC(uint64_t failValue) override; // Get program counter
+  kern_return_t SetPC(uint64_t value) override;
+  uint64_t GetSP(uint64_t failValue) override; // Get stack pointer
+  void ThreadWillResume() override;
+  bool ThreadDidStop() override;
+  bool NotifyException(MachException::Data &exc) override;
 
-  virtual uint32_t NumSupportedHardwareWatchpoints();
-  virtual uint32_t EnableHardwareWatchpoint(nub_addr_t addr, nub_size_t size,
-                                            bool read, bool write,
-                                            bool also_set_on_task);
-  virtual bool DisableHardwareWatchpoint(uint32_t hw_break_index,
-                                         bool also_set_on_task);
-  virtual uint32_t GetHardwareWatchpointHit(nub_addr_t &addr);
+  uint32_t NumSupportedHardwareBreakpoints() override;
+  uint32_t NumSupportedHardwareWatchpoints() override;
+  uint32_t EnableHardwareBreakpoint(nub_addr_t addr, nub_size_t size,
+                                    bool also_set_on_task) override;
+  bool DisableHardwareBreakpoint(uint32_t hw_index,
+                                 bool also_set_on_task) override;
+  uint32_t EnableHardwareWatchpoint(nub_addr_t addr, nub_size_t size,
+                                    bool read, bool write,
+                                    bool also_set_on_task) override;
+  bool DisableHardwareWatchpoint(uint32_t hw_break_index,
+                                 bool also_set_on_task) override;
+  uint32_t GetHardwareWatchpointHit(nub_addr_t &addr) override;
 
 protected:
   kern_return_t EnableHardwareSingleStep(bool enable);
@@ -89,23 +93,23 @@ protected:
   static const size_t k_num_fpu_registers_avx512f;
   static const size_t k_num_all_registers_avx512f;
 
-  typedef enum RegisterSetTag {
+  enum RegisterSet {
     e_regSetALL = REGISTER_SET_ALL,
     e_regSetGPR,
     e_regSetFPU,
     e_regSetEXC,
     e_regSetDBG,
     kNumRegisterSets
-  } RegisterSet;
+  };
 
-  typedef enum RegisterSetWordSizeTag {
+  enum RegisterSetWordSize {
     e_regSetWordSizeGPR = sizeof(GPR) / sizeof(int),
     e_regSetWordSizeFPU = sizeof(FPU) / sizeof(int),
     e_regSetWordSizeEXC = sizeof(EXC) / sizeof(int),
     e_regSetWordSizeAVX = sizeof(AVX) / sizeof(int),
     e_regSetWordSizeAVX512f = sizeof(AVX512F) / sizeof(int),
     e_regSetWordSizeDBG = sizeof(DBG) / sizeof(int)
-  } RegisterSetWordSize;
+  };
 
   enum { Read = 0, Write = 1, kNumErrors = 2 };
 
@@ -211,6 +215,9 @@ protected:
 
   static uint32_t GetRegisterContextSize();
 
+  static void SetHardwareBreakpoint(DBG &debug_state, uint32_t hw_index,
+                                    nub_addr_t addr, nub_size_t size);
+
   // Helper functions for watchpoint manipulations.
   static void SetWatchpoint(DBG &debug_state, uint32_t hw_index,
                             nub_addr_t addr, nub_size_t size, bool read,
@@ -221,9 +228,9 @@ protected:
   static bool IsWatchpointHit(const DBG &debug_state, uint32_t hw_index);
   static nub_addr_t GetWatchAddress(const DBG &debug_state, uint32_t hw_index);
 
-  virtual bool StartTransForHWP();
-  virtual bool RollbackTransForHWP();
-  virtual bool FinishTransForHWP();
+  bool StartTransForHWP() override;
+  bool RollbackTransForHWP() override;
+  bool FinishTransForHWP() override;
   DBG GetDBGCheckpoint();
 
   MachThread *m_thread;
@@ -236,4 +243,4 @@ protected:
 };
 
 #endif // #if defined (__i386__) || defined (__x86_64__)
-#endif // #ifndef __DNBArchImplI386_h__
+#endif // LLDB_TOOLS_DEBUGSERVER_SOURCE_MACOSX_I386_DNBARCHIMPLI386_H

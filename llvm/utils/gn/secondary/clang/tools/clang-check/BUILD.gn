@@ -12,7 +12,5 @@ executable("clang-check") {
     "//llvm/lib/Support",
     "//llvm/lib/Target:TargetsToBuild",
   ]
-  sources = [
-    "ClangCheck.cpp",
-  ]
+  sources = [ "ClangCheck.cpp" ]
 }

@@ -1,9 +1,8 @@
 //===- ArgumentsAdjusters.h - Command line arguments adjuster ---*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -44,6 +43,10 @@ ArgumentsAdjuster getClangSyntaxOnlyAdjuster();
 /// arguments.
 ArgumentsAdjuster getClangStripOutputAdjuster();
 
+/// Gets an argument adjuster which removes command line arguments related to
+/// diagnostic serialization.
+ArgumentsAdjuster getClangStripSerializeDiagnosticAdjuster();
+
 /// Gets an argument adjuster which removes dependency-file
 /// related command line arguments.
 ArgumentsAdjuster getClangStripDependencyFileAdjuster();
@@ -60,6 +63,10 @@ ArgumentsAdjuster getInsertArgumentAdjuster(const CommandLineArguments &Extra,
 ArgumentsAdjuster getInsertArgumentAdjuster(
     const char *Extra,
     ArgumentInsertPosition Pos = ArgumentInsertPosition::END);
+
+/// Gets an argument adjuster which strips plugin related command line
+/// arguments.
+ArgumentsAdjuster getStripPluginsAdjuster();
 
 /// Gets an argument adjuster which adjusts the arguments in sequence
 /// with the \p First adjuster and then with the \p Second one.

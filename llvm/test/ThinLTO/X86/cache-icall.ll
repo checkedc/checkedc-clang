@@ -13,14 +13,14 @@
 ; RUN:   -r=%t.bc,_start,px \
 ; RUN:   -r=%t.bc,f,
 
-; RUN: llvm-readelf -symbols %t-no.o.* | FileCheck %s --check-prefix=SYMBOLS-NO
+; RUN: llvm-readelf -s %t-no.o.* | FileCheck %s --check-prefix=SYMBOLS-NO
 
 ; RUN: llvm-lto2 run -o %t-yes.o %t.bc %t2.bc -cache-dir %t.cache \
 ; RUN:   -r=%t.bc,_start,px \
 ; RUN:   -r=%t.bc,f, \
 ; RUN:   -r=%t2.bc,f,p
 
-; RUN: llvm-readelf -symbols %t-yes.o.* | FileCheck %s --check-prefix=SYMBOLS-YES
+; RUN: llvm-readelf -s %t-yes.o.* | FileCheck %s --check-prefix=SYMBOLS-YES
 
 ; SYMBOLS-NO-DAG: {{FUNC .* f.cfi_jt$}}
 ; SYMBOLS-NO-DAG: {{NOTYPE .* UND f.cfi_jt$}}
@@ -29,7 +29,7 @@
 ; SYMBOLS-YES-DAG: {{FUNC .* f.cfi$}}
 ; SYMBOLS-YES-DAG: {{NOTYPE .* UND f.cfi$}}
 
-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
 define i8* @_start(void ()* %p) !type !0 {

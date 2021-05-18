@@ -90,6 +90,8 @@ class X {
 namespace {
   int a;
 }
+
+inline namespace InlineNS {}
 // RUN: c-index-test -test-print-type %s -std=c++14 | FileCheck %s
 // CHECK: Namespace=outer:1:11 (Definition) [type=] [typekind=Invalid] [isPOD=0]
 // CHECK: ClassTemplate=Foo:4:8 (Definition) [type=] [typekind=Invalid] [isPOD=0]
@@ -194,7 +196,7 @@ namespace {
 // CHECK: TemplateRef=Specialization:66:8 [type=] [typekind=Invalid] [isPOD=0]
 // CHECK: CallExpr=Specialization:66:8 [type=Specialization<Specialization<bool> &>] [typekind=Unexposed] [templateargs/1= [type=Specialization<bool> &] [typekind=LValueReference]] [canonicaltype=Specialization<Specialization<bool> &>] [canonicaltypekind=Record] [canonicaltemplateargs/1= [type=Specialization<bool> &] [typekind=LValueReference]] [isPOD=1]
 // CHECK: VarDecl=autoTemplRefParam:72:6 (Definition) [type=Specialization<Specialization<bool> &>] [typekind=Auto] [templateargs/1= [type=Specialization<bool> &] [typekind=LValueReference]] [canonicaltype=Specialization<Specialization<bool> &>] [canonicaltypekind=Record] [canonicaltemplateargs/1= [type=Specialization<bool> &] [typekind=LValueReference]] [isPOD=1]
-// CHECK: UnexposedExpr=templRefParam:71:40 [type=const Specialization<Specialization<bool> &>] [typekind=Unexposed] const [templateargs/1= [type=Specialization<bool> &] [typekind=LValueReference]] [canonicaltype=const Specialization<Specialization<bool> &>] [canonicaltypekind=Record] [canonicaltemplateargs/1= [type=Specialization<bool> &] [typekind=LValueReference]] [isPOD=1]
+// CHECK: UnexposedExpr=templRefParam:71:40 [type=const Specialization<Specialization<bool> &>] [typekind=Record] const [templateargs/1= [type=Specialization<bool> &] [typekind=LValueReference]] [isPOD=1]
 // CHECK: DeclRefExpr=templRefParam:71:40 [type=Specialization<Specialization<bool> &>] [typekind=Unexposed] [templateargs/1= [type=Specialization<bool> &] [typekind=LValueReference]] [canonicaltype=Specialization<Specialization<bool> &>] [canonicaltypekind=Record] [canonicaltemplateargs/1= [type=Specialization<bool> &] [typekind=LValueReference]] [isPOD=1]
 // CHECK: TypeAliasDecl=baz:76:7 (Definition) [type=baz] [typekind=Typedef] [templateargs/1= [type=A<void>] [typekind=Unexposed]] [canonicaltype=A<void>] [canonicaltypekind=Record] [canonicaltemplateargs/1= [type=void] [typekind=Void]] [isPOD=0]
 // CHECK: VarDecl=autoTemplPointer:78:6 (Definition) [type=Specialization<Specialization<bool> &> *] [typekind=Auto] [canonicaltype=Specialization<Specialization<bool> &> *] [canonicaltypekind=Pointer] [isPOD=1] [pointeetype=Specialization<Specialization<bool> &>] [pointeekind=Record]
@@ -204,3 +206,4 @@ namespace {
 // CHECK: UnionDecl=:86:3 (Definition) [type=X::(anonymous union at {{.*}}print-type.cpp:86:3)] [typekind=Record] [isPOD=1] [nbFields=2] [isAnon=1]
 // CHECK: EnumDecl=:87:3 (Definition) [type=X::(anonymous enum at {{.*}}print-type.cpp:87:3)] [typekind=Enum] [isPOD=1] [isAnon=1]
 // CHECK: Namespace=:90:11 (Definition) [type=] [typekind=Invalid] [isPOD=0] [isAnon=1]
+// CHECK: Namespace=InlineNS:94:18 (Definition) [type=] [typekind=Invalid] [isPOD=0] [isAnonRecDecl=0] [isInlineNamespace=1]

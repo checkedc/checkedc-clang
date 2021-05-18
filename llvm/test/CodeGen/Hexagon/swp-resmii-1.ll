@@ -1,9 +1,9 @@
-; RUN: llc -march=hexagon -enable-pipeliner -debug-only=pipeliner < %s -o - 2>&1 > /dev/null | FileCheck %s
+; RUN: llc -march=hexagon -enable-pipeliner -debug-only=pipeliner < %s -o - 2>&1 > /dev/null -pipeliner-experimental-cg=true | FileCheck %s
 ; REQUIRES: asserts
 
 ; Test that checks that we compute the correct ResMII for haar.
 
-; CHECK: MII = 4 (rec=1, res=4)
+; CHECK: MII = 4 MAX_II = 14 (rec=1, res=4)
 
 ; Function Attrs: nounwind
 define void @f0(i16* noalias nocapture readonly %a0, i32 %a1, i32 %a2, i32 %a3, i8* noalias nocapture %a4, i32 %a5) #0 {
