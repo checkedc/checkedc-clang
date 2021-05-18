@@ -21,11 +21,13 @@ def die(msg):
 llvm_obj_maybe = os.environ.get('LLVM_OBJ')
 standard_build_dir = '../../../build'
 if llvm_obj_maybe is not None:
-    bin_path = llvm_obj_maybe + '/bin/'
+    # Now that some of the callers of find_bin call `chdir` afterwards, we have
+    # to make the path absolute here.
+    bin_path = os.path.abspath(llvm_obj_maybe) + '/bin/'
     if not os.path.isfile(bin_path + '3c'):
         die('$LLVM_OBJ is set but the bin directory does not contain 3c.')
 elif os.path.isdir(standard_build_dir):
-    bin_path = standard_build_dir + '/bin/'
+    bin_path = os.path.abspath(standard_build_dir) + '/bin/'
     if not os.path.isfile(bin_path + '3c'):
         die('The standard build directory exists but does not contain 3c.')
 elif lit.util.which('3c') is not None:

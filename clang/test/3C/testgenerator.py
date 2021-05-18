@@ -11,6 +11,16 @@ import re
 import find_bin
 bin_path = find_bin.bin_path
 
+# Change to the subdirectory after calling `find_bin` (which assumes a working
+# directory of `clang/test/3C`) but before doing anything else.
+subdir_name = "generated_tests"
+# Since testgenerator deletes tests under some conditions and Git may delete
+# empty directories, theoretically the directory might not exist and we might
+# need to create it here.
+if not os.path.isdir(subdir_name):
+    os.mkdir(subdir_name)
+os.chdir(subdir_name)
+
 prefixes = [
     "arr", "arrstruct", "arrinstruct", "arrofstruct", "safefptrarg",
     "unsafefptrarg", "fptrsafe", "fptrunsafe", "fptrarr", "fptrarrstruct",
