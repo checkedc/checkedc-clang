@@ -191,3 +191,13 @@ void f16(int i, int j) {
 //  [B1]
 // upper_bound(p) = 1
 }
+
+void f17(_Nt_array_ptr<char> p : bounds(p - 10, p - 3)) {
+  if (p[-(1 + 2)]) {}
+
+// CHECK: In function: f17
+//  [B2]
+//    1: p[-(1 + 2)]
+//  [B1]
+// upper_bounds(p) = 1
+}
