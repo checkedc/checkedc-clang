@@ -53,6 +53,19 @@ DeclRefExpr *ExprCreatorUtil::CreateVarUse(Sema &SemaRef, VarDecl *V) {
                              V->getType(), ExprValueKind::VK_LValue);
 }
 
+MemberExpr *ExprCreatorUtil::CreateMemberExpr(Sema &SemaRef, Expr *Base,
+                                              const FieldDecl *Field, bool IsArrow) {
+  ExprValueKind ResultKind;
+  if (IsArrow)
+    ResultKind = VK_LValue;
+  else
+    ResultKind = Base->isLValue() ? VK_LValue : VK_RValue;
+  FieldDecl *F = const_cast<FieldDecl *>(Field);
+  return MemberExpr::CreateImplicit(SemaRef.getASTContext(), Base, IsArrow,
+                                    F, F->getType(), ResultKind,
+                                    OK_Ordinary);
+}
+
 Expr *ExprCreatorUtil::EnsureRValue(Sema &SemaRef, Expr *E) {
   if (E->isRValue())
     return E;

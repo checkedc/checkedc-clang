@@ -5864,6 +5864,22 @@ public:
                                  SourceLocation StartLoc,
                                  SourceLocation EndLoc);
 
+  /// \brief Information used to profile the Checked C extension.
+  struct CheckedCProfileStats {
+    // The number of MemberExprs created when synthesizing members during
+    // bounds checking.
+    int NumSynthesizedMemberExprs = 0;
+
+    // The number of AbstractSets created for MemberExprs when synthesizing
+    // members during bounds checking.
+    int NumSynthesizedMemberAbstractSets = 0;
+  };
+
+  struct CheckedCProfileStats CheckedCStats;
+
+  /// \brief Print Checked C profiling information.
+  void PrintCheckedCStats();
+
   //===---------------------------- Clang Extensions ----------------------===//
 
   /// __builtin_convertvector(...)

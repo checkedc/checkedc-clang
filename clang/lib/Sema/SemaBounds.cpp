@@ -532,6 +532,45 @@ namespace {
 }
 
 namespace {
+  class FindMemberHelper : public RecursiveASTVisitor<FindMemberHelper> {
+    private:
+      Sema &SemaRef;
+      Lexicographic Lex;
+      MemberExpr *M;
+      bool Found;
+
+    public:
+      FindMemberHelper(Sema &SemaRef, MemberExpr *M) :
+        SemaRef(SemaRef),
+        Lex(Lexicographic(SemaRef.Context, nullptr)),
+        M(M),
+        Found(false) {}
+
+      bool IsFound() { return Found; }
+
+      bool VisitMemberExpr(MemberExpr *E) {
+        if (Lex.CompareExprSemantically(E, M))
+          Found = true;
+        return true;
+      }
+
+      bool TraverseStmt(Stmt *S) {
+        if (Found)
+          return true;
+
+        return RecursiveASTVisitor<FindMemberHelper>::TraverseStmt(S);
+      }
+  };
+
+  // FindMemberExpr returns true if the member expression M occurs in E.
+  bool FindMemberExpr(Sema &SemaRef, MemberExpr *M, Expr *E) {
+    FindMemberHelper Finder(SemaRef, M);
+    Finder.TraverseStmt(E);
+    return Finder.IsFound();
+  }
+}
+
+namespace {
   using EqualExprTy = SmallVector<Expr *, 4>;
 
   // EqualExprsContainsExpr returns true if the set Exprs contains an
@@ -685,6 +724,9 @@ namespace {
   using FreeVariableListTy =
       SmallVector<std::pair<Expr *, FreeVariablePosition>, 4>;
 
+  // AbstractSetSetTy denotes a set of AbstractSets.
+  using AbstractSetSetTy = llvm::SmallPtrSet<const AbstractSet *, 4>;
+
   // CheckingState stores the outputs of bounds checking methods.
   // These members represent the state during bounds checking
   // and are updated while checking individual expressions.
@@ -827,6 +869,7 @@ namespace {
     Sema &S;
     bool DumpBounds;
     bool DumpState;
+    bool DumpSynthesizedMembers;
     uint64_t PointerWidth;
     Stmt *Body;
     CFG *Cfg;
@@ -843,6 +886,10 @@ namespace {
     // Having an AbstractSetManager object here allows us to create
     // AbstractSets for lvalue expressions while checking statements.
     AbstractSetManager AbstractSetMgr;
+
+    // Map a field F in a record declaration to the sibling fields of F
+    // in whose declared bounds F appears.
+    BoundsSiblingFieldsTy BoundsSiblingFields;
 
     // When this flag is set to true, include the null terminator in the
     // bounds of a null-terminated array.  This is used when calculating
@@ -983,6 +1030,32 @@ namespace {
         for (auto I = Exprs.begin(); I != Exprs.end(); ++I) {
           Expr *E = *I;
           E->dump(OS, Context);
+        }
+        OS << "}\n";
+      }
+    }
+
+    void DumpSynthesizedMemberAbstractSets(raw_ostream &OS,
+                                           AbstractSetSetTy AbstractSets) {
+      OS << "\nAbstractSets for member expressions:\n";
+      if (AbstractSets.size() == 0)
+        OS << "{ }\n";
+      else {
+        // The keys in an llvm::SmallPtrSet are unordered.  Create a set of
+        // abstract sets sorted lexicographically in order to guarantee a
+        // deterministic output so that printing the synthesized abstract
+        // sets can be tested.
+        std::vector<const AbstractSet *> OrderedSets;
+        for (auto It : AbstractSets)
+          OrderedSets.push_back(It);
+        llvm::sort(OrderedSets.begin(), OrderedSets.end(),
+             [] (const AbstractSet *A, const AbstractSet *B) {
+               return *(const_cast<AbstractSet *>(A)) < *(const_cast<AbstractSet *>(B));
+             });
+        OS << "{\n";
+        for (auto It : OrderedSets) {
+          It->PrettyPrint(OS, Context);
+          OS << "\n";
         }
         OS << "}\n";
       }
@@ -2589,6 +2662,7 @@ namespace {
     CheckBoundsDeclarations(Sema &SemaRef, PrepassInfo &Info, Stmt *Body, CFG *Cfg, BoundsExpr *ReturnBounds, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
       DumpState(SemaRef.getLangOpts().DumpCheckingState),
+      DumpSynthesizedMembers(SemaRef.getLangOpts().DumpSynthesizedMembers),
       PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
       Body(Body),
       Cfg(Cfg),
@@ -2597,11 +2671,13 @@ namespace {
       Facts(Facts),
       BoundsAnalyzer(BoundsAnalysis(SemaRef, Cfg)),
       AbstractSetMgr(AbstractSetManager(SemaRef, Info.VarUses)),
+      BoundsSiblingFields(Info.BoundsSiblingFields),
       IncludeNullTerminator(false) {}
 
     CheckBoundsDeclarations(Sema &SemaRef, PrepassInfo &Info, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
       DumpState(SemaRef.getLangOpts().DumpCheckingState),
+      DumpSynthesizedMembers(SemaRef.getLangOpts().DumpSynthesizedMembers),
       PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
       Body(nullptr),
       Cfg(nullptr),
@@ -2610,6 +2686,7 @@ namespace {
       Facts(Facts),
       BoundsAnalyzer(BoundsAnalysis(SemaRef, nullptr)),
       AbstractSetMgr(AbstractSetManager(SemaRef, Info.VarUses)),
+      BoundsSiblingFields(Info.BoundsSiblingFields),
       IncludeNullTerminator(false) {}
 
     void IdentifyChecked(Stmt *S, StmtSet &MemoryCheckedStmts, StmtSet &BoundsCheckedStmts, CheckedScopeSpecifier CSS) {
@@ -3303,18 +3380,15 @@ namespace {
           UpdateSameValue(Src, SubExprSameValueSets, State.SameValue);
         }
 
-        // Update the checking state and result bounds for assignments to `e1`
-        // where `e1` is a variable.
-        if (LHSVar)
-          ResultBounds = UpdateAfterAssignment(LHSVar, E, Target, Src,
-                                               ResultBounds, CSS,
-                                               State, State);
-        // Update EquivExprs and SameValue for assignments where `e1` is not
-        // a variable.
-        else
-          // SameValue is empty for assignments to a non-variable.  This
-          // conservative approach avoids recording false equality facts for
-          // assignments where the LHS appears on the RHS, e.g. *p = *p + 1.
+        // Update the result bounds to reflect the assignment to `e1`.
+        // If `e1` is a variable, the checking state will also be updated.
+        ResultBounds = UpdateAfterAssignment(LHS, E, Target, Src, ResultBounds,
+                                             CSS, State, State);
+
+        // SameValue is empty for assignments to a non-variable. This
+        // conservative approach avoids recording false equality facts for
+        // assignments where the LHS appears on the RHS, e.g. *p = *p + 1.
+        if (!LHSVar)
           State.SameValue.clear();
       } else if (BinaryOperator::isLogicalOp(Op)) {
         // TODO: update State for logical operators `e1 && e2` and `e1 || e2`.
@@ -3749,20 +3823,21 @@ namespace {
           RHS = ExprCreatorUtil::CreateBinaryOperator(S, SubExpr, One, RHSOp);
         }
 
-        // Update the checking state and result bounds for inc/dec operators
-        // where `e1` is a variable.
+        // Update the checking state and result bounds.
+        BoundsExpr *RHSBounds = IncDecResultBounds;
         if (DeclRefExpr *V = GetLValueVariable(SubExpr)) {
           // Update SameValue to be the set of expressions that produce the
           // same value as the RHS `e1 +/- 1` (if the RHS could be created).
           UpdateSameValue(E, State.SameValue, State.SameValue, RHS);
           // The bounds of the RHS `e1 +/- 1` are the rvalue bounds of the
           // rvalue cast `e1`.
-          BoundsExpr *RHSBounds = RValueCastBounds(Target, SubExprTargetBounds,
-                                                   SubExprLValueBounds,
-                                                   SubExprBounds, State);
-          IncDecResultBounds = UpdateAfterAssignment(
-              V, E, Target, RHS, RHSBounds, CSS, State, State);
+          RHSBounds = RValueCastBounds(Target, SubExprTargetBounds,
+                                       SubExprLValueBounds,
+                                       SubExprBounds, State);
         }
+        IncDecResultBounds = UpdateAfterAssignment(SubExpr, E, Target,
+                                                   RHS, RHSBounds, CSS,
+                                                   State, State);
 
         // Update the set SameValue of expressions that produce the same
         // value as `e`.
@@ -4634,26 +4709,53 @@ namespace {
 
     // Methods to update the checking state.
 
-    // UpdateAfterAssignment updates the checking state after a variable V
-    // is updated in an assignment E of the form Target = Src, based on the
-    // state before the assignment.  It also returns updated bounds for Src.
+    // UpdateAfterAssignment updates the checking state after an lvalue
+    // expression LValue is updated in an assignment E of the form
+    // Target = Src, based on the state before the assignment.  It also
+    // returns updated bounds for Src.
     //
-    // If V has an original value, the original value is substituted for
-    // any uses of the value of V in the bounds in ObservedBounds and the
-    // expressions in EquivExprs and SameValue.
-    // If V does not have an original value, any bounds in ObservedBounds
-    // that use the value of V are set to bounds(unknown), and any expressions
-    // in EquivExprs and SameValue that use the value of V are removed from
+    // If LValue is a variable V and V has an original value, the original
+    // value is substituted for any uses of the value of V in the bounds
+    // in ObservedBounds and the expressions in EquivExprs and SameValue.
+    // If V does not have an original value, any bounds in ObservedBounds that
+    // use the value of V are set to bounds(unknown), and any expressions in
+    // EquivExprs and SameValue that use the value of V are removed from
     // EquivExprs and SameValue.
     //
     // SrcBounds are the original bounds for the source of the assignment.
     //
     // PrevState is the checking state that was true before the assignment.
-    BoundsExpr *UpdateAfterAssignment(DeclRefExpr *V, Expr *E, Expr *Target,
+    BoundsExpr *UpdateAfterAssignment(Expr *LValue, Expr *E, Expr *Target,
                                       Expr *Src, BoundsExpr *SrcBounds,
                                       CheckedScopeSpecifier CSS,
                                       const CheckingState PrevState,
                                       CheckingState &State) {
+      if (!LValue)
+        return SrcBounds;
+      LValue = LValue->IgnoreParens();
+
+      // If LValue is a member expression, get the set of AbstractSets
+      // whose target bounds use the value of LValue.
+      // TODO: update the checking state and result bounds if LValue
+      // is a member expression. Record the inferred rvalue bounds of
+      // each synthesized AbstractSet in ObservedBounds.
+      MemberExpr *ME = dyn_cast<MemberExpr>(LValue);
+      if (ME) {
+        AbstractSetSetTy AbstractSets;
+        SynthesizeMembers(ME, ME, CSS, AbstractSets);
+
+        if (DumpSynthesizedMembers)
+          DumpSynthesizedMemberAbstractSets(llvm::outs(), AbstractSets);
+
+        return SrcBounds;
+      }
+
+      // Update the checking state and result bounds if LValue is a
+      // variable V.
+      DeclRefExpr *V = GetLValueVariable(LValue);
+      if (!V)
+        return SrcBounds;
+
       // Get the original value (if any) of V before the assignment, and
       // determine whether the original value uses the value of V.
       // OriginalValue is named OV in the Checked C spec.
@@ -5622,6 +5724,85 @@ namespace {
         Pair.second = E1;
       }
       return Pair;
+    }
+
+    // SynthesizeMembers modifies the set AbstractSets to include AbstractSets
+    // for member expressions whose target bounds use the value of the member
+    // expression M that is being modified via an assignment.
+    void SynthesizeMembers(Expr *E, MemberExpr *M, CheckedScopeSpecifier CSS,
+                           AbstractSetSetTy &AbstractSets) {
+      if (!E)
+        return;
+      Lexicographic Lex(S.Context, nullptr);
+      E = Lex.IgnoreValuePreservingOperations(S.Context, E->IgnoreParens());
+
+      // Recursively synthesize AbstractSets for certain subexpressions of E.
+      switch (E->getStmtClass()) {
+        case Expr::MemberExprClass:
+          break;
+        case Expr::ImplicitCastExprClass:
+        case Expr::CStyleCastExprClass: {
+          CastExpr *CE = cast<CastExpr>(E);
+          SynthesizeMembers(CE->getSubExpr(), M, CSS, AbstractSets);
+          return;
+        }
+        case Expr::UnaryOperatorClass: {
+          UnaryOperator *UO = cast<UnaryOperator>(E);
+          SynthesizeMembers(UO->getSubExpr(), M, CSS, AbstractSets);
+          return;
+        }
+        case Expr::ArraySubscriptExprClass: {
+          ArraySubscriptExpr *AE = cast<ArraySubscriptExpr>(E);
+          SynthesizeMembers(AE->getBase(), M, CSS, AbstractSets);
+          return;
+        }
+        case Expr::BinaryOperatorClass: {
+          BinaryOperator *BO = cast<BinaryOperator>(E);
+          Expr *LHS = BO->getLHS();
+          Expr *RHS = BO->getRHS();
+          if (LHS->getType()->isPointerType())
+            SynthesizeMembers(LHS, M, CSS, AbstractSets);
+          if (RHS->getType()->isPointerType())
+            SynthesizeMembers(RHS, M, CSS, AbstractSets);
+          return;
+        }
+        default:
+          return;
+      }
+
+      MemberExpr *ME = dyn_cast<MemberExpr>(E);
+      if (!ME)
+        return;
+
+      // Synthesize AbstractSets for a member expression `Base->Field`
+      // or `Base.Field`.
+      Expr *Base = ME->getBase();
+      FieldDecl *Field = dyn_cast<FieldDecl>(ME->getMemberDecl());
+      if (!Field)
+        return;
+
+      // For each sibling field F of Field in whose declared bounds Field
+      // appears, check whether the concrete, expanded target bounds of
+      // `Base->F` or `Base.F` use the value of M.
+      auto I = BoundsSiblingFields.find(Field);
+      if (I != BoundsSiblingFields.end()) {
+        auto SiblingFields = I->second;
+        for (const FieldDecl *F : SiblingFields) {
+          if (!F->hasBoundsExpr())
+            continue;
+          MemberExpr *BaseF =
+            ExprCreatorUtil::CreateMemberExpr(S, Base, F, ME->isArrow());
+          ++S.CheckedCStats.NumSynthesizedMemberExprs;
+          BoundsExpr *Bounds = MemberExprTargetBounds(BaseF, CSS);
+          if (FindMemberExpr(S, M, Bounds)) {
+            const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(BaseF);
+            AbstractSets.insert(A);
+            ++S.CheckedCStats.NumSynthesizedMemberAbstractSets;
+          }
+        }
+      }
+
+      SynthesizeMembers(Base, M, CSS, AbstractSets);
     }
 
     // CheckIsNonModifying suppresses diagnostics while checking
@@ -6752,4 +6933,16 @@ BoundsExpr *Sema::GetLValueDeclaredBounds(Expr *E) {
   std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
   CheckBoundsDeclarations CBD(*this, Info, EmptyFacts);
   return CBD.GetLValueTargetBounds(E, CheckedScopeSpecifier::CSS_Unchecked);
+}
+
+// Print Checked C profiling information.
+void Sema::PrintCheckedCStats() {
+  if (!getLangOpts().CheckedC)
+    return;
+
+  llvm::errs() << "\n*** Checked C Stats:\n";
+  llvm::errs() << "  " << CheckedCStats.NumSynthesizedMemberExprs
+               << " MemberExprs created while synthesizing members.\n";
+  llvm::errs() << "  " << CheckedCStats.NumSynthesizedMemberAbstractSets
+               << " AbstractSets created while synthesizing members.\n";
 }

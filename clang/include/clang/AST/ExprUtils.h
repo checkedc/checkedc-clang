@@ -41,6 +41,10 @@ public:
   // Create a use of a VarDecl.
   static DeclRefExpr *CreateVarUse(Sema &SemaRef, VarDecl *V);
 
+  // Create a member expression.
+  static MemberExpr *CreateMemberExpr(Sema &SemaRef, Expr *Base,
+                                      const FieldDecl *Field, bool IsArrow);
+
   // If e is an rvalue, EnsureRValue returns e. Otherwise, EnsureRValue
   // returns a cast of e to an rvalue, based on the type of e.
   static Expr *EnsureRValue(Sema &SemaRef, Expr *E);

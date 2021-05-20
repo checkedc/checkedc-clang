@@ -345,6 +345,10 @@ namespace clang {
     // @return Whether an error has occurred or not.
     bool GetError() { return Error; }
 
+    void PrettyPrint(llvm::raw_ostream &OS, ASTContext &Ctx) const {
+      Root->PrettyPrint(OS, Ctx);
+    }
+
     // Cleanup the memory consumed by the AST. This is intended to be called
     // from outside this class and invokes Cleanup on the root node which
     // recursively deletes the AST.
