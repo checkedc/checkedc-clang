@@ -4432,6 +4432,8 @@ namespace {
     //                                      (array_ptr<char>) E + C)
     BoundsExpr *ExpandToRange(Expr *Base, BoundsExpr *B) {
       assert(Base->isRValue() && "expected rvalue expression");
+      if (!B)
+        return B;
       BoundsExpr::Kind K = B->getKind();
       switch (K) {
         case BoundsExpr::Kind::ByteCount:
@@ -4488,6 +4490,8 @@ namespace {
     }
 
     BoundsExpr *ExpandToRange(VarDecl *D, BoundsExpr *B) {
+      if (!B)
+        return B;
       QualType QT = D->getType();
       ExprResult ER = S.BuildDeclRefExpr(D, QT,
                                        clang::ExprValueKind::VK_LValue, SourceLocation());
