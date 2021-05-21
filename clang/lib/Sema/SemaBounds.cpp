@@ -680,7 +680,7 @@ namespace {
         MemberExpr *M = dyn_cast_or_null<MemberExpr>(LValue);
         if (!M)
           return E;
-        if (Lex.CompareExpr(M, E) == Lexicographic::Result::Equal) {
+        if (Lex.CompareExprSemantically(M, E)) {
           if (OriginalValue)
             return OriginalValue;
           else
