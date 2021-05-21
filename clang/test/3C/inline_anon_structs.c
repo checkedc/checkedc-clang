@@ -5,9 +5,7 @@
 // RUN: 3c -base-dir=%S -output-dir=%t.checked %s --
 // RUN: 3c -base-dir=%t.checked %t.checked/inline_anon_structs.c -- | diff %t.checked/inline_anon_structs.c -
 
-#include <stddef.h>
-extern _Itype_for_any(T) void *malloc(size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
+#include <stdlib.h>
 
 /*This code ensures conversion happens as expected when
 an inlinestruct and its associated VarDecl have different locations*/

@@ -5,13 +5,7 @@
 // RUN: 3c -base-dir=%S -output-dir=%t.checked -alltypes %s --
 // RUN: 3c -base-dir=%t.checked -alltypes %t.checked/realloc.c -- | diff %t.checked/realloc.c -
 
-#include <stddef.h>
-extern _Itype_for_any(T) void *malloc(size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
-extern _Itype_for_any(T) void *realloc(void *pointer
-                                       : itype(_Array_ptr<T>) byte_count(1),
-                                         size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
+#include <stdlib.h>
 
 void foo(int *w) {
   //CHECK: void foo(_Ptr<int> w) {

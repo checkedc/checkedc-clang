@@ -5,24 +5,25 @@
 // RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s --
 // RUN: 3c -base-dir=%t.checked -alltypes %t.checked/definedType.c -- | diff %t.checked/definedType.c -
 
-#include <stddef.h>
-_Itype_for_any(T) void *malloc(size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
+#include <stdlib.h>
 
 // From issue 204
 
-#define ulong unsigned long
+// Here, we specifically want to test 3C's behavior on a macro that expands to a
+// type. Use a different name to avoid any confusion with the `ulong` that is
+// defined as a typedef in sys/types.h on some systems.
+#define my_ulong unsigned long
 
-ulong *TOP;
-// CHECK_NOALL: ulong *TOP;
-// CHECK_ALL: _Array_ptr<ulong> TOP = ((void *)0);
-ulong channelColumns;
+my_ulong *TOP;
+// CHECK_NOALL: my_ulong *TOP;
+// CHECK_ALL: _Array_ptr<my_ulong> TOP = ((void *)0);
+my_ulong channelColumns;
 
 void DescribeChannel(void) {
-  ulong col;
-  TOP = (ulong *)malloc((channelColumns + 1) * sizeof(ulong));
-  // CHECK_ALL: TOP = (_Array_ptr<unsigned long>)malloc<unsigned long>((channelColumns + 1) * sizeof(ulong));
-  // CHECK_NOALL: TOP = (ulong *)malloc<unsigned long>((channelColumns + 1) * sizeof(ulong));
+  my_ulong col;
+  TOP = (my_ulong *)malloc((channelColumns + 1) * sizeof(my_ulong));
+  // CHECK_ALL: TOP = (_Array_ptr<unsigned long>)malloc<unsigned long>((channelColumns + 1) * sizeof(my_ulong));
+  // CHECK_NOALL: TOP = (my_ulong *)malloc<unsigned long>((channelColumns + 1) * sizeof(my_ulong));
   TOP[col] = 0;
 }
 

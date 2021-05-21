@@ -6,10 +6,7 @@
 Basic array bounds tests (without any data-flow analysis).
 */
 
-#include <stddef.h>
-
-extern _Itype_for_any(T) void *malloc(size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
+#include <stdlib.h>
 
 struct bar {
   char *a;

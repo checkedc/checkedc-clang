@@ -59,7 +59,7 @@ void test5(a, b, c, d, e, f, g, h)
 struct yy_buffer_state {};
 typedef struct yy_buffer_state *YY_BUFFER_STATE;
 #ifdef YY_USE_PROTOS
-void yy_init_buffer(YY_BUFFER_STATE b, FILE *file)
+void yy_init_buffer(YY_BUFFER_STATE b, int *file)
 #else
 void yy_init_buffer(b, file)
 YY_BUFFER_STATE b;

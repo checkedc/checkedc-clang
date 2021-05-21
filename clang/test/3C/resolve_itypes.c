@@ -45,8 +45,7 @@ int *biz(void) : itype(_Ptr<int>) {
 void fuz(int *a : itype(_Ptr<int>)) {}
 //CHECK: void fuz(_Ptr<int> a) _Checked {}
 
-#include<stddef.h>
-_Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
+#include <stdlib.h>
 extern _Itype_for_any(T) void paper_foo(void * : itype(_Array_ptr<T>));
 void paper_bar(int *q : itype(_Ptr<int>), int n) {
 //CHECK_ALL: void paper_bar(_Array_ptr<int> q : count(n), int n) {

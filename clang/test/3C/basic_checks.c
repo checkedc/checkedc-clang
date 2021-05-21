@@ -9,7 +9,7 @@
 // expected-no-diagnostics
 //
 
-typedef unsigned short wchar_t;
+#include <stddef.h>
 
 void typd_driver(void) {
   wchar_t buf[10];

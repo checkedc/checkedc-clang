@@ -5,20 +5,9 @@
 // RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s --
 // RUN: 3c -base-dir=%t.checked -alltypes %t.checked/b6_callerunsafeproto.c -- | diff %t.checked/b6_callerunsafeproto.c -
 #include <stddef.h>
-extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size)
-    : itype(_Array_ptr<T>) byte_count(nmemb * size);
-extern _Itype_for_any(T) void free(void *pointer
-                                   : itype(_Array_ptr<T>) byte_count(0));
-extern _Itype_for_any(T) void *malloc(size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
-extern _Itype_for_any(T) void *realloc(void *pointer
-                                       : itype(_Array_ptr<T>) byte_count(1),
-                                         size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
-extern int printf(const char *restrict format
-                  : itype(restrict _Nt_array_ptr<const char>), ...);
-extern _Unchecked char *strcpy(char *restrict dest, const char *restrict src
-                               : itype(restrict _Nt_array_ptr<const char>));
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 
 int *sus(int *, int *);
 //CHECK_NOALL: _Ptr<int> sus(int *x : itype(_Ptr<int>), _Ptr<int> y);

@@ -8,16 +8,8 @@
 Various array bounds tests.
 */
 
-#include <stddef.h>
-void *memset(void *dest
-             : byte_count(n), int c, size_t n)
-    : bounds(dest, (_Array_ptr<char>)dest + n);
-_Itype_for_any(T) void *malloc(size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
-_Itype_for_any(T) void *realloc(void *pointer
-                                : itype(_Array_ptr<T>) byte_count(1),
-                                  size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
+#include <stdlib.h>
+#include <string.h>
 
 int *g; // array : count is 100; see the call to foo
 void foo(void) {

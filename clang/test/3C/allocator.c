@@ -9,10 +9,7 @@
 // RUN: 3c -base-dir=%t.checked %t.checked/allocator.c -- | diff %t.checked/allocator.c -
 // expected-no-diagnostics
 //
-#include <stddef.h>
-_Itype_for_any(T) void *malloc(size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
-_Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
+#include <stdlib.h>
 
 void dosomething(void) {
   int a = 0;

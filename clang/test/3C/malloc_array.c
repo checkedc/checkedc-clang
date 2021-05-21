@@ -5,17 +5,7 @@
 // RUN: 3c -base-dir=%S -output-dir=%t.checked -alltypes %s --
 // RUN: 3c -base-dir=%t.checked -alltypes %t.checked/malloc_array.c -- | diff %t.checked/malloc_array.c -
 
-#include <stddef.h>
-extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size)
-    : itype(_Array_ptr<T>) byte_count(nmemb * size);
-extern _Itype_for_any(T) void free(void *pointer
-                                   : itype(_Array_ptr<T>) byte_count(0));
-extern _Itype_for_any(T) void *malloc(size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
-extern _Itype_for_any(T) void *realloc(void *pointer
-                                       : itype(_Array_ptr<T>) byte_count(1),
-                                         size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
+#include <stdlib.h>
 
 int *foo(int *x) {
   //CHECK_NOALL: int *foo(int *x : itype(_Ptr<int>)) : itype(_Ptr<int>) {

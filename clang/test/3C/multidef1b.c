@@ -5,7 +5,7 @@
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %t.checkedNOALL/multidef1b.c %s
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %t.checkedALL/multidef1b.c %s
 
-extern _Unchecked unsigned long strlen(const char * restrict src : itype(restrict _Nt_array_ptr<const char>));
+#include <string.h>
 
 int main(int argc, char **argv) {
 //CHECK_NOALL: int main(int argc, char **argv : itype(_Ptr<_Ptr<char>>)) {
