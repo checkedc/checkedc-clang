@@ -3970,7 +3970,7 @@ namespace {
         Expr *TargetExpr = CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
 
         // Record equality between the target and initializer.
-        RecordEqualityWithTarget(TargetExpr, Init, State);
+        RecordEqualityWithTarget(TargetDeclRef, TargetExpr, Init, State);
       }
 
       if (D->isInvalidDecl())
@@ -4901,19 +4901,33 @@ namespace {
     }
 
     // RecordEqualityWithTarget updates the checking state to record equality
-    // between the target expression of an assignment and the source of the
-    // assignment.
+    // implied by an assignment or initializer of the form LValue = Src,
+    // where Target is an rvalue expression that is the value of LValue.
     //
     // State.SameValue is assumed to contain expressions that produce the same
-    // value as the source of the assignment.
-    void RecordEqualityWithTarget(Expr *Target, Expr *Src, CheckingState &State) {
-      // If EquivExprs contains a set F of expressions that produce the same
-      // value as the source, add the target to F.  This prevents EquivExprs
-      // from growing too large and containing redundant equality information.
+    // value as Source.
+    void RecordEqualityWithTarget(Expr *LValue, Expr *Target, Expr *Src,
+                                  CheckingState &State) {
+      if (!LValue)
+        return;
+      LValue = LValue->IgnoreParens();
+
+      // Certain kinds of expressions (e.g. member expressions) are not allowed
+      // to be included in EquivExprs. For these expressions, we record
+      // temporary equality between Target and Src in TargetSrcEquality instead
+      // of in EquivExprs. If Src is allowed in EquivExprs, SameValue will
+      // contain at least one expression that produces the same value as Src.
+      bool TargetAllowedInEquivExprs = !isa<MemberExpr>(LValue);
+      bool SrcAllowedInEquivExprs = State.SameValue.size() > 0;
+
+      // For expressions that are allowed in EquivExprs, try to add Target
+      // to an existing set F in EquivExprs that contains expressions that
+      // produce the same value as Src. This prevents EquivExprs from growing
+      // too large and containing redundant equality information.
       // For example, for the assignments x = 1; y = x; where the target is y,
       // SameValue = { x }, and EquivExprs contains F = { 1, x }, EquivExprs
       // should contain { 1, x, y } rather than { 1, x } and { 1, x, y }.
-      if (State.SameValue.size() > 0) {
+      if (TargetAllowedInEquivExprs && SrcAllowedInEquivExprs) {
         for (auto F = State.EquivExprs.begin(); F != State.EquivExprs.end(); ++F) {
           if (DoExprSetsIntersect(*F, State.SameValue)) {
             // Add all expressions in SameValue to F that are not already in F.
@@ -4935,16 +4949,21 @@ namespace {
         }
       }
 
-      // If the source will not be included in State.EquivExprs, record
-      // equality between the target and source that will be used to validate
-      // the bounds context after checking the current top-level CFG statement.
-      if (Src && State.SameValue.size() == 0) {
+      // If the target or the source are not allowed in EquivExprs, record
+      // the equality between the target and source in TargetSrcEquality.
+      // This temporary equality information will be used to validate the
+      // bounds context after checking the current top-level CFG statement,
+      // but does not persist across checking CFG statements.
+      if (Src && (!TargetAllowedInEquivExprs || !SrcAllowedInEquivExprs)) {
         CHKCBindTemporaryExpr *Temp = GetTempBinding(Src);
         if (Temp)
           State.TargetSrcEquality[Target] = CreateTemporaryUse(Temp);
         else if (CheckIsNonModifying(Src))
           State.TargetSrcEquality[Target] = Src;
       }
+
+      if (!TargetAllowedInEquivExprs)
+        return;
 
       // Avoid adding sets with duplicate expressions such as { e, e }
       // and singleton sets such as { e } to EquivExprs.
