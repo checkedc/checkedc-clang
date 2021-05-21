@@ -643,26 +643,44 @@ namespace {
 }
 
 namespace {
-  class ReplaceVariableHelper : public TreeTransform<ReplaceVariableHelper> {
-    typedef TreeTransform<ReplaceVariableHelper> BaseTransform;
+  class ReplaceLValueHelper : public TreeTransform<ReplaceLValueHelper> {
+    typedef TreeTransform<ReplaceLValueHelper> BaseTransform;
     private:
-      // The variable whose uses should be replaced in an expression.
-      DeclRefExpr *Variable;
+      Lexicographic Lex;
 
-      // The original value (if any) to replace uses of the variable with.
-      // If no original value is provided, an expression using the variable
+      // The lvalue expression whose uses should be replaced in an expression.
+      Expr *LValue;
+
+      // The original value (if any) to replace uses of the lvalue with.
+      // If no original value is provided, an expression using the lvalue
       // will be transformed into an invalid result.
       Expr *OriginalValue;
 
     public:
-      ReplaceVariableHelper(Sema &SemaRef, DeclRefExpr *V, Expr *OriginalValue) :
+      ReplaceLValueHelper(Sema &SemaRef, Expr *LValue, Expr *OriginalValue) :
         BaseTransform(SemaRef),
-        Variable(V),
+        Lex(Lexicographic(SemaRef.Context, nullptr)),
+        LValue(LValue),
         OriginalValue(OriginalValue) { }
 
       ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
-        Lexicographic Lex(SemaRef.Context, nullptr);
-        if (Lex.CompareExpr(Variable, E) == Lexicographic::Result::Equal) {
+        DeclRefExpr *V = dyn_cast_or_null<DeclRefExpr>(LValue);
+        if (!V)
+          return E;
+        if (Lex.CompareExpr(V, E) == Lexicographic::Result::Equal) {
+          if (OriginalValue)
+            return OriginalValue;
+          else
+            return ExprError();
+        } else
+          return E;
+      }
+
+      ExprResult TransformMemberExpr(MemberExpr *E) {
+        MemberExpr *M = dyn_cast_or_null<MemberExpr>(LValue);
+        if (!M)
+          return E;
+        if (Lex.CompareExpr(M, E) == Lexicographic::Result::Equal) {
           if (OriginalValue)
             return OriginalValue;
           else
@@ -696,22 +714,22 @@ namespace {
       }
   };
 
-  // If an original value is provided, ReplaceVariableReferences returns
-  // an expression that replaces all uses of the variable V in E with the
-  // original value.  If no original value is provided and E uses V,
-  // ReplaceVariableReferences returns nullptr.
-  Expr *ReplaceVariableReferences(Sema &SemaRef, Expr *E, DeclRefExpr *V,
+  // If an original value is provided, ReplaceLValue returns an expression
+  // that replaces all uses of the lvalue expression LValue in E with the
+  // original value.  If no original value is provided and E uses LValue,
+  // ReplaceLValue returns nullptr.
+  Expr *ReplaceLValue(Sema &SemaRef, Expr *E, Expr *LValue,
                                   Expr *OriginalValue,
                                   CheckedScopeSpecifier CSS) {
-    // Don't transform e if it does not use the value of v.
-    if (!VariableOccurrenceCount(SemaRef, V, E))
+    // Don't transform E if does not use the value of LValue.
+    if (!FindLValue(SemaRef, LValue, E))
       return E;
 
     // Account for checked scope information when transforming the expression.
     Sema::CheckedScopeRAII CheckedScope(SemaRef, CSS);
 
     Sema::ExprSubstitutionScope Scope(SemaRef); // suppress diagnostics
-    ExprResult R = ReplaceVariableHelper(SemaRef, V, OriginalValue).TransformExpr(E);
+    ExprResult R = ReplaceLValueHelper(SemaRef, LValue, OriginalValue).TransformExpr(E);
     if (R.isInvalid())
       return nullptr;
     else
@@ -4932,16 +4950,15 @@ namespace {
         State.EquivExprs.push_back(State.SameValue);
     }
 
-    // If Bounds uses the value of v and an original value is provided,
-    // ReplaceVariableInBounds will return a bounds expression where the uses
-    // of v are replaced with the original value.
-    // If Bounds uses the value of v and no original value is provided,
-    // ReplaceVariableInBounds will return bounds(unknown).
-    BoundsExpr *ReplaceVariableInBounds(BoundsExpr *Bounds, DeclRefExpr *V,
-                                        Expr *OriginalValue,
-                                        CheckedScopeSpecifier CSS) {
-      Expr *Replaced = ReplaceVariableReferences(S, Bounds, V,
-                                                 OriginalValue, CSS);
+    // If Bounds uses the value of LValue and an original value is provided,
+    // ReplaceLValueInBounds will return a bounds expression where the uses
+    // of LValue are replaced with the original value.
+    // If Bounds uses the value of LValue and no original value is provided,
+    // ReplaceLValueInBounds will return bounds(unknown).
+    BoundsExpr *ReplaceLValueInBounds(BoundsExpr *Bounds, Expr *LValue,
+                                      Expr *OriginalValue,
+                                      CheckedScopeSpecifier CSS) {
+      Expr *Replaced = ReplaceLValue(S, Bounds, LValue, OriginalValue, CSS);
       if (!Replaced)
         return CreateBoundsUnknown();
       else if (BoundsExpr *AdjustedBounds = dyn_cast<BoundsExpr>(Replaced))
