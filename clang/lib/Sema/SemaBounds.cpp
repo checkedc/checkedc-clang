@@ -532,25 +532,46 @@ namespace {
 }
 
 namespace {
-  class FindMemberHelper : public RecursiveASTVisitor<FindMemberHelper> {
+  class FindLValueHelper : public RecursiveASTVisitor<FindLValueHelper> {
     private:
       Sema &SemaRef;
       Lexicographic Lex;
-      MemberExpr *M;
+      Expr *LValue;
       bool Found;
 
     public:
-      FindMemberHelper(Sema &SemaRef, MemberExpr *M) :
+      FindLValueHelper(Sema &SemaRef, Expr *LValue) :
         SemaRef(SemaRef),
         Lex(Lexicographic(SemaRef.Context, nullptr)),
-        M(M),
+        LValue(LValue),
         Found(false) {}
 
       bool IsFound() { return Found; }
 
+      bool VisitDeclRefExpr(DeclRefExpr *E) {
+        DeclRefExpr *V = dyn_cast_or_null<DeclRefExpr>(LValue);
+        if (!V)
+          return true;
+        if (Lex.CompareExpr(V, E) == Lexicographic::Result::Equal)
+          Found = true;
+        return true;
+      }
+
       bool VisitMemberExpr(MemberExpr *E) {
+        MemberExpr *M = dyn_cast_or_null<MemberExpr>(LValue);
+        if (!M)
+          return true;
         if (Lex.CompareExprSemantically(E, M))
           Found = true;
+        return true;
+      }
+
+      // Do not traverse the child of a BoundsValueExpr.
+      // Expressions within a BoundsValueExpr should not be considered
+      // when looking for LValue.
+      // For example, for the expression E = BoundsValue(TempBinding(LValue)),
+      // FindLValue(LValue, E) should return false.
+      bool TraverseBoundsValueExpr(BoundsValueExpr *E) {
         return true;
       }
 
@@ -558,13 +579,13 @@ namespace {
         if (Found)
           return true;
 
-        return RecursiveASTVisitor<FindMemberHelper>::TraverseStmt(S);
+        return RecursiveASTVisitor<FindLValueHelper>::TraverseStmt(S);
       }
   };
 
-  // FindMemberExpr returns true if the member expression M occurs in E.
-  bool FindMemberExpr(Sema &SemaRef, MemberExpr *M, Expr *E) {
-    FindMemberHelper Finder(SemaRef, M);
+  // FindLValue returns true if the given lvalue expression occurs in E.
+  bool FindLValue(Sema &SemaRef, Expr *LValue, Expr *E) {
+    FindLValueHelper Finder(SemaRef, LValue);
     Finder.TraverseStmt(E);
     return Finder.IsFound();
   }
@@ -5743,7 +5764,7 @@ namespace {
             ExprCreatorUtil::CreateMemberExpr(S, Base, F, ME->isArrow());
           ++S.CheckedCStats.NumSynthesizedMemberExprs;
           BoundsExpr *Bounds = MemberExprTargetBounds(BaseF, CSS);
-          if (FindMemberExpr(S, M, Bounds)) {
+          if (FindLValue(S, M, Bounds)) {
             const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(BaseF);
             AbstractSets.insert(A);
             ++S.CheckedCStats.NumSynthesizedMemberAbstractSets;
