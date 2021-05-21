@@ -1954,8 +1954,8 @@ Atom *PointerVariableConstraint::getAtom(unsigned AtomIdx, Constraints &CS) {
   return nullptr;
 }
 
-void
-PointerVariableConstraint::equateWithItype(ProgramInfo &I, bool ForceEquate) {
+void PointerVariableConstraint::equateWithItype(
+    ProgramInfo &I, const std::string &ReasonUnchangeable) {
   Constraints &CS = I.getConstraints();
   assert(SrcVars.size() == Vars.size());
   for (unsigned VarIdx = 0; VarIdx < Vars.size(); VarIdx++) {
@@ -1966,7 +1966,7 @@ PointerVariableConstraint::equateWithItype(ProgramInfo &I, bool ForceEquate) {
       Vars[VarIdx] = SrcVars[VarIdx];
   }
   if (FV) {
-    FV->equateWithItype(I, ForceEquate);
+    FV->equateWithItype(I, ReasonUnchangeable);
   }
 }
 
@@ -2006,11 +2006,11 @@ bool FunctionVariableConstraint::isOriginallyChecked() const {
   return ReturnVar.ExternalConstraint->isOriginallyChecked();
 }
 
-void
-FunctionVariableConstraint::equateWithItype(ProgramInfo &I, bool ForceEquate) {
-  ReturnVar.equateWithItype(I, ForceEquate);
+void FunctionVariableConstraint::equateWithItype(
+    ProgramInfo &I, const std::string &ReasonUnchangeable) {
+  ReturnVar.equateWithItype(I, ReasonUnchangeable);
   for (auto Param : ParamVars)
-    Param.equateWithItype(I, ForceEquate);
+    Param.equateWithItype(I, ReasonUnchangeable);
 }
 
 void FVComponentVariable::mergeDeclaration(FVComponentVariable *From,
@@ -2115,18 +2115,32 @@ FVComponentVariable::FVComponentVariable(const QualType &QT,
   }
 }
 
-void
-FVComponentVariable::equateWithItype(ProgramInfo &I, bool ForceEquate) const {
+void FVComponentVariable::equateWithItype(
+    ProgramInfo &I, const std::string &ReasonUnchangeable) const {
   Constraints &CS = I.getConstraints();
-  bool IsGeneric = ExternalConstraint->getIsGeneric();
+  const std::string ReasonUnchangeable2 =
+      (ReasonUnchangeable.empty() && ExternalConstraint->getIsGeneric())
+          // TODO: Add a test for this root-cause message somewhere once
+          // diagnostic verification is re-enabled
+          // (https://github.com/correctcomputation/checkedc-clang/issues/503).
+          ? "Internal constraint for generic function declaration, "
+            "for which 3C currently does not support re-solving."
+          : ReasonUnchangeable;
   bool HasBounds = ExternalConstraint->srcHasBounds();
   bool HasItype = ExternalConstraint->srcHasItype();
-  if (HasItype && (ForceEquate || IsGeneric || HasBounds)) {
-    ExternalConstraint->equateWithItype(I, ForceEquate);
+  // If the type cannot change at all (ReasonUnchangeable2 is set), then we
+  // constrain both the external and internal types to not change. Otherwise, if
+  // the variable has bounds, then we don't want the checked (external) portion
+  // of the type to change because that could blow away the bounds, but we still
+  // allow the internal type to change so that the type can change from an itype
+  // to fully checked.
+  bool MustConstrainInternalType = !ReasonUnchangeable2.empty();
+  if (HasItype && (MustConstrainInternalType || HasBounds)) {
+    ExternalConstraint->equateWithItype(I, ReasonUnchangeable2);
     if (ExternalConstraint != InternalConstraint)
       linkInternalExternal(I, false);
-    if (IsGeneric)
-      InternalConstraint->constrainToWild(CS, "Internal constraint for generic function.");
+    if (MustConstrainInternalType)
+      InternalConstraint->constrainToWild(CS, ReasonUnchangeable2);
   }
 }
 

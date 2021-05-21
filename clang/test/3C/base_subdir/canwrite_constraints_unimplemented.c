@@ -7,8 +7,6 @@
 // an error diagnostic.
 // (https://github.com/correctcomputation/checkedc-clang/issues/387)
 
-// TODO: Ditto the TODO comments from canwrite_constraints.c re the RUN
-// commands.
 // RUN: cd %S && 3c -addcr -verify %s --
 
 // expected-error@../base_subdir_partial_defn.h:1 {{3C internal error: 3C generated changes to this file even though it is not allowed to write to the file}}

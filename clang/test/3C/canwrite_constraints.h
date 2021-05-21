@@ -47,3 +47,15 @@ void unwritable_cast(void((*g)(int *q)) : itype(_Ptr<void(_Ptr<int>)>)) {
   // expected-warning@+1 {{3C internal error: tried to insert a cast into an unwritable file}}
   (*g)(p);
 }
+
+// Make sure that FVComponentVariable::equateWithItype prevents both of these
+// from being changed.
+//
+// TODO: Add the correct expected root cause warnings once diagnostic
+// verification is re-enabled
+// (https://github.com/correctcomputation/checkedc-clang/issues/503).
+void unwritable_func_with_itype(int *p : itype(_Array_ptr<int>)) {}
+
+void unwritable_func_with_itype_and_bounds(int *p
+                                           : itype(_Array_ptr<int>) count(12)) {
+}

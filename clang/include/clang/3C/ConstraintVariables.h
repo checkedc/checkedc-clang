@@ -162,12 +162,24 @@ public:
   void setValidDecl() { IsForDecl = true; }
   bool isForValidDecl() const { return IsForDecl; }
 
-  // Copies ConstAtoms from SrcVars vector into the main VarAtoms vector. This
-  // causes the solved type for the variable to be the same as the the type in
-  // source. This is currently called on function parameters with itypes when
-  // we don't want to allow the itype to solve to a fully checked type or an
-  // itype with a different pointer type.
-  virtual void equateWithItype(ProgramInfo &CS, bool ForceEquate) = 0;
+  // By default, 3C allows itypes to be re-solved arbitrarily. But in several
+  // cases, we need to restrict itype re-solving; this function applies those
+  // restrictions. (It isn't needed for fully checked types because 3C doesn't
+  // allow checked types to be re-solved yet.)
+  //
+  // In some cases, we don't want the checked portion of the type to change, but
+  // the itype can still become a fully checked type; we achieve that by copying
+  // ConstAtoms from SrcVars vector into the main VarAtoms vector, which forces
+  // the solved checked type for the variable to be the same as it was in the
+  // source. In other cases, we don't want the itype to change at all; to
+  // achieve that, we additionally constrain the internal variables to not
+  // change.
+  //
+  // Some cases in which the itype must not change at all are indicated by
+  // passing a reason for the "root cause of wildness" as ReasonUnchangeable.
+  // Otherwise ReasonUnchangeable should be set to the empty string.
+  virtual void equateWithItype(ProgramInfo &CS,
+                               const std::string &ReasonUnchangeable) = 0;
 
   virtual ConstraintVariable *getCopy(Constraints &CS) = 0;
 
@@ -473,7 +485,8 @@ public:
 
   ~PointerVariableConstraint() override{};
 
-  void equateWithItype(ProgramInfo &CS, bool ForceEquate) override;
+  void equateWithItype(ProgramInfo &CS,
+                       const std::string &ReasonUnchangeable) override;
 };
 
 typedef PointerVariableConstraint PVConstraint;
@@ -524,7 +537,8 @@ public:
   PVConstraint *getInternal() const { return InternalConstraint; }
   PVConstraint *getExternal() const { return ExternalConstraint; }
 
-  void equateWithItype(ProgramInfo &CS, bool ForceEquate) const;
+  void equateWithItype(ProgramInfo &CS,
+                       const std::string &ReasonUnchangeable) const;
 
   bool solutionEqualTo(Constraints &CS, const FVComponentVariable *CV,
                        bool ComparePtyp) const;
@@ -646,7 +660,8 @@ public:
   bool isSolutionChecked(const EnvironmentMap &E) const override;
   bool isSolutionFullyChecked(const EnvironmentMap &E) const override;
 
-  void equateWithItype(ProgramInfo &CS, bool ForceEquate) override;
+  void equateWithItype(ProgramInfo &CS,
+                       const std::string &ReasonUnchangeable) override;
 
   ~FunctionVariableConstraint() override {}
 };

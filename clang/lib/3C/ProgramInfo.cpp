@@ -412,21 +412,23 @@ bool ProgramInfo::link() {
     std::string FuncName = U.first;
     FVConstraint *G = U.second;
 
+    // If there was a checked type on a variable in the input program, it
+    // should stay that way. Otherwise, we shouldn't be adding a checked type
+    // to an extern function.
+    std::string Rsn = (G->hasBody() ? ""
+                                    : "Unchecked pointer in parameter or "
+                                      "return of external function " +
+                                          FuncName);
+
     // Handle the cases where itype parameters should not be treated as their
     // unchecked type.
-    G->equateWithItype(*this, !G->hasBody());
+    G->equateWithItype(*this, Rsn);
 
     // If we've seen this symbol, but never seen a body for it, constrain
     // everything about it.
     // Some global symbols we don't need to constrain to wild, like
     // malloc and free. Check those here and skip if we find them.
     if (!G->hasBody()) {
-      // If there was a checked type on a variable in the input program, it
-      // should stay that way. Otherwise, we shouldn't be adding a checked type
-      // to an extern function.
-      std::string Rsn =
-          "Unchecked pointer in parameter or return of external function " +
-          FuncName;
       const FVComponentVariable *Ret = G->getCombineReturn();
       Ret->getInternal()->constrainToWild(CS, Rsn);
       if (!Ret->getExternal()->srcHasItype() &&
@@ -456,13 +458,15 @@ bool ProgramInfo::link() {
       std::string FuncName = V.first;
       FVConstraint *G = V.second;
 
-      G->equateWithItype(*this, !G->hasBody());
+      std::string Rsn = (G->hasBody() ? ""
+                                      : "Unchecked pointer in parameter or "
+                                        "return of static function " +
+                                            FuncName + " in " + FileName);
+
+      G->equateWithItype(*this, Rsn);
 
       if (!G->hasBody()) {
 
-        std::string Rsn =
-            "Unchecked pointer in parameter or return of static function " +
-            FuncName + " in " + FileName;
         if (!G->getExternalReturn()->getIsGeneric())
           G->getExternalReturn()->constrainToWild(CS, Rsn);
         for (unsigned I = 0; I < G->numParams(); I++)
@@ -729,7 +733,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
 
   assert("We shouldn't be adding a null CV to Variables map." && NewCV);
   if (!canWrite(PLoc.getFileName())) {
-    NewCV->equateWithItype(*this, true);
+    NewCV->equateWithItype(*this, "Declaration in non-writable file");
     NewCV->constrainToWild(CS, "Declaration in non-writable file", &PLoc);
   }
   constrainWildIfMacro(NewCV, D->getLocation());
