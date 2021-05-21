@@ -804,14 +804,14 @@ namespace {
       // SameValue is named G in the Checked C spec.
       ExprSetTy SameValue;
 
-      // LostVariables maps an AbstractSet A whose observed bounds are unknown
-      // to a pair <B, W>, where the initial observed bounds B of A have been
-      // set to unknown due to an assignment to the variable W, where W had no
-      // original value.
+      // LostLValues maps an AbstractSet A whose observed bounds are unknown
+      // to a pair <B, E>, where the initial observed bounds B of A have been
+      // set to unknown due to an assignment to the lvalue expression E, where
+      // E had no original value.
       //
-      // LostVariables is used to emit notes to provide more context to the
-      // user when diagnosing unknown bounds errors.
-      llvm::DenseMap<const AbstractSet *, std::pair<BoundsExpr *, DeclRefExpr *>> LostVariables;
+      // LostLValues is used to emit notes to provide more context to the user
+      // when diagnosing unknown bounds errors.
+      llvm::DenseMap<const AbstractSet *, std::pair<BoundsExpr *, Expr *>> LostLValues;
 
       // UnknownSrcBounds maps an AbstractSet A whose observed bounds are
       // unknown to a set of expressions with unknown bounds that have been
@@ -847,7 +847,7 @@ namespace {
       // Resets the checking state after checking a top-level CFG statement.
       void Reset() {
         SameValue.clear();
-        LostVariables.clear();
+        LostLValues.clear();
         UnknownSrcBounds.clear();
         BlameAssignments.clear();
         TargetSrcEquality.clear();
@@ -4619,15 +4619,19 @@ namespace {
         << DeclaredBounds << DeclaredBounds->getSourceRange();
 
       // The observed bounds of A are unknown because the original observed
-      // bounds B of A used a variable w, and there was an assignment to w
-      // where w had no original value.
-      auto LostVarIt = State.LostVariables.find(A);
-      if (LostVarIt != State.LostVariables.end()) {
-        std::pair<BoundsExpr *, DeclRefExpr *> Lost = LostVarIt->second;
+      // bounds B of A used the value of an lvalue expression E, and there
+      // was an assignment to E where E had no original value.
+      auto LostLValueIt = State.LostLValues.find(A);
+      if (LostLValueIt != State.LostLValues.end()) {
+        std::pair<BoundsExpr *, Expr *> Lost = LostLValueIt->second;
         BoundsExpr *InitialObservedBounds = Lost.first;
-        DeclRefExpr *LostVar = Lost.second;
-        S.Diag(LostVar->getLocation(), diag::note_lost_variable)
-          << LostVar << InitialObservedBounds << V << LostVar->getSourceRange();
+        Expr *LostLValue = Lost.second;
+        // TODO: currently, we only add a pair <B, E> to LostLValues if
+        // E is a DeclRefExpr, so we can still emit the note_lost_variable
+        // diagnostic message. In the future, we should change this message
+        // so that it applies to all kinds of lvalue expressions.
+        S.Diag(LostLValue->getBeginLoc(), diag::note_lost_variable)
+          << LostLValue << InitialObservedBounds << V << LostLValue->getSourceRange();
       }
 
       // The observed bounds of A are unknown because at least one expression
