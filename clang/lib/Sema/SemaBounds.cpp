@@ -3424,10 +3424,10 @@ namespace {
           UpdateSameValue(Src, SubExprSameValueSets, State.SameValue);
         }
 
-        // Update the result bounds to reflect the assignment to `e1`.
-        // If `e1` is a variable, the checking state will also be updated.
-        ResultBounds = UpdateAfterAssignment(LHS, E, Target, Src, ResultBounds,
-                                             CSS, State, State);
+        // Update the checking state and result bounds to reflect the
+        // assignment to `e1`.
+        ResultBounds = UpdateAfterAssignment(LHS, E, Target, Src,
+                                             ResultBounds, CSS, State);
 
         // SameValue is empty for assignments to a non-variable. This
         // conservative approach avoids recording false equality facts for
@@ -3879,9 +3879,8 @@ namespace {
                                        SubExprLValueBounds,
                                        SubExprBounds, State);
         }
-        IncDecResultBounds = UpdateAfterAssignment(SubExpr, E, Target,
-                                                   RHS, RHSBounds, CSS,
-                                                   State, State);
+        IncDecResultBounds = UpdateAfterAssignment(SubExpr, E, Target, RHS,
+                                                   RHSBounds, CSS, State);
 
         // Update the set SameValue of expressions that produce the same
         // value as `e`.
@@ -4761,123 +4760,173 @@ namespace {
 
     // Methods to update the checking state.
 
-    // UpdateAfterAssignment updates the checking state after an lvalue
+    // UpdateAfterAssignment updates the checking state after the lvalue
     // expression LValue is updated in an assignment E of the form
-    // Target = Src, based on the state before the assignment.  It also
-    // returns updated bounds for Src.
+    // LValue = Src.
+    // UpdateAfterAssignment also returns updated bounds for Src.
     //
-    // If LValue is a variable V and V has an original value, the original
-    // value is substituted for any uses of the value of V in the bounds
-    // in ObservedBounds and the expressions in EquivExprs and SameValue.
-    // If V does not have an original value, any bounds in ObservedBounds that
-    // use the value of V are set to bounds(unknown), and any expressions in
-    // EquivExprs and SameValue that use the value of V are removed from
-    // EquivExprs and SameValue.
+    // Target is an rvalue expression that is the value of LValue.
     //
     // SrcBounds are the original bounds for the source of the assignment.
-    //
-    // PrevState is the checking state that was true before the assignment.
     BoundsExpr *UpdateAfterAssignment(Expr *LValue, Expr *E, Expr *Target,
                                       Expr *Src, BoundsExpr *SrcBounds,
                                       CheckedScopeSpecifier CSS,
-                                      const CheckingState PrevState,
                                       CheckingState &State) {
       if (!LValue)
         return SrcBounds;
       LValue = LValue->IgnoreParens();
 
-      // If LValue is a member expression, get the set of AbstractSets
-      // whose target bounds use the value of LValue.
-      // TODO: update the checking state and result bounds if LValue
-      // is a member expression. Record the inferred rvalue bounds of
-      // each synthesized AbstractSet in ObservedBounds.
-      MemberExpr *ME = dyn_cast<MemberExpr>(LValue);
-      if (ME) {
+      // Currently, we only update the checking state after assignments
+      // to a variable or a member expression.
+      DeclRefExpr *V = VariableUtil::GetLValueVariable(S, LValue);
+      if (!V && !isa<MemberExpr>(LValue))
+        return SrcBounds;
+
+      // If LValue is a variable V, get the original value (if any) of V
+      // before the assignment, and determine whether the original value
+      // uses the value of V.
+      // OriginalValue is named OV in the Checked C spec.
+      bool OriginalValueUsesV = false;
+      Expr *OriginalValue = GetOriginalValue(V, Target, Src,
+                              State.EquivExprs, OriginalValueUsesV);
+
+      BoundsExpr *ResultBounds = UpdateBoundsAfterAssignment(LValue, E, Src,
+                                                             SrcBounds,
+                                                             OriginalValue,
+                                                             CSS, State);
+      UpdateEquivExprsAfterAssignment(LValue, OriginalValue, CSS, State);
+      UpdateSameValueAfterAssignment(LValue, OriginalValue,
+                                     OriginalValueUsesV, CSS, State);
+      RecordEqualityWithTarget(LValue, Target, Src, State);
+
+      return ResultBounds;
+    }
+
+    // UpdateBoundsAfterAssignment updates the observed bounds context after
+    // an lvalue expression LValue is modified via an assignment E of the form
+    // LValue = Src, based on the state before the assignment.
+    // It also returns updated bounds for Src.
+    //
+    // If LValue is a member expression, the observed bounds context will
+    // include the updated bounds for each member expression whose target
+    // bounds use the value of LValue.
+    //
+    // OriginalValue is the value of LValue before the assignment.
+    // If OriginalValue is non-null, bounds in the observed bounds context
+    // have all occurrences of LValue replaced with OriginalValue.
+    // If OriginalValue is null, bounds in the observed bounds context
+    // that use the value of LValue are set to bounds(unknown).
+    BoundsExpr *UpdateBoundsAfterAssignment(Expr *LValue, Expr *E,
+                                            Expr *Src, BoundsExpr *SrcBounds,
+                                            Expr *OriginalValue,
+                                            CheckedScopeSpecifier CSS,
+                                            CheckingState &State) {
+      // If LValue is a member expression, get the set of AbstractSets whose
+      // target bounds depend on LValue. The observed bounds of each of these
+      // AbstractSets are recorded in ObservedBounds.
+      MemberExpr *M = dyn_cast<MemberExpr>(LValue);
+      if (M) {
         AbstractSetSetTy AbstractSets;
-        SynthesizeMembers(ME, ME, CSS, AbstractSets);
+        SynthesizeMembers(M, M, CSS, AbstractSets);
 
         if (DumpSynthesizedMembers)
           DumpSynthesizedMemberAbstractSets(llvm::outs(), AbstractSets);
 
-        return SrcBounds;
+        for (const AbstractSet *A : AbstractSets) {
+          BoundsExpr *TargetBounds =
+            S.GetLValueDeclaredBounds(A->GetRepresentative(), CSS);
+          State.ObservedBounds[A] = TargetBounds;
+        }
       }
 
-      // Update the checking state and result bounds if LValue is a
-      // variable V.
-      DeclRefExpr *V = GetLValueVariable(LValue);
-      if (!V)
-        return SrcBounds;
+      // Determine whether LValue has (non-unknown) target bounds.
+      const AbstractSet *LValueAbstractSet = nullptr;
+      BoundsExpr *TargetBounds = S.GetLValueDeclaredBounds(LValue, CSS);
+      bool HasTargetBounds = TargetBounds && !TargetBounds->isUnknown();
 
-      // Get the original value (if any) of V before the assignment, and
-      // determine whether the original value uses the value of V.
-      // OriginalValue is named OV in the Checked C spec.
-      bool OriginalValueUsesV = false;
-      Expr *OriginalValue = GetOriginalValue(V, Target, Src,
-                              PrevState.EquivExprs, OriginalValueUsesV);
-
-      // Determine whether V has declared bounds.
-      VarDecl *VariableDecl = dyn_cast_or_null<VarDecl>(V->getDecl());
-      BoundsExpr *DeclaredBounds;
-      const AbstractSet *VariableAbstractSet = nullptr;
-      if (VariableDecl)
-        DeclaredBounds = VariableDecl->getBoundsExpr();
-
-      // If V has declared bounds, set ObservedBounds[V] to SrcBounds.
-      if (DeclaredBounds) {
-        VariableAbstractSet = AbstractSetMgr.GetOrCreateAbstractSet(V);
-        State.ObservedBounds[VariableAbstractSet] = SrcBounds;
+      // If LValue has target bounds, the initial observed bounds of LValue
+      // are SrcBounds. These bounds will be updated to account for any uses
+      // of LValue below.
+      if (HasTargetBounds) {
+        LValueAbstractSet = AbstractSetMgr.GetOrCreateAbstractSet(LValue);
+        State.ObservedBounds[LValueAbstractSet] = SrcBounds;
       }
 
-      // If Src initially has unknown bounds (before making any variable
+      // If Src initially has unknown bounds (before making any lvalue
       // replacements), use Src to explain bounds checking errors that
       // can occur when validating the bounds context.
-      if (DeclaredBounds) {
+      if (HasTargetBounds) {
         if (SrcBounds->isUnknown())
-          State.UnknownSrcBounds[VariableAbstractSet].push_back(Src);
+          State.UnknownSrcBounds[LValueAbstractSet].push_back(Src);
       }
 
-      // Adjust ObservedBounds to account for any uses of V in the bounds.
+      // Adjust ObservedBounds to account for any uses of LValue in the bounds.
       for (auto const &Pair : State.ObservedBounds) {
-        const AbstractSet *W = Pair.first;
+        const AbstractSet *A = Pair.first;
         BoundsExpr *Bounds = Pair.second;
-        BoundsExpr *AdjustedBounds = ReplaceVariableInBounds(Bounds, V, OriginalValue, CSS);
-        if (!Bounds->isUnknown() && AdjustedBounds->isUnknown())
-          State.LostVariables[W] = std::make_pair(Bounds, V);
+        BoundsExpr *AdjustedBounds =
+          ReplaceLValueInBounds(Bounds, LValue, OriginalValue, CSS);
+        State.ObservedBounds[A] = AdjustedBounds;
 
-        // If E modifies the bounds of W, add the pair to BlameAssignments.
+        // If the assignment to LValue caused the observed bounds of A
+        // to be bounds(unknown), add the pair to LostLValues.
+        if (!Bounds->isUnknown() && AdjustedBounds->isUnknown())
+          State.LostLValues[A] = std::make_pair(Bounds, LValue);
+
+        // If E modifies the bounds of A, add the pair to BlameAssignments.
         // We can check this cheaply by comparing the pointer values of
-        // AdjustedBounds and Bounds because ReplaceVariableInBounds returns
+        // AdjustedBounds and Bounds because ReplaceLValueInBounds returns
         // Bounds as AdjustedBounds if Bounds is not adjusted.
         if (AdjustedBounds != Bounds)
-          State.BlameAssignments[W] = E;
-        State.ObservedBounds[W] = AdjustedBounds;
+          State.BlameAssignments[A] = E;
       }
 
-      // Adjust SrcBounds to account for any uses of V and, if V has declared
-      // bounds, record the updated observed bounds for V.
-      BoundsExpr *AdjustedSrcBounds = ReplaceVariableInBounds(SrcBounds, V, OriginalValue, CSS);
-      if (DeclaredBounds)
-        State.ObservedBounds[VariableAbstractSet] = AdjustedSrcBounds;
+      // Adjust SrcBounds to account for any uses of LValue.
+      BoundsExpr *AdjustedSrcBounds = nullptr;
+      // If LValue has target bounds, then the observed bounds of LValue
+      // are already SrcBounds adjusted to account for any use of LValue.
+      if (HasTargetBounds)
+        AdjustedSrcBounds = State.ObservedBounds[LValueAbstractSet];
+      else
+        AdjustedSrcBounds = ReplaceLValueInBounds(SrcBounds, LValue,
+                                                  OriginalValue, CSS);
 
-      // Record that E updates the observed bounds of V.
-      if (DeclaredBounds)
-        State.BlameAssignments[VariableAbstractSet] = E;
+      // Record that E updates the observed bounds of LValue.
+      if (HasTargetBounds)
+        State.BlameAssignments[LValueAbstractSet] = E;
 
       // If the initial source bounds were not unknown, but they are unknown
-      // after replacing uses of V, then the assignment to V caused the
-      // source bounds (which are the observed bounds for V) to be unknown.
-      if (DeclaredBounds) {
+      // after replacing uses of LValue, then the assignment to LValue caused
+      // the source bounds (which are the observed bounds for LValue) to be
+      // unknown.
+      if (HasTargetBounds) {
         if (!SrcBounds->isUnknown() && AdjustedSrcBounds->isUnknown())
-          State.LostVariables[VariableAbstractSet] = std::make_pair(SrcBounds, V);
+          State.LostLValues[LValueAbstractSet] =
+            std::make_pair(SrcBounds, LValue);
       }
 
-      // Adjust EquivExprs to account for any uses of V in PrevState.EquivExprs.
+      return AdjustedSrcBounds;
+    }
+
+    // UpdateEquivExprsAfterAssignment updates the set EquivExprs of set of
+    // equivalent expressions after the expression LValue is modified via
+    // an assignment.
+    //
+    // OriginalValue is the value of LValue before the assignment.
+    // If OriginalValue is non-null, each expression in EquivExprs has all
+    // occurrences of LValue replaced with OriginalValue.
+    // If OriginalValue is null, each expression in EquivExprs that uses the
+    // value of LValue is removed from EquivExprs.
+    void UpdateEquivExprsAfterAssignment(Expr *LValue, Expr *OriginalValue,
+                                         CheckedScopeSpecifier CSS,
+                                         CheckingState &State) {
+      const EquivExprSets PrevEquivExprs = State.EquivExprs;
       State.EquivExprs.clear();
-      for (auto I = PrevState.EquivExprs.begin(); I != PrevState.EquivExprs.end(); ++I) {
+      for (auto I = PrevEquivExprs.begin(); I != PrevEquivExprs.end(); ++I) {
         ExprSetTy ExprList;
         for (auto InnerList = (*I).begin(); InnerList != (*I).end(); ++InnerList) {
           Expr *E = *InnerList;
-          Expr *AdjustedE = ReplaceVariableReferences(S, E, V, OriginalValue, CSS);
+          Expr *AdjustedE = ReplaceLValue(S, E, LValue, OriginalValue, CSS);
           // Don't add duplicate expressions to any set in EquivExprs.
           if (AdjustedE && !EqualExprsContainsExpr(ExprList, AdjustedE))
             ExprList.push_back(AdjustedE);
@@ -4885,28 +4934,35 @@ namespace {
         if (ExprList.size() > 1)
           State.EquivExprs.push_back(ExprList);
       }
+    }
 
-      // Adjust SameValue to account for any uses of V in PrevState.SameValue.
+    // UpdateSameValue updates the set of expressions that produce the
+    // same value as the source of an assignment, after an assignment
+    // that modifies the expression LValue.
+    //
+    // OriginalValue is the value of LValue before the assignment.
+    void UpdateSameValueAfterAssignment(Expr *LValue, Expr *OriginalValue,
+                                        bool OriginalValueUsesLValue,
+                                        CheckedScopeSpecifier CSS,
+                                        CheckingState &State) {
+      // Adjust SameValue to account for any uses of LValue in PrevSameValue.
       // If the original value uses the value of V, then any expressions that
-      // use the value of V should be removed from SameValue.  For example,
-      // in the assignment i = i + 2, where the original value is i - 2, the
-      // expression i + 2 in SameValue should be removed rather than replaced
-      // with (i - 2) + 2.  Otherwise, SameValue would contain (i - 2) + 2 and
-      // i, and EquivExprs would record equality between (i - 2) + 2 and i,
-      // which is a tautology.
+      // use the value of V should be removed from SameValue.
+      // For example, in the assignment i = i + 2, where the original value
+      // of i is i - 2, the expression i + 2 in SameValue should be removed
+      // rather than replaced with (i - 2) + 2.
+      // Otherwise, SameValue would contain (i - 2) + 2 and i, which is a
+      // tautology.
+      const ExprSetTy PrevSameValue = State.SameValue;
       State.SameValue.clear();
-      Expr *OriginalSameValueVal = OriginalValueUsesV ? nullptr : OriginalValue;
-      for (auto I = PrevState.SameValue.begin(); I != PrevState.SameValue.end(); ++I) {
+      Expr *OriginalSameValueVal = OriginalValueUsesLValue ? nullptr : OriginalValue;
+      for (auto I = PrevSameValue.begin(); I != PrevSameValue.end(); ++I) {
         Expr *E = *I;
-        Expr *AdjustedE = ReplaceVariableReferences(S, E, V,
-                                                    OriginalSameValueVal, CSS);
+        Expr *AdjustedE = ReplaceLValue(S, E, LValue, OriginalSameValueVal, CSS);
         // Don't add duplicate expressions to SameValue.
         if (AdjustedE && !EqualExprsContainsExpr(State.SameValue, AdjustedE))
           State.SameValue.push_back(AdjustedE);
       }
-
-      RecordEqualityWithTarget(Target, Src, State);
-      return AdjustedSrcBounds;
     }
 
     // RecordEqualityWithTarget updates the checking state to record equality
