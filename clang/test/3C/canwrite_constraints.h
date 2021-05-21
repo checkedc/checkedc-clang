@@ -59,3 +59,11 @@ void unwritable_func_with_itype(int *p : itype(_Array_ptr<int>)) {}
 void unwritable_func_with_itype_and_bounds(int *p
                                            : itype(_Array_ptr<int>) count(12)) {
 }
+
+// Test for https://github.com/correctcomputation/checkedc-clang/issues/580
+_Itype_for_any(T) void my_generic_function(void *p : itype(_Ptr<T>));
+
+void unwritable_type_argument() {
+  int i;
+  my_generic_function(&i);
+}

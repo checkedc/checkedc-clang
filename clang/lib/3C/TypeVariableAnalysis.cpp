@@ -97,8 +97,10 @@ bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
       FDef = FD;
     if (auto *FVCon = Info.getFuncConstraint(FDef, Context)) {
       // if we need to rewrite it but can't (macro, etc), it isn't safe
-      bool ForcedInconsistent = !typeArgsProvided(CE)
-                                && !Rewriter::isRewritable(CE->getExprLoc());
+      bool ForcedInconsistent =
+          !typeArgsProvided(CE) &&
+          (!Rewriter::isRewritable(CE->getExprLoc()) ||
+           !canWrite(PersistentSourceLoc::mkPSL(CE, *Context).getFileName()));
       // Visit each function argument, and if it use a type variable, insert it
       // into the type variable binding map.
       unsigned int I = 0;
