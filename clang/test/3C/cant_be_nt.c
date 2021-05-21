@@ -2,8 +2,8 @@
 //
 // Checks to make sure _Nt_arrrays only contain pointers & integers
 //
-// RUN: 3c -alltypes -base-dir=%S %s -- | %clang_cc1  -fcheckedc-extension -x c -
-// RUN: 3c -base-dir=%S %s -- | %clang_cc1  -fcheckedc-extension -x c -
+// RUN: 3c -alltypes -base-dir=%S %s -- | %clang -c  -fcheckedc-extension -x c -
+// RUN: 3c -base-dir=%S %s -- | %clang -c  -fcheckedc-extension -x c -
 // RUN: 3c -base-dir=%S %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
 // RUN: 3c -alltypes -base-dir=%S %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
 // expected-no-diagnostics

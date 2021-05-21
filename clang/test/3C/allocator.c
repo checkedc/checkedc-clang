@@ -4,7 +4,7 @@
 //
 // RUN: rm -rf %t*
 // RUN: 3c -base-dir=%S %s -- | FileCheck -match-full-lines %s
-// RUN: 3c -base-dir=%S %s -- | %clang_cc1  -fno-builtin -verify -fcheckedc-extension -x c -
+// RUN: 3c -base-dir=%S %s -- | %clang -c  -fno-builtin -Xclang -verify -fcheckedc-extension -x c -
 // RUN: 3c -base-dir=%S -output-dir=%t.checked %s --
 // RUN: 3c -base-dir=%t.checked %t.checked/allocator.c -- | diff %t.checked/allocator.c -
 // expected-no-diagnostics

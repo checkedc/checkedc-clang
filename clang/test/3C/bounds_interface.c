@@ -2,7 +2,7 @@
 //
 // RUN: rm -rf %t*
 // RUN: 3c -base-dir=%S -addcr %s -- | FileCheck -match-full-lines %s
-// RUN: 3c -base-dir=%S -addcr %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
+// RUN: 3c -base-dir=%S -addcr %s -- | %clang -c  -Xclang -verify -fcheckedc-extension -x c -
 // RUN: 3c -base-dir=%S -addcr -output-dir=%t.checked %s --
 // RUN: 3c -base-dir=%t.checked -addcr %t.checked/bounds_interface.c -- | diff %t.checked/bounds_interface.c -
 // expected-no-diagnostics

@@ -1,5 +1,5 @@
 //RUN: 3c -base-dir=%S -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK" %s
-//RUN: 3c -base-dir=%S --addcr %s -- | %clang_cc1  -fcheckedc-extension -x c -
+//RUN: 3c -base-dir=%S --addcr %s -- | %clang -c  -fcheckedc-extension -x c -
 
 typedef unsigned int uint_t;
 typedef uint_t *ptr_uint_t;
