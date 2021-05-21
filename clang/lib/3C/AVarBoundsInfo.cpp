@@ -129,18 +129,15 @@ void
 AvarBoundsInference::
 mergeReachableProgramVars(BoundsKey TarBK, std::set<BoundsKey> &AllVars) {
   if (AllVars.size() > 1) {
-    // Convert the bounds key to corresponding program var.
-    std::set<ProgramVar *> AllProgVars;
-    for (auto AV : AllVars) {
-      AllProgVars.insert(BI->getProgramVar(AV));
-    }
     ProgramVar *BVar = nullptr;
     bool IsTarNTArr = BI->NtArrPointerBoundsKey.find(TarBK) !=
                       BI->NtArrPointerBoundsKey.end();
     // We want to merge all bounds vars. We give preference to
     // non-constants if there are multiple non-constant variables,
     // we give up.
-    for (auto *TmpB : AllProgVars) {
+    for (auto TmpBKey : AllVars) {
+      // Convert the bounds key to corresponding program var.
+      auto *TmpB = BI->getProgramVar(TmpBKey);
       // First case.
       if (BVar == nullptr) {
         BVar = TmpB;
