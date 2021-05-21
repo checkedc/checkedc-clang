@@ -719,11 +719,16 @@ namespace {
   // original value.  If no original value is provided and E uses LValue,
   // ReplaceLValue returns nullptr.
   Expr *ReplaceLValue(Sema &SemaRef, Expr *E, Expr *LValue,
-                                  Expr *OriginalValue,
-                                  CheckedScopeSpecifier CSS) {
+                      Expr *OriginalValue,
+                      CheckedScopeSpecifier CSS) {
     // Don't transform E if does not use the value of LValue.
     if (!FindLValue(SemaRef, LValue, E))
       return E;
+
+    // If E uses the value of LValue, but no original value is provided,
+    // we know the result is null without needing to transform E.
+    if (!OriginalValue)
+      return nullptr;
 
     // Account for checked scope information when transforming the expression.
     Sema::CheckedScopeRAII CheckedScope(SemaRef, CSS);
