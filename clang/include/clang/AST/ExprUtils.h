@@ -72,6 +72,33 @@ public:
 } // end namespace clang
 
 namespace clang {
+
+class VariableUtil {
+public:
+  // If E is a possibly parenthesized lvalue variable V,
+  // GetLValueVariable returns V. Otherwise, it returns nullptr.
+  //
+  // V may have value-preserving operations applied to it, such as
+  // LValueBitCasts.  For example, if E is (LValueBitCast(V)), where V
+  // is a variable, GetLValueVariable will return V.
+  static DeclRefExpr *GetLValueVariable(Sema &S, Expr *E);
+
+  // If E is a possibly parenthesized rvalue cast of a variable V,
+  // GetRValueVariable returns V. Otherwise, it returns nullptr.
+  //
+  // V may have value-preserving operations applied to it.  For example,
+  // if E is (LValueToRValue(LValueBitCast(V))), where V is a variable,
+  // GetRValueVariable will return V.
+  static DeclRefExpr *GetRValueVariable(Sema &S, Expr *E);
+
+  // IsRValueCastOfVariable returns true if the expression e is a possibly
+  // parenthesized lvalue-to-rvalue cast of the lvalue variable v.
+  static bool IsRValueCastOfVariable(Sema &S, Expr *E, DeclRefExpr *V);
+};
+
+} // end namespace clang
+
+namespace clang {
   // QueueSet is a queue backed by a set. The queue is useful for processing
   // the items in a Topological sort order which means that if item1 is a
   // predecessor of item2 then item1 is processed before item2. The set is
