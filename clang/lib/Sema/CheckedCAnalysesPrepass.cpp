@@ -82,17 +82,17 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
       return T->getAsRecordDecl();
     }
 
-    // AddPtrWithBounds adds PtrWithBounds to the set of variables in whose
-    // bounds Var occurs.
-    template<class M, class P, class V>
-    void AddPtrWithBounds(M &Map, const P *PtrWithBounds, const V *Var) {
-      auto It = Map.find(Var);
+    // AddPtrWithBounds adds PtrWithBounds to the set of variables or fields in
+    // whose bounds VarOrField occurs.
+    template<class T, class U>
+    void AddPtrWithBounds(T &Map, const U *PtrWithBounds, const U *VarOrField) {
+      auto It = Map.find(VarOrField);
       if (It != Map.end())
         It->second.insert(PtrWithBounds);
       else {
-        typename M::mapped_type Ptrs;
+        typename T::mapped_type Ptrs;
         Ptrs.insert(PtrWithBounds);
-        Map[Var] = Ptrs;
+        Map[VarOrField] = Ptrs;
       }
     }
 
