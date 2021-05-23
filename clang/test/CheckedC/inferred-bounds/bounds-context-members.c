@@ -14,6 +14,8 @@ struct S {
   int i;
   array_ptr<int> q : count(i);
   array_ptr<int> r : count(i);
+  array_ptr<int> f : count(3);
+  array_ptr<int> g : bounds(f, f + 3);
 };
 
 // Assignment to a struct member that kills the bounds of another struct member
@@ -112,7 +114,7 @@ void kill_bounds2(struct S *s) {
   // CHECK-NEXT: }
 }
 
-// Assigning to a struct member used in its own bounds
+// Incrementing a struct member used in its own bounds
 void kill_bounds3(struct S *s) {
   // The assignment s->p++ is not invertible with respect to s->p
   // (we do not calculate an inverse for member expressions),
@@ -184,6 +186,55 @@ void updated_source_bounds2(struct S *s) {
   // CHECK-NEXT:           ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:             DeclRefExpr {{.*}} 's'
   // CHECK-NEXT:           IntegerLiteral {{.*}} 4
+}
+
+// Assigning to a struct member used in the bounds of the RHS
+void updated_source_bounds3(struct S *s) {
+  // Observed bounds context after assignment: { s->f => bounds(unknown), s->g => bounds(unknown) }
+  // Note: we do not currently compute an original value for s->f.
+  // Original source bounds for the RHS: bounds(s->f, s->f + 3)
+  // Adjusted source bounds returned for the RHS: bounds(s->f, s->f + 3)
+  s->f = s->f + 1;
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: LValue Expression:
+  // CHECK-NEXT: MemberExpr {{.*}} ->f
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: NullaryBoundsExpr {{.*}} Unknown
+  // CHECK-NEXT: LValue Expression:
+  // CHECK-NEXT: MemberExpr {{.*}} ->g
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: NullaryBoundsExpr {{.*}} Unknown
+  // CHECK-NEXT: }
+
+  // Observed bounds context after assignment: { s->f => bounds(unknown), s->g => bounds(unknown) }
+  // Note: we do not currently compute an original value for s->f.
+  // Original source bounds for the RHS: bounds(s->f, s->f + 3)
+  // Adjusted source bounds returned for the RHS: bounds(s->f, s->f + 3)
+  s->f = s->g;
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: LValue Expression:
+  // CHECK-NEXT: MemberExpr {{.*}} ->f
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: NullaryBoundsExpr {{.*}} Unknown
+  // CHECK-NEXT: LValue Expression:
+  // CHECK-NEXT: MemberExpr {{.*}} ->g
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: NullaryBoundsExpr {{.*}} Unknown
+  // CHECK-NEXT: }
 }
 
 struct C {
