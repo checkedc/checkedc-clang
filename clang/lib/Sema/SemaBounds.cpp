@@ -4752,7 +4752,7 @@ namespace {
 
       // Update the checking state and result bounds if LValue is a
       // variable V.
-      DeclRefExpr *V = GetLValueVariable(LValue);
+      DeclRefExpr *V = VariableUtil::GetLValueVariable(S, LValue);
       if (!V)
         return SrcBounds;
 
