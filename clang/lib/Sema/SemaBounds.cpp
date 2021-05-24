@@ -1076,7 +1076,7 @@ namespace {
       return false;
     }
 
-
+    public:
     // The result of trying to prove a statement about bounds declarations.
     // The proof system is incomplete, so there are will be statements that
     // cannot be proved true or false.  That's why "maybe" is a result.
@@ -1084,18 +1084,6 @@ namespace {
       True,  // Definitely provable.
       False, // Definitely false (an error)
       Maybe  // We're not sure yet.
-    };
-
-    // The kind of statement that we are trying to prove true or false.
-    //
-    // This enum is used in generating diagnostic messages. If you change the order,
-    // update the messages in DiagnosticSemaKinds.td used in
-    // ExplainProofFailure
-    enum class ProofStmtKind : unsigned {
-      BoundsDeclaration,
-      StaticBoundsCast,
-      MemoryAccess,
-      MemberArrowBase
     };
 
     // ProofFailure: codes that explain why a statement is false.  This is a
@@ -1112,6 +1100,19 @@ namespace {
       PartialOverlap = 0x80, // There was only partial overlap of the destination bounds with
                             // the source bounds.
       HasFreeVariables = 0x100 // Source or destination has free variables.
+    };
+
+    private:
+    // The kind of statement that we are trying to prove true or false.
+    //
+    // This enum is used in generating diagnostic messages. If you change the order,
+    // update the messages in DiagnosticSemaKinds.td used in
+    // ExplainProofFailure
+    enum class ProofStmtKind : unsigned {
+      BoundsDeclaration,
+      StaticBoundsCast,
+      MemoryAccess,
+      MemberArrowBase
     };
 
     enum class DiagnosticNameForTarget {
@@ -1171,6 +1172,7 @@ namespace {
       OS << "]";
     }
 
+    public:
     // Representation and operations on ranges.
     // A range has the form (e1 + e2, e1 + e3) where e1 is an expression.
     // A range can be either Constant- or Variable-sized.
@@ -1729,10 +1731,9 @@ namespace {
           UpperOffsetVariable->dump(OS, S.getASTContext());
         }
       }
-    };
+    }; // end class BaseRange
 
-
-
+    private:
     // This function splits the expression `E` into an expression `Base`, and an offset.
     // The offset can be an integer constant or not. If it is an integer constant, the
     // extracted offset can be found in `OffsetConstant`, and `OffsetVariable` will be nullptr.
@@ -1969,6 +1970,7 @@ namespace {
       return R == Lexicographic::Result::Equal;
     }
 
+    public:
     // Convert the bounds expression `Bounds` to a range `R`. This function returns true
     // if the conversion is successful, and false otherwise.
     // Currently, this function only performs the conversion for bounds expression of
@@ -2018,6 +2020,7 @@ namespace {
       return false;
     }
 
+    private:
     // Try to prove that SrcBounds implies the validity of DeclaredBounds.
     //
     // If Kind is StaticBoundsCast, check whether a static cast between Ptr
@@ -6360,8 +6363,8 @@ namespace {
         return false;
       }
     }
-  };
-}
+  }; // end class CheckBoundsDeclaration
+}    // end anonymous namespace
 
 Expr *Sema::GetArrayPtrDereference(Expr *E, QualType &Result) {
   assert(E->isLValue());
@@ -6752,4 +6755,25 @@ BoundsExpr *Sema::GetLValueDeclaredBounds(Expr *E) {
   std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
   CheckBoundsDeclarations CBD(*this, Info, EmptyFacts);
   return CBD.GetLValueTargetBounds(E, CheckedScopeSpecifier::CSS_Unchecked);
+}
+
+// This is a wrapper around CheckBoundsDeclaration::BaseRange::InRange. This
+// provides an easy way to invoke this function from outside the class. Given
+// two bounds expressions B1 and B2 it determines if B2 is a subrange of B1. It
+// returns true only if it can provably determine that B2 is a subrange of B1.
+bool Sema::IsSubRange(BoundsExpr *B1, BoundsExpr *B2) {
+  PrepassInfo Info;
+  std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
+  EquivExprSets *EquivExprs = nullptr;
+  CheckBoundsDeclarations::ProofFailure Cause;
+
+  CheckBoundsDeclarations::BaseRange R1(*this);
+  CheckBoundsDeclarations::BaseRange R2(*this);
+
+  CheckBoundsDeclarations CBD(*this, Info, EmptyFacts);
+  CBD.CreateBaseRange(B1, &R1, EquivExprs);
+  CBD.CreateBaseRange(B2, &R2, EquivExprs);
+
+  return R1.InRange(R2, Cause, EquivExprs, EmptyFacts) ==
+         CheckBoundsDeclarations::ProofResult::True;
 }

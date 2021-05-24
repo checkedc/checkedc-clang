@@ -5744,6 +5744,11 @@ public:
   // the inferred bounds of E must imply these declared bounds.
   BoundsExpr *GetLValueDeclaredBounds(Expr *E);
 
+  // This is a wrapper around CheckBoundsDeclaration::BaseRange::InRange. This
+  // provides an easy way to invoke this function from outside the class. Given
+  // two bounds expressions B1 and B2 it determines if B2 is a subrange of B1.
+  bool IsSubRange(BoundsExpr *B1, BoundsExpr *B2);
+
   //
   // Track variables that in-scope bounds declarations depend upon.
   // TODO: generalize this to other lvalue expressions.
