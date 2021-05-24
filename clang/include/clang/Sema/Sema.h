@@ -5742,7 +5742,9 @@ public:
   // Returns the declared bounds for the lvalue expression E. Assignments
   // to E must satisfy these bounds. After checking a top-level statement,
   // the inferred bounds of E must imply these declared bounds.
-  BoundsExpr *GetLValueDeclaredBounds(Expr *E);
+  BoundsExpr *GetLValueDeclaredBounds(Expr *E,
+                                      CheckedScopeSpecifier CSS =
+                                        CheckedScopeSpecifier::CSS_Unchecked);
 
   //
   // Track variables that in-scope bounds declarations depend upon.

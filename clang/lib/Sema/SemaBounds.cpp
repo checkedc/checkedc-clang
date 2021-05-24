@@ -4101,13 +4101,13 @@ namespace {
         for (const auto &Pair : StateTrueArm.ObservedBounds) {
           const AbstractSet *A = Pair.first;
           BoundsExpr *DeclaredBounds =
-            S.GetLValueDeclaredBounds(A->GetRepresentative());
+            S.GetLValueDeclaredBounds(A->GetRepresentative(), CSS);
           State.ObservedBounds[A] = DeclaredBounds;
         }
         for (const auto &Pair : StateFalseArm.ObservedBounds) {
           const AbstractSet *A = Pair.first;
           BoundsExpr *DeclaredBounds =
-            S.GetLValueDeclaredBounds(A->GetRepresentative());
+            S.GetLValueDeclaredBounds(A->GetRepresentative(), CSS);
           State.ObservedBounds[A] = DeclaredBounds;
         }
       }
@@ -4534,7 +4534,7 @@ namespace {
           continue;
         BoundsExpr *ObservedBounds = Pair.second;
         BoundsExpr *DeclaredBounds =
-          this->S.GetLValueDeclaredBounds(A->GetRepresentative());
+          this->S.GetLValueDeclaredBounds(A->GetRepresentative(), CSS);
         if (!DeclaredBounds || DeclaredBounds->isUnknown())
           continue;
         if (ObservedBounds->isUnknown())
@@ -6923,8 +6923,8 @@ BoundsExpr *Sema::ExpandBoundsToRange(const VarDecl *D, const BoundsExpr *B) {
 // Returns the declared bounds for the lvalue expression E. Assignments
 // to E must satisfy these bounds. After checking a top-level statement,
 // the inferred bounds of E must imply these declared bounds.
-BoundsExpr *Sema::GetLValueDeclaredBounds(Expr *E) {
-  if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
+BoundsExpr *Sema::GetLValueDeclaredBounds(Expr *E, CheckedScopeSpecifier CSS) {
+  if (DeclRefExpr *DRE = VariableUtil::GetLValueVariable(*this, E)) {
     if (const VarDecl *V = dyn_cast_or_null<VarDecl>(DRE->getDecl()))
       return NormalizeBounds(V);
   }
@@ -6932,7 +6932,7 @@ BoundsExpr *Sema::GetLValueDeclaredBounds(Expr *E) {
   PrepassInfo Info;
   std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
   CheckBoundsDeclarations CBD(*this, Info, EmptyFacts);
-  return CBD.GetLValueTargetBounds(E, CheckedScopeSpecifier::CSS_Unchecked);
+  return CBD.GetLValueTargetBounds(E, CSS);
 }
 
 // Print Checked C profiling information.
