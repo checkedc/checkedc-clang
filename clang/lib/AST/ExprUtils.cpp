@@ -142,3 +142,29 @@ bool ExprCreatorUtil::Fits(ASTContext &Ctx, QualType Ty,
     Result = I;
   return Result.isNonNegative();
 }
+
+DeclRefExpr *VariableUtil::GetLValueVariable(Sema &S, Expr *E) {
+  Lexicographic Lex(S.Context, nullptr);
+  E = Lex.IgnoreValuePreservingOperations(S.Context, E);
+  return dyn_cast<DeclRefExpr>(E);
+}
+
+DeclRefExpr *VariableUtil::GetRValueVariable(Sema &S, Expr *E) {
+  if (!E)
+    return nullptr;
+  if (CastExpr *CE = dyn_cast<CastExpr>(E->IgnoreParens())) {
+    CastKind CK = CE->getCastKind();
+    if (CK == CastKind::CK_LValueToRValue ||
+        CK == CastKind::CK_ArrayToPointerDecay)
+      return GetLValueVariable(S, CE->getSubExpr());
+  }
+  return nullptr;
+}
+
+bool VariableUtil::IsRValueCastOfVariable(Sema &S, Expr *E, DeclRefExpr *V) {
+  DeclRefExpr *Var = GetRValueVariable(S, E);
+  if (!Var)
+    return false;
+  Lexicographic Lex(S.Context, nullptr);
+  return Lex.CompareExpr(V, Var) == Lexicographic::Result::Equal;
+}

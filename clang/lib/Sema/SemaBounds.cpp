@@ -1662,7 +1662,7 @@ namespace {
           auto InnerList = *OuterList;
           for (auto I = InnerList.begin(); I != InnerList.end(); ++I) {
             Expr *E = *I;
-            if (IsRValueCastOfVariable(S, E, cast<DeclRefExpr>(Variable))) {
+            if (VariableUtil::IsRValueCastOfVariable(S, E, cast<DeclRefExpr>(Variable))) {
               EquivSet = InnerList;
               break;
             }
@@ -3360,7 +3360,7 @@ namespace {
       }
 
       // Determine whether the assignment is to a variable.
-      DeclRefExpr *LHSVar = GetLValueVariable(LHS);
+      DeclRefExpr *LHSVar = VariableUtil::GetLValueVariable(S, LHS);
 
       // Update the checking state.  The result bounds may also be updated
       // for assignments to a variable.
@@ -3825,7 +3825,7 @@ namespace {
 
         // Update the checking state and result bounds.
         BoundsExpr *RHSBounds = IncDecResultBounds;
-        if (DeclRefExpr *V = GetLValueVariable(SubExpr)) {
+        if (DeclRefExpr *V = VariableUtil::GetLValueVariable(S, SubExpr)) {
           // Update SameValue to be the set of expressions that produce the
           // same value as the RHS `e1 +/- 1` (if the RHS could be created).
           UpdateSameValue(E, State.SameValue, State.SameValue, RHS);
@@ -5068,7 +5068,7 @@ namespace {
         // original value should be (T)LValueToRValue(w).
         Lexicographic Lex(S.Context, nullptr);
         Expr *E = Lex.IgnoreValuePreservingOperations(S.Context, *I);
-        DeclRefExpr *W = GetRValueVariable(E);
+        DeclRefExpr *W = VariableUtil::GetRValueVariable(S, E);
         if (W != nullptr && !EqualValue(S.Context, V, W, nullptr)) {
           // Expression equality in EquivExprs does not account for types, so
           // expressions in the same set in EquivExprs may not have the same
@@ -5087,25 +5087,25 @@ namespace {
       return nullptr;
     }
 
-    // IsInvertible returns true if the expression e can be inverted
-    // with respect to the variable x.
-    bool IsInvertible(DeclRefExpr *X, Expr *E) {
+    // IsInvertible returns true if the expression E can be inverted
+    // with respect to the variable V.
+    bool IsInvertible(DeclRefExpr *V, Expr *E) {
       if (!E)
         return false;
 
       E = E->IgnoreParens();
-      if (IsRValueCastOfVariable(E, X))
+      if (VariableUtil::IsRValueCastOfVariable(S, E, V))
         return true;
 
       switch (E->getStmtClass()) {
         case Expr::UnaryOperatorClass:
-          return IsUnaryOperatorInvertible(X, cast<UnaryOperator>(E));
+          return IsUnaryOperatorInvertible(V, cast<UnaryOperator>(E));
         case Expr::BinaryOperatorClass:
-          return IsBinaryOperatorInvertible(X, cast<BinaryOperator>(E));
+          return IsBinaryOperatorInvertible(V, cast<BinaryOperator>(E));
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass:
         case Expr::BoundsCastExprClass:
-          return IsCastExprInvertible(X, cast<CastExpr>(E));
+          return IsCastExprInvertible(V, cast<CastExpr>(E));
         default:
           return false;
       }
@@ -5248,26 +5248,26 @@ namespace {
       }
     }
 
-    // Inverse repeatedly applies mathematical rules to the expression e to
-    // get the inverse of e with respect to the variable x and expression f.
-    // If rules cannot be applied to e, Inverse returns nullptr.
-    Expr *Inverse(DeclRefExpr *X, Expr *F, Expr *E) {
+    // Inverse repeatedly applies mathematical rules to the expression E to
+    // get the inverse of E with respect to the variable V and expression F.
+    // If rules cannot be applied to E, Inverse returns nullptr.
+    Expr *Inverse(DeclRefExpr *V, Expr *F, Expr *E) {
       if (!F)
         return nullptr;
 
       E = E->IgnoreParens();
-      if (IsRValueCastOfVariable(E, X))
+      if (VariableUtil::IsRValueCastOfVariable(S, E, V))
         return F;
 
       switch (E->getStmtClass()) {
         case Expr::UnaryOperatorClass:
-          return UnaryOperatorInverse(X, F, cast<UnaryOperator>(E));
+          return UnaryOperatorInverse(V, F, cast<UnaryOperator>(E));
         case Expr::BinaryOperatorClass:
-          return BinaryOperatorInverse(X, F, cast<BinaryOperator>(E));
+          return BinaryOperatorInverse(V, F, cast<BinaryOperator>(E));
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass:
         case Expr::BoundsCastExprClass:
-          return CastExprInverse(X, F, cast<CastExpr>(E));
+          return CastExprInverse(V, F, cast<CastExpr>(E));
         default:
           return nullptr;
       }
@@ -5580,57 +5580,6 @@ namespace {
     // EqualExprsContainsExpr returns true if the set Exprs contains E.
     bool EqualExprsContainsExpr(const ExprSetTy Exprs, Expr *E) {
       return ::EqualExprsContainsExpr(S, Exprs, E, nullptr);
-    }
-
-    // If E is a possibly parenthesized lvalue variable V,
-    // GetLValueVariable returns V. Otherwise, it returns nullptr.
-    //
-    // V may have value-preserving operations applied to it, such as
-    // LValueBitCasts.  For example, if E is (LValueBitCast(V)), where V
-    // is a variable, GetLValueVariable will return V.
-    static DeclRefExpr *GetLValueVariable(Sema &S, Expr *E) {
-      Lexicographic Lex(S.Context, nullptr);
-      E = Lex.IgnoreValuePreservingOperations(S.Context, E);
-      return dyn_cast<DeclRefExpr>(E);
-    }
-
-    DeclRefExpr *GetLValueVariable(Expr *E) {
-      return GetLValueVariable(S, E);
-    }
-
-    // If E is a possibly parenthesized rvalue cast of a variable V,
-    // GetRValueVariable returns V. Otherwise, it returns nullptr.
-    //
-    // V may have value-preserving operations applied to it.  For example,
-    // if E is (LValueToRValue(LValueBitCast(V))), where V is a variable,
-    // GetRValueVariable will return V.
-    static DeclRefExpr *GetRValueVariable(Sema &S, Expr *E) {
-      if (!E)
-        return nullptr;
-      if (CastExpr *CE = dyn_cast<CastExpr>(E->IgnoreParens())) {
-        CastKind CK = CE->getCastKind();
-        if (CK == CastKind::CK_LValueToRValue ||
-            CK == CastKind::CK_ArrayToPointerDecay)
-          return GetLValueVariable(S, CE->getSubExpr());
-      }
-      return nullptr;
-    }
-
-    DeclRefExpr *GetRValueVariable(Expr *E) {
-      return GetRValueVariable(S, E);
-    }
-
-    // IsRValueCastOfVariable returns true if the expression e is a possibly
-    // parenthesized lvalue-to-rvalue cast of the lvalue variable v.
-    static bool IsRValueCastOfVariable(Sema &S, Expr *E, DeclRefExpr *V) {
-      DeclRefExpr *Var = GetRValueVariable(S, E);
-      if (!Var)
-        return false;
-      return EqualValue(S.Context, V, Var, nullptr);
-    }
-
-    bool IsRValueCastOfVariable(Expr *E, DeclRefExpr *V) {
-      return IsRValueCastOfVariable(S, E, V);
     }
 
     // CreatesNewObject returns true if the expression e creates a new object.
@@ -6183,7 +6132,7 @@ namespace {
           // For an rvalue cast of a variable v, if v has observed bounds,
           // the rvalue bounds of the value of v should be the observed bounds.
           // This also accounts for variables that have widened bounds.
-          if (DeclRefExpr *V = GetRValueVariable(E)) {
+          if (DeclRefExpr *V = VariableUtil::GetRValueVariable(S, E)) {
             if (const VarDecl *D = dyn_cast_or_null<VarDecl>(V->getDecl())) {
               if (D->hasBoundsExpr()) {
                 const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
@@ -6203,7 +6152,7 @@ namespace {
           // bounds, the rvalue bounds of the value of v should be the observed
           // bounds. This also accounts for variables with array type that have
           // widened bounds.
-          if (DeclRefExpr *V = GetRValueVariable(E)) {
+          if (DeclRefExpr *V = VariableUtil::GetRValueVariable(S, E)) {
             if (const VarDecl *D = dyn_cast_or_null<VarDecl>(V->getDecl())) {
               if (D->hasBoundsExpr()) {
                 const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
