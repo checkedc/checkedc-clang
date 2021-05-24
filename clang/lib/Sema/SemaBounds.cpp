@@ -5046,6 +5046,11 @@ namespace {
     // construct the inverse expression of the source with respect to V.
     Expr *GetOriginalValue(DeclRefExpr *V, Expr *Target, Expr *Src,
                            const EquivExprSets EQ, bool &OriginalValueUsesV) {
+      if (!V) {
+        OriginalValueUsesV = false;
+        return nullptr;
+      }
+
       // Check if Src has an inverse expression with respect to v.
       Expr *IV = nullptr;
       if (IsInvertible(V, Src))
