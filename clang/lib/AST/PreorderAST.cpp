@@ -407,7 +407,7 @@ bool BinaryOperatorNode::ConstantFold(bool &Error, ASTContext &Ctx) {
       // Ensure that ConstFoldedVal and CurrConstVal have the same bit width.
       if (ConstFoldedVal.getBitWidth() < CurrConstVal.getBitWidth())
         ConstFoldedVal = ConstFoldedVal.extOrTrunc(CurrConstVal.getBitWidth());
-      if (CurrConstVal.getBitWidth() < ConstFoldedVal.getBitWidth())
+      else if (CurrConstVal.getBitWidth() < ConstFoldedVal.getBitWidth())
         CurrConstVal = CurrConstVal.extOrTrunc(ConstFoldedVal.getBitWidth());
 
       // Constant fold based on the operator.
