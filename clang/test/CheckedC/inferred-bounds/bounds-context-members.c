@@ -6,8 +6,6 @@
 
 #include <stdchecked.h>
 
-// expected-no-diagnostics
-
 struct S {
   int len;
   array_ptr<int> p : count(len);
@@ -16,6 +14,8 @@ struct S {
   array_ptr<int> r : count(i);
   array_ptr<int> f : count(3);
   array_ptr<int> g : bounds(f, f + 3);
+  array_ptr<int> a : count(2);
+  array_ptr<int> b : count(2);
 };
 
 // Assignment to a struct member that kills the bounds of another struct member
@@ -186,6 +186,74 @@ void updated_source_bounds2(struct S *s) {
   // CHECK-NEXT:           ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:             DeclRefExpr {{.*}} 's'
   // CHECK-NEXT:           IntegerLiteral {{.*}} 4
+
+  // Observed bounds context after assignment: { s[4].q => bounds(s[3].r, s[3].r + s[3].i) }
+  // s[4].q and s[3].r are (temporarily) equivalent, but s[4].i and s[3].i
+  // are not equivalent, so we get a warning.
+  s[4].q = s[3].r; // expected-warning {{cannot prove declared bounds for s[4].q are valid after assignment}} \
+                   // expected-note {{(expanded) declared bounds are 'bounds(s[4].q, s[4].q + s[4].i)'}} \
+                   // expected-note {{(expanded) inferred bounds are 'bounds(s[3].r, s[3].r + s[3].i)'}}
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: LValue Expression:
+  // CHECK-NEXT: MemberExpr {{.*}} .q
+  // CHECK-NEXT:   ArraySubscriptExpr
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 4
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     MemberExpr {{.*}} .r
+  // CHECK-NEXT:       ArraySubscriptExpr
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT:         IntegerLiteral {{.*}} 3
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       MemberExpr {{.*}} .r
+  // CHECK-NEXT:         ArraySubscriptExpr
+  // CHECK-NEXT:           ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:             DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT:           IntegerLiteral {{.*}} 3
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       MemberExpr {{.*}} .i
+  // CHECK-NEXT:         ArraySubscriptExpr
+  // CHECK-NEXT:           ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:             DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT:           IntegerLiteral {{.*}} 3
+
+  // Observed bounds after assignment: { s[7].a => bounds(s[8].b, s[8].b + 2) }
+  // s[7].a and s[8].b are (temporarily) equivalent, so we get no warning.
+  s[7].a = s[8].b;
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: LValue Expression:
+  // CHECK-NEXT: MemberExpr {{.*}} .a
+  // CHECK-NEXT:   ArraySubscriptExpr
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 7
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     MemberExpr {{.*}} .b
+  // CHECK-NEXT:       ArraySubscriptExpr
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT:         IntegerLiteral {{.*}} 8
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       MemberExpr {{.*}} .b
+  // CHECK-NEXT:         ArraySubscriptExpr
+  // CHECK-NEXT:           ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:             DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT:           IntegerLiteral {{.*}} 8
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 2
 }
 
 // Assigning to a struct member used in the bounds of the RHS
