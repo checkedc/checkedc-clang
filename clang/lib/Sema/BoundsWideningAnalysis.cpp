@@ -589,7 +589,7 @@ Expr *BoundsWideningAnalysis::IgnoreCasts(const Expr *E) const {
 }
 
 bool BoundsWideningAnalysis::SkipBlock(const CFGBlock *B) const {
-  return !B || B == &Cfg->getEntry() || B == &Cfg->getExit();
+  return !B || B == &Cfg->getExit();
 }
 
 bool BoundsWideningAnalysis::IsNtArrayType(const VarDecl *V) const {
