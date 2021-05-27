@@ -46,6 +46,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Sema/AvailableFactsAnalysis.h"
 #include "clang/Sema/BoundsAnalysis.h"
+#include "clang/Sema/BoundsWideningAnalysis.h"
 #include "clang/Sema/CheckedCAnalysesPrepass.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -839,6 +840,11 @@ namespace {
     // for bounds-widening and get back the bounds-widening info needed for
     // bounds inference/checking.
     BoundsAnalysis BoundsAnalyzer;
+
+    // Having a BoundsWideningAnalysis object here allows us to easily invoke
+    // methods for bounds widening and get back the needed info for bounds
+    // inference/checking.
+    BoundsWideningAnalysis BoundsWideningAnalyzer;
 
     // Having an AbstractSetManager object here allows us to create
     // AbstractSets for lvalue expressions while checking statements.
@@ -2599,6 +2605,9 @@ namespace {
       Context(SemaRef.Context),
       Facts(Facts),
       BoundsAnalyzer(BoundsAnalysis(SemaRef, Cfg)),
+      BoundsWideningAnalyzer(BoundsWideningAnalysis(SemaRef, Cfg,
+                                                    Info.BoundsVarsLower,
+                                                    Info.BoundsVarsUpper)),
       AbstractSetMgr(AbstractSetManager(SemaRef, Info.VarUses)),
       IncludeNullTerminator(false) {}
 
@@ -2612,6 +2621,9 @@ namespace {
       Context(SemaRef.Context),
       Facts(Facts),
       BoundsAnalyzer(BoundsAnalysis(SemaRef, nullptr)),
+      BoundsWideningAnalyzer(BoundsWideningAnalysis(SemaRef, nullptr,
+                                                    Info.BoundsVarsLower,
+                                                    Info.BoundsVarsUpper)),
       AbstractSetMgr(AbstractSetManager(SemaRef, Info.VarUses)),
       IncludeNullTerminator(false) {}
 
@@ -2805,10 +2817,15 @@ namespace {
      IdentifyChecked(Body, MemoryCheckedStmts, BoundsCheckedStmts, CheckedScopeSpecifier::CSS_Unchecked);
 
      // Run the bounds widening analysis on this function.
+     BoundsWideningAnalyzer.WidenBounds(FD, NestedElements);
+     if (S.getLangOpts().DumpWidenedBounds)
+       BoundsWideningAnalyzer.DumpWidenedBounds(FD);
+
+     // Run the bounds widening analysis on this function.
      BoundsAnalysis &BA = getBoundsAnalyzer();
      BA.WidenBounds(FD, NestedElements);
-     if (S.getLangOpts().DumpWidenedBounds)
-       BA.DumpWidenedBounds(FD);
+//     if (S.getLangOpts().DumpWidenedBounds)
+//       BA.DumpWidenedBounds(FD);
 
      PostOrderCFGView POView = PostOrderCFGView(Cfg);
      ResetFacts();
@@ -4404,6 +4421,9 @@ namespace {
     }
 
     BoundsAnalysis &getBoundsAnalyzer() { return BoundsAnalyzer; }
+    BoundsWideningAnalysis &getBoundsWideningAnalyzer() {
+      return BoundsWideningAnalyzer;
+    }
 
   private:
     // Sets the bounds expressions based on whether e is an lvalue or an
