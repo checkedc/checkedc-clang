@@ -214,9 +214,8 @@ void updated_source_bounds3(struct S *s) {
   // CHECK-NEXT: }
 
   // Observed bounds context after assignment: { s->f => bounds(unknown), s->g => bounds(unknown) }
-  // Note: we do not currently compute an original value for s->f.
-  // Original source bounds for the RHS: bounds(s->f, s->f + 3)
-  // Adjusted source bounds returned for the RHS: bounds(s->f, s->f + 3)
+  // This is not an invertible assignment, so there will not be an original
+  // value for s->f even when we implement invertibility for member expressions.
   s->f = s->g;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
