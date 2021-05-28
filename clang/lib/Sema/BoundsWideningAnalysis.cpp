@@ -458,7 +458,7 @@ void BoundsWideningAnalysis::GetModifiedVars(const Stmt *CurrStmt,
 }
 
 Expr *BoundsWideningAnalysis::GetWidenedExpr(Expr *E, unsigned Offset) const {
-  // CopyAurns the expression E + Offset.
+  // Returns the expression E + Offset.
   // Note: This function only returns the expression E + Offset and does not
   // actually evaluate the expression. So if E does not overflow then E +
   // Offset does not overflow here. However, E + Offset may later overflow when
@@ -606,7 +606,7 @@ bool BoundsWideningAnalysis::IsNtArrayType(const VarDecl *V) const {
 bool BoundsWideningAnalysis::IsSubRange(RangeBoundsExpr *B1,
                                         RangeBoundsExpr *B2) const {
   // If B2 is a subrange of B1, then
-  // B2.Lower >= B1.Lower and B1.Upper <= B2.Upper
+  // B2.Lower >= B1.Lower and B2.Upper <= B1.Upper
 
   // Examples:
   // B1 = bounds(p, p + 5) and B2 = bounds(p + 1, p + 3) ==> True
@@ -619,6 +619,8 @@ bool BoundsWideningAnalysis::IsSubRange(RangeBoundsExpr *B1,
   // B1 = bounds(p, p + 5) and B2 = bounds(p - 1, p + 1) ==> False
   // B1 = bounds(p, p + 5) and B2 = bounds(p + 6, p + 10) ==> False
   // B1 = bounds(p + 5, p + 6) and B2 = bounds(p, p + 5) ==> False
+  // B1 = bounds(p, p + 5) and B2 = bounds(p, p + x) ==> False
+  // B1 = bounds(p, p + x) and B2 = bounds(p, p + x + y) ==> False
 
   // To determine if B2 is a subrange of B1 we check if:
   // B2.Lower - B1.Lower >= 0 and B1.Upper - B2.Upper >= 0
@@ -629,11 +631,15 @@ bool BoundsWideningAnalysis::IsSubRange(RangeBoundsExpr *B1,
   Expr *Lower2 = B2->getLowerExpr();
   Expr *Upper2 = B2->getUpperExpr();
 
+  llvm::APSInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
   llvm::APSInt Offset;
+
+  // Lex.GetDerefOffset returns false if the two input expressions are not
+  // comparable. This may happen if either of the expressions contains a
+  // variable that is not present in the other.
   if (!Lex.GetDerefOffset(Lower2, Lower1, Offset))
     return false;
 
-  llvm::APSInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
   if (llvm::APSInt::compareValues(Offset, Zero) < 0)
     return false;
 
