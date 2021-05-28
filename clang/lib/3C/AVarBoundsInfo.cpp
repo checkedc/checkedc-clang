@@ -1403,6 +1403,16 @@ bool AVarBoundsInfo::areSameProgramVar(BoundsKey B1, BoundsKey B2) {
   return B1 == B2;
 }
 
+bool AVarBoundsInfo::isFuncParamBoundsKey(BoundsKey BK, unsigned &PIdx) {
+  auto &ParmBkeyToPSL = ParamDeclVarMap.right();
+  if (ParmBkeyToPSL.find(BK) != ParmBkeyToPSL.end()) {
+    auto &ParmTup = ParmBkeyToPSL.at(BK);
+    PIdx = std::get<3>(ParmTup);
+    return true;
+  }
+  return false;
+}
+
 std::set<BoundsKey>
 AVarBoundsInfo::getCtxSensFieldBoundsKey(Expr *E, ASTContext *C,
                                          ProgramInfo &I) {

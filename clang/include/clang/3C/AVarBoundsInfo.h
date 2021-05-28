@@ -255,6 +255,10 @@ public:
 
   bool areSameProgramVar(BoundsKey B1, BoundsKey B2);
 
+  // Check if the provided BoundsKey is for a function param?
+  // If yes, provide the index of the parameter.
+  bool isFuncParamBoundsKey(BoundsKey BK, unsigned &PIdx);
+
 private:
   friend class AvarBoundsInference;
   friend class CtxSensitiveBoundsKeyHandler;

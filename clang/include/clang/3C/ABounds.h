@@ -41,11 +41,16 @@ private:
 protected:
   ABounds(BoundsKind K) : Kind(K) {}
   void addBoundsUsedKey(BoundsKey);
+  // Get the variable name of the the given bounds key that corresponds
+  // to the given declaration.
+  static std::string getBoundsKeyStr(BoundsKey ,
+                                     AVarBoundsInfo *,
+                                     clang::Decl *);
 
 public:
   virtual ~ABounds() {}
 
-  virtual std::string mkString(AVarBoundsInfo *) = 0;
+  virtual std::string mkString(AVarBoundsInfo *, clang::Decl *D = nullptr) = 0;
   virtual bool areSame(ABounds *, AVarBoundsInfo *) = 0;
   virtual BoundsKey getBKey() = 0;
   virtual ABounds *makeCopy(BoundsKey NK) = 0;
@@ -67,7 +72,7 @@ public:
 
   virtual ~CountBound() {}
 
-  std::string mkString(AVarBoundsInfo *ABI) override;
+  std::string mkString(AVarBoundsInfo *ABI, clang::Decl *D = nullptr) override;
   bool areSame(ABounds *O, AVarBoundsInfo *ABI) override;
   BoundsKey getBKey() override;
   ABounds *makeCopy(BoundsKey NK) override;
@@ -90,7 +95,7 @@ public:
 
   virtual ~ByteBound() {}
 
-  std::string mkString(AVarBoundsInfo *ABI) override;
+  std::string mkString(AVarBoundsInfo *ABI, clang::Decl *D = nullptr) override;
   bool areSame(ABounds *O, AVarBoundsInfo *ABI) override;
   BoundsKey getBKey() override;
   ABounds *makeCopy(BoundsKey NK) override;
@@ -113,7 +118,7 @@ public:
 
   virtual ~RangeBound() {}
 
-  std::string mkString(AVarBoundsInfo *ABI) override;
+  std::string mkString(AVarBoundsInfo *ABI, clang::Decl *D = nullptr) override;
   bool areSame(ABounds *O, AVarBoundsInfo *ABI) override;
 
   BoundsKey getBKey() override {
