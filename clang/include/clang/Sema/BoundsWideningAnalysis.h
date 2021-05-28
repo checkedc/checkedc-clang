@@ -16,6 +16,7 @@
 
 #include "clang/AST/CanonBounds.h"
 #include "clang/AST/ExprUtils.h"
+#include "clang/AST/PrettyPrinter.h"
 #include "clang/Analysis/Analyses/PostOrderCFGView.h"
 #include "clang/Sema/CheckedCAnalysesPrepass.h"
 #include "clang/Sema/Sema.h"
@@ -37,6 +38,10 @@ namespace clang {
 
   // StmtSetTy denotes a set of statements.
   using StmtSetTy = llvm::SmallPtrSet<const Stmt *, 16>;
+
+  // StmtMapTy denotes a map of a statement to another statement. This is used
+  // to store the mapping of a statement to its previous statement in a block.
+  using StmtMapTy = llvm::DenseMap<const Stmt *, const Stmt *>;
 
   // ExprVarsTy maps an expression to a set of variables. If E is an expression
   // dereferencing a null-terminated array, then ExprVarsTy maps the expression
@@ -74,9 +79,8 @@ namespace clang {
       // The StmtKill and UnionKill sets for each statement in a block.
       StmtVarSetTy StmtKill, UnionKill;
 
-      // The second last statement of the block. This is nullptr if the block
-      // has less than 2 statements.
-      const Stmt *SecondLastStmt;
+      // A mapping from a statement to its previous statement in a block.
+      StmtMapTy PrevStmtMap;
       // The last statement of the block. This is nullptr if the block is empty.
       const Stmt *LastStmt;
       // The terminating condition that dereferences a pointer. This is nullptr
@@ -112,8 +116,7 @@ namespace clang {
                            BoundsVarsTy &BoundsVarsUpper) :
       SemaRef(SemaRef), Cfg(Cfg), Ctx(SemaRef.Context),
       BoundsVarsLower(BoundsVarsLower), BoundsVarsUpper(BoundsVarsUpper),
-      Lex(Lexicographic(Ctx, nullptr)),
-      OS(llvm::outs()) {}
+      Lex(Lexicographic(Ctx, nullptr)), OS(llvm::outs()), Top(nullptr) {}
 
     // Run the dataflow analysis to widen bounds for null-terminated arrays.
     // @param[in] FD is the current function.
@@ -169,7 +172,7 @@ namespace clang {
     // @param[in] PredBlock is a predecessor block of the current block.
     // @param[in] CurrBlock is the current block.
     // @return Returns true if the edge is a true edge, false otherwise.
-    bool IsEdgeTrue(const CFGBlock *PredBlock, const CFGBlock *CurrBlock);
+    bool IsEdgeTrue(const CFGBlock *PredBlock, const CFGBlock *CurrBlock) const;
 
     // Update the set of all variables in the function that are pointers to
     // null-terminated arrays.
@@ -214,13 +217,13 @@ namespace clang {
     // @param[in] E is the given expression.
     // @param[out] VarsToWiden is a set of variables that can be potentially
     // widened in expression E.
-    void GetVarsToWiden(Expr *E, VarSetTy &VarsToWiden);
+    void GetVarsToWiden(Expr *E, VarSetTy &VarsToWiden) const;
 
     // Get all variables modified by CurrStmt or statements nested in CurrStmt.
     // @param[in] CurrStmt is a given statement.
     // @param[out] ModifiedVars is a set of variables modified by CurrStmt or
     // statements nested in CurrStmt.
-    void GetModifiedVars(const Stmt *CurrStmt, VarSetTy &ModifiedVars);
+    void GetModifiedVars(const Stmt *CurrStmt, VarSetTy &ModifiedVars) const;
 
     // Add an offset to a given expression to get the widened expression.
     // @param[in] E is the given expression.
@@ -274,13 +277,25 @@ namespace clang {
     // widened after the statement.
     // @param[in] EB is the current ElevatedCFGBlock.
     // @param[in] CurrStmt is the current statement.
-    BoundsMapTy GetStmtOut(ElevatedCFGBlock *EB, const Stmt *CurrStmt);
+    BoundsMapTy GetStmtOut(ElevatedCFGBlock *EB, const Stmt *CurrStmt) const;
+
+    // Get the In set for the statement. This set represents the bounds
+    // widened before the statement.
+    // @param[in] EB is the current ElevatedCFGBlock.
+    // @param[in] CurrStmt is the current statement.
+    BoundsMapTy GetStmtIn(ElevatedCFGBlock *EB, const Stmt *CurrStmt) const;
+
+    // Check if B2 is a subrange of B1.
+    // @param[in] B1 is the first range.
+    // @param[in] B2 is the second range.
+    // @return Returns true if B2 is a subrange of B1, false otherwise.
+    bool IsSubRange(RangeBoundsExpr *B1, RangeBoundsExpr *B2) const;
 
     // Order the blocks by block number to get a deterministic iteration order
     // for the blocks.
     // @return Blocks ordered by block number from higher to lower since block
     // numbers decrease from entry to exit.
-    OrderedBlocksTy GetOrderedBlocks();
+    OrderedBlocksTy GetOrderedBlocks() const;
 
     // Compute the set difference of sets A and B.
     // @param[in] A is a set.

@@ -79,11 +79,10 @@ void BoundsWideningAnalysis::ComputeGenKillSets(ElevatedCFGBlock *EB) {
       ComputeUnionGenKillSets(EB, CurrStmt, PrevStmt);
       UpdateNtPtrsInFunc(EB, CurrStmt);
 
+      EB->PrevStmtMap[CurrStmt] = PrevStmt;
       PrevStmt = CurrStmt;
 
-      if (I == E - 2)
-        EB->SecondLastStmt = CurrStmt;
-      else if (I == E - 1)
+      if (I == E - 1)
         EB->LastStmt = CurrStmt;
     }
   }
@@ -165,26 +164,26 @@ void BoundsWideningAnalysis::ComputeBlockGenKillSets(ElevatedCFGBlock *EB) {
 }
 
 void BoundsWideningAnalysis::ComputeInSet(ElevatedCFGBlock *EB) {
-  // Iterate through all preds of EB.
-  for (const CFGBlock *pred : EB->Block->preds()) {
-    if (SkipBlock(pred))
+  // Iterate through all the predecessor blocks of EB.
+  for (const CFGBlock *PredBlock : EB->Block->preds()) {
+    if (SkipBlock(PredBlock))
       continue;
 
-    ElevatedCFGBlock *PredEB = BlockMap[pred];
+    ElevatedCFGBlock *PredEB = BlockMap[PredBlock];
     auto PredOut = PredEB->Out;
 
     BoundsMapTy GenOfLastStmt = PredEB->StmtGen[PredEB->LastStmt];
-    BoundsMapTy StmtInOfLastStmt = GetStmtOut(PredEB, PredEB->SecondLastStmt);
 
-    for (auto Item : GenOfLastStmt) {
-      const VarDecl *V = Item.first;
+    BoundsMapTy StmtInOfLastStmt = GetStmtIn(PredEB, PredEB->LastStmt);
+
+    for (auto VarBoundsPair : GenOfLastStmt) {
+      const VarDecl *V = VarBoundsPair.first;
       RangeBoundsExpr *BoundsBeforeLastStmt = StmtInOfLastStmt[V];
 
-      bool IsTrueEdge = IsEdgeTrue(pred, EB->Block);
+      bool IsTrueEdge = IsEdgeTrue(PredBlock, EB->Block);
       bool IsDerefAtUpperBound =
-        Lex.CompareExpr(PredEB->TermCondDerefExpr,
-                        BoundsBeforeLastStmt->getUpperExpr()) ==
-        Lexicographic::Result::Equal;
+        Lex.CompareExprSemantically(PredEB->TermCondDerefExpr,
+                                    BoundsBeforeLastStmt->getUpperExpr());
 
       // If the edge from pred to current block is not a true edge then we
       // cannot widen the bounds upon entry to the current block. So we reset
@@ -206,7 +205,7 @@ void BoundsWideningAnalysis::ComputeInSet(ElevatedCFGBlock *EB) {
 }
 
 bool BoundsWideningAnalysis::IsEdgeTrue(const CFGBlock *PredBlock,
-                                        const CFGBlock *CurrBlock) {
+                                        const CFGBlock *CurrBlock) const {
   // Is the edge from PredBlock to CurrBlock a true edge?
   // A true edge is never the last edge in the list of outgoing edges of a
   // block.
@@ -235,7 +234,7 @@ void BoundsWideningAnalysis::InitBlockInOutSets(ElevatedCFGBlock *EB) {
 }
 
 BoundsMapTy BoundsWideningAnalysis::GetStmtOut(ElevatedCFGBlock *EB,
-                                               const Stmt *CurrStmt) {
+                                               const Stmt *CurrStmt) const {
   if (CurrStmt) {
     auto Diff = Difference(EB->In, EB->UnionKill[CurrStmt]);
     return Union(Diff, EB->UnionGen[CurrStmt]);
@@ -243,13 +242,19 @@ BoundsMapTy BoundsWideningAnalysis::GetStmtOut(ElevatedCFGBlock *EB,
   return EB->In;
 }
 
+BoundsMapTy BoundsWideningAnalysis::GetStmtIn(ElevatedCFGBlock *EB,
+                                              const Stmt *CurrStmt) const {
+  // StmtIn of a statement is equal to the StmtOut of its previous statement.
+  return GetStmtOut(EB, EB->PrevStmtMap[CurrStmt]);
+}
+
 void BoundsWideningAnalysis::UpdateNtPtrsInFunc(ElevatedCFGBlock *EB,
                                                 const Stmt *CurrStmt) {
   // Store all variables that are pointers to null-terminated arrays in
   // AllVarsInFunc. These are the variables that are in StmtGen for all
   // statements in all blocks of the function.
-  for (auto Item : EB->StmtGen[CurrStmt])
-    AllNtPtrsInFunc.insert(Item.first);
+  for (auto VarBoundsPair : EB->StmtGen[CurrStmt])
+    AllNtPtrsInFunc.insert(VarBoundsPair.first);
 }
 
 void BoundsWideningAnalysis::FillStmtGenKillSetsForBoundsDecl(
@@ -338,22 +343,23 @@ void BoundsWideningAnalysis::FillStmtKillSetForModifiedVars(
   // null-terminated array then the bounds of that null-terminated array should
   // be killed.
   for (const VarDecl *ModifiedVar : ModifiedVars) {
-    auto It = BoundsVarsLower.find(ModifiedVar);
-    if (It != BoundsVarsLower.end()) {
-      for (const VarDecl *V : It->second)
+    auto PtrVarIt = BoundsVarsLower.find(ModifiedVar);
+    if (PtrVarIt != BoundsVarsLower.end()) {
+      for (const VarDecl *V : PtrVarIt->second)
         EB->StmtKill[CurrStmt].insert(V);
     }
 
-    It = BoundsVarsUpper.find(ModifiedVar);
-    if (It != BoundsVarsUpper.end()) {
-      for (const VarDecl *V : It->second)
+    PtrVarIt = BoundsVarsUpper.find(ModifiedVar);
+    if (PtrVarIt != BoundsVarsUpper.end()) {
+      for (const VarDecl *V : PtrVarIt->second)
         EB->StmtKill[CurrStmt].insert(V);
     }
   }
 }
 
 
-void BoundsWideningAnalysis::GetVarsToWiden(Expr *E, VarSetTy &VarsToWiden) {
+void BoundsWideningAnalysis::GetVarsToWiden(Expr *E,
+                                            VarSetTy &VarsToWiden) const {
   // Determine the set of variables that can be widened in an expression.
   if (!E)
     return;
@@ -375,19 +381,19 @@ void BoundsWideningAnalysis::GetVarsToWiden(Expr *E, VarSetTy &VarsToWiden) {
   for (const VarDecl *V : VarsInExpr) {
     // Get the set of null-terminated arrays in whose upper bounds expressions
     // V occurs.
-    auto It = BoundsVarsUpper.find(V);
+    auto PtrVarIt = BoundsVarsUpper.find(V);
 
     // If V does not appear in the upper bounds expression of any
     // null-terminated array then expression E cannot potentially widen the
     // bounds of any null-terminated array.
-    if (It == BoundsVarsUpper.end())
+    if (PtrVarIt == BoundsVarsUpper.end())
       return;
 
     if (PtrsWithVarInUpperBounds.empty())
-      PtrsWithVarInUpperBounds = It->second;
+      PtrsWithVarInUpperBounds = PtrVarIt->second;
     else
       PtrsWithVarInUpperBounds = Intersect(PtrsWithVarInUpperBounds,
-                                           It->second);
+                                           PtrVarIt->second);
 
     // If the intersection of PtrsWithVarInUpperBounds is empty then expression
     // E cannot potentially widen the bounds of any null-terminated array.
@@ -423,7 +429,7 @@ void BoundsWideningAnalysis::GetVarsToWiden(Expr *E, VarSetTy &VarsToWiden) {
 }
 
 void BoundsWideningAnalysis::GetModifiedVars(const Stmt *CurrStmt,
-                                             VarSetTy &ModifiedVars) {
+                                             VarSetTy &ModifiedVars) const {
   // Get all variables modified by CurrStmt or statements nested in CurrStmt.
   if (!CurrStmt)
     return;
@@ -597,13 +603,54 @@ bool BoundsWideningAnalysis::IsNtArrayType(const VarDecl *V) const {
                V->getType()->isNtCheckedArrayType());
 }
 
+bool BoundsWideningAnalysis::IsSubRange(RangeBoundsExpr *B1,
+                                        RangeBoundsExpr *B2) const {
+  // If B2 is a subrange of B1, then
+  // B2.Lower >= B1.Lower and B1.Upper <= B2.Upper
+
+  // Examples:
+  // B1 = bounds(p, p + 5) and B2 = bounds(p + 1, p + 3) ==> True
+  // B1 = bounds(p, p + 5) and B2 = bounds(p, p + 5) ==> True
+  // B1 = bounds(p, p + 5) and B2 = bounds(p, p + 2) ==> True
+  // B1 = bounds(p, p + 5) and B2 = bounds(p + 4, p + 5) ==> True
+  // B1 = bounds(p, p + 5) and B2 = bounds(p, p) ==> True
+  // B1 = bounds(p, p + 5) and B2 = bounds(p + 5, p + 5) ==> True
+  // B1 = bounds(p, p + 5) and B2 = bounds(p, p + 6) ==> False
+  // B1 = bounds(p, p + 5) and B2 = bounds(p - 1, p + 1) ==> False
+  // B1 = bounds(p, p + 5) and B2 = bounds(p + 6, p + 10) ==> False
+  // B1 = bounds(p + 5, p + 6) and B2 = bounds(p, p + 5) ==> False
+
+  // To determine if B2 is a subrange of B1 we check if:
+  // B2.Lower - B1.Lower >= 0 and B1.Upper - B2.Upper >= 0
+
+  Expr *Lower1 = B1->getLowerExpr();
+  Expr *Upper1 = B1->getUpperExpr();
+
+  Expr *Lower2 = B2->getLowerExpr();
+  Expr *Upper2 = B2->getUpperExpr();
+
+  llvm::APSInt Offset;
+  if (!Lex.GetDerefOffset(Lower2, Lower1, Offset))
+    return false;
+
+  llvm::APSInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
+  if (llvm::APSInt::compareValues(Offset, Zero) < 0)
+    return false;
+
+  Offset = 0;
+  if (!Lex.GetDerefOffset(Upper1, Upper2, Offset))
+    return false;
+
+  return llvm::APSInt::compareValues(Offset, Zero) < 0;
+}
+
 void BoundsWideningAnalysis::DumpWidenedBounds(FunctionDecl *FD) {
   OS << "--------------------------------------\n";
-  OS << "In function: " << FD->getName() << "\n";
+  OS << "Function: " << FD->getName() << "\n";
 
   for (const CFGBlock *B : GetOrderedBlocks()) {
-    OS << "======================================";
-    B->print(OS, Cfg, SemaRef.getLangOpts(), /* ShowColors */ true);
+    OS << "--------------------------------------\n";
+    OS << "Block: " << B->getBlockID() << "\n";
 
     ElevatedCFGBlock *EB = BlockMap[B];
 
@@ -613,11 +660,11 @@ void BoundsWideningAnalysis::DumpWidenedBounds(FunctionDecl *FD) {
         if (!CurrStmt)
           continue;
 
-        BoundsMapTy WidenedBounds = GetStmtOut(EB, CurrStmt);
+        BoundsMapTy WidenedBounds = GetStmtIn(EB, CurrStmt);
 
         std::vector<const VarDecl *> Vars;
-        for (auto Item : WidenedBounds)
-          Vars.push_back(Item.first);
+        for (auto VarBoundsPair : WidenedBounds)
+          Vars.push_back(VarBoundsPair.first);
 
         llvm::sort(Vars.begin(), Vars.end(),
           [](const VarDecl *A, const VarDecl *B) {
@@ -625,25 +672,39 @@ void BoundsWideningAnalysis::DumpWidenedBounds(FunctionDecl *FD) {
                     B->getQualifiedNameAsString()) < 0;
           });
 
-        OS << "\n--------------------------------------\n";
-        OS << "### At Stmt:\n";
-        CurrStmt->dump(OS, Ctx);
-        OS << "\n### Bounds are:\n";
+        std::string Str;
+        llvm::raw_string_ostream SS(Str);
+        CurrStmt->printPretty(SS, nullptr, Ctx.getPrintingPolicy());
+
+        OS << "\nStmt: " << SS.str();
+        if (SS.str().back() != '\n')
+          OS << "\n";
+        OS << "Bounds before stmt: ";
+
         for (const VarDecl *V : Vars) {
-          OS << V->getQualifiedNameAsString() << ": ";
-          WidenedBounds[V]->dump();
+          RangeBoundsExpr *Bounds = WidenedBounds[V];
+          if (Bounds == Top)
+            continue;
+          Expr *Lower = Bounds->getLowerExpr();
+          Expr *Upper = Bounds->getUpperExpr();
+
+          OS << V->getQualifiedNameAsString() << ": bounds(";
+          Lower->printPretty(OS, nullptr, Ctx.getPrintingPolicy());
+          OS << ", ";
+          Upper->printPretty(OS, nullptr, Ctx.getPrintingPolicy());
+          OS << ")\n";
         }
       }
     }
   }
 }
 
-OrderedBlocksTy BoundsWideningAnalysis::GetOrderedBlocks() {
+OrderedBlocksTy BoundsWideningAnalysis::GetOrderedBlocks() const {
   // We order the CFG blocks based on block ID. Block IDs decrease from entry
   // to exit. So we sort in the reverse order.
   OrderedBlocksTy OrderedBlocks;
-  for (auto Item : BlockMap) {
-    const CFGBlock *B = Item.first;
+  for (auto BlockEBPair : BlockMap) {
+    const CFGBlock *B = BlockEBPair.first;
     OrderedBlocks.push_back(B);
   }
 
@@ -664,9 +725,9 @@ T BoundsWideningAnalysis::Difference(T &A, U &B) const {
     return A;
 
   auto CopyA = A;
-  for (auto ItemA : A) {
-    if (B.count(ItemA))
-      CopyA.erase(ItemA);
+  for (auto Item : A) {
+    if (B.count(Item))
+      CopyA.erase(Item);
   }
   return CopyA;
 }
@@ -674,8 +735,8 @@ T BoundsWideningAnalysis::Difference(T &A, U &B) const {
 template<class T>
 T BoundsWideningAnalysis::Union(T &A, T &B) const {
   auto CopyA = A;
-  for (auto ItemB : B)
-    CopyA.insert(ItemB);
+  for (auto Item : B)
+    CopyA.insert(Item);
 
   return CopyA;
 }
@@ -686,9 +747,9 @@ T BoundsWideningAnalysis::Intersect(T &A, T &B) const {
     return T();
 
   auto CopyA = A;
-  for (auto ItemA : A) {
-    if (!B.count(ItemA))
-      CopyA.erase(ItemA);
+  for (auto Item : A) {
+    if (!B.count(Item))
+      CopyA.erase(Item);
   }
   return CopyA;
 }
@@ -708,9 +769,9 @@ BoundsMapTy BoundsWideningAnalysis::Difference<BoundsMapTy, VarSetTy>(
     return A;
 
   auto CopyA = A;
-  for (auto ItemA : A) {
-    if (B.count(ItemA.first))
-      CopyA.erase(ItemA.first);
+  for (auto VarBoundsPair : A) {
+    if (B.count(VarBoundsPair.first))
+      CopyA.erase(VarBoundsPair.first);
   }
   return CopyA;
 }
@@ -723,19 +784,19 @@ BoundsMapTy BoundsWideningAnalysis::Intersect<BoundsMapTy>(
     return A;
 
   auto CopyA = A;
-  for (auto ItemB : B) {
-    const VarDecl *V = ItemB.first;
-    auto IterA = CopyA.find(V);
-    if (IterA == CopyA.end()) {
+  for (auto VarBoundsPair : B) {
+    const VarDecl *V = VarBoundsPair.first;
+    auto VarBoundsIt = CopyA.find(V);
+    if (VarBoundsIt == CopyA.end()) {
       CopyA.erase(V);
       continue;
     }
 
-    RangeBoundsExpr *BoundsCopyA = IterA->second;
-    RangeBoundsExpr *BoundsB = ItemB.second;
+    RangeBoundsExpr *BoundsA = VarBoundsIt->second;
+    RangeBoundsExpr *BoundsB = VarBoundsPair.second;
 
-    if (BoundsCopyA == Top ||
-        SemaRef.IsSubRange(BoundsCopyA, BoundsB))
+    // Pick B if A is Top or if B is a subrange of A.
+    if (BoundsA == Top || IsSubRange(BoundsA, BoundsB))
       CopyA[V] = BoundsB;
   }
   return CopyA;
@@ -746,8 +807,8 @@ BoundsMapTy BoundsWideningAnalysis::Union<BoundsMapTy>(
   BoundsMapTy &A, BoundsMapTy &B) const {
 
   auto CopyA = A;
-  for (auto ItemB : B)
-    CopyA[ItemB.first] = ItemB.second;
+  for (auto VarBoundsPair : B)
+    CopyA[VarBoundsPair.first] = VarBoundsPair.second;
 
   return CopyA;
 }
@@ -760,21 +821,21 @@ bool BoundsWideningAnalysis::IsEqual<BoundsMapTy>(
     return false;
 
   auto CopyA = A;
-  for (auto ItemB : B) {
-    const VarDecl *V = ItemB.first;
+  for (auto VarBoundsPair : B) {
+    const VarDecl *V = VarBoundsPair.first;
 
-    auto IterA = CopyA.find(V);
-    if (IterA == CopyA.end())
+    auto VarBoundsIt = CopyA.find(V);
+    if (VarBoundsIt == CopyA.end())
       return false;
 
-    RangeBoundsExpr *BoundsA = IterA->second;
-    RangeBoundsExpr *BoundsB = ItemB.second;
+    RangeBoundsExpr *BoundsA = VarBoundsIt->second;
+    RangeBoundsExpr *BoundsB = VarBoundsPair.second;
 
     if (BoundsA == Top || BoundsB == Top)
       return BoundsA == BoundsB;
 
-    if (Lex.CompareExpr(BoundsA->getUpperExpr(), BoundsB->getUpperExpr()) !=
-        Lexicographic::Result::Equal)
+    if (!Lex.CompareExprSemantically(BoundsA->getUpperExpr(),
+                                     BoundsB->getUpperExpr()))
       return false;
   }
   return true;
