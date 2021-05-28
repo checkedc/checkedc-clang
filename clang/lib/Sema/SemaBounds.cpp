@@ -5420,25 +5420,26 @@ namespace {
     }
 
     // Inverse repeatedly applies mathematical rules to the expression E to
-    // get the inverse of E with respect to the variable V and expression F.
-    // If rules cannot be applied to E, Inverse returns nullptr.
-    Expr *Inverse(DeclRefExpr *V, Expr *F, Expr *E) {
+    // get the inverse of E with respect to the lvalue expression LValue and
+    // expression F. If rules cannot be applied to E, Inverse returns nullptr.
+    Expr *Inverse(Expr *LValue, Expr *F, Expr *E) {
       if (!F)
         return nullptr;
 
       E = E->IgnoreParens();
-      if (VariableUtil::IsRValueCastOfVariable(S, E, V))
+      Expr *RValueChild = ExprUtil::GetRValueCastChild(S, E);
+      if (RValueChild && EqualValue(S.Context, LValue, RValueChild, nullptr))
         return F;
 
       switch (E->getStmtClass()) {
         case Expr::UnaryOperatorClass:
-          return UnaryOperatorInverse(V, F, cast<UnaryOperator>(E));
+          return UnaryOperatorInverse(LValue, F, cast<UnaryOperator>(E));
         case Expr::BinaryOperatorClass:
-          return BinaryOperatorInverse(V, F, cast<BinaryOperator>(E));
+          return BinaryOperatorInverse(LValue, F, cast<BinaryOperator>(E));
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass:
         case Expr::BoundsCastExprClass:
-          return CastExprInverse(V, F, cast<CastExpr>(E));
+          return CastExprInverse(LValue, F, cast<CastExpr>(E));
         default:
           return nullptr;
       }
@@ -5447,7 +5448,7 @@ namespace {
     }
 
     // Returns the inverse of a unary operator.
-    Expr *UnaryOperatorInverse(DeclRefExpr *X, Expr *F, UnaryOperator *E) {
+    Expr *UnaryOperatorInverse(Expr *LValue, Expr *F, UnaryOperator *E) {
       Expr *SubExpr = E->getSubExpr()->IgnoreParens();
       UnaryOperatorKind Op = E->getOpcode();
       
@@ -5455,7 +5456,7 @@ namespace {
         // Inverse(f, &*e1) = Inverse(f, e1)
         if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
           if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_Deref)
-            return Inverse(X, F, UnarySubExpr->getSubExpr());
+            return Inverse(LValue, F, UnarySubExpr->getSubExpr());
         }
         // Inverse(f, &e1[e2]) = Inverse(f, e1 + e2)
         else if (ArraySubscriptExpr *ArraySubExpr = dyn_cast<ArraySubscriptExpr>(SubExpr)) {
@@ -5468,7 +5469,7 @@ namespace {
                              Base->getObjectKind(),
                              SourceLocation(),
                              FPOptionsOverride());
-          return Inverse(X, F, &Sum);
+          return Inverse(LValue, F, &Sum);
         }
       }
 
@@ -5476,7 +5477,7 @@ namespace {
       if (Op == UnaryOperatorKind::UO_Deref) {
         if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
           if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_AddrOf)
-            return Inverse(X, F, UnarySubExpr->getSubExpr());
+            return Inverse(LValue, F, UnarySubExpr->getSubExpr());
         }
       }
 
@@ -5491,65 +5492,65 @@ namespace {
                                        SourceLocation(),
                                        E->canOverflow(),
                                        FPOptionsOverride());
-      return Inverse(X, F1, SubExpr);
+      return Inverse(LValue, F1, SubExpr);
     }
 
     // Returns the inverse of a binary operator.
-    Expr *BinaryOperatorInverse(DeclRefExpr *X, Expr *F, BinaryOperator *E) {
-      std::pair<Expr *, Expr*> Pair = SplitByVarCount(X, E->getLHS(), E->getRHS());
+    Expr *BinaryOperatorInverse(Expr *LValue, Expr *F, BinaryOperator *E) {
+      std::pair<Expr *, Expr*> Pair = SplitByLValueCount(LValue, E->getLHS(), E->getRHS());
       if (!Pair.first)
         return nullptr;
 
-      Expr *E_X = Pair.first, *E_NotX = Pair.second;
+      Expr *E_LValue = Pair.first, *E_NotLValue = Pair.second;
       BinaryOperatorKind Op = E->getOpcode();
       Expr *F1 = nullptr;
 
       switch (Op) {
         case BinaryOperatorKind::BO_Add:
-          // Inverse(f, e1 + e2) = Inverse(f - e_notx, e_x)
-          F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotX, BinaryOperatorKind::BO_Sub);
+          // Inverse(f, e1 + e2) = Inverse(f - e_notlvalue, e_lvalue)
+          F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotLValue, BinaryOperatorKind::BO_Sub);
           break;
         case BinaryOperatorKind::BO_Sub: {
-          if (E_X == E->getLHS())
-            // Inverse(f, e_x - e_notx) = Inverse(f + e_notx, e_x)
-            F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotX, BinaryOperatorKind::BO_Add);
+          if (E_LValue == E->getLHS())
+            // Inverse(f, e_lvalue - e_notlvalue) = Inverse(f + e_notlvalue, e_lvalue)
+            F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotLValue, BinaryOperatorKind::BO_Add);
           else
-            // Inverse(f, e_notx - e_x) => Inverse(e_notx - f, e_x)
-            F1 = ExprCreatorUtil::CreateBinaryOperator(S, E_NotX, F, BinaryOperatorKind::BO_Sub);
+            // Inverse(f, e_notlvalue - e_lvalue) => Inverse(e_notlvalue - f, e_lvalue)
+            F1 = ExprCreatorUtil::CreateBinaryOperator(S, E_NotLValue, F, BinaryOperatorKind::BO_Sub);
           break;
         }
         case BinaryOperatorKind::BO_Xor:
-          // Inverse(f, e1 ^ e2) = Inverse(x, f ^ e_notx, e_x)
-          F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotX, BinaryOperatorKind::BO_Xor);
+          // Inverse(f, e1 ^ e2) = Inverse(lvalue, f ^ e_notlvalue, e_lvalue)
+          F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotLValue, BinaryOperatorKind::BO_Xor);
           break;
         default:
           llvm_unreachable("unexpected binary operator kind");
       }
 
-      return Inverse(X, F1, E_X);
+      return Inverse(LValue, F1, E_LValue);
     }
 
     // Returns the inverse of a cast expression.  If e1 has type T2,
     // Inverse(f, (T1)e1) = Inverse((T2)f, e1) (assuming that (T1) is
     // not a narrowing cast).
-    Expr *CastExprInverse(DeclRefExpr *X, Expr *F, CastExpr *E) {
+    Expr *CastExprInverse(Expr *LValue, Expr *F, CastExpr *E) {
       QualType T2 = E->getSubExpr()->getType();
       switch (E->getStmtClass()) {
         case Expr::ImplicitCastExprClass: {
           Expr *F1 = CreateImplicitCast(T2, E->getCastKind(), F);
-          return Inverse(X, F1, E->getSubExpr());
+          return Inverse(LValue, F1, E->getSubExpr());
         }
         case Expr::CStyleCastExprClass: {
           Expr *F1 = CreateExplicitCast(T2, E->getCastKind(), F,
                                         E->isBoundsSafeInterface());
-          return Inverse(X, F1, E->getSubExpr());
+          return Inverse(LValue, F1, E->getSubExpr());
         }
         case Expr::BoundsCastExprClass: {
           CHKCBindTemporaryExpr *Temp = dyn_cast<CHKCBindTemporaryExpr>(E->getSubExpr());
           assert(Temp);
           Expr *F1 = CreateExplicitCast(T2, CastKind::CK_BitCast, F,
                                         E->isBoundsSafeInterface());
-          return Inverse(X, F1, Temp->getSubExpr());
+          return Inverse(LValue, F1, Temp->getSubExpr());
         }
         default:
           llvm_unreachable("unexpected cast kind");
