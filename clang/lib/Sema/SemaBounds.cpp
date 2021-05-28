@@ -4911,24 +4911,15 @@ namespace {
           State.BlameAssignments[A] = E;
       }
 
-      // Adjust SrcBounds to account for any uses of LValue, if LValue is
-      // not a MemberExpr. We do not currently compute an original value
-      // for MemberExprs, so if SrcBounds uses the value of LValue and LValue
-      // is a MemberExpr, then SrcBounds will be set to bounds(unknown).
-      // This will result in unwanted errors for assignments such as
-      // s->p = s->p or s->p = s->p + 1, where s->p appears in its own bounds.
-      // TODO: compute original values for MemberExprs.
+      // Adjust SrcBounds to account for any uses of LValue.
       BoundsExpr *AdjustedSrcBounds = SrcBounds;
-      if (!M) {
-        // If LValue has target bounds, then the observed bounds of LValue
-        // are already SrcBounds adjusted to account for any use of LValue.
-        if (HasTargetBounds)
-          AdjustedSrcBounds = State.ObservedBounds[LValueAbstractSet];
-        else
-          AdjustedSrcBounds = ReplaceLValueInBounds(SrcBounds, LValue,
-                                                    OriginalValue, CSS);
-      }
-      
+      // If LValue has target bounds, then the observed bounds of LValue
+      // are already SrcBounds adjusted to account for any use of LValue.
+      if (HasTargetBounds)
+        AdjustedSrcBounds = State.ObservedBounds[LValueAbstractSet];
+      else
+        AdjustedSrcBounds = ReplaceLValueInBounds(SrcBounds, LValue,
+                                                  OriginalValue, CSS);
 
       // Record that E updates the observed bounds of LValue.
       if (HasTargetBounds)
