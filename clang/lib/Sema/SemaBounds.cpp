@@ -4813,13 +4813,12 @@ namespace {
       if (!V && !isa<MemberExpr>(LValue))
         return SrcBounds;
 
-      // If LValue is a variable V, get the original value (if any) of V
-      // before the assignment, and determine whether the original value
-      // uses the value of V.
+      // Get the original value (if any) of LValue before the assignment,
+      // and determine whether the original value uses the value of LValue.
       // OriginalValue is named OV in the Checked C spec.
-      bool OriginalValueUsesV = false;
-      Expr *OriginalValue = GetOriginalValue(V, Target, Src,
-                              State.EquivExprs, OriginalValueUsesV);
+      bool OriginalValueUsesLValue = false;
+      Expr *OriginalValue = GetOriginalValue(LValue, Target, Src,
+                              State.EquivExprs, OriginalValueUsesLValue);
 
       BoundsExpr *ResultBounds = UpdateBoundsAfterAssignment(LValue, E, Src,
                                                              SrcBounds,
@@ -4827,7 +4826,7 @@ namespace {
                                                              CSS, State);
       UpdateEquivExprsAfterAssignment(LValue, OriginalValue, CSS, State);
       UpdateSameValueAfterAssignment(LValue, OriginalValue,
-                                     OriginalValueUsesV, CSS, State);
+                                     OriginalValueUsesLValue, CSS, State);
       RecordEqualityWithTarget(LValue, Target, Src, State);
 
       return ResultBounds;
@@ -5196,38 +5195,45 @@ namespace {
     // Methods to get the original value of an expression.
 
     // GetOriginalValue returns the original value (if it exists) of the
-    // expression Src with respect to the variable V in an assignment V = Src.
+    // expression Src with respect to the expression LValue in an assignment
+    // LValue = Src.
     //
     // Target is the target expression of the assignment (that accounts for
-    // any necessary casts of V).
+    // any necessary casts of LValue).
     //
-    // The out parameter OriginalValueUsesV will be set to true if the original
-    // value uses the value of the variable V.  This prevents callers from
-    // having to compute the variable occurrence count of V in the original
-    // value, since GetOriginalValue computes this count while trying to
-    // construct the inverse expression of the source with respect to V.
-    Expr *GetOriginalValue(DeclRefExpr *V, Expr *Target, Expr *Src,
-                           const EquivExprSets EQ, bool &OriginalValueUsesV) {
-      if (!V) {
-        OriginalValueUsesV = false;
-        return nullptr;
-      }
-
-      // Check if Src has an inverse expression with respect to v.
+    // The out parameter OriginalValueUsesLValue will be set to true if the
+    // original value uses the value of LValue.
+    // This prevents callers from having to compute the occurrence count of
+    // LValue in the original value, since GetOriginalValue computes this
+    // count while trying to construct the inverse expression of the source
+    // with respect to LValue.
+    Expr *GetOriginalValue(Expr *LValue, Expr *Target, Expr *Src,
+                           const EquivExprSets EQ,
+                           bool &OriginalValueUsesLValue) {
+      // Check if Src has an inverse expression with respect to LValue.
       Expr *IV = nullptr;
-      if (IsInvertible(V, Src))
-        IV = Inverse(V, Target, Src);
+      if (IsInvertible(LValue, Src))
+        IV = Inverse(LValue, Target, Src);
       if (IV) {
-        // If Src has an inverse with respect to v, then the original
-        // value (the inverse) must use the value of v.
-        OriginalValueUsesV = true;
+        // If Src has an inverse with respect to LValue, then the original
+        // value (the inverse) must use the value of LValue.
+        OriginalValueUsesLValue = true;
         return IV;
       }
 
+      // If Src does not have an inverse with respect to LValue, then we
+      // search the set EQ for a variable equivalent to LValue. In this
+      // case, LValue must be a variable V.
+      DeclRefExpr *V = VariableUtil::GetLValueVariable(S, LValue);
+      if (!V) {
+        OriginalValueUsesLValue = false;
+        return nullptr;
+      }
+
       // If Src does not have an inverse with respect to v, then the original
-      // value is either some variable w != v in EQ, or it is null.  In either
+      // value is either some variable w != v in EQ, or it is null. In either
       // case, the original value cannot use the value of v.
-      OriginalValueUsesV = false;
+      OriginalValueUsesLValue = false;
       
       // Check EQ for a variable w != v that produces the same value as v.
       Expr *ValuePreservingV = nullptr;
