@@ -480,33 +480,57 @@ namespace {
 }
 
 namespace {
-  class VariableCountHelper : public RecursiveASTVisitor<VariableCountHelper> {
+  class LValueCountHelper : public RecursiveASTVisitor<LValueCountHelper> {
     private:
       Sema &SemaRef;
+      Lexicographic Lex;
+      Expr *LValue;
       ValueDecl *V;
       int Count;
 
     public:
-      VariableCountHelper(Sema &SemaRef, ValueDecl *V) :
+      LValueCountHelper(Sema &SemaRef, Expr *LValue, ValueDecl *V) :
         SemaRef(SemaRef),
+        Lex(Lexicographic(SemaRef.Context, nullptr)),
+        LValue(LValue),
         V(V),
         Count(0) {}
 
       int GetCount() { return Count; }
 
       bool VisitDeclRefExpr(DeclRefExpr *E) {
-        ValueDecl *D = E->getDecl();
-        if (!D)
+        // Check for an occurrence of a variable whose declaration matches V.
+        if (V) {
+          if (ValueDecl *D = E->getDecl()) {
+            if (Lex.CompareDecl(D, V) == Lexicographic::Result::Equal)
+              ++Count;
+          }
           return true;
-        Lexicographic Lex(SemaRef.Context, nullptr);
-        if (Lex.CompareDecl(D, V) == Lexicographic::Result::Equal)
+        }
+
+        // Check for an occurrence of a variable equal to LValue if LValue
+        // is a variable.
+        DeclRefExpr *Var = dyn_cast_or_null<DeclRefExpr>(LValue);
+        if (!Var)
+          return true;
+        if (Lex.CompareExpr(Var, E) == Lexicographic::Result::Equal)
+          ++Count;
+        return true;
+      }
+
+      bool VisitMemberExpr(MemberExpr *E) {
+        MemberExpr *M = dyn_cast_or_null<MemberExpr>(LValue);
+        if (!M)
+          return true;
+        if (Lex.CompareExprSemantically(E, M))
           ++Count;
         return true;
       }
 
       // Do not traverse the child of a BoundsValueExpr.
-      // If a BoundsValueExpr uses the variable V, this should not count
-      // toward the total occurrence count of V in the expression.
+      // If a BoundsValueExpr uses the expression LValue (or a variable whose
+      // declaration matches V), this should not count toward the total
+      // occurrence count of LValue or V in the expression.
       // For example, for the expression BoundsValue(TempBinding(v)) + v, the
       // total occurrence count of the variable v should be 1, not 2.
       bool TraverseBoundsValueExpr(BoundsValueExpr *E) {
@@ -519,7 +543,7 @@ namespace {
   int VariableOccurrenceCount(Sema &SemaRef, ValueDecl *V, Expr *E) {
     if (!V)
       return 0;
-    VariableCountHelper Counter(SemaRef, V);
+    LValueCountHelper Counter(SemaRef, nullptr, V);
     Counter.TraverseStmt(E);
     return Counter.GetCount();
   }
@@ -528,6 +552,12 @@ namespace {
   // variable expression in E.
   int VariableOccurrenceCount(Sema &SemaRef, DeclRefExpr *Target, Expr *E) {
     return VariableOccurrenceCount(SemaRef, Target->getDecl(), E);
+  }
+
+  int LValueOccurrenceCount(Sema &SemaRef, Expr *LValue, Expr *E) {
+    LValueCountHelper Counter(SemaRef, LValue, nullptr);
+    Counter.TraverseStmt(E);
+    return Counter.GetCount();
   }
 }
 
