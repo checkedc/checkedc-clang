@@ -721,7 +721,7 @@ namespace {
   Expr *ReplaceLValue(Sema &SemaRef, Expr *E, Expr *LValue,
                       Expr *OriginalValue,
                       CheckedScopeSpecifier CSS) {
-    // Don't transform E if does not use the value of LValue.
+    // Don't transform E if it does not use the value of LValue.
     if (!FindLValue(SemaRef, LValue, E))
       return E;
 
