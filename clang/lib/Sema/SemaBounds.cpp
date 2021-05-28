@@ -5258,44 +5258,43 @@ namespace {
       return nullptr;
     }
 
-    // IsInvertible returns true if the expression E can be inverted
-    // with respect to the variable V.
-    bool IsInvertible(DeclRefExpr *V, Expr *E) {
+    bool IsInvertible(Expr *LValue, Expr *E) {
       if (!E)
         return false;
 
       E = E->IgnoreParens();
-      if (VariableUtil::IsRValueCastOfVariable(S, E, V))
+      Expr *RValueChild = ExprUtil::GetRValueCastChild(S, E);
+      if (RValueChild && EqualValue(S.Context, LValue, RValueChild, nullptr))
         return true;
 
       switch (E->getStmtClass()) {
         case Expr::UnaryOperatorClass:
-          return IsUnaryOperatorInvertible(V, cast<UnaryOperator>(E));
+          return IsUnaryOperatorInvertible(LValue, cast<UnaryOperator>(E));
         case Expr::BinaryOperatorClass:
-          return IsBinaryOperatorInvertible(V, cast<BinaryOperator>(E));
+          return IsBinaryOperatorInvertible(LValue, cast<BinaryOperator>(E));
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass:
         case Expr::BoundsCastExprClass:
-          return IsCastExprInvertible(V, cast<CastExpr>(E));
+          return IsCastExprInvertible(LValue, cast<CastExpr>(E));
         default:
           return false;
       }
     }
 
-    // Returns true if a unary operator is invertible with respect to x.
-    bool IsUnaryOperatorInvertible(DeclRefExpr *X, UnaryOperator *E) {
+    // Returns true if a unary operator is invertible with respect to LValue.
+    bool IsUnaryOperatorInvertible(Expr *LValue, UnaryOperator *E) {
       Expr *SubExpr = E->getSubExpr()->IgnoreParens();
       UnaryOperatorKind Op = E->getOpcode();
 
       if (Op == UnaryOperatorKind::UO_AddrOf) {
-        // &*e1 is invertible with respect to x if e1 is invertible with
-        // respect to x.
+        // &*e1 is invertible with respect to LValue if e1 is invertible with
+        // respect to LValue.
         if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
           if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_Deref)
-            return IsInvertible(X, UnarySubExpr->getSubExpr());
+            return IsInvertible(LValue, UnarySubExpr->getSubExpr());
         }
-        // &e1[e2] is invertible with respect to x if e1 + e2 is invertible
-        // with respect to x.
+        // &e1[e2] is invertible with respect to LValue if e1 + e2 is invertible
+        // with respect to LValue.
         else if (ArraySubscriptExpr *ArraySubExpr = dyn_cast<ArraySubscriptExpr>(SubExpr)) {
           Expr *Base = ArraySubExpr->getBase();
           Expr *Index = ArraySubExpr->getIdx();
@@ -5306,31 +5305,31 @@ namespace {
                              Base->getObjectKind(),
                              SourceLocation(),
                              FPOptionsOverride());
-          return IsInvertible(X, &Sum);
+          return IsInvertible(LValue, &Sum);
         }
       }
 
-      // *&e1 is invertible with respect to x if e1 is invertible with
-      // respect to x.
+      // *&e1 is invertible with respect to LValue if e1 is invertible with
+      // respect to LValue.
       if (Op == UnaryOperatorKind::UO_Deref) {
         if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
           if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_AddrOf)
-            return IsInvertible(X, UnarySubExpr->getSubExpr());
+            return IsInvertible(LValue, UnarySubExpr->getSubExpr());
         }
       }
 
-      // ~e1, -e1, and +e1 are invertible with respect to x if e1 is
-      // invertible with respect to x.
+      // ~e1, -e1, and +e1 are invertible with respect to LValue if e1 is
+      // invertible with respect to LValue.
       if (Op == UnaryOperatorKind::UO_Not ||
           Op == UnaryOperatorKind::UO_Minus ||
           Op == UnaryOperatorKind::UO_Plus)
-        return IsInvertible(X, SubExpr);
+        return IsInvertible(LValue, SubExpr);
 
       return false;
     }
 
-    // Returns true if a binary operator is invertible with respect to x.
-    bool IsBinaryOperatorInvertible(DeclRefExpr *X, BinaryOperator *E) {
+    // Returns true if a binary operator is invertible with respect to LValue.
+    bool IsBinaryOperatorInvertible(Expr *LValue, BinaryOperator *E) {
       BinaryOperatorKind Op = E->getOpcode();
       if (Op != BinaryOperatorKind::BO_Add &&
           Op != BinaryOperatorKind::BO_Sub &&
@@ -5339,7 +5338,7 @@ namespace {
 
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
-      
+
       // Addition and subtraction operations must be for checked pointer
       // arithmetic or unsigned integer arithmetic.
       if (Op == BinaryOperatorKind::BO_Add || Op == BinaryOperatorKind::BO_Sub) {
@@ -5357,28 +5356,29 @@ namespace {
         }
       }
 
-      // X must appear in exactly one subexpression of E and that
-      // subexpression must be invertible with respect to X.
-      std::pair<Expr *, Expr*> Pair = SplitByVarCount(X, LHS, RHS);
+      // LValue must appear in exactly one subexpression of E and that
+      // subexpression must be invertible with respect to LValue.
+      std::pair<Expr *, Expr*> Pair = SplitByLValueCount(LValue, LHS, RHS);
       if (!Pair.first)
         return false;
-      Expr *E_X = Pair.first, *E_NotX = Pair.second;
-      if (!IsInvertible(X, E_X))
+      Expr *E_LValue = Pair.first, *E_NotLValue = Pair.second;
+      if (!IsInvertible(LValue, E_LValue))
         return false;
 
-      // The subexpression not containing X must be nonmodifying
+      // The subexpression not containing LValue must be nonmodifying
       // and cannot be or contain a pointer dereference, member
       // reference, or indirect member reference.
-      if (!CheckIsNonModifying(E_NotX) || ReadsMemoryViaPointer(E_NotX, true))
+      if (!CheckIsNonModifying(E_NotLValue) ||
+          ReadsMemoryViaPointer(E_NotLValue, true))
         return false;
 
       return true;
     }
 
-    // Returns true if a cast expression is invertible with respect to x.
+    // Returns true if a cast expression is invertible with respect to LValue.
     // A cast expression (T1)e1 is invertible if T1 is a bit-preserving
     // or widening cast and e1 is invertible.
-    bool IsCastExprInvertible(DeclRefExpr *X, CastExpr *E) {
+    bool IsCastExprInvertible(Expr *LValue, CastExpr *E) {
       QualType T1 = E->getType();
       QualType T2 = E->getSubExpr()->getType();
       uint64_t Size1 = S.Context.getTypeSize(T1);
@@ -5399,20 +5399,20 @@ namespace {
         // Widening casts
         case CastKind::CK_BooleanToSignedIntegral:
         case CastKind::CK_IntegralToFloating:
-          return IsInvertible(X, E->getSubExpr());
+          return IsInvertible(LValue, E->getSubExpr());
         // Bounds casts may be invertible.
         case CastKind::CK_DynamicPtrBounds:
         case CastKind::CK_AssumePtrBounds: {
           CHKCBindTemporaryExpr *Temp =
             dyn_cast<CHKCBindTemporaryExpr>(E->getSubExpr());
           assert(Temp);
-          return IsInvertible(X, Temp->getSubExpr());
+          return IsInvertible(LValue, Temp->getSubExpr());
         }
         // Potentially non-narrowing casts, depending on type sizes
         case CastKind::CK_IntegralToPointer:
         case CastKind::CK_PointerToIntegral:
         case CastKind::CK_IntegralCast:
-          return Size1 >= Size2 && IsInvertible(X, E->getSubExpr());
+          return Size1 >= Size2 && IsInvertible(LValue, E->getSubExpr());
         // All other casts are considered narrowing.
         default:
           return false;
