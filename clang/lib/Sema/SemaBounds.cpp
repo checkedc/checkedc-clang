@@ -5827,19 +5827,20 @@ namespace {
       }
     }
 
-    // If the variable X appears exactly once in Ei and does not appear in
-    // Ej, SplitByVarCount returns the pair (Ei, Ej).  Otherwise, it returns
+    // If LValue appears exactly once in Ei and does not appear in Ej,
+    // SplitByLValueCount returns the pair (Ei, Ej).  Otherwise, it returns
     // an empty pair.
-    std::pair<Expr *, Expr *> SplitByVarCount(DeclRefExpr *X, Expr *E1, Expr *E2) {
+    std::pair<Expr *, Expr *> SplitByLValueCount(Expr *LValue,
+                                                 Expr *E1, Expr *E2) {
       std::pair<Expr *, Expr *> Pair;
-      int Count1 = VariableOccurrenceCount(S, X, E1);
-      int Count2 = VariableOccurrenceCount(S, X, E2);
+      int Count1 = LValueOccurrenceCount(S, LValue, E1);
+      int Count2 = LValueOccurrenceCount(S, LValue, E2);
       if (Count1 == 1 && Count2 == 0) {
-        // X appears once in E1 and does not appear in E2.
+        // LValue appears once in E1 and does not appear in E2.
         Pair.first = E1;
         Pair.second = E2;
       } else if (Count2 == 1 && Count1 == 0) {
-        // X appears once in E2 and does not appear in E1.
+        // LValue appears once in E2 and does not appear in E1.
         Pair.first = E2;
         Pair.second = E1;
       }
