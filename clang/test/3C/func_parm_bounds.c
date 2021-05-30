@@ -46,4 +46,4 @@ int caller() {
   return 0;
 }
 //CHECK_ALL: int arr _Checked[5];
-//CHECK_ALL: glob = _Assume_bounds_cast<_Array_ptr<int>>(malloc(gsize*sizeof(int)), byte_count(0));
+//CHECK_ALL: glob = malloc<int>(gsize*sizeof(int));
