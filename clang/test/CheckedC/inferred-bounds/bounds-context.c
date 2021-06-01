@@ -1860,13 +1860,9 @@ void inc_dec_bounds4(array_ptr<int> a : bounds(a, a)) { // expected-note {{(expa
   // CHECK-NEXT: }
 }
 
-struct S {
-  nt_array_ptr<int> f : count(1);
-};
-
 // Increment/decrement operators on non-variables or variables without declared bounds
 // do not result in bounds checking-related warnings or errors
-void inc_dec_bounds5(nt_array_ptr<int> *p, struct S s, array_ptr<int> a) {
+void inc_dec_bounds5(nt_array_ptr<int> *p, array_ptr<int> a) {
   // Observed bounds context after increment:  { }
   ++*p;
   // CHECK: Statement S:
@@ -1885,15 +1881,6 @@ void inc_dec_bounds5(nt_array_ptr<int> *p, struct S s, array_ptr<int> a) {
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
   // CHECK-NEXT:     IntegerLiteral {{.*}} 0
-  // CHECK-NEXT: Observed bounds context after checking S:
-  // CHECK-NEXT: { }
-
-  // Observed bounds context after increment:  { }
-  --s.f;
-  // CHECK: Statement S:
-  // CHECK-NEXT: UnaryOperator {{.*}} prefix '--'
-  // CHECK-NEXT:   MemberExpr {{.*}} .f
-  // CHECK-NEXT:     DeclRefExpr {{.*}} 's'
   // CHECK-NEXT: Observed bounds context after checking S:
   // CHECK-NEXT: { }
 
