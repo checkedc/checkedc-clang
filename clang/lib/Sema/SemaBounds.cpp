@@ -4912,7 +4912,7 @@ namespace {
       }
 
       // Adjust SrcBounds to account for any uses of LValue.
-      BoundsExpr *AdjustedSrcBounds = SrcBounds;
+      BoundsExpr *AdjustedSrcBounds = nullptr;
       // If LValue has target bounds, then the observed bounds of LValue
       // are already SrcBounds adjusted to account for any use of LValue.
       if (HasTargetBounds)
