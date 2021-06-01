@@ -496,7 +496,7 @@ namespace {
         V(V),
         Count(0) {}
 
-      int GetCount() { return Count; }
+      unsigned int GetCount() { return Count; }
 
       bool VisitDeclRefExpr(DeclRefExpr *E) {
         // Check for an occurrence of a variable whose declaration matches V.
@@ -540,7 +540,7 @@ namespace {
 
   // VariableOccurrenceCount returns the number of occurrences of variable
   // expressions in E whose Decls are equivalent to V.
-  int VariableOccurrenceCount(Sema &SemaRef, ValueDecl *V, Expr *E) {
+  unsigned int VariableOccurrenceCount(Sema &SemaRef, ValueDecl *V, Expr *E) {
     if (!V)
       return 0;
     LValueCountHelper Counter(SemaRef, nullptr, V);
@@ -550,11 +550,14 @@ namespace {
 
   // VariableOccurrenceCount returns the number of occurrences of the Target
   // variable expression in E.
-  int VariableOccurrenceCount(Sema &SemaRef, DeclRefExpr *Target, Expr *E) {
+  unsigned int VariableOccurrenceCount(Sema &SemaRef, DeclRefExpr *Target,
+                                       Expr *E) {
     return VariableOccurrenceCount(SemaRef, Target->getDecl(), E);
   }
 
-  int LValueOccurrenceCount(Sema &SemaRef, Expr *LValue, Expr *E) {
+  // LValueOccurrenceCount returns the number of occurrences of the LValue
+  // expression in E.
+  unsigned int LValueOccurrenceCount(Sema &SemaRef, Expr *LValue, Expr *E) {
     LValueCountHelper Counter(SemaRef, LValue, nullptr);
     Counter.TraverseStmt(E);
     return Counter.GetCount();
@@ -1685,7 +1688,7 @@ namespace {
         for (auto OuterList = Begin; OuterList != End; ++OuterList) {
           auto InnerList = *OuterList;
           int InnerListSize = InnerList.size();
-          int SrcVarCount = 0;
+          unsigned int SrcVarCount = 0;
           int SrcIndex = 0;
 
           // Search InnerList for an expression that uses the value of SrcV.
@@ -5831,8 +5834,8 @@ namespace {
     std::pair<Expr *, Expr *> SplitByLValueCount(Expr *LValue,
                                                  Expr *E1, Expr *E2) {
       std::pair<Expr *, Expr *> Pair;
-      int Count1 = LValueOccurrenceCount(S, LValue, E1);
-      int Count2 = LValueOccurrenceCount(S, LValue, E2);
+      unsigned int Count1 = LValueOccurrenceCount(S, LValue, E1);
+      unsigned int Count2 = LValueOccurrenceCount(S, LValue, E2);
       if (Count1 == 1 && Count2 == 0) {
         // LValue appears once in E1 and does not appear in E2.
         Pair.first = E1;
