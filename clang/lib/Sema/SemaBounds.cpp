@@ -486,7 +486,7 @@ namespace {
       Lexicographic Lex;
       Expr *LValue;
       ValueDecl *V;
-      int Count;
+      unsigned int Count;
 
     public:
       LValueCountHelper(Sema &SemaRef, Expr *LValue, ValueDecl *V) :
