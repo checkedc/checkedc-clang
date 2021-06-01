@@ -102,7 +102,7 @@ namespace clang {
 
 class ExprUtil {
 public:
-  // GetRValueCastChild returns the child of a possibly parenthsized
+  // GetRValueCastChild returns the child of a possibly parenthesized
   // rvalue cast.
   static Expr *GetRValueCastChild(Sema &S, Expr *E);
 };
