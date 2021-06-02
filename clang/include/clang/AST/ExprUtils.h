@@ -99,6 +99,17 @@ public:
 } // end namespace clang
 
 namespace clang {
+
+class ExprUtil {
+public:
+  // GetRValueCastChild returns the child of a possibly parenthesized
+  // rvalue cast.
+  static Expr *GetRValueCastChild(Sema &S, Expr *E);
+};
+
+} // end namespace clang
+
+namespace clang {
   // QueueSet is a queue backed by a set. The queue is useful for processing
   // the items in a Topological sort order which means that if item1 is a
   // predecessor of item2 then item1 is processed before item2. The set is

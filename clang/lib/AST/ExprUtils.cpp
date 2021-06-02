@@ -168,3 +168,16 @@ bool VariableUtil::IsRValueCastOfVariable(Sema &S, Expr *E, DeclRefExpr *V) {
   Lexicographic Lex(S.Context, nullptr);
   return Lex.CompareExpr(V, Var) == Lexicographic::Result::Equal;
 }
+
+Expr *ExprUtil::GetRValueCastChild(Sema &S, Expr *E) {
+  if (!E)
+    return nullptr;
+  E = E->IgnoreParens();
+  if (CastExpr *CE = dyn_cast<CastExpr>(E)) {
+    CastKind CK = CE->getCastKind();
+    if (CK == CastKind::CK_LValueToRValue ||
+        CK == CastKind::CK_ArrayToPointerDecay)
+      return CE->getSubExpr()->IgnoreParens();
+  }
+  return nullptr;
+}

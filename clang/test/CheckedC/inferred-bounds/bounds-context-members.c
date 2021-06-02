@@ -116,10 +116,8 @@ void kill_bounds2(struct S *s) {
 
 // Incrementing a struct member used in its own bounds
 void kill_bounds3(struct S *s) {
-  // The assignment s->p++ is not invertible with respect to s->p
-  // (we do not calculate an inverse for member expressions),
-  // so s->p has no original value.
-  // Observed bounds context after assignment: { s->p => bounds(unknown) }
+  // Original value of s->p after increment: s->p - 1
+  // Observed bounds context after increment: { s->p => bounds(s->p - 1, s->p - 1 + s->len) }
   s->p++;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} '++'
@@ -130,7 +128,24 @@ void kill_bounds3(struct S *s) {
   // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:     DeclRefExpr {{.*}} 's'
   // CHECK-NEXT: Bounds:
-  // CHECK-NEXT: NullaryBoundsExpr {{.*}} Unknown
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       MemberExpr {{.*}} ->p
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         MemberExpr {{.*}} ->p
+  // CHECK-NEXT:           ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:             DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       MemberExpr {{.*}} ->len
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 's'
   // CHECK-NEXT: }
 }
 
@@ -258,11 +273,11 @@ void updated_source_bounds2(struct S *s) {
 
 // Assigning to a struct member used in the bounds of the RHS
 void updated_source_bounds3(struct S *s) {
-  // Observed bounds context after assignment: { s->f => bounds(unknown), s->g => bounds(unknown) }
-  // Note: we do not currently compute an original value for s->f.
-  // Original source bounds for the RHS: bounds(s->f, s->f + 3)
-  // Adjusted source bounds returned for the RHS: bounds(s->f, s->f + 3)
-  s->f = s->f + 1;
+  // Original value of s->f: s->f - 1
+  // Observed bounds context after assignment: { s->f => bounds(s->f + 2, s->f + 2 + 3), s->g => bounds(s->f + 2, s->f + 2 + 3) }
+  s->f = s->f - 2; // expected-warning {{cannot prove declared bounds for s->f are valid after assignment}} \
+                   // expected-note {{(expanded) declared bounds are 'bounds(s->f, s->f + 3)'}} \
+                   // expected-note {{(expanded) inferred bounds are 'bounds(s->f + 2, s->f + 2 + 3)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
   // CHECK: Observed bounds context after checking S:
@@ -272,19 +287,46 @@ void updated_source_bounds3(struct S *s) {
   // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:     DeclRefExpr {{.*}} 's'
   // CHECK-NEXT: Bounds:
-  // CHECK-NEXT: NullaryBoundsExpr {{.*}} Unknown
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       MemberExpr {{.*}} ->f
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 2
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         MemberExpr {{.*}} ->f
+  // CHECK-NEXT:           ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:             DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 2
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 3
   // CHECK-NEXT: LValue Expression:
   // CHECK-NEXT: MemberExpr {{.*}} ->g
   // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:     DeclRefExpr {{.*}} 's'
   // CHECK-NEXT: Bounds:
-  // CHECK-NEXT: NullaryBoundsExpr {{.*}} Unknown
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       MemberExpr {{.*}} ->f
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 2
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         MemberExpr {{.*}} ->f
+  // CHECK-NEXT:           ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:             DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 2
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 3
   // CHECK-NEXT: }
 
   // Observed bounds context after assignment: { s->f => bounds(unknown), s->g => bounds(unknown) }
-  // This is not an invertible assignment, so there will not be an original
-  // value for s->f even when we implement invertibility for member expressions.
-  s->f = s->g;
+  // This is not an invertible assignment, so s->f has no original value.
+  s->f = s->g; // expected-error {{expression has unknown bounds, right-hand side of assignment expected to have bounds because the left-hand side has bounds}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
   // CHECK: Observed bounds context after checking S:

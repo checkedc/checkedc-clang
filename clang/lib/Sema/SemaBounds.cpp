@@ -480,33 +480,57 @@ namespace {
 }
 
 namespace {
-  class VariableCountHelper : public RecursiveASTVisitor<VariableCountHelper> {
+  class LValueCountHelper : public RecursiveASTVisitor<LValueCountHelper> {
     private:
       Sema &SemaRef;
+      Lexicographic Lex;
+      Expr *LValue;
       ValueDecl *V;
-      int Count;
+      unsigned int Count;
 
     public:
-      VariableCountHelper(Sema &SemaRef, ValueDecl *V) :
+      LValueCountHelper(Sema &SemaRef, Expr *LValue, ValueDecl *V) :
         SemaRef(SemaRef),
+        Lex(Lexicographic(SemaRef.Context, nullptr)),
+        LValue(LValue),
         V(V),
         Count(0) {}
 
-      int GetCount() { return Count; }
+      unsigned int GetCount() { return Count; }
 
       bool VisitDeclRefExpr(DeclRefExpr *E) {
-        ValueDecl *D = E->getDecl();
-        if (!D)
+        // Check for an occurrence of a variable whose declaration matches V.
+        if (V) {
+          if (ValueDecl *D = E->getDecl()) {
+            if (Lex.CompareDecl(D, V) == Lexicographic::Result::Equal)
+              ++Count;
+          }
           return true;
-        Lexicographic Lex(SemaRef.Context, nullptr);
-        if (Lex.CompareDecl(D, V) == Lexicographic::Result::Equal)
+        }
+
+        // Check for an occurrence of a variable equal to LValue if LValue
+        // is a variable.
+        DeclRefExpr *Var = dyn_cast_or_null<DeclRefExpr>(LValue);
+        if (!Var)
+          return true;
+        if (Lex.CompareExpr(Var, E) == Lexicographic::Result::Equal)
+          ++Count;
+        return true;
+      }
+
+      bool VisitMemberExpr(MemberExpr *E) {
+        MemberExpr *M = dyn_cast_or_null<MemberExpr>(LValue);
+        if (!M)
+          return true;
+        if (Lex.CompareExprSemantically(E, M))
           ++Count;
         return true;
       }
 
       // Do not traverse the child of a BoundsValueExpr.
-      // If a BoundsValueExpr uses the variable V, this should not count
-      // toward the total occurrence count of V in the expression.
+      // If a BoundsValueExpr uses the expression LValue (or a variable whose
+      // declaration matches V), this should not count toward the total
+      // occurrence count of LValue or V in the expression.
       // For example, for the expression BoundsValue(TempBinding(v)) + v, the
       // total occurrence count of the variable v should be 1, not 2.
       bool TraverseBoundsValueExpr(BoundsValueExpr *E) {
@@ -516,18 +540,27 @@ namespace {
 
   // VariableOccurrenceCount returns the number of occurrences of variable
   // expressions in E whose Decls are equivalent to V.
-  int VariableOccurrenceCount(Sema &SemaRef, ValueDecl *V, Expr *E) {
+  unsigned int VariableOccurrenceCount(Sema &SemaRef, ValueDecl *V, Expr *E) {
     if (!V)
       return 0;
-    VariableCountHelper Counter(SemaRef, V);
+    LValueCountHelper Counter(SemaRef, nullptr, V);
     Counter.TraverseStmt(E);
     return Counter.GetCount();
   }
 
   // VariableOccurrenceCount returns the number of occurrences of the Target
   // variable expression in E.
-  int VariableOccurrenceCount(Sema &SemaRef, DeclRefExpr *Target, Expr *E) {
+  unsigned int VariableOccurrenceCount(Sema &SemaRef, DeclRefExpr *Target,
+                                       Expr *E) {
     return VariableOccurrenceCount(SemaRef, Target->getDecl(), E);
+  }
+
+  // LValueOccurrenceCount returns the number of occurrences of the LValue
+  // expression in E.
+  unsigned int LValueOccurrenceCount(Sema &SemaRef, Expr *LValue, Expr *E) {
+    LValueCountHelper Counter(SemaRef, LValue, nullptr);
+    Counter.TraverseStmt(E);
+    return Counter.GetCount();
   }
 }
 
@@ -1655,7 +1688,7 @@ namespace {
         for (auto OuterList = Begin; OuterList != End; ++OuterList) {
           auto InnerList = *OuterList;
           int InnerListSize = InnerList.size();
-          int SrcVarCount = 0;
+          unsigned int SrcVarCount = 0;
           int SrcIndex = 0;
 
           // Search InnerList for an expression that uses the value of SrcV.
@@ -4783,13 +4816,12 @@ namespace {
       if (!V && !isa<MemberExpr>(LValue))
         return SrcBounds;
 
-      // If LValue is a variable V, get the original value (if any) of V
-      // before the assignment, and determine whether the original value
-      // uses the value of V.
+      // Get the original value (if any) of LValue before the assignment,
+      // and determine whether the original value uses the value of LValue.
       // OriginalValue is named OV in the Checked C spec.
-      bool OriginalValueUsesV = false;
-      Expr *OriginalValue = GetOriginalValue(V, Target, Src,
-                              State.EquivExprs, OriginalValueUsesV);
+      bool OriginalValueUsesLValue = false;
+      Expr *OriginalValue = GetOriginalValue(LValue, Target, Src,
+                              State.EquivExprs, OriginalValueUsesLValue);
 
       BoundsExpr *ResultBounds = UpdateBoundsAfterAssignment(LValue, E, Src,
                                                              SrcBounds,
@@ -4797,7 +4829,7 @@ namespace {
                                                              CSS, State);
       UpdateEquivExprsAfterAssignment(LValue, OriginalValue, CSS, State);
       UpdateSameValueAfterAssignment(LValue, OriginalValue,
-                                     OriginalValueUsesV, CSS, State);
+                                     OriginalValueUsesLValue, CSS, State);
       RecordEqualityWithTarget(LValue, Target, Src, State);
 
       return ResultBounds;
@@ -4882,24 +4914,15 @@ namespace {
           State.BlameAssignments[A] = E;
       }
 
-      // Adjust SrcBounds to account for any uses of LValue, if LValue is
-      // not a MemberExpr. We do not currently compute an original value
-      // for MemberExprs, so if SrcBounds uses the value of LValue and LValue
-      // is a MemberExpr, then SrcBounds will be set to bounds(unknown).
-      // This will result in unwanted errors for assignments such as
-      // s->p = s->p or s->p = s->p + 1, where s->p appears in its own bounds.
-      // TODO: compute original values for MemberExprs.
-      BoundsExpr *AdjustedSrcBounds = SrcBounds;
-      if (!M) {
-        // If LValue has target bounds, then the observed bounds of LValue
-        // are already SrcBounds adjusted to account for any use of LValue.
-        if (HasTargetBounds)
-          AdjustedSrcBounds = State.ObservedBounds[LValueAbstractSet];
-        else
-          AdjustedSrcBounds = ReplaceLValueInBounds(SrcBounds, LValue,
-                                                    OriginalValue, CSS);
-      }
-      
+      // Adjust SrcBounds to account for any uses of LValue.
+      BoundsExpr *AdjustedSrcBounds = nullptr;
+      // If LValue has target bounds, then the observed bounds of LValue
+      // are already SrcBounds adjusted to account for any use of LValue.
+      if (HasTargetBounds)
+        AdjustedSrcBounds = State.ObservedBounds[LValueAbstractSet];
+      else
+        AdjustedSrcBounds = ReplaceLValueInBounds(SrcBounds, LValue,
+                                                  OriginalValue, CSS);
 
       // Record that E updates the observed bounds of LValue.
       if (HasTargetBounds)
@@ -5166,38 +5189,45 @@ namespace {
     // Methods to get the original value of an expression.
 
     // GetOriginalValue returns the original value (if it exists) of the
-    // expression Src with respect to the variable V in an assignment V = Src.
+    // expression Src with respect to the expression LValue in an assignment
+    // LValue = Src.
     //
     // Target is the target expression of the assignment (that accounts for
-    // any necessary casts of V).
+    // any necessary casts of LValue).
     //
-    // The out parameter OriginalValueUsesV will be set to true if the original
-    // value uses the value of the variable V.  This prevents callers from
-    // having to compute the variable occurrence count of V in the original
-    // value, since GetOriginalValue computes this count while trying to
-    // construct the inverse expression of the source with respect to V.
-    Expr *GetOriginalValue(DeclRefExpr *V, Expr *Target, Expr *Src,
-                           const EquivExprSets EQ, bool &OriginalValueUsesV) {
-      if (!V) {
-        OriginalValueUsesV = false;
-        return nullptr;
-      }
-
-      // Check if Src has an inverse expression with respect to v.
+    // The out parameter OriginalValueUsesLValue will be set to true if the
+    // original value uses the value of LValue.
+    // This prevents callers from having to compute the occurrence count of
+    // LValue in the original value, since GetOriginalValue computes this
+    // count while trying to construct the inverse expression of the source
+    // with respect to LValue.
+    Expr *GetOriginalValue(Expr *LValue, Expr *Target, Expr *Src,
+                           const EquivExprSets EQ,
+                           bool &OriginalValueUsesLValue) {
+      // Check if Src has an inverse expression with respect to LValue.
       Expr *IV = nullptr;
-      if (IsInvertible(V, Src))
-        IV = Inverse(V, Target, Src);
+      if (IsInvertible(LValue, Src))
+        IV = Inverse(LValue, Target, Src);
       if (IV) {
-        // If Src has an inverse with respect to v, then the original
-        // value (the inverse) must use the value of v.
-        OriginalValueUsesV = true;
+        // If Src has an inverse with respect to LValue, then the original
+        // value (the inverse) must use the value of LValue.
+        OriginalValueUsesLValue = true;
         return IV;
       }
 
+      // If Src does not have an inverse with respect to LValue, then we
+      // search the set EQ for a variable equivalent to LValue. In this
+      // case, LValue must be a variable V.
+      DeclRefExpr *V = VariableUtil::GetLValueVariable(S, LValue);
+      if (!V) {
+        OriginalValueUsesLValue = false;
+        return nullptr;
+      }
+
       // If Src does not have an inverse with respect to v, then the original
-      // value is either some variable w != v in EQ, or it is null.  In either
+      // value is either some variable w != v in EQ, or it is null. In either
       // case, the original value cannot use the value of v.
-      OriginalValueUsesV = false;
+      OriginalValueUsesLValue = false;
       
       // Check EQ for a variable w != v that produces the same value as v.
       Expr *ValuePreservingV = nullptr;
@@ -5228,44 +5258,43 @@ namespace {
       return nullptr;
     }
 
-    // IsInvertible returns true if the expression E can be inverted
-    // with respect to the variable V.
-    bool IsInvertible(DeclRefExpr *V, Expr *E) {
+    bool IsInvertible(Expr *LValue, Expr *E) {
       if (!E)
         return false;
 
       E = E->IgnoreParens();
-      if (VariableUtil::IsRValueCastOfVariable(S, E, V))
+      Expr *RValueChild = ExprUtil::GetRValueCastChild(S, E);
+      if (RValueChild && EqualValue(S.Context, LValue, RValueChild, nullptr))
         return true;
 
       switch (E->getStmtClass()) {
         case Expr::UnaryOperatorClass:
-          return IsUnaryOperatorInvertible(V, cast<UnaryOperator>(E));
+          return IsUnaryOperatorInvertible(LValue, cast<UnaryOperator>(E));
         case Expr::BinaryOperatorClass:
-          return IsBinaryOperatorInvertible(V, cast<BinaryOperator>(E));
+          return IsBinaryOperatorInvertible(LValue, cast<BinaryOperator>(E));
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass:
         case Expr::BoundsCastExprClass:
-          return IsCastExprInvertible(V, cast<CastExpr>(E));
+          return IsCastExprInvertible(LValue, cast<CastExpr>(E));
         default:
           return false;
       }
     }
 
-    // Returns true if a unary operator is invertible with respect to x.
-    bool IsUnaryOperatorInvertible(DeclRefExpr *X, UnaryOperator *E) {
+    // Returns true if a unary operator is invertible with respect to LValue.
+    bool IsUnaryOperatorInvertible(Expr *LValue, UnaryOperator *E) {
       Expr *SubExpr = E->getSubExpr()->IgnoreParens();
       UnaryOperatorKind Op = E->getOpcode();
 
       if (Op == UnaryOperatorKind::UO_AddrOf) {
-        // &*e1 is invertible with respect to x if e1 is invertible with
-        // respect to x.
+        // &*e1 is invertible with respect to LValue if e1 is invertible with
+        // respect to LValue.
         if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
           if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_Deref)
-            return IsInvertible(X, UnarySubExpr->getSubExpr());
+            return IsInvertible(LValue, UnarySubExpr->getSubExpr());
         }
-        // &e1[e2] is invertible with respect to x if e1 + e2 is invertible
-        // with respect to x.
+        // &e1[e2] is invertible with respect to LValue if e1 + e2 is invertible
+        // with respect to LValue.
         else if (ArraySubscriptExpr *ArraySubExpr = dyn_cast<ArraySubscriptExpr>(SubExpr)) {
           Expr *Base = ArraySubExpr->getBase();
           Expr *Index = ArraySubExpr->getIdx();
@@ -5276,31 +5305,31 @@ namespace {
                              Base->getObjectKind(),
                              SourceLocation(),
                              FPOptionsOverride());
-          return IsInvertible(X, &Sum);
+          return IsInvertible(LValue, &Sum);
         }
       }
 
-      // *&e1 is invertible with respect to x if e1 is invertible with
-      // respect to x.
+      // *&e1 is invertible with respect to LValue if e1 is invertible with
+      // respect to LValue.
       if (Op == UnaryOperatorKind::UO_Deref) {
         if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
           if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_AddrOf)
-            return IsInvertible(X, UnarySubExpr->getSubExpr());
+            return IsInvertible(LValue, UnarySubExpr->getSubExpr());
         }
       }
 
-      // ~e1, -e1, and +e1 are invertible with respect to x if e1 is
-      // invertible with respect to x.
+      // ~e1, -e1, and +e1 are invertible with respect to LValue if e1 is
+      // invertible with respect to LValue.
       if (Op == UnaryOperatorKind::UO_Not ||
           Op == UnaryOperatorKind::UO_Minus ||
           Op == UnaryOperatorKind::UO_Plus)
-        return IsInvertible(X, SubExpr);
+        return IsInvertible(LValue, SubExpr);
 
       return false;
     }
 
-    // Returns true if a binary operator is invertible with respect to x.
-    bool IsBinaryOperatorInvertible(DeclRefExpr *X, BinaryOperator *E) {
+    // Returns true if a binary operator is invertible with respect to LValue.
+    bool IsBinaryOperatorInvertible(Expr *LValue, BinaryOperator *E) {
       BinaryOperatorKind Op = E->getOpcode();
       if (Op != BinaryOperatorKind::BO_Add &&
           Op != BinaryOperatorKind::BO_Sub &&
@@ -5309,7 +5338,7 @@ namespace {
 
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
-      
+
       // Addition and subtraction operations must be for checked pointer
       // arithmetic or unsigned integer arithmetic.
       if (Op == BinaryOperatorKind::BO_Add || Op == BinaryOperatorKind::BO_Sub) {
@@ -5327,28 +5356,29 @@ namespace {
         }
       }
 
-      // X must appear in exactly one subexpression of E and that
-      // subexpression must be invertible with respect to X.
-      std::pair<Expr *, Expr*> Pair = SplitByVarCount(X, LHS, RHS);
+      // LValue must appear in exactly one subexpression of E and that
+      // subexpression must be invertible with respect to LValue.
+      std::pair<Expr *, Expr*> Pair = SplitByLValueCount(LValue, LHS, RHS);
       if (!Pair.first)
         return false;
-      Expr *E_X = Pair.first, *E_NotX = Pair.second;
-      if (!IsInvertible(X, E_X))
+      Expr *E_LValue = Pair.first, *E_NotLValue = Pair.second;
+      if (!IsInvertible(LValue, E_LValue))
         return false;
 
-      // The subexpression not containing X must be nonmodifying
+      // The subexpression not containing LValue must be nonmodifying
       // and cannot be or contain a pointer dereference, member
       // reference, or indirect member reference.
-      if (!CheckIsNonModifying(E_NotX) || ReadsMemoryViaPointer(E_NotX, true))
+      if (!CheckIsNonModifying(E_NotLValue) ||
+          ReadsMemoryViaPointer(E_NotLValue, true))
         return false;
 
       return true;
     }
 
-    // Returns true if a cast expression is invertible with respect to x.
+    // Returns true if a cast expression is invertible with respect to LValue.
     // A cast expression (T1)e1 is invertible if T1 is a bit-preserving
     // or widening cast and e1 is invertible.
-    bool IsCastExprInvertible(DeclRefExpr *X, CastExpr *E) {
+    bool IsCastExprInvertible(Expr *LValue, CastExpr *E) {
       QualType T1 = E->getType();
       QualType T2 = E->getSubExpr()->getType();
       uint64_t Size1 = S.Context.getTypeSize(T1);
@@ -5369,20 +5399,20 @@ namespace {
         // Widening casts
         case CastKind::CK_BooleanToSignedIntegral:
         case CastKind::CK_IntegralToFloating:
-          return IsInvertible(X, E->getSubExpr());
+          return IsInvertible(LValue, E->getSubExpr());
         // Bounds casts may be invertible.
         case CastKind::CK_DynamicPtrBounds:
         case CastKind::CK_AssumePtrBounds: {
           CHKCBindTemporaryExpr *Temp =
             dyn_cast<CHKCBindTemporaryExpr>(E->getSubExpr());
           assert(Temp);
-          return IsInvertible(X, Temp->getSubExpr());
+          return IsInvertible(LValue, Temp->getSubExpr());
         }
         // Potentially non-narrowing casts, depending on type sizes
         case CastKind::CK_IntegralToPointer:
         case CastKind::CK_PointerToIntegral:
         case CastKind::CK_IntegralCast:
-          return Size1 >= Size2 && IsInvertible(X, E->getSubExpr());
+          return Size1 >= Size2 && IsInvertible(LValue, E->getSubExpr());
         // All other casts are considered narrowing.
         default:
           return false;
@@ -5390,25 +5420,26 @@ namespace {
     }
 
     // Inverse repeatedly applies mathematical rules to the expression E to
-    // get the inverse of E with respect to the variable V and expression F.
-    // If rules cannot be applied to E, Inverse returns nullptr.
-    Expr *Inverse(DeclRefExpr *V, Expr *F, Expr *E) {
+    // get the inverse of E with respect to the lvalue expression LValue and
+    // expression F. If rules cannot be applied to E, Inverse returns nullptr.
+    Expr *Inverse(Expr *LValue, Expr *F, Expr *E) {
       if (!F)
         return nullptr;
 
       E = E->IgnoreParens();
-      if (VariableUtil::IsRValueCastOfVariable(S, E, V))
+      Expr *RValueChild = ExprUtil::GetRValueCastChild(S, E);
+      if (RValueChild && EqualValue(S.Context, LValue, RValueChild, nullptr))
         return F;
 
       switch (E->getStmtClass()) {
         case Expr::UnaryOperatorClass:
-          return UnaryOperatorInverse(V, F, cast<UnaryOperator>(E));
+          return UnaryOperatorInverse(LValue, F, cast<UnaryOperator>(E));
         case Expr::BinaryOperatorClass:
-          return BinaryOperatorInverse(V, F, cast<BinaryOperator>(E));
+          return BinaryOperatorInverse(LValue, F, cast<BinaryOperator>(E));
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass:
         case Expr::BoundsCastExprClass:
-          return CastExprInverse(V, F, cast<CastExpr>(E));
+          return CastExprInverse(LValue, F, cast<CastExpr>(E));
         default:
           return nullptr;
       }
@@ -5417,7 +5448,7 @@ namespace {
     }
 
     // Returns the inverse of a unary operator.
-    Expr *UnaryOperatorInverse(DeclRefExpr *X, Expr *F, UnaryOperator *E) {
+    Expr *UnaryOperatorInverse(Expr *LValue, Expr *F, UnaryOperator *E) {
       Expr *SubExpr = E->getSubExpr()->IgnoreParens();
       UnaryOperatorKind Op = E->getOpcode();
       
@@ -5425,7 +5456,7 @@ namespace {
         // Inverse(f, &*e1) = Inverse(f, e1)
         if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
           if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_Deref)
-            return Inverse(X, F, UnarySubExpr->getSubExpr());
+            return Inverse(LValue, F, UnarySubExpr->getSubExpr());
         }
         // Inverse(f, &e1[e2]) = Inverse(f, e1 + e2)
         else if (ArraySubscriptExpr *ArraySubExpr = dyn_cast<ArraySubscriptExpr>(SubExpr)) {
@@ -5438,7 +5469,7 @@ namespace {
                              Base->getObjectKind(),
                              SourceLocation(),
                              FPOptionsOverride());
-          return Inverse(X, F, &Sum);
+          return Inverse(LValue, F, &Sum);
         }
       }
 
@@ -5446,7 +5477,7 @@ namespace {
       if (Op == UnaryOperatorKind::UO_Deref) {
         if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
           if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_AddrOf)
-            return Inverse(X, F, UnarySubExpr->getSubExpr());
+            return Inverse(LValue, F, UnarySubExpr->getSubExpr());
         }
       }
 
@@ -5461,65 +5492,65 @@ namespace {
                                        SourceLocation(),
                                        E->canOverflow(),
                                        FPOptionsOverride());
-      return Inverse(X, F1, SubExpr);
+      return Inverse(LValue, F1, SubExpr);
     }
 
     // Returns the inverse of a binary operator.
-    Expr *BinaryOperatorInverse(DeclRefExpr *X, Expr *F, BinaryOperator *E) {
-      std::pair<Expr *, Expr*> Pair = SplitByVarCount(X, E->getLHS(), E->getRHS());
+    Expr *BinaryOperatorInverse(Expr *LValue, Expr *F, BinaryOperator *E) {
+      std::pair<Expr *, Expr*> Pair = SplitByLValueCount(LValue, E->getLHS(), E->getRHS());
       if (!Pair.first)
         return nullptr;
 
-      Expr *E_X = Pair.first, *E_NotX = Pair.second;
+      Expr *E_LValue = Pair.first, *E_NotLValue = Pair.second;
       BinaryOperatorKind Op = E->getOpcode();
       Expr *F1 = nullptr;
 
       switch (Op) {
         case BinaryOperatorKind::BO_Add:
-          // Inverse(f, e1 + e2) = Inverse(f - e_notx, e_x)
-          F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotX, BinaryOperatorKind::BO_Sub);
+          // Inverse(f, e1 + e2) = Inverse(f - e_notlvalue, e_lvalue)
+          F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotLValue, BinaryOperatorKind::BO_Sub);
           break;
         case BinaryOperatorKind::BO_Sub: {
-          if (E_X == E->getLHS())
-            // Inverse(f, e_x - e_notx) = Inverse(f + e_notx, e_x)
-            F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotX, BinaryOperatorKind::BO_Add);
+          if (E_LValue == E->getLHS())
+            // Inverse(f, e_lvalue - e_notlvalue) = Inverse(f + e_notlvalue, e_lvalue)
+            F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotLValue, BinaryOperatorKind::BO_Add);
           else
-            // Inverse(f, e_notx - e_x) => Inverse(e_notx - f, e_x)
-            F1 = ExprCreatorUtil::CreateBinaryOperator(S, E_NotX, F, BinaryOperatorKind::BO_Sub);
+            // Inverse(f, e_notlvalue - e_lvalue) => Inverse(e_notlvalue - f, e_lvalue)
+            F1 = ExprCreatorUtil::CreateBinaryOperator(S, E_NotLValue, F, BinaryOperatorKind::BO_Sub);
           break;
         }
         case BinaryOperatorKind::BO_Xor:
-          // Inverse(f, e1 ^ e2) = Inverse(x, f ^ e_notx, e_x)
-          F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotX, BinaryOperatorKind::BO_Xor);
+          // Inverse(f, e1 ^ e2) = Inverse(lvalue, f ^ e_notlvalue, e_lvalue)
+          F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotLValue, BinaryOperatorKind::BO_Xor);
           break;
         default:
           llvm_unreachable("unexpected binary operator kind");
       }
 
-      return Inverse(X, F1, E_X);
+      return Inverse(LValue, F1, E_LValue);
     }
 
     // Returns the inverse of a cast expression.  If e1 has type T2,
     // Inverse(f, (T1)e1) = Inverse((T2)f, e1) (assuming that (T1) is
     // not a narrowing cast).
-    Expr *CastExprInverse(DeclRefExpr *X, Expr *F, CastExpr *E) {
+    Expr *CastExprInverse(Expr *LValue, Expr *F, CastExpr *E) {
       QualType T2 = E->getSubExpr()->getType();
       switch (E->getStmtClass()) {
         case Expr::ImplicitCastExprClass: {
           Expr *F1 = CreateImplicitCast(T2, E->getCastKind(), F);
-          return Inverse(X, F1, E->getSubExpr());
+          return Inverse(LValue, F1, E->getSubExpr());
         }
         case Expr::CStyleCastExprClass: {
           Expr *F1 = CreateExplicitCast(T2, E->getCastKind(), F,
                                         E->isBoundsSafeInterface());
-          return Inverse(X, F1, E->getSubExpr());
+          return Inverse(LValue, F1, E->getSubExpr());
         }
         case Expr::BoundsCastExprClass: {
           CHKCBindTemporaryExpr *Temp = dyn_cast<CHKCBindTemporaryExpr>(E->getSubExpr());
           assert(Temp);
           Expr *F1 = CreateExplicitCast(T2, CastKind::CK_BitCast, F,
                                         E->isBoundsSafeInterface());
-          return Inverse(X, F1, Temp->getSubExpr());
+          return Inverse(LValue, F1, Temp->getSubExpr());
         }
         default:
           llvm_unreachable("unexpected cast kind");
@@ -5797,19 +5828,20 @@ namespace {
       }
     }
 
-    // If the variable X appears exactly once in Ei and does not appear in
-    // Ej, SplitByVarCount returns the pair (Ei, Ej).  Otherwise, it returns
+    // If LValue appears exactly once in Ei and does not appear in Ej,
+    // SplitByLValueCount returns the pair (Ei, Ej).  Otherwise, it returns
     // an empty pair.
-    std::pair<Expr *, Expr *> SplitByVarCount(DeclRefExpr *X, Expr *E1, Expr *E2) {
+    std::pair<Expr *, Expr *> SplitByLValueCount(Expr *LValue,
+                                                 Expr *E1, Expr *E2) {
       std::pair<Expr *, Expr *> Pair;
-      int Count1 = VariableOccurrenceCount(S, X, E1);
-      int Count2 = VariableOccurrenceCount(S, X, E2);
+      unsigned int Count1 = LValueOccurrenceCount(S, LValue, E1);
+      unsigned int Count2 = LValueOccurrenceCount(S, LValue, E2);
       if (Count1 == 1 && Count2 == 0) {
-        // X appears once in E1 and does not appear in E2.
+        // LValue appears once in E1 and does not appear in E2.
         Pair.first = E1;
         Pair.second = E2;
       } else if (Count2 == 1 && Count1 == 0) {
-        // X appears once in E2 and does not appear in E1.
+        // LValue appears once in E2 and does not appear in E1.
         Pair.first = E2;
         Pair.second = E1;
       }
