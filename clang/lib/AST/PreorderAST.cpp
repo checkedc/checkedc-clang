@@ -542,7 +542,7 @@ bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
     // Offset should always be of the form (ptr + offset). So we check for
     // addition.
     // Note: We have already converted (ptr - offset) to (ptr + -offset). So
-    // its okay to only check for addition.
+    // it is okay to only check for addition.
     if (B1->Opc != BO_Add)
       return false;
 
@@ -617,7 +617,7 @@ bool PreorderAST::GetExprIntDiff(Node *E1, Node *E2, llvm::APSInt &Offset) {
     // Offset should always be of the form (ptr + offset). So we check for
     // addition.
     // Note: We have already converted (ptr - offset) to (ptr + -offset). So
-    // its okay to only check for addition.
+    // it is okay to only check for addition.
     if (B1->Opc != BO_Add)
       return false;
 
