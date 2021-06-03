@@ -36,8 +36,7 @@ int foo(int *arr, unsigned len) {
   for (i = 0; i < len; i++) {
     arr[i] = 0;
   }
-  a.a_len = 4;
-  a.a = malloc(a.a_len * sizeof(char));
+  a.a_len = 4, a.a = malloc(a.a_len * sizeof(char));
   a.a[0] = 0;
   return 0;
 }
