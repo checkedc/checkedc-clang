@@ -12,7 +12,7 @@
 // RUN: %clang_cc1 -fcheckedc-extension -verify -fdump-inferred-bounds %s | FileCheck %s
 
 struct S1 {
-  _Array_ptr<int> p : count(len);
+  _Array_ptr<int> p : count(len); // expected-note 3 {{(expanded) declared bounds are 'bounds(a3->p, a3->p + a3->len)'}}
   int len;
 };
 
@@ -97,7 +97,6 @@ void f2(struct S1 *a3) {
   int local_arr1[5];
   // TODO: need bundled block.
   a3->p = local_arr1;  // expected-warning {{cannot prove declared bounds for a3->p are valid after assignment}} \
-                       // expected-note {{(expanded) declared bounds are 'bounds(a3->p, a3->p + a3->len)'}} \
                        // expected-note {{(expanded) inferred bounds are 'bounds(local_arr1, local_arr1 + 5)'}}
 
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' '='
@@ -131,12 +130,14 @@ void f2(struct S1 *a3) {
 // CHECK:   | `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int [5]' lvalue Var {{0x[0-9a-f]+}} 'local_arr1' 'int [5]'
 // CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 5
 
-  a3->len = 5;
+  a3->len = 5; // expected-error {{inferred bounds for 'a3->p' are unknown after assignment}} \
+               // expected-note {{lost the value of the expression 'a3->len' which is used in the (expanded) inferred bounds 'bounds(a3->p, a3->p + a3->len)' of 'a3->p'}}
 
   // Ignore the bounds on this assignment, which is here to avoid having a program
   // with undefined behavior.
   a3->p = 0;
-  a3->len = 0;
+  a3->len = 0; // expected-error {{inferred bounds for 'a3->p' are unknown after assignment}} \
+               // expected-note {{lost the value of the expression 'a3->len' which is used in the (expanded) inferred bounds 'bounds(a3->p, a3->p + a3->len)' of 'a3->p'}}
 }
 
 //-------------------------------------------------------------------------//

@@ -96,24 +96,23 @@ void f13() {
 }
 
 struct S1 {
-	_Array_ptr<int> p : count(len2);
-	int len2;
+  _Array_ptr<int> p : count(len2); // expected-note 2 {{(expanded) declared bounds are 'bounds(s->p, s->p + s->len2)'}} \
+                                   // expected-note {{(expanded) declared bounds are 'bounds(a3.p, a3.p + a3.len2)'}}
+  int len2;
 };
 
 void f1(struct S1 *s) {
   // We currently do not detect free variables for indirect accesses.
   array_ptr<int> p : count(5) = 0;
   s->p = p; // expected-warning {{cannot prove declared bounds for s->p are valid after assignment}} \
-            // expected-note {{declared bounds are}} \
-            // expected-note {{inferred bounds are}}
+            // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 5)'}}
 
   int a[] = { 1, 2 };
   array_ptr<int> q : bounds(q, &a[0]) = p; // expected-warning {{cannot prove declared bounds for 'q' are valid after initialization}} \
-                                           // expected-note {{declared bounds are}} \
-                                           // expected-note {{inferred bounds are}}
   s->p = &a[1]; // expected-warning {{cannot prove declared bounds for s->p are valid after assignment}} \
-                // expected-note {{declared bounds are}} \
-                // expected-note {{inferred bounds are}}
+                                           // expected-note {{(expanded) declared bounds are 'bounds(q, &a[0])'}} \
+                                           // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 5)'}}
+                // expected-note {{(expanded) inferred bounds are 'bounds(a, a + 2)'}}
 }
 
 void f2(struct S1 a3) {
@@ -128,7 +127,6 @@ void f3(struct S1 a3) {
 
   // We current do not detect free variables for member accesses.
   a3.p = p; // expected-warning {{cannot prove declared bounds for a3.p are valid after assignment}} \
-            // expected-note {{(expanded) declared bounds are 'bounds(a3.p, a3.p + a3.len2)'}} \
             // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 5)'}}
 }
 
