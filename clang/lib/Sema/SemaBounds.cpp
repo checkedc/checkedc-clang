@@ -3438,6 +3438,8 @@ namespace {
 
       // Determine whether the assignment is to a variable.
       DeclRefExpr *LHSVar = VariableUtil::GetLValueVariable(S, LHS);
+      // Determine whether the checking state is updated for an assignment.
+      bool StateUpdated = false;
 
       // Update the checking state.  The result bounds may also be updated
       // for assignments to a variable.
@@ -3459,8 +3461,8 @@ namespace {
 
         // Update the checking state and result bounds to reflect the
         // assignment to `e1`.
-        ResultBounds = UpdateAfterAssignment(LHS, E, Target, Src,
-                                             ResultBounds, CSS, State);
+        ResultBounds = UpdateAfterAssignment(LHS, E, Target, Src, ResultBounds,
+                                             CSS, State, StateUpdated);
 
         // SameValue is empty for assignments to a non-variable. This
         // conservative approach avoids recording false equality facts for
@@ -3513,10 +3515,11 @@ namespace {
               State.ObservedBounds[A] = RightBounds;
             }
 
-            // Check bounds declarations for assignments to a non-variable.
-            // Assignments to variables will be checked after checking the
-            // current top-level CFG statement.
-            if (!LHSVar) {
+            // Check bounds declarations for assignments where the state was
+            // not updated in UpdateAfterAssignment.
+            // If the state was updated in UpdateAfterAssignment, the bounds
+            // will be checked after checking the current top-level statement.
+            if (!StateUpdated) {
               if (RightBounds->isUnknown()) {
                 S.Diag(RHS->getBeginLoc(),
                        diag::err_expected_bounds_for_assignment)
@@ -3912,8 +3915,10 @@ namespace {
                                        SubExprLValueBounds,
                                        SubExprBounds, State);
         }
+        bool StateUpdated = false;
         IncDecResultBounds = UpdateAfterAssignment(SubExpr, E, Target, RHS,
-                                                   RHSBounds, CSS, State);
+                                                   RHSBounds, CSS,
+                                                   State, StateUpdated);
 
         // Update the set SameValue of expressions that produce the same
         // value as `e`.
@@ -4807,16 +4812,19 @@ namespace {
     BoundsExpr *UpdateAfterAssignment(Expr *LValue, Expr *E, Expr *Target,
                                       Expr *Src, BoundsExpr *SrcBounds,
                                       CheckedScopeSpecifier CSS,
-                                      CheckingState &State) {
+                                      CheckingState &State,
+                                      bool &StateUpdated) {
       if (!LValue)
         return SrcBounds;
-      LValue = LValue->IgnoreParens();
+      Lexicographic Lex(S.Context, nullptr);
+      LValue = Lex.IgnoreValuePreservingOperations(S.Context, LValue);
 
       // Currently, we only update the checking state after assignments
       // to a variable or a member expression.
-      DeclRefExpr *V = VariableUtil::GetLValueVariable(S, LValue);
-      if (!V && !isa<MemberExpr>(LValue))
+      if (!isa<DeclRefExpr>(LValue) && !isa<MemberExpr>(LValue)) {
+        StateUpdated = false;
         return SrcBounds;
+      }
 
       // Get the original value (if any) of LValue before the assignment,
       // and determine whether the original value uses the value of LValue.
@@ -4834,6 +4842,7 @@ namespace {
                                      OriginalValueUsesLValue, CSS, State);
       RecordEqualityWithTarget(LValue, Target, Src, State);
 
+      StateUpdated = true;
       return ResultBounds;
     }
 
