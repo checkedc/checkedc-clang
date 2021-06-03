@@ -4609,7 +4609,7 @@ namespace {
 
       for (auto const &Pair : State.ObservedBounds) {
         const AbstractSet *A = Pair.first;
-        const VarDecl *V = A->GetVarDecl();
+        const NamedDecl *V = A->GetDecl();
         if (!V)
           continue;
         BoundsExpr *ObservedBounds = Pair.second;
@@ -4620,12 +4620,15 @@ namespace {
         if (ObservedBounds->isUnknown())
           DiagnoseUnknownObservedBounds(S, A, DeclaredBounds, State);
         else {
-          // We should issue diagnostics for observed bounds if the variable V
-          // is not in the set BoundsWidenedAndNotKilled which represents
-          // variables whose bounds are widened in this block and not killed by
-          // statement S.
-          bool DiagnoseObservedBounds = BoundsWidenedAndNotKilled.find(V) ==
-                                        BoundsWidenedAndNotKilled.end();
+          // If the lvalue expressions in A are variables represented by a
+          // declaration Var, we should issue diagnostics for observed bounds
+          // if Var is not in the set BoundsWidenedAndKilled which represents
+          // variables whose bounds are widened in this block and not killed
+          // by statement S.
+          bool DiagnoseObservedBounds = true;
+          if (const VarDecl *Var = dyn_cast<VarDecl>(V))
+            DiagnoseObservedBounds = BoundsWidenedAndNotKilled.find(Var) ==
+                                     BoundsWidenedAndNotKilled.end();
           CheckObservedBounds(S, A, DeclaredBounds, ObservedBounds, State,
                               &EquivExprs, CSS, Block, DiagnoseObservedBounds);
         }
@@ -4641,7 +4644,7 @@ namespace {
     void DiagnoseUnknownObservedBounds(Stmt *St, const AbstractSet *A,
                                        BoundsExpr *DeclaredBounds,
                                        CheckingState State) {
-      const VarDecl *V = A->GetVarDecl();
+      const NamedDecl *V = A->GetDecl();
       if (!V)
         return;
 
@@ -4693,7 +4696,7 @@ namespace {
                              CheckedScopeSpecifier CSS,
                              const CFGBlock *Block,
                              bool DiagnoseObservedBounds) {
-      const VarDecl *V = A->GetVarDecl();
+      const NamedDecl *V = A->GetDecl();
       ProofFailure Cause;
       FreeVariableListTy FreeVars;
       ProofResult Result = ProveBoundsDeclValidity(
@@ -4748,7 +4751,7 @@ namespace {
                                              CheckingState State,
                                              unsigned DiagId) const {
       assert(St);
-      const VarDecl *V = A->GetVarDecl();
+      const NamedDecl *V = A->GetDecl();
       assert(V);
       SourceRange SrcRange = St->getSourceRange();
       auto BDCType = Sema::BoundsDeclarationCheck::BDC_Statement;
