@@ -4661,13 +4661,9 @@ namespace {
         std::pair<BoundsExpr *, Expr *> Lost = LostLValueIt->second;
         BoundsExpr *InitialObservedBounds = Lost.first;
         Expr *LostLValue = Lost.second;
-        // TODO: currently, we only validate bounds for an AbstractSet A in
-        // ObservedBounds if the representative of A is a DeclRefExpr, so
-        // we can still emit the note_lost_variable diagnostic message.
-        // In the future, we should change this message so that it applies
-        // to all kinds of lvalue expressions.
-        S.Diag(LostLValue->getBeginLoc(), diag::note_lost_variable)
-          << LostLValue << InitialObservedBounds << V << LostLValue->getSourceRange();
+        S.Diag(LostLValue->getBeginLoc(), diag::note_lost_expression)
+          << LostLValue << InitialObservedBounds
+          << A->GetRepresentative() << LostLValue->getSourceRange();
       }
 
       // The observed bounds of A are unknown because at least one expression

@@ -11336,9 +11336,9 @@ def err_bounds_type_annotation_lost_checking : Error<
   def note_required_bounds : Note<
     "(expanded) required bounds are '%0'">;
 
-  def note_lost_variable : Note<
-    "lost the value of the variable '%0' "
-    "which is used in the (expanded) inferred bounds '%1' of %2">;
+  def note_lost_expression : Note<
+    "lost the value of the expression '%0' "
+    "which is used in the (expanded) inferred bounds '%1' of '%2'">;
 
   def note_unknown_source_bounds : Note<
     "assigned expression '%0' with unknown bounds to %1">;
