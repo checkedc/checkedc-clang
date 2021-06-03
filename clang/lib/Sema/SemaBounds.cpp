@@ -2590,10 +2590,10 @@ namespace {
       // 2. Otherwise, if Src is a non-modifying expression, record
       //    equivalence between V and Src.
       CHKCBindTemporaryExpr *Temp = GetTempBinding(Src);
+      // TODO: make sure variable being initialized isn't read by Src.
+      DeclRefExpr *TargetDeclRef = ExprCreatorUtil::CreateVarUse(S, D);
       if (Temp ||  S.CheckIsNonModifying(Src, Sema::NonModifyingContext::NMC_Unknown,
                                          Sema::NonModifyingMessage::NMM_None)) {
-        // TODO: make sure variable being initialized isn't read by Src.
-        DeclRefExpr *TargetDeclRef = ExprCreatorUtil::CreateVarUse(S, D);
         CastKind Kind;
         QualType TargetTy;
         if (D->getType()->isArrayType()) {
@@ -2633,7 +2633,7 @@ namespace {
                        : diag::warn_bounds_declaration_invalid);
 
         S.Diag(ExprLoc, DiagId)
-          << Sema::BoundsDeclarationCheck::BDC_Initialization << D
+          << Sema::BoundsDeclarationCheck::BDC_Initialization << TargetDeclRef
           << D->getLocation() << Src->getSourceRange();
         if (Result == ProofResult::False)
           ExplainProofFailure(ExprLoc, Cause, ProofStmtKind::BoundsDeclaration);
