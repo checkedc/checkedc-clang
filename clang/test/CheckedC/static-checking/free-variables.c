@@ -104,14 +104,14 @@ struct S1 {
 void f1(struct S1 *s) {
   // We currently do not detect free variables for indirect accesses.
   array_ptr<int> p : count(5) = 0;
-  s->p = p; // expected-warning {{cannot prove declared bounds for s->p are valid after assignment}} \
+  s->p = p; // expected-warning {{cannot prove declared bounds for 's->p' are valid after assignment}} \
             // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 5)'}}
 
   int a[] = { 1, 2 };
   array_ptr<int> q : bounds(q, &a[0]) = p; // expected-warning {{cannot prove declared bounds for 'q' are valid after initialization}} \
-  s->p = &a[1]; // expected-warning {{cannot prove declared bounds for s->p are valid after assignment}} \
                                            // expected-note {{(expanded) declared bounds are 'bounds(q, &a[0])'}} \
                                            // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 5)'}}
+  s->p = &a[1]; // expected-warning {{cannot prove declared bounds for 's->p' are valid after assignment}} \
                 // expected-note {{(expanded) inferred bounds are 'bounds(a, a + 2)'}}
 }
 
@@ -126,7 +126,7 @@ void f3(struct S1 a3) {
   array_ptr<int> p : count(5) = 0;
 
   // We current do not detect free variables for member accesses.
-  a3.p = p; // expected-warning {{cannot prove declared bounds for a3.p are valid after assignment}} \
+  a3.p = p; // expected-warning {{cannot prove declared bounds for 'a3.p' are valid after assignment}} \
             // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 5)'}}
 }
 
