@@ -4683,8 +4683,8 @@ namespace {
       }
     }
 
-    // CheckObservedBounds checks that the observed bounds for a variable v
-    // imply that the declared bounds for v are provably true after checking
+    // CheckObservedBounds checks that the observed bounds for the AbstractSet
+    // A imply that the declared bounds for A are provably true after checking
     // the top-level CFG statement St.
     //
     // EquivExprs contains all equality facts contained in State.EquivExprs,
@@ -4743,10 +4743,11 @@ namespace {
     }
 
     // BlameAssignmentWithinStmt prints a diagnostic message that highlights the
-    // assignment expression in St that causes V's observed bounds to be unknown
-    // or not provably valid.  If St is a DeclStmt, St itself and V are
-    // highlighted.  BlameAssignmentWithinStmt returns the source location of
-    // the blamed assignment.
+    // assignment expression in St that causes A's observed bounds to be unknown
+    // or not provably valid.  If St is a DeclStmt, St itself and the
+    // representative lvalue expression of A are highlighted.
+    // BlameAssignmentWithinStmt returns the source location of the blamed
+    // assignment.
     SourceLocation BlameAssignmentWithinStmt(Stmt *St, const AbstractSet *A,
                                              CheckingState State,
                                              unsigned DiagId) const {
