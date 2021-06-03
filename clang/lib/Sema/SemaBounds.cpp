@@ -3436,8 +3436,6 @@ namespace {
         }
       }
 
-      // Determine whether the assignment is to a variable.
-      DeclRefExpr *LHSVar = VariableUtil::GetLValueVariable(S, LHS);
       // Determine whether the checking state is updated for an assignment.
       bool StateUpdated = false;
 
@@ -3467,7 +3465,7 @@ namespace {
         // SameValue is empty for assignments to a non-variable. This
         // conservative approach avoids recording false equality facts for
         // assignments where the LHS appears on the RHS, e.g. *p = *p + 1.
-        if (!LHSVar)
+        if (!VariableUtil::GetLValueVariable(S, LHS))
           State.SameValue.clear();
       } else if (BinaryOperator::isLogicalOp(Op)) {
         // TODO: update State for logical operators `e1 && e2` and `e1 || e2`.
@@ -3507,11 +3505,11 @@ namespace {
               RightBounds = S.CheckNonModifyingBounds(ResultBounds, RHS);
 
             // If RightBounds are invalid bounds, it is because the bounds for
-            // the RHS contained a modifying expression. Update the variable's
-            // observed bounds to be InvalidBounds to avoid extraneous errors
+            // the RHS contained a modifying expression. Update the observed
+            // bounds of the LHS to be InvalidBounds to avoid extraneous errors
             // during bounds declaration validation.
-            if (LHSVar && RightBounds->isInvalid()) {
-              const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(LHSVar);
+            if (StateUpdated && RightBounds->isInvalid()) {
+              const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(LHS);
               State.ObservedBounds[A] = RightBounds;
             }
 
