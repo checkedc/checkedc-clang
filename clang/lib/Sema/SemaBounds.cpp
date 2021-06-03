@@ -4674,7 +4674,7 @@ namespace {
         for (auto I = UnknownSources.begin(); I != UnknownSources.end(); ++I) {
           Expr *Src = *I;
           S.Diag(Src->getBeginLoc(), diag::note_unknown_source_bounds)
-            << Src << V << Src->getSourceRange();
+            << Src << A->GetRepresentative() << Src->getSourceRange();
         }
       }
     }
@@ -4761,7 +4761,8 @@ namespace {
       if (isa<DeclStmt>(St)) {
         Loc = V->getLocation();
         BDCType = Sema::BoundsDeclarationCheck::BDC_Initialization;
-        S.Diag(Loc, DiagId) << BDCType << V << SrcRange << SrcRange;
+        S.Diag(Loc, DiagId) << BDCType << A->GetRepresentative()
+          << SrcRange << SrcRange;
         return Loc;
       }
 
@@ -4788,7 +4789,8 @@ namespace {
           BDCType = Sema::BoundsDeclarationCheck::BDC_Assignment;
         }
       }
-      S.Diag(Loc, DiagId) << BDCType << V << SrcRange << SrcRange;
+      S.Diag(Loc, DiagId) << BDCType << A->GetRepresentative()
+        << SrcRange << SrcRange;
       return Loc;
     }
 
