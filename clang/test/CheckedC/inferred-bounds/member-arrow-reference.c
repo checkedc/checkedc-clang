@@ -96,7 +96,7 @@ void f1(struct S1 *a1, struct S2 *b2) {
 void f2(struct S1 *a3) {
   int local_arr1[5];
   // TODO: need bundled block.
-  a3->p = local_arr1;  // expected-warning {{cannot prove declared bounds for a3->p are valid after assignment}} \
+  a3->p = local_arr1;  // expected-warning {{cannot prove declared bounds for 'a3->p' are valid after assignment}} \
                        // expected-note {{(expanded) inferred bounds are 'bounds(local_arr1, local_arr1 + 5)'}}
 
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' '='
