@@ -1930,7 +1930,8 @@ namespace {
       return BaseRange::Kind::ConstantSized;
     }
 
-    // Given a `Base` and `Offset`, this function tries to convert it to a standard form `Base + (ConstantPart OP VariablePart)`.
+    // Given a `Base` and `Offset`, this function tries to convert it to a standard form `Base + (ConstantPart OP VariablePart)`,
+    // where OP is either signed multiplication or unsigned multiplication.
     // The OP's signedness is stored in IsOpSigned. If the function fails to create the standard form, it returns false. Otherwise,
     // it returns true to indicate success, and stores each part of the standard form in a separate argument as follows:
     // `ConstantPart`: a signed integer
@@ -1950,15 +1951,18 @@ namespace {
         return false;
       if (Base->getType()->getPointeeOrArrayElementType()->isCharType()) {
         if (BinaryOperator *BO = dyn_cast<BinaryOperator>(Offset)) {
-          if (BO->getRHS()->isIntegerConstantExpr(ConstantPart, Ctx))
-            VariablePart = BO->getLHS();
-          else if (BO->getLHS()->isIntegerConstantExpr(ConstantPart, Ctx))
-            VariablePart = BO->getRHS();
-          else
-            goto exit;
-          IsOpSigned = VariablePart->getType()->isSignedIntegerType();
-          ConstantPart = BoundsUtil::ConvertToSignedPointerWidth(Ctx, ConstantPart, Overflow);
-          if (Overflow)
+          if (BinaryOperator::isMultiplicativeOp(BO->getOpcode())) {
+            if (BO->getRHS()->isIntegerConstantExpr(ConstantPart, Ctx))
+              VariablePart = BO->getLHS();
+            else if (BO->getLHS()->isIntegerConstantExpr(ConstantPart, Ctx))
+              VariablePart = BO->getRHS();
+            else
+              goto exit;
+            IsOpSigned = VariablePart->getType()->isSignedIntegerType();
+            ConstantPart = BoundsUtil::ConvertToSignedPointerWidth(Ctx, ConstantPart, Overflow);
+            if (Overflow)
+              goto exit;
+          } else
             goto exit;
         } else
           goto exit;
