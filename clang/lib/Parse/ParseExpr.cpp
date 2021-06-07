@@ -3552,7 +3552,7 @@ bool Parser::StartsRelativeBoundsClause(Token &T) {
 }
 
 bool Parser::StartsWhereClause(const Token &T) {
-  return getLangOpts().CheckedC && Tok.is(tok::kw__Where);
+  return getLangOpts().CheckedC && T.is(tok::kw__Where);
 }
 
 ExprResult Parser::ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn) {
