@@ -1893,6 +1893,57 @@ void inc_dec_bounds5(nt_array_ptr<int> *p, array_ptr<int> a) {
   // CHECK-NEXT: { }
 }
 
+// Increment/decrement operators on variables used in a _Nt_array_ptr<char>
+void inc_dec_bounds6(nt_array_ptr<char> p : count(i), unsigned int i) { // expected-note 2 {{(expanded) declared bounds are 'bounds(p, p + i)'}}
+  // Observed bounds context after increment: { p => bounds(p, p + i - 1) }
+  i++; // expected-warning {{cannot prove declared bounds for 'p' are valid after increment}} \
+       // expected-note {{(expanded) inferred bounds are 'bounds(p, p + i - 1U)'}}
+  // CHECK: Statement S:
+  // CHECK-NEXT: UnaryOperator {{.*}} postfix '++'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'i' 'unsigned int'
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: LValue Expression:
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'p' '_Nt_array_ptr<char>'
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'p' '_Nt_array_ptr<char>'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'p' '_Nt_array_ptr<char>'
+  // CHECK-NEXT:     BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'i' 'unsigned int'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 'unsigned int' 1
+  // CHECK-NEXT: }
+
+  // Observed bounds context after decrement: { p => bounds(p + 1, p + 1 + i) }
+  --p; // expected-warning {{cannot prove declared bounds for 'p' are valid after decrement}} \
+       // expected-note {{(expanded) inferred bounds are 'bounds(p + 1, p + 1 + i)'}}
+  // CHECK: Statement S:
+  // CHECK-NEXT: UnaryOperator {{.*}} prefix '--'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'p' '_Nt_array_ptr<char>'
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: LValue Expression:
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'p' '_Nt_array_ptr<char>'
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'p' '_Nt_array_ptr<char>'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 'int' 1
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'p' '_Nt_array_ptr<char>'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 'int' 1
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'i' 'unsigned int'
+  // CHECK-NEXT: }
+}
+
 ///////////////////////////////////////////////////////////////////////////
 // Expressions that contain multiple assignments can kill widened bounds //
 ///////////////////////////////////////////////////////////////////////////
