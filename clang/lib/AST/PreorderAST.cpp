@@ -509,6 +509,13 @@ bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
   if (B1->Opc != B2->Opc)
     return false;
 
+  // Offset should always be of the form (ptr + offset). So we check for
+  // addition.
+  // Note: We have already converted (ptr - offset) to (ptr + -offset). So
+  // it is okay to only check for addition.
+  if (B1->Opc != BO_Add)
+    return false;
+
   // We have already constant folded the constants. So return false if the
   // number of children mismatch.
   if (B1->Children.size() != B2->Children.size())
@@ -537,13 +544,6 @@ bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
 
     llvm::APSInt DerefOffset;
     if (!L2->E->isIntegerConstantExpr(DerefOffset, Ctx))
-      return false;
-
-    // Offset should always be of the form (ptr + offset). So we check for
-    // addition.
-    // Note: We have already converted (ptr - offset) to (ptr + -offset). So
-    // it is okay to only check for addition.
-    if (B1->Opc != BO_Add)
       return false;
 
     // This guards us from a case where the constants were not folded for
