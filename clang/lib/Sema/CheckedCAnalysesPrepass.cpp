@@ -155,7 +155,8 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
 
       // If V has a bounds expression, traverse it so we visit the
       // DeclRefExprs within the bounds.
-      if (V->hasBoundsExpr()) {
+      if (V->getType()->isCheckedPointerArrayType() ||
+          V->getType()->isCheckedArrayType()) {
         if (BoundsExpr *B = SemaRef.NormalizeBounds(V)) {
           VarWithBounds = V;
           TraverseStmt(B);
