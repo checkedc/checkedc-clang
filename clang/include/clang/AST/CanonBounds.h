@@ -131,6 +131,12 @@ namespace clang {
     bool GetDerefOffset(const Expr *UpperExpr, const Expr *DerefExpr,
                         llvm::APSInt &Offset) const;
 
+    /// \brief Get the integer difference between two expressions.
+    /// The boolean return value indicates whether the two expressions are
+    /// comparable.
+    bool GetExprIntDiff(const Expr *E1, const Expr *E2,
+                        llvm::APSInt &Offset) const;
+
     /// \brief Compare declarations that may be used by expressions or
     /// or types.
     Result CompareDecl(const NamedDecl *D1, const NamedDecl *D2) const;

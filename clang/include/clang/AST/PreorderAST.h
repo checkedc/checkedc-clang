@@ -302,6 +302,16 @@ namespace clang {
     bool GetDerefOffset(Node *UpperExpr, Node *DerefExpr,
                         llvm::APSInt &Offset);
 
+    // Get the integer difference between expressions.
+    // @param[in] E1 is the first expression.
+    // @param[in] E2 is the second expression.
+    // @param[out] Offset is the integer difference between E1 and E2.
+    // @return Returns a boolean indicating whether the expressions are
+    // comparable. True means the expressions are comparable and their integer
+    // difference is present in the "Offset" parameter.  False means the
+    // expressions are not comparable.
+    bool GetExprIntDiff(Node *E1, Node *E2, llvm::APSInt &Offset);
+
     // Set Error in case an error occurs during transformation of the AST.
     void SetError() { Error = true; }
 
@@ -326,6 +336,18 @@ namespace clang {
     // exists.
     bool GetDerefOffset(PreorderAST &P, llvm::APSInt &Offset) {
       return GetDerefOffset(/*UpperExpr*/ Root, /*DerefExpr*/ P.Root, Offset);
+    }
+
+    // Get the integer difference between two expressions represented as
+    // preorder ASTs. This function is intended to be called from outside this
+    // class.
+    // @param[in] this is the first AST.
+    // @param[in] P is the second AST.
+    // @param[out] Offset is the integer difference.
+    // @return Returns a bool indicating whether the two expressions are
+    // comparable.
+    bool GetExprIntDiff(PreorderAST &P, llvm::APSInt &Offset) {
+      return GetExprIntDiff(Root, P.Root, Offset);
     }
 
     // Lexicographically compare the two ASTs. This is intended to be called
