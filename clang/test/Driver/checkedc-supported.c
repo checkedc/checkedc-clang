@@ -15,7 +15,7 @@
 // RUN:  | FileCheck %s -check-prefix=clcheck-cpp
 // clcheck-cpp: warning: Checked C extension not supported with 'C++'; ignoring '-fcheckedc-extension'
 //
-// RUN: not %clang -c -fcheckedc-extension -x cuda -nocudalib -nocudainc %s -o %t 2>&1 \
+// RUN: not %clang -c -fcheckedc-extension -x cuda -nocudalib -nocudainc --no-cuda-version-check %s -o %t 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=check-cuda
 // check-cuda: warning: Checked C extension not supported with 'CUDA'; ignoring '-fcheckedc-extension'
 //
