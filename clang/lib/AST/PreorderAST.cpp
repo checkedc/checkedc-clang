@@ -514,9 +514,6 @@ bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
   if (B1->Children.size() != B2->Children.size())
     return false;
 
-  llvm::APSInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
-  Offset = Zero;
-
   // Check if the children are equivalent.
   for (size_t I = 0; I != B1->Children.size(); ++I) {
     auto *Child1 = B1->Children[I];
@@ -552,6 +549,7 @@ bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
     // This guards us from a case where the constants were not folded for
     // some reason. In theory this should never happen. But we are adding this
     // check just in case.
+    llvm::APSInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
     if (llvm::APSInt::compareValues(Offset, Zero) != 0)
       return false;
 
@@ -598,6 +596,10 @@ bool PreorderAST::GetExprIntDiff(Node *E1, Node *E2, llvm::APSInt &Offset) {
   if (B1->Children.size() != B2->Children.size())
       return false;
 
+  llvm::APSInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
+  // Initialize Offset to 0.
+  Offset = Zero;
+
   // Check if the children are equivalent.
   for (size_t I = 0; I != B1->Children.size(); ++I) {
     auto *Child1 = B1->Children[I];
@@ -626,7 +628,6 @@ bool PreorderAST::GetExprIntDiff(Node *E1, Node *E2, llvm::APSInt &Offset) {
     // This guards us from a case where the constants were not folded for
     // some reason. In theory this should never happen. But we are adding this
     // check just in case.
-    llvm::APSInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
     if (llvm::APSInt::compareValues(Offset, Zero) != 0)
       return false;
 
