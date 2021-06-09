@@ -6998,6 +6998,10 @@ void Sema::WarnDynamicCheckAlwaysFails(const Expr *Condition) {
 // range bounds are attached to the VarDecl D to avoid recomputing the
 // normalized bounds for D.
 BoundsExpr *Sema::NormalizeBounds(const VarDecl *D) {
+  // Do not attempt to normalize bounds for invalid declarations.
+  if (D->isInvalidDecl())
+    return nullptr;
+
   // If D already has a normalized bounds expression, do not recompute it.
   if (BoundsExpr *NormalizedBounds = D->getNormalizedBounds())
     return NormalizedBounds;
