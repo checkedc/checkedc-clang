@@ -105,7 +105,7 @@ You will need to choose a drive that has at least 50 Gbytes free.  You may need 
                                                  // installed when "ninja install" is executed. 
    -DCMAKE_BUILD_TYPE=Release                    // Alternate value: Debug
    -DLLVM_ENABLE_ASSERTIONS=ON                   // Alternate value: OFF
-   -DLLVM_CCACHE_BUILD=ON                        // OPTIONAL. If this definition exists, cache
+   -DLLVM_CCACHE_BUILD=ON                        // OPTIONAL. If this definition exists, ccache
                                                  // will be used to speen up builds.
    -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON              // OPTIONAL. This definition is required to
                                                  // build a package for installation on other
@@ -175,8 +175,6 @@ You will need to choose a drive that has at least 50 Gbytes free.  You may need 
       -DCMAKE_BUILD_TYPE=Release                    // Alternate value: Debug
       -DLLVM_ENABLE_ASSERTIONS=ON                   // Alternate value: OFF
       -DLLVM_USE_CRT_RELEASE=MT
-      -DLLVM_CCACHE_BUILD=ON                        // OPTIONAL. If this definition exists, cache
-                                                    // will be used to speen up builds.
       -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON              // OPTIONAL. This definition is required to
                                                     // build a package for installation on other
                                                     // machines.
