@@ -157,7 +157,7 @@ You will need to choose a drive that has at least 50 Gbytes free.  You may need 
       cd <WORK_DIR>\build
       ```
 
-5. In a Windows command shell, execute the commands given below. NOTE: For the last command, supply the argument "x64" to build the X64 version of `clang` , or the argument "x86" to build the X86 version of clang, or the argument "x86_64" to build the X86 version of clang that executes on X64 Windows. NOTE: In the last command below, "Microsoft Visual Studio" is a space-separated directory name; therefore the last command which is a single command is split over two physical lines.
+5. In a Windows command shell, execute the commands given below. NOTE: For the last command, supply the argument "x64" to build the X64 version of `clang` , or the argument "x86" to build the X86 version of clang, or the argument "x86_64" to build the X86 version of clang that executes on X64 Windows.
 
       ```
       set TOP=<WORK_DIR>
