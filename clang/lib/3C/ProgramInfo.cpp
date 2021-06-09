@@ -353,10 +353,11 @@ void ProgramInfo::printStats(const std::set<std::string> &F, raw_ostream &O,
       O << "\"BoundsStats\":";
     }
     ArrBInfo.printStats(O, InSrcCVars, JsonFormat);
+    if (JsonFormat)
+      O << ",";
   }
 
   if (JsonFormat) {
-    O << ",";
     O << "\"PerformanceStats\":";
   }
 
