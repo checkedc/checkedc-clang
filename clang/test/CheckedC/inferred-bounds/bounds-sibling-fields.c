@@ -3,8 +3,6 @@
 //
 // RUN: %clang_cc1 -fdump-boundssiblingfields -verify -verify-ignore-unexpected=note -verify-ignore-unexpected=warning %s | FileCheck %s
 
-// expected-no-diagnostics
-
 struct C {
   int len;
   _Array_ptr<int> r : count(len);
@@ -101,7 +99,7 @@ void f4(_Ptr<struct S> s[3][4]) {
 }
 
 void f5(void) {
-  ((struct A){ 0 }).i = 0;
+  ((struct A){ 0 }).i = 0; // expected-error {{inferred bounds for '((struct A){0}).r' are unknown after assignment}}
   // CHECK-LABEL: In function: f5
   // CHECK: BoundsSiblingFields:
   // CHECK: A::b: { A::p }

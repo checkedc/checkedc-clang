@@ -666,7 +666,7 @@ void f83(_Ptr<int> d, size_t a) {
 
 struct st_80;
 struct st_80_arr {
-  struct st_80 **e : itype(_Array_ptr<_Ptr<struct st_80>>) count(c);
+  struct st_80 **e : itype(_Array_ptr<_Ptr<struct st_80>>) count(c); // expected-note 4 {{declared bounds are 'bounds(arr->e, arr->e + arr->c)'}}
   int d;
   int c;
 };
@@ -674,9 +674,9 @@ struct st_80_arr {
 void f84(_Ptr<struct st_80_arr> arr, int b) {
   _Array_ptr<_Ptr<struct st_80>> a : count(b) = 0;
   if (arr->c <= b) {
-    arr->c = b * b;
-    arr->e = a; // expected-warning {{cannot prove declared bounds for arr->e are valid after assignment}} \
-                // expected-note {{declared bounds are 'bounds(arr->e, arr->e + arr->c)'}} \
+    arr->c = b * b; // expected-error {{inferred bounds for 'arr->e' are unknown after assignment}} \
+                    // expected-note {{lost the value of the expression 'arr->c' which is used in the (expanded) inferred bounds 'bounds(arr->e, arr->e + arr->c)' of 'arr->e'}}
+    arr->e = a; // expected-warning {{cannot prove declared bounds for 'arr->e' are valid after assignment}} \
                 // expected-note {{inferred bounds are 'bounds(a, a + b)'}}
   }
 }
@@ -684,10 +684,10 @@ void f84(_Ptr<struct st_80_arr> arr, int b) {
 void f85(_Ptr<struct st_80_arr> arr, int b) {
   _Array_ptr<_Ptr<struct st_80>> a : count(b) = 0;
   if (arr->c <= b) {
-    arr->e = a; // expected-warning {{cannot prove declared bounds for arr->e are valid after assignment}} \
-                // expected-note {{declared bounds are 'bounds(arr->e, arr->e + arr->c)'}} \
+    arr->e = a; // expected-warning {{cannot prove declared bounds for 'arr->e' are valid after assignment}} \
                 // expected-note {{inferred bounds are 'bounds(a, a + b)'}}
-    arr->c = b * b;
+    arr->c = b * b; // expected-error {{inferred bounds for 'arr->e' are unknown after assignment}} \
+                    // expected-note {{lost the value of the expression 'arr->c' which is used in the (expanded) inferred bounds 'bounds(arr->e, arr->e + arr->c)' of 'arr->e'}}
   }
 }
 

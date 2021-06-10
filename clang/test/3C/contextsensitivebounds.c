@@ -36,8 +36,7 @@ int foo() {
   unsigned i;
   struct hash_node *n = somefunc(sizeof(struct hash_node));
   i = 5 * sizeof(int);
-  n->pqlen = i;
-  n->p_key = somefunc(i);
+  n->pqlen = i, n->p_key = somefunc(i), n->q_key = 0;
   n->r_key = somefunc(n->r_len);
   n->p_key[0] = 1;
   n->r_key[0] = 1;
