@@ -1950,7 +1950,7 @@ namespace {
       if (!Base->getType()->isPointerType())
         return false;
       if (Base->getType()->getPointeeOrArrayElementType()->isCharType()) {
-        if (BinaryOperator *BO = dyn_cast<BinaryOperator>(Offset)) {
+        if (BinaryOperator *BO = dyn_cast<BinaryOperator>(Offset->IgnoreParens())) {
           if (BinaryOperator::isMultiplicativeOp(BO->getOpcode())) {
             if (BO->getRHS()->isIntegerConstantExpr(ConstantPart, Ctx))
               VariablePart = BO->getLHS();
