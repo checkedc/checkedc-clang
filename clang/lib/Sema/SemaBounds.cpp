@@ -2590,10 +2590,10 @@ namespace {
       // 2. Otherwise, if Src is a non-modifying expression, record
       //    equivalence between V and Src.
       CHKCBindTemporaryExpr *Temp = GetTempBinding(Src);
+      // TODO: make sure variable being initialized isn't read by Src.
+      DeclRefExpr *TargetDeclRef = ExprCreatorUtil::CreateVarUse(S, D);
       if (Temp ||  S.CheckIsNonModifying(Src, Sema::NonModifyingContext::NMC_Unknown,
                                          Sema::NonModifyingMessage::NMM_None)) {
-        // TODO: make sure variable being initialized isn't read by Src.
-        DeclRefExpr *TargetDeclRef = ExprCreatorUtil::CreateVarUse(S, D);
         CastKind Kind;
         QualType TargetTy;
         if (D->getType()->isArrayType()) {
@@ -2633,7 +2633,7 @@ namespace {
                        : diag::warn_bounds_declaration_invalid);
 
         S.Diag(ExprLoc, DiagId)
-          << Sema::BoundsDeclarationCheck::BDC_Initialization << D
+          << Sema::BoundsDeclarationCheck::BDC_Initialization << TargetDeclRef
           << D->getLocation() << Src->getSourceRange();
         if (Result == ProofResult::False)
           ExplainProofFailure(ExprLoc, Cause, ProofStmtKind::BoundsDeclaration);
@@ -3436,8 +3436,8 @@ namespace {
         }
       }
 
-      // Determine whether the assignment is to a variable.
-      DeclRefExpr *LHSVar = VariableUtil::GetLValueVariable(S, LHS);
+      // Determine whether the checking state is updated for an assignment.
+      bool StateUpdated = false;
 
       // Update the checking state.  The result bounds may also be updated
       // for assignments to a variable.
@@ -3459,13 +3459,13 @@ namespace {
 
         // Update the checking state and result bounds to reflect the
         // assignment to `e1`.
-        ResultBounds = UpdateAfterAssignment(LHS, E, Target, Src,
-                                             ResultBounds, CSS, State);
+        ResultBounds = UpdateAfterAssignment(LHS, E, Target, Src, ResultBounds,
+                                             CSS, State, StateUpdated);
 
         // SameValue is empty for assignments to a non-variable. This
         // conservative approach avoids recording false equality facts for
         // assignments where the LHS appears on the RHS, e.g. *p = *p + 1.
-        if (!LHSVar)
+        if (!VariableUtil::GetLValueVariable(S, LHS))
           State.SameValue.clear();
       } else if (BinaryOperator::isLogicalOp(Op)) {
         // TODO: update State for logical operators `e1 && e2` and `e1 || e2`.
@@ -3505,18 +3505,19 @@ namespace {
               RightBounds = S.CheckNonModifyingBounds(ResultBounds, RHS);
 
             // If RightBounds are invalid bounds, it is because the bounds for
-            // the RHS contained a modifying expression. Update the variable's
-            // observed bounds to be InvalidBounds to avoid extraneous errors
+            // the RHS contained a modifying expression. Update the observed
+            // bounds of the LHS to be InvalidBounds to avoid extraneous errors
             // during bounds declaration validation.
-            if (LHSVar && RightBounds->isInvalid()) {
-              const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(LHSVar);
+            if (StateUpdated && RightBounds->isInvalid()) {
+              const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(LHS);
               State.ObservedBounds[A] = RightBounds;
             }
 
-            // Check bounds declarations for assignments to a non-variable.
-            // Assignments to variables will be checked after checking the
-            // current top-level CFG statement.
-            if (!LHSVar) {
+            // Check bounds declarations for assignments where the state was
+            // not updated in UpdateAfterAssignment.
+            // If the state was updated in UpdateAfterAssignment, the bounds
+            // will be checked after checking the current top-level statement.
+            if (!StateUpdated) {
               if (RightBounds->isUnknown()) {
                 S.Diag(RHS->getBeginLoc(),
                        diag::err_expected_bounds_for_assignment)
@@ -3912,8 +3913,10 @@ namespace {
                                        SubExprLValueBounds,
                                        SubExprBounds, State);
         }
+        bool StateUpdated = false;
         IncDecResultBounds = UpdateAfterAssignment(SubExpr, E, Target, RHS,
-                                                   RHSBounds, CSS, State);
+                                                   RHSBounds, CSS,
+                                                   State, StateUpdated);
 
         // Update the set SameValue of expressions that produce the same
         // value as `e`.
@@ -4609,7 +4612,7 @@ namespace {
 
       for (auto const &Pair : State.ObservedBounds) {
         const AbstractSet *A = Pair.first;
-        const VarDecl *V = A->GetVarDecl();
+        const NamedDecl *V = A->GetDecl();
         if (!V)
           continue;
         BoundsExpr *ObservedBounds = Pair.second;
@@ -4620,12 +4623,15 @@ namespace {
         if (ObservedBounds->isUnknown())
           DiagnoseUnknownObservedBounds(S, A, DeclaredBounds, State);
         else {
-          // We should issue diagnostics for observed bounds if the variable V
-          // is not in the set BoundsWidenedAndNotKilled which represents
-          // variables whose bounds are widened in this block and not killed by
-          // statement S.
-          bool DiagnoseObservedBounds = BoundsWidenedAndNotKilled.find(V) ==
-                                        BoundsWidenedAndNotKilled.end();
+          // If the lvalue expressions in A are variables represented by a
+          // declaration Var, we should issue diagnostics for observed bounds
+          // if Var is not in the set BoundsWidenedAndKilled which represents
+          // variables whose bounds are widened in this block and not killed
+          // by statement S.
+          bool DiagnoseObservedBounds = true;
+          if (const VarDecl *Var = dyn_cast<VarDecl>(V))
+            DiagnoseObservedBounds = BoundsWidenedAndNotKilled.find(Var) ==
+                                     BoundsWidenedAndNotKilled.end();
           CheckObservedBounds(S, A, DeclaredBounds, ObservedBounds, State,
                               &EquivExprs, CSS, Block, DiagnoseObservedBounds);
         }
@@ -4641,7 +4647,7 @@ namespace {
     void DiagnoseUnknownObservedBounds(Stmt *St, const AbstractSet *A,
                                        BoundsExpr *DeclaredBounds,
                                        CheckingState State) {
-      const VarDecl *V = A->GetVarDecl();
+      const NamedDecl *V = A->GetDecl();
       if (!V)
         return;
 
@@ -4658,13 +4664,9 @@ namespace {
         std::pair<BoundsExpr *, Expr *> Lost = LostLValueIt->second;
         BoundsExpr *InitialObservedBounds = Lost.first;
         Expr *LostLValue = Lost.second;
-        // TODO: currently, we only validate bounds for an AbstractSet A in
-        // ObservedBounds if the representative of A is a DeclRefExpr, so
-        // we can still emit the note_lost_variable diagnostic message.
-        // In the future, we should change this message so that it applies
-        // to all kinds of lvalue expressions.
-        S.Diag(LostLValue->getBeginLoc(), diag::note_lost_variable)
-          << LostLValue << InitialObservedBounds << V << LostLValue->getSourceRange();
+        S.Diag(LostLValue->getBeginLoc(), diag::note_lost_expression)
+          << LostLValue << InitialObservedBounds
+          << A->GetRepresentative() << LostLValue->getSourceRange();
       }
 
       // The observed bounds of A are unknown because at least one expression
@@ -4675,13 +4677,13 @@ namespace {
         for (auto I = UnknownSources.begin(); I != UnknownSources.end(); ++I) {
           Expr *Src = *I;
           S.Diag(Src->getBeginLoc(), diag::note_unknown_source_bounds)
-            << Src << V << Src->getSourceRange();
+            << Src << A->GetRepresentative() << Src->getSourceRange();
         }
       }
     }
 
-    // CheckObservedBounds checks that the observed bounds for a variable v
-    // imply that the declared bounds for v are provably true after checking
+    // CheckObservedBounds checks that the observed bounds for the AbstractSet
+    // A imply that the declared bounds for A are provably true after checking
     // the top-level CFG statement St.
     //
     // EquivExprs contains all equality facts contained in State.EquivExprs,
@@ -4693,7 +4695,7 @@ namespace {
                              CheckedScopeSpecifier CSS,
                              const CFGBlock *Block,
                              bool DiagnoseObservedBounds) {
-      const VarDecl *V = A->GetVarDecl();
+      const NamedDecl *V = A->GetDecl();
       ProofFailure Cause;
       FreeVariableListTy FreeVars;
       ProofResult Result = ProveBoundsDeclValidity(
@@ -4740,15 +4742,16 @@ namespace {
     }
 
     // BlameAssignmentWithinStmt prints a diagnostic message that highlights the
-    // assignment expression in St that causes V's observed bounds to be unknown
-    // or not provably valid.  If St is a DeclStmt, St itself and V are
-    // highlighted.  BlameAssignmentWithinStmt returns the source location of
-    // the blamed assignment.
+    // assignment expression in St that causes A's observed bounds to be unknown
+    // or not provably valid.  If St is a DeclStmt, St itself and the
+    // representative lvalue expression of A are highlighted.
+    // BlameAssignmentWithinStmt returns the source location of the blamed
+    // assignment.
     SourceLocation BlameAssignmentWithinStmt(Stmt *St, const AbstractSet *A,
                                              CheckingState State,
                                              unsigned DiagId) const {
       assert(St);
-      const VarDecl *V = A->GetVarDecl();
+      const NamedDecl *V = A->GetDecl();
       assert(V);
       SourceRange SrcRange = St->getSourceRange();
       auto BDCType = Sema::BoundsDeclarationCheck::BDC_Statement;
@@ -4761,7 +4764,8 @@ namespace {
       if (isa<DeclStmt>(St)) {
         Loc = V->getLocation();
         BDCType = Sema::BoundsDeclarationCheck::BDC_Initialization;
-        S.Diag(Loc, DiagId) << BDCType << V << SrcRange << SrcRange;
+        S.Diag(Loc, DiagId) << BDCType << A->GetRepresentative()
+          << SrcRange << SrcRange;
         return Loc;
       }
 
@@ -4788,7 +4792,8 @@ namespace {
           BDCType = Sema::BoundsDeclarationCheck::BDC_Assignment;
         }
       }
-      S.Diag(Loc, DiagId) << BDCType << V << SrcRange << SrcRange;
+      S.Diag(Loc, DiagId) << BDCType << A->GetRepresentative()
+        << SrcRange << SrcRange;
       return Loc;
     }
 
@@ -4805,16 +4810,19 @@ namespace {
     BoundsExpr *UpdateAfterAssignment(Expr *LValue, Expr *E, Expr *Target,
                                       Expr *Src, BoundsExpr *SrcBounds,
                                       CheckedScopeSpecifier CSS,
-                                      CheckingState &State) {
+                                      CheckingState &State,
+                                      bool &StateUpdated) {
       if (!LValue)
         return SrcBounds;
-      LValue = LValue->IgnoreParens();
+      Lexicographic Lex(S.Context, nullptr);
+      LValue = Lex.IgnoreValuePreservingOperations(S.Context, LValue);
 
       // Currently, we only update the checking state after assignments
       // to a variable or a member expression.
-      DeclRefExpr *V = VariableUtil::GetLValueVariable(S, LValue);
-      if (!V && !isa<MemberExpr>(LValue))
+      if (!isa<DeclRefExpr>(LValue) && !isa<MemberExpr>(LValue)) {
+        StateUpdated = false;
         return SrcBounds;
+      }
 
       // Get the original value (if any) of LValue before the assignment,
       // and determine whether the original value uses the value of LValue.
@@ -4832,6 +4840,7 @@ namespace {
                                      OriginalValueUsesLValue, CSS, State);
       RecordEqualityWithTarget(LValue, Target, Src, State);
 
+      StateUpdated = true;
       return ResultBounds;
     }
 

@@ -2,8 +2,6 @@
 //
 // RUN: %clang_cc1 -print-stats -verify -verify-ignore-unexpected=note -verify-ignore-unexpected=warning %s | grep '' %s | FileCheck %s --dump-input=always
 
-// expected-no-diagnostics
-
 struct B {
   int len;
 };
@@ -21,7 +19,7 @@ void synthesize_members(struct A *a) {
   // While synthesizing members for the following assignment, MemberExprs
   // will be created for a->f and a->g. An AbstractSet will be created
   // for a->f.
-  a->b->len = 0;
+  a->b->len = 0; // expected-error {{inferred bounds for 'a->f' are unknown after assignment}}
 }
 
 // CHECK: *** Checked C Stats:
