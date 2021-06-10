@@ -1951,6 +1951,8 @@ namespace {
         return false;
       if (Base->getType()->getPointeeOrArrayElementType()->isCharType()) {
         if (BinaryOperator *BO = dyn_cast<BinaryOperator>(Offset->IgnoreParens())) {
+          // Check to see if Offset is already of the form e * i or i * e. In this case,
+          // ConstantPart = i, VariablePart = e.
           if (BinaryOperator::isMultiplicativeOp(BO->getOpcode())) {
             if (BO->getRHS()->isIntegerConstantExpr(ConstantPart, Ctx))
               VariablePart = BO->getLHS();
