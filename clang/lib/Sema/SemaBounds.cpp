@@ -1959,18 +1959,18 @@ namespace {
             else if (BO->getLHS()->isIntegerConstantExpr(ConstantPart, Ctx))
               VariablePart = BO->getRHS();
             else
-              goto exit;
+              goto fallback_std_form;
             IsOpSigned = VariablePart->getType()->isSignedIntegerType();
             ConstantPart = BoundsUtil::ConvertToSignedPointerWidth(Ctx, ConstantPart, Overflow);
             if (Overflow)
-              goto exit;
+              goto fallback_std_form;
           } else
-            goto exit;
+            goto fallback_std_form;
         } else
-          goto exit;
+          goto fallback_std_form;
         return true;
 
-      exit:
+      fallback_std_form:
         VariablePart = Offset;
         ConstantPart = llvm::APSInt(llvm::APInt(PointerWidth, 1), false);
         IsOpSigned = VariablePart->getType()->isSignedIntegerType();
