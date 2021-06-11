@@ -2817,3 +2817,51 @@ void conditional4(array_ptr<int> large : count(3),
   // CHECK-NEXT:     IntegerLiteral {{.*}} 1
   // CHECK-NEXT: }  
 }
+
+//////////////////////////////////////////////////////////////////////////
+// Invalid variable declarations are not included in the bounds context //
+//////////////////////////////////////////////////////////////////////////
+
+// Parameter with an invalid declaration
+_Checked void invalid_decl1(int **p : count(i), int i) { // expected-error {{parameter in a checked scope must have a bounds-safe interface type that uses only checked types or parameter/return types with bounds-safe interfaces}} \
+                                                         // expected-note {{'int *' is not allowed in a checked scope}}
+  // Even though i is used in the declared bounds of p, since p is an invalid
+  // declaration, we do not include p in the observed bounds context, so this
+  // statement does not invalidate any bounds.
+  // Observed bounds context: { }
+  i = 0;
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: { }
+}
+
+// Local variable with an invalid declaration
+_Checked void invalid_decl2(int i) {
+  // p is an invalid declaration, so we do not include p in the bounds context.
+  // Observed bounds context: { }
+  _Array_ptr<char *> p : count(i) = 0; // expected-error {{local variable in a checked scope must have a pointer, array or function type that uses only checked types or parameter/return types with bounds-safe interfaces}} \
+                                       // expected-note {{'char *' is not allowed in a checked scope}}
+  // CHECK: Statement S:
+  // CHECK-NEXT: DeclStmt
+  // CHECK-NEXT:   VarDecl {{.*}} invalid p
+  // CHECK-NEXT:     CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: { }
+
+  // Even though i is used in the declared bounds of p, since p is an invalid
+  // declaration, we do not include p in the observed bounds context, so this
+  // statement does not invalidate any bounds.
+  // Observed bounds context: { }
+  i = 0;
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: { }
+}

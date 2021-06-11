@@ -7011,48 +7011,52 @@ void Sema::WarnDynamicCheckAlwaysFails(const Expr *Condition) {
 // range bounds are attached to the VarDecl D to avoid recomputing the
 // normalized bounds for D.
 BoundsExpr *Sema::NormalizeBounds(const VarDecl *D) {
+  // Do not attempt to normalize bounds for invalid declarations.
+  if (D->isInvalidDecl())
+    return nullptr;
+
   // If D already has a normalized bounds expression, do not recompute it.
   if (BoundsExpr *NormalizedBounds = D->getNormalizedBounds())
     return NormalizedBounds;
 
-  // Normalize the bounds of D to a RangeBoundsExpr and attach the normalized
-  // bounds to D to avoid recomputing them.
-  BoundsExpr *Bounds = ExpandBoundsToRange(D, D->getBoundsExpr());
-  D->setNormalizedBounds(Bounds);
-  return Bounds;
-}
+  // Expand the bounds expression of D to a RangeBoundsExpr if possible.
+  const BoundsExpr *B = D->getBoundsExpr();
+  BoundsExpr *ExpandedBounds = nullptr;
 
-// This is wrapper around CheckBoundsDeclaration::ExpandToRange. This provides
-// an easy way to invoke this function from outside the class. Given a
-// byte_count or count bounds expression for the VarDecl D, ExpandToRange will
-// expand it to a range bounds expression.
-BoundsExpr *Sema::ExpandBoundsToRange(const VarDecl *D, const BoundsExpr *B) {
-  // If the bounds expr is already a RangeBoundsExpr, simply return it.
+  // If the bounds expr of D is already a RangeBoundsExpr, there is
+  // no need to expand it.
   if (B && isa<RangeBoundsExpr>(B))
-    return const_cast<BoundsExpr *>(B);
+    ExpandedBounds = const_cast<BoundsExpr *>(B);
+  else {
+    PrepassInfo Info;
+    std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
+    CheckBoundsDeclarations CBD = CheckBoundsDeclarations(*this, Info, EmptyFacts);
 
-  PrepassInfo Info;
-  std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
-  CheckBoundsDeclarations CBD = CheckBoundsDeclarations(*this, Info, EmptyFacts);
+    if (D->getType()->isArrayType()) {
+      ExprResult ER = BuildDeclRefExpr(const_cast<VarDecl *>(D), D->getType(),
+                                       clang::ExprValueKind::VK_LValue,
+                                       SourceLocation());
+      if (ER.isInvalid())
+        return nullptr;
+      Expr *Base = ER.get();
 
-  if (D->getType()->isArrayType()) {
-    ExprResult ER = BuildDeclRefExpr(const_cast<VarDecl *>(D), D->getType(),
-                                     clang::ExprValueKind::VK_LValue,
-                                     SourceLocation());
-    if (ER.isInvalid())
-      return nullptr;
-    Expr *Base = ER.get();
-
-    // Declared bounds override the bounds based on the array type.
-    if (!B)
-      return CBD.ArrayExprBounds(Base);
-    Base = CBD.CreateImplicitCast(Context.getDecayedType(Base->getType()),
-                                  CastKind::CK_ArrayToPointerDecay,
-                                  Base);
-    return CBD.ExpandToRange(Base, const_cast<BoundsExpr *>(B));
+      // Declared bounds override the bounds based on the array type.
+      if (!B)
+        ExpandedBounds = CBD.ArrayExprBounds(Base);
+      else {
+        Base = CBD.CreateImplicitCast(Context.getDecayedType(Base->getType()),
+                                      CastKind::CK_ArrayToPointerDecay,
+                                      Base);
+        ExpandedBounds = CBD.ExpandToRange(Base, const_cast<BoundsExpr *>(B));
+      }
+    } else
+      ExpandedBounds = CBD.ExpandToRange(const_cast<VarDecl *>(D),
+                                         const_cast<BoundsExpr *>(B));
   }
-  return CBD.ExpandToRange(const_cast<VarDecl *>(D),
-                           const_cast<BoundsExpr *>(B));
+
+  // Attach the normalized bounds to D to avoid recomputing them.
+  D->setNormalizedBounds(ExpandedBounds);
+  return ExpandedBounds;
 }
 
 // Returns the declared bounds for the lvalue expression E. Assignments
