@@ -5733,12 +5733,6 @@ public:
   // normalized bounds for D.
   BoundsExpr *NormalizeBounds(const VarDecl *D);
 
-  // This is wrapper around CheckBoundsDeclaration::ExpandToRange. This
-  // provides an easy way to invoke this function from outside the class. Given
-  // a byte_count or count bounds expression for the VarDecl D, ExpandToRange
-  // will expand it to a range bounds expression.
-  BoundsExpr *ExpandBoundsToRange(const VarDecl *D, const BoundsExpr *B);
-
   // Returns the declared bounds for the lvalue expression E. Assignments
   // to E must satisfy these bounds. After checking a top-level statement,
   // the inferred bounds of E must imply these declared bounds.
