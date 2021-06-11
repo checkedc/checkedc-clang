@@ -3,7 +3,7 @@
 Note: The automation scripts used to build and test the Checked C compiler have
 now been moved to their own
 [repo](https://github.com/microsoft/checkedc-automation). We use CMake with
-Ninja for both Linux and windows builds.
+Ninja for both Linux and Windows builds.
 
 ## Setting up your machine
 
@@ -135,12 +135,15 @@ repo:
 MacOS. [ ccache](https://ccache.samba.org) is a smart cache for GCC or Clang. It
 works as a shim, and uses the hash of source files and their included headers
 and build options to decide if an output needs recompiling, instead of file
-modification time (which Make uses). In some circumstances, this can cut
-second-build (i.e. `make` where some of the files are already built) time down
+modification time (which CMake uses). In some circumstances, this can cut
+second-build (i.e. `ninja` where some of the files are already built) time down
 from 5 minutes to 30 seconds. This still depends on how your header files and
 includes are organized. Moreover, there are ways to share and control the size
 of the cache directory, which is where `ccache` stores a copy of any object
 files it has compiled.
+   ```
+   sudo apt install ccache
+   ```
 
 5. LLVM and Clang use `CMake`, which is a meta-build system generator. It
 generates build systems for a specific platform. Create a build directory that
