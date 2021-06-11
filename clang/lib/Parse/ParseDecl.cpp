@@ -7999,6 +7999,7 @@ bool Parser::ParseForanySpecifierHelper(DeclSpec &DS,
       // TypeVariableType.
       QualType R = Actions.Context.getTypeVariableType(Depth, typeVariableIndex, S == Scope::ItypeforanyScope);
       TypeSourceInfo *TInfo = Actions.Context.CreateTypeSourceInfo(R);
+      TInfo->getTypeLoc().castAs<TypeVariableTypeLoc>().setNameLoc(Tok.getLocation());
       TypedefDecl *NewTD = TypedefDecl::Create(Actions.Context, Actions.CurContext,
         Loc,
         Tok.getLocation(),
