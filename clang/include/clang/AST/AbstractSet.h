@@ -59,17 +59,16 @@ namespace clang {
       return Representative;
     }
 
-    // Returns the VarDecl, if any, associated with the Representative
+    // Returns the NamedDecl, if any, associated with the Representative
     // expression for this AbstractSet.
-    // This VarDecl is used by bounds declaration checking to emit
+    // This NamedDecl is used by bounds declaration checking to emit
     // diagnostics for statements that invalidate the inferred bounds of
     // the lvalue expressions in the AbstractSet.
-    const VarDecl *GetVarDecl() const {
-      if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(Representative)) {
-        if (const VarDecl *V = dyn_cast<VarDecl>(DRE->getDecl()))
-          return V;
-        return nullptr;
-      }
+    const NamedDecl *GetDecl() const {
+      if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(Representative))
+        return DRE->getDecl();
+      if (MemberExpr *ME = dyn_cast<MemberExpr>(Representative))
+        return ME->getMemberDecl();
       return nullptr;
     }
 

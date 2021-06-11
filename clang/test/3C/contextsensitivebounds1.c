@@ -53,8 +53,7 @@ int foo() {
   unsigned i, j;
   struct hash_node *n = somefunc(sizeof(struct hash_node));
   i = 5 * sizeof(int);
-  n->pqlen = i;
-  n->p_key = somefunc(i);
+  n->pqlen = i, n->p_key = somefunc(i), n->q_key = 0;
   n->r_key = somefunc(n->r_len);
   ctxsensfunc(n->w_key, n->xo);
   n->p_key[0] = 1;

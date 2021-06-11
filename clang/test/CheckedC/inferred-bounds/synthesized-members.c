@@ -3,8 +3,6 @@
 //
 // RUN: %clang_cc1 -fdump-synthesized-members -verify -verify-ignore-unexpected=note -verify-ignore-unexpected=warning %s | FileCheck %s
 
-// expected-no-diagnostics
-
 struct Z {
   int len;
   _Array_ptr<int> r : count(len);
@@ -22,7 +20,9 @@ struct X {
 
 void f1(struct X x, struct Y y, struct Z z) {
   // Member expressions whose bounds use x.y.z.len: { x.p, x.y.q, x.y.z.r }
-  x.y.z.len++;
+  x.y.z.len++; // expected-error {{inferred bounds for 'x.p' are unknown after increment}} \
+               // expected-error {{inferred bounds for 'x.y.q' are unknown after increment}} \
+               // expected-error {{inferred bounds for 'x.y.z.r' are unknown after increment}}
   // CHECK:  AbstractSets for member expressions:
   // CHECK:  {
   // CHECK:  +
@@ -49,7 +49,8 @@ void f1(struct X x, struct Y y, struct Z z) {
   // CHECK:  }
 
   // Member expressions whose bounds use x.y.z: { x.p, x.y.q }
-  x.y.z = z;
+  x.y.z = z; // expected-error {{inferred bounds for 'x.p' are unknown after assignment}} \
+             // expected-error {{inferred bounds for 'x.y.q' are unknown after assignment}}
   // CHECK: AbstractSets for member expressions:
   // CHECK: {
   // CHECK: +
@@ -67,7 +68,7 @@ void f1(struct X x, struct Y y, struct Z z) {
   // CHECK: }
 
   // Member expressions whose bounds use x.y: { x.p }
-  x.y = y;
+  x.y = y; // expected-error {{inferred bounds for 'x.p' are unknown after assignment}}
   // CHECK: AbstractSets for member expressions:
   // CHECK: {
   // CHECK: +
@@ -103,7 +104,9 @@ struct A {
 
 void f2(_Array_ptr<struct A> a : count(10)) {
   // Member expressions whose bounds depend on a->b->c->len: { a->p, a->b->q, a->b->c->r }
-  a->b->c->len += 1;
+  a->b->c->len += 1; // expected-error {{inferred bounds for 'a->p' are unknown after assignment}} \
+                     // expected-error {{inferred bounds for 'a->b->q' are unknown after assignment}} \
+                     // expected-error {{inferred bounds for 'a->b->c->r' are unknown after assignment}}
   // CHECK: AbstractSets for member expressions:
   // CHECK: {
   // CHECK: +
@@ -147,7 +150,9 @@ void f2(_Array_ptr<struct A> a : count(10)) {
   // CHECK:   IntegerLiteral {{.*}} 0
 
   // Member expressions whose bounds depend on (((a + 0)->b + 0)->c + 0)->len: { a->p, a->b->q, a->b->c->r }
-  (((a + 0)->b + 0)->c + 0)->len--;
+  (((a + 0)->b + 0)->c + 0)->len--; // expected-error {{inferred bounds for 'a->p' are unknown after decrement}} \
+                                    // expected-error {{inferred bounds for 'a->b->q' are unknown after decrement}} \
+                                    // expected-error {{inferred bounds for 'a->b->c->r' are unknown after decrement}}
   // CHECK: AbstractSets for member expressions:
   // CHECK: {
   // CHECK: +
@@ -191,7 +196,9 @@ void f2(_Array_ptr<struct A> a : count(10)) {
   // CHECK:   IntegerLiteral {{.*}} 0
 
   // Member expressions whose bounds depend on (*((*((*a).b)).c)).len: { a->p, a->b->q, a->b->c->r }
-  (*((*((*a).b)).c)).len = 0;
+  (*((*((*a).b)).c)).len = 0; // expected-error {{inferred bounds for 'a->p' are unknown after assignment}} \
+                              // expected-error {{inferred bounds for 'a->b->q' are unknown after assignment}} \
+                              // expected-error {{inferred bounds for 'a->b->c->r' are unknown after assignment}}
   // CHECK: AbstractSets for member expressions:
   // CHECK: {
   // CHECK: +
@@ -235,7 +242,9 @@ void f2(_Array_ptr<struct A> a : count(10)) {
   // CHECK:   IntegerLiteral {{.*}} 0
 
   // Member expressions whose bounds depend on a[0].b[0].c[0].len: { a->p, a->b->q, a->b->c->r }
-  a[0].b[0].c[0].len = 0;
+  a[0].b[0].c[0].len = 0; // expected-error {{inferred bounds for 'a->p' are unknown after assignment}} \
+                          // expected-error {{inferred bounds for 'a->b->q' are unknown after assignment}} \
+                          // expected-error {{inferred bounds for 'a->b->c->r' are unknown after assignment}}
   // CHECK: AbstractSets for member expressions:
   // CHECK: {
   // CHECK: +
@@ -279,7 +288,9 @@ void f2(_Array_ptr<struct A> a : count(10)) {
   // CHECK:   IntegerLiteral {{.*}} 0
 
   // Member expressions whose bounds depend on a[1 - 1].b[2 - 2].c[3 - 3].len: { a->p, a->b->q, a->b->c->r }
-  a[1 - 1].b[2 - 2].c[3 - 3].len = 0;
+  a[1 - 1].b[2 - 2].c[3 - 3].len = 0; // expected-error {{inferred bounds for 'a->p' are unknown after assignment}} \
+                                      // expected-error {{inferred bounds for 'a->b->q' are unknown after assignment}} \
+                                      // expected-error {{inferred bounds for 'a->b->c->r' are unknown after assignment}}
   // CHECK: AbstractSets for member expressions:
   // CHECK: {
   // CHECK: +
@@ -325,7 +336,7 @@ void f2(_Array_ptr<struct A> a : count(10)) {
 
 void f3(struct A *a, struct B *b) {
   // Member expressions whose bounds depend on a->start: { a->q, a->start }
-  a->start = 0;
+  a->start = 0; // expected-error {{inferred bounds for 'a->q' are unknown after assignment}}
   // CHECK: AbstractSets for member expressions:
   // CHECK: {
   // CHECK: +
