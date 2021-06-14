@@ -53,7 +53,7 @@ void unwritable_cast(void((*g)(int *q)) : itype(_Ptr<void(_Ptr<int>)>)) {
 //
 // TODO: Add the correct expected root cause warnings once diagnostic
 // verification is re-enabled
-// (https://github.com/correctcomputation/checkedc-clang/issues/503).
+// (https://github.com/correctcomputation/checkedc-clang/issues/609).
 void unwritable_func_with_itype(int *p : itype(_Array_ptr<int>)) {}
 
 void unwritable_func_with_itype_and_bounds(int *p

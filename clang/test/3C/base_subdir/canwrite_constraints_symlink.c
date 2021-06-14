@@ -1,7 +1,3 @@
-// TODO: refactor this test
-// https://github.com/correctcomputation/checkedc-clang/issues/503
-// XFAIL: *
-
 // Like canwrite_constraints_unimplemented.c but tests the third former base dir
 // matching bug from
 // https://github.com/correctcomputation/checkedc-clang/issues/327: symlinks.
@@ -24,7 +20,7 @@
 // Now 3C should know that it can't write to base_subdir_partial_defn.h because
 // the symlink goes out of the base dir.
 //
-// RUN: cd %t.base && 3c -addcr -verify canwrite_constraints_symlink.c --
+// RUN: cd %t.base && 3c -addcr canwrite_constraints_symlink.c -- -Xclang -verify
 
 // expected-error@base_subdir_partial_defn.h:1 {{3C internal error: 3C generated changes to this file even though it is not allowed to write to the file}}
 // expected-note@*:* {{-dump-unwritable-changes}}

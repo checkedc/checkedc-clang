@@ -1,7 +1,3 @@
-// TODO: refactor this test
-// https://github.com/correctcomputation/checkedc-clang/issues/503
-// XFAIL: *
-
 // Test that the diagnostic verifier is functioning correctly in 3c, because if
 // it isn't, all the other regression tests that use the diagnostic verifier may
 // not be able to catch the problems they are supposed to catch. This goes with
@@ -13,7 +9,7 @@
 // those errors and fail, so diag_verifier_{pass,fail}.c only add coverage for
 // unusual problems with the diagnostic verifier that we haven't seen yet.
 
-// RUN: 3c -base-dir=%S -extra-arg="-Wno-everything" -verify -warn-root-cause %s --
+// RUN: 3c -base-dir=%S -warn-root-cause %s -- -Xclang -verify -Wno-everything
 
 // Example warning borrowed from root_cause.c .
 void *x; // expected-warning {{Default void* type}}

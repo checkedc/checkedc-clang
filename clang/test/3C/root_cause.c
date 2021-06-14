@@ -1,8 +1,9 @@
-// TODO: Refactor this test
-// https://github.com/correctcomputation/checkedc-clang/issues/503
+// TODO: Fix the failures in this test that were introduced while the diagnostic
+// verifier was disabled
+// (https://github.com/correctcomputation/checkedc-clang/issues/609).
 // XFAIL: *
 
-// RUN: 3c -base-dir=%S -extra-arg="-Wno-everything" -verify -alltypes -warn-root-cause %s --
+// RUN: 3c -base-dir=%S -alltypes -warn-root-cause %s -- -Xclang -verify -Wno-everything
 
 // This test is unusual in that it checks for the errors in the code
 

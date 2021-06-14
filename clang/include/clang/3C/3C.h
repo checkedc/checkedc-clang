@@ -57,7 +57,7 @@ struct _3COptions {
 
   bool AddCheckedRegions;
 
-  bool DisableCCTypeChecker;
+  bool EnableCCTypeChecker;
 
   bool WarnRootCause;
 
@@ -67,11 +67,6 @@ struct _3COptions {
   bool RemoveItypes;
   bool ForceItypes;
 #endif
-
-  // Currently applies only to the rewriting phase (because it is the only phase
-  // that generates diagnostics, except for the declaration merging diagnostics
-  // that are currently fatal) and uses the default "expected" prefix.
-  bool VerifyDiagnosticOutput;
 
   bool DumpUnwritableChanges;
   bool AllowUnwritableChanges;
@@ -103,6 +98,8 @@ public:
   create(const struct _3COptions &CCopt,
          const std::vector<std::string> &SourceFileList,
          clang::tooling::CompilationDatabase *CompDB);
+
+  ~_3CInterface();
 
   // Call clang to provide the data
   bool parseASTs();
@@ -141,10 +138,25 @@ public:
   // Dump all stats related to performance.
   bool dumpStats();
 
+  // Determine the exit code that the `3c` tool should exit with after the last
+  // 3C stage, considering diagnostic verification. Must be called exactly once
+  // before the _3CInterface is destructed (unless construction failed).
+  int determineExitCode();
+
 private:
   _3CInterface(const struct _3COptions &CCopt,
                const std::vector<std::string> &SourceFileList,
-               clang::tooling::CompilationDatabase *CompDB, bool &Failed);
+               clang::tooling::CompilationDatabase *CompDB);
+
+  bool ConstructionFailed = false;
+  bool DeterminedExitCode = false;
+
+  bool HadNonDiagnosticError = false;
+
+  // Determine whether 3C can continue to the next stage of processing. Checks
+  // HadNonDiagnosticError and error diagnostics but ignores diagnostic
+  // verification.
+  bool isSuccessfulSoFar();
 
   // saved ASTs
   std::vector< std::unique_ptr< ASTUnit >> ASTs;

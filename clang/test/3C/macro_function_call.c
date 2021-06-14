@@ -1,9 +1,9 @@
 // RUN: rm -rf %t*
-// RUN: 3c -base-dir=%S -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-// RUN: 3c -base-dir=%S -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: 3c -base-dir=%S -alltypes -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
-// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s --
-// RUN: 3c -base-dir=%t.checked -alltypes %t.checked/macro_function_call.c -- | diff %t.checked/macro_function_call.c -
+// RUN: 3c -base-dir=%S -alltypes -addcr %s -- -Xclang -verify | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: 3c -base-dir=%S -addcr %s -- -Xclang -verify | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: 3c -base-dir=%S -alltypes -addcr %s -- -Xclang -verify | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s -- -Xclang -verify
+// RUN: 3c -base-dir=%t.checked -alltypes %t.checked/macro_function_call.c -- -Xclang -verify | diff %t.checked/macro_function_call.c -
 
 // Test fix for https://github.com/correctcomputation/checkedc-clang/issues/439
 // We cannot insert casts on function calls inside macros, so constraints must
@@ -12,13 +12,6 @@
 
 // 3C emits a warning if it fails inserting a cast. Ensure the test fails if
 // this happens.
-//
-// NOTICE: This part of the test is disabled (the -verify option has been
-// removed from the 3c RUN commands) until we have a replacement for the
-// diagnostic verifier
-// (https://github.com/correctcomputation/checkedc-clang/issues/503).
-// TODO: Re-enable it when we do.
-//
 // expected-no-diagnostics
 
 // Unsafe call in macro. This would require an _Assume_bounds_cast, but we

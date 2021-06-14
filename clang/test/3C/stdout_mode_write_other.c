@@ -1,13 +1,14 @@
-// TODO: refactor this test
-// https://github.com/correctcomputation/checkedc-clang/issues/503
-// XFAIL: *
-
 // Like the base_subdir/canwrite_constraints_unimplemented test except that
 // writing base_subdir_partial_defn.h is not restricted by the base dir, so we
 // reach the stdout mode restriction.
+//
+// Since this is currently the simplest 3C regression test that tests an error
+// diagnostic, we also use it to test some things about error diagnostics in
+// general.
 
 // RUN: rm -rf %t*
-// RUN: 3c -base-dir=%S -addcr -verify %s --
+// RUN: 3c -base-dir=%S -addcr %s -- -Xclang -verify 2>%t.stderr
+// RUN: grep -q 'Exiting successfully because the failure was due solely to expected error diagnostics and diagnostic verification succeeded' %t.stderr
 
 // Same as above, except instead of using the diagnostic verifier, manually test
 // that 3c exits nonzero and prints the error to stderr. This tests that 3c

@@ -1,13 +1,9 @@
-// TODO: refactor this test
-// https://github.com/correctcomputation/checkedc-clang/issues/503
-// XFAIL: *
-
 // An example of a case that is not handled by the canWrite constraints code and
 // causes 3C to generate a change to an unwritable file. Test that 3C generates
 // an error diagnostic.
 // (https://github.com/correctcomputation/checkedc-clang/issues/387)
 
-// RUN: cd %S && 3c -addcr -verify %s --
+// RUN: cd %S && 3c -addcr %s -- -Xclang -verify
 
 // expected-error@../base_subdir_partial_defn.h:1 {{3C internal error: 3C generated changes to this file even though it is not allowed to write to the file}}
 // expected-note@*:* {{-dump-unwritable-changes}}

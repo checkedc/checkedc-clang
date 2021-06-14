@@ -1,7 +1,3 @@
-// TODO: refactor this test
-// https://github.com/correctcomputation/checkedc-clang/issues/503
-// XFAIL: *
-
 // Test that the diagnostic verifier is functioning correctly in 3c, because if
 // it isn't, all the other regression tests that use the diagnostic verifier may
 // not be able to catch the problems they are supposed to catch.
@@ -11,7 +7,7 @@
 // fail.
 
 // RUN: rm -rf %t*
-// RUN: not 3c -base-dir=%S -extra-arg="-Wno-everything" -verify -warn-root-cause %s -- 2>%t.stderr
+// RUN: not 3c -base-dir=%S -warn-root-cause %s -- -Xclang -verify -Wno-everything 2>%t.stderr
 // RUN: grep -q "error: 'warning' diagnostics expected but not seen:" %t.stderr
 // RUN: grep -q "error: 'warning' diagnostics seen but not expected:" %t.stderr
 

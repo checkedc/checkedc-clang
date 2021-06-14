@@ -156,10 +156,13 @@ static cl::opt<bool> OptAddCheckedRegions("addcr",
                                           cl::init(false),
                                           cl::cat(_3CCategory));
 
-static cl::opt<bool>
-    OptDiableCCTypeChecker("disccty",
-                           cl::desc("Do not disable checked c type checker."),
-                           cl::init(false), cl::cat(_3CCategory));
+static cl::opt<bool> OptEnableCCTypeChecker(
+    "enccty",
+    cl::desc(
+        "Enable the Checked C type checker. 3c normally disables it (via the "
+        "equivalent of `clang -f3c-tool`) so that 3c can operate on partially "
+        "converted programs that may have Checked C type errors."),
+    cl::init(false), cl::cat(_3CCategory));
 
 static cl::opt<std::string> OptBaseDir(
     "base-dir",
@@ -190,20 +193,6 @@ static cl::opt<bool>
                         cl::desc("Emit warnings for all root causes, "
                                  "even those unlikely to be interesting."),
                         cl::init(false), cl::cat(_3CCategory));
-
-// https://clang.llvm.org/doxygen/classclang_1_1VerifyDiagnosticConsumer.html#details
-//
-// Analogous to the -verify option of `clang -cc1`, but currently applies only
-// to the rewriting phase (because it is the only phase that generates
-// diagnostics, except for the declaration merging diagnostics that are
-// currently fatal). No checking of diagnostics from the other phases is
-// performed. We cannot simply have the caller pass `-extra-arg=-Xclang
-// -extra-arg=-verify` because that would expect each phase to produce the same
-// set of diagnostics.
-static cl::opt<bool> OptVerifyDiagnosticOutput(
-    "verify",
-    cl::desc("Verify diagnostic output (for automated testing of 3c)."),
-    cl::init(false), cl::cat(_3CCategory), cl::Hidden);
 
 // In the future, we may enhance this to write the output to individual files.
 // For now, the user has to copy and paste the correct portions of stderr.
@@ -297,10 +286,9 @@ int main(int argc, const char **argv) {
   CcOptions.PerPtrInfoJson = OptPerPtrWILDInfoJson.getValue();
   CcOptions.AddCheckedRegions = OptAddCheckedRegions;
   CcOptions.EnableAllTypes = OptAllTypes;
-  CcOptions.DisableCCTypeChecker = OptDiableCCTypeChecker;
+  CcOptions.EnableCCTypeChecker = OptEnableCCTypeChecker;
   CcOptions.WarnRootCause = OptWarnRootCause;
   CcOptions.WarnAllRootCause = OptWarnAllRootCause;
-  CcOptions.VerifyDiagnosticOutput = OptVerifyDiagnosticOutput;
   CcOptions.DumpUnwritableChanges = OptDumpUnwritableChanges;
   CcOptions.AllowUnwritableChanges = OptAllowUnwritableChanges;
   CcOptions.AllowRewriteFailures = OptAllowRewriteFailures;
@@ -347,7 +335,7 @@ int main(int argc, const char **argv) {
   // Build AST from source.
   if (!_3CInterface.parseASTs()) {
     errs() << "Failure occurred while parsing source files. Exiting.\n";
-    return 1;
+    return _3CInterface.determineExitCode();
   }
 
   if (OptVerbose) {
@@ -358,7 +346,7 @@ int main(int argc, const char **argv) {
   // Add variables.
   if (!_3CInterface.addVariables()) {
     errs() << "Failure occurred while trying to add variables. Exiting.\n";
-    return 1;
+    return _3CInterface.determineExitCode();
   }
 
   if (OptVerbose) {
@@ -369,7 +357,7 @@ int main(int argc, const char **argv) {
   // Build constraints.
   if (!_3CInterface.buildInitialConstraints()) {
     errs() << "Failure occurred while trying to build constraints. Exiting.\n";
-    return 1;
+    return _3CInterface.determineExitCode();
   }
 
   if (OptVerbose) {
@@ -380,7 +368,7 @@ int main(int argc, const char **argv) {
   // Solve the constraints.
   if (!_3CInterface.solveConstraints()) {
     errs() << "Failure occurred while trying to solve constraints. Exiting.\n";
-    return 1;
+    return _3CInterface.determineExitCode();
   }
 
   if (OptVerbose) {
@@ -392,14 +380,17 @@ int main(int argc, const char **argv) {
   if (!_3CInterface.writeAllConvertedFilesToDisk()) {
     errs() << "Failure occurred while trying to rewrite converted files back. "
               "Exiting.\n";
-    return 1;
+    return _3CInterface.determineExitCode();
   }
 
   // Write all the performance related stats.
   if (!_3CInterface.dumpStats()) {
     errs() << "Failure occurred while trying to write performance stats. "
               "Exiting.\n";
-    return 1;
+    return _3CInterface.determineExitCode();
   }
-  return 0;
+
+  // Even if all passes succeeded, we could still have a diagnostic verification
+  // failure.
+  return _3CInterface.determineExitCode();
 }
