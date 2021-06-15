@@ -480,33 +480,57 @@ namespace {
 }
 
 namespace {
-  class VariableCountHelper : public RecursiveASTVisitor<VariableCountHelper> {
+  class LValueCountHelper : public RecursiveASTVisitor<LValueCountHelper> {
     private:
       Sema &SemaRef;
+      Lexicographic Lex;
+      Expr *LValue;
       ValueDecl *V;
-      int Count;
+      unsigned int Count;
 
     public:
-      VariableCountHelper(Sema &SemaRef, ValueDecl *V) :
+      LValueCountHelper(Sema &SemaRef, Expr *LValue, ValueDecl *V) :
         SemaRef(SemaRef),
+        Lex(Lexicographic(SemaRef.Context, nullptr)),
+        LValue(LValue),
         V(V),
         Count(0) {}
 
-      int GetCount() { return Count; }
+      unsigned int GetCount() { return Count; }
 
       bool VisitDeclRefExpr(DeclRefExpr *E) {
-        ValueDecl *D = E->getDecl();
-        if (!D)
+        // Check for an occurrence of a variable whose declaration matches V.
+        if (V) {
+          if (ValueDecl *D = E->getDecl()) {
+            if (Lex.CompareDecl(D, V) == Lexicographic::Result::Equal)
+              ++Count;
+          }
           return true;
-        Lexicographic Lex(SemaRef.Context, nullptr);
-        if (Lex.CompareDecl(D, V) == Lexicographic::Result::Equal)
+        }
+
+        // Check for an occurrence of a variable equal to LValue if LValue
+        // is a variable.
+        DeclRefExpr *Var = dyn_cast_or_null<DeclRefExpr>(LValue);
+        if (!Var)
+          return true;
+        if (Lex.CompareExpr(Var, E) == Lexicographic::Result::Equal)
+          ++Count;
+        return true;
+      }
+
+      bool VisitMemberExpr(MemberExpr *E) {
+        MemberExpr *M = dyn_cast_or_null<MemberExpr>(LValue);
+        if (!M)
+          return true;
+        if (Lex.CompareExprSemantically(E, M))
           ++Count;
         return true;
       }
 
       // Do not traverse the child of a BoundsValueExpr.
-      // If a BoundsValueExpr uses the variable V, this should not count
-      // toward the total occurrence count of V in the expression.
+      // If a BoundsValueExpr uses the expression LValue (or a variable whose
+      // declaration matches V), this should not count toward the total
+      // occurrence count of LValue or V in the expression.
       // For example, for the expression BoundsValue(TempBinding(v)) + v, the
       // total occurrence count of the variable v should be 1, not 2.
       bool TraverseBoundsValueExpr(BoundsValueExpr *E) {
@@ -516,18 +540,87 @@ namespace {
 
   // VariableOccurrenceCount returns the number of occurrences of variable
   // expressions in E whose Decls are equivalent to V.
-  int VariableOccurrenceCount(Sema &SemaRef, ValueDecl *V, Expr *E) {
+  unsigned int VariableOccurrenceCount(Sema &SemaRef, ValueDecl *V, Expr *E) {
     if (!V)
       return 0;
-    VariableCountHelper Counter(SemaRef, V);
+    LValueCountHelper Counter(SemaRef, nullptr, V);
     Counter.TraverseStmt(E);
     return Counter.GetCount();
   }
 
   // VariableOccurrenceCount returns the number of occurrences of the Target
   // variable expression in E.
-  int VariableOccurrenceCount(Sema &SemaRef, DeclRefExpr *Target, Expr *E) {
+  unsigned int VariableOccurrenceCount(Sema &SemaRef, DeclRefExpr *Target,
+                                       Expr *E) {
     return VariableOccurrenceCount(SemaRef, Target->getDecl(), E);
+  }
+
+  // LValueOccurrenceCount returns the number of occurrences of the LValue
+  // expression in E.
+  unsigned int LValueOccurrenceCount(Sema &SemaRef, Expr *LValue, Expr *E) {
+    LValueCountHelper Counter(SemaRef, LValue, nullptr);
+    Counter.TraverseStmt(E);
+    return Counter.GetCount();
+  }
+}
+
+namespace {
+  class FindLValueHelper : public RecursiveASTVisitor<FindLValueHelper> {
+    private:
+      Sema &SemaRef;
+      Lexicographic Lex;
+      Expr *LValue;
+      bool Found;
+
+    public:
+      FindLValueHelper(Sema &SemaRef, Expr *LValue) :
+        SemaRef(SemaRef),
+        Lex(Lexicographic(SemaRef.Context, nullptr)),
+        LValue(LValue),
+        Found(false) {}
+
+      bool IsFound() { return Found; }
+
+      bool VisitDeclRefExpr(DeclRefExpr *E) {
+        DeclRefExpr *V = dyn_cast_or_null<DeclRefExpr>(LValue);
+        if (!V)
+          return true;
+        if (Lex.CompareExpr(V, E) == Lexicographic::Result::Equal)
+          Found = true;
+        return true;
+      }
+
+      bool VisitMemberExpr(MemberExpr *E) {
+        MemberExpr *M = dyn_cast_or_null<MemberExpr>(LValue);
+        if (!M)
+          return true;
+        if (Lex.CompareExprSemantically(E, M))
+          Found = true;
+        return true;
+      }
+
+      // Do not traverse the child of a BoundsValueExpr.
+      // Expressions within a BoundsValueExpr should not be considered
+      // when looking for LValue.
+      // For example, for the expression E = BoundsValue(TempBinding(LValue)),
+      // FindLValue(LValue, E) should return false.
+      bool TraverseBoundsValueExpr(BoundsValueExpr *E) {
+        return true;
+      }
+
+      bool TraverseStmt(Stmt *S) {
+        if (Found)
+          return true;
+
+        return RecursiveASTVisitor<FindLValueHelper>::TraverseStmt(S);
+      }
+  };
+
+  // FindLValue returns true if the given lvalue expression occurs in E.
+  bool FindLValue(Sema &SemaRef, Expr *LValue, Expr *E) {
+    FindLValueHelper Finder(SemaRef, LValue);
+    Finder.TraverseStmt(E);
+    return Finder.IsFound();
   }
 }
 
@@ -583,26 +676,44 @@ namespace {
 }
 
 namespace {
-  class ReplaceVariableHelper : public TreeTransform<ReplaceVariableHelper> {
-    typedef TreeTransform<ReplaceVariableHelper> BaseTransform;
+  class ReplaceLValueHelper : public TreeTransform<ReplaceLValueHelper> {
+    typedef TreeTransform<ReplaceLValueHelper> BaseTransform;
     private:
-      // The variable whose uses should be replaced in an expression.
-      DeclRefExpr *Variable;
+      Lexicographic Lex;
 
-      // The original value (if any) to replace uses of the variable with.
-      // If no original value is provided, an expression using the variable
+      // The lvalue expression whose uses should be replaced in an expression.
+      Expr *LValue;
+
+      // The original value (if any) to replace uses of the lvalue with.
+      // If no original value is provided, an expression using the lvalue
       // will be transformed into an invalid result.
       Expr *OriginalValue;
 
     public:
-      ReplaceVariableHelper(Sema &SemaRef, DeclRefExpr *V, Expr *OriginalValue) :
+      ReplaceLValueHelper(Sema &SemaRef, Expr *LValue, Expr *OriginalValue) :
         BaseTransform(SemaRef),
-        Variable(V),
+        Lex(Lexicographic(SemaRef.Context, nullptr)),
+        LValue(LValue),
         OriginalValue(OriginalValue) { }
 
       ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
-        Lexicographic Lex(SemaRef.Context, nullptr);
-        if (Lex.CompareExpr(Variable, E) == Lexicographic::Result::Equal) {
+        DeclRefExpr *V = dyn_cast_or_null<DeclRefExpr>(LValue);
+        if (!V)
+          return E;
+        if (Lex.CompareExpr(V, E) == Lexicographic::Result::Equal) {
+          if (OriginalValue)
+            return OriginalValue;
+          else
+            return ExprError();
+        } else
+          return E;
+      }
+
+      ExprResult TransformMemberExpr(MemberExpr *E) {
+        MemberExpr *M = dyn_cast_or_null<MemberExpr>(LValue);
+        if (!M)
+          return E;
+        if (Lex.CompareExprSemantically(M, E)) {
           if (OriginalValue)
             return OriginalValue;
           else
@@ -636,22 +747,27 @@ namespace {
       }
   };
 
-  // If an original value is provided, ReplaceVariableReferences returns
-  // an expression that replaces all uses of the variable V in E with the
-  // original value.  If no original value is provided and E uses V,
-  // ReplaceVariableReferences returns nullptr.
-  Expr *ReplaceVariableReferences(Sema &SemaRef, Expr *E, DeclRefExpr *V,
-                                  Expr *OriginalValue,
-                                  CheckedScopeSpecifier CSS) {
-    // Don't transform e if it does not use the value of v.
-    if (!VariableOccurrenceCount(SemaRef, V, E))
+  // If an original value is provided, ReplaceLValue returns an expression
+  // that replaces all uses of the lvalue expression LValue in E with the
+  // original value.  If no original value is provided and E uses LValue,
+  // ReplaceLValue returns nullptr.
+  Expr *ReplaceLValue(Sema &SemaRef, Expr *E, Expr *LValue,
+                      Expr *OriginalValue,
+                      CheckedScopeSpecifier CSS) {
+    // Don't transform E if it does not use the value of LValue.
+    if (!FindLValue(SemaRef, LValue, E))
       return E;
+
+    // If E uses the value of LValue, but no original value is provided,
+    // we know the result is null without needing to transform E.
+    if (!OriginalValue)
+      return nullptr;
 
     // Account for checked scope information when transforming the expression.
     Sema::CheckedScopeRAII CheckedScope(SemaRef, CSS);
 
     Sema::ExprSubstitutionScope Scope(SemaRef); // suppress diagnostics
-    ExprResult R = ReplaceVariableHelper(SemaRef, V, OriginalValue).TransformExpr(E);
+    ExprResult R = ReplaceLValueHelper(SemaRef, LValue, OriginalValue).TransformExpr(E);
     if (R.isInvalid())
       return nullptr;
     else
@@ -684,6 +800,9 @@ namespace {
   // and declared bounds.
   using FreeVariableListTy =
       SmallVector<std::pair<Expr *, FreeVariablePosition>, 4>;
+
+  // AbstractSetSetTy denotes a set of AbstractSets.
+  using AbstractSetSetTy = llvm::SmallPtrSet<const AbstractSet *, 4>;
 
   // CheckingState stores the outputs of bounds checking methods.
   // These members represent the state during bounds checking
@@ -718,14 +837,14 @@ namespace {
       // SameValue is named G in the Checked C spec.
       ExprSetTy SameValue;
 
-      // LostVariables maps an AbstractSet A whose observed bounds are unknown
-      // to a pair <B, W>, where the initial observed bounds B of A have been
-      // set to unknown due to an assignment to the variable W, where W had no
-      // original value.
+      // LostLValues maps an AbstractSet A whose observed bounds are unknown
+      // to a pair <B, E>, where the initial observed bounds B of A have been
+      // set to unknown due to an assignment to the lvalue expression E, where
+      // E had no original value.
       //
-      // LostVariables is used to emit notes to provide more context to the
-      // user when diagnosing unknown bounds errors.
-      llvm::DenseMap<const AbstractSet *, std::pair<BoundsExpr *, DeclRefExpr *>> LostVariables;
+      // LostLValues is used to emit notes to provide more context to the user
+      // when diagnosing unknown bounds errors.
+      llvm::DenseMap<const AbstractSet *, std::pair<BoundsExpr *, Expr *>> LostLValues;
 
       // UnknownSrcBounds maps an AbstractSet A whose observed bounds are
       // unknown to a set of expressions with unknown bounds that have been
@@ -761,7 +880,7 @@ namespace {
       // Resets the checking state after checking a top-level CFG statement.
       void Reset() {
         SameValue.clear();
-        LostVariables.clear();
+        LostLValues.clear();
         UnknownSrcBounds.clear();
         BlameAssignments.clear();
         TargetSrcEquality.clear();
@@ -827,6 +946,7 @@ namespace {
     Sema &S;
     bool DumpBounds;
     bool DumpState;
+    bool DumpSynthesizedMembers;
     uint64_t PointerWidth;
     Stmt *Body;
     CFG *Cfg;
@@ -843,6 +963,10 @@ namespace {
     // Having an AbstractSetManager object here allows us to create
     // AbstractSets for lvalue expressions while checking statements.
     AbstractSetManager AbstractSetMgr;
+
+    // Map a field F in a record declaration to the sibling fields of F
+    // in whose declared bounds F appears.
+    BoundsSiblingFieldsTy BoundsSiblingFields;
 
     // When this flag is set to true, include the null terminator in the
     // bounds of a null-terminated array.  This is used when calculating
@@ -983,6 +1107,32 @@ namespace {
         for (auto I = Exprs.begin(); I != Exprs.end(); ++I) {
           Expr *E = *I;
           E->dump(OS, Context);
+        }
+        OS << "}\n";
+      }
+    }
+
+    void DumpSynthesizedMemberAbstractSets(raw_ostream &OS,
+                                           AbstractSetSetTy AbstractSets) {
+      OS << "\nAbstractSets for member expressions:\n";
+      if (AbstractSets.size() == 0)
+        OS << "{ }\n";
+      else {
+        // The keys in an llvm::SmallPtrSet are unordered.  Create a set of
+        // abstract sets sorted lexicographically in order to guarantee a
+        // deterministic output so that printing the synthesized abstract
+        // sets can be tested.
+        std::vector<const AbstractSet *> OrderedSets;
+        for (auto It : AbstractSets)
+          OrderedSets.push_back(It);
+        llvm::sort(OrderedSets.begin(), OrderedSets.end(),
+             [] (const AbstractSet *A, const AbstractSet *B) {
+               return *(const_cast<AbstractSet *>(A)) < *(const_cast<AbstractSet *>(B));
+             });
+        OS << "{\n";
+        for (auto It : OrderedSets) {
+          It->PrettyPrint(OS, Context);
+          OS << "\n";
         }
         OS << "}\n";
       }
@@ -1538,7 +1688,7 @@ namespace {
         for (auto OuterList = Begin; OuterList != End; ++OuterList) {
           auto InnerList = *OuterList;
           int InnerListSize = InnerList.size();
-          int SrcVarCount = 0;
+          unsigned int SrcVarCount = 0;
           int SrcIndex = 0;
 
           // Search InnerList for an expression that uses the value of SrcV.
@@ -1589,7 +1739,7 @@ namespace {
           auto InnerList = *OuterList;
           for (auto I = InnerList.begin(); I != InnerList.end(); ++I) {
             Expr *E = *I;
-            if (IsRValueCastOfVariable(S, E, cast<DeclRefExpr>(Variable))) {
+            if (VariableUtil::IsRValueCastOfVariable(S, E, cast<DeclRefExpr>(Variable))) {
               EquivSet = InnerList;
               break;
             }
@@ -1597,7 +1747,8 @@ namespace {
         }
 
         for (const auto &E : EquivSet) {
-          if (isa<IntegerLiteral>(E))
+          llvm::APSInt Val;
+          if (E->isIntegerConstantExpr(Val, S.Context))
             return true;
         }
 
@@ -1812,7 +1963,8 @@ namespace {
       return BaseRange::Kind::ConstantSized;
     }
 
-    // Given a `Base` and `Offset`, this function tries to convert it to a standard form `Base + (ConstantPart OP VariablePart)`.
+    // Given a `Base` and `Offset`, this function tries to convert it to a standard form `Base + (ConstantPart OP VariablePart)`,
+    // where OP is either signed multiplication or unsigned multiplication.
     // The OP's signedness is stored in IsOpSigned. If the function fails to create the standard form, it returns false. Otherwise,
     // it returns true to indicate success, and stores each part of the standard form in a separate argument as follows:
     // `ConstantPart`: a signed integer
@@ -1831,22 +1983,27 @@ namespace {
       if (!Base->getType()->isPointerType())
         return false;
       if (Base->getType()->getPointeeOrArrayElementType()->isCharType()) {
-        if (BinaryOperator *BO = dyn_cast<BinaryOperator>(Offset)) {
-          if (BO->getRHS()->isIntegerConstantExpr(ConstantPart, Ctx))
-            VariablePart = BO->getLHS();
-          else if (BO->getLHS()->isIntegerConstantExpr(ConstantPart, Ctx))
-            VariablePart = BO->getRHS();
-          else
-            goto exit;
-          IsOpSigned = VariablePart->getType()->isSignedIntegerType();
-          ConstantPart = BoundsUtil::ConvertToSignedPointerWidth(Ctx, ConstantPart, Overflow);
-          if (Overflow)
-            goto exit;
+        if (BinaryOperator *BO = dyn_cast<BinaryOperator>(Offset->IgnoreParens())) {
+          // Check to see if Offset is already of the form e * i or i * e. In this case,
+          // ConstantPart = i, VariablePart = e.
+          if (BinaryOperator::isMultiplicativeOp(BO->getOpcode())) {
+            if (BO->getRHS()->isIntegerConstantExpr(ConstantPart, Ctx))
+              VariablePart = BO->getLHS();
+            else if (BO->getLHS()->isIntegerConstantExpr(ConstantPart, Ctx))
+              VariablePart = BO->getRHS();
+            else
+              goto fallback_std_form;
+            IsOpSigned = VariablePart->getType()->isSignedIntegerType();
+            ConstantPart = BoundsUtil::ConvertToSignedPointerWidth(Ctx, ConstantPart, Overflow);
+            if (Overflow)
+              goto fallback_std_form;
+          } else
+            goto fallback_std_form;
         } else
-          goto exit;
+          goto fallback_std_form;
         return true;
 
-      exit:
+      fallback_std_form:
         VariablePart = Offset;
         ConstantPart = llvm::APSInt(llvm::APInt(PointerWidth, 1), false);
         IsOpSigned = VariablePart->getType()->isSignedIntegerType();
@@ -2439,10 +2596,10 @@ namespace {
       // 2. Otherwise, if Src is a non-modifying expression, record
       //    equivalence between V and Src.
       CHKCBindTemporaryExpr *Temp = GetTempBinding(Src);
+      // TODO: make sure variable being initialized isn't read by Src.
+      DeclRefExpr *TargetDeclRef = ExprCreatorUtil::CreateVarUse(S, D);
       if (Temp ||  S.CheckIsNonModifying(Src, Sema::NonModifyingContext::NMC_Unknown,
                                          Sema::NonModifyingMessage::NMM_None)) {
-        // TODO: make sure variable being initialized isn't read by Src.
-        DeclRefExpr *TargetDeclRef = ExprCreatorUtil::CreateVarUse(S, D);
         CastKind Kind;
         QualType TargetTy;
         if (D->getType()->isArrayType()) {
@@ -2482,7 +2639,7 @@ namespace {
                        : diag::warn_bounds_declaration_invalid);
 
         S.Diag(ExprLoc, DiagId)
-          << Sema::BoundsDeclarationCheck::BDC_Initialization << D
+          << Sema::BoundsDeclarationCheck::BDC_Initialization << TargetDeclRef
           << D->getLocation() << Src->getSourceRange();
         if (Result == ProofResult::False)
           ExplainProofFailure(ExprLoc, Cause, ProofStmtKind::BoundsDeclaration);
@@ -2588,6 +2745,7 @@ namespace {
     CheckBoundsDeclarations(Sema &SemaRef, PrepassInfo &Info, Stmt *Body, CFG *Cfg, BoundsExpr *ReturnBounds, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
       DumpState(SemaRef.getLangOpts().DumpCheckingState),
+      DumpSynthesizedMembers(SemaRef.getLangOpts().DumpSynthesizedMembers),
       PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
       Body(Body),
       Cfg(Cfg),
@@ -2596,11 +2754,13 @@ namespace {
       Facts(Facts),
       BoundsAnalyzer(BoundsAnalysis(SemaRef, Cfg)),
       AbstractSetMgr(AbstractSetManager(SemaRef, Info.VarUses)),
+      BoundsSiblingFields(Info.BoundsSiblingFields),
       IncludeNullTerminator(false) {}
 
     CheckBoundsDeclarations(Sema &SemaRef, PrepassInfo &Info, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
       DumpState(SemaRef.getLangOpts().DumpCheckingState),
+      DumpSynthesizedMembers(SemaRef.getLangOpts().DumpSynthesizedMembers),
       PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
       Body(nullptr),
       Cfg(nullptr),
@@ -2609,6 +2769,7 @@ namespace {
       Facts(Facts),
       BoundsAnalyzer(BoundsAnalysis(SemaRef, nullptr)),
       AbstractSetMgr(AbstractSetManager(SemaRef, Info.VarUses)),
+      BoundsSiblingFields(Info.BoundsSiblingFields),
       IncludeNullTerminator(false) {}
 
     void IdentifyChecked(Stmt *S, StmtSet &MemoryCheckedStmts, StmtSet &BoundsCheckedStmts, CheckedScopeSpecifier CSS) {
@@ -3281,8 +3442,8 @@ namespace {
         }
       }
 
-      // Determine whether the assignment is to a variable.
-      DeclRefExpr *LHSVar = GetLValueVariable(LHS);
+      // Determine whether the checking state is updated for an assignment.
+      bool StateUpdated = false;
 
       // Update the checking state.  The result bounds may also be updated
       // for assignments to a variable.
@@ -3302,18 +3463,15 @@ namespace {
           UpdateSameValue(Src, SubExprSameValueSets, State.SameValue);
         }
 
-        // Update the checking state and result bounds for assignments to `e1`
-        // where `e1` is a variable.
-        if (LHSVar)
-          ResultBounds = UpdateAfterAssignment(LHSVar, E, Target, Src,
-                                               ResultBounds, CSS,
-                                               State, State);
-        // Update EquivExprs and SameValue for assignments where `e1` is not
-        // a variable.
-        else
-          // SameValue is empty for assignments to a non-variable.  This
-          // conservative approach avoids recording false equality facts for
-          // assignments where the LHS appears on the RHS, e.g. *p = *p + 1.
+        // Update the checking state and result bounds to reflect the
+        // assignment to `e1`.
+        ResultBounds = UpdateAfterAssignment(LHS, E, Target, Src, ResultBounds,
+                                             CSS, State, StateUpdated);
+
+        // SameValue is empty for assignments to a non-variable. This
+        // conservative approach avoids recording false equality facts for
+        // assignments where the LHS appears on the RHS, e.g. *p = *p + 1.
+        if (!VariableUtil::GetLValueVariable(S, LHS))
           State.SameValue.clear();
       } else if (BinaryOperator::isLogicalOp(Op)) {
         // TODO: update State for logical operators `e1 && e2` and `e1 || e2`.
@@ -3353,18 +3511,19 @@ namespace {
               RightBounds = S.CheckNonModifyingBounds(ResultBounds, RHS);
 
             // If RightBounds are invalid bounds, it is because the bounds for
-            // the RHS contained a modifying expression. Update the variable's
-            // observed bounds to be InvalidBounds to avoid extraneous errors
+            // the RHS contained a modifying expression. Update the observed
+            // bounds of the LHS to be InvalidBounds to avoid extraneous errors
             // during bounds declaration validation.
-            if (LHSVar && RightBounds->isInvalid()) {
-              const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(LHSVar);
+            if (StateUpdated && RightBounds->isInvalid()) {
+              const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(LHS);
               State.ObservedBounds[A] = RightBounds;
             }
 
-            // Check bounds declarations for assignments to a non-variable.
-            // Assignments to variables will be checked after checking the
-            // current top-level CFG statement.
-            if (!LHSVar) {
+            // Check bounds declarations for assignments where the state was
+            // not updated in UpdateAfterAssignment.
+            // If the state was updated in UpdateAfterAssignment, the bounds
+            // will be checked after checking the current top-level statement.
+            if (!StateUpdated) {
               if (RightBounds->isUnknown()) {
                 S.Diag(RHS->getBeginLoc(),
                        diag::err_expected_bounds_for_assignment)
@@ -3748,20 +3907,22 @@ namespace {
           RHS = ExprCreatorUtil::CreateBinaryOperator(S, SubExpr, One, RHSOp);
         }
 
-        // Update the checking state and result bounds for inc/dec operators
-        // where `e1` is a variable.
-        if (DeclRefExpr *V = GetLValueVariable(SubExpr)) {
+        // Update the checking state and result bounds.
+        BoundsExpr *RHSBounds = IncDecResultBounds;
+        if (DeclRefExpr *V = VariableUtil::GetLValueVariable(S, SubExpr)) {
           // Update SameValue to be the set of expressions that produce the
           // same value as the RHS `e1 +/- 1` (if the RHS could be created).
           UpdateSameValue(E, State.SameValue, State.SameValue, RHS);
           // The bounds of the RHS `e1 +/- 1` are the rvalue bounds of the
           // rvalue cast `e1`.
-          BoundsExpr *RHSBounds = RValueCastBounds(Target, SubExprTargetBounds,
-                                                   SubExprLValueBounds,
-                                                   SubExprBounds, State);
-          IncDecResultBounds = UpdateAfterAssignment(
-              V, E, Target, RHS, RHSBounds, CSS, State, State);
+          RHSBounds = RValueCastBounds(Target, SubExprTargetBounds,
+                                       SubExprLValueBounds,
+                                       SubExprBounds, State);
         }
+        bool StateUpdated = false;
+        IncDecResultBounds = UpdateAfterAssignment(SubExpr, E, Target, RHS,
+                                                   RHSBounds, CSS,
+                                                   State, StateUpdated);
 
         // Update the set SameValue of expressions that produce the same
         // value as `e`.
@@ -3855,7 +4016,7 @@ namespace {
         Expr *TargetExpr = CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
 
         // Record equality between the target and initializer.
-        RecordEqualityWithTarget(TargetExpr, Init, State);
+        RecordEqualityWithTarget(TargetDeclRef, TargetExpr, Init, State);
       }
 
       if (D->isInvalidDecl())
@@ -4025,13 +4186,13 @@ namespace {
         for (const auto &Pair : StateTrueArm.ObservedBounds) {
           const AbstractSet *A = Pair.first;
           BoundsExpr *DeclaredBounds =
-            S.GetLValueDeclaredBounds(A->GetRepresentative());
+            S.GetLValueDeclaredBounds(A->GetRepresentative(), CSS);
           State.ObservedBounds[A] = DeclaredBounds;
         }
         for (const auto &Pair : StateFalseArm.ObservedBounds) {
           const AbstractSet *A = Pair.first;
           BoundsExpr *DeclaredBounds =
-            S.GetLValueDeclaredBounds(A->GetRepresentative());
+            S.GetLValueDeclaredBounds(A->GetRepresentative(), CSS);
           State.ObservedBounds[A] = DeclaredBounds;
         }
       }
@@ -4317,6 +4478,8 @@ namespace {
     //                                      (array_ptr<char>) E + C)
     BoundsExpr *ExpandToRange(Expr *Base, BoundsExpr *B) {
       assert(Base->isRValue() && "expected rvalue expression");
+      if (!B)
+        return B;
       BoundsExpr::Kind K = B->getKind();
       switch (K) {
         case BoundsExpr::Kind::ByteCount:
@@ -4373,6 +4536,8 @@ namespace {
     }
 
     BoundsExpr *ExpandToRange(VarDecl *D, BoundsExpr *B) {
+      if (!B)
+        return B;
       QualType QT = D->getType();
       ExprResult ER = S.BuildDeclRefExpr(D, QT,
                                        clang::ExprValueKind::VK_LValue, SourceLocation());
@@ -4453,23 +4618,26 @@ namespace {
 
       for (auto const &Pair : State.ObservedBounds) {
         const AbstractSet *A = Pair.first;
-        const VarDecl *V = A->GetVarDecl();
+        const NamedDecl *V = A->GetDecl();
         if (!V)
           continue;
         BoundsExpr *ObservedBounds = Pair.second;
         BoundsExpr *DeclaredBounds =
-          this->S.GetLValueDeclaredBounds(A->GetRepresentative());
+          this->S.GetLValueDeclaredBounds(A->GetRepresentative(), CSS);
         if (!DeclaredBounds || DeclaredBounds->isUnknown())
           continue;
         if (ObservedBounds->isUnknown())
           DiagnoseUnknownObservedBounds(S, A, DeclaredBounds, State);
         else {
-          // We should issue diagnostics for observed bounds if the variable V
-          // is not in the set BoundsWidenedAndNotKilled which represents
-          // variables whose bounds are widened in this block and not killed by
-          // statement S.
-          bool DiagnoseObservedBounds = BoundsWidenedAndNotKilled.find(V) ==
-                                        BoundsWidenedAndNotKilled.end();
+          // If the lvalue expressions in A are variables represented by a
+          // declaration Var, we should issue diagnostics for observed bounds
+          // if Var is not in the set BoundsWidenedAndKilled which represents
+          // variables whose bounds are widened in this block and not killed
+          // by statement S.
+          bool DiagnoseObservedBounds = true;
+          if (const VarDecl *Var = dyn_cast<VarDecl>(V))
+            DiagnoseObservedBounds = BoundsWidenedAndNotKilled.find(Var) ==
+                                     BoundsWidenedAndNotKilled.end();
           CheckObservedBounds(S, A, DeclaredBounds, ObservedBounds, State,
                               &EquivExprs, CSS, Block, DiagnoseObservedBounds);
         }
@@ -4485,7 +4653,7 @@ namespace {
     void DiagnoseUnknownObservedBounds(Stmt *St, const AbstractSet *A,
                                        BoundsExpr *DeclaredBounds,
                                        CheckingState State) {
-      const VarDecl *V = A->GetVarDecl();
+      const NamedDecl *V = A->GetDecl();
       if (!V)
         return;
 
@@ -4495,15 +4663,16 @@ namespace {
         << DeclaredBounds << DeclaredBounds->getSourceRange();
 
       // The observed bounds of A are unknown because the original observed
-      // bounds B of A used a variable w, and there was an assignment to w
-      // where w had no original value.
-      auto LostVarIt = State.LostVariables.find(A);
-      if (LostVarIt != State.LostVariables.end()) {
-        std::pair<BoundsExpr *, DeclRefExpr *> Lost = LostVarIt->second;
+      // bounds B of A used the value of an lvalue expression E, and there
+      // was an assignment to E where E had no original value.
+      auto LostLValueIt = State.LostLValues.find(A);
+      if (LostLValueIt != State.LostLValues.end()) {
+        std::pair<BoundsExpr *, Expr *> Lost = LostLValueIt->second;
         BoundsExpr *InitialObservedBounds = Lost.first;
-        DeclRefExpr *LostVar = Lost.second;
-        S.Diag(LostVar->getLocation(), diag::note_lost_variable)
-          << LostVar << InitialObservedBounds << V << LostVar->getSourceRange();
+        Expr *LostLValue = Lost.second;
+        S.Diag(LostLValue->getBeginLoc(), diag::note_lost_expression)
+          << LostLValue << InitialObservedBounds
+          << A->GetRepresentative() << LostLValue->getSourceRange();
       }
 
       // The observed bounds of A are unknown because at least one expression
@@ -4514,13 +4683,13 @@ namespace {
         for (auto I = UnknownSources.begin(); I != UnknownSources.end(); ++I) {
           Expr *Src = *I;
           S.Diag(Src->getBeginLoc(), diag::note_unknown_source_bounds)
-            << Src << V << Src->getSourceRange();
+            << Src << A->GetRepresentative() << Src->getSourceRange();
         }
       }
     }
 
-    // CheckObservedBounds checks that the observed bounds for a variable v
-    // imply that the declared bounds for v are provably true after checking
+    // CheckObservedBounds checks that the observed bounds for the AbstractSet
+    // A imply that the declared bounds for A are provably true after checking
     // the top-level CFG statement St.
     //
     // EquivExprs contains all equality facts contained in State.EquivExprs,
@@ -4532,7 +4701,7 @@ namespace {
                              CheckedScopeSpecifier CSS,
                              const CFGBlock *Block,
                              bool DiagnoseObservedBounds) {
-      const VarDecl *V = A->GetVarDecl();
+      const NamedDecl *V = A->GetDecl();
       ProofFailure Cause;
       FreeVariableListTy FreeVars;
       ProofResult Result = ProveBoundsDeclValidity(
@@ -4579,15 +4748,16 @@ namespace {
     }
 
     // BlameAssignmentWithinStmt prints a diagnostic message that highlights the
-    // assignment expression in St that causes V's observed bounds to be unknown
-    // or not provably valid.  If St is a DeclStmt, St itself and V are
-    // highlighted.  BlameAssignmentWithinStmt returns the source location of
-    // the blamed assignment.
+    // assignment expression in St that causes A's observed bounds to be unknown
+    // or not provably valid.  If St is a DeclStmt, St itself and the
+    // representative lvalue expression of A are highlighted.
+    // BlameAssignmentWithinStmt returns the source location of the blamed
+    // assignment.
     SourceLocation BlameAssignmentWithinStmt(Stmt *St, const AbstractSet *A,
                                              CheckingState State,
                                              unsigned DiagId) const {
       assert(St);
-      const VarDecl *V = A->GetVarDecl();
+      const NamedDecl *V = A->GetDecl();
       assert(V);
       SourceRange SrcRange = St->getSourceRange();
       auto BDCType = Sema::BoundsDeclarationCheck::BDC_Statement;
@@ -4600,7 +4770,8 @@ namespace {
       if (isa<DeclStmt>(St)) {
         Loc = V->getLocation();
         BDCType = Sema::BoundsDeclarationCheck::BDC_Initialization;
-        S.Diag(Loc, DiagId) << BDCType << V << SrcRange << SrcRange;
+        S.Diag(Loc, DiagId) << BDCType << A->GetRepresentative()
+          << SrcRange << SrcRange;
         return Loc;
       }
 
@@ -4627,102 +4798,183 @@ namespace {
           BDCType = Sema::BoundsDeclarationCheck::BDC_Assignment;
         }
       }
-      S.Diag(Loc, DiagId) << BDCType << V << SrcRange << SrcRange;
+      S.Diag(Loc, DiagId) << BDCType << A->GetRepresentative()
+        << SrcRange << SrcRange;
       return Loc;
     }
 
     // Methods to update the checking state.
 
-    // UpdateAfterAssignment updates the checking state after a variable V
-    // is updated in an assignment E of the form Target = Src, based on the
-    // state before the assignment.  It also returns updated bounds for Src.
+    // UpdateAfterAssignment updates the checking state after the lvalue
+    // expression LValue is updated in an assignment E of the form
+    // LValue = Src.
+    // UpdateAfterAssignment also returns updated bounds for Src.
     //
-    // If V has an original value, the original value is substituted for
-    // any uses of the value of V in the bounds in ObservedBounds and the
-    // expressions in EquivExprs and SameValue.
-    // If V does not have an original value, any bounds in ObservedBounds
-    // that use the value of V are set to bounds(unknown), and any expressions
-    // in EquivExprs and SameValue that use the value of V are removed from
-    // EquivExprs and SameValue.
+    // Target is an rvalue expression that is the value of LValue.
     //
     // SrcBounds are the original bounds for the source of the assignment.
-    //
-    // PrevState is the checking state that was true before the assignment.
-    BoundsExpr *UpdateAfterAssignment(DeclRefExpr *V, Expr *E, Expr *Target,
+    BoundsExpr *UpdateAfterAssignment(Expr *LValue, Expr *E, Expr *Target,
                                       Expr *Src, BoundsExpr *SrcBounds,
                                       CheckedScopeSpecifier CSS,
-                                      const CheckingState PrevState,
-                                      CheckingState &State) {
-      // Get the original value (if any) of V before the assignment, and
-      // determine whether the original value uses the value of V.
-      // OriginalValue is named OV in the Checked C spec.
-      bool OriginalValueUsesV = false;
-      Expr *OriginalValue = GetOriginalValue(V, Target, Src,
-                              PrevState.EquivExprs, OriginalValueUsesV);
+                                      CheckingState &State,
+                                      bool &StateUpdated) {
+      if (!LValue)
+        return SrcBounds;
+      Lexicographic Lex(S.Context, nullptr);
+      LValue = Lex.IgnoreValuePreservingOperations(S.Context, LValue);
 
-      // Determine whether V has declared bounds.
-      VarDecl *VariableDecl = dyn_cast_or_null<VarDecl>(V->getDecl());
-      BoundsExpr *DeclaredBounds;
-      const AbstractSet *VariableAbstractSet = nullptr;
-      if (VariableDecl)
-        DeclaredBounds = VariableDecl->getBoundsExpr();
-
-      // If V has declared bounds, set ObservedBounds[V] to SrcBounds.
-      if (DeclaredBounds) {
-        VariableAbstractSet = AbstractSetMgr.GetOrCreateAbstractSet(V);
-        State.ObservedBounds[VariableAbstractSet] = SrcBounds;
+      // Currently, we only update the checking state after assignments
+      // to a variable or a member expression.
+      if (!isa<DeclRefExpr>(LValue) && !isa<MemberExpr>(LValue)) {
+        StateUpdated = false;
+        return SrcBounds;
       }
 
-      // If Src initially has unknown bounds (before making any variable
+      // Get the original value (if any) of LValue before the assignment,
+      // and determine whether the original value uses the value of LValue.
+      // OriginalValue is named OV in the Checked C spec.
+      bool OriginalValueUsesLValue = false;
+      Expr *OriginalValue = GetOriginalValue(LValue, Target, Src,
+                              State.EquivExprs, OriginalValueUsesLValue);
+
+      BoundsExpr *ResultBounds = UpdateBoundsAfterAssignment(LValue, E, Src,
+                                                             SrcBounds,
+                                                             OriginalValue,
+                                                             CSS, State);
+      UpdateEquivExprsAfterAssignment(LValue, OriginalValue, CSS, State);
+      UpdateSameValueAfterAssignment(LValue, OriginalValue,
+                                     OriginalValueUsesLValue, CSS, State);
+      RecordEqualityWithTarget(LValue, Target, Src, State);
+
+      StateUpdated = true;
+      return ResultBounds;
+    }
+
+    // UpdateBoundsAfterAssignment updates the observed bounds context after
+    // an lvalue expression LValue is modified via an assignment E of the form
+    // LValue = Src, based on the state before the assignment.
+    // It also returns updated bounds for Src.
+    //
+    // If LValue is a member expression, the observed bounds context will
+    // include the updated bounds for each member expression whose target
+    // bounds use the value of LValue.
+    //
+    // OriginalValue is the value of LValue before the assignment.
+    // If OriginalValue is non-null, bounds in the observed bounds context
+    // have all occurrences of LValue replaced with OriginalValue.
+    // If OriginalValue is null, bounds in the observed bounds context
+    // that use the value of LValue are set to bounds(unknown).
+    BoundsExpr *UpdateBoundsAfterAssignment(Expr *LValue, Expr *E,
+                                            Expr *Src, BoundsExpr *SrcBounds,
+                                            Expr *OriginalValue,
+                                            CheckedScopeSpecifier CSS,
+                                            CheckingState &State) {
+      // If LValue is a member expression, get the set of AbstractSets whose
+      // target bounds depend on LValue. The observed bounds of each of these
+      // AbstractSets are recorded in ObservedBounds.
+      MemberExpr *M = dyn_cast<MemberExpr>(LValue);
+      if (M) {
+        AbstractSetSetTy AbstractSets;
+        SynthesizeMembers(M, M, CSS, AbstractSets);
+
+        if (DumpSynthesizedMembers)
+          DumpSynthesizedMemberAbstractSets(llvm::outs(), AbstractSets);
+
+        for (const AbstractSet *A : AbstractSets) {
+          BoundsExpr *TargetBounds =
+            S.GetLValueDeclaredBounds(A->GetRepresentative(), CSS);
+          State.ObservedBounds[A] = TargetBounds;
+        }
+      }
+
+      // Determine whether LValue has (non-unknown) target bounds.
+      const AbstractSet *LValueAbstractSet = nullptr;
+      BoundsExpr *TargetBounds = S.GetLValueDeclaredBounds(LValue, CSS);
+      bool HasTargetBounds = TargetBounds && !TargetBounds->isUnknown();
+
+      // If LValue has target bounds, the initial observed bounds of LValue
+      // are SrcBounds. These bounds will be updated to account for any uses
+      // of LValue below.
+      if (HasTargetBounds) {
+        LValueAbstractSet = AbstractSetMgr.GetOrCreateAbstractSet(LValue);
+        State.ObservedBounds[LValueAbstractSet] = SrcBounds;
+      }
+
+      // If Src initially has unknown bounds (before making any lvalue
       // replacements), use Src to explain bounds checking errors that
       // can occur when validating the bounds context.
-      if (DeclaredBounds) {
+      if (HasTargetBounds) {
         if (SrcBounds->isUnknown())
-          State.UnknownSrcBounds[VariableAbstractSet].push_back(Src);
+          State.UnknownSrcBounds[LValueAbstractSet].push_back(Src);
       }
 
-      // Adjust ObservedBounds to account for any uses of V in the bounds.
+      // Adjust ObservedBounds to account for any uses of LValue in the bounds.
       for (auto const &Pair : State.ObservedBounds) {
-        const AbstractSet *W = Pair.first;
+        const AbstractSet *A = Pair.first;
         BoundsExpr *Bounds = Pair.second;
-        BoundsExpr *AdjustedBounds = ReplaceVariableInBounds(Bounds, V, OriginalValue, CSS);
-        if (!Bounds->isUnknown() && AdjustedBounds->isUnknown())
-          State.LostVariables[W] = std::make_pair(Bounds, V);
+        BoundsExpr *AdjustedBounds =
+          ReplaceLValueInBounds(Bounds, LValue, OriginalValue, CSS);
+        State.ObservedBounds[A] = AdjustedBounds;
 
-        // If E modifies the bounds of W, add the pair to BlameAssignments.
+        // If the assignment to LValue caused the observed bounds of A
+        // to be bounds(unknown), add the pair to LostLValues.
+        if (!Bounds->isUnknown() && AdjustedBounds->isUnknown())
+          State.LostLValues[A] = std::make_pair(Bounds, LValue);
+
+        // If E modifies the bounds of A, add the pair to BlameAssignments.
         // We can check this cheaply by comparing the pointer values of
-        // AdjustedBounds and Bounds because ReplaceVariableInBounds returns
+        // AdjustedBounds and Bounds because ReplaceLValueInBounds returns
         // Bounds as AdjustedBounds if Bounds is not adjusted.
         if (AdjustedBounds != Bounds)
-          State.BlameAssignments[W] = E;
-        State.ObservedBounds[W] = AdjustedBounds;
+          State.BlameAssignments[A] = E;
       }
 
-      // Adjust SrcBounds to account for any uses of V and, if V has declared
-      // bounds, record the updated observed bounds for V.
-      BoundsExpr *AdjustedSrcBounds = ReplaceVariableInBounds(SrcBounds, V, OriginalValue, CSS);
-      if (DeclaredBounds)
-        State.ObservedBounds[VariableAbstractSet] = AdjustedSrcBounds;
+      // Adjust SrcBounds to account for any uses of LValue.
+      BoundsExpr *AdjustedSrcBounds = nullptr;
+      // If LValue has target bounds, then the observed bounds of LValue
+      // are already SrcBounds adjusted to account for any use of LValue.
+      if (HasTargetBounds)
+        AdjustedSrcBounds = State.ObservedBounds[LValueAbstractSet];
+      else
+        AdjustedSrcBounds = ReplaceLValueInBounds(SrcBounds, LValue,
+                                                  OriginalValue, CSS);
 
-      // Record that E updates the observed bounds of V.
-      if (DeclaredBounds)
-        State.BlameAssignments[VariableAbstractSet] = E;
+      // Record that E updates the observed bounds of LValue.
+      if (HasTargetBounds)
+        State.BlameAssignments[LValueAbstractSet] = E;
 
       // If the initial source bounds were not unknown, but they are unknown
-      // after replacing uses of V, then the assignment to V caused the
-      // source bounds (which are the observed bounds for V) to be unknown.
-      if (DeclaredBounds) {
+      // after replacing uses of LValue, then the assignment to LValue caused
+      // the source bounds (which are the observed bounds for LValue) to be
+      // unknown.
+      if (HasTargetBounds) {
         if (!SrcBounds->isUnknown() && AdjustedSrcBounds->isUnknown())
-          State.LostVariables[VariableAbstractSet] = std::make_pair(SrcBounds, V);
+          State.LostLValues[LValueAbstractSet] =
+            std::make_pair(SrcBounds, LValue);
       }
 
-      // Adjust EquivExprs to account for any uses of V in PrevState.EquivExprs.
+      return AdjustedSrcBounds;
+    }
+
+    // UpdateEquivExprsAfterAssignment updates the set EquivExprs of set of
+    // equivalent expressions after the expression LValue is modified via
+    // an assignment.
+    //
+    // OriginalValue is the value of LValue before the assignment.
+    // If OriginalValue is non-null, each expression in EquivExprs has all
+    // occurrences of LValue replaced with OriginalValue.
+    // If OriginalValue is null, each expression in EquivExprs that uses the
+    // value of LValue is removed from EquivExprs.
+    void UpdateEquivExprsAfterAssignment(Expr *LValue, Expr *OriginalValue,
+                                         CheckedScopeSpecifier CSS,
+                                         CheckingState &State) {
+      const EquivExprSets PrevEquivExprs = State.EquivExprs;
       State.EquivExprs.clear();
-      for (auto I = PrevState.EquivExprs.begin(); I != PrevState.EquivExprs.end(); ++I) {
+      for (auto I = PrevEquivExprs.begin(); I != PrevEquivExprs.end(); ++I) {
         ExprSetTy ExprList;
         for (auto InnerList = (*I).begin(); InnerList != (*I).end(); ++InnerList) {
           Expr *E = *InnerList;
-          Expr *AdjustedE = ReplaceVariableReferences(S, E, V, OriginalValue, CSS);
+          Expr *AdjustedE = ReplaceLValue(S, E, LValue, OriginalValue, CSS);
           // Don't add duplicate expressions to any set in EquivExprs.
           if (AdjustedE && !EqualExprsContainsExpr(ExprList, AdjustedE))
             ExprList.push_back(AdjustedE);
@@ -4730,44 +4982,65 @@ namespace {
         if (ExprList.size() > 1)
           State.EquivExprs.push_back(ExprList);
       }
+    }
 
-      // Adjust SameValue to account for any uses of V in PrevState.SameValue.
+    // UpdateSameValue updates the set of expressions that produce the
+    // same value as the source of an assignment, after an assignment
+    // that modifies the expression LValue.
+    //
+    // OriginalValue is the value of LValue before the assignment.
+    void UpdateSameValueAfterAssignment(Expr *LValue, Expr *OriginalValue,
+                                        bool OriginalValueUsesLValue,
+                                        CheckedScopeSpecifier CSS,
+                                        CheckingState &State) {
+      // Adjust SameValue to account for any uses of LValue in PrevSameValue.
       // If the original value uses the value of V, then any expressions that
-      // use the value of V should be removed from SameValue.  For example,
-      // in the assignment i = i + 2, where the original value is i - 2, the
-      // expression i + 2 in SameValue should be removed rather than replaced
-      // with (i - 2) + 2.  Otherwise, SameValue would contain (i - 2) + 2 and
-      // i, and EquivExprs would record equality between (i - 2) + 2 and i,
-      // which is a tautology.
+      // use the value of V should be removed from SameValue.
+      // For example, in the assignment i = i + 2, where the original value
+      // of i is i - 2, the expression i + 2 in SameValue should be removed
+      // rather than replaced with (i - 2) + 2.
+      // Otherwise, SameValue would contain (i - 2) + 2 and i, which is a
+      // tautology.
+      const ExprSetTy PrevSameValue = State.SameValue;
       State.SameValue.clear();
-      Expr *OriginalSameValueVal = OriginalValueUsesV ? nullptr : OriginalValue;
-      for (auto I = PrevState.SameValue.begin(); I != PrevState.SameValue.end(); ++I) {
+      Expr *OriginalSameValueVal = OriginalValueUsesLValue ? nullptr : OriginalValue;
+      for (auto I = PrevSameValue.begin(); I != PrevSameValue.end(); ++I) {
         Expr *E = *I;
-        Expr *AdjustedE = ReplaceVariableReferences(S, E, V,
-                                                    OriginalSameValueVal, CSS);
+        Expr *AdjustedE = ReplaceLValue(S, E, LValue, OriginalSameValueVal, CSS);
         // Don't add duplicate expressions to SameValue.
         if (AdjustedE && !EqualExprsContainsExpr(State.SameValue, AdjustedE))
           State.SameValue.push_back(AdjustedE);
       }
-
-      RecordEqualityWithTarget(Target, Src, State);
-      return AdjustedSrcBounds;
     }
 
     // RecordEqualityWithTarget updates the checking state to record equality
-    // between the target expression of an assignment and the source of the
-    // assignment.
+    // implied by an assignment or initializer of the form LValue = Src,
+    // where Target is an rvalue expression that is the value of LValue.
     //
     // State.SameValue is assumed to contain expressions that produce the same
-    // value as the source of the assignment.
-    void RecordEqualityWithTarget(Expr *Target, Expr *Src, CheckingState &State) {
-      // If EquivExprs contains a set F of expressions that produce the same
-      // value as the source, add the target to F.  This prevents EquivExprs
-      // from growing too large and containing redundant equality information.
+    // value as Source.
+    void RecordEqualityWithTarget(Expr *LValue, Expr *Target, Expr *Src,
+                                  CheckingState &State) {
+      if (!LValue)
+        return;
+      LValue = LValue->IgnoreParens();
+
+      // Certain kinds of expressions (e.g. member expressions) are not allowed
+      // to be included in EquivExprs. For these expressions, we record
+      // temporary equality between Target and Src in TargetSrcEquality instead
+      // of in EquivExprs. If Src is allowed in EquivExprs, SameValue will
+      // contain at least one expression that produces the same value as Src.
+      bool TargetAllowedInEquivExprs = !isa<MemberExpr>(LValue);
+      bool SrcAllowedInEquivExprs = State.SameValue.size() > 0;
+
+      // For expressions that are allowed in EquivExprs, try to add Target
+      // to an existing set F in EquivExprs that contains expressions that
+      // produce the same value as Src. This prevents EquivExprs from growing
+      // too large and containing redundant equality information.
       // For example, for the assignments x = 1; y = x; where the target is y,
       // SameValue = { x }, and EquivExprs contains F = { 1, x }, EquivExprs
       // should contain { 1, x, y } rather than { 1, x } and { 1, x, y }.
-      if (State.SameValue.size() > 0) {
+      if (TargetAllowedInEquivExprs && SrcAllowedInEquivExprs) {
         for (auto F = State.EquivExprs.begin(); F != State.EquivExprs.end(); ++F) {
           if (DoExprSetsIntersect(*F, State.SameValue)) {
             // Add all expressions in SameValue to F that are not already in F.
@@ -4789,16 +5062,21 @@ namespace {
         }
       }
 
-      // If the source will not be included in State.EquivExprs, record
-      // equality between the target and source that will be used to validate
-      // the bounds context after checking the current top-level CFG statement.
-      if (Src && State.SameValue.size() == 0) {
+      // If the target or the source are not allowed in EquivExprs, record
+      // the equality between the target and source in TargetSrcEquality.
+      // This temporary equality information will be used to validate the
+      // bounds context after checking the current top-level CFG statement,
+      // but does not persist across checking CFG statements.
+      if (Src && (!TargetAllowedInEquivExprs || !SrcAllowedInEquivExprs)) {
         CHKCBindTemporaryExpr *Temp = GetTempBinding(Src);
         if (Temp)
           State.TargetSrcEquality[Target] = CreateTemporaryUse(Temp);
         else if (CheckIsNonModifying(Src))
           State.TargetSrcEquality[Target] = Src;
       }
+
+      if (!TargetAllowedInEquivExprs)
+        return;
 
       // Avoid adding sets with duplicate expressions such as { e, e }
       // and singleton sets such as { e } to EquivExprs.
@@ -4808,16 +5086,15 @@ namespace {
         State.EquivExprs.push_back(State.SameValue);
     }
 
-    // If Bounds uses the value of v and an original value is provided,
-    // ReplaceVariableInBounds will return a bounds expression where the uses
-    // of v are replaced with the original value.
-    // If Bounds uses the value of v and no original value is provided,
-    // ReplaceVariableInBounds will return bounds(unknown).
-    BoundsExpr *ReplaceVariableInBounds(BoundsExpr *Bounds, DeclRefExpr *V,
-                                        Expr *OriginalValue,
-                                        CheckedScopeSpecifier CSS) {
-      Expr *Replaced = ReplaceVariableReferences(S, Bounds, V,
-                                                 OriginalValue, CSS);
+    // If Bounds uses the value of LValue and an original value is provided,
+    // ReplaceLValueInBounds will return a bounds expression where the uses
+    // of LValue are replaced with the original value.
+    // If Bounds uses the value of LValue and no original value is provided,
+    // ReplaceLValueInBounds will return bounds(unknown).
+    BoundsExpr *ReplaceLValueInBounds(BoundsExpr *Bounds, Expr *LValue,
+                                      Expr *OriginalValue,
+                                      CheckedScopeSpecifier CSS) {
+      Expr *Replaced = ReplaceLValue(S, Bounds, LValue, OriginalValue, CSS);
       if (!Replaced)
         return CreateBoundsUnknown();
       else if (BoundsExpr *AdjustedBounds = dyn_cast<BoundsExpr>(Replaced))
@@ -4927,33 +5204,45 @@ namespace {
     // Methods to get the original value of an expression.
 
     // GetOriginalValue returns the original value (if it exists) of the
-    // expression Src with respect to the variable V in an assignment V = Src.
+    // expression Src with respect to the expression LValue in an assignment
+    // LValue = Src.
     //
     // Target is the target expression of the assignment (that accounts for
-    // any necessary casts of V).
+    // any necessary casts of LValue).
     //
-    // The out parameter OriginalValueUsesV will be set to true if the original
-    // value uses the value of the variable V.  This prevents callers from
-    // having to compute the variable occurrence count of V in the original
-    // value, since GetOriginalValue computes this count while trying to
-    // construct the inverse expression of the source with respect to V.
-    Expr *GetOriginalValue(DeclRefExpr *V, Expr *Target, Expr *Src,
-                           const EquivExprSets EQ, bool &OriginalValueUsesV) {
-      // Check if Src has an inverse expression with respect to v.
+    // The out parameter OriginalValueUsesLValue will be set to true if the
+    // original value uses the value of LValue.
+    // This prevents callers from having to compute the occurrence count of
+    // LValue in the original value, since GetOriginalValue computes this
+    // count while trying to construct the inverse expression of the source
+    // with respect to LValue.
+    Expr *GetOriginalValue(Expr *LValue, Expr *Target, Expr *Src,
+                           const EquivExprSets EQ,
+                           bool &OriginalValueUsesLValue) {
+      // Check if Src has an inverse expression with respect to LValue.
       Expr *IV = nullptr;
-      if (IsInvertible(V, Src))
-        IV = Inverse(V, Target, Src);
+      if (IsInvertible(LValue, Src))
+        IV = Inverse(LValue, Target, Src);
       if (IV) {
-        // If Src has an inverse with respect to v, then the original
-        // value (the inverse) must use the value of v.
-        OriginalValueUsesV = true;
+        // If Src has an inverse with respect to LValue, then the original
+        // value (the inverse) must use the value of LValue.
+        OriginalValueUsesLValue = true;
         return IV;
       }
 
+      // If Src does not have an inverse with respect to LValue, then we
+      // search the set EQ for a variable equivalent to LValue. In this
+      // case, LValue must be a variable V.
+      DeclRefExpr *V = VariableUtil::GetLValueVariable(S, LValue);
+      if (!V) {
+        OriginalValueUsesLValue = false;
+        return nullptr;
+      }
+
       // If Src does not have an inverse with respect to v, then the original
-      // value is either some variable w != v in EQ, or it is null.  In either
+      // value is either some variable w != v in EQ, or it is null. In either
       // case, the original value cannot use the value of v.
-      OriginalValueUsesV = false;
+      OriginalValueUsesLValue = false;
       
       // Check EQ for a variable w != v that produces the same value as v.
       Expr *ValuePreservingV = nullptr;
@@ -4965,7 +5254,7 @@ namespace {
         // original value should be (T)LValueToRValue(w).
         Lexicographic Lex(S.Context, nullptr);
         Expr *E = Lex.IgnoreValuePreservingOperations(S.Context, *I);
-        DeclRefExpr *W = GetRValueVariable(E);
+        DeclRefExpr *W = VariableUtil::GetRValueVariable(S, E);
         if (W != nullptr && !EqualValue(S.Context, V, W, nullptr)) {
           // Expression equality in EquivExprs does not account for types, so
           // expressions in the same set in EquivExprs may not have the same
@@ -4984,44 +5273,43 @@ namespace {
       return nullptr;
     }
 
-    // IsInvertible returns true if the expression e can be inverted
-    // with respect to the variable x.
-    bool IsInvertible(DeclRefExpr *X, Expr *E) {
+    bool IsInvertible(Expr *LValue, Expr *E) {
       if (!E)
         return false;
 
       E = E->IgnoreParens();
-      if (IsRValueCastOfVariable(E, X))
+      Expr *RValueChild = ExprUtil::GetRValueCastChild(S, E);
+      if (RValueChild && EqualValue(S.Context, LValue, RValueChild, nullptr))
         return true;
 
       switch (E->getStmtClass()) {
         case Expr::UnaryOperatorClass:
-          return IsUnaryOperatorInvertible(X, cast<UnaryOperator>(E));
+          return IsUnaryOperatorInvertible(LValue, cast<UnaryOperator>(E));
         case Expr::BinaryOperatorClass:
-          return IsBinaryOperatorInvertible(X, cast<BinaryOperator>(E));
+          return IsBinaryOperatorInvertible(LValue, cast<BinaryOperator>(E));
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass:
         case Expr::BoundsCastExprClass:
-          return IsCastExprInvertible(X, cast<CastExpr>(E));
+          return IsCastExprInvertible(LValue, cast<CastExpr>(E));
         default:
           return false;
       }
     }
 
-    // Returns true if a unary operator is invertible with respect to x.
-    bool IsUnaryOperatorInvertible(DeclRefExpr *X, UnaryOperator *E) {
+    // Returns true if a unary operator is invertible with respect to LValue.
+    bool IsUnaryOperatorInvertible(Expr *LValue, UnaryOperator *E) {
       Expr *SubExpr = E->getSubExpr()->IgnoreParens();
       UnaryOperatorKind Op = E->getOpcode();
 
       if (Op == UnaryOperatorKind::UO_AddrOf) {
-        // &*e1 is invertible with respect to x if e1 is invertible with
-        // respect to x.
+        // &*e1 is invertible with respect to LValue if e1 is invertible with
+        // respect to LValue.
         if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
           if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_Deref)
-            return IsInvertible(X, UnarySubExpr->getSubExpr());
+            return IsInvertible(LValue, UnarySubExpr->getSubExpr());
         }
-        // &e1[e2] is invertible with respect to x if e1 + e2 is invertible
-        // with respect to x.
+        // &e1[e2] is invertible with respect to LValue if e1 + e2 is invertible
+        // with respect to LValue.
         else if (ArraySubscriptExpr *ArraySubExpr = dyn_cast<ArraySubscriptExpr>(SubExpr)) {
           Expr *Base = ArraySubExpr->getBase();
           Expr *Index = ArraySubExpr->getIdx();
@@ -5032,31 +5320,31 @@ namespace {
                              Base->getObjectKind(),
                              SourceLocation(),
                              FPOptionsOverride());
-          return IsInvertible(X, &Sum);
+          return IsInvertible(LValue, &Sum);
         }
       }
 
-      // *&e1 is invertible with respect to x if e1 is invertible with
-      // respect to x.
+      // *&e1 is invertible with respect to LValue if e1 is invertible with
+      // respect to LValue.
       if (Op == UnaryOperatorKind::UO_Deref) {
         if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
           if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_AddrOf)
-            return IsInvertible(X, UnarySubExpr->getSubExpr());
+            return IsInvertible(LValue, UnarySubExpr->getSubExpr());
         }
       }
 
-      // ~e1, -e1, and +e1 are invertible with respect to x if e1 is
-      // invertible with respect to x.
+      // ~e1, -e1, and +e1 are invertible with respect to LValue if e1 is
+      // invertible with respect to LValue.
       if (Op == UnaryOperatorKind::UO_Not ||
           Op == UnaryOperatorKind::UO_Minus ||
           Op == UnaryOperatorKind::UO_Plus)
-        return IsInvertible(X, SubExpr);
+        return IsInvertible(LValue, SubExpr);
 
       return false;
     }
 
-    // Returns true if a binary operator is invertible with respect to x.
-    bool IsBinaryOperatorInvertible(DeclRefExpr *X, BinaryOperator *E) {
+    // Returns true if a binary operator is invertible with respect to LValue.
+    bool IsBinaryOperatorInvertible(Expr *LValue, BinaryOperator *E) {
       BinaryOperatorKind Op = E->getOpcode();
       if (Op != BinaryOperatorKind::BO_Add &&
           Op != BinaryOperatorKind::BO_Sub &&
@@ -5065,7 +5353,7 @@ namespace {
 
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
-      
+
       // Addition and subtraction operations must be for checked pointer
       // arithmetic or unsigned integer arithmetic.
       if (Op == BinaryOperatorKind::BO_Add || Op == BinaryOperatorKind::BO_Sub) {
@@ -5083,28 +5371,29 @@ namespace {
         }
       }
 
-      // X must appear in exactly one subexpression of E and that
-      // subexpression must be invertible with respect to X.
-      std::pair<Expr *, Expr*> Pair = SplitByVarCount(X, LHS, RHS);
+      // LValue must appear in exactly one subexpression of E and that
+      // subexpression must be invertible with respect to LValue.
+      std::pair<Expr *, Expr*> Pair = SplitByLValueCount(LValue, LHS, RHS);
       if (!Pair.first)
         return false;
-      Expr *E_X = Pair.first, *E_NotX = Pair.second;
-      if (!IsInvertible(X, E_X))
+      Expr *E_LValue = Pair.first, *E_NotLValue = Pair.second;
+      if (!IsInvertible(LValue, E_LValue))
         return false;
 
-      // The subexpression not containing X must be nonmodifying
+      // The subexpression not containing LValue must be nonmodifying
       // and cannot be or contain a pointer dereference, member
       // reference, or indirect member reference.
-      if (!CheckIsNonModifying(E_NotX) || ReadsMemoryViaPointer(E_NotX, true))
+      if (!CheckIsNonModifying(E_NotLValue) ||
+          ReadsMemoryViaPointer(E_NotLValue, true))
         return false;
 
       return true;
     }
 
-    // Returns true if a cast expression is invertible with respect to x.
+    // Returns true if a cast expression is invertible with respect to LValue.
     // A cast expression (T1)e1 is invertible if T1 is a bit-preserving
     // or widening cast and e1 is invertible.
-    bool IsCastExprInvertible(DeclRefExpr *X, CastExpr *E) {
+    bool IsCastExprInvertible(Expr *LValue, CastExpr *E) {
       QualType T1 = E->getType();
       QualType T2 = E->getSubExpr()->getType();
       uint64_t Size1 = S.Context.getTypeSize(T1);
@@ -5125,46 +5414,47 @@ namespace {
         // Widening casts
         case CastKind::CK_BooleanToSignedIntegral:
         case CastKind::CK_IntegralToFloating:
-          return IsInvertible(X, E->getSubExpr());
+          return IsInvertible(LValue, E->getSubExpr());
         // Bounds casts may be invertible.
         case CastKind::CK_DynamicPtrBounds:
         case CastKind::CK_AssumePtrBounds: {
           CHKCBindTemporaryExpr *Temp =
             dyn_cast<CHKCBindTemporaryExpr>(E->getSubExpr());
           assert(Temp);
-          return IsInvertible(X, Temp->getSubExpr());
+          return IsInvertible(LValue, Temp->getSubExpr());
         }
         // Potentially non-narrowing casts, depending on type sizes
         case CastKind::CK_IntegralToPointer:
         case CastKind::CK_PointerToIntegral:
         case CastKind::CK_IntegralCast:
-          return Size1 >= Size2 && IsInvertible(X, E->getSubExpr());
+          return Size1 >= Size2 && IsInvertible(LValue, E->getSubExpr());
         // All other casts are considered narrowing.
         default:
           return false;
       }
     }
 
-    // Inverse repeatedly applies mathematical rules to the expression e to
-    // get the inverse of e with respect to the variable x and expression f.
-    // If rules cannot be applied to e, Inverse returns nullptr.
-    Expr *Inverse(DeclRefExpr *X, Expr *F, Expr *E) {
+    // Inverse repeatedly applies mathematical rules to the expression E to
+    // get the inverse of E with respect to the lvalue expression LValue and
+    // expression F. If rules cannot be applied to E, Inverse returns nullptr.
+    Expr *Inverse(Expr *LValue, Expr *F, Expr *E) {
       if (!F)
         return nullptr;
 
       E = E->IgnoreParens();
-      if (IsRValueCastOfVariable(E, X))
+      Expr *RValueChild = ExprUtil::GetRValueCastChild(S, E);
+      if (RValueChild && EqualValue(S.Context, LValue, RValueChild, nullptr))
         return F;
 
       switch (E->getStmtClass()) {
         case Expr::UnaryOperatorClass:
-          return UnaryOperatorInverse(X, F, cast<UnaryOperator>(E));
+          return UnaryOperatorInverse(LValue, F, cast<UnaryOperator>(E));
         case Expr::BinaryOperatorClass:
-          return BinaryOperatorInverse(X, F, cast<BinaryOperator>(E));
+          return BinaryOperatorInverse(LValue, F, cast<BinaryOperator>(E));
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass:
         case Expr::BoundsCastExprClass:
-          return CastExprInverse(X, F, cast<CastExpr>(E));
+          return CastExprInverse(LValue, F, cast<CastExpr>(E));
         default:
           return nullptr;
       }
@@ -5173,7 +5463,7 @@ namespace {
     }
 
     // Returns the inverse of a unary operator.
-    Expr *UnaryOperatorInverse(DeclRefExpr *X, Expr *F, UnaryOperator *E) {
+    Expr *UnaryOperatorInverse(Expr *LValue, Expr *F, UnaryOperator *E) {
       Expr *SubExpr = E->getSubExpr()->IgnoreParens();
       UnaryOperatorKind Op = E->getOpcode();
       
@@ -5181,7 +5471,7 @@ namespace {
         // Inverse(f, &*e1) = Inverse(f, e1)
         if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
           if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_Deref)
-            return Inverse(X, F, UnarySubExpr->getSubExpr());
+            return Inverse(LValue, F, UnarySubExpr->getSubExpr());
         }
         // Inverse(f, &e1[e2]) = Inverse(f, e1 + e2)
         else if (ArraySubscriptExpr *ArraySubExpr = dyn_cast<ArraySubscriptExpr>(SubExpr)) {
@@ -5194,7 +5484,7 @@ namespace {
                              Base->getObjectKind(),
                              SourceLocation(),
                              FPOptionsOverride());
-          return Inverse(X, F, &Sum);
+          return Inverse(LValue, F, &Sum);
         }
       }
 
@@ -5202,7 +5492,7 @@ namespace {
       if (Op == UnaryOperatorKind::UO_Deref) {
         if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
           if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_AddrOf)
-            return Inverse(X, F, UnarySubExpr->getSubExpr());
+            return Inverse(LValue, F, UnarySubExpr->getSubExpr());
         }
       }
 
@@ -5217,65 +5507,65 @@ namespace {
                                        SourceLocation(),
                                        E->canOverflow(),
                                        FPOptionsOverride());
-      return Inverse(X, F1, SubExpr);
+      return Inverse(LValue, F1, SubExpr);
     }
 
     // Returns the inverse of a binary operator.
-    Expr *BinaryOperatorInverse(DeclRefExpr *X, Expr *F, BinaryOperator *E) {
-      std::pair<Expr *, Expr*> Pair = SplitByVarCount(X, E->getLHS(), E->getRHS());
+    Expr *BinaryOperatorInverse(Expr *LValue, Expr *F, BinaryOperator *E) {
+      std::pair<Expr *, Expr*> Pair = SplitByLValueCount(LValue, E->getLHS(), E->getRHS());
       if (!Pair.first)
         return nullptr;
 
-      Expr *E_X = Pair.first, *E_NotX = Pair.second;
+      Expr *E_LValue = Pair.first, *E_NotLValue = Pair.second;
       BinaryOperatorKind Op = E->getOpcode();
       Expr *F1 = nullptr;
 
       switch (Op) {
         case BinaryOperatorKind::BO_Add:
-          // Inverse(f, e1 + e2) = Inverse(f - e_notx, e_x)
-          F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotX, BinaryOperatorKind::BO_Sub);
+          // Inverse(f, e1 + e2) = Inverse(f - e_notlvalue, e_lvalue)
+          F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotLValue, BinaryOperatorKind::BO_Sub);
           break;
         case BinaryOperatorKind::BO_Sub: {
-          if (E_X == E->getLHS())
-            // Inverse(f, e_x - e_notx) = Inverse(f + e_notx, e_x)
-            F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotX, BinaryOperatorKind::BO_Add);
+          if (E_LValue == E->getLHS())
+            // Inverse(f, e_lvalue - e_notlvalue) = Inverse(f + e_notlvalue, e_lvalue)
+            F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotLValue, BinaryOperatorKind::BO_Add);
           else
-            // Inverse(f, e_notx - e_x) => Inverse(e_notx - f, e_x)
-            F1 = ExprCreatorUtil::CreateBinaryOperator(S, E_NotX, F, BinaryOperatorKind::BO_Sub);
+            // Inverse(f, e_notlvalue - e_lvalue) => Inverse(e_notlvalue - f, e_lvalue)
+            F1 = ExprCreatorUtil::CreateBinaryOperator(S, E_NotLValue, F, BinaryOperatorKind::BO_Sub);
           break;
         }
         case BinaryOperatorKind::BO_Xor:
-          // Inverse(f, e1 ^ e2) = Inverse(x, f ^ e_notx, e_x)
-          F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotX, BinaryOperatorKind::BO_Xor);
+          // Inverse(f, e1 ^ e2) = Inverse(lvalue, f ^ e_notlvalue, e_lvalue)
+          F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotLValue, BinaryOperatorKind::BO_Xor);
           break;
         default:
           llvm_unreachable("unexpected binary operator kind");
       }
 
-      return Inverse(X, F1, E_X);
+      return Inverse(LValue, F1, E_LValue);
     }
 
     // Returns the inverse of a cast expression.  If e1 has type T2,
     // Inverse(f, (T1)e1) = Inverse((T2)f, e1) (assuming that (T1) is
     // not a narrowing cast).
-    Expr *CastExprInverse(DeclRefExpr *X, Expr *F, CastExpr *E) {
+    Expr *CastExprInverse(Expr *LValue, Expr *F, CastExpr *E) {
       QualType T2 = E->getSubExpr()->getType();
       switch (E->getStmtClass()) {
         case Expr::ImplicitCastExprClass: {
           Expr *F1 = CreateImplicitCast(T2, E->getCastKind(), F);
-          return Inverse(X, F1, E->getSubExpr());
+          return Inverse(LValue, F1, E->getSubExpr());
         }
         case Expr::CStyleCastExprClass: {
           Expr *F1 = CreateExplicitCast(T2, E->getCastKind(), F,
                                         E->isBoundsSafeInterface());
-          return Inverse(X, F1, E->getSubExpr());
+          return Inverse(LValue, F1, E->getSubExpr());
         }
         case Expr::BoundsCastExprClass: {
           CHKCBindTemporaryExpr *Temp = dyn_cast<CHKCBindTemporaryExpr>(E->getSubExpr());
           assert(Temp);
           Expr *F1 = CreateExplicitCast(T2, CastKind::CK_BitCast, F,
                                         E->isBoundsSafeInterface());
-          return Inverse(X, F1, Temp->getSubExpr());
+          return Inverse(LValue, F1, Temp->getSubExpr());
         }
         default:
           llvm_unreachable("unexpected cast kind");
@@ -5479,57 +5769,6 @@ namespace {
       return ::EqualExprsContainsExpr(S, Exprs, E, nullptr);
     }
 
-    // If E is a possibly parenthesized lvalue variable V,
-    // GetLValueVariable returns V. Otherwise, it returns nullptr.
-    //
-    // V may have value-preserving operations applied to it, such as
-    // LValueBitCasts.  For example, if E is (LValueBitCast(V)), where V
-    // is a variable, GetLValueVariable will return V.
-    static DeclRefExpr *GetLValueVariable(Sema &S, Expr *E) {
-      Lexicographic Lex(S.Context, nullptr);
-      E = Lex.IgnoreValuePreservingOperations(S.Context, E);
-      return dyn_cast<DeclRefExpr>(E);
-    }
-
-    DeclRefExpr *GetLValueVariable(Expr *E) {
-      return GetLValueVariable(S, E);
-    }
-
-    // If E is a possibly parenthesized rvalue cast of a variable V,
-    // GetRValueVariable returns V. Otherwise, it returns nullptr.
-    //
-    // V may have value-preserving operations applied to it.  For example,
-    // if E is (LValueToRValue(LValueBitCast(V))), where V is a variable,
-    // GetRValueVariable will return V.
-    static DeclRefExpr *GetRValueVariable(Sema &S, Expr *E) {
-      if (!E)
-        return nullptr;
-      if (CastExpr *CE = dyn_cast<CastExpr>(E->IgnoreParens())) {
-        CastKind CK = CE->getCastKind();
-        if (CK == CastKind::CK_LValueToRValue ||
-            CK == CastKind::CK_ArrayToPointerDecay)
-          return GetLValueVariable(S, CE->getSubExpr());
-      }
-      return nullptr;
-    }
-
-    DeclRefExpr *GetRValueVariable(Expr *E) {
-      return GetRValueVariable(S, E);
-    }
-
-    // IsRValueCastOfVariable returns true if the expression e is a possibly
-    // parenthesized lvalue-to-rvalue cast of the lvalue variable v.
-    static bool IsRValueCastOfVariable(Sema &S, Expr *E, DeclRefExpr *V) {
-      DeclRefExpr *Var = GetRValueVariable(S, E);
-      if (!Var)
-        return false;
-      return EqualValue(S.Context, V, Var, nullptr);
-    }
-
-    bool IsRValueCastOfVariable(Expr *E, DeclRefExpr *V) {
-      return IsRValueCastOfVariable(S, E, V);
-    }
-
     // CreatesNewObject returns true if the expression e creates a new object.
     // Expressions that create new objects should not be added to the
     // EquivExprs or SameValue sets of equivalent expressions in the checking
@@ -5604,23 +5843,103 @@ namespace {
       }
     }
 
-    // If the variable X appears exactly once in Ei and does not appear in
-    // Ej, SplitByVarCount returns the pair (Ei, Ej).  Otherwise, it returns
+    // If LValue appears exactly once in Ei and does not appear in Ej,
+    // SplitByLValueCount returns the pair (Ei, Ej).  Otherwise, it returns
     // an empty pair.
-    std::pair<Expr *, Expr *> SplitByVarCount(DeclRefExpr *X, Expr *E1, Expr *E2) {
+    std::pair<Expr *, Expr *> SplitByLValueCount(Expr *LValue,
+                                                 Expr *E1, Expr *E2) {
       std::pair<Expr *, Expr *> Pair;
-      int Count1 = VariableOccurrenceCount(S, X, E1);
-      int Count2 = VariableOccurrenceCount(S, X, E2);
+      unsigned int Count1 = LValueOccurrenceCount(S, LValue, E1);
+      unsigned int Count2 = LValueOccurrenceCount(S, LValue, E2);
       if (Count1 == 1 && Count2 == 0) {
-        // X appears once in E1 and does not appear in E2.
+        // LValue appears once in E1 and does not appear in E2.
         Pair.first = E1;
         Pair.second = E2;
       } else if (Count2 == 1 && Count1 == 0) {
-        // X appears once in E2 and does not appear in E1.
+        // LValue appears once in E2 and does not appear in E1.
         Pair.first = E2;
         Pair.second = E1;
       }
       return Pair;
+    }
+
+    // SynthesizeMembers modifies the set AbstractSets to include AbstractSets
+    // for member expressions whose target bounds use the value of the member
+    // expression M that is being modified via an assignment.
+    void SynthesizeMembers(Expr *E, MemberExpr *M, CheckedScopeSpecifier CSS,
+                           AbstractSetSetTy &AbstractSets) {
+      if (!E)
+        return;
+      Lexicographic Lex(S.Context, nullptr);
+      E = Lex.IgnoreValuePreservingOperations(S.Context, E->IgnoreParens());
+
+      // Recursively synthesize AbstractSets for certain subexpressions of E.
+      switch (E->getStmtClass()) {
+        case Expr::MemberExprClass:
+          break;
+        case Expr::ImplicitCastExprClass:
+        case Expr::CStyleCastExprClass: {
+          CastExpr *CE = cast<CastExpr>(E);
+          SynthesizeMembers(CE->getSubExpr(), M, CSS, AbstractSets);
+          return;
+        }
+        case Expr::UnaryOperatorClass: {
+          UnaryOperator *UO = cast<UnaryOperator>(E);
+          SynthesizeMembers(UO->getSubExpr(), M, CSS, AbstractSets);
+          return;
+        }
+        case Expr::ArraySubscriptExprClass: {
+          ArraySubscriptExpr *AE = cast<ArraySubscriptExpr>(E);
+          SynthesizeMembers(AE->getBase(), M, CSS, AbstractSets);
+          return;
+        }
+        case Expr::BinaryOperatorClass: {
+          BinaryOperator *BO = cast<BinaryOperator>(E);
+          Expr *LHS = BO->getLHS();
+          Expr *RHS = BO->getRHS();
+          if (LHS->getType()->isPointerType())
+            SynthesizeMembers(LHS, M, CSS, AbstractSets);
+          if (RHS->getType()->isPointerType())
+            SynthesizeMembers(RHS, M, CSS, AbstractSets);
+          return;
+        }
+        default:
+          return;
+      }
+
+      MemberExpr *ME = dyn_cast<MemberExpr>(E);
+      if (!ME)
+        return;
+
+      // Synthesize AbstractSets for a member expression `Base->Field`
+      // or `Base.Field`.
+      Expr *Base = ME->getBase();
+      FieldDecl *Field = dyn_cast<FieldDecl>(ME->getMemberDecl());
+      if (!Field)
+        return;
+
+      // For each sibling field F of Field in whose declared bounds Field
+      // appears, check whether the concrete, expanded target bounds of
+      // `Base->F` or `Base.F` use the value of M.
+      auto I = BoundsSiblingFields.find(Field);
+      if (I != BoundsSiblingFields.end()) {
+        auto SiblingFields = I->second;
+        for (const FieldDecl *F : SiblingFields) {
+          if (!F->hasBoundsExpr())
+            continue;
+          MemberExpr *BaseF =
+            ExprCreatorUtil::CreateMemberExpr(S, Base, F, ME->isArrow());
+          ++S.CheckedCStats.NumSynthesizedMemberExprs;
+          BoundsExpr *Bounds = MemberExprTargetBounds(BaseF, CSS);
+          if (FindLValue(S, M, Bounds)) {
+            const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(BaseF);
+            AbstractSets.insert(A);
+            ++S.CheckedCStats.NumSynthesizedMemberAbstractSets;
+          }
+        }
+      }
+
+      SynthesizeMembers(Base, M, CSS, AbstractSets);
     }
 
     // CheckIsNonModifying suppresses diagnostics while checking
@@ -6001,7 +6320,7 @@ namespace {
           // For an rvalue cast of a variable v, if v has observed bounds,
           // the rvalue bounds of the value of v should be the observed bounds.
           // This also accounts for variables that have widened bounds.
-          if (DeclRefExpr *V = GetRValueVariable(E)) {
+          if (DeclRefExpr *V = VariableUtil::GetRValueVariable(S, E)) {
             if (const VarDecl *D = dyn_cast_or_null<VarDecl>(V->getDecl())) {
               if (D->hasBoundsExpr()) {
                 const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
@@ -6021,7 +6340,7 @@ namespace {
           // bounds, the rvalue bounds of the value of v should be the observed
           // bounds. This also accounts for variables with array type that have
           // widened bounds.
-          if (DeclRefExpr *V = GetRValueVariable(E)) {
+          if (DeclRefExpr *V = VariableUtil::GetRValueVariable(S, E)) {
             if (const VarDecl *D = dyn_cast_or_null<VarDecl>(V->getDecl())) {
               if (D->hasBoundsExpr()) {
                 const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
@@ -6694,55 +7013,59 @@ void Sema::WarnDynamicCheckAlwaysFails(const Expr *Condition) {
 // range bounds are attached to the VarDecl D to avoid recomputing the
 // normalized bounds for D.
 BoundsExpr *Sema::NormalizeBounds(const VarDecl *D) {
+  // Do not attempt to normalize bounds for invalid declarations.
+  if (D->isInvalidDecl())
+    return nullptr;
+
   // If D already has a normalized bounds expression, do not recompute it.
   if (BoundsExpr *NormalizedBounds = D->getNormalizedBounds())
     return NormalizedBounds;
 
-  // Normalize the bounds of D to a RangeBoundsExpr and attach the normalized
-  // bounds to D to avoid recomputing them.
-  BoundsExpr *Bounds = ExpandBoundsToRange(D, D->getBoundsExpr());
-  D->setNormalizedBounds(Bounds);
-  return Bounds;
-}
+  // Expand the bounds expression of D to a RangeBoundsExpr if possible.
+  const BoundsExpr *B = D->getBoundsExpr();
+  BoundsExpr *ExpandedBounds = nullptr;
 
-// This is wrapper around CheckBoundsDeclaration::ExpandToRange. This provides
-// an easy way to invoke this function from outside the class. Given a
-// byte_count or count bounds expression for the VarDecl D, ExpandToRange will
-// expand it to a range bounds expression.
-BoundsExpr *Sema::ExpandBoundsToRange(const VarDecl *D, const BoundsExpr *B) {
-  // If the bounds expr is already a RangeBoundsExpr, simply return it.
+  // If the bounds expr of D is already a RangeBoundsExpr, there is
+  // no need to expand it.
   if (B && isa<RangeBoundsExpr>(B))
-    return const_cast<BoundsExpr *>(B);
+    ExpandedBounds = const_cast<BoundsExpr *>(B);
+  else {
+    PrepassInfo Info;
+    std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
+    CheckBoundsDeclarations CBD = CheckBoundsDeclarations(*this, Info, EmptyFacts);
 
-  PrepassInfo Info;
-  std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
-  CheckBoundsDeclarations CBD = CheckBoundsDeclarations(*this, Info, EmptyFacts);
+    if (D->getType()->isArrayType()) {
+      ExprResult ER = BuildDeclRefExpr(const_cast<VarDecl *>(D), D->getType(),
+                                       clang::ExprValueKind::VK_LValue,
+                                       SourceLocation());
+      if (ER.isInvalid())
+        return nullptr;
+      Expr *Base = ER.get();
 
-  if (D->getType()->isArrayType()) {
-    ExprResult ER = BuildDeclRefExpr(const_cast<VarDecl *>(D), D->getType(),
-                                     clang::ExprValueKind::VK_LValue,
-                                     SourceLocation());
-    if (ER.isInvalid())
-      return nullptr;
-    Expr *Base = ER.get();
-
-    // Declared bounds override the bounds based on the array type.
-    if (!B)
-      return CBD.ArrayExprBounds(Base);
-    Base = CBD.CreateImplicitCast(Context.getDecayedType(Base->getType()),
-                                  CastKind::CK_ArrayToPointerDecay,
-                                  Base);
-    return CBD.ExpandToRange(Base, const_cast<BoundsExpr *>(B));
+      // Declared bounds override the bounds based on the array type.
+      if (!B)
+        ExpandedBounds = CBD.ArrayExprBounds(Base);
+      else {
+        Base = CBD.CreateImplicitCast(Context.getDecayedType(Base->getType()),
+                                      CastKind::CK_ArrayToPointerDecay,
+                                      Base);
+        ExpandedBounds = CBD.ExpandToRange(Base, const_cast<BoundsExpr *>(B));
+      }
+    } else
+      ExpandedBounds = CBD.ExpandToRange(const_cast<VarDecl *>(D),
+                                         const_cast<BoundsExpr *>(B));
   }
-  return CBD.ExpandToRange(const_cast<VarDecl *>(D),
-                           const_cast<BoundsExpr *>(B));
+
+  // Attach the normalized bounds to D to avoid recomputing them.
+  D->setNormalizedBounds(ExpandedBounds);
+  return ExpandedBounds;
 }
 
 // Returns the declared bounds for the lvalue expression E. Assignments
 // to E must satisfy these bounds. After checking a top-level statement,
 // the inferred bounds of E must imply these declared bounds.
-BoundsExpr *Sema::GetLValueDeclaredBounds(Expr *E) {
-  if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
+BoundsExpr *Sema::GetLValueDeclaredBounds(Expr *E, CheckedScopeSpecifier CSS) {
+  if (DeclRefExpr *DRE = VariableUtil::GetLValueVariable(*this, E)) {
     if (const VarDecl *V = dyn_cast_or_null<VarDecl>(DRE->getDecl()))
       return NormalizeBounds(V);
   }
@@ -6750,5 +7073,17 @@ BoundsExpr *Sema::GetLValueDeclaredBounds(Expr *E) {
   PrepassInfo Info;
   std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
   CheckBoundsDeclarations CBD(*this, Info, EmptyFacts);
-  return CBD.GetLValueTargetBounds(E, CheckedScopeSpecifier::CSS_Unchecked);
+  return CBD.GetLValueTargetBounds(E, CSS);
+}
+
+// Print Checked C profiling information.
+void Sema::PrintCheckedCStats() {
+  if (!getLangOpts().CheckedC)
+    return;
+
+  llvm::errs() << "\n*** Checked C Stats:\n";
+  llvm::errs() << "  " << CheckedCStats.NumSynthesizedMemberExprs
+               << " MemberExprs created while synthesizing members.\n";
+  llvm::errs() << "  " << CheckedCStats.NumSynthesizedMemberAbstractSets
+               << " AbstractSets created while synthesizing members.\n";
 }

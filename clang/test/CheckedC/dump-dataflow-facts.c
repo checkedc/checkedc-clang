@@ -850,8 +850,7 @@ struct st_80_arr {
 void fn_16(_Ptr<struct st_80_arr> arr, int b) {
   _Array_ptr<_Ptr<struct st_80>> a : count(b) = 0;
   if (arr->c <= b) {
-    arr->c = b * b;
-    arr->e = a;
+    arr->c = b * b, arr->e = a;
   }
 // CHECK-LABEL: fn_16
 // CHECK-NEXT: Block #4: {

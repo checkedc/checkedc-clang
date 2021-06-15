@@ -23,6 +23,7 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
   private:
     Sema &SemaRef;
     PrepassInfo &Info;
+    llvm::raw_ostream &OS;
 
     // VarWithBounds is a variable that has a bounds expression. It is used to
     // track:
@@ -39,7 +40,91 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
     // int x = 1 _Where p : bounds(lower, upper);
 
     VarDecl *VarWithBounds = nullptr;
-    llvm::raw_ostream &OS;
+
+    // FieldWithBounds is a field that has a declared bounds expression.
+    // It is used to track the field with which a declared bounds expression
+    // is associated. For example, FieldWithBounds tracks the field "f" in
+    // the following:
+    // struct S {
+    //   _Array_ptr<int> f : bounds(lower, upper);
+    // };
+    FieldDecl *FieldWithBounds = nullptr;
+
+    // ProcessedRecords keeps tracks of the record declarations whose fields
+    // have been traversed by the FillBoundsSiblingFields method. This avoids
+    // unnecessary duplicate traversals of record fields.
+    llvm::SmallPtrSet<const RecordDecl *, 2> ProcessedRecords;
+
+    // GetRecordDecl returns the record declaration, if any, that is
+    // associated with the given type. For example, if the given type is
+    // struct S, struct S *, _Ptr<struct S>, struct S **, etc.,
+    // GetRecordDecl will return the declaration of S.
+    RecordDecl *GetRecordDecl(const QualType Ty) {
+      const Type *T = Ty.getTypePtr();
+      // If T is a pointer type T * or array type T[],
+      // getPointeeOrArrayElementType will return T, which itself may be a
+      // pointer or array type. Keep descending T until T is not a pointer
+      // or array type.
+      while (T->isAnyPointerType() || T->isArrayType())
+        T = T->getPointeeOrArrayElementType();
+      return T->getAsRecordDecl();
+    }
+
+    // AddBoundsSiblingField adds FieldWithBounds to the set of fields in
+    // whose declared bounds F occurs.
+    void AddBoundsSiblingField(const FieldDecl *F) {
+      auto It = Info.BoundsSiblingFields.find(F);
+      if (It != Info.BoundsSiblingFields.end())
+        It->second.insert(FieldWithBounds);
+      else {
+        FieldSetTy Fields;
+        Fields.insert(FieldWithBounds);
+        Info.BoundsSiblingFields[F] = Fields;
+      }
+    }
+
+    // If the type T is associated with a record declaration S,
+    // FillBoundsSiblingFields traverses the fields in S in order to map each
+    // field F in S to the fields in S in whose declared bounds F appears.
+    void FillBoundsSiblingFields(const QualType T) {
+      RecordDecl *S = GetRecordDecl(T);
+      if (!S)
+        return;
+
+      // Do not traverse a record declaration more than once.
+      // FillBoundsSiblingFields can be called more than once on a given
+      // record declaration if a function declares multiple variables with
+      // the same record type, or in case of recursive record definitions.
+      if (ProcessedRecords.count(S))
+        return;
+
+      FieldWithBounds = nullptr;
+      ProcessedRecords.insert(S);
+      for (auto It = S->field_begin(), E = S->field_end(); It != E; ++It) {
+        auto *Field = *It;
+
+        // Recursively traverse the record declarations of struct or
+        // union-typed fields.
+        FillBoundsSiblingFields(Field->getType());
+
+        // For fields with declared bounds expressions, get the sibling fields
+        // that implicitly or explicltly appear within the declared bounds.
+        if (BoundsExpr *FieldBounds = Field->getBoundsExpr()) {
+          FieldWithBounds = Field;
+          // Fields with count bounds implicitly occur in their own declared
+          // bounds. For example, if a field p has declared bounds count(1),
+          // then p occurs in the declared bounds of p.
+          if (isa<CountBoundsExpr>(FieldBounds))
+            AddBoundsSiblingField(Field);
+
+          // Traverse the declared bounds to visit the DeclRefExprs that
+          // explicitly occur in the declared bounds. These DeclRefExprs
+          // are the siblings of Field that appear in its declared bounds.
+          TraverseStmt(FieldBounds);
+          FieldWithBounds = nullptr;
+        }
+      }
+    }
 
   public:
     PrepassHelper(Sema &SemaRef, PrepassInfo &Info) :
@@ -48,6 +133,13 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
     bool VisitVarDecl(VarDecl *V) {
       if (!V || V->isInvalidDecl())
         return true;
+
+      // If V declares a variable with a struct or union type (e.g. struct S,
+      // struct S *, etc.), traverse the fields in the declaration of S in
+      // order to map to each field F in S to the fields in S in whose
+      // declared bounds F appears.
+      FillBoundsSiblingFields(V->getType());
+
       // If V has a bounds expression, traverse it so we visit the
       // DeclRefExprs within the bounds.
       if (V->hasBoundsExpr()) {
@@ -57,6 +149,7 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
           VarWithBounds = nullptr;
         }
       }
+
       // Process any where clause attached to this VarDecl.
       // Note: This also handles function parameters.
       // For example,
@@ -67,6 +160,15 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
 
     // We may modify the VarUses map when a DeclRefExpr is visited.
     bool VisitDeclRefExpr(DeclRefExpr *E) {
+      // If E is a use of a field declaration F, then we add FieldWithBounds
+      // to the set of all fields in whose bounds expressions F occurs.
+      if (FieldWithBounds) {
+        const FieldDecl *F = dyn_cast_or_null<FieldDecl>(E->getDecl());
+        if (F && !F->isInvalidDecl())
+          AddBoundsSiblingField(F);
+        return true;
+      }
+
       const VarDecl *V = dyn_cast_or_null<VarDecl>(E->getDecl());
       if (!V || V->isInvalidDecl())
         return true;
@@ -91,6 +193,20 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
         }
       }
 
+      return true;
+    }
+
+    // For a temporary binding with a struct type (or pointer to a struct
+    // type), fill in the bounds sibling fields for the record declaration.
+    bool VisitCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
+      FillBoundsSiblingFields(E->getType());
+      return true;
+    }
+
+    // For a call expression with a struct type (or pointer to a struct
+    // type), fill in the bounds sibling fields for the record declaration.
+    bool VisitCallExpr(CallExpr *E) {
+      FillBoundsSiblingFields(E->getType());
       return true;
     }
 
@@ -126,44 +242,62 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
     }
 
     void DumpBoundsVars(FunctionDecl *FD) {
+      PrintDeclMap<const VarDecl *>(FD, "BoundsVars", Info.BoundsVars);
+    }
+
+    void DumpBoundsSiblingFields(FunctionDecl *FD) {
+      PrintDeclMap<const FieldDecl *>(FD, "BoundsSiblingFields",
+                                      Info.BoundsSiblingFields);
+    }
+
+    // Print a map from a key of type T to a set of elements of type T,
+    // where T should inherit from NamedDecl.
+    // This method can be used to print the BoundsVars and
+    // BoundsSiblingFields maps.
+    template<class T>
+    void PrintDeclMap(FunctionDecl *FD, const char *Message,
+                      llvm::DenseMap<T, llvm::SmallPtrSet<T, 2>> Map) {
       OS << "--------------------------------------\n"
          << "In function: " << FD->getName() << "\n"
-         << "BoundsVars:\n";
+         << Message << ":\n";
 
-      // Info.BoundsVars is a map of VarDecls (keys) to a set of VarDecls
-      // (values). So there is no defined iteration order for its keys or
-      // values. So we copy the keys to a vector, sort the vector and then
-      // iterate it. While iterating each key we also copy its value (which is
-      // a set of VarDecls) to a vector, sort the vector and iterate it.
-      VarListTy Vars;
-      for (const auto item : Info.BoundsVars)
-        Vars.push_back(item.first);
+      // Decls is a map of NamedDecls (keys) to a set of NamedDecls (values).
+      // So there is no defined iteration order for its keys or values.
+      // So we copy the keys to a vector, sort the vector and then iterate it.
+      // While iterating each key we also copy its value (which is a set of
+      // NamedDecls) to a vector, sort the vector and iterate it.
+      llvm::SmallVector<T, 2> Decls;
+      for (const auto item : Map)
+        Decls.push_back(item.first);
 
-      SortVars(Vars);
+      SortDecls(Decls);
 
-      for (const auto V : Vars) {
-        OS << V->getQualifiedNameAsString() << ": { ";
+      for (const auto D : Decls) {
+        OS << D->getQualifiedNameAsString() << ": { ";
 
-        VarListTy InnerVars;
-        for (const auto item : Info.BoundsVars[V])
-          InnerVars.push_back(item);
+        llvm::SmallVector<T, 2> InnerDecls;
+        for (const auto item : Map[D])
+          InnerDecls.push_back(item);
 
-        SortVars(InnerVars);
+        SortDecls(InnerDecls);
 
-        for (const auto InnerV : InnerVars)
-          OS << InnerV->getQualifiedNameAsString() << " ";
+        for (const auto InnerD : InnerDecls)
+          OS << InnerD->getQualifiedNameAsString() << " ";
         OS << "}\n";
       }
       OS << "--------------------------------------\n";
     }
 
-    void SortVars(VarListTy &Vars) {
-      // Sort variables by their name. If two variables in a function have the
-      // same name (for example, a variable in a nested scope that shadows a
-      // variable from an outer scope), then we sort them by their source
-      // locations.
-      llvm::sort(Vars.begin(), Vars.end(),
-                 [](const VarDecl *A, const VarDecl *B) {
+    // Sort a list of elements of type T, where T should inherit
+    // from NamedDecl.
+    template<class T>
+    void SortDecls(llvm::SmallVector<T, 2> &Decls) {
+      // Sort decls by their name. If two decls in a program have the same
+      // name (for example, a variable in a nested scope that shadows a
+      // variable from an outer scope, or fields from different structs that
+      // have the same name), then we sort them by their source locations.
+      llvm::sort(Decls.begin(), Decls.end(),
+                 [](T A, T B) {
                    int StrCompare = A->getQualifiedNameAsString().compare(
                                     B->getQualifiedNameAsString());
                    return StrCompare != 0 ?
@@ -186,4 +320,7 @@ void Sema::CheckedCAnalysesPrepass(PrepassInfo &Info, FunctionDecl *FD,
 
   if (getLangOpts().DumpBoundsVars)
     Prepass.DumpBoundsVars(FD);
+
+  if (getLangOpts().DumpBoundsSiblingFields)
+    Prepass.DumpBoundsSiblingFields(FD);
 }

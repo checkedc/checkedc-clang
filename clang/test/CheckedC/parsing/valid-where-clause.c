@@ -84,3 +84,13 @@ L1: a = 0 _Where a > 1;
 
   for (int i = 0 _Where i != 0; i > 0; i ++) {}
 }
+
+_Checked
+void iface(unsigned long n _Where n > 0) {
+    return;
+}
+
+_Checked
+void iface_test(void) {
+  iface(50);
+}

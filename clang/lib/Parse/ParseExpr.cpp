@@ -3552,7 +3552,7 @@ bool Parser::StartsRelativeBoundsClause(Token &T) {
 }
 
 bool Parser::StartsWhereClause(const Token &T) {
-  return getLangOpts().CheckedC && Tok.is(tok::kw__Where);
+  return getLangOpts().CheckedC && T.is(tok::kw__Where);
 }
 
 ExprResult Parser::ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn) {
@@ -4126,7 +4126,7 @@ Parser::DeferredParseBoundsAnnotations(std::unique_ptr<CachedTokens> Toks,
 
   Toks->push_back(Tok); // Save the current token at the end of the new tokens
                        // so it isn't lost.
-  PP.EnterTokenStream(*Toks, true, /*IsReinject=*/false);
+  PP.EnterTokenStream(*Toks, true, /*IsReinject=*/true);
   ConsumeAnyToken();   // Skip past the current token to the new tokens.
   bool Error = ParseBoundsAnnotations(D, SourceLocation(), Result,
                                       nullptr, false, ThisDecl);
