@@ -109,3 +109,7 @@ def PipeType : TypeNode<Type>;
 def AtomicType : TypeNode<Type>;
 def ExtIntType : TypeNode<Type>;
 def DependentExtIntType : TypeNode<Type>, AlwaysDependent;
+
+// Checked C specific.
+def ExistentialType : TypeNode<Type>;
+def TypeVariableType : TypeNode<Type>;

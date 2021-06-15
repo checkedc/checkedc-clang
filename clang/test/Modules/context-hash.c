@@ -2,21 +2,21 @@
 // diagnostics in the module context hash.
 
 // RUN: rm -rf %t
-// RUN: %clang_cc1 -fsyntax-only -internal-isystem \
+// RUN: %clang -cc1 -nostdsysteminc -fsyntax-only -internal-isystem \
 // RUN:   %S/Inputs/System/usr/include -fmodules -fimplicit-module-maps \
 // RUN:   -fmodules-cache-path=%t %s -Rmodule-build 2> %t1
 // RUN: rm -rf %t
-// RUN: %clang_cc1 -fsyntax-only -internal-isystem \
+// RUN: %clang -cc1 -nostdsysteminc -fsyntax-only -internal-isystem \
 // RUN:   %S/Inputs/System/usr/include -internal-isystem %S -fmodules \
 // RUN:   -fimplicit-module-maps -fmodules-cache-path=%t %s -Rmodule-build 2> \
 // RUN:   %t2
 // RUN: rm -rf %t
-// RUN: %clang_cc1 -fsyntax-only -internal-isystem \
+// RUN: %clang -cc1 -nostdsysteminc -fsyntax-only -internal-isystem \
 // RUN:   %S/Inputs/System/usr/include -internal-isystem %S -fmodules \
 // RUN:   -fimplicit-module-maps -fmodules-cache-path=%t %s \
 // RUN:   -fmodules-strict-context-hash -Rmodule-build 2> %t3
 // RUN: rm -rf %t
-// RUN: %clang_cc1 -fsyntax-only -Weverything -internal-isystem \
+// RUN: %clang -cc1 -nostdsysteminc -fsyntax-only -Weverything -internal-isystem \
 // RUN:   %S/Inputs/System/usr/include -fmodules -fmodules-strict-context-hash \
 // RUN:   -fimplicit-module-maps -fmodules-cache-path=%t %s -Rmodule-build 2> \
 // RUN:   %t4
@@ -27,16 +27,16 @@
 // part of LangOpts.def.
 
 // RUN: rm -rf %t
-// RUN: %clang_cc1 -fsyntax-only -internal-isystem \
+// RUN: %clang -cc1 -nostdsysteminc -fsyntax-only -internal-isystem \
 // RUN:   %S/Inputs/System/usr/include -fmodules -fimplicit-module-maps \
 // RUN:   -fmodules-cache-path=%t -x objective-c %s -Rmodule-build 2> %t1
 // RUN: rm -rf %t
-// RUN: %clang_cc1 -fsyntax-only -internal-isystem \
+// RUN: %clang -cc1 -nostdsysteminc -fsyntax-only -internal-isystem \
 // RUN:   %S/Inputs/System/usr/include -fmodules -fimplicit-module-maps \
 // RUN:   -fobjc-runtime=macosx-1.0.0.0 \
 // RUN:   -fmodules-cache-path=%t -x objective-c %s -Rmodule-build 2> %t2
 // RUN: rm -rf %t
-// RUN: %clang_cc1 -fsyntax-only -internal-isystem \
+// RUN: %clang -cc1 -nostdsysteminc -fsyntax-only -internal-isystem \
 // RUN:   %S/Inputs/System/usr/include -fmodules -fimplicit-module-maps \
 // RUN:   -fcomment-block-commands=lp,bj \
 // RUN:   -fmodules-cache-path=%t -x objective-c %s -Rmodule-build 2> %t3

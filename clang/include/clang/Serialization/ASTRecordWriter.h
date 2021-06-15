@@ -123,6 +123,11 @@ public:
     AddStmt(const_cast<Stmt*>(S));
   }
 
+  void AddBoundsAnnotations(BoundsAnnotations BA);
+  void writeBoundsAnnotations(BoundsAnnotations BA) {
+    AddBoundsAnnotations(BA);
+  }
+
   /// Add a definition for the given function to the queue of statements
   /// to emit.
   void AddFunctionDefinition(const FunctionDecl *FD);

@@ -1623,6 +1623,11 @@ DeduceTemplateArgumentsByTypeMatch(Sema &S,
     case Type::SubstTemplateTypeParmPack:
       llvm_unreachable("Type nodes handled above");
 
+    case Type::TypeVariable:
+      llvm_unreachable("Type Variable cannot be used in templates");
+    case Type::Existential:
+      llvm_unreachable("existential type cannot be used in templates");
+
     // These types cannot be dependent, so simply check whether the types are
     // the same.
     case Type::Builtin:
@@ -6080,6 +6085,8 @@ MarkUsedTemplateParameters(ASTContext &Ctx, QualType T,
   case Type::UnresolvedUsing:
   case Type::Pipe:
   case Type::ExtInt:
+  case Type::TypeVariable:
+  case Type::Existential:
 #define TYPE(Class, Base)
 #define ABSTRACT_TYPE(Class, Base)
 #define DEPENDENT_TYPE(Class, Base)

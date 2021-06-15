@@ -1097,7 +1097,8 @@ ExpectedType ASTNodeImporter::VisitPointerType(const PointerType *T) {
   if (!ToPointeeTypeOrErr)
     return ToPointeeTypeOrErr.takeError();
 
-  return Importer.getToContext().getPointerType(*ToPointeeTypeOrErr);
+  return Importer.getToContext().getPointerType(*ToPointeeTypeOrErr,
+                                                T->getKind());
 }
 
 ExpectedType ASTNodeImporter::VisitBlockPointerType(const BlockPointerType *T) {
@@ -1154,7 +1155,7 @@ ASTNodeImporter::VisitConstantArrayType(const ConstantArrayType *T) {
 
   return Importer.getToContext().getConstantArrayType(
       ToElementType, T->getSize(), ToSizeExpr, T->getSizeModifier(),
-      T->getIndexTypeCVRQualifiers());
+      T->getIndexTypeCVRQualifiers(), T->getKind());
 }
 
 ExpectedType
@@ -1165,7 +1166,8 @@ ASTNodeImporter::VisitIncompleteArrayType(const IncompleteArrayType *T) {
 
   return Importer.getToContext().getIncompleteArrayType(*ToElementTypeOrErr,
                                                         T->getSizeModifier(),
-                                                T->getIndexTypeCVRQualifiers());
+                                                T->getIndexTypeCVRQualifiers(),
+                                                      T->getKind());
 }
 
 ExpectedType
@@ -6079,9 +6081,20 @@ ExpectedStmt ASTNodeImporter::VisitCompoundStmt(CompoundStmt *S) {
   if (!ToRBracLocOrErr)
     return ToRBracLocOrErr.takeError();
 
+  ExpectedSLoc ToCheckedSpecifierLocOrErr = import(S->getCheckedSpecifierLoc());
+  if (!ToCheckedSpecifierLocOrErr)
+    return ToCheckedSpecifierLocOrErr.takeError();
+
+  ExpectedSLoc ToSpecifierModifierorErr = import(S->getSpecifierModifierLoc());
+  if (!ToSpecifierModifierorErr)
+    return ToSpecifierModifierorErr.takeError();
+
   return CompoundStmt::Create(
       Importer.getToContext(), ToStmts,
-      *ToLBracLocOrErr, *ToRBracLocOrErr);
+      *ToLBracLocOrErr, *ToRBracLocOrErr,
+      S->getWrittenCheckedSpecifier(), 
+      S->getCheckedSpecifier(),
+      *ToCheckedSpecifierLocOrErr, *ToSpecifierModifierorErr);
 }
 
 ExpectedStmt ASTNodeImporter::VisitCaseStmt(CaseStmt *S) {

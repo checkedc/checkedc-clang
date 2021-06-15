@@ -1324,6 +1324,8 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
 
   Opts.EmitVersionIdentMetadata = Args.hasFlag(OPT_Qy, OPT_Qn, true);
 
+  Opts.CheckedCNullPtrArith = !Args.hasArg(OPT_fno_checkedc_null_ptr_arith);
+
   return Success;
 }
 
@@ -2086,6 +2088,8 @@ void CompilerInvocation::setLangDefaults(LangOptions &Opts, InputKind IK,
 
   // Enable [[]] attributes in C++11 and C2x by default.
   Opts.DoubleSquareBracketAttributes = Opts.CPlusPlus11 || Opts.C2x;
+
+  Opts.CheckedC = (IK.getLanguage() == Language::C);
 }
 
 /// Check if input file kind and language standard are compatible.
@@ -2362,6 +2366,61 @@ void CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   Opts.DollarIdents = Args.hasFlag(OPT_fdollars_in_identifiers,
                                    OPT_fno_dollars_in_identifiers,
                                    Opts.DollarIdents);
+  if (Args.hasArg(OPT_fcheckedc_extension)) {
+    std::string disallowed;
+    if (Opts.CUDA)
+      disallowed = "CUDA";
+    else if (Opts.OpenCL)
+      disallowed = "OpenCL";
+    else if (Opts.ObjC) {
+      if (Opts.CPlusPlus)
+        disallowed = "Objective C/C++";
+      else
+        disallowed = "Objective C";
+    }
+    else if (Opts.CPlusPlus) {
+      disallowed = "C++";
+    }
+
+    if (disallowed.size() > 0) {
+      Diags.Report(diag::warn_drv_checkedc_extension_notsupported) <<
+        "-fcheckedc-extension" << disallowed;
+    } else
+      Opts.CheckedC = true;
+  }
+
+  if (Args.hasArg(OPT_f3c_tool))
+    Opts._3C = true;
+
+  if (Args.hasArg(OPT_fno_checkedc_extension))
+    Opts.CheckedC = false;
+
+  if (Args.hasArg(OPT_fdump_inferred_bounds))
+    Opts.DumpInferredBounds = true;
+
+  if (Args.hasArg(OPT_finject_verifier_calls))
+    Opts.InjectVerifierCalls = true;
+
+  if (Args.hasArg(OPT_funchecked_pointers_dynamic_check))
+    Opts.UncheckedPointersDynamicCheck = true;
+
+  if (Args.hasArg(OPT_fdump_extracted_comparison_facts))
+    Opts.DumpExtractedComparisonFacts = true;
+
+  if (Args.hasArg(OPT_fdump_widened_bounds))
+    Opts.DumpWidenedBounds = true;
+
+  if (Args.hasArg(OPT_fdump_boundsvars))
+    Opts.DumpBoundsVars = true;
+
+  if (Args.hasArg(OPT_fdump_boundssiblingfields))
+    Opts.DumpBoundsSiblingFields = true;
+
+  if (Args.hasArg(OPT_fdump_preorder_ast))
+    Opts.DumpPreorderAST = true;
+
+  if (Args.hasArg(OPT_fdump_checking_state))
+    Opts.DumpCheckingState = true;
 
   // -ffixed-point
   Opts.FixedPoint =

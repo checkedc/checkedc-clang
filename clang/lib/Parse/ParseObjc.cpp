@@ -727,6 +727,10 @@ void Parser::ParseObjCInterfaceDeclList(tok::ObjCKeywordKind contextKey,
 
       bool addedToDeclSpec = false;
       auto ObjCPropertyCallback = [&](ParsingFieldDeclarator &FD) {
+        // BoundsExprTokens and InteropType re used only for Checked C.
+        // They should be null here.
+        assert(FD.BoundsExprTokens == nullptr);
+        assert(FD.InteropType == nullptr);
         if (FD.D.getIdentifier() == nullptr) {
           Diag(AtLoc, diag::err_objc_property_requires_field_name)
               << FD.D.getSourceRange();
@@ -1486,6 +1490,7 @@ Decl *Parser::ParseObjCMethodDecl(SourceLocation mLoc,
     // Parse the declarator.
     Declarator ParmDecl(DS, DeclaratorContext::Prototype);
     ParseDeclarator(ParmDecl);
+    ExitQuantifiedTypeScope(DS);
     IdentifierInfo *ParmII = ParmDecl.getIdentifier();
     Decl *Param = Actions.ActOnParamDeclarator(getCurScope(), ParmDecl);
     CParamInfo.push_back(DeclaratorChunk::ParamInfo(ParmII,
@@ -1969,6 +1974,10 @@ void Parser::ParseObjCClassInstanceVariables(Decl *interfaceDecl,
     }
 
     auto ObjCIvarCallback = [&](ParsingFieldDeclarator &FD) {
+      // BoundsExprTokens and InteropType are used only for Checked C.
+      // They should be null here.
+      assert(FD.BoundsExprTokens == nullptr);
+      assert(FD.InteropType == nullptr);
       Actions.ActOnObjCContainerStartDefinition(interfaceDecl);
       // Install the declarator into the interface decl.
       FD.D.setObjCIvar(true);
@@ -2537,6 +2546,7 @@ StmtResult Parser::ParseObjCTryStmt(SourceLocation atLoc) {
           ParseDeclarationSpecifiers(DS);
           Declarator ParmDecl(DS, DeclaratorContext::ObjCCatch);
           ParseDeclarator(ParmDecl);
+          ExitQuantifiedTypeScope(DS);
 
           // Inform the actions module about the declarator, so it
           // gets added to the current scope.

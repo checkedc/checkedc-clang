@@ -939,6 +939,10 @@ let ParentPackage = POS in {
 
 let ParentPackage = SecurityAlpha in {
 
+def SimpleBoundsChecker : Checker<"SimpleBounds">,
+  HelpText<"Warn about out-of-bounds accesses">,
+  Documentation<HasAlphaDocumentation>;
+
 def ArrayBoundChecker : Checker<"ArrayBound">,
   HelpText<"Warn about buffer overflows (older checker)">,
   Documentation<HasAlphaDocumentation>;

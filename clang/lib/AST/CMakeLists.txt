@@ -14,6 +14,7 @@ clang_tablegen(Opcodes.inc
   TARGET Opcodes)
 
 add_clang_library(clangAST
+  AbstractSet.cpp
   APValue.cpp
   ASTConcept.cpp
   ASTConsumer.cpp
@@ -25,6 +26,8 @@ add_clang_library(clangAST
   ASTStructuralEquivalence.cpp
   ASTTypeTraits.cpp
   AttrImpl.cpp
+  CanonBounds.cpp
+  CXXInheritance.cpp
   Comment.cpp
   CommentBriefParser.cpp
   CommentCommandTraits.cpp
@@ -52,6 +55,7 @@ add_clang_library(clangAST
   ExprConstant.cpp
   ExprCXX.cpp
   ExprObjC.cpp
+  ExprUtils.cpp
   ExternalASTMerger.cpp
   ExternalASTSource.cpp
   FormatString.cpp
@@ -89,6 +93,7 @@ add_clang_library(clangAST
   OpenMPClause.cpp
   OSLog.cpp
   ParentMap.cpp
+  PreorderAST.cpp
   PrintfFormatString.cpp
   QualTypeNames.cpp
   RawCommentList.cpp

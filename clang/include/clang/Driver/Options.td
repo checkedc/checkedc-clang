@@ -1161,6 +1161,8 @@ defm addrsig : BoolFOption<"addrsig",
   PosFlag<SetTrue, [CC1Option], "Emit">, NegFlag<SetFalse, [], "Don't emit">,
   BothFlags<[CoreOption], " an address-significance table">>;
 defm blocks : OptInFFlag<"blocks", "Enable the 'blocks' language feature", "", "", [CoreOption]>;
+def f3c_tool : Flag<["-"], "f3c-tool">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Enable 3C tool mode (supposed to be run by tools that needs only AST)">;
 def fbootclasspath_EQ : Joined<["-"], "fbootclasspath=">, Group<f_Group>;
 defm borland_extensions : BoolFOption<"borland-extensions",
   LangOpts<"Borland">, DefaultFalse,
@@ -1172,6 +1174,28 @@ def fbuiltin_module_map : Flag <["-"], "fbuiltin-module-map">, Group<f_Group>,
 defm caret_diagnostics : BoolFOption<"caret-diagnostics",
   DiagnosticOpts<"ShowCarets">, DefaultTrue,
   NegFlag<SetFalse, [CC1Option]>, PosFlag<SetTrue>>;
+def fcheckedc_extension : Flag<["-"], "fcheckedc-extension">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Accept Checked C extension">;
+def fno_checkedc_extension : Flag<["-"], "fno-checkedc-extension">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Do not accept Checked C extension">;
+def fdump_extracted_comparison_facts : Flag<["-"], "fdump-extracted-comparison-facts">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Dump extracted comparison facts">;
+def fdump_widened_bounds : Flag<["-"], "fdump-widened-bounds">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Dump widened bounds">;
+def fdump_boundsvars : Flag<["-"], "fdump-boundsvars">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Dump bounds vars">;
+def fdump_boundssiblingfields : Flag<["-"], "fdump-boundssiblingfields">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Dump bounds sibling fields">;
+def fdump_preorder_ast : Flag<["-"], "fdump-preorder-ast">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Dump the preorder AST">;
+def fdump_checking_state : Flag<["-"], "fdump-checking-state">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Dump the state during bounds checking">;
+def fdump_inferred_bounds : Flag<["-"], "fdump-inferred-bounds">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Dump inferred Checked C bounds for assignments and declarations">;
+def finject_verifier_calls : Flag<["-"], "finject-verifier-calls">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Injects calls to VERIFIER_assume and VERIFIER_error in the bitcode">;
+def funchecked_pointers_dynamic_check : Flag<["-"], "funchecked-pointers-dynamic-check">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Adds dynamic checks for unchecked pointers">;
 def fclang_abi_compat_EQ : Joined<["-"], "fclang-abi-compat=">, Group<f_clang_Group>,
   Flags<[CC1Option]>, MetaVarName<"<version>">, Values<"<major>.<minor>,latest">,
   HelpText<"Attempt to match the ABI of Clang <version>">;
@@ -3584,6 +3608,13 @@ def fintegrated_cc1 : Flag<["-"], "fintegrated-cc1">,
 def fno_integrated_cc1 : Flag<["-"], "fno-integrated-cc1">,
                          Flags<[CoreOption, NoXarchOption]>, Group<f_Group>,
                          HelpText<"Spawn a separate process for each cc1">;
+
+def fcheckedc_null_ptr_arith : Flag<["-"], "fcheckedc-null-ptr-arith">,
+  Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Enable runtime null pointer arithmetic checks">;
+def fno_checkedc_null_ptr_arith : Flag<["-"], "fno-checkedc-null-ptr-arith">,
+  Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Disable runtime null pointer arithmetic checks">;
 
 def : Flag<["-"], "integrated-as">, Alias<fintegrated_as>, Flags<[NoXarchOption]>;
 def : Flag<["-"], "no-integrated-as">, Alias<fno_integrated_as>,

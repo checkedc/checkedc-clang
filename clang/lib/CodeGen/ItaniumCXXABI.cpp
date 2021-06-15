@@ -3397,6 +3397,12 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
   case Type::Pipe:
     llvm_unreachable("Pipe types shouldn't get here");
 
+  case Type::TypeVariable:
+    llvm_unreachable("BuildVTablePointer for Type Variable is not yet implemented");
+
+  case Type::Existential:
+    llvm_unreachable("BuildVTablePointer for ExistentialType is not yet implemented");
+
   case Type::Builtin:
   case Type::ExtInt:
   // GCC treats vector and complex types as fundamental types.
@@ -3669,10 +3675,15 @@ llvm::Constant *ItaniumRTTIBuilder::BuildTypeInfo(
     llvm_unreachable("Undeduced type shouldn't get here");
 
   case Type::Pipe:
-    break;
+    llvm_unreachable("Pipe type shouldn't get here");
 
   case Type::ExtInt:
     break;
+
+  case Type::TypeVariable:
+    llvm_unreachable("Type variable type shouldn't get here");
+  case Type::Existential:
+    llvm_unreachable("Existential type shouldn't get here");
 
   case Type::ConstantArray:
   case Type::IncompleteArray:

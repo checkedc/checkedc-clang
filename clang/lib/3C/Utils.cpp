@@ -1,0 +1,473 @@
+//=--Utils.cpp----------------------------------------------------*- C++-*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+// Implementation of Utils methods.
+//===----------------------------------------------------------------------===//
+
+#include "clang/3C/Utils.h"
+#include "clang/3C/3CGlobalOptions.h"
+#include "clang/3C/ConstraintVariables.h"
+#include "llvm/Support/Path.h"
+#include <errno.h>
+
+using namespace llvm;
+using namespace clang;
+
+const clang::Type *getNextTy(const clang::Type *Ty) {
+  if (Ty->isPointerType()) {
+    // TODO: how to keep the qualifiers around, and what qualifiers do
+    //       we want to keep?
+    QualType Qtmp = Ty->getLocallyUnqualifiedSingleStepDesugaredType();
+    return Qtmp.getTypePtr()->getPointeeType().getTypePtr();
+  }
+  return Ty;
+}
+
+// Walk the list of declarations and find a declaration that is NOT
+// a definition and does NOT have a body.
+FunctionDecl *getDeclaration(FunctionDecl *FD) {
+  // optimization
+  if (!FD->isThisDeclarationADefinition()) {
+    return FD;
+  }
+  for (const auto &D : FD->redecls())
+    if (FunctionDecl *TFD = dyn_cast<FunctionDecl>(D))
+      if (!TFD->isThisDeclarationADefinition())
+        return TFD;
+
+  return nullptr;
+}
+
+// Walk the list of declarations and find a declaration accompanied by
+// a definition and a function body.
+FunctionDecl *getDefinition(FunctionDecl *FD) {
+  // optimization
+  if (FD->isThisDeclarationADefinition() && FD->hasBody()) {
+    return FD;
+  }
+  for (const auto &D : FD->redecls())
+    if (FunctionDecl *TFD = dyn_cast<FunctionDecl>(D))
+      if (TFD->isThisDeclarationADefinition() && TFD->hasBody())
+        return TFD;
+
+  return nullptr;
+}
+
+// Get the source location for the right paren of a function declaration
+// using the source character data buffer. Because this uses the character
+// buffer directly, it sees character data prior to preprocessing. This
+// means characters that are in comments, macros or otherwise not part of the
+// final preprocessed source code are seen and can cause this function to give
+// an incorrect result. This should only be used as a fall back for when the
+// clang library function FunctionTypeLoc::getRParenLoc cannot be called due to
+// a null FunctionTypeLoc or for when the function returns an invalid source
+// location.
+SourceLocation getFunctionDeclRParen(FunctionDecl *FD, SourceManager &S) {
+  const FunctionDecl *OFd = nullptr;
+
+  if (FD->hasBody(OFd) && OFd == FD) {
+    // Replace everything up to the beginning of the body.
+    const Stmt *Body = FD->getBody(OFd);
+
+    int Offset = 0;
+    const char *Buf = S.getCharacterData(Body->getSourceRange().getBegin());
+
+    while (*Buf != ')') {
+      Buf--;
+      Offset--;
+    }
+
+    return Body->getSourceRange().getBegin().getLocWithOffset(Offset);
+  }
+  return FD->getSourceRange().getEnd();
+}
+
+clang::CheckedPointerKind getCheckedPointerKind(InteropTypeExpr *ItypeExpr) {
+  TypeSourceInfo *InteropTypeInfo = ItypeExpr->getTypeInfoAsWritten();
+  const clang::Type *InnerType = InteropTypeInfo->getType().getTypePtr();
+  if (InnerType->isCheckedPointerNtArrayType()) {
+    return CheckedPointerKind::NtArray;
+  }
+  if (InnerType->isCheckedPointerArrayType()) {
+    return CheckedPointerKind::Array;
+  }
+  if (InnerType->isCheckedPointerType()) {
+    return CheckedPointerKind::Ptr;
+  }
+  return CheckedPointerKind::Unchecked;
+}
+
+// Check if function body exists for the
+// provided declaration.
+bool hasFunctionBody(clang::Decl *D) {
+  // If this a parameter?
+  if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D)) {
+    if (DeclContext *DC = PD->getParentFunctionOrMethod()) {
+      FunctionDecl *FD = dyn_cast<FunctionDecl>(DC);
+      if (getDefinition(FD) != nullptr) {
+        return true;
+      }
+    }
+    return false;
+  }
+  // Else this should be within body and
+  // the function body should exist.
+  return true;
+}
+
+static std::string storageClassToString(StorageClass SC) {
+  switch (SC) {
+  case StorageClass::SC_Static:
+    return "static ";
+  case StorageClass::SC_Extern:
+    return "extern ";
+  case StorageClass::SC_Register:
+    return "register ";
+  // For all other cases, we do not care.
+  default:
+    return "";
+  }
+}
+
+// This method gets the storage qualifier for the
+// provided declaration i.e., static, extern, etc.
+std::string getStorageQualifierString(Decl *D) {
+  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+    return storageClassToString(FD->getStorageClass());
+  }
+  if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
+    return storageClassToString(VD->getStorageClass());
+  }
+  return "";
+}
+
+bool isNULLExpression(clang::Expr *E, ASTContext &C) {
+  QualType Typ = E->getType();
+  E = removeAuxillaryCasts(E);
+  return Typ->isPointerType() && E->isIntegerConstantExpr(C) &&
+         E->isNullPointerConstant(C, Expr::NPC_ValueDependentIsNotNull);
+}
+
+std::error_code tryGetCanonicalFilePath(const std::string &FileName,
+                                        std::string &AbsoluteFp) {
+  SmallString<255> AbsPath;
+  std::error_code EC;
+  if (FileName.empty()) {
+    // Strangely, llvm::sys::fs::real_path successfully returns the empty string
+    // in this case. Return ENOENT, as realpath(3) would.
+    EC = std::error_code(ENOENT, std::generic_category());
+  } else {
+    EC = llvm::sys::fs::real_path(FileName, AbsPath);
+  }
+  if (EC) {
+    return EC;
+  }
+  AbsoluteFp = std::string(AbsPath.str());
+  return EC;
+}
+
+void getCanonicalFilePath(const std::string &FileName,
+                          std::string &AbsoluteFp) {
+  std::error_code EC = tryGetCanonicalFilePath(FileName, AbsoluteFp);
+  assert(!EC && "tryGetCanonicalFilePath failed");
+}
+
+bool filePathStartsWith(const std::string &Path, const std::string &Prefix) {
+  // If the path exactly equals the prefix, don't ruin it by appending a
+  // separator to the prefix. (This may never happen in 3C, but let's get it
+  // right.)
+  if (Prefix.empty() || Path == Prefix) {
+    return true;
+  }
+  StringRef Separator = llvm::sys::path::get_separator();
+  std::string PrefixWithTrailingSeparator = Prefix;
+  if (!StringRef(Prefix).endswith(Separator)) {
+    PrefixWithTrailingSeparator += Separator;
+  }
+  return Path.substr(0, PrefixWithTrailingSeparator.size()) ==
+         PrefixWithTrailingSeparator;
+}
+
+bool functionHasVarArgs(clang::FunctionDecl *FD) {
+  if (FD && FD->getFunctionType()->isFunctionProtoType()) {
+    const FunctionProtoType *SrcType =
+        FD->getFunctionType()->getAs<FunctionProtoType>();
+    return SrcType->isVariadic();
+  }
+  return false;
+}
+
+bool isFunctionAllocator(std::string FuncName) {
+  return std::find(AllocatorFunctions.begin(), AllocatorFunctions.end(),
+                   FuncName) != AllocatorFunctions.end() ||
+         llvm::StringSwitch<bool>(FuncName)
+             .Cases("malloc", "calloc", "realloc", true)
+             .Default(false);
+}
+
+float getTimeSpentInSeconds(clock_t StartTime) {
+  return float(clock() - StartTime) / CLOCKS_PER_SEC;
+}
+
+bool isPointerType(clang::ValueDecl *VD) {
+  return VD->getType().getTypePtr()->isPointerType();
+}
+
+bool isPtrOrArrayType(const clang::QualType &QT) {
+  return QT->isPointerType() || QT->isArrayType();
+}
+
+bool isStructOrUnionType(clang::VarDecl *VD) {
+  return VD->getType().getTypePtr()->isStructureType() ||
+         VD->getType().getTypePtr()->isUnionType();
+}
+
+std::string qtyToStr(clang::QualType QT, const std::string &Name) {
+  std::string S = Name;
+  QT.getAsStringInternal(S, LangOptions());
+  return S;
+}
+
+std::string tyToStr(const clang::Type *T, const std::string &Name) {
+  return qtyToStr(QualType(T, 0), Name);
+}
+
+Expr *removeAuxillaryCasts(Expr *E) {
+  bool NeedStrip = true;
+  while (NeedStrip) {
+    NeedStrip = false;
+    E = E->IgnoreParenImpCasts();
+    if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(E)) {
+      E = C->getSubExpr();
+      NeedStrip = true;
+    }
+  }
+  return E;
+}
+
+//Expr *getNormalizedExpr(Expr *CE) {
+//  while (true) {
+//    if (CHKCBindTemporaryExpr *E = dyn_cast<CHKCBindTemporaryExpr>(CE)) {
+//      CE = E->getSubExpr();
+//      continue;
+//    }
+//    if (ParenExpr *E = dyn_cast <ParenExpr>(CE)) {
+//      CE = E->getSubExpr();
+//      continue;
+//    }
+//    break;
+//  }
+//  return CE;
+//}
+
+bool isTypeHasVoid(clang::QualType QT) {
+  const clang::Type *CurrType = QT.getTypePtrOrNull();
+  if (CurrType != nullptr) {
+    if (CurrType->isVoidType())
+      return true;
+    const clang::Type *InnerType = getNextTy(CurrType);
+    while (InnerType != CurrType) {
+      CurrType = InnerType;
+      InnerType = getNextTy(InnerType);
+    }
+
+    return InnerType->isVoidType();
+  }
+  return false;
+}
+
+bool isVarArgType(const std::string &TypeName) {
+  return TypeName == "struct __va_list_tag *" || TypeName == "va_list" ||
+         TypeName == "struct __va_list_tag";
+}
+
+bool hasVoidType(clang::ValueDecl *D) { return isTypeHasVoid(D->getType()); }
+
+//// Check the equality of VTy and UTy. There are some specific rules that
+//// fire, and a general check is yet to be implemented.
+//bool checkStructuralEquality(std::set<ConstraintVariable *> V,
+//                                          std::set<ConstraintVariable *> U,
+//                                          QualType VTy,
+//                                          QualType UTy)
+//{
+//  // First specific rule: Are these types directly equal?
+//  if (VTy == UTy) {
+//    return true;
+//  } else {
+//    // Further structural checking is TODO.
+//    return false;
+//  }
+//}
+//
+//bool checkStructuralEquality(QualType D, QualType S) {
+//  if (D == S)
+//    return true;
+//
+//  return D->isPointerType() == S->isPointerType();
+//}
+
+static bool castCheck(clang::QualType DstType, clang::QualType SrcType) {
+
+  // Check if both types are same.
+  if (SrcType == DstType)
+    return true;
+
+  const clang::Type *SrcTypePtr = SrcType.getCanonicalType().getTypePtr();
+  const clang::Type *DstTypePtr = DstType.getCanonicalType().getTypePtr();
+
+  const clang::PointerType *SrcPtrTypePtr =
+      dyn_cast<clang::PointerType>(SrcTypePtr);
+  const clang::PointerType *DstPtrTypePtr =
+      dyn_cast<clang::PointerType>(DstTypePtr);
+
+  // Both are pointers? check their pointee
+  if (SrcPtrTypePtr && DstPtrTypePtr) {
+    return (SrcPtrTypePtr->isVoidPointerType()) ||
+           castCheck(DstPtrTypePtr->getPointeeType(),
+                     SrcPtrTypePtr->getPointeeType());
+  }
+
+  if (SrcPtrTypePtr || DstPtrTypePtr)
+    return false;
+
+  // Check function cast by comparing parameter and return types individually.
+  const auto *SrcFnType = dyn_cast<clang::FunctionProtoType>(SrcTypePtr);
+  const auto *DstFnType = dyn_cast<clang::FunctionProtoType>(DstTypePtr);
+  if (SrcFnType && DstFnType) {
+    if (SrcFnType->getNumParams() != DstFnType->getNumParams())
+      return false;
+
+    for (unsigned I = 0; I < SrcFnType->getNumParams(); I++)
+      if (!castCheck(SrcFnType->getParamType(I), DstFnType->getParamType(I)))
+        return false;
+
+    return castCheck(SrcFnType->getReturnType(), DstFnType->getReturnType());
+  }
+
+  // If both are not scalar types? Then the types must be exactly same.
+  if (!(SrcTypePtr->isScalarType() && DstTypePtr->isScalarType()))
+    return SrcTypePtr == DstTypePtr;
+
+  // Check if both types are compatible.
+  bool BothNotChar = SrcTypePtr->isCharType() ^ DstTypePtr->isCharType();
+  bool BothNotInt =
+      (SrcTypePtr->isIntegerType() && SrcTypePtr->isUnsignedIntegerType()) ^
+      (DstTypePtr->isIntegerType() && DstTypePtr->isUnsignedIntegerType());
+  bool BothNotFloat =
+      SrcTypePtr->isFloatingType() ^ DstTypePtr->isFloatingType();
+
+  return !(BothNotChar || BothNotInt || BothNotFloat);
+}
+
+bool isCastSafe(clang::QualType DstType, clang::QualType SrcType) {
+  const clang::Type *DstTypePtr = DstType.getTypePtr();
+  const clang::PointerType *DstPtrTypePtr =
+      dyn_cast<clang::PointerType>(DstTypePtr);
+  if (!DstPtrTypePtr) // Safe to cast to a non-pointer.
+    return true;
+  return castCheck(DstType, SrcType);
+}
+
+bool canWrite(const std::string &FilePath) {
+  // Was this file explicitly provided on the command line?
+  if (FilePaths.count(FilePath) > 0)
+    return true;
+  // Get the absolute path of the file and check that
+  // the file path starts with the base directory.
+  return filePathStartsWith(FilePath, BaseDir);
+}
+
+bool isInSysHeader(clang::Decl *D) {
+  if (D != nullptr) {
+    auto &C = D->getASTContext();
+    FullSourceLoc FL = C.getFullLoc(D->getBeginLoc());
+    return FL.isInSystemHeader();
+  }
+  return false;
+}
+
+std::string getSourceText(const clang::SourceRange &SR,
+                          const clang::ASTContext &C) {
+  assert(SR.isValid() && "Invalid Source Range requested.");
+  auto &SM = C.getSourceManager();
+  auto LO = C.getLangOpts();
+  llvm::StringRef Srctxt =
+      Lexer::getSourceText(CharSourceRange::getTokenRange(SR), SM, LO);
+  return Srctxt.str();
+}
+
+unsigned longestCommonSubsequence(const char *Str1, const char *Str2,
+                                  unsigned long Str1Len,
+                                  unsigned long Str2Len) {
+  if (Str1Len == 0 || Str2Len == 0)
+    return 0;
+  if (Str1[Str1Len - 1] == Str2[Str2Len - 1])
+    return 1 + longestCommonSubsequence(Str1, Str2, Str1Len - 1, Str2Len - 1);
+  return std::max(longestCommonSubsequence(Str1, Str2, Str1Len, Str2Len - 1),
+                  longestCommonSubsequence(Str1, Str2, Str1Len - 1, Str2Len));
+}
+
+bool isTypeAnonymous(const clang::Type *T) {
+  return T->isRecordType() &&
+         !(T->getAsRecordDecl()->getIdentifier() ||
+           T->getAsRecordDecl()->getTypedefNameForAnonDecl());
+}
+
+unsigned int getParameterIndex(ParmVarDecl *PV, FunctionDecl *FD) {
+  // This is kind of hacky, maybe we should record the index of the
+  // parameter when we find it, instead of re-discovering it here.
+  unsigned int PIdx = 0;
+  for (const auto &I : FD->parameters()) {
+    if (I == PV)
+      return PIdx;
+    PIdx++;
+  }
+  llvm_unreachable("Parameter declaration not found in function declaration.");
+}
+
+bool evaluateToInt(Expr *E, const ASTContext &C, int &Result) {
+  Expr::EvalResult ER;
+  E->EvaluateAsInt(ER, C, clang::Expr::SE_NoSideEffects, false);
+  if (ER.Val.isInt()) {
+    Result = ER.Val.getInt().getExtValue();
+    return true;
+  }
+  return false;
+}
+
+bool isZeroBoundsExpr(BoundsExpr *BE, const ASTContext &C) {
+  if (auto *CBE = dyn_cast<CountBoundsExpr>(BE)) {
+    // count(0) and byte_count(0)
+    Expr *E = CBE->getCountExpr();
+    int Result;
+    if (evaluateToInt(E, C, Result))
+      return Result == 0;
+  }
+  // Range bounds and empty bounds are ignored. I suppose range bounds could be
+  // size zero bounds, but checking this would be considerably more complicated
+  // and it seems unlikely to show up in real code.
+  return false;
+}
+
+TypeLoc getBaseTypeLoc(TypeLoc T) {
+  assert(!T.isNull() && "Can't get base location from Null.");
+  while (!T.getNextTypeLoc().isNull() &&
+         (!T.getAs<ParenTypeLoc>().isNull() ||
+          T.getTypePtr()->isPointerType() || T.getTypePtr()->isArrayType()))
+    T = T.getNextTypeLoc();
+  return T;
+}
+
+Expr *ignoreCheckedCImplicit(Expr *E) {
+  Expr *Old = nullptr;
+  Expr *New = E;
+  while (Old != New) {
+    Old = New;
+    New = Old->IgnoreExprTmp()->IgnoreImplicit();
+  }
+  return New;
+}

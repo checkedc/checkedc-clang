@@ -781,3 +781,159 @@ label:
   goto label;
   i++;
 }
+
+extern int bar(char *s, int n);
+
+// CHECK:       [B3 (ENTRY)]
+// CHECK-NEXT:    Succs (1): B2
+// CHECK:       [B1]
+// CHECK-NEXT:   label:
+// CHECK-NEXT:    1: bar
+// CHECK-NEXT:    2: [B1.1] (ImplicitCastExpr, FunctionToPointerDecay, int (*)(char *, int))
+// CHECK-NEXT:    3: x
+// CHECK-NEXT:    4: &[B1.3]
+// CHECK-NEXT:    5: 1
+// CHECK-NEXT:    6: [B1.2]([B1.4], [B1.5])
+// CHECK-NEXT:    7: [B2.1] (Lifetime ends)
+// CHECK-NEXT:    T: goto label;
+// CHECK-NEXT:    Preds (2): B2 B1
+// CHECK-NEXT:    Succs (1): B1
+// CHECK:       [B2]
+// CHECK-NEXT:    1: char x;
+// CHECK-NEXT:    Preds (1): B3
+// CHECK-NEXT:    Succs (1): B1
+// CHECK:       [B0 (EXIT)]
+
+// test case from CodeGen/lifetime2.c
+void backpatched_goto1() {
+  {
+    char x;
+  label:
+    bar(&x, 1);
+  }
+  goto label;
+}
+
+
+// CHECK:       [B4 (ENTRY)]
+// CHECK-NEXT:    Succs (1): B3
+// CHECK:       [B1]
+// CHECK-NEXT:    1: [B2.2] (Lifetime ends)
+// CHECK-NEXT:    Succs (1): B0
+// CHECK:       [B2]
+// CHECK-NEXT:    1:  (CXXConstructExpr, struct B)
+// CHECK-NEXT:    2: B c;
+// CHECK-NEXT:    3: [B2.2] (Lifetime ends)
+// CHECK-NEXT:    T: goto label;
+// CHECK-NEXT:    Preds (1): B3
+// CHECK-NEXT:    Succs (1): B3
+// CHECK:       [B3]
+// CHECK-NEXT:   label:
+// CHECK-NEXT:    1:  (CXXConstructExpr, struct B)
+// CHECK-NEXT:    2: B b;
+// CHECK-NEXT:    3: [B3.2] (Lifetime ends)
+// CHECK-NEXT:    4: 1
+// CHECK-NEXT:    5: [B3.4] (ImplicitCastExpr, IntegralToBoolean, _Bool)
+// CHECK-NEXT:    T: if [B3.5]
+// CHECK-NEXT:    Preds (2): B2 B4
+// CHECK-NEXT:    Succs (2): B2 B0(Unreachable)
+// CHECK:       [B0 (EXIT)]
+// CHECK-NEXT:    Preds (2): B1 B3(Unreachable)
+
+int backpatched_goto2() {
+  {
+  label:
+    B b;
+  }
+  if (1){
+    B c;
+    goto label;
+  }
+}
+
+
+// The two test cases below illustrate the need to traverse up
+// the tree of nested scopes to find the nearest common ancestor.
+
+// CHECK:       [B4 (ENTRY)]
+// CHECK-NEXT:    Succs (1): B3
+// CHECK:       [B1]
+// CHECK-NEXT:    1: [B2.9] (Lifetime ends)
+// CHECK-NEXT:    Succs (1): B0
+// CHECK:       [B2]
+// CHECK-NEXT:   label:
+// CHECK-NEXT:    1: bar
+// CHECK-NEXT:    2: [B2.1] (ImplicitCastExpr, FunctionToPointerDecay, int (*)(char *, int))
+// CHECK-NEXT:    3: x
+// CHECK-NEXT:    4: &[B2.3]
+// CHECK-NEXT:    5: 1
+// CHECK-NEXT:    6: [B2.2]([B2.4], [B2.5])
+// CHECK-NEXT:    7: [B3.1] (Lifetime ends)
+// CHECK-NEXT:    8:  (CXXConstructExpr, struct B)
+// CHECK-NEXT:    9: B b;
+// CHECK-NEXT:   10: [B2.9] (Lifetime ends)
+// CHECK-NEXT:    T: goto label;
+// CHECK-NEXT:    Preds (2): B3 B2
+// CHECK-NEXT:    Succs (1): B2
+// CHECK:       [B3]
+// CHECK-NEXT:    1: char x;
+// CHECK-NEXT:    Preds (1): B4
+// CHECK-NEXT:    Succs (1): B2
+// CHECK:       [B0 (EXIT)]
+// CHECK-NEXT:    Preds (1): B1
+
+void backpatched_goto3() {
+  {
+    char x;
+  label:
+    bar(&x, 1);
+  }
+  {
+    B b;
+    goto label;
+  }
+}
+
+// CHECK:       [B4 (ENTRY)]
+// CHECK-NEXT:    Succs (1): B3
+// CHECK:       [B1]
+// CHECK-NEXT:    1: [B2.11] (Lifetime ends)
+// CHECK-NEXT:    2: [B2.9] (Lifetime ends)
+// CHECK-NEXT:    Succs (1): B0
+// CHECK:       [B2]
+// CHECK-NEXT:   label:
+// CHECK-NEXT:    1: bar
+// CHECK-NEXT:    2: [B2.1] (ImplicitCastExpr, FunctionToPointerDecay, int (*)(char *, int))
+// CHECK-NEXT:    3: x
+// CHECK-NEXT:    4: &[B2.3]
+// CHECK-NEXT:    5: 1
+// CHECK-NEXT:    6: [B2.2]([B2.4], [B2.5])
+// CHECK-NEXT:    7: [B3.1] (Lifetime ends)
+// CHECK-NEXT:    8:  (CXXConstructExpr, struct B)
+// CHECK-NEXT:    9: B c;
+// CHECK-NEXT:   10:  (CXXConstructExpr, struct B)
+// CHECK-NEXT:   11: B b;
+// CHECK-NEXT:   12: [B2.11] (Lifetime ends)
+// CHECK-NEXT:   13: [B2.9] (Lifetime ends)
+// CHECK-NEXT:    T: goto label;
+// CHECK-NEXT:    Preds (2): B3 B2
+// CHECK-NEXT:    Succs (1): B2
+// CHECK:       [B3]
+// CHECK-NEXT:    1: char x;
+// CHECK-NEXT:    Preds (1): B4
+// CHECK-NEXT:    Succs (1): B2
+// CHECK:       [B0 (EXIT)]
+// CHECK-NEXT:    Preds (1): B1
+
+void backpatched_goto4() {
+  {
+    char x;
+  label:
+    bar(&x, 1);
+  }
+  B c;
+  {
+    B b;
+    goto label;
+  }
+}
