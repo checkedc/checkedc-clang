@@ -96,24 +96,23 @@ void f13() {
 }
 
 struct S1 {
-	_Array_ptr<int> p : count(len2);
-	int len2;
+  _Array_ptr<int> p : count(len2); // expected-note 2 {{(expanded) declared bounds are 'bounds(s->p, s->p + s->len2)'}} \
+                                   // expected-note {{(expanded) declared bounds are 'bounds(a3.p, a3.p + a3.len2)'}}
+  int len2;
 };
 
 void f1(struct S1 *s) {
   // We currently do not detect free variables for indirect accesses.
   array_ptr<int> p : count(5) = 0;
-  s->p = p; // expected-warning {{cannot prove declared bounds for s->p are valid after assignment}} \
-            // expected-note {{declared bounds are}} \
-            // expected-note {{inferred bounds are}}
+  s->p = p; // expected-warning {{cannot prove declared bounds for 's->p' are valid after assignment}} \
+            // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 5)'}}
 
   int a[] = { 1, 2 };
   array_ptr<int> q : bounds(q, &a[0]) = p; // expected-warning {{cannot prove declared bounds for 'q' are valid after initialization}} \
-                                           // expected-note {{declared bounds are}} \
-                                           // expected-note {{inferred bounds are}}
-  s->p = &a[1]; // expected-warning {{cannot prove declared bounds for s->p are valid after assignment}} \
-                // expected-note {{declared bounds are}} \
-                // expected-note {{inferred bounds are}}
+                                           // expected-note {{(expanded) declared bounds are 'bounds(q, &a[0])'}} \
+                                           // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 5)'}}
+  s->p = &a[1]; // expected-warning {{cannot prove declared bounds for 's->p' are valid after assignment}} \
+                // expected-note {{(expanded) inferred bounds are 'bounds(a, a + 2)'}}
 }
 
 void f2(struct S1 a3) {
@@ -127,8 +126,7 @@ void f3(struct S1 a3) {
   array_ptr<int> p : count(5) = 0;
 
   // We current do not detect free variables for member accesses.
-  a3.p = p; // expected-warning {{cannot prove declared bounds for a3.p are valid after assignment}} \
-            // expected-note {{(expanded) declared bounds are 'bounds(a3.p, a3.p + a3.len2)'}} \
+  a3.p = p; // expected-warning {{cannot prove declared bounds for 'a3.p' are valid after assignment}} \
             // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 5)'}}
 }
 
@@ -147,6 +145,25 @@ void f4(void) {
   array_ptr<int> q : count(1) = p + 1; // expected-warning {{cannot prove declared bounds for 'q' are valid after initialization}} \
                                        // expected-note {{(expanded) declared bounds are 'bounds(q, q + 1)'}} \
                                        // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 2)'}}
+}
+
+// Variables that are equivalent to integer constant expressions are not free variables.
+void f5(_Array_ptr<int> p : count(0)) {
+  // i is equivalent to (unsigned int)0.
+  unsigned int i = 0;
+  _Array_ptr<int> q : count(i) = p;  // expected-warning {{cannot prove declared bounds for 'q' are valid after initialization}} \
+                                     // expected-note {{(expanded) declared bounds are 'bounds(q, q + i)'}} \
+                                     // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 0)'}}
+
+  unsigned int j = 1 + 2;
+  _Array_ptr<int> r : count(j) = p; // expected-warning {{cannot prove declared bounds for 'r' are valid after initialization}} \
+                                    // expected-note {{(expanded) declared bounds are 'bounds(r, r + j)'}} \
+                                    // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 0)'}}
+
+  unsigned int k = -(2 * 3) + (8 / 4);
+  _Array_ptr<int> s : count(k) = p; // expected-warning {{cannot prove declared bounds for 's' are valid after initialization}} \
+                                    // expected-note {{(expanded) declared bounds are 'bounds(s, s + k)'}} \
+                                    // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 0)'}}
 }
 
 void g(void) {

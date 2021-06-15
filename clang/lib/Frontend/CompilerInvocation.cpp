@@ -2849,11 +2849,17 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   if (Args.hasArg(OPT_fdump_boundsvars))
     Opts.DumpBoundsVars = true;
 
+  if (Args.hasArg(OPT_fdump_boundssiblingfields))
+    Opts.DumpBoundsSiblingFields = true;
+
   if (Args.hasArg(OPT_fdump_preorder_ast))
     Opts.DumpPreorderAST = true;
 
   if (Args.hasArg(OPT_fdump_checking_state))
     Opts.DumpCheckingState = true;
+
+  if (Args.hasArg(OPT_fdump_synthesized_members))
+    Opts.DumpSynthesizedMembers = true;
 
   Opts.WritableStrings = Args.hasArg(OPT_fwritable_strings);
   Opts.ConstStrings = Args.hasFlag(OPT_fconst_strings, OPT_fno_const_strings,

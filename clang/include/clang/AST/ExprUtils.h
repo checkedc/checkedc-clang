@@ -41,6 +41,10 @@ public:
   // Create a use of a VarDecl.
   static DeclRefExpr *CreateVarUse(Sema &SemaRef, VarDecl *V);
 
+  // Create a member expression.
+  static MemberExpr *CreateMemberExpr(Sema &SemaRef, Expr *Base,
+                                      const FieldDecl *Field, bool IsArrow);
+
   // If e is an rvalue, EnsureRValue returns e. Otherwise, EnsureRValue
   // returns a cast of e to an rvalue, based on the type of e.
   static Expr *EnsureRValue(Sema &SemaRef, Expr *E);
@@ -63,6 +67,44 @@ public:
   // the bitsize of Ty.
   static bool Fits(ASTContext &Ctx, QualType Ty,
                    const llvm::APInt &I, llvm::APInt &Result);
+};
+
+} // end namespace clang
+
+namespace clang {
+
+class VariableUtil {
+public:
+  // If E is a possibly parenthesized lvalue variable V,
+  // GetLValueVariable returns V. Otherwise, it returns nullptr.
+  //
+  // V may have value-preserving operations applied to it, such as
+  // LValueBitCasts.  For example, if E is (LValueBitCast(V)), where V
+  // is a variable, GetLValueVariable will return V.
+  static DeclRefExpr *GetLValueVariable(Sema &S, Expr *E);
+
+  // If E is a possibly parenthesized rvalue cast of a variable V,
+  // GetRValueVariable returns V. Otherwise, it returns nullptr.
+  //
+  // V may have value-preserving operations applied to it.  For example,
+  // if E is (LValueToRValue(LValueBitCast(V))), where V is a variable,
+  // GetRValueVariable will return V.
+  static DeclRefExpr *GetRValueVariable(Sema &S, Expr *E);
+
+  // IsRValueCastOfVariable returns true if the expression e is a possibly
+  // parenthesized lvalue-to-rvalue cast of the lvalue variable v.
+  static bool IsRValueCastOfVariable(Sema &S, Expr *E, DeclRefExpr *V);
+};
+
+} // end namespace clang
+
+namespace clang {
+
+class ExprUtil {
+public:
+  // GetRValueCastChild returns the child of a possibly parenthesized
+  // rvalue cast.
+  static Expr *GetRValueCastChild(Sema &S, Expr *E);
 };
 
 } // end namespace clang

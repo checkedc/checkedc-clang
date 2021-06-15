@@ -856,10 +856,14 @@ def fdump_widened_bounds : Flag<["-"], "fdump-widened-bounds">, Group<f_Group>, 
   HelpText<"Dump widened bounds">;
 def fdump_boundsvars : Flag<["-"], "fdump-boundsvars">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Dump bounds vars">;
+def fdump_boundssiblingfields : Flag<["-"], "fdump-boundssiblingfields">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Dump bounds sibling fields">;
 def fdump_preorder_ast : Flag<["-"], "fdump-preorder-ast">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Dump the preorder AST">;
 def fdump_checking_state : Flag<["-"], "fdump-checking-state">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Dump the state during bounds checking">;
+def fdump_synthesized_members : Flag<["-"], "fdump-synthesized-members">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Dump synthesized member AbstractSets">;
 def fdump_inferred_bounds : Flag<["-"], "fdump-inferred-bounds">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Dump inferred Checked C bounds for assignments and declarations">;
 def finject_verifier_calls : Flag<["-"], "finject-verifier-calls">, Group<f_Group>, Flags<[CC1Option]>,
