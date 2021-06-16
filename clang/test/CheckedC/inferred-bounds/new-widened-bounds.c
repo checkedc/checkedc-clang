@@ -1,6 +1,8 @@
-// Tests for datafow analysis for bounds widening of _Nt_array_ptr's.
+// Tests for datafow analysis for bounds widening of null-terminated arrays.
 //
-// RUN: %clang_cc1 -fdump-widened-bounds -verify -verify-ignore-unexpected=note -verify-ignore-unexpected=warning %s | FileCheck %s
+// RUN: %clang_cc1 -fdump-widened-bounds -verify \
+// RUN: -verify-ignore-unexpected=note -verify-ignore-unexpected=warning %s \
+// RUN: | FileCheck %s
 
 #include <limits.h>
 #include <stdint.h>
