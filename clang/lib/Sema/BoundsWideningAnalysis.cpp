@@ -109,7 +109,7 @@ void BoundsWideningAnalysis::ComputeStmtGenKillSets(ElevatedCFGBlock *EB,
   // A conditional statement that dereferences a variable that is a pointer to
   // a null-terminated array can generate a dataflow fact. For example: if (*(p
   // + 1)) The conditional will always be the terminator statement of the block.
-  if (CurrStmt == EB->Block->getTerminatorCondition()) {
+  if (CurrStmt == EB->Block->getLastCondition()) {
     GetVarsAndBoundsInPtrDeref(EB, VarsAndBounds);
 
   // A bounds declaration of a null-terminated array generates a dataflow fact.
@@ -527,12 +527,17 @@ void BoundsWideningAnalysis::GetVarsAndBoundsInPtrDeref(
   ElevatedCFGBlock *EB, BoundsMapTy &VarsAndBounds) {
 
   // Get the terminating condition of the block.
-  Expr *TermCond = BWUtil.GetTerminatorCondition(EB->Block);
+  // If we have a terminating condition like "if (e1 && e2 && e3)" then three
+  // blocks would be created for e1, e2 and e3. getTerminatorStmt() would
+  // return the entire condition "e1 && e2 && e3" but getLastCondition()
+  // returns only "e3" which is what we need.
+  const Expr *TermCond = EB->Block->getLastCondition();
   if (!TermCond)
     return;
 
   // If the terminating condition is a dereference expression get that
-  // expression.
+  // expression. For example, from a terminating condition like "if (*(p +
+  // 1))", extract the expression "p + 1".
   Expr *DerefExpr = BWUtil.GetDerefExpr(TermCond);
   if (!DerefExpr)
     return;
@@ -982,64 +987,29 @@ Expr *BoundsWideningUtil::AddOffsetToExpr(Expr *E, unsigned Offset) const {
                                                BinaryOperatorKind::BO_Add);
 }
 
-Expr *BoundsWideningUtil::GetTerminatorCondition(const Expr *E) const {
-  if (!E)
+Expr *BoundsWideningUtil::GetDerefExpr(const Expr *TermCond) const {
+  if (!TermCond)
     return nullptr;
 
-  if (const auto *BO = dyn_cast<BinaryOperator>(E->IgnoreParens()))
-    return GetTerminatorCondition(BO->getRHS());
+  Expr *E = const_cast<Expr *>(TermCond);
 
   // According to C11 standard section 6.5.13, the logical AND Operator shall
   // yield 1 if both of its operands compare unequal to 0; otherwise, it yields
-  // 0. The result has type int.  An IntegralCast is generated for "if (*p &&
-  // *(p + 1))", where p is _Nt_array_ptr<T>.  Here we strip off the
-  // IntegralCast.
-  if (auto *CE = dyn_cast<CastExpr>(E))
+  // 0. The result has type int. An IntegralCast is generated for "if (e1 &&
+  // e2)" Here we strip off the IntegralCast.
+  if (auto *CE = dyn_cast<CastExpr>(E)) {
     if (CE->getCastKind() == CastKind::CK_IntegralCast)
-      return const_cast<Expr *>(CE->getSubExpr());
-  return const_cast<Expr *>(E);
-}
-
-Expr *BoundsWideningUtil::GetTerminatorCondition(const CFGBlock *B) const {
-  if (!B)
-    return nullptr;
-
-  if (const Stmt *S = B->getTerminatorStmt()) {
-    if (const auto *BO = dyn_cast<BinaryOperator>(S))
-      return GetTerminatorCondition(BO->getLHS());
-
-    if (const auto *IfS = dyn_cast<IfStmt>(S))
-      return GetTerminatorCondition(IfS->getCond());
-
-    if (const auto *WhileS = dyn_cast<WhileStmt>(S))
-      return const_cast<Expr *>(WhileS->getCond());
-
-    if (const auto *ForS = dyn_cast<ForStmt>(S))
-      return const_cast<Expr *>(ForS->getCond());
-
-    if (const auto *SwitchS = dyn_cast<SwitchStmt>(S)) {
-      // According to C11 standard section 6.8.4.2, the controlling
-      // expression of a switch shall have integer type. If we have switch(*p)
-      // where p is _Nt_array_ptr<char> then it is casted to integer type and
-      // an IntegralCast is generated. GetTerminatorCondition() will strip off
-      // the IntegralCast.
-      return GetTerminatorCondition(SwitchS->getCond());
-    }
+      E = CE->getSubExpr();
   }
-  return nullptr;
-}
-
-Expr *BoundsWideningUtil::GetDerefExpr(Expr *E) const {
-  // A dereference expression can contain an array subscript or a pointer
-  // dereference.
-  if (!E)
-    return nullptr;
 
   if (auto *CE = dyn_cast<CastExpr>(E))
     if (CE->getCastKind() == CastKind::CK_LValueToRValue)
       E = CE->getSubExpr();
 
   E = IgnoreCasts(E);
+
+  // A dereference expression can contain an array subscript or a pointer
+  // dereference.
 
   // If a dereference expression is of the form "*(p + i)".
   if (auto *UO = dyn_cast<UnaryOperator>(E)) {

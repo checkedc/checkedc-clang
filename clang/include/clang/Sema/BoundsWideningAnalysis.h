@@ -147,25 +147,11 @@ namespace clang {
     // @return Returns the expression E + Offset.
     Expr *AddOffsetToExpr(Expr *E, unsigned Offset) const;
 
-    // From a given terminating condition extract the terminating condition for
-    // the current block. Given an expression like "if (e1 && e2)" this
-    // function returns e2 which is the terminating condition for the current
-    // block.
-    // @param[in] E is given terminating condition.
-    // @return The terminating condition for the block.
-    Expr *GetTerminatorCondition(const Expr *E) const;
-
-    // Use the last statement in a block to get the terminating condition for
-    // the block. This could be an expression of the form "if (e1 && e2)".
-    // @param[in] B is the block for which we need the terminating condition.
-    // @return Expression for the terminating condition of block B.
-    Expr *GetTerminatorCondition(const CFGBlock *B) const;
-
     // From the given expression get the dereference expression. A dereference
     // expression can be of the form "*(p + 1)" or "p[1]".
     // @param[in] E is the given expression.
     // @return Returns the dereference expression, if it exists.
-    Expr *GetDerefExpr(Expr *E) const;
+    Expr *GetDerefExpr(const Expr *E) const;
 
     // Get the variables occurring in an expression.
     // @param[in] E is the given expression.
