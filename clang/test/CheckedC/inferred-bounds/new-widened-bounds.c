@@ -2617,3 +2617,124 @@ void f35_5() {
 
 // CHECK: Block: B1, Pred: B3, B4, Succ: B0
 }
+
+void f36() {
+  _Nt_array_ptr<char> p : count(0) = "";
+
+  if (*p) {
+    a = 1;
+A:  a = 2;
+    a = 3;
+  }
+
+// CHECK: Function: f36
+// CHECK: Block: B5, Pred: Succ: B4
+
+// CHECK: Block: B4, Pred: B5, Succ: B3, B1
+// CHECK:   Widened bounds before stmt: _Nt_array_ptr<char> p : count(0) = "";
+// CHECK:     <none>
+
+// CHECK:   Widened bounds before stmt: *p
+// CHECK:     p: bounds(p, p + 0)
+
+// CHECK: Block: B3, Pred: B4, Succ: B2
+// CHECK:   Widened bounds before stmt: a = 1
+// CHECK:     p: bounds(p, p + 1)
+
+// CHECK: Block: B2, Pred: B3, Succ: B1
+// CHECK:   Widened bounds before stmt: a = 2
+// CHECK:     p: bounds(p, p + 1)
+
+// CHECK:   Widened bounds before stmt: a = 3
+// CHECK:     p: bounds(p, p + 1)
+
+// CHECK: Block: B1, Pred: B2, B4, Succ: B0
+}
+
+void f37() {
+  _Nt_array_ptr<char> p : count(0) = "";
+
+  if (a > 0) {
+    a = 1;
+A:  a = 2;
+    a = 3;
+
+  } else if (a == 0) {
+    a = 4;
+
+    while (a != 0) {
+      ++a;
+
+      switch(a) {
+      default: a = 5; break;
+      case 1: a = 6; break;
+      }
+    }
+  }
+
+  if (*p) {
+    a = 7;
+  }
+
+  goto A;
+
+// CHECK: Function: f37
+// CHECK: Block: B15, Pred: Succ: B14
+
+// CHECK: Block: B14, Pred: B15, Succ: B13, B11
+// CHECK:   Widened bounds before stmt: _Nt_array_ptr<char> p : count(0) = "";
+// CHECK:     <none>
+
+// CHECK:   Widened bounds before stmt: a > 0
+// CHECK:     p: bounds(p, p + 0)
+
+// CHECK: Block: B13, Pred: B14, Succ: B12
+// CHECK:   Widened bounds before stmt: a = 1
+// CHECK:     p: bounds(p, p + 0)
+
+// CHECK: Block: B12, Pred: B13, B2, Succ: B4
+// CHECK:   Widened bounds before stmt: a = 2
+// CHECK:     p: bounds(p, p + 0)
+
+// CHECK:   Widened bounds before stmt: a = 3
+// CHECK:     p: bounds(p, p + 0)
+
+// CHECK: Block: B11, Pred: B14, Succ: B10, B4
+// CHECK:   Widened bounds before stmt: a == 0
+// CHECK:     p: bounds(p, p + 0)
+
+// CHECK: Block: B10, Pred: B11, Succ: B9
+// CHECK:   Widened bounds before stmt: a = 4
+// CHECK:     p: bounds(p, p + 0)
+
+// CHECK: Block: B9, Pred: B5, B10, Succ: B6, B4
+// CHECK:   Widened bounds before stmt: a != 0
+// CHECK:     p: bounds(p, p + 0)
+
+// CHECK: Block: B8, Pred: B6, Succ: B5
+// CHECK:   Widened bounds before stmt: a = 5
+// CHECK:     p: bounds(p, p + 0)
+
+// CHECK: Block: B7, Pred: B6, Succ: B5
+// CHECK:   Widened bounds before stmt: a = 6
+// CHECK:     p: bounds(p, p + 0)
+
+// CHECK: Block: B6, Pred: B9, Succ: B7, B8
+// CHECK:   Widened bounds before stmt: ++a
+// CHECK:     p: bounds(p, p + 0)
+
+// CHECK:   Widened bounds before stmt: a
+// CHECK:     p: bounds(p, p + 0)
+
+// CHECK: Block: B5, Pred: B7, B8, Succ: B9
+
+// CHECK: Block: B4, Pred: B9, B11, B12, Succ: B3, B2
+// CHECK:   Widened bounds before stmt: *p
+// CHECK:     p: bounds(p, p + 0)
+
+// CHECK: Block: B3, Pred: B4, Succ: B2
+// CHECK:   Widened bounds before stmt: a = 7
+// CHECK:     p: bounds(p, p + 1)
+
+// CHECK: Block: B2, Pred: B3, B4, Succ: B12
+}

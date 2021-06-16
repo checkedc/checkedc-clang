@@ -15,6 +15,13 @@
 
 namespace clang {
 
+//===---------------------------------------------------------------------===//
+// Implementation of the methods in the BoundsWideningAnalysis class. This is
+// the main class that implements the dataflow analysis for bounds widening of
+// null-terminated arrays. This class uses helper methods from the
+// BoundsWideningUtil class that are defined later in this file.
+//===---------------------------------------------------------------------===//
+
 void BoundsWideningAnalysis::WidenBounds(FunctionDecl *FD,
                                          StmtSetTy NestedStmts) {
   assert(Cfg && "expected CFG to exist");
@@ -34,7 +41,7 @@ void BoundsWideningAnalysis::WidenBounds(FunctionDecl *FD,
     // SkipBlock will skip all null blocks and the exit block. PostOrderCFGView
     // does not traverse any unreachable blocks. So at the end of this loop
     // BlockMap only contains reachable blocks.
-    if (SkipBlock(B))
+    if (BWUtil.SkipBlock(B))
       continue;
 
     auto EB = new ElevatedCFGBlock(B);
@@ -72,7 +79,6 @@ void BoundsWideningAnalysis::ComputeGenKillSets(ElevatedCFGBlock *EB) {
       const Stmt *CurrStmt = Elem.castAs<CFGStmt>().getStmt();
       if (!CurrStmt)
         continue;
-
 
       ComputeStmtGenKillSets(EB, CurrStmt);
       ComputeUnionGenKillSets(EB, CurrStmt, PrevStmt);
@@ -131,7 +137,7 @@ void BoundsWideningAnalysis::ComputeStmtGenKillSets(ElevatedCFGBlock *EB,
   // A where clause on a null statement (meaning a standalone where clause) can
   // generate a dataflow fact.
   // For example: _Where p : bounds(p, p + 1);
-  // TODO: Currently, a null statement does not appear in the list of
+  // TODO: Currently, a null statement does not occur in the list of
   // statements of a block. As a result, there are no Gen and Kill sets for a
   // null statement. So currently the above example does not generate a
   // dataflow fact.
@@ -159,19 +165,23 @@ void BoundsWideningAnalysis::ComputeUnionGenKillSets(ElevatedCFGBlock *EB,
     return;
   }
 
-  EB->UnionKill[CurrStmt] = Union(EB->UnionKill[PrevStmt],
-                                  EB->StmtKill[CurrStmt]);
+  EB->UnionKill[CurrStmt] = BWUtil.Union(EB->UnionKill[PrevStmt],
+                                         EB->StmtKill[CurrStmt]);
 
-  auto Diff = Difference(EB->UnionGen[PrevStmt], EB->StmtKill[CurrStmt]);
-  EB->UnionGen[CurrStmt] = Union(Diff, EB->StmtGen[CurrStmt]);
+  auto Diff = BWUtil.Difference(EB->UnionGen[PrevStmt],
+                                EB->StmtKill[CurrStmt]);
+  EB->UnionGen[CurrStmt] = BWUtil.Union(Diff, EB->StmtGen[CurrStmt]);
 }
 
 void BoundsWideningAnalysis::ComputeBlockGenKillSets(ElevatedCFGBlock *EB) {
-  if (!EB->LastStmt)
-    return;
+  // Initialize the Gen and Kill sets for the block.
+  EB->Gen = BoundsMapTy();
+  EB->Kill = VarSetTy();
 
-  EB->Gen = EB->UnionGen[EB->LastStmt];
-  EB->Kill = EB->UnionKill[EB->LastStmt];
+  if (EB->LastStmt) {
+    EB->Gen = EB->UnionGen[EB->LastStmt];
+    EB->Kill = EB->UnionKill[EB->LastStmt];
+  }
 }
 
 void BoundsWideningAnalysis::ComputeInSet(ElevatedCFGBlock *EB) {
@@ -184,51 +194,50 @@ void BoundsWideningAnalysis::ComputeInSet(ElevatedCFGBlock *EB) {
       continue;
 
     ElevatedCFGBlock *PredEB = BlockIt->second;
+    BoundsMapTy PrunedOutSet = PruneOutSet(PredEB, EB);
 
-    // If the edge from pred to the current block is a fallthrough edge then
-    // the Out of the pred should simply "flow" through to the current block
-    // (meaning PredOut should simply be intersected with the In of the current
-    // block).
-    // Fallthrough edges are generated in case of loops. For example:
-
-    // _Nt_array_ptr<char> p : bounds(p, p + 1);
-    // while (*(p + 1))
-    //   a = 1;
-
-    // B1: pred: Entry, succ: B2
-    //   _Nt_array_ptr<char> p : bounds(p, p + 1);
-
-    // B2: pred: B1, B4, succ: B3
-
-    // B3: pred: B2, succ: B4
-    //   while (*(p + 1))
-
-    // B4: pred, B3, succ: B2
-    //   a = 1;
-
-    // In the above example, the edges B1->B2, B2->B3 and B4->B2 are
-    // fallthrough edges. So in this case, the Out sets of the pred blocks
-    // should simply flow through to the successor blocks. Meaning we do not
-    // need to prune the Out set of the pred block.
-
-    BoundsMapTy PrunedOutSet = IsFallthroughEdge(PredBlock, CurrBlock) ?
-                               PredEB->Out :
-                               PruneOutSet(PredEB, EB);
-
-    EB->In = Intersect(EB->In, PrunedOutSet);
+    EB->In = BWUtil.Intersect(EB->In, PrunedOutSet);
   }
 }
 
 BoundsMapTy BoundsWideningAnalysis::PruneOutSet(
   ElevatedCFGBlock *PredEB, ElevatedCFGBlock *CurrEB) const {
 
-  BoundsMapTy PrunedOutSet = PredEB->Out;
-
   const CFGBlock *PredBlock = PredEB->Block;
   const CFGBlock *CurrBlock = CurrEB->Block;
 
+  // If the edge from pred to the current block is a fallthrough edge then the
+  // Out of the pred should simply "flow" through to the current block (meaning
+  // PredOut should simply be intersected with the In of the current block).
+  // Fallthrough edges are generated in case of loops. For example:
+
+  // _Nt_array_ptr<char> p : bounds(p, p + 1);
+  // while (*(p + 1))
+  //   a = 1;
+
+  // B1: pred: Entry, succ: B2
+  //   _Nt_array_ptr<char> p : bounds(p, p + 1);
+
+  // B2: pred: B1, B4, succ: B3
+
+  // B3: pred: B2, succ: B4
+  //   while (*(p + 1))
+
+  // B4: pred, B3, succ: B2
+  //   a = 1;
+
+  // In the above example, the edges B1->B2, B2->B3 and B4->B2 are fallthrough
+  // edges. So in this case, the Out sets of the pred blocks should simply flow
+  // through to the successor blocks. Meaning we do not need to prune the Out
+  // set of the pred block.
+
+  if (BWUtil.IsFallthroughEdge(PredBlock, CurrBlock))
+    return PredEB->Out;
+
+  BoundsMapTy PrunedOutSet = PredEB->Out;
+
   // Check if the edge from pred to the current block is a true edge.
-  bool IsEdgeTrue = IsTrueEdge(PredBlock, CurrBlock);
+  bool IsEdgeTrue = BWUtil.IsTrueEdge(PredBlock, CurrBlock);
 
   // Get the StmtIn of the last statement in the pred block. If the pred
   // block does not have any statements then StmtInOfLastStmtOfPred is set to
@@ -236,11 +245,12 @@ BoundsMapTy BoundsWideningAnalysis::PruneOutSet(
   BoundsMapTy StmtInOfLastStmtOfPred = GetStmtIn(PredEB, PredEB->LastStmt);
 
   // Check if the current block is a case of a switch-case.
-  bool IsSwitchCase = IsSwitchCaseBlock(CurrBlock);
+  bool IsSwitchCase = BWUtil.IsSwitchCaseBlock(CurrBlock);
 
   // If the current block is a case of a switch-case, check if the case label
   // tests for null. CaseLabelTestsForNull returns false for the default case.
-  bool IsCaseLabelNull = IsSwitchCase && CaseLabelTestsForNull(CurrBlock);
+  bool IsCaseLabelNull = IsSwitchCase &&
+                         BWUtil.CaseLabelTestsForNull(CurrBlock);
 
   // PredEB->Out may contain the widened bounds "E + 1" for some variable V.
   // Here, we need to determine if "E + 1" should make it to the In set of
@@ -373,7 +383,7 @@ BoundsMapTy BoundsWideningAnalysis::PruneOutSet(
       // }
 
       else if (isa<DefaultStmt>(CurrBlock->getLabel()) &&
-              !ExistsNullCaseLabel(PredBlock))
+              !BWUtil.ExistsNullCaseLabel(PredBlock))
         PrunedOutSet[V] = BoundsInStmtIn;
     }
   }
@@ -381,120 +391,24 @@ BoundsMapTy BoundsWideningAnalysis::PruneOutSet(
   return PrunedOutSet;
 }
 
-bool BoundsWideningAnalysis::ExistsNullCaseLabel(
-  const CFGBlock *CurrBlock) const {
-
-  for (const CFGBlock *SuccBlock : CurrBlock->succs()) {
-    if (SuccBlock && CaseLabelTestsForNull(SuccBlock))
-      return true;
-  }
-  return false;
-}
-
-bool BoundsWideningAnalysis::IsSwitchCaseBlock(
-  const CFGBlock *CurrBlock) const {
-
-  const Stmt *BlockLabel = CurrBlock->getLabel();
-  return BlockLabel &&
-        (isa<CaseStmt>(BlockLabel) ||
-         isa<DefaultStmt>(BlockLabel));
-}
-
-bool BoundsWideningAnalysis::CaseLabelTestsForNull(
-  const CFGBlock *CurrBlock) const {
-
-  const Stmt *BlockLabel = CurrBlock->getLabel();
-  assert(BlockLabel && "invalid switch case");
-
-  if (isa<DefaultStmt>(BlockLabel))
-    return false;
-
-  const auto *CS = dyn_cast<CaseStmt>(BlockLabel);
-
-  // We mimic how clang (in SemaStmt.cpp) gets the value of a switch case. It
-  // invokes EvaluateKnownConstInt and we do the same here. SemaStmt has
-  // already extended/truncated the case value to fit the integer range and
-  // EvaluateKnownConstInt gives us that value.
-  const Expr *LHS = CS->getLHS();
-  if (!LHS)
-    return true;
-
-  llvm::APSInt LHSVal = LHS->EvaluateKnownConstInt(Ctx);
-  llvm::APSInt LHSZero (LHSVal.getBitWidth(), LHSVal.isUnsigned());
-  if (llvm::APSInt::compareValues(LHSVal, LHSZero) == 0)
-    return true;
-
-  // If the case statement is not of the form "case LHS ... RHS" (a GNU
-  // extension) then we are done. We only needed to check the LHS value which
-  // is the case label for the current case. We return false because we have
-  // determined that the current case label is non-null.
-  if (!CS->caseStmtIsGNURange())
-    return false;
-
-  // If we reach are here it means we are in a range-base case statement of the
-  // form "case LHS ... RHS" (a GNU extension).
-  const Expr *RHS = CS->getRHS();
-  if (!RHS)
-    return true;
-
-  llvm::APSInt RHSVal = RHS->EvaluateKnownConstInt(Ctx);
-  llvm::APSInt RHSZero (RHSVal.getBitWidth(), RHSVal.isUnsigned());
-  if (llvm::APSInt::compareValues(RHSVal, RHSZero) == 0)
-    return true;
-
-  // Return true if 0 is contained within the range [LHS, RHS].
-  return (LHSVal <= LHSZero && RHSZero <= RHSVal) ||
-         (LHSVal >= LHSZero && RHSZero >= RHSVal);
-}
-
-bool BoundsWideningAnalysis::IsFallthroughEdge(
-  const CFGBlock *PredBlock, const CFGBlock *CurrBlock) const {
-
-  // A fallthrough edge between two blocks is always a true edge. If PredBlock
-  // has only one successor and CurrBlock is that successor then it means the
-  // edge between PredBlock and CurrBlock is a fallthrough edge.
-  return PredBlock->succ_size() == 1 &&
-         CurrBlock == *(PredBlock->succs().begin());
-}
-
-bool BoundsWideningAnalysis::IsTrueEdge(const CFGBlock *PredBlock,
-                                             const CFGBlock *CurrBlock) const {
-  // Return false if PredBlock does not have any successors.
-  if (PredBlock->succ_empty())
-    return false;
-
-  // A fallthrough edge is always a true edge.
-  if (IsFallthroughEdge(PredBlock, CurrBlock))
-    return true;
-
-  // Get the last successor in the list of successors of PredBlock.
-  const CFGBlock *LastSucc = *(PredBlock->succs().end() - 1);
-
-  // If PredBlock has multiple successors, then a successor on a false edge
-  // would always be last in the list of successors of PredBlock.
-  if (CurrBlock == LastSucc)
-    return PredBlock->succ_size() == 1;
-
-  // Check if CurrBlock is a successor of PredBlock. If CurrBlock is not a
-  // successor of PredBlock then there is no edge between PredBlock and
-  // CurrBlock. So return false.
-  for (const CFGBlock *SuccBlock : PredBlock->succs()) {
-    if (CurrBlock == SuccBlock)
-      return true;
-  }
-
-  return false;
-}
-
 void BoundsWideningAnalysis::ComputeOutSet(ElevatedCFGBlock *EB,
                                            WorkListTy &WorkList) {
   auto OrigOut = EB->Out;
 
-  auto Diff = Difference(EB->In, EB->Kill);
-  EB->Out = Union(Diff, EB->Gen);
+  auto Diff = BWUtil.Difference(EB->In, EB->Kill);
+  EB->Out = BWUtil.Union(Diff, EB->Gen);
 
-  if (!IsEqual(EB->Out, OrigOut))
+  // If the Out set of the current block has changed add the current block to
+  // the WorkList.
+  if (!BWUtil.IsEqual(EB->Out, OrigOut)) {
     WorkList.append(EB);
+
+    // Also add all successors of the current block to the WorkList.
+    for (const CFGBlock *SuccBlock : EB->Block->succs()) {
+      if (!BWUtil.SkipBlock(SuccBlock))
+        WorkList.append(BlockMap[SuccBlock]);
+    }
+  }
 }
 
 void BoundsWideningAnalysis::InitBlockInOutSets(FunctionDecl *FD,
@@ -539,8 +453,8 @@ void BoundsWideningAnalysis::InitBlockInOutSets(FunctionDecl *FD,
 BoundsMapTy BoundsWideningAnalysis::GetStmtOut(ElevatedCFGBlock *EB,
                                                const Stmt *CurrStmt) const {
   if (CurrStmt) {
-    auto Diff = Difference(EB->In, EB->UnionKill[CurrStmt]);
-    return Union(Diff, EB->UnionGen[CurrStmt]);
+    auto Diff = BWUtil.Difference(EB->In, EB->UnionKill[CurrStmt]);
+    return BWUtil.Union(Diff, EB->UnionGen[CurrStmt]);
   }
   return EB->In;
 }
@@ -556,7 +470,7 @@ void BoundsWideningAnalysis::InitNtPtrsInFunc(FunctionDecl *FD) {
   // arrays to the null-terminated arrays that are passed as parameters to the
   // function.
   for (const ParmVarDecl *PD : FD->parameters()) {
-    if (IsNtArrayType(PD))
+    if (BWUtil.IsNtArrayType(PD))
       AllNtPtrsInFunc.insert(PD);
   }
 }
@@ -584,7 +498,7 @@ void BoundsWideningAnalysis::FillStmtGenKillSets(ElevatedCFGBlock *EB,
 void BoundsWideningAnalysis::GetVarsAndBoundsInDecl(
   ElevatedCFGBlock *EB, const VarDecl *V, BoundsMapTy &VarsAndBounds) {
 
-  if (IsNtArrayType(V)) {
+  if (BWUtil.IsNtArrayType(V)) {
     BoundsExpr *NormalizedBounds = SemaRef.NormalizeBounds(V);
     VarsAndBounds[V] = dyn_cast<RangeBoundsExpr>(NormalizedBounds);
   }
@@ -602,7 +516,7 @@ void BoundsWideningAnalysis::GetVarsAndBoundsInWhereClause(
       continue;
 
     VarDecl *V = BF->Var;
-    if (IsNtArrayType(V)) {
+    if (BWUtil.IsNtArrayType(V)) {
       BoundsExpr *NormalizedBounds = SemaRef.ExpandBoundsToRange(V, BF->Bounds);
       VarsAndBounds[V] = dyn_cast<RangeBoundsExpr>(NormalizedBounds);
     }
@@ -613,13 +527,13 @@ void BoundsWideningAnalysis::GetVarsAndBoundsInPtrDeref(
   ElevatedCFGBlock *EB, BoundsMapTy &VarsAndBounds) {
 
   // Get the terminating condition of the block.
-  Expr *TermCond = GetTerminatorCondition(EB->Block);
+  Expr *TermCond = BWUtil.GetTerminatorCondition(EB->Block);
   if (!TermCond)
     return;
 
   // If the terminating condition is a dereference expression get that
   // expression.
-  Expr *DerefExpr = GetDerefExpr(TermCond);
+  Expr *DerefExpr = BWUtil.GetDerefExpr(TermCond);
   if (!DerefExpr)
     return;
 
@@ -631,11 +545,11 @@ void BoundsWideningAnalysis::GetVarsAndBoundsInPtrDeref(
   // variables that occur in the dereference expression. For example: *(p + i +
   // j) can widen p iff p, i and j all occur in upper_bound(p).
   VarSetTy VarsToWiden;
-  GetVarsToWiden(DerefExpr, VarsToWiden);
+  BWUtil.GetVarsToWiden(DerefExpr, VarsToWiden);
 
   RangeBoundsExpr *R = nullptr;
   for (const VarDecl *V : VarsToWiden) {
-    if (!IsNtArrayType(V))
+    if (!BWUtil.IsNtArrayType(V))
       continue;
 
     if (!R) {
@@ -649,7 +563,7 @@ void BoundsWideningAnalysis::GetVarsAndBoundsInPtrDeref(
       // bounds. But this may be incorrect in case a where clause redeclares
       // the lower bound. This needs to be handled.
       R = new (Ctx) RangeBoundsExpr(RBE->getLowerExpr(),
-                                    GetWidenedExpr(DerefExpr, 1),
+                                    BWUtil.AddOffsetToExpr(DerefExpr, 1),
                                     SourceLocation(), SourceLocation());
     }
 
@@ -662,323 +576,15 @@ void BoundsWideningAnalysis::AddModifiedVarsToStmtKillSet(
 
   // Get variables modified by CurrStmt or statements nested in CurrStmt.
   VarSetTy ModifiedVars;
-  GetModifiedVars(CurrStmt, ModifiedVars);
+  BWUtil.GetModifiedVars(CurrStmt, ModifiedVars);
 
-  // If a modified variable occurs in the lower or upper bounds expression of a
-  // null-terminated array then the bounds of that null-terminated array should
-  // be killed.
-  for (const VarDecl *ModifiedVar : ModifiedVars) {
-    auto PtrVarIt = BoundsVarsLower.find(ModifiedVar);
-    if (PtrVarIt != BoundsVarsLower.end()) {
-      for (const VarDecl *V : PtrVarIt->second)
-        EB->StmtKill[CurrStmt].insert(V);
-    }
+  // Get the set of variables that are pointers to null-terminated arrays in
+  // whose bounds expressions the modified variables occur.
+  VarSetTy PtrsWithVarsInBounds;
+  BWUtil.GetPtrsWithVarsInBounds(ModifiedVars, PtrsWithVarsInBounds);
 
-    PtrVarIt = BoundsVarsUpper.find(ModifiedVar);
-    if (PtrVarIt != BoundsVarsUpper.end()) {
-      for (const VarDecl *V : PtrVarIt->second)
-        EB->StmtKill[CurrStmt].insert(V);
-    }
-  }
-}
-
-
-void BoundsWideningAnalysis::GetVarsToWiden(Expr *E,
-                                            VarSetTy &VarsToWiden) const {
-  // Determine the set of variables that can be widened in an expression.
-  if (!E)
-    return;
-
-  // Get all variables that occur in the expression.
-  VarSetTy VarsInExpr;
-  GetVarsInExpr(E, VarsInExpr);
-
-  // If we have the following declarations:
-  // _Nt_array_ptr<T> p : bounds(p + i, p + x + y);
-  // _Nt_array_ptr<T> q : bounds(q + j, q + x + z);
-  // Then BoundsVarsUpper contains the following entries:
-  // p : {p}
-  // q : {q}
-  // x : {p, q}
-  // y : {p}
-  // z : {q}
-  VarSetTy PtrsWithVarInUpperBounds;
-  for (const VarDecl *V : VarsInExpr) {
-    // Get the set of null-terminated arrays in whose upper bounds expressions
-    // V occurs.
-    auto PtrVarIt = BoundsVarsUpper.find(V);
-
-    // If V does not appear in the upper bounds expression of any
-    // null-terminated array then expression E cannot potentially widen the
-    // bounds of any null-terminated array.
-    if (PtrVarIt == BoundsVarsUpper.end())
-      return;
-
-    if (PtrsWithVarInUpperBounds.empty())
-      PtrsWithVarInUpperBounds = PtrVarIt->second;
-    else
-      PtrsWithVarInUpperBounds = Intersect(PtrsWithVarInUpperBounds,
-                                           PtrVarIt->second);
-
-    // If the intersection of PtrsWithVarInUpperBounds is empty then expression
-    // E cannot potentially widen the bounds of any null-terminated array.
-    if (PtrsWithVarInUpperBounds.empty())
-      return;
-  }
-
-  // Gather the set of variables occurring in the upper bounds expression of
-  // each pointer.
-  // If we have the following declarations:
-  // _Nt_array_ptr<T> p : bounds(p + i, p + x + y);
-  // _Nt_array_ptr<T> q : bounds(q + j, q + x + z);
-  // Then VarsInBounds would contain the following entries:
-  // p : {p, x, y}
-  // q : {q, x, z}
-  BoundsVarsTy VarsInBounds;
-  for (auto Pair : BoundsVarsUpper) {
-    const VarDecl *V = Pair.first;
-    for (const VarDecl *Ptr : Pair.second) {
-      if (PtrsWithVarInUpperBounds.count(Ptr))
-        VarsInBounds[Ptr].insert(V);
-    }
-  }
-
-  // If the number of variables occurring in the upper bounds expression of
-  // each pointer in PtrsWithVarInUpperBounds is equal to the number of
-  // variables occurring in the dereference expression then that pointer can
-  // potentially be widened.
-  for (const VarDecl *Ptr : PtrsWithVarInUpperBounds) {
-    if (VarsInExpr.size() == VarsInBounds[Ptr].size())
-      VarsToWiden.insert(Ptr);
-  }
-}
-
-void BoundsWideningAnalysis::GetModifiedVars(const Stmt *CurrStmt,
-                                             VarSetTy &ModifiedVars) const {
-  // Get all variables modified by CurrStmt or statements nested in CurrStmt.
-  if (!CurrStmt)
-    return;
-
-  Expr *E = nullptr;
-
-  // If the variable is modified using a unary operator, like ++I or I++.
-  if (const auto *UO = dyn_cast<const UnaryOperator>(CurrStmt)) {
-    if (UO->isIncrementDecrementOp()) {
-      assert(UO->getSubExpr() && "invalid UnaryOperator expression");
-      E = IgnoreCasts(UO->getSubExpr());
-    }
-
-  // Else if the variable is being assigned to, like I = ...
-  } else if (const auto *BO = dyn_cast<const BinaryOperator>(CurrStmt)) {
-    if (BO->isAssignmentOp())
-      E = IgnoreCasts(BO->getLHS());
-  }
-
-  if (const auto *D = dyn_cast_or_null<DeclRefExpr>(E))
-    if (const auto *V = dyn_cast_or_null<VarDecl>(D->getDecl()))
-      ModifiedVars.insert(V);
-
-  for (const Stmt *NestedStmt : CurrStmt->children())
-    GetModifiedVars(NestedStmt, ModifiedVars);
-}
-
-Expr *BoundsWideningAnalysis::GetWidenedExpr(Expr *E, unsigned Offset) const {
-  // Returns the expression E + Offset.
-  // Note: This function only returns the expression E + Offset and does not
-  // actually evaluate the expression. So if E does not overflow then E +
-  // Offset does not overflow here. However, E + Offset may later overflow when
-  // the preorder AST performs constant folding, for example in case E is e +
-  // MAX_INT and Offset is 1.
-
-  const llvm::APInt
-    APIntOff(Ctx.getTargetInfo().getPointerWidth(0), Offset);
-
-  IntegerLiteral *WidenedOffset =
-    ExprCreatorUtil::CreateIntegerLiteral(Ctx, APIntOff);
-
-  return ExprCreatorUtil::CreateBinaryOperator(SemaRef, E, WidenedOffset,
-                                               BinaryOperatorKind::BO_Add);
-}
-
-Expr *BoundsWideningAnalysis::GetTerminatorCondition(const Expr *E) const {
-  if (!E)
-    return nullptr;
-
-  if (const auto *BO = dyn_cast<BinaryOperator>(E->IgnoreParens()))
-    return GetTerminatorCondition(BO->getRHS());
-
-  // According to C11 standard section 6.5.13, the logical AND Operator shall
-  // yield 1 if both of its operands compare unequal to 0; otherwise, it yields
-  // 0. The result has type int.  An IntegralCast is generated for "if (*p &&
-  // *(p + 1))", where p is _Nt_array_ptr<T>.  Here we strip off the
-  // IntegralCast.
-  if (auto *CE = dyn_cast<CastExpr>(E))
-    if (CE->getCastKind() == CastKind::CK_IntegralCast)
-      return const_cast<Expr *>(CE->getSubExpr());
-  return const_cast<Expr *>(E);
-}
-
-Expr *BoundsWideningAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
-  if (!B)
-    return nullptr;
-
-  if (const Stmt *S = B->getTerminatorStmt()) {
-    if (const auto *BO = dyn_cast<BinaryOperator>(S))
-      return GetTerminatorCondition(BO->getLHS());
-
-    if (const auto *IfS = dyn_cast<IfStmt>(S))
-      return GetTerminatorCondition(IfS->getCond());
-
-    if (const auto *WhileS = dyn_cast<WhileStmt>(S))
-      return const_cast<Expr *>(WhileS->getCond());
-
-    if (const auto *ForS = dyn_cast<ForStmt>(S))
-      return const_cast<Expr *>(ForS->getCond());
-
-    if (const auto *SwitchS = dyn_cast<SwitchStmt>(S)) {
-      // According to C11 standard section 6.8.4.2, the controlling
-      // expression of a switch shall have integer type. If we have switch(*p)
-      // where p is _Nt_array_ptr<char> then it is casted to integer type and
-      // an IntegralCast is generated. GetTerminatorCondition() will strip off
-      // the IntegralCast.
-      return GetTerminatorCondition(SwitchS->getCond());
-    }
-  }
-  return nullptr;
-}
-
-Expr *BoundsWideningAnalysis::GetDerefExpr(Expr *E) const {
-  // A dereference expression can contain an array subscript or a pointer
-  // dereference.
-  if (!E)
-    return nullptr;
-
-  if (auto *CE = dyn_cast<CastExpr>(E))
-    if (CE->getCastKind() == CastKind::CK_LValueToRValue)
-      E = CE->getSubExpr();
-
-  E = IgnoreCasts(E);
-
-  // If a dereference expression is of the form "*(p + i)".
-  if (auto *UO = dyn_cast<UnaryOperator>(E)) {
-    if (UO->getOpcode() == UO_Deref)
-      return IgnoreCasts(UO->getSubExpr());
-
-  // Else if a dereference expression is an array access. An array access can
-  // be written A[i] or i[A] (both are equivalent).  getBase() and getIdx()
-  // always present the normalized view: A[i]. In this case getBase() returns
-  // "A" and getIdx() returns "i".
-
-  // TODO: Currently we normalize A[i] to "A + i" and return that as the
-  // dereference expression because we need to extract the variables that occur
-  // in the deref expression in the function GetVarsInExpr. But once we change
-  // this analysis to use AbstractSets we no longer need to normalize the
-  // expression here and can simply return the ArraySubscriptExpr from this
-  // function.
-  } else if (auto *AE = dyn_cast<ArraySubscriptExpr>(E)) {
-    return ExprCreatorUtil::CreateBinaryOperator(SemaRef, AE->getBase(),
-                                                 AE->getIdx(),
-                                                 BinaryOperatorKind::BO_Add);
-  }
-  return nullptr;
-}
-
-void BoundsWideningAnalysis::GetVarsInExpr(Expr *E,
-                                           VarSetTy &VarsInExpr) const {
-  // Get the VarDecls of all variables occurring in an expression.
-
-  // TODO: Currently this function returns a subset of all variables that occur
-  // in an expression. It returns only the top-level variables that appear in
-  // an expression. For example, in the expression "a + b - c" it returns {a,
-  // b, c}. It does not return variables that are members of a struct or
-  // arguments of a function call, etc.
-  // In future, when we change this analysis to use AbstractSets, this function
-  // can handle an expression like "s->f + func(x)" and return {s, f, x} as the
-  // set of variables that occur in the expression.
-
-  if (!E)
-    return;
-
-  if (auto *CE = dyn_cast<CastExpr>(E))
-    if (CE->getCastKind() == CastKind::CK_LValueToRValue)
-      E = CE->getSubExpr();
-
-  E = IgnoreCasts(E);
-
-  // Get variables in an expression like *e.
-  if (const auto *UO = dyn_cast<const UnaryOperator>(E)) {
-      GetVarsInExpr(UO->getSubExpr(), VarsInExpr);
-
-  // Get variables in an expression like e1 + e2.
-  } else if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
-    GetVarsInExpr(BO->getLHS(), VarsInExpr);
-    GetVarsInExpr(BO->getRHS(), VarsInExpr);
-  }
-
-  if (const auto *D = dyn_cast<DeclRefExpr>(E)) {
-    if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
-      if (!V->isInvalidDecl())
-        VarsInExpr.insert(V);
-  }
-}
-
-Expr *BoundsWideningAnalysis::IgnoreCasts(const Expr *E) const {
-  return Lex.IgnoreValuePreservingOperations(Ctx, const_cast<Expr *>(E));
-}
-
-bool BoundsWideningAnalysis::SkipBlock(const CFGBlock *B) const {
-  return !B || B == &Cfg->getExit();
-}
-
-bool BoundsWideningAnalysis::IsNtArrayType(const VarDecl *V) const {
-  return V && (V->getType()->isCheckedPointerNtArrayType() ||
-               V->getType()->isNtCheckedArrayType());
-}
-
-bool BoundsWideningAnalysis::IsSubRange(RangeBoundsExpr *B1,
-                                        RangeBoundsExpr *B2) const {
-  // If B2 is a subrange of B1, then
-  // B2.Lower >= B1.Lower and B2.Upper <= B1.Upper
-
-  // Examples:
-  // B1 = bounds(p, p + 5) and B2 = bounds(p + 1, p + 3) ==> True
-  // B1 = bounds(p, p + 5) and B2 = bounds(p, p + 5) ==> True
-  // B1 = bounds(p, p + 5) and B2 = bounds(p, p + 2) ==> True
-  // B1 = bounds(p, p + 5) and B2 = bounds(p + 4, p + 5) ==> True
-  // B1 = bounds(p, p + 5) and B2 = bounds(p, p) ==> True
-  // B1 = bounds(p, p + 5) and B2 = bounds(p + 5, p + 5) ==> True
-  // B1 = bounds(p, p + 5) and B2 = bounds(p, p + 6) ==> False
-  // B1 = bounds(p, p + 5) and B2 = bounds(p - 1, p + 1) ==> False
-  // B1 = bounds(p, p + 5) and B2 = bounds(p + 6, p + 10) ==> False
-  // B1 = bounds(p + 5, p + 6) and B2 = bounds(p, p + 5) ==> False
-  // B1 = bounds(p, p + 5) and B2 = bounds(p, p + x) ==> False
-  // B1 = bounds(p, p + x) and B2 = bounds(p, p + x + y) ==> False
-
-  // To determine if B2 is a subrange of B1 we check if:
-  // B2.Lower - B1.Lower >= 0 and B1.Upper - B2.Upper >= 0
-
-  Expr *Lower1 = B1->getLowerExpr();
-  Expr *Upper1 = B1->getUpperExpr();
-
-  Expr *Lower2 = B2->getLowerExpr();
-  Expr *Upper2 = B2->getUpperExpr();
-
-  llvm::APSInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
-  llvm::APSInt Offset;
-
-  // Lex.GetExprIntDiff returns false if the two input expressions are not
-  // comparable. This may happen if either of the expressions contains a
-  // variable that is not present in the other.
-  if (!Lex.GetExprIntDiff(Lower2, Lower1, Offset))
-    return false;
-
-  if (llvm::APSInt::compareValues(Offset, Zero) < 0)
-    return false;
-
-  if (!Lex.GetExprIntDiff(Upper1, Upper2, Offset))
-    return false;
-
-  return llvm::APSInt::compareValues(Offset, Zero) >= 0;
+  for (const VarDecl *V : PtrsWithVarsInBounds)
+    EB->StmtKill[CurrStmt].insert(V);
 }
 
 void BoundsWideningAnalysis::DumpWidenedBounds(FunctionDecl *FD) {
@@ -1085,13 +691,434 @@ OrderedBlocksTy BoundsWideningAnalysis::GetOrderedBlocks() const {
     });
   return OrderedBlocks;
 }
+// end of methods for the BoundsWideningAnalysis class.
 
-// TODO: Move the templated (not specialized) set operation functions to a
-// common header.
+//===---------------------------------------------------------------------===//
+// Implementation of the methods in the BoundsWideningUtil class. This class
+// contains helper methods that are used by the BoundsWideningAnalysis class to
+// perform the dataflow analysis.
+//===---------------------------------------------------------------------===//
+
+bool BoundsWideningUtil::IsSubRange(RangeBoundsExpr *B1,
+                                    RangeBoundsExpr *B2) const {
+  // If B2 is a subrange of B1, then
+  // B2.Lower >= B1.Lower and B2.Upper <= B1.Upper
+
+  // Examples:
+  // B1 = bounds(p, p + 5) and B2 = bounds(p + 1, p + 3) ==> True
+  // B1 = bounds(p, p + 5) and B2 = bounds(p, p + 5) ==> True
+  // B1 = bounds(p, p + 5) and B2 = bounds(p, p + 2) ==> True
+  // B1 = bounds(p, p + 5) and B2 = bounds(p + 4, p + 5) ==> True
+  // B1 = bounds(p, p + 5) and B2 = bounds(p, p) ==> True
+  // B1 = bounds(p, p + 5) and B2 = bounds(p + 5, p + 5) ==> True
+  // B1 = bounds(p, p + 5) and B2 = bounds(p, p + 6) ==> False
+  // B1 = bounds(p, p + 5) and B2 = bounds(p - 1, p + 1) ==> False
+  // B1 = bounds(p, p + 5) and B2 = bounds(p + 6, p + 10) ==> False
+  // B1 = bounds(p + 5, p + 6) and B2 = bounds(p, p + 5) ==> False
+  // B1 = bounds(p, p + 5) and B2 = bounds(p, p + x) ==> False
+  // B1 = bounds(p, p + x) and B2 = bounds(p, p + x + y) ==> False
+
+  // To determine if B2 is a subrange of B1 we check if:
+  // B2.Lower - B1.Lower >= 0 and B1.Upper - B2.Upper >= 0
+
+  Expr *Lower1 = B1->getLowerExpr();
+  Expr *Upper1 = B1->getUpperExpr();
+
+  Expr *Lower2 = B2->getLowerExpr();
+  Expr *Upper2 = B2->getUpperExpr();
+
+  llvm::APSInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
+  llvm::APSInt Offset;
+
+  // Lex.GetExprIntDiff returns false if the two input expressions are not
+  // comparable. This may happen if either of the expressions contains a
+  // variable that is not present in the other.
+  if (!Lex.GetExprIntDiff(Lower2, Lower1, Offset))
+    return false;
+
+  if (llvm::APSInt::compareValues(Offset, Zero) < 0)
+    return false;
+
+  if (!Lex.GetExprIntDiff(Upper1, Upper2, Offset))
+    return false;
+
+  return llvm::APSInt::compareValues(Offset, Zero) >= 0;
+}
+
+bool BoundsWideningUtil::ExistsNullCaseLabel(const CFGBlock *CurrBlock) const {
+  for (const CFGBlock *SuccBlock : CurrBlock->succs()) {
+    if (!SkipBlock(SuccBlock) && CaseLabelTestsForNull(SuccBlock))
+      return true;
+  }
+  return false;
+}
+
+bool BoundsWideningUtil::IsSwitchCaseBlock(const CFGBlock *CurrBlock) const {
+  const Stmt *BlockLabel = CurrBlock->getLabel();
+  return BlockLabel &&
+        (isa<CaseStmt>(BlockLabel) ||
+         isa<DefaultStmt>(BlockLabel));
+}
+
+bool BoundsWideningUtil::CaseLabelTestsForNull(
+  const CFGBlock *CurrBlock) const {
+
+  const Stmt *BlockLabel = CurrBlock->getLabel();
+  assert(BlockLabel && "invalid switch case");
+
+  if (isa<DefaultStmt>(BlockLabel))
+    return false;
+
+  const auto *CS = dyn_cast<CaseStmt>(BlockLabel);
+
+  // We mimic how clang (in SemaStmt.cpp) gets the value of a switch case. It
+  // invokes EvaluateKnownConstInt and we do the same here. SemaStmt has
+  // already extended/truncated the case value to fit the integer range and
+  // EvaluateKnownConstInt gives us that value.
+  const Expr *LHS = CS->getLHS();
+  if (!LHS)
+    return true;
+
+  llvm::APSInt LHSVal = LHS->EvaluateKnownConstInt(Ctx);
+  llvm::APSInt LHSZero (LHSVal.getBitWidth(), LHSVal.isUnsigned());
+  if (llvm::APSInt::compareValues(LHSVal, LHSZero) == 0)
+    return true;
+
+  // If the case statement is not of the form "case LHS ... RHS" (a GNU
+  // extension) then we are done. We only needed to check the LHS value which
+  // is the case label for the current case. We return false because we have
+  // determined that the current case label is non-null.
+  if (!CS->caseStmtIsGNURange())
+    return false;
+
+  // If we reach are here it means we are in a range-base case statement of the
+  // form "case LHS ... RHS" (a GNU extension).
+  const Expr *RHS = CS->getRHS();
+  if (!RHS)
+    return true;
+
+  llvm::APSInt RHSVal = RHS->EvaluateKnownConstInt(Ctx);
+  llvm::APSInt RHSZero (RHSVal.getBitWidth(), RHSVal.isUnsigned());
+  if (llvm::APSInt::compareValues(RHSVal, RHSZero) == 0)
+    return true;
+
+  // Return true if 0 is contained within the range [LHS, RHS].
+  return (LHSVal <= LHSZero && RHSZero <= RHSVal) ||
+         (LHSVal >= LHSZero && RHSZero >= RHSVal);
+}
+
+bool BoundsWideningUtil::IsFallthroughEdge(const CFGBlock *PredBlock,
+                                           const CFGBlock *CurrBlock) const {
+  // A fallthrough edge between two blocks is always a true edge. If PredBlock
+  // has only one successor and CurrBlock is that successor then it means the
+  // edge between PredBlock and CurrBlock is a fallthrough edge.
+  return PredBlock->succ_size() == 1 &&
+         CurrBlock == *(PredBlock->succs().begin());
+}
+
+bool BoundsWideningUtil::IsTrueEdge(const CFGBlock *PredBlock,
+                                    const CFGBlock *CurrBlock) const {
+  // Return false if PredBlock does not have any successors.
+  if (PredBlock->succ_empty())
+    return false;
+
+  // A fallthrough edge is always a true edge.
+  if (IsFallthroughEdge(PredBlock, CurrBlock))
+    return true;
+
+  // Get the last successor in the list of successors of PredBlock.
+  const CFGBlock *LastSucc = *(PredBlock->succs().end() - 1);
+
+  // If PredBlock has multiple successors, then a successor on a false edge
+  // would always be last in the list of successors of PredBlock.
+  if (CurrBlock == LastSucc)
+    return PredBlock->succ_size() == 1;
+
+  // Check if CurrBlock is a successor of PredBlock. If CurrBlock is not a
+  // successor of PredBlock then there is no edge between PredBlock and
+  // CurrBlock. So return false.
+  for (const CFGBlock *SuccBlock : PredBlock->succs()) {
+    if (CurrBlock == SuccBlock)
+      return true;
+  }
+
+  return false;
+}
+
+void BoundsWideningUtil::GetVarsToWiden(Expr *E, VarSetTy &VarsToWiden) const {
+  // Determine the set of variables that can be widened in an expression.
+  if (!E)
+    return;
+
+  // Get all variables that occur in the expression.
+  VarSetTy VarsInExpr;
+  GetVarsInExpr(E, VarsInExpr);
+
+  // If we have the following declarations:
+  // _Nt_array_ptr<T> p : bounds(p + i, p + x + y);
+  // _Nt_array_ptr<T> q : bounds(q + j, q + x + z);
+  // Then BoundsVarsUpper contains the following entries:
+  // p : {p}
+  // q : {q}
+  // x : {p, q}
+  // y : {p}
+  // z : {q}
+  VarSetTy PtrsWithVarInUpperBounds;
+  for (const VarDecl *V : VarsInExpr) {
+    // Get the set of null-terminated arrays in whose upper bounds expressions
+    // V occurs.
+    auto PtrVarIt = BoundsVarsUpper.find(V);
+
+    // If V does not occur in the upper bounds expression of any
+    // null-terminated array then expression E cannot potentially widen the
+    // bounds of any null-terminated array.
+    if (PtrVarIt == BoundsVarsUpper.end())
+      return;
+
+    if (PtrsWithVarInUpperBounds.empty())
+      PtrsWithVarInUpperBounds = PtrVarIt->second;
+    else
+      PtrsWithVarInUpperBounds = Intersect(PtrsWithVarInUpperBounds,
+                                           PtrVarIt->second);
+
+    // If the intersection of PtrsWithVarInUpperBounds is empty then expression
+    // E cannot potentially widen the bounds of any null-terminated array.
+    if (PtrsWithVarInUpperBounds.empty())
+      return;
+  }
+
+  // Gather the set of variables occurring in the upper bounds expression of
+  // each pointer.
+  // If we have the following declarations:
+  // _Nt_array_ptr<T> p : bounds(p + i, p + x + y);
+  // _Nt_array_ptr<T> q : bounds(q + j, q + x + z);
+  // Then VarsInBounds would contain the following entries:
+  // p : {p, x, y}
+  // q : {q, x, z}
+  BoundsVarsTy VarsInBounds;
+  for (auto Pair : BoundsVarsUpper) {
+    const VarDecl *V = Pair.first;
+    for (const VarDecl *Ptr : Pair.second) {
+      if (PtrsWithVarInUpperBounds.count(Ptr))
+        VarsInBounds[Ptr].insert(V);
+    }
+  }
+
+  // If the number of variables occurring in the upper bounds expression of
+  // each pointer in PtrsWithVarInUpperBounds is equal to the number of
+  // variables occurring in the dereference expression then that pointer can
+  // potentially be widened.
+  for (const VarDecl *Ptr : PtrsWithVarInUpperBounds) {
+    if (VarsInExpr.size() == VarsInBounds[Ptr].size())
+      VarsToWiden.insert(Ptr);
+  }
+}
+
+void BoundsWideningUtil::GetModifiedVars(const Stmt *CurrStmt,
+                                         VarSetTy &ModifiedVars) const {
+  // Get all variables modified by CurrStmt or statements nested in CurrStmt.
+  if (!CurrStmt)
+    return;
+
+  Expr *E = nullptr;
+
+  // If the variable is modified using a unary operator, like ++I or I++.
+  if (const auto *UO = dyn_cast<const UnaryOperator>(CurrStmt)) {
+    if (UO->isIncrementDecrementOp()) {
+      assert(UO->getSubExpr() && "invalid UnaryOperator expression");
+      E = IgnoreCasts(UO->getSubExpr());
+    }
+
+  // Else if the variable is being assigned to, like I = ...
+  } else if (const auto *BO = dyn_cast<const BinaryOperator>(CurrStmt)) {
+    if (BO->isAssignmentOp())
+      E = IgnoreCasts(BO->getLHS());
+  }
+
+  if (const auto *D = dyn_cast_or_null<DeclRefExpr>(E))
+    if (const auto *V = dyn_cast_or_null<VarDecl>(D->getDecl()))
+      ModifiedVars.insert(V);
+
+  for (const Stmt *NestedStmt : CurrStmt->children())
+    GetModifiedVars(NestedStmt, ModifiedVars);
+}
+
+void BoundsWideningUtil::GetPtrsWithVarsInBounds(
+  VarSetTy &Vars, VarSetTy &PtrsWithVarsInBounds) const {
+
+  // Get the set of variables that are pointers to null-terminated arrays in
+  // whose bounds expressions the variables in Vars occur.
+
+  for (const VarDecl *V : Vars) {
+    auto VarPtrIt = BoundsVarsLower.find(V);
+    if (VarPtrIt != BoundsVarsLower.end()) {
+      for (const VarDecl *Ptr : VarPtrIt->second)
+        PtrsWithVarsInBounds.insert(Ptr);
+    }
+
+    VarPtrIt = BoundsVarsUpper.find(V);
+    if (VarPtrIt != BoundsVarsUpper.end()) {
+      for (const VarDecl *Ptr : VarPtrIt->second)
+        PtrsWithVarsInBounds.insert(Ptr);
+    }
+  }
+}
+
+Expr *BoundsWideningUtil::AddOffsetToExpr(Expr *E, unsigned Offset) const {
+  // Returns the expression E + Offset.
+  // Note: This function only returns the expression E + Offset and does not
+  // actually evaluate the expression. So if E does not overflow then E +
+  // Offset does not overflow here. However, E + Offset may later overflow when
+  // the preorder AST performs constant folding, for example in case E is e +
+  // MAX_INT and Offset is 1.
+
+  const llvm::APInt
+    APIntOff(Ctx.getTargetInfo().getPointerWidth(0), Offset);
+
+  IntegerLiteral *WidenedOffset =
+    ExprCreatorUtil::CreateIntegerLiteral(Ctx, APIntOff);
+
+  return ExprCreatorUtil::CreateBinaryOperator(SemaRef, E, WidenedOffset,
+                                               BinaryOperatorKind::BO_Add);
+}
+
+Expr *BoundsWideningUtil::GetTerminatorCondition(const Expr *E) const {
+  if (!E)
+    return nullptr;
+
+  if (const auto *BO = dyn_cast<BinaryOperator>(E->IgnoreParens()))
+    return GetTerminatorCondition(BO->getRHS());
+
+  // According to C11 standard section 6.5.13, the logical AND Operator shall
+  // yield 1 if both of its operands compare unequal to 0; otherwise, it yields
+  // 0. The result has type int.  An IntegralCast is generated for "if (*p &&
+  // *(p + 1))", where p is _Nt_array_ptr<T>.  Here we strip off the
+  // IntegralCast.
+  if (auto *CE = dyn_cast<CastExpr>(E))
+    if (CE->getCastKind() == CastKind::CK_IntegralCast)
+      return const_cast<Expr *>(CE->getSubExpr());
+  return const_cast<Expr *>(E);
+}
+
+Expr *BoundsWideningUtil::GetTerminatorCondition(const CFGBlock *B) const {
+  if (!B)
+    return nullptr;
+
+  if (const Stmt *S = B->getTerminatorStmt()) {
+    if (const auto *BO = dyn_cast<BinaryOperator>(S))
+      return GetTerminatorCondition(BO->getLHS());
+
+    if (const auto *IfS = dyn_cast<IfStmt>(S))
+      return GetTerminatorCondition(IfS->getCond());
+
+    if (const auto *WhileS = dyn_cast<WhileStmt>(S))
+      return const_cast<Expr *>(WhileS->getCond());
+
+    if (const auto *ForS = dyn_cast<ForStmt>(S))
+      return const_cast<Expr *>(ForS->getCond());
+
+    if (const auto *SwitchS = dyn_cast<SwitchStmt>(S)) {
+      // According to C11 standard section 6.8.4.2, the controlling
+      // expression of a switch shall have integer type. If we have switch(*p)
+      // where p is _Nt_array_ptr<char> then it is casted to integer type and
+      // an IntegralCast is generated. GetTerminatorCondition() will strip off
+      // the IntegralCast.
+      return GetTerminatorCondition(SwitchS->getCond());
+    }
+  }
+  return nullptr;
+}
+
+Expr *BoundsWideningUtil::GetDerefExpr(Expr *E) const {
+  // A dereference expression can contain an array subscript or a pointer
+  // dereference.
+  if (!E)
+    return nullptr;
+
+  if (auto *CE = dyn_cast<CastExpr>(E))
+    if (CE->getCastKind() == CastKind::CK_LValueToRValue)
+      E = CE->getSubExpr();
+
+  E = IgnoreCasts(E);
+
+  // If a dereference expression is of the form "*(p + i)".
+  if (auto *UO = dyn_cast<UnaryOperator>(E)) {
+    if (UO->getOpcode() == UO_Deref)
+      return IgnoreCasts(UO->getSubExpr());
+
+  // Else if a dereference expression is an array access. An array access can
+  // be written A[i] or i[A] (both are equivalent).  getBase() and getIdx()
+  // always present the normalized view: A[i]. In this case getBase() returns
+  // "A" and getIdx() returns "i".
+
+  // TODO: Currently we normalize A[i] to "A + i" and return that as the
+  // dereference expression because we need to extract the variables that occur
+  // in the deref expression in the function GetVarsInExpr. But once we change
+  // this analysis to use AbstractSets we no longer need to normalize the
+  // expression here and can simply return the ArraySubscriptExpr from this
+  // function.
+  } else if (auto *AE = dyn_cast<ArraySubscriptExpr>(E)) {
+    return ExprCreatorUtil::CreateBinaryOperator(SemaRef, AE->getBase(),
+                                                 AE->getIdx(),
+                                                 BinaryOperatorKind::BO_Add);
+  }
+  return nullptr;
+}
+
+void BoundsWideningUtil::GetVarsInExpr(Expr *E, VarSetTy &VarsInExpr) const {
+  // Get the VarDecls of all variables occurring in an expression.
+
+  // TODO: Currently this function returns a subset of all variables that occur
+  // in an expression. It returns only the top-level variables that occur in
+  // an expression. For example, in the expression "a + b - c" it returns {a,
+  // b, c}. It does not return variables that are members of a struct or
+  // arguments of a function call, etc.
+  // In future, when we change this analysis to use AbstractSets, this function
+  // can handle an expression like "s->f + func(x)" and return {s, f, x} as the
+  // set of variables that occur in the expression.
+
+  if (!E)
+    return;
+
+  if (auto *CE = dyn_cast<CastExpr>(E))
+    if (CE->getCastKind() == CastKind::CK_LValueToRValue)
+      E = CE->getSubExpr();
+
+  E = IgnoreCasts(E);
+
+  // Get variables in an expression like *e.
+  if (const auto *UO = dyn_cast<const UnaryOperator>(E)) {
+    GetVarsInExpr(UO->getSubExpr(), VarsInExpr);
+
+  // Get variables in an expression like e1 + e2.
+  } else if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
+    GetVarsInExpr(BO->getLHS(), VarsInExpr);
+    GetVarsInExpr(BO->getRHS(), VarsInExpr);
+  }
+
+  if (const auto *D = dyn_cast<DeclRefExpr>(E)) {
+    if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
+      if (!V->isInvalidDecl())
+        VarsInExpr.insert(V);
+  }
+}
+
+Expr *BoundsWideningUtil::IgnoreCasts(const Expr *E) const {
+  return Lex.IgnoreValuePreservingOperations(Ctx, const_cast<Expr *>(E));
+}
+
+bool BoundsWideningUtil::SkipBlock(const CFGBlock *B) const {
+  return !B || B == &Cfg->getExit();
+}
+
+bool BoundsWideningUtil::IsNtArrayType(const VarDecl *V) const {
+  return V && (V->getType()->isCheckedPointerNtArrayType() ||
+               V->getType()->isNtCheckedArrayType());
+}
 
 // Common templated set operation functions.
 template<class T, class U>
-T BoundsWideningAnalysis::Difference(T &A, U &B) const {
+T BoundsWideningUtil::Difference(T &A, U &B) const {
   if (!A.size() || !B.size())
     return A;
 
@@ -1104,7 +1131,7 @@ T BoundsWideningAnalysis::Difference(T &A, U &B) const {
 }
 
 template<class T>
-T BoundsWideningAnalysis::Union(T &A, T &B) const {
+T BoundsWideningUtil::Union(T &A, T &B) const {
   auto CopyA = A;
   for (auto Item : B)
     CopyA.insert(Item);
@@ -1113,7 +1140,7 @@ T BoundsWideningAnalysis::Union(T &A, T &B) const {
 }
 
 template<class T>
-T BoundsWideningAnalysis::Intersect(T &A, T &B) const {
+T BoundsWideningUtil::Intersect(T &A, T &B) const {
   if (!A.size() || !B.size())
     return T();
 
@@ -1126,14 +1153,14 @@ T BoundsWideningAnalysis::Intersect(T &A, T &B) const {
 }
 
 template<class T>
-bool BoundsWideningAnalysis::IsEqual(T &A, T &B) const {
+bool BoundsWideningUtil::IsEqual(T &A, T &B) const {
   return A.size() == B.size() &&
          A.size() == Intersect(A, B).size();
 }
 
 // Template specializations of common set operation functions.
 template<>
-BoundsMapTy BoundsWideningAnalysis::Difference<BoundsMapTy, VarSetTy>(
+BoundsMapTy BoundsWideningUtil::Difference<BoundsMapTy, VarSetTy>(
   BoundsMapTy &A, VarSetTy &B) const {
 
   if (!A.size() || !B.size())
@@ -1148,7 +1175,7 @@ BoundsMapTy BoundsWideningAnalysis::Difference<BoundsMapTy, VarSetTy>(
 }
 
 template<>
-BoundsMapTy BoundsWideningAnalysis::Intersect<BoundsMapTy>(
+BoundsMapTy BoundsWideningUtil::Intersect<BoundsMapTy>(
   BoundsMapTy &A, BoundsMapTy &B) const {
 
   if (!A.size() || !B.size())
@@ -1169,16 +1196,17 @@ BoundsMapTy BoundsWideningAnalysis::Intersect<BoundsMapTy>(
     // Currently, CopyA[V] is BoundsA. Set CopyA[V] to BoundsB if:
     // 1. BoundsA is Top, or
     // 2. BoundsB is not Top and BoundsB is a subrange of BoundsA.
-    if (BoundsA == Top)
+    if (BoundsA == BoundsWideningAnalysis::Top)
       CopyA[V] = BoundsB;
-    else if (BoundsB != Top && IsSubRange(BoundsA, BoundsB))
+    else if (BoundsB != BoundsWideningAnalysis::Top &&
+             IsSubRange(BoundsA, BoundsB))
       CopyA[V] = BoundsB;
   }
   return CopyA;
 }
 
 template<>
-BoundsMapTy BoundsWideningAnalysis::Union<BoundsMapTy>(
+BoundsMapTy BoundsWideningUtil::Union<BoundsMapTy>(
   BoundsMapTy &A, BoundsMapTy &B) const {
 
   auto CopyA = A;
@@ -1189,7 +1217,7 @@ BoundsMapTy BoundsWideningAnalysis::Union<BoundsMapTy>(
 }
 
 template<>
-bool BoundsWideningAnalysis::IsEqual<BoundsMapTy>(
+bool BoundsWideningUtil::IsEqual<BoundsMapTy>(
   BoundsMapTy &A, BoundsMapTy &B) const {
 
   if (A.size() != B.size())
@@ -1206,7 +1234,8 @@ bool BoundsWideningAnalysis::IsEqual<BoundsMapTy>(
     RangeBoundsExpr *BoundsA = VarBoundsIt->second;
     RangeBoundsExpr *BoundsB = VarBoundsPair.second;
 
-    if (BoundsA == Top || BoundsB == Top)
+    if (BoundsA == BoundsWideningAnalysis::Top ||
+        BoundsB == BoundsWideningAnalysis::Top)
       return BoundsA == BoundsB;
 
     if (!Lex.CompareExprSemantically(BoundsA->getUpperExpr(),
@@ -1215,5 +1244,6 @@ bool BoundsWideningAnalysis::IsEqual<BoundsMapTy>(
   }
   return true;
 }
+// end of methods for the BoundsWideningUtil class.
 
 } // end namespace clang

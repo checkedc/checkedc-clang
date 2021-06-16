@@ -22,6 +22,7 @@
 #include "clang/Sema/Sema.h"
 
 namespace clang {
+
   // BoundsMapTy maps a variable that is a pointer to a null-terminated array
   // to its bounds expression.
   using BoundsMapTy = llvm::DenseMap<const VarDecl *, RangeBoundsExpr *>;
@@ -53,19 +54,219 @@ namespace clang {
   // for printing the blocks in a deterministic order.
   using OrderedBlocksTy = std::vector<const CFGBlock *>;
 
-  // The BoundsWideningAnalysis class represents the dataflow analysis for
-  // bounds widening. The sets In, Out, Gen and Kill that are used by the
-  // analysis are members of this class. The class also has methods that act on
-  // these sets to perform the dataflow analysis.
+} // end namespace clang
+
+namespace clang {
+
+  //===-------------------------------------------------------------------===//
+  // Class definition of the BoundsWideningUtil class. This class contains
+  // helper methods that are used by the BoundsWideningAnalysis class to
+  // perform the dataflow analysis. The BoundsWideningAnalysis class is defined
+  // later in this file.
+  //===-------------------------------------------------------------------===//
+
+  class BoundsWideningUtil {
+  private:
+    Sema &SemaRef;
+    CFG *Cfg;
+    ASTContext &Ctx;
+    Lexicographic Lex;
+    BoundsVarsTy &BoundsVarsLower;
+    BoundsVarsTy &BoundsVarsUpper;
+
+  public:
+    BoundsWideningUtil(Sema &SemaRef, CFG *Cfg,
+                       ASTContext &Ctx, Lexicographic Lex,
+                       BoundsVarsTy &BoundsVarsLower,
+                       BoundsVarsTy &BoundsVarsUpper) :
+      SemaRef(SemaRef), Cfg(Cfg), Ctx(Ctx), Lex(Lex),
+      BoundsVarsLower(BoundsVarsLower), BoundsVarsUpper(BoundsVarsUpper) {}
+
+    // Check if B2 is a subrange of B1.
+    // @param[in] B1 is the first range.
+    // @param[in] B2 is the second range.
+    // @return Returns true if B2 is a subrange of B1, false otherwise.
+    bool IsSubRange(RangeBoundsExpr *B1, RangeBoundsExpr *B2) const;
+
+    // Determine if the switch-case has a case label (other than default) that
+    // tests for null.
+    // @param[in] CurrBlock is the current block.
+    // @return Returns true if the switch-case has a label that tests for null.
+    bool ExistsNullCaseLabel(const CFGBlock *CurrBlock) const;
+
+    // Determine if the current block begins a case of a switch-case.
+    // @param[in] CurrBlock is the current block.
+    // @return Returns true if the current block begins a case.
+    bool IsSwitchCaseBlock(const CFGBlock *CurrBlock) const;
+
+    // Determine if the switch-case label on the current block tests for null.
+    // @param[in] CurrBlock is the current block.
+    // @return Returns true if the case label on the current block tests for
+    // null.
+    bool CaseLabelTestsForNull(const CFGBlock *CurrBlock) const;
+
+    // Determine if the edge from PredBlock to CurrBlock is a fallthrough.
+    // @param[in] PredBlock is a predecessor block of the current block.
+    // @param[in] CurrBlock is the current block.
+    // @return Returns true if the edge is a fallthrough, false otherwise.
+    bool IsFallthroughEdge(const CFGBlock *PredBlock,
+                           const CFGBlock *CurrBlock) const;
+
+    // Determine if the edge from PredBlock to CurrBlock is a true edge.
+    // @param[in] PredBlock is a predecessor block of the current block.
+    // @param[in] CurrBlock is the current block.
+    // @return Returns true if the edge is a true edge, false otherwise.
+    bool IsTrueEdge(const CFGBlock *PredBlock,
+                    const CFGBlock *CurrBlock) const;
+
+    // Get the set of variables that can be potentially widened in an
+    // expression E.
+    // @param[in] E is the given expression.
+    // @param[out] VarsToWiden is a set of variables that can be potentially
+    // widened in expression E.
+    void GetVarsToWiden(Expr *E, VarSetTy &VarsToWiden) const;
+
+    // Get all variables modified by CurrStmt or statements nested in CurrStmt.
+    // @param[in] CurrStmt is a given statement.
+    // @param[out] ModifiedVars is a set of variables modified by CurrStmt or
+    // statements nested in CurrStmt.
+    void GetModifiedVars(const Stmt *CurrStmt, VarSetTy &ModifiedVars) const;
+
+    // Get the set of variables that are pointers to null-terminated arrays in
+    // whose bounds expressions the variables in Vars occur.
+    // @param[in] Vars is a set of variables.
+    // @param[out] PtrsWithVarsInBounds is a set of variables that are pointers
+    // to null-terminated arrays in whose bounds expressions the variables in
+    // Vars occur.
+    void GetPtrsWithVarsInBounds(VarSetTy &Vars,
+                                 VarSetTy &PtrsWithVarsInBounds) const;
+
+    // Add an offset to a given expression.
+    // @param[in] E is the given expression.
+    // @param[in] Offset is the given offset.
+    // @return Returns the expression E + Offset.
+    Expr *AddOffsetToExpr(Expr *E, unsigned Offset) const;
+
+    // From a given terminating condition extract the terminating condition for
+    // the current block. Given an expression like "if (e1 && e2)" this
+    // function returns e2 which is the terminating condition for the current
+    // block.
+    // @param[in] E is given terminating condition.
+    // @return The terminating condition for the block.
+    Expr *GetTerminatorCondition(const Expr *E) const;
+
+    // Use the last statement in a block to get the terminating condition for
+    // the block. This could be an expression of the form "if (e1 && e2)".
+    // @param[in] B is the block for which we need the terminating condition.
+    // @return Expression for the terminating condition of block B.
+    Expr *GetTerminatorCondition(const CFGBlock *B) const;
+
+    // From the given expression get the dereference expression. A dereference
+    // expression can be of the form "*(p + 1)" or "p[1]".
+    // @param[in] E is the given expression.
+    // @return Returns the dereference expression, if it exists.
+    Expr *GetDerefExpr(Expr *E) const;
+
+    // Get the variables occurring in an expression.
+    // @param[in] E is the given expression.
+    // @param[out] VarsInExpr is a set of variables that occur in E.
+    void GetVarsInExpr(Expr *E, VarSetTy &VarsInExpr) const;
+
+    // Invoke IgnoreValuePreservingOperations to strip off casts.
+    // @param[in] E is the expression whose casts must be stripped.
+    // @return E with casts stripped off.
+    Expr *IgnoreCasts(const Expr *E) const;
+
+    // We do not want to run dataflow analysis on null blocks or the exit
+    // block. So we skip them.
+    // @param[in] B is the block which may need to be skipped from dataflow
+    // analysis.
+    // @return Whether B should be skipped.
+    bool SkipBlock(const CFGBlock *B) const;
+
+    // Check if V is an _Nt_array_ptr or an _Nt_checked array.
+    // @param[in] V is a VarDecl.
+    // @return Whether V is an _Nt_array_ptr or an _Nt_checked array.
+    bool IsNtArrayType(const VarDecl *V) const;
+
+    // Compute the set difference of sets A and B.
+    // @param[in] A is a set.
+    // @param[in] B is a set.
+    // @return The set difference of sets A and B.
+    template<class T, class U>
+    T Difference(T &A, U &B) const;
+
+    // Compute the intersection of sets A and B.
+    // @param[in] A is a set.
+    // @param[in] B is a set.
+    // @return The intersection of sets A and B.
+    template<class T>
+    T Intersect(T &A, T &B) const;
+
+    // Compute the union of sets A and B.
+    // @param[in] A is a set.
+    // @param[in] B is a set.
+    // @return The union of sets A and B.
+    template<class T>
+    T Union(T &A, T &B) const;
+
+    // Determine whether sets A and B are equal. Equality is determined by
+    // comparing each element in the two input sets.
+    // @param[in] A is a set.
+    // @param[in] B is a set.
+    // @return Whether sets A and B are equal.
+    template<class T>
+    bool IsEqual(T &A, T &B) const;
+
+  }; // end of BoundsWideningUtil class.
+
+  // Note: Template specializations of a class member must be present at the
+  // same namespace level as the class. So we need to declare template
+  // specializations outside the class declaration.
+
+  // Template specialization for computing the difference between BoundsMapTy
+  // and VarSetTy.
+  template<>
+  BoundsMapTy BoundsWideningUtil::Difference<BoundsMapTy, VarSetTy>(
+    BoundsMapTy &A, VarSetTy &B) const;
+
+  // Template specialization for computing the union of BoundsMapTy.
+  template<>
+  BoundsMapTy BoundsWideningUtil::Union<BoundsMapTy>(
+    BoundsMapTy &A, BoundsMapTy &B) const;
+
+  // Template specialization for computing the intersection of BoundsMapTy.
+  template<>
+  BoundsMapTy BoundsWideningUtil::Intersect<BoundsMapTy>(
+    BoundsMapTy &A, BoundsMapTy &B) const;
+
+  // Template specialization for determining the equality of BoundsMapTy.
+  template<>
+  bool BoundsWideningUtil::IsEqual<BoundsMapTy>(
+    BoundsMapTy &A, BoundsMapTy &B) const;
+
+} // end namespace clang
+
+namespace clang {
+  //===-------------------------------------------------------------------===//
+  // Implementation of the methods in the BoundsWideningAnalysis class. This is
+  // the main class that implements the dataflow analysis for bounds widening
+  // of null-terminated arrays. The BoundsWideningAnalysis class represents the
+  // dataflow analysis for bounds widening. The sets In, Out, Gen and Kill that
+  // are used by the analysis are members of this class. The class also has
+  // methods that act on these sets to perform the dataflow analysis. This
+  // class uses helper methods from the BoundsWideningUtil class that are
+  // defined later in this file.
+  //===-------------------------------------------------------------------===//
+
   class BoundsWideningAnalysis {
   private:
     Sema &SemaRef;
     CFG *Cfg;
     ASTContext &Ctx;
-    BoundsVarsTy &BoundsVarsLower;
-    BoundsVarsTy &BoundsVarsUpper;
     Lexicographic Lex;
     llvm::raw_ostream &OS;
+    BoundsWideningUtil BWUtil;
 
     class ElevatedCFGBlock {
     public:
@@ -88,9 +289,11 @@ namespace clang {
       Expr *TermCondDerefExpr = nullptr;
 
       ElevatedCFGBlock(const CFGBlock *B) : Block(B) {}
-    }; // end class ElevatedCFGBlock
+
+    }; // end of ElevatedCFGBlock class.
 
   private:
+
     // BlockMapTy denotes the mapping from CFGBlocks to ElevatedCFGBlocks.
     using BlockMapTy = llvm::DenseMap<const CFGBlock *, ElevatedCFGBlock *>;
 
@@ -105,18 +308,19 @@ namespace clang {
     // AllNtPtrsInFunc denotes all variables in the function that are pointers
     // to null-terminated arrays.
     VarSetTy AllNtPtrsInFunc;
-
-    // Top is a special bounds expression that denotes the super set of all
-    // bounds expressions.
-    RangeBoundsExpr *Top;
   
   public:
+    // Top is a special bounds expression that denotes the super set of all
+    // bounds expressions.
+    static constexpr RangeBoundsExpr *Top = nullptr;
+
     BoundsWideningAnalysis(Sema &SemaRef, CFG *Cfg,
                            BoundsVarsTy &BoundsVarsLower,
                            BoundsVarsTy &BoundsVarsUpper) :
       SemaRef(SemaRef), Cfg(Cfg), Ctx(SemaRef.Context),
-      BoundsVarsLower(BoundsVarsLower), BoundsVarsUpper(BoundsVarsUpper),
-      Lex(Lexicographic(Ctx, nullptr)), OS(llvm::outs()), Top(nullptr) {}
+      Lex(Lexicographic(Ctx, nullptr)), OS(llvm::outs()),
+      BWUtil(BoundsWideningUtil(SemaRef, Cfg, Ctx, Lex,
+                                BoundsVarsLower, BoundsVarsUpper)) {}
 
     // Run the dataflow analysis to widen bounds for null-terminated arrays.
     // @param[in] FD is the current function.
@@ -172,37 +376,6 @@ namespace clang {
     // @return The pruned Out set for PredEB.
     BoundsMapTy PruneOutSet(ElevatedCFGBlock *PredEB,
                             ElevatedCFGBlock *CurrEB) const;
-
-    // Determine if the switch-case has a case label (other than default) that
-    // tests for null.
-    // @param[in] CurrBlock is the current block.
-    // @return Returns true if the switch-case has a label that tests for null.
-    bool ExistsNullCaseLabel(const CFGBlock *CurrBlock) const;
-
-    // Determine if the current block begins a case of a switch-case.
-    // @param[in] CurrBlock is the current block.
-    // @return Returns true if the current block begins a case.
-    bool IsSwitchCaseBlock(const CFGBlock *CurrBlock) const;
-
-    // Determine if the switch-case label on the current block tests for null.
-    // @param[in] CurrBlock is the current block.
-    // @return Returns true if the case label on the current block tests for
-    // null.
-    bool CaseLabelTestsForNull(const CFGBlock *CurrBlock) const;
-
-    // Determine if the edge from PredBlock to CurrBlock is a fallthrough.
-    // @param[in] PredBlock is a predecessor block of the current block.
-    // @param[in] CurrBlock is the current block.
-    // @return Returns true if the edge is a fallthrough, false otherwise.
-    bool IsFallthroughEdge(const CFGBlock *PredBlock,
-                           const CFGBlock *CurrBlock) const;
-
-    // Determine if the edge from PredBlock to CurrBlock is a true edge.
-    // @param[in] PredBlock is a predecessor block of the current block.
-    // @param[in] CurrBlock is the current block.
-    // @return Returns true if the edge is a true edge, false otherwise.
-    bool IsTrueEdge(const CFGBlock *PredBlock,
-                    const CFGBlock *CurrBlock) const;
 
     // Initialize the list of variables that are pointers to null-terminated
     // arrays to the null-terminated arrays that are passed as parameters to
@@ -260,67 +433,6 @@ namespace clang {
     void AddModifiedVarsToStmtKillSet(ElevatedCFGBlock *EB,
                                       const Stmt *CurrStmt);
 
-    // Get the set of variables that can be potentially widened in an
-    // expression E.
-    // @param[in] E is the given expression.
-    // @param[out] VarsToWiden is a set of variables that can be potentially
-    // widened in expression E.
-    void GetVarsToWiden(Expr *E, VarSetTy &VarsToWiden) const;
-
-    // Get all variables modified by CurrStmt or statements nested in CurrStmt.
-    // @param[in] CurrStmt is a given statement.
-    // @param[out] ModifiedVars is a set of variables modified by CurrStmt or
-    // statements nested in CurrStmt.
-    void GetModifiedVars(const Stmt *CurrStmt, VarSetTy &ModifiedVars) const;
-
-    // Add an offset to a given expression to get the widened expression.
-    // @param[in] E is the given expression.
-    // @param[in] Offset is the given offset.
-    // @return Returns the expression E + Offset.
-    Expr *GetWidenedExpr(Expr *E, unsigned Offset) const;
-
-    // From a given terminating condition extract the terminating condition for
-    // the current block. Given an expression like "if (e1 && e2)" this
-    // function returns e2 which is the terminating condition for the current
-    // block.
-    // @param[in] E is given terminating condition.
-    // @return The terminating condition for the block.
-    Expr *GetTerminatorCondition(const Expr *E) const;
-
-    // Use the last statement in a block to get the terminating condition for
-    // the block. This could be an expression of the form "if (e1 && e2)".
-    // @param[in] B is the block for which we need the terminating condition.
-    // @return Expression for the terminating condition of block B.
-    Expr *GetTerminatorCondition(const CFGBlock *B) const;
-
-    // From the given expression get the dereference expression. A dereference
-    // expression can be of the form "*(p + 1)" or "p[1]".
-    // @param[in] E is the given expression.
-    // @return Returns the dereference expression, if it exists.
-    Expr *GetDerefExpr(Expr *E) const;
-
-    // Get the variables occurring in an expression.
-    // @param[in] E is the given expression.
-    // @param[out] VarsInExpr is a set of variables that occur in E.
-    void GetVarsInExpr(Expr *E, VarSetTy &VarsInExpr) const;
-
-    // Invoke IgnoreValuePreservingOperations to strip off casts.
-    // @param[in] E is the expression whose casts must be stripped.
-    // @return E with casts stripped off.
-    Expr *IgnoreCasts(const Expr *E) const;
-
-    // We do not want to run dataflow analysis on null blocks or the exit
-    // block. So we skip them.
-    // @param[in] B is the block which may need to be skipped from dataflow
-    // analysis.
-    // @return Whether B should be skipped.
-    bool SkipBlock(const CFGBlock *B) const;
-
-    // Check if V is an _Nt_array_ptr or an _Nt_checked array.
-    // @param[in] V is a VarDecl.
-    // @return Whether V is an _Nt_array_ptr or an _Nt_checked array.
-    bool IsNtArrayType(const VarDecl *V) const;
-
     // Get the Out set for the statement. This set represents the bounds
     // widened after the statement.
     // @param[in] EB is the current ElevatedCFGBlock.
@@ -333,69 +445,13 @@ namespace clang {
     // @param[in] CurrStmt is the current statement.
     BoundsMapTy GetStmtIn(ElevatedCFGBlock *EB, const Stmt *CurrStmt) const;
 
-    // Check if B2 is a subrange of B1.
-    // @param[in] B1 is the first range.
-    // @param[in] B2 is the second range.
-    // @return Returns true if B2 is a subrange of B1, false otherwise.
-    bool IsSubRange(RangeBoundsExpr *B1, RangeBoundsExpr *B2) const;
-
     // Order the blocks by block number to get a deterministic iteration order
     // for the blocks.
     // @return Blocks ordered by block number from higher to lower since block
     // numbers decrease from entry to exit.
     OrderedBlocksTy GetOrderedBlocks() const;
 
-    // Compute the set difference of sets A and B.
-    // @param[in] A is a set.
-    // @param[in] B is a set.
-    // @return The set difference of sets A and B.
-    template<class T, class U> T Difference(T &A, U &B) const;
-
-    // Compute the intersection of sets A and B.
-    // @param[in] A is a set.
-    // @param[in] B is a set.
-    // @return The intersection of sets A and B.
-    template<class T> T Intersect(T &A, T &B) const;
-
-    // Compute the union of sets A and B.
-    // @param[in] A is a set.
-    // @param[in] B is a set.
-    // @return The union of sets A and B.
-    template<class T> T Union(T &A, T &B) const;
-
-    // Determine whether sets A and B are equal. Equality is determined by
-    // comparing each element in the two input sets.
-    // @param[in] A is a set.
-    // @param[in] B is a set.
-    // @return Whether sets A and B are equal.
-    template<class T> bool IsEqual(T &A, T &B) const;
-
-  }; // end class BoundsWideningAnalysis
-
-  // Note: Template specializations of a class member must be present at the
-  // same namespace level as the class. So we need to declare template
-  // specializations outside the class declaration.
-
-  // Template specialization for computing the difference between BoundsMapTy
-  // and VarSetTy.
-  template<>
-  BoundsMapTy BoundsWideningAnalysis::Difference<BoundsMapTy, VarSetTy>(
-    BoundsMapTy &A, VarSetTy &B) const;
-
-  // Template specialization for computing the union of BoundsMapTy.
-  template<>
-  BoundsMapTy BoundsWideningAnalysis::Union<BoundsMapTy>(
-    BoundsMapTy &A, BoundsMapTy &B) const;
-
-  // Template specialization for computing the intersection of BoundsMapTy.
-  template<>
-  BoundsMapTy BoundsWideningAnalysis::Intersect<BoundsMapTy>(
-    BoundsMapTy &A, BoundsMapTy &B) const;
-
-  // Template specialization for determining the equality of BoundsMapTy.
-  template<>
-  bool BoundsWideningAnalysis::IsEqual<BoundsMapTy>(
-    BoundsMapTy &A, BoundsMapTy &B) const;
+  }; // end of BoundsWideningAnalysis class.
 
 } // end namespace clang
 #endif
