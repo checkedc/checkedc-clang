@@ -73,34 +73,14 @@ void f2() {
 }
 
 void f3(_Nt_array_ptr<char> p : count(0)) {
-  if (p[0] && p[1] && 2[p]) {
+  if ((((0[p]))) && (((p[1]))) && ((p[2]))) {
     a = 1;
   }
 
-  if ((((0[p]))) && (((p[1]))) && ((p[2]))) {
-    a = 2;
-  }
-
 // CHECK: Function: f3
-// CHECK: Block: B9, Pred: Succ: B8
+// CHECK: Block: B5, Pred: Succ: B4
 
-// CHECK: Block: B8, Pred: B9, Succ: B7, B4
-// CHECK:   Widened bounds before stmt: p[0]
-// CHECK:     p: bounds(p, p + 0)
-
-// CHECK: Block: B7, Pred: B8, Succ: B6, B4
-// CHECK:   Widened bounds before stmt: p[1]
-// CHECK:     p: bounds(p, p + 0 + 1)
-
-// CHECK: Block: B6, Pred: B7, Succ: B5, B4
-// CHECK:   Widened bounds before stmt: 2[p]
-// CHECK:     p: bounds(p, p + 1 + 1)
-
-// CHECK: Block: B5, Pred: B6, Succ: B4
-// CHECK:   Widened bounds before stmt: a = 1
-// CHECK:     p: bounds(p, p + 2 + 1)
-
-// CHECK: Block: B4, Pred: B5, B6, B7, B8, Succ: B3, B0
+// CHECK: Block: B4, Pred: B5, Succ: B3, B0
 // CHECK:   Widened bounds before stmt: (((0[p])))
 // CHECK:     p: bounds(p, p + 0)
 
@@ -113,7 +93,7 @@ void f3(_Nt_array_ptr<char> p : count(0)) {
 // CHECK:     p: bounds(p, p + 1 + 1)
 
 // CHECK: Block: B1, Pred: B2, Succ: B0
-// CHECK:   Widened bounds before stmt: a = 2
+// CHECK:   Widened bounds before stmt: a = 1
 // CHECK:     p: bounds(p, p + 2 + 1)
 }
 
