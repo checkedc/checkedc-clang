@@ -701,3 +701,36 @@ void f86(void) {
   }
   len = 4;
 }
+
+//
+// Test comparing bounds expressions using simple constant folding
+//
+
+extern int simulate_snprintf(char * restrict s : itype(restrict _Nt_array_ptr<char>) count(n - 1), size_t n);
+
+void f87(_Nt_array_ptr<char> p : count(len), size_t len) {
+  // No warning when proving that inferred argument bounds (p, p + len) imply
+  // expected argument bounds (p, p + ((len + 1) - 1))
+  simulate_snprintf(p, len + 1);
+}
+
+void f88(int len) {
+  _Array_ptr<int> p : count(len + 2) = 0;
+  _Array_ptr<int> q : count(len + 2 - 1 + 1) = p;
+}
+
+void f89(_Ptr<int> p) {
+  _Nt_array_ptr<char> a : count(*p) = 0;
+  _Nt_array_ptr<char> b : count(*p + 2 - 1) = 0;
+  a = b;
+}
+
+struct S3 {
+  _Array_ptr<char> f : count(len - 2 + 1);
+  _Array_ptr<char> g : count(len);
+  int len;
+};
+
+void f90(struct S3 s) {
+  s.f = s.g;
+}
