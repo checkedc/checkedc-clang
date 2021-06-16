@@ -1367,10 +1367,30 @@ namespace {
       }
 
     private:
+      // EnsureEqualBitWidths modifies A or B if necessary so that A and B
+      // have the same bit width. The bit width of A and B will be the larger
+      // of the original bit widths of A and B.
+      //
+      // TODO: this method is part of a temporary solution to enable bounds
+      // checking to validate bounds such as (p, p + (len + 1) - 1). In the
+      // future, we should handle constant folding, commutativity, and
+      // associativity in bounds expressions in a more general way.
+      void EnsureEqualBitWidths(llvm::APSInt &A, llvm::APSInt &B) {
+        if (A.getBitWidth() < B.getBitWidth())
+          A = A.extOrTrunc(B.getBitWidth());
+        else if (B.getBitWidth() < A.getBitWidth())
+          B = B.extOrTrunc(A.getBitWidth());
+      }
+
       // If E is of the form e +/- c, where c is a constant, GetRHSConstant
       // returns true and sets the out parameter Constant.
       // If E is of the form e + c, Constant will be set to c.
       // If E is of the form e - c, Constant will be set to -c.
+      //
+      // TODO: this method is part of a temporary solution to enable bounds
+      // checking to validate bounds such as (p, p + (len + 1) - 1). In the
+      // future, we should handle constant folding, commutativity, and
+      // associativity in bounds expressions in a more general way.
       bool GetRHSConstant(BinaryOperator *E, llvm::APSInt &Constant) {
         if (!E->isAdditiveOp())
           return false;
@@ -1460,6 +1480,55 @@ namespace {
           return false;
       }
 
+      // CompareConstantFoldedUpperOffsets is a fallback method that attempts
+      // to prove that R.UpperOffsetVariable <= this.UpperOffsetVariable.
+      // It returns true if:
+      // 1. this and R are both variable-sized ranges, and:
+      // 2. The upper offsets of this and R can both be constant folded
+      //    according to the definition of ConstantFoldUpperOffset above, and:
+      // 3. The variable parts of the constant folded upper offsets are
+      //    equivalent, and:
+      // 4. The constant upper part of R <= the constant upper part of this.
+      //
+      // Since lexicographically comparing variable upper offsets will not
+      // account for any constant folding, this method can be used to compare
+      // upper offsets that are not lexicographically equivalent.
+      //
+      // TODO: this method is part of a temporary solution to enable bounds
+      // checking to validate bounds such as (p, p + (len + 1) - 1). In the
+      // future, we should handle constant folding, commutativity, and
+      // associativity in bounds expressions in a more general way.
+      bool CompareUpperOffsetsWithConstantFolding(BaseRange &R,
+                                                  EquivExprSets *EquivExprs) {
+        Expr *Variable = nullptr;
+        llvm::APSInt Constant;
+        bool ConstFolded = ConstantFoldUpperOffset(Variable, Constant);
+
+        Expr *RVariable = nullptr;
+        llvm::APSInt RConstant;
+        bool RConstFolded = R.ConstantFoldUpperOffset(RVariable, RConstant);
+
+        // If neither this nor R had their upper offsets constant folded, then
+        // the variable parts will be the respective upper offsets and the
+        // constant will both be 0. We already know the upper offsets are not
+        // equal from comparing them in CompareUpperOffsets, so there is no
+        // need for further comparison here.
+        if (!ConstFolded && !RConstFolded)
+          return false;
+
+        // The variable parts of both upper offsets must have been set
+        // by ConstantFoldUpperOffset in order to compare them.
+        if (!Variable || !RVariable)
+          return false;
+
+        if (!EqualValue(S.Context, Variable, RVariable, EquivExprs))
+          return false;
+
+        EnsureEqualBitWidths(Constant, RConstant);
+        return RConstant <= Constant;
+      }
+
+    public:
       // Is R a subrange of this range?
       ProofResult InRange(BaseRange &R, ProofFailure &Cause, EquivExprSets *EquivExprs,
                           std::pair<ComparisonSet, ComparisonSet>& Facts) {
@@ -1610,6 +1679,16 @@ namespace {
             return ProofResult::True;
         if (IsUpperOffsetVariable() && R.IsUpperOffsetConstant() &&
             UpperOffsetVariable->getType()->isUnsignedIntegerType() && R.UpperOffsetConstant.getExtValue() == 0)
+          return ProofResult::True;
+
+        // If we cannot prove that R.UpperOffset <= this.UpperOffset using
+        // lexicographic comparison of expressions, attempt to perform simple
+        // constant folding operations on the upper offsets.
+        // TODO: this method is part of a temporary solution to enable bounds
+        // checking to validate bounds such as (p, p + (len + 1) - 1). In the
+        // future, we should handle constant folding, commutativity, and
+        // associativity in bounds expressions in a more general way.
+        if (CompareUpperOffsetsWithConstantFolding(R, EquivExprs))
           return ProofResult::True;
 
         return ProofResult::Maybe;
