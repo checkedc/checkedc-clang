@@ -1444,22 +1444,30 @@ namespace {
 
         llvm::APSInt LHSConst;
         llvm::APSInt RHSConst;
+        BinaryOperator *LHSBinOp = nullptr;
 
-        BinaryOperator *RootBinOp = dyn_cast<BinaryOperator>(UpperOffsetVariable->IgnoreParens());
+        // UpperOffsetVariable must be of the form LHS +/- RHS.
+        BinaryOperator *RootBinOp =
+          dyn_cast<BinaryOperator>(UpperOffsetVariable->IgnoreParens());
         if (!RootBinOp)
           goto exit;
         if (!RootBinOp->isAdditiveOp())
           goto exit;
 
-        BinaryOperator *LHSBinOp = dyn_cast<BinaryOperator>(RootBinOp->getLHS()->IgnoreParens());
+        // UpperOffsetVariable must be of the form (e1 +/- e2) +/- RHS.
+        LHSBinOp = dyn_cast<BinaryOperator>(RootBinOp->getLHS()->IgnoreParens());
         if (!LHSBinOp)
           goto exit;
         if (!LHSBinOp->isAdditiveOp())
           goto exit;
 
+        // UpperOffsetVariable must be of the form (e1 +/- e2) +/- b,
+        // where b is a constant.
         if (!GetRHSConstant(RootBinOp, RHSConst))
           goto exit;
 
+        // UpperOffsetVariable must be of the form (e1 +/- a) +/- b,
+        // where a is a constant.
         if (!GetRHSConstant(LHSBinOp, LHSConst))
           goto exit;
 
