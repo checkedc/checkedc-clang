@@ -1983,25 +1983,27 @@ namespace {
       if (!Base->getType()->isPointerType())
         return false;
       if (Base->getType()->getPointeeOrArrayElementType()->isCharType()) {
-        if (BinaryOperator *BO = dyn_cast<BinaryOperator>(Offset)) {
+        if (BinaryOperator *BO = dyn_cast<BinaryOperator>(Offset->IgnoreParens())) {
+          // Check to see if Offset is already of the form e * i or i * e. In this case,
+          // ConstantPart = i, VariablePart = e.
           if (BinaryOperator::isMultiplicativeOp(BO->getOpcode())) {
             if (BO->getRHS()->isIntegerConstantExpr(ConstantPart, Ctx))
               VariablePart = BO->getLHS();
             else if (BO->getLHS()->isIntegerConstantExpr(ConstantPart, Ctx))
               VariablePart = BO->getRHS();
             else
-              goto exit;
+              goto fallback_std_form;
             IsOpSigned = VariablePart->getType()->isSignedIntegerType();
             ConstantPart = BoundsUtil::ConvertToSignedPointerWidth(Ctx, ConstantPart, Overflow);
             if (Overflow)
-              goto exit;
+              goto fallback_std_form;
           } else
-            goto exit;
+            goto fallback_std_form;
         } else
-          goto exit;
+          goto fallback_std_form;
         return true;
 
-      exit:
+      fallback_std_form:
         VariablePart = Offset;
         ConstantPart = llvm::APSInt(llvm::APInt(PointerWidth, 1), false);
         IsOpSigned = VariablePart->getType()->isSignedIntegerType();
@@ -3907,7 +3909,7 @@ namespace {
 
         // Update the checking state and result bounds.
         BoundsExpr *RHSBounds = IncDecResultBounds;
-        if (DeclRefExpr *V = VariableUtil::GetLValueVariable(S, SubExpr)) {
+        if (VariableUtil::GetLValueVariable(S, SubExpr)) {
           // Update SameValue to be the set of expressions that produce the
           // same value as the RHS `e1 +/- 1` (if the RHS could be created).
           UpdateSameValue(E, State.SameValue, State.SameValue, RHS);
