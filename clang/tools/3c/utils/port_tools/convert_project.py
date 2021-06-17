@@ -79,19 +79,19 @@ def parseTheArg():
     if not args.skip_exec and (not args.prog_name or not os.path.isfile(args.prog_name)):
         logging.error("Error: --prog_name argument is not a valid file..")
         logging.error("Provided argument: {} is not a file.".format(args.prog_name))
-        sys.exit()
+        sys.exit(1)
 
     if not args.project_path or not os.path.isdir(args.project_path):
         logging.error("Error: --project_path argument must be the name of a directory.")
         logging.error("Provided argument: {} is not a directory.".format(args.project_path))
-        sys.exit()
+        sys.exit(1)
 
     if not args.build_dir:
         args.build_dir = args.project_path
     if not os.path.isdir(args.build_dir):
         logging.error("Error: --build_dir argument must be the name of a directory.")
         logging.error("Provided argument: {} is not a directory.".format(args.build_dir))
-        sys.exit()
+        sys.exit(1)
 
     return args
 
@@ -104,7 +104,7 @@ if __name__ == "__main__":
     if not os.path.exists(compileCmdsJson):
         logging.error("Error: Build directory does not contain compile_commands.json.")
         logging.error("compile_commands.json file: {} does not exist.".format(compileCmdsJson))
-        sys.exit()
+        sys.exit(1)
 
     logging.info("Trying to convert all the source files to header files")
     run3C(progArgs.prog_name, progArgs.extra_3c_args,
