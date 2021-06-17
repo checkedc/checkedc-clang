@@ -3529,7 +3529,7 @@ ExprResult Parser::ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn
     // declared as part of the first dimension. For example:
     //     int a[static 10] : itype(int [static 10])
     // This is not allowed in other contexts.
-    DeclaratorContext TypeContext = DeclaratorContext::TypeNameContext;
+    DeclaratorContext TypeContext = DeclaratorContext::TypeName;
     if (D.isPrototypeContext())
        TypeContext = D.getContext();
     TypeResult Ty = ParseTypeName(nullptr, TypeContext);
@@ -3797,7 +3797,7 @@ std::pair<bool, Parser::TypeArgVector> Parser::ParseGenericTypeArgumentList(Sour
       firstTypeArgument = false;
 
     // Expect to see type name.
-    TypeResult Ty = ParseTypeName(nullptr /*Range*/, DeclaratorContext::TypeNameContext, AS_none, nullptr /*OwnedType*/, nullptr /*Attrs*/);
+    TypeResult Ty = ParseTypeName(nullptr /*Range*/, DeclaratorContext::TypeName, AS_none, nullptr /*OwnedType*/, nullptr /*Attrs*/);
     if (Ty.isInvalid()) {
       // We do not need to write an error message since ParseTypeName does.
       // We want to consume greater, but not consume semi

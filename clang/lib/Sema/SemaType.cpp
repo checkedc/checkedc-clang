@@ -6589,7 +6589,7 @@ void LocInfoType::getAsStringInternal(std::string &Str,
 TypeResult Sema::ActOnTypeName(Scope *S, Declarator &D) {
   // C99 6.7.6: Type names have no identifier.  This is already validated by
   // the parser when the context is TypeName.
-  assert((D.getContext() != DeclaratorContext::TypeNameContext ||
+  assert((D.getContext() != DeclaratorContext::TypeName ||
          D.getIdentifier() == nullptr) &&
          "Type name should have no identifier!");
   if (D.getIdentifier()) {
