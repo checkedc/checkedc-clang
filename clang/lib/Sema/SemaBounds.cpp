@@ -1410,7 +1410,7 @@ namespace {
         }
         llvm::APSInt ElemSize;
         if (!BoundsUtil::getReferentSizeInChars(S.Context, Base->getType(), ElemSize))
-          return false;;
+          return false;
         Constant = Constant.smul_ov(ElemSize, Overflow);
         if (Overflow)
           return false;
