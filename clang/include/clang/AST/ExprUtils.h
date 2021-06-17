@@ -106,6 +106,10 @@ public:
   // rvalue cast.
   static Expr *GetRValueCastChild(Sema &S, Expr *E);
 
+  // CheckIsNonModifying suppresses diagnostics while checking
+  // whether e is a non-modifying expression.
+  static bool CheckIsNonModifying(Sema &S, Expr *E);
+
   // ReadsMemoryViaPointer returns true if the expression e reads memory via
   // a pointer.
   // IncludeAllMemberExprs is used to modify the behavior to return true if e

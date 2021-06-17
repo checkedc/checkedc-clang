@@ -3648,12 +3648,12 @@ namespace {
       // same value as e.
       if (CK == CastKind::CK_ArrayToPointerDecay) {
         // State.SameValue = { e } for lvalues with array type.
-        if (!CreatesNewObject(E) && CheckIsNonModifying(E))
+        if (!CreatesNewObject(E) && ExprUtil::CheckIsNonModifying(S, E))
           State.SameValue = { E };
       } else if (CK == CastKind::CK_LValueToRValue) {
         if (E->getType()->isArrayType()) {
-          // State.Same = { e } for lvalues with array type.
-          if (!CreatesNewObject(E) && CheckIsNonModifying(E))
+          // State.SameValue = { e } for lvalues with array type.
+          if (!CreatesNewObject(E) && ExprUtil::CheckIsNonModifying(S, E))
             State.SameValue = { E };
         }
         else {
@@ -3664,7 +3664,7 @@ namespace {
             // Otherwise, if e is nonmodifying and does not read memory via a
             // pointer, State.SameValue = { e }.  Otherwise, State.SameValue
             // is empty.
-            if (CheckIsNonModifying(E) &&
+            if (ExprUtil::CheckIsNonModifying(S, E) &&
                 !ExprUtil::ReadsMemoryViaPointer(E) &&
                 !CreatesNewObject(E))
               State.SameValue.push_back(E);
@@ -4119,7 +4119,7 @@ namespace {
 
       State.SameValue = IntersectExprSets(StateTrueArm.SameValue,
                                           StateFalseArm.SameValue);
-      if (!CreatesNewObject(E) && CheckIsNonModifying(E) &&
+      if (!CreatesNewObject(E) && ExprUtil::CheckIsNonModifying(S, E) &&
           !EqualExprsContainsExpr(State.SameValue, E))
         State.SameValue.push_back(E);
 
@@ -4988,7 +4988,7 @@ namespace {
         CHKCBindTemporaryExpr *Temp = GetTempBinding(Src);
         if (Temp)
           State.TargetSrcEquality[Target] = CreateTemporaryUse(Temp);
-        else if (CheckIsNonModifying(Src))
+        else if (ExprUtil::CheckIsNonModifying(S, Src))
           State.TargetSrcEquality[Target] = Src;
       }
 
@@ -5080,7 +5080,7 @@ namespace {
       }
 
       // If Val is a non-modifying expression, SameValue contains Val.
-      else if (CheckIsNonModifying(Val))
+      else if (ExprUtil::CheckIsNonModifying(S, Val))
         SameValue.push_back(Val);
 
       // If Val is a modifying expression, use the SameValue_i sets of
@@ -5094,11 +5094,11 @@ namespace {
           // For any modifying subexpression SubExpr_i of e, try to set
           // ValPrime to a nonmodifying expression from the set SameValue_i
           // of expressions that produce the same value as SubExpr_i.
-          if (!CheckIsNonModifying(SubExpr_i)) {
+          if (!ExprUtil::CheckIsNonModifying(S, SubExpr_i)) {
             ExprSetTy SameValue_i = Pair.second;
             for (auto I = SameValue_i.begin(); I != SameValue_i.end(); ++I) {
               Expr *E_i = *I;
-              if (CheckIsNonModifying(E_i)) {
+              if (ExprUtil::CheckIsNonModifying(S, E_i)) {
                 ValPrime = E_i;
                 break;
               }
@@ -5301,7 +5301,7 @@ namespace {
       // The subexpression not containing LValue must be nonmodifying
       // and cannot be or contain a pointer dereference, member
       // reference, or indirect member reference.
-      if (!CheckIsNonModifying(E_NotLValue) ||
+      if (!ExprUtil::CheckIsNonModifying(S, E_NotLValue) ||
           ExprUtil::ReadsMemoryViaPointer(E_NotLValue, true))
         return false;
 
@@ -5794,13 +5794,6 @@ namespace {
       }
 
       SynthesizeMembers(Base, M, CSS, AbstractSets);
-    }
-
-    // CheckIsNonModifying suppresses diagnostics while checking
-    // whether e is a non-modifying expression.
-    bool CheckIsNonModifying(Expr *E) {
-      return S.CheckIsNonModifying(E, Sema::NonModifyingContext::NMC_Unknown,
-                                   Sema::NonModifyingMessage::NMM_None);
     }
 
     BoundsExpr *CreateBoundsUnknown() {

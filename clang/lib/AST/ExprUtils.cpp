@@ -183,6 +183,11 @@ Expr *ExprUtil::GetRValueCastChild(Sema &S, Expr *E) {
   return nullptr;
 }
 
+bool ExprUtil::CheckIsNonModifying(Sema &S, Expr *E) {
+  return S.CheckIsNonModifying(E, Sema::NonModifyingContext::NMC_Unknown,
+                               Sema::NonModifyingMessage::NMM_None);
+}
+
 bool ExprUtil::ReadsMemoryViaPointer(Expr *E, bool IncludeAllMemberExprs) {
   if (!E)
     return false;
