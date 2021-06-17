@@ -159,8 +159,9 @@ is a sibling of your LLVM source tree, like \<WORK_DIR\>/build.
    cmake -G Ninja -DLLVM_ENABLE_PROJECTS=clang   // Required to enable Clang build
    -DCMAKE_INSTALL_PREFIX=<WORK_DIR>/install     // Directory where the compiler will be
                                                  // installed when "ninja install" is executed. 
-   -DCMAKE_BUILD_TYPE=Release                    // Alternate value: Debug
-   -DLLVM_ENABLE_ASSERTIONS=ON                   // Alternate value: OFF
+   -DCMAKE_BUILD_TYPE=Release                    // Alternate values: Debug, RelWithDebInfo,
+                                                 // MinSizeRel.
+   -DLLVM_ENABLE_ASSERTIONS=ON                   // Alternate value: OFF.
    -DLLVM_CCACHE_BUILD=ON                        // OPTIONAL. If this definition exists, ccache
                                                  // will be used to speed up builds.
    -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON              // OPTIONAL. This definition is required to
@@ -241,8 +242,9 @@ in the `<WORK_DIR>\build` directory:
       cmake -G Ninja -DLLVM_ENABLE_PROJECTS=clang   // Required to enable Clang build
       -DCMAKE_INSTALL_PREFIX=<WORK_DIR>/install     // Directory where the compiler will be
                                                     // installed when "ninja install" is executed. 
-      -DCMAKE_BUILD_TYPE=Release                    // Alternate value: Debug
-      -DLLVM_ENABLE_ASSERTIONS=ON                   // Alternate value: OFF
+      -DCMAKE_BUILD_TYPE=Release                    // Alternate values: Debug, RelWithDebInfo,
+                                                    // MinSizeRel.
+      -DLLVM_ENABLE_ASSERTIONS=ON                   // Alternate value: OFF.
       -DLLVM_USE_CRT_RELEASE=MT
       -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON              // OPTIONAL. This definition is required to
                                                     // build a package for installation on other
@@ -251,7 +253,8 @@ in the `<WORK_DIR>\build` directory:
                                                     // system that builds code generators for all
                                                     // LLVM-supported architectures.Specify
                                                     // architecture to decrease build/link times.
-      -DLLVM_LIT_ARGS=-v                            // Arguments to pass to the test framework <WORK_DIR>/src/llvm
+      -DLLVM_LIT_ARGS=-v                            // Arguments to pass to the test framework
+      <WORK_DIR>/src/llvm
       ```
 
 7. After executing the `cmake` command as above, build the compiler as follows
