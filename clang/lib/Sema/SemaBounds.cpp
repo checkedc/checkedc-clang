@@ -68,19 +68,6 @@ public:
       K == BoundsExpr::Kind::Range || K == BoundsExpr::Kind::Invalid);
   }
 
-  static Expr *IgnoreRedundantCast(ASTContext &Ctx, CastKind NewCK, Expr *E) {
-    CastExpr *P = dyn_cast<CastExpr>(E);
-    if (!P)
-      return E;
-
-    CastKind ExistingCK = P->getCastKind();
-    Expr *SE = P->getSubExpr();
-    if (NewCK == CK_BitCast && ExistingCK == CK_BitCast)
-      return SE;
-
-    return E;
-  }
-
   static bool getReferentSizeInChars(ASTContext &Ctx, QualType Ty, llvm::APSInt &Size) {
     assert(Ty->isPointerType());
     const Type *Pointee = Ty->getPointeeOrArrayElementType();
@@ -4635,7 +4622,7 @@ namespace {
     Expr *CreateExplicitCast(QualType Target, CastKind CK, Expr *E,
                                bool isBoundsSafeInterface) {
       // Avoid building up nested chains of no-op casts.
-      E = BoundsUtil::IgnoreRedundantCast(Context, CK, E);
+      E = ExprUtil::IgnoreRedundantCast(Context, CK, E);
 
       // Synthesize some dummy type source source information.
       TypeSourceInfo *DI = Context.getTrivialTypeSourceInfo(Target);

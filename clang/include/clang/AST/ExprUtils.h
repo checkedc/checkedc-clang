@@ -105,6 +105,9 @@ public:
   // GetRValueCastChild returns the child of a possibly parenthesized
   // rvalue cast.
   static Expr *GetRValueCastChild(Sema &S, Expr *E);
+
+  // IgnoreRedundantCast strips redundant casts off of E.
+  static Expr *IgnoreRedundantCast(ASTContext &Ctx, CastKind NewCK, Expr *E);
 };
 
 } // end namespace clang
