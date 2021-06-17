@@ -3909,7 +3909,7 @@ namespace {
 
         // Update the checking state and result bounds.
         BoundsExpr *RHSBounds = IncDecResultBounds;
-        if (DeclRefExpr *V = VariableUtil::GetLValueVariable(S, SubExpr)) {
+        if (VariableUtil::GetLValueVariable(S, SubExpr)) {
           // Update SameValue to be the set of expressions that produce the
           // same value as the RHS `e1 +/- 1` (if the RHS could be created).
           UpdateSameValue(E, State.SameValue, State.SameValue, RHS);
