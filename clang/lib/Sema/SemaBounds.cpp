@@ -2817,7 +2817,7 @@ namespace {
      IdentifyChecked(Body, MemoryCheckedStmts, BoundsCheckedStmts, CheckedScopeSpecifier::CSS_Unchecked);
 
      // Run the bounds widening analysis on this function.
-     BoundsWideningAnalyzer.WidenBounds(FD, NestedElements);
+     BoundsWideningAnalyzer.WidenBounds(FD);
      if (S.getLangOpts().DumpWidenedBounds)
        BoundsWideningAnalyzer.DumpWidenedBounds(FD);
 

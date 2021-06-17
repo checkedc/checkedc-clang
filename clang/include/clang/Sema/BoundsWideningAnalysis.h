@@ -314,9 +314,7 @@ namespace clang {
 
     // Run the dataflow analysis to widen bounds for null-terminated arrays.
     // @param[in] FD is the current function.
-    // @param[in] NestedStmts is a set of top-level statements that are
-    // nested in another top-level statement.
-    void WidenBounds(FunctionDecl *FD, StmtSetTy NestedStmts);
+    void WidenBounds(FunctionDecl *FD);
 
     // Pretty print the widened bounds for all null-terminated arrays in the
     // current function.

@@ -22,8 +22,7 @@ namespace clang {
 // BoundsWideningUtil class that are defined later in this file.
 //===---------------------------------------------------------------------===//
 
-void BoundsWideningAnalysis::WidenBounds(FunctionDecl *FD,
-                                         StmtSetTy NestedStmts) {
+void BoundsWideningAnalysis::WidenBounds(FunctionDecl *FD) {
   assert(Cfg && "expected CFG to exist");
 
   // Initialize the list of variables that are pointers to null-terminated
