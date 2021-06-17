@@ -105,6 +105,19 @@ public:
   // GetRValueCastChild returns the child of a possibly parenthesized
   // rvalue cast.
   static Expr *GetRValueCastChild(Sema &S, Expr *E);
+
+  // LValueOccurrenceCount returns the number of occurrences of the LValue
+  // expression in E.
+  static unsigned int LValueOccurrenceCount(Sema &S, Expr *LValue, Expr *E);
+
+  // VariableOccurrenceCount returns the number of occurrences of variable
+  // expressions in E whose Decls are equivalent to V.
+  static unsigned int VariableOccurrenceCount(Sema &S, ValueDecl *V, Expr *E);
+
+  // VariableOccurrenceCount returns the number of occurrences of the Target
+  // variable expression in E.
+  static unsigned int VariableOccurrenceCount(Sema &S, DeclRefExpr *Target,
+                                              Expr *E);
 };
 
 } // end namespace clang

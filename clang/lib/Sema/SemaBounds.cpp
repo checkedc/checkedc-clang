@@ -480,91 +480,6 @@ namespace {
 }
 
 namespace {
-  class LValueCountHelper : public RecursiveASTVisitor<LValueCountHelper> {
-    private:
-      Sema &SemaRef;
-      Lexicographic Lex;
-      Expr *LValue;
-      ValueDecl *V;
-      unsigned int Count;
-
-    public:
-      LValueCountHelper(Sema &SemaRef, Expr *LValue, ValueDecl *V) :
-        SemaRef(SemaRef),
-        Lex(Lexicographic(SemaRef.Context, nullptr)),
-        LValue(LValue),
-        V(V),
-        Count(0) {}
-
-      unsigned int GetCount() { return Count; }
-
-      bool VisitDeclRefExpr(DeclRefExpr *E) {
-        // Check for an occurrence of a variable whose declaration matches V.
-        if (V) {
-          if (ValueDecl *D = E->getDecl()) {
-            if (Lex.CompareDecl(D, V) == Lexicographic::Result::Equal)
-              ++Count;
-          }
-          return true;
-        }
-
-        // Check for an occurrence of a variable equal to LValue if LValue
-        // is a variable.
-        DeclRefExpr *Var = dyn_cast_or_null<DeclRefExpr>(LValue);
-        if (!Var)
-          return true;
-        if (Lex.CompareExpr(Var, E) == Lexicographic::Result::Equal)
-          ++Count;
-        return true;
-      }
-
-      bool VisitMemberExpr(MemberExpr *E) {
-        MemberExpr *M = dyn_cast_or_null<MemberExpr>(LValue);
-        if (!M)
-          return true;
-        if (Lex.CompareExprSemantically(E, M))
-          ++Count;
-        return true;
-      }
-
-      // Do not traverse the child of a BoundsValueExpr.
-      // If a BoundsValueExpr uses the expression LValue (or a variable whose
-      // declaration matches V), this should not count toward the total
-      // occurrence count of LValue or V in the expression.
-      // For example, for the expression BoundsValue(TempBinding(v)) + v, the
-      // total occurrence count of the variable v should be 1, not 2.
-      bool TraverseBoundsValueExpr(BoundsValueExpr *E) {
-        return true;
-      }
-  };
-
-  // VariableOccurrenceCount returns the number of occurrences of variable
-  // expressions in E whose Decls are equivalent to V.
-  unsigned int VariableOccurrenceCount(Sema &SemaRef, ValueDecl *V, Expr *E) {
-    if (!V)
-      return 0;
-    LValueCountHelper Counter(SemaRef, nullptr, V);
-    Counter.TraverseStmt(E);
-    return Counter.GetCount();
-  }
-
-  // VariableOccurrenceCount returns the number of occurrences of the Target
-  // variable expression in E.
-  unsigned int VariableOccurrenceCount(Sema &SemaRef, DeclRefExpr *Target,
-                                       Expr *E) {
-    return VariableOccurrenceCount(SemaRef, Target->getDecl(), E);
-  }
-
-  // LValueOccurrenceCount returns the number of occurrences of the LValue
-  // expression in E.
-  unsigned int LValueOccurrenceCount(Sema &SemaRef, Expr *LValue, Expr *E) {
-    LValueCountHelper Counter(SemaRef, LValue, nullptr);
-    Counter.TraverseStmt(E);
-    return Counter.GetCount();
-  }
-}
-
-namespace {
   class FindLValueHelper : public RecursiveASTVisitor<FindLValueHelper> {
     private:
       Sema &SemaRef;
@@ -1694,7 +1609,7 @@ namespace {
           // Search InnerList for an expression that uses the value of SrcV.
           for (; SrcIndex < InnerListSize; ++SrcIndex) {
             Expr *E = InnerList[SrcIndex];
-            SrcVarCount = VariableOccurrenceCount(S, SrcV, E);
+            SrcVarCount = ExprUtil::VariableOccurrenceCount(S, SrcV, E);
             if (SrcVarCount > 0)
               break;
           }
@@ -1712,7 +1627,7 @@ namespace {
             for (auto I = DstVars.begin(); I != DstVars.end(); ++I) {
               DeclRefExpr *DstV = cast<DeclRefExpr>(*I);
               Expr *E = InnerList[DstIndex];
-              if (VariableOccurrenceCount(S, DstV, E) > 0)
+              if (ExprUtil::VariableOccurrenceCount(S, DstV, E) > 0)
                 return true;
             }
           }
@@ -2910,7 +2825,7 @@ namespace {
        for (auto InnerList = (*I).begin(); InnerList != (*I).end();
                                                          ++InnerList) {
          Expr *E = *InnerList;
-         if (!VariableOccurrenceCount(S, V, E))
+         if (!ExprUtil::VariableOccurrenceCount(S, V, E))
            ExprList.push_back(E);
        }
        if (ExprList.size() > 1)

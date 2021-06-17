@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/ExprUtils.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 
 using namespace clang;
 
@@ -180,4 +181,83 @@ Expr *ExprUtil::GetRValueCastChild(Sema &S, Expr *E) {
       return CE->getSubExpr()->IgnoreParens();
   }
   return nullptr;
+}
+
+namespace {
+  class LValueCountHelper : public RecursiveASTVisitor<LValueCountHelper> {
+    private:
+      Sema &SemaRef;
+      Lexicographic Lex;
+      Expr *LValue;
+      ValueDecl *V;
+      unsigned int Count;
+
+    public:
+      LValueCountHelper(Sema &SemaRef, Expr *LValue, ValueDecl *V) :
+        SemaRef(SemaRef),
+        Lex(Lexicographic(SemaRef.Context, nullptr)),
+        LValue(LValue),
+        V(V),
+        Count(0) {}
+
+      unsigned int GetCount() { return Count; }
+
+      bool VisitDeclRefExpr(DeclRefExpr *E) {
+        // Check for an occurrence of a variable whose declaration matches V.
+        if (V) {
+          if (ValueDecl *D = E->getDecl()) {
+            if (Lex.CompareDecl(D, V) == Lexicographic::Result::Equal)
+              ++Count;
+          }
+          return true;
+        }
+
+        // Check for an occurrence of a variable equal to LValue if LValue
+        // is a variable.
+        DeclRefExpr *Var = dyn_cast_or_null<DeclRefExpr>(LValue);
+        if (!Var)
+          return true;
+        if (Lex.CompareExpr(Var, E) == Lexicographic::Result::Equal)
+          ++Count;
+        return true;
+      }
+
+      bool VisitMemberExpr(MemberExpr *E) {
+        MemberExpr *M = dyn_cast_or_null<MemberExpr>(LValue);
+        if (!M)
+          return true;
+        if (Lex.CompareExprSemantically(E, M))
+          ++Count;
+        return true;
+      }
+
+      // Do not traverse the child of a BoundsValueExpr.
+      // If a BoundsValueExpr uses the expression LValue (or a variable whose
+      // declaration matches V), this should not count toward the total
+      // occurrence count of LValue or V in the expression.
+      // For example, for the expression BoundsValue(TempBinding(v)) + v, the
+      // total occurrence count of the variable v should be 1, not 2.
+      bool TraverseBoundsValueExpr(BoundsValueExpr *E) {
+        return true;
+      }
+  };
+}
+
+unsigned int ExprUtil::LValueOccurrenceCount(Sema &S, Expr *LValue, Expr *E) {
+  LValueCountHelper Counter(S, LValue, nullptr);
+  Counter.TraverseStmt(E);
+  return Counter.GetCount();
+}
+
+unsigned int ExprUtil::VariableOccurrenceCount(Sema &S, ValueDecl *V, Expr *E) {
+  if (!V)
+    return 0;
+  LValueCountHelper Counter(S, nullptr, V);
+  Counter.TraverseStmt(E);
+  return Counter.GetCount();
+}
+
+unsigned int ExprUtil::VariableOccurrenceCount(Sema &S, DeclRefExpr *Target,
+                                               Expr *E) {
+  return VariableOccurrenceCount(S, Target->getDecl(), E);
 }
