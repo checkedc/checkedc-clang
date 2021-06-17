@@ -145,6 +145,34 @@ public:
 } // end namespace clang
 
 namespace clang {
+
+class InverseUtil {
+public:
+  // IsInvertible returns true if the expression E is invertible with respect
+  // to the LValue expression.
+  static bool IsInvertible(Sema &S, Expr *LValue, Expr *E);
+
+private:
+  // IsUnaryOperatorInvertible returns true if a unary operator is invertible
+  // with respect to LValue.
+  static bool IsUnaryOperatorInvertible(Sema &S, Expr *LValue,
+                                        UnaryOperator *E);
+
+  // IsBinaryOperatorInvertible returns true if a binary operator is invertible
+  // with respect to LValue.
+  static bool IsBinaryOperatorInvertible(Sema &S, Expr *LValue,
+                                         BinaryOperator *E);
+
+  // IsCastExprInvertible returns true if a cast expression is invertible
+  // with respect to LValue.
+  // A cast expression (T1)e1 is invertible if T1 is a bit-preserving
+  // or widening cast and e1 is invertible with respect to LValue.
+  static bool IsCastExprInvertible(Sema &S, Expr *LValue, CastExpr *E);
+};
+
+} // end namespace clang
+
+namespace clang {
   // QueueSet is a queue backed by a set. The queue is useful for processing
   // the items in a Topological sort order which means that if item1 is a
   // predecessor of item2 then item1 is processed before item2. The set is

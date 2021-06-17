@@ -329,3 +329,162 @@ unsigned int ExprUtil::VariableOccurrenceCount(Sema &S, DeclRefExpr *Target,
                                                Expr *E) {
   return VariableOccurrenceCount(S, Target->getDecl(), E);
 }
+
+bool InverseUtil::IsInvertible(Sema &S, Expr *LValue, Expr *E) {
+  if (!E)
+    return false;
+
+  E = E->IgnoreParens();
+  Expr *RValueChild = ExprUtil::GetRValueCastChild(S, E);
+  if (RValueChild && ExprUtil::EqualValue(S.Context, LValue, RValueChild, nullptr))
+    return true;
+
+  switch (E->getStmtClass()) {
+    case Expr::UnaryOperatorClass:
+      return IsUnaryOperatorInvertible(S, LValue, cast<UnaryOperator>(E));
+    case Expr::BinaryOperatorClass:
+      return IsBinaryOperatorInvertible(S, LValue, cast<BinaryOperator>(E));
+    case Expr::ImplicitCastExprClass:
+    case Expr::CStyleCastExprClass:
+    case Expr::BoundsCastExprClass:
+      return IsCastExprInvertible(S, LValue, cast<CastExpr>(E));
+    default:
+      return false;
+  }
+}
+
+bool InverseUtil::IsUnaryOperatorInvertible(Sema &S, Expr *LValue,
+                                            UnaryOperator *E) {
+  Expr *SubExpr = E->getSubExpr()->IgnoreParens();
+  UnaryOperatorKind Op = E->getOpcode();
+
+  if (Op == UnaryOperatorKind::UO_AddrOf) {
+    // &*e1 is invertible with respect to LValue if e1 is invertible with
+    // respect to LValue.
+    if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
+      if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_Deref)
+        return IsInvertible(S, LValue, UnarySubExpr->getSubExpr());
+    }
+    // &e1[e2] is invertible with respect to LValue if e1 + e2 is invertible
+    // with respect to LValue.
+    else if (ArraySubscriptExpr *ArraySubExpr = dyn_cast<ArraySubscriptExpr>(SubExpr)) {
+      Expr *Base = ArraySubExpr->getBase();
+      Expr *Index = ArraySubExpr->getIdx();
+      BinaryOperator Sum(S.Context, Base, Index,
+                         BinaryOperatorKind::BO_Add,
+                         Base->getType(),
+                         Base->getValueKind(),
+                         Base->getObjectKind(),
+                         SourceLocation(),
+                         FPOptionsOverride());
+      return IsInvertible(S, LValue, &Sum);
+    }
+  }
+
+  // *&e1 is invertible with respect to LValue if e1 is invertible with
+  // respect to LValue.
+  if (Op == UnaryOperatorKind::UO_Deref) {
+    if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
+      if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_AddrOf)
+        return IsInvertible(S, LValue, UnarySubExpr->getSubExpr());
+    }
+  }
+
+  // ~e1, -e1, and +e1 are invertible with respect to LValue if e1 is
+  // invertible with respect to LValue.
+  if (Op == UnaryOperatorKind::UO_Not ||
+      Op == UnaryOperatorKind::UO_Minus ||
+      Op == UnaryOperatorKind::UO_Plus)
+    return IsInvertible(S, LValue, SubExpr);
+
+  return false;
+}
+
+bool InverseUtil::IsBinaryOperatorInvertible(Sema &S, Expr *LValue,
+                                          BinaryOperator *E) {
+  BinaryOperatorKind Op = E->getOpcode();
+  if (Op != BinaryOperatorKind::BO_Add &&
+      Op != BinaryOperatorKind::BO_Sub &&
+      Op != BinaryOperatorKind::BO_Xor)
+    return false;
+
+  Expr *LHS = E->getLHS();
+  Expr *RHS = E->getRHS();
+
+  // Addition and subtraction operations must be for checked pointer
+  // arithmetic or unsigned integer arithmetic.
+  if (Op == BinaryOperatorKind::BO_Add || Op == BinaryOperatorKind::BO_Sub) {
+    // The operation is checked pointer arithmetic if either the LHS
+    // or the RHS have checked pointer type.
+    bool IsCheckedPtrArithmetic = LHS->getType()->isCheckedPointerType() ||
+                                  RHS->getType()->isCheckedPointerType();
+    if (!IsCheckedPtrArithmetic) {
+      // The operation is unsigned integer arithmetic if both the LHS
+      // and the RHS have unsigned integer type.
+      bool IsUnsignedArithmetic = LHS->getType()->isUnsignedIntegerType() &&
+                                  RHS->getType()->isUnsignedIntegerType();
+      if (!IsUnsignedArithmetic)
+        return false;
+    }
+  }
+
+  // LValue must appear in exactly one subexpression of E and that
+  // subexpression must be invertible with respect to LValue.
+  std::pair<Expr *, Expr*> Pair =
+    ExprUtil::SplitByLValueCount(S, LValue, LHS, RHS);
+  if (!Pair.first)
+    return false;
+  Expr *E_LValue = Pair.first, *E_NotLValue = Pair.second;
+  if (!IsInvertible(S, LValue, E_LValue))
+    return false;
+
+  // The subexpression not containing LValue must be nonmodifying
+  // and cannot be or contain a pointer dereference, member
+  // reference, or indirect member reference.
+  if (!ExprUtil::CheckIsNonModifying(S, E_NotLValue) ||
+      ExprUtil::ReadsMemoryViaPointer(E_NotLValue, true))
+    return false;
+
+  return true;
+}
+
+bool InverseUtil::IsCastExprInvertible(Sema &S, Expr *LValue, CastExpr *E) {
+  QualType T1 = E->getType();
+  QualType T2 = E->getSubExpr()->getType();
+  uint64_t Size1 = S.Context.getTypeSize(T1);
+  uint64_t Size2 = S.Context.getTypeSize(T2);
+
+  // If T1 is a smaller type than T2, then (T1)e1 is a narrowing cast.
+  if (Size1 < Size2)
+    return false;
+
+  switch (E->getCastKind()) {
+    // Bit-preserving casts
+    case CastKind::CK_BitCast:
+    case CastKind::CK_LValueBitCast:
+    case CastKind::CK_NoOp:
+    case CastKind::CK_ArrayToPointerDecay:
+    case CastKind::CK_FunctionToPointerDecay:
+    case CastKind::CK_NullToPointer:
+    // Widening casts
+    case CastKind::CK_BooleanToSignedIntegral:
+    case CastKind::CK_IntegralToFloating:
+      return IsInvertible(S, LValue, E->getSubExpr());
+    // Bounds casts may be invertible.
+    case CastKind::CK_DynamicPtrBounds:
+    case CastKind::CK_AssumePtrBounds: {
+      CHKCBindTemporaryExpr *Temp =
+        dyn_cast<CHKCBindTemporaryExpr>(E->getSubExpr());
+      assert(Temp);
+      return IsInvertible(S, LValue, Temp->getSubExpr());
+    }
+    // Potentially non-narrowing casts, depending on type sizes
+    case CastKind::CK_IntegralToPointer:
+    case CastKind::CK_PointerToIntegral:
+    case CastKind::CK_IntegralCast:
+      return Size1 >= Size2 && IsInvertible(S, LValue, E->getSubExpr());
+    // All other casts are considered narrowing.
+    default:
+      return false;
+  }
+}
