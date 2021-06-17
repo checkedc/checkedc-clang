@@ -1293,7 +1293,7 @@ namespace {
           return ProofResult::Maybe;
         }
 
-        if (EqualValue(S.Context, Base, R.Base, EquivExprs)) {
+        if (ExprUtil::EqualValue(S.Context, Base, R.Base, EquivExprs)) {
           ProofResult LowerBoundsResult = CompareLowerOffsetsImpl(R, Cause, EquivExprs, Facts);
           ProofResult UpperBoundsResult = CompareUpperOffsetsImpl(R, Cause, EquivExprs, Facts);
 
@@ -1349,7 +1349,7 @@ namespace {
         FreeVariablePosition ObservedBasePos = CombineFreeVariablePosition(
             FreeVariablePosition::Observed, BasePos);
 
-        if (EqualValue(S.Context, Base, R.Base, EquivExprs)) {
+        if (ExprUtil::EqualValue(S.Context, Base, R.Base, EquivExprs)) {
           ProofResult LowerBoundsResult =
               CompareLowerOffsets(R, Cause, EquivExprs, Facts, FreeVariables);
           ProofResult UpperBoundsResult =
@@ -1570,7 +1570,7 @@ namespace {
             continue;
           auto It = DstVars.begin();
           for (; It != DstVars.end(); It++) {
-            if (EqualValue(S.Context, SrcV, *It, EquivExprs))
+            if (ExprUtil::EqualValue(S.Context, SrcV, *It, EquivExprs))
               break;
           }
 
@@ -1956,7 +1956,7 @@ namespace {
       if (!Offset1 && !Offset2)
         return false;
 
-      if (!EqualValue(Ctx, Base1, Base2, EquivExprs))
+      if (!ExprUtil::EqualValue(Ctx, Base1, Base2, EquivExprs))
         return false;
 
       llvm::APSInt ConstantPart1, ConstantPart2;
@@ -1968,7 +1968,7 @@ namespace {
       
       if (!CreatedStdForm1 || !CreatedStdForm2)
         return false;
-      if (!EqualValue(Ctx, VariablePart1, VariablePart2, EquivExprs))
+      if (!ExprUtil::EqualValue(Ctx, VariablePart1, VariablePart2, EquivExprs))
         return false;
       if (IsOpSigned1 != IsOpSigned2)
         return false;
@@ -1989,7 +1989,7 @@ namespace {
       if (!Offset1 && !Offset2)
         return false;
 
-      if (!EqualValue(Ctx, Base1, Base2, EquivExprs))
+      if (!ExprUtil::EqualValue(Ctx, Base1, Base2, EquivExprs))
         return false;
 
       llvm::APSInt ConstantPart1, ConstantPart2;
@@ -2006,7 +2006,7 @@ namespace {
       if (ConstantPart1 != ConstantPart2)
         return false;
 
-      if (EqualValue(Ctx, VariablePart1, VariablePart2, EquivExprs))
+      if (ExprUtil::EqualValue(Ctx, VariablePart1, VariablePart2, EquivExprs))
         return true;
       if (FactExists(Ctx, VariablePart1, VariablePart2, EquivExprs, Facts))
         return true;
@@ -2034,11 +2034,6 @@ namespace {
         }
       }
       return ExistsIn && !ExistsKill;
-    }
-
-    static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2, EquivExprSets *EquivExprs) {
-      Lexicographic::Result R = Lexicographic(Ctx, EquivExprs).CompareExpr(E1, E2);
-      return R == Lexicographic::Result::Equal;
     }
 
     // Convert the bounds expression `Bounds` to a range `R`. This function returns true
@@ -2077,7 +2072,7 @@ namespace {
 
           // If both of the offsets are constants, the range is considered constant-sized.
           // Otherwise, it is a variable-sized range.
-          if (EqualValue(S.Context, LowerBase, UpperBase, EquivExprs)) {
+          if (ExprUtil::EqualValue(S.Context, LowerBase, UpperBase, EquivExprs)) {
             R->SetBase(LowerBase);
             R->SetLowerConstant(LowerOffsetConstant);
             R->SetLowerVariable(LowerOffsetVariable);
@@ -5172,7 +5167,7 @@ namespace {
         Lexicographic Lex(S.Context, nullptr);
         Expr *E = Lex.IgnoreValuePreservingOperations(S.Context, *I);
         DeclRefExpr *W = VariableUtil::GetRValueVariable(S, E);
-        if (W != nullptr && !EqualValue(S.Context, V, W, nullptr)) {
+        if (W != nullptr && !ExprUtil::EqualValue(S.Context, V, W, nullptr)) {
           // Expression equality in EquivExprs does not account for types, so
           // expressions in the same set in EquivExprs may not have the same
           // type. The original value of Src with respect to v must have a type
@@ -5196,7 +5191,7 @@ namespace {
 
       E = E->IgnoreParens();
       Expr *RValueChild = ExprUtil::GetRValueCastChild(S, E);
-      if (RValueChild && EqualValue(S.Context, LValue, RValueChild, nullptr))
+      if (RValueChild && ExprUtil::EqualValue(S.Context, LValue, RValueChild, nullptr))
         return true;
 
       switch (E->getStmtClass()) {
@@ -5361,7 +5356,7 @@ namespace {
 
       E = E->IgnoreParens();
       Expr *RValueChild = ExprUtil::GetRValueCastChild(S, E);
-      if (RValueChild && EqualValue(S.Context, LValue, RValueChild, nullptr))
+      if (RValueChild && ExprUtil::EqualValue(S.Context, LValue, RValueChild, nullptr))
         return F;
 
       switch (E->getStmtClass()) {
@@ -5539,7 +5534,7 @@ namespace {
         const AbstractSet *A = Pair.first;
         BoundsExpr *B = Pair.second;
         auto It = Context2.find(A);
-        if (It == Context2.end() || !EqualValue(Context, B, It->second, nullptr)) {
+        if (It == Context2.end() || !ExprUtil::EqualValue(Context, B, It->second, nullptr)) {
           Difference[A] = B;
         }
       }
@@ -5557,7 +5552,7 @@ namespace {
         auto It = Context2.find(Pair.first);
         if (It == Context2.end())
           return false;
-        if (!EqualValue(Context, Pair.second, It->second, nullptr))
+        if (!ExprUtil::EqualValue(Context, Pair.second, It->second, nullptr))
           return false;
       }
 
@@ -5642,7 +5637,7 @@ namespace {
         ExprSetTy F = *OuterList;
         for (auto InnerList = F.begin(); InnerList != F.end(); ++InnerList) {
           Expr *E1 = *InnerList;
-          if (EqualValue(S.Context, E, E1, nullptr)) {
+          if (ExprUtil::EqualValue(S.Context, E, E1, nullptr)) {
             ValuePreservingE = E1;
             return F;
           }

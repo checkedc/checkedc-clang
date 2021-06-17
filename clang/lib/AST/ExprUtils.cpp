@@ -183,6 +183,12 @@ Expr *ExprUtil::GetRValueCastChild(Sema &S, Expr *E) {
   return nullptr;
 }
 
+bool ExprUtil::EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2,
+                          EquivExprSets *EquivExprs) {
+  Lexicographic::Result R = Lexicographic(Ctx, EquivExprs).CompareExpr(E1, E2);
+  return R == Lexicographic::Result::Equal;
+}
+
 bool ExprUtil::CheckIsNonModifying(Sema &S, Expr *E) {
   return S.CheckIsNonModifying(E, Sema::NonModifyingContext::NMC_Unknown,
                                Sema::NonModifyingMessage::NMM_None);

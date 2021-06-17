@@ -106,6 +106,10 @@ public:
   // rvalue cast.
   static Expr *GetRValueCastChild(Sema &S, Expr *E);
 
+  // EqualValue returns true if E1 and E2 are lexicographically equivalent.
+  static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2,
+                         EquivExprSets *EquivExprs);
+
   // CheckIsNonModifying suppresses diagnostics while checking
   // whether e is a non-modifying expression.
   static bool CheckIsNonModifying(Sema &S, Expr *E);
