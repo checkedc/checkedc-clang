@@ -183,6 +183,23 @@ Expr *ExprUtil::GetRValueCastChild(Sema &S, Expr *E) {
   return nullptr;
 }
 
+std::pair<Expr *, Expr *> ExprUtil::SplitByLValueCount(Sema &S, Expr *LValue,
+                                                       Expr *E1, Expr *E2) {
+  std::pair<Expr *, Expr *> Pair;
+  unsigned int Count1 = LValueOccurrenceCount(S, LValue, E1);
+  unsigned int Count2 = LValueOccurrenceCount(S, LValue, E2);
+  if (Count1 == 1 && Count2 == 0) {
+    // LValue appears once in E1 and does not appear in E2.
+    Pair.first = E1;
+    Pair.second = E2;
+  } else if (Count2 == 1 && Count1 == 0) {
+    // LValue appears once in E2 and does not appear in E1.
+    Pair.first = E2;
+    Pair.second = E1;
+  }
+  return Pair;
+}
+
 namespace {
   class LValueCountHelper : public RecursiveASTVisitor<LValueCountHelper> {
     private:

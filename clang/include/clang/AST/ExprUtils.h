@@ -106,6 +106,12 @@ public:
   // rvalue cast.
   static Expr *GetRValueCastChild(Sema &S, Expr *E);
 
+  // If LValue appears exactly once in Ei and does not appear in Ej,
+  // SplitByLValueCount returns the pair (Ei, Ej).  Otherwise, it returns
+  // an empty pair.
+  static std::pair<Expr *, Expr *> SplitByLValueCount(Sema &S, Expr *LValue,
+                                                      Expr *E1, Expr *E2);
+
   // LValueOccurrenceCount returns the number of occurrences of the LValue
   // expression in E.
   static unsigned int LValueOccurrenceCount(Sema &S, Expr *LValue, Expr *E);

@@ -5288,7 +5288,8 @@ namespace {
 
       // LValue must appear in exactly one subexpression of E and that
       // subexpression must be invertible with respect to LValue.
-      std::pair<Expr *, Expr*> Pair = SplitByLValueCount(LValue, LHS, RHS);
+      std::pair<Expr *, Expr*> Pair =
+        ExprUtil::SplitByLValueCount(S, LValue, LHS, RHS);
       if (!Pair.first)
         return false;
       Expr *E_LValue = Pair.first, *E_NotLValue = Pair.second;
@@ -5427,7 +5428,8 @@ namespace {
 
     // Returns the inverse of a binary operator.
     Expr *BinaryOperatorInverse(Expr *LValue, Expr *F, BinaryOperator *E) {
-      std::pair<Expr *, Expr*> Pair = SplitByLValueCount(LValue, E->getLHS(), E->getRHS());
+      std::pair<Expr *, Expr*> Pair =
+        ExprUtil::SplitByLValueCount(S, LValue, E->getLHS(), E->getRHS());
       if (!Pair.first)
         return nullptr;
 
@@ -5756,26 +5758,6 @@ namespace {
           return false;
         }
       }
-    }
-
-    // If LValue appears exactly once in Ei and does not appear in Ej,
-    // SplitByLValueCount returns the pair (Ei, Ej).  Otherwise, it returns
-    // an empty pair.
-    std::pair<Expr *, Expr *> SplitByLValueCount(Expr *LValue,
-                                                 Expr *E1, Expr *E2) {
-      std::pair<Expr *, Expr *> Pair;
-      unsigned int Count1 = LValueOccurrenceCount(S, LValue, E1);
-      unsigned int Count2 = LValueOccurrenceCount(S, LValue, E2);
-      if (Count1 == 1 && Count2 == 0) {
-        // LValue appears once in E1 and does not appear in E2.
-        Pair.first = E1;
-        Pair.second = E2;
-      } else if (Count2 == 1 && Count1 == 0) {
-        // LValue appears once in E2 and does not appear in E1.
-        Pair.first = E2;
-        Pair.second = E1;
-      }
-      return Pair;
     }
 
     // SynthesizeMembers modifies the set AbstractSets to include AbstractSets
