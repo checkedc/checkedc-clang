@@ -171,7 +171,6 @@ is a sibling of your LLVM source tree, like \<WORK_DIR\>/build.
                                                  // system that builds code generators for all
                                                  // LLVM-supported architectures. Specify
                                                  // architecture to decrease build/link times.
-
    -DLLVM_LIT_ARGS=-v                            // Arguments to pass to the test framework
    <WORK_DIR>/src/llvm
    ```
