@@ -119,27 +119,29 @@ namespace clang {
     bool IsTrueEdge(const CFGBlock *PredBlock,
                     const CFGBlock *CurrBlock) const;
 
-    // Get the set of variables that can be potentially widened in an
-    // expression E.
-    // @param[in] E is the given expression.
-    // @param[out] VarsToWiden is a set of variables that can be potentially
-    // widened in expression E.
-    void GetVarsToWiden(Expr *E, VarSetTy &VarsToWiden) const;
-
     // Get all variables modified by CurrStmt or statements nested in CurrStmt.
     // @param[in] CurrStmt is a given statement.
     // @param[out] ModifiedVars is a set of variables modified by CurrStmt or
     // statements nested in CurrStmt.
     void GetModifiedVars(const Stmt *CurrStmt, VarSetTy &ModifiedVars) const;
 
-    // Get the set of variables that are pointers to null-terminated arrays in
-    // whose bounds expressions the variables in Vars occur.
+    // Get the set of variables that are pointers to null-terminated arrays and
+    // in whose lower bounds expressions the variables in Vars occur.
     // @param[in] Vars is a set of variables.
-    // @param[out] PtrsWithVarsInBounds is a set of variables that are pointers
-    // to null-terminated arrays in whose bounds expressions the variables in
-    // Vars occur.
-    void GetPtrsWithVarsInBounds(VarSetTy &Vars,
-                                 VarSetTy &PtrsWithVarsInBounds) const;
+    // @param[out] NtPtrsWithVarsInLowerBounds is a set of variables that are
+    // pointers to null-terminated arrays and in whose lower bounds expressions
+    // the variables in Vars occur.
+    void GetNtPtrsWithVarsInLowerBounds(
+      VarSetTy &Vars, VarSetTy &NtPtrsWithVarsInLowerBounds) const;
+
+    // Get the set of variables that are pointers to null-terminated arrays and
+    // in whose upper bounds expressions the variables in Vars occur.
+    // @param[in] Vars is a set of variables.
+    // @param[out] NtPtrsWithVarsInLowerBounds is a set of variables that are
+    // pointers to null-terminated arrays and in whose upper bounds expressions
+    // the variables in Vars occur.
+    void GetNtPtrsWithVarsInUpperBounds(
+      VarSetTy &Vars, VarSetTy &NtPtrsWithVarsInUpperBounds) const;
 
     // Add an offset to a given expression.
     // @param[in] E is the given expression.
@@ -153,10 +155,12 @@ namespace clang {
     // @return Returns the dereference expression, if it exists.
     Expr *GetDerefExpr(const Expr *E) const;
 
-    // Get the variables occurring in an expression.
+    // Get all variables in an expression that are pointers to null-terminated
+    // arrays.
     // @param[in] E is the given expression.
-    // @param[out] VarsInExpr is a set of variables that occur in E.
-    void GetVarsInExpr(Expr *E, VarSetTy &VarsInExpr) const;
+    // @param[out] VarsInExpr is a set of all variables in the expression E
+    // that are pointers to null-terminated arrays.
+    void GetNtPtrsInExpr(Expr *E, VarSetTy &NtPtrsInExpr) const;
 
     // Invoke IgnoreValuePreservingOperations to strip off casts.
     // @param[in] E is the expression whose casts must be stripped.

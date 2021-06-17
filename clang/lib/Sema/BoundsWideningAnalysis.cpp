@@ -527,8 +527,8 @@ void BoundsWideningAnalysis::GetVarsAndBoundsInPtrDeref(
   ElevatedCFGBlock *EB, BoundsMapTy &VarsAndBounds) {
 
   // Get the terminating condition of the block.
-  // If we have a terminating condition like "if (e1 && e2 && e3)" then three
-  // blocks would be created for e1, e2 and e3. getTerminatorStmt() would
+  // If we have a terminating condition like "if (e1 && e2 && e3)" then 3
+  // blocks would be created for e1, e2 and e3 each. getTerminatorStmt() would
   // return the entire condition "e1 && e2 && e3" but getLastCondition()
   // returns only "e3" which is what we need.
   const Expr *TermCond = EB->Block->getLastCondition();
@@ -544,35 +544,50 @@ void BoundsWideningAnalysis::GetVarsAndBoundsInPtrDeref(
 
   EB->TermCondDerefExpr = DerefExpr;
 
-  // Get the set of null-terminated arrays that the dereference expression
-  // potentially widens. A dereference expression can only widen the bounds of
-  // those null-terminated arrays whose upper bounds expression contains all
-  // variables that occur in the dereference expression. For example: *(p + i +
-  // j) can widen p iff p, i and j all occur in upper_bound(p).
-  VarSetTy VarsToWiden;
-  BWUtil.GetVarsToWiden(DerefExpr, VarsToWiden);
+  // Get all variables in the expression that are pointers to null-terminated
+  // arrays. For example: On a dereference expression like "*(p + i + j + 1)"
+  // GetNtPtrsInExpr() will return {p} if p is a pointer to a null-terminated
+  // array.
 
-  RangeBoundsExpr *R = nullptr;
-  for (const VarDecl *V : VarsToWiden) {
-    if (!BWUtil.IsNtArrayType(V))
-      continue;
+  VarSetTy NtPtrsInExpr;
+  BWUtil.GetNtPtrsInExpr(DerefExpr, NtPtrsInExpr);
 
-    if (!R) {
-      BoundsExpr *NormalizedBounds = SemaRef.NormalizeBounds(V);
-      RangeBoundsExpr *RBE = dyn_cast<RangeBoundsExpr>(NormalizedBounds);
+  // Get all variables that are pointers to null-terminated arrays and in whose
+  // upper bounds expressions each of the variables in NtPtrsInExpr occur. For
+  // example:
 
-      // DerefExpr potentially widens V. So we add
-      // "V:bounds(lower, DerefExpr + 1)" to the Gen set.
+  // _Nt_array_ptr<char> p : bounds(p, p);
+  // _Nt_array_ptr<char> q : bounds(q, p + i);
+  // _Nt_array_ptr<char> r : bounds(r, p + 2);
+  // _Nt_array_ptr<char> s : bounds(p, s);
 
-      // TODO: Here, we always consider the lower bound from the declared
-      // bounds. But this may be incorrect in case a where clause redeclares
-      // the lower bound. This needs to be handled.
-      R = new (Ctx) RangeBoundsExpr(RBE->getLowerExpr(),
-                                    BWUtil.AddOffsetToExpr(DerefExpr, 1),
-                                    SourceLocation(), SourceLocation());
-    }
+  // On a dereference expression like "*(p + i + j + 1)"
+  // GetNtPtrsWithVarsInUpperBounds() will return {p, q, r} because p occurs in
+  // the upper bounds expressions of p, q and r.
 
-    VarsAndBounds[V] = R;
+  VarSetTy NtPtrsWithVarsInUpperBounds;
+  BWUtil.GetNtPtrsWithVarsInUpperBounds(NtPtrsInExpr,
+                                        NtPtrsWithVarsInUpperBounds);
+
+  // Now, the bounds of all variables in NtPtrsWithVarsInUpperBounds can
+  // potentially be widened to bounds(lower, DerefExpr + 1).
+
+  for (const VarDecl *V : NtPtrsWithVarsInUpperBounds) {
+    BoundsExpr *NormalizedBounds = SemaRef.NormalizeBounds(V);
+    RangeBoundsExpr *RBE = dyn_cast<RangeBoundsExpr>(NormalizedBounds);
+
+    // DerefExpr potentially widens V. So we need to add "V:bounds(lower,
+    // DerefExpr + 1)" to the Gen set.
+
+    // TODO: Here, we always consider the lower bound from the declared bounds
+    // of V. But this may be incorrect in case a where clause redeclares the
+    // lower bound of V. This needs to be handled.
+
+    RangeBoundsExpr *WidenedBounds =
+      new (Ctx) RangeBoundsExpr(RBE->getLowerExpr(),
+                                BWUtil.AddOffsetToExpr(DerefExpr, 1),
+                                SourceLocation(), SourceLocation());
+    VarsAndBounds[V] = WidenedBounds;
   }
 }
 
@@ -583,12 +598,13 @@ void BoundsWideningAnalysis::AddModifiedVarsToStmtKillSet(
   VarSetTy ModifiedVars;
   BWUtil.GetModifiedVars(CurrStmt, ModifiedVars);
 
-  // Get the set of variables that are pointers to null-terminated arrays in
-  // whose bounds expressions the modified variables occur.
-  VarSetTy PtrsWithVarsInBounds;
-  BWUtil.GetPtrsWithVarsInBounds(ModifiedVars, PtrsWithVarsInBounds);
+  // Get the set of variables that are pointers to null-terminated arrays and
+  // in whose lower and upper bounds expressions the modified variables occur.
+  VarSetTy NtPtrsWithVarsInBounds;
+  BWUtil.GetNtPtrsWithVarsInLowerBounds(ModifiedVars, NtPtrsWithVarsInBounds);
+  BWUtil.GetNtPtrsWithVarsInUpperBounds(ModifiedVars, NtPtrsWithVarsInBounds);
 
-  for (const VarDecl *V : PtrsWithVarsInBounds)
+  for (const VarDecl *V : NtPtrsWithVarsInBounds)
     EB->StmtKill[CurrStmt].insert(V);
 }
 
@@ -850,75 +866,6 @@ bool BoundsWideningUtil::IsTrueEdge(const CFGBlock *PredBlock,
   return false;
 }
 
-void BoundsWideningUtil::GetVarsToWiden(Expr *E, VarSetTy &VarsToWiden) const {
-  // Determine the set of variables that can be widened in an expression.
-  if (!E)
-    return;
-
-  // Get all variables that occur in the expression.
-  VarSetTy VarsInExpr;
-  GetVarsInExpr(E, VarsInExpr);
-
-  // If we have the following declarations:
-  // _Nt_array_ptr<T> p : bounds(p + i, p + x + y);
-  // _Nt_array_ptr<T> q : bounds(q + j, q + x + z);
-  // Then BoundsVarsUpper contains the following entries:
-  // p : {p}
-  // q : {q}
-  // x : {p, q}
-  // y : {p}
-  // z : {q}
-  VarSetTy PtrsWithVarInUpperBounds;
-  for (const VarDecl *V : VarsInExpr) {
-    // Get the set of null-terminated arrays in whose upper bounds expressions
-    // V occurs.
-    auto PtrVarIt = BoundsVarsUpper.find(V);
-
-    // If V does not occur in the upper bounds expression of any
-    // null-terminated array then expression E cannot potentially widen the
-    // bounds of any null-terminated array.
-    if (PtrVarIt == BoundsVarsUpper.end())
-      return;
-
-    if (PtrsWithVarInUpperBounds.empty())
-      PtrsWithVarInUpperBounds = PtrVarIt->second;
-    else
-      PtrsWithVarInUpperBounds = Intersect(PtrsWithVarInUpperBounds,
-                                           PtrVarIt->second);
-
-    // If the intersection of PtrsWithVarInUpperBounds is empty then expression
-    // E cannot potentially widen the bounds of any null-terminated array.
-    if (PtrsWithVarInUpperBounds.empty())
-      return;
-  }
-
-  // Gather the set of variables occurring in the upper bounds expression of
-  // each pointer.
-  // If we have the following declarations:
-  // _Nt_array_ptr<T> p : bounds(p + i, p + x + y);
-  // _Nt_array_ptr<T> q : bounds(q + j, q + x + z);
-  // Then VarsInBounds would contain the following entries:
-  // p : {p, x, y}
-  // q : {q, x, z}
-  BoundsVarsTy VarsInBounds;
-  for (auto Pair : BoundsVarsUpper) {
-    const VarDecl *V = Pair.first;
-    for (const VarDecl *Ptr : Pair.second) {
-      if (PtrsWithVarInUpperBounds.count(Ptr))
-        VarsInBounds[Ptr].insert(V);
-    }
-  }
-
-  // If the number of variables occurring in the upper bounds expression of
-  // each pointer in PtrsWithVarInUpperBounds is equal to the number of
-  // variables occurring in the dereference expression then that pointer can
-  // potentially be widened.
-  for (const VarDecl *Ptr : PtrsWithVarInUpperBounds) {
-    if (VarsInExpr.size() == VarsInBounds[Ptr].size())
-      VarsToWiden.insert(Ptr);
-  }
-}
-
 void BoundsWideningUtil::GetModifiedVars(const Stmt *CurrStmt,
                                          VarSetTy &ModifiedVars) const {
   // Get all variables modified by CurrStmt or statements nested in CurrStmt.
@@ -948,23 +895,33 @@ void BoundsWideningUtil::GetModifiedVars(const Stmt *CurrStmt,
     GetModifiedVars(NestedStmt, ModifiedVars);
 }
 
-void BoundsWideningUtil::GetPtrsWithVarsInBounds(
-  VarSetTy &Vars, VarSetTy &PtrsWithVarsInBounds) const {
+void BoundsWideningUtil::GetNtPtrsWithVarsInLowerBounds(
+  VarSetTy &Vars, VarSetTy &NtPtrsWithVarsInLowerBounds) const {
 
-  // Get the set of variables that are pointers to null-terminated arrays in
-  // whose bounds expressions the variables in Vars occur.
+  // Get the set of variables that are pointers to null-terminated arrays and
+  // in whose lower bounds expressions the variables in Vars occur.
 
   for (const VarDecl *V : Vars) {
     auto VarPtrIt = BoundsVarsLower.find(V);
     if (VarPtrIt != BoundsVarsLower.end()) {
       for (const VarDecl *Ptr : VarPtrIt->second)
-        PtrsWithVarsInBounds.insert(Ptr);
+        NtPtrsWithVarsInLowerBounds.insert(Ptr);
     }
+  }
+}
 
-    VarPtrIt = BoundsVarsUpper.find(V);
+void BoundsWideningUtil::GetNtPtrsWithVarsInUpperBounds(
+  VarSetTy &Vars, VarSetTy &NtPtrsWithVarsInUpperBounds) const {
+
+  // Get the set of variables that are pointers to null-terminated arrays and
+  // in whose upper bounds expressions the variables in Vars occur.
+
+  for (const VarDecl *V : Vars) {
+    auto VarPtrIt = BoundsVarsUpper.find(V);
     if (VarPtrIt != BoundsVarsUpper.end()) {
       for (const VarDecl *Ptr : VarPtrIt->second)
-        PtrsWithVarsInBounds.insert(Ptr);
+        if (!Ptr->isInvalidDecl() && IsNtArrayType(Ptr))
+          NtPtrsWithVarsInUpperBounds.insert(Ptr);
     }
   }
 }
@@ -1020,13 +977,6 @@ Expr *BoundsWideningUtil::GetDerefExpr(const Expr *TermCond) const {
   // be written A[i] or i[A] (both are equivalent).  getBase() and getIdx()
   // always present the normalized view: A[i]. In this case getBase() returns
   // "A" and getIdx() returns "i".
-
-  // TODO: Currently we normalize A[i] to "A + i" and return that as the
-  // dereference expression because we need to extract the variables that occur
-  // in the deref expression in the function GetVarsInExpr. But once we change
-  // this analysis to use AbstractSets we no longer need to normalize the
-  // expression here and can simply return the ArraySubscriptExpr from this
-  // function.
   } else if (auto *AE = dyn_cast<ArraySubscriptExpr>(E)) {
     return ExprCreatorUtil::CreateBinaryOperator(SemaRef, AE->getBase(),
                                                  AE->getIdx(),
@@ -1035,17 +985,20 @@ Expr *BoundsWideningUtil::GetDerefExpr(const Expr *TermCond) const {
   return nullptr;
 }
 
-void BoundsWideningUtil::GetVarsInExpr(Expr *E, VarSetTy &VarsInExpr) const {
-  // Get the VarDecls of all variables occurring in an expression.
+void BoundsWideningUtil::GetNtPtrsInExpr(Expr *E,
+                                         VarSetTy &NtPtrsInExpr) const {
+  // Get all variables in the expression that are pointers to null-terminated
+  // arrays.
 
   // TODO: Currently this function returns a subset of all variables that occur
-  // in an expression. It returns only the top-level variables that occur in
-  // an expression. For example, in the expression "a + b - c" it returns {a,
-  // b, c}. It does not return variables that are members of a struct or
-  // arguments of a function call, etc.
-  // In future, when we change this analysis to use AbstractSets, this function
-  // can handle an expression like "s->f + func(x)" and return {s, f, x} as the
-  // set of variables that occur in the expression.
+  // in an expression and that are pointers to null-terminated arrays. It
+  // returns only the top-level variables that occur in an expression. For
+  // example, in the expression "a + b - c" it returns {a, b, c} if a, b, c are
+  // all pointers to null-terminated arrays. It does not return variables that
+  // are members of a struct or arguments of a function call, etc.  In future,
+  // when we change this analysis to use AbstractSets, this function can handle
+  // an expression like "s->f + func(x)" and return {s->f, x} if s->f and x are
+  // pointers to null-terminated arrays.
 
   if (!E)
     return;
@@ -1058,18 +1011,20 @@ void BoundsWideningUtil::GetVarsInExpr(Expr *E, VarSetTy &VarsInExpr) const {
 
   // Get variables in an expression like *e.
   if (const auto *UO = dyn_cast<const UnaryOperator>(E)) {
-    GetVarsInExpr(UO->getSubExpr(), VarsInExpr);
+    GetNtPtrsInExpr(UO->getSubExpr(), NtPtrsInExpr);
 
   // Get variables in an expression like e1 + e2.
   } else if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
-    GetVarsInExpr(BO->getLHS(), VarsInExpr);
-    GetVarsInExpr(BO->getRHS(), VarsInExpr);
+    GetNtPtrsInExpr(BO->getLHS(), NtPtrsInExpr);
+    GetNtPtrsInExpr(BO->getRHS(), NtPtrsInExpr);
   }
 
+  // If the variable is a pointer to a null-terminated array add the variable
+  // to NtPtrsInExpr.
   if (const auto *D = dyn_cast<DeclRefExpr>(E)) {
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
-      if (!V->isInvalidDecl())
-        VarsInExpr.insert(V);
+      if (!V->isInvalidDecl() && IsNtArrayType(V))
+        NtPtrsInExpr.insert(V);
   }
 }
 
