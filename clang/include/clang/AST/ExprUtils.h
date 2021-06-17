@@ -106,6 +106,9 @@ public:
   // rvalue cast.
   static Expr *GetRValueCastChild(Sema &S, Expr *E);
 
+  // IgnoreRedundantCast strips redundant casts off of E.
+  static Expr *IgnoreRedundantCast(ASTContext &Ctx, CastKind NewCK, Expr *E);
+
   // EqualValue returns true if E1 and E2 are lexicographically equivalent.
   static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2,
                          EquivExprSets *EquivExprs);

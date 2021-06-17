@@ -183,6 +183,19 @@ Expr *ExprUtil::GetRValueCastChild(Sema &S, Expr *E) {
   return nullptr;
 }
 
+Expr *ExprUtil::IgnoreRedundantCast(ASTContext &Ctx, CastKind NewCK, Expr *E) {
+  CastExpr *P = dyn_cast<CastExpr>(E);
+  if (!P)
+    return E;
+
+  CastKind ExistingCK = P->getCastKind();
+  Expr *SE = P->getSubExpr();
+  if (NewCK == CK_BitCast && ExistingCK == CK_BitCast)
+    return SE;
+
+  return E;
+}
+
 bool ExprUtil::EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2,
                           EquivExprSets *EquivExprs) {
   Lexicographic::Result R = Lexicographic(Ctx, EquivExprs).CompareExpr(E1, E2);
