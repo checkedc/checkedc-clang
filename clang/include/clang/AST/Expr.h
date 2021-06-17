@@ -3745,7 +3745,7 @@ class CastExpr : public Expr {
 protected:
   CastExpr(StmtClass SC, QualType ty, ExprValueKind VK, const CastKind kind,
            Expr *op, unsigned BasePathSize, bool HasFPFeatures)
-      : Expr(SC, ty, VK, OK_Ordinary), Op(op) {
+      : Expr(SC, ty, VK, OK_Ordinary) {
     SubExprs[OP] = op;
     SubExprs[BOUNDS] = nullptr;
     SubExprs[NORMALIZED_BOUNDS] = nullptr;
@@ -4139,13 +4139,16 @@ public:
                  SourceLocation RParenLoc, SourceRange AngleBrackets,
                  BoundsExpr *bounds) : ExplicitCastExpr(BoundsCastExprClass,
                                                         exprTy, vk, kind, op,
-                                                        PathSize, writtenTy),
+                                                        PathSize,
+							/* HasFPFeatures = */ false,
+							writtenTy),
       LPLoc(l), RParenLoc(RParenLoc), AngleBrackets(AngleBrackets) {
     setBoundsExpr(bounds);
   }
 
   explicit BoundsCastExpr(EmptyShell Shell, unsigned PathSize)
-      : ExplicitCastExpr(BoundsCastExprClass, Shell, PathSize) {}
+      : ExplicitCastExpr(BoundsCastExprClass, Shell,
+		         /* HasFPFeatures = */ false, PathSize) {}
 
   static BoundsCastExpr *Create(const ASTContext &Context, QualType T,
                                 ExprValueKind VK, CastKind K, Expr *Op,
