@@ -183,6 +183,46 @@ Expr *ExprUtil::GetRValueCastChild(Sema &S, Expr *E) {
   return nullptr;
 }
 
+bool ExprUtil::ReadsMemoryViaPointer(Expr *E, bool IncludeAllMemberExprs) {
+  if (!E)
+    return false;
+
+  E = E->IgnoreParens();
+
+  switch (E->getStmtClass()) {
+    case Expr::UnaryOperatorClass: {
+      UnaryOperator *UO = cast<UnaryOperator>(E);
+      // *e reads memory via a pointer.
+      return UO->getOpcode() == UnaryOperatorKind::UO_Deref;
+    }
+    // e1[e2] is a synonym for *(e1 + e2), which reads memory via a pointer.
+    case Expr::ArraySubscriptExprClass:
+      return true;
+    case Expr::MemberExprClass: {
+      if (IncludeAllMemberExprs)
+        return true;
+
+      MemberExpr *ME = cast<MemberExpr>(E);
+      // e1->f reads memory via a pointer.
+      if (ME->isArrow())
+        return true;
+      // e1.f reads memory via a pointer if and only if e1 reads
+      // memory via a pointer.
+      else
+        return ReadsMemoryViaPointer(ME->getBase(), IncludeAllMemberExprs);
+    }
+    default: {
+      for (auto I = E->child_begin(); I != E->child_end(); ++I) {
+        if (Expr *SubExpr = dyn_cast<Expr>(*I)) {
+          if (ReadsMemoryViaPointer(SubExpr, IncludeAllMemberExprs))
+            return true;
+        }
+      }
+      return false;
+    }
+  }
+}
+
 std::pair<Expr *, Expr *> ExprUtil::SplitByLValueCount(Sema &S, Expr *LValue,
                                                        Expr *E1, Expr *E2) {
   std::pair<Expr *, Expr *> Pair;

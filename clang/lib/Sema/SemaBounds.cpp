@@ -1508,7 +1508,8 @@ namespace {
         // We also skip checking free variables if E1 or E2 is or contains a
         // non-arrow member expression, since the compiler currently does
         // not track equality information for member expressions.
-        if (ReadsMemoryViaPointer(E1, true) || ReadsMemoryViaPointer(E2, true))
+        if (ExprUtil::ReadsMemoryViaPointer(E1, true) ||
+            ExprUtil::ReadsMemoryViaPointer(E2, true))
           return false;
 
         bool HasFreeVariables = false;
@@ -3663,7 +3664,8 @@ namespace {
             // Otherwise, if e is nonmodifying and does not read memory via a
             // pointer, State.SameValue = { e }.  Otherwise, State.SameValue
             // is empty.
-            if (CheckIsNonModifying(E) && !ReadsMemoryViaPointer(E) &&
+            if (CheckIsNonModifying(E) &&
+                !ExprUtil::ReadsMemoryViaPointer(E) &&
                 !CreatesNewObject(E))
               State.SameValue.push_back(E);
           }
@@ -5300,7 +5302,7 @@ namespace {
       // and cannot be or contain a pointer dereference, member
       // reference, or indirect member reference.
       if (!CheckIsNonModifying(E_NotLValue) ||
-          ReadsMemoryViaPointer(E_NotLValue, true))
+          ExprUtil::ReadsMemoryViaPointer(E_NotLValue, true))
         return false;
 
       return true;
@@ -5707,51 +5709,6 @@ namespace {
           for (auto I = E->child_begin(); I != E->child_end(); ++I) {
             if (Expr *SubExpr = dyn_cast<Expr>(*I)) {
               if (CreatesNewObject(SubExpr))
-                return true;
-            }
-          }
-          return false;
-        }
-      }
-    }
-
-    // Returns true if the expression e reads memory via a pointer.
-    // IncludeAllMemberExprs is used to modify the behavior to return true if e
-    // is or contains a pointer dereference, member reference, or indirect
-    // member reference (including e1.f which may not read memory via a
-    // pointer). Returns false if E is nullptr.
-    static bool ReadsMemoryViaPointer(Expr *E, bool IncludeAllMemberExprs = false) {
-      if (!E)
-        return false;
-
-      E = E->IgnoreParens();
-
-      switch (E->getStmtClass()) {
-        case Expr::UnaryOperatorClass: {
-          UnaryOperator *UO = cast<UnaryOperator>(E);
-          // *e reads memory via a pointer.
-          return UO->getOpcode() == UnaryOperatorKind::UO_Deref;
-        }
-        // e1[e2] is a synonym for *(e1 + e2), which reads memory via a pointer.
-        case Expr::ArraySubscriptExprClass:
-          return true;
-        case Expr::MemberExprClass: {
-          if (IncludeAllMemberExprs)
-            return true;
-
-          MemberExpr *ME = cast<MemberExpr>(E);
-          // e1->f reads memory via a pointer.
-          if (ME->isArrow())
-            return true;
-          // e1.f reads memory via a pointer if and only if e1 reads
-          // memory via a pointer.
-          else
-            return ReadsMemoryViaPointer(ME->getBase(), IncludeAllMemberExprs);
-        }
-        default: {
-          for (auto I = E->child_begin(); I != E->child_end(); ++I) {
-            if (Expr *SubExpr = dyn_cast<Expr>(*I)) {
-              if (ReadsMemoryViaPointer(SubExpr, IncludeAllMemberExprs))
                 return true;
             }
           }

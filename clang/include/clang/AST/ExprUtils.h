@@ -106,6 +106,14 @@ public:
   // rvalue cast.
   static Expr *GetRValueCastChild(Sema &S, Expr *E);
 
+  // ReadsMemoryViaPointer returns true if the expression e reads memory via
+  // a pointer.
+  // IncludeAllMemberExprs is used to modify the behavior to return true if e
+  // is or contains a pointer dereference, member reference, or indirect
+  // member reference (including e1.f which may not read memory via a
+  // pointer). Returns false if E is nullptr.
+  static bool ReadsMemoryViaPointer(Expr *E, bool IncludeAllMemberExprs = false);
+
   // If LValue appears exactly once in Ei and does not appear in Ej,
   // SplitByLValueCount returns the pair (Ei, Ej).  Otherwise, it returns
   // an empty pair.
