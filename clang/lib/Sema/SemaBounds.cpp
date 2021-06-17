@@ -3567,8 +3567,8 @@ namespace {
             // The bounds expression is for an interface type. Retype the
             // argument to the interface type.
             if (UsedIType) {
-              TypedArg = CreateExplicitCast(
-                ParamIType->getType(), CK_BitCast, Arg, true);
+              TypedArg = ExprCreatorUtil::CreateExplicitCast(
+                S, ParamIType->getType(), CK_BitCast, Arg, true);
             }
             SubstParamBounds = ExpandToRange(TypedArg,
                                     const_cast<BoundsExpr *>(SubstParamBounds));
@@ -3696,9 +3696,10 @@ namespace {
         // recompute any expressions computed to temporaries already.
         Expr *TempUse = CreateTemporaryUse(TempExpr);
 
-        Expr *SubExprAtNewType = CreateExplicitCast(E->getType(),
-                                                CastKind::CK_BitCast,
-                                                TempUse, true);
+        Expr *SubExprAtNewType =
+          ExprCreatorUtil::CreateExplicitCast(S, E->getType(),
+                                              CastKind::CK_BitCast,
+                                              TempUse, true);
 
         if (CK == CK_AssumePtrBounds)
           return ExpandToRange(SubExprAtNewType, E->getBoundsExpr());
@@ -4350,20 +4351,6 @@ namespace {
       return CBE;
     }
 
-    Expr *CreateExplicitCast(QualType Target, CastKind CK, Expr *E,
-                               bool isBoundsSafeInterface) {
-      // Avoid building up nested chains of no-op casts.
-      E = ExprUtil::IgnoreRedundantCast(Context, CK, E);
-
-      // Synthesize some dummy type source source information.
-      TypeSourceInfo *DI = Context.getTrivialTypeSourceInfo(Target);
-      CStyleCastExpr *CE = CStyleCastExpr::Create(Context, Target,
-        ExprValueKind::VK_RValue, CK, E, nullptr, DI, SourceLocation(),
-        SourceLocation());
-      CE->setBoundsSafeInterface(isBoundsSafeInterface);
-      return CE;
-    }
-
     ImplicitCastExpr *CreateImplicitCast(QualType Target, CastKind CK,
                                          Expr *E) {
       return ImplicitCastExpr::Create(Context, Target, CK, E, nullptr,
@@ -4402,7 +4389,9 @@ namespace {
             // The bounds-safe interface argument is false because casts
             // to checked pointer types are always allowed by type checking.
             LowerBound =
-              CreateExplicitCast(ResultTy, CastKind::CK_BitCast, Base, false);
+              ExprCreatorUtil::CreateExplicitCast(S, ResultTy,
+                                                  CastKind::CK_BitCast,
+                                                  Base, false);
           } else {
             ResultTy = Base->getType();
             LowerBound = Base;
@@ -4413,7 +4402,9 @@ namespace {
               // between checked pointer types are always allowed by type
               // checking.
               LowerBound =
-                CreateExplicitCast(ResultTy, CastKind::CK_BitCast, Base, false);
+                ExprCreatorUtil::CreateExplicitCast(S, ResultTy,
+                                                    CastKind::CK_BitCast,
+                                                    Base, false);
             }
           }
           Expr *UpperBound =
@@ -5295,15 +5286,15 @@ namespace {
           return Inverse(LValue, F1, E->getSubExpr());
         }
         case Expr::CStyleCastExprClass: {
-          Expr *F1 = CreateExplicitCast(T2, E->getCastKind(), F,
-                                        E->isBoundsSafeInterface());
+          Expr *F1 = ExprCreatorUtil::CreateExplicitCast(S, T2, E->getCastKind(), F,
+                                                         E->isBoundsSafeInterface());
           return Inverse(LValue, F1, E->getSubExpr());
         }
         case Expr::BoundsCastExprClass: {
           CHKCBindTemporaryExpr *Temp = dyn_cast<CHKCBindTemporaryExpr>(E->getSubExpr());
           assert(Temp);
-          Expr *F1 = CreateExplicitCast(T2, CastKind::CK_BitCast, F,
-                                        E->isBoundsSafeInterface());
+          Expr *F1 = ExprCreatorUtil::CreateExplicitCast(S, T2, CastKind::CK_BitCast, F,
+                                                         E->isBoundsSafeInterface());
           return Inverse(LValue, F1, Temp->getSubExpr());
         }
         default:
@@ -5959,7 +5950,8 @@ namespace {
         };
 
         if (TargetTy != E->getType())
-          Base = CreateExplicitCast(TargetTy, CK_BitCast, Base, true);
+          Base = ExprCreatorUtil::CreateExplicitCast(S, TargetTy, CK_BitCast,
+                                                     Base, true);
       } else
         assert(Ty == E->getType());
 
@@ -6465,10 +6457,8 @@ Expr *Sema::MakeAssignmentImplicitCastExplicit(Expr *E) {
   if (isUsualUnaryConversion)
     return E;
 
-  PrepassInfo Info;
-  std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
-  return CheckBoundsDeclarations(*this, Info, EmptyFacts).CreateExplicitCast(TargetTy, CK, SE,
-                                                             ICE->isBoundsSafeInterface());
+  return ExprCreatorUtil::CreateExplicitCast(*this, TargetTy, CK, SE,
+                                             ICE->isBoundsSafeInterface());
 }
 
 void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {

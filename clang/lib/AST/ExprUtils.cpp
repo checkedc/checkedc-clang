@@ -48,6 +48,21 @@ ImplicitCastExpr *ExprCreatorUtil::CreateImplicitCast(Sema &SemaRef, Expr *E,
                                   ExprValueKind::VK_RValue);
 }
 
+Expr *ExprCreatorUtil::CreateExplicitCast(Sema &SemaRef, QualType Target,
+                                          CastKind CK, Expr *E,
+                                          bool isBoundsSafeInterface) {
+  // Avoid building up nested chains of no-op casts.
+  E = ExprUtil::IgnoreRedundantCast(SemaRef.Context, CK, E);
+
+  // Synthesize some dummy type source source information.
+  TypeSourceInfo *DI = SemaRef.Context.getTrivialTypeSourceInfo(Target);
+  CStyleCastExpr *CE = CStyleCastExpr::Create(SemaRef.Context, Target,
+    ExprValueKind::VK_RValue, CK, E, nullptr, DI, SourceLocation(),
+    SourceLocation());
+  CE->setBoundsSafeInterface(isBoundsSafeInterface);
+  return CE;
+}
+
 DeclRefExpr *ExprCreatorUtil::CreateVarUse(Sema &SemaRef, VarDecl *V) {
   return DeclRefExpr::Create(SemaRef.getASTContext(), NestedNameSpecifierLoc(),
                              SourceLocation(), V, false, SourceLocation(),

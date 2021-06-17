@@ -38,6 +38,11 @@ public:
   static ImplicitCastExpr *CreateImplicitCast(Sema &SemaRef, Expr *E,
                                               CastKind CK, QualType T);
 
+  // Create an explicit cast expression.
+  static Expr *CreateExplicitCast(Sema &SemaRef, QualType Target,
+                                  CastKind CK, Expr *E,
+                                  bool isBoundsSafeInterface);
+
   // Create a use of a VarDecl.
   static DeclRefExpr *CreateVarUse(Sema &SemaRef, VarDecl *V);
 
