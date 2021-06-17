@@ -160,6 +160,11 @@ public:
   // to the LValue expression.
   static bool IsInvertible(Sema &S, Expr *LValue, Expr *E);
 
+  // Inverse repeatedly applies mathematical rules to the expression E to
+  // get the inverse of E with respect to the lvalue expression LValue and
+  // expression F. If rules cannot be applied to E, Inverse returns nullptr.
+  static Expr *Inverse(Sema &S, Expr *LValue, Expr *F, Expr *E);
+
 private:
   // IsUnaryOperatorInvertible returns true if a unary operator is invertible
   // with respect to LValue.
@@ -176,6 +181,19 @@ private:
   // A cast expression (T1)e1 is invertible if T1 is a bit-preserving
   // or widening cast and e1 is invertible with respect to LValue.
   static bool IsCastExprInvertible(Sema &S, Expr *LValue, CastExpr *E);
+
+  // UnaryOperatorInverse returns the inverse of a unary operator.
+  static Expr *UnaryOperatorInverse(Sema &S, Expr *LValue, Expr *F,
+                                    UnaryOperator *E);
+
+  // BinaryOperatorInverse returns the inverse of a binary operator.
+  static Expr *BinaryOperatorInverse(Sema &S, Expr *LValue, Expr *F,
+                                     BinaryOperator *E);
+
+  // CastExprInverse returns the inverse of a cast expression.  If e1 has
+  // type T2, Inverse(f, (T1)e1) = Inverse((T2)f, e1) (assuming that (T1)
+  // is not a narrowing cast).
+  static Expr *CastExprInverse(Sema &S, Expr *LValue, Expr *F, CastExpr *E);
 };
 
 } // end namespace clang

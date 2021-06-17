@@ -516,3 +516,140 @@ bool InverseUtil::IsCastExprInvertible(Sema &S, Expr *LValue, CastExpr *E) {
       return false;
   }
 }
+
+Expr *InverseUtil::Inverse(Sema &S, Expr *LValue, Expr *F, Expr *E) {
+  if (!F)
+    return nullptr;
+
+  E = E->IgnoreParens();
+  Expr *RValueChild = ExprUtil::GetRValueCastChild(S, E);
+  if (RValueChild && ExprUtil::EqualValue(S.Context, LValue, RValueChild, nullptr))
+    return F;
+
+  switch (E->getStmtClass()) {
+    case Expr::UnaryOperatorClass:
+      return UnaryOperatorInverse(S, LValue, F, cast<UnaryOperator>(E));
+    case Expr::BinaryOperatorClass:
+      return BinaryOperatorInverse(S, LValue, F, cast<BinaryOperator>(E));
+    case Expr::ImplicitCastExprClass:
+    case Expr::CStyleCastExprClass:
+    case Expr::BoundsCastExprClass:
+      return CastExprInverse(S, LValue, F, cast<CastExpr>(E));
+    default:
+      return nullptr;
+  }
+
+  return nullptr;
+}
+
+Expr *InverseUtil::UnaryOperatorInverse(Sema &S, Expr *LValue, Expr *F,
+                                        UnaryOperator *E) {
+  Expr *SubExpr = E->getSubExpr()->IgnoreParens();
+  UnaryOperatorKind Op = E->getOpcode();
+  
+  if (Op == UnaryOperatorKind::UO_AddrOf) {
+    // Inverse(f, &*e1) = Inverse(f, e1)
+    if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
+      if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_Deref)
+        return Inverse(S, LValue, F, UnarySubExpr->getSubExpr());
+    }
+    // Inverse(f, &e1[e2]) = Inverse(f, e1 + e2)
+    else if (ArraySubscriptExpr *ArraySubExpr = dyn_cast<ArraySubscriptExpr>(SubExpr)) {
+      Expr *Base = ArraySubExpr->getBase();
+      Expr *Index = ArraySubExpr->getIdx();
+      BinaryOperator Sum(S.Context, Base, Index,
+                         BinaryOperatorKind::BO_Add,
+                         Base->getType(),
+                         Base->getValueKind(),
+                         Base->getObjectKind(),
+                         SourceLocation(),
+                         FPOptionsOverride());
+      return Inverse(S, LValue, F, &Sum);
+    }
+  }
+
+  // Inverse(f, *&e1) = Inverse(f, e1)
+  if (Op == UnaryOperatorKind::UO_Deref) {
+    if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
+      if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_AddrOf)
+        return Inverse(S, LValue, F, UnarySubExpr->getSubExpr());
+    }
+  }
+
+  // Inverse(f, ~e1) = Inverse(~f, e1)
+  // Inverse(f, -e1) = Inverse(-f, e1)
+  // Inverse(f, +e1) = Inverse(+f, e1)
+  Expr *Child = ExprCreatorUtil::EnsureRValue(S, F);
+  Expr *F1 = UnaryOperator::Create(S.Context, Child, Op,
+                                   E->getType(),
+                                   E->getValueKind(),
+                                   E->getObjectKind(),
+                                   SourceLocation(),
+                                   E->canOverflow(),
+                                   FPOptionsOverride());
+  return Inverse(S, LValue, F1, SubExpr);
+}
+
+Expr *InverseUtil::BinaryOperatorInverse(Sema &S, Expr *LValue, Expr *F,
+                                         BinaryOperator *E) {
+  std::pair<Expr *, Expr*> Pair =
+    ExprUtil::SplitByLValueCount(S, LValue, E->getLHS(), E->getRHS());
+  if (!Pair.first)
+    return nullptr;
+
+  Expr *E_LValue = Pair.first, *E_NotLValue = Pair.second;
+  BinaryOperatorKind Op = E->getOpcode();
+  Expr *F1 = nullptr;
+
+  switch (Op) {
+    case BinaryOperatorKind::BO_Add:
+      // Inverse(f, e1 + e2) = Inverse(f - e_notlvalue, e_lvalue)
+      F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotLValue, BinaryOperatorKind::BO_Sub);
+      break;
+    case BinaryOperatorKind::BO_Sub: {
+      if (E_LValue == E->getLHS())
+        // Inverse(f, e_lvalue - e_notlvalue) = Inverse(f + e_notlvalue, e_lvalue)
+        F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotLValue, BinaryOperatorKind::BO_Add);
+      else
+        // Inverse(f, e_notlvalue - e_lvalue) => Inverse(e_notlvalue - f, e_lvalue)
+        F1 = ExprCreatorUtil::CreateBinaryOperator(S, E_NotLValue, F, BinaryOperatorKind::BO_Sub);
+      break;
+    }
+    case BinaryOperatorKind::BO_Xor:
+      // Inverse(f, e1 ^ e2) = Inverse(lvalue, f ^ e_notlvalue, e_lvalue)
+      F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotLValue, BinaryOperatorKind::BO_Xor);
+      break;
+    default:
+      llvm_unreachable("unexpected binary operator kind");
+  }
+
+  return Inverse(S, LValue, F1, E_LValue);
+}
+
+Expr *InverseUtil::CastExprInverse(Sema &S, Expr *LValue, Expr *F, CastExpr *E) {
+  QualType T2 = E->getSubExpr()->getType();
+  switch (E->getStmtClass()) {
+    case Expr::ImplicitCastExprClass: {
+      Expr *F1 =
+        ExprCreatorUtil::CreateImplicitCast(S, F, E->getCastKind(), T2);
+      return Inverse(S, LValue, F1, E->getSubExpr());
+    }
+    case Expr::CStyleCastExprClass: {
+      Expr *F1 =
+        ExprCreatorUtil::CreateExplicitCast(S, T2, E->getCastKind(), F,
+                                            E->isBoundsSafeInterface());
+      return Inverse(S, LValue, F1, E->getSubExpr());
+    }
+    case Expr::BoundsCastExprClass: {
+      CHKCBindTemporaryExpr *Temp = dyn_cast<CHKCBindTemporaryExpr>(E->getSubExpr());
+      assert(Temp);
+      Expr *F1 =
+        ExprCreatorUtil::CreateExplicitCast(S, T2, CastKind::CK_BitCast, F,
+                                            E->isBoundsSafeInterface());
+      return Inverse(S, LValue, F1, Temp->getSubExpr());
+    }
+    default:
+      llvm_unreachable("unexpected cast kind");
+  }
+  return nullptr;
+}
