@@ -321,6 +321,22 @@ namespace clang {
     // @param[in] FD is the current function.
     void DumpWidenedBounds(FunctionDecl *FD);
 
+    // Get the Out set for the statement. This set represents the bounds
+    // widened after the statement.
+    // Note: This method can be called from outside this class to get the
+    // widened bounds after a statement.
+    // @param[in] B is the current block.
+    // @param[in] CurrStmt is the current statement.
+    BoundsMapTy GetStmtOut(const CFGBlock *B, const Stmt *CurrStmt) const;
+
+    // Get the In set for the statement. This set represents the bounds
+    // widened before the statement.
+    // Note: This method can be called from outside this class to get the
+    // widened bounds before a statement.
+    // @param[in] B is the current block.
+    // @param[in] CurrStmt is the current statement.
+    BoundsMapTy GetStmtIn(const CFGBlock *B, const Stmt *CurrStmt) const;
+
   private:
     // Compute Gen and Kill sets for the block and statements in the block.
     // @param[in] EB is the current ElevatedCFGBlock.
@@ -420,18 +436,6 @@ namespace clang {
     // @param[in] CurrStmt is the current statement.
     void AddModifiedVarsToStmtKillSet(ElevatedCFGBlock *EB,
                                       const Stmt *CurrStmt);
-
-    // Get the Out set for the statement. This set represents the bounds
-    // widened after the statement.
-    // @param[in] EB is the current ElevatedCFGBlock.
-    // @param[in] CurrStmt is the current statement.
-    BoundsMapTy GetStmtOut(ElevatedCFGBlock *EB, const Stmt *CurrStmt) const;
-
-    // Get the In set for the statement. This set represents the bounds
-    // widened before the statement.
-    // @param[in] EB is the current ElevatedCFGBlock.
-    // @param[in] CurrStmt is the current statement.
-    BoundsMapTy GetStmtIn(ElevatedCFGBlock *EB, const Stmt *CurrStmt) const;
 
     // Order the blocks by block number to get a deterministic iteration order
     // for the blocks.

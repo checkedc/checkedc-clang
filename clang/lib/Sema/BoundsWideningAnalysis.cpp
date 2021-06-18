@@ -241,7 +241,7 @@ BoundsMapTy BoundsWideningAnalysis::PruneOutSet(
   // Get the StmtIn of the last statement in the pred block. If the pred
   // block does not have any statements then StmtInOfLastStmtOfPred is set to
   // the In set of the pred block.
-  BoundsMapTy StmtInOfLastStmtOfPred = GetStmtIn(PredEB, PredEB->LastStmt);
+  BoundsMapTy StmtInOfLastStmtOfPred = GetStmtIn(PredBlock, PredEB->LastStmt);
 
   // Check if the current block is a case of a switch-case.
   bool IsSwitchCase = BWUtil.IsSwitchCaseBlock(CurrBlock);
@@ -449,8 +449,19 @@ void BoundsWideningAnalysis::InitBlockInOutSets(FunctionDecl *FD,
   }
 }
 
-BoundsMapTy BoundsWideningAnalysis::GetStmtOut(ElevatedCFGBlock *EB,
+BoundsMapTy BoundsWideningAnalysis::GetStmtOut(const CFGBlock *B,
                                                const Stmt *CurrStmt) const {
+  // Note: This method can be called from outside the BoundsWideningAnalysis
+  // class to get the widened bounds after a statement.
+  if (!B)
+    return BoundsMapTy();
+
+  auto BlockIt = BlockMap.find(B);
+  if (BlockIt == BlockMap.end())
+    return BoundsMapTy();
+
+  ElevatedCFGBlock *EB = BlockIt->second;
+
   if (CurrStmt) {
     auto Diff = BWUtil.Difference(EB->In, EB->UnionKill[CurrStmt]);
     return BWUtil.Union(Diff, EB->UnionGen[CurrStmt]);
@@ -458,10 +469,21 @@ BoundsMapTy BoundsWideningAnalysis::GetStmtOut(ElevatedCFGBlock *EB,
   return EB->In;
 }
 
-BoundsMapTy BoundsWideningAnalysis::GetStmtIn(ElevatedCFGBlock *EB,
+BoundsMapTy BoundsWideningAnalysis::GetStmtIn(const CFGBlock *B,
                                               const Stmt *CurrStmt) const {
+  // Note: This method can be called from outside the BoundsWideningAnalysis
+  // class to get the widened bounds before a statement.
+  if (!B)
+    return BoundsMapTy();
+
+  auto BlockIt = BlockMap.find(B);
+  if (BlockIt == BlockMap.end())
+    return BoundsMapTy();
+
+  ElevatedCFGBlock *EB = BlockIt->second;
+
   // StmtIn of a statement is equal to the StmtOut of its previous statement.
-  return GetStmtOut(EB, EB->PrevStmtMap[CurrStmt]);
+  return GetStmtOut(B, EB->PrevStmtMap[CurrStmt]);
 }
 
 void BoundsWideningAnalysis::InitNtPtrsInFunc(FunctionDecl *FD) {
@@ -634,8 +656,6 @@ void BoundsWideningAnalysis::DumpWidenedBounds(FunctionDecl *FD) {
         }
     }
 
-    ElevatedCFGBlock *EB = BlockMap[CurrBlock];
-
     bool IsBlockEmpty = true;
     for (CFGElement Elem : *CurrBlock) {
       if (Elem.getKind() == CFGElement::Statement) {
@@ -643,7 +663,7 @@ void BoundsWideningAnalysis::DumpWidenedBounds(FunctionDecl *FD) {
         if (!CurrStmt)
           continue;
 
-        BoundsMapTy WidenedBounds = GetStmtIn(EB, CurrStmt);
+        BoundsMapTy WidenedBounds = GetStmtIn(CurrBlock, CurrStmt);
 
         std::vector<const VarDecl *> Vars;
         for (auto VarBoundsPair : WidenedBounds)
