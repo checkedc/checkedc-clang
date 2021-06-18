@@ -26,14 +26,14 @@ void BoundsWideningAnalysis::WidenBounds(FunctionDecl *FD) {
   assert(Cfg && "expected CFG to exist");
 
   // Initialize the list of variables that are pointers to null-terminated
-  // arrays to the null-terminated arrays that are passed as parameters to the
-  // function.
+  // arrays. This list will be initialized with the variables that are passed
+  // as parameters to the function.
   InitNtPtrsInFunc(FD);
 
+  // WorkList will store the blocks that remain to be processed for the
+  // fixedpoint computation.
   WorkListTy WorkList;
 
-  // Add each block to WorkList and create a mapping from CFGBlock to
-  // ElevatedCFGBlock.
   // Note: By default, PostOrderCFGView iterates in reverse order. So we always
   // get a reverse post order when we iterate PostOrderCFGView.
   for (const CFGBlock *B : PostOrderCFGView(Cfg)) {
@@ -43,6 +43,7 @@ void BoundsWideningAnalysis::WidenBounds(FunctionDecl *FD) {
     if (BWUtil.SkipBlock(B))
       continue;
 
+    // Create a mapping from CFGBlock to ElevatedCFGBlock.
     auto EB = new ElevatedCFGBlock(B);
     BlockMap[B] = EB;
 
@@ -57,7 +58,8 @@ void BoundsWideningAnalysis::WidenBounds(FunctionDecl *FD) {
     InitBlockInOutSets(FD, EB);
   }
 
-  // Compute the In and Out sets for blocks.
+  // Compute the In and Out sets for blocks. This is the fixedpoint computation
+  // for the dataflow analysis.
   while (!WorkList.empty()) {
     ElevatedCFGBlock *EB = WorkList.next();
     WorkList.remove(EB);
@@ -70,6 +72,8 @@ void BoundsWideningAnalysis::WidenBounds(FunctionDecl *FD) {
 void BoundsWideningAnalysis::ComputeGenKillSets(ElevatedCFGBlock *EB) {
   const Stmt *PrevStmt = nullptr;
 
+  // Traverse statements in the block and compute Gen and Kill sets for each
+  // statement.
   for (CFGBlock::const_iterator I = EB->Block->begin(),
                                 E = EB->Block->end();
        I != E; ++I) {
@@ -79,19 +83,31 @@ void BoundsWideningAnalysis::ComputeGenKillSets(ElevatedCFGBlock *EB) {
       if (!CurrStmt)
         continue;
 
+      // Compute Gen and Kill sets for the current statement.
       ComputeStmtGenKillSets(EB, CurrStmt);
+
+      // To compute the In sets for blocks we need to union the Gen and Kill
+      // sets of all statement in the block. This union operation is
+      // independent of the fixedpoint computation and hence can be done
+      // outside the loop to speed-up the fixedpoint loop.
       ComputeUnionGenKillSets(EB, CurrStmt, PrevStmt);
+
+      // Update the list of null-terminated arrays in the function with the
+      // null-terminated arrays that became part of Gen set for the current
+      // statement.
       UpdateNtPtrsInFunc(EB, CurrStmt);
 
       EB->PrevStmtMap[CurrStmt] = PrevStmt;
       PrevStmt = CurrStmt;
 
-      // Save the last statement of the block.
+      // Store the last statement of the block. We will use it later in the
+      // block In, Gen and Kill set computations.
       if (I == E - 1)
         EB->LastStmt = CurrStmt;
     }
   }
 
+  // Compute the Gen and Kill sets for the block.
   ComputeBlockGenKillSets(EB);
 }
 
@@ -548,10 +564,16 @@ void BoundsWideningAnalysis::GetVarsAndBoundsInPtrDeref(
   ElevatedCFGBlock *EB, BoundsMapTy &VarsAndBounds) {
 
   // Get the terminating condition of the block.
-  // If we have a terminating condition like "if (e1 && e2 && e3)" then 3
-  // blocks would be created for e1, e2 and e3 each. getTerminatorStmt() would
-  // return the entire condition "e1 && e2 && e3" but getLastCondition()
-  // returns only "e3" which is what we need.
+  // The CFG for a compound condition like "if (e1 && e2 && e3)" is as follows:
+
+  // B1->B2 (edge condition e1)
+  // B2->B3 (edge condition e2)
+  // B3->B4 (edge condition e3)
+
+  // So we see that each condition becomes an edge in the CFG.
+  // getTerminatorStmt() would give us the entire condition "e1 && e2 && e3"
+  // while getLastCondition() would give us e1 for the first edge e2 for the
+  // second and so on.
   const Expr *TermCond = EB->Block->getLastCondition();
   if (!TermCond)
     return;
@@ -563,6 +585,8 @@ void BoundsWideningAnalysis::GetVarsAndBoundsInPtrDeref(
   if (!DerefExpr)
     return;
 
+  // Store the dereference condition for the block. We will use it later in the
+  // In set calculation.
   EB->TermCondDerefExpr = DerefExpr;
 
   // Get all variables in the expression that are pointers to null-terminated
