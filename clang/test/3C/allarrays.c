@@ -8,7 +8,7 @@ void bar(void) {
   int *p = 0;
   //CHECK: _Array_ptr<int> p = 0;
   int *q = foo(p);
-  //CHECK: _Array_ptr<int> q = foo(p);
+  //CHECK: _Array_ptr<int> q : count(1 + 1) = foo(p);
   q[1] = 0;
 }
 int *foo(int *r);

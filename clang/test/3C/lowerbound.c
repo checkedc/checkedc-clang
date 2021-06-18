@@ -13,5 +13,5 @@ void bar() {
   y = foo(z);
   y[2] = 1;
 }
-//CHECK: _Array_ptr<int> y =  0;
+//CHECK: _Array_ptr<int> y : count(2 + 1) =  0;
 //CHECK-NEXT: _Array_ptr<int> z =  0;

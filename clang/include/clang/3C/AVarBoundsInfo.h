@@ -138,6 +138,8 @@ private:
   bool hasImpossibleBounds(BoundsKey BK);
   // Set the given pointer to have impossible bounds.
   void setImpossibleBounds(BoundsKey BK);
+  // Infer bounds of the given pointer key from potential bounds.
+  bool inferFromPotentialBounds(BoundsKey BK, AVarGraph &BKGraph);
 
   AVarBoundsInfo *BI;
 
@@ -145,6 +147,31 @@ private:
   std::map<BoundsKey, BndsKindMap> CurrIterInferBounds;
   // BoundsKey that failed the flow inference.
   std::set<BoundsKey> BKsFailedFlowInference;
+};
+
+// Class that maintains information about potential bounds for
+// various pointer variables.
+class PotentialBoundsInfo {
+public:
+  PotentialBoundsInfo() {
+    PotentialCntBounds.clear();
+    PotentialCntPOneBounds.clear();
+  }
+  // Count Bounds, i.e., count(i).
+  bool hasPotentialCountBounds(BoundsKey PtrBK);
+  std::set<BoundsKey> &getPotentialBounds(BoundsKey PtrBK);
+  void addPotentialBounds(BoundsKey BK, const std::set<BoundsKey> &PotK);
+
+  // Count Bounds Plus one, i.e., count(i+1).
+  bool hasPotentialCountPOneBounds(BoundsKey PtrBK);
+  std::set<BoundsKey> &getPotentialBoundsPOne(BoundsKey PtrBK);
+  void addPotentialBoundsPOne(BoundsKey BK, const std::set<BoundsKey> &PotK);
+private:
+  // This is the map of pointer variable bounds key and set of bounds key
+  // which can be the count bounds.
+  std::map<BoundsKey, std::set<BoundsKey>> PotentialCntBounds;
+  // Potential count + 1 bounds.
+  std::map<BoundsKey, std::set<BoundsKey>> PotentialCntPOneBounds;
 };
 
 class AVarBoundsInfo {
@@ -171,7 +198,10 @@ public:
   bool replaceBounds(BoundsKey L, BoundsPriority P, ABounds *B);
   ABounds *getBounds(BoundsKey L, BoundsPriority ReqP = Invalid,
                      BoundsPriority *RetP = nullptr);
-  bool updatePotentialCountBounds(BoundsKey BK, std::set<BoundsKey> &CntBK);
+  void updatePotentialCountBounds(BoundsKey BK,
+                                  const std::set<BoundsKey> &CntBK);
+  void updatePotentialCountPOneBounds(BoundsKey BK,
+                                      const std::set<BoundsKey> &CntBK);
 
   // Try and get BoundsKey, into R, for the given declaration. If the
   // declaration does not have a BoundsKey then return false.
@@ -316,9 +346,8 @@ private:
   AVarGraph RevCtxSensProgVarGraph;
   // Stats on techniques used to find length for various variables.
   AVarBoundsStats BoundsInferStats;
-  // This is the map of pointer variable bounds key and set of bounds key
-  // which can be the count bounds.
-  std::map<BoundsKey, std::set<BoundsKey>> PotentialCntBounds;
+  // Information about potential bounds.
+  PotentialBoundsInfo PotBoundsInfo;
   // Context-sensitive bounds key handler
   CtxSensitiveBoundsKeyHandler CSBKeyHandler;
 
@@ -351,7 +380,8 @@ private:
   // Perform worklist based inference on the requested array variables using
   // the provided graph and potential length variables.
   bool performWorkListInference(const std::set<BoundsKey> &ArrNeededBounds,
-                                AVarGraph &BKGraph, AvarBoundsInference &BI);
+                                AVarGraph &BKGraph, AvarBoundsInference &BI,
+                                bool FromPB);
 
   void insertParamKey(ParamDeclType ParamDecl, BoundsKey NK);
 };

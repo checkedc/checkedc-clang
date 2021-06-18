@@ -13,7 +13,7 @@ struct foo {
   unsigned fail_y_len;
 };
 //CHECK:    _Array_ptr<int> x : count(olol);
-//CHECK:    _Array_ptr<int> y;
+//CHECK:    _Array_ptr<int> y : count(0 + 1);
 
 void ctx_(struct foo *f, struct foo *f2) {
   f2->y = f->x;

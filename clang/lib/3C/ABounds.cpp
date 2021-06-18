@@ -72,6 +72,10 @@ std::string ABounds::getBoundsKeyStr(BoundsKey BK,
     if (FD->getNumParams() > PIdx) {
       auto *NewPVD = FD->getParamDecl(PIdx);
       BKStr = NewPVD->getNameAsString();
+      // If the parameter in the new declaration does not have a name?
+      // then use the old name.
+      if (BKStr.empty())
+        BKStr = PV->mkString();
     }
   }
   return BKStr;
@@ -93,16 +97,24 @@ BoundsKey CountBound::getBKey() { return this->CountVar; }
 
 ABounds *CountBound::makeCopy(BoundsKey NK) { return new CountBound(NK); }
 
+std::string CountPlusOneBound::mkString(AVarBoundsInfo *ABI, clang::Decl *D) {
+  std::string CVar = ABounds::getBoundsKeyStr(CountVar, ABI, D);
+  return "count(" + CVar + " + 1)";
+}
+
+bool CountPlusOneBound::areSame(ABounds *O, AVarBoundsInfo *ABI) {
+  if (CountPlusOneBound *OT = dyn_cast_or_null<CountPlusOneBound>(O))
+    return ABI->areSameProgramVar(this->CountVar, OT->CountVar);
+  return false;
+}
+
 std::string ByteBound::mkString(AVarBoundsInfo *ABI, clang::Decl *D) {
   return "byte_count(" + ABounds::getBoundsKeyStr(ByteVar, ABI, D) + ")";
 }
 
 bool ByteBound::areSame(ABounds *O, AVarBoundsInfo *ABI) {
-  if (O != nullptr) {
-    if (ByteBound *BB = dyn_cast<ByteBound>(O)) {
-      return ABI->areSameProgramVar(this->ByteVar, BB->ByteVar);
-    }
-  }
+  if (ByteBound *BB = dyn_cast_or_null<ByteBound>(O))
+    return ABI->areSameProgramVar(this->ByteVar, BB->ByteVar);
   return false;
 }
 
@@ -118,11 +130,8 @@ std::string RangeBound::mkString(AVarBoundsInfo *ABI, clang::Decl *D) {
 }
 
 bool RangeBound::areSame(ABounds *O, AVarBoundsInfo *ABI) {
-  if (O != nullptr) {
-    if (RangeBound *RB = dyn_cast<RangeBound>(O)) {
-      return ABI->areSameProgramVar(this->LB, RB->LB) &&
-             ABI->areSameProgramVar(this->UB, RB->UB);
-    }
-  }
+  if (RangeBound *RB = dyn_cast_or_null<RangeBound>(O))
+    return ABI->areSameProgramVar(this->LB, RB->LB) &&
+           ABI->areSameProgramVar(this->UB, RB->UB);
   return false;
 }

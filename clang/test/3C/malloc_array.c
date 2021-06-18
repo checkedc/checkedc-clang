@@ -9,7 +9,7 @@
 
 int *foo(int *x) {
   //CHECK_NOALL: int *foo(int *x : itype(_Ptr<int>)) : itype(_Ptr<int>) {
-  //CHECK_ALL: _Array_ptr<int> foo(_Array_ptr<int> x) _Checked {
+  //CHECK_ALL: _Array_ptr<int> foo(_Array_ptr<int> x : count(2 + 1)) : count(2 + 1) _Checked {
   x[2] = 1;
   return x;
 }
@@ -20,7 +20,7 @@ void bar(void) {
   //CHECK: y = (int *)5;
   int *z = foo(y);
   //CHECK_NOALL: _Ptr<int> z = foo(y);
-  //CHECK_ALL: _Ptr<int> z = foo(_Assume_bounds_cast<_Array_ptr<int>>(y, byte_count(0)));
+  //CHECK_ALL: _Ptr<int> z = foo(_Assume_bounds_cast<_Array_ptr<int>>(y,  count(2 + 1)));
 }
 
 void force(int *x) {}

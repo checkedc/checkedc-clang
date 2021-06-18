@@ -7,7 +7,7 @@
 
 void foo(int *a : itype(_Ptr<int>)) {
 //CHECK_NOALL: void foo(int *a : itype(_Ptr<int>)) {
-//CHECK_ALL: void foo(int *a : itype(_Array_ptr<int>)) {
+//CHECK_ALL: void foo(int *a : itype(_Array_ptr<int>) count(0 + 1)) {
   a = (int*) 1;
   (void) a[0];
 }

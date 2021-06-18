@@ -11,11 +11,11 @@
 // expected-no-diagnostics
 void what(const char *s, int q);
 //CHECK_NOALL: void what(const char *s : itype(_Ptr<const char>), int q);
-//CHECK_ALL: void what(_Array_ptr<const char> s : count(q), int q);
+//CHECK_ALL: void what(_Array_ptr<const char> s : count(5 + 1), int q);
 
 void what(const char *s, int q) { char v = s[5]; }
 //CHECK_NOALL: void what(const char *s : itype(_Ptr<const char>), int q) { char v = s[5]; }
-//CHECK_ALL: void what(_Array_ptr<const char> s : count(q), int q) _Checked { char v = s[5]; }
+//CHECK_ALL: void what(_Array_ptr<const char> s : count(5 + 1), int q) _Checked { char v = s[5]; }
 
 void foo(_Ptr<int> a) { *a = 0; }
 //CHECK: void foo(_Ptr<int> a) _Checked { *a = 0; }

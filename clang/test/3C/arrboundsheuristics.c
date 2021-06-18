@@ -15,7 +15,7 @@ int lenplusone;
 //CHECK_NOALL: int *glob;
 
 void foo(int *p, int idx) { p[idx] = 0; }
-//CHECK_ALL: void foo(_Array_ptr<int> p, int idx) { p[idx] = 0; }
+//CHECK_ALL: void foo(_Array_ptr<int> p : count(idx + 1), int idx) { p[idx] = 0; }
 //CHECK_NOALL: void foo(int *p : itype(_Ptr<int>), int idx) { p[idx] = 0; }
 
 void bar(int *p, int flag) {

@@ -28,6 +28,8 @@ public:
     InvalidKind,
     // Bounds that represent number of items.
     CountBoundKind,
+    // Count bounds but plus one, i.e., count(i+1)
+    CountPlusOneBoundKind,
     // Bounds that represent number of bytes.
     ByteBoundKind,
     // Bounds that represent range.
@@ -35,7 +37,7 @@ public:
   };
   BoundsKind getKind() const { return Kind; }
 
-private:
+protected:
   BoundsKind Kind;
 
 protected:
@@ -83,8 +85,22 @@ public:
 
   BoundsKey getCountVar() { return CountVar; }
 
-private:
+protected:
   BoundsKey CountVar;
+};
+
+class CountPlusOneBound : public CountBound {
+public:
+  CountPlusOneBound(BoundsKey Var) : CountBound(Var) {
+    this->Kind = CountPlusOneBoundKind;
+  }
+
+  std::string mkString(AVarBoundsInfo *ABI, clang::Decl *D = nullptr) override;
+  bool areSame(ABounds *O, AVarBoundsInfo *ABI) override;
+
+  static bool classof(const ABounds *S) {
+    return S->getKind() == CountPlusOneBoundKind;
+  }
 };
 
 class ByteBound : public ABounds {

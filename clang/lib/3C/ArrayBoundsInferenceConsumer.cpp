@@ -886,6 +886,8 @@ void LengthVarInference::VisitArraySubscriptExpr(ArraySubscriptExpr *ASE) {
         CV.TraverseStmt(CDGNode->getTerminatorStmt());
       }
       ABI.updatePotentialCountBounds(BasePtr, PossibleLens);
+    } else {
+      ABI.updatePotentialCountPOneBounds(BasePtr, {IdxKey});
     }
   }
 }
