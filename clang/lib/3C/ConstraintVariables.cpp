@@ -2046,22 +2046,31 @@ FVComponentVariable::mkString(Constraints &CS, bool EmitName) const {
 std::string
 FVComponentVariable::mkTypeStr(Constraints &CS, bool EmitName,
                                std::string UseName) const {
+  std::string Ret;
   // if checked or given new name, generate type
-  if (hasCheckedSolution(CS) || (EmitName && !UseName.empty()))
-    return ExternalConstraint->mkString(CS, EmitName, false,
-                                        false, false, UseName);
-  // if no need to generate type, try to use source
-  if (!SourceDeclaration.empty())
-    return SourceDeclaration;
-  // if no source and no name, generate nameless type
-  if (EmitName && ExternalConstraint->getName().empty())
-    return ExternalConstraint->getOriginalTy();
-  // if no source and a have a needed name, generate named type
-  if (EmitName)
-    return ExternalConstraint->getRewritableOriginalTy()
-           + ExternalConstraint->getName();
-  // if no source and don't need a name, generate type ready for one
-  return ExternalConstraint->getRewritableOriginalTy();
+  if (hasCheckedSolution(CS) || (EmitName && !UseName.empty())) {
+    Ret = ExternalConstraint->mkString(CS, EmitName, false,
+                                       false, false, UseName);
+  } else {
+    // if no need to generate type, try to use source
+    if (!SourceDeclaration.empty())
+      Ret = SourceDeclaration;
+    // if no source and no name, generate nameless type
+    else if (EmitName && ExternalConstraint->getName().empty())
+      Ret = ExternalConstraint->getOriginalTy();
+    // if no source and a have a needed name, generate named type
+    else if (EmitName)
+      Ret = ExternalConstraint->getRewritableOriginalTy() +
+            ExternalConstraint->getName();
+    else
+      // if no source and don't need a name, generate type ready for one
+      Ret = ExternalConstraint->getRewritableOriginalTy();
+  }
+
+  if (ExternalConstraint->srcHasBounds())
+    Ret += " : " + ExternalConstraint->getBoundsStr();
+
+  return Ret;
 }
 
 std::string FVComponentVariable::mkItypeStr(Constraints &CS) const {

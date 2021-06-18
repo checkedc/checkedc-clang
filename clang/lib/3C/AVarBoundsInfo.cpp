@@ -601,9 +601,15 @@ PotentialBoundsInfo::addPotentialBoundsPOne(BoundsKey BK,
 }
 
 bool AVarBoundsInfo::isValidBoundVariable(clang::Decl *D) {
-  // All parameters, return, and field values are valid bound variables.
-  if (D && (isa<ParmVarDecl>(D) || isa<FunctionDecl>(D) || isa<FieldDecl>(D)))
+  // All return and field values are valid bound variables.
+  if (D && (isa<FunctionDecl>(D) || isa<FieldDecl>(D)))
     return true;
+
+  // For Parameters, check if they belong to a valid function.
+  // Function pointer types are not considered valid functions, so function
+  // pointer parameters are are disqualified as valid bound variables here.
+  if (auto *PD = dyn_cast_or_null<ParmVarDecl>(D))
+    return PD->getParentFunctionOrMethod() != nullptr;
  
   // For VarDecls, check if these are are not dummy and have a name.
   if (auto *VD = dyn_cast_or_null<VarDecl>(D))
@@ -629,10 +635,15 @@ void AVarBoundsInfo::insertDeclaredBounds(clang::Decl *D, ABounds *B) {
 }
 
 bool AVarBoundsInfo::tryGetVariable(clang::Decl *D, BoundsKey &R) {
+  bool RetVal = false;
   if (isValidBoundVariable(D)) {
+    RetVal = true;
     if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D)) {
-      if (PD->getParentFunctionOrMethod())
+      if (PD->getParentFunctionOrMethod()) {
         R = getVariable(PD);
+      } else {
+        RetVal = false;
+      }
     } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
       R = getVariable(VD);
     } else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
@@ -642,9 +653,9 @@ bool AVarBoundsInfo::tryGetVariable(clang::Decl *D, BoundsKey &R) {
     } else {
       assert(false && "Invalid Declaration\n");
     }
-    return true;
+    return RetVal;
   }
-  return false;
+  return RetVal;
 }
 
 bool AVarBoundsInfo::tryGetVariable(clang::Expr *E,
