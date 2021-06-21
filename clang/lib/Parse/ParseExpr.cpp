@@ -3878,7 +3878,8 @@ Parser::ParseRelativeBoundsClause(bool &isError, IdentifierInfo *Ident,
       SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
       isError = true;
     } else {
-      ConstExpr = Actions.VerifyIntegerConstantExpression(ConstExpr.get());
+      ConstExpr = Actions.VerifyIntegerConstantExpression(ConstExpr.get(),
+                                                          nullptr);
       if (!ConstExpr.isInvalid())
         RelativeClause = Actions.ActOnRelativeConstExprClause(
             ConstExpr.get(), BoundsKWLoc, Tok.getLocation());
