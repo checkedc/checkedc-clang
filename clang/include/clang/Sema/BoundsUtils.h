@@ -29,6 +29,9 @@ public:
   // 4. Invalid bounds.
   // It returns false if BE is of the form count(e) or byte_count(e).
   static bool IsStandardForm(const BoundsExpr *BE);
+
+  // CreateBoundsUnknown returns bounds(unknown).
+  static BoundsExpr *CreateBoundsUnknown(Sema &S);
 };
 
 } // end namespace clang

@@ -3833,7 +3833,7 @@ namespace {
                               CheckingState &State) {
       // If the rvalue bounds for e cannot be determined,
       // e may be an lvalue (or may have unknown rvalue bounds).
-      BoundsExpr *ResultBounds = CreateBoundsUnknown();
+      BoundsExpr *ResultBounds = BoundsUtil::CreateBoundsUnknown(S);
 
       Expr *SubExpr = E->getSubExpr();
       CastKind CK = E->getCastKind();
@@ -4699,8 +4699,8 @@ namespace {
                      BoundsExpr *&LValueBounds,
                      BoundsExpr *&RValueBounds,
                      CheckingState &State) {
-      LValueBounds = CreateBoundsUnknown();
-      RValueBounds = CreateBoundsUnknown();
+      LValueBounds = BoundsUtil::CreateBoundsUnknown(S);
+      RValueBounds = BoundsUtil::CreateBoundsUnknown(S);
       if (E->isLValue())
         LValueBounds = CheckLValue(E, CSS, State);
       else if (E->isRValue())
@@ -5222,11 +5222,11 @@ namespace {
                                       CheckedScopeSpecifier CSS) {
       Expr *Replaced = ReplaceLValue(S, Bounds, LValue, OriginalValue, CSS);
       if (!Replaced)
-        return CreateBoundsUnknown();
+        return BoundsUtil::CreateBoundsUnknown(S);
       else if (BoundsExpr *AdjustedBounds = dyn_cast<BoundsExpr>(Replaced))
         return AdjustedBounds;
       else
-        return CreateBoundsUnknown();
+        return BoundsUtil::CreateBoundsUnknown(S);
     }
 
     // UpdateSameValue updates the set SameValue of expressions that produce
@@ -6075,10 +6075,6 @@ namespace {
                                    Sema::NonModifyingMessage::NMM_None);
     }
 
-    BoundsExpr *CreateBoundsUnknown() {
-      return Context.getPrebuiltBoundsUnknown();
-    }
-
     // This describes an empty range. We use this where semantically the value
     // can never point to any range of memory, and statically understanding this
     // is useful.
@@ -6088,19 +6084,19 @@ namespace {
     // bounds(e1, e2), because in these cases we need to do further analysis to
     // understand that the upper and lower bounds of the range are equal.
     BoundsExpr *CreateBoundsEmpty() {
-      return CreateBoundsUnknown();
+      return BoundsUtil::CreateBoundsUnknown(S);
     }
 
     // This describes that this is an expression we will never
     // be able to infer bounds for.
     BoundsExpr *CreateBoundsAlwaysUnknown() {
-      return CreateBoundsUnknown();
+      return BoundsUtil::CreateBoundsUnknown(S);
     }
 
     // If we have an error in our bounds inference that we can't
     // recover from, bounds(unknown) is our error value
     BoundsExpr *CreateBoundsInferenceError() {
-      return CreateBoundsUnknown();
+      return BoundsUtil::CreateBoundsUnknown(S);
     }
 
     // This describes the bounds of null, which is compatible with every
@@ -6124,7 +6120,7 @@ namespace {
     // at the moment, but we want to re-visit these parts of inference
     // and in some cases compute bounds.
     BoundsExpr *CreateBoundsNotAllowedYet() {
-      return CreateBoundsUnknown();
+      return BoundsUtil::CreateBoundsUnknown(S);
     }
 
     BoundsExpr *CreateSingleElementBounds(Expr *LowerBounds) {
@@ -6278,7 +6274,7 @@ namespace {
           return CreateTypeBasedBounds(UO, UO->getType(),
                                                   false, false);
         else
-          return CreateBoundsUnknown();
+          return BoundsUtil::CreateBoundsUnknown(S);
       }
 
       // Unary operators other than pointer dereferences do not have lvalue

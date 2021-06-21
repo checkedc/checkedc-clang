@@ -21,3 +21,7 @@ bool BoundsUtil::IsStandardForm(const BoundsExpr *BE) {
   return (K == BoundsExpr::Kind::Any || K == BoundsExpr::Kind::Unknown ||
     K == BoundsExpr::Kind::Range || K == BoundsExpr::Kind::Invalid);
 }
+
+BoundsExpr *BoundsUtil::CreateBoundsUnknown(Sema &S) {
+  return S.Context.getPrebuiltBoundsUnknown();
+}
