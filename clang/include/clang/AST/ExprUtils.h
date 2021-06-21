@@ -38,6 +38,11 @@ public:
   static ImplicitCastExpr *CreateImplicitCast(Sema &SemaRef, Expr *E,
                                               CastKind CK, QualType T);
 
+  // Create an explicit cast expression.
+  static Expr *CreateExplicitCast(Sema &SemaRef, QualType Target,
+                                  CastKind CK, Expr *E,
+                                  bool isBoundsSafeInterface);
+
   // Create a use of a VarDecl.
   static DeclRefExpr *CreateVarUse(Sema &SemaRef, VarDecl *V);
 
@@ -105,6 +110,90 @@ public:
   // GetRValueCastChild returns the child of a possibly parenthesized
   // rvalue cast.
   static Expr *GetRValueCastChild(Sema &S, Expr *E);
+
+  // IgnoreRedundantCast strips redundant casts off of E.
+  static Expr *IgnoreRedundantCast(ASTContext &Ctx, CastKind NewCK, Expr *E);
+
+  // EqualValue returns true if E1 and E2 are lexicographically equivalent.
+  static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2,
+                         EquivExprSets *EquivExprs);
+
+  // CheckIsNonModifying suppresses diagnostics while checking
+  // whether e is a non-modifying expression.
+  static bool CheckIsNonModifying(Sema &S, Expr *E);
+
+  // ReadsMemoryViaPointer returns true if the expression e reads memory via
+  // a pointer.
+  // IncludeAllMemberExprs is used to modify the behavior to return true if e
+  // is or contains a pointer dereference, member reference, or indirect
+  // member reference (including e1.f which may not read memory via a
+  // pointer). Returns false if E is nullptr.
+  static bool ReadsMemoryViaPointer(Expr *E, bool IncludeAllMemberExprs = false);
+
+  // If LValue appears exactly once in Ei and does not appear in Ej,
+  // SplitByLValueCount returns the pair (Ei, Ej).  Otherwise, it returns
+  // an empty pair.
+  static std::pair<Expr *, Expr *> SplitByLValueCount(Sema &S, Expr *LValue,
+                                                      Expr *E1, Expr *E2);
+
+  // LValueOccurrenceCount returns the number of occurrences of the LValue
+  // expression in E.
+  static unsigned int LValueOccurrenceCount(Sema &S, Expr *LValue, Expr *E);
+
+  // VariableOccurrenceCount returns the number of occurrences of variable
+  // expressions in E whose Decls are equivalent to V.
+  static unsigned int VariableOccurrenceCount(Sema &S, ValueDecl *V, Expr *E);
+
+  // VariableOccurrenceCount returns the number of occurrences of the Target
+  // variable expression in E.
+  static unsigned int VariableOccurrenceCount(Sema &S, DeclRefExpr *Target,
+                                              Expr *E);
+};
+
+} // end namespace clang
+
+namespace clang {
+
+class InverseUtil {
+public:
+  // IsInvertible returns true if the expression E is invertible with respect
+  // to the LValue expression.
+  static bool IsInvertible(Sema &S, Expr *LValue, Expr *E);
+
+  // Inverse repeatedly applies mathematical rules to the expression E to
+  // get the inverse of E with respect to the lvalue expression LValue and
+  // expression F. If rules cannot be applied to E, Inverse returns nullptr.
+  static Expr *Inverse(Sema &S, Expr *LValue, Expr *F, Expr *E);
+
+private:
+  // IsUnaryOperatorInvertible returns true if a unary operator is invertible
+  // with respect to LValue.
+  static bool IsUnaryOperatorInvertible(Sema &S, Expr *LValue,
+                                        UnaryOperator *E);
+
+  // IsBinaryOperatorInvertible returns true if a binary operator is invertible
+  // with respect to LValue.
+  static bool IsBinaryOperatorInvertible(Sema &S, Expr *LValue,
+                                         BinaryOperator *E);
+
+  // IsCastExprInvertible returns true if a cast expression is invertible
+  // with respect to LValue.
+  // A cast expression (T1)e1 is invertible if T1 is a bit-preserving
+  // or widening cast and e1 is invertible with respect to LValue.
+  static bool IsCastExprInvertible(Sema &S, Expr *LValue, CastExpr *E);
+
+  // UnaryOperatorInverse returns the inverse of a unary operator.
+  static Expr *UnaryOperatorInverse(Sema &S, Expr *LValue, Expr *F,
+                                    UnaryOperator *E);
+
+  // BinaryOperatorInverse returns the inverse of a binary operator.
+  static Expr *BinaryOperatorInverse(Sema &S, Expr *LValue, Expr *F,
+                                     BinaryOperator *E);
+
+  // CastExprInverse returns the inverse of a cast expression.  If e1 has
+  // type T2, Inverse(f, (T1)e1) = Inverse((T2)f, e1) (assuming that (T1)
+  // is not a narrowing cast).
+  static Expr *CastExprInverse(Sema &S, Expr *LValue, Expr *F, CastExpr *E);
 };
 
 } // end namespace clang
