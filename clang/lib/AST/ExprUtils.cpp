@@ -206,3 +206,25 @@ bool ExprUtil::getReferentSizeInChars(ASTContext &Ctx, QualType Ty,
   Size = llvm::APSInt(llvm::APInt(Ctx.getTargetInfo().getPointerWidth(0), ElemSize), false);
   return true;
 }
+
+llvm::APSInt EpxrUtil::ConvertToSignedPointerWidth(ASTContext &Ctx,
+                                                   llvm::APSInt I,
+                                                  bool &Overflow) {
+  uint64_t PointerWidth = Ctx.getTargetInfo().getPointerWidth(0);
+  Overflow = false;
+  if (I.getBitWidth() > PointerWidth) {
+    Overflow = true;
+    goto exit;
+  }
+  if (I.getBitWidth() < PointerWidth)
+    I = I.extend(PointerWidth);
+  if (I.isUnsigned()) {
+    if (I > llvm::APSInt(I.getSignedMaxValue(PointerWidth))) {
+      Overflow = true;
+      goto exit;
+    }
+    I = llvm::APSInt(I, false);
+  }
+  exit:
+    return I;
+}

@@ -113,6 +113,12 @@ public:
   // referent type of Ty in chars.
   static bool getReferentSizeInChars(ASTContext &Ctx, QualType Ty,
                                      llvm::APSInt &Size);
+
+  // ConvertToSignedPointerWidth converts I to a signed integer with
+  // Ctx.PointerWidth.
+  static llvm::APSInt ConvertToSignedPointerWidth(ASTContext &Ctx,
+                                                  llvm::APSInt I,
+                                                  bool &Overflow);
 };
 
 } // end namespace clang

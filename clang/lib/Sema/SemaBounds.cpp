@@ -67,27 +67,6 @@ public:
     return (K == BoundsExpr::Kind::Any || K == BoundsExpr::Kind::Unknown ||
       K == BoundsExpr::Kind::Range || K == BoundsExpr::Kind::Invalid);
   }
-
-  // Convert I to a signed integer with Ctx.PointerWidth.
-  static llvm::APSInt ConvertToSignedPointerWidth(ASTContext &Ctx, llvm::APSInt I, bool &Overflow) {
-    uint64_t PointerWidth = Ctx.getTargetInfo().getPointerWidth(0);
-    Overflow = false;
-    if (I.getBitWidth() > PointerWidth) {
-      Overflow = true;
-      goto exit;
-    }
-    if (I.getBitWidth() < PointerWidth)
-      I = I.extend(PointerWidth);
-    if (I.isUnsigned()) {
-      if (I > llvm::APSInt(I.getSignedMaxValue(PointerWidth))) {
-        Overflow = true;
-        goto exit;
-      }
-      I = llvm::APSInt(I, false);
-    }
-    exit:
-      return I;
-  }
 };
 }
 
@@ -1374,7 +1353,7 @@ namespace {
           return false;
 
         bool Overflow;
-        Constant = BoundsUtil::ConvertToSignedPointerWidth(S.Context, Constant, Overflow);
+        Constant = ExprUtil::ConvertToSignedPointerWidth(S.Context, Constant, Overflow);
         if (Overflow)
           return false;
         // Normalize the operation by negating the offset if necessary.
@@ -2088,7 +2067,7 @@ namespace {
           if (Other->isIntegerConstantExpr(OffsetConstant, S.Context)) {
             // Widen the integer to the number of bits in a pointer.
             bool Overflow;
-            OffsetConstant = BoundsUtil::ConvertToSignedPointerWidth(S.Context, OffsetConstant, Overflow);
+            OffsetConstant = ExprUtil::ConvertToSignedPointerWidth(S.Context, OffsetConstant, Overflow);
             if (Overflow)
               goto exit;
             // Normalize the operation by negating the offset if necessary.
@@ -2151,7 +2130,7 @@ namespace {
             else
               goto fallback_std_form;
             IsOpSigned = VariablePart->getType()->isSignedIntegerType();
-            ConstantPart = BoundsUtil::ConvertToSignedPointerWidth(Ctx, ConstantPart, Overflow);
+            ConstantPart = ExprUtil::ConvertToSignedPointerWidth(Ctx, ConstantPart, Overflow);
             if (Overflow)
               goto fallback_std_form;
           } else
@@ -2170,7 +2149,7 @@ namespace {
         IsOpSigned = VariablePart->getType()->isSignedIntegerType();
         if (!ExprUtil::getReferentSizeInChars(Ctx, Base->getType(), ConstantPart))
           return false;
-        ConstantPart = BoundsUtil::ConvertToSignedPointerWidth(Ctx, ConstantPart, Overflow);
+        ConstantPart = ExprUtil::ConvertToSignedPointerWidth(Ctx, ConstantPart, Overflow);
         if (Overflow)
           return false;
         return true;
@@ -2461,7 +2440,7 @@ namespace {
         llvm::APSInt IntVal;
         if (!Offset->isIntegerConstantExpr(IntVal, S.Context))
           return ProofResult::Maybe;
-        IntVal = BoundsUtil::ConvertToSignedPointerWidth(S.Context, IntVal, Overflow);
+        IntVal = ExprUtil::ConvertToSignedPointerWidth(S.Context, IntVal, Overflow);
         if (Overflow)
           return ProofResult::Maybe;
         IntVal = IntVal.smul_ov(ElementSize, Overflow);
