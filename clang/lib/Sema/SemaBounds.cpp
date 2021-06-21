@@ -1597,8 +1597,7 @@ namespace {
         }
 
         for (const auto &E : EquivSet) {
-          llvm::APSInt Val;
-          if (E->isIntegerConstantExpr(Val, S.Context))
+          if (E->isIntegerConstantExpr(S.Context))
             return true;
         }
 
@@ -1778,7 +1777,9 @@ namespace {
           } else
             goto exit;
           assert(Other->getType()->isIntegerType());
-          if (Other->isIntegerConstantExpr(OffsetConstant, S.Context)) {
+          Optional<llvm::APSInt> OptOffsetConstant = Other->getIntegerConstantExpr(S.Context);
+          if (OptOffsetConstant) {
+            OffsetConstant = *OptOffsetConstant;
             // Widen the integer to the number of bits in a pointer.
             bool Overflow;
             OffsetConstant = BoundsUtil::ConvertToSignedPointerWidth(S.Context, OffsetConstant, Overflow);
@@ -1833,11 +1834,14 @@ namespace {
         return false;
       if (Base->getType()->getPointeeOrArrayElementType()->isCharType()) {
         if (BinaryOperator *BO = dyn_cast<BinaryOperator>(Offset)) {
-          if (BO->getRHS()->isIntegerConstantExpr(ConstantPart, Ctx))
+          Optional<llvm::APSInt> OptConstantPart;
+          if (OptConstantPart = BO->getRHS()->getIntegerConstantExpr(Ctx)) {
+            ConstantPart = *OptConstantPart;
             VariablePart = BO->getLHS();
-          else if (BO->getLHS()->isIntegerConstantExpr(ConstantPart, Ctx))
+	  } else if (OptConstantPart = BO->getLHS()->getIntegerConstantExpr(Ctx)) {
+            ConstantPart = *OptConstantPart;
             VariablePart = BO->getRHS();
-          else
+	  } else
             goto exit;
           IsOpSigned = VariablePart->getType()->isSignedIntegerType();
           ConstantPart = BoundsUtil::ConvertToSignedPointerWidth(Ctx, ConstantPart, Overflow);
@@ -2146,9 +2150,10 @@ namespace {
 
       if (Offset) {
         llvm::APSInt IntVal;
-        if (!Offset->isIntegerConstantExpr(IntVal, S.Context))
+        Optional<llvm::APSInt> OptIntVal = Offset->getIntegerConstantExpr(S.Context);
+        if (!OptIntVal)
           return ProofResult::Maybe;
-        IntVal = BoundsUtil::ConvertToSignedPointerWidth(S.Context, IntVal, Overflow);
+        IntVal = BoundsUtil::ConvertToSignedPointerWidth(S.Context, *OptIntVal, Overflow);
         if (Overflow)
           return ProofResult::Maybe;
         IntVal = IntVal.smul_ov(ElementSize, Overflow);
