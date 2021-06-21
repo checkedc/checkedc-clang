@@ -46,6 +46,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Sema/AvailableFactsAnalysis.h"
 #include "clang/Sema/BoundsAnalysis.h"
+#include "clang/Sema/BoundsUtils.h"
 #include "clang/Sema/CheckedCAnalysesPrepass.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -58,17 +59,6 @@
 
 using namespace clang;
 using namespace sema;
-
-namespace {
-class BoundsUtil {
-public:
-  static bool IsStandardForm(const BoundsExpr *BE) {
-    BoundsExpr::Kind K = BE->getKind();
-    return (K == BoundsExpr::Kind::Any || K == BoundsExpr::Kind::Unknown ||
-      K == BoundsExpr::Kind::Range || K == BoundsExpr::Kind::Invalid);
-  }
-};
-}
 
 namespace {
   class AbstractBoundsExpr : public TreeTransform<AbstractBoundsExpr> {
