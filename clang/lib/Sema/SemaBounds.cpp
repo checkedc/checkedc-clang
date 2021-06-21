@@ -4299,8 +4299,8 @@ namespace {
       // Synthesize some dummy type source source information.
       TypeSourceInfo *DI = Context.getTrivialTypeSourceInfo(Target);
       CStyleCastExpr *CE = CStyleCastExpr::Create(Context, Target,
-        ExprValueKind::VK_RValue, CK, E, nullptr, DI, SourceLocation(),
-        SourceLocation());
+        ExprValueKind::VK_RValue, CK, E, nullptr, FPOptionsOverride(), DI,
+        SourceLocation(), SourceLocation());
       CE->setBoundsSafeInterface(isBoundsSafeInterface);
       return CE;
     }
