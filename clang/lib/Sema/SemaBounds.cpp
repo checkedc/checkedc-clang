@@ -1394,11 +1394,14 @@ namespace {
       bool GetRHSConstant(BinaryOperator *E, llvm::APSInt &Constant) {
         if (!E->isAdditiveOp())
           return false;
-        if (!E->getRHS()->isIntegerConstantExpr(Constant, S.Context))
+        Optional<llvm::APSInt> OptConstant =
+                               E->getRHS()->getIntegerConstantExpr(S.Context);
+        if (!OptConstant)
           return false;
 
         bool Overflow;
-        Constant = BoundsUtil::ConvertToSignedPointerWidth(S.Context, Constant, Overflow);
+        Constant = BoundsUtil::ConvertToSignedPointerWidth(S.Context,
+                                                           *OptConstant, Overflow);
         if (Overflow)
           return false;
         // Normalize the operation by negating the offset if necessary.
