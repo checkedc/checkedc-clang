@@ -1092,7 +1092,7 @@ public:
 
   bool WalkUpFromCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *S) {
     Builder.markExprChild(S->getSubExpr(),
-                          syntax::NodeRole::CHKCBindTemporaryExpression_subExpression);
+                          syntax::NodeRole::SubExpression);
     Builder.foldNode(Builder.getExprRange(S),
                      new (allocator()) syntax::CHKCBindTemporaryExpression, S);
     return true;
