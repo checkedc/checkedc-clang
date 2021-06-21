@@ -1955,18 +1955,22 @@ Atom *PointerVariableConstraint::getAtom(unsigned AtomIdx, Constraints &CS) {
 }
 
 void PointerVariableConstraint::equateWithItype(
-    ProgramInfo &I, const std::string &ReasonUnchangeable) {
+    ProgramInfo &I, const std::string &ReasonUnchangeable,
+    PersistentSourceLoc *PSL) {
   Constraints &CS = I.getConstraints();
   assert(SrcVars.size() == Vars.size());
   for (unsigned VarIdx = 0; VarIdx < Vars.size(); VarIdx++) {
     ConstAtom *CA = SrcVars[VarIdx];
     if (isa<WildAtom>(CA))
-      CS.addConstraint(CS.createGeq(Vars[VarIdx], CA, true));
+      CS.addConstraint(CS.createGeq(
+          Vars[VarIdx], CA,
+          ReasonUnchangeable.empty() ? DEFAULT_REASON : ReasonUnchangeable, PSL,
+          true));
     else
       Vars[VarIdx] = SrcVars[VarIdx];
   }
   if (FV) {
-    FV->equateWithItype(I, ReasonUnchangeable);
+    FV->equateWithItype(I, ReasonUnchangeable, PSL);
   }
 }
 
@@ -2007,10 +2011,11 @@ bool FunctionVariableConstraint::isOriginallyChecked() const {
 }
 
 void FunctionVariableConstraint::equateWithItype(
-    ProgramInfo &I, const std::string &ReasonUnchangeable) {
-  ReturnVar.equateWithItype(I, ReasonUnchangeable);
+    ProgramInfo &I, const std::string &ReasonUnchangeable,
+    PersistentSourceLoc *PSL) {
+  ReturnVar.equateWithItype(I, ReasonUnchangeable, PSL);
   for (auto Param : ParamVars)
-    Param.equateWithItype(I, ReasonUnchangeable);
+    Param.equateWithItype(I, ReasonUnchangeable, PSL);
 }
 
 void FVComponentVariable::mergeDeclaration(FVComponentVariable *From,
@@ -2124,14 +2129,12 @@ FVComponentVariable::FVComponentVariable(const QualType &QT,
   }
 }
 
-void FVComponentVariable::equateWithItype(
-    ProgramInfo &I, const std::string &ReasonUnchangeable) const {
+void FVComponentVariable::equateWithItype(ProgramInfo &I,
+                                          const std::string &ReasonUnchangeable,
+                                          PersistentSourceLoc *PSL) const {
   Constraints &CS = I.getConstraints();
   const std::string ReasonUnchangeable2 =
       (ReasonUnchangeable.empty() && ExternalConstraint->getIsGeneric())
-          // TODO: Add a test for this root-cause message somewhere once
-          // diagnostic verification is re-enabled
-          // (https://github.com/correctcomputation/checkedc-clang/issues/503).
           ? "Internal constraint for generic function declaration, "
             "for which 3C currently does not support re-solving."
           : ReasonUnchangeable;
@@ -2145,11 +2148,11 @@ void FVComponentVariable::equateWithItype(
   // to fully checked.
   bool MustConstrainInternalType = !ReasonUnchangeable2.empty();
   if (HasItype && (MustConstrainInternalType || HasBounds)) {
-    ExternalConstraint->equateWithItype(I, ReasonUnchangeable2);
+    ExternalConstraint->equateWithItype(I, ReasonUnchangeable2, PSL);
     if (ExternalConstraint != InternalConstraint)
       linkInternalExternal(I, false);
     if (MustConstrainInternalType)
-      InternalConstraint->constrainToWild(CS, ReasonUnchangeable2);
+      InternalConstraint->constrainToWild(CS, ReasonUnchangeable2, PSL);
   }
 }
 

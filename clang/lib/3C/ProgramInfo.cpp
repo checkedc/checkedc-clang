@@ -402,6 +402,7 @@ bool ProgramInfo::link() {
           "External global variable " + VarName + " has no definition";
       const std::set<PVConstraint *> &C = GlobalVariableSymbols[VarName];
       for (const auto &Var : C) {
+        // TODO: Is there an easy way to get a PSL to attach to the constraint?
         Var->constrainToWild(CS, Rsn);
       }
     }
@@ -423,7 +424,9 @@ bool ProgramInfo::link() {
 
     // Handle the cases where itype parameters should not be treated as their
     // unchecked type.
-    G->equateWithItype(*this, Rsn);
+    // TODO: Ditto re getting a PSL (in the case in which Rsn is non-empty and
+    // it is actually used).
+    G->equateWithItype(*this, Rsn, nullptr);
 
     // If we've seen this symbol, but never seen a body for it, constrain
     // everything about it.
@@ -464,7 +467,8 @@ bool ProgramInfo::link() {
                                         "return of static function " +
                                             FuncName + " in " + FileName);
 
-      G->equateWithItype(*this, Rsn);
+      // TODO: Ditto re getting a PSL
+      G->equateWithItype(*this, Rsn, nullptr);
 
       if (!G->hasBody()) {
 
@@ -734,7 +738,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
 
   assert("We shouldn't be adding a null CV to Variables map." && NewCV);
   if (!canWrite(PLoc.getFileName())) {
-    NewCV->equateWithItype(*this, "Declaration in non-writable file");
+    NewCV->equateWithItype(*this, "Declaration in non-writable file", &PLoc);
     NewCV->constrainToWild(CS, "Declaration in non-writable file", &PLoc);
   }
   constrainWildIfMacro(NewCV, D->getLocation());
@@ -1015,7 +1019,9 @@ bool ProgramInfo::computeInterimConstraintState(
       auto *SearchVA = dyn_cast<VarAtom>(SearchAtom);
       if (SearchVA && AllValidVars.find(SearchVA) != AllValidVars.end()) {
         CState.RCMap[SearchVA->getLoc()].insert(VA->getLoc());
-        TmpCGrp.insert(SearchVA->getLoc());
+
+        if (ValidVarsKey.find(SearchVA->getLoc()) != ValidVarsKey.end())
+          TmpCGrp.insert(SearchVA->getLoc());
         if (DirectWildVarAtoms.find(SearchVA) == DirectWildVarAtoms.end()) {
           OnlyIndirect.insert(SearchVA->getLoc());
         }
@@ -1038,6 +1044,12 @@ bool ProgramInfo::computeInterimConstraintState(
   findIntersection(CState.TotalNonDirectWildAtoms, ValidVarsKey,
                    CState.InSrcNonDirectWildAtoms);
 
+  // The ConstraintVariable for a variable normally appears in Variables for the
+  // definition, but it may also be reused directly in ExprConstraintVars for a
+  // reference to that variable. We want to give priority to the PSL of the
+  // definition, not the reference. We currently achieve this by processing
+  // Variables before ExprConstraintVars and making insertIntoPtrSourceMap not
+  // overwrite a PSL already recorded for a given atom.
   for (const auto &I : Variables)
     insertIntoPtrSourceMap(&(I.first), I.second);
   for (const auto &I : ExprConstraintVars) {
@@ -1070,13 +1082,13 @@ void ProgramInfo::insertIntoPtrSourceMap(const PersistentSourceLoc *PSL,
   std::string FilePath = PSL->getFileName();
   if (canWrite(FilePath))
     CState.ValidSourceFiles.insert(FilePath);
-  else
-    return;
 
   if (auto *PV = dyn_cast<PVConstraint>(CV)) {
     for (auto *A : PV->getCvars())
       if (auto *VA = dyn_cast<VarAtom>(A))
-        CState.AtomSourceMap[VA->getLoc()] = PSL;
+        // Don't overwrite a PSL already recorded for a given atom: see the
+        // comment in computeInterimConstraintState.
+        CState.AtomSourceMap.insert(std::make_pair(VA->getLoc(), PSL));
     // If the PVConstraint is a function pointer, create mappings for parameter
     // and return variables.
     if (auto *FV = PV->getFV()) {

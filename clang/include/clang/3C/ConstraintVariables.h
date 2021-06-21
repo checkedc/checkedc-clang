@@ -179,7 +179,8 @@ public:
   // passing a reason for the "root cause of wildness" as ReasonUnchangeable.
   // Otherwise ReasonUnchangeable should be set to the empty string.
   virtual void equateWithItype(ProgramInfo &CS,
-                               const std::string &ReasonUnchangeable) = 0;
+                               const std::string &ReasonUnchangeable,
+                               PersistentSourceLoc *PSL) = 0;
 
   virtual ConstraintVariable *getCopy(Constraints &CS) = 0;
 
@@ -485,8 +486,8 @@ public:
 
   ~PointerVariableConstraint() override{};
 
-  void equateWithItype(ProgramInfo &CS,
-                       const std::string &ReasonUnchangeable) override;
+  void equateWithItype(ProgramInfo &CS, const std::string &ReasonUnchangeable,
+                       PersistentSourceLoc *PSL) override;
 };
 
 typedef PointerVariableConstraint PVConstraint;
@@ -537,8 +538,8 @@ public:
   PVConstraint *getInternal() const { return InternalConstraint; }
   PVConstraint *getExternal() const { return ExternalConstraint; }
 
-  void equateWithItype(ProgramInfo &CS,
-                       const std::string &ReasonUnchangeable) const;
+  void equateWithItype(ProgramInfo &CS, const std::string &ReasonUnchangeable,
+                       PersistentSourceLoc *PSL) const;
 
   bool solutionEqualTo(Constraints &CS, const FVComponentVariable *CV,
                        bool ComparePtyp) const;
@@ -660,8 +661,8 @@ public:
   bool isSolutionChecked(const EnvironmentMap &E) const override;
   bool isSolutionFullyChecked(const EnvironmentMap &E) const override;
 
-  void equateWithItype(ProgramInfo &CS,
-                       const std::string &ReasonUnchangeable) override;
+  void equateWithItype(ProgramInfo &CS, const std::string &ReasonUnchangeable,
+                       PersistentSourceLoc *PSL) override;
 
   ~FunctionVariableConstraint() override {}
 };

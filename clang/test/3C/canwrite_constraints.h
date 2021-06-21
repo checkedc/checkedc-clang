@@ -17,7 +17,12 @@ int *foo_var = ((void *)0);
 // Make sure we don't allow the types of casts in non-writable files to be
 // changed. This problem was seen with the inline definition of `atol(p)` as
 // `strtol(p, (char **) NULL, 10)` in the system headers.
+
+// Now that itypes can be re-solved, an itype in a non-writable file generates a
+// root cause warning just like a fully unchecked type.
+// expected-warning@+1 {{Declaration in non-writable file}}
 void strtol_like(int *p : itype(_Ptr<int>));
+
 void atol_like() {
   // expected-warning@+1 {{Expression in non-writable file}}
   strtol_like((int *)0);
@@ -34,11 +39,14 @@ inline void no_op() {}
 // expected-warning@+1 {{Declaration in non-writable file}}
 typedef int *intptr;
 // CHECK_HIGHER: typedef _Ptr<int> intptr;
+
 // Test the unwritable cast internal warning
 // (https://github.com/correctcomputation/checkedc-clang/issues/454) using the
 // known bug with itypes and function pointers
 // (https://github.com/correctcomputation/checkedc-clang/issues/423) as an
 // example.
+
+// expected-warning@+1 {{Declaration in non-writable file}}
 void unwritable_cast(void((*g)(int *q)) : itype(_Ptr<void(_Ptr<int>)>)) {
   // expected-warning@+1 {{Declaration in non-writable file}}
   int *p = 0;
@@ -50,20 +58,24 @@ void unwritable_cast(void((*g)(int *q)) : itype(_Ptr<void(_Ptr<int>)>)) {
 
 // Make sure that FVComponentVariable::equateWithItype prevents both of these
 // from being changed.
-//
-// TODO: Add the correct expected root cause warnings once diagnostic
-// verification is re-enabled
-// (https://github.com/correctcomputation/checkedc-clang/issues/609).
+
+// expected-warning@+1 {{Declaration in non-writable file}}
 void unwritable_func_with_itype(int *p : itype(_Array_ptr<int>)) {}
 
+// expected-warning@+1 {{Declaration in non-writable file}}
 void unwritable_func_with_itype_and_bounds(int *p
                                            : itype(_Array_ptr<int>) count(12)) {
 }
 
 // Test for https://github.com/correctcomputation/checkedc-clang/issues/580
+// expected-warning@+1 {{Declaration in non-writable file}}
 _Itype_for_any(T) void my_generic_function(void *p : itype(_Ptr<T>));
 
 void unwritable_type_argument() {
   int i;
+  // This warning relates to the atom representing the temporary pointer of
+  // `&i`. https://github.com/correctcomputation/checkedc-clang/issues/618 would
+  // make 3C smarter to avoid the need to constrain the temporary pointer.
+  // expected-warning@+1 {{Expression in non-writable file}}
   my_generic_function(&i);
 }

@@ -10,12 +10,7 @@
 // not allow canwrite_constraints.h to change, and the internal types of q and
 // the return should remain wild.
 //
-// TODO: Fix the discrepancies in warnings that were introduced while the
-// diagnostic verifier was disabled
-// (https://github.com/correctcomputation/checkedc-clang/issues/609)
-// and then re-enable diagnostic verification here.
-//
-// RUN: cd %S && 3c -alltypes -addcr -output-dir=%t.checked/base_subdir -warn-all-root-cause %s --
+// RUN: cd %S && 3c -alltypes -addcr -output-dir=%t.checked/base_subdir -warn-all-root-cause %s -- -Xclang -verify
 // RUN: FileCheck -match-full-lines -check-prefixes=CHECK_LOWER --input-file %t.checked/base_subdir/canwrite_constraints.c %s
 // RUN: test ! -f %t.checked/canwrite_constraints.checked.h
 
