@@ -207,9 +207,9 @@ bool ExprUtil::getReferentSizeInChars(ASTContext &Ctx, QualType Ty,
   return true;
 }
 
-llvm::APSInt EpxrUtil::ConvertToSignedPointerWidth(ASTContext &Ctx,
+llvm::APSInt ExprUtil::ConvertToSignedPointerWidth(ASTContext &Ctx,
                                                    llvm::APSInt I,
-                                                  bool &Overflow) {
+                                                   bool &Overflow) {
   uint64_t PointerWidth = Ctx.getTargetInfo().getPointerWidth(0);
   Overflow = false;
   if (I.getBitWidth() > PointerWidth) {
