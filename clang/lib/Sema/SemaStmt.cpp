@@ -3853,6 +3853,18 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
       // C90 6.6.6.4p4
       unsigned DiagID = getLangOpts().C99 ? diag::ext_return_missing_expr
                                           : diag::warn_return_missing_expr;
+
+      // In Checked C, it is an error if a return expression is
+      // missing in a checked scope or when there are return bounds.
+      if (getLangOpts().CheckedC) {
+        if (FnRetType->isCheckedPointerType())
+          DiagID = diag::err_return_missing_expr_for_checked_pointer;
+        else if (!FnRetBounds.IsEmpty())
+          DiagID = diag::err_return_missing_expr_for_bounds;
+        else if (IsCheckedScope())
+          DiagID = diag::err_return_missing_expr;
+      }
+
       // Note that at this point one of getCurFunctionDecl() or
       // getCurMethodDecl() must be non-null (see above).
       assert((getCurFunctionDecl() || getCurMethodDecl()) &&
@@ -3861,17 +3873,6 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
       const NamedDecl *ND =
           IsMethod ? cast<NamedDecl>(getCurMethodDecl()) : cast<NamedDecl>(FD);
       Diag(ReturnLoc, DiagID) << ND << IsMethod;
-    }
-
-    // In Checked C, it is an error if a return expression is
-    // missing in a checked scope or when there are return bounds.
-    if (getLangOpts().CheckedC) {
-      if (FnRetType->isCheckedPointerType())
-        DiagID = diag::err_return_missing_expr_for_checked_pointer;
-      else if (!FnRetBounds.IsEmpty())
-        DiagID = diag::err_return_missing_expr_for_bounds;
-      else if (IsCheckedScope())
-        DiagID = diag::err_return_missing_expr;
     }
 
     Result = ReturnStmt::Create(Context, ReturnLoc, /* RetExpr=*/nullptr,
