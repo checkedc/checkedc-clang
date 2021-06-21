@@ -52,6 +52,19 @@ DeclRefExpr *ExprCreatorUtil::CreateVarUse(Sema &SemaRef, VarDecl *V) {
                              V->getType(), ExprValueKind::VK_LValue);
 }
 
+MemberExpr *ExprCreatorUtil::CreateMemberExpr(Sema &SemaRef, Expr *Base,
+                                              const FieldDecl *Field, bool IsArrow) {
+  ExprValueKind ResultKind;
+  if (IsArrow)
+    ResultKind = VK_LValue;
+  else
+    ResultKind = Base->isLValue() ? VK_LValue : VK_RValue;
+  FieldDecl *F = const_cast<FieldDecl *>(Field);
+  return MemberExpr::CreateImplicit(SemaRef.getASTContext(), Base, IsArrow,
+                                    F, F->getType(), ResultKind,
+                                    OK_Ordinary);
+}
+
 Expr *ExprCreatorUtil::EnsureRValue(Sema &SemaRef, Expr *E) {
   if (E->isRValue())
     return E;
@@ -127,4 +140,43 @@ bool ExprCreatorUtil::Fits(ASTContext &Ctx, QualType Ty,
   else
     Result = I;
   return Result.isNonNegative();
+}
+
+DeclRefExpr *VariableUtil::GetLValueVariable(Sema &S, Expr *E) {
+  Lexicographic Lex(S.Context, nullptr);
+  E = Lex.IgnoreValuePreservingOperations(S.Context, E);
+  return dyn_cast<DeclRefExpr>(E);
+}
+
+DeclRefExpr *VariableUtil::GetRValueVariable(Sema &S, Expr *E) {
+  if (!E)
+    return nullptr;
+  if (CastExpr *CE = dyn_cast<CastExpr>(E->IgnoreParens())) {
+    CastKind CK = CE->getCastKind();
+    if (CK == CastKind::CK_LValueToRValue ||
+        CK == CastKind::CK_ArrayToPointerDecay)
+      return GetLValueVariable(S, CE->getSubExpr());
+  }
+  return nullptr;
+}
+
+bool VariableUtil::IsRValueCastOfVariable(Sema &S, Expr *E, DeclRefExpr *V) {
+  DeclRefExpr *Var = GetRValueVariable(S, E);
+  if (!Var)
+    return false;
+  Lexicographic Lex(S.Context, nullptr);
+  return Lex.CompareExpr(V, Var) == Lexicographic::Result::Equal;
+}
+
+Expr *ExprUtil::GetRValueCastChild(Sema &S, Expr *E) {
+  if (!E)
+    return nullptr;
+  E = E->IgnoreParens();
+  if (CastExpr *CE = dyn_cast<CastExpr>(E)) {
+    CastKind CK = CE->getCastKind();
+    if (CK == CastKind::CK_LValueToRValue ||
+        CK == CastKind::CK_ArrayToPointerDecay)
+      return CE->getSubExpr()->IgnoreParens();
+  }
+  return nullptr;
 }

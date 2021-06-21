@@ -251,11 +251,11 @@ namespace clang {
     // @param[in] Parent is the parent of the new node.
     void CreateUnaryOperator(UnaryOperator *E, Node *Parent);
 
-    // Create a UnaryOperatorNode with the sub expression Child and the
-    // Deref unary operator.
-    // @param[in] Child is the expression that is the child of a new node.
+    // Create a UnaryOperatorNode with the dereference operator and the
+    // subexpression e1 + e2, given an array subscript expression e1[e2].
+    // @param[in] E is the expression that is used to create a new node.
     // @param[in] Parent is the parent of the new node.
-    void CreateDereference(Expr *Child, Node *Parent);
+    void CreateArraySubscript(ArraySubscriptExpr *E, Node *Parent);
 
     // Create a MemberNode for the expression E.
     // @param[in] E is the expression whose Base and Field will be added to
@@ -344,6 +344,10 @@ namespace clang {
     // has occurred during comparison of expressions.
     // @return Whether an error has occurred or not.
     bool GetError() { return Error; }
+
+    void PrettyPrint(llvm::raw_ostream &OS, ASTContext &Ctx) const {
+      Root->PrettyPrint(OS, Ctx);
+    }
 
     // Cleanup the memory consumed by the AST. This is intended to be called
     // from outside this class and invokes Cleanup on the root node which

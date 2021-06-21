@@ -1190,6 +1190,8 @@ def fdump_preorder_ast : Flag<["-"], "fdump-preorder-ast">, Group<f_Group>, Flag
   HelpText<"Dump the preorder AST">;
 def fdump_checking_state : Flag<["-"], "fdump-checking-state">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Dump the state during bounds checking">;
+def fdump_synthesized_members : Flag<["-"], "fdump-synthesized-members">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Dump synthesized member AbstractSets">;
 def fdump_inferred_bounds : Flag<["-"], "fdump-inferred-bounds">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Dump inferred Checked C bounds for assignments and declarations">;
 def finject_verifier_calls : Flag<["-"], "finject-verifier-calls">, Group<f_Group>, Flags<[CC1Option]>,

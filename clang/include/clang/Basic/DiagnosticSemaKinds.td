@@ -11533,18 +11533,18 @@ def err_bounds_type_annotation_lost_checking : Error<
     "expected _Array_ptr type">;
 
   def warn_bounds_declaration_invalid : Warning<
-    "cannot prove declared bounds for %1 are valid after "
+    "cannot prove declared bounds for '%1' are valid after "
     "%select{assignment|decrement|increment|initialization|statement}0">,
     InGroup<CheckBoundsDeclsUnchecked>;
 
   def warn_checked_scope_bounds_declaration_invalid : Warning<
-    "cannot prove declared bounds for %1 are valid after "
+    "cannot prove declared bounds for '%1' are valid after "
     "%select{assignment|decrement|increment|initialization|statement}0">,
     InGroup<CheckBoundsDeclsChecked>;
 
   def error_bounds_declaration_unprovable : Error<
-    "it is not possible to prove that the inferred bounds of %1 "
-    "imply the declared bounds of %1 after "
+    "it is not possible to prove that the inferred bounds of '%1' "
+    "imply the declared bounds of '%1' after "
     "%select{assignment|decrement|increment|initialization|statement}0">;
 
   def note_free_variable_decl_or_inferred : Note<
@@ -11560,11 +11560,11 @@ def err_bounds_type_annotation_lost_checking : Error<
     "%select{lower |upper |}1bounds">;
 
   def error_bounds_declaration_invalid : Error<
-    "declared bounds for %1 are invalid after "
+    "declared bounds for '%1' are invalid after "
     "%select{assignment|decrement|increment|initialization|statement}0">;
 
   def err_unknown_inferred_bounds : Error<
-    "inferred bounds for %1 are unknown after "
+    "inferred bounds for '%1' are unknown after "
     "%select{assignment|decrement|increment|initialization|statement}0">;
 
   def note_declared_bounds : Note<
@@ -11579,12 +11579,12 @@ def err_bounds_type_annotation_lost_checking : Error<
   def note_required_bounds : Note<
     "(expanded) required bounds are '%0'">;
 
-  def note_lost_variable : Note<
-    "lost the value of the variable '%0' "
-    "which is used in the (expanded) inferred bounds '%1' of %2">;
+  def note_lost_expression : Note<
+    "lost the value of the expression '%0' "
+    "which is used in the (expanded) inferred bounds '%1' of '%2'">;
 
   def note_unknown_source_bounds : Note<
-    "assigned expression '%0' with unknown bounds to %1">;
+    "assigned expression '%0' with unknown bounds to '%1'">;
 
   def err_modifying_expr_not_supported : Error<
    "argument must be a non-modifying expression because %ordinal0 parameter "

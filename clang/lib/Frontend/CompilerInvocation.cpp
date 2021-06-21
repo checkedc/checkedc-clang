@@ -2422,6 +2422,9 @@ void CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   if (Args.hasArg(OPT_fdump_checking_state))
     Opts.DumpCheckingState = true;
 
+  if (Args.hasArg(OPT_fdump_synthesized_members))
+    Opts.DumpSynthesizedMembers = true;
+
   // -ffixed-point
   Opts.FixedPoint =
       Args.hasFlag(OPT_ffixed_point, OPT_fno_fixed_point, /*Default=*/false) &&

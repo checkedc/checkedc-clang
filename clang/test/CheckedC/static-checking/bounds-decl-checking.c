@@ -666,7 +666,7 @@ void f83(_Ptr<int> d, size_t a) {
 
 struct st_80;
 struct st_80_arr {
-  struct st_80 **e : itype(_Array_ptr<_Ptr<struct st_80>>) count(c);
+  struct st_80 **e : itype(_Array_ptr<_Ptr<struct st_80>>) count(c); // expected-note 4 {{declared bounds are 'bounds(arr->e, arr->e + arr->c)'}}
   int d;
   int c;
 };
@@ -674,9 +674,9 @@ struct st_80_arr {
 void f84(_Ptr<struct st_80_arr> arr, int b) {
   _Array_ptr<_Ptr<struct st_80>> a : count(b) = 0;
   if (arr->c <= b) {
-    arr->c = b * b;
-    arr->e = a; // expected-warning {{cannot prove declared bounds for arr->e are valid after assignment}} \
-                // expected-note {{declared bounds are 'bounds(arr->e, arr->e + arr->c)'}} \
+    arr->c = b * b; // expected-error {{inferred bounds for 'arr->e' are unknown after assignment}} \
+                    // expected-note {{lost the value of the expression 'arr->c' which is used in the (expanded) inferred bounds 'bounds(arr->e, arr->e + arr->c)' of 'arr->e'}}
+    arr->e = a; // expected-warning {{cannot prove declared bounds for 'arr->e' are valid after assignment}} \
                 // expected-note {{inferred bounds are 'bounds(a, a + b)'}}
   }
 }
@@ -684,10 +684,10 @@ void f84(_Ptr<struct st_80_arr> arr, int b) {
 void f85(_Ptr<struct st_80_arr> arr, int b) {
   _Array_ptr<_Ptr<struct st_80>> a : count(b) = 0;
   if (arr->c <= b) {
-    arr->e = a; // expected-warning {{cannot prove declared bounds for arr->e are valid after assignment}} \
-                // expected-note {{declared bounds are 'bounds(arr->e, arr->e + arr->c)'}} \
+    arr->e = a; // expected-warning {{cannot prove declared bounds for 'arr->e' are valid after assignment}} \
                 // expected-note {{inferred bounds are 'bounds(a, a + b)'}}
-    arr->c = b * b;
+    arr->c = b * b; // expected-error {{inferred bounds for 'arr->e' are unknown after assignment}} \
+                    // expected-note {{lost the value of the expression 'arr->c' which is used in the (expanded) inferred bounds 'bounds(arr->e, arr->e + arr->c)' of 'arr->e'}}
   }
 }
 
@@ -700,4 +700,37 @@ void f86(void) {
     _Array_ptr<int> dest : count(len) = arr;
   }
   len = 4;
+}
+
+//
+// Test comparing bounds expressions using simple constant folding
+//
+
+extern int simulate_snprintf(char * restrict s : itype(restrict _Nt_array_ptr<char>) count(n - 1), size_t n);
+
+void f87(_Nt_array_ptr<char> p : count(len), size_t len) {
+  // No warning when proving that inferred argument bounds (p, p + len) imply
+  // expected argument bounds (p, p + ((len + 1) - 1))
+  simulate_snprintf(p, len + 1);
+}
+
+void f88(int len) {
+  _Array_ptr<int> p : count(len + 2) = 0;
+  _Array_ptr<int> q : count(len + 2 - 1 + 1) = p;
+}
+
+void f89(_Ptr<int> p) {
+  _Nt_array_ptr<char> a : count(*p) = 0;
+  _Nt_array_ptr<char> b : count(*p + 2 - 1) = 0;
+  a = b;
+}
+
+struct S3 {
+  _Array_ptr<char> f : count(len - 2 + 1);
+  _Array_ptr<char> g : count(len);
+  int len;
+};
+
+void f90(struct S3 s) {
+  s.f = s.g;
 }

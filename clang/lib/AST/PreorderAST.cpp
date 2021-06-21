@@ -78,12 +78,7 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
     CreateUnaryOperator(UO, Parent);
 
   } else if (auto *AE = dyn_cast<ArraySubscriptExpr>(E)) {
-    // e1[e2] has the same canonical form as *(e1 + e2).
-    auto *DerefExpr = BinaryOperator::Create(Ctx, AE->getBase(), AE->getIdx(),
-                                             BinaryOperatorKind::BO_Add, AE->getType(),
-                                             AE->getValueKind(), AE->getObjectKind(),
-                                             AE->getExprLoc(), FPOptionsOverride());
-    CreateDereference(DerefExpr, Parent);
+    CreateArraySubscript(AE, Parent);
 
   } else if (auto *ME = dyn_cast<MemberExpr>(E)) {
     CreateMember(ME, Parent);
@@ -149,7 +144,13 @@ void PreorderAST::CreateBinaryOperator(BinaryOperator *E, Node *Parent) {
 void PreorderAST::CreateUnaryOperator(UnaryOperator *E, Node *Parent) {
   UnaryOperatorKind Op = E->getOpcode();
   if (Op == UnaryOperatorKind::UO_Deref) {
-    CreateDereference(E->getSubExpr(), Parent);
+    // The child of a dereference operator must be a binary operator so that
+    // *e and *(e + 0) have the same canonical form. So for an expression of
+    // the form *e, we create a UnaryOperatorNode whose child is a
+    // BinaryOperatorNode e + 0.
+    auto *N = new UnaryOperatorNode(UnaryOperatorKind::UO_Deref, Parent);
+    AttachNode(N, Parent);
+    AddZero(E->getSubExpr(), /*Parent*/ N);
   } else if ((Op == UnaryOperatorKind::UO_Plus ||
               Op == UnaryOperatorKind::UO_Minus) &&
               E->isIntegerConstantExpr(Ctx)) {
@@ -166,14 +167,15 @@ void PreorderAST::CreateUnaryOperator(UnaryOperator *E, Node *Parent) {
   }
 }
 
-void PreorderAST::CreateDereference(Expr *Child, Node *Parent) {
-  // The child of a dereference operator must be a binary operator so that
-  // *e and *(e + 0) have the same canonical form. So for an expression of
-  // the form *e, we create a UnaryOperatorNode whose child is a
-  // BinaryOperatorNode e + 0.
+void PreorderAST::CreateArraySubscript(ArraySubscriptExpr *E, Node *Parent) {
+  // e1[e2] has the same canonical form as *(e1 + e2).
+  auto *DerefExpr = BinaryOperator::Create(Ctx, E->getBase(), E->getIdx(),
+                                           BinaryOperatorKind::BO_Add, E->getType(),
+                                           E->getValueKind(), E->getObjectKind(),
+                                           E->getExprLoc(), FPOptionsOverride());
   auto *N = new UnaryOperatorNode(UnaryOperatorKind::UO_Deref, Parent);
   AttachNode(N, Parent);
-  AddZero(Child, /*Parent*/ N);
+  Create(DerefExpr, N);
 }
 
 void PreorderAST::CreateMember(MemberExpr *E, Node *Parent) {
@@ -404,6 +406,12 @@ bool BinaryOperatorNode::ConstantFold(bool &Error, ASTContext &Ctx) {
       ConstFoldedVal = CurrConstVal;
 
     } else {
+      // Ensure that ConstFoldedVal and CurrConstVal have the same bit width.
+      if (ConstFoldedVal.getBitWidth() < CurrConstVal.getBitWidth())
+        ConstFoldedVal = ConstFoldedVal.extOrTrunc(CurrConstVal.getBitWidth());
+      else if (CurrConstVal.getBitWidth() < ConstFoldedVal.getBitWidth())
+        CurrConstVal = CurrConstVal.extOrTrunc(ConstFoldedVal.getBitWidth());
+
       // Constant fold based on the operator.
       bool Overflow;
       switch(Opc) {
@@ -424,8 +432,10 @@ bool BinaryOperatorNode::ConstantFold(bool &Error, ASTContext &Ctx) {
     }
   }
 
-  // To fold constants we need at least 2 constants.
-  if (NumConsts <= 1)
+  // To fold constants we need at least 1 constant. If we have only 1 constant
+  // it can trivially be folded. Folding 1 constant allows us to constant
+  // fold expressions such as *(p + -(1 + 2)) to *(p + -3).
+  if (NumConsts < 1)
     return false;
 
   // Delete the folded constants and reclaim memory.
