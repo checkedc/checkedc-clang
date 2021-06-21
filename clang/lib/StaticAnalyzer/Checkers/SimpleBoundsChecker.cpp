@@ -35,7 +35,6 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/DynamicSize.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ExprEngine.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SMTConv.h"
-#include "clang/StaticAnalyzer/Core/PathSensitive/SMTAPI.h"
 
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -349,7 +348,8 @@ const SymExpr *SimpleBoundsChecker::getSymExpr(ProgramStateRef State,
         const MemRegion *VDregion = State->getRegion(VD, LCtx);
         SVal SymVal = State->getSVal(VDregion);
 
-        return SymVal.getAsSymExpr();
+        const SymExpr *SE = dyn_cast_or_null<SymExpr>(SymVal.getAsSymbol());
+        return SE;
       }
 
       if (const IntegerLiteral *IL = dyn_cast<IntegerLiteral>(E)) {
@@ -357,7 +357,8 @@ const SymExpr *SimpleBoundsChecker::getSymExpr(ProgramStateRef State,
         llvm::APSInt *SValue = new llvm::APSInt(Value);
         SVal SymVal = nonloc::ConcreteInt(*SValue);
 
-        return SymVal.getAsSymExpr();
+        const SymExpr *SE = dyn_cast_or_null<SymExpr>(SymVal.getAsSymbol());
+        return SE;
       }
 
       return nullptr;
