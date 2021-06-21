@@ -108,6 +108,11 @@ public:
 
   // IgnoreRedundantCast strips redundant casts off of E.
   static Expr *IgnoreRedundantCast(ASTContext &Ctx, CastKind NewCK, Expr *E);
+
+  // getReferentSizeInChars sets the out parameter Size to the size of the
+  // referent type of Ty in chars.
+  static bool getReferentSizeInChars(ASTContext &Ctx, QualType Ty,
+                                     llvm::APSInt &Size);
 };
 
 } // end namespace clang

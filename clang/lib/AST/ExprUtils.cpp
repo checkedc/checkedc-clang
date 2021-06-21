@@ -194,3 +194,15 @@ Expr *ExprUtil::IgnoreRedundantCast(ASTContext &Ctx, CastKind NewCK, Expr *E) {
 
   return E;
 }
+
+bool ExprUtil::getReferentSizeInChars(ASTContext &Ctx, QualType Ty,
+                                      llvm::APSInt &Size) {
+  assert(Ty->isPointerType());
+  const Type *Pointee = Ty->getPointeeOrArrayElementType();
+  if (Pointee->isIncompleteType())
+    return false;
+  uint64_t ElemBitSize = Ctx.getTypeSize(Pointee);
+  uint64_t ElemSize = Ctx.toCharUnitsFromBits(ElemBitSize).getQuantity();
+  Size = llvm::APSInt(llvm::APInt(Ctx.getTargetInfo().getPointerWidth(0), ElemSize), false);
+  return true;
+}

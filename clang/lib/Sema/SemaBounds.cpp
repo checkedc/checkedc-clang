@@ -68,17 +68,6 @@ public:
       K == BoundsExpr::Kind::Range || K == BoundsExpr::Kind::Invalid);
   }
 
-  static bool getReferentSizeInChars(ASTContext &Ctx, QualType Ty, llvm::APSInt &Size) {
-    assert(Ty->isPointerType());
-    const Type *Pointee = Ty->getPointeeOrArrayElementType();
-    if (Pointee->isIncompleteType())
-      return false;
-    uint64_t ElemBitSize = Ctx.getTypeSize(Pointee);
-    uint64_t ElemSize = Ctx.toCharUnitsFromBits(ElemBitSize).getQuantity();
-    Size = llvm::APSInt(llvm::APInt(Ctx.getTargetInfo().getPointerWidth(0), ElemSize), false);
-    return true;
-  }
-
   // Convert I to a signed integer with Ctx.PointerWidth.
   static llvm::APSInt ConvertToSignedPointerWidth(ASTContext &Ctx, llvm::APSInt I, bool &Overflow) {
     uint64_t PointerWidth = Ctx.getTargetInfo().getPointerWidth(0);
@@ -1396,7 +1385,7 @@ namespace {
             return false;
         }
         llvm::APSInt ElemSize;
-        if (!BoundsUtil::getReferentSizeInChars(S.Context, Base->getType(), ElemSize))
+        if (!ExprUtil::getReferentSizeInChars(S.Context, Base->getType(), ElemSize))
           return false;
         Constant = Constant.smul_ov(ElemSize, Overflow);
         if (Overflow)
@@ -2109,7 +2098,7 @@ namespace {
                 goto exit;
             }
             llvm::APSInt ElemSize;
-            if (!BoundsUtil::getReferentSizeInChars(S.Context, Base->getType(), ElemSize))
+            if (!ExprUtil::getReferentSizeInChars(S.Context, Base->getType(), ElemSize))
                 goto exit;
             OffsetConstant = OffsetConstant.smul_ov(ElemSize, Overflow);
             if (Overflow)
@@ -2179,7 +2168,7 @@ namespace {
       } else {
         VariablePart = Offset;
         IsOpSigned = VariablePart->getType()->isSignedIntegerType();
-        if (!BoundsUtil::getReferentSizeInChars(Ctx, Base->getType(), ConstantPart))
+        if (!ExprUtil::getReferentSizeInChars(Ctx, Base->getType(), ConstantPart))
           return false;
         ConstantPart = BoundsUtil::ConvertToSignedPointerWidth(Ctx, ConstantPart, Overflow);
         if (Overflow)
@@ -2448,7 +2437,7 @@ namespace {
 
       bool Overflow;
       llvm::APSInt ElementSize;
-      if (!BoundsUtil::getReferentSizeInChars(S.Context, PtrBase->getType(), ElementSize))
+      if (!ExprUtil::getReferentSizeInChars(S.Context, PtrBase->getType(), ElementSize))
           return ProofResult::Maybe;
       if (Kind == BoundsCheckKind::BCK_NullTermRead || Kind == BoundsCheckKind::BCK_NullTermWriteAssign) {
         Overflow = ValidRange.AddToUpper(ElementSize);
