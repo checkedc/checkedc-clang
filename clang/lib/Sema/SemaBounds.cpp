@@ -4308,7 +4308,8 @@ namespace {
     ImplicitCastExpr *CreateImplicitCast(QualType Target, CastKind CK,
                                          Expr *E) {
       return ImplicitCastExpr::Create(Context, Target, CK, E, nullptr,
-                                       ExprValueKind::VK_RValue);
+                                      ExprValueKind::VK_RValue,
+                                      FPOptionsOverride());
     }
 
     // Given a byte_count or count bounds expression for the expression Base,

@@ -42,9 +42,8 @@ IntegerLiteral *ExprCreatorUtil::CreateUnsignedInt(Sema &SemaRef,
 ImplicitCastExpr *ExprCreatorUtil::CreateImplicitCast(Sema &SemaRef, Expr *E,
                                                       CastKind CK,
                                                       QualType T) {
-  return ImplicitCastExpr::Create(SemaRef.Context, T,
-                                  CK, E, nullptr,
-                                  ExprValueKind::VK_RValue);
+  return ImplicitCastExpr::Create(SemaRef.Context, T, CK, E, nullptr,
+                                  ExprValueKind::VK_RValue, FPOptionsOverride());
 }
 
 DeclRefExpr *ExprCreatorUtil::CreateVarUse(Sema &SemaRef, VarDecl *V) {
