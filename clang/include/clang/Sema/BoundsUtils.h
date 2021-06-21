@@ -32,6 +32,15 @@ public:
 
   // CreateBoundsUnknown returns bounds(unknown).
   static BoundsExpr *CreateBoundsUnknown(Sema &S);
+
+private:
+  // If an original value is provided, ReplaceLValue returns an expression
+  // that replaces all uses of the lvalue expression LValue in E with the
+  // original value.  If no original value is provided and E uses LValue,
+  // ReplaceLValue returns nullptr.
+  static Expr *ReplaceLValue(Sema &S, Expr *E, Expr *LValue,
+                             Expr *OriginalValue,
+                             CheckedScopeSpecifier CSS);
 };
 
 } // end namespace clang
