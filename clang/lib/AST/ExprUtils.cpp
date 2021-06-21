@@ -228,3 +228,62 @@ llvm::APSInt ExprUtil::ConvertToSignedPointerWidth(ASTContext &Ctx,
   exit:
     return I;
 }
+
+namespace {
+  class FindLValueHelper : public RecursiveASTVisitor<FindLValueHelper> {
+    private:
+      Sema &SemaRef;
+      Lexicographic Lex;
+      Expr *LValue;
+      bool Found;
+
+    public:
+      FindLValueHelper(Sema &SemaRef, Expr *LValue) :
+        SemaRef(SemaRef),
+        Lex(Lexicographic(SemaRef.Context, nullptr)),
+        LValue(LValue),
+        Found(false) {}
+
+      bool IsFound() { return Found; }
+
+      bool VisitDeclRefExpr(DeclRefExpr *E) {
+        DeclRefExpr *V = dyn_cast_or_null<DeclRefExpr>(LValue);
+        if (!V)
+          return true;
+        if (Lex.CompareExpr(V, E) == Lexicographic::Result::Equal)
+          Found = true;
+        return true;
+      }
+
+      bool VisitMemberExpr(MemberExpr *E) {
+        MemberExpr *M = dyn_cast_or_null<MemberExpr>(LValue);
+        if (!M)
+          return true;
+        if (Lex.CompareExprSemantically(E, M))
+          Found = true;
+        return true;
+      }
+
+      // Do not traverse the child of a BoundsValueExpr.
+      // Expressions within a BoundsValueExpr should not be considered
+      // when looking for LValue.
+      // For example, for the expression E = BoundsValue(TempBinding(LValue)),
+      // FindLValue(LValue, E) should return false.
+      bool TraverseBoundsValueExpr(BoundsValueExpr *E) {
+        return true;
+      }
+
+      bool TraverseStmt(Stmt *S) {
+        if (Found)
+          return true;
+
+        return RecursiveASTVisitor<FindLValueHelper>::TraverseStmt(S);
+      }
+  };
+}
+
+bool ExprUtil::FindLValue(Sema &S, Expr *LValue, Expr *E) {
+  FindLValueHelper Finder(S, LValue);
+  Finder.TraverseStmt(E);
+  return Finder.IsFound();
+}

@@ -119,6 +119,9 @@ public:
   static llvm::APSInt ConvertToSignedPointerWidth(ASTContext &Ctx,
                                                   llvm::APSInt I,
                                                   bool &Overflow);
+
+  // FindLValue returns true if the given lvalue expression occurs in E.
+  static bool FindLValue(Sema &S, Expr *LValue, Expr *E);
 };
 
 } // end namespace clang
