@@ -1431,7 +1431,7 @@ namespace {
         if (!Variable || !RVariable)
           return false;
 
-        if (!EqualValue(S.Context, Variable, RVariable, EquivExprs))
+        if (!ExprUtil::EqualValue(S.Context, Variable, RVariable, EquivExprs))
           return false;
 
         EnsureEqualBitWidths(Constant, RConstant);
