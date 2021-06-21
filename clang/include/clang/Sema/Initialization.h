@@ -213,7 +213,7 @@ private:
   /// initialized, if any.
   BoundsAnnotations Annots;
 
-  InitializedEntity() = default;
+  InitializedEntity() {};
 
   /// Create the initialization entity for a variable.
   InitializedEntity(VarDecl *Var, EntityKind EK = EK_Variable)
@@ -224,7 +224,7 @@ private:
   /// function, throwing an object, performing an explicit cast, or
   /// initializing a parameter for which there is no declaration.
   InitializedEntity(EntityKind Kind, SourceLocation Loc, QualType Type,
-                    bool NRVO = false, 
+                    bool NRVO = false,
                     const BoundsAnnotations Annots = BoundsAnnotations())
       : Kind(Kind), Type(Type), Annots(Annots) {
     new (&LocAndNRVO) LN;

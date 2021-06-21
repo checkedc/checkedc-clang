@@ -1499,6 +1499,7 @@ void TypePrinter::printRecordBefore(const RecordType *T, raw_ostream &OS) {
     }
     OS << ">";
   }
+}
 
 void TypePrinter::printRecordAfter(const RecordType *T, raw_ostream &OS) {}
 
