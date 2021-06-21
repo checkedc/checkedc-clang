@@ -110,13 +110,13 @@ bool AVarBoundsInfo::tryGetVariable(clang::Decl *D, BoundsKey &R) {
 
 bool AVarBoundsInfo::tryGetVariable(clang::Expr *E, const ASTContext &C,
                                     BoundsKey &Res) {
-  llvm::APSInt ConsVal;
+  Optional<llvm::APSInt> OptConsVal;
   bool Ret = false;
   if (E != nullptr) {
     E = E->IgnoreParenCasts();
     if (E->getType()->isArithmeticType() &&
-        E->isIntegerConstantExpr(ConsVal, C)) {
-      Res = getVarKey(ConsVal);
+        (OptConsVal = E->getIntegerConstantExpr(C))) {
+      Res = getVarKey(*OptConsVal);
       Ret = true;
     } else if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
       auto *D = DRE->getDecl();
