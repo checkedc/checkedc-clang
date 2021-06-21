@@ -33,7 +33,15 @@ public:
   // CreateBoundsUnknown returns bounds(unknown).
   static BoundsExpr *CreateBoundsUnknown(Sema &S);
 
-private:
+  // If Bounds uses the value of LValue and an original value is provided,
+  // ReplaceLValueInBounds will return a bounds expression where the uses
+  // of LValue are replaced with the original value.
+  // If Bounds uses the value of LValue and no original value is provided,
+  // ReplaceLValueInBounds will return bounds(unknown).
+  static BoundsExpr *ReplaceLValueInBounds(Sema &S, BoundsExpr *Bounds,
+                                           Expr *LValue, Expr *OriginalValue,
+                                           CheckedScopeSpecifier CSS);
+
   // If an original value is provided, ReplaceLValue returns an expression
   // that replaces all uses of the lvalue expression LValue in E with the
   // original value.  If no original value is provided and E uses LValue,

@@ -561,106 +561,6 @@ namespace {
 }
 
 namespace {
-  class ReplaceLValueHelper : public TreeTransform<ReplaceLValueHelper> {
-    typedef TreeTransform<ReplaceLValueHelper> BaseTransform;
-    private:
-      Lexicographic Lex;
-
-      // The lvalue expression whose uses should be replaced in an expression.
-      Expr *LValue;
-
-      // The original value (if any) to replace uses of the lvalue with.
-      // If no original value is provided, an expression using the lvalue
-      // will be transformed into an invalid result.
-      Expr *OriginalValue;
-
-    public:
-      ReplaceLValueHelper(Sema &SemaRef, Expr *LValue, Expr *OriginalValue) :
-        BaseTransform(SemaRef),
-        Lex(Lexicographic(SemaRef.Context, nullptr)),
-        LValue(LValue),
-        OriginalValue(OriginalValue) { }
-
-      ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
-        DeclRefExpr *V = dyn_cast_or_null<DeclRefExpr>(LValue);
-        if (!V)
-          return E;
-        if (Lex.CompareExpr(V, E) == Lexicographic::Result::Equal) {
-          if (OriginalValue)
-            return OriginalValue;
-          else
-            return ExprError();
-        } else
-          return E;
-      }
-
-      ExprResult TransformMemberExpr(MemberExpr *E) {
-        MemberExpr *M = dyn_cast_or_null<MemberExpr>(LValue);
-        if (!M)
-          return E;
-        if (Lex.CompareExprSemantically(M, E)) {
-          if (OriginalValue)
-            return OriginalValue;
-          else
-            return ExprError();
-        } else
-          return E;
-      }
-
-      // Overriding TransformImplicitCastExpr is necessary since TreeTransform
-      // does not preserve implicit casts.
-      ExprResult TransformImplicitCastExpr(ImplicitCastExpr *E) {
-        // Replace V with OV (if applicable) in the subexpression of E.
-        ExprResult ChildResult = TransformExpr(E->getSubExpr());
-        if (ChildResult.isInvalid())
-          return ChildResult;
-
-        Expr *Child = ChildResult.get();
-        CastKind CK = E->getCastKind();
-
-        if (CK == CastKind::CK_LValueToRValue ||
-            CK == CastKind::CK_ArrayToPointerDecay)
-          // Only cast children of lvalue to rvalue casts to an rvalue if
-          // necessary.  The transformed child expression may no longer be
-          // an lvalue, depending on the original value.  For example, if x
-          // is transformed to the original value x + 1, it does not need to
-          // be cast to an rvalue.
-          return ExprCreatorUtil::EnsureRValue(SemaRef, Child);
-        else
-          return ExprCreatorUtil::CreateImplicitCast(SemaRef, Child,
-                                                     CK, E->getType());
-      }
-  };
-
-  // If an original value is provided, ReplaceLValue returns an expression
-  // that replaces all uses of the lvalue expression LValue in E with the
-  // original value.  If no original value is provided and E uses LValue,
-  // ReplaceLValue returns nullptr.
-  Expr *ReplaceLValue(Sema &SemaRef, Expr *E, Expr *LValue,
-                      Expr *OriginalValue,
-                      CheckedScopeSpecifier CSS) {
-    // Don't transform E if it does not use the value of LValue.
-    if (!ExprUtil::FindLValue(SemaRef, LValue, E))
-      return E;
-
-    // If E uses the value of LValue, but no original value is provided,
-    // we know the result is null without needing to transform E.
-    if (!OriginalValue)
-      return nullptr;
-
-    // Account for checked scope information when transforming the expression.
-    Sema::CheckedScopeRAII CheckedScope(SemaRef, CSS);
-
-    Sema::ExprSubstitutionScope Scope(SemaRef); // suppress diagnostics
-    ExprResult R = ReplaceLValueHelper(SemaRef, LValue, OriginalValue).TransformExpr(E);
-    if (R.isInvalid())
-      return nullptr;
-    else
-      return R.get();
-  }
-}
-
-namespace {
   // BoundsContextTy denotes a map of an AbstractSet to the bounds that
   // are currently known to be valid for the lvalue expressions in the set.
   using BoundsContextTy = llvm::DenseMap<const AbstractSet *, BoundsExpr *>;
@@ -4979,7 +4879,8 @@ namespace {
         const AbstractSet *A = Pair.first;
         BoundsExpr *Bounds = Pair.second;
         BoundsExpr *AdjustedBounds =
-          ReplaceLValueInBounds(Bounds, LValue, OriginalValue, CSS);
+          BoundsUtil::ReplaceLValueInBounds(S, Bounds, LValue,
+                                            OriginalValue, CSS);
         State.ObservedBounds[A] = AdjustedBounds;
 
         // If the assignment to LValue caused the observed bounds of A
@@ -5002,8 +4903,9 @@ namespace {
       if (HasTargetBounds)
         AdjustedSrcBounds = State.ObservedBounds[LValueAbstractSet];
       else
-        AdjustedSrcBounds = ReplaceLValueInBounds(SrcBounds, LValue,
-                                                  OriginalValue, CSS);
+        AdjustedSrcBounds =
+          BoundsUtil::ReplaceLValueInBounds(S, SrcBounds, LValue,
+                                            OriginalValue, CSS);
 
       // Record that E updates the observed bounds of LValue.
       if (HasTargetBounds)
@@ -5040,7 +4942,8 @@ namespace {
         ExprSetTy ExprList;
         for (auto InnerList = (*I).begin(); InnerList != (*I).end(); ++InnerList) {
           Expr *E = *InnerList;
-          Expr *AdjustedE = ReplaceLValue(S, E, LValue, OriginalValue, CSS);
+          Expr *AdjustedE = BoundsUtil::ReplaceLValue(S, E, LValue,
+                                                      OriginalValue, CSS);
           // Don't add duplicate expressions to any set in EquivExprs.
           if (AdjustedE && !EqualExprsContainsExpr(ExprList, AdjustedE))
             ExprList.push_back(AdjustedE);
@@ -5072,7 +4975,8 @@ namespace {
       Expr *OriginalSameValueVal = OriginalValueUsesLValue ? nullptr : OriginalValue;
       for (auto I = PrevSameValue.begin(); I != PrevSameValue.end(); ++I) {
         Expr *E = *I;
-        Expr *AdjustedE = ReplaceLValue(S, E, LValue, OriginalSameValueVal, CSS);
+        Expr *AdjustedE = BoundsUtil::ReplaceLValue(S, E, LValue,
+                                                    OriginalSameValueVal, CSS);
         // Don't add duplicate expressions to SameValue.
         if (AdjustedE && !EqualExprsContainsExpr(State.SameValue, AdjustedE))
           State.SameValue.push_back(AdjustedE);
@@ -5150,23 +5054,6 @@ namespace {
         State.SameValue.push_back(Target);
       if (State.SameValue.size() > 1)
         State.EquivExprs.push_back(State.SameValue);
-    }
-
-    // If Bounds uses the value of LValue and an original value is provided,
-    // ReplaceLValueInBounds will return a bounds expression where the uses
-    // of LValue are replaced with the original value.
-    // If Bounds uses the value of LValue and no original value is provided,
-    // ReplaceLValueInBounds will return bounds(unknown).
-    BoundsExpr *ReplaceLValueInBounds(BoundsExpr *Bounds, Expr *LValue,
-                                      Expr *OriginalValue,
-                                      CheckedScopeSpecifier CSS) {
-      Expr *Replaced = ReplaceLValue(S, Bounds, LValue, OriginalValue, CSS);
-      if (!Replaced)
-        return BoundsUtil::CreateBoundsUnknown(S);
-      else if (BoundsExpr *AdjustedBounds = dyn_cast<BoundsExpr>(Replaced))
-        return AdjustedBounds;
-      else
-        return BoundsUtil::CreateBoundsUnknown(S);
     }
 
     // UpdateSameValue updates the set SameValue of expressions that produce

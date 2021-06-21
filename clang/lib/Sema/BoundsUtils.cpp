@@ -28,6 +28,18 @@ BoundsExpr *BoundsUtil::CreateBoundsUnknown(Sema &S) {
   return S.Context.getPrebuiltBoundsUnknown();
 }
 
+BoundsExpr *BoundsUtil::ReplaceLValueInBounds(Sema &S, BoundsExpr *Bounds,
+                                              Expr *LValue, Expr *OriginalValue,
+                                              CheckedScopeSpecifier CSS) {
+  Expr *Replaced = ReplaceLValue(S, Bounds, LValue, OriginalValue, CSS);
+  if (!Replaced)
+    return CreateBoundsUnknown(S);
+  else if (BoundsExpr *AdjustedBounds = dyn_cast<BoundsExpr>(Replaced))
+    return AdjustedBounds;
+  else
+    return CreateBoundsUnknown(S);
+}
+
 namespace {
   class ReplaceLValueHelper : public TreeTransform<ReplaceLValueHelper> {
     typedef TreeTransform<ReplaceLValueHelper> BaseTransform;
