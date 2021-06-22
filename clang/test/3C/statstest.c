@@ -1,6 +1,7 @@
 // RUN: rm -rf %t*
-// RUN: 3c -dump-stats -base-dir=%S -alltypes -addcr %s -- 2>%t.stderr | FileCheck -match-full-lines %s
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_STDERR" --input-file %t.stderr %s
+// RUN: mkdir %t && cd %t
+// RUN: 3c -dump-stats -base-dir=%S -alltypes -addcr %s -- 2>stderr | FileCheck -match-full-lines %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_STDERR" --input-file %t/stderr %s
 
 
 #include <stdlib.h>

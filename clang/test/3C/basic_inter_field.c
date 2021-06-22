@@ -3,7 +3,7 @@
 // Tests properties about constraint propagation of structure fields
 // across functions
 // RUN: 3c -base-dir=%S %s -- | FileCheck -match-full-lines %s
-// RUN: 3c -base-dir=%S %s -- | %clang -c  -Xclang -verify -fcheckedc-extension -x c -
+// RUN: 3c -base-dir=%S %s -- | %clang -c  -Xclang -verify -fcheckedc-extension -x c -o /dev/null -
 // expected-no-diagnostics
 //
 

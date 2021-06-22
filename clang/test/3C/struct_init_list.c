@@ -1,7 +1,7 @@
 // RUN: rm -rf %t*
 // RUN: 3c -base-dir=%S -alltypes %s -- | FileCheck -match-full-lines %s
 // RUN: 3c -base-dir=%S -alltypes %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
-// RUN: 3c -base-dir=%S -alltypes %s -- | %clang -c  -fno-builtin -Xclang -verify -fcheckedc-extension -x c -
+// RUN: 3c -base-dir=%S -alltypes %s -- | %clang -c  -fno-builtin -Xclang -verify -fcheckedc-extension -x c -o /dev/null -
 // RUN: 3c -base-dir=%S -output-dir=%t.checked -alltypes %s --
 // RUN: 3c -base-dir=%t.checked -alltypes %t.checked/struct_init_list.c -- | diff %t.checked/struct_init_list.c -
 // expected-no-diagnostics

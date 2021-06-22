@@ -1,5 +1,5 @@
 // RUN: 3c -base-dir=%S -alltypes %s -- | FileCheck %s
-// RUN: 3c -base-dir=%S -alltypes %s -- | %clang -c  -fno-builtin -Xclang -verify -fcheckedc-extension -x c -
+// RUN: 3c -base-dir=%S -alltypes %s -- | %clang -c  -fno-builtin -Xclang -verify -fcheckedc-extension -x c -o /dev/null -
 
 // No conversions expected for these two, they just shouldn't crash
 

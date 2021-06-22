@@ -1,7 +1,7 @@
 //RUN: rm -rf %t*
 //RUN: 3c -base-dir=%S -output-dir=%t.checked3 %s %S/extGVarm1.c %S/extGVarm2.c --
 //RUN: FileCheck -match-full-lines --input-file %t.checked3/extGVarm3.c %s
-//RUN: %clang -c %t.checked3/extGVarm3.c %t.checked3/extGVarm2.c %t.checked3/extGVarm1.c
+//RUN: %clang -working-directory=%t.checked3 -c extGVarm3.c extGVarm2.c extGVarm1.c
 
 // This test cannot use pipes because it requires multiple output files
 
