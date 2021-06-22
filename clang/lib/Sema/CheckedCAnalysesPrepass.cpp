@@ -155,13 +155,23 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
 
       // If V has a bounds expression, traverse it so we visit the
       // DeclRefExprs within the bounds.
-      if (V->getType()->isCheckedPointerArrayType() ||
-          V->getType()->isCheckedArrayType()) {
+      if (V->hasBoundsExpr()) {
         if (BoundsExpr *B = SemaRef.NormalizeBounds(V)) {
           VarWithBounds = V;
           TraverseStmt(B);
           VarWithBounds = nullptr;
         }
+
+      // Else if V does not have a bounds expression but V is a checked array
+      // or a checked null-terminated array then V occurs in its upper and
+      // lower bounds. So we add V to the set of variables that occur in its
+      // lower and upper bounds. For example:
+      // void f(_Nt_array_ptr<char> p);
+      // char p _Checked[] = "ab";
+      } else if (V->getType()->isCheckedPointerArrayType() ||
+                 V->getType()->isCheckedArrayType()) {
+        AddPtrWithBounds(Info.BoundsVarsLower, V, V);
+        AddPtrWithBounds(Info.BoundsVarsUpper, V, V);
       }
 
       // Process any where clause attached to this VarDecl.
