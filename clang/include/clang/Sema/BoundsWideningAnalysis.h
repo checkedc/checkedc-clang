@@ -337,6 +337,15 @@ namespace clang {
     // @param[in] CurrStmt is the current statement.
     BoundsMapTy GetStmtIn(const CFGBlock *B, const Stmt *CurrStmt) const;
 
+    // Get the bounds that are widened in the current block before the current
+    // statement and that are not killed by the current statement.
+    // Note: This method can be called from outside this class and can be used
+    // to control diagnostics for observed bounds.
+    // @param[in] B is the current block.
+    // @param[in] CurrStmt is the current statement.
+    BoundsMapTy GetBoundsWidenedAndNotKilled(const CFGBlock *B,
+                                             const Stmt *CurrStmt) const;
+
   private:
     // Compute Gen and Kill sets for the block and statements in the block.
     // @param[in] EB is the current ElevatedCFGBlock.
