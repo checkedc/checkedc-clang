@@ -13,6 +13,7 @@
 #include "clang/3C/ConstraintsGraph.h"
 #include "clang/3C/MappingVisitor.h"
 #include "clang/3C/Utils.h"
+#include "llvm/Support/JSON.h"
 #include <sstream>
 
 using namespace clang;
@@ -66,7 +67,10 @@ void dumpStaticFuncMapJson(const ProgramInfo::StaticFunctionMapType &EMap,
     if (AddComma) {
       O << ",\n";
     }
-    O << "{\"FuncName\":\"" << DefM.first << "\", \"Constraints\":[";
+    // The `FuncName` and `FileName` field names are backwards: this is actually
+    // the file name, hence the need to defend against special characters.
+    O << "{\"FuncName\":" << llvm::json::Value(DefM.first)
+      << ", \"Constraints\":[";
     bool AddComma1 = false;
     for (const auto &J : DefM.second) {
       if (AddComma1) {
@@ -113,9 +117,9 @@ void ProgramInfo::dumpJson(llvm::raw_ostream &O) const {
     }
     PersistentSourceLoc L = I.first;
 
-    O << "{\"line\":\"";
-    L.print(O);
-    O << "\",\"Variables\":[";
+    O << "{\"line\":";
+    O << llvm::json::Value(L.toString());
+    O << ",\"Variables\":[";
     I.second->dumpJson(O);
     O << "]}";
     AddComma = true;
@@ -315,7 +319,7 @@ void ProgramInfo::printStats(const std::set<std::string> &F, raw_ostream &O,
         if (AddComma) {
           O << ",\n";
         }
-        O << "{\"" << I.first << "\":{";
+        O << "{" << llvm::json::Value(I.first) << ":{";
         O << "\"constraints\":" << V << ",";
         O << "\"ptr\":" << P << ",";
         O << "\"ntarr\":" << Nt << ",";

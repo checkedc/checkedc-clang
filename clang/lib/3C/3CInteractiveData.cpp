@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/3C/3CInteractiveData.h"
+#include "llvm/Support/JSON.h"
 
 void ConstraintsInfo::clear() {
   RootWildAtomsWithReason.clear();
@@ -116,11 +117,9 @@ void ConstraintsInfo::printConstraintStats(llvm::raw_ostream &O,
   O << "\"InSrc\":" << (InSrcWildAtoms.find(Cause) != InSrcWildAtoms.end()) << ", ";
   O << "\"Location\":";
   const PersistentSourceLoc &PSL = PtrInfo.getLocation();
-  if (PSL.valid()) {
-    O << "\"";
-    PSL.print(O);
-    O << "\"";
-  } else
+  if (PSL.valid())
+    O << llvm::json::Value(PSL.toString());
+  else
     O << "null";
   O << ", ";
 
