@@ -6879,6 +6879,7 @@ Expr *Sema::GetArrayPtrDereference(Expr *E, QualType &Result) {
     case Expr::MemberExprClass:
     case Expr::CompoundLiteralExprClass:
     case Expr::ExtVectorElementExprClass:
+    case Expr::RecoveryExprClass:
       return nullptr;
     case Expr::UnaryOperatorClass: {
       UnaryOperator *UO = cast<UnaryOperator>(E);
