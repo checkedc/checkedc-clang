@@ -2720,14 +2720,16 @@ namespace {
 
      // If a variable does not exist in WidenedBounds but exists in
      // State.ObservedBounds it means that the bounds of the variable got
-     // killed before the current statement. So we set the bounds of the
-     // variable in State.ObservedBounds to bounds(unknown).
+     // killed before the current statement. So we reset the bounds of the
+     // variable in State.ObservedBounds to its declared bounds.
      for (auto I = State.ObservedBounds.begin(),
                E = State.ObservedBounds.end(); I != E; ++I) {
        const AbstractSet *A = I->first;
        const VarDecl *V = A->GetVarDecl();
-       if (V && WidenedBounds.find(V) == WidenedBounds.end())
-         I->second = CreateBoundsUnknown();
+       if (V) {
+         if (WidenedBounds.find(V) == WidenedBounds.end())
+           I->second = S.NormalizeBounds(V);
+       }
      }
 
      // Update State.ObservedBounds with the WidenedBounds before the current
@@ -2843,7 +2845,7 @@ namespace {
            if (NestedElements.find(S) != NestedElements.end())
              continue;
 
-           // Update the observed bounds with the widened bounds calculated
+           // Update the observed bounds with the widened bounds computed
            // above.
            UpdateWidenedBounds(BoundsWideningAnalyzer, Block, S, BlockState);
 
