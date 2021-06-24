@@ -2405,6 +2405,22 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
     // types are allowed if a bounds declaration is present.
     if (!Actions.DiagnoseCheckedDecl(ThisVarDecl))
       ThisVarDecl->setInvalidDecl();
+
+    // For a variable declarator in Checked C, the initializer will appear
+    // after the bounds declaration if one is present. Therefore, TheInitKind
+    // needs to be set to the correct value at this point after parsing the
+    // bounds declaration.
+    if (isTokenEqualOrEqualTypo())
+      TheInitKind = InitKind::Equal;
+    else if (Tok.is(tok::l_paren))
+      TheInitKind = InitKind::CXXDirect;
+    else if (getLangOpts().CPlusPlus11 && Tok.is(tok::l_brace) &&
+             (!CurParsedObjCImpl || !D.isFunctionDeclarator()))
+      TheInitKind = InitKind::CXXBraced;
+    else
+      TheInitKind = InitKind::Uninitialized;
+    if (TheInitKind != InitKind::Uninitialized)
+      D.setHasInitializer();
   }
 
   switch (TheInitKind) {
