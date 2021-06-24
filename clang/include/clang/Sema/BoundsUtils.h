@@ -37,6 +37,10 @@ public:
   // be able to infer bounds for.
   static BoundsExpr *CreateBoundsAlwaysUnknown(Sema &S);
 
+  // If we have an error in our bounds inference that we can't
+  // recover from, bounds(unknown) is our error value.
+  static BoundsExpr *CreateBoundsInferenceError(Sema &S);
+
   // Given an array type with constant dimension size, CreateBoundsForArrayType
   // returns a count expression with that size.
   static BoundsExpr *CreateBoundsForArrayType(Sema &S, QualType T,

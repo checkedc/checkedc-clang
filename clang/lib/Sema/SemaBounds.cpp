@@ -3097,7 +3097,7 @@ namespace {
     BoundsExpr *CheckLValue(Expr *E, CheckedScopeSpecifier CSS,
                             CheckingState &State) {
       if (!E->isLValue())
-        return CreateBoundsInferenceError();
+        return BoundsUtil::CreateBoundsInferenceError(S);
 
       E = E->IgnoreParens();
 
@@ -3128,14 +3128,14 @@ namespace {
     // Values read through the lvalue will meet the target bounds.
     BoundsExpr *GetLValueTargetBounds(Expr *E, CheckedScopeSpecifier CSS) {
       if (!E->isLValue())
-        return CreateBoundsInferenceError();
+        return BoundsUtil::CreateBoundsInferenceError(S);
 
       // The type for inferring the target bounds cannot ever be an array
       // type, as these are dealt with by an array conversion, not an lvalue
       // conversion. The bounds for an array conversion are the same as the
       // lvalue bounds of the array-typed expression.
       if (E->getType()->isArrayType())
-        return CreateBoundsInferenceError();
+        return BoundsUtil::CreateBoundsInferenceError(S);
 
       E = E->IgnoreParens();
 
@@ -3155,7 +3155,7 @@ namespace {
           return LValueTempBindingTargetBounds(cast<CHKCBindTemporaryExpr>(E),
                                                CSS);
         default:
-          return CreateBoundsInferenceError();
+          return BoundsUtil::CreateBoundsInferenceError(S);
       }
     }
 
@@ -3451,7 +3451,7 @@ namespace {
         PointeeType = BlockPtrTy->getPointeeType();
       else {
         llvm_unreachable("Unexpected callee type");
-        return CreateBoundsInferenceError();
+        return BoundsUtil::CreateBoundsInferenceError(S);
       }
 
       const FunctionType *FuncTy = PointeeType->getAs<FunctionType>();
@@ -3760,7 +3760,7 @@ namespace {
 
       // `*e` is not an rvalue.
       if (Op == UnaryOperatorKind::UO_Deref)
-        return CreateBoundsInferenceError();
+        return BoundsUtil::CreateBoundsInferenceError(S);
 
       // Check inc/dec operators `++e1`, `e1++`, `--e1`, `e1--`.
       // At this point, State contains EquivExprs and SameValue for `e1`.
@@ -4127,7 +4127,7 @@ namespace {
       if (E->getType()->isArrayType()) {
         if (!VD) {
           llvm_unreachable("declref with array type not a vardecl");
-          return CreateBoundsInferenceError();
+          return BoundsUtil::CreateBoundsInferenceError(S);
         }
 
         // Update SameValue for variables with array type.
@@ -4179,7 +4179,7 @@ namespace {
         return SubExprBounds;
       }
 
-      return CreateBoundsInferenceError();
+      return BoundsUtil::CreateBoundsInferenceError(S);
     }
 
     // CheckArraySubscriptExpr returns the lvalue and target bounds of e.
@@ -4322,7 +4322,7 @@ namespace {
           CountBoundsExpr *BC = dyn_cast<CountBoundsExpr>(B);
           if (!BC) {
             llvm_unreachable("unexpected cast failure");
-            return CreateBoundsInferenceError();
+            return BoundsUtil::CreateBoundsInferenceError(S);
           }
           Expr *Count = BC->getCountExpr();
           QualType ResultTy;
@@ -5415,12 +5415,6 @@ namespace {
       return BoundsUtil::CreateBoundsUnknown(S);
     }
 
-    // If we have an error in our bounds inference that we can't
-    // recover from, bounds(unknown) is our error value
-    BoundsExpr *CreateBoundsInferenceError() {
-      return BoundsUtil::CreateBoundsUnknown(S);
-    }
-
     // This describes the bounds of null, which is compatible with every
     // other bounds annotation.
     BoundsExpr *CreateBoundsAny() {
@@ -5509,7 +5503,7 @@ namespace {
     BoundsExpr *MemberExprBounds(MemberExpr *ME, CheckedScopeSpecifier CSS) {
       FieldDecl *FD = dyn_cast<FieldDecl>(ME->getMemberDecl());
       if (!FD)
-        return CreateBoundsInferenceError();
+        return BoundsUtil::CreateBoundsInferenceError(S);
 
       if (ME->getType()->isArrayType()) {
         // Declared bounds override the bounds based on the array type.
@@ -5539,12 +5533,12 @@ namespace {
 
       // It is an error for a member to have function type.
       if (ME->getType()->isFunctionType())
-        return CreateBoundsInferenceError();
+        return BoundsUtil::CreateBoundsInferenceError(S);
 
       // If E is an L-value, the ME must be an L-value too.
       if (ME->isRValue()) {
         llvm_unreachable("unexpected MemberExpr r-value");
-        return CreateBoundsInferenceError();
+        return BoundsUtil::CreateBoundsInferenceError(S);
       }
 
       Expr *AddrOf = CreateAddressOfOperator(ME);
@@ -5575,7 +5569,7 @@ namespace {
         return CreateTypeBasedBounds(DRE, DRE->getType(), IsParam, false);
 
       if (!VD)
-        return CreateBoundsInferenceError();
+        return BoundsUtil::CreateBoundsInferenceError(S);
 
       if (!B && IT)
         return CreateTypeBasedBounds(DRE, IT->getType(), IsParam, true);
@@ -5605,7 +5599,7 @@ namespace {
 
       // Unary operators other than pointer dereferences do not have lvalue
       // target bounds.
-      return CreateBoundsInferenceError();
+      return BoundsUtil::CreateBoundsInferenceError(S);
     }
 
     // Infer target bounds for an array subscript expression.
@@ -5632,7 +5626,7 @@ namespace {
                                        CheckedScopeSpecifier CSS) {
       FieldDecl *F = dyn_cast<FieldDecl>(ME->getMemberDecl());
       if (!F)
-        return CreateBoundsInferenceError();
+        return BoundsUtil::CreateBoundsInferenceError(S);
 
       BoundsExpr *B = F->getBoundsExpr();
       InteropTypeExpr *IT = F->getInteropTypeExpr();
@@ -5834,7 +5828,7 @@ namespace {
         const PointerType *PtrTy =
           CE->getCallee()->getType()->getAs<PointerType>();
         if (PtrTy == nullptr)
-          return CreateBoundsInferenceError();
+          return BoundsUtil::CreateBoundsInferenceError(S);
         const FunctionProtoType *CalleeTy =
           PtrTy->getPointeeType()->getAs<FunctionProtoType>();
         if (!CalleeTy)
@@ -5881,13 +5875,13 @@ namespace {
         // a non-modifying expression, which is not allowed by the
         // specification.
         if (!ReturnBounds)
-          return CreateBoundsInferenceError();
+          return BoundsUtil::CreateBoundsInferenceError(S);
       }
 
       if (ReturnBounds->isElementCount() ||
           ReturnBounds->isByteCount()) {
         if (!ResultName)
-          return CreateBoundsInferenceError();
+          return BoundsUtil::CreateBoundsInferenceError(S);
         ReturnBounds = ExpandToRange(CreateTemporaryUse(ResultName), ReturnBounds);
       }
       return ReturnBounds;

@@ -32,6 +32,10 @@ BoundsExpr *BoundsUtil::CreateBoundsAlwaysUnknown(Sema &S) {
   return CreateBoundsUnknown(S);
 }
 
+BoundsExpr *BoundsUtil::CreateBoundsInferenceError(Sema &S) {
+  return CreateBoundsUnknown(S);
+}
+
 BoundsExpr *BoundsUtil::CreateBoundsForArrayType(Sema &S, QualType T,
                                                  bool IncludeNullTerminator) {
   const IncompleteArrayType *IAT = S.Context.getAsIncompleteArrayType(T);
