@@ -37,6 +37,11 @@ public:
   // be able to infer bounds for.
   static BoundsExpr *CreateBoundsAlwaysUnknown(Sema &S);
 
+  // Given an array type with constant dimension size, CreateBoundsForArrayType
+  // returns a count expression with that size.
+  static BoundsExpr *CreateBoundsForArrayType(Sema &S, QualType T,
+                                              bool IncludeNullTerminator = false);
+
   // If Bounds uses the value of LValue and an original value is provided,
   // ReplaceLValueInBounds will return a bounds expression where the uses
   // of LValue are replaced with the original value.

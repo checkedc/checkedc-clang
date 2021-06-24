@@ -32,6 +32,36 @@ BoundsExpr *BoundsUtil::CreateBoundsAlwaysUnknown(Sema &S) {
   return CreateBoundsUnknown(S);
 }
 
+BoundsExpr *BoundsUtil::CreateBoundsForArrayType(Sema &S, QualType T,
+                                                 bool IncludeNullTerminator) {
+  const IncompleteArrayType *IAT = S.Context.getAsIncompleteArrayType(T);
+  if (IAT) {
+    if (IAT->getKind() == CheckedArrayKind::NtChecked)
+      return S.Context.getPrebuiltCountZero();
+    else
+      return CreateBoundsAlwaysUnknown(S);
+  }
+  const ConstantArrayType *CAT = S.Context.getAsConstantArrayType(T);
+  if (!CAT)
+    return CreateBoundsAlwaysUnknown(S);
+
+  llvm::APInt size = CAT->getSize();
+  // Null-terminated arrays of size n have bounds of count(n - 1).
+  // The null terminator is excluded from the count.
+  if (!IncludeNullTerminator &&
+      CAT->getKind() == CheckedArrayKind::NtChecked) {
+    assert(size.uge(1) && "must have at least one element");
+    size = size - 1;
+  }
+  IntegerLiteral *Size =
+    ExprCreatorUtil::CreateIntegerLiteral(S.Context, size);
+  CountBoundsExpr *CBE =
+      new (S.Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
+                                    Size, SourceLocation(),
+                                    SourceLocation());
+  return CBE;
+}
+
 BoundsExpr *BoundsUtil::ReplaceLValueInBounds(Sema &S, BoundsExpr *Bounds,
                                               Expr *LValue, Expr *OriginalValue,
                                               CheckedScopeSpecifier CSS) {

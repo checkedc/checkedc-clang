@@ -4300,37 +4300,6 @@ namespace {
 
   public:
 
-    // Given an array type with constant dimension size, produce a count
-    // expression with that size.
-    BoundsExpr *CreateBoundsForArrayType(QualType QT) {
-      const IncompleteArrayType *IAT = Context.getAsIncompleteArrayType(QT);
-      if (IAT) {
-        if (IAT->getKind() == CheckedArrayKind::NtChecked)
-          return Context.getPrebuiltCountZero();
-        else
-          return BoundsUtil::CreateBoundsAlwaysUnknown(S);
-      }
-      const ConstantArrayType *CAT = Context.getAsConstantArrayType(QT);
-      if (!CAT)
-        return BoundsUtil::CreateBoundsAlwaysUnknown(S);
-
-      llvm::APInt size = CAT->getSize();
-      // Null-terminated arrays of size n have bounds of count(n - 1).
-      // The null terminator is excluded from the count.
-      if (!IncludeNullTerminator &&
-          CAT->getKind() == CheckedArrayKind::NtChecked) {
-        assert(size.uge(1) && "must have at least one element");
-        size = size - 1;
-      }
-      IntegerLiteral *Size =
-        ExprCreatorUtil::CreateIntegerLiteral(Context, size);
-      CountBoundsExpr *CBE =
-          new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
-                                        Size, SourceLocation(),
-                                        SourceLocation());
-      return CBE;
-    }
-
     ImplicitCastExpr *CreateImplicitCast(QualType Target, CastKind CK,
                                          Expr *E) {
       return ImplicitCastExpr::Create(Context, Target, CK, E, nullptr,
@@ -5476,6 +5445,10 @@ namespace {
       return BoundsUtil::CreateBoundsUnknown(S);
     }
 
+    BoundsExpr *CreateBoundsForArrayType(QualType T) {
+      return BoundsUtil::CreateBoundsForArrayType(S, T, IncludeNullTerminator);
+    }
+
     BoundsExpr *CreateSingleElementBounds(Expr *LowerBounds) {
       assert(LowerBounds->isRValue());
       return ExpandToRange(LowerBounds, Context.getPrebuiltCountOne());
@@ -6234,9 +6207,7 @@ BoundsExpr *Sema::CheckNonModifyingBounds(BoundsExpr *B, Expr *E) {
 }
 
 BoundsExpr *Sema::CreateCountForArrayType(QualType QT) {
-  PrepassInfo Info;
-  std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
-  return CheckBoundsDeclarations(*this, Info, EmptyFacts).CreateBoundsForArrayType(QT);
+  return BoundsUtil::CreateBoundsForArrayType(*this, QT);
 }
 
 Expr *Sema::MakeAssignmentImplicitCastExplicit(Expr *E) {
