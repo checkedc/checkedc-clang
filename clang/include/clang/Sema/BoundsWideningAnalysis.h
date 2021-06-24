@@ -314,7 +314,9 @@ namespace clang {
 
     // Run the dataflow analysis to widen bounds for null-terminated arrays.
     // @param[in] FD is the current function.
-    void WidenBounds(FunctionDecl *FD);
+    // @param[in] NestedStmts is a set of top-level statements that are nested
+    // in another top-level statement.
+    void WidenBounds(FunctionDecl *FD, StmtSetTy NestedStmts);
 
     // Pretty print the widened bounds for all null-terminated arrays in the
     // current function.
@@ -340,12 +342,17 @@ namespace clang {
   private:
     // Compute Gen and Kill sets for the block and statements in the block.
     // @param[in] EB is the current ElevatedCFGBlock.
-    void ComputeGenKillSets(ElevatedCFGBlock *EB);
+    // @param[in] NestedStmts is a set of top-level statements that are
+    // nested in another top-level statement.
+    void ComputeGenKillSets(ElevatedCFGBlock *EB, StmtSetTy NestedStmts);
 
     // Compute the StmtGen and StmtKill sets for a statement in a block.
     // @param[in] EB is the current ElevatedCFGBlock.
     // @param[in] CurrStmt is the current statement.
-    void ComputeStmtGenKillSets(ElevatedCFGBlock *EB, const Stmt *CurrStmt);
+    // @param[in] NestedStmts is a set of top-level statements that are
+    // nested in another top-level statement.
+    void ComputeStmtGenKillSets(ElevatedCFGBlock *EB, const Stmt *CurrStmt,
+                                StmtSetTy NestedStmts);
 
     // Compute the union of Gen and Kill sets of all statements up to (and
     // including) the current statement in the block.

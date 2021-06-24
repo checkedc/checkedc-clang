@@ -1764,7 +1764,7 @@ void f27(_Nt_array_ptr<char> p : count(i), int i) {
 
 // CHECK: Block: B2, Pred: B3, B4, Succ: B1, B0
 // CHECK:   Widened bounds before stmt: a == 1 ? i++ : i
-// CHECK:     <none>
+// CHECK:     p: bounds(p, p + i + 1)
 
 // CHECK:   Widened bounds before stmt: *(p + i + 1)
 // CHECK:     <none>

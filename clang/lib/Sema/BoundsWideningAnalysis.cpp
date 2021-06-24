@@ -22,7 +22,8 @@ namespace clang {
 // BoundsWideningUtil class that are defined later in this file.
 //===---------------------------------------------------------------------===//
 
-void BoundsWideningAnalysis::WidenBounds(FunctionDecl *FD) {
+void BoundsWideningAnalysis::WidenBounds(FunctionDecl *FD,
+                                         StmtSetTy NestedStmts) {
   assert(Cfg && "expected CFG to exist");
 
   // Initialize the list of variables that are pointers to null-terminated
@@ -52,7 +53,7 @@ void BoundsWideningAnalysis::WidenBounds(FunctionDecl *FD) {
     WorkList.append(EB);
 
     // Compute Gen and Kill sets for the block and statements in the block.
-    ComputeGenKillSets(EB);
+    ComputeGenKillSets(EB, NestedStmts);
 
     // Initialize the In and Out sets for the block.
     InitBlockInOutSets(FD, EB);
@@ -69,7 +70,8 @@ void BoundsWideningAnalysis::WidenBounds(FunctionDecl *FD) {
   }
 }
 
-void BoundsWideningAnalysis::ComputeGenKillSets(ElevatedCFGBlock *EB) {
+void BoundsWideningAnalysis::ComputeGenKillSets(ElevatedCFGBlock *EB,
+                                                StmtSetTy NestedStmts) {
   const Stmt *PrevStmt = nullptr;
 
   // Traverse statements in the block and compute Gen and Kill sets for each
@@ -84,7 +86,7 @@ void BoundsWideningAnalysis::ComputeGenKillSets(ElevatedCFGBlock *EB) {
         continue;
 
       // Compute Gen and Kill sets for the current statement.
-      ComputeStmtGenKillSets(EB, CurrStmt);
+      ComputeStmtGenKillSets(EB, CurrStmt, NestedStmts);
 
       // To compute the In sets for blocks we need to union the Gen and Kill
       // sets of all statement in the block. This union operation is
@@ -112,7 +114,8 @@ void BoundsWideningAnalysis::ComputeGenKillSets(ElevatedCFGBlock *EB) {
 }
 
 void BoundsWideningAnalysis::ComputeStmtGenKillSets(ElevatedCFGBlock *EB,
-                                                    const Stmt *CurrStmt) {
+                                                    const Stmt *CurrStmt,
+                                                    StmtSetTy NestedStmts) {
   // Initialize the Gen and Kill sets for the statement.
   EB->StmtGen[CurrStmt] = BoundsMapTy();
   EB->StmtKill[CurrStmt] = VarSetTy();
@@ -166,8 +169,10 @@ void BoundsWideningAnalysis::ComputeStmtGenKillSets(ElevatedCFGBlock *EB,
 
   // If a variable modified by CurrStmt occurs in the bounds expression of a
   // null-terminated array then the bounds of that null-terminated array should
-  // be killed.
-  AddModifiedVarsToStmtKillSet(EB, CurrStmt);
+  // be killed. Skip top-level statements that are nested in another top-level
+  // statement.
+  if (NestedStmts.find(CurrStmt) == NestedStmts.end())
+    AddModifiedVarsToStmtKillSet(EB, CurrStmt);
 }
 
 void BoundsWideningAnalysis::ComputeUnionGenKillSets(ElevatedCFGBlock *EB,
