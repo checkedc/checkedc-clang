@@ -5543,7 +5543,6 @@ public:
   /// of a bounds expression.  Ty is the original unchecked type.  Returns null
   /// if none exists.
   InteropTypeExpr *SynthesizeInteropTypeExpr(QualType Ty, bool IsParam);
-  BoundsExpr *CreateCountForArrayType(QualType QT);
 
   // _Return_value in Checked C bounds expressions.
   ExprResult ActOnReturnValueExpr(SourceLocation Loc);

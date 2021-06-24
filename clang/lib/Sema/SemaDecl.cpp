@@ -33,6 +33,7 @@
 #include "clang/Lex/Lexer.h" // TODO: Extract static functions to fix layering.
 #include "clang/Lex/ModuleLoader.h" // TODO: Sema shouldn't depend on Lex
 #include "clang/Lex/Preprocessor.h" // Included for isCodeCompletionEnabled()
+#include "clang/Sema/BoundsUtils.h"
 #include "clang/Sema/CXXFieldCollector.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/DelayedDiagnostic.h"
@@ -14874,10 +14875,12 @@ void Sema::InferBoundsAnnots(QualType Ty, BoundsAnnotations &Annots, bool IsPara
       // Handle parameters that originally had a checked array type.
     if (const DecayedType *DType = Ty->getAs<DecayedType>())
       if (DType->getOriginalType()->isCheckedArrayType())
-        BoundsExpr = CreateCountForArrayType(DType->getOriginalType());
+        BoundsExpr =
+          BoundsUtil::CreateBoundsForArrayType(*this, DType->getOriginalType());
 
     if (!BoundsExpr && IType && IType->getType()->isCheckedArrayType())
-        BoundsExpr = CreateCountForArrayType(IType->getType());
+        BoundsExpr =
+          BoundsUtil::CreateBoundsForArrayType(*this, IType->getType());
 
     if (!BoundsExpr)
       if (Ty->isCheckedPointerNtArrayType() || (IType &&

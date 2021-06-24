@@ -6206,10 +6206,6 @@ BoundsExpr *Sema::CheckNonModifyingBounds(BoundsExpr *B, Expr *E) {
     return B;
 }
 
-BoundsExpr *Sema::CreateCountForArrayType(QualType QT) {
-  return BoundsUtil::CreateBoundsForArrayType(*this, QT);
-}
-
 Expr *Sema::MakeAssignmentImplicitCastExplicit(Expr *E) {
   if (!E->isRValue())
     return E;
