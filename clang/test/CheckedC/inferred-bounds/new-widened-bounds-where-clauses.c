@@ -29,7 +29,7 @@ void f1(_Nt_array_ptr<char> p : bounds(p, p + 1)) {
   }
 
 // CHECK: Function: f1
-// CHECK: Block: B10, Pred: Succ: B9
+// CHECK: Block: B10 (Entry), Pred: Succ: B9
 
 // CHECK: Block: B9, Pred: B10, Succ: B8, B7
 // CHECK:   Widened bounds before stmt: *(p + 1)
@@ -86,7 +86,7 @@ void f2() {
   }
 
 // CHECK: Function: f2
-// CHECK: Block: B6, Pred: Succ: B5
+// CHECK: Block: B6 (Entry), Pred: Succ: B5
 
 // CHECK: Block: B5, Pred: B6, Succ: B4, B3
 // CHECK:   Widened bounds before stmt: _Nt_array_ptr<char> p : bounds(p, p + 1) = "a";
@@ -124,7 +124,7 @@ void f3(_Nt_array_ptr<char> p : bounds(p, p + 1)) {
   }
 
 // CHECK: Function: f3
-// CHECK: Block: B5, Pred: Succ: B4
+// CHECK: Block: B5 (Entry), Pred: Succ: B4
 
 // CHECK: Block: B4, Pred: B5, Succ: B3, B1
 // CHECK:   Widened bounds before stmt: int x = 1;
@@ -159,7 +159,7 @@ void f4(_Nt_array_ptr<char> p : bounds(p, p + i), int i) {
   }
 
 // CHECK: Function: f4
-// CHECK: Block: B7, Pred: Succ: B6
+// CHECK: Block: B7 (Entry), Pred: Succ: B6
 
 // CHECK: Block: B6, Pred: B7, Succ: B5, B2
 // CHECK:   Widened bounds before stmt: *(p + i)
@@ -205,7 +205,7 @@ void f5() {
   }
 
 // CHECK: Function: f5
-// CHECK: Block: B8, Pred: Succ: B7
+// CHECK: Block: B8 (Entry), Pred: Succ: B7
 
 // CHECK: Block: B7, Pred: B8, Succ: B6, B5
 // CHECK:   Widened bounds before stmt: _Nt_array_ptr<char> p : bounds(p, p + 1) = "a";
@@ -271,7 +271,7 @@ void f6() {
   }
 
 // CHECK: Function: f6
-// CHECK: Block: B7, Pred: Succ: B6
+// CHECK: Block: B7 (Entry), Pred: Succ: B6
 
 // CHECK: Block: B6, Pred: B7, Succ: B5, B1
 // CHECK:   Widened bounds before stmt: _Nt_array_ptr<char> p : count(0) = "a";
@@ -335,7 +335,7 @@ void f7() {
   }
 
 // CHECK: Function: f7
-// CHECK: Block: B6, Pred: Succ: B5
+// CHECK: Block: B6 (Entry), Pred: Succ: B5
 
 // CHECK: Block: B5, Pred: B6, Succ: B4, B3
 // CHECK:   Widened bounds before stmt: _Nt_array_ptr<char> p : count(0) = "a";
@@ -370,7 +370,7 @@ void f8() {
   }
 
 // CHECK: Function: f8
-// CHECK: Block: B10, Pred: Succ: B9
+// CHECK: Block: B10 (Entry), Pred: Succ: B9
 
 // CHECK: Block: B9, Pred: B10, Succ: B8
 // CHECK:   Widened bounds before stmt: _Nt_array_ptr<char> p : count(0) = "a";

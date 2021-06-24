@@ -664,8 +664,12 @@ void BoundsWideningAnalysis::DumpWidenedBounds(FunctionDecl *FD) {
   OS << "\nFunction: " << FD->getName();
 
   for (const CFGBlock *CurrBlock : GetOrderedBlocks()) {
+    unsigned BlockID = CurrBlock->getBlockID();
+
     // Print the current block number.
-    OS << "\nBlock: B" << CurrBlock->getBlockID();
+    OS << "\nBlock: B" << BlockID;
+    if (CurrBlock == &Cfg->getEntry())
+      OS << " (Entry)";
 
     // Print the predecessor blocks of the current block.
     OS << ", Pred: ";
