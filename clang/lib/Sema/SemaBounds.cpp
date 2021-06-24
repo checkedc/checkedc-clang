@@ -3000,11 +3000,12 @@ namespace {
         S = E;
         if (E->isLValue()) {
           CheckLValue(E, CSS, State);
-          return CreateBoundsAlwaysUnknown();
+          return BoundsUtil::CreateBoundsAlwaysUnknown(this->S);
         }
       }
 
-      BoundsExpr *ResultBounds = CreateBoundsAlwaysUnknown();
+      BoundsExpr *ResultBounds =
+        BoundsUtil::CreateBoundsAlwaysUnknown(this->S);
 
       switch (S->getStmtClass()) {
         case Expr::UnaryOperatorClass:
@@ -3117,7 +3118,7 @@ namespace {
                                         CSS, State);
         default: {
           CheckChildren(E, CSS, State);
-          return CreateBoundsAlwaysUnknown();
+          return BoundsUtil::CreateBoundsAlwaysUnknown(S);
         }
       }
     }
@@ -3312,7 +3313,7 @@ namespace {
           else if (!LeftBounds->isUnknown() && !RHSBounds->isUnknown()) {
             // TODO: Check if LeftBounds and RHSBounds are equal.
             // if so, return one of them. If not, return bounds(unknown)
-            ResultBounds = CreateBoundsAlwaysUnknown();
+            ResultBounds = BoundsUtil::CreateBoundsAlwaysUnknown(S);
           }
           else if (LeftBounds->isUnknown() && RHSBounds->isUnknown())
             ResultBounds = CreateBoundsEmpty();
@@ -3860,7 +3861,7 @@ namespace {
         return SubExprBounds;
 
       // We cannot infer the bounds of other unary operators.
-      return CreateBoundsAlwaysUnknown();
+      return BoundsUtil::CreateBoundsAlwaysUnknown(S);
     }
 
     // CheckVarDecl returns empty bounds.
@@ -4102,7 +4103,7 @@ namespace {
 
       // If the bounds for `e2` and `e3` are not equivalent, and neither is
       // bounds(any), the bounds for `e` cannot be determined.
-      return CreateBoundsAlwaysUnknown();
+      return BoundsUtil::CreateBoundsAlwaysUnknown(S);
     }
 
   // Methods to infer both:
@@ -4248,7 +4249,7 @@ namespace {
       CheckChildren(E, CSS, State);
 
       // Cast kinds other than LValueBitCast do not have lvalue bounds.
-      return CreateBoundsAlwaysUnknown();
+      return BoundsUtil::CreateBoundsAlwaysUnknown(S);
     }
 
     // If e is an lvalue, CheckTempBindingLValue returns the
@@ -4283,7 +4284,7 @@ namespace {
         }
 
         // All other types of compound literals do not have lvalue bounds.
-        return CreateBoundsAlwaysUnknown();
+        return BoundsUtil::CreateBoundsAlwaysUnknown(S);
       }
 
       if (auto *SL = dyn_cast<StringLiteral>(SubExpr))
@@ -4294,7 +4295,7 @@ namespace {
         return InferBoundsForStringLiteral(E, SL, E);
       }
 
-      return CreateBoundsAlwaysUnknown();
+      return BoundsUtil::CreateBoundsAlwaysUnknown(S);
     }
 
   public:
@@ -4307,11 +4308,11 @@ namespace {
         if (IAT->getKind() == CheckedArrayKind::NtChecked)
           return Context.getPrebuiltCountZero();
         else
-          return CreateBoundsAlwaysUnknown();
+          return BoundsUtil::CreateBoundsAlwaysUnknown(S);
       }
       const ConstantArrayType *CAT = Context.getAsConstantArrayType(QT);
       if (!CAT)
-        return CreateBoundsAlwaysUnknown();
+        return BoundsUtil::CreateBoundsAlwaysUnknown(S);
 
       llvm::APInt size = CAT->getSize();
       // Null-terminated arrays of size n have bounds of count(n - 1).
@@ -5445,12 +5446,6 @@ namespace {
       return BoundsUtil::CreateBoundsUnknown(S);
     }
 
-    // This describes that this is an expression we will never
-    // be able to infer bounds for.
-    BoundsExpr *CreateBoundsAlwaysUnknown() {
-      return BoundsUtil::CreateBoundsUnknown(S);
-    }
-
     // If we have an error in our bounds inference that we can't
     // recover from, bounds(unknown) is our error value
     BoundsExpr *CreateBoundsInferenceError() {
@@ -5598,7 +5593,7 @@ namespace {
 
       // Variables with array type do not have target bounds.
       if (DRE->getType()->isArrayType())
-        return CreateBoundsAlwaysUnknown();
+        return BoundsUtil::CreateBoundsAlwaysUnknown(S);
 
       // Infer target bounds for variables without array type.
 
@@ -5613,7 +5608,7 @@ namespace {
         return CreateTypeBasedBounds(DRE, IT->getType(), IsParam, true);
 
       if (!B || B->isUnknown())
-        return CreateBoundsAlwaysUnknown();
+        return BoundsUtil::CreateBoundsAlwaysUnknown(S);
 
       Expr *Base = CreateImplicitCast(DRE->getType(),
                                       CastKind::CK_LValueToRValue, DRE);
@@ -5650,7 +5645,7 @@ namespace {
           ASE->getType()->isCheckedPointerNtArrayType())
         return CreateTypeBasedBounds(ASE, ASE->getType(), false, false);
       else
-        return CreateBoundsAlwaysUnknown();
+        return BoundsUtil::CreateBoundsAlwaysUnknown(S);
     }
 
     // Infer the bounds for the target of a member expression.
@@ -5669,7 +5664,7 @@ namespace {
       BoundsExpr *B = F->getBoundsExpr();
       InteropTypeExpr *IT = F->getInteropTypeExpr();
       if (B && B->isUnknown())
-        return CreateBoundsAlwaysUnknown();
+        return BoundsUtil::CreateBoundsAlwaysUnknown(S);
 
       Expr *MemberBaseExpr = ME->getBase();
       if (!B && IT) {
@@ -5680,7 +5675,7 @@ namespace {
       }
             
       if (!B)
-        return CreateBoundsAlwaysUnknown();
+        return BoundsUtil::CreateBoundsAlwaysUnknown(S);
 
       B = S.MakeMemberBoundsConcrete(MemberBaseExpr, ME->isArrow(), B);
       if (!B) {
@@ -5715,14 +5710,14 @@ namespace {
         return GetLValueTargetBounds(CE->getSubExpr(), CSS);
 
       // Cast kinds other than LValueBitCast do not have lvalue target bounds.
-      return CreateBoundsAlwaysUnknown();
+      return BoundsUtil::CreateBoundsAlwaysUnknown(S);
     }
 
     // Infer bounds for the target of a temporary binding expression.
     // A temporary binding may be an lvalue.
     BoundsExpr *LValueTempBindingTargetBounds(CHKCBindTemporaryExpr *Temp,
                                               CheckedScopeSpecifier CSS) {
-      return CreateBoundsAlwaysUnknown();
+      return BoundsUtil::CreateBoundsAlwaysUnknown(S);
     }
 
     // Given a Ptr type or a bounds-safe interface type, create the bounds
@@ -5840,7 +5835,7 @@ namespace {
         case CastKind::CK_AssumePtrBounds:
           llvm_unreachable("unexpected rvalue bounds cast");
         default:
-          return CreateBoundsAlwaysUnknown();
+          return BoundsUtil::CreateBoundsAlwaysUnknown(S);
       }
     }
 
@@ -5872,7 +5867,7 @@ namespace {
         if (!CalleeTy)
           // K&R functions have no prototype, and we cannot perform
           // inference on them, so we return bounds(unknown) for their results.
-          return CreateBoundsAlwaysUnknown();
+          return BoundsUtil::CreateBoundsAlwaysUnknown(S);
 
         BoundsAnnotations FunReturnAnnots = CalleeTy->getReturnAnnots();
         BoundsExpr *FunBounds = FunReturnAnnots.getBoundsExpr();
@@ -5886,7 +5881,7 @@ namespace {
 
         if (!FunBounds)
           // This function has no return bounds
-          return CreateBoundsAlwaysUnknown();
+          return BoundsUtil::CreateBoundsAlwaysUnknown(S);
 
         ArrayRef<Expr *> ArgExprs =
           llvm::makeArrayRef(const_cast<Expr**>(CE->getArgs()),

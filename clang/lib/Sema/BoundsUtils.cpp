@@ -28,6 +28,10 @@ BoundsExpr *BoundsUtil::CreateBoundsUnknown(Sema &S) {
   return S.Context.getPrebuiltBoundsUnknown();
 }
 
+BoundsExpr *BoundsUtil::CreateBoundsAlwaysUnknown(Sema &S) {
+  return CreateBoundsUnknown(S);
+}
+
 BoundsExpr *BoundsUtil::ReplaceLValueInBounds(Sema &S, BoundsExpr *Bounds,
                                               Expr *LValue, Expr *OriginalValue,
                                               CheckedScopeSpecifier CSS) {

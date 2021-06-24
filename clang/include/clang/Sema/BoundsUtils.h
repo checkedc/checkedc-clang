@@ -33,6 +33,10 @@ public:
   // CreateBoundsUnknown returns bounds(unknown).
   static BoundsExpr *CreateBoundsUnknown(Sema &S);
 
+  // This describes that this is an expression we will never
+  // be able to infer bounds for.
+  static BoundsExpr *CreateBoundsAlwaysUnknown(Sema &S);
+
   // If Bounds uses the value of LValue and an original value is provided,
   // ReplaceLValueInBounds will return a bounds expression where the uses
   // of LValue are replaced with the original value.
