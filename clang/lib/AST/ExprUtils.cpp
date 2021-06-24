@@ -211,6 +211,40 @@ Expr *ExprUtil::IgnoreRedundantCast(ASTContext &Ctx, CastKind NewCK, Expr *E) {
   return E;
 }
 
+bool ExprUtil::getReferentSizeInChars(ASTContext &Ctx, QualType Ty,
+                                      llvm::APSInt &Size) {
+  assert(Ty->isPointerType());
+  const Type *Pointee = Ty->getPointeeOrArrayElementType();
+  if (Pointee->isIncompleteType())
+    return false;
+  uint64_t ElemBitSize = Ctx.getTypeSize(Pointee);
+  uint64_t ElemSize = Ctx.toCharUnitsFromBits(ElemBitSize).getQuantity();
+  Size = llvm::APSInt(llvm::APInt(Ctx.getTargetInfo().getPointerWidth(0), ElemSize), false);
+  return true;
+}
+
+llvm::APSInt ExprUtil::ConvertToSignedPointerWidth(ASTContext &Ctx,
+                                                   llvm::APSInt I,
+                                                   bool &Overflow) {
+  uint64_t PointerWidth = Ctx.getTargetInfo().getPointerWidth(0);
+  Overflow = false;
+  if (I.getBitWidth() > PointerWidth) {
+    Overflow = true;
+    goto exit;
+  }
+  if (I.getBitWidth() < PointerWidth)
+    I = I.extend(PointerWidth);
+  if (I.isUnsigned()) {
+    if (I > llvm::APSInt(I.getSignedMaxValue(PointerWidth))) {
+      Overflow = true;
+      goto exit;
+    }
+    I = llvm::APSInt(I, false);
+  }
+  exit:
+    return I;
+}
+
 bool ExprUtil::EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2,
                           EquivExprSets *EquivExprs) {
   Lexicographic::Result R = Lexicographic(Ctx, EquivExprs).CompareExpr(E1, E2);
@@ -260,6 +294,65 @@ bool ExprUtil::ReadsMemoryViaPointer(Expr *E, bool IncludeAllMemberExprs) {
       return false;
     }
   }
+}
+
+namespace {
+  class FindLValueHelper : public RecursiveASTVisitor<FindLValueHelper> {
+    private:
+      Sema &SemaRef;
+      Lexicographic Lex;
+      Expr *LValue;
+      bool Found;
+
+    public:
+      FindLValueHelper(Sema &SemaRef, Expr *LValue) :
+        SemaRef(SemaRef),
+        Lex(Lexicographic(SemaRef.Context, nullptr)),
+        LValue(LValue),
+        Found(false) {}
+
+      bool IsFound() { return Found; }
+
+      bool VisitDeclRefExpr(DeclRefExpr *E) {
+        DeclRefExpr *V = dyn_cast_or_null<DeclRefExpr>(LValue);
+        if (!V)
+          return true;
+        if (Lex.CompareExpr(V, E) == Lexicographic::Result::Equal)
+          Found = true;
+        return true;
+      }
+
+      bool VisitMemberExpr(MemberExpr *E) {
+        MemberExpr *M = dyn_cast_or_null<MemberExpr>(LValue);
+        if (!M)
+          return true;
+        if (Lex.CompareExprSemantically(E, M))
+          Found = true;
+        return true;
+      }
+
+      // Do not traverse the child of a BoundsValueExpr.
+      // Expressions within a BoundsValueExpr should not be considered
+      // when looking for LValue.
+      // For example, for the expression E = BoundsValue(TempBinding(LValue)),
+      // FindLValue(LValue, E) should return false.
+      bool TraverseBoundsValueExpr(BoundsValueExpr *E) {
+        return true;
+      }
+
+      bool TraverseStmt(Stmt *S) {
+        if (Found)
+          return true;
+
+        return RecursiveASTVisitor<FindLValueHelper>::TraverseStmt(S);
+      }
+  };
+}
+
+bool ExprUtil::FindLValue(Sema &S, Expr *LValue, Expr *E) {
+  FindLValueHelper Finder(S, LValue);
+  Finder.TraverseStmt(E);
+  return Finder.IsFound();
 }
 
 std::pair<Expr *, Expr *> ExprUtil::SplitByLValueCount(Sema &S, Expr *LValue,

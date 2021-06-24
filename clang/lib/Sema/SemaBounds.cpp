@@ -46,6 +46,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Sema/AvailableFactsAnalysis.h"
 #include "clang/Sema/BoundsAnalysis.h"
+#include "clang/Sema/BoundsUtils.h"
 #include "clang/Sema/CheckedCAnalysesPrepass.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -58,49 +59,6 @@
 
 using namespace clang;
 using namespace sema;
-
-namespace {
-class BoundsUtil {
-public:
-  static bool IsStandardForm(const BoundsExpr *BE) {
-    BoundsExpr::Kind K = BE->getKind();
-    return (K == BoundsExpr::Kind::Any || K == BoundsExpr::Kind::Unknown ||
-      K == BoundsExpr::Kind::Range || K == BoundsExpr::Kind::Invalid);
-  }
-
-  static bool getReferentSizeInChars(ASTContext &Ctx, QualType Ty, llvm::APSInt &Size) {
-    assert(Ty->isPointerType());
-    const Type *Pointee = Ty->getPointeeOrArrayElementType();
-    if (Pointee->isIncompleteType())
-      return false;
-    uint64_t ElemBitSize = Ctx.getTypeSize(Pointee);
-    uint64_t ElemSize = Ctx.toCharUnitsFromBits(ElemBitSize).getQuantity();
-    Size = llvm::APSInt(llvm::APInt(Ctx.getTargetInfo().getPointerWidth(0), ElemSize), false);
-    return true;
-  }
-
-  // Convert I to a signed integer with Ctx.PointerWidth.
-  static llvm::APSInt ConvertToSignedPointerWidth(ASTContext &Ctx, llvm::APSInt I, bool &Overflow) {
-    uint64_t PointerWidth = Ctx.getTargetInfo().getPointerWidth(0);
-    Overflow = false;
-    if (I.getBitWidth() > PointerWidth) {
-      Overflow = true;
-      goto exit;
-    }
-    if (I.getBitWidth() < PointerWidth)
-      I = I.extend(PointerWidth);
-    if (I.isUnsigned()) {
-      if (I > llvm::APSInt(I.getSignedMaxValue(PointerWidth))) {
-        Overflow = true;
-        goto exit;
-      }
-      I = llvm::APSInt(I, false);
-    }
-    exit:
-      return I;
-  }
-};
-}
 
 namespace {
   class AbstractBoundsExpr : public TreeTransform<AbstractBoundsExpr> {
@@ -467,66 +425,6 @@ namespace {
 }
 
 namespace {
-  class FindLValueHelper : public RecursiveASTVisitor<FindLValueHelper> {
-    private:
-      Sema &SemaRef;
-      Lexicographic Lex;
-      Expr *LValue;
-      bool Found;
-
-    public:
-      FindLValueHelper(Sema &SemaRef, Expr *LValue) :
-        SemaRef(SemaRef),
-        Lex(Lexicographic(SemaRef.Context, nullptr)),
-        LValue(LValue),
-        Found(false) {}
-
-      bool IsFound() { return Found; }
-
-      bool VisitDeclRefExpr(DeclRefExpr *E) {
-        DeclRefExpr *V = dyn_cast_or_null<DeclRefExpr>(LValue);
-        if (!V)
-          return true;
-        if (Lex.CompareExpr(V, E) == Lexicographic::Result::Equal)
-          Found = true;
-        return true;
-      }
-
-      bool VisitMemberExpr(MemberExpr *E) {
-        MemberExpr *M = dyn_cast_or_null<MemberExpr>(LValue);
-        if (!M)
-          return true;
-        if (Lex.CompareExprSemantically(E, M))
-          Found = true;
-        return true;
-      }
-
-      // Do not traverse the child of a BoundsValueExpr.
-      // Expressions within a BoundsValueExpr should not be considered
-      // when looking for LValue.
-      // For example, for the expression E = BoundsValue(TempBinding(LValue)),
-      // FindLValue(LValue, E) should return false.
-      bool TraverseBoundsValueExpr(BoundsValueExpr *E) {
-        return true;
-      }
-
-      bool TraverseStmt(Stmt *S) {
-        if (Found)
-          return true;
-
-        return RecursiveASTVisitor<FindLValueHelper>::TraverseStmt(S);
-      }
-  };
-
-  // FindLValue returns true if the given lvalue expression occurs in E.
-  bool FindLValue(Sema &SemaRef, Expr *LValue, Expr *E) {
-    FindLValueHelper Finder(SemaRef, LValue);
-    Finder.TraverseStmt(E);
-    return Finder.IsFound();
-  }
-}
-
-namespace {
   using EqualExprTy = SmallVector<Expr *, 4>;
 
   // EqualExprsContainsExpr returns true if the set Exprs contains an
@@ -574,106 +472,6 @@ namespace {
       CollectVariableSetHelper Helper(SemaRef);
       Helper.TraverseStmt(E);
       return Helper.GetVariableList();
-  }
-}
-
-namespace {
-  class ReplaceLValueHelper : public TreeTransform<ReplaceLValueHelper> {
-    typedef TreeTransform<ReplaceLValueHelper> BaseTransform;
-    private:
-      Lexicographic Lex;
-
-      // The lvalue expression whose uses should be replaced in an expression.
-      Expr *LValue;
-
-      // The original value (if any) to replace uses of the lvalue with.
-      // If no original value is provided, an expression using the lvalue
-      // will be transformed into an invalid result.
-      Expr *OriginalValue;
-
-    public:
-      ReplaceLValueHelper(Sema &SemaRef, Expr *LValue, Expr *OriginalValue) :
-        BaseTransform(SemaRef),
-        Lex(Lexicographic(SemaRef.Context, nullptr)),
-        LValue(LValue),
-        OriginalValue(OriginalValue) { }
-
-      ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
-        DeclRefExpr *V = dyn_cast_or_null<DeclRefExpr>(LValue);
-        if (!V)
-          return E;
-        if (Lex.CompareExpr(V, E) == Lexicographic::Result::Equal) {
-          if (OriginalValue)
-            return OriginalValue;
-          else
-            return ExprError();
-        } else
-          return E;
-      }
-
-      ExprResult TransformMemberExpr(MemberExpr *E) {
-        MemberExpr *M = dyn_cast_or_null<MemberExpr>(LValue);
-        if (!M)
-          return E;
-        if (Lex.CompareExprSemantically(M, E)) {
-          if (OriginalValue)
-            return OriginalValue;
-          else
-            return ExprError();
-        } else
-          return E;
-      }
-
-      // Overriding TransformImplicitCastExpr is necessary since TreeTransform
-      // does not preserve implicit casts.
-      ExprResult TransformImplicitCastExpr(ImplicitCastExpr *E) {
-        // Replace V with OV (if applicable) in the subexpression of E.
-        ExprResult ChildResult = TransformExpr(E->getSubExpr());
-        if (ChildResult.isInvalid())
-          return ChildResult;
-
-        Expr *Child = ChildResult.get();
-        CastKind CK = E->getCastKind();
-
-        if (CK == CastKind::CK_LValueToRValue ||
-            CK == CastKind::CK_ArrayToPointerDecay)
-          // Only cast children of lvalue to rvalue casts to an rvalue if
-          // necessary.  The transformed child expression may no longer be
-          // an lvalue, depending on the original value.  For example, if x
-          // is transformed to the original value x + 1, it does not need to
-          // be cast to an rvalue.
-          return ExprCreatorUtil::EnsureRValue(SemaRef, Child);
-        else
-          return ExprCreatorUtil::CreateImplicitCast(SemaRef, Child,
-                                                     CK, E->getType());
-      }
-  };
-
-  // If an original value is provided, ReplaceLValue returns an expression
-  // that replaces all uses of the lvalue expression LValue in E with the
-  // original value.  If no original value is provided and E uses LValue,
-  // ReplaceLValue returns nullptr.
-  Expr *ReplaceLValue(Sema &SemaRef, Expr *E, Expr *LValue,
-                      Expr *OriginalValue,
-                      CheckedScopeSpecifier CSS) {
-    // Don't transform E if it does not use the value of LValue.
-    if (!FindLValue(SemaRef, LValue, E))
-      return E;
-
-    // If E uses the value of LValue, but no original value is provided,
-    // we know the result is null without needing to transform E.
-    if (!OriginalValue)
-      return nullptr;
-
-    // Account for checked scope information when transforming the expression.
-    Sema::CheckedScopeRAII CheckedScope(SemaRef, CSS);
-
-    Sema::ExprSubstitutionScope Scope(SemaRef); // suppress diagnostics
-    ExprResult R = ReplaceLValueHelper(SemaRef, LValue, OriginalValue).TransformExpr(E);
-    if (R.isInvalid())
-      return nullptr;
-    else
-      return R.get();
   }
 }
 
@@ -1300,7 +1098,7 @@ namespace {
           return false;
 
         bool Overflow;
-        Constant = BoundsUtil::ConvertToSignedPointerWidth(S.Context, Constant, Overflow);
+        Constant = ExprUtil::ConvertToSignedPointerWidth(S.Context, Constant, Overflow);
         if (Overflow)
           return false;
         // Normalize the operation by negating the offset if necessary.
@@ -1311,7 +1109,7 @@ namespace {
             return false;
         }
         llvm::APSInt ElemSize;
-        if (!BoundsUtil::getReferentSizeInChars(S.Context, Base->getType(), ElemSize))
+        if (!ExprUtil::getReferentSizeInChars(S.Context, Base->getType(), ElemSize))
           return false;
         Constant = Constant.smul_ov(ElemSize, Overflow);
         if (Overflow)
@@ -2015,7 +1813,7 @@ namespace {
           if (Other->isIntegerConstantExpr(OffsetConstant, S.Context)) {
             // Widen the integer to the number of bits in a pointer.
             bool Overflow;
-            OffsetConstant = BoundsUtil::ConvertToSignedPointerWidth(S.Context, OffsetConstant, Overflow);
+            OffsetConstant = ExprUtil::ConvertToSignedPointerWidth(S.Context, OffsetConstant, Overflow);
             if (Overflow)
               goto exit;
             // Normalize the operation by negating the offset if necessary.
@@ -2025,7 +1823,7 @@ namespace {
                 goto exit;
             }
             llvm::APSInt ElemSize;
-            if (!BoundsUtil::getReferentSizeInChars(S.Context, Base->getType(), ElemSize))
+            if (!ExprUtil::getReferentSizeInChars(S.Context, Base->getType(), ElemSize))
                 goto exit;
             OffsetConstant = OffsetConstant.smul_ov(ElemSize, Overflow);
             if (Overflow)
@@ -2078,7 +1876,7 @@ namespace {
             else
               goto fallback_std_form;
             IsOpSigned = VariablePart->getType()->isSignedIntegerType();
-            ConstantPart = BoundsUtil::ConvertToSignedPointerWidth(Ctx, ConstantPart, Overflow);
+            ConstantPart = ExprUtil::ConvertToSignedPointerWidth(Ctx, ConstantPart, Overflow);
             if (Overflow)
               goto fallback_std_form;
           } else
@@ -2095,9 +1893,9 @@ namespace {
       } else {
         VariablePart = Offset;
         IsOpSigned = VariablePart->getType()->isSignedIntegerType();
-        if (!BoundsUtil::getReferentSizeInChars(Ctx, Base->getType(), ConstantPart))
+        if (!ExprUtil::getReferentSizeInChars(Ctx, Base->getType(), ConstantPart))
           return false;
-        ConstantPart = BoundsUtil::ConvertToSignedPointerWidth(Ctx, ConstantPart, Overflow);
+        ConstantPart = ExprUtil::ConvertToSignedPointerWidth(Ctx, ConstantPart, Overflow);
         if (Overflow)
           return false;
         return true;
@@ -2359,7 +2157,7 @@ namespace {
 
       bool Overflow;
       llvm::APSInt ElementSize;
-      if (!BoundsUtil::getReferentSizeInChars(S.Context, PtrBase->getType(), ElementSize))
+      if (!ExprUtil::getReferentSizeInChars(S.Context, PtrBase->getType(), ElementSize))
           return ProofResult::Maybe;
       if (Kind == BoundsCheckKind::BCK_NullTermRead || Kind == BoundsCheckKind::BCK_NullTermWriteAssign) {
         Overflow = ValidRange.AddToUpper(ElementSize);
@@ -2383,7 +2181,7 @@ namespace {
         llvm::APSInt IntVal;
         if (!Offset->isIntegerConstantExpr(IntVal, S.Context))
           return ProofResult::Maybe;
-        IntVal = BoundsUtil::ConvertToSignedPointerWidth(S.Context, IntVal, Overflow);
+        IntVal = ExprUtil::ConvertToSignedPointerWidth(S.Context, IntVal, Overflow);
         if (Overflow)
           return ProofResult::Maybe;
         IntVal = IntVal.smul_ov(ElementSize, Overflow);
@@ -3786,7 +3584,7 @@ namespace {
                               CheckingState &State) {
       // If the rvalue bounds for e cannot be determined,
       // e may be an lvalue (or may have unknown rvalue bounds).
-      BoundsExpr *ResultBounds = CreateBoundsUnknown();
+      BoundsExpr *ResultBounds = BoundsUtil::CreateBoundsUnknown(S);
 
       Expr *SubExpr = E->getSubExpr();
       CastKind CK = E->getCastKind();
@@ -4644,8 +4442,8 @@ namespace {
                      BoundsExpr *&LValueBounds,
                      BoundsExpr *&RValueBounds,
                      CheckingState &State) {
-      LValueBounds = CreateBoundsUnknown();
-      RValueBounds = CreateBoundsUnknown();
+      LValueBounds = BoundsUtil::CreateBoundsUnknown(S);
+      RValueBounds = BoundsUtil::CreateBoundsUnknown(S);
       if (E->isLValue())
         LValueBounds = CheckLValue(E, CSS, State);
       else if (E->isRValue())
@@ -4984,7 +4782,8 @@ namespace {
         const AbstractSet *A = Pair.first;
         BoundsExpr *Bounds = Pair.second;
         BoundsExpr *AdjustedBounds =
-          ReplaceLValueInBounds(Bounds, LValue, OriginalValue, CSS);
+          BoundsUtil::ReplaceLValueInBounds(S, Bounds, LValue,
+                                            OriginalValue, CSS);
         State.ObservedBounds[A] = AdjustedBounds;
 
         // If the assignment to LValue caused the observed bounds of A
@@ -5007,8 +4806,9 @@ namespace {
       if (HasTargetBounds)
         AdjustedSrcBounds = State.ObservedBounds[LValueAbstractSet];
       else
-        AdjustedSrcBounds = ReplaceLValueInBounds(SrcBounds, LValue,
-                                                  OriginalValue, CSS);
+        AdjustedSrcBounds =
+          BoundsUtil::ReplaceLValueInBounds(S, SrcBounds, LValue,
+                                            OriginalValue, CSS);
 
       // Record that E updates the observed bounds of LValue.
       if (HasTargetBounds)
@@ -5045,7 +4845,8 @@ namespace {
         ExprSetTy ExprList;
         for (auto InnerList = (*I).begin(); InnerList != (*I).end(); ++InnerList) {
           Expr *E = *InnerList;
-          Expr *AdjustedE = ReplaceLValue(S, E, LValue, OriginalValue, CSS);
+          Expr *AdjustedE = BoundsUtil::ReplaceLValue(S, E, LValue,
+                                                      OriginalValue, CSS);
           // Don't add duplicate expressions to any set in EquivExprs.
           if (AdjustedE && !EqualExprsContainsExpr(ExprList, AdjustedE))
             ExprList.push_back(AdjustedE);
@@ -5077,7 +4878,8 @@ namespace {
       Expr *OriginalSameValueVal = OriginalValueUsesLValue ? nullptr : OriginalValue;
       for (auto I = PrevSameValue.begin(); I != PrevSameValue.end(); ++I) {
         Expr *E = *I;
-        Expr *AdjustedE = ReplaceLValue(S, E, LValue, OriginalSameValueVal, CSS);
+        Expr *AdjustedE = BoundsUtil::ReplaceLValue(S, E, LValue,
+                                                    OriginalSameValueVal, CSS);
         // Don't add duplicate expressions to SameValue.
         if (AdjustedE && !EqualExprsContainsExpr(State.SameValue, AdjustedE))
           State.SameValue.push_back(AdjustedE);
@@ -5155,23 +4957,6 @@ namespace {
         State.SameValue.push_back(Target);
       if (State.SameValue.size() > 1)
         State.EquivExprs.push_back(State.SameValue);
-    }
-
-    // If Bounds uses the value of LValue and an original value is provided,
-    // ReplaceLValueInBounds will return a bounds expression where the uses
-    // of LValue are replaced with the original value.
-    // If Bounds uses the value of LValue and no original value is provided,
-    // ReplaceLValueInBounds will return bounds(unknown).
-    BoundsExpr *ReplaceLValueInBounds(BoundsExpr *Bounds, Expr *LValue,
-                                      Expr *OriginalValue,
-                                      CheckedScopeSpecifier CSS) {
-      Expr *Replaced = ReplaceLValue(S, Bounds, LValue, OriginalValue, CSS);
-      if (!Replaced)
-        return CreateBoundsUnknown();
-      else if (BoundsExpr *AdjustedBounds = dyn_cast<BoundsExpr>(Replaced))
-        return AdjustedBounds;
-      else
-        return CreateBoundsUnknown();
     }
 
     // UpdateSameValue updates the set SameValue of expressions that produce
@@ -5637,7 +5422,7 @@ namespace {
             ExprCreatorUtil::CreateMemberExpr(S, Base, F, ME->isArrow());
           ++S.CheckedCStats.NumSynthesizedMemberExprs;
           BoundsExpr *Bounds = MemberExprTargetBounds(BaseF, CSS);
-          if (FindLValue(S, M, Bounds)) {
+          if (ExprUtil::FindLValue(S, M, Bounds)) {
             const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(BaseF);
             AbstractSets.insert(A);
             ++S.CheckedCStats.NumSynthesizedMemberAbstractSets;
@@ -5646,10 +5431,6 @@ namespace {
       }
 
       SynthesizeMembers(Base, M, CSS, AbstractSets);
-    }
-
-    BoundsExpr *CreateBoundsUnknown() {
-      return Context.getPrebuiltBoundsUnknown();
     }
 
     // This describes an empty range. We use this where semantically the value
@@ -5661,19 +5442,19 @@ namespace {
     // bounds(e1, e2), because in these cases we need to do further analysis to
     // understand that the upper and lower bounds of the range are equal.
     BoundsExpr *CreateBoundsEmpty() {
-      return CreateBoundsUnknown();
+      return BoundsUtil::CreateBoundsUnknown(S);
     }
 
     // This describes that this is an expression we will never
     // be able to infer bounds for.
     BoundsExpr *CreateBoundsAlwaysUnknown() {
-      return CreateBoundsUnknown();
+      return BoundsUtil::CreateBoundsUnknown(S);
     }
 
     // If we have an error in our bounds inference that we can't
     // recover from, bounds(unknown) is our error value
     BoundsExpr *CreateBoundsInferenceError() {
-      return CreateBoundsUnknown();
+      return BoundsUtil::CreateBoundsUnknown(S);
     }
 
     // This describes the bounds of null, which is compatible with every
@@ -5697,7 +5478,7 @@ namespace {
     // at the moment, but we want to re-visit these parts of inference
     // and in some cases compute bounds.
     BoundsExpr *CreateBoundsNotAllowedYet() {
-      return CreateBoundsUnknown();
+      return BoundsUtil::CreateBoundsUnknown(S);
     }
 
     BoundsExpr *CreateSingleElementBounds(Expr *LowerBounds) {
@@ -5851,7 +5632,7 @@ namespace {
           return CreateTypeBasedBounds(UO, UO->getType(),
                                                   false, false);
         else
-          return CreateBoundsUnknown();
+          return BoundsUtil::CreateBoundsUnknown(S);
       }
 
       // Unary operators other than pointer dereferences do not have lvalue

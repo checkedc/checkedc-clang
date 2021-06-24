@@ -114,6 +114,17 @@ public:
   // IgnoreRedundantCast strips redundant casts off of E.
   static Expr *IgnoreRedundantCast(ASTContext &Ctx, CastKind NewCK, Expr *E);
 
+  // getReferentSizeInChars sets the out parameter Size to the size of the
+  // referent type of Ty in chars.
+  static bool getReferentSizeInChars(ASTContext &Ctx, QualType Ty,
+                                     llvm::APSInt &Size);
+
+  // ConvertToSignedPointerWidth converts I to a signed integer with
+  // Ctx.PointerWidth.
+  static llvm::APSInt ConvertToSignedPointerWidth(ASTContext &Ctx,
+                                                  llvm::APSInt I,
+                                                  bool &Overflow);
+
   // EqualValue returns true if E1 and E2 are lexicographically equivalent.
   static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2,
                          EquivExprSets *EquivExprs);
@@ -129,6 +140,9 @@ public:
   // member reference (including e1.f which may not read memory via a
   // pointer). Returns false if E is nullptr.
   static bool ReadsMemoryViaPointer(Expr *E, bool IncludeAllMemberExprs = false);
+
+  // FindLValue returns true if the given lvalue expression occurs in E.
+  static bool FindLValue(Sema &S, Expr *LValue, Expr *E);
 
   // If LValue appears exactly once in Ei and does not appear in Ej,
   // SplitByLValueCount returns the pair (Ei, Ej).  Otherwise, it returns
