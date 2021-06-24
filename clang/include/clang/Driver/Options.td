@@ -4908,11 +4908,11 @@ def fno_concept_satisfaction_caching : Flag<["-"],
   MarshallingInfoNegativeFlag<LangOpts<"ConceptSatisfactionCaching">>;
 
 defm recovery_ast : BoolOption<"f", "recovery-ast",
-  LangOpts<"RecoveryAST">, DefaultTrue,
+  LangOpts<"RecoveryAST">, DefaultFalse,
   NegFlag<SetFalse>, PosFlag<SetTrue, [], "Preserve expressions in AST rather "
                               "than dropping them when encountering semantic errors">>;
 defm recovery_ast_type : BoolOption<"f", "recovery-ast-type",
-  LangOpts<"RecoveryASTType">, DefaultTrue,
+  LangOpts<"RecoveryASTType">, DefaultFalse,
   NegFlag<SetFalse>, PosFlag<SetTrue, [], "Preserve the type for recovery "
                               "expressions when possible">>;
 
