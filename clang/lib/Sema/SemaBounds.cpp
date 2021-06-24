@@ -3550,7 +3550,7 @@ namespace {
               TypedArg = ExprCreatorUtil::CreateExplicitCast(
                 S, ParamIType->getType(), CK_BitCast, Arg, true);
             }
-            SubstParamBounds = ExpandToRange(TypedArg,
+            SubstParamBounds = BoundsUtil::ExpandToRange(S, TypedArg,
                                     const_cast<BoundsExpr *>(SubstParamBounds));
             } else
               continue;
@@ -3682,10 +3682,11 @@ namespace {
                                               TempUse, true);
 
         if (CK == CK_AssumePtrBounds)
-          return ExpandToRange(SubExprAtNewType, E->getBoundsExpr());
+          return BoundsUtil::ExpandToRange(S, SubExprAtNewType, E->getBoundsExpr());
 
         BoundsExpr *DeclaredBounds = E->getBoundsExpr();
-        BoundsExpr *NormalizedBounds = ExpandToRange(SubExprAtNewType,
+        BoundsExpr *NormalizedBounds = BoundsUtil::ExpandToRange(S,
+                                                      SubExprAtNewType,
                                                       DeclaredBounds);
 
         SubExprBounds = S.CheckNonModifyingBounds(SubExprBounds, SubExpr);
@@ -3701,7 +3702,7 @@ namespace {
         if (DumpBounds)
           DumpBoundsCastBounds(llvm::outs(), E, DeclaredBounds, NormalizedBounds, SubExprBounds);
         
-        return ExpandToRange(SubExprAtNewType, E->getBoundsExpr());
+        return BoundsUtil::ExpandToRange(S, SubExprAtNewType, E->getBoundsExpr());
       }
 
       // Casts to _Ptr type must have a source for which we can infer bounds.
@@ -4143,7 +4144,7 @@ namespace {
         if (B) {
           Expr *Base = CreateImplicitCast(Context.getDecayedType(E->getType()),
                                           CastKind::CK_ArrayToPointerDecay, E);
-          return ExpandToRange(Base, B);
+          return BoundsUtil::ExpandToRange(S, Base, B);
         }
 
         // If B is an interop type annotation, the type must be identical
@@ -4268,7 +4269,8 @@ namespace {
         if (E->getType()->isStructureType()) {
           Expr *TempUse = CreateTemporaryUse(E);
           Expr *Addr = CreateAddressOfOperator(TempUse);
-          return ExpandToRange(Addr, Context.getPrebuiltCountOne());
+          return BoundsUtil::ExpandToRange(S, Addr,
+                                           Context.getPrebuiltCountOne());
         }
 
         // The lvalue bounds of an array-typed compound literal expression e
@@ -4280,7 +4282,7 @@ namespace {
           Expr *Base = CreateImplicitCast(PtrType,
                                           CastKind::CK_ArrayToPointerDecay,
                                           ArrLValue);
-          return ExpandToRange(Base, BE);
+          return BoundsUtil::ExpandToRange(S, Base, BE);
         }
 
         // All other types of compound literals do not have lvalue bounds.
@@ -4306,74 +4308,6 @@ namespace {
                                        ExprValueKind::VK_RValue);
     }
 
-    // Given a byte_count or count bounds expression for the expression Base,
-    // expand it to a range bounds expression:
-    //  E : Count(C) expands to Bounds(E, E + C)
-    //  E : ByteCount(C)  expands to Bounds((array_ptr<char>) E,
-    //                                      (array_ptr<char>) E + C)
-    BoundsExpr *ExpandToRange(Expr *Base, BoundsExpr *B) {
-      assert(Base->isRValue() && "expected rvalue expression");
-      if (!B)
-        return B;
-      BoundsExpr::Kind K = B->getKind();
-      switch (K) {
-        case BoundsExpr::Kind::ByteCount:
-        case BoundsExpr::Kind::ElementCount: {
-          CountBoundsExpr *BC = dyn_cast<CountBoundsExpr>(B);
-          if (!BC) {
-            llvm_unreachable("unexpected cast failure");
-            return BoundsUtil::CreateBoundsInferenceError(S);
-          }
-          Expr *Count = BC->getCountExpr();
-          QualType ResultTy;
-          Expr *LowerBound;
-          Base = S.MakeAssignmentImplicitCastExplicit(Base);
-          if (K == BoundsExpr::ByteCount) {
-            ResultTy = Context.getPointerType(Context.CharTy,
-                                              CheckedPointerKind::Array);
-            // When bounds are pretty-printed as source code, the cast needs
-            // to appear in the source code for the code to be correct, so
-            // use an explicit cast operation.
-            //
-            // The bounds-safe interface argument is false because casts
-            // to checked pointer types are always allowed by type checking.
-            LowerBound =
-              ExprCreatorUtil::CreateExplicitCast(S, ResultTy,
-                                                  CastKind::CK_BitCast,
-                                                  Base, false);
-          } else {
-            ResultTy = Base->getType();
-            LowerBound = Base;
-            if (ResultTy->isCheckedPointerPtrType()) {
-              ResultTy = Context.getPointerType(ResultTy->getPointeeType(),
-                CheckedPointerKind::Array);
-              // The bounds-safe interface argument is false because casts
-              // between checked pointer types are always allowed by type
-              // checking.
-              LowerBound =
-                ExprCreatorUtil::CreateExplicitCast(S, ResultTy,
-                                                    CastKind::CK_BitCast,
-                                                    Base, false);
-            }
-          }
-          Expr *UpperBound =
-            BinaryOperator::Create(Context, LowerBound, Count,
-                                   BinaryOperatorKind::BO_Add,
-                                   ResultTy,
-                                   ExprValueKind::VK_RValue,
-                                   ExprObjectKind::OK_Ordinary,
-                                   SourceLocation(),
-                                   FPOptionsOverride());
-          RangeBoundsExpr *R = new (Context) RangeBoundsExpr(LowerBound, UpperBound,
-                                               SourceLocation(),
-                                               SourceLocation());
-          return R;
-        }
-        default:
-          return B;
-      }
-    }
-
     BoundsExpr *ExpandToRange(VarDecl *D, BoundsExpr *B) {
       if (!B)
         return B;
@@ -4385,7 +4319,7 @@ namespace {
       Expr *Base = ER.get();
       if (!QT->isArrayType())
         Base = CreateImplicitCast(QT, CastKind::CK_LValueToRValue, Base);
-      return ExpandToRange(Base, B);
+      return BoundsUtil::ExpandToRange(S, Base, B);
     }
 
     // Compute bounds for a variable expression or member reference expression
@@ -4400,7 +4334,7 @@ namespace {
       Expr *Base = CreateImplicitCast(Context.getDecayedType(E->getType()),
                                       CastKind::CK_ArrayToPointerDecay,
                                       E);
-      return ExpandToRange(Base, BE);
+      return BoundsUtil::ExpandToRange(S, Base, BE);
     }
 
     BoundsAnalysis &getBoundsAnalyzer() { return BoundsAnalyzer; }
@@ -5445,7 +5379,8 @@ namespace {
 
     BoundsExpr *CreateSingleElementBounds(Expr *LowerBounds) {
       assert(LowerBounds->isRValue());
-      return ExpandToRange(LowerBounds, Context.getPrebuiltCountOne());
+      return BoundsUtil::ExpandToRange(S, LowerBounds,
+                                       Context.getPrebuiltCountOne());
     }
 
     Expr *CreateTemporaryUse(CHKCBindTemporaryExpr *Binding) {
@@ -5490,7 +5425,7 @@ namespace {
       auto *Base = CreateImplicitCast(PtrType,
                                       CastKind::CK_ArrayToPointerDecay,
                                       ArrLValue);
-      return ExpandToRange(Base, CBE);
+      return BoundsUtil::ExpandToRange(S, Base, CBE);
     }
 
     // Infer the bounds for a member expression.
@@ -5520,7 +5455,9 @@ namespace {
             Expr *Base = CreateImplicitCast(Context.getDecayedType(ME->getType()),
                                             CastKind::CK_ArrayToPointerDecay,
                                             ME);
-            return cast<BoundsExpr>(PruneTemporaryBindings(S, ExpandToRange(Base, B), CSS));
+            return cast<BoundsExpr>(PruneTemporaryBindings(S,
+                                      BoundsUtil::ExpandToRange(S, Base, B),
+                                      CSS));
           } else
             return cast<BoundsExpr>(PruneTemporaryBindings(S, B, CSS));
         }
@@ -5579,7 +5516,7 @@ namespace {
 
       Expr *Base = CreateImplicitCast(DRE->getType(),
                                       CastKind::CK_LValueToRValue, DRE);
-      return ExpandToRange(Base, B);
+      return BoundsUtil::ExpandToRange(S, Base, B);
     }
 
     // Infer bounds for the target of a unary operator.
@@ -5660,7 +5597,7 @@ namespace {
                                             ME);
         else
           MemberRValue = ME;
-        B = ExpandToRange(MemberRValue, B);
+        B = BoundsUtil::ExpandToRange(S, MemberRValue, B);
       }
 
       return cast<BoundsExpr>(PruneTemporaryBindings(S, B, CSS));
@@ -5739,7 +5676,7 @@ namespace {
       } else
         assert(Ty == E->getType());
 
-      return ExpandToRange(Base, BE);
+      return BoundsUtil::ExpandToRange(S, Base, BE);
     }
 
     // Compute the bounds of a cast operation that produces an rvalue.
@@ -5882,7 +5819,7 @@ namespace {
           ReturnBounds->isByteCount()) {
         if (!ResultName)
           return BoundsUtil::CreateBoundsInferenceError(S);
-        ReturnBounds = ExpandToRange(CreateTemporaryUse(ResultName), ReturnBounds);
+        ReturnBounds = BoundsUtil::ExpandToRange(S, CreateTemporaryUse(ResultName), ReturnBounds);
       }
       return ReturnBounds;
     }
@@ -6485,7 +6422,8 @@ BoundsExpr *Sema::NormalizeBounds(const VarDecl *D) {
         Base = CBD.CreateImplicitCast(Context.getDecayedType(Base->getType()),
                                       CastKind::CK_ArrayToPointerDecay,
                                       Base);
-        ExpandedBounds = CBD.ExpandToRange(Base, const_cast<BoundsExpr *>(B));
+        ExpandedBounds = BoundsUtil::ExpandToRange(*this, Base,
+                                                   const_cast<BoundsExpr *>(B));
       }
     } else
       ExpandedBounds = CBD.ExpandToRange(const_cast<VarDecl *>(D),

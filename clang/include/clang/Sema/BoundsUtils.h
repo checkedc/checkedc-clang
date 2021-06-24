@@ -46,6 +46,13 @@ public:
   static BoundsExpr *CreateBoundsForArrayType(Sema &S, QualType T,
                                               bool IncludeNullTerminator = false);
 
+  // Given a byte_count or count bounds expression for the expression Base,
+  // expand it to a range bounds expression:
+  //  E : Count(C) expands to Bounds(E, E + C)
+  //  E : ByteCount(C)  expands to Bounds((array_ptr<char>) E,
+  //                                      (array_ptr<char>) E + C)
+  static BoundsExpr *ExpandToRange(Sema &S, Expr *Base, BoundsExpr *B);
+
   // If Bounds uses the value of LValue and an original value is provided,
   // ReplaceLValueInBounds will return a bounds expression where the uses
   // of LValue are replaced with the original value.

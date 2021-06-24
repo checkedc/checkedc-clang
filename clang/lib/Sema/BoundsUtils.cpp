@@ -66,6 +66,69 @@ BoundsExpr *BoundsUtil::CreateBoundsForArrayType(Sema &S, QualType T,
   return CBE;
 }
 
+BoundsExpr *BoundsUtil::ExpandToRange(Sema &S, Expr *Base, BoundsExpr *B) {
+  assert(Base->isRValue() && "expected rvalue expression");
+  if (!B)
+    return B;
+  BoundsExpr::Kind K = B->getKind();
+  switch (K) {
+    case BoundsExpr::Kind::ByteCount:
+    case BoundsExpr::Kind::ElementCount: {
+      CountBoundsExpr *BC = dyn_cast<CountBoundsExpr>(B);
+      if (!BC) {
+        llvm_unreachable("unexpected cast failure");
+        return CreateBoundsInferenceError(S);
+      }
+      Expr *Count = BC->getCountExpr();
+      QualType ResultTy;
+      Expr *LowerBound;
+      Base = S.MakeAssignmentImplicitCastExplicit(Base);
+      if (K == BoundsExpr::ByteCount) {
+        ResultTy = S.Context.getPointerType(S.Context.CharTy,
+                                            CheckedPointerKind::Array);
+        // When bounds are pretty-printed as source code, the cast needs
+        // to appear in the source code for the code to be correct, so
+        // use an explicit cast operation.
+        //
+        // The bounds-safe interface argument is false because casts
+        // to checked pointer types are always allowed by type checking.
+        LowerBound =
+          ExprCreatorUtil::CreateExplicitCast(S, ResultTy,
+                                              CastKind::CK_BitCast,
+                                              Base, false);
+      } else {
+        ResultTy = Base->getType();
+        LowerBound = Base;
+        if (ResultTy->isCheckedPointerPtrType()) {
+          ResultTy = S.Context.getPointerType(ResultTy->getPointeeType(),
+            CheckedPointerKind::Array);
+          // The bounds-safe interface argument is false because casts
+          // between checked pointer types are always allowed by type
+          // checking.
+          LowerBound =
+            ExprCreatorUtil::CreateExplicitCast(S, ResultTy,
+                                                CastKind::CK_BitCast,
+                                                Base, false);
+        }
+      }
+      Expr *UpperBound =
+        BinaryOperator::Create(S.Context, LowerBound, Count,
+                               BinaryOperatorKind::BO_Add,
+                               ResultTy,
+                               ExprValueKind::VK_RValue,
+                               ExprObjectKind::OK_Ordinary,
+                               SourceLocation(),
+                               FPOptionsOverride());
+      RangeBoundsExpr *R = new (S.Context) RangeBoundsExpr(LowerBound, UpperBound,
+                                            SourceLocation(),
+                                            SourceLocation());
+      return R;
+    }
+    default:
+      return B;
+  }
+}
+
 BoundsExpr *BoundsUtil::ReplaceLValueInBounds(Sema &S, BoundsExpr *Bounds,
                                               Expr *LValue, Expr *OriginalValue,
                                               CheckedScopeSpecifier CSS) {
