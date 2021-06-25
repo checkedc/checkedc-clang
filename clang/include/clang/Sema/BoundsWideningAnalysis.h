@@ -321,7 +321,27 @@ namespace clang {
     // Pretty print the widened bounds for all null-terminated arrays in the
     // current function.
     // @param[in] FD is the current function.
-    void DumpWidenedBounds(FunctionDecl *FD);
+    // @param[in] PrintOption == 0: Dump widened bounds
+    //            PrintOption == 1: Dump dataflow sets for bounds widening
+    void DumpWidenedBounds(FunctionDecl *FD, int PrintOption);
+
+    // Pretty print a container that maps variables to their bounds
+    // expressions.
+    // @param[in] BoundsMap is a map that maps variables to their bounds
+    // expressions.
+    // @param[in] EmptyMessage is the message displayed if the container is
+    // empty.
+    void PrintBoundsMap(BoundsMapTy BoundsMap, StringRef EmptyMessage) const;
+
+    // Pretty print a set of variables.
+    // @param[in] VarSet is a set of variables.
+    // @param[in] EmptyMessage is the message displayed if the container is
+    // empty.
+    void PrintVarSet(VarSetTy VarSet, StringRef EmptyMessage) const;
+
+    // Pretty print a statement.
+    // @param[in] CurrStmt is the statement to be printed.
+    void PrintStmt(const Stmt *CurrStmt) const;
 
     // Get the Out set for the statement. This set represents the bounds
     // widened after the statement.

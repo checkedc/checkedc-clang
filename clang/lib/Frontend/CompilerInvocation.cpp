@@ -2846,6 +2846,9 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   if (Args.hasArg(OPT_fdump_widened_bounds))
     Opts.DumpWidenedBounds = true;
 
+  if (Args.hasArg(OPT_fdump_widened_bounds_dataflow_sets))
+    Opts.DumpWidenedBoundsDataflowSets = true;
+
   if (Args.hasArg(OPT_fdump_boundsvars))
     Opts.DumpBoundsVars = true;
 

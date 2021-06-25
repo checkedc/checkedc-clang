@@ -264,6 +264,7 @@ BENIGN_LANGOPT(DumpVTableLayouts , 1, 0, "dumping the layouts of emitted vtables
 BENIGN_LANGOPT(DumpInferredBounds, 1, 0, "dump inferred Checked C bounds for assignments and declarations")
 BENIGN_LANGOPT(DumpExtractedComparisonFacts, 1, 0, "dump extracted comparison facts")
 BENIGN_LANGOPT(DumpWidenedBounds, 1, 0, "dump widened bounds")
+BENIGN_LANGOPT(DumpWidenedBoundsDataflowSets, 1, 0, "dump widened bounds dataflow sets")
 BENIGN_LANGOPT(DumpBoundsVars, 1, 0, "dump bounds vars")
 BENIGN_LANGOPT(DumpBoundsSiblingFields, 1, 0, "dump bounds sibling fields")
 BENIGN_LANGOPT(DumpPreorderAST, 1, 0, "dump the preorder AST")
