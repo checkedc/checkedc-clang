@@ -3936,7 +3936,8 @@ namespace {
                 << Init->getSourceRange();
           InitBounds = S.CreateInvalidBoundsExpr();
         } else if (CheckBounds) {
-          BoundsExpr *NormalizedDeclaredBounds = ExpandToRange(D, DeclaredBounds);
+          BoundsExpr *NormalizedDeclaredBounds =
+            BoundsUtil::ExpandToRange(S, D, DeclaredBounds);
           CheckBoundsDeclAtInitializer(D->getLocation(), D, NormalizedDeclaredBounds,
             Init, InitBounds, State.EquivExprs, CSS);
         }
@@ -4306,20 +4307,6 @@ namespace {
                                          Expr *E) {
       return ImplicitCastExpr::Create(Context, Target, CK, E, nullptr,
                                        ExprValueKind::VK_RValue);
-    }
-
-    BoundsExpr *ExpandToRange(VarDecl *D, BoundsExpr *B) {
-      if (!B)
-        return B;
-      QualType QT = D->getType();
-      ExprResult ER = S.BuildDeclRefExpr(D, QT,
-                                       clang::ExprValueKind::VK_LValue, SourceLocation());
-      if (ER.isInvalid())
-        return nullptr;
-      Expr *Base = ER.get();
-      if (!QT->isArrayType())
-        Base = CreateImplicitCast(QT, CastKind::CK_LValueToRValue, Base);
-      return BoundsUtil::ExpandToRange(S, Base, B);
     }
 
     // Compute bounds for a variable expression or member reference expression
@@ -6426,8 +6413,9 @@ BoundsExpr *Sema::NormalizeBounds(const VarDecl *D) {
                                                    const_cast<BoundsExpr *>(B));
       }
     } else
-      ExpandedBounds = CBD.ExpandToRange(const_cast<VarDecl *>(D),
-                                         const_cast<BoundsExpr *>(B));
+      ExpandedBounds =
+        BoundsUtil::ExpandToRange(*this, const_cast<VarDecl *>(D),
+                                  const_cast<BoundsExpr *>(B));
   }
 
   // Attach the normalized bounds to D to avoid recomputing them.

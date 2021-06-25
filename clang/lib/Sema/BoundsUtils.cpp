@@ -129,6 +129,20 @@ BoundsExpr *BoundsUtil::ExpandToRange(Sema &S, Expr *Base, BoundsExpr *B) {
   }
 }
 
+BoundsExpr *BoundsUtil::ExpandToRange(Sema &S, VarDecl *D, BoundsExpr *B) {
+  if (!B)
+    return B;
+  QualType QT = D->getType();
+  ExprResult ER = S.BuildDeclRefExpr(D, QT,
+                                     clang::ExprValueKind::VK_LValue, SourceLocation());
+  if (ER.isInvalid())
+    return nullptr;
+  Expr *Base = ER.get();
+  if (!QT->isArrayType())
+    Base = ExprCreatorUtil::CreateImplicitCast(S, Base, CastKind::CK_LValueToRValue, QT);
+  return ExpandToRange(S, Base, B);
+}
+
 BoundsExpr *BoundsUtil::ReplaceLValueInBounds(Sema &S, BoundsExpr *Bounds,
                                               Expr *LValue, Expr *OriginalValue,
                                               CheckedScopeSpecifier CSS) {

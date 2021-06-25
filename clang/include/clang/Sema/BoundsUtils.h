@@ -53,6 +53,10 @@ public:
   //                                      (array_ptr<char>) E + C)
   static BoundsExpr *ExpandToRange(Sema &S, Expr *Base, BoundsExpr *B);
 
+  // ExpandToRange expands the bounds expression for a variable declaration
+  // to a range bounds expression.
+  static BoundsExpr *ExpandToRange(Sema &S, VarDecl *D, BoundsExpr *B);
+
   // If Bounds uses the value of LValue and an original value is provided,
   // ReplaceLValueInBounds will return a bounds expression where the uses
   // of LValue are replaced with the original value.
