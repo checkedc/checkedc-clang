@@ -533,7 +533,7 @@ protected:
 
     unsigned : NumExprBits;
 
-    unsigned Kind : 6;
+    unsigned Kind : 7;
 
     unsigned PartOfExplicitCast : 1; // Only set for ImplicitCastExpr.
     unsigned BoundsSafeInterface : 1;
