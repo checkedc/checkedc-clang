@@ -46,6 +46,11 @@ public:
   static BoundsExpr *CreateBoundsForArrayType(Sema &S, QualType T,
                                               bool IncludeNullTerminator = false);
 
+  // Compute bounds for a variable expression or member reference expression
+  // with an array type.
+  static BoundsExpr *ArrayExprBounds(Sema &S, Expr *E,
+                                     bool IncludeNullTerminator = false);
+
   // Given a byte_count or count bounds expression for the expression Base,
   // expand it to a range bounds expression:
   //  E : Count(C) expands to Bounds(E, E + C)

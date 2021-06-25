@@ -4309,21 +4309,6 @@ namespace {
 
   public:
 
-    // Compute bounds for a variable expression or member reference expression
-    // with an array type.
-    BoundsExpr *ArrayExprBounds(Expr *E) {
-      DeclRefExpr *DR = dyn_cast<DeclRefExpr>(E);
-      assert((DR && dyn_cast<VarDecl>(DR->getDecl())) || isa<MemberExpr>(E));
-      BoundsExpr *BE = CreateBoundsForArrayType(E->getType());
-      if (BE->isUnknown())
-        return BE;
-
-      Expr *Base = ExprCreatorUtil::CreateImplicitCast(S, E,
-                                      CastKind::CK_ArrayToPointerDecay,
-                                      Context.getDecayedType(E->getType()));
-      return BoundsUtil::ExpandToRange(S, Base, BE);
-    }
-
     BoundsAnalysis &getBoundsAnalyzer() { return BoundsAnalyzer; }
 
   private:
@@ -5364,6 +5349,10 @@ namespace {
       return BoundsUtil::CreateBoundsForArrayType(S, T, IncludeNullTerminator);
     }
 
+    BoundsExpr *ArrayExprBounds(Expr *E) {
+      return BoundsUtil::ArrayExprBounds(S, E, IncludeNullTerminator);
+    }
+
     BoundsExpr *CreateSingleElementBounds(Expr *LowerBounds) {
       assert(LowerBounds->isRValue());
       return BoundsUtil::ExpandToRange(S, LowerBounds,
@@ -6393,10 +6382,6 @@ BoundsExpr *Sema::NormalizeBounds(const VarDecl *D) {
   if (B && isa<RangeBoundsExpr>(B))
     ExpandedBounds = const_cast<BoundsExpr *>(B);
   else {
-    PrepassInfo Info;
-    std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
-    CheckBoundsDeclarations CBD = CheckBoundsDeclarations(*this, Info, EmptyFacts);
-
     if (D->getType()->isArrayType()) {
       ExprResult ER = BuildDeclRefExpr(const_cast<VarDecl *>(D), D->getType(),
                                        clang::ExprValueKind::VK_LValue,
@@ -6407,7 +6392,7 @@ BoundsExpr *Sema::NormalizeBounds(const VarDecl *D) {
 
       // Declared bounds override the bounds based on the array type.
       if (!B)
-        ExpandedBounds = CBD.ArrayExprBounds(Base);
+        ExpandedBounds = BoundsUtil::ArrayExprBounds(*this, Base);
       else {
         Base = ExprCreatorUtil::CreateImplicitCast(*this, Base,
                                   CastKind::CK_ArrayToPointerDecay,

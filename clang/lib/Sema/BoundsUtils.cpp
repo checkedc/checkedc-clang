@@ -66,6 +66,20 @@ BoundsExpr *BoundsUtil::CreateBoundsForArrayType(Sema &S, QualType T,
   return CBE;
 }
 
+BoundsExpr *BoundsUtil::ArrayExprBounds(Sema &S, Expr *E,
+                                        bool IncludeNullTerminator) {
+  DeclRefExpr *DR = dyn_cast<DeclRefExpr>(E);
+  assert((DR && dyn_cast<VarDecl>(DR->getDecl())) || isa<MemberExpr>(E));
+  BoundsExpr *BE = CreateBoundsForArrayType(S, E->getType(), IncludeNullTerminator);
+  if (BE->isUnknown())
+    return BE;
+
+  Expr *Base = ExprCreatorUtil::CreateImplicitCast(S, E,
+                                  CastKind::CK_ArrayToPointerDecay,
+                                  S.Context.getDecayedType(E->getType()));
+  return ExpandToRange(S, Base, BE);
+}
+
 BoundsExpr *BoundsUtil::ExpandToRange(Sema &S, Expr *Base, BoundsExpr *B) {
   assert(Base->isRValue() && "expected rvalue expression");
   if (!B)
