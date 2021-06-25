@@ -2329,8 +2329,9 @@ namespace {
                                  Sema::NonModifyingMessage::NMM_None);
          if (Temp || SrcIsNonModifying) {
            SmallVector<Expr *, 4> EqualExpr;
-           Expr *TargetExpr =
-             CreateImplicitCast(Target->getType(), CK_LValueToRValue, Target);
+           Expr *TargetExpr = ExprCreatorUtil::CreateImplicitCast(S, Target,
+                                                 CK_LValueToRValue,
+                                                 Target->getType());
            EqualExpr.push_back(TargetExpr);
            if (Temp)
              EqualExpr.push_back(CreateTemporaryUse(Temp));
@@ -2487,7 +2488,8 @@ namespace {
           TargetTy = D->getType();
         }
         SmallVector<Expr *, 4> EqualExpr;
-        Expr *TargetExpr = CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
+        Expr *TargetExpr =
+          ExprCreatorUtil::CreateImplicitCast(S, TargetDeclRef, Kind, TargetTy);
         EqualExpr.push_back(TargetExpr);
         if (Temp)
           EqualExpr.push_back(CreateTemporaryUse(Temp));
@@ -3327,7 +3329,8 @@ namespace {
       // for assignments to a variable.
       if (E->isAssignmentOp()) {
         Expr *Target =
-             CreateImplicitCast(LHS->getType(), CK_LValueToRValue, LHS);
+          ExprCreatorUtil::CreateImplicitCast(S, LHS, CK_LValueToRValue,
+                                              LHS->getType());
         Expr *Src = RHS;
 
         // A compound assignment `e1 @= e2` implies an assignment `e1 = e1 @ e2`.
@@ -3772,8 +3775,9 @@ namespace {
         BoundsExpr *IncDecResultBounds = SubExprTargetBounds;
 
         // Create the target of the implied assignment `e1 = e1 +/- 1`.
-        CastExpr *Target = CreateImplicitCast(SubExpr->getType(),
-                                              CK_LValueToRValue, SubExpr);
+        CastExpr *Target = ExprCreatorUtil::CreateImplicitCast(S, SubExpr,
+                                              CK_LValueToRValue,
+                                              SubExpr->getType());
 
         // Only use the RHS `e1 +/1 ` of the implied assignment to update
         // the checking state if the integer constant 1 can be created, which
@@ -3894,7 +3898,8 @@ namespace {
           Kind = CK_LValueToRValue;
           TargetTy = D->getType();
         }
-        Expr *TargetExpr = CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
+        Expr *TargetExpr =
+          ExprCreatorUtil::CreateImplicitCast(S, TargetDeclRef, Kind, TargetTy);
 
         // Record equality between the target and initializer.
         RecordEqualityWithTarget(TargetDeclRef, TargetExpr, Init, State);
@@ -4143,8 +4148,9 @@ namespace {
 
         // Declared bounds override the bounds based on the array type.
         if (B) {
-          Expr *Base = CreateImplicitCast(Context.getDecayedType(E->getType()),
-                                          CastKind::CK_ArrayToPointerDecay, E);
+          Expr *Base = ExprCreatorUtil::CreateImplicitCast(S, E,
+                         CastKind::CK_ArrayToPointerDecay,
+                         Context.getDecayedType(E->getType()));
           return BoundsUtil::ExpandToRange(S, Base, B);
         }
 
@@ -4280,9 +4286,9 @@ namespace {
           BoundsExpr *BE = CreateBoundsForArrayType(E->getType());
           QualType PtrType = Context.getDecayedType(E->getType());
           Expr *ArrLValue = CreateTemporaryUse(E);
-          Expr *Base = CreateImplicitCast(PtrType,
+          Expr *Base = ExprCreatorUtil::CreateImplicitCast(S, ArrLValue,
                                           CastKind::CK_ArrayToPointerDecay,
-                                          ArrLValue);
+                                          PtrType);
           return BoundsUtil::ExpandToRange(S, Base, BE);
         }
 
@@ -4303,12 +4309,6 @@ namespace {
 
   public:
 
-    ImplicitCastExpr *CreateImplicitCast(QualType Target, CastKind CK,
-                                         Expr *E) {
-      return ImplicitCastExpr::Create(Context, Target, CK, E, nullptr,
-                                       ExprValueKind::VK_RValue);
-    }
-
     // Compute bounds for a variable expression or member reference expression
     // with an array type.
     BoundsExpr *ArrayExprBounds(Expr *E) {
@@ -4318,9 +4318,9 @@ namespace {
       if (BE->isUnknown())
         return BE;
 
-      Expr *Base = CreateImplicitCast(Context.getDecayedType(E->getType()),
+      Expr *Base = ExprCreatorUtil::CreateImplicitCast(S, E,
                                       CastKind::CK_ArrayToPointerDecay,
-                                      E);
+                                      Context.getDecayedType(E->getType()));
       return BoundsUtil::ExpandToRange(S, Base, BE);
     }
 
@@ -5409,9 +5409,9 @@ namespace {
       // incorrect: the base value could be different for the lower and upper
       // bounds.
       auto *ArrLValue = CreateTemporaryUse(Binding);
-      auto *Base = CreateImplicitCast(PtrType,
+      auto *Base = ExprCreatorUtil::CreateImplicitCast(S, ArrLValue,
                                       CastKind::CK_ArrayToPointerDecay,
-                                      ArrLValue);
+                                      PtrType);
       return BoundsUtil::ExpandToRange(S, Base, CBE);
     }
 
@@ -5439,9 +5439,9 @@ namespace {
             return CreateBoundsNotAllowedYet();
           }
           if (B->isElementCount() || B->isByteCount()) {
-            Expr *Base = CreateImplicitCast(Context.getDecayedType(ME->getType()),
+            Expr *Base = ExprCreatorUtil::CreateImplicitCast(S, ME,
                                             CastKind::CK_ArrayToPointerDecay,
-                                            ME);
+                                            Context.getDecayedType(ME->getType()));
             return cast<BoundsExpr>(PruneTemporaryBindings(S,
                                       BoundsUtil::ExpandToRange(S, Base, B),
                                       CSS));
@@ -5501,8 +5501,9 @@ namespace {
       if (!B || B->isUnknown())
         return BoundsUtil::CreateBoundsAlwaysUnknown(S);
 
-      Expr *Base = CreateImplicitCast(DRE->getType(),
-                                      CastKind::CK_LValueToRValue, DRE);
+      Expr *Base = ExprCreatorUtil::CreateImplicitCast(S, DRE,
+                                      CastKind::CK_LValueToRValue,
+                                      DRE->getType());
       return BoundsUtil::ExpandToRange(S, Base, B);
     }
 
@@ -5579,9 +5580,9 @@ namespace {
       if (B->isElementCount() || B->isByteCount()) {
           Expr *MemberRValue;
         if (ME->isLValue())
-          MemberRValue = CreateImplicitCast(ME->getType(),
+          MemberRValue = ExprCreatorUtil::CreateImplicitCast(S, ME,
                                             CastKind::CK_LValueToRValue,
-                                            ME);
+                                            ME->getType());
         else
           MemberRValue = ME;
         B = BoundsUtil::ExpandToRange(S, MemberRValue, B);
@@ -5644,7 +5645,9 @@ namespace {
 
       Expr *Base = E;
       if (Base->isLValue())
-        Base = CreateImplicitCast(E->getType(), CastKind::CK_LValueToRValue, Base);
+        Base = ExprCreatorUtil::CreateImplicitCast(S, Base,
+                                  CastKind::CK_LValueToRValue,
+                                  E->getType());
 
       // If type is a bounds-safe interface type, adjust the type of base to the
       // bounds-safe interface type.
@@ -6406,9 +6409,9 @@ BoundsExpr *Sema::NormalizeBounds(const VarDecl *D) {
       if (!B)
         ExpandedBounds = CBD.ArrayExprBounds(Base);
       else {
-        Base = CBD.CreateImplicitCast(Context.getDecayedType(Base->getType()),
-                                      CastKind::CK_ArrayToPointerDecay,
-                                      Base);
+        Base = ExprCreatorUtil::CreateImplicitCast(*this, Base,
+                                  CastKind::CK_ArrayToPointerDecay,
+                                  Context.getDecayedType(Base->getType()));
         ExpandedBounds = BoundsUtil::ExpandToRange(*this, Base,
                                                    const_cast<BoundsExpr *>(B));
       }
