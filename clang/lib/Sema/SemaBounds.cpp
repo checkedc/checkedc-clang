@@ -6375,36 +6375,11 @@ BoundsExpr *Sema::NormalizeBounds(const VarDecl *D) {
 
   // Expand the bounds expression of D to a RangeBoundsExpr if possible.
   const BoundsExpr *B = D->getBoundsExpr();
-  BoundsExpr *ExpandedBounds = nullptr;
-
-  // If the bounds expr of D is already a RangeBoundsExpr, there is
-  // no need to expand it.
-  if (B && isa<RangeBoundsExpr>(B))
-    ExpandedBounds = const_cast<BoundsExpr *>(B);
-  else {
-    if (D->getType()->isArrayType()) {
-      ExprResult ER = BuildDeclRefExpr(const_cast<VarDecl *>(D), D->getType(),
-                                       clang::ExprValueKind::VK_LValue,
-                                       SourceLocation());
-      if (ER.isInvalid())
-        return nullptr;
-      Expr *Base = ER.get();
-
-      // Declared bounds override the bounds based on the array type.
-      if (!B)
-        ExpandedBounds = BoundsUtil::ArrayExprBounds(*this, Base);
-      else {
-        Base = ExprCreatorUtil::CreateImplicitCast(*this, Base,
-                                  CastKind::CK_ArrayToPointerDecay,
-                                  Context.getDecayedType(Base->getType()));
-        ExpandedBounds = BoundsUtil::ExpandToRange(*this, Base,
-                                                   const_cast<BoundsExpr *>(B));
-      }
-    } else
-      ExpandedBounds =
-        BoundsUtil::ExpandToRange(*this, const_cast<VarDecl *>(D),
-                                  const_cast<BoundsExpr *>(B));
-  }
+  BoundsExpr *ExpandedBounds = BoundsUtil::ExpandBoundsToRange(*this,
+                                             const_cast<VarDecl *>(D),
+                                             const_cast<BoundsExpr *>(B));
+  if (!ExpandedBounds)
+    return nullptr;
 
   // Attach the normalized bounds to D to avoid recomputing them.
   D->setNormalizedBounds(ExpandedBounds);

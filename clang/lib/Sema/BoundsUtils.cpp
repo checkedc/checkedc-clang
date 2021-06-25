@@ -80,6 +80,32 @@ BoundsExpr *BoundsUtil::ArrayExprBounds(Sema &S, Expr *E,
   return ExpandToRange(S, Base, BE);
 }
 
+BoundsExpr *BoundsUtil::ExpandBoundsToRange(Sema &S, VarDecl *D, BoundsExpr *B) {
+  // If the bounds expr is already a RangeBoundsExpr, there is no need
+  // to expand it.
+  if (B && isa<RangeBoundsExpr>(B))
+    return B;
+
+  if (D->getType()->isArrayType()) {
+    ExprResult ER = S.BuildDeclRefExpr(D, D->getType(),
+                                       clang::ExprValueKind::VK_LValue,
+                                       SourceLocation());
+    if (ER.isInvalid())
+      return nullptr;
+    Expr *Base = ER.get();
+
+    // Declared bounds override the bounds based on the array type.
+    if (!B)
+      return ArrayExprBounds(S, Base);
+    Base = ExprCreatorUtil::CreateImplicitCast(S, Base,
+                              CastKind::CK_ArrayToPointerDecay,
+                              S.Context.getDecayedType(Base->getType()));
+    return ExpandToRange(S, Base, B);
+  }
+
+  return ExpandToRange(S, D, B);
+}
+
 BoundsExpr *BoundsUtil::ExpandToRange(Sema &S, Expr *Base, BoundsExpr *B) {
   assert(Base->isRValue() && "expected rvalue expression");
   if (!B)

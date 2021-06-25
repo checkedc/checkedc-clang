@@ -51,6 +51,10 @@ public:
   static BoundsExpr *ArrayExprBounds(Sema &S, Expr *E,
                                      bool IncludeNullTerminator = false);
 
+  // Given a byte_count or count bounds expression for the VarDecl D,
+  // ExpandBoundsToRange will expand it to a range bounds expression.
+  static BoundsExpr *ExpandBoundsToRange(Sema &S, VarDecl *D, BoundsExpr *B);
+
   // Given a byte_count or count bounds expression for the expression Base,
   // expand it to a range bounds expression:
   //  E : Count(C) expands to Bounds(E, E + C)
