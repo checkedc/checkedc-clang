@@ -2019,10 +2019,8 @@ void killed_widened_bounds2(nt_array_ptr<char> p : count(0), int other) {
     // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:           DeclRefExpr {{.*}} 'p'
     // CHECK-NEXT:         BinaryOperator {{.*}} '+'
-    // CHECK-NEXT:           BinaryOperator {{.*}} '+'
-    // CHECK-NEXT:             ImplicitCastExpr {{.*}} <LValueToRValue>
-    // CHECK-NEXT:               DeclRefExpr {{.*}} 'p'
-    // CHECK-NEXT:             IntegerLiteral {{.*}} 0
+    // CHECK-NEXT:           ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:             DeclRefExpr {{.*}} 'p'
     // CHECK-NEXT:           IntegerLiteral {{.*}} 1
     // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
@@ -2036,10 +2034,8 @@ void killed_widened_bounds2(nt_array_ptr<char> p : count(0), int other) {
     // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:     DeclRefExpr {{.*}} 'p'
     // CHECK-NEXT:   BinaryOperator {{.*}} '+'
-    // CHECK-NEXT:     BinaryOperator {{.*}} '+'
-    // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
-    // CHECK-NEXT:         DeclRefExpr {{.*}} 'p'
-    // CHECK-NEXT:       IntegerLiteral {{.*}} 0
+    // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
     // CHECK-NEXT:     IntegerLiteral {{.*}} 1
     // CHECK-NEXT: }
 

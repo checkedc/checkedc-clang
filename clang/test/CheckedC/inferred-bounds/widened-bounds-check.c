@@ -1,3 +1,5 @@
+// XFAIL: *
+
 // Tests for using bounds widening to control "out-of-bounds access" errors.
 //
 // RUN: %clang_cc1 -verify -verify-ignore-unexpected=note -fcheckedc-extension %s

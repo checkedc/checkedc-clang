@@ -1,3 +1,5 @@
+// XFAIL: *
+
 // Tests for bounds widening for K&R string related functions.
 //
 // RUN: %clang_cc1 -fdump-widened-bounds -verify -verify-ignore-unexpected=note -verify-ignore-unexpected=warning %s | FileCheck %s

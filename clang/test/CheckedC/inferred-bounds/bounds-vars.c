@@ -3,8 +3,6 @@
 //
 // RUN: %clang_cc1 -fdump-boundsvars -verify -verify-ignore-unexpected=note -verify-ignore-unexpected=warning %s | FileCheck %s
 
-// expected-no-diagnostics
-
 void f1(_Array_ptr<char> param1 : bounds(param1, param1 + 1),
         _Nt_array_ptr<char> param2 : bounds(param2, param2 + 1),
         int x, int y) {
@@ -32,7 +30,7 @@ void f1(_Array_ptr<char> param1 : bounds(param1, param1 + 1),
 
     w = 1 _Where a : bounds(a, a + 1);
     x = 2 _Where a : count(x + y + w);
-    y = 3 _Where param2 : bounds(param1, param1 + w);
+    y = 3 _Where param2 : bounds(param1, param1 + w); // expected-error {{inferred bounds for 'a' are unknown after assignment}}
   }
 
 // CHECK-LABEL: In function: f1

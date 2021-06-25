@@ -1,8 +1,7 @@
-// RUN: %clang_cc1 -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsyntax-only -verify \
+// RUN: -verify-ignore-unexpected=note %s
 
 // Test valid where clause cases.
-
-// expected-no-diagnostics
 
 // Test where clauses on null statements.
 void valid_cases_nullstmt(_Nt_array_ptr<char> p, _Nt_array_ptr<char> q,
@@ -34,7 +33,7 @@ void valid_cases_nullstmt(_Nt_array_ptr<char> p, _Nt_array_ptr<char> q,
 
 int f();
 // Test where clauses on variable declarations inside a function.
-void valid_cases_decl(_Nt_array_ptr<char> p, _Nt_array_ptr<char> q) {
+void valid_cases_decl(_Nt_array_ptr<char> p, _Nt_array_ptr<char> q) { // expected-error {{it is not possible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after initialization}} expected-error {{it is not possible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after initialization}} expected-error {{it is not possible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after initialization}} expected-error {{it is not possible to prove that the inferred bounds of 'q' imply the declared bounds of 'q' after initialization}}
   int a _Where a == 0 _And a != 0 _And p : bounds(p, p + a);
   int b = 0 _Where b != 0 _And p : count(b);
   int c = f() _Where p : bounds(p, p + c) _And c < 0;

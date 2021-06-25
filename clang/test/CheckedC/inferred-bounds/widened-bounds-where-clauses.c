@@ -117,7 +117,7 @@ void f3(_Nt_array_ptr<char> p : bounds(p, p + 1)) {
   int x = 1 _Where p : bounds(p, p + x);
 
   if (*(p + x)) {
-    x = 0;
+    x = 0; // expected-error {{inferred bounds for 'p' are unknown after assignment}}
     if (*(p + x + 1)) {
       a = 1;
     }
@@ -266,7 +266,7 @@ void f6() {
 
   int x = 1 _Where p : bounds(p, p + x + 1) _And q : count(x) _And r : bounds(p, p + x);
 
-  if (*(p + x) && *(p + x + 1) && *(q + x) && *(q + x + 1)) {
+  if (*(p + x) && *(p + x + 1) && *(q + x) && *(q + x + 1)) { // expected-error {{it is not possible to prove that the inferred bounds of 'r' imply the declared bounds of 'r' after statement}}
     a = 1;
   }
 
@@ -387,7 +387,7 @@ void f8() {
   int x = 1 _Where p : bounds(p, p + x);
 
   while (*(p + x)) {
-    x = 0;
+    x = 0; // expected-error {{inferred bounds for 'p' are unknown after assignment}}
     a = 1 _Where p : bounds(p, p + x);
   }
 

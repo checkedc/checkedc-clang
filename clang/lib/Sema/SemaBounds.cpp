@@ -45,7 +45,6 @@
 #include "clang/AST/ExprUtils.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Sema/AvailableFactsAnalysis.h"
-#include "clang/Sema/BoundsAnalysis.h"
 #include "clang/Sema/BoundsWideningAnalysis.h"
 #include "clang/Sema/CheckedCAnalysesPrepass.h"
 #include "llvm/ADT/SmallBitVector.h"
@@ -534,6 +533,7 @@ namespace {
 
 namespace {
   using EqualExprTy = SmallVector<Expr *, 4>;
+  using DeclSetTy = llvm::DenseSet<const VarDecl *>;
 
   // EqualExprsContainsExpr returns true if the set Exprs contains an
   // expression that is equivalent to E.
@@ -835,11 +835,6 @@ namespace {
                               // function, if any.
     ASTContext &Context;
     std::pair<ComparisonSet, ComparisonSet> &Facts;
-
-    // Having a BoundsAnalysis object here allows us to easily invoke methods
-    // for bounds-widening and get back the bounds-widening info needed for
-    // bounds inference/checking.
-    BoundsAnalysis BoundsAnalyzer;
 
     // Having a BoundsWideningAnalysis object here allows us to easily invoke
     // methods for bounds widening and get back the needed info for bounds
@@ -2604,7 +2599,6 @@ namespace {
       ReturnBounds(ReturnBounds),
       Context(SemaRef.Context),
       Facts(Facts),
-      BoundsAnalyzer(BoundsAnalysis(SemaRef, Cfg)),
       BoundsWideningAnalyzer(BoundsWideningAnalysis(SemaRef, Cfg,
                                                     Info.BoundsVarsLower,
                                                     Info.BoundsVarsUpper)),
@@ -2620,14 +2614,13 @@ namespace {
       ReturnBounds(nullptr),
       Context(SemaRef.Context),
       Facts(Facts),
-      BoundsAnalyzer(BoundsAnalysis(SemaRef, nullptr)),
       BoundsWideningAnalyzer(BoundsWideningAnalysis(SemaRef, nullptr,
                                                     Info.BoundsVarsLower,
                                                     Info.BoundsVarsUpper)),
       AbstractSetMgr(AbstractSetManager(SemaRef, Info.VarUses)),
       IncludeNullTerminator(false) {}
 
-    void IdentifyChecked(Stmt *S, StmtSet &MemoryCheckedStmts, StmtSet &BoundsCheckedStmts, CheckedScopeSpecifier CSS) {
+    void IdentifyChecked(Stmt *S, StmtSetTy &MemoryCheckedStmts, StmtSetTy &BoundsCheckedStmts, CheckedScopeSpecifier CSS) {
       if (!S)
         return;
 
@@ -2648,7 +2641,7 @@ namespace {
     }
 
     // Add any subexpressions of S that occur in TopLevelElems to NestedExprs.
-    void MarkNested(const Stmt *S, StmtSet &NestedExprs, StmtSet &TopLevelElems) {
+    void MarkNested(const Stmt *S, StmtSetTy &NestedExprs, StmtSetTy &TopLevelElems) {
       auto Begin = S->child_begin(), End = S->child_end();
       for (auto I = Begin; I != End; ++I) {
         const Stmt *Child = *I;
@@ -2686,9 +2679,9 @@ namespace {
   //
   // For now, we want to skip B1.1, B2.1, and B3.1 because they will be processed
   // as part of B4.1.
-   void FindNestedElements(StmtSet &NestedStmts) {
+   void FindNestedElements(StmtSetTy &NestedStmts) {
       // Create the set of top-level CFG elements.
-      StmtSet TopLevelElems;
+      StmtSetTy TopLevelElems;
       for (const CFGBlock *Block : *Cfg) {
         for (CFGElement Elem : *Block) {
           if (Elem.getKind() == CFGElement::Statement) {
@@ -2712,34 +2705,43 @@ namespace {
       }
    }
 
-   void UpdateWidenedBounds(BoundsAnalysis &BA, const CFGBlock *Block,
-                            CheckingState &State) {
-     for (const auto item : BA.GetWidenedBounds(Block)) {
-       const VarDecl *V = item.first;
-       BoundsExpr *Bounds = item.second;
+   void UpdateWidenedBounds(BoundsWideningAnalysis &BWA, const CFGBlock *Block,
+                            Stmt *CurrStmt, CheckingState &State) {
 
-       // BoundsAnalysis currently uses VarDecls as keys in the widened
-       // bounds data structure, so we create an AbstractSet for each 
-       // VarDecl in the widened bounds. TODO: use AbstractSets as keys
-       // in BoundsAnalysis (checkedc-clang issue #1015).
+     // Get the bounds widened before the current statement.
+     BoundsMapTy WidenedBounds = BWA.GetStmtIn(Block, CurrStmt);
+
+     // If a variable does not exist in WidenedBounds but exists in
+     // State.ObservedBounds it means that the bounds of the variable got
+     // killed before the current statement. So we reset the bounds of the
+     // variable in State.ObservedBounds to its declared bounds.
+     for (auto I = State.ObservedBounds.begin(),
+               E = State.ObservedBounds.end(); I != E; ++I) {
+       const AbstractSet *A = I->first;
+       const VarDecl *V = A->GetVarDecl();
+       if (!V)
+         continue;
+
+       if (WidenedBounds.find(V) == WidenedBounds.end())
+         I->second = S.NormalizeBounds(V);
+     }
+
+     // Update State.ObservedBounds with the WidenedBounds before the current
+     // statement.
+     for (const auto VarBoundsPair : WidenedBounds) {
+       const VarDecl *V = VarBoundsPair.first;
+       BoundsExpr *Bounds = VarBoundsPair.second;
+       if (!Bounds)
+         continue;
+
+       // BoundsWideningAnalysis currently uses VarDecls as keys in the widened
+       // bounds data structure, so we create an AbstractSet for each VarDecl
+       // in the widened bounds. TODO: use AbstractSets as keys in
+       // BoundsWideningAnalysis (checkedc-clang issue #1015).
        const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
        auto I = State.ObservedBounds.find(A);
        if (I != State.ObservedBounds.end())
          I->second = Bounds;
-     }
-   }
-
-   void ResetKilledBounds(BoundsAnalysis &BA, const CFGBlock *Block,
-                          const Stmt *St, CheckingState &State) {
-     for (const VarDecl *V : BA.GetKilledBounds(Block, St)) {
-       // BoundsAnalysis currently uses VarDecls as keys in the killed
-       // bounds data structure, so we create an AbstractSet for each
-       // VarDecl in the killed bounds. TODO: use AbstractSets as keys
-       // in BoundsAnalysis (checkedc-clang issue #1015).
-       const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
-       auto I = State.ObservedBounds.find(A);
-       if (I != State.ObservedBounds.end())
-         I->second = S.NormalizeBounds(V);
      }
    }
 
@@ -2810,10 +2812,10 @@ namespace {
      llvm::DenseMap<unsigned int, CheckingState> BlockStates;
      BlockStates[Cfg->getEntry().getBlockID()] = ParamsState;
 
-     StmtSet NestedElements;
+     StmtSetTy NestedElements;
      FindNestedElements(NestedElements);
-     StmtSet MemoryCheckedStmts;
-     StmtSet BoundsCheckedStmts;
+     StmtSetTy MemoryCheckedStmts;
+     StmtSetTy BoundsCheckedStmts;
      IdentifyChecked(Body, MemoryCheckedStmts, BoundsCheckedStmts, CheckedScopeSpecifier::CSS_Unchecked);
 
      // Run the bounds widening analysis on this function.
@@ -2821,20 +2823,11 @@ namespace {
      if (S.getLangOpts().DumpWidenedBounds)
        BoundsWideningAnalyzer.DumpWidenedBounds(FD);
 
-     // Run the bounds widening analysis on this function.
-     BoundsAnalysis &BA = getBoundsAnalyzer();
-     BA.WidenBounds(FD, NestedElements);
-//     if (S.getLangOpts().DumpWidenedBounds)
-//       BA.DumpWidenedBounds(FD);
-
      PostOrderCFGView POView = PostOrderCFGView(Cfg);
      ResetFacts();
      for (const CFGBlock *Block : POView) {
        AFA.GetFacts(Facts);
        CheckingState BlockState = GetIncomingBlockState(Block, BlockStates);
-
-       // Update the observed bounds with the widened bounds calculated above.
-       UpdateWidenedBounds(BA, Block, BlockState);
 
        for (CFGElement Elem : *Block) {
          if (Elem.getKind() == CFGElement::Statement) {
@@ -2847,6 +2840,10 @@ namespace {
            // another top-level element.
            if (NestedElements.find(S) != NestedElements.end())
              continue;
+
+           // Update the observed bounds with the widened bounds computed
+           // above.
+           UpdateWidenedBounds(BoundsWideningAnalyzer, Block, S, BlockState);
 
            CheckedScopeSpecifier CSS = CheckedScopeSpecifier::CSS_Unchecked;
            const Stmt *Statement = S;
@@ -2889,13 +2886,6 @@ namespace {
             // declared bounds, the observed bounds for each AbstractSet should
             // be reset to their observed bounds from before checking S.
             BlockState.ObservedBounds = InitialObservedBounds;
-
-            // If the widened bounds of any variables are killed by statement
-            // S, reset their observed bounds to their declared bounds.
-            // Resetting the widened bounds killed by S should be the last
-            // thing done as part of traversing S.  The widened bounds of each
-            // variable should be in effect until the very end of traversing S.
-            ResetKilledBounds(BA, Block, S, BlockState);
          }
          else if (Elem.getKind() == CFGElement::LifetimeEnds) {
             // Every variable going out of scope is indicated by a LifetimeEnds
@@ -4420,7 +4410,6 @@ namespace {
       return ExpandToRange(Base, BE);
     }
 
-    BoundsAnalysis &getBoundsAnalyzer() { return BoundsAnalyzer; }
     BoundsWideningAnalysis &getBoundsWideningAnalyzer() {
       return BoundsWideningAnalyzer;
     }
@@ -4471,9 +4460,8 @@ namespace {
           EquivExprs.push_back({Target, Src});
       }
 
-      BoundsAnalysis &BA = getBoundsAnalyzer();
-      DeclSetTy BoundsWidenedAndNotKilled =
-        BA.GetBoundsWidenedAndNotKilled(Block, S);
+      BoundsMapTy BoundsWidenedAndNotKilled =
+        BoundsWideningAnalyzer.GetBoundsWidenedAndNotKilled(Block, S);
 
       for (auto const &Pair : State.ObservedBounds) {
         const AbstractSet *A = Pair.first;
@@ -4489,9 +4477,9 @@ namespace {
           DiagnoseUnknownObservedBounds(S, A, DeclaredBounds, State);
         else {
           // We should issue diagnostics for observed bounds if the variable V
-          // is not in the set BoundsWidenedAndNotKilled which represents
-          // variables whose bounds are widened in this block and not killed by
-          // statement S.
+          // is not in BoundsWidenedAndNotKilled which represents variables
+          // whose bounds are widened in this block before statement S and not
+          // killed by statement S.
           bool DiagnoseObservedBounds = BoundsWidenedAndNotKilled.find(V) ==
                                         BoundsWidenedAndNotKilled.end();
           CheckObservedBounds(S, A, DeclaredBounds, ObservedBounds, State,
