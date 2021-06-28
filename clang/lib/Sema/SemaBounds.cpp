@@ -46,6 +46,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Sema/AvailableFactsAnalysis.h"
 #include "clang/Sema/BoundsAnalysis.h"
+#include "clang/Sema/BoundsUtils.h"
 #include "clang/Sema/CheckedCAnalysesPrepass.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -58,62 +59,6 @@
 
 using namespace clang;
 using namespace sema;
-
-namespace {
-class BoundsUtil {
-public:
-  static bool IsStandardForm(const BoundsExpr *BE) {
-    BoundsExpr::Kind K = BE->getKind();
-    return (K == BoundsExpr::Kind::Any || K == BoundsExpr::Kind::Unknown ||
-      K == BoundsExpr::Kind::Range || K == BoundsExpr::Kind::Invalid);
-  }
-
-  static Expr *IgnoreRedundantCast(ASTContext &Ctx, CastKind NewCK, Expr *E) {
-    CastExpr *P = dyn_cast<CastExpr>(E);
-    if (!P)
-      return E;
-
-    CastKind ExistingCK = P->getCastKind();
-    Expr *SE = P->getSubExpr();
-    if (NewCK == CK_BitCast && ExistingCK == CK_BitCast)
-      return SE;
-
-    return E;
-  }
-
-  static bool getReferentSizeInChars(ASTContext &Ctx, QualType Ty, llvm::APSInt &Size) {
-    assert(Ty->isPointerType());
-    const Type *Pointee = Ty->getPointeeOrArrayElementType();
-    if (Pointee->isIncompleteType())
-      return false;
-    uint64_t ElemBitSize = Ctx.getTypeSize(Pointee);
-    uint64_t ElemSize = Ctx.toCharUnitsFromBits(ElemBitSize).getQuantity();
-    Size = llvm::APSInt(llvm::APInt(Ctx.getTargetInfo().getPointerWidth(0), ElemSize), false);
-    return true;
-  }
-
-  // Convert I to a signed integer with Ctx.PointerWidth.
-  static llvm::APSInt ConvertToSignedPointerWidth(ASTContext &Ctx, llvm::APSInt I, bool &Overflow) {
-    uint64_t PointerWidth = Ctx.getTargetInfo().getPointerWidth(0);
-    Overflow = false;
-    if (I.getBitWidth() > PointerWidth) {
-      Overflow = true;
-      goto exit;
-    }
-    if (I.getBitWidth() < PointerWidth)
-      I = I.extend(PointerWidth);
-    if (I.isUnsigned()) {
-      if (I > llvm::APSInt(I.getSignedMaxValue(PointerWidth))) {
-        Overflow = true;
-        goto exit;
-      }
-      I = llvm::APSInt(I, false);
-    }
-    exit:
-      return I;
-  }
-};
-}
 
 namespace {
   class AbstractBoundsExpr : public TreeTransform<AbstractBoundsExpr> {
@@ -480,151 +425,6 @@ namespace {
 }
 
 namespace {
-  class LValueCountHelper : public RecursiveASTVisitor<LValueCountHelper> {
-    private:
-      Sema &SemaRef;
-      Lexicographic Lex;
-      Expr *LValue;
-      ValueDecl *V;
-      unsigned int Count;
-
-    public:
-      LValueCountHelper(Sema &SemaRef, Expr *LValue, ValueDecl *V) :
-        SemaRef(SemaRef),
-        Lex(Lexicographic(SemaRef.Context, nullptr)),
-        LValue(LValue),
-        V(V),
-        Count(0) {}
-
-      unsigned int GetCount() { return Count; }
-
-      bool VisitDeclRefExpr(DeclRefExpr *E) {
-        // Check for an occurrence of a variable whose declaration matches V.
-        if (V) {
-          if (ValueDecl *D = E->getDecl()) {
-            if (Lex.CompareDecl(D, V) == Lexicographic::Result::Equal)
-              ++Count;
-          }
-          return true;
-        }
-
-        // Check for an occurrence of a variable equal to LValue if LValue
-        // is a variable.
-        DeclRefExpr *Var = dyn_cast_or_null<DeclRefExpr>(LValue);
-        if (!Var)
-          return true;
-        if (Lex.CompareExpr(Var, E) == Lexicographic::Result::Equal)
-          ++Count;
-        return true;
-      }
-
-      bool VisitMemberExpr(MemberExpr *E) {
-        MemberExpr *M = dyn_cast_or_null<MemberExpr>(LValue);
-        if (!M)
-          return true;
-        if (Lex.CompareExprSemantically(E, M))
-          ++Count;
-        return true;
-      }
-
-      // Do not traverse the child of a BoundsValueExpr.
-      // If a BoundsValueExpr uses the expression LValue (or a variable whose
-      // declaration matches V), this should not count toward the total
-      // occurrence count of LValue or V in the expression.
-      // For example, for the expression BoundsValue(TempBinding(v)) + v, the
-      // total occurrence count of the variable v should be 1, not 2.
-      bool TraverseBoundsValueExpr(BoundsValueExpr *E) {
-        return true;
-      }
-  };
-
-  // VariableOccurrenceCount returns the number of occurrences of variable
-  // expressions in E whose Decls are equivalent to V.
-  unsigned int VariableOccurrenceCount(Sema &SemaRef, ValueDecl *V, Expr *E) {
-    if (!V)
-      return 0;
-    LValueCountHelper Counter(SemaRef, nullptr, V);
-    Counter.TraverseStmt(E);
-    return Counter.GetCount();
-  }
-
-  // VariableOccurrenceCount returns the number of occurrences of the Target
-  // variable expression in E.
-  unsigned int VariableOccurrenceCount(Sema &SemaRef, DeclRefExpr *Target,
-                                       Expr *E) {
-    return VariableOccurrenceCount(SemaRef, Target->getDecl(), E);
-  }
-
-  // LValueOccurrenceCount returns the number of occurrences of the LValue
-  // expression in E.
-  unsigned int LValueOccurrenceCount(Sema &SemaRef, Expr *LValue, Expr *E) {
-    LValueCountHelper Counter(SemaRef, LValue, nullptr);
-    Counter.TraverseStmt(E);
-    return Counter.GetCount();
-  }
-}
-
-namespace {
-  class FindLValueHelper : public RecursiveASTVisitor<FindLValueHelper> {
-    private:
-      Sema &SemaRef;
-      Lexicographic Lex;
-      Expr *LValue;
-      bool Found;
-
-    public:
-      FindLValueHelper(Sema &SemaRef, Expr *LValue) :
-        SemaRef(SemaRef),
-        Lex(Lexicographic(SemaRef.Context, nullptr)),
-        LValue(LValue),
-        Found(false) {}
-
-      bool IsFound() { return Found; }
-
-      bool VisitDeclRefExpr(DeclRefExpr *E) {
-        DeclRefExpr *V = dyn_cast_or_null<DeclRefExpr>(LValue);
-        if (!V)
-          return true;
-        if (Lex.CompareExpr(V, E) == Lexicographic::Result::Equal)
-          Found = true;
-        return true;
-      }
-
-      bool VisitMemberExpr(MemberExpr *E) {
-        MemberExpr *M = dyn_cast_or_null<MemberExpr>(LValue);
-        if (!M)
-          return true;
-        if (Lex.CompareExprSemantically(E, M))
-          Found = true;
-        return true;
-      }
-
-      // Do not traverse the child of a BoundsValueExpr.
-      // Expressions within a BoundsValueExpr should not be considered
-      // when looking for LValue.
-      // For example, for the expression E = BoundsValue(TempBinding(LValue)),
-      // FindLValue(LValue, E) should return false.
-      bool TraverseBoundsValueExpr(BoundsValueExpr *E) {
-        return true;
-      }
-
-      bool TraverseStmt(Stmt *S) {
-        if (Found)
-          return true;
-
-        return RecursiveASTVisitor<FindLValueHelper>::TraverseStmt(S);
-      }
-  };
-
-  // FindLValue returns true if the given lvalue expression occurs in E.
-  bool FindLValue(Sema &SemaRef, Expr *LValue, Expr *E) {
-    FindLValueHelper Finder(SemaRef, LValue);
-    Finder.TraverseStmt(E);
-    return Finder.IsFound();
-  }
-}
-
-namespace {
   using EqualExprTy = SmallVector<Expr *, 4>;
 
   // EqualExprsContainsExpr returns true if the set Exprs contains an
@@ -672,106 +472,6 @@ namespace {
       CollectVariableSetHelper Helper(SemaRef);
       Helper.TraverseStmt(E);
       return Helper.GetVariableList();
-  }
-}
-
-namespace {
-  class ReplaceLValueHelper : public TreeTransform<ReplaceLValueHelper> {
-    typedef TreeTransform<ReplaceLValueHelper> BaseTransform;
-    private:
-      Lexicographic Lex;
-
-      // The lvalue expression whose uses should be replaced in an expression.
-      Expr *LValue;
-
-      // The original value (if any) to replace uses of the lvalue with.
-      // If no original value is provided, an expression using the lvalue
-      // will be transformed into an invalid result.
-      Expr *OriginalValue;
-
-    public:
-      ReplaceLValueHelper(Sema &SemaRef, Expr *LValue, Expr *OriginalValue) :
-        BaseTransform(SemaRef),
-        Lex(Lexicographic(SemaRef.Context, nullptr)),
-        LValue(LValue),
-        OriginalValue(OriginalValue) { }
-
-      ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
-        DeclRefExpr *V = dyn_cast_or_null<DeclRefExpr>(LValue);
-        if (!V)
-          return E;
-        if (Lex.CompareExpr(V, E) == Lexicographic::Result::Equal) {
-          if (OriginalValue)
-            return OriginalValue;
-          else
-            return ExprError();
-        } else
-          return E;
-      }
-
-      ExprResult TransformMemberExpr(MemberExpr *E) {
-        MemberExpr *M = dyn_cast_or_null<MemberExpr>(LValue);
-        if (!M)
-          return E;
-        if (Lex.CompareExprSemantically(M, E)) {
-          if (OriginalValue)
-            return OriginalValue;
-          else
-            return ExprError();
-        } else
-          return E;
-      }
-
-      // Overriding TransformImplicitCastExpr is necessary since TreeTransform
-      // does not preserve implicit casts.
-      ExprResult TransformImplicitCastExpr(ImplicitCastExpr *E) {
-        // Replace V with OV (if applicable) in the subexpression of E.
-        ExprResult ChildResult = TransformExpr(E->getSubExpr());
-        if (ChildResult.isInvalid())
-          return ChildResult;
-
-        Expr *Child = ChildResult.get();
-        CastKind CK = E->getCastKind();
-
-        if (CK == CastKind::CK_LValueToRValue ||
-            CK == CastKind::CK_ArrayToPointerDecay)
-          // Only cast children of lvalue to rvalue casts to an rvalue if
-          // necessary.  The transformed child expression may no longer be
-          // an lvalue, depending on the original value.  For example, if x
-          // is transformed to the original value x + 1, it does not need to
-          // be cast to an rvalue.
-          return ExprCreatorUtil::EnsureRValue(SemaRef, Child);
-        else
-          return ExprCreatorUtil::CreateImplicitCast(SemaRef, Child,
-                                                     CK, E->getType());
-      }
-  };
-
-  // If an original value is provided, ReplaceLValue returns an expression
-  // that replaces all uses of the lvalue expression LValue in E with the
-  // original value.  If no original value is provided and E uses LValue,
-  // ReplaceLValue returns nullptr.
-  Expr *ReplaceLValue(Sema &SemaRef, Expr *E, Expr *LValue,
-                      Expr *OriginalValue,
-                      CheckedScopeSpecifier CSS) {
-    // Don't transform E if it does not use the value of LValue.
-    if (!FindLValue(SemaRef, LValue, E))
-      return E;
-
-    // If E uses the value of LValue, but no original value is provided,
-    // we know the result is null without needing to transform E.
-    if (!OriginalValue)
-      return nullptr;
-
-    // Account for checked scope information when transforming the expression.
-    Sema::CheckedScopeRAII CheckedScope(SemaRef, CSS);
-
-    Sema::ExprSubstitutionScope Scope(SemaRef); // suppress diagnostics
-    ExprResult R = ReplaceLValueHelper(SemaRef, LValue, OriginalValue).TransformExpr(E);
-    if (R.isInvalid())
-      return nullptr;
-    else
-      return R.get();
   }
 }
 
@@ -1366,6 +1066,177 @@ namespace {
         LowerOffsetVariable(LowerOffsetVariable), UpperOffsetVariable(UpperOffsetVariable) {
       }
 
+    private:
+      // EnsureEqualBitWidths modifies A or B if necessary so that A and B
+      // have the same bit width. The bit width of A and B will be the larger
+      // of the original bit widths of A and B.
+      //
+      // TODO: this method is part of a temporary solution to enable bounds
+      // checking to validate bounds such as (p, p + (len + 1) - 1). In the
+      // future, we should handle constant folding, commutativity, and
+      // associativity in bounds expressions in a more general way.
+      void EnsureEqualBitWidths(llvm::APSInt &A, llvm::APSInt &B) {
+        if (A.getBitWidth() < B.getBitWidth())
+          A = A.extOrTrunc(B.getBitWidth());
+        else if (B.getBitWidth() < A.getBitWidth())
+          B = B.extOrTrunc(A.getBitWidth());
+      }
+
+      // If E is of the form e +/- c, where c is a constant, GetRHSConstant
+      // returns true and sets the out parameter Constant.
+      // If E is of the form e + c, Constant will be set to c.
+      // If E is of the form e - c, Constant will be set to -c.
+      //
+      // TODO: this method is part of a temporary solution to enable bounds
+      // checking to validate bounds such as (p, p + (len + 1) - 1). In the
+      // future, we should handle constant folding, commutativity, and
+      // associativity in bounds expressions in a more general way.
+      bool GetRHSConstant(BinaryOperator *E, llvm::APSInt &Constant) {
+        if (!E->isAdditiveOp())
+          return false;
+        if (!E->getRHS()->isIntegerConstantExpr(Constant, S.Context))
+          return false;
+
+        bool Overflow;
+        Constant = ExprUtil::ConvertToSignedPointerWidth(S.Context, Constant, Overflow);
+        if (Overflow)
+          return false;
+        // Normalize the operation by negating the offset if necessary.
+        if (E->getOpcode() == BO_Sub) {
+          uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(0);
+          Constant = llvm::APSInt(PointerWidth, false).ssub_ov(Constant, Overflow);
+          if (Overflow)
+            return false;
+        }
+        llvm::APSInt ElemSize;
+        if (!ExprUtil::getReferentSizeInChars(S.Context, Base->getType(), ElemSize))
+          return false;
+        Constant = Constant.smul_ov(ElemSize, Overflow);
+        if (Overflow)
+          return false;
+
+        return true;
+      }
+
+      // ConstantFoldUpperOffset performs simple constant folding operations on
+      // UpperOffsetVariable. It attempts to extract a Variable part and a
+      // Constant part, based on the form of UpperOffsetVariable.
+      //
+      // If UpperOffsetVariable is of the form (e + a) + b:
+      //   Variable = e, Constant = a + b.
+      // If UpperOffsetVariable is of the form (e + a) - b:
+      //   Variable = e, Constant = a + -b.
+      // If UpperOffsetVariable is of the form (e - a) + b:
+      //   Variable = e, Constant = -a + b.
+      // If UpperOffsetVariable is of the form (e - a) - b:
+      //   Variable = e, Constant = -a + -b.
+      //
+      // Otherwise, ConstantFoldUpperOffset returns false, and:
+      //   Variable = UpperOffsetVariable, Constant = 0.
+      //
+      // TODO: this method is part of a temporary solution to enable bounds
+      // checking to validate bounds such as (p, p + (len + 1) - 1). In the
+      // future, we should handle constant folding, commutativity, and
+      // associativity in bounds expressions in a more general way.
+      bool ConstantFoldUpperOffset(Expr *&Variable, llvm::APSInt &Constant) {
+        if (!IsUpperOffsetVariable())
+          return false;
+
+        llvm::APSInt LHSConst;
+        llvm::APSInt RHSConst;
+        BinaryOperator *LHSBinOp = nullptr;
+
+        // UpperOffsetVariable must be of the form LHS +/- RHS.
+        BinaryOperator *RootBinOp =
+          dyn_cast<BinaryOperator>(UpperOffsetVariable->IgnoreParens());
+        if (!RootBinOp)
+          goto exit;
+        if (!RootBinOp->isAdditiveOp())
+          goto exit;
+
+        // UpperOffsetVariable must be of the form (e1 +/- e2) +/- RHS.
+        LHSBinOp = dyn_cast<BinaryOperator>(RootBinOp->getLHS()->IgnoreParens());
+        if (!LHSBinOp)
+          goto exit;
+        if (!LHSBinOp->isAdditiveOp())
+          goto exit;
+
+        // UpperOffsetVariable must be of the form (e1 +/- e2) +/- b,
+        // where b is a constant.
+        if (!GetRHSConstant(RootBinOp, RHSConst))
+          goto exit;
+
+        // UpperOffsetVariable must be of the form (e1 +/- a) +/- b,
+        // where a is a constant.
+        if (!GetRHSConstant(LHSBinOp, LHSConst))
+          goto exit;
+
+        Variable = LHSBinOp->getLHS();
+
+        bool Overflow;
+        EnsureEqualBitWidths(LHSConst, RHSConst);
+        Constant = LHSConst.sadd_ov(RHSConst, Overflow);
+        if (Overflow)
+          goto exit;
+        return true;
+
+        exit:
+          // Return (UpperOffsetVariable, 0).
+          Variable = UpperOffsetVariable;
+          uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(0);
+          Constant = llvm::APSInt(PointerWidth, false);
+          return false;
+      }
+
+      // CompareConstantFoldedUpperOffsets is a fallback method that attempts
+      // to prove that R.UpperOffsetVariable <= this.UpperOffsetVariable.
+      // It returns true if:
+      // 1. this and R are both variable-sized ranges, and:
+      // 2. The upper offsets of this and R can both be constant folded
+      //    according to the definition of ConstantFoldUpperOffset above, and:
+      // 3. The variable parts of the constant folded upper offsets are
+      //    equivalent, and:
+      // 4. The constant upper part of R <= the constant upper part of this.
+      //
+      // Since lexicographically comparing variable upper offsets will not
+      // account for any constant folding, this method can be used to compare
+      // upper offsets that are not lexicographically equivalent.
+      //
+      // TODO: this method is part of a temporary solution to enable bounds
+      // checking to validate bounds such as (p, p + (len + 1) - 1). In the
+      // future, we should handle constant folding, commutativity, and
+      // associativity in bounds expressions in a more general way.
+      bool CompareUpperOffsetsWithConstantFolding(BaseRange &R,
+                                                  EquivExprSets *EquivExprs) {
+        Expr *Variable = nullptr;
+        llvm::APSInt Constant;
+        bool ConstFolded = ConstantFoldUpperOffset(Variable, Constant);
+
+        Expr *RVariable = nullptr;
+        llvm::APSInt RConstant;
+        bool RConstFolded = R.ConstantFoldUpperOffset(RVariable, RConstant);
+
+        // If neither this nor R had their upper offsets constant folded, then
+        // the variable parts will be the respective upper offsets and the
+        // constant will both be 0. We already know the upper offsets are not
+        // equal from comparing them in CompareUpperOffsets, so there is no
+        // need for further comparison here.
+        if (!ConstFolded && !RConstFolded)
+          return false;
+
+        // The variable parts of both upper offsets must have been set
+        // by ConstantFoldUpperOffset in order to compare them.
+        if (!Variable || !RVariable)
+          return false;
+
+        if (!ExprUtil::EqualValue(S.Context, Variable, RVariable, EquivExprs))
+          return false;
+
+        EnsureEqualBitWidths(Constant, RConstant);
+        return RConstant <= Constant;
+      }
+
+    public:
       // Is R a subrange of this range?
       ProofResult InRange(BaseRange &R, ProofFailure &Cause, EquivExprSets *EquivExprs,
                           std::pair<ComparisonSet, ComparisonSet>& Facts) {
@@ -1378,7 +1249,7 @@ namespace {
           return ProofResult::Maybe;
         }
 
-        if (EqualValue(S.Context, Base, R.Base, EquivExprs)) {
+        if (ExprUtil::EqualValue(S.Context, Base, R.Base, EquivExprs)) {
           ProofResult LowerBoundsResult = CompareLowerOffsetsImpl(R, Cause, EquivExprs, Facts);
           ProofResult UpperBoundsResult = CompareUpperOffsetsImpl(R, Cause, EquivExprs, Facts);
 
@@ -1434,7 +1305,7 @@ namespace {
         FreeVariablePosition ObservedBasePos = CombineFreeVariablePosition(
             FreeVariablePosition::Observed, BasePos);
 
-        if (EqualValue(S.Context, Base, R.Base, EquivExprs)) {
+        if (ExprUtil::EqualValue(S.Context, Base, R.Base, EquivExprs)) {
           ProofResult LowerBoundsResult =
               CompareLowerOffsets(R, Cause, EquivExprs, Facts, FreeVariables);
           ProofResult UpperBoundsResult =
@@ -1518,6 +1389,16 @@ namespace {
             UpperOffsetVariable->getType()->isUnsignedIntegerType() && R.UpperOffsetConstant.getExtValue() == 0)
           return ProofResult::True;
 
+        // If we cannot prove that R.UpperOffset <= this.UpperOffset using
+        // lexicographic comparison of expressions, attempt to perform simple
+        // constant folding operations on the upper offsets.
+        // TODO: this method is part of a temporary solution to enable bounds
+        // checking to validate bounds such as (p, p + (len + 1) - 1). In the
+        // future, we should handle constant folding, commutativity, and
+        // associativity in bounds expressions in a more general way.
+        if (CompareUpperOffsetsWithConstantFolding(R, EquivExprs))
+          return ProofResult::True;
+
         return ProofResult::Maybe;
       }
 
@@ -1593,7 +1474,8 @@ namespace {
         // We also skip checking free variables if E1 or E2 is or contains a
         // non-arrow member expression, since the compiler currently does
         // not track equality information for member expressions.
-        if (ReadsMemoryViaPointer(E1, true) || ReadsMemoryViaPointer(E2, true))
+        if (ExprUtil::ReadsMemoryViaPointer(E1, true) ||
+            ExprUtil::ReadsMemoryViaPointer(E2, true))
           return false;
 
         bool HasFreeVariables = false;
@@ -1654,7 +1536,7 @@ namespace {
             continue;
           auto It = DstVars.begin();
           for (; It != DstVars.end(); It++) {
-            if (EqualValue(S.Context, SrcV, *It, EquivExprs))
+            if (ExprUtil::EqualValue(S.Context, SrcV, *It, EquivExprs))
               break;
           }
 
@@ -1694,7 +1576,7 @@ namespace {
           // Search InnerList for an expression that uses the value of SrcV.
           for (; SrcIndex < InnerListSize; ++SrcIndex) {
             Expr *E = InnerList[SrcIndex];
-            SrcVarCount = VariableOccurrenceCount(S, SrcV, E);
+            SrcVarCount = ExprUtil::VariableOccurrenceCount(S, SrcV, E);
             if (SrcVarCount > 0)
               break;
           }
@@ -1712,7 +1594,7 @@ namespace {
             for (auto I = DstVars.begin(); I != DstVars.end(); ++I) {
               DeclRefExpr *DstV = cast<DeclRefExpr>(*I);
               Expr *E = InnerList[DstIndex];
-              if (VariableOccurrenceCount(S, DstV, E) > 0)
+              if (ExprUtil::VariableOccurrenceCount(S, DstV, E) > 0)
                 return true;
             }
           }
@@ -1931,7 +1813,7 @@ namespace {
           if (Other->isIntegerConstantExpr(OffsetConstant, S.Context)) {
             // Widen the integer to the number of bits in a pointer.
             bool Overflow;
-            OffsetConstant = BoundsUtil::ConvertToSignedPointerWidth(S.Context, OffsetConstant, Overflow);
+            OffsetConstant = ExprUtil::ConvertToSignedPointerWidth(S.Context, OffsetConstant, Overflow);
             if (Overflow)
               goto exit;
             // Normalize the operation by negating the offset if necessary.
@@ -1941,7 +1823,7 @@ namespace {
                 goto exit;
             }
             llvm::APSInt ElemSize;
-            if (!BoundsUtil::getReferentSizeInChars(S.Context, Base->getType(), ElemSize))
+            if (!ExprUtil::getReferentSizeInChars(S.Context, Base->getType(), ElemSize))
                 goto exit;
             OffsetConstant = OffsetConstant.smul_ov(ElemSize, Overflow);
             if (Overflow)
@@ -1994,7 +1876,7 @@ namespace {
             else
               goto fallback_std_form;
             IsOpSigned = VariablePart->getType()->isSignedIntegerType();
-            ConstantPart = BoundsUtil::ConvertToSignedPointerWidth(Ctx, ConstantPart, Overflow);
+            ConstantPart = ExprUtil::ConvertToSignedPointerWidth(Ctx, ConstantPart, Overflow);
             if (Overflow)
               goto fallback_std_form;
           } else
@@ -2011,9 +1893,9 @@ namespace {
       } else {
         VariablePart = Offset;
         IsOpSigned = VariablePart->getType()->isSignedIntegerType();
-        if (!BoundsUtil::getReferentSizeInChars(Ctx, Base->getType(), ConstantPart))
+        if (!ExprUtil::getReferentSizeInChars(Ctx, Base->getType(), ConstantPart))
           return false;
-        ConstantPart = BoundsUtil::ConvertToSignedPointerWidth(Ctx, ConstantPart, Overflow);
+        ConstantPart = ExprUtil::ConvertToSignedPointerWidth(Ctx, ConstantPart, Overflow);
         if (Overflow)
           return false;
         return true;
@@ -2040,7 +1922,7 @@ namespace {
       if (!Offset1 && !Offset2)
         return false;
 
-      if (!EqualValue(Ctx, Base1, Base2, EquivExprs))
+      if (!ExprUtil::EqualValue(Ctx, Base1, Base2, EquivExprs))
         return false;
 
       llvm::APSInt ConstantPart1, ConstantPart2;
@@ -2052,7 +1934,7 @@ namespace {
       
       if (!CreatedStdForm1 || !CreatedStdForm2)
         return false;
-      if (!EqualValue(Ctx, VariablePart1, VariablePart2, EquivExprs))
+      if (!ExprUtil::EqualValue(Ctx, VariablePart1, VariablePart2, EquivExprs))
         return false;
       if (IsOpSigned1 != IsOpSigned2)
         return false;
@@ -2073,7 +1955,7 @@ namespace {
       if (!Offset1 && !Offset2)
         return false;
 
-      if (!EqualValue(Ctx, Base1, Base2, EquivExprs))
+      if (!ExprUtil::EqualValue(Ctx, Base1, Base2, EquivExprs))
         return false;
 
       llvm::APSInt ConstantPart1, ConstantPart2;
@@ -2090,7 +1972,7 @@ namespace {
       if (ConstantPart1 != ConstantPart2)
         return false;
 
-      if (EqualValue(Ctx, VariablePart1, VariablePart2, EquivExprs))
+      if (ExprUtil::EqualValue(Ctx, VariablePart1, VariablePart2, EquivExprs))
         return true;
       if (FactExists(Ctx, VariablePart1, VariablePart2, EquivExprs, Facts))
         return true;
@@ -2118,11 +2000,6 @@ namespace {
         }
       }
       return ExistsIn && !ExistsKill;
-    }
-
-    static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2, EquivExprSets *EquivExprs) {
-      Lexicographic::Result R = Lexicographic(Ctx, EquivExprs).CompareExpr(E1, E2);
-      return R == Lexicographic::Result::Equal;
     }
 
     // Convert the bounds expression `Bounds` to a range `R`. This function returns true
@@ -2161,7 +2038,7 @@ namespace {
 
           // If both of the offsets are constants, the range is considered constant-sized.
           // Otherwise, it is a variable-sized range.
-          if (EqualValue(S.Context, LowerBase, UpperBase, EquivExprs)) {
+          if (ExprUtil::EqualValue(S.Context, LowerBase, UpperBase, EquivExprs)) {
             R->SetBase(LowerBase);
             R->SetLowerConstant(LowerOffsetConstant);
             R->SetLowerVariable(LowerOffsetVariable);
@@ -2280,7 +2157,7 @@ namespace {
 
       bool Overflow;
       llvm::APSInt ElementSize;
-      if (!BoundsUtil::getReferentSizeInChars(S.Context, PtrBase->getType(), ElementSize))
+      if (!ExprUtil::getReferentSizeInChars(S.Context, PtrBase->getType(), ElementSize))
           return ProofResult::Maybe;
       if (Kind == BoundsCheckKind::BCK_NullTermRead || Kind == BoundsCheckKind::BCK_NullTermWriteAssign) {
         Overflow = ValidRange.AddToUpper(ElementSize);
@@ -2304,7 +2181,7 @@ namespace {
         llvm::APSInt IntVal;
         if (!Offset->isIntegerConstantExpr(IntVal, S.Context))
           return ProofResult::Maybe;
-        IntVal = BoundsUtil::ConvertToSignedPointerWidth(S.Context, IntVal, Overflow);
+        IntVal = ExprUtil::ConvertToSignedPointerWidth(S.Context, IntVal, Overflow);
         if (Overflow)
           return ProofResult::Maybe;
         IntVal = IntVal.smul_ov(ElementSize, Overflow);
@@ -2910,7 +2787,7 @@ namespace {
        for (auto InnerList = (*I).begin(); InnerList != (*I).end();
                                                          ++InnerList) {
          Expr *E = *InnerList;
-         if (!VariableOccurrenceCount(S, V, E))
+         if (!ExprUtil::VariableOccurrenceCount(S, V, E))
            ExprList.push_back(E);
        }
        if (ExprList.size() > 1)
@@ -3669,8 +3546,8 @@ namespace {
             // The bounds expression is for an interface type. Retype the
             // argument to the interface type.
             if (UsedIType) {
-              TypedArg = CreateExplicitCast(
-                ParamIType->getType(), CK_BitCast, Arg, true);
+              TypedArg = ExprCreatorUtil::CreateExplicitCast(
+                S, ParamIType->getType(), CK_BitCast, Arg, true);
             }
             SubstParamBounds = ExpandToRange(TypedArg,
                                     const_cast<BoundsExpr *>(SubstParamBounds));
@@ -3707,7 +3584,7 @@ namespace {
                               CheckingState &State) {
       // If the rvalue bounds for e cannot be determined,
       // e may be an lvalue (or may have unknown rvalue bounds).
-      BoundsExpr *ResultBounds = CreateBoundsUnknown();
+      BoundsExpr *ResultBounds = BoundsUtil::CreateBoundsUnknown(S);
 
       Expr *SubExpr = E->getSubExpr();
       CastKind CK = E->getCastKind();
@@ -3732,12 +3609,12 @@ namespace {
       // same value as e.
       if (CK == CastKind::CK_ArrayToPointerDecay) {
         // State.SameValue = { e } for lvalues with array type.
-        if (!CreatesNewObject(E) && CheckIsNonModifying(E))
+        if (!CreatesNewObject(E) && ExprUtil::CheckIsNonModifying(S, E))
           State.SameValue = { E };
       } else if (CK == CastKind::CK_LValueToRValue) {
         if (E->getType()->isArrayType()) {
-          // State.Same = { e } for lvalues with array type.
-          if (!CreatesNewObject(E) && CheckIsNonModifying(E))
+          // State.SameValue = { e } for lvalues with array type.
+          if (!CreatesNewObject(E) && ExprUtil::CheckIsNonModifying(S, E))
             State.SameValue = { E };
         }
         else {
@@ -3748,7 +3625,8 @@ namespace {
             // Otherwise, if e is nonmodifying and does not read memory via a
             // pointer, State.SameValue = { e }.  Otherwise, State.SameValue
             // is empty.
-            if (CheckIsNonModifying(E) && !ReadsMemoryViaPointer(E) &&
+            if (ExprUtil::CheckIsNonModifying(S, E) &&
+                !ExprUtil::ReadsMemoryViaPointer(E) &&
                 !CreatesNewObject(E))
               State.SameValue.push_back(E);
           }
@@ -3797,9 +3675,10 @@ namespace {
         // recompute any expressions computed to temporaries already.
         Expr *TempUse = CreateTemporaryUse(TempExpr);
 
-        Expr *SubExprAtNewType = CreateExplicitCast(E->getType(),
-                                                CastKind::CK_BitCast,
-                                                TempUse, true);
+        Expr *SubExprAtNewType =
+          ExprCreatorUtil::CreateExplicitCast(S, E->getType(),
+                                              CastKind::CK_BitCast,
+                                              TempUse, true);
 
         if (CK == CK_AssumePtrBounds)
           return ExpandToRange(SubExprAtNewType, E->getBoundsExpr());
@@ -3909,7 +3788,7 @@ namespace {
 
         // Update the checking state and result bounds.
         BoundsExpr *RHSBounds = IncDecResultBounds;
-        if (DeclRefExpr *V = VariableUtil::GetLValueVariable(S, SubExpr)) {
+        if (VariableUtil::GetLValueVariable(S, SubExpr)) {
           // Update SameValue to be the set of expressions that produce the
           // same value as the RHS `e1 +/- 1` (if the RHS could be created).
           UpdateSameValue(E, State.SameValue, State.SameValue, RHS);
@@ -4202,7 +4081,7 @@ namespace {
 
       State.SameValue = IntersectExprSets(StateTrueArm.SameValue,
                                           StateFalseArm.SameValue);
-      if (!CreatesNewObject(E) && CheckIsNonModifying(E) &&
+      if (!CreatesNewObject(E) && ExprUtil::CheckIsNonModifying(S, E) &&
           !EqualExprsContainsExpr(State.SameValue, E))
         State.SameValue.push_back(E);
 
@@ -4451,20 +4330,6 @@ namespace {
       return CBE;
     }
 
-    Expr *CreateExplicitCast(QualType Target, CastKind CK, Expr *E,
-                               bool isBoundsSafeInterface) {
-      // Avoid building up nested chains of no-op casts.
-      E = BoundsUtil::IgnoreRedundantCast(Context, CK, E);
-
-      // Synthesize some dummy type source source information.
-      TypeSourceInfo *DI = Context.getTrivialTypeSourceInfo(Target);
-      CStyleCastExpr *CE = CStyleCastExpr::Create(Context, Target,
-        ExprValueKind::VK_RValue, CK, E, nullptr, DI, SourceLocation(),
-        SourceLocation());
-      CE->setBoundsSafeInterface(isBoundsSafeInterface);
-      return CE;
-    }
-
     ImplicitCastExpr *CreateImplicitCast(QualType Target, CastKind CK,
                                          Expr *E) {
       return ImplicitCastExpr::Create(Context, Target, CK, E, nullptr,
@@ -4503,7 +4368,9 @@ namespace {
             // The bounds-safe interface argument is false because casts
             // to checked pointer types are always allowed by type checking.
             LowerBound =
-              CreateExplicitCast(ResultTy, CastKind::CK_BitCast, Base, false);
+              ExprCreatorUtil::CreateExplicitCast(S, ResultTy,
+                                                  CastKind::CK_BitCast,
+                                                  Base, false);
           } else {
             ResultTy = Base->getType();
             LowerBound = Base;
@@ -4514,7 +4381,9 @@ namespace {
               // between checked pointer types are always allowed by type
               // checking.
               LowerBound =
-                CreateExplicitCast(ResultTy, CastKind::CK_BitCast, Base, false);
+                ExprCreatorUtil::CreateExplicitCast(S, ResultTy,
+                                                    CastKind::CK_BitCast,
+                                                    Base, false);
             }
           }
           Expr *UpperBound =
@@ -4573,8 +4442,8 @@ namespace {
                      BoundsExpr *&LValueBounds,
                      BoundsExpr *&RValueBounds,
                      CheckingState &State) {
-      LValueBounds = CreateBoundsUnknown();
-      RValueBounds = CreateBoundsUnknown();
+      LValueBounds = BoundsUtil::CreateBoundsUnknown(S);
+      RValueBounds = BoundsUtil::CreateBoundsUnknown(S);
       if (E->isLValue())
         LValueBounds = CheckLValue(E, CSS, State);
       else if (E->isRValue())
@@ -4913,7 +4782,8 @@ namespace {
         const AbstractSet *A = Pair.first;
         BoundsExpr *Bounds = Pair.second;
         BoundsExpr *AdjustedBounds =
-          ReplaceLValueInBounds(Bounds, LValue, OriginalValue, CSS);
+          BoundsUtil::ReplaceLValueInBounds(S, Bounds, LValue,
+                                            OriginalValue, CSS);
         State.ObservedBounds[A] = AdjustedBounds;
 
         // If the assignment to LValue caused the observed bounds of A
@@ -4936,8 +4806,9 @@ namespace {
       if (HasTargetBounds)
         AdjustedSrcBounds = State.ObservedBounds[LValueAbstractSet];
       else
-        AdjustedSrcBounds = ReplaceLValueInBounds(SrcBounds, LValue,
-                                                  OriginalValue, CSS);
+        AdjustedSrcBounds =
+          BoundsUtil::ReplaceLValueInBounds(S, SrcBounds, LValue,
+                                            OriginalValue, CSS);
 
       // Record that E updates the observed bounds of LValue.
       if (HasTargetBounds)
@@ -4974,7 +4845,8 @@ namespace {
         ExprSetTy ExprList;
         for (auto InnerList = (*I).begin(); InnerList != (*I).end(); ++InnerList) {
           Expr *E = *InnerList;
-          Expr *AdjustedE = ReplaceLValue(S, E, LValue, OriginalValue, CSS);
+          Expr *AdjustedE = BoundsUtil::ReplaceLValue(S, E, LValue,
+                                                      OriginalValue, CSS);
           // Don't add duplicate expressions to any set in EquivExprs.
           if (AdjustedE && !EqualExprsContainsExpr(ExprList, AdjustedE))
             ExprList.push_back(AdjustedE);
@@ -5006,7 +4878,8 @@ namespace {
       Expr *OriginalSameValueVal = OriginalValueUsesLValue ? nullptr : OriginalValue;
       for (auto I = PrevSameValue.begin(); I != PrevSameValue.end(); ++I) {
         Expr *E = *I;
-        Expr *AdjustedE = ReplaceLValue(S, E, LValue, OriginalSameValueVal, CSS);
+        Expr *AdjustedE = BoundsUtil::ReplaceLValue(S, E, LValue,
+                                                    OriginalSameValueVal, CSS);
         // Don't add duplicate expressions to SameValue.
         if (AdjustedE && !EqualExprsContainsExpr(State.SameValue, AdjustedE))
           State.SameValue.push_back(AdjustedE);
@@ -5071,7 +4944,7 @@ namespace {
         CHKCBindTemporaryExpr *Temp = GetTempBinding(Src);
         if (Temp)
           State.TargetSrcEquality[Target] = CreateTemporaryUse(Temp);
-        else if (CheckIsNonModifying(Src))
+        else if (ExprUtil::CheckIsNonModifying(S, Src))
           State.TargetSrcEquality[Target] = Src;
       }
 
@@ -5084,23 +4957,6 @@ namespace {
         State.SameValue.push_back(Target);
       if (State.SameValue.size() > 1)
         State.EquivExprs.push_back(State.SameValue);
-    }
-
-    // If Bounds uses the value of LValue and an original value is provided,
-    // ReplaceLValueInBounds will return a bounds expression where the uses
-    // of LValue are replaced with the original value.
-    // If Bounds uses the value of LValue and no original value is provided,
-    // ReplaceLValueInBounds will return bounds(unknown).
-    BoundsExpr *ReplaceLValueInBounds(BoundsExpr *Bounds, Expr *LValue,
-                                      Expr *OriginalValue,
-                                      CheckedScopeSpecifier CSS) {
-      Expr *Replaced = ReplaceLValue(S, Bounds, LValue, OriginalValue, CSS);
-      if (!Replaced)
-        return CreateBoundsUnknown();
-      else if (BoundsExpr *AdjustedBounds = dyn_cast<BoundsExpr>(Replaced))
-        return AdjustedBounds;
-      else
-        return CreateBoundsUnknown();
     }
 
     // UpdateSameValue updates the set SameValue of expressions that produce
@@ -5163,7 +5019,7 @@ namespace {
       }
 
       // If Val is a non-modifying expression, SameValue contains Val.
-      else if (CheckIsNonModifying(Val))
+      else if (ExprUtil::CheckIsNonModifying(S, Val))
         SameValue.push_back(Val);
 
       // If Val is a modifying expression, use the SameValue_i sets of
@@ -5177,11 +5033,11 @@ namespace {
           // For any modifying subexpression SubExpr_i of e, try to set
           // ValPrime to a nonmodifying expression from the set SameValue_i
           // of expressions that produce the same value as SubExpr_i.
-          if (!CheckIsNonModifying(SubExpr_i)) {
+          if (!ExprUtil::CheckIsNonModifying(S, SubExpr_i)) {
             ExprSetTy SameValue_i = Pair.second;
             for (auto I = SameValue_i.begin(); I != SameValue_i.end(); ++I) {
               Expr *E_i = *I;
-              if (CheckIsNonModifying(E_i)) {
+              if (ExprUtil::CheckIsNonModifying(S, E_i)) {
                 ValPrime = E_i;
                 break;
               }
@@ -5221,8 +5077,8 @@ namespace {
                            bool &OriginalValueUsesLValue) {
       // Check if Src has an inverse expression with respect to LValue.
       Expr *IV = nullptr;
-      if (IsInvertible(LValue, Src))
-        IV = Inverse(LValue, Target, Src);
+      if (InverseUtil::IsInvertible(S, LValue, Src))
+        IV = InverseUtil::Inverse(S, LValue, Target, Src);
       if (IV) {
         // If Src has an inverse with respect to LValue, then the original
         // value (the inverse) must use the value of LValue.
@@ -5255,7 +5111,7 @@ namespace {
         Lexicographic Lex(S.Context, nullptr);
         Expr *E = Lex.IgnoreValuePreservingOperations(S.Context, *I);
         DeclRefExpr *W = VariableUtil::GetRValueVariable(S, E);
-        if (W != nullptr && !EqualValue(S.Context, V, W, nullptr)) {
+        if (W != nullptr && !ExprUtil::EqualValue(S.Context, V, W, nullptr)) {
           // Expression equality in EquivExprs does not account for types, so
           // expressions in the same set in EquivExprs may not have the same
           // type. The original value of Src with respect to v must have a type
@@ -5270,306 +5126,6 @@ namespace {
         }
       }
 
-      return nullptr;
-    }
-
-    bool IsInvertible(Expr *LValue, Expr *E) {
-      if (!E)
-        return false;
-
-      E = E->IgnoreParens();
-      Expr *RValueChild = ExprUtil::GetRValueCastChild(S, E);
-      if (RValueChild && EqualValue(S.Context, LValue, RValueChild, nullptr))
-        return true;
-
-      switch (E->getStmtClass()) {
-        case Expr::UnaryOperatorClass:
-          return IsUnaryOperatorInvertible(LValue, cast<UnaryOperator>(E));
-        case Expr::BinaryOperatorClass:
-          return IsBinaryOperatorInvertible(LValue, cast<BinaryOperator>(E));
-        case Expr::ImplicitCastExprClass:
-        case Expr::CStyleCastExprClass:
-        case Expr::BoundsCastExprClass:
-          return IsCastExprInvertible(LValue, cast<CastExpr>(E));
-        default:
-          return false;
-      }
-    }
-
-    // Returns true if a unary operator is invertible with respect to LValue.
-    bool IsUnaryOperatorInvertible(Expr *LValue, UnaryOperator *E) {
-      Expr *SubExpr = E->getSubExpr()->IgnoreParens();
-      UnaryOperatorKind Op = E->getOpcode();
-
-      if (Op == UnaryOperatorKind::UO_AddrOf) {
-        // &*e1 is invertible with respect to LValue if e1 is invertible with
-        // respect to LValue.
-        if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
-          if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_Deref)
-            return IsInvertible(LValue, UnarySubExpr->getSubExpr());
-        }
-        // &e1[e2] is invertible with respect to LValue if e1 + e2 is invertible
-        // with respect to LValue.
-        else if (ArraySubscriptExpr *ArraySubExpr = dyn_cast<ArraySubscriptExpr>(SubExpr)) {
-          Expr *Base = ArraySubExpr->getBase();
-          Expr *Index = ArraySubExpr->getIdx();
-          BinaryOperator Sum(Context, Base, Index,
-                             BinaryOperatorKind::BO_Add,
-                             Base->getType(),
-                             Base->getValueKind(),
-                             Base->getObjectKind(),
-                             SourceLocation(),
-                             FPOptionsOverride());
-          return IsInvertible(LValue, &Sum);
-        }
-      }
-
-      // *&e1 is invertible with respect to LValue if e1 is invertible with
-      // respect to LValue.
-      if (Op == UnaryOperatorKind::UO_Deref) {
-        if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
-          if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_AddrOf)
-            return IsInvertible(LValue, UnarySubExpr->getSubExpr());
-        }
-      }
-
-      // ~e1, -e1, and +e1 are invertible with respect to LValue if e1 is
-      // invertible with respect to LValue.
-      if (Op == UnaryOperatorKind::UO_Not ||
-          Op == UnaryOperatorKind::UO_Minus ||
-          Op == UnaryOperatorKind::UO_Plus)
-        return IsInvertible(LValue, SubExpr);
-
-      return false;
-    }
-
-    // Returns true if a binary operator is invertible with respect to LValue.
-    bool IsBinaryOperatorInvertible(Expr *LValue, BinaryOperator *E) {
-      BinaryOperatorKind Op = E->getOpcode();
-      if (Op != BinaryOperatorKind::BO_Add &&
-          Op != BinaryOperatorKind::BO_Sub &&
-          Op != BinaryOperatorKind::BO_Xor)
-        return false;
-
-      Expr *LHS = E->getLHS();
-      Expr *RHS = E->getRHS();
-
-      // Addition and subtraction operations must be for checked pointer
-      // arithmetic or unsigned integer arithmetic.
-      if (Op == BinaryOperatorKind::BO_Add || Op == BinaryOperatorKind::BO_Sub) {
-        // The operation is checked pointer arithmetic if either the LHS
-        // or the RHS have checked pointer type.
-        bool IsCheckedPtrArithmetic = LHS->getType()->isCheckedPointerType() ||
-                                      RHS->getType()->isCheckedPointerType();
-        if (!IsCheckedPtrArithmetic) {
-          // The operation is unsigned integer arithmetic if both the LHS
-          // and the RHS have unsigned integer type.
-          bool IsUnsignedArithmetic = LHS->getType()->isUnsignedIntegerType() &&
-                                      RHS->getType()->isUnsignedIntegerType();
-          if (!IsUnsignedArithmetic)
-            return false;
-        }
-      }
-
-      // LValue must appear in exactly one subexpression of E and that
-      // subexpression must be invertible with respect to LValue.
-      std::pair<Expr *, Expr*> Pair = SplitByLValueCount(LValue, LHS, RHS);
-      if (!Pair.first)
-        return false;
-      Expr *E_LValue = Pair.first, *E_NotLValue = Pair.second;
-      if (!IsInvertible(LValue, E_LValue))
-        return false;
-
-      // The subexpression not containing LValue must be nonmodifying
-      // and cannot be or contain a pointer dereference, member
-      // reference, or indirect member reference.
-      if (!CheckIsNonModifying(E_NotLValue) ||
-          ReadsMemoryViaPointer(E_NotLValue, true))
-        return false;
-
-      return true;
-    }
-
-    // Returns true if a cast expression is invertible with respect to LValue.
-    // A cast expression (T1)e1 is invertible if T1 is a bit-preserving
-    // or widening cast and e1 is invertible.
-    bool IsCastExprInvertible(Expr *LValue, CastExpr *E) {
-      QualType T1 = E->getType();
-      QualType T2 = E->getSubExpr()->getType();
-      uint64_t Size1 = S.Context.getTypeSize(T1);
-      uint64_t Size2 = S.Context.getTypeSize(T2);
-
-      // If T1 is a smaller type than T2, then (T1)e1 is a narrowing cast.
-      if (Size1 < Size2)
-        return false;
-
-      switch (E->getCastKind()) {
-        // Bit-preserving casts
-        case CastKind::CK_BitCast:
-        case CastKind::CK_LValueBitCast:
-        case CastKind::CK_NoOp:
-        case CastKind::CK_ArrayToPointerDecay:
-        case CastKind::CK_FunctionToPointerDecay:
-        case CastKind::CK_NullToPointer:
-        // Widening casts
-        case CastKind::CK_BooleanToSignedIntegral:
-        case CastKind::CK_IntegralToFloating:
-          return IsInvertible(LValue, E->getSubExpr());
-        // Bounds casts may be invertible.
-        case CastKind::CK_DynamicPtrBounds:
-        case CastKind::CK_AssumePtrBounds: {
-          CHKCBindTemporaryExpr *Temp =
-            dyn_cast<CHKCBindTemporaryExpr>(E->getSubExpr());
-          assert(Temp);
-          return IsInvertible(LValue, Temp->getSubExpr());
-        }
-        // Potentially non-narrowing casts, depending on type sizes
-        case CastKind::CK_IntegralToPointer:
-        case CastKind::CK_PointerToIntegral:
-        case CastKind::CK_IntegralCast:
-          return Size1 >= Size2 && IsInvertible(LValue, E->getSubExpr());
-        // All other casts are considered narrowing.
-        default:
-          return false;
-      }
-    }
-
-    // Inverse repeatedly applies mathematical rules to the expression E to
-    // get the inverse of E with respect to the lvalue expression LValue and
-    // expression F. If rules cannot be applied to E, Inverse returns nullptr.
-    Expr *Inverse(Expr *LValue, Expr *F, Expr *E) {
-      if (!F)
-        return nullptr;
-
-      E = E->IgnoreParens();
-      Expr *RValueChild = ExprUtil::GetRValueCastChild(S, E);
-      if (RValueChild && EqualValue(S.Context, LValue, RValueChild, nullptr))
-        return F;
-
-      switch (E->getStmtClass()) {
-        case Expr::UnaryOperatorClass:
-          return UnaryOperatorInverse(LValue, F, cast<UnaryOperator>(E));
-        case Expr::BinaryOperatorClass:
-          return BinaryOperatorInverse(LValue, F, cast<BinaryOperator>(E));
-        case Expr::ImplicitCastExprClass:
-        case Expr::CStyleCastExprClass:
-        case Expr::BoundsCastExprClass:
-          return CastExprInverse(LValue, F, cast<CastExpr>(E));
-        default:
-          return nullptr;
-      }
-
-      return nullptr;
-    }
-
-    // Returns the inverse of a unary operator.
-    Expr *UnaryOperatorInverse(Expr *LValue, Expr *F, UnaryOperator *E) {
-      Expr *SubExpr = E->getSubExpr()->IgnoreParens();
-      UnaryOperatorKind Op = E->getOpcode();
-      
-      if (Op == UnaryOperatorKind::UO_AddrOf) {
-        // Inverse(f, &*e1) = Inverse(f, e1)
-        if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
-          if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_Deref)
-            return Inverse(LValue, F, UnarySubExpr->getSubExpr());
-        }
-        // Inverse(f, &e1[e2]) = Inverse(f, e1 + e2)
-        else if (ArraySubscriptExpr *ArraySubExpr = dyn_cast<ArraySubscriptExpr>(SubExpr)) {
-          Expr *Base = ArraySubExpr->getBase();
-          Expr *Index = ArraySubExpr->getIdx();
-          BinaryOperator Sum(Context, Base, Index,
-                             BinaryOperatorKind::BO_Add,
-                             Base->getType(),
-                             Base->getValueKind(),
-                             Base->getObjectKind(),
-                             SourceLocation(),
-                             FPOptionsOverride());
-          return Inverse(LValue, F, &Sum);
-        }
-      }
-
-      // Inverse(f, *&e1) = Inverse(f, e1)
-      if (Op == UnaryOperatorKind::UO_Deref) {
-        if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
-          if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_AddrOf)
-            return Inverse(LValue, F, UnarySubExpr->getSubExpr());
-        }
-      }
-
-      // Inverse(f, ~e1) = Inverse(~f, e1)
-      // Inverse(f, -e1) = Inverse(-f, e1)
-      // Inverse(f, +e1) = Inverse(+f, e1)
-      Expr *Child = ExprCreatorUtil::EnsureRValue(S, F);
-      Expr *F1 = UnaryOperator::Create(S.Context, Child, Op,
-                                       E->getType(),
-                                       E->getValueKind(),
-                                       E->getObjectKind(),
-                                       SourceLocation(),
-                                       E->canOverflow(),
-                                       FPOptionsOverride());
-      return Inverse(LValue, F1, SubExpr);
-    }
-
-    // Returns the inverse of a binary operator.
-    Expr *BinaryOperatorInverse(Expr *LValue, Expr *F, BinaryOperator *E) {
-      std::pair<Expr *, Expr*> Pair = SplitByLValueCount(LValue, E->getLHS(), E->getRHS());
-      if (!Pair.first)
-        return nullptr;
-
-      Expr *E_LValue = Pair.first, *E_NotLValue = Pair.second;
-      BinaryOperatorKind Op = E->getOpcode();
-      Expr *F1 = nullptr;
-
-      switch (Op) {
-        case BinaryOperatorKind::BO_Add:
-          // Inverse(f, e1 + e2) = Inverse(f - e_notlvalue, e_lvalue)
-          F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotLValue, BinaryOperatorKind::BO_Sub);
-          break;
-        case BinaryOperatorKind::BO_Sub: {
-          if (E_LValue == E->getLHS())
-            // Inverse(f, e_lvalue - e_notlvalue) = Inverse(f + e_notlvalue, e_lvalue)
-            F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotLValue, BinaryOperatorKind::BO_Add);
-          else
-            // Inverse(f, e_notlvalue - e_lvalue) => Inverse(e_notlvalue - f, e_lvalue)
-            F1 = ExprCreatorUtil::CreateBinaryOperator(S, E_NotLValue, F, BinaryOperatorKind::BO_Sub);
-          break;
-        }
-        case BinaryOperatorKind::BO_Xor:
-          // Inverse(f, e1 ^ e2) = Inverse(lvalue, f ^ e_notlvalue, e_lvalue)
-          F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotLValue, BinaryOperatorKind::BO_Xor);
-          break;
-        default:
-          llvm_unreachable("unexpected binary operator kind");
-      }
-
-      return Inverse(LValue, F1, E_LValue);
-    }
-
-    // Returns the inverse of a cast expression.  If e1 has type T2,
-    // Inverse(f, (T1)e1) = Inverse((T2)f, e1) (assuming that (T1) is
-    // not a narrowing cast).
-    Expr *CastExprInverse(Expr *LValue, Expr *F, CastExpr *E) {
-      QualType T2 = E->getSubExpr()->getType();
-      switch (E->getStmtClass()) {
-        case Expr::ImplicitCastExprClass: {
-          Expr *F1 = CreateImplicitCast(T2, E->getCastKind(), F);
-          return Inverse(LValue, F1, E->getSubExpr());
-        }
-        case Expr::CStyleCastExprClass: {
-          Expr *F1 = CreateExplicitCast(T2, E->getCastKind(), F,
-                                        E->isBoundsSafeInterface());
-          return Inverse(LValue, F1, E->getSubExpr());
-        }
-        case Expr::BoundsCastExprClass: {
-          CHKCBindTemporaryExpr *Temp = dyn_cast<CHKCBindTemporaryExpr>(E->getSubExpr());
-          assert(Temp);
-          Expr *F1 = CreateExplicitCast(T2, CastKind::CK_BitCast, F,
-                                        E->isBoundsSafeInterface());
-          return Inverse(LValue, F1, Temp->getSubExpr());
-        }
-        default:
-          llvm_unreachable("unexpected cast kind");
-      }
       return nullptr;
     }
 
@@ -5620,7 +5176,7 @@ namespace {
         const AbstractSet *A = Pair.first;
         BoundsExpr *B = Pair.second;
         auto It = Context2.find(A);
-        if (It == Context2.end() || !EqualValue(Context, B, It->second, nullptr)) {
+        if (It == Context2.end() || !ExprUtil::EqualValue(Context, B, It->second, nullptr)) {
           Difference[A] = B;
         }
       }
@@ -5638,7 +5194,7 @@ namespace {
         auto It = Context2.find(Pair.first);
         if (It == Context2.end())
           return false;
-        if (!EqualValue(Context, Pair.second, It->second, nullptr))
+        if (!ExprUtil::EqualValue(Context, Pair.second, It->second, nullptr))
           return false;
       }
 
@@ -5723,7 +5279,7 @@ namespace {
         ExprSetTy F = *OuterList;
         for (auto InnerList = F.begin(); InnerList != F.end(); ++InnerList) {
           Expr *E1 = *InnerList;
-          if (EqualValue(S.Context, E, E1, nullptr)) {
+          if (ExprUtil::EqualValue(S.Context, E, E1, nullptr)) {
             ValuePreservingE = E1;
             return F;
           }
@@ -5798,71 +5354,6 @@ namespace {
       }
     }
 
-    // Returns true if the expression e reads memory via a pointer.
-    // IncludeAllMemberExprs is used to modify the behavior to return true if e
-    // is or contains a pointer dereference, member reference, or indirect
-    // member reference (including e1.f which may not read memory via a
-    // pointer). Returns false if E is nullptr.
-    static bool ReadsMemoryViaPointer(Expr *E, bool IncludeAllMemberExprs = false) {
-      if (!E)
-        return false;
-
-      E = E->IgnoreParens();
-
-      switch (E->getStmtClass()) {
-        case Expr::UnaryOperatorClass: {
-          UnaryOperator *UO = cast<UnaryOperator>(E);
-          // *e reads memory via a pointer.
-          return UO->getOpcode() == UnaryOperatorKind::UO_Deref;
-        }
-        // e1[e2] is a synonym for *(e1 + e2), which reads memory via a pointer.
-        case Expr::ArraySubscriptExprClass:
-          return true;
-        case Expr::MemberExprClass: {
-          if (IncludeAllMemberExprs)
-            return true;
-
-          MemberExpr *ME = cast<MemberExpr>(E);
-          // e1->f reads memory via a pointer.
-          if (ME->isArrow())
-            return true;
-          // e1.f reads memory via a pointer if and only if e1 reads
-          // memory via a pointer.
-          else
-            return ReadsMemoryViaPointer(ME->getBase(), IncludeAllMemberExprs);
-        }
-        default: {
-          for (auto I = E->child_begin(); I != E->child_end(); ++I) {
-            if (Expr *SubExpr = dyn_cast<Expr>(*I)) {
-              if (ReadsMemoryViaPointer(SubExpr, IncludeAllMemberExprs))
-                return true;
-            }
-          }
-          return false;
-        }
-      }
-    }
-
-    // If LValue appears exactly once in Ei and does not appear in Ej,
-    // SplitByLValueCount returns the pair (Ei, Ej).  Otherwise, it returns
-    // an empty pair.
-    std::pair<Expr *, Expr *> SplitByLValueCount(Expr *LValue,
-                                                 Expr *E1, Expr *E2) {
-      std::pair<Expr *, Expr *> Pair;
-      unsigned int Count1 = LValueOccurrenceCount(S, LValue, E1);
-      unsigned int Count2 = LValueOccurrenceCount(S, LValue, E2);
-      if (Count1 == 1 && Count2 == 0) {
-        // LValue appears once in E1 and does not appear in E2.
-        Pair.first = E1;
-        Pair.second = E2;
-      } else if (Count2 == 1 && Count1 == 0) {
-        // LValue appears once in E2 and does not appear in E1.
-        Pair.first = E2;
-        Pair.second = E1;
-      }
-      return Pair;
-    }
-
     // SynthesizeMembers modifies the set AbstractSets to include AbstractSets
     // for member expressions whose target bounds use the value of the member
     // expression M that is being modified via an assignment.
@@ -5931,7 +5422,7 @@ namespace {
             ExprCreatorUtil::CreateMemberExpr(S, Base, F, ME->isArrow());
           ++S.CheckedCStats.NumSynthesizedMemberExprs;
           BoundsExpr *Bounds = MemberExprTargetBounds(BaseF, CSS);
-          if (FindLValue(S, M, Bounds)) {
+          if (ExprUtil::FindLValue(S, M, Bounds)) {
             const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(BaseF);
             AbstractSets.insert(A);
             ++S.CheckedCStats.NumSynthesizedMemberAbstractSets;
@@ -5940,17 +5431,6 @@ namespace {
       }
 
       SynthesizeMembers(Base, M, CSS, AbstractSets);
-    }
-
-    // CheckIsNonModifying suppresses diagnostics while checking
-    // whether e is a non-modifying expression.
-    bool CheckIsNonModifying(Expr *E) {
-      return S.CheckIsNonModifying(E, Sema::NonModifyingContext::NMC_Unknown,
-                                   Sema::NonModifyingMessage::NMM_None);
-    }
-
-    BoundsExpr *CreateBoundsUnknown() {
-      return Context.getPrebuiltBoundsUnknown();
     }
 
     // This describes an empty range. We use this where semantically the value
@@ -5962,19 +5442,19 @@ namespace {
     // bounds(e1, e2), because in these cases we need to do further analysis to
     // understand that the upper and lower bounds of the range are equal.
     BoundsExpr *CreateBoundsEmpty() {
-      return CreateBoundsUnknown();
+      return BoundsUtil::CreateBoundsUnknown(S);
     }
 
     // This describes that this is an expression we will never
     // be able to infer bounds for.
     BoundsExpr *CreateBoundsAlwaysUnknown() {
-      return CreateBoundsUnknown();
+      return BoundsUtil::CreateBoundsUnknown(S);
     }
 
     // If we have an error in our bounds inference that we can't
     // recover from, bounds(unknown) is our error value
     BoundsExpr *CreateBoundsInferenceError() {
-      return CreateBoundsUnknown();
+      return BoundsUtil::CreateBoundsUnknown(S);
     }
 
     // This describes the bounds of null, which is compatible with every
@@ -5998,7 +5478,7 @@ namespace {
     // at the moment, but we want to re-visit these parts of inference
     // and in some cases compute bounds.
     BoundsExpr *CreateBoundsNotAllowedYet() {
-      return CreateBoundsUnknown();
+      return BoundsUtil::CreateBoundsUnknown(S);
     }
 
     BoundsExpr *CreateSingleElementBounds(Expr *LowerBounds) {
@@ -6152,7 +5632,7 @@ namespace {
           return CreateTypeBasedBounds(UO, UO->getType(),
                                                   false, false);
         else
-          return CreateBoundsUnknown();
+          return BoundsUtil::CreateBoundsUnknown(S);
       }
 
       // Unary operators other than pointer dereferences do not have lvalue
@@ -6292,7 +5772,8 @@ namespace {
         };
 
         if (TargetTy != E->getType())
-          Base = CreateExplicitCast(TargetTy, CK_BitCast, Base, true);
+          Base = ExprCreatorUtil::CreateExplicitCast(S, TargetTy, CK_BitCast,
+                                                     Base, true);
       } else
         assert(Ty == E->getType());
 
@@ -6798,10 +6279,8 @@ Expr *Sema::MakeAssignmentImplicitCastExplicit(Expr *E) {
   if (isUsualUnaryConversion)
     return E;
 
-  PrepassInfo Info;
-  std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
-  return CheckBoundsDeclarations(*this, Info, EmptyFacts).CreateExplicitCast(TargetTy, CK, SE,
-                                                             ICE->isBoundsSafeInterface());
+  return ExprCreatorUtil::CreateExplicitCast(*this, TargetTy, CK, SE,
+                                             ICE->isBoundsSafeInterface());
 }
 
 void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
@@ -6828,6 +6307,7 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
   CFG::BuildOptions BO;
   BO.AddLifetime = true;
+  BO.AddNullStmt = true;
   std::unique_ptr<CFG> Cfg = CFG::buildCFG(nullptr, Body, &getASTContext(), BO);
   CheckBoundsDeclarations Checker(*this, Info, Body, Cfg.get(), FD->getBoundsExpr(), EmptyFacts);
   if (Cfg != nullptr) {
