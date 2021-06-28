@@ -65,8 +65,8 @@ public:
   void printStats(const std::set<std::string> &F, llvm::raw_ostream &O,
                   bool OnlySummary = false, bool JsonFormat = false);
 
-  void print_aggregate_stats(const std::set<std::string> &F,
-                             llvm::raw_ostream &O);
+  void printAggregateStats(const std::set<std::string> &F,
+                           llvm::raw_ostream &O);
 
   // Populate Variables, VarDeclToStatement, RVariables, and DepthMap with
   // AST data structures that correspond do the data stored in PDMap and
@@ -79,12 +79,14 @@ public:
   void exitCompilationUnit();
 
   bool hasPersistentConstraints(clang::Expr *E, ASTContext *C) const;
-  const CSetBkeyPair &getPersistentConstraints(clang::Expr *E, ASTContext *C) const;
+  const CSetBkeyPair &getPersistentConstraints(clang::Expr *E,
+                                               ASTContext *C) const;
   void storePersistentConstraints(clang::Expr *E, const CSetBkeyPair &Vars,
                                   ASTContext *C);
   // Get only constraint vars from the persistent contents of the
   // expression E.
-  const CVarSet &getPersistentConstraintsSet(clang::Expr *E, ASTContext *C) const;
+  const CVarSet &getPersistentConstraintsSet(clang::Expr *E,
+                                             ASTContext *C) const;
   // Store CVarSet with an empty set of BoundsKey into persistent contents.
   void storePersistentConstraints(clang::Expr *E, const CVarSet &Vars,
                                   ASTContext *C);
@@ -109,9 +111,7 @@ public:
 
   PerformanceStats &getPerfStats() { return PerfS; }
 
-  ConstraintsInfo &getInterimConstraintState() {
-    return CState;
-  }
+  ConstraintsInfo &getInterimConstraintState() { return CState; }
   bool computeInterimConstraintState(const std::set<std::string> &FilePaths);
 
   const ExternalFunctionMapType &getExternFuncDefFVMap() const {
@@ -142,7 +142,7 @@ public:
   bool seenTypedef(PersistentSourceLoc PSL);
 
   void addTypedef(PersistentSourceLoc PSL, bool CanRewriteDef, TypedefDecl *TD,
-                  ASTContext& C);
+                  ASTContext &C);
 
 private:
   // List of constraint variables for declarations, indexed by their location in
@@ -195,7 +195,7 @@ private:
   // For each call to a generic function, remember how the type parameters were
   // instantiated so they can be inserted during rewriting.
   TypeParamBindingsT TypeParamBindings;
-  
+
   // Special-case handling for decl introductions. For the moment this covers:
   //  * void-typed variables
   //  * va_list-typed variables
@@ -221,7 +221,6 @@ private:
   // For each pointer type in the declaration of D, add a variable to the
   // constraint system for that pointer type.
   void addVariable(clang::DeclaratorDecl *D, clang::ASTContext *AstContext);
-
 };
 
 #endif

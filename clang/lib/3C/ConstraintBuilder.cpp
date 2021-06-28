@@ -173,8 +173,8 @@ public:
     QualType DstT = C->getType();
     if (!isCastSafe(DstT, SrcT) && !Info.hasPersistentConstraints(C, Context)) {
       auto CVs = CB.getExprConstraintVarsSet(C->getSubExpr());
-      std::string Rsn = "Cast from " + SrcT.getAsString() +  " to " +
-                        DstT.getAsString();
+      std::string Rsn =
+          "Cast from " + SrcT.getAsString() + " to " + DstT.getAsString();
       CB.constraintAllCVarsToWild(CVs, Rsn, C);
     }
     return true;
@@ -236,8 +236,7 @@ public:
         }
         std::set<unsigned> PrintfStringArgIndices;
         if (TFD != nullptr)
-          getPrintfStringArgIndices(E, TFD, *Context,
-                                    PrintfStringArgIndices);
+          getPrintfStringArgIndices(E, TFD, *Context, PrintfStringArgIndices);
         // and for each arg to the function ...
         if (FVConstraint *TargetFV = dyn_cast<FVConstraint>(TmpC)) {
           unsigned I = 0;
@@ -267,7 +266,8 @@ public:
               // insert a cast because this unifies the checked type for the
               // parameter and the argument.
               ConsAction CA = Rewriter::isRewritable(A->getExprLoc())
-                              ? Wild_to_Safe : Same_to_Same;
+                                  ? Wild_to_Safe
+                                  : Same_to_Same;
               // Do not handle bounds key here because we will be
               // doing context-sensitive assignment next.
               constrainConsVarGeq(ParameterDC, ArgumentConstraints.first, CS,
@@ -277,10 +277,9 @@ public:
                 auto *PVD = TFD->getParamDecl(I);
                 auto &CSBI = Info.getABoundsInfo().getCtxSensBoundsHandler();
                 // Here, we need to handle context-sensitive assignment.
-                CSBI.handleContextSensitiveAssignment(PL, PVD, ParameterDC, A,
-                                                      ArgumentConstraints.first,
-                                                      ArgumentConstraints.second,
-                                                      Context, &CB);
+                CSBI.handleContextSensitiveAssignment(
+                    PL, PVD, ParameterDC, A, ArgumentConstraints.first,
+                    ArgumentConstraints.second, Context, &CB);
               }
             } else {
               // The argument passed to a function ith varargs; make it wild
@@ -388,8 +387,8 @@ private:
   }
 
   // Constraint helpers.
-  void constraintInBodyVariable(Expr *e, ConstAtom *CAtom) {
-    CVarSet Var = CB.getExprConstraintVarsSet(e);
+  void constraintInBodyVariable(Expr *E, ConstAtom *CAtom) {
+    CVarSet Var = CB.getExprConstraintVarsSet(E);
     constrainVarsTo(Var, CAtom);
   }
 
@@ -562,7 +561,7 @@ private:
 class VariableAdderVisitor : public RecursiveASTVisitor<VariableAdderVisitor> {
 public:
   explicit VariableAdderVisitor(ASTContext *Context, ProgramVariableAdder &VA)
-    : Context(Context), VarAdder(VA) {}
+      : Context(Context), VarAdder(VA) {}
 
   // Defining this function lets the visitor traverse implicit function
   // declarations. Without this, we wouldn't see declarations for implicit
@@ -571,8 +570,7 @@ public:
   // to ProgramInfo::link() was moved to before the ConstraintBuilder pass.
   bool shouldVisitImplicitCode() const { return true; }
 
-  bool VisitTypedefDecl(TypedefDecl* TD) {
-    CVarSet empty;
+  bool VisitTypedefDecl(TypedefDecl *TD) {
     auto PSL = PersistentSourceLoc::mkPSL(TD, *Context);
     // If we haven't seen this typedef before, initialize it's entry in the
     // typedef map. If we have seen it before, and we need to preserve the
@@ -580,8 +578,8 @@ public:
     if (!VarAdder.seenTypedef(PSL))
       // Add this typedef to the program info, if it contains a ptr to
       // an anonymous struct we mark as not being rewritable
-      VarAdder.addTypedef(PSL, !PtrToStructDef::containsPtrToStructDef(TD),
-                          TD, *Context);
+      VarAdder.addTypedef(PSL, !PtrToStructDef::containsPtrToStructDef(TD), TD,
+                          *Context);
     return true;
   }
 

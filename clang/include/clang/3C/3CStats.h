@@ -12,8 +12,8 @@
 #define LLVM_CLANG_3C_3CSTATS_H
 
 #include "clang/AST/ASTContext.h"
-#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -85,14 +85,12 @@ private:
   clock_t ArrayBoundsInferenceTimeSt;
   clock_t RewritingTimeSt;
   clock_t TotalTimeSt;
-
 };
 
 class ProgramInfo;
 
 // Class to record stats by visiting AST.
-class StatsRecorder
-    : public clang::RecursiveASTVisitor<StatsRecorder> {
+class StatsRecorder : public clang::RecursiveASTVisitor<StatsRecorder> {
 public:
   explicit StatsRecorder(clang::ASTContext *C, ProgramInfo *I)
       : Context(C), Info(I) {}
@@ -107,4 +105,4 @@ private:
   ProgramInfo *Info;
 };
 
-#endif
+#endif // LLVM_CLANG_3C_3CSTATS_H

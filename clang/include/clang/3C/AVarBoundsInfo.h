@@ -132,7 +132,7 @@ private:
   bool predictBounds(BoundsKey DstArrK, std::set<BoundsKey> &Neighbours,
                      AVarGraph &BKGraph);
 
-  void mergeReachableProgramVars(BoundsKey TarBK,std::set<BoundsKey> &AllVars);
+  void mergeReachableProgramVars(BoundsKey TarBK, std::set<BoundsKey> &AllVars);
 
   // Check if the pointer variable has impossible bounds.
   bool hasImpossibleBounds(BoundsKey BK);
@@ -166,6 +166,7 @@ public:
   bool hasPotentialCountPOneBounds(BoundsKey PtrBK);
   std::set<BoundsKey> &getPotentialBoundsPOne(BoundsKey PtrBK);
   void addPotentialBoundsPOne(BoundsKey BK, const std::set<BoundsKey> &PotK);
+
 private:
   // This is the map of pointer variable bounds key and set of bounds key
   // which can be the count bounds.
@@ -176,8 +177,9 @@ private:
 
 class AVarBoundsInfo {
 public:
-  AVarBoundsInfo() : ProgVarGraph(this), CtxSensProgVarGraph(this),
-                     RevCtxSensProgVarGraph(this), CSBKeyHandler(this) {
+  AVarBoundsInfo()
+      : ProgVarGraph(this), CtxSensProgVarGraph(this),
+        RevCtxSensProgVarGraph(this), CSBKeyHandler(this) {
     BCount = 1;
     PVarInfo.clear();
     InProgramArrPtrBoundsKeys.clear();
@@ -228,19 +230,17 @@ public:
   bool addAssignment(clang::Decl *L, clang::Decl *R);
   bool addAssignment(clang::DeclRefExpr *L, clang::DeclRefExpr *R);
   bool addAssignment(BoundsKey L, BoundsKey R);
-  bool handlePointerAssignment(clang::Stmt *St, clang::Expr *L,
-                               clang::Expr *R,
-                               ASTContext *C,
-                               ConstraintResolver *CR);
+  bool handlePointerAssignment(clang::Stmt *St, clang::Expr *L, clang::Expr *R,
+                               ASTContext *C, ConstraintResolver *CR);
   bool handleAssignment(clang::Expr *L, const CVarSet &LCVars,
-                        const std::set<BoundsKey> &CSLKeys,
-                        clang::Expr *R, const CVarSet &RCVars,
-                        const std::set<BoundsKey> &CSRKeys,
-                        ASTContext *C, ConstraintResolver *CR);
-  bool handleAssignment(clang::Decl *L, CVarOption LCVar,
-                        clang::Expr *R, const CVarSet &RCVars,
-                        const std::set<BoundsKey> &CSRKeys,
-                        ASTContext *C, ConstraintResolver *CR);
+                        const std::set<BoundsKey> &CSLKeys, clang::Expr *R,
+                        const CVarSet &RCVars,
+                        const std::set<BoundsKey> &CSRKeys, ASTContext *C,
+                        ConstraintResolver *CR);
+  bool handleAssignment(clang::Decl *L, CVarOption LCVar, clang::Expr *R,
+                        const CVarSet &RCVars,
+                        const std::set<BoundsKey> &CSRKeys, ASTContext *C,
+                        ConstraintResolver *CR);
 
   void mergeBoundsKey(BoundsKey To, BoundsKey From);
 
@@ -261,8 +261,7 @@ public:
   // located at PSL.
   // If there exists no context-sensitive bounds key, we just return
   // the provided key.
-  BoundsKey getCtxSensCEBoundsKey(const PersistentSourceLoc &PSL,
-                                  BoundsKey BK);
+  BoundsKey getCtxSensCEBoundsKey(const PersistentSourceLoc &PSL, BoundsKey BK);
   // If E is a MemberAccess expression, then  this function returns the set
   // containing the context sensitive bounds key for the corresponding struct
   // access.
@@ -292,7 +291,7 @@ public:
 private:
   friend class AvarBoundsInference;
   friend class CtxSensitiveBoundsKeyHandler;
-  
+
   friend struct llvm::DOTGraphTraits<AVarGraph>;
   // List of bounds priority in descending order of priorities.
   static std::vector<BoundsPriority> PrioList;
@@ -386,4 +385,4 @@ private:
   void insertParamKey(ParamDeclType ParamDecl, BoundsKey NK);
 };
 
-#endif // _AVARBOUNDSINFO_H
+#endif // LLVM_CLANG_3C_AVARBOUNDSINFO_H

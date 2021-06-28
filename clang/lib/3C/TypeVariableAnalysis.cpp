@@ -111,7 +111,8 @@ bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
         const int TyIdx = FVCon->getExternalParam(I)->getGenericIndex();
         if (TyIdx >= 0) {
           Expr *Uncast = A->IgnoreImpCasts();
-          std::set<ConstraintVariable *> CVs = CR.getExprConstraintVarsSet(Uncast);
+          std::set<ConstraintVariable *> CVs =
+              CR.getExprConstraintVarsSet(Uncast);
           insertBinding(CE, TyIdx, Uncast->getType(), CVs, ForcedInconsistent);
         }
         ++I;

@@ -45,8 +45,7 @@ protected:
   void addBoundsUsedKey(BoundsKey);
   // Get the variable name of the the given bounds key that corresponds
   // to the given declaration.
-  static std::string getBoundsKeyStr(BoundsKey ,
-                                     AVarBoundsInfo *,
+  static std::string getBoundsKeyStr(BoundsKey, AVarBoundsInfo *,
                                      clang::Decl *);
 
 public:

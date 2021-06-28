@@ -113,8 +113,8 @@ CastPlacementVisitor::CastNeeded CastPlacementVisitor::needCasting(
       DstExt->isSolutionChecked(CS.getVariables())) {
     if (auto *DstPVC = dyn_cast<PVConstraint>(DstExt)) {
       if (!DstPVC->getCvars().empty()) {
-        ConstAtom *CA = Info.getConstraints().getAssignment(
-          DstPVC->getCvars().at(0));
+        ConstAtom *CA =
+            Info.getConstraints().getAssignment(DstPVC->getCvars().at(0));
         if (isa<NTArrAtom>(CA))
           return CAST_NT_ARRAY;
       }
@@ -155,8 +155,8 @@ CastPlacementVisitor::getCastString(ConstraintVariable *Dst,
   switch (CastKind) {
   case CAST_NT_ARRAY:
     return std::make_pair(
-      "((" + Dst->mkString(Info.getConstraints(), false) + ")", ")");
-    case CAST_TO_WILD:
+        "((" + Dst->mkString(Info.getConstraints(), false) + ")", ")");
+  case CAST_TO_WILD:
     return std::make_pair("((" + Dst->getRewritableOriginalTy() + ")", ")");
   case CAST_TO_CHECKED: {
     std::string Suffix = ")";
@@ -181,9 +181,10 @@ CastPlacementVisitor::getCastString(ConstraintVariable *Dst,
         Suffix = ", " + Bounds + ")";
       }
     }
-    return std::make_pair(
-      "_Assume_bounds_cast<" + Dst->mkString(Info.getConstraints(), false) +
-      ">(", Suffix);
+    return std::make_pair("_Assume_bounds_cast<" +
+                              Dst->mkString(Info.getConstraints(), false) +
+                              ">(",
+                          Suffix);
   }
   default:
     llvm_unreachable("No casting needed");

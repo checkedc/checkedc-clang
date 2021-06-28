@@ -137,27 +137,25 @@ public:
 
   std::string getStr() const { return "Struct_" + StName; }
 
-  std::string getSName() const {
-    return this->StName;
-  }
+  std::string getSName() const { return this->StName; }
 
   static const StructScope *getStructScope(std::string StName);
 
 protected:
   std::string StName;
+
 private:
   static std::set<StructScope, PVSComp> AllStScopes;
 };
 
 class CtxStructScope : public StructScope {
 public:
-  CtxStructScope(const std::string &SN, const std::string &AS,
-                 bool &IsGlobal) :
-    StructScope(SN), ASKey(AS), IsG(IsGlobal) {
+  CtxStructScope(const std::string &SN, const std::string &AS, bool &IsGlobal)
+      : StructScope(SN), ASKey(AS), IsG(IsGlobal) {
     this->Kind = CtxStructScopeKind;
   }
 
-  virtual ~CtxStructScope() { }
+  virtual ~CtxStructScope() {}
 
   static bool classof(const ProgramVarScope *S) {
     return S->getKind() == CtxStructScopeKind;
@@ -165,20 +163,15 @@ public:
 
   bool operator==(const ProgramVarScope &O) const {
     if (auto *CS = clang::dyn_cast<CtxStructScope>(&O)) {
-      return CS->StName == StName &&
-             CS->ASKey == ASKey &&
-             CS->IsG == IsG;
+      return CS->StName == StName && CS->ASKey == ASKey && CS->IsG == IsG;
     }
     return false;
   }
 
-  bool operator!=(const ProgramVarScope &O) const {
-    return !(*this == O);
-  }
+  bool operator!=(const ProgramVarScope &O) const { return !(*this == O); }
 
   bool operator<(const ProgramVarScope &O) const {
-    if (clang::isa<GlobalScope>(&O) ||
-        clang::isa<StructScope>(&O)) {
+    if (clang::isa<GlobalScope>(&O) || clang::isa<StructScope>(&O)) {
       return true;
     }
 
@@ -199,13 +192,11 @@ public:
   }
 
   std::string getStr() const {
-    return "CtxStruct_" + ASKey + "_" +StName +
-           "_" + std::to_string(IsG);
+    return "CtxStruct_" + ASKey + "_" + StName + "_" + std::to_string(IsG);
   }
 
   static const CtxStructScope *getCtxStructScope(const StructScope *SS,
-                                                 std::string AS,
-                                                 bool IsGlobal);
+                                                 std::string AS, bool IsGlobal);
 
 private:
   std::string ASKey;

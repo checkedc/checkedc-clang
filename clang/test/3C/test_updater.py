@@ -70,7 +70,8 @@ def process_file_smart(name, cnameNOALL, cnameALL, diff):
         if "extern" in line:
             in_extern = True
         if ("/* GENERATE CHECK */" in line or
-            (not in_extern and line.find("/*") == -1 and line.find("//") == -1 and
+            (not in_extern and line.find("/*") == -1 and
+             line.find("//") == -1 and
              ((keywords_re.search(line) and
                (line.find("*") != -1 or line.find("[") != -1)) or
               ckeywords_re.search(noline) or ckeywords_re.search(yeline)))):

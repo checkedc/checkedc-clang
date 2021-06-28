@@ -101,14 +101,14 @@ protected:
   // Get existing itype string from constraint variables.
   std::string getExistingIType(ConstraintVariable *DeclC);
 
-  virtual void buildDeclVar(const FVComponentVariable *CV,
-                            DeclaratorDecl *Decl, std::string &Type,
-                            std::string &IType, std::string UseName,
-                            bool &RewriteParm, bool &RewriteRet);
+  virtual void buildDeclVar(const FVComponentVariable *CV, DeclaratorDecl *Decl,
+                            std::string &Type, std::string &IType,
+                            std::string UseName, bool &RewriteParm,
+                            bool &RewriteRet);
   void buildCheckedDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
                         std::string &Type, std::string &IType,
-                        std::string UseName,
-                        bool &RewriteParm, bool &RewriteRet);
+                        std::string UseName, bool &RewriteParm,
+                        bool &RewriteRet);
   void buildItypeDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
                       std::string &Type, std::string &IType, bool &RewriteParm,
                       bool &RewriteRet);

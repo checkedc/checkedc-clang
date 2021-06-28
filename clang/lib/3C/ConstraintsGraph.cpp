@@ -54,7 +54,7 @@ std::string llvm::DOTGraphTraits<GraphVizOutputGraph>::getEdgeAttributes(
   // differentiate between multiple edges between the same pair of nodes.
   GraphVizEdge *GE = nullptr;
   auto EPair = std::make_pair(Node->getData(), (*T)->getData());
-  bool isSoft = false;
+  bool IsSoft = false;
   for (auto *E : Edges) {
     if (E->Kind == GraphVizEdge::EK_Checked &&
         CG.DoneChecked.find(EPair) == CG.DoneChecked.end()) {
@@ -63,7 +63,7 @@ std::string llvm::DOTGraphTraits<GraphVizOutputGraph>::getEdgeAttributes(
                CG.DonePtyp.find(EPair) == CG.DonePtyp.end()) {
       GE = E;
     }
-    isSoft = E->IsSoft;
+    IsSoft = E->IsSoft;
   }
   assert(GE != nullptr);
   if (GE->Kind == GraphVizEdge::EK_Checked)
@@ -73,9 +73,7 @@ std::string llvm::DOTGraphTraits<GraphVizOutputGraph>::getEdgeAttributes(
 
   return "color=" + EdgeTypeColors[GE->Kind] + "," +
          "dir=" + EdgeDirections[GE->IsBidirectional] +
-        (isSoft ? ",style=dotted" : "");
-
-
+         (IsSoft ? ",style=dotted" : "");
 }
 
 void GraphVizOutputGraph::mergeConstraintGraph(const ConstraintsGraph &Graph,

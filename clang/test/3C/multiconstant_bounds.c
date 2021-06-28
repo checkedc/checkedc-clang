@@ -1,6 +1,7 @@
 // Tests for the 3C.
 //
-// When multiple constants are potential bounds, pick the lower constant only for regular array pointers.
+// When multiple constants are potential bounds, pick the lower constant only
+// for regular array pointers.
 // Issue: https://github.com/correctcomputation/checkedc-clang/issues/390
 // For nt arrays, ignore the bounds:
 // Issue: https://github.com/correctcomputation/checkedc-clang/issues/554

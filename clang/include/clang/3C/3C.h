@@ -159,7 +159,7 @@ private:
   bool isSuccessfulSoFar();
 
   // saved ASTs
-  std::vector< std::unique_ptr< ASTUnit >> ASTs;
+  std::vector<std::unique_ptr<ASTUnit>> ASTs;
 
   // Are constraints already built?
   bool ConstraintsBuilt;

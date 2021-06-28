@@ -222,8 +222,8 @@ public:
         // that will normally be caught by Driver::DiagnoseInputExistence before
         // we get here.
         errs() << "3C error: Failed to re-canonicalize source file path "
-               << OldPath << " during compiler invocation: "
-               << EC.message() << "\n";
+               << OldPath << " during compiler invocation: " << EC.message()
+               << "\n";
         return false;
       }
       *Iter =
@@ -458,7 +458,7 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
   }
 
   CurrCompDB = CompDB;
-  
+
   GlobalProgramInfo.getPerfStats().startTotalTime();
 }
 
@@ -516,7 +516,7 @@ bool _3CInterface::addVariables() {
 
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
 
-    // 1. Add Variables.
+  // 1. Add Variables.
   VariableAdderConsumer VA = VariableAdderConsumer(GlobalProgramInfo, nullptr);
   for (auto &TU : ASTs)
     VA.HandleTranslationUnit(TU->getASTContext());
@@ -535,7 +535,8 @@ bool _3CInterface::buildInitialConstraints() {
   }
 
   // 2. Gather constraints.
-  ConstraintBuilderConsumer CB = ConstraintBuilderConsumer(GlobalProgramInfo, nullptr);
+  ConstraintBuilderConsumer CB =
+      ConstraintBuilderConsumer(GlobalProgramInfo, nullptr);
   for (auto &TU : ASTs)
     CB.HandleTranslationUnit(TU->getASTContext());
   if (!isSuccessfulSoFar())
@@ -582,7 +583,8 @@ bool _3CInterface::solveConstraints() {
     GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);
 
     // 4. Infer the bounds based on calls to malloc and calloc
-    AllocBasedBoundsInference ABBI = AllocBasedBoundsInference(GlobalProgramInfo, nullptr);
+    AllocBasedBoundsInference ABBI =
+        AllocBasedBoundsInference(GlobalProgramInfo, nullptr);
     for (auto &TU : ASTs)
       ABBI.HandleTranslationUnit(TU->getASTContext());
     if (!isSuccessfulSoFar())
@@ -605,7 +607,8 @@ bool _3CInterface::solveConstraints() {
     GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);
 
     /*if (DebugArrSolver)
-      GlobalProgramInfo.getABoundsInfo().dumpAVarGraph("arr_bounds_final.dot");*/
+      GlobalProgramInfo.getABoundsInfo().dumpAVarGraph(
+          "arr_bounds_final.dot");*/
   }
 
   /*if (DumpStats) {
@@ -620,7 +623,7 @@ bool _3CInterface::solveConstraints() {
     std::string AggregateStats = StatsOutputJson + ".aggregate.json";
     llvm::raw_fd_ostream AggrJson(AggregateStats, Ec);
     if (!AggrJson.has_error()) {
-      GlobalProgramInfo.print_aggregate_stats(FilePaths, AggrJson);
+      GlobalProgramInfo.printAggregateStats(FilePaths, AggrJson);
       AggrJson.close();
     }
 
@@ -656,7 +659,7 @@ bool _3CInterface::writeAllConvertedFilesToDisk() {
 
 bool _3CInterface::dumpStats() {
   if (AllTypes && DebugArrSolver) {
-      GlobalProgramInfo.getABoundsInfo().dumpAVarGraph("arr_bounds_final.dot");
+    GlobalProgramInfo.getABoundsInfo().dumpAVarGraph("arr_bounds_final.dot");
   }
 
   if (DumpStats) {
@@ -671,7 +674,7 @@ bool _3CInterface::dumpStats() {
     std::string AggregateStats = StatsOutputJson + ".aggregate.json";
     llvm::raw_fd_ostream AggrJson(AggregateStats, Ec);
     if (!AggrJson.has_error()) {
-      GlobalProgramInfo.print_aggregate_stats(FilePaths, AggrJson);
+      GlobalProgramInfo.printAggregateStats(FilePaths, AggrJson);
       AggrJson.close();
     }
 
