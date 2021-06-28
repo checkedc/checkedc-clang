@@ -172,22 +172,21 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
       // Fetch the context sensitive bounds key.
       return std::make_pair(pvConstraintFromType(TypE),
                             ABI.getCtxSensFieldBoundsKey(E, Context, Info));
-
-      // NULL
-      // Special handling for casts of null is required to enable rewriting
-      // statements such as int *x = (int*) 0. If this was handled as a
-      // normal null expression, the cast would never be visited.
     }
+    // NULL
+    // Special handling for casts of null is required to enable rewriting
+    // statements such as int *x = (int*) 0. If this was handled as a
+    // normal null expression, the cast would never be visited.
     if (!isa<ExplicitCastExpr>(E) && isNULLExpression(E, *Context)) {
       return EmptyCSBKeySet;
-      // variable (x)
     }
+    // variable (x)
     if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
       CVarOption CV = Info.getVariable(DRE->getDecl(), Context);
       assert("Declaration without constraint variable?" && CV.hasValue());
       return pairWithEmptyBkey({&CV.getValue()});
-      // x.f
     }
+    // x.f
     if (MemberExpr *ME = dyn_cast<MemberExpr>(E)) {
       CVarOption CV = Info.getVariable(ME->getMemberDecl(), Context);
       assert("Declaration without constraint variable?" && CV.hasValue());
@@ -195,8 +194,8 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
       // Get Context sensitive bounds key for field access.
       return std::make_pair(MECSet,
                             ABI.getCtxSensFieldBoundsKey(ME, Context, Info));
-      // Checked-C temporary
     }
+    // Checked-C temporary
     if (CHKCBindTemporaryExpr *CE = dyn_cast<CHKCBindTemporaryExpr>(E)) {
       return getExprConstraintVars(CE->getSubExpr());
     }
@@ -223,8 +222,8 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
             SubTypE->isVoidPointerType()) &&
           !isCastSafe(TypE, SubTypE)) {
         CVarSet WildCVar = getInvalidCastPVCons(IE);
-        constrainConsVarGeq(CVs.first, WildCVar, CS, nullptr, Safe_to_Wild, false,
-                            &Info);
+        constrainConsVarGeq(CVs.first, WildCVar, CS, nullptr, Safe_to_Wild,
+                            false, &Info);
         Ret = std::make_pair(WildCVar, CVs.second);
       } else {
         // Else, return sub-expression's result.
@@ -254,8 +253,8 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
         // constraining GEQ these vars would be the cast always be WILD.
         if (!isNULLExpression(ECE, *Context)) {
           PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(ECE, *Context);
-          constrainConsVarGeq(P, Vars, Info.getConstraints(), &PL,
-                              Same_to_Same, false, &Info);
+          constrainConsVarGeq(P, Vars, Info.getConstraints(), &PL, Same_to_Same,
+                              false, &Info);
         }
       }
     }
@@ -316,14 +315,16 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
         Ret = pairWithEmptyBkey(pvConstraintFromType(TypE));
         break;
       }
-      // x[e]
-    } else if (ArraySubscriptExpr *ASE = dyn_cast<ArraySubscriptExpr>(E)) {
+    }
+    // x[e]
+    else if (ArraySubscriptExpr *ASE = dyn_cast<ArraySubscriptExpr>(E)) {
       CSetBkeyPair T = getExprConstraintVars(ASE->getBase());
       CVarSet Tmp = handleDeref(T.first);
       T.first.swap(Tmp);
       Ret = T;
-      // ++e, &e, *e, etc.
-    } else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
+    }
+    // ++e, &e, *e, etc.
+    else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
       Expr *UOExpr = UO->getSubExpr();
       switch (UO->getOpcode()) {
         // &e
@@ -395,8 +396,9 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
         assert(false && "Unsupported unary operator");
         break;
       }
-      // f(e1,e2, ...)
-    } else if (CallExpr *CE = dyn_cast<CallExpr>(E)) {
+    }
+    // f(e1,e2, ...)
+    else if (CallExpr *CE = dyn_cast<CallExpr>(E)) {
       // Call expression should always get out-of context constraint variable.
       CVarSet ReturnCVs;
       BKeySet ReturnBSet = EmptyBSet;
@@ -445,7 +447,8 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
                 // We will constrain the first arg to the return of
                 // realloc, below
                 ReallocFlow =
-                    getExprConstraintVars(CE->getArg(0)->IgnoreParenImpCasts()).first;
+                    getExprConstraintVars(CE->getArg(0)->IgnoreParenImpCasts())
+                        .first;
               }
             }
           }
@@ -512,15 +515,15 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
         // Make the bounds key context sensitive.
         if (NewCV->hasBoundsKey()) {
           auto CSensBKey =
-                ABI.getCtxSensCEBoundsKey(PSL,
-                                          NewCV->getBoundsKey());
+              ABI.getCtxSensCEBoundsKey(PSL, NewCV->getBoundsKey());
           NewCV->setBoundsKey(CSensBKey);
         }
         if (NewCV != CV) {
           // If the call is in a macro, use Same_to_Same to force checked type
           // equality and avoid ever needing to insert a cast inside a macro.
           ConsAction CA = Rewriter::isRewritable(CE->getExprLoc())
-                          ? Safe_to_Wild : Same_to_Same;
+                              ? Safe_to_Wild
+                              : Same_to_Same;
           constrainConsVarGeq(NewCV, CV, CS, &PSL, CA, false, &Info);
         }
         TmpCVs.insert(NewCV);
@@ -531,14 +534,16 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
         }
       }
       Ret = std::make_pair(TmpCVs, ReturnBSet);
-      // e1 ? e2 : e3
-    } else if (ConditionalOperator *CO = dyn_cast<ConditionalOperator>(E)) {
+    }
+    // e1 ? e2 : e3
+    else if (ConditionalOperator *CO = dyn_cast<ConditionalOperator>(E)) {
       std::vector<Expr *> SubExprs;
       SubExprs.push_back(CO->getLHS());
       SubExprs.push_back(CO->getRHS());
       Ret = getAllSubExprConstraintVars(SubExprs);
-      // { e1, e2, e3, ... }
-    } else if (InitListExpr *ILE = dyn_cast<InitListExpr>(E)) {
+    }
+    // { e1, e2, e3, ... }
+    else if (InitListExpr *ILE = dyn_cast<InitListExpr>(E)) {
       std::vector<Expr *> SubExprs = ILE->inits().vec();
       CSetBkeyPair CVars = getAllSubExprConstraintVars(SubExprs);
       if (ILE->getType()->isArrayType()) {
@@ -557,20 +562,22 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
                ILE->getType()->isPointerType());
         Ret = CVars;
       }
-      // (int[]){e1, e2, e3, ... }
-    } else if (CompoundLiteralExpr *CLE = dyn_cast<CompoundLiteralExpr>(E)) {
+    }
+    // (int[]){e1, e2, e3, ... }
+    else if (CompoundLiteralExpr *CLE = dyn_cast<CompoundLiteralExpr>(E)) {
       CSetBkeyPair Vars = getExprConstraintVars(CLE->getInitializer());
 
       PVConstraint *P = getRewritablePVConstraint(CLE);
 
       PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CLE, *Context);
-      constrainConsVarGeq(P, Vars.first, Info.getConstraints(), &PL, Same_to_Same,
-                          false, &Info);
+      constrainConsVarGeq(P, Vars.first, Info.getConstraints(), &PL,
+                          Same_to_Same, false, &Info);
 
       CVarSet T = {P};
       Ret = std::make_pair(T, Vars.second);
-      // "foo"
-    } else if (clang::StringLiteral *Str = dyn_cast<clang::StringLiteral>(E)) {
+    }
+    // "foo"
+    else if (clang::StringLiteral *Str = dyn_cast<clang::StringLiteral>(E)) {
       CVarSet T;
       // If this is a string literal. i.e., "foo".
       // We create a new constraint variable and constraint it to an Nt_array.
@@ -584,7 +591,6 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
       BoundsKey CBKey = ABI.getConstKey(Str->getByteLength());
       ABounds *NB = new CountBound(CBKey);
       ABI.replaceBounds(TmpKey, Declared, NB);
-
 
       T = {P};
 
@@ -625,8 +631,8 @@ CVarSet ConstraintResolver::getExprConstraintVarsSet(Expr *E) {
 }
 
 // Collect constraint variables for Exprs int a set.
-CSetBkeyPair ConstraintResolver::getAllSubExprConstraintVars(
-    std::vector<Expr *> &Exprs) {
+CSetBkeyPair
+ConstraintResolver::getAllSubExprConstraintVars(std::vector<Expr *> &Exprs) {
 
   CVarSet AggregateCons;
   BKeySet AggregateBKeys;
@@ -646,8 +652,8 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS,
   CSetBkeyPair L = getExprConstraintVars(LHS);
   CSetBkeyPair R = getExprConstraintVars(RHS);
   bool HandleBoundsKey = L.second.empty() && R.second.empty();
-  constrainConsVarGeq(L.first, R.first, Info.getConstraints(), &PL,
-                      CAction, false, &Info, HandleBoundsKey);
+  constrainConsVarGeq(L.first, R.first, Info.getConstraints(), &PL, CAction,
+                      false, &Info, HandleBoundsKey);
 
   // Handle pointer arithmetic.
   auto &ABI = Info.getABoundsInfo();
@@ -656,10 +662,10 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS,
   // Only if all types are enabled and these are not pointers, then track
   // the assignment.
   if (AllTypes) {
-    if ((!containsValidCons(L.first) &&
-         !containsValidCons(R.first)) || !HandleBoundsKey) {
-      ABI.handleAssignment(LHS, L.first, L.second, RHS,
-                           R.first, R.second, Context, this);
+    if ((!containsValidCons(L.first) && !containsValidCons(R.first)) ||
+        !HandleBoundsKey) {
+      ABI.handleAssignment(LHS, L.first, L.second, RHS, R.first, R.second,
+                           Context, this);
     }
   }
 }
@@ -678,14 +684,14 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
   bool HandleBoundsKey = IgnoreBnds || RHSCons.second.empty();
 
   if (V.hasValue())
-    constrainConsVarGeq(&V.getValue(), RHSCons.first, Info.getConstraints(), PLPtr,
-                        CAction, false, &Info, HandleBoundsKey);
+    constrainConsVarGeq(&V.getValue(), RHSCons.first, Info.getConstraints(),
+                        PLPtr, CAction, false, &Info, HandleBoundsKey);
   if (AllTypes && !IgnoreBnds) {
-    if (!HandleBoundsKey || (!(V.hasValue() && isValidCons(&V.getValue()))
-                             && !containsValidCons(RHSCons.first))) {
+    if (!HandleBoundsKey || (!(V.hasValue() && isValidCons(&V.getValue())) &&
+                             !containsValidCons(RHSCons.first))) {
       auto &ABI = Info.getABoundsInfo();
-      ABI.handleAssignment(D, V, RHS, RHSCons.first, RHSCons.second,
-                           Context, this);
+      ABI.handleAssignment(D, V, RHS, RHSCons.first, RHSCons.second, Context,
+                           this);
     }
   }
 }

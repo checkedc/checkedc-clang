@@ -11,12 +11,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sstream>
-#include "clang/3C/AVarBoundsInfo.h"
 #include "clang/3C/CtxSensAVarBounds.h"
+#include "clang/3C/AVarBoundsInfo.h"
 #include "clang/3C/ConstraintResolver.h"
 #include "clang/3C/ProgramInfo.h"
-
+#include <sstream>
 
 // This visitor computes a string representation of a structure member access
 // which can be used as key for context sensitive access.
@@ -24,20 +23,17 @@
 // We will ignore array indexing.
 class StructAccessVisitor : public RecursiveASTVisitor<StructAccessVisitor> {
 public:
-
   std::vector<std::string> StructAccessStr;
   bool IsGlobal = false;
 
   explicit StructAccessVisitor(ASTContext *Ctx) : C(Ctx) {
     StructAccessStr.clear();
   }
-  virtual ~StructAccessVisitor() {
-    StructAccessStr.clear();
-  }
+  virtual ~StructAccessVisitor() { StructAccessStr.clear(); }
 
   void processVarDecl(VarDecl *VD) {
-    if (VD != nullptr && (VD->getType()->isPointerType() ||
-                          VD->getType()->isStructureType())) {
+    if (VD != nullptr &&
+        (VD->getType()->isPointerType() || VD->getType()->isStructureType())) {
       IsGlobal = !VD->isLocalVarDecl();
       StructAccessStr.insert(StructAccessStr.begin(), VD->getNameAsString());
     }
@@ -45,8 +41,8 @@ public:
 
   bool VisitDeclRefExpr(DeclRefExpr *DRE) {
     ParmVarDecl *PD = dyn_cast_or_null<ParmVarDecl>(DRE->getDecl());
-    if (PD != nullptr && (PD->getType()->isPointerType() ||
-                          PD->getType()->isStructureType())) {
+    if (PD != nullptr &&
+        (PD->getType()->isPointerType() || PD->getType()->isStructureType())) {
       StructAccessStr.insert(StructAccessStr.begin(), PD->getNameAsString());
     } else {
       VarDecl *VD = dyn_cast_or_null<VarDecl>(DRE->getDecl());
@@ -56,7 +52,8 @@ public:
   }
 
   bool VisitMemberExpr(MemberExpr *ME) {
-    std::string MAccess = getSourceText(ME->getMemberDecl()->getSourceRange(), *C);
+    std::string MAccess =
+        getSourceText(ME->getMemberDecl()->getSourceRange(), *C);
     StructAccessStr.insert(StructAccessStr.begin(), MAccess);
     return true;
   }
@@ -74,11 +71,8 @@ private:
   ASTContext *C;
 };
 
-void
-CtxSensitiveBoundsKeyHandler::
-insertCtxSensBoundsKey(ProgramVar *OldPV,
-                       BoundsKey NK,
-                       const ProgramVarScope *NPS) {
+void CtxSensitiveBoundsKeyHandler::insertCtxSensBoundsKey(
+    ProgramVar *OldPV, BoundsKey NK, const ProgramVarScope *NPS) {
   ProgramVar *NKVar = OldPV->makeCopy(NK);
   NKVar->setScope(NPS);
   ABI->insertProgramVar(NK, NKVar);
@@ -86,11 +80,9 @@ insertCtxSensBoundsKey(ProgramVar *OldPV,
   ABI->CtxSensProgVarGraph.addUniqueEdge(NKVar->getKey(), OldPV->getKey());
 }
 
-void
-CtxSensitiveBoundsKeyHandler::
-createCtxSensBoundsKey(BoundsKey OK,
-                       const ProgramVarScope *NPS,
-                       std::map<BoundsKey, BoundsKey> &CBMap) {
+void CtxSensitiveBoundsKeyHandler::createCtxSensBoundsKey(
+    BoundsKey OK, const ProgramVarScope *NPS,
+    std::map<BoundsKey, BoundsKey> &CBMap) {
   ProgramVar *CKVar = ABI->getProgramVar(OK);
   if (CBMap.find(OK) == CBMap.end()) {
     BoundsKey NK = ++(ABI->BCount);
@@ -115,17 +107,16 @@ createCtxSensBoundsKey(BoundsKey OK,
 // Here, we create a new BoundsKey for every BoundsKey var that is related to
 // any ConstraintVariable in CSet and store the information by the
 // corresponding call expression (CE).
-void
-CtxSensitiveBoundsKeyHandler::contextualizeCVar(CallExpr *CE,
-                                                const CVarSet &CSet,
-                                                ASTContext *C) {
+void CtxSensitiveBoundsKeyHandler::contextualizeCVar(CallExpr *CE,
+                                                     const CVarSet &CSet,
+                                                     ASTContext *C) {
   for (auto *CV : CSet) {
-    // If this is a FV Constraint the contextualize its returns and
+    // If this is a FV Constraint then contextualize its returns and
     // parameters.
     if (FVConstraint *FV = dyn_cast_or_null<FVConstraint>(CV)) {
       contextualizeCVar(CE, {FV->getExternalReturn()}, C);
-      for (unsigned i = 0; i < FV->numParams(); i++) {
-        contextualizeCVar(CE, {FV->getExternalParam(i)}, C);
+      for (unsigned I = 0; I < FV->numParams(); I++) {
+        contextualizeCVar(CE, {FV->getExternalParam(I)}, C);
       }
     }
 
@@ -139,7 +130,7 @@ CtxSensitiveBoundsKeyHandler::contextualizeCVar(CallExpr *CE,
         // Create a context sensitive scope.
         const CtxFunctionArgScope *CFAS = nullptr;
         if (auto *FPS =
-          dyn_cast_or_null<FunctionParamScope>(CKVar->getScope())) {
+                dyn_cast_or_null<FunctionParamScope>(CKVar->getScope())) {
           CFAS = CtxFunctionArgScope::getCtxFunctionParamScope(FPS, CEPSL);
         }
 
@@ -175,13 +166,9 @@ std::string CtxSensitiveBoundsKeyHandler::getCtxStructKey(MemberExpr *ME,
   SKV.TraverseStmt(ME->getBase()->getExprStmt());
   return SKV.getStructAccessKey();
 }
-bool
-CtxSensitiveBoundsKeyHandler::tryGetFieldCSKey(FieldDecl *FD,
-                                               CtxStKeyMap *CSK,
-                                               const std::string &AK,
-                                               ASTContext *C,
-                                               ProgramInfo &I,
-                                               BoundsKey &CSKey) {
+bool CtxSensitiveBoundsKeyHandler::tryGetFieldCSKey(
+    FieldDecl *FD, CtxStKeyMap *CSK, const std::string &AK, ASTContext *C,
+    ProgramInfo &I, BoundsKey &CSKey) {
   bool RetVal = false;
   if (CSK->find(AK) != CSK->end()) {
     CVarOption CV = I.getVariable(FD, C);
@@ -200,8 +187,7 @@ CtxSensitiveBoundsKeyHandler::tryGetFieldCSKey(FieldDecl *FD,
   return RetVal;
 }
 
-bool CtxSensitiveBoundsKeyHandler::tryGetMECSKey(MemberExpr *ME,
-                                                 ASTContext *C,
+bool CtxSensitiveBoundsKeyHandler::tryGetMECSKey(MemberExpr *ME, ASTContext *C,
                                                  ProgramInfo &I,
                                                  BoundsKey &CSKey) {
   bool RetVal = false;
@@ -215,14 +201,9 @@ bool CtxSensitiveBoundsKeyHandler::tryGetMECSKey(MemberExpr *ME,
   return RetVal;
 }
 
-void
-CtxSensitiveBoundsKeyHandler::contextualizeStructRecord(ProgramInfo &I,
-                                                        ASTContext *C,
-                                                        const RecordDecl *RD,
-                                                        const std::string &AK,
-                                                        std::map<BoundsKey,
-                                                        BoundsKey> &BKMap,
-                                                        bool IsGlobal) {
+void CtxSensitiveBoundsKeyHandler::contextualizeStructRecord(
+    ProgramInfo &I, ASTContext *C, const RecordDecl *RD, const std::string &AK,
+    std::map<BoundsKey, BoundsKey> &BKMap, bool IsGlobal) {
   // Create context-sensitive keys for all fields.
   for (auto *CFD : RD->fields()) {
     // There is no context-sensitive key already created for this?
@@ -237,18 +218,16 @@ CtxSensitiveBoundsKeyHandler::contextualizeStructRecord(ProgramInfo &I,
 
     // Create a context sensitive struct scope.
     const CtxStructScope *CSS = nullptr;
-    if (auto *SS =
-      dyn_cast_or_null<StructScope>(SPV->getScope())) {
+    if (auto *SS = dyn_cast_or_null<StructScope>(SPV->getScope())) {
       CSS = CtxStructScope::getCtxStructScope(SS, AK, IsGlobal);
     }
     createCtxSensBoundsKey(MEBKey, CSS, BKMap);
   }
 }
 
-void
-CtxSensitiveBoundsKeyHandler::contextualizeCVar(MemberExpr *ME,
-                                                ASTContext *C,
-                                                ProgramInfo &I) {
+void CtxSensitiveBoundsKeyHandler::contextualizeCVar(MemberExpr *ME,
+                                                     ASTContext *C,
+                                                     ProgramInfo &I) {
   FieldDecl *FD = dyn_cast_or_null<FieldDecl>(ME->getMemberDecl());
   if (FD != nullptr) {
     RecordDecl *RD = FD->getParent();
@@ -266,12 +245,10 @@ CtxSensitiveBoundsKeyHandler::contextualizeCVar(MemberExpr *ME,
   }
 }
 
-void
-CtxSensitiveBoundsKeyHandler::contextualizeCVar(VarDecl *VD,
-                                                ASTContext *C,
-                                                ProgramInfo &I) {
-  const RecordType *RT =
-    dyn_cast_or_null<RecordType>(VD->getType()->getUnqualifiedDesugaredType());
+void CtxSensitiveBoundsKeyHandler::contextualizeCVar(VarDecl *VD, ASTContext *C,
+                                                     ProgramInfo &I) {
+  const RecordType *RT = dyn_cast_or_null<RecordType>(
+      VD->getType()->getUnqualifiedDesugaredType());
   const RecordDecl *RD = nullptr;
   if (RT != nullptr) {
     RD = RT->getDecl();
@@ -289,10 +266,8 @@ CtxSensitiveBoundsKeyHandler::contextualizeCVar(VarDecl *VD,
   }
 }
 
-BoundsKey
-CtxSensitiveBoundsKeyHandler::
-getCtxSensCEBoundsKey(const PersistentSourceLoc &PSL,
-                      BoundsKey BK) {
+BoundsKey CtxSensitiveBoundsKeyHandler::getCtxSensCEBoundsKey(
+    const PersistentSourceLoc &PSL, BoundsKey BK) {
   if (CSBoundsKey.find(PSL) != CSBoundsKey.end()) {
     auto &TmpMap = CSBoundsKey[PSL];
     if (TmpMap.find(BK) != TmpMap.end()) {
@@ -302,12 +277,9 @@ getCtxSensCEBoundsKey(const PersistentSourceLoc &PSL,
   return BK;
 }
 
-bool
-CtxSensitiveBoundsKeyHandler::deriveBoundsKeys(clang::Expr *E,
-                                               const CVarSet &CVars,
-                                               ASTContext *C,
-                                               ConstraintResolver *CR,
-                                               std::set<BoundsKey> &AllKeys) {
+bool CtxSensitiveBoundsKeyHandler::deriveBoundsKeys(
+    clang::Expr *E, const CVarSet &CVars, ASTContext *C, ConstraintResolver *CR,
+    std::set<BoundsKey> &AllKeys) {
   BoundsKey TmpK;
   bool Ret = true;
   if (CR != nullptr && CR->containsValidCons(CVars)) {
@@ -325,16 +297,10 @@ CtxSensitiveBoundsKeyHandler::deriveBoundsKeys(clang::Expr *E,
   return Ret;
 }
 
-bool
-CtxSensitiveBoundsKeyHandler::
-handleContextSensitiveAssignment(const PersistentSourceLoc &PSL,
-                                 clang::Decl *L,
-                                 ConstraintVariable *LCVar,
-                                 clang::Expr *R,
-                                 CVarSet &RCVars,
-                                 const std::set<BoundsKey> &CSRKeys,
-                                 ASTContext *C,
-                                 ConstraintResolver *CR) {
+bool CtxSensitiveBoundsKeyHandler::handleContextSensitiveAssignment(
+    const PersistentSourceLoc &PSL, clang::Decl *L, ConstraintVariable *LCVar,
+    clang::Expr *R, CVarSet &RCVars, const std::set<BoundsKey> &CSRKeys,
+    ASTContext *C, ConstraintResolver *CR) {
   bool Ret = false;
   std::set<BoundsKey> AllRBKeys, AllLBKeys, TmpBKeys;
   AllRBKeys = CSRKeys;
@@ -370,7 +336,6 @@ bool ContextSensitiveBoundsKeyVisitor::VisitCallExpr(CallExpr *CE) {
       auto &CSBHandler = Info.getABoundsInfo().getCtxSensBoundsHandler();
       CSBHandler.contextualizeCVar(CE, {&COpt.getValue()}, Context);
     }
-
   }
   return true;
 }
@@ -400,22 +365,24 @@ bool ContextSensitiveBoundsKeyVisitor::VisitDeclStmt(DeclStmt *DS) {
           // Handle assignment of expressions in initialization list
           // to various fields of the structure variable.
           const RecordDecl *Definition =
-            ILE->getType()->getAsStructureType()->getDecl()->getDefinition();
+              ILE->getType()->getAsStructureType()->getDecl()->getDefinition();
           auto *CSKeyMap = CSBHandler.getCtxStKeyMap(SAV.IsGlobal);
-          unsigned int initIdx = 0;
-          const auto fields = Definition->fields();
-          for (auto it = fields.begin();
-               initIdx < ILE->getNumInits() && it != fields.end();
-               initIdx++, it++) {
-            Expr *InitExpr = ILE->getInit(initIdx);
+          unsigned int InitIdx = 0;
+          const auto Fields = Definition->fields();
+          for (auto It = Fields.begin();
+               InitIdx < ILE->getNumInits() && It != Fields.end();
+               InitIdx++, It++) {
+            Expr *InitExpr = ILE->getInit(InitIdx);
             BoundsKey FKey;
             // Handle assignment to context-sensitive field key.
-            if (CSBHandler.tryGetFieldCSKey(*it, CSKeyMap, SAV.getStructAccessKey(),
-                                            Context, Info, FKey)) {
+            if (CSBHandler.tryGetFieldCSKey(*It, CSKeyMap,
+                                            SAV.getStructAccessKey(), Context,
+                                            Info, FKey)) {
 
               auto InitCVs = CR->getExprConstraintVars(InitExpr);
               ABInfo.handleAssignment(nullptr, {}, {FKey}, InitExpr,
-                                      InitCVs.first, InitCVs.second, Context, CR);
+                                      InitCVs.first, InitCVs.second, Context,
+                                      CR);
             }
           }
         }

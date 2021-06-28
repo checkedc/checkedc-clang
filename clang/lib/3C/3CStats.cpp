@@ -13,9 +13,7 @@
 #include "clang/3C/Utils.h"
 #include <time.h>
 
-void PerformanceStats::startCompileTime() {
-  CompileTimeSt = clock();
-}
+void PerformanceStats::startCompileTime() { CompileTimeSt = clock(); }
 
 void PerformanceStats::endCompileTime() {
   CompileTime += getTimeSpentInSeconds(CompileTimeSt);
@@ -45,49 +43,30 @@ void PerformanceStats::endArrayBoundsInferenceTime() {
   ArrayBoundsInferenceTime += getTimeSpentInSeconds(ArrayBoundsInferenceTimeSt);
 }
 
-void PerformanceStats::startRewritingTime() {
-  RewritingTimeSt = clock();
-}
+void PerformanceStats::startRewritingTime() { RewritingTimeSt = clock(); }
 
 void PerformanceStats::endRewritingTime() {
   RewritingTime += getTimeSpentInSeconds(RewritingTimeSt);
 }
 
-void PerformanceStats::startTotalTime() {
-  TotalTimeSt = clock();
-}
+void PerformanceStats::startTotalTime() { TotalTimeSt = clock(); }
 
 void PerformanceStats::endTotalTime() {
   TotalTime += getTimeSpentInSeconds(TotalTimeSt);
 }
 
-void PerformanceStats::incrementNumAssumeBounds() {
-  NumAssumeBoundsCasts++;
-}
-void PerformanceStats::incrementNumCheckedCasts() {
-  NumCheckedCasts++;
-}
+void PerformanceStats::incrementNumAssumeBounds() { NumAssumeBoundsCasts++; }
+void PerformanceStats::incrementNumCheckedCasts() { NumCheckedCasts++; }
 
-void PerformanceStats::incrementNumWildCasts() {
-  NumWildCasts++;
-}
+void PerformanceStats::incrementNumWildCasts() { NumWildCasts++; }
 
-void PerformanceStats::incrementNumFixedCasts() {
-  NumFixedCasts++;
-}
+void PerformanceStats::incrementNumFixedCasts() { NumFixedCasts++; }
 
-void PerformanceStats::incrementNumITypes() {
-  NumITypes++;
-}
+void PerformanceStats::incrementNumITypes() { NumITypes++; }
 
-void PerformanceStats::incrementNumCheckedRegions() {
-  NumCheckedRegions++;
-}
+void PerformanceStats::incrementNumCheckedRegions() { NumCheckedRegions++; }
 
-void PerformanceStats::incrementNumUnCheckedRegions() {
-  NumUnCheckedRegions++;
-}
-
+void PerformanceStats::incrementNumUnCheckedRegions() { NumUnCheckedRegions++; }
 
 void PerformanceStats::printPerformanceStats(llvm::raw_ostream &O,
                                              bool JsonFormat) {
@@ -128,7 +107,6 @@ void PerformanceStats::printPerformanceStats(llvm::raw_ostream &O,
     O << "NumITypes:" << NumITypes << "\n";
     O << "NumCheckedRegions:" << NumCheckedRegions << "\n";
     O << "NumUnCheckedRegions:" << NumUnCheckedRegions << "\n";
-
   }
 }
 

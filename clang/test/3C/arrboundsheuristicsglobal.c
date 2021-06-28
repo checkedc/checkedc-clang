@@ -1,6 +1,7 @@
 // Tests for 3C.
 //
-// Checks array heuristics: issue: https://github.com/correctcomputation/checkedc-clang/issues/533
+// Checks array heuristics: issue:
+// https://github.com/correctcomputation/checkedc-clang/issues/533
 //
 // RUN: rm -rf %t*
 // RUN: 3c -base-dir=%S -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s

@@ -59,7 +59,6 @@ FunctionDecl *getDefinition(FunctionDecl *FD) {
   return nullptr;
 }
 
-
 //This should only be used as a fall back for when the clang library function
 // FunctionTypeLoc::getRParenLoc cannot be called due to a null FunctionTypeLoc
 // or for when the function returns an invalid source location.
@@ -80,8 +79,8 @@ SourceLocation getFunctionDeclRParen(FunctionDecl *FD, SourceManager &S) {
 // and can cause this function to give an incorrect result. This should only be
 // used as a fall back for when clang library function for obtaining source
 // locations are not available or return invalid results.
-SourceLocation
-locationPrecedingChar(SourceLocation SL, SourceManager &S, char C) {
+SourceLocation locationPrecedingChar(SourceLocation SL, SourceManager &S,
+                                     char C) {
   int Offset = 0;
   const char *Buf = S.getCharacterData(SL);
   while (*Buf != C) {
@@ -222,18 +221,16 @@ bool isPtrOrArrayType(const clang::QualType &QT) {
 
 bool isNullableType(const clang::QualType &QT) {
   if (QT.getTypePtrOrNull())
-      return QT->isPointerType() || QT->isArrayType() || QT->isIntegerType();
-  else
-    return false;
+    return QT->isPointerType() || QT->isArrayType() || QT->isIntegerType();
+  return false;
 }
 
 bool canBeNtArray(const clang::QualType &QT) {
   if (const auto &Ptr = dyn_cast<clang::PointerType>(QT))
     return isNullableType(Ptr->getPointeeType());
-  else if (const auto &Arr = dyn_cast<clang::ArrayType>(QT))
+  if (const auto &Arr = dyn_cast<clang::ArrayType>(QT))
     return isNullableType(Arr->getElementType());
-  else
-    return false;
+  return false;
 }
 
 bool isStructOrUnionType(clang::DeclaratorDecl *DD) {
@@ -343,8 +340,8 @@ static bool castCheck(clang::QualType DstType, clang::QualType SrcType,
   // Both are pointers? check their pointee
   if (SrcPtrTypePtr && DstPtrTypePtr) {
     return (AllowVoidCast && SrcPtrTypePtr->isVoidPointerType()) ||
-      castCheck(DstPtrTypePtr->getPointeeType(),
-                SrcPtrTypePtr->getPointeeType(), AllowVoidCast);
+           castCheck(DstPtrTypePtr->getPointeeType(),
+                     SrcPtrTypePtr->getPointeeType(), AllowVoidCast);
   }
 
   if (SrcPtrTypePtr || DstPtrTypePtr)
@@ -358,8 +355,8 @@ static bool castCheck(clang::QualType DstType, clang::QualType SrcType,
       return false;
 
     for (unsigned I = 0; I < SrcFnType->getNumParams(); I++)
-      if (!castCheck(SrcFnType->getParamType(I),
-                     DstFnType->getParamType(I), false))
+      if (!castCheck(SrcFnType->getParamType(I), DstFnType->getParamType(I),
+                     false))
         return false;
 
     return castCheck(SrcFnType->getReturnType(), DstFnType->getReturnType(),

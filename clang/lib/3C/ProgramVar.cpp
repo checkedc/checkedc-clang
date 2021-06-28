@@ -46,8 +46,8 @@ const CtxStructScope *CtxStructScope::getCtxStructScope(const StructScope *SS,
   return &CSS;
 }
 
-const FunctionParamScope *FunctionParamScope::getFunctionParamScope(
-    std::string FnName, bool IsSt) {
+const FunctionParamScope *
+FunctionParamScope::getFunctionParamScope(std::string FnName, bool IsSt) {
   FunctionParamScope TmpFPS(FnName, IsSt);
   if (AllFnParamScopes.find(TmpFPS) == AllFnParamScopes.end()) {
     AllFnParamScopes.insert(TmpFPS);

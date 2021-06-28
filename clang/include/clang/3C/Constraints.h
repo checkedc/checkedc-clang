@@ -373,9 +373,7 @@ public:
     return C_Geq < K;
   }
 
-  bool isSoft(void) {
-    return IsSoft;
-  }
+  bool isSoft(void) { return IsSoft; }
 
 private:
   Atom *Lhs;
@@ -509,7 +507,8 @@ public:
   void print(llvm::raw_ostream &) const;
   void dumpJson(llvm::raw_ostream &) const;
 
-  Geq *createGeq(Atom *Lhs, Atom *Rhs, bool IsCheckedConstraint = true, bool Soft = false);
+  Geq *createGeq(Atom *Lhs, Atom *Rhs, bool IsCheckedConstraint = true,
+                 bool Soft = false);
   Geq *createGeq(Atom *Lhs, Atom *Rhs, const std::string &Rsn,
                  bool IsCheckedConstraint = true);
   Geq *createGeq(Atom *Lhs, Atom *Rhs, const std::string &Rsn,

@@ -540,6 +540,7 @@ public:
 
 private:
   // Visitors to walk an AST and construct the CFG.
+  CFGBlock *VisitNullStmt(Stmt *S);
   CFGBlock *VisitInitListExpr(InitListExpr *ILE, AddStmtChoice asc);
   CFGBlock *VisitAddrLabelExpr(AddrLabelExpr *A, AddStmtChoice asc);
   CFGBlock *VisitBinaryOperator(BinaryOperator *B, AddStmtChoice asc);
@@ -2284,7 +2285,7 @@ CFGBlock *CFGBuilder::Visit(Stmt * S, AddStmtChoice asc,
       return VisitMemberExpr(cast<MemberExpr>(S), asc);
 
     case Stmt::NullStmtClass:
-      return Block;
+      return VisitNullStmt(cast<NullStmt>(S));
 
     case Stmt::ObjCAtCatchStmtClass:
       return VisitObjCAtCatchStmt(cast<ObjCAtCatchStmt>(S));
@@ -2392,6 +2393,14 @@ CFGBlock *CFGBuilder::VisitInitListExpr(InitListExpr *ILE, AddStmtChoice asc) {
     }
   }
   return B;
+}
+
+CFGBlock *CFGBuilder::VisitNullStmt(Stmt *S) {
+  if (BuildOpts.AddNullStmt) {
+    autoCreateBlock();
+    appendStmt(Block, S);
+  }
+  return Block;
 }
 
 CFGBlock *CFGBuilder::VisitAddrLabelExpr(AddrLabelExpr *A,

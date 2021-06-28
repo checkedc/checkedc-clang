@@ -1252,6 +1252,7 @@ public:
     bool MarkElidedCXXConstructors = false;
     bool AddVirtualBaseBranches = false;
     bool OmitImplicitValueInitializers = false;
+    bool AddNullStmt = false;
 
     BuildOptions() = default;
 
