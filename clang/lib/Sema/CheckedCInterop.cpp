@@ -13,6 +13,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/Sema/BoundsUtils.h"
 #include "TreeTransform.h"
 
 using namespace clang;
@@ -184,8 +185,9 @@ public:
           CurrentParamTypes[i] = ParamType;
           // Remove the interop type annotation.
           BoundsExpr *Bounds = IndividualAnnots.getBoundsExpr();
-          if (IT->getType()->isCheckedArrayType() && !Bounds)    
-            Bounds = SemaRef.CreateCountForArrayType(IT->getType());
+          if (IT->getType()->isCheckedArrayType() && !Bounds)
+            Bounds = BoundsUtil::CreateBoundsForArrayType(SemaRef,
+                                                          IT->getType());
           if (Bounds) {
             hasParamAnnots = true;
             CurrentParamAnnots[i] = BoundsAnnotations(Bounds, nullptr);
