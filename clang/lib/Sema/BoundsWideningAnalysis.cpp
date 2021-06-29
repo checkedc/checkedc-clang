@@ -29,11 +29,7 @@ void BoundsWideningAnalysis::WidenBounds(FunctionDecl *FD,
   // Initialize the list of variables that are pointers to null-terminated
   // arrays. This list will be initialized with the variables that are passed
   // as parameters to the function.
-  InitNtPtrsInFunc(FD);
-
-  // WorkList will store the blocks that remain to be processed for the
-  // fixedpoint computation.
-  WorkListTy WorkList;
+  InitNullTermPtrsInFunc(FD);
 
   // Note: By default, PostOrderCFGView iterates in reverse order. So we always
   // get a reverse post order when we iterate PostOrderCFGView.
@@ -48,16 +44,19 @@ void BoundsWideningAnalysis::WidenBounds(FunctionDecl *FD,
     auto EB = new ElevatedCFGBlock(B);
     BlockMap[B] = EB;
 
-    // Note: WorkList is a queue. So we maintain the reverse post order when we
-    // iterate WorkList.
-    WorkList.append(EB);
-
     // Compute Gen and Kill sets for the block and statements in the block.
     ComputeGenKillSets(EB, NestedStmts);
 
     // Initialize the In and Out sets for the block.
     InitBlockInOutSets(FD, EB);
   }
+
+  // WorkList store the blocks that remain to be processed for the fixedpoint
+  // computation. WorkList is a queue. So we maintain the reverse post order
+  // when we iterate WorkList.
+  // We initialize WorkList with the successor blocks of the entry block.
+  WorkListTy WorkList;
+  AddSuccsToWorkList(&Cfg->getEntry(), WorkList);
 
   // Compute the In and Out sets for blocks. This is the fixedpoint computation
   // for the dataflow analysis.
@@ -66,7 +65,12 @@ void BoundsWideningAnalysis::WidenBounds(FunctionDecl *FD,
     WorkList.remove(EB);
 
     ComputeInSet(EB);
-    ComputeOutSet(EB, WorkList);
+    bool Changed = ComputeOutSet(EB);
+
+    // If the Out set of the block has changed then we add all successors of
+    // the block to the WorkList.
+    if (Changed)
+      AddSuccsToWorkList(EB->Block, WorkList);
   }
 }
 
@@ -97,7 +101,7 @@ void BoundsWideningAnalysis::ComputeGenKillSets(ElevatedCFGBlock *EB,
       // Update the list of null-terminated arrays in the function with the
       // null-terminated arrays that became part of Gen set for the current
       // statement.
-      UpdateNtPtrsInFunc(EB, CurrStmt);
+      UpdateNullTermPtrsInFunc(EB, CurrStmt);
 
       EB->PrevStmtMap[CurrStmt] = PrevStmt;
       PrevStmt = CurrStmt;
@@ -214,6 +218,12 @@ void BoundsWideningAnalysis::ComputeInSet(ElevatedCFGBlock *EB) {
       continue;
 
     ElevatedCFGBlock *PredEB = BlockIt->second;
+
+    // To compute the In set for the block we need to intersect the Out sets of
+    // all preds of the current block. In order to simplify the intersection
+    // operation we "prune" (or pre-process) the Out sets of preds here
+    // according to various conditions. The intersection then happens on the
+    // pruned Out sets.
     BoundsMapTy PrunedOutSet = PruneOutSet(PredEB, EB);
 
     EB->In = BWUtil.Intersect(EB->In, PrunedOutSet);
@@ -310,13 +320,7 @@ BoundsMapTy BoundsWideningAnalysis::PruneOutSet(
       continue;
     }
 
-    RangeBoundsExpr *BoundsInStmtIn = StmtInIt->second;
-
-    // If the bounds of V before the last statement in the pred block is Top
-    // then we retain whatever the bounds of V are in PrunedOutSet and they
-    // will be part of the computation of In set of the current block.
-    if (BoundsInStmtIn == Top)
-      continue;
+    RangeBoundsExpr *BoundsOfVInStmtIn = StmtInIt->second;
 
     // If the edge from pred to the current block is not a true edge then we
     // cannot widen the bounds upon entry to the current block. So we reset
@@ -338,7 +342,7 @@ BoundsMapTy BoundsWideningAnalysis::PruneOutSet(
     // Note: Switch cases are handled separately later in this function.
 
     if (!IsSwitchCase && !IsEdgeTrue) {
-      PrunedOutSet[V] = BoundsInStmtIn;
+      PrunedOutSet[V] = BoundsOfVInStmtIn;
       continue;
     }
 
@@ -361,12 +365,12 @@ BoundsMapTy BoundsWideningAnalysis::PruneOutSet(
     // upon entry to blocks 2 and 3.
 
     bool IsDerefAtUpperBound =
-      PredEB->TermCondDerefExpr &&
+      PredEB->TermCondDerefExpr && BoundsOfVInStmtIn != Top &&
       Lex.CompareExprSemantically(PredEB->TermCondDerefExpr,
-                                  BoundsInStmtIn->getUpperExpr());
+                                  BoundsOfVInStmtIn->getUpperExpr());
 
     if (!IsDerefAtUpperBound) {
-      PrunedOutSet[V] = BoundsInStmtIn;
+      PrunedOutSet[V] = BoundsOfVInStmtIn;
       continue;
     }
 
@@ -385,7 +389,7 @@ BoundsMapTy BoundsWideningAnalysis::PruneOutSet(
       // }
 
       if (IsCaseLabelNull)
-        PrunedOutSet[V] = BoundsInStmtIn;
+        PrunedOutSet[V] = BoundsOfVInStmtIn;
 
       // 2. We are in a default case and there is no other case that tests
       // for null. For example:
@@ -404,31 +408,21 @@ BoundsMapTy BoundsWideningAnalysis::PruneOutSet(
 
       else if (isa<DefaultStmt>(CurrBlock->getLabel()) &&
               !BWUtil.ExistsNullCaseLabel(PredBlock))
-        PrunedOutSet[V] = BoundsInStmtIn;
+        PrunedOutSet[V] = BoundsOfVInStmtIn;
     }
   }
 
   return PrunedOutSet;
 }
 
-void BoundsWideningAnalysis::ComputeOutSet(ElevatedCFGBlock *EB,
-                                           WorkListTy &WorkList) {
+bool BoundsWideningAnalysis::ComputeOutSet(ElevatedCFGBlock *EB) {
   auto OrigOut = EB->Out;
 
   auto Diff = BWUtil.Difference(EB->In, EB->Kill);
   EB->Out = BWUtil.Union(Diff, EB->Gen);
 
-  // If the Out set of the current block has changed add the current block to
-  // the WorkList.
-  if (!BWUtil.IsEqual(EB->Out, OrigOut)) {
-    WorkList.append(EB);
-
-    // Also add all successors of the current block to the WorkList.
-    for (const CFGBlock *SuccBlock : EB->Block->succs()) {
-      if (!BWUtil.SkipBlock(SuccBlock))
-        WorkList.append(BlockMap[SuccBlock]);
-    }
-  }
+  // Return true if the Out set has changed, false otherwise.
+  return !BWUtil.IsEqual(EB->Out, OrigOut);
 }
 
 void BoundsWideningAnalysis::InitBlockInOutSets(FunctionDecl *FD,
@@ -463,10 +457,21 @@ void BoundsWideningAnalysis::InitBlockInOutSets(FunctionDecl *FD,
 
   } else {
     // Initialize the In and Out sets for the rest of the blocks to Top.
-    for (const VarDecl *V : AllNtPtrsInFunc) {
+    for (const VarDecl *V : AllNullTermPtrsInFunc) {
       EB->In[V] = Top;
       EB->Out[V] = Top;
     }
+  }
+}
+
+void BoundsWideningAnalysis::AddSuccsToWorkList(const CFGBlock *CurrBlock,
+                                                WorkListTy &WorkList) {
+  if (!CurrBlock)
+    return;
+
+  for (const CFGBlock *SuccBlock : CurrBlock->succs()) {
+    if (!BWUtil.SkipBlock(SuccBlock))
+      WorkList.append(BlockMap[SuccBlock]);
   }
 }
 
@@ -507,22 +512,22 @@ BoundsMapTy BoundsWideningAnalysis::GetStmtIn(const CFGBlock *B,
   return GetStmtOut(B, EB->PrevStmtMap[CurrStmt]);
 }
 
-void BoundsWideningAnalysis::InitNtPtrsInFunc(FunctionDecl *FD) {
+void BoundsWideningAnalysis::InitNullTermPtrsInFunc(FunctionDecl *FD) {
   // Initialize the list of variables that are pointers to null-terminated
   // arrays to the null-terminated arrays that are passed as parameters to the
   // function.
   for (const ParmVarDecl *PD : FD->parameters()) {
     if (BWUtil.IsNtArrayType(PD))
-      AllNtPtrsInFunc.insert(PD);
+      AllNullTermPtrsInFunc.insert(PD);
   }
 }
 
-void BoundsWideningAnalysis::UpdateNtPtrsInFunc(ElevatedCFGBlock *EB,
-                                                const Stmt *CurrStmt) {
+void BoundsWideningAnalysis::UpdateNullTermPtrsInFunc(ElevatedCFGBlock *EB,
+                                                      const Stmt *CurrStmt) {
   // Add variables occurring in StmtGen for the current statement to the list
   // of variables that are pointers to null-terminated arrays.
   for (auto VarBoundsPair : EB->StmtGen[CurrStmt])
-    AllNtPtrsInFunc.insert(VarBoundsPair.first);
+    AllNullTermPtrsInFunc.insert(VarBoundsPair.first);
 }
 
 void BoundsWideningAnalysis::FillStmtGenKillSets(ElevatedCFGBlock *EB,
@@ -594,16 +599,18 @@ void BoundsWideningAnalysis::GetVarsAndBoundsInPtrDeref(
   // In set calculation.
   EB->TermCondDerefExpr = DerefExpr;
 
-  // Get all variables in the expression that are pointers to null-terminated
-  // arrays. For example: On a dereference expression like "*(p + i + j + 1)"
-  // GetNtPtrsInExpr() will return {p} if p is a pointer to a null-terminated
+  // Get the variable in the expression that is a pointers to a null-terminated
+  // array. For example: On a dereference expression like "*(p + i + j + 1)"
+  // GetNullTermPtrInExpr() will return p if p is a pointer to a null-terminated
   // array.
-
-  VarSetTy NtPtrsInExpr;
-  BWUtil.GetNtPtrsInExpr(DerefExpr, NtPtrsInExpr);
+  // Note: We assume that a dereference expression can only contain at most one
+  // pointer to a null-terminated array.
+  const VarDecl *NullTermPtrInExpr = BWUtil.GetNullTermPtrInExpr(DerefExpr);
+  if (!NullTermPtrInExpr)
+    return;
 
   // Get all variables that are pointers to null-terminated arrays and in whose
-  // upper bounds expressions each of the variables in NtPtrsInExpr occur. For
+  // upper bounds expressions the variable NullTermPtrInExpr occurs. For
   // example:
 
   // _Nt_array_ptr<char> p : bounds(p, p);
@@ -612,17 +619,20 @@ void BoundsWideningAnalysis::GetVarsAndBoundsInPtrDeref(
   // _Nt_array_ptr<char> s : bounds(p, s);
 
   // On a dereference expression like "*(p + i + j + 1)"
-  // GetNtPtrsWithVarsInUpperBounds() will return {p, q, r} because p occurs in
-  // the upper bounds expressions of p, q and r.
+  // GetNullTermPtrsWithVarsInUpperBounds() will return {p, q, r} because p
+  // occurs in the upper bounds expressions of p, q and r.
 
-  VarSetTy NtPtrsWithVarsInUpperBounds;
-  BWUtil.GetNtPtrsWithVarsInUpperBounds(NtPtrsInExpr,
-                                        NtPtrsWithVarsInUpperBounds);
+  VarSetTy Vars;
+  Vars.insert(NullTermPtrInExpr);
 
-  // Now, the bounds of all variables in NtPtrsWithVarsInUpperBounds can
+  VarSetTy NullTermPtrsWithVarsInUpperBounds;
+  BWUtil.GetNullTermPtrsWithVarsInUpperBounds(
+    Vars, NullTermPtrsWithVarsInUpperBounds);
+
+  // Now, the bounds of all variables in NullTermPtrsWithVarsInUpperBounds can
   // potentially be widened to bounds(lower, DerefExpr + 1).
 
-  for (const VarDecl *V : NtPtrsWithVarsInUpperBounds) {
+  for (const VarDecl *V : NullTermPtrsWithVarsInUpperBounds) {
     BoundsExpr *NormalizedBounds = SemaRef.NormalizeBounds(V);
     RangeBoundsExpr *RBE = dyn_cast<RangeBoundsExpr>(NormalizedBounds);
 
@@ -650,11 +660,13 @@ void BoundsWideningAnalysis::AddModifiedVarsToStmtKillSet(
 
   // Get the set of variables that are pointers to null-terminated arrays and
   // in whose lower and upper bounds expressions the modified variables occur.
-  VarSetTy NtPtrsWithVarsInBounds;
-  BWUtil.GetNtPtrsWithVarsInLowerBounds(ModifiedVars, NtPtrsWithVarsInBounds);
-  BWUtil.GetNtPtrsWithVarsInUpperBounds(ModifiedVars, NtPtrsWithVarsInBounds);
+  VarSetTy NullTermPtrsWithVarsInBounds;
+  BWUtil.GetNullTermPtrsWithVarsInLowerBounds(ModifiedVars,
+                                              NullTermPtrsWithVarsInBounds);
+  BWUtil.GetNullTermPtrsWithVarsInUpperBounds(ModifiedVars,
+                                              NullTermPtrsWithVarsInBounds);
 
-  for (const VarDecl *V : NtPtrsWithVarsInBounds)
+  for (const VarDecl *V : NullTermPtrsWithVarsInBounds)
     EB->StmtKill[CurrStmt].insert(V);
 }
 
@@ -947,8 +959,8 @@ void BoundsWideningUtil::GetModifiedVars(const Stmt *CurrStmt,
     GetModifiedVars(NestedStmt, ModifiedVars);
 }
 
-void BoundsWideningUtil::GetNtPtrsWithVarsInLowerBounds(
-  VarSetTy &Vars, VarSetTy &NtPtrsWithVarsInLowerBounds) const {
+void BoundsWideningUtil::GetNullTermPtrsWithVarsInLowerBounds(
+  VarSetTy &Vars, VarSetTy &NullTermPtrsWithVarsInLowerBounds) const {
 
   // Get the set of variables that are pointers to null-terminated arrays and
   // in whose lower bounds expressions the variables in Vars occur.
@@ -957,13 +969,13 @@ void BoundsWideningUtil::GetNtPtrsWithVarsInLowerBounds(
     auto VarPtrIt = BoundsVarsLower.find(V);
     if (VarPtrIt != BoundsVarsLower.end()) {
       for (const VarDecl *Ptr : VarPtrIt->second)
-        NtPtrsWithVarsInLowerBounds.insert(Ptr);
+        NullTermPtrsWithVarsInLowerBounds.insert(Ptr);
     }
   }
 }
 
-void BoundsWideningUtil::GetNtPtrsWithVarsInUpperBounds(
-  VarSetTy &Vars, VarSetTy &NtPtrsWithVarsInUpperBounds) const {
+void BoundsWideningUtil::GetNullTermPtrsWithVarsInUpperBounds(
+  VarSetTy &Vars, VarSetTy &NullTermPtrsWithVarsInUpperBounds) const {
 
   // Get the set of variables that are pointers to null-terminated arrays and
   // in whose upper bounds expressions the variables in Vars occur.
@@ -973,7 +985,7 @@ void BoundsWideningUtil::GetNtPtrsWithVarsInUpperBounds(
     if (VarPtrIt != BoundsVarsUpper.end()) {
       for (const VarDecl *Ptr : VarPtrIt->second)
         if (!Ptr->isInvalidDecl() && IsNtArrayType(Ptr))
-          NtPtrsWithVarsInUpperBounds.insert(Ptr);
+          NullTermPtrsWithVarsInUpperBounds.insert(Ptr);
     }
   }
 }
@@ -1037,23 +1049,14 @@ Expr *BoundsWideningUtil::GetDerefExpr(const Expr *TermCond) const {
   return nullptr;
 }
 
-void BoundsWideningUtil::GetNtPtrsInExpr(Expr *E,
-                                         VarSetTy &NtPtrsInExpr) const {
-  // Get all variables in the expression that are pointers to null-terminated
-  // arrays.
-
-  // TODO: Currently this function returns a subset of all variables that occur
-  // in an expression and that are pointers to null-terminated arrays. It
-  // returns only the top-level variables that occur in an expression. For
-  // example, in the expression "a + b - c" it returns {a, b, c} if a, b, c are
-  // all pointers to null-terminated arrays. It does not return variables that
-  // are members of a struct or arguments of a function call, etc.  In future,
-  // when we change this analysis to use AbstractSets, this function can handle
-  // an expression like "s->f + func(x)" and return {s->f, x} if s->f and x are
-  // pointers to null-terminated arrays.
+const VarDecl *BoundsWideningUtil::GetNullTermPtrInExpr(Expr *E) const {
+  // Get the variable in an expression that is a pointer to a null-terminated
+  // array.
+  // Note: We assume that an expression can only contain at most one pointer to
+  // a null-terminated array.
 
   if (!E)
-    return;
+    return nullptr;
 
   if (auto *CE = dyn_cast<CastExpr>(E))
     if (CE->getCastKind() == CastKind::CK_LValueToRValue)
@@ -1061,23 +1064,25 @@ void BoundsWideningUtil::GetNtPtrsInExpr(Expr *E,
 
   E = IgnoreCasts(E);
 
-  // Get variables in an expression like *e.
+  // Get the pointer to a null-terminated array in an expression like *e.
   if (const auto *UO = dyn_cast<const UnaryOperator>(E)) {
-    GetNtPtrsInExpr(UO->getSubExpr(), NtPtrsInExpr);
+    return GetNullTermPtrInExpr(UO->getSubExpr());
 
-  // Get variables in an expression like e1 + e2.
+  // Get the pointer to a null-terminated array in an expression like e1 + e2.
   } else if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
-    GetNtPtrsInExpr(BO->getLHS(), NtPtrsInExpr);
-    GetNtPtrsInExpr(BO->getRHS(), NtPtrsInExpr);
+    const VarDecl *V = GetNullTermPtrInExpr(BO->getLHS());
+    if (V)
+      return V;
+    return GetNullTermPtrInExpr(BO->getRHS());
   }
 
-  // If the variable is a pointer to a null-terminated array add the variable
-  // to NtPtrsInExpr.
+  // If the variable is a pointer to a null-terminated array return it.
   if (const auto *D = dyn_cast<DeclRefExpr>(E)) {
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
       if (!V->isInvalidDecl() && IsNtArrayType(V))
-        NtPtrsInExpr.insert(V);
+        return V;
   }
+  return nullptr;
 }
 
 Expr *BoundsWideningUtil::IgnoreCasts(const Expr *E) const {

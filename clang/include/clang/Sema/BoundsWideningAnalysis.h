@@ -128,20 +128,20 @@ namespace clang {
     // Get the set of variables that are pointers to null-terminated arrays and
     // in whose lower bounds expressions the variables in Vars occur.
     // @param[in] Vars is a set of variables.
-    // @param[out] NtPtrsWithVarsInLowerBounds is a set of variables that are
-    // pointers to null-terminated arrays and in whose lower bounds expressions
-    // the variables in Vars occur.
-    void GetNtPtrsWithVarsInLowerBounds(
-      VarSetTy &Vars, VarSetTy &NtPtrsWithVarsInLowerBounds) const;
+    // @param[out] NullTermPtrsWithVarsInLowerBounds is a set of variables that
+    // are pointers to null-terminated arrays and in whose lower bounds
+    // expressions the variables in Vars occur.
+    void GetNullTermPtrsWithVarsInLowerBounds(
+      VarSetTy &Vars, VarSetTy &NullTermPtrsWithVarsInLowerBounds) const;
 
     // Get the set of variables that are pointers to null-terminated arrays and
     // in whose upper bounds expressions the variables in Vars occur.
     // @param[in] Vars is a set of variables.
-    // @param[out] NtPtrsWithVarsInLowerBounds is a set of variables that are
-    // pointers to null-terminated arrays and in whose upper bounds expressions
-    // the variables in Vars occur.
-    void GetNtPtrsWithVarsInUpperBounds(
-      VarSetTy &Vars, VarSetTy &NtPtrsWithVarsInUpperBounds) const;
+    // @param[out] NullTermPtrsWithVarsInLowerBounds is a set of variables that
+    // are pointers to null-terminated arrays and in whose upper bounds
+    // expressions the variables in Vars occur.
+    void GetNullTermPtrsWithVarsInUpperBounds(
+      VarSetTy &Vars, VarSetTy &NullTermPtrsWithVarsInUpperBounds) const;
 
     // Add an offset to a given expression.
     // @param[in] E is the given expression.
@@ -155,12 +155,13 @@ namespace clang {
     // @return Returns the dereference expression, if it exists.
     Expr *GetDerefExpr(const Expr *E) const;
 
-    // Get all variables in an expression that are pointers to null-terminated
-    // arrays.
+    // Get the variable in an expression that is a pointer to a null-terminated
+    // array.
     // @param[in] E is the given expression.
-    // @param[out] VarsInExpr is a set of all variables in the expression E
-    // that are pointers to null-terminated arrays.
-    void GetNtPtrsInExpr(Expr *E, VarSetTy &NtPtrsInExpr) const;
+    // @return The variable in the expression that is a pointer to a
+    // null-terminated array; nullptr if no such variable exists in the
+    // expression.
+    const VarDecl *GetNullTermPtrInExpr(Expr *E) const;
 
     // Invoke IgnoreValuePreservingOperations to strip off casts.
     // @param[in] E is the expression whose casts must be stripped.
@@ -295,9 +296,9 @@ namespace clang {
     // used to lookup an ElevatedCFGBlock.
     BlockMapTy BlockMap;
 
-    // AllNtPtrsInFunc denotes all variables in the function that are pointers
-    // to null-terminated arrays.
-    VarSetTy AllNtPtrsInFunc;
+    // AllNullTermPtrsInFunc denotes all variables in the function that are
+    // pointers to null-terminated arrays.
+    VarSetTy AllNullTermPtrsInFunc;
   
   public:
     // Top is a special bounds expression that denotes the super set of all
@@ -373,13 +374,20 @@ namespace clang {
 
     // Compute the Out set for the block.
     // @param[in] EB is the current ElevatedCFGBlock.
-    // @param[out] EB is added to WorkList if the Out set of EB changes.
-    void ComputeOutSet(ElevatedCFGBlock *EB, WorkListTy &WorkList);
+    // @return Return true if the Out set of the block has changed, false
+    // otherwise.
+    bool ComputeOutSet(ElevatedCFGBlock *EB);
 
     // Initialize the In and Out sets for the block.
     // @param[in] FD is the current function.
     // @param[in] EB is the current ElevatedCFGBlock.
     void InitBlockInOutSets(FunctionDecl *FD, ElevatedCFGBlock *EB);
+
+    // Add the successor blocks of the current block to WorkList.
+    // @param[in] CurrBlock is the current block.
+    // @param[in] WorkList stores the blocks remaining to be processed for the
+    // fixpoint computation.
+    void AddSuccsToWorkList(const CFGBlock *CurrBlock, WorkListTy &WorkList);
 
     // Prune the Out set of the pred block according to various conditions.
     // @param[in] PredEB is a predecessor block of the current block.
@@ -390,16 +398,16 @@ namespace clang {
 
     // Initialize the list of variables that are pointers to null-terminated
     // arrays to the null-terminated arrays that are passed as parameters to
-    // the function. This function updates the AllNtPtrsInFunc set.
+    // the function. This function updates the AllNullTermPtrsInFunc set.
     // @param[in] FD is the current function.
-    void InitNtPtrsInFunc(FunctionDecl *FD);
+    void InitNullTermPtrsInFunc(FunctionDecl *FD);
 
     // Update the list of variables that are pointers to null-terminated arrays
     // with the variables that are in StmtGen for the current statement in the
-    // block. This function updates the AllNtPtrsInFunc set.
+    // block. This function updates the AllNullTermPtrsInFunc set.
     // @param[in] EB is the current ElevatedCFGBlock.
     // @param[in] CurrStmt is the current statement.
-    void UpdateNtPtrsInFunc(ElevatedCFGBlock *EB, const Stmt *CurrStmt);
+    void UpdateNullTermPtrsInFunc(ElevatedCFGBlock *EB, const Stmt *CurrStmt);
 
     // Fill the Gen and Kill sets for a statement using the variable and bounds
     // expressions in VarsAndBounds.
