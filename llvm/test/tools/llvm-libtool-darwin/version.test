@@ -8,7 +8,7 @@
 # RUN: llvm-libtool-darwin -V | FileCheck %s
 ## The specific version number, vendor string, etc. will differ across
 ## environments, so this is the most specific we can get.
-# CHECK: LLVM version
+# CHECK: CheckedC-Clang version
 
 ## Parsing errors should not be surfaced when no operation is specified.
 # RUN: llvm-libtool-darwin -V -D -U | FileCheck %s

@@ -5,4 +5,4 @@
 
 # SYMBOLIZER: llvm-symbolizer{{$}}
 # ADDR2LINE:  llvm-addr2line{{$}}
-# COMMON: LLVM version {{.*}}
+# COMMON: CheckedC-Clang version {{.*}}
