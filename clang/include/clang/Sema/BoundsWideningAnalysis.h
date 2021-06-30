@@ -163,6 +163,16 @@ namespace clang {
     // expression.
     const VarDecl *GetNullTermPtrInExpr(Expr *E) const;
 
+    // Get the normalized bounds for V as a range bounds expression.
+    // @param[in] V is variable for which we need the normalized range bounds.
+    // @param[in] Bounds is an optional parameter. If bounds are provided then
+    // they are expanded to range bounds expression. If bounds are not provided
+    // then the declared bounds of V are normalized and converted to range
+    // bounds expression.
+    // @return Returns the bounds for V normalized to range bounds.
+    RangeBoundsExpr *GetNormalizedBounds(const VarDecl *V,
+                                         BoundsExpr *Bounds = nullptr);
+
     // Invoke IgnoreValuePreservingOperations to strip off casts.
     // @param[in] E is the expression whose casts must be stripped.
     // @return E with casts stripped off.
@@ -445,12 +455,16 @@ namespace clang {
     void GetVarsAndBoundsInPtrDeref(ElevatedCFGBlock *EB,
                                     BoundsMapTy &VarsAndBounds);
 
-    // Add to the StmtKill set the variables occurring in the bounds expression
-    // of a null-terminated array that are modified.
+    // Get the mapping of variables to their resetted bounds because of a
+    // modification to a variable that occurs in their lower or upper bounds
+    // expressions.
     // @param[in] EB is the current ElevatedCFGBlock.
     // @param[in] CurrStmt is the current statement.
-    void AddModifiedVarsToStmtKillSet(ElevatedCFGBlock *EB,
-                                      const Stmt *CurrStmt);
+    // @param[out] VarsAndBounds is a map of variables to their bounds
+    // expressions. This field is updated by this function.
+    void GetVarsAndBoundsForModifiedVars(ElevatedCFGBlock *EB,
+                                         const Stmt *CurrStmt,
+                                         BoundsMapTy &VarsAndBounds);
 
     // Order the blocks by block number to get a deterministic iteration order
     // for the blocks.

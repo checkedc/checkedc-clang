@@ -19,7 +19,7 @@ void f1(int i) {
 
 // CHECK: Block: B3, Pred: B4, Succ: B2, B1
 // CHECK:   Widened bounds before stmt: _Nt_array_ptr<char> p : bounds(p, p + i) = "a";
-// CHECK:     <none>
+// CHECK:     <no widening>
 
 // CHECK:   Widened bounds before stmt: *(i + p)
 // CHECK:     p: bounds(p, p + i)
@@ -43,7 +43,7 @@ void f2(int i, int j) {
 
 // CHECK: Block: B3, Pred: B4, Succ: B2, B1
 // CHECK:   Widened bounds before stmt: _Nt_array_ptr<char> p : bounds(p, p + (i + j)) = "a";
-// CHECK:     <none>
+// CHECK:     <no widening>
 
 // CHECK:   Widened bounds before stmt: *(p + (j + i))
 // CHECK:     p: bounds(p, p + (i + j))
@@ -67,7 +67,7 @@ void f3(int i, int j) {
 
 // CHECK: Block: B3, Pred: B4, Succ: B2, B1
 // CHECK:   Widened bounds before stmt: _Nt_array_ptr<char> p : bounds(p, p + (i * j)) = "a";
-// CHECK:     <none>
+// CHECK:     <no widening>
 
 // CHECK:   Widened bounds before stmt: *(p + (j * i))
 // CHECK:     p: bounds(p, p + (i * j))
@@ -91,7 +91,7 @@ void f4(int i, int j, int k, int m, int n) {
 
 // CHECK: Block: B3, Pred: B4, Succ: B2, B1
 // CHECK:   Widened bounds before stmt: _Nt_array_ptr<char> p : bounds(p, p + i + j + k + m + n) = "a";
-// CHECK:     <none>
+// CHECK:     <no widening>
 
 // CHECK:   Widened bounds before stmt: *(n + m + k + j + i + p)
 // CHECK:     p: bounds(p, p + i + j + k + m + n)
@@ -115,7 +115,7 @@ void f5(int i, int j, int k, int m, int n) {
 
 // CHECK: Block: B3, Pred: B4, Succ: B2, B1
 // CHECK:   Widened bounds before stmt: _Nt_array_ptr<char> p : bounds(p, (p + i) + (j + k) + (m + n)) = "a";
-// CHECK:     <none>
+// CHECK:     <no widening>
 
 // CHECK:   Widened bounds before stmt: *((n + m + k) + (j + i + p))
 // CHECK:     p: bounds(p, (p + i) + (j + k) + (m + n))
@@ -139,7 +139,7 @@ void f6(int i, int j) {
 
 // CHECK: Block: B3, Pred: B4, Succ: B2, B1
 // CHECK:   Widened bounds before stmt: _Nt_array_ptr<char> p : bounds(p, p + i + j + i + j) = "a";
-// CHECK:     <none>
+// CHECK:     <no widening>
 
 // CHECK:   Widened bounds before stmt: *(j + j + p + i + i)
 // CHECK:     p: bounds(p, p + i + j + i + j)
@@ -163,7 +163,7 @@ void f7(int i, int j) {
 
 // CHECK: Block: B3, Pred: B4, Succ: B2, B1
 // CHECK:   Widened bounds before stmt: _Nt_array_ptr<char> p : bounds(p, p + i * j) = "a";
-// CHECK:     <none>
+// CHECK:     <no widening>
 
 // CHECK:   Widened bounds before stmt: *(p + i + j)
 // CHECK:     p: bounds(p, p + i * j)
@@ -187,7 +187,7 @@ void f8(int i, int j) {
 
 // CHECK: Block: B3, Pred: B4, Succ: B2, B1
 // CHECK:   Widened bounds before stmt: _Nt_array_ptr<char> p : bounds(p, p + i + j) = "a";
-// CHECK:     <none>
+// CHECK:     <no widening>
 
 // CHECK:   Widened bounds before stmt: *(p + i + i)
 // CHECK:     p: bounds(p, p + i + j)
@@ -211,7 +211,7 @@ void f9(int i, int j, int k) {
 
 // CHECK: Block: B3, Pred: B4, Succ: B2, B1
 // CHECK:   Widened bounds before stmt: _Nt_array_ptr<char> p : bounds(p, (p + i) + (j * k)) = "a";
-// CHECK:     <none>
+// CHECK:     <no widening>
 
 // CHECK:   Widened bounds before stmt: *((p + i) + (j * k))
 // CHECK:     p: bounds(p, (p + i) + (j * k))
@@ -235,7 +235,7 @@ void f10(int i, int j, int k) {
 
 // CHECK: Block: B3, Pred: B4, Succ: B2, B1
 // CHECK:   Widened bounds before stmt: _Nt_array_ptr<char> p : bounds(p, (p + i) + (j * k)) = "a";
-// CHECK:     <none>
+// CHECK:     <no widening>
 
 // CHECK:   Widened bounds before stmt: *((p + i) + (j + k))
 // CHECK:     p: bounds(p, (p + i) + (j * k))
@@ -262,7 +262,7 @@ void f11(int i, int j) {
 
 // CHECK: Block: B4, Pred: B5, Succ: B3, B1
 // CHECK:   Widened bounds before stmt: _Nt_array_ptr<char> p : bounds(p, p + i + j) = "a";
-// CHECK:     <none>
+// CHECK:     <no widening>
 
 // CHECK:   Widened bounds before stmt: *(j + i + p)
 // CHECK:     p: bounds(p, p + i + j)
@@ -296,7 +296,7 @@ void f12() {
 
 // CHECK: Block: B4, Pred: B5, Succ: B3, B1
 // CHECK:   Widened bounds before stmt: _Nt_array_ptr<char> p : bounds(p, p) = "a";
-// CHECK:     <none>
+// CHECK:     <no widening>
 
 // CHECK:   Widened bounds before stmt: *(p + 0)
 // CHECK:     p: bounds(p, p)
@@ -330,7 +330,7 @@ void f13(int i, int j) {
 
 // CHECK: Block: B4, Pred: B5, Succ: B3, B1
 // CHECK:   Widened bounds before stmt: _Nt_array_ptr<char> p : bounds(p, p + (i * j * 2 + 2 + 1)) = "a";
-// CHECK:     <none>
+// CHECK:     <no widening>
 
 // CHECK:   Widened bounds before stmt: *(p + (i * j * 2 + 3))
 // CHECK:     p: bounds(p, p + (i * j * 2 + 2 + 1))
@@ -361,7 +361,7 @@ void f14(int i) {
 
 // CHECK: Block: B3, Pred: B4, Succ: B2, B1
 // CHECK:   Widened bounds before stmt: _Nt_array_ptr<char> p : bounds(p, p + (i * 1)) = "a";
-// CHECK:     <none>
+// CHECK:     <no widening>
 
 // CHECK:   Widened bounds before stmt: *(p + (i * 2))
 // CHECK:     p: bounds(p, p + (i * 1))
@@ -401,7 +401,7 @@ void f16(int i, int j) {
 
 // CHECK: Block: B3, Pred: B4, Succ: B2, B1
 // CHECK:   Widened bounds before stmt: _Nt_array_ptr<char> p : bounds(p, p + i + j + 8) = "a";
-// CHECK:     <none>
+// CHECK:     <no widening>
 
 // CHECK:   Widened bounds before stmt: *(p + (i + 3 * 2 + (j + 2)))
 // CHECK:     p: bounds(p, p + i + j + 8)

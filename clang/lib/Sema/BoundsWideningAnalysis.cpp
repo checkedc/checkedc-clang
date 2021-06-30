@@ -69,8 +69,9 @@ void BoundsWideningAnalysis::WidenBounds(FunctionDecl *FD,
 
     // If the Out set of the block has changed then we add all successors of
     // the block to the WorkList.
-    if (Changed)
+    if (Changed) {
       AddSuccsToWorkList(EB->Block, WorkList);
+    }
   }
 }
 
@@ -167,16 +168,31 @@ void BoundsWideningAnalysis::ComputeStmtGenKillSets(ElevatedCFGBlock *EB,
     GetVarsAndBoundsInWhereClause(EB, NS->getWhereClause(), VarsAndBounds);
   }
 
-  // Using the mapping of variables to bounds expressions in VarsAndBounds fill
-  // the Gen and Kill sets for the statement.
-  FillStmtGenKillSets(EB, CurrStmt, VarsAndBounds);
+  // A modification of a variable that occurs either in the lower bounds
+  // expression or an upper bounds expression of a null-terminated array does
+  // the following:
+  // 1. Kills the widened bounds of that null-terminated array, and
+  // 2. Resets the bounds of the null-terminated array to its declared bounds.
+  // For example:
+  // int i;
+  // _Nt_array_ptr<char> p : bounds(p, p + i);
+  // if (*(p + i)) { // widen bounds of p to bounds(p, p + i + 1)
+
+  //   i = 0; // kill the widened bounds of p, and
+  //          // reset bounds of p to bounds(p, p + i)
+  // }
 
   // If a variable modified by CurrStmt occurs in the bounds expression of a
   // null-terminated array then the bounds of that null-terminated array should
-  // be killed. Skip top-level statements that are nested in another top-level
+  // be killed and its bounds should be reset to its declared bounds.
+  // Note: Skip top-level statements that are nested in another top-level
   // statement.
   if (NestedStmts.find(CurrStmt) == NestedStmts.end())
-    AddModifiedVarsToStmtKillSet(EB, CurrStmt);
+    GetVarsAndBoundsForModifiedVars(EB, CurrStmt, VarsAndBounds);
+
+  // Using the mapping of variables to bounds expressions in VarsAndBounds fill
+  // the Gen and Kill sets for the current statement.
+  FillStmtGenKillSets(EB, CurrStmt, VarsAndBounds);
 }
 
 void BoundsWideningAnalysis::ComputeUnionGenKillSets(ElevatedCFGBlock *EB,
@@ -545,10 +561,8 @@ void BoundsWideningAnalysis::FillStmtGenKillSets(ElevatedCFGBlock *EB,
 void BoundsWideningAnalysis::GetVarsAndBoundsInDecl(
   ElevatedCFGBlock *EB, const VarDecl *V, BoundsMapTy &VarsAndBounds) {
 
-  if (BWUtil.IsNtArrayType(V)) {
-    BoundsExpr *NormalizedBounds = SemaRef.NormalizeBounds(V);
-    VarsAndBounds[V] = dyn_cast<RangeBoundsExpr>(NormalizedBounds);
-  }
+  if (BWUtil.IsNtArrayType(V))
+    VarsAndBounds[V] = BWUtil.GetNormalizedBounds(V);
 }
 
 void BoundsWideningAnalysis::GetVarsAndBoundsInWhereClause(
@@ -564,8 +578,7 @@ void BoundsWideningAnalysis::GetVarsAndBoundsInWhereClause(
 
     VarDecl *V = BF->Var;
     if (BWUtil.IsNtArrayType(V)) {
-      BoundsExpr *NormalizedBounds = SemaRef.ExpandBoundsToRange(V, BF->Bounds);
-      VarsAndBounds[V] = dyn_cast<RangeBoundsExpr>(NormalizedBounds);
+      VarsAndBounds[V] = BWUtil.GetNormalizedBounds(V, BF->Bounds);
     }
   }
 }
@@ -633,8 +646,7 @@ void BoundsWideningAnalysis::GetVarsAndBoundsInPtrDeref(
   // potentially be widened to bounds(lower, DerefExpr + 1).
 
   for (const VarDecl *V : NullTermPtrsWithVarsInUpperBounds) {
-    BoundsExpr *NormalizedBounds = SemaRef.NormalizeBounds(V);
-    RangeBoundsExpr *RBE = dyn_cast<RangeBoundsExpr>(NormalizedBounds);
+    RangeBoundsExpr *RBE = BWUtil.GetNormalizedBounds(V);
 
     // DerefExpr potentially widens V. So we need to add "V:bounds(lower,
     // DerefExpr + 1)" to the Gen set.
@@ -651,10 +663,10 @@ void BoundsWideningAnalysis::GetVarsAndBoundsInPtrDeref(
   }
 }
 
-void BoundsWideningAnalysis::AddModifiedVarsToStmtKillSet(
-  ElevatedCFGBlock *EB, const Stmt *CurrStmt) {
+void BoundsWideningAnalysis::GetVarsAndBoundsForModifiedVars(
+  ElevatedCFGBlock *EB, const Stmt *CurrStmt, BoundsMapTy &VarsAndBounds) {
 
-  // Get variables modified by CurrStmt or statements nested in CurrStmt.
+  // Get variables modified by CurrStmt.
   VarSetTy ModifiedVars;
   BWUtil.GetModifiedVars(CurrStmt, ModifiedVars);
 
@@ -666,8 +678,10 @@ void BoundsWideningAnalysis::AddModifiedVarsToStmtKillSet(
   BWUtil.GetNullTermPtrsWithVarsInUpperBounds(ModifiedVars,
                                               NullTermPtrsWithVarsInBounds);
 
+  // For each null-terminated array we need to reset the bounds to its declared
+  // bounds.
   for (const VarDecl *V : NullTermPtrsWithVarsInBounds)
-    EB->StmtKill[CurrStmt].insert(V);
+    VarsAndBounds[V] = BWUtil.GetNormalizedBounds(V);
 }
 
 void BoundsWideningAnalysis::DumpWidenedBounds(FunctionDecl *FD) {
@@ -732,15 +746,15 @@ void BoundsWideningAnalysis::DumpWidenedBounds(FunctionDecl *FD) {
         IsBlockEmpty = false;
 
         if (Vars.size() == 0)
-          OS << "    <none>\n";
+          OS << "    <no widening>\n";
 
         for (const VarDecl *V : Vars) {
           RangeBoundsExpr *Bounds = WidenedBounds[V];
           if (Bounds == Top) {
             // If this is the only variable and its bounds are Top, we need to
-            // print <none>.
+            // print <no widening>.
             if (Vars.size() == 1)
-              OS << "    <none>\n";
+              OS << "    <no widening>\n";
             continue;
           }
 
@@ -1083,6 +1097,17 @@ const VarDecl *BoundsWideningUtil::GetNullTermPtrInExpr(Expr *E) const {
         return V;
   }
   return nullptr;
+}
+
+RangeBoundsExpr *BoundsWideningUtil::GetNormalizedBounds(const VarDecl *V,
+                                                         BoundsExpr *Bounds) {
+  if (!V)
+    return nullptr;
+
+  BoundsExpr *NormalizedBounds = Bounds ?
+                                 SemaRef.ExpandBoundsToRange(V, Bounds) :
+                                 SemaRef.NormalizeBounds(V);
+  return dyn_cast_or_null<RangeBoundsExpr>(NormalizedBounds);
 }
 
 Expr *BoundsWideningUtil::IgnoreCasts(const Expr *E) const {
