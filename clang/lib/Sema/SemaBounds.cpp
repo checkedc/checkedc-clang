@@ -3941,8 +3941,7 @@ namespace {
                 << Init->getSourceRange();
           InitBounds = S.CreateInvalidBoundsExpr();
         } else if (CheckBounds) {
-          BoundsExpr *NormalizedDeclaredBounds =
-            BoundsUtil::ExpandToRange(S, D, DeclaredBounds);
+          BoundsExpr *NormalizedDeclaredBounds = S.NormalizeBounds(D);
           CheckBoundsDeclAtInitializer(D->getLocation(), D, NormalizedDeclaredBounds,
             Init, InitBounds, State.EquivExprs, CSS);
         }
