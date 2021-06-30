@@ -6386,6 +6386,29 @@ BoundsExpr *Sema::NormalizeBounds(const VarDecl *D) {
   return ExpandedBounds;
 }
 
+// If the BoundsDeclFact F has a byte_count or count bounds expression,
+// NormalizeBounds expands it to a range bounds expression.  The expanded
+// range bounds are attached to the BoundsDeclFact F to avoid recomputing
+// the normalized bounds for F.
+BoundsExpr *Sema::NormalizeBounds(const BoundsDeclFact *F) {
+  // If F already has a normalized bounds expression, do not recompute it.
+  if (BoundsExpr *NormalizedBounds = F->getNormalizedBounds())
+    return NormalizedBounds;
+
+  // Expand the bounds expression of F to a RangeBoundsExpr if possible.
+  const VarDecl *D = F->getVarDecl();
+  const BoundsExpr *B = F->getBoundsExpr();
+  BoundsExpr *ExpandedBounds = BoundsUtil::ExpandBoundsToRange(*this,
+                                             const_cast<VarDecl *>(D),
+                                             const_cast<BoundsExpr *>(B));
+  if (!ExpandedBounds)
+    return nullptr;
+
+  // Attach the normalized bounds to F to avoid recomputing them.
+  F->setNormalizedBounds(ExpandedBounds);
+  return ExpandedBounds;
+}
+
 // Returns the declared bounds for the lvalue expression E. Assignments
 // to E must satisfy these bounds. After checking a top-level statement,
 // the inferred bounds of E must imply these declared bounds.
