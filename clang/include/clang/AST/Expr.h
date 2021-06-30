@@ -7159,13 +7159,38 @@ class BoundsDeclFact : public WhereClauseFact {
 public:
   VarDecl *Var;
   BoundsExpr *Bounds;
+  BoundsExpr *NormalizedBounds;
 
   BoundsDeclFact(VarDecl *Var, BoundsExpr *Bounds, SourceLocation Loc)
     : WhereClauseFact(FactKind::BoundsDeclFact, Loc),
-      Var(Var), Bounds(Bounds) {}
+      Var(Var), Bounds(Bounds), NormalizedBounds(nullptr) {}
 
   static bool classof(const WhereClauseFact *Fact) {
     return Fact->Kind == FactKind::BoundsDeclFact;
+  }
+
+  // \brief The bounds expression for this bounds fact, expanded to a
+  // range bounds expression.
+  BoundsExpr *getNormalizedBounds() const {
+    return const_cast<BoundsDeclFact *>(this)->getNormalizedBounds();
+  }
+
+  // \brief The bounds expression for this bounds fact, expanded to a
+  // range bounds expression.
+  BoundsExpr *getNormalizedBounds() {
+    return NormalizedBounds;
+  }
+
+  // \brief Set the bounds expression for this bounds fact, expanded to a
+  // range bounds expression.
+  void setNormalizedBounds(BoundsExpr *E) const {
+    const_cast<BoundsDeclFact *>(this)->setNormalizedBounds(E);
+  }
+
+  // \brief Set the bounds expression for this bounds fact, expanded to a
+  // range bounds expression.
+  void setNormalizedBounds(BoundsExpr *E) {
+    NormalizedBounds = E;
   }
 };
 
