@@ -6391,12 +6391,17 @@ BoundsExpr *Sema::NormalizeBounds(const VarDecl *D) {
 // range bounds are attached to the BoundsDeclFact F to avoid recomputing
 // the normalized bounds for F.
 BoundsExpr *Sema::NormalizeBounds(const BoundsDeclFact *F) {
+  // Do not attempt to normalize bounds for bounds facts that are
+  // associated with invalid declarations.
+  const VarDecl *D = F->getVarDecl();
+  if (D->isInvalidDecl())
+    return nullptr;
+
   // If F already has a normalized bounds expression, do not recompute it.
   if (BoundsExpr *NormalizedBounds = F->getNormalizedBounds())
     return NormalizedBounds;
 
   // Expand the bounds expression of F to a RangeBoundsExpr if possible.
-  const VarDecl *D = F->getVarDecl();
   const BoundsExpr *B = F->getBoundsExpr();
   BoundsExpr *ExpandedBounds = BoundsUtil::ExpandBoundsToRange(*this,
                                              const_cast<VarDecl *>(D),
