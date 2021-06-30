@@ -7169,6 +7169,26 @@ public:
     return Fact->Kind == FactKind::BoundsDeclFact;
   }
 
+  // \brief The variable declaration associated with this bounds fact.
+  VarDecl *getVarDecl() const {
+    return const_cast<BoundsDeclFact *>(this)->getVarDecl();
+  }
+
+  // \brief The variable declaration associated with this bounds fact.
+  VarDecl *getVarDecl() {
+    return Var;
+  }
+
+  // \brief The bounds expression associated with this bounds fact.
+  BoundsExpr *getBoundsExpr() const {
+    return const_cast<BoundsDeclFact *>(this)->getBoundsExpr();
+  }
+
+  // \brief The bounds expression associated with this bounds fact.
+  BoundsExpr *getBoundsExpr() {
+    return Bounds;
+  }
+
   // \brief The bounds expression for this bounds fact, expanded to a
   // range bounds expression.
   BoundsExpr *getNormalizedBounds() const {
