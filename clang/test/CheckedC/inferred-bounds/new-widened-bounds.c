@@ -1762,11 +1762,11 @@ void f27(_Nt_array_ptr<char> p : count(i), int i) {
 // CHECK:     p: bounds(p, p + i + 1)
 
 // CHECK:   Widened bounds before stmt: *(p + i + 1)
-// CHECK:     <no widening>
+// CHECK:     p: bounds(p, p + i)
 
 // CHECK: Block: B1, Pred: B2, Succ: B0
 // CHECK:   Widened bounds before stmt: a = 2
-// CHECK:     <no widening>
+// CHECK:     p: bounds(p, p + i)
 }
 
 void f28() {

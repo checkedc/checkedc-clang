@@ -64,14 +64,14 @@ void BoundsWideningAnalysis::WidenBounds(FunctionDecl *FD,
     ElevatedCFGBlock *EB = WorkList.next();
     WorkList.remove(EB);
 
-    ComputeInSet(EB);
-    bool Changed = ComputeOutSet(EB);
+    bool Changed = false;
+    Changed |= ComputeInSet(EB);
+    Changed |= ComputeOutSet(EB);
 
-    // If the Out set of the block has changed then we add all successors of
-    // the block to the WorkList.
-    if (Changed) {
+    // If the In or the Out set of the block has changed then we add all
+    // successors of the block to the WorkList.
+    if (Changed)
       AddSuccsToWorkList(EB->Block, WorkList);
-    }
   }
 }
 
@@ -224,8 +224,9 @@ void BoundsWideningAnalysis::ComputeBlockGenKillSets(ElevatedCFGBlock *EB) {
   }
 }
 
-void BoundsWideningAnalysis::ComputeInSet(ElevatedCFGBlock *EB) {
+bool BoundsWideningAnalysis::ComputeInSet(ElevatedCFGBlock *EB) {
   const CFGBlock *CurrBlock = EB->Block;
+  auto OrigIn = EB->In;
 
   // Iterate through all the predecessor blocks of EB.
   for (const CFGBlock *PredBlock : CurrBlock->preds()) {
@@ -244,6 +245,9 @@ void BoundsWideningAnalysis::ComputeInSet(ElevatedCFGBlock *EB) {
 
     EB->In = BWUtil.Intersect(EB->In, PrunedOutSet);
   }
+
+  // Return true if the In set has changed, false otherwise.
+  return !BWUtil.IsEqual(EB->In, OrigIn);
 }
 
 BoundsMapTy BoundsWideningAnalysis::PruneOutSet(

@@ -380,7 +380,9 @@ namespace clang {
 
     // Compute the In set for the block.
     // @param[in] EB is the current ElevatedCFGBlock.
-    void ComputeInSet(ElevatedCFGBlock *EB);
+    // @return Return true if the In set of the block has changed, false
+    // otherwise.
+    bool ComputeInSet(ElevatedCFGBlock *EB);
 
     // Compute the Out set for the block.
     // @param[in] EB is the current ElevatedCFGBlock.
