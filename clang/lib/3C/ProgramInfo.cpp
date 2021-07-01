@@ -595,13 +595,13 @@ void ProgramInfo::specialCaseVarIntros(ValueDecl *D, ASTContext *Context) {
 
   if (isa<ParmVarDecl>(D))
     IsGeneric = PVC && PVC->getIsGeneric();
-  if (isVarArgType(D->getType().getAsString()) ||
-      (hasVoidType(D) && !IsGeneric)) {
+  bool IsVarArg = isVarArgType(D->getType().getAsString());
+  bool IsVoidPtr = hasVoidType(D) && !IsGeneric;
+  if (IsVarArg || IsVoidPtr) {
     // Set the reason for making this variable WILD.
-    std::string Rsn = "Variable type void.";
     PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(D, *Context);
-    if (!D->getType()->isVoidType())
-      Rsn = "Variable type is va_list.";
+    std::string Rsn = IsVoidPtr ? "Variable type void."
+                                : "Variable type is va_list.";
     if (PVC != nullptr)
       PVC->constrainToWild(CS, Rsn, &PL);
   }
