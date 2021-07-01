@@ -7156,11 +7156,12 @@ public:
 
 /// \brief Represents a Checked C where clause bounds decl fact.
 class BoundsDeclFact : public WhereClauseFact {
-public:
+private:
   VarDecl *Var;
   BoundsExpr *Bounds;
   BoundsExpr *NormalizedBounds;
 
+public:
   BoundsDeclFact(VarDecl *Var, BoundsExpr *Bounds, SourceLocation Loc)
     : WhereClauseFact(FactKind::BoundsDeclFact, Loc),
       Var(Var), Bounds(Bounds), NormalizedBounds(nullptr) {}
