@@ -633,7 +633,7 @@ void ASTStmtReader::VisitDeclRefExpr(DeclRefExpr *E) {
     E->SetGenericInstInfo(Record.getContext(), typeArgumentInfos);
   }
 
-  E->setDecl(readDeclAs<ValueDecl>());
+  E->D = readDeclAs<ValueDecl>();
   E->setLocation(readSourceLocation());
   E->DNLoc = Record.readDeclarationNameLoc(E->getDecl()->getDeclName());
 }
