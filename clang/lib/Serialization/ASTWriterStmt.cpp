@@ -1053,9 +1053,7 @@ void ASTStmtWriter::VisitImplicitCastExpr(ImplicitCastExpr *E) {
   VisitCastExpr(E);
   Record.push_back(E->isPartOfExplicitCast());
 
-  if (E->path_size() == 0 && !E->hasStoredFPFeatures())
-    AbbrevToUse = Writer.getExprImplicitCastAbbrev();
-  // if (E->path_size() == 0 && !E->hasBoundsExpr())
+  // if (E->path_size() == 0 && !E->hasStoredFPFeatures())
   //   AbbrevToUse = Writer.getExprImplicitCastAbbrev();
 
   Code = serialization::EXPR_IMPLICIT_CAST;
