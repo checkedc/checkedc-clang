@@ -75,7 +75,7 @@ void fp_unsafe_return() {
 }
 
 void f_ptr_arg(int (*f)()) {
-  // CHECK: void f_ptr_arg(int (*f)()) {
+  // CHECK: void f_ptr_arg(int ((*f)(void)) : itype(_Ptr<int (void)>)) {
   f = 1;
 }
 
@@ -86,7 +86,7 @@ void fpnc1(void *p1) {}
 void fpnc2() { fpnc0(fpnc1); }
 // CHECK: void fpnc2() { fpnc0(fpnc1); }
 void fpnc3(void (*fptr)(void *)) { fptr = 1; }
-// CHECK: void fpnc3(void (*fptr)(void *)) { fptr = 1; }
+// CHECK: void fpnc3(void ((*fptr)(void *)) : itype(_Ptr<void (void *)>)) { fptr = 1; }
 void fpnc4(void *p1) {}
 // CHECK: void fpnc4(void *p1) {}
 void fpnc5() { fpnc3(fpnc4); }

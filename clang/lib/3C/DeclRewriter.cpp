@@ -676,21 +676,27 @@ void FunctionDeclBuilder::buildItypeDecl(PVConstraint *Defn,
                                          DeclaratorDecl *Decl,
                                          std::string &Type, std::string &IType,
                                          bool &RewriteParm, bool &RewriteRet) {
-  Type = Defn->getRewritableOriginalTy();
-  auto &PStats = Info.getPerfStats();
-  if (isa_and_nonnull<ParmVarDecl>(Decl)) {
-    if (Decl->getName().empty())
-      Type += Defn->getName();
-    else
-      Type += Decl->getQualifiedNameAsString();
+  Info.getPerfStats().incrementNumITypes();
+  if (Defn->getFV()) {
+    // The result of getFV() is not nullptr, so the declaration is for a
+    // function pointer. This makes rewriting with an itype a bit harder.
+    Type = Defn->mkString(Info.getConstraints(), true, false, false, false, "",
+                          true);
   } else {
-    std::string Name = Defn->getName();
-    if (Name != RETVAR)
-      Type += Name;
+    Type = Defn->getRewritableOriginalTy();
+    if (isa_and_nonnull<ParmVarDecl>(Decl)) {
+      if (Decl->getName().empty())
+        Type += Defn->getName();
+      else
+        Type += Decl->getQualifiedNameAsString();
+    } else {
+      std::string Name = Defn->getName();
+      if (Name != RETVAR)
+        Type += Name;
+    }
   }
   IType = " : itype(" + Defn->mkString(Info.getConstraints(), false, true) +
           ")" + ABRewriter.getBoundsString(Defn, Decl, true);
-  PStats.incrementNumITypes();
   RewriteParm = true;
   RewriteRet |= isa_and_nonnull<FunctionDecl>(Decl);
 }

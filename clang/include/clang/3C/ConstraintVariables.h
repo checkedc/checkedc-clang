@@ -87,7 +87,8 @@ public:
   virtual std::string mkString(Constraints &CS, bool EmitName = true,
                                bool ForItype = false, bool EmitPointee = false,
                                bool UnmaskTypedef = false,
-                               std::string UseName = "") const = 0;
+                               std::string UseName = "",
+                               bool ForItypeBase = false) const = 0;
 
   // Debug printing of the constraint variable.
   virtual void print(llvm::raw_ostream &O) const = 0;
@@ -444,7 +445,8 @@ public:
   std::string mkString(Constraints &CS, bool EmitName = true,
                        bool ForItype = false, bool EmitPointee = false,
                        bool UnmaskTypedef = false,
-                       std::string UseName = "") const override;
+                       std::string UseName = "",
+                       bool ForItypeBase = false) const override;
 
   FunctionVariableConstraint *getFV() const { return FV; }
 
@@ -523,10 +525,12 @@ public:
 
   void mergeDeclaration(FVComponentVariable *From, ProgramInfo &I,
                         std::string &ReasonFailed);
-  std::string mkItypeStr(Constraints &CS) const;
+  std::string mkItypeStr(Constraints &CS, bool ForItypeBase = false) const;
   std::string mkTypeStr(Constraints &CS, bool EmitName,
-                        std::string UseName = "") const;
-  std::string mkString(Constraints &CS, bool EmitName = true) const;
+                        std::string UseName = "",
+                        bool ForItypeBase = false) const;
+  std::string mkString(Constraints &CS, bool EmitName = true,
+                       bool ForItypeBase = false) const;
 
   bool hasItypeSolution(Constraints &CS) const;
   bool hasCheckedSolution(Constraints &CS) const;
@@ -634,7 +638,8 @@ public:
   std::string mkString(Constraints &CS, bool EmitName = true,
                        bool ForItype = false, bool EmitPointee = false,
                        bool UnmaskTypedef = false,
-                       std::string UseName = "") const override;
+                       std::string UseName = "",
+                       bool ForItypeBase = false) const override;
   void print(llvm::raw_ostream &O) const override;
   void dump() const override { print(llvm::errs()); }
   void dumpJson(llvm::raw_ostream &O) const override;

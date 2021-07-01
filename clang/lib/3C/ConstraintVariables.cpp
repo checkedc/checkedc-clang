@@ -740,7 +740,8 @@ std::string PointerVariableConstraint::gatherQualStrings(void) const {
 std::string PointerVariableConstraint::mkString(Constraints &CS, bool EmitName,
                                                 bool ForItype, bool EmitPointee,
                                                 bool UnmaskTypedef,
-                                                std::string UseName) const {
+                                                std::string UseName,
+                                                bool ForItypeBase) const {
 
   // The name field encodes if this variable is the return type for a function.
   // TODO: store this information in a separate field.
@@ -791,7 +792,9 @@ std::string PointerVariableConstraint::mkString(Constraints &CS, bool EmitName,
        ++It, I++) {
     const auto &V = *It;
     ConstAtom *C = nullptr;
-    if (ConstAtom *CA = dyn_cast<ConstAtom>(V)) {
+    if (ForItypeBase) {
+      C = CS.getWild();
+    } else if (ConstAtom *CA = dyn_cast<ConstAtom>(V)) {
       C = CA;
     } else {
       VarAtom *VA = dyn_cast<VarAtom>(V);
@@ -918,9 +921,10 @@ std::string PointerVariableConstraint::mkString(Constraints &CS, bool EmitName,
       }
       bool EmitFVName = !FptrInner.str().empty();
       if (EmitFVName)
-        Ss << FV->mkString(CS, true, false, false, false, FptrInner.str());
+        Ss << FV->mkString(CS, true, false, false, false, FptrInner.str(),
+                           ForItypeBase);
       else
-        Ss << FV->mkString(CS, false);
+        Ss << FV->mkString(CS, false, false, false, false, "", ForItypeBase);
     } else if (TypedefLevelInfo.HasTypedef) {
       std::ostringstream Buf;
       getQualString(TypedefLevelInfo.TypedefLevel, Buf);
@@ -1547,11 +1551,16 @@ std::string FunctionVariableConstraint::mkString(Constraints &CS, bool EmitName,
                                                  bool ForItype,
                                                  bool EmitPointee,
                                                  bool UnmaskTypedef,
-                                                 std::string UseName) const {
+                                                 std::string UseName,
+                                                 bool ForItypeBase) const {
   if (UseName.empty())
     UseName = Name;
-  std::string Ret = ReturnVar.mkTypeStr(CS, false);
-  std::string Itype = ReturnVar.mkItypeStr(CS);
+  std::string Ret = ReturnVar.mkTypeStr(CS, false, "", ForItypeBase);
+  std::string Itype = ReturnVar.mkItypeStr(CS, ForItypeBase);
+  // When a function pointer type is the base for an itype, the name and
+  // parameter list need to be surrounded in an extra set of parenthesis.
+  if (ForItypeBase)
+    Ret += "(";
   if (EmitName) {
     if (UnmaskTypedef)
       // This is done to rewrite the typedef of a function proto
@@ -1562,7 +1571,7 @@ std::string FunctionVariableConstraint::mkString(Constraints &CS, bool EmitName,
   Ret = Ret + "(";
   std::vector<std::string> ParmStrs;
   for (const auto &I : this->ParamVars)
-    ParmStrs.push_back(I.mkString(CS));
+    ParmStrs.push_back(I.mkString(CS, true, ForItypeBase));
 
   if (ParmStrs.size() > 0) {
     std::ostringstream Ss;
@@ -1574,6 +1583,9 @@ std::string FunctionVariableConstraint::mkString(Constraints &CS, bool EmitName,
     Ret = Ret + Ss.str() + ")";
   } else
     Ret = Ret + "void)";
+  // Close the parenthesis required on the base for function pointer itypes.
+  if (ForItypeBase)
+    Ret += ")";
   return Ret + Itype;
 }
 
@@ -2040,18 +2052,29 @@ void FVComponentVariable::mergeDeclaration(FVComponentVariable *From,
                                        ReasonFailed);
 }
 
-std::string FVComponentVariable::mkString(Constraints &CS,
-                                          bool EmitName) const {
-  return mkTypeStr(CS, EmitName) + mkItypeStr(CS);
+std::string FVComponentVariable::mkString(Constraints &CS, bool EmitName,
+                                          bool ForItypeBase) const {
+  return mkTypeStr(CS, EmitName, "", ForItypeBase) +
+         mkItypeStr(CS, ForItypeBase);
 }
 
 std::string FVComponentVariable::mkTypeStr(Constraints &CS, bool EmitName,
-                                           std::string UseName) const {
+                                           std::string UseName,
+                                           bool ForItypeBase) const {
   std::string Ret;
-  // if checked or given new name, generate type
-  if (hasCheckedSolution(CS) || (EmitName && !UseName.empty())) {
+  // If checked or given new name, generate new type from constraint variables.
+  // We also call to mkString when ForItypeBase is true to work around an issue
+  // with the type returned by getRewritableOriginalTy for function pointers
+  // declared with itypes where the function pointer parameters have a checked
+  // type (e.g., `void ((*fn)(int *)) : itype(_Ptr<void (_Ptr<int>))`). The
+  // original type for the function pointer parameter is stored as `_Ptr<int>`,
+  // so emitting this string does guarantee that we emit the unchecked type. By
+  // instead calling mkString the type is generated from the external constraint
+  // variable. Because the call is passed ForItypeBase, it will emit an
+  // unchecked type instead of the solved type.
+  if (ForItypeBase || hasCheckedSolution(CS) || (EmitName && !UseName.empty())) {
     Ret = ExternalConstraint->mkString(CS, EmitName, false, false, false,
-                                       UseName);
+                                       UseName, ForItypeBase);
   } else {
     // if no need to generate type, try to use source
     if (!SourceDeclaration.empty())
@@ -2074,8 +2097,9 @@ std::string FVComponentVariable::mkTypeStr(Constraints &CS, bool EmitName,
   return Ret;
 }
 
-std::string FVComponentVariable::mkItypeStr(Constraints &CS) const {
-  if (hasItypeSolution(CS))
+std::string
+FVComponentVariable::mkItypeStr(Constraints &CS, bool ForItypeBase) const {
+  if (!ForItypeBase && hasItypeSolution(CS))
     return " : itype(" + ExternalConstraint->mkString(CS, false, true) + ")";
   return "";
 }
@@ -2115,7 +2139,7 @@ FVComponentVariable::FVComponentVariable(const QualType &QT,
   } else {
     InternalConstraint =
         new PVConstraint(QT, D, N, I, C, InFunc, -1, HasItype, nullptr, ITypeT);
-    bool EquateChecked = QT->isVoidPointerType() || QT->isFunctionPointerType();
+    bool EquateChecked = QT->isVoidPointerType();
     linkInternalExternal(I, EquateChecked);
   }
 
