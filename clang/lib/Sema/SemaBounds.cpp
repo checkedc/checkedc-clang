@@ -3941,8 +3941,7 @@ namespace {
                 << Init->getSourceRange();
           InitBounds = S.CreateInvalidBoundsExpr();
         } else if (CheckBounds) {
-          BoundsExpr *NormalizedDeclaredBounds =
-            BoundsUtil::ExpandToRange(S, D, DeclaredBounds);
+          BoundsExpr *NormalizedDeclaredBounds = S.NormalizeBounds(D);
           CheckBoundsDeclAtInitializer(D->getLocation(), D, NormalizedDeclaredBounds,
             Init, InitBounds, State.EquivExprs, CSS);
         }
@@ -6383,6 +6382,34 @@ BoundsExpr *Sema::NormalizeBounds(const VarDecl *D) {
 
   // Attach the normalized bounds to D to avoid recomputing them.
   D->setNormalizedBounds(ExpandedBounds);
+  return ExpandedBounds;
+}
+
+// If the BoundsDeclFact F has a byte_count or count bounds expression,
+// NormalizeBounds expands it to a range bounds expression.  The expanded
+// range bounds are attached to the BoundsDeclFact F to avoid recomputing
+// the normalized bounds for F.
+BoundsExpr *Sema::NormalizeBounds(const BoundsDeclFact *F) {
+  // Do not attempt to normalize bounds for bounds facts that are
+  // associated with invalid declarations.
+  const VarDecl *D = F->getVarDecl();
+  if (D->isInvalidDecl())
+    return nullptr;
+
+  // If F already has a normalized bounds expression, do not recompute it.
+  if (BoundsExpr *NormalizedBounds = F->getNormalizedBounds())
+    return NormalizedBounds;
+
+  // Expand the bounds expression of F to a RangeBoundsExpr if possible.
+  const BoundsExpr *B = F->getBoundsExpr();
+  BoundsExpr *ExpandedBounds = BoundsUtil::ExpandBoundsToRange(*this,
+                                             const_cast<VarDecl *>(D),
+                                             const_cast<BoundsExpr *>(B));
+  if (!ExpandedBounds)
+    return nullptr;
+
+  // Attach the normalized bounds to F to avoid recomputing them.
+  F->setNormalizedBounds(ExpandedBounds);
   return ExpandedBounds;
 }
 

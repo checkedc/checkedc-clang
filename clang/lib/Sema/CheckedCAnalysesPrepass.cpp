@@ -216,8 +216,8 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
 
       for (WhereClauseFact *Fact : WC->getFacts()) {
         if (BoundsDeclFact *BDF = dyn_cast<BoundsDeclFact>(Fact)) {
-          VarDecl *V = BDF->Var;
-          BoundsExpr *B = BDF->Bounds;
+          VarDecl *V = BDF->getVarDecl();
+          BoundsExpr *B = BDF->getBoundsExpr();
 
           VarDecl *OrigVarWithBounds = VarWithBounds;
           VarWithBounds = V;
