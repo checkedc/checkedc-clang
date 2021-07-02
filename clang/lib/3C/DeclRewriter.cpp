@@ -27,6 +27,54 @@
 using namespace llvm;
 using namespace clang;
 
+// Generate a new declaration for the PVConstraint using an itype where the
+// unchecked portion of the type is the original type, and the checked portion
+// is the taken from the constraint graph solution. The unchecked portion is
+// assigned to string reference Type and the checked (itype) portion is assigned
+// to the string reference Itype.
+void DeclRewriter::buildItypeDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
+                                  std::string &Type, std::string &IType,
+                                  ProgramInfo &Info, ArrayBoundsRewriter &ABR) {
+  if (Defn->getFV()) {
+    // This declaration is for a function pointer. Writing itypes on function
+    // pointers is a little bit harder since the original type string will not
+    // work for the unchecked portion of the itype. We need to generate the
+    // unchecked type from the PVConstraint. The last argument of this call
+    // tells mkString to generate a string using unchecked types instead of
+    // checked types.
+    Type = Defn->mkString(Info.getConstraints(), true, false, false, false, "",
+                          true);
+  } else {
+    Type = Defn->getRewritableOriginalTy();
+    if (isa_and_nonnull<ParmVarDecl>(Decl)) {
+      if (Decl->getName().empty())
+        Type += Defn->getName();
+      else
+        Type += Decl->getNameAsString();
+    } else {
+      std::string Name = Defn->getName();
+      if (Name != RETVAR)
+        Type += Name;
+    }
+  }
+
+  IType = " : itype(";
+  if (ItypesForExtern && Defn->isTypedef()) {
+    // In -itypes-for-extern mode we do not rewrite typedefs to checked types.
+    // They are given a checked itype instead. The unchecked portion of the
+    // itype continues to use the original typedef, but the typedef in the
+    // checked portion is expanded and rewritten to use a checked type. This
+    // lets the typedef be used in unchecked code while still giving a checked
+    // type to the declaration so that it can be used in checked code.
+    // TODO: This could potentially be applied to typedef types even when the
+    //       flag is not passed to limit spread of wildness through typedefs.
+    IType += Defn->mkString(Info.getConstraints(), false, true, false, true);
+  } else {
+    IType += Defn->mkString(Info.getConstraints(), false, true);
+  }
+  IType += ")" + ABR.getBoundsString(Defn, Decl, true);
+}
+
 // This function is the public entry point for declaration rewriting.
 void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
                                 Rewriter &R) {
@@ -50,7 +98,11 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
   for (const auto &D : Context.getTranslationUnitDecl()->decls()) {
     TRV->TraverseDecl(D);
     SVI.TraverseDecl(D);
-    if (const auto &TD = dyn_cast<TypedefDecl>(D)) {
+    const auto &TD = dyn_cast<TypedefDecl>(D);
+    // Don't convert typedefs when -itype-for-extern is passed. Typedefs will
+    // keep their unchecked type but function using the typedef will be given a
+    // checked itype.
+    if (!ItypesForExtern && TD) {
       auto PSL = PersistentSourceLoc::mkPSL(TD, Context);
       // Don't rewrite base types like int
       if (!TD->getUnderlyingType()->isBuiltinType()) {
@@ -114,9 +166,30 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
         if (VDLToStmtMap.find(D) != VDLToStmtMap.end())
           DS = VDLToStmtMap[D];
 
-        std::string NewTy = getStorageQualifierString(D) +
-                            PV->mkString(Info.getConstraints()) +
-                            ABRewriter.getBoundsString(PV, D);
+        std::string NewTy = getStorageQualifierString(D);
+        bool IsExternGlobalVar =
+          isa<VarDecl>(D) &&
+          cast<VarDecl>(D)->getFormalLinkage() == Linkage::ExternalLinkage;
+        if (ItypesForExtern && (isa<FieldDecl>(D) || IsExternGlobalVar)) {
+          // Give record fields and global variables itypes when using
+          // -itypes-for-extern. Note that we haven't properly implemented
+          // itypes for structures and globals. This just rewrites to an itype
+          // instead of a fully checked type when a checked type could have been
+          // used. This does provide most of the rewriting infrastructure that
+          // would be required to support these itypes if constraint generation
+          // is updated to handle structure/global itypes.
+          std::string Type, IType;
+          // VarDecl and FieldDecl subclass DeclaratorDecl, so the cast will
+          // always succeed. In fact, ParmVarDecl is also a subclass of
+          // DeclaratorDecl, so it should be possible to make the values in
+          // PSLMap DeclaratorDecls and avoid this cast altogether.
+          DeclRewriter::buildItypeDecl(PV, cast<DeclaratorDecl>(D), Type, IType,
+                                       Info, ABRewriter);
+          NewTy += Type + IType;
+        } else {
+          NewTy += PV->mkString(Info.getConstraints()) +
+                   ABRewriter.getBoundsString(PV, D);
+        }
         if (auto *VD = dyn_cast<VarDecl>(D))
           RewriteThese.insert(new VarDeclReplacement(VD, DS, NewTy));
         else if (auto *FD = dyn_cast<FieldDecl>(D))
@@ -569,7 +642,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
       std::string Type, IType;
       this->buildDeclVar(CV, PVDecl, Type, IType,
                          PVDecl->getQualifiedNameAsString(), RewriteParams,
-                         RewriteReturn);
+                         RewriteReturn, FD->isStatic());
       ParmStrs.push_back(Type + IType);
     }
   } else if (FDConstraint->numParams() != 0) {
@@ -579,7 +652,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
       const FVComponentVariable *CV = FDConstraint->getCombineParam(I);
       std::string Type, IType;
       this->buildDeclVar(CV, PVDecl, Type, IType, "", RewriteParams,
-                         RewriteReturn);
+                         RewriteReturn, FD->isStatic());
       ParmStrs.push_back(Type + IType);
       // FIXME: when the above FIXME is changed this condition will always
       // be true. This is correct, always rewrite if there were no params
@@ -601,7 +674,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   // For now we still need to check if this needs rewriting, see FIXME below
   // if (!DeclIsTypedef)
   this->buildDeclVar(FDConstraint->getCombineReturn(), FD, ReturnVar, ItypeStr,
-                     "", RewriteParams, RewriteReturn);
+                     "", RewriteParams, RewriteReturn, FD->isStatic());
 
   // If the return is a function pointer, we need to rewrite the whole
   // declaration even if no actual changes were made to the parameters because
@@ -672,31 +745,13 @@ void FunctionDeclBuilder::buildCheckedDecl(
   RewriteRet |= isa_and_nonnull<FunctionDecl>(Decl);
 }
 
+
 void FunctionDeclBuilder::buildItypeDecl(PVConstraint *Defn,
                                          DeclaratorDecl *Decl,
                                          std::string &Type, std::string &IType,
                                          bool &RewriteParm, bool &RewriteRet) {
   Info.getPerfStats().incrementNumITypes();
-  if (Defn->getFV()) {
-    // The result of getFV() is not nullptr, so the declaration is for a
-    // function pointer. This makes rewriting with an itype a bit harder.
-    Type = Defn->mkString(Info.getConstraints(), true, false, false, false, "",
-                          true);
-  } else {
-    Type = Defn->getRewritableOriginalTy();
-    if (isa_and_nonnull<ParmVarDecl>(Decl)) {
-      if (Decl->getName().empty())
-        Type += Defn->getName();
-      else
-        Type += Decl->getQualifiedNameAsString();
-    } else {
-      std::string Name = Defn->getName();
-      if (Name != RETVAR)
-        Type += Name;
-    }
-  }
-  IType = " : itype(" + Defn->mkString(Info.getConstraints(), false, true) +
-          ")" + ABRewriter.getBoundsString(Defn, Decl, true);
+  DeclRewriter::buildItypeDecl(Defn, Decl, Type, IType, Info, ABRewriter);
   RewriteParm = true;
   RewriteRet |= isa_and_nonnull<FunctionDecl>(Decl);
 }
@@ -708,15 +763,19 @@ void FunctionDeclBuilder::buildItypeDecl(PVConstraint *Defn,
 void FunctionDeclBuilder::buildDeclVar(const FVComponentVariable *CV,
                                        DeclaratorDecl *Decl, std::string &Type,
                                        std::string &IType, std::string UseName,
-                                       bool &RewriteParm, bool &RewriteRet) {
-  if (CV->hasCheckedSolution(Info.getConstraints())) {
-    buildCheckedDecl(CV->getExternal(), Decl, Type, IType, UseName, RewriteParm,
-                     RewriteRet);
-    return;
-  }
-  if (CV->hasItypeSolution(Info.getConstraints())) {
+                                       bool &RewriteParm, bool &RewriteRet,
+                                       bool StaticFunc) {
+
+  bool CheckedSolution = CV->hasCheckedSolution(Info.getConstraints());
+  bool ItypeSolution = CV->hasItypeSolution(Info.getConstraints());
+  if (ItypeSolution || (CheckedSolution && ItypesForExtern && !StaticFunc)) {
     buildItypeDecl(CV->getExternal(), Decl, Type, IType, RewriteParm,
                    RewriteRet);
+    return;
+  }
+  if (CheckedSolution) {
+    buildCheckedDecl(CV->getExternal(), Decl, Type, IType, UseName, RewriteParm,
+                     RewriteRet);
     return;
   }
 

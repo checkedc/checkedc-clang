@@ -59,6 +59,7 @@ std::set<std::string> FilePaths;
 bool DumpUnwritableChanges;
 bool AllowUnwritableChanges;
 bool AllowRewriteFailures;
+bool ItypesForExtern;
 
 #ifdef FIVE_C
 bool RemoveItypes;
@@ -354,6 +355,7 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
   DumpUnwritableChanges = CCopt.DumpUnwritableChanges;
   AllowUnwritableChanges = CCopt.AllowUnwritableChanges;
   AllowRewriteFailures = CCopt.AllowRewriteFailures;
+  ItypesForExtern = CCopt.ItypesForExtern;
 
 #ifdef FIVE_C
   RemoveItypes = CCopt.RemoveItypes;

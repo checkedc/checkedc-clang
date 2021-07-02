@@ -33,6 +33,7 @@ extern bool WarnAllRootCause;
 extern bool DumpUnwritableChanges;
 extern bool AllowUnwritableChanges;
 extern bool AllowRewriteFailures;
+extern bool ItypesForExtern;
 
 #ifdef FIVE_C
 extern bool RemoveItypes;

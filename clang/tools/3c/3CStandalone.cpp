@@ -227,6 +227,14 @@ static cl::opt<bool> OptAllowRewriteFailures(
              "affect common use cases."),
     cl::init(false), cl::cat(_3CCategory));
 
+static cl::opt<bool> OptItypesForExtern(
+  "itypes-for-extern",
+  cl::desc("All functions with external linkage will be rewritten to use itypes"
+           "instead checked types. This does not apply to static functions which"
+           "continue to have itypes only when the function is internally"
+           "unsafe."),
+  cl::init(false), cl::cat(_3CCategory));
+
 #ifdef FIVE_C
 static cl::opt<bool> OptRemoveItypes(
     "remove-itypes",
@@ -292,6 +300,7 @@ int main(int argc, const char **argv) {
   CcOptions.DumpUnwritableChanges = OptDumpUnwritableChanges;
   CcOptions.AllowUnwritableChanges = OptAllowUnwritableChanges;
   CcOptions.AllowRewriteFailures = OptAllowRewriteFailures;
+  CcOptions.ItypesForExtern = OptItypesForExtern;
 
 #ifdef FIVE_C
   CcOptions.RemoveItypes = OptRemoveItypes;
