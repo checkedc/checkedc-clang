@@ -1047,24 +1047,29 @@ namespace {
       llvm::APSInt UpperOffsetConstant;
       Expr *LowerOffsetVariable;
       Expr *UpperOffsetVariable;
+      bool LowerConstantIncomplete;
+      bool UpperConstantIncomplete;
 
     public:
       BaseRange(Sema &S) : S(S), Base(nullptr), LowerOffsetConstant(1, true),
-        UpperOffsetConstant(1, true), LowerOffsetVariable(nullptr), UpperOffsetVariable(nullptr) {
+        UpperOffsetConstant(1, true), LowerOffsetVariable(nullptr), UpperOffsetVariable(nullptr),
+        LowerConstantIncomplete(false), UpperConstantIncomplete(false) {
       }
 
       BaseRange(Sema &S, Expr *Base,
                          llvm::APSInt &LowerOffsetConstant,
                          llvm::APSInt &UpperOffsetConstant) :
         S(S), Base(Base), LowerOffsetConstant(LowerOffsetConstant), UpperOffsetConstant(UpperOffsetConstant),
-        LowerOffsetVariable(nullptr), UpperOffsetVariable(nullptr) {
+        LowerOffsetVariable(nullptr), UpperOffsetVariable(nullptr),
+        LowerConstantIncomplete(false), UpperConstantIncomplete(false) {
       }
 
       BaseRange(Sema &S, Expr *Base,
                          Expr *LowerOffsetVariable,
                          Expr *UpperOffsetVariable) :
         S(S), Base(Base), LowerOffsetConstant(1, true), UpperOffsetConstant(1, true),
-        LowerOffsetVariable(LowerOffsetVariable), UpperOffsetVariable(UpperOffsetVariable) {
+        LowerOffsetVariable(LowerOffsetVariable), UpperOffsetVariable(UpperOffsetVariable),
+        LowerConstantIncomplete(false), UpperConstantIncomplete(false) {
       }
 
     private:
@@ -1736,6 +1741,14 @@ namespace {
         UpperOffsetVariable = Upper;
       }
 
+      void SetLowerConstantIncomplete(bool Incomplete) {
+        LowerConstantIncomplete = Incomplete;
+      }
+
+      void SetUpperConstantIncomplete(bool Incomplete) {
+        UpperConstantIncomplete = Incomplete;
+      }
+
       void Dump(raw_ostream &OS) {
         OS << "Range:\n";
         OS << "Base: ";
@@ -2031,11 +2044,11 @@ namespace {
           Expr *Upper = RB->getUpperExpr();
           Expr *LowerBase, *UpperBase;
           llvm::APSInt LowerOffsetConstant(1, true);
-          llvm::APSInt  UpperOffsetConstant(1, true);
+          llvm::APSInt UpperOffsetConstant(1, true);
           Expr *LowerOffsetVariable = nullptr;
           Expr *UpperOffsetVariable = nullptr;
-          SplitIntoBaseAndOffset(Lower, LowerBase, LowerOffsetConstant, LowerOffsetVariable);
-          SplitIntoBaseAndOffset(Upper, UpperBase, UpperOffsetConstant, UpperOffsetVariable);
+          BaseRange::Kind LowerKind = SplitIntoBaseAndOffset(Lower, LowerBase, LowerOffsetConstant, LowerOffsetVariable);
+          BaseRange::Kind UpperKind = SplitIntoBaseAndOffset(Upper, UpperBase, UpperOffsetConstant, UpperOffsetVariable);
 
           // If both of the offsets are constants, the range is considered constant-sized.
           // Otherwise, it is a variable-sized range.
@@ -2045,6 +2058,8 @@ namespace {
             R->SetLowerVariable(LowerOffsetVariable);
             R->SetUpperConstant(UpperOffsetConstant);
             R->SetUpperVariable(UpperOffsetVariable);
+            R->SetLowerConstantIncomplete(LowerKind == BaseRange::Kind::IncompleteConstantSized);
+            R->SetUpperConstantIncomplete(UpperKind == BaseRange::Kind::IncompleteConstantSized);
             return true;
           }
         }
