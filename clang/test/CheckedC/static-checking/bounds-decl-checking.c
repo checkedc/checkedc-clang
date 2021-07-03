@@ -276,7 +276,9 @@ void test_addition_commutativity(void) {
 // Test uses of incomplete types
 
 struct S;
+struct R;
 extern void test_f30(_Array_ptr<const void> p_ptr : byte_count(1));
+extern void test_f31(_Array_ptr<struct S> p : count(0));
 
 int f30(_Ptr<struct S> p) {
   // TODO: Github Checked C repo issue #422: Extend constant-sized ranges to cover Ptr to an incomplete type
@@ -286,7 +288,37 @@ int f30(_Ptr<struct S> p) {
   return 0;
 }
 
-int f31(_Ptr<void> p) {
+int f31(_Array_ptr<struct S> p : count(1), _Array_ptr<struct R> q : count(1)) { // expected-note {{(expanded) declared bounds are 'bounds(p, p + 1)'}}
+  // We cannot compare unequal incomplete referent types 'struct S' and 'struct R' of p and q.
+  p = (_Array_ptr<struct S>)q; // expected-warning {{cannot prove declared bounds for 'p' are valid after assignment}} \
+                               // expected-note {{(expanded) inferred bounds are 'bounds(q, q + 1)'}}
+}
+
+int f32(_Array_ptr<struct S> p : count(0), _Array_ptr<struct S> q : count(1)) {
+  // p and q have the same incomplete referent type 'struct S'.
+  p = q;
+}
+
+int f33(_Ptr<struct S> p) {
+  test_f31(p);
+  return 0;
+}
+
+int f34(_Array_ptr<struct S> p : bounds(p, p), _Array_ptr<struct S> q : count(0)) { // expected-note {{(expanded) declared bounds are 'bounds(p, p)'}}
+  // The upper bound q + 0 is an incomplete constant sized upper offset,
+  // but the upper bound p is not an incomplete constant sized upper offset.
+  p = q; // expected-warning {{cannot prove declared bounds for 'p' are valid after assignment}} \
+         // expected-note {{(expanded) inferred bounds are 'bounds(q, q + 0)'}}
+  return 0;
+}
+
+int f35(_Array_ptr<struct S> p : count(i), _Array_ptr<struct S> q : count(i + 1), int i) { // expected-note {{(expanded) declared bounds are 'bounds(p, p + i)'}}
+  p = q; // expected-warning {{cannot prove declared bounds for 'p' are valid after assignment}} \
+         // expected-note {{(expanded) inferred bounds are 'bounds(q, q + i + 1)'}}
+  return 0;
+}
+
+int f36(_Ptr<void> p) {
   test_f30(p);
   return 0;
 }
