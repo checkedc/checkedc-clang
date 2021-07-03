@@ -1332,6 +1332,39 @@ namespace {
         return ProofResult::Maybe;
       }
 
+      // This function checks whether it is possible to compare the lower and
+      // upper offsets of this and R, based on whether the offsets were derived
+      // from an expression involving a base with an incomplete referent type.
+      bool CheckIncompleteConstantOffsets(BaseRange &R) {
+        return CheckIncompleteOffset(R, LowerConstantIncomplete,
+                                     R.LowerConstantIncomplete) &&
+               CheckIncompleteOffset(R, UpperConstantIncomplete,
+                                     R.UpperConstantIncomplete);
+      }
+
+      // This function checks whether it is possible to compare the lower or
+      // upper offset of this and R, based on whether the offset was derived
+      // from an expression involving a base with an incomplete referent type.
+      //
+      // If both offsets are based on incomplete referent types T1 and T2,
+      // then the offsets should have been multiplied by sizeof(T1) and
+      // sizeof(T2), where the sizes of T1 and T2 could not be determined.
+      // In this case, we require that T1 and T2 are equivalent types.
+      // Otherwise, we cannot continue to compare the offsets.
+      //
+      // If only one of the offsets is based on an incomplete referent type,
+      // then we cannot continue to compare the offsets.
+      bool CheckIncompleteOffset(BaseRange &R, bool IsIncomplete, bool RIsIncomplete) {
+        if (IsIncomplete) {
+          if (!RIsIncomplete)
+            return false;
+          if (!ExprUtil::EqualTypes(S.Context, Base->getType(), R.Base->getType()))
+            return false;
+        } else if (RIsIncomplete)
+          return false;
+        return true;
+      }
+
       // This function proves whether this.LowerOffset <= R.LowerOffset.
       // Depending on whether these lower offsets are ConstantSized or VariableSized, various cases should be checked:
       // - If `this` and `R` both have constant lower offsets (i.e., if the following condition holds:
