@@ -1036,6 +1036,7 @@ namespace {
       enum Kind {
         ConstantSized,
         VariableSized,
+        IncompleteConstantSized,
         Invalid
       };
 
@@ -1824,7 +1825,7 @@ namespace {
             }
             llvm::APSInt ElemSize;
             if (!ExprUtil::getReferentSizeInChars(S.Context, Base->getType(), ElemSize))
-                goto exit;
+              return BaseRange::Kind::IncompleteConstantSized;
             OffsetConstant = OffsetConstant.smul_ov(ElemSize, Overflow);
             if (Overflow)
               goto exit;
