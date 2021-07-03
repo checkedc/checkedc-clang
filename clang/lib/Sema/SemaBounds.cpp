@@ -931,9 +931,10 @@ namespace {
     // The proof system is incomplete, so there are will be statements that
     // cannot be proved true or false.  That's why "maybe" is a result.
     enum class ProofResult {
-      True,  // Definitely provable.
-      False, // Definitely false (an error)
-      Maybe  // We're not sure yet.
+      True,           // Definitely provable.
+      False,          // Definitely false (an error)
+      Maybe,          // We're not sure yet.
+      IncompleteTypes // Unable to prove due to incomplete referent types.
     };
 
     // The kind of statement that we are trying to prove true or false.
@@ -1255,6 +1256,11 @@ namespace {
           return ProofResult::Maybe;
         }
 
+        // Check whether we are allowed to continue with the proof for constant
+        // offsets based on expressions with incomplete referent types.
+        if (!CheckIncompleteConstantOffsets(R))
+          return ProofResult::IncompleteTypes;
+
         if (ExprUtil::EqualValue(S.Context, Base, R.Base, EquivExprs)) {
           ProofResult LowerBoundsResult = CompareLowerOffsetsImpl(R, Cause, EquivExprs, Facts);
           ProofResult UpperBoundsResult = CompareUpperOffsetsImpl(R, Cause, EquivExprs, Facts);
@@ -1303,6 +1309,11 @@ namespace {
           Cause = CombineFailures(Cause, ProofFailure::DstInvalid);
           return ProofResult::Maybe;
         }
+
+        // Check whether we are allowed to continue with the proof for constant
+        // offsets based on expressions with incomplete referent types.
+        if (!CheckIncompleteConstantOffsets(R))
+          return ProofResult::IncompleteTypes;
 
         FreeVariablePosition BasePos = CombineFreeVariablePosition(
             FreeVariablePosition::Lower, FreeVariablePosition::Upper);
@@ -2155,6 +2166,8 @@ namespace {
             DeclaredRange, Cause, EquivExprs, Facts, FreeVariables);
         if (R == ProofResult::True)
           return R;
+        if (R == ProofResult::IncompleteTypes)
+          return ProofResult::Maybe;
         if (R == ProofResult::False || R == ProofResult::Maybe) {
           if (R == ProofResult::False && SrcRange.IsEmpty())
             Cause = CombineFailures(Cause, ProofFailure::SrcEmpty);
