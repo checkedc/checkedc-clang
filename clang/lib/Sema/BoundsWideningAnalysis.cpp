@@ -85,33 +85,33 @@ void BoundsWideningAnalysis::ComputeGenKillSets(ElevatedCFGBlock *EB,
                                 E = EB->Block->end();
        I != E; ++I) {
     CFGElement Elem = *I;
-    if (Elem.getKind() == CFGElement::Statement) {
-      const Stmt *CurrStmt = Elem.castAs<CFGStmt>().getStmt();
-      if (!CurrStmt)
-        continue;
+    if (Elem.getKind() != CFGElement::Statement)
+      continue;
+    const Stmt *CurrStmt = Elem.castAs<CFGStmt>().getStmt();
+    if (!CurrStmt)
+      continue;
 
-      // Compute Gen and Kill sets for the current statement.
-      ComputeStmtGenKillSets(EB, CurrStmt, NestedStmts);
+    // Compute Gen and Kill sets for the current statement.
+    ComputeStmtGenKillSets(EB, CurrStmt, NestedStmts);
 
-      // To compute the In sets for blocks we need to union the Gen and Kill
-      // sets of all statement in the block. This union operation is
-      // independent of the fixedpoint computation and hence can be done
-      // outside the loop to speed-up the fixedpoint loop.
-      ComputeUnionGenKillSets(EB, CurrStmt, PrevStmt);
+    // To compute the In sets for blocks we need to union the Gen and Kill sets
+    // of all statement in the block. This union operation is independent of
+    // the fixedpoint computation and hence can be done outside the loop to
+    // speed-up the fixedpoint loop.
+    ComputeUnionGenKillSets(EB, CurrStmt, PrevStmt);
 
-      // Update the list of null-terminated arrays in the function with the
-      // null-terminated arrays that became part of Gen set for the current
-      // statement.
-      UpdateNullTermPtrsInFunc(EB, CurrStmt);
+    // Update the list of null-terminated arrays in the function with the
+    // null-terminated arrays that became part of Gen set for the current
+    // statement.
+    UpdateNullTermPtrsInFunc(EB, CurrStmt);
 
-      EB->PrevStmtMap[CurrStmt] = PrevStmt;
-      PrevStmt = CurrStmt;
+    EB->PrevStmtMap[CurrStmt] = PrevStmt;
+    PrevStmt = CurrStmt;
 
-      // Store the last statement of the block. We will use it later in the
-      // block In, Gen and Kill set computations.
-      if (I == E - 1)
-        EB->LastStmt = CurrStmt;
-    }
+    // Store the last statement of the block. We will use it later in the block
+    // In, Gen and Kill set computations.
+    if (I == E - 1)
+      EB->LastStmt = CurrStmt;
   }
 
   // Compute the Gen and Kill sets for the block.
@@ -721,56 +721,57 @@ void BoundsWideningAnalysis::DumpWidenedBounds(FunctionDecl *FD) {
 
     bool IsBlockEmpty = true;
     for (CFGElement Elem : *CurrBlock) {
-      if (Elem.getKind() == CFGElement::Statement) {
-        const Stmt *CurrStmt = Elem.castAs<CFGStmt>().getStmt();
-        if (!CurrStmt)
+      if (Elem.getKind() != CFGElement::Statement)
+        continue;
+
+      const Stmt *CurrStmt = Elem.castAs<CFGStmt>().getStmt();
+      if (!CurrStmt)
+        continue;
+
+      BoundsMapTy WidenedBounds = GetStmtIn(CurrBlock, CurrStmt);
+
+      std::vector<const VarDecl *> Vars;
+      for (auto VarBoundsPair : WidenedBounds)
+        Vars.push_back(VarBoundsPair.first);
+
+      llvm::sort(Vars.begin(), Vars.end(),
+        [](const VarDecl *A, const VarDecl *B) {
+           return A->getQualifiedNameAsString().compare(
+                  B->getQualifiedNameAsString()) < 0;
+        });
+
+      std::string Str;
+      llvm::raw_string_ostream SS(Str);
+      CurrStmt->printPretty(SS, nullptr, Ctx.getPrintingPolicy());
+
+      // Print the current statement.
+      OS << "\n  Widened bounds before stmt: " << SS.str();
+      if (SS.str().back() != '\n')
+        OS << "\n";
+
+      IsBlockEmpty = false;
+
+      if (Vars.size() == 0)
+        OS << "    <no widening>\n";
+
+      for (const VarDecl *V : Vars) {
+        RangeBoundsExpr *Bounds = WidenedBounds[V];
+        if (Bounds == Top) {
+          // If this is the only variable and its bounds are Top, we need to
+          // print <no widening>.
+          if (Vars.size() == 1)
+            OS << "    <no widening>\n";
           continue;
-
-        BoundsMapTy WidenedBounds = GetStmtIn(CurrBlock, CurrStmt);
-
-        std::vector<const VarDecl *> Vars;
-        for (auto VarBoundsPair : WidenedBounds)
-          Vars.push_back(VarBoundsPair.first);
-
-        llvm::sort(Vars.begin(), Vars.end(),
-          [](const VarDecl *A, const VarDecl *B) {
-             return A->getQualifiedNameAsString().compare(
-                    B->getQualifiedNameAsString()) < 0;
-          });
-
-        std::string Str;
-        llvm::raw_string_ostream SS(Str);
-        CurrStmt->printPretty(SS, nullptr, Ctx.getPrintingPolicy());
-
-        // Print the current statement.
-        OS << "\n  Widened bounds before stmt: " << SS.str();
-        if (SS.str().back() != '\n')
-          OS << "\n";
-
-        IsBlockEmpty = false;
-
-        if (Vars.size() == 0)
-          OS << "    <no widening>\n";
-
-        for (const VarDecl *V : Vars) {
-          RangeBoundsExpr *Bounds = WidenedBounds[V];
-          if (Bounds == Top) {
-            // If this is the only variable and its bounds are Top, we need to
-            // print <no widening>.
-            if (Vars.size() == 1)
-              OS << "    <no widening>\n";
-            continue;
-          }
-
-          Expr *Lower = Bounds->getLowerExpr();
-          Expr *Upper = Bounds->getUpperExpr();
-
-          OS << "    " << V->getQualifiedNameAsString() << ": bounds(";
-          Lower->printPretty(OS, nullptr, Ctx.getPrintingPolicy());
-          OS << ", ";
-          Upper->printPretty(OS, nullptr, Ctx.getPrintingPolicy());
-          OS << ")\n";
         }
+
+        Expr *Lower = Bounds->getLowerExpr();
+        Expr *Upper = Bounds->getUpperExpr();
+
+        OS << "    " << V->getQualifiedNameAsString() << ": bounds(";
+        Lower->printPretty(OS, nullptr, Ctx.getPrintingPolicy());
+        OS << ", ";
+        Upper->printPretty(OS, nullptr, Ctx.getPrintingPolicy());
+        OS << ")\n";
       }
     }
 

@@ -1770,51 +1770,6 @@ void f27(_Nt_array_ptr<char> p : count(i), int i) {
 }
 
 void f28() {
-  int i, j;
-  for (;;) {
-    i = 1;
-    j = 2;
-    _Nt_array_ptr<char> p : count(i + j) = 0;
-    if (p[i + j]) {
-      return;
-    }
-  }
-
-// CHECK: Function: f28
-// CHECK: Block: B8 (Entry), Pred: Succ: B7
-
-// CHECK: Block: B7, Pred: B8, Succ: B6
-// CHECK:   Widened bounds before stmt: int i;
-// CHECK:     <no widening>
-
-// CHECK:   Widened bounds before stmt: int j;
-// CHECK:     <no widening>
-
-// CHECK: Block: B6, Pred: B2, B7, Succ: B5,
-
-// CHECK: Block: B5, Pred: B6, Succ: B4, B3
-// CHECK:   Widened bounds before stmt: i = 1
-// CHECK:     <no widening>
-
-// CHECK:   Widened bounds before stmt: j = 2
-// CHECK:     <no widening>
-
-// CHECK:   Widened bounds before stmt: _Nt_array_ptr<char> p : count(i + j) = 0;
-// CHECK:     <no widening>
-
-// CHECK:   Widened bounds before stmt: p[i + j]
-// CHECK:     p: bounds(p, p + i + j)
-
-// CHECK: Block: B4, Pred: B5, Succ: B0
-// CHECK:   Widened bounds before stmt: return;
-// CHECK:     p: bounds(p, p + i + j + 1)
-
-// CHECK: Block: B3, Pred: B5, Succ: B2
-
-// CHECK: Block: B2, Pred: B3, Succ: B6
-}
-
-void f29() {
   _Nt_array_ptr<char> p : count(0) = "";
 
   switch (*p) {
@@ -1823,7 +1778,7 @@ void f29() {
   case 'b': a = 2; break;
   }
 
-// CHECK: Function: f29
+// CHECK: Function: f28
 // CHECK: Block: B22 (Entry), Pred: Succ: B18
 
 // CHECK: Block: B21, Pred: B18, Succ: B14
@@ -1936,7 +1891,7 @@ void f29() {
 // CHECK: Block: B1, Pred: B3, B4, Succ: B0
 }
 
-void f30() {
+void f29() {
   _Nt_array_ptr<char> p : count(0) = "";
   const char c1 = '\0';
   const int c2 = '0';
@@ -1955,7 +1910,7 @@ void f30() {
   case c4: a = 5; break;
   }
 
-// CHECK: Function: f30
+// CHECK: Function: f29
 // CHECK: Block: B12 (Entry), Pred: Succ: B6
 // CHECK: Block: B11, Pred: B6, Succ: B2
 // CHECK:   Widened bounds before stmt: a = 1
@@ -2005,7 +1960,7 @@ void f30() {
 // CHECK: Block: B1, Pred: B3, B4, B5, Succ: B0
 }
 
-void f31() {
+void f30() {
   _Nt_array_ptr<char> p : count(0) = "";
 
   switch (*p) {
@@ -2018,7 +1973,7 @@ void f31() {
     }
   }
 
-// CHECK: Function: f31
+// CHECK: Function: f30
 // CHECK: Block: B15 (Entry), Pred: Succ: B10
 
 // CHECK: Block: B14, Pred: B10, Succ: B7
@@ -2095,7 +2050,7 @@ void f31() {
 // CHECK: Block: B1, Pred: B3, B2, Succ: B0
 }
 
-void f32() {
+void f31() {
   _Nt_array_ptr<char> p : count(0) = "";
 
   switch (*p) {
@@ -2121,7 +2076,7 @@ void f32() {
   }
   a = 8;
 
-// CHECK: Function: f32
+// CHECK: Function: f31
 // CHECK: Block: B14 (Entry), Pred: Succ: B2
 
 // CHECK: Block: B13, Pred: B2, Succ: B12, B3
@@ -2179,7 +2134,7 @@ void f32() {
 // CHECK:     p: bounds(p, p + 0)
 }
 
-void f33() {
+void f32() {
   _Nt_array_ptr<char> p : count(0) = "";
   const int i = -1;
   const int j = 1;
@@ -2188,7 +2143,7 @@ void f33() {
   case i ... j: a = 1; break;
   }
 
-// CHECK: Function: f33
+// CHECK: Function: f32
 // CHECK: Block: B14 (Entry), Pred: Succ: B12
 
 // CHECK: Block: B13, Pred: B12, Succ: B8
@@ -2365,7 +2320,7 @@ void f34() {
 // CHECK:     q: bounds(q, q + 0)
 }
 
-void f35_1() {
+void f34_1() {
   _Nt_array_ptr<char> p : count(0) = "";
 
   switch(*p) {
@@ -2381,7 +2336,7 @@ void f35_1() {
     }
   }
 
-// CHECK: Function: f35_1
+// CHECK: Function: f34_1
 // CHECK: Block: B8 (Entry), Pred: Succ: B2
 
 // CHECK: Block: B7, Pred: B2, Succ: B1
@@ -2415,7 +2370,7 @@ void f35_1() {
 // CHECK: Block: B1, Pred: B3, B7, Succ: B0
 }
 
-void f35_2() {
+void f34_2() {
   _Nt_array_ptr<char> p : count(0) = "";
 
   switch(*p) {
@@ -2431,7 +2386,7 @@ void f35_2() {
     }
   }
 
-// CHECK: Function: f35_2
+// CHECK: Function: f34_2
 // CHECK: Block: B8 (Entry), Pred: Succ: B2
 
 // CHECK: Block: B7, Pred: B2, Succ: B1
@@ -2465,7 +2420,7 @@ void f35_2() {
 // CHECK: Block: B1, Pred: B3, B7, Succ: B0
 }
 
-void f35_3() {
+void f34_3() {
   _Nt_array_ptr<char> p : count(0) = "";
 
   switch(*p) {
@@ -2481,7 +2436,7 @@ void f35_3() {
     }
   }
 
-// CHECK: Function: f35_3
+// CHECK: Function: f34_3
 // CHECK: Block: B8 (Entry), Pred: Succ: B2
 
 // CHECK: Block: B7, Pred: B2, Succ: B1
@@ -2515,7 +2470,7 @@ void f35_3() {
 // CHECK: Block: B1, Pred: B3, B7, Succ: B0
 }
 
-void f35_4() {
+void f34_4() {
   _Nt_array_ptr<char> p : count(0) = "";
 
   switch(*p) {
@@ -2531,7 +2486,7 @@ void f35_4() {
     }
   }
 
-// CHECK: Function: f35_4
+// CHECK: Function: f34_4
 // CHECK: Block: B8 (Entry), Pred: Succ: B2
 
 // CHECK: Block: B7, Pred: B2, Succ: B1
@@ -2565,7 +2520,7 @@ void f35_4() {
 // CHECK: Block: B1, Pred: B3, B7, Succ: B0
 }
 
-void f35_5() {
+void f34_5() {
   _Nt_array_ptr<char> p : count(0) = "";
 
   switch(*p) {
@@ -2581,7 +2536,7 @@ void f35_5() {
     case 0: a = 11; break;
   }
 
-// CHECK: Function: f35_5
+// CHECK: Function: f34_5
 // CHECK: Block: B8 (Entry), Pred: Succ: B2
 
 // CHECK: Block: B7, Pred: B5, Succ: B4
@@ -2615,7 +2570,7 @@ void f35_5() {
 // CHECK: Block: B1, Pred: B3, B4, Succ: B0
 }
 
-void f36() {
+void f35() {
   _Nt_array_ptr<char> p : count(0) = "";
 
   if (*p) {
@@ -2624,7 +2579,7 @@ A:  a = 2;
     a = 3;
   }
 
-// CHECK: Function: f36
+// CHECK: Function: f35
 // CHECK: Block: B5 (Entry), Pred: Succ: B4
 
 // CHECK: Block: B4, Pred: B5, Succ: B3, B1
@@ -2648,7 +2603,7 @@ A:  a = 2;
 // CHECK: Block: B1, Pred: B2, B4, Succ: B0
 }
 
-void f37() {
+void f36() {
   _Nt_array_ptr<char> p : count(0) = "";
 
   if (a > 0) {
@@ -2675,7 +2630,7 @@ A:  a = 2;
 
   goto A;
 
-// CHECK: Function: f37
+// CHECK: Function: f36
 // CHECK: Block: B15 (Entry), Pred: Succ: B14
 
 // CHECK: Block: B14, Pred: B15, Succ: B13, B11
