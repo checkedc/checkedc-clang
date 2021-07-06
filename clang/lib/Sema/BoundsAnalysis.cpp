@@ -489,7 +489,7 @@ void BoundsAnalysis::FillKillSet(ElevatedCFGBlock *EB,
 void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB) {
   // In[B1] = n Out[B*->B1], where B* are all preds of B1.
 
-  BoundsMapTy Intersections;
+  BoundsOffsetMapTy Intersections;
   bool FirstIntersection = true;
 
   for (const CFGBlock *pred : EB->Block->preds()) {
@@ -520,13 +520,13 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
     KilledVars.insert(Vars.begin(), Vars.end());
   }
 
-  BoundsMapTy InMinusKill = Difference(EB->In, KilledVars);
+  BoundsOffsetMapTy InMinusKill = Difference(EB->In, KilledVars);
 
   for (const CFGBlock *succ : EB->Block->succs()) {
     if (SkipBlock(succ))
       continue;
 
-    BoundsMapTy OldOut = EB->Out[succ];
+    BoundsOffsetMapTy OldOut = EB->Out[succ];
 
     // Here's how we compute (In - Kill) u Gen:
 
@@ -569,10 +569,10 @@ DeclSetTy BoundsAnalysis::GetKilledBounds(const CFGBlock *B, const Stmt *St) {
   return J->second;
 }
 
-BoundsMapTy BoundsAnalysis::GetWidenedBoundsOffsets(const CFGBlock *B) {
+BoundsOffsetMapTy BoundsAnalysis::GetWidenedBoundsOffsets(const CFGBlock *B) {
   auto I = BlockMap.find(B);
   if (I == BlockMap.end())
-    return BoundsMapTy();
+    return BoundsOffsetMapTy();
 
   ElevatedCFGBlock *EB = I->second;
   return EB->In;
@@ -617,7 +617,7 @@ BoundsExprMapTy BoundsAnalysis::GetWidenedBounds(const CFGBlock *B) {
 
 DeclSetTy BoundsAnalysis::GetBoundsWidenedAndNotKilled(const CFGBlock *B,
                                                        const Stmt *St) {
-  BoundsMapTy WidenedBounds = GetWidenedBoundsOffsets(B);
+  BoundsOffsetMapTy WidenedBounds = GetWidenedBoundsOffsets(B);
   if (!WidenedBounds.size())
     return DeclSetTy();
 
@@ -779,7 +779,7 @@ void BoundsAnalysis::DumpWidenedBounds(FunctionDecl *FD) {
     OS << "--------------------------------------";
     B->print(OS, Cfg, S.getLangOpts(), /* ShowColors */ true);
 
-    BoundsMapTy Vars = GetWidenedBoundsOffsets(B);
+    BoundsOffsetMapTy Vars = GetWidenedBoundsOffsets(B);
     using VarPairTy = std::pair<const VarDecl *, unsigned>;
 
     llvm::sort(Vars.begin(), Vars.end(),

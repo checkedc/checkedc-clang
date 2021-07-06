@@ -25,10 +25,10 @@ namespace clang {
   // Note: We use the shorthand "ntptr" to denote _Nt_array_ptr. We extract the
   // declaration of an ntptr as a VarDecl from a DeclRefExpr.
 
-  // BoundsMapTy denotes the unsigned integer offset I by which the bounds of
+  // BoundsOffsetMapTy denotes the unsigned integer offset I by which the bounds of
   // an ntptr should be widened. Given VarDecl V with declared bounds as bounds
   // (low, high), the bounds of V should be widened to bounds (low, high + I).
-  using BoundsMapTy = llvm::MapVector<const VarDecl *, unsigned>;
+  using BoundsOffsetMapTy = llvm::MapVector<const VarDecl *, unsigned>;
 
   // BoundsExprMapTy denotes the widened bounds expression of an ntptr. Given
   // VarDecl V with declared bounds (low, high), and an unsigned integer offset
@@ -37,7 +37,7 @@ namespace clang {
   using BoundsExprMapTy = llvm::MapVector<const VarDecl *, BoundsExpr *>;
 
   // For each edge B1->B2, EdgeBoundsTy denotes the Gen and Out sets.
-  using EdgeBoundsTy = llvm::DenseMap<const CFGBlock *, BoundsMapTy>;
+  using EdgeBoundsTy = llvm::DenseMap<const CFGBlock *, BoundsOffsetMapTy>;
 
   // DeclSetTy denotes a set of VarDecls.
   using DeclSetTy = llvm::DenseSet<const VarDecl *>;
@@ -83,7 +83,7 @@ namespace clang {
     public:
       const CFGBlock *Block;
       // The In set for the block.
-      BoundsMapTy In;
+      BoundsOffsetMapTy In;
       // The Gen and Out sets for the block.
       EdgeBoundsTy Gen, Out;
       // The Kill set for the block.
@@ -148,7 +148,7 @@ namespace clang {
 
     // So we initialize the In and Out sets of all blocks, except the Entry
     // block, as "Top".
-    BoundsMapTy Top;
+    BoundsOffsetMapTy Top;
 
   public:
     BoundsAnalysis(Sema &S, CFG *Cfg) :
@@ -167,7 +167,7 @@ namespace clang {
     // needed.
     // @return A mapping of variables to the offsets by which their bounds
     // should be widened in block B.
-    BoundsMapTy GetWidenedBoundsOffsets(const CFGBlock *B);
+    BoundsOffsetMapTy GetWidenedBoundsOffsets(const CFGBlock *B);
 
     // Get the set of variables whose bounds are widened but not killed in
     // block B. This function is invoked from SemaBounds.cpp and is used to
