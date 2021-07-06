@@ -89,15 +89,14 @@ PointerVariableConstraint *PointerVariableConstraint::addAtomPVConstraint(
   CS.addConstraint(CS.createGeq(NewA, PtrTyp, false));
   std::vector<Atom *> Vars = PVC->Vars;
   std::vector<ConstAtom *> SrcVars = PVC->SrcVars;
-  if (!Vars.empty()) {
-    if (auto *VA = dyn_cast<VarAtom>(*Vars.begin())) {
-      // If PVC is already a pointer, add implication forcing outermost one to
-      // be wild if this added one is.
-      auto *Prem = CS.createGeq(NewA, CS.getWild());
-      auto *Conc = CS.createGeq(VA, CS.getWild());
-      CS.addConstraint(CS.createImplies(Prem, Conc));
-    }
-  }
+
+  // Add a constraint between the new atom and any existing atom for this
+  // pointer. This is the same constraint that is added between atoms of a
+  // pointer in the PointerVariableConstraint constructor. It forces all inner
+  // atoms to be wild if an outer atom in wild.
+  if (!Vars.empty())
+    if (auto *VA = dyn_cast<VarAtom>(*Vars.begin()))
+      CS.addConstraint(new Geq(VA, NewA));
 
   Vars.insert(Vars.begin(), NewA);
   SrcVars.insert(SrcVars.begin(), PtrTyp);
@@ -532,28 +531,13 @@ PointerVariableConstraint::PointerVariableConstraint(
   getQualString(TypeIdx, QualStr);
   BaseType = QualStr.str() + BaseType;
 
-  // Here lets add implication that if outer pointer is WILD
-  // then make the inner pointers WILD too.
+  // If an outer pointer is wild, then the inner pointer must also be wild.
   if (Vars.size() > 1) {
-    bool UsedPrGeq = false;
-    for (auto VI = Vars.begin(), VE = Vars.end(); VI != VE; VI++) {
-      if (VarAtom *VIVar = dyn_cast<VarAtom>(*VI)) {
-        // Premise.
-        Geq *PrGeq = new Geq(VIVar, CS.getWild());
-        UsedPrGeq = false;
-        for (auto VJ = (VI + 1); VJ != VE; VJ++) {
-          if (VarAtom *VJVar = dyn_cast<VarAtom>(*VJ)) {
-            // Conclusion.
-            Geq *CoGeq = new Geq(VJVar, CS.getWild());
-            CS.addConstraint(CS.createImplies(PrGeq, CoGeq));
-            UsedPrGeq = true;
-          }
-        }
-        // Delete unused constraint.
-        if (!UsedPrGeq) {
-          delete (PrGeq);
-        }
-      }
+    for (unsigned VarIdx = 0; VarIdx < Vars.size() - 1; VarIdx++) {
+      VarAtom *VI = dyn_cast<VarAtom>(Vars[VarIdx]);
+      VarAtom *VJ = dyn_cast<VarAtom>(Vars[VarIdx + 1]);
+      if (VI && VJ)
+        CS.addConstraint(new Geq(VJ, VI));
     }
   }
 }
@@ -1236,8 +1220,9 @@ void PointerVariableConstraint::constrainToWild(Constraints &CS,
       break;
     }
 
-  // Constrains the outer VarAtom to WILD. Inner pointer levels are
-  // implicitly WILD because of implication constraints.
+  // Constrains the outer VarAtom to WILD. All inner pointer levels will also be
+  // implicitly constrained to WILD because of GEQ constraints that exist
+  // between levels of a pointer.
   if (FirstVA)
     CS.addConstraint(CS.createGeq(FirstVA, CS.getWild(), Rsn, PL, true));
 

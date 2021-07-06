@@ -1000,20 +1000,6 @@ bool ProgramInfo::computeInterimConstraintState(
   std::set<Atom *> DirectWildVarAtoms;
   CS.getChkCG().getSuccessors(CS.getWild(), DirectWildVarAtoms);
 
-  // Maps each atom to the set of atoms which depend on it through an
-  // implication constraint. These atoms would not be associated with the
-  // correct root cause through a BFS because an explicit edge does not exist
-  // between the cause and these atoms. Implication firing adds an edge from
-  // WILD to the LHS conclusion ptr. The logical flow of WILDness, however, is
-  // from the premise LHS to conclusion LHS.
-  std::map<Atom *, std::set<Atom *>> ImpMap;
-  for (auto *C : getConstraints().getConstraints())
-    if (auto *Imp = dyn_cast<Implies>(C)) {
-      auto *Pre = Imp->getPremise();
-      auto *Con = Imp->getConclusion();
-      ImpMap[Pre->getLHS()].insert(Con->getLHS());
-    }
-
   CVars TmpCGrp;
   CVars OnlyIndirect;
   for (auto *A : DirectWildVarAtoms) {
@@ -1037,10 +1023,6 @@ bool ProgramInfo::computeInterimConstraintState(
       }
     };
     CS.getChkCG().visitBreadthFirst(VA, BFSVisitor);
-    if (ImpMap.find(A) != ImpMap.end())
-      for (Atom *ImpA : ImpMap[A])
-        if (isa<VarAtom>(ImpA))
-          CS.getChkCG().visitBreadthFirst(ImpA, BFSVisitor);
 
     CState.TotalNonDirectWildAtoms.insert(OnlyIndirect.begin(),
                                           OnlyIndirect.end());

@@ -8,7 +8,6 @@
 //
 // This implements a simple constraint solver for expressions of the form:
 //  a >= b
-//  a implies b
 //
 // The 3C tool performs type inference to identify locations
 // where a C type might be replaced with a Checked C type. This interface
@@ -251,10 +250,9 @@ public:
 
 // Represents constraints of the form:
 //  - a >= b
-//  - a ==> b
 class Constraint {
 public:
-  enum ConstraintKind { C_Geq, C_Imp };
+  enum ConstraintKind { C_Geq };
 
 private:
   const ConstraintKind Kind;
@@ -382,61 +380,6 @@ private:
   bool IsSoft;
 };
 
-// a ==> b
-class Implies : public Constraint {
-public:
-  Implies(Geq *Premise, Geq *Conclusion)
-      : Constraint(C_Imp), Premise(Premise), Conclusion(Conclusion) {}
-
-  static bool classof(const Constraint *C) { return C->getKind() == C_Imp; }
-
-  Geq *getPremise() { return Premise; }
-  Geq *getConclusion() { return Conclusion; }
-
-  void print(llvm::raw_ostream &O) const {
-    Premise->print(O);
-    O << " ==> ";
-    Conclusion->print(O);
-  }
-
-  void dump(void) const { print(llvm::errs()); }
-
-  void dumpJson(llvm::raw_ostream &O) const {
-    O << "{\"Implies\":{\"Premise\":";
-    Premise->dumpJson(O);
-    O << ", \"Conclusion\":";
-    Conclusion->dumpJson(O);
-    O << "}}";
-  }
-
-  bool operator==(const Constraint &Other) const {
-    if (const Implies *I = llvm::dyn_cast<Implies>(&Other))
-      return *Premise == *I->Premise && *Conclusion == *I->Conclusion;
-    return false;
-  }
-
-  bool operator!=(const Constraint &Other) const { return !(*this == Other); }
-
-  bool operator<(const Constraint &Other) const {
-    ConstraintKind K = Other.getKind();
-    if (K == C_Imp) {
-      const Implies *I = llvm::dyn_cast<Implies>(&Other);
-      assert(I != nullptr);
-
-      if (*Premise == *I->Premise && *Conclusion == *I->Conclusion)
-        return false;
-      if (*Premise == *I->Premise && *Conclusion != *I->Conclusion)
-        return *Conclusion < *I->Conclusion;
-      return *Premise < *I->Premise;
-    }
-    return C_Imp < K;
-  }
-
-private:
-  Geq *Premise;
-  Geq *Conclusion;
-};
-
 // This is the solution, the first item is Checked Solution and the second
 // is Ptr solution.
 typedef std::pair<ConstAtom *, ConstAtom *> VarSolTy;
@@ -513,7 +456,6 @@ public:
                  bool IsCheckedConstraint = true);
   Geq *createGeq(Atom *Lhs, Atom *Rhs, const std::string &Rsn,
                  PersistentSourceLoc *PL, bool IsCheckedConstraint = true);
-  Implies *createImplies(Geq *Premise, Geq *Conclusion);
 
   VarAtom *createFreshGEQ(std::string Name, VarAtom::VarKind VK, ConstAtom *Con,
                           std::string Rsn = DEFAULT_REASON,
@@ -546,9 +488,6 @@ private:
   ConstraintsGraph *PtrTypCG;
   std::map<std::string, ConstraintSet> ConstraintsByReason;
   ConstraintsEnv Environment;
-
-  // Confirm a constraint is well-formed
-  bool check(Constraint *C);
 
   // Managing constraints based on the underlying reason.
   // add constraint to the map.

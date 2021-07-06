@@ -94,12 +94,6 @@ void Constraints::editConstraintHook(Constraint *C) {
 // Add a constraint to the set of constraints. If the constraint is already
 // present (by syntactic equality) return false.
 bool Constraints::addConstraint(Constraint *C) {
-  // Validate the constraint to be added.
-  if (!check(C)) {
-    C->dump();
-    assert(false);
-  }
-
   editConstraintHook(C);
 
   // Check if C is already in the set of constraints.
@@ -122,10 +116,6 @@ bool Constraints::addConstraint(Constraint *C) {
       else if (VarAtom *VRhs = dyn_cast<VarAtom>(E->getRHS())) {
         VRhs->Constraints.insert(C);
       }
-    } else if (Implies *I = dyn_cast<Implies>(C)) {
-      Geq *PEQ = I->getPremise();
-      if (VarAtom *VLhs = dyn_cast<VarAtom>(PEQ->getLHS()))
-        VLhs->Constraints.insert(C);
     } else
       llvm_unreachable("unsupported constraint");
     return true;
@@ -153,27 +143,6 @@ bool Constraints::removeReasonBasedConstraint(Constraint *C) {
   return false;
 }
 
-// Checks to see if the constraint is of a form that we expect.
-// The expected forms are the following:
-// EQ : (q_i = q_k)
-// GEQ : (q_i >= A) for A constant
-// IMPLIES : (q_i >= A) => (q_k >= B) for A,B constant.
-bool Constraints::check(Constraint *C) {
-
-  if (Implies *I = dyn_cast<Implies>(C)) {
-    Geq *P = I->getPremise();
-    Geq *CO = I->getConclusion();
-    if (!isa<VarAtom>(P->getLHS()) || isa<VarAtom>(P->getRHS()) ||
-        !isa<VarAtom>(CO->getLHS()) || isa<VarAtom>(CO->getRHS()))
-      return false;
-  } else if (dyn_cast<Geq>(C) != nullptr) {
-    // all good!
-  } else
-    return false; // Not Eq, Geq, or Implies; what is it?!
-
-  return true;
-}
-
 // Make a graph G:
 //- with nodes for each variable k and each qualifier constant q.
 //- with edges Q --> Q’ for each constraint Q <: Q’
@@ -195,73 +164,45 @@ bool Constraints::check(Constraint *C) {
 
 static bool
 doSolve(ConstraintsGraph &CG,
-        std::set<Implies *> SavedImplies, // TODO: Can this be a ref?
         ConstraintsEnv &Env, Constraints *CS, bool DoLeastSolution,
         std::set<VarAtom *> *InitVs, std::set<VarAtom *> &Conflicts) {
 
   std::vector<Atom *> WorkList;
-  std::set<Implies *> FiredImplies;
 
   // Initialize with seeded VarAtom set (pre-solved).
   if (InitVs != nullptr)
     WorkList.insert(WorkList.begin(), InitVs->begin(), InitVs->end());
 
-  do {
-    // Initialize work list with ConstAtoms.
-    auto &InitC = CG.getAllConstAtoms();
-    WorkList.insert(WorkList.begin(), InitC.begin(), InitC.end());
+  // Initialize work list with ConstAtoms.
+  auto &InitC = CG.getAllConstAtoms();
+  WorkList.insert(WorkList.begin(), InitC.begin(), InitC.end());
 
-    while (!WorkList.empty()) {
-      auto *Curr = *(WorkList.begin());
-      // Remove the first element, get its solution.
-      WorkList.erase(WorkList.begin());
-      ConstAtom *CurrSol = Env.getAssignment(Curr);
+  while (!WorkList.empty()) {
+    auto *Curr = *(WorkList.begin());
+    // Remove the first element, get its solution.
+    WorkList.erase(WorkList.begin());
+    ConstAtom *CurrSol = Env.getAssignment(Curr);
 
-      // get its neighbors.
-      std::set<Atom *> Neighbors;
-      CG.getNeighbors(Curr, Neighbors, DoLeastSolution);
-      // update each successor's solution.
-      for (auto *NeighborA : Neighbors) {
-        bool Changed = false;
-        if (VarAtom *Neighbor = dyn_cast<VarAtom>(NeighborA)) {
-          ConstAtom *NghSol = Env.getAssignment(Neighbor);
-          // update solution if doing so would change it
-          // checked? --- if sol(Neighbor) <> (sol(Neighbor) JOIN Cur)
-          //   else   --- if sol(Neighbor) <> (sol(Neighbor) MEET Cur)
-          if ((DoLeastSolution && *NghSol < *CurrSol) ||
-              (!DoLeastSolution && *CurrSol < *NghSol)) {
-            // ---- set sol(k) := (sol(k) JOIN/MEET Q)
-            Changed = Env.assign(Neighbor, CurrSol);
-            assert(Changed);
-            WorkList.push_back(Neighbor);
-          }
-        } // ignore ConstAtoms for now; will confirm solution below
-      }
-    }
-    FiredImplies.clear();
-
-    // If there are some implications that we saved? Propagate them.
-    if (!SavedImplies.empty()) {
-      // Check if Premise holds. If yes then fire the conclusion.
-      for (auto *Imp : SavedImplies) {
-        Geq *Pre = Imp->getPremise();
-        Geq *Con = Imp->getConclusion();
-        ConstAtom *Cca = Env.getAssignment(Pre->getRHS());
-        ConstAtom *Cva = Env.getAssignment(Pre->getLHS());
-        // Premise is true, so fire the conclusion.
-        if (*Cca < *Cva || *Cca == *Cva) {
-          CG.addConstraint(Con, *CS);
-          // Keep track of fired constraints, so that we can delete them.
-          FiredImplies.insert(Imp);
+    // get its neighbors.
+    std::set<Atom *> Neighbors;
+    CG.getNeighbors(Curr, Neighbors, DoLeastSolution);
+    // update each successor's solution.
+    for (auto *NeighborA : Neighbors) {
+      if (VarAtom *Neighbor = dyn_cast<VarAtom>(NeighborA)) {
+        ConstAtom *NghSol = Env.getAssignment(Neighbor);
+        // update solution if doing so would change it
+        // checked? --- if sol(Neighbor) <> (sol(Neighbor) JOIN Cur)
+        //   else   --- if sol(Neighbor) <> (sol(Neighbor) MEET Cur)
+        if ((DoLeastSolution && *NghSol < *CurrSol) ||
+            (!DoLeastSolution && *CurrSol < *NghSol)) {
+          // ---- set sol(k) := (sol(k) JOIN/MEET Q)
+          bool Changed = Env.assign(Neighbor, CurrSol);
+          assert(Changed);
+          WorkList.push_back(Neighbor);
         }
-      }
-      // Erase all the fired implies.
-      for (auto *ToDel : FiredImplies) {
-        SavedImplies.erase(ToDel);
-      }
+      } // ignore ConstAtoms for now; will confirm solution below
     }
-    // Lets repeat if there are some fired constraints.
-  } while (!FiredImplies.empty());
+  }
 
   // Check Upper/lower bounds hold; collect failures in conflicts set.
   std::set<Atom *> Neighbors;
@@ -372,8 +313,6 @@ bool Constraints::graphBasedSolve() {
   std::set<VarAtom *> Conflicts;
   ConstraintsGraph SolChkCG;
   ConstraintsGraph SolPtrTypCG;
-  std::set<Implies *> SavedImplies;
-  std::set<Implies *> Empty;
   ConstraintsEnv &Env = Environment;
 
   // Checked well-formedness.
@@ -388,12 +327,6 @@ bool Constraints::graphBasedSolve() {
         // Need to copy whether or not this constraint into the new graph
         SolPtrTypCG.addConstraint(G, *this);
     }
-    // Save the implies to solve them later.
-    else if (Implies *Imp = dyn_cast<Implies>(C)) {
-      assert(Imp->getConclusion()->constraintIsChecked() &&
-             Imp->getPremise()->constraintIsChecked());
-      SavedImplies.insert(Imp);
-    }
   }
 
   if (DebugSolver)
@@ -403,8 +336,7 @@ bool Constraints::graphBasedSolve() {
   // Solve Checked/unchecked constraints first.
   Env.doCheckedSolve(true);
 
-  bool Res =
-      doSolve(SolChkCG, SavedImplies, Env, this, true, nullptr, Conflicts);
+  bool Res = doSolve(SolChkCG, Env, this, true, nullptr, Conflicts);
 
   // Now solve PtrType constraints
   if (Res && AllTypes) {
@@ -420,14 +352,14 @@ bool Constraints::graphBasedSolve() {
             return true;
           },
           getNTArr());
-      Res = doSolve(SolPtrTypCG, Empty, Env, this, true, nullptr, Conflicts);
+      Res = doSolve(SolPtrTypCG, Env, this, true, nullptr, Conflicts);
     } else if (OnlyGreatestSol) {
       // Do only greatest solution
-      Res = doSolve(SolPtrTypCG, Empty, Env, this, false, nullptr, Conflicts);
+      Res = doSolve(SolPtrTypCG, Env, this, false, nullptr, Conflicts);
     } else {
       // Regular solve
       // Step 1: Greatest solution
-      Res = doSolve(SolPtrTypCG, Empty, Env, this, false, nullptr, Conflicts);
+      Res = doSolve(SolPtrTypCG, Env, this, false, nullptr, Conflicts);
     }
 
     // Step 2: Reset all solutions but for function params,
@@ -473,7 +405,7 @@ bool Constraints::graphBasedSolve() {
       // a lower bound will be resolved in the final greatest solution.
       std::set<VarAtom *> LowerBounded = findBounded(SolPtrTypCG, &Rest, true);
 
-      Res = doSolve(SolPtrTypCG, Empty, Env, this, true, &Rest, Conflicts);
+      Res = doSolve(SolPtrTypCG, Env, this, true, &Rest, Conflicts);
 
       // Step 3: Reset local variable solutions, compute greatest
       if (Res) {
@@ -486,7 +418,7 @@ bool Constraints::graphBasedSolve() {
             },
             getPtr());
 
-        Res = doSolve(SolPtrTypCG, Empty, Env, this, false, &Rest, Conflicts);
+        Res = doSolve(SolPtrTypCG, Env, this, false, &Rest, Conflicts);
       }
     }
     // If PtrType solving (partly) failed, make the affected VarAtoms wild.
@@ -503,15 +435,11 @@ bool Constraints::graphBasedSolve() {
       }
       Conflicts.clear();
       /* FIXME: Should we propagate the old res? */
-      Res = doSolve(SolChkCG, SavedImplies, Env, this, true, &Rest, Conflicts);
+      Res = doSolve(SolChkCG, Env, this, true, &Rest, Conflicts);
     }
     // Final Step: Merge ptyp solution with checked solution.
     Env.mergePtrTypes();
   }
-
-  if (DebugSolver)
-    GraphVizOutputGraph::dumpConstraintGraphs(
-        "implication_constraints_graph.dot", SolChkCG, SolPtrTypCG);
 
   return Res;
 }
@@ -644,10 +572,6 @@ Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, const std::string &Rsn,
   }
   assert("Shouldn't be constraining WILD >= VAR" && Lhs != getWild());
   return new Geq(Lhs, Rhs, Rsn, PL, IsCheckedConstraint);
-}
-
-Implies *Constraints::createImplies(Geq *Premise, Geq *Conclusion) {
-  return new Implies(Premise, Conclusion);
 }
 
 void Constraints::resetEnvironment() {
