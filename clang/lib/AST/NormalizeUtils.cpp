@@ -62,3 +62,14 @@ Expr *NormalizeUtil::AddExprs(Sema &S, Expr *LHS, Expr *RHS) {
   return ExprCreatorUtil::CreateBinaryOperator(S, LHS, RHS,
                             BinaryOperatorKind::BO_Add);
 }
+
+bool NormalizeUtil::GetAdditionOperands(Expr *E, Expr *&LHS, Expr *&RHS) {
+  BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens());
+  if (!BO)
+    return false;
+  if (BO->getOpcode() != BinaryOperatorKind::BO_Add)
+    return false;
+  LHS = BO->getLHS();
+  RHS = BO->getRHS();
+  return true;
+}

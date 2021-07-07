@@ -45,6 +45,10 @@ private:
 
   // AddExprs returns LHS + RHS.
   static Expr *AddExprs(Sema &S, Expr *LHS, Expr *RHS);
+
+  // If E is of the form E1 + E2, GetAdditionOperands returns true
+  // and sets LHS to E1 and RHS to E2.
+  static bool GetAdditionOperands(Expr *E, Expr *&LHS, Expr *&RHS);
 };
 
 } // end namespace clang
