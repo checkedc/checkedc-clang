@@ -123,13 +123,6 @@ void BoundsAnalysis::ComputeGenSets() {
   for (const auto item : BlockMap) {
     ElevatedCFGBlock *EB = item.second;
 
-    // Check if this is a switch case and whether the case label is null.
-    // In a switch, we can only widen the bounds in the following cases:
-    // 1. Inside a case with a non-null case label.
-    // 2. Inside the default case, only if there is another case with a null
-    // case label.
-    bool IsSwitchCaseNull = CheckIsSwitchCaseNull(EB);
-
     // Iterate through all preds of EB.
     for (const CFGBlock *pred : EB->Block->preds()) {
       if (SkipBlock(pred))
@@ -164,6 +157,11 @@ void BoundsAnalysis::ComputeGenSets() {
       // Check if the pred ends in a switch statement.
       const Stmt *TerminatorStmt = pred->getTerminatorStmt();
       if (TerminatorStmt && isa<SwitchStmt>(TerminatorStmt)) {
+        // Get the SwitchStmt and check if it contains errors
+        const auto *SSCond =
+                   (dyn_cast_or_null<SwitchStmt>(TerminatorStmt))->getCond();
+        if (SSCond->containsErrors())
+          continue;
 
         // According to C11 standard section 6.8.4.2, the controlling
         // expression of a switch shall have integer type.
@@ -174,6 +172,13 @@ void BoundsAnalysis::ComputeGenSets() {
           if (CE->getCastKind() == CastKind::CK_IntegralCast)
             E = CE->getSubExpr();
         }
+
+        // Check if this is a case stmt and whether the case label is null.
+        // In a switch, we can only widen the bounds in the following cases:
+        // 1. Inside a case with a non-null case label.
+        // 2. Inside the default case, only if there is another case with a null
+        // case label.
+        bool IsSwitchCaseNull = CheckIsSwitchCaseNull(EB);
 
         // If the current block has a null case label, we cannot widen the
         // bounds inside that case.
