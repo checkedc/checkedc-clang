@@ -2748,34 +2748,33 @@ namespace {
       }
    }
 
-   void UpdateWidenedBounds(BoundsAnalysis &BA, const CFGBlock *Block,
-                            CheckingState &State) {
-     for (const auto item : BA.GetWidenedBounds(Block)) {
-       const VarDecl *V = item.first;
-       BoundsExpr *Bounds = item.second;
+   void UpdateWidenedBounds(BoundsWideningAnalysis &BA, const CFGBlock *Block,
+                            Stmt *CurrStmt, CheckingState &State) {
+     // Get the bounds widened before the current statement.
+     BoundsMapTy WidenedBounds = BA.GetStmtIn(Block, CurrStmt);
 
-       // BoundsAnalysis currently uses VarDecls as keys in the widened
-       // bounds data structure, so we create an AbstractSet for each 
-       // VarDecl in the widened bounds. TODO: use AbstractSets as keys
-       // in BoundsAnalysis (checkedc-clang issue #1015).
+     // BoundsWideningAnalysis currently uses VarDecls as keys in the widened
+     // bounds data structure, so we get the AbstractSet for each VarDecl in
+     // the widened bounds.
+     // TODO: use AbstractSets as keys in BoundsWideningAnalysis
+     // (checkedc-clang issue #1015).
+
+     // Update the bounds of each variable in ObservedBounds to the bounds
+     // computed by the bounds widening analysis.
+     // Note: Bounds widening analysis resets killed bounds of a variable to
+     // its declared bounds. So we do not need to explicitly reset killed
+     // bounds here.
+     for (const auto VarBoundsPair : WidenedBounds) {
+       const VarDecl *V = VarBoundsPair.first;
+       BoundsExpr *Bounds = VarBoundsPair.second;
+       if (!Bounds)
+         continue;
+
        const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
+
        auto I = State.ObservedBounds.find(A);
        if (I != State.ObservedBounds.end())
          I->second = Bounds;
-     }
-   }
-
-   void ResetKilledBounds(BoundsAnalysis &BA, const CFGBlock *Block,
-                          const Stmt *St, CheckingState &State) {
-     for (const VarDecl *V : BA.GetKilledBounds(Block, St)) {
-       // BoundsAnalysis currently uses VarDecls as keys in the killed
-       // bounds data structure, so we create an AbstractSet for each
-       // VarDecl in the killed bounds. TODO: use AbstractSets as keys
-       // in BoundsAnalysis (checkedc-clang issue #1015).
-       const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
-       auto I = State.ObservedBounds.find(A);
-       if (I != State.ObservedBounds.end())
-         I->second = S.NormalizeBounds(V);
      }
    }
 
@@ -2867,9 +2866,6 @@ namespace {
        AFA.GetFacts(Facts);
        CheckingState BlockState = GetIncomingBlockState(Block, BlockStates);
 
-       // Update the observed bounds with the widened bounds calculated above.
-       UpdateWidenedBounds(BA, Block, BlockState);
-
        for (CFGElement Elem : *Block) {
          if (Elem.getKind() == CFGElement::Statement) {
            CFGStmt CS = Elem.castAs<CFGStmt>();
@@ -2881,6 +2877,10 @@ namespace {
            // another top-level element.
            if (NestedElements.find(S) != NestedElements.end())
              continue;
+
+           // Update the observed bounds with the widened bounds computed
+           // above.
+           UpdateWidenedBounds(BoundsWideningAnalyzer, Block, S, BlockState);
 
            CheckedScopeSpecifier CSS = CheckedScopeSpecifier::CSS_Unchecked;
            const Stmt *Statement = S;
@@ -2923,13 +2923,6 @@ namespace {
             // declared bounds, the observed bounds for each AbstractSet should
             // be reset to their observed bounds from before checking S.
             BlockState.ObservedBounds = InitialObservedBounds;
-
-            // If the widened bounds of any variables are killed by statement
-            // S, reset their observed bounds to their declared bounds.
-            // Resetting the widened bounds killed by S should be the last
-            // thing done as part of traversing S.  The widened bounds of each
-            // variable should be in effect until the very end of traversing S.
-            ResetKilledBounds(BA, Block, S, BlockState);
          }
          else if (Elem.getKind() == CFGElement::LifetimeEnds) {
             // Every variable going out of scope is indicated by a LifetimeEnds
@@ -4371,9 +4364,8 @@ namespace {
           EquivExprs.push_back({Target, Src});
       }
 
-      BoundsAnalysis &BA = getBoundsAnalyzer();
-      DeclSetTy BoundsWidenedAndNotKilled =
-        BA.GetBoundsWidenedAndNotKilled(Block, S);
+      BoundsMapTy BoundsWidenedAndNotKilled =
+        BoundsWideningAnalyzer.GetBoundsWidenedAndNotKilled(Block, S);
 
       for (auto const &Pair : State.ObservedBounds) {
         const AbstractSet *A = Pair.first;
@@ -4391,8 +4383,8 @@ namespace {
           // If the lvalue expressions in A are variables represented by a
           // declaration Var, we should issue diagnostics for observed bounds
           // if Var is not in the set BoundsWidenedAndKilled which represents
-          // variables whose bounds are widened in this block and not killed
-          // by statement S.
+          // variables whose bounds are widened in this block before statement
+          // S and not killed by statement S.
           bool DiagnoseObservedBounds = true;
           if (const VarDecl *Var = dyn_cast<VarDecl>(V))
             DiagnoseObservedBounds = BoundsWidenedAndNotKilled.find(Var) ==

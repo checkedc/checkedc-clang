@@ -827,7 +827,7 @@ void f15(int i) {
   _Nt_array_ptr<char> q : count(0) = "a";
   if (*q) {
     a = 2;
-    if (*(q - 1)) {
+    if (*(q - 1)) { // expected-error {{out-of-bounds memory access}}
       a = 3;
     }
   }
@@ -1506,7 +1506,7 @@ B:  a = 1;
 
   while (*p) {
     a = 3;
-    while (*(p + 1)) {
+    while (*(p + 1)) { // expected-error {{out-of-bounds memory access}}
 C:    a = 4;
     }
   }

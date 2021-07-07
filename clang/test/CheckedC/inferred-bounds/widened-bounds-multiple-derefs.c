@@ -217,7 +217,7 @@ void f6() {
 void f7() {
   _Nt_array_ptr<char> p : count(0) = "abc";
 
-  if (*p && *(p + 2) && *(p + 3) && *(p + 1)) {
+  if (*p && *(p + 2) && *(p + 3) && *(p + 1)) { // expected-error {{out-of-bounds memory access}} expected-error {{out-of-bounds memory access}}
     a = 1;
   }
 
@@ -253,7 +253,7 @@ void f7() {
 void f8() {
   _Nt_array_ptr<char> p : count(0) = "abc";
 
-  if (*p && *(p + 2) && *(p + 1) && *(p + 3) && *(p + 2) && *(p + 3)) {
+  if (*p && *(p + 2) && *(p + 1) && *(p + 3) && *(p + 2) && *(p + 3)) { // expected-error {{out-of-bounds memory access}}
     a = 1;
   }
 
@@ -563,7 +563,7 @@ void f15_1(int i) {
 
 void f15_2(int i) {
   _Nt_array_ptr<char> q : count(0) = "a";
-  if (*q && *(q - 1)) {
+  if (*q && *(q - 1)) { // expected-error {{out-of-bounds memory access}}
     a = 1;
   }
 

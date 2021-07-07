@@ -536,6 +536,19 @@ BoundsMapTy BoundsWideningAnalysis::GetStmtIn(const CFGBlock *B,
   return GetStmtOut(B, EB->PrevStmtMap[CurrStmt]);
 }
 
+BoundsMapTy BoundsWideningAnalysis::GetBoundsWidenedAndNotKilled(
+  const CFGBlock *B, const Stmt *CurrStmt) const {
+
+  auto BlockIt = BlockMap.find(B);
+  if (BlockIt == BlockMap.end())
+    return BoundsMapTy();
+
+  ElevatedCFGBlock *EB = BlockIt->second;
+
+  BoundsMapTy StmtInOfCurrStmt = GetStmtIn(B, CurrStmt);
+  return BWUtil.Difference(StmtInOfCurrStmt, EB->StmtKill[CurrStmt]);
+}
+
 void BoundsWideningAnalysis::InitNullTermPtrsInFunc(FunctionDecl *FD) {
   // Initialize the list of variables that are pointers to null-terminated
   // arrays to the null-terminated arrays that are passed as parameters to the
