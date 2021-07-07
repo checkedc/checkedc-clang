@@ -3308,6 +3308,8 @@ namespace {
         return CreateBoundsEmpty();
 
       if (Expr *E = dyn_cast<Expr>(S)) {
+        if (E->containsErrors())
+          return CreateBoundsEmpty();
         E = E->IgnoreParens();
         S = E;
         if (E->isLValue()) {
@@ -3408,6 +3410,9 @@ namespace {
     BoundsExpr *CheckLValue(Expr *E, CheckedScopeSpecifier CSS,
                             CheckingState &State) {
       if (!E->isLValue())
+        return CreateBoundsInferenceError();
+
+      if (E->containsErrors())
         return CreateBoundsInferenceError();
 
       E = E->IgnoreParens();
