@@ -37,9 +37,9 @@ Expr *NormalizeUtil::TransformAdditiveOp(Sema &S, Expr *E) {
 
   // Negate E2 if E is of the form E1 - E2.
   if (BO->getOpcode() == BinaryOperatorKind::BO_Sub)
-    RHS = ExprCreatorUtil::CreateUnaryOperator(S, RHS,
+    E2 = ExprCreatorUtil::CreateUnaryOperator(S, E2,
                              UnaryOperatorKind::UO_Minus);
-  return AddExprs(S, LHS, RHS);
+  return AddExprs(S, E1, E2);
 }
 
 // Input form:  E1 - E2
