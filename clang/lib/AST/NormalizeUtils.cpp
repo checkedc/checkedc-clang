@@ -15,3 +15,8 @@
 #include "clang/AST/NormalizeUtils.h"
 
 using namespace clang;
+
+Expr *NormalizeUtil::AddExprs(Sema &S, Expr *LHS, Expr *RHS) {
+  return ExprCreatorUtil::CreateBinaryOperator(S, LHS, RHS,
+                            BinaryOperatorKind::BO_Add);
+}

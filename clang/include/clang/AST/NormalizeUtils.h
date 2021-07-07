@@ -22,6 +22,9 @@ namespace clang {
 
 class NormalizeUtil {
 
+private:
+  // AddExprs returns LHS + RHS.
+  static Expr *AddExprs(Sema &S, Expr *LHS, Expr *RHS);
 };
 
 } // end namespace clang
