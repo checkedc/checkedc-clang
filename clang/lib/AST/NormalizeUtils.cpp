@@ -45,14 +45,14 @@ Expr *NormalizeUtil::TransformAdditiveOp(Sema &S, Expr *E) {
 // Input form:  E1 - E2
 // Output form: E1 + -E2
 Expr *NormalizeUtil::TransformSingleAdditiveOp(Sema &S, Expr *E) {
-  BinaryOperator *BinOp = dyn_cast<BinaryOperator>(E->IgnoreParens());
-  if (!BinOp)
+  BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens());
+  if (!BO)
     return E;
-  if (BinOp->getOpcode() != BinaryOperatorKind::BO_Sub)
+  if (BO->getOpcode() != BinaryOperatorKind::BO_Sub)
     return E;
 
-  Expr *LHS = BinOp->getLHS();
-  Expr *RHS = BinOp->getRHS();
+  Expr *LHS = BO->getLHS();
+  Expr *RHS = BO->getRHS();
   Expr *Minus = ExprCreatorUtil::CreateUnaryOperator(S, RHS,
                                    UnaryOperatorKind::UO_Minus);
   return AddExprs(S, LHS, Minus);
