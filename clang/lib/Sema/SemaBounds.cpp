@@ -45,7 +45,6 @@
 #include "clang/AST/ExprUtils.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Sema/AvailableFactsAnalysis.h"
-#include "clang/Sema/BoundsAnalysis.h"
 #include "clang/Sema/BoundsUtils.h"
 #include "clang/Sema/BoundsWideningAnalysis.h"
 #include "clang/Sema/CheckedCAnalysesPrepass.h"
@@ -427,6 +426,7 @@ namespace {
 
 namespace {
   using EqualExprTy = SmallVector<Expr *, 4>;
+  using DeclSetTy = llvm::DenseSet<const VarDecl *>;
 
   // EqualExprsContainsExpr returns true if the set Exprs contains an
   // expression that is equivalent to E.
@@ -655,11 +655,6 @@ namespace {
                               // function, if any.
     ASTContext &Context;
     std::pair<ComparisonSet, ComparisonSet> &Facts;
-
-    // Having a BoundsAnalysis object here allows us to easily invoke methods
-    // for bounds-widening and get back the bounds-widening info needed for
-    // bounds inference/checking.
-    BoundsAnalysis BoundsAnalyzer;
 
     // Having a BoundsWideningAnalysis object here allows us to easily invoke
     // methods for bounds widening and get back the widened bounds info needed
@@ -2637,7 +2632,6 @@ namespace {
       ReturnBounds(ReturnBounds),
       Context(SemaRef.Context),
       Facts(Facts),
-      BoundsAnalyzer(BoundsAnalysis(SemaRef, Cfg)),
       BoundsWideningAnalyzer(BoundsWideningAnalysis(SemaRef, Cfg,
                                                     Info.BoundsVarsLower,
                                                     Info.BoundsVarsUpper)),
@@ -2655,7 +2649,6 @@ namespace {
       ReturnBounds(nullptr),
       Context(SemaRef.Context),
       Facts(Facts),
-      BoundsAnalyzer(BoundsAnalysis(SemaRef, nullptr)),
       BoundsWideningAnalyzer(BoundsWideningAnalysis(SemaRef, nullptr,
                                                     Info.BoundsVarsLower,
                                                     Info.BoundsVarsUpper)),
@@ -2663,7 +2656,7 @@ namespace {
       BoundsSiblingFields(Info.BoundsSiblingFields),
       IncludeNullTerminator(false) {}
 
-    void IdentifyChecked(Stmt *S, StmtSet &MemoryCheckedStmts, StmtSet &BoundsCheckedStmts, CheckedScopeSpecifier CSS) {
+    void IdentifyChecked(Stmt *S, StmtSetTy &MemoryCheckedStmts, StmtSetTy &BoundsCheckedStmts, CheckedScopeSpecifier CSS) {
       if (!S)
         return;
 
@@ -2684,7 +2677,7 @@ namespace {
     }
 
     // Add any subexpressions of S that occur in TopLevelElems to NestedExprs.
-    void MarkNested(const Stmt *S, StmtSet &NestedExprs, StmtSet &TopLevelElems) {
+    void MarkNested(const Stmt *S, StmtSetTy &NestedExprs, StmtSetTy &TopLevelElems) {
       auto Begin = S->child_begin(), End = S->child_end();
       for (auto I = Begin; I != End; ++I) {
         const Stmt *Child = *I;
@@ -2722,9 +2715,9 @@ namespace {
   //
   // For now, we want to skip B1.1, B2.1, and B3.1 because they will be processed
   // as part of B4.1.
-   void FindNestedElements(StmtSet &NestedStmts) {
+   void FindNestedElements(StmtSetTy &NestedStmts) {
       // Create the set of top-level CFG elements.
-      StmtSet TopLevelElems;
+      StmtSetTy TopLevelElems;
       for (const CFGBlock *Block : *Cfg) {
         for (CFGElement Elem : *Block) {
           if (Elem.getKind() == CFGElement::Statement) {
@@ -2845,20 +2838,16 @@ namespace {
      llvm::DenseMap<unsigned int, CheckingState> BlockStates;
      BlockStates[Cfg->getEntry().getBlockID()] = ParamsState;
 
-     StmtSet NestedElements;
+     StmtSetTy NestedElements;
      FindNestedElements(NestedElements);
-     StmtSet MemoryCheckedStmts;
-     StmtSet BoundsCheckedStmts;
+     StmtSetTy MemoryCheckedStmts;
+     StmtSetTy BoundsCheckedStmts;
      IdentifyChecked(Body, MemoryCheckedStmts, BoundsCheckedStmts, CheckedScopeSpecifier::CSS_Unchecked);
 
      // Run the bounds widening analysis on this function.
      BoundsWideningAnalyzer.WidenBounds(FD, NestedElements);
      if (S.getLangOpts().DumpWidenedBounds)
        BoundsWideningAnalyzer.DumpWidenedBounds(FD);
-
-     // Run the bounds widening analysis on this function.
-     BoundsAnalysis &BA = getBoundsAnalyzer();
-     BA.WidenBounds(FD, NestedElements);
 
      PostOrderCFGView POView = PostOrderCFGView(Cfg);
      ResetFacts();
@@ -4313,10 +4302,6 @@ namespace {
 
       return BoundsUtil::CreateBoundsAlwaysUnknown(S);
     }
-
-  public:
-
-    BoundsAnalysis &getBoundsAnalyzer() { return BoundsAnalyzer; }
 
   private:
     // Sets the bounds expressions based on whether e is an lvalue or an
