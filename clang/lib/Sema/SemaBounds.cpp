@@ -6366,6 +6366,8 @@ BoundsExpr *Sema::NormalizeBounds(const VarDecl *D) {
 
   // Expand the bounds expression of D to a RangeBoundsExpr if possible.
   const BoundsExpr *B = D->getBoundsExpr();
+  if (!B)
+    return nullptr;
   BoundsExpr *ExpandedBounds = BoundsUtil::ExpandBoundsToRange(*this,
                                              const_cast<VarDecl *>(D),
                                              const_cast<BoundsExpr *>(B));
@@ -6394,6 +6396,8 @@ BoundsExpr *Sema::NormalizeBounds(const BoundsDeclFact *F) {
 
   // Expand the bounds expression of F to a RangeBoundsExpr if possible.
   const BoundsExpr *B = F->getBoundsExpr();
+  if (!B)
+    return nullptr;
   BoundsExpr *ExpandedBounds = BoundsUtil::ExpandBoundsToRange(*this,
                                              const_cast<VarDecl *>(D),
                                              const_cast<BoundsExpr *>(B));
