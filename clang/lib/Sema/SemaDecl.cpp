@@ -13822,6 +13822,12 @@ void Sema::CheckCompleteVariableDeclaration(VarDecl *var) {
         if (!Init)
           break;
         const auto *SL = dyn_cast<StringLiteral>(Init->IgnoreImpCasts());
+        if (!SL && getLangOpts().CheckedC) {
+          const auto *ChkCBT =
+                   dyn_cast<CHKCBindTemporaryExpr>(Init->IgnoreImpCasts());
+          if (ChkCBT)
+            SL = dyn_cast<StringLiteral>(ChkCBT->getSubExpr());
+        }
         if (!SL)
           break;
 
@@ -13836,6 +13842,12 @@ void Sema::CheckCompleteVariableDeclaration(VarDecl *var) {
             if (!Init)
               break;
             const auto *SLJ = dyn_cast<StringLiteral>(Init->IgnoreImpCasts());
+            if (!SLJ && getLangOpts().CheckedC) {
+              const auto *ChkCBTJ =
+                        dyn_cast<CHKCBindTemporaryExpr>(Init->IgnoreImpCasts());
+              if (ChkCBTJ)
+                SLJ = dyn_cast<StringLiteral>(ChkCBTJ->getSubExpr());
+            }
             if (!SLJ || SLJ->getNumConcatenated() > 1) {
               OnlyOneMissingComma = false;
               break;
