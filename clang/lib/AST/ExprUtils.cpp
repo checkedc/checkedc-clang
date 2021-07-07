@@ -82,6 +82,17 @@ MemberExpr *ExprCreatorUtil::CreateMemberExpr(Sema &SemaRef, Expr *Base,
                                     OK_Ordinary);
 }
 
+UnaryOperator *ExprCreatorUtil::CreateUnaryOperator(Sema &SemaRef, Expr *Child,
+                                                    UnaryOperatorKind Op) {
+  return UnaryOperator::Create(SemaRef.Context, Child, Op,
+                               Child->getType(),
+                               Child->getValueKind(),
+                               Child->getObjectKind(),
+                               SourceLocation(),
+                               /*CanOverflow*/ true,
+                               FPOptionsOverride());
+}
+
 Expr *ExprCreatorUtil::EnsureRValue(Sema &SemaRef, Expr *E) {
   if (E->isRValue())
     return E;

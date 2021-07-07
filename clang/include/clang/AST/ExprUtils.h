@@ -50,6 +50,10 @@ public:
   static MemberExpr *CreateMemberExpr(Sema &SemaRef, Expr *Base,
                                       const FieldDecl *Field, bool IsArrow);
 
+  // Create a unary operator.
+  static UnaryOperator *CreateUnaryOperator(Sema &SemaRef, Expr *Child,
+                                            UnaryOperatorKind Op);
+
   // If e is an rvalue, EnsureRValue returns e. Otherwise, EnsureRValue
   // returns a cast of e to an rvalue, based on the type of e.
   static Expr *EnsureRValue(Sema &SemaRef, Expr *E);
