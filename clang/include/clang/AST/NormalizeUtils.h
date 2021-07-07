@@ -21,8 +21,28 @@
 namespace clang {
 
 class NormalizeUtil {
+public:
+  // Each Transform* method returns an expression of the form
+  // <Output form>, if the input expression E is of the form
+  // <Input form> and E meets the specified requirements.
+  // Otherwise, the method returns nullptr.
+  // Each Transform* method looks at, at most:
+  // 1. E
+  // 2. The children of E
+  // 3. The grandchildren of E
+
+  // Input form: E1 - E2
+  // Output form: E1 + -E2
+  // This transformation will also be applied to E1 and E2.
+  static Expr *TransformAdditiveOp(Sema &S, Expr *E);
 
 private:
+  // Input form:  E1 - E2
+  // Output form: E1 + -E2
+  // TransformSingleAdditiveOp is a helper method that only performs the
+  // transformation on E and not the children of E.
+  static Expr *TransformSingleAdditiveOp(Sema &S, Expr *E);
+
   // AddExprs returns LHS + RHS.
   static Expr *AddExprs(Sema &S, Expr *LHS, Expr *RHS);
 };

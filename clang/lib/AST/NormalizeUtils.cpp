@@ -12,9 +12,51 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/AST/ExprUtils.h"
 #include "clang/AST/NormalizeUtils.h"
 
 using namespace clang;
+
+// Input form:  E1 - E2
+// Output form: E1 + -E2
+//
+// This transformation is applied to E1 and E2 as well.
+Expr *NormalizeUtil::TransformAdditiveOp(Sema &S, Expr *E) {
+  // Check that E is of the form E1 +/- E2.
+  BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens());
+  if (!BO)
+    return nullptr;
+  if (!BinaryOperator::isAdditiveOp(BO->getOpcode()))
+    return nullptr;
+
+  // If E1 is of the form E3 - E4, transform E1 to E3 + -E4.
+  Expr *E1 = TransformSingleAdditiveOp(S, BO->getLHS());
+
+  // If E2 is of the form E5 - E6, transform E2 to E5 + -E6.
+  Expr *E2 = TransformSingleAdditiveOp(S, BO->getRHS());
+
+  // Negate E2 if E is of the form E1 - E2.
+  if (BO->getOpcode() == BinaryOperatorKind::BO_Sub)
+    RHS = ExprCreatorUtil::CreateUnaryOperator(S, RHS,
+                             UnaryOperatorKind::UO_Minus);
+  return AddExprs(S, LHS, RHS);
+}
+
+// Input form:  E1 - E2
+// Output form: E1 + -E2
+Expr *NormalizeUtil::TransformSingleAdditiveOp(Sema &S, Expr *E) {
+  BinaryOperator *BinOp = dyn_cast<BinaryOperator>(E->IgnoreParens());
+  if (!BinOp)
+    return E;
+  if (BinOp->getOpcode() != BinaryOperatorKind::BO_Sub)
+    return E;
+
+  Expr *LHS = BinOp->getLHS();
+  Expr *RHS = BinOp->getRHS();
+  Expr *Minus = ExprCreatorUtil::CreateUnaryOperator(S, RHS,
+                                   UnaryOperatorKind::UO_Minus);
+  return AddExprs(S, LHS, Minus);
+}
 
 Expr *NormalizeUtil::AddExprs(Sema &S, Expr *LHS, Expr *RHS) {
   return ExprCreatorUtil::CreateBinaryOperator(S, LHS, RHS,
