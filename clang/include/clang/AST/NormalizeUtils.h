@@ -49,6 +49,13 @@ private:
   // If E is of the form E1 + E2, GetAdditionOperands returns true
   // and sets LHS to E1 and RHS to E2.
   static bool GetAdditionOperands(Expr *E, Expr *&LHS, Expr *&RHS);
+
+  // If E is of the form E1 +/- C, where C is a constant, GetRHSConstant
+  // returns true and sets the out parameter Constant.
+  // If E is of the form E1 + C, Constant will be set to C.
+  // If E is of the form E1 - C, Constant will be set to -C.
+  static bool GetRHSConstant(Sema &S, BinaryOperator *E, QualType T,
+                             llvm::APSInt &Constant);
 };
 
 } // end namespace clang

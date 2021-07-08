@@ -73,3 +73,31 @@ bool NormalizeUtil::GetAdditionOperands(Expr *E, Expr *&LHS, Expr *&RHS) {
   RHS = BO->getRHS();
   return true;
 }
+
+bool NormalizeUtil::GetRHSConstant(Sema &S, BinaryOperator *E, QualType T,
+                                   llvm::APSInt &Constant) {
+  if (!E->isAdditiveOp())
+    return false;
+  if (!E->getRHS()->isIntegerConstantExpr(Constant, S.Context))
+    return false;
+
+  bool Overflow;
+  Constant = ExprUtil::ConvertToSignedPointerWidth(S.Context, Constant, Overflow);
+  if (Overflow)
+    return false;
+  // Normalize the operation by negating the offset if necessary.
+  if (E->getOpcode() == BO_Sub) {
+    uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(0);
+    Constant = llvm::APSInt(PointerWidth, false).ssub_ov(Constant, Overflow);
+    if (Overflow)
+      return false;
+  }
+  llvm::APSInt ElemSize;
+  if (!ExprUtil::getReferentSizeInChars(S.Context, T, ElemSize))
+    return false;
+  Constant = Constant.smul_ov(ElemSize, Overflow);
+  if (Overflow)
+    return false;
+
+  return true;
+}
