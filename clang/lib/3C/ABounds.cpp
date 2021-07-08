@@ -25,7 +25,6 @@ ABounds *ABounds::getBoundsInfo(AVarBoundsInfo *ABInfo, BoundsExpr *BExpr,
                                 const ASTContext &C) {
   ABounds *Ret = nullptr;
   CountBoundsExpr *CBE = dyn_cast<CountBoundsExpr>(BExpr->IgnoreParenCasts());
-  RangeBoundsExpr *RBE = dyn_cast<RangeBoundsExpr>(BExpr->IgnoreParenCasts());
   BoundsKey VK;
   if (CBE && !CBE->isCompilerGenerated()) {
     if (ABInfo->tryGetVariable(CBE->getCountExpr()->IgnoreParenCasts(), C,
@@ -42,6 +41,9 @@ ABounds *ABounds::getBoundsInfo(AVarBoundsInfo *ABInfo, BoundsExpr *BExpr,
       }
     }
   }
+  // Disabling Range bounds as they are not currently supported!
+  /*
+  RangeBoundsExpr *RBE = dyn_cast<RangeBoundsExpr>(BExpr->IgnoreParenCasts());
   if (BExpr->isRange() && RBE) {
     Expr *LHS = RBE->getLowerExpr()->IgnoreParenCasts();
     Expr *RHS = RBE->getUpperExpr()->IgnoreParenImpCasts();
@@ -50,14 +52,36 @@ ABounds *ABounds::getBoundsInfo(AVarBoundsInfo *ABInfo, BoundsExpr *BExpr,
         ABInfo->tryGetVariable(RHS, C, RV)) {
       Ret = new RangeBound(LV, RV);
     }
-  }
+  }*/
   return Ret;
 }
 
-std::string CountBound::mkString(AVarBoundsInfo *ABI) {
-  ProgramVar *PV = ABI->getProgramVar(CountVar);
+std::string ABounds::getBoundsKeyStr(BoundsKey BK, AVarBoundsInfo *ABI,
+                                     Decl *D) {
+  ProgramVar *PV = ABI->getProgramVar(BK);
   assert(PV != nullptr && "No Valid program var");
-  return "count(" + PV->mkString() + ")";
+  std::string BKStr = PV->mkString();
+  unsigned PIdx = 0;
+  auto *PVD = dyn_cast_or_null<ParmVarDecl>(D);
+  // Does this belong to a function parameter?
+  if (PVD && ABI->isFuncParamBoundsKey(BK, PIdx)) {
+    // Then get the corresponding parameter in context of the given
+    // Function and get its name.
+    const FunctionDecl *FD = dyn_cast<FunctionDecl>(PVD->getDeclContext());
+    if (FD->getNumParams() > PIdx) {
+      auto *NewPVD = FD->getParamDecl(PIdx);
+      BKStr = NewPVD->getNameAsString();
+      // If the parameter in the new declaration does not have a name?
+      // then use the old name.
+      if (BKStr.empty())
+        BKStr = PV->mkString();
+    }
+  }
+  return BKStr;
+}
+
+std::string CountBound::mkString(AVarBoundsInfo *ABI, clang::Decl *D) {
+  return "count(" + ABounds::getBoundsKeyStr(CountVar, ABI, D) + ")";
 }
 
 bool CountBound::areSame(ABounds *O, AVarBoundsInfo *ABI) {
@@ -72,18 +96,24 @@ BoundsKey CountBound::getBKey() { return this->CountVar; }
 
 ABounds *CountBound::makeCopy(BoundsKey NK) { return new CountBound(NK); }
 
-std::string ByteBound::mkString(AVarBoundsInfo *ABI) {
-  ProgramVar *PV = ABI->getProgramVar(ByteVar);
-  assert(PV != nullptr && "No Valid program var");
-  return "byte_count(" + PV->mkString() + ")";
+std::string CountPlusOneBound::mkString(AVarBoundsInfo *ABI, clang::Decl *D) {
+  std::string CVar = ABounds::getBoundsKeyStr(CountVar, ABI, D);
+  return "count(" + CVar + " + 1)";
+}
+
+bool CountPlusOneBound::areSame(ABounds *O, AVarBoundsInfo *ABI) {
+  if (CountPlusOneBound *OT = dyn_cast_or_null<CountPlusOneBound>(O))
+    return ABI->areSameProgramVar(this->CountVar, OT->CountVar);
+  return false;
+}
+
+std::string ByteBound::mkString(AVarBoundsInfo *ABI, clang::Decl *D) {
+  return "byte_count(" + ABounds::getBoundsKeyStr(ByteVar, ABI, D) + ")";
 }
 
 bool ByteBound::areSame(ABounds *O, AVarBoundsInfo *ABI) {
-  if (O != nullptr) {
-    if (ByteBound *BB = dyn_cast<ByteBound>(O)) {
-      return ABI->areSameProgramVar(this->ByteVar, BB->ByteVar);
-    }
-  }
+  if (ByteBound *BB = dyn_cast_or_null<ByteBound>(O))
+    return ABI->areSameProgramVar(this->ByteVar, BB->ByteVar);
   return false;
 }
 
@@ -91,19 +121,15 @@ BoundsKey ByteBound::getBKey() { return this->ByteVar; }
 
 ABounds *ByteBound::makeCopy(BoundsKey NK) { return new ByteBound(NK); }
 
-std::string RangeBound::mkString(AVarBoundsInfo *ABI) {
-  ProgramVar *LBVar = ABI->getProgramVar(LB);
-  ProgramVar *UBVar = ABI->getProgramVar(UB);
-  assert(LBVar != nullptr && UBVar != nullptr && "No Valid program var");
-  return "bounds(" + LBVar->mkString() + ", " + UBVar->mkString() + ")";
+std::string RangeBound::mkString(AVarBoundsInfo *ABI, clang::Decl *D) {
+  std::string LBStr = ABounds::getBoundsKeyStr(LB, ABI, D);
+  std::string UBStr = ABounds::getBoundsKeyStr(UB, ABI, D);
+  return "bounds(" + LBStr + ", " + UBStr + ")";
 }
 
 bool RangeBound::areSame(ABounds *O, AVarBoundsInfo *ABI) {
-  if (O != nullptr) {
-    if (RangeBound *RB = dyn_cast<RangeBound>(O)) {
-      return ABI->areSameProgramVar(this->LB, RB->LB) &&
-             ABI->areSameProgramVar(this->UB, RB->UB);
-    }
-  }
+  if (RangeBound *RB = dyn_cast_or_null<RangeBound>(O))
+    return ABI->areSameProgramVar(this->LB, RB->LB) &&
+           ABI->areSameProgramVar(this->UB, RB->UB);
   return false;
 }

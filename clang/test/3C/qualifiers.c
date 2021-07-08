@@ -1,7 +1,7 @@
 // RUN: rm -rf %t*
 // RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checkedALL %s --
 // RUN: 3c -base-dir=%S -output-dir=%t.checkedNOALL %s --
-// RUN: %clang -c %t.checkedNOALL/qualifiers.c
+// RUN: %clang -working-directory=%t.checkedNOALL -c qualifiers.c
 // RUN: FileCheck -match-full-lines --input-file %t.checkedNOALL/qualifiers.c %s
 // RUN: FileCheck -match-full-lines --input-file %t.checkedALL/qualifiers.c %s
 

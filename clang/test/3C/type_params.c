@@ -1,7 +1,9 @@
 // RUN: rm -rf %t*
-// RUN: 3c -base-dir=%S -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-// RUN: 3c -base-dir=%S -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: 3c -base-dir=%S -addcr %s -- | %clang -c -fcheckedc-extension -x c -o %t1.unused -
+// Manually passing fortify source to avoid issues surrounding the way compiler
+// builtins are handled. (See issue #630)
+// RUN: 3c -base-dir=%S -addcr -alltypes %s -- -D_FORTIFY_SOURCE=0 | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: 3c -base-dir=%S -addcr %s -- -D_FORTIFY_SOURCE=0 | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: 3c -base-dir=%S -addcr %s -- -D_FORTIFY_SOURCE=0 | %clang -c -fcheckedc-extension -x c -o %t1.unused -
 
 // General demonstration
 _Itype_for_any(T) void *test_single(void *a
@@ -91,16 +93,8 @@ void unsafe(int *a) {
 
 // Example issue 153
 
-#include <stddef.h>
-_Itype_for_any(T) void *malloc(size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
-_Itype_for_any(T) void *memcpy(void *restrict dest
-                               : itype(restrict _Array_ptr<T>) byte_count(n),
-                                 const void *restrict src
-                               : itype(restrict _Array_ptr<const T>)
-                                     byte_count(n),
-                                 size_t n)
-    : itype(_Array_ptr<T>) byte_count(n);
+#include <stdlib.h>
+#include <string.h>
 
 void foo(int *p2) {
   int *p = malloc(2 * sizeof(int));
@@ -160,11 +154,6 @@ void deep(int ****v, int ****w, int ****x, int ****y, int ****z) {
 // Issue #233. Void type paramters were not being detected by
 // typeArgsProvidedCheck
 
-_Itype_for_any(T) void *realloc(void *pointer
-                                : itype(_Array_ptr<T>) byte_count(1),
-                                  size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
-
 // void provided
 void *example0(void *ptr, unsigned int size) {
   // CHECK: void *example0(void *ptr, unsigned int size) {
@@ -186,7 +175,7 @@ void *example1(void *ptr, unsigned int size) {
 // Issue #349. Check that the parameter doesn't inherit the double pointer
 // argument within do_doubleptr
 _Itype_for_any(T) void incoming_doubleptr(void *ptr : itype(_Array_ptr<T>)) {
-  // CHECK_ALL: _Itype_for_any(T) void incoming_doubleptr(_Array_ptr<T> ptr : itype(_Array_ptr<T>)) {
+  // CHECK_ALL: _Itype_for_any(T) void incoming_doubleptr(void *ptr : itype(_Array_ptr<T>)) {
   return;
 }
 

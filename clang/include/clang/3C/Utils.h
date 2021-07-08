@@ -104,18 +104,12 @@ bool hasFunctionBody(clang::Decl *D);
 
 std::string getStorageQualifierString(clang::Decl *D);
 
-// Use this version for user input that has not yet been validated.
 std::error_code tryGetCanonicalFilePath(const std::string &FileName,
                                         std::string &AbsoluteFp);
 
-// This version asserts success. It may be used for convenience for files we are
-// already accessing and thus believe should exist, modulo race conditions and
-// the like.
-void getCanonicalFilePath(const std::string &FileName, std::string &AbsoluteFp);
-
 // This compares entire path components: it's smart enough to know that "foo.c"
 // does not start with "foo". It's not smart about anything else, so you should
-// probably put both paths through getCanonicalFilePath first.
+// probably put both paths through tryGetCanonicalFilePath first.
 bool filePathStartsWith(const std::string &Path, const std::string &Prefix);
 
 bool isNULLExpression(clang::Expr *E, clang::ASTContext &C);
@@ -135,11 +129,17 @@ bool isPointerType(clang::ValueDecl *VD);
 // Is this a pointer or array type?
 bool isPtrOrArrayType(const clang::QualType &QT);
 
+// Is this a type that can go inside an _Nt_array_ptr?
+bool isNullableType(const clang::QualType &QT);
+
+// Is this type capable of being an NT Array?
+bool canBeNtArray(const clang::QualType &QT);
+
 // Check if provided type is a var arg type?
 bool isVarArgType(const std::string &TypeName);
 
 // Check if the variable is of a structure or union type.
-bool isStructOrUnionType(clang::VarDecl *VD);
+bool isStructOrUnionType(clang::DeclaratorDecl *VD);
 
 // Helper method to print a Type in a way that can be represented in the source.
 // If Name is given, it is included as the variable name (which otherwise isn't
@@ -153,6 +153,9 @@ std::string qtyToStr(clang::QualType QT, const std::string &Name = "");
 clang::SourceLocation getFunctionDeclRParen(clang::FunctionDecl *FD,
                                             clang::SourceManager &S);
 
+clang::SourceLocation locationPrecedingChar(clang::SourceLocation SL,
+                                            clang::SourceManager &S, char C);
+
 // Remove auxillary casts from the provided expression.
 clang::Expr *removeAuxillaryCasts(clang::Expr *SrcExpr);
 
@@ -165,8 +168,8 @@ bool isCastSafe(clang::QualType DstType, clang::QualType SrcType);
 // Check if the provided file path belongs to the input project
 // and can be rewritten.
 //
-// For accurate results, the path must have gone through getCanonicalFilePath.
-// Note that the file name of a PersistentSourceLoc is always canonical.
+// For accurate results, the path must be canonical. The file name of a
+// PersistentSourceLoc can normally be assumed to be canonical.
 bool canWrite(const std::string &FilePath);
 
 // Check if the provided variable has void as one of its type.
@@ -205,4 +208,23 @@ clang::TypeLoc getBaseTypeLoc(clang::TypeLoc T);
 // Ignore all CheckedC temporary and clang implicit expression on E. This
 // combines the behavior of IgnoreExprTmp and IgnoreImplicit.
 clang::Expr *ignoreCheckedCImplicit(clang::Expr *E);
+
+// Get a FunctionTypeLoc object from the declaration/type location. This is a
+// little complicated due to various clang wrapper types that come from
+// parenthesised types and function attributes.
+clang::FunctionTypeLoc getFunctionTypeLoc(clang::TypeLoc TLoc);
+clang::FunctionTypeLoc getFunctionTypeLoc(clang::DeclaratorDecl *Decl);
+
+bool isKAndRFunctionDecl(clang::FunctionDecl *FD);
+
+void getPrintfStringArgIndices(const clang::CallExpr *CE,
+                               const clang::FunctionDecl *Callee,
+                               const clang::ASTContext &Context,
+                               std::set<unsigned> &StringArgIndices);
+
+// Use instead of Stmt::getID since Stmt::getID fails an assertion on long
+// string literals (https://bugs.llvm.org/show_bug.cgi?id=49926).
+int64_t getStmtIdWorkaround(const clang::Stmt *St,
+                            const clang::ASTContext &Context);
+
 #endif

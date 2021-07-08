@@ -52,7 +52,9 @@ private:
   enum CastNeeded {
     NO_CAST = 0,     // No casting required.
     CAST_TO_CHECKED, // A CheckedC bounds cast required (wild -> checked).
-    CAST_TO_WILD     // A standard C explicit cast required (checked -> wild).
+    CAST_TO_WILD,    // A standard C explicit cast required (checked -> wild).
+    CAST_NT_ARRAY    // A special case cast for assignment to nt_array_ptr from
+                     // itype(nt_array_ptr).
   };
 
   CastNeeded needCasting(ConstraintVariable *SrcInt, ConstraintVariable *SrcExt,
@@ -64,5 +66,6 @@ private:
 
   void surroundByCast(ConstraintVariable *Dst, CastNeeded CastKind, Expr *E);
   void reportCastInsertionFailure(Expr *E, const std::string &CastStr);
+  void updateRewriteStats(CastNeeded CastKind);
 };
 #endif // LLVM_CLANG_3C_CASTPLACEMENT_H
