@@ -36,6 +36,13 @@ public:
   // This transformation will also be applied to E1 and E2.
   static Expr *TransformAdditiveOp(Sema &S, Expr *E);
 
+  // Input form:  E1 + (E2 + E3)
+  // Output form: (E1 + E2) + E3
+  // Requirements:
+  // 1. E1 has pointer type, and:
+  // 2. E2 has integer type, and:
+  // 3. E3 has integer type.
+  static Expr *TransformAssocLeft(Sema &S, Expr *E);
 private:
   // Input form:  E1 - E2
   // Output form: E1 + -E2

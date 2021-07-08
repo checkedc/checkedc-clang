@@ -42,6 +42,30 @@ Expr *NormalizeUtil::TransformAdditiveOp(Sema &S, Expr *E) {
   return AddExprs(S, E1, E2);
 }
 
+// Input form:  E1 + (E2 + E3)
+// Output form: (E1 + E2) + E3
+Expr *NormalizeUtil::TransformAssocLeft(Sema &S, Expr *E) {
+  // E must be of the form E1 + RHS.
+  Expr *E1, *RHS;
+  if (!GetAdditionOperands(E, E1, RHS))
+    return nullptr;
+
+  // E1 must have pointer type.
+  if (!E1->getType()->isPointerType())
+    return nullptr;
+
+  // E must be of the form E1 + (E2 + E3).
+  Expr *E2, *E3;
+  if (!GetAdditionOperands(RHS, E2, E3))
+    return nullptr;
+
+  // E2 and E3 must have integer type.
+  if (!E2->getType()->isIntegerType() || !E3->getType()->isIntegerType())
+    return nullptr;
+
+  // Output expression is (E1 + E2) + E3.
+  return AddExprs(S, AddExprs(S, E1, E2), E3);
+}
 // Input form:  E1 - E2
 // Output form: E1 + -E2
 Expr *NormalizeUtil::TransformSingleAdditiveOp(Sema &S, Expr *E) {
