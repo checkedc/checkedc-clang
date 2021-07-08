@@ -462,6 +462,13 @@ unsigned int ExprUtil::VariableOccurrenceCount(Sema &S, DeclRefExpr *Target,
   return VariableOccurrenceCount(S, Target->getDecl(), E);
 }
 
+void ExprUtil::EnsureEqualBitWidths(llvm::APSInt &A, llvm::APSInt &B) {
+  if (A.getBitWidth() < B.getBitWidth())
+    A = A.extOrTrunc(B.getBitWidth());
+  else if (B.getBitWidth() < A.getBitWidth())
+    B = B.extOrTrunc(A.getBitWidth());
+}
+
 bool InverseUtil::IsInvertible(Sema &S, Expr *LValue, Expr *E) {
   if (!E)
     return false;

@@ -166,6 +166,11 @@ public:
   // variable expression in E.
   static unsigned int VariableOccurrenceCount(Sema &S, DeclRefExpr *Target,
                                               Expr *E);
+
+  // EnsureEqualBitWidths modifies A or B if necessary so that A and B
+  // have the same bit width. The bit width of A and B will be the larger
+  // of the original bit widths of A and B.
+  static void EnsureEqualBitWidths(llvm::APSInt &A, llvm::APSInt &B);
 };
 
 } // end namespace clang
