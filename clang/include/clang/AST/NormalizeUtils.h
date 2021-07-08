@@ -43,6 +43,28 @@ public:
   // 2. E2 has integer type, and:
   // 3. E3 has integer type.
   static Expr *TransformAssocLeft(Sema &S, Expr *E);
+
+  // ConstantFold performs simple constant folding operations on E.
+  // It attempts to extract a Variable part and a Constant part, based
+  // on the form of E.
+  //
+  // If E is of the form (E1 + A) + B:
+  //   Variable = E1, Constant = A + B.
+  // If E is of the form (E1 + A) - B:
+  //   Variable = E1, Constant = A + -B.
+  // If E is of the form (E1 - A) + B:
+  //   Variable = E1, Constant = -A + B.
+  // If E is of the form (E1 - A) - B:
+  //   Variable = E1, Constant = -A + -B.
+  //
+  // Otherwise, ConstantFold returns false, and:
+  //   Variable = E, Constant = 0.
+  //
+  // TODO: ConstantFold should be replaced with a TransformConstantFold
+  // method that returns an expression.
+  static bool ConstantFold(Sema &S, Expr *E, QualType T, Expr *&Variable,
+                           llvm::APSInt &Constant);
+
 private:
   // Input form:  E1 - E2
   // Output form: E1 + -E2

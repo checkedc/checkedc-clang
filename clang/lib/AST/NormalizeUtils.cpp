@@ -66,6 +66,54 @@ Expr *NormalizeUtil::TransformAssocLeft(Sema &S, Expr *E) {
   // Output expression is (E1 + E2) + E3.
   return AddExprs(S, AddExprs(S, E1, E2), E3);
 }
+
+// Input form: (E1 +/ A) +/- B.
+// Outputs: Variable: E1, Constant: (+/-)A + (+/-)B.
+bool NormalizeUtil::ConstantFold(Sema &S, Expr *E, QualType T, Expr *&Variable,
+                                 llvm::APSInt &Constant) {
+  llvm::APSInt LHSConst;
+  llvm::APSInt RHSConst;
+  BinaryOperator *LHSBinOp = nullptr;
+
+  // E must be of the form LHS +/- RHS.
+  BinaryOperator *RootBinOp = dyn_cast<BinaryOperator>(E->IgnoreParens());
+  if (!RootBinOp)
+    goto exit;
+  if (!RootBinOp->isAdditiveOp())
+    goto exit;
+
+  // E must be of the form (E1 +/- E2) +/- RHS.
+  LHSBinOp = dyn_cast<BinaryOperator>(RootBinOp->getLHS()->IgnoreParens());
+  if (!LHSBinOp)
+    goto exit;
+  if (!LHSBinOp->isAdditiveOp())
+    goto exit;
+
+  // E must be of the form (E1 +/- E2) +/- B, where B is a constant.
+  if (!GetRHSConstant(S, RootBinOp, T, RHSConst))
+    goto exit;
+
+  // E must be of the form (E1 +/- A) +/- B, where a is a constant.
+  if (!GetRHSConstant(S, LHSBinOp, T, LHSConst))
+    goto exit;
+
+  Variable = LHSBinOp->getLHS();
+
+  bool Overflow;
+  ExprUtil::EnsureEqualBitWidths(LHSConst, RHSConst);
+  Constant = LHSConst.sadd_ov(RHSConst, Overflow);
+  if (Overflow)
+    goto exit;
+  return true;
+
+  exit:
+    // Return (E, 0).
+    Variable = E;
+    uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(0);
+    Constant = llvm::APSInt(PointerWidth, false);
+    return false;
+}
+
 // Input form:  E1 - E2
 // Output form: E1 + -E2
 Expr *NormalizeUtil::TransformSingleAdditiveOp(Sema &S, Expr *E) {
