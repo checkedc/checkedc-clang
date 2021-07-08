@@ -1067,127 +1067,6 @@ namespace {
       }
 
     private:
-      // EnsureEqualBitWidths modifies A or B if necessary so that A and B
-      // have the same bit width. The bit width of A and B will be the larger
-      // of the original bit widths of A and B.
-      //
-      // TODO: this method is part of a temporary solution to enable bounds
-      // checking to validate bounds such as (p, p + (len + 1) - 1). In the
-      // future, we should handle constant folding, commutativity, and
-      // associativity in bounds expressions in a more general way.
-      void EnsureEqualBitWidths(llvm::APSInt &A, llvm::APSInt &B) {
-        if (A.getBitWidth() < B.getBitWidth())
-          A = A.extOrTrunc(B.getBitWidth());
-        else if (B.getBitWidth() < A.getBitWidth())
-          B = B.extOrTrunc(A.getBitWidth());
-      }
-
-      // If E is of the form e +/- c, where c is a constant, GetRHSConstant
-      // returns true and sets the out parameter Constant.
-      // If E is of the form e + c, Constant will be set to c.
-      // If E is of the form e - c, Constant will be set to -c.
-      //
-      // TODO: this method is part of a temporary solution to enable bounds
-      // checking to validate bounds such as (p, p + (len + 1) - 1). In the
-      // future, we should handle constant folding, commutativity, and
-      // associativity in bounds expressions in a more general way.
-      bool GetRHSConstant(BinaryOperator *E, llvm::APSInt &Constant) {
-        if (!E->isAdditiveOp())
-          return false;
-        if (!E->getRHS()->isIntegerConstantExpr(Constant, S.Context))
-          return false;
-
-        bool Overflow;
-        Constant = ExprUtil::ConvertToSignedPointerWidth(S.Context, Constant, Overflow);
-        if (Overflow)
-          return false;
-        // Normalize the operation by negating the offset if necessary.
-        if (E->getOpcode() == BO_Sub) {
-          uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(0);
-          Constant = llvm::APSInt(PointerWidth, false).ssub_ov(Constant, Overflow);
-          if (Overflow)
-            return false;
-        }
-        llvm::APSInt ElemSize;
-        if (!ExprUtil::getReferentSizeInChars(S.Context, Base->getType(), ElemSize))
-          return false;
-        Constant = Constant.smul_ov(ElemSize, Overflow);
-        if (Overflow)
-          return false;
-
-        return true;
-      }
-
-      // ConstantFoldUpperOffset performs simple constant folding operations on
-      // UpperOffsetVariable. It attempts to extract a Variable part and a
-      // Constant part, based on the form of UpperOffsetVariable.
-      //
-      // If UpperOffsetVariable is of the form (e + a) + b:
-      //   Variable = e, Constant = a + b.
-      // If UpperOffsetVariable is of the form (e + a) - b:
-      //   Variable = e, Constant = a + -b.
-      // If UpperOffsetVariable is of the form (e - a) + b:
-      //   Variable = e, Constant = -a + b.
-      // If UpperOffsetVariable is of the form (e - a) - b:
-      //   Variable = e, Constant = -a + -b.
-      //
-      // Otherwise, ConstantFoldUpperOffset returns false, and:
-      //   Variable = UpperOffsetVariable, Constant = 0.
-      //
-      // TODO: this method is part of a temporary solution to enable bounds
-      // checking to validate bounds such as (p, p + (len + 1) - 1). In the
-      // future, we should handle constant folding, commutativity, and
-      // associativity in bounds expressions in a more general way.
-      bool ConstantFoldUpperOffset(Expr *&Variable, llvm::APSInt &Constant) {
-        if (!IsUpperOffsetVariable())
-          return false;
-
-        llvm::APSInt LHSConst;
-        llvm::APSInt RHSConst;
-        BinaryOperator *LHSBinOp = nullptr;
-
-        // UpperOffsetVariable must be of the form LHS +/- RHS.
-        BinaryOperator *RootBinOp =
-          dyn_cast<BinaryOperator>(UpperOffsetVariable->IgnoreParens());
-        if (!RootBinOp)
-          goto exit;
-        if (!RootBinOp->isAdditiveOp())
-          goto exit;
-
-        // UpperOffsetVariable must be of the form (e1 +/- e2) +/- RHS.
-        LHSBinOp = dyn_cast<BinaryOperator>(RootBinOp->getLHS()->IgnoreParens());
-        if (!LHSBinOp)
-          goto exit;
-        if (!LHSBinOp->isAdditiveOp())
-          goto exit;
-
-        // UpperOffsetVariable must be of the form (e1 +/- e2) +/- b,
-        // where b is a constant.
-        if (!GetRHSConstant(RootBinOp, RHSConst))
-          goto exit;
-
-        // UpperOffsetVariable must be of the form (e1 +/- a) +/- b,
-        // where a is a constant.
-        if (!GetRHSConstant(LHSBinOp, LHSConst))
-          goto exit;
-
-        Variable = LHSBinOp->getLHS();
-
-        bool Overflow;
-        EnsureEqualBitWidths(LHSConst, RHSConst);
-        Constant = LHSConst.sadd_ov(RHSConst, Overflow);
-        if (Overflow)
-          goto exit;
-        return true;
-
-        exit:
-          // Return (UpperOffsetVariable, 0).
-          Variable = UpperOffsetVariable;
-          uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(0);
-          Constant = llvm::APSInt(PointerWidth, false);
-          return false;
-      }
-
       // CompareConstantFoldedUpperOffsets is a fallback method that attempts
       // to prove that R.UpperOffsetVariable <= this.UpperOffsetVariable.
       // It returns true if:
@@ -1208,13 +1087,20 @@ namespace {
       // associativity in bounds expressions in a more general way.
       bool CompareUpperOffsetsWithConstantFolding(BaseRange &R,
                                                   EquivExprSets *EquivExprs) {
+        if (!IsUpperOffsetVariable() || !R.IsUpperOffsetVariable())
+          return false;
+
         Expr *Variable = nullptr;
         llvm::APSInt Constant;
-        bool ConstFolded = ConstantFoldUpperOffset(Variable, Constant);
+        bool ConstFolded = NormalizeUtil::ConstantFold(S, UpperOffsetVariable,
+                                                       Base->getType(),
+                                                       Variable, Constant);
 
         Expr *RVariable = nullptr;
         llvm::APSInt RConstant;
-        bool RConstFolded = R.ConstantFoldUpperOffset(RVariable, RConstant);
+        bool RConstFolded = NormalizeUtil::ConstantFold(S, R.UpperOffsetVariable,
+                                                        R.Base->getType(),
+                                                        RVariable, RConstant);
 
         // If neither this nor R had their upper offsets constant folded, then
         // the variable parts will be the respective upper offsets and the
@@ -1232,7 +1118,7 @@ namespace {
         if (!ExprUtil::EqualValue(S.Context, Variable, RVariable, EquivExprs))
           return false;
 
-        EnsureEqualBitWidths(Constant, RConstant);
+        ExprUtil::EnsureEqualBitWidths(Constant, RConstant);
         return RConstant <= Constant;
       }
 
