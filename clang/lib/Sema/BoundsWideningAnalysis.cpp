@@ -711,7 +711,84 @@ void BoundsWideningAnalysis::GetVarsAndBoundsForModifiedVars(
   }
 }
 
-void BoundsWideningAnalysis::DumpWidenedBounds(FunctionDecl *FD) {
+void BoundsWideningAnalysis::PrintVarSet(VarSetTy VarSet,
+                                         int PrintOption) const {
+  if (VarSet.size() == 0) {
+    if (PrintOption == 0)
+      OS << "<no widening>\n";
+    else
+      OS << "    {}\n";
+    return;
+  }
+
+  // A VarSetTy has const iterator. So we cannot simply sort a VarSetTy and
+  // need to copy the elements to a vector to sort.
+  std::vector<const VarDecl *> Vars(VarSet.begin(), VarSet.end());
+
+  llvm::sort(Vars.begin(), Vars.end(),
+    [](const VarDecl *A, const VarDecl *B) {
+       return A->getQualifiedNameAsString().compare(
+              B->getQualifiedNameAsString()) < 0;
+    });
+
+  for (const VarDecl *V : Vars)
+    OS << "    " << V->getQualifiedNameAsString() << "\n";
+}
+
+void BoundsWideningAnalysis::PrintBoundsMap(BoundsMapTy BoundsMap,
+                                            int PrintOption) const {
+  if (BoundsMap.size() == 0) {
+    if (PrintOption == 0)
+      OS << "<no widening>\n";
+    else
+      OS << "    {}\n";
+    return;
+  }
+
+  std::vector<const VarDecl *> Vars;
+  for (auto VarBoundsPair : BoundsMap)
+    Vars.push_back(VarBoundsPair.first);
+
+  llvm::sort(Vars.begin(), Vars.end(),
+    [](const VarDecl *A, const VarDecl *B) {
+       return A->getQualifiedNameAsString().compare(
+              B->getQualifiedNameAsString()) < 0;
+    });
+
+  for (const VarDecl *V : Vars) {
+    OS << "    " << V->getQualifiedNameAsString() << ": ";
+
+    RangeBoundsExpr *Bounds = BoundsMap[V];
+
+    if (Bounds == Top) {
+      OS << "Top\n";
+      continue;
+    }
+
+    Expr *Lower = Bounds->getLowerExpr();
+    Expr *Upper = Bounds->getUpperExpr();
+
+    OS << "bounds(";
+    Lower->printPretty(OS, nullptr, Ctx.getPrintingPolicy());
+    OS << ", ";
+    Upper->printPretty(OS, nullptr, Ctx.getPrintingPolicy());
+    OS << ")\n";
+  }
+}
+
+void BoundsWideningAnalysis::PrintStmt(const Stmt *CurrStmt) const {
+  std::string Str;
+  llvm::raw_string_ostream SS(Str);
+  CurrStmt->printPretty(SS, nullptr, Ctx.getPrintingPolicy());
+
+  OS << SS.str();
+  if (SS.str().back() != '\n')
+    OS << "\n";
+}
+
+void BoundsWideningAnalysis::DumpWidenedBounds(FunctionDecl *FD,
+                                               int PrintOption) {
+
   OS << "\n--------------------------------------";
   // Print the function name.
   OS << "\nFunction: " << FD->getName();
@@ -742,64 +819,64 @@ void BoundsWideningAnalysis::DumpWidenedBounds(FunctionDecl *FD) {
         }
     }
 
-    bool IsBlockEmpty = true;
+    ElevatedCFGBlock *EB = BlockMap[CurrBlock];
+
+    if (PrintOption == 1) {
+      // Print the In set for the block.
+      OS << "\n  In:\n";
+      PrintBoundsMap(EB->In, PrintOption);
+
+      // Print the Gen set for the block.
+      OS << "  Gen:\n";
+      PrintBoundsMap(EB->Gen, PrintOption);
+
+      // Print the Kill set for the block.
+      OS << "  Kill:\n";
+      PrintVarSet(EB->Kill, PrintOption);
+
+      // Print the Out set for the block.
+      OS << "  Out:\n";
+      PrintBoundsMap(EB->Out, PrintOption);
+    }
+
     for (CFGElement Elem : *CurrBlock) {
       if (Elem.getKind() != CFGElement::Statement)
         continue;
-
       const Stmt *CurrStmt = Elem.castAs<CFGStmt>().getStmt();
       if (!CurrStmt)
         continue;
-
-      BoundsMapTy WidenedBounds = GetStmtIn(CurrBlock, CurrStmt);
-
-      std::vector<const VarDecl *> Vars;
-      for (auto VarBoundsPair : WidenedBounds)
-        Vars.push_back(VarBoundsPair.first);
-
-      llvm::sort(Vars.begin(), Vars.end(),
-        [](const VarDecl *A, const VarDecl *B) {
-           return A->getQualifiedNameAsString().compare(
-                  B->getQualifiedNameAsString()) < 0;
-        });
-
-      std::string Str;
-      llvm::raw_string_ostream SS(Str);
-      CurrStmt->printPretty(SS, nullptr, Ctx.getPrintingPolicy());
-
+   
+      if (PrintOption == 0) {
+        OS << "\n  Widened bounds before stmt: ";
+      } else if (PrintOption == 1) {
+        OS << "\n  Stmt: ";
+      }
+  
       // Print the current statement.
-      OS << "\n  Widened bounds before stmt: " << SS.str();
-      if (SS.str().back() != '\n')
-        OS << "\n";
+      PrintStmt(CurrStmt);
 
-      IsBlockEmpty = false;
+      if (PrintOption == 0) {
+        // Print widened bounds before the statement.
+        PrintBoundsMap(GetStmtIn(CurrBlock, CurrStmt), PrintOption);
 
-      if (Vars.size() == 0)
-        OS << "    <no widening>\n";
+      } else if (PrintOption == 1) {
+        // Print the In set for the statement.
+        OS << "  In:\n";
+        PrintBoundsMap(GetStmtIn(CurrBlock, CurrStmt), PrintOption);
 
-      for (const VarDecl *V : Vars) {
-        RangeBoundsExpr *Bounds = WidenedBounds[V];
-        if (Bounds == Top) {
-          // If this is the only variable and its bounds are Top, we need to
-          // print <no widening>.
-          if (Vars.size() == 1)
-            OS << "    <no widening>\n";
-          continue;
-        }
+        // Print the Gen set for the statement.
+        OS << "  Gen:\n";
+        PrintBoundsMap(EB->StmtGen[CurrStmt], PrintOption);
 
-        Expr *Lower = Bounds->getLowerExpr();
-        Expr *Upper = Bounds->getUpperExpr();
+        // Print the Kill set for the statement.
+        OS << "  Kill:\n";
+        PrintVarSet(EB->StmtKill[CurrStmt], PrintOption);
 
-        OS << "    " << V->getQualifiedNameAsString() << ": bounds(";
-        Lower->printPretty(OS, nullptr, Ctx.getPrintingPolicy());
-        OS << ", ";
-        Upper->printPretty(OS, nullptr, Ctx.getPrintingPolicy());
-        OS << ")\n";
+        // Print the Out set for the statement.
+        OS << "  Out:\n";
+        PrintBoundsMap(GetStmtOut(CurrBlock, CurrStmt), PrintOption);
       }
     }
-
-    if (IsBlockEmpty)
-      OS << "\n";
   }
 }
 

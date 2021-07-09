@@ -2847,7 +2847,9 @@ namespace {
      // Run the bounds widening analysis on this function.
      BoundsWideningAnalyzer.WidenBounds(FD, NestedElements);
      if (S.getLangOpts().DumpWidenedBounds)
-       BoundsWideningAnalyzer.DumpWidenedBounds(FD);
+       BoundsWideningAnalyzer.DumpWidenedBounds(FD, 0);
+     if (S.getLangOpts().DumpWidenedBoundsDataflowSets)
+       BoundsWideningAnalyzer.DumpWidenedBounds(FD, 1);
 
      PostOrderCFGView POView = PostOrderCFGView(Cfg);
      ResetFacts();
