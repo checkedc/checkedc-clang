@@ -3879,7 +3879,7 @@ Parser::ParseRelativeBoundsClause(bool &isError, IdentifierInfo *Ident,
       isError = true;
     } else {
       ConstExpr = Actions.VerifyIntegerConstantExpression(ConstExpr.get(),
-                                                          nullptr);
+                                          Sema::AllowFoldKind::AllowFold);
       if (!ConstExpr.isInvalid())
         RelativeClause = Actions.ActOnRelativeConstExprClause(
             ConstExpr.get(), BoundsKWLoc, Tok.getLocation());
