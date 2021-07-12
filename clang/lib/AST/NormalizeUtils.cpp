@@ -67,7 +67,7 @@ Expr *NormalizeUtil::TransformAssocLeft(Sema &S, Expr *E) {
   return AddExprs(S, AddExprs(S, E1, E2), E3);
 }
 
-// Input form: (E1 +/ A) +/- B.
+// Input form: (E1 +/- A) +/- B.
 // Outputs: Variable: E1, Constant: (+/-)A + (+/-)B.
 bool NormalizeUtil::ConstantFold(Sema &S, Expr *E, QualType T, Expr *&Variable,
                                  llvm::APSInt &Constant) {
@@ -93,7 +93,7 @@ bool NormalizeUtil::ConstantFold(Sema &S, Expr *E, QualType T, Expr *&Variable,
   if (!GetRHSConstant(S, RootBinOp, T, RHSConst))
     goto exit;
 
-  // E must be of the form (E1 +/- A) +/- B, where a is a constant.
+  // E must be of the form (E1 +/- A) +/- B, where A is a constant.
   if (!GetRHSConstant(S, LHSBinOp, T, LHSConst))
     goto exit;
 
