@@ -1049,13 +1049,15 @@ namespace {
       llvm::APSInt UpperOffsetConstant;
       Expr *LowerOffsetVariable;
       Expr *UpperOffsetVariable;
-      bool LowerConstantIncomplete;
-      bool UpperConstantIncomplete;
+      // HasIncompleteConstant tracks whether either the lower or upper
+      // constant offset is based on an expression with an incomplete
+      // referent type.
+      bool HasIncompleteConstant;
 
     public:
       BaseRange(Sema &S) : S(S), Base(nullptr), LowerOffsetConstant(1, true),
         UpperOffsetConstant(1, true), LowerOffsetVariable(nullptr), UpperOffsetVariable(nullptr),
-        LowerConstantIncomplete(false), UpperConstantIncomplete(false) {
+        HasIncompleteConstant(false) {
       }
 
       BaseRange(Sema &S, Expr *Base,
@@ -1063,7 +1065,7 @@ namespace {
                          llvm::APSInt &UpperOffsetConstant) :
         S(S), Base(Base), LowerOffsetConstant(LowerOffsetConstant), UpperOffsetConstant(UpperOffsetConstant),
         LowerOffsetVariable(nullptr), UpperOffsetVariable(nullptr),
-        LowerConstantIncomplete(false), UpperConstantIncomplete(false) {
+        HasIncompleteConstant(false) {
       }
 
       BaseRange(Sema &S, Expr *Base,
@@ -1071,7 +1073,7 @@ namespace {
                          Expr *UpperOffsetVariable) :
         S(S), Base(Base), LowerOffsetConstant(1, true), UpperOffsetConstant(1, true),
         LowerOffsetVariable(LowerOffsetVariable), UpperOffsetVariable(UpperOffsetVariable),
-        LowerConstantIncomplete(false), UpperConstantIncomplete(false) {
+        HasIncompleteConstant(false) {
       }
 
     private:
@@ -1257,9 +1259,9 @@ namespace {
           return ProofResult::Maybe;
         }
 
-        // Check whether we are allowed to continue with the proof for constant
-        // offsets based on expressions with incomplete referent types.
-        if (!CheckIncompleteConstantOffsets(R))
+        // Check whether we are allowed to continue with the proof, based on
+        // whether this and R involve incomplete referent types.
+        if (!CheckIncompleteConstants(R))
           return ProofResult::IncompleteTypes;
 
         if (ExprUtil::EqualValue(S.Context, Base, R.Base, EquivExprs)) {
@@ -1311,9 +1313,9 @@ namespace {
           return ProofResult::Maybe;
         }
 
-        // Check whether we are allowed to continue with the proof for constant
-        // offsets based on expressions with incomplete referent types.
-        if (!CheckIncompleteConstantOffsets(R))
+        // Check whether we are allowed to continue with the proof, based on
+        // whether this and R involve incomplete referent types.
+        if (!CheckIncompleteConstants(R))
           return ProofResult::IncompleteTypes;
 
         FreeVariablePosition BasePos = CombineFreeVariablePosition(
@@ -1344,35 +1346,26 @@ namespace {
         return ProofResult::Maybe;
       }
 
-      // This function checks whether it is possible to compare the lower and
-      // upper offsets of this and R, based on whether the offsets were derived
-      // from an expression involving a base with an incomplete referent type.
-      bool CheckIncompleteConstantOffsets(BaseRange &R) {
-        return CheckIncompleteOffset(R, LowerConstantIncomplete,
-                                     R.LowerConstantIncomplete) &&
-               CheckIncompleteOffset(R, UpperConstantIncomplete,
-                                     R.UpperConstantIncomplete);
-      }
-
-      // This function checks whether it is possible to compare the lower or
-      // upper offset of this and R, based on whether the offset was derived
-      // from an expression involving a base with an incomplete referent type.
+      // This function checks whether it is possible to compare this and R,
+      // based on whether this and R have at least one offset that was derived
+      // from a base expression with an incomplete referent type.
       //
-      // If both offsets are based on incomplete referent types T1 and T2,
-      // then the offsets should have been multiplied by sizeof(T1) and
-      // sizeof(T2), where the sizes of T1 and T2 could not be determined.
-      // In this case, we require that T1 and T2 are equivalent types.
-      // Otherwise, we cannot continue to compare the offsets.
+      // If both this and R have an offset based on types T1 and T2 with
+      // incomplete referent types, then the offsets should have been
+      // multiplied by sizeof(T1) and sizeof(T2), where the sizes of T1 and
+      // T2 could not be determined. In this case, we require that T1 and
+      // T2 are equivalent types. Otherwise, we cannot continue to compare
+      // this and R.
       //
-      // If only one of the offsets is based on an incomplete referent type,
-      // then we cannot continue to compare the offsets.
-      bool CheckIncompleteOffset(BaseRange &R, bool IsIncomplete, bool RIsIncomplete) {
-        if (IsIncomplete) {
-          if (!RIsIncomplete)
+      // If only one of this and R is based on an incomplete referent type,
+      // then we cannot continue to compare them.
+      bool CheckIncompleteConstants(BaseRange &R) {
+        if (HasIncompleteConstant) {
+          if (!R.HasIncompleteConstant)
             return false;
           if (!ExprUtil::EqualTypes(S.Context, Base->getType(), R.Base->getType()))
             return false;
-        } else if (RIsIncomplete)
+        } else if (R.HasIncompleteConstant)
           return false;
         return true;
       }
@@ -1786,12 +1779,8 @@ namespace {
         UpperOffsetVariable = Upper;
       }
 
-      void SetLowerConstantIncomplete(bool Incomplete) {
-        LowerConstantIncomplete = Incomplete;
-      }
-
-      void SetUpperConstantIncomplete(bool Incomplete) {
-        UpperConstantIncomplete = Incomplete;
+      void SetHasIncompleteConstant(bool Incomplete) {
+        HasIncompleteConstant = Incomplete;
       }
 
       void Dump(raw_ostream &OS) {
@@ -2109,8 +2098,8 @@ namespace {
             R->SetLowerVariable(LowerOffsetVariable);
             R->SetUpperConstant(UpperOffsetConstant);
             R->SetUpperVariable(UpperOffsetVariable);
-            R->SetLowerConstantIncomplete(LowerKind == BaseRange::Kind::IncompleteConstantSized);
-            R->SetUpperConstantIncomplete(UpperKind == BaseRange::Kind::IncompleteConstantSized);
+            R->SetHasIncompleteConstant(LowerKind == BaseRange::Kind::IncompleteConstantSized ||
+                                        UpperKind == BaseRange::Kind::IncompleteConstantSized);
             return true;
           }
         }

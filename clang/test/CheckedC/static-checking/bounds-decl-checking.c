@@ -320,13 +320,9 @@ int f36(_Ptr<void> p) {
   return 0;
 }
 
-// The warning is not directly related to issue #599
-// It is related to incomplete types.
 _Array_ptr<struct S> f37_i(unsigned num) : count(num) {
   _Array_ptr<struct S> q : count(num) = 0;
-  _Array_ptr<struct S> p : count(0) = q; // expected-warning {{cannot prove declared bounds for 'p' are valid after initialization}} \
-                                         // expected-note {{(expanded) declared bounds are 'bounds(p, p + 0)'}} \
-                                         // expected-note {{(expanded) inferred bounds are 'bounds(q, q + num)'}}
+  _Array_ptr<struct S> p : count(0) = q;
   return p;
 }
 
