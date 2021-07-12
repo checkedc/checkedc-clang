@@ -4184,6 +4184,8 @@ namespace {
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
 
       Expr *Init = D->getInit();
+      if (Init && Init->containsErrors())
+        return ResultBounds;
       BoundsExpr *InitBounds = nullptr;
       const AbstractSet *A = nullptr;
 
