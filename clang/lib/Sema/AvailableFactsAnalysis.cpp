@@ -288,6 +288,8 @@ bool AvailableFactsAnalysis::ContainsPointerDeref(const Expr *E) {
 }
 
 bool AvailableFactsAnalysis::ContainsPointerAssignment(const Expr *E) {
+  if (E->containsErrors())
+    return false;
   if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E))
     if (BO->isAssignmentOp())
       if (IsPointerDerefLValue(BO->getLHS()))
