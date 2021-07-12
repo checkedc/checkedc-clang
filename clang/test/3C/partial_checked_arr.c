@@ -6,9 +6,7 @@
 // RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s --
 // RUN: 3c -base-dir=%t.checked -alltypes %t.checked/partial_checked_arr.c -- | diff %t.checked/partial_checked_arr.c -
 
-int strcmp(const char *src1
-           : itype(_Nt_array_ptr<const char>), const char *src2
-           : itype(_Nt_array_ptr<const char>));
+#include <string.h>
 
 void test0() {
   _Ptr<int *> a = 0;

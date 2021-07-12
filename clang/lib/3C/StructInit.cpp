@@ -16,10 +16,14 @@
 
 using namespace clang;
 
-bool StructVariableInitializer::variableNeedsInitializer(VarDecl *VD) {
-  if (VD->getStorageClass() == StorageClass::SC_Extern)
+bool StructVariableInitializer::hasCheckedMembers(DeclaratorDecl *DD) {
+  // If this this isn't a structure or union, it can't have checked members.
+  if (!isStructOrUnionType(DD))
     return false;
-  RecordDecl *RD = VD->getType().getTypePtr()->getAsRecordDecl();
+
+  // If this is a structure or union, then we can get the declaration for that
+  // record and examine each member.
+  RecordDecl *RD = DD->getType()->getAsRecordDecl();
   if (RecordDecl *Definition = RD->getDefinition()) {
     // See if we already know that this structure has a checked pointer.
     if (RecordsWithCPointers.find(Definition) != RecordsWithCPointers.end())
@@ -30,12 +34,17 @@ bool StructVariableInitializer::variableNeedsInitializer(VarDecl *VD) {
         CVarOption CV = I.getVariable(D, Context);
         if (CV.hasValue()) {
           PVConstraint *PV = dyn_cast<PVConstraint>(&CV.getValue());
-          if (PV && PV->isChecked(I.getConstraints().getVariables())) {
+          if (PV && PV->isSolutionChecked(I.getConstraints().getVariables())) {
             // Ok this contains a pointer that is checked. Store it.
             RecordsWithCPointers.insert(Definition);
             return true;
           }
         }
+      } else if (hasCheckedMembers(D)) {
+        // A field of a structure can be another structure. If the inner
+        // structure would need an initializer, we have to put it on the outer.
+        RecordsWithCPointers.insert(Definition);
+        return true;
       }
     }
   }
@@ -45,20 +54,17 @@ bool StructVariableInitializer::variableNeedsInitializer(VarDecl *VD) {
 // Insert the declaration and correct replacement text for the declaration into
 // the set of required rewritings.
 void StructVariableInitializer::insertVarDecl(VarDecl *VD, DeclStmt *S) {
-  // Check if this variable is a structure or union
-  if (!VD->hasInit() && isStructOrUnionType(VD)) {
-    // Check if the variable needs a initializer.
-    if (variableNeedsInitializer(VD)) {
-      // Create replacement declaration text with an initializer.
-      const clang::Type *Ty = VD->getType().getTypePtr();
-      std::string TQ = VD->getType().getQualifiers().getAsString();
-      if (!TQ.empty()) {
-        TQ += " ";
-      }
-      std::string ToReplace = getStorageQualifierString(VD) + TQ + tyToStr(Ty) +
-                              " " + VD->getName().str() + " = {}";
-      RewriteThese.insert(new VarDeclReplacement(VD, S, ToReplace));
-    }
+  // Check if we need to add an initializer.
+  bool IsVarExtern = VD->getStorageClass() == StorageClass::SC_Extern;
+  if (!IsVarExtern && !VD->hasInit() && hasCheckedMembers(VD)) {
+    // Create replacement declaration text with an initializer.
+    const clang::Type *Ty = VD->getType().getTypePtr();
+    std::string TQ = VD->getType().getQualifiers().getAsString();
+    if (!TQ.empty())
+      TQ += " ";
+    std::string ToReplace = getStorageQualifierString(VD) + TQ + tyToStr(Ty) +
+                            " " + VD->getName().str() + " = {}";
+    RewriteThese.insert(new VarDeclReplacement(VD, S, ToReplace));
   }
 }
 

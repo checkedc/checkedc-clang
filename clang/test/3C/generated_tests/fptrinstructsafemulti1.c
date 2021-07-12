@@ -1,0 +1,136 @@
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checkedALL %s %S/fptrinstructsafemulti2.c --
+// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checkedNOALL %s %S/fptrinstructsafemulti2.c --
+// RUN: %clang -working-directory=%t.checkedNOALL -c fptrinstructsafemulti1.c fptrinstructsafemulti2.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %t.checkedNOALL/fptrinstructsafemulti1.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %t.checkedALL/fptrinstructsafemulti1.c %s
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %S/fptrinstructsafemulti2.c %s --
+// RUN: 3c -base-dir=%t.checked -alltypes -output-dir=%t.convert_again %t.checked/fptrinstructsafemulti1.c %t.checked/fptrinstructsafemulti2.c --
+// RUN: test ! -f %t.convert_again/fptrinstructsafemulti1.c
+// RUN: test ! -f %t.convert_again/fptrinstructsafemulti2.c
+
+/******************************************************************************/
+
+/*This file tests three functions: two callers bar and foo, and a callee sus*/
+/*In particular, this file tests: how the tool behaves when a function pointer
+  is a field of a struct*/
+/*For robustness, this test is identical to
+fptrinstructprotosafe.c and fptrinstructsafe.c except in that
+the callee and callers are split amongst two files to see how
+the tool performs conversions*/
+/*In this test, foo, bar, and sus will all treat their return values safely*/
+
+/******************************************************************************/
+
+#include <stddef.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+struct general {
+  int data;
+  struct general *next;
+  //CHECK: _Ptr<struct general> next;
+};
+
+struct warr {
+  int data1[5];
+  //CHECK_NOALL: int data1[5];
+  //CHECK_ALL: int data1 _Checked[5];
+  char *name;
+  //CHECK: _Ptr<char> name;
+};
+
+struct fptrarr {
+  int *values;
+  //CHECK: _Ptr<int> values;
+  char *name;
+  //CHECK: _Ptr<char> name;
+  int (*mapper)(int);
+  //CHECK: _Ptr<int (int)> mapper;
+};
+
+struct fptr {
+  int *value;
+  //CHECK: _Ptr<int> value;
+  int (*func)(int);
+  //CHECK: _Ptr<int (int)> func;
+};
+
+struct arrfptr {
+  int args[5];
+  //CHECK_NOALL: int args[5];
+  //CHECK_ALL: int args _Checked[5];
+  int (*funcs[5])(int);
+  //CHECK_NOALL: int (*funcs[5])(int);
+  //CHECK_ALL: _Ptr<int (int)> funcs _Checked[5];
+};
+
+static int add1(int x) {
+  //CHECK: static int add1(int x) _Checked {
+  return x + 1;
+}
+
+static int sub1(int x) {
+  //CHECK: static int sub1(int x) _Checked {
+  return x - 1;
+}
+
+static int fact(int n) {
+  //CHECK: static int fact(int n) _Checked {
+  if (n == 0) {
+    return 1;
+  }
+  return n * fact(n - 1);
+}
+
+static int fib(int n) {
+  //CHECK: static int fib(int n) _Checked {
+  if (n == 0) {
+    return 0;
+  }
+  if (n == 1) {
+    return 1;
+  }
+  return fib(n - 1) + fib(n - 2);
+}
+
+static int zerohuh(int n) {
+  //CHECK: static int zerohuh(int n) _Checked {
+  return !n;
+}
+
+static int *mul2(int *x) {
+  //CHECK: static _Ptr<int> mul2(_Ptr<int> x) _Checked {
+  *x *= 2;
+  return x;
+}
+
+struct fptr *sus(struct fptr *, struct fptr *);
+//CHECK: _Ptr<struct fptr> sus(struct fptr *x : itype(_Ptr<struct fptr>), _Ptr<struct fptr> y);
+
+struct fptr *foo() {
+  //CHECK: _Ptr<struct fptr> foo(void) {
+
+  struct fptr *x = malloc(sizeof(struct fptr));
+  //CHECK: _Ptr<struct fptr> x = malloc<struct fptr>(sizeof(struct fptr));
+  struct fptr *y = malloc(sizeof(struct fptr));
+  //CHECK: _Ptr<struct fptr> y = malloc<struct fptr>(sizeof(struct fptr));
+  struct fptr *z = sus(x, y);
+  //CHECK: _Ptr<struct fptr> z = sus(x, y);
+
+  return z;
+}
+
+struct fptr *bar() {
+  //CHECK: _Ptr<struct fptr> bar(void) {
+
+  struct fptr *x = malloc(sizeof(struct fptr));
+  //CHECK: _Ptr<struct fptr> x = malloc<struct fptr>(sizeof(struct fptr));
+  struct fptr *y = malloc(sizeof(struct fptr));
+  //CHECK: _Ptr<struct fptr> y = malloc<struct fptr>(sizeof(struct fptr));
+  struct fptr *z = sus(x, y);
+  //CHECK: _Ptr<struct fptr> z = sus(x, y);
+
+  return z;
+}

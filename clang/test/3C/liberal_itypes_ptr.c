@@ -41,10 +41,7 @@ void biz() {
   // CHECK: b = buz();
 }
 
-#include <stddef.h>
-_Itype_for_any(T) void *malloc(size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
-_Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
+#include <stdlib.h>
 
 void malloc_test() {
   int *p = malloc(sizeof(int));
@@ -95,7 +92,7 @@ void itype_unsafe(int *i : itype(_Ptr<int>)) { i = 1; }
 // CHECK: void itype_unsafe(int *i : itype(_Ptr<int>)) { i = 1; }
 
 void itype_safe(int *i : itype(_Ptr<int>)) { i = 0; }
-// CHECK: void itype_safe(int *i : itype(_Ptr<int>)) _Checked { i = 0; }
+// CHECK: void itype_safe(_Ptr<int> i) _Checked { i = 0; }
 
 void void_ptr(void *p, void *q) {
   // CHECK: void void_ptr(void *p, void *q) {
@@ -122,18 +119,6 @@ void bounds_call(void *p) {
   // CHECK: void bounds_call(void *p) {
   bounds_fn(p);
   // CHECK: bounds_fn(p);
-}
-
-#define macro_cast(x) macro_cast_fn(x)
-
-void macro_cast_fn(int *y) {}
-// CHECK: void macro_cast_fn(_Ptr<int> y) _Checked {}
-
-void macro_cast_caller() {
-  int *z = 1;
-  // CHECK: int *z = 1;
-  macro_cast(z);
-  // CHECK: macro_cast(_Assume_bounds_cast<_Ptr<int>>(z));
 }
 
 char *unused_return_unchecked();

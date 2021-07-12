@@ -23,6 +23,15 @@ static cl::OptionCategory SolverCategory("solver options");
 static cl::opt<bool> DebugSolver("debug-solver",
                                  cl::desc("Dump intermediate solver state"),
                                  cl::init(false), cl::cat(SolverCategory));
+static cl::opt<bool> OnlyGreatestSol(
+    "only-g-sol",
+    cl::desc("Perform only greatest solution for Pty Constrains."),
+    cl::init(false), cl::cat(SolverCategory));
+
+static cl::opt<bool>
+    OnlyLeastSol("only-l-sol",
+                 cl::desc("Perform only least solution for Pty Constrains."),
+                 cl::init(false), cl::cat(SolverCategory));
 
 Constraint::Constraint(ConstraintKind K, const std::string &Rsn,
                        PersistentSourceLoc *PL)
@@ -346,7 +355,7 @@ static std::set<VarAtom *> findBounded(ConstraintsGraph &CG,
     Open.erase(Open.begin());
 
     std::set<Atom *> Neighbors;
-    CG.getNeighbors(Curr, Neighbors, Succs);
+    CG.getNeighbors(Curr, Neighbors, Succs, false, true);
     for (Atom *A : Neighbors) {
       VarAtom *VA = dyn_cast<VarAtom>(A);
       if (VA && Bounded.find(VA) == Bounded.end()) {
@@ -376,6 +385,7 @@ bool Constraints::graphBasedSolve() {
       if (G->constraintIsChecked())
         SolChkCG.addConstraint(G, *this);
       else
+        // Need to copy whether or not this constraint into the new graph
         SolPtrTypCG.addConstraint(G, *this);
     }
     // Save the implies to solve them later.
@@ -399,13 +409,30 @@ bool Constraints::graphBasedSolve() {
   // Now solve PtrType constraints
   if (Res && AllTypes) {
     Env.doCheckedSolve(false);
+    bool RegularSolve = !(OnlyGreatestSol || OnlyLeastSol);
 
-    // Step 1: Greatest solution
-    Res = doSolve(SolPtrTypCG, Empty, Env, this, false, nullptr, Conflicts);
+    if (OnlyLeastSol) {
+      // Do only least solution.
+      // First reset ptr solution to NTArr.
+      Env.resetSolution(
+          [](VarAtom *VA) -> bool {
+            // We want to reset solution for all pointers.
+            return true;
+          },
+          getNTArr());
+      Res = doSolve(SolPtrTypCG, Empty, Env, this, true, nullptr, Conflicts);
+    } else if (OnlyGreatestSol) {
+      // Do only greatest solution
+      Res = doSolve(SolPtrTypCG, Empty, Env, this, false, nullptr, Conflicts);
+    } else {
+      // Regular solve
+      // Step 1: Greatest solution
+      Res = doSolve(SolPtrTypCG, Empty, Env, this, false, nullptr, Conflicts);
+    }
 
     // Step 2: Reset all solutions but for function params,
     // and compute the least.
-    if (Res) {
+    if (Res && RegularSolve) {
 
       // We want to find all local variables with an upper bound that provide a
       // lower bound for return variables that are not otherwise bounded.
@@ -597,8 +624,9 @@ ConstraintsGraph &Constraints::getPtrTypCG() {
   return *PtrTypCG;
 }
 
-Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, bool IsCheckedConstraint) {
-  return new Geq(Lhs, Rhs, IsCheckedConstraint);
+Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, bool IsCheckedConstraint,
+                            bool Soft) {
+  return new Geq(Lhs, Rhs, IsCheckedConstraint, Soft);
 }
 
 Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, const std::string &Rsn,

@@ -6,10 +6,7 @@
 // RUN: 3c -base-dir=%S -alltypes %s -- | FileCheck -match-full-lines %s
 // RUN: 3c -base-dir=%S -alltypes %s -- | %clang -c -f3c-tool -fcheckedc-extension -x c -o %t1.unused -
 //
-char *strstr(const char *s1
-             : itype(_Nt_array_ptr<const char>), const char *s2
-             : itype(_Nt_array_ptr<const char>))
-    : itype(_Nt_array_ptr<char>);
+#include <string.h>
 // here we test the propagation of constraints
 // between functions.
 

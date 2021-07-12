@@ -13,6 +13,7 @@
 #include "clang/3C/ConstraintsGraph.h"
 #include "clang/3C/MappingVisitor.h"
 #include "clang/3C/Utils.h"
+#include "llvm/Support/JSON.h"
 #include <sstream>
 
 using namespace clang;
@@ -65,7 +66,10 @@ void dumpStaticFuncMapJson(const ProgramInfo::StaticFunctionMapType &EMap,
     if (AddComma) {
       O << ",\n";
     }
-    O << "{\"FuncName\":\"" << DefM.first << "\", \"Constraints\":[";
+    // The `FuncName` and `FileName` field names are backwards: this is actually
+    // the file name, hence the need to defend against special characters.
+    O << "{\"FuncName\":" << llvm::json::Value(DefM.first)
+      << ", \"Constraints\":[";
     bool AddComma1 = false;
     for (const auto &J : DefM.second) {
       if (AddComma1) {
@@ -112,9 +116,9 @@ void ProgramInfo::dumpJson(llvm::raw_ostream &O) const {
     }
     PersistentSourceLoc L = I.first;
 
-    O << "{\"line\":\"";
-    L.print(O);
-    O << "\",\"Variables\":[";
+    O << "{\"line\":";
+    O << llvm::json::Value(L.toString());
+    O << ",\"Variables\":[";
     I.second->dumpJson(O);
     O << "]}";
     AddComma = true;
@@ -133,17 +137,99 @@ void ProgramInfo::dumpJson(llvm::raw_ostream &O) const {
 // of 'vars'. If it either has a function pointer, or V is
 // a function, then recurses on the return and parameter
 // constraints.
-static void getVarsFromConstraint(ConstraintVariable *V, CAtoms &R) {
-  if (auto *PVC = dyn_cast<PVConstraint>(V)) {
-    R.insert(R.begin(), PVC->getCvars().begin(), PVC->getCvars().end());
-    if (FVConstraint *FVC = PVC->getFV())
-      getVarsFromConstraint(FVC, R);
-  } else if (auto *FVC = dyn_cast<FVConstraint>(V)) {
-    if (FVC->getExternalReturn())
-      getVarsFromConstraint(FVC->getExternalReturn(), R);
-    for (unsigned I = 0; I < FVC->numParams(); I++)
-      getVarsFromConstraint(FVC->getExternalParam(I), R);
+static void getVarsFromConstraint(ConstraintVariable *V, CAtoms &R,
+                                  std::set<ConstraintVariable *> &Visited) {
+  if (Visited.find(V) == Visited.end()) {
+    Visited.insert(V);
+    if (auto *PVC = dyn_cast_or_null<PVConstraint>(V)) {
+      R.insert(R.begin(), PVC->getCvars().begin(), PVC->getCvars().end());
+      if (FVConstraint *FVC = PVC->getFV())
+        getVarsFromConstraint(FVC, R, Visited);
+    } else if (auto *FVC = dyn_cast_or_null<FVConstraint>(V)) {
+      getVarsFromConstraint(FVC->getInternalReturn(), R, Visited);
+      for (unsigned I = 0; I < FVC->numParams(); I++)
+        getVarsFromConstraint(FVC->getInternalParam(I), R, Visited);
+    }
   }
+}
+
+// Print aggregate stats
+void ProgramInfo::printAggregateStats(const std::set<std::string> &F,
+                                      llvm::raw_ostream &O) {
+  std::vector<Atom *> AllAtoms;
+  CVarSet Visited;
+  CAtoms FoundVars;
+
+  unsigned int TotP, TotNt, TotA, TotWi;
+  TotP = TotNt = TotA = TotWi = 0;
+
+  CVarSet ArrPtrs, NtArrPtrs;
+  ConstraintVariable *Tmp = nullptr;
+
+  for (auto &I : Variables) {
+    ConstraintVariable *C = I.second;
+    std::string FileName = I.first.getFileName();
+    if (F.count(FileName) || FileName.find(BaseDir) != std::string::npos) {
+      if (C->isForValidDecl()) {
+        FoundVars.clear();
+        getVarsFromConstraint(C, FoundVars, Visited);
+        std::copy(FoundVars.begin(), FoundVars.end(),
+                  std::back_inserter(AllAtoms));
+        Tmp = C;
+        if (FVConstraint *FV = dyn_cast<FVConstraint>(C)) {
+          Tmp = FV->getInternalReturn();
+        }
+        // If this is a var atom?
+        if (Tmp->hasNtArr(CS.getVariables(), 0)) {
+          NtArrPtrs.insert(Tmp);
+        } else if (Tmp->hasArr(CS.getVariables(), 0)) {
+          ArrPtrs.insert(Tmp);
+        }
+      }
+    }
+  }
+
+  for (const auto &N : AllAtoms) {
+    ConstAtom *CA = CS.getAssignment(N);
+    switch (CA->getKind()) {
+    case Atom::A_Arr:
+      TotA += 1;
+      break;
+    case Atom::A_NTArr:
+      TotNt += 1;
+      break;
+    case Atom::A_Ptr:
+      TotP += 1;
+      break;
+    case Atom::A_Wild:
+      TotWi += 1;
+      break;
+    case Atom::A_Var:
+    case Atom::A_Const:
+      llvm_unreachable("bad constant in environment map");
+    }
+  }
+
+  O << "{\"AggregateStats\":[";
+  O << "{\""
+    << "TotalStats"
+    << "\":{";
+  O << "\"constraints\":" << AllAtoms.size() << ",";
+  O << "\"ptr\":" << TotP << ",";
+  O << "\"ntarr\":" << TotNt << ",";
+  O << "\"arr\":" << TotA << ",";
+  O << "\"wild\":" << TotWi;
+  O << "}},";
+  O << "{\"ArrBoundsStats\":";
+  ArrBInfo.printStats(O, ArrPtrs, true);
+  O << "},";
+  O << "{\"NtArrBoundsStats\":";
+  ArrBInfo.printStats(O, NtArrPtrs, true);
+  O << "},";
+  O << "{\"PerformanceStats\":";
+  PerfS.printPerformanceStats(O, true);
+  O << "}";
+  O << "]}";
 }
 
 // Print out statistics of constraint variables on a per-file basis.
@@ -154,14 +240,14 @@ void ProgramInfo::printStats(const std::set<std::string> &F, raw_ostream &O,
     O << "Sound handling of var args functions:" << HandleVARARGS << "\n";
   }
   std::map<std::string, std::tuple<int, int, int, int, int>> FilesToVars;
-  CVarSet InSrcCVars;
+  CVarSet InSrcCVars, Visited;
   unsigned int TotC, TotP, TotNt, TotA, TotWi;
   TotC = TotP = TotNt = TotA = TotWi = 0;
 
   // First, build the map and perform the aggregation.
   for (auto &I : Variables) {
     std::string FileName = I.first.getFileName();
-    if (F.count(FileName)) {
+    if (F.count(FileName) || FileName.find(BaseDir) != std::string::npos) {
       int VarC = 0;
       int PC = 0;
       int NtaC = 0;
@@ -176,7 +262,7 @@ void ProgramInfo::printStats(const std::set<std::string> &F, raw_ostream &O,
       if (C->isForValidDecl()) {
         InSrcCVars.insert(C);
         CAtoms FoundVars;
-        getVarsFromConstraint(C, FoundVars);
+        getVarsFromConstraint(C, FoundVars, Visited);
 
         VarC += FoundVars.size();
         for (const auto &N : FoundVars) {
@@ -233,7 +319,7 @@ void ProgramInfo::printStats(const std::set<std::string> &F, raw_ostream &O,
         if (AddComma) {
           O << ",\n";
         }
-        O << "{\"" << I.first << "\":{";
+        O << "{" << llvm::json::Value(I.first) << ":{";
         O << "\"constraints\":" << V << ",";
         O << "\"ptr\":" << P << ",";
         O << "\"ntarr\":" << Nt << ",";
@@ -271,7 +357,15 @@ void ProgramInfo::printStats(const std::set<std::string> &F, raw_ostream &O,
       O << "\"BoundsStats\":";
     }
     ArrBInfo.printStats(O, InSrcCVars, JsonFormat);
+    if (JsonFormat)
+      O << ",";
   }
+
+  if (JsonFormat) {
+    O << "\"PerformanceStats\":";
+  }
+
+  PerfS.printPerformanceStats(O, JsonFormat);
 
   if (JsonFormat) {
     O << "}}";
@@ -312,6 +406,7 @@ bool ProgramInfo::link() {
           "External global variable " + VarName + " has no definition";
       const std::set<PVConstraint *> &C = GlobalVariableSymbols[VarName];
       for (const auto &Var : C) {
+        // TODO: Is there an easy way to get a PSL to attach to the constraint?
         Var->constrainToWild(CS, Rsn);
       }
     }
@@ -322,28 +417,42 @@ bool ProgramInfo::link() {
   for (const auto &U : ExternalFunctionFVCons) {
     std::string FuncName = U.first;
     FVConstraint *G = U.second;
+
+    // If there was a checked type on a variable in the input program, it
+    // should stay that way. Otherwise, we shouldn't be adding a checked type
+    // to an extern function.
+    std::string Rsn = (G->hasBody() ? ""
+                                    : "Unchecked pointer in parameter or "
+                                      "return of external function " +
+                                          FuncName);
+
+    // Handle the cases where itype parameters should not be treated as their
+    // unchecked type.
+    // TODO: Ditto re getting a PSL (in the case in which Rsn is non-empty and
+    // it is actually used).
+    G->equateWithItype(*this, Rsn, nullptr);
+
     // If we've seen this symbol, but never seen a body for it, constrain
     // everything about it.
     // Some global symbols we don't need to constrain to wild, like
     // malloc and free. Check those here and skip if we find them.
     if (!G->hasBody()) {
+      const FVComponentVariable *Ret = G->getCombineReturn();
+      Ret->getInternal()->constrainToWild(CS, Rsn);
+      if (!Ret->getExternal()->srcHasItype() &&
+          !Ret->getExternal()->getIsGeneric())
+        Ret->getExternal()->constrainToWild(CS, Rsn);
 
-      // If there was a checked type on a variable in the input program, it
-      // should stay that way. Otherwise, we shouldn't be adding a checked type
-      // to an extern function.
-      std::string Rsn =
-          "Unchecked pointer in parameter or return of external function " +
-          FuncName;
-      G->getInternalReturn()->constrainToWild(CS, Rsn);
-      if (!G->getExternalReturn()->getIsGeneric())
-        G->getExternalReturn()->constrainToWild(CS, Rsn);
       for (unsigned I = 0; I < G->numParams(); I++) {
-        G->getInternalParam(I)->constrainToWild(CS, Rsn);
-        if (!G->getExternalParam(I)->getIsGeneric())
-          G->getExternalParam(I)->constrainToWild(CS, Rsn);
+        const FVComponentVariable *Param = G->getCombineParam(I);
+        Param->getInternal()->constrainToWild(CS, Rsn);
+        if (!Param->getExternal()->srcHasItype() &&
+            !Param->getExternal()->getIsGeneric())
+          Param->getExternal()->constrainToWild(CS, Rsn);
       }
     }
   }
+
   // Repeat for static functions.
   //
   // Static functions that don't have a body will always cause a linking
@@ -356,11 +465,17 @@ bool ProgramInfo::link() {
       std::string FileName = U.first;
       std::string FuncName = V.first;
       FVConstraint *G = V.second;
+
+      std::string Rsn = (G->hasBody() ? ""
+                                      : "Unchecked pointer in parameter or "
+                                        "return of static function " +
+                                            FuncName + " in " + FileName);
+
+      // TODO: Ditto re getting a PSL
+      G->equateWithItype(*this, Rsn, nullptr);
+
       if (!G->hasBody()) {
 
-        std::string Rsn =
-            "Unchecked pointer in parameter or return of static function " +
-            FuncName + " in " + FileName;
         if (!G->getExternalReturn()->getIsGeneric())
           G->getExternalReturn()->constrainToWild(CS, Rsn);
         for (unsigned I = 0; I < G->numParams(); I++)
@@ -402,87 +517,69 @@ void ProgramInfo::exitCompilationUnit() {
   return;
 }
 
-void ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
-                                                const std::string &FuncName,
-                                                FVConstraint *NewC,
-                                                FunctionDecl *FD,
-                                                ASTContext *C) {
-  if (Map.find(FuncName) == Map.end()) {
-    Map[FuncName] = NewC;
-  } else {
-    auto *OldC = Map[FuncName];
-    if (!OldC->hasBody()) {
-      if (NewC->hasBody() ||
-          (OldC->numParams() == 0 && NewC->numParams() != 0)) {
-        NewC->brainTransplant(OldC, *this);
-        Map[FuncName] = NewC;
-      } else {
-        // If the current FV constraint is not a definition?
-        // then merge.
-        std::string ReasonFailed = "";
-        OldC->mergeDeclaration(NewC, *this, ReasonFailed);
-        bool MergingFailed = ReasonFailed != "";
-        if (MergingFailed) {
-          clang::DiagnosticsEngine &DE = C->getDiagnostics();
-          unsigned MergeFailID = DE.getCustomDiagID(
-              DiagnosticsEngine::Fatal, "merging failed for %q0 due to %1");
-          const auto Pointer = reinterpret_cast<intptr_t>(FD);
-          const auto Kind =
-              clang::DiagnosticsEngine::ArgumentKind::ak_nameddecl;
-          auto DiagBuilder = DE.Report(FD->getLocation(), MergeFailID);
-          DiagBuilder.AddTaggedVal(Pointer, Kind);
-          DiagBuilder.AddString(ReasonFailed);
-        }
-        if (MergingFailed) {
-          // Kill the process and stop conversion.
-          // Without this code here, 3C simply ignores this pair of functions
-          // and converts the rest of the files as it will (in semi-compliance
-          // with Mike's (2) listed on the original issue (#283)).
-          exit(1);
-        }
-      }
-    } else if (NewC->hasBody()) {
-      clang::DiagnosticsEngine &DE = C->getDiagnostics();
-      unsigned DuplicateDefinitionsID = DE.getCustomDiagID(
-          DiagnosticsEngine::Fatal, "duplicate definition for function %0");
-      DE.Report(FD->getLocation(), DuplicateDefinitionsID).AddString(FuncName);
-      exit(1);
-    } else {
-      // The old constraint has a body, but we've encountered another prototype
-      // for the function.
-      assert(OldC->hasBody() && !NewC->hasBody());
-      // By transplanting the atoms of OldC into NewC, we ensure that any
-      // constraints applied to NewC later on constrain the atoms of OldC.
-      NewC->brainTransplant(OldC, *this);
-    }
-  }
-}
-
-void ProgramInfo::insertIntoStaticFunctionMap(StaticFunctionMapType &Map,
-                                              const std::string &FuncName,
-                                              const std::string &FileName,
-                                              FVConstraint *ToIns,
-                                              FunctionDecl *FD, ASTContext *C) {
-  if (Map.find(FileName) == Map.end())
-    Map[FileName][FuncName] = ToIns;
-  else
-    insertIntoExternalFunctionMap(Map[FileName], FuncName, ToIns, FD, C);
-}
-
-void ProgramInfo::insertNewFVConstraint(FunctionDecl *FD, FVConstraint *FVCon,
-                                        ASTContext *C) {
+FunctionVariableConstraint *
+ProgramInfo::insertNewFVConstraint(FunctionDecl *FD, FVConstraint *NewC,
+                                   ASTContext *C) {
   std::string FuncName = FD->getNameAsString();
-  if (FD->isGlobal()) {
-    // External method.
-    insertIntoExternalFunctionMap(ExternalFunctionFVCons, FuncName, FVCon, FD,
-                                  C);
-  } else {
-    // Static method.
+
+  // Choose a storage location
+
+  // assume a global function, but change to a static if not
+  ExternalFunctionMapType *Map = &ExternalFunctionFVCons;
+  if (!FD->isGlobal()) {
+    // if the filename has not yet been seen, just insert and we're done
     auto Psl = PersistentSourceLoc::mkPSL(FD, *C);
-    std::string FuncFileName = Psl.getFileName();
-    insertIntoStaticFunctionMap(StaticFunctionFVCons, FuncName, FuncFileName,
-                                FVCon, FD, C);
+    std::string FileName = Psl.getFileName();
+    if (StaticFunctionFVCons.find(FileName) == StaticFunctionFVCons.end()) {
+      StaticFunctionFVCons[FileName][FuncName] = NewC;
+      return NewC;
+    }
+
+    // store in static map
+    Map = &StaticFunctionFVCons[FileName];
   }
+
+  // if the function has not yet been seen, just insert and we're done
+  if (Map->find(FuncName) == Map->end()) {
+    (*Map)[FuncName] = NewC;
+    return NewC;
+  }
+
+  // Resolve conflicts
+
+  auto *OldC = (*Map)[FuncName];
+  std::string ReasonFailed = "";
+  int OldCount = OldC->numParams();
+  int NewCount = NewC->numParams();
+
+  // merge short parameter lists into long ones
+  // Choose number of params, but favor definitions if available
+  if ((OldCount < NewCount) ||
+      (OldCount == NewCount && !OldC->hasBody() && NewC->hasBody())) {
+    NewC->mergeDeclaration(OldC, *this, ReasonFailed);
+    (*Map)[FuncName] = NewC;
+  } else {
+    OldC->mergeDeclaration(NewC, *this, ReasonFailed);
+  }
+
+  // If successful, we're done and can skip error reporting
+  if (ReasonFailed == "")
+    return (*Map)[FuncName];
+
+  // Error reporting
+  { // block to force DiagBuilder destructor and emit message
+    clang::DiagnosticsEngine &DE = C->getDiagnostics();
+    unsigned FailID = DE.getCustomDiagID(DiagnosticsEngine::Fatal,
+                                         "merging failed for %q0 due to %1");
+    const auto Pointer = reinterpret_cast<intptr_t>(FD);
+    const auto Kind = clang::DiagnosticsEngine::ArgumentKind::ak_nameddecl;
+    auto DiagBuilder = DE.Report(FD->getLocation(), FailID);
+    DiagBuilder.AddTaggedVal(Pointer, Kind);
+    DiagBuilder.AddString(ReasonFailed);
+  }
+  // A failed merge will provide poor data, but the diagnostic error report
+  // will cause the program to terminate after the variable adder step.
+  return (*Map)[FuncName];
 }
 
 void ProgramInfo::specialCaseVarIntros(ValueDecl *D, ASTContext *Context) {
@@ -541,6 +638,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
 
   if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     // Function Decls have FVConstraints.
+    std::string FuncName = FD->getNameAsString();
     FVConstraint *F = new FVConstraint(D, *this, *AstContext);
     F->setValidDecl();
 
@@ -565,18 +663,18 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       return;
     }
 
-    // Store the FVConstraint in the global and Variables maps. In doing this,
-    // insertNewFVConstraint might replace the atoms in F with the atoms of a
-    // FVConstraint that already exists in the map. Doing this loses any
-    // constraints that might have effected the original atoms, so do not create
-    // any constraint on F before this function is called.
-    insertNewFVConstraint(FD, F, AstContext);
+    // Store the FVConstraint in the global and Variables maps. It may be
+    // merged with others if this is a redeclaration, and the merged version
+    // is returned.
+    F = insertNewFVConstraint(FD, F, AstContext);
+    NewCV = F;
 
     auto RetTy = FD->getReturnType();
     unifyIfTypedef(RetTy.getTypePtr(), *AstContext, FD, F->getExternalReturn());
     unifyIfTypedef(RetTy.getTypePtr(), *AstContext, FD, F->getInternalReturn());
+    ensureNtCorrect(RetTy, *AstContext, F->getExternalReturn());
+    ensureNtCorrect(RetTy, *AstContext, F->getInternalReturn());
 
-    NewCV = F;
     // Add mappings from the parameters PLoc to the constraint variables for
     // the parameters.
     for (unsigned I = 0; I < FD->getNumParams(); I++) {
@@ -586,13 +684,20 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       PVConstraint *PVExternal = F->getExternalParam(I);
       unifyIfTypedef(Ty, *AstContext, PVD, PVInternal);
       unifyIfTypedef(Ty, *AstContext, PVD, PVExternal);
+      ensureNtCorrect(PVD->getType(), *AstContext, PVInternal);
+      ensureNtCorrect(PVD->getType(), *AstContext, PVExternal);
       PVInternal->setValidDecl();
       PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(PVD, *AstContext);
       // Constraint variable is stored on the parent function, so we need to
       // constrain to WILD even if we don't end up storing this in the map.
       constrainWildIfMacro(PVExternal, PVD->getLocation());
       specialCaseVarIntros(PVD, AstContext);
-      // It is possible to have a parameter decl in a macro when the function is
+      // If this is "main", constrain its argv parameter to a nested arr
+      if (AllTypes && FuncName == "main" && FD->isGlobal() && I == 1) {
+        PVInternal->constrainOuterTo(CS, CS.getArr());
+        PVInternal->constrainIdxTo(CS, CS.getNTArr(), 1);
+      }
+      // It is possible to have a param decl in a macro when the function is
       // not.
       if (Variables.find(PSL) != Variables.end())
         continue;
@@ -608,6 +713,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       NewCV = P;
       std::string VarName(VD->getName());
       unifyIfTypedef(Ty, *AstContext, VD, P);
+      ensureNtCorrect(VD->getType(), *AstContext, P);
       if (VD->hasGlobalStorage()) {
         // If we see a definition for this global variable, indicate so in
         // ExternGVars.
@@ -638,72 +744,89 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
 
   assert("We shouldn't be adding a null CV to Variables map." && NewCV);
   if (!canWrite(PLoc.getFileName())) {
+    NewCV->equateWithItype(*this, "Declaration in non-writable file", &PLoc);
     NewCV->constrainToWild(CS, "Declaration in non-writable file", &PLoc);
   }
   constrainWildIfMacro(NewCV, D->getLocation());
   Variables[PLoc] = NewCV;
 }
 
+void ProgramInfo::ensureNtCorrect(const QualType &QT, const ASTContext &C,
+                                  PointerVariableConstraint *PV) {
+  if (AllTypes && !canBeNtArray(QT)) {
+    PV->constrainOuterTo(CS, CS.getArr(), true, true);
+  }
+}
+
 void ProgramInfo::unifyIfTypedef(const Type *Ty, ASTContext &Context,
                                  DeclaratorDecl *Decl, PVConstraint *P) {
-  if (const auto *const TDT = dyn_cast<TypedefType>(Ty)) {
-    auto *Decl = TDT->getDecl();
-    auto PSL = PersistentSourceLoc::mkPSL(Decl, Context);
-    auto &Pair = TypedefVars[PSL];
-    CVarSet &Bounds = Pair.first;
-    if (Pair.second) {
-      P->setTypedef(Decl, Decl->getNameAsString());
+  if (const auto *TDT = dyn_cast<TypedefType>(Ty)) {
+    auto *TDecl = TDT->getDecl();
+    auto PSL = PersistentSourceLoc::mkPSL(TDecl, Context);
+    auto O = lookupTypedef(PSL);
+    if (O.hasValue()) {
+      auto *Bounds = &O.getValue();
+      P->setTypedef(TDecl, TDecl->getNameAsString());
       constrainConsVarGeq(P, Bounds, CS, &PSL, Same_to_Same, true, this);
-      Bounds.insert(P);
     }
   }
 }
 
-bool ProgramInfo::hasPersistentConstraints(Expr *E, ASTContext *C) const {
-  auto PSL = PersistentSourceLoc::mkPSL(E, *C);
-  bool HasImpCastConstraint = isa<ImplicitCastExpr>(E) &&
-                              ImplicitCastConstraintVars.find(PSL) !=
-                                  ImplicitCastConstraintVars.end() &&
-                              !ImplicitCastConstraintVars.at(PSL).empty();
-  bool HasExprConstraint =
-      !isa<ImplicitCastExpr>(E) &&
-      ExprConstraintVars.find(PSL) != ExprConstraintVars.end() &&
-      !ExprConstraintVars.at(PSL).empty();
-  // Has constraints only if the PSL is valid.
-  return PSL.valid() && (HasExprConstraint || HasImpCastConstraint);
+ProgramInfo::IDAndTranslationUnit ProgramInfo::getExprKey(Expr *E,
+                                                          ASTContext *C) const {
+  // TODO: Main file name can be shared by multiple translation units if on file
+  //       is compiled multiple times with different defines
+  std::string Name =
+      C->getSourceManager()
+          .getFileEntryForID(C->getSourceManager().getMainFileID())
+          ->getName()
+          .str();
+  return std::make_pair(getStmtIdWorkaround(E, *C), Name);
 }
 
-// Get the set of constraint variables for an expression that will persist
-// between the constraint generation and rewriting pass. If the expression
-// already has a set of persistent constraints, this set is returned. Otherwise,
-// the set provided in the arguments is stored persistent and returned. This is
-// required for correct cast insertion.
-const CVarSet &ProgramInfo::getPersistentConstraints(Expr *E,
-                                                     ASTContext *C) const {
+bool ProgramInfo::hasPersistentConstraints(Expr *E, ASTContext *C) const {
+  return ExprConstraintVars.find(getExprKey(E, C)) != ExprConstraintVars.end();
+}
+
+const CVarSet &ProgramInfo::getPersistentConstraintsSet(clang::Expr *E,
+                                                        ASTContext *C) const {
+  return getPersistentConstraints(E, C).first;
+}
+
+void ProgramInfo::storePersistentConstraints(clang::Expr *E,
+                                             const CVarSet &Vars,
+                                             ASTContext *C) {
+  BKeySet EmptySet;
+  EmptySet.clear();
+  storePersistentConstraints(E, std::make_pair(Vars, EmptySet), C);
+}
+
+// Get the pair of set of constraint variables and set of bounds key
+// for an expression that will persist between the constraint generation
+// and rewriting pass. If the expression already has a set of persistent
+// constraints, this set is returned. Otherwise, the set provided in the
+// arguments is stored persistent and returned. This is required for
+// correct cast insertion.
+const CSetBkeyPair &ProgramInfo::getPersistentConstraints(Expr *E,
+                                                          ASTContext *C) const {
   assert(hasPersistentConstraints(E, C) &&
          "Persistent constraints not present.");
-  PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(E, *C);
-  if (isa<ImplicitCastExpr>(E))
-    return ImplicitCastConstraintVars.at(PLoc);
-  return ExprConstraintVars.at(PLoc);
+  return ExprConstraintVars.at(getExprKey(E, C));
 }
 
-void ProgramInfo::storePersistentConstraints(Expr *E, const CVarSet &Vars,
+void ProgramInfo::storePersistentConstraints(Expr *E, const CSetBkeyPair &Vars,
                                              ASTContext *C) {
-  // Store only if the PSL is valid.
+  assert(!hasPersistentConstraints(E, C) &&
+         "Persistent constraints already present.");
+
   auto PSL = PersistentSourceLoc::mkPSL(E, *C);
-  // The check Rewrite::isRewritable is needed here to ensure that the
-  // expression is not inside a macro. If the expression is in a macro, then it
-  // is possible for there to be multiple expressions that map to the same PSL.
-  // This could make it look like the constraint variables for an expression
-  // have been computed and cached when the expression has not in fact been
-  // visited before. To avoid this, the expression is not cached and instead is
-  // recomputed each time it's needed.
-  if (PSL.valid() && Rewriter::isRewritable(E->getBeginLoc())) {
-    auto &ExprMap = isa<ImplicitCastExpr>(E) ? ImplicitCastConstraintVars
-                                             : ExprConstraintVars;
-    ExprMap[PSL].insert(Vars.begin(), Vars.end());
-  }
+  if (PSL.valid() && !canWrite(PSL.getFileName()))
+    for (ConstraintVariable *CVar : Vars.first)
+      CVar->constrainToWild(CS, "Expression in non-writable file", &PSL);
+
+  IDAndTranslationUnit Key = getExprKey(E, C);
+  ExprConstraintVars[Key] = Vars;
+  ExprLocations[Key] = PSL;
 }
 
 // The Rewriter won't let us re-write things that are in macros. So, we
@@ -842,12 +965,14 @@ bool ProgramInfo::computeInterimConstraintState(
   // in one of the files being compiled.
   CAtoms ValidVarsVec;
   std::set<Atom *> AllValidVars;
+  CVarSet Visited;
+  CAtoms Tmp;
   for (const auto &I : Variables) {
     std::string FileName = I.first.getFileName();
     ConstraintVariable *C = I.second;
     if (C->isForValidDecl()) {
-      CAtoms Tmp;
-      getVarsFromConstraint(C, Tmp);
+      Tmp.clear();
+      getVarsFromConstraint(C, Tmp, Visited);
       AllValidVars.insert(Tmp.begin(), Tmp.end());
       if (canWrite(FileName))
         ValidVarsVec.insert(ValidVarsVec.begin(), Tmp.begin(), Tmp.end());
@@ -889,17 +1014,26 @@ bool ProgramInfo::computeInterimConstraintState(
       ImpMap[Pre->getLHS()].insert(Con->getLHS());
     }
 
+  CVars TmpCGrp;
+  CVars OnlyIndirect;
   for (auto *A : DirectWildVarAtoms) {
     auto *VA = dyn_cast<VarAtom>(A);
     if (VA == nullptr)
       continue;
 
-    CVars TmpCGrp;
+    TmpCGrp.clear();
+    OnlyIndirect.clear();
+
     auto BFSVisitor = [&](Atom *SearchAtom) {
       auto *SearchVA = dyn_cast<VarAtom>(SearchAtom);
       if (SearchVA && AllValidVars.find(SearchVA) != AllValidVars.end()) {
         CState.RCMap[SearchVA->getLoc()].insert(VA->getLoc());
-        TmpCGrp.insert(SearchVA->getLoc());
+
+        if (ValidVarsKey.find(SearchVA->getLoc()) != ValidVarsKey.end())
+          TmpCGrp.insert(SearchVA->getLoc());
+        if (DirectWildVarAtoms.find(SearchVA) == DirectWildVarAtoms.end()) {
+          OnlyIndirect.insert(SearchVA->getLoc());
+        }
       }
     };
     CS.getChkCG().visitBreadthFirst(VA, BFSVisitor);
@@ -908,7 +1042,8 @@ bool ProgramInfo::computeInterimConstraintState(
         if (isa<VarAtom>(ImpA))
           CS.getChkCG().visitBreadthFirst(ImpA, BFSVisitor);
 
-    CState.TotalNonDirectWildAtoms.insert(TmpCGrp.begin(), TmpCGrp.end());
+    CState.TotalNonDirectWildAtoms.insert(OnlyIndirect.begin(),
+                                          OnlyIndirect.end());
     // Should we consider only pointers which with in the source files or
     // external pointers that affected pointers within the source files.
     CState.AllWildAtoms.insert(VA->getLoc());
@@ -919,11 +1054,19 @@ bool ProgramInfo::computeInterimConstraintState(
   findIntersection(CState.TotalNonDirectWildAtoms, ValidVarsKey,
                    CState.InSrcNonDirectWildAtoms);
 
+  // The ConstraintVariable for a variable normally appears in Variables for the
+  // definition, but it may also be reused directly in ExprConstraintVars for a
+  // reference to that variable. We want to give priority to the PSL of the
+  // definition, not the reference. We currently achieve this by processing
+  // Variables before ExprConstraintVars and making insertIntoPtrSourceMap not
+  // overwrite a PSL already recorded for a given atom.
   for (const auto &I : Variables)
     insertIntoPtrSourceMap(&(I.first), I.second);
-  for (const auto &I : ExprConstraintVars)
-    for (auto *J : I.second)
-      insertIntoPtrSourceMap(&(I.first), J);
+  for (const auto &I : ExprConstraintVars) {
+    PersistentSourceLoc *PSL = &ExprLocations[I.first];
+    for (auto *J : I.second.first)
+      insertIntoPtrSourceMap(PSL, J);
+  }
 
   auto &WildPtrsReason = CState.RootWildAtomsWithReason;
   for (auto *CurrC : CS.getConstraints()) {
@@ -949,22 +1092,22 @@ void ProgramInfo::insertIntoPtrSourceMap(const PersistentSourceLoc *PSL,
   std::string FilePath = PSL->getFileName();
   if (canWrite(FilePath))
     CState.ValidSourceFiles.insert(FilePath);
-  else
-    return;
 
   if (auto *PV = dyn_cast<PVConstraint>(CV)) {
     for (auto *A : PV->getCvars())
       if (auto *VA = dyn_cast<VarAtom>(A))
-        CState.AtomSourceMap[VA->getLoc()] = PSL;
+        // Don't overwrite a PSL already recorded for a given atom: see the
+        // comment in computeInterimConstraintState.
+        CState.AtomSourceMap.insert(std::make_pair(VA->getLoc(), PSL));
     // If the PVConstraint is a function pointer, create mappings for parameter
     // and return variables.
     if (auto *FV = PV->getFV()) {
-      insertIntoPtrSourceMap(PSL, FV->getExternalReturn());
+      insertIntoPtrSourceMap(PSL, FV->getInternalReturn());
       for (unsigned int I = 0; I < FV->numParams(); I++)
-        insertIntoPtrSourceMap(PSL, FV->getExternalParam(I));
+        insertIntoPtrSourceMap(PSL, FV->getInternalParam(I));
     }
   } else if (auto *FV = dyn_cast<FVConstraint>(CV)) {
-    insertIntoPtrSourceMap(PSL, FV->getExternalReturn());
+    insertIntoPtrSourceMap(PSL, FV->getInternalReturn());
   }
 }
 
@@ -983,9 +1126,9 @@ void ProgramInfo::insertCVAtoms(
     if (FVConstraint *FVC = PVC->getFV())
       insertCVAtoms(FVC, AtomMap);
   } else if (auto *FVC = dyn_cast<FVConstraint>(CV)) {
-    insertCVAtoms(FVC->getExternalReturn(), AtomMap);
+    insertCVAtoms(FVC->getInternalReturn(), AtomMap);
     for (unsigned I = 0; I < FVC->numParams(); I++)
-      insertCVAtoms(FVC->getExternalParam(I), AtomMap);
+      insertCVAtoms(FVC->getInternalParam(I), AtomMap);
   } else {
     llvm_unreachable("Unknown kind of constraint variable.");
   }
@@ -1018,10 +1161,13 @@ void ProgramInfo::setTypeParamBinding(CallExpr *CE, unsigned int TypeVarIdx,
 
   auto PSL = PersistentSourceLoc::mkPSL(CE, *C);
   auto CallMap = TypeParamBindings[PSL];
-  assert("Attempting to overwrite type param binding in ProgramInfo." &&
-         CallMap.find(TypeVarIdx) == CallMap.end());
-
-  TypeParamBindings[PSL][TypeVarIdx] = CV;
+  if (CallMap.find(TypeVarIdx) == CallMap.end()) {
+    TypeParamBindings[PSL][TypeVarIdx] = CV;
+  } else {
+    // If this CE/idx is at the same location, it's in a macro,
+    // so mark it as inconsistent.
+    TypeParamBindings[PSL][TypeVarIdx] = nullptr;
+  }
 }
 
 bool ProgramInfo::hasTypeParamBindings(CallExpr *CE, ASTContext *C) const {
@@ -1037,7 +1183,7 @@ ProgramInfo::getTypeParamBindings(CallExpr *CE, ASTContext *C) const {
   return TypeParamBindings.at(PSL);
 }
 
-std::pair<CVarSet, bool> ProgramInfo::lookupTypedef(PersistentSourceLoc PSL) {
+CVarOption ProgramInfo::lookupTypedef(PersistentSourceLoc PSL) {
   return TypedefVars[PSL];
 }
 
@@ -1045,7 +1191,20 @@ bool ProgramInfo::seenTypedef(PersistentSourceLoc PSL) {
   return TypedefVars.count(PSL) != 0;
 }
 
-void ProgramInfo::addTypedef(PersistentSourceLoc PSL, bool ShouldCheck) {
-  CVarSet Empty;
-  TypedefVars[PSL] = make_pair(Empty, ShouldCheck);
+void ProgramInfo::addTypedef(PersistentSourceLoc PSL, bool CanRewriteDef,
+                             TypedefDecl *TD, ASTContext &C) {
+  ConstraintVariable *V = nullptr;
+  if (isa<clang::FunctionType>(TD->getUnderlyingType()))
+    V = new FunctionVariableConstraint(TD, *this, C);
+  else
+    V = new PointerVariableConstraint(TD, *this, C);
+
+  auto *const Rsn = !CanRewriteDef
+                        ? "Unable to rewrite a typedef with multiple names"
+                        : "Declaration in non-writable file";
+  if (!(CanRewriteDef && canWrite(PSL.getFileName()))) {
+    V->constrainToWild(this->getConstraints(), Rsn, &PSL);
+  }
+  constrainWildIfMacro(V, TD->getLocation(), &PSL);
+  this->TypedefVars[PSL] = {*V};
 }

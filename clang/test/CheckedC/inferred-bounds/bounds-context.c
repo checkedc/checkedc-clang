@@ -2077,7 +2077,7 @@ void killed_widened_bounds2(nt_array_ptr<char> p : count(0), int other) {
     // CHECK-NEXT: }
 
     // Bounds of p are currently widened by 1
-    // Observed bounds context: { p => bounds(p, (p + 0) + 1) }
+    // Observed bounds context: { p => bounds(p, p + 1) }
     p[1];
     // CHECK: Statement S:
     // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
@@ -2087,10 +2087,8 @@ void killed_widened_bounds2(nt_array_ptr<char> p : count(0), int other) {
     // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:           DeclRefExpr {{.*}} 'p'
     // CHECK-NEXT:         BinaryOperator {{.*}} '+'
-    // CHECK-NEXT:           BinaryOperator {{.*}} '+'
-    // CHECK-NEXT:             ImplicitCastExpr {{.*}} <LValueToRValue>
-    // CHECK-NEXT:               DeclRefExpr {{.*}} 'p'
-    // CHECK-NEXT:             IntegerLiteral {{.*}} 0
+    // CHECK-NEXT:           ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:             DeclRefExpr {{.*}} 'p'
     // CHECK-NEXT:           IntegerLiteral {{.*}} 1
     // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
@@ -2104,10 +2102,8 @@ void killed_widened_bounds2(nt_array_ptr<char> p : count(0), int other) {
     // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:     DeclRefExpr {{.*}} 'p'
     // CHECK-NEXT:   BinaryOperator {{.*}} '+'
-    // CHECK-NEXT:     BinaryOperator {{.*}} '+'
-    // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
-    // CHECK-NEXT:         DeclRefExpr {{.*}} 'p'
-    // CHECK-NEXT:       IntegerLiteral {{.*}} 0
+    // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
     // CHECK-NEXT:     IntegerLiteral {{.*}} 1
     // CHECK-NEXT: }
 

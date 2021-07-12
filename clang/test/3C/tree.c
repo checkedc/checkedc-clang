@@ -1,23 +1,11 @@
-// RUN: 3c -base-dir=%S -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-// RUN: 3c -base-dir=%S %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: 3c -base-dir=%S %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// Manually passing fortify source to avoid issues surrounding the way compiler
+// builtins are handled. (See issue #630)
+// RUN: 3c -base-dir=%S -alltypes %s -- -D_FORTIFY_SOURCE=0 | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: 3c -base-dir=%S %s -- -D_FORTIFY_SOURCE=0 | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: 3c -base-dir=%S %s -- -D_FORTIFY_SOURCE=0 | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
-#include <stddef.h>
-extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size)
-    : itype(_Array_ptr<T>) byte_count(nmemb * size);
-extern _Itype_for_any(T) void free(void *pointer
-                                   : itype(_Array_ptr<T>) byte_count(0));
-extern _Itype_for_any(T) void *malloc(size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
-extern _Itype_for_any(T) void *realloc(void *pointer
-                                       : itype(_Array_ptr<T>) byte_count(1),
-                                         size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
-extern _Itype_for_any(T) void *memcpy(
-    void *restrict dest
-    : itype(restrict _Array_ptr<T>) byte_count(n), const void *restrict src
-    : itype(restrict _Array_ptr<const T>) byte_count(n), size_t n)
-    : itype(_Array_ptr<T>) byte_count(n);
+#include <stdlib.h>
+#include <string.h>
 
 struct tree {
   int val;

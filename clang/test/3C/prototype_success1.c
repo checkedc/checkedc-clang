@@ -1,7 +1,7 @@
 //RUN: rm -rf %t*
 //RUN: 3c -base-dir=%S -output-dir=%t.checked %s %S/prototype_success2.c --
 //RUN: FileCheck -match-full-lines --input-file %t.checked/prototype_success1.c %s
-//RUN: %clang -c %t.checked/prototype_success1.c %t.checked/prototype_success2.c
+//RUN: %clang -working-directory=%t.checked -c prototype_success1.c prototype_success2.c
 
 /*Note: this file is part of a multi-file regression test in tandem with
   prototype_success2.c*/

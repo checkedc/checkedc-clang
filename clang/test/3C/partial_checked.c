@@ -49,7 +49,7 @@ void test4() {
   **h = 1;
 
   _Ptr<void(int *)> j = 0;
-  // CHECK: _Ptr<void (_Ptr<int> )> j = 0;
+  // CHECK: _Ptr<void (_Ptr<int>)> j = 0;
 
   _Ptr<int *(void)> k = 0;
   // CHECK: _Ptr<_Ptr<int> (void)> k = 0;

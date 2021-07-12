@@ -40,31 +40,3 @@ Install Bear from: https://github.com/rizsotto/Bear
 Prepend `bear` to your make command i.e., if you were running `make -j4` 
 then run  `bear make -j4`. 
 The `compile_commands.json` file will be put into the current directory.
-
-
-## update-includes.py
-
-Given a file that contains a list of `.c` or `.h` filenames (such as the one
-produced by `convert-commands.py` or generated with the POSIX `find > outfile`
-command), this script will look for `#include` statements in each file in the
-list that `#include` headers for which there are CheckedC replacements (e.g.
-stdlib, math) and substitutes in those replacements. **This rewrites the files
-in place!**
-
-**Hint: To get all the `.c` and `.h` files in a directory recursively use the
-following command: `find <path_to_the_directory> -regex '.*/.*\.\(c\|h\)$'`**
-
-
-Details: 
-
-- The default directory to look for the CheckedC replacement headers is
-  documented at the top of the file, but the optional argument `--includeDir`
-  allows specification of a different directory.
-
-- This script will strip `\` characters and whitespace off the end of each line
-  but expects the filename to be at the beginning of the line.
-
-- Since there are likely to be many source files for the program to iterate
-  though, and the source files may be long, there is a preprocessing step to
-  build the FindReplace function for the checkedC headers. This allows doing all
-  replacements in a single pass through the source file.

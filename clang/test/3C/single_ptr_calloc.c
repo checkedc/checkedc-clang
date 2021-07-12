@@ -5,9 +5,7 @@
 // RUN: 3c -base-dir=%S -output-dir=%t.checked -alltypes %s --
 // RUN: 3c -base-dir=%t.checked -alltypes %t.checked/single_ptr_calloc.c -- | diff %t.checked/single_ptr_calloc.c -
 
-#include <stddef.h>
-extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size)
-    : itype(_Array_ptr<T>) byte_count(nmemb * size);
+#include <stdlib.h>
 
 void foo(int *w) {
   //CHECK: void foo(_Ptr<int> w) {
