@@ -50,18 +50,32 @@ Expr *NormalizeUtil::TransformAdditiveOp(Sema &S, Expr *E) {
 
 // Input form:  E1 + (E2 + E3)
 // Output form: (E1 + E2) + E3
+// Requirements:
+// 1. E1 has pointer type
+// 2. E2 has integer type
+// 3. E3 has integer type
 Expr *NormalizeUtil::TransformAssocLeft(Sema &S, Expr *E) {
-  // E must be of the form E1 + RHS.
-  Expr *E1, *RHS;
-  if (!GetAdditionOperands(E, E1, RHS))
+  // E must be of the form LHS + RHS.
+  Expr *LHS, *RHS;
+  if (!GetAdditionOperands(E, LHS, RHS))
     return nullptr;
 
+  Expr *E1, *E2, *E3;
+
+  // Check if E is already of the form (E1 + E2) + E3.
+  if (GetAdditionOperands(LHS, E1, E2)) {
+    // Check that E1 has pointer type, and that E2 and E3 have integer type.
+    if (E1->getType()->isPointerType() && E2->getType()->isIntegerType() &&
+        RHS->getType()->isIntegerType())
+      return E;
+  }
+
   // E1 must have pointer type.
+  E1 = LHS;
   if (!E1->getType()->isPointerType())
     return nullptr;
 
   // E must be of the form E1 + (E2 + E3).
-  Expr *E2, *E3;
   if (!GetAdditionOperands(RHS, E2, E3))
     return nullptr;
 
