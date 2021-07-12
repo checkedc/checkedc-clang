@@ -56,9 +56,12 @@ public:
       return FileName < O.FileName;
   }
 
-  void print(llvm::raw_ostream &O) const {
-    O << FileName << ":" << LineNo << ":" << ColNoS << ":" << ColNoE;
+  std::string toString() const {
+    return FileName + ":" + std::to_string(LineNo) + ":" +
+           std::to_string(ColNoS) + ":" + std::to_string(ColNoE);
   }
+
+  void print(llvm::raw_ostream &O) const { O << toString(); }
 
   void dump() const { print(llvm::errs()); }
 

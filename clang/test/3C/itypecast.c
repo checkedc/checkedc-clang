@@ -17,8 +17,8 @@ int baz(int((*compar)(const int *, const int *))
 int func(void) {
   int((*fptr1)(const int *, const int *));
   int((*fptr2)(const int *, const int *));
-  //CHECK: _Ptr<int (_Ptr<const int> , _Ptr<const int> )> fptr1 = ((void *)0);
-  //CHECK-NEXT: _Ptr<int (_Ptr<const int> , _Ptr<const int> )> fptr2 = ((void *)0);
+  //CHECK: _Ptr<int (_Ptr<const int>, _Ptr<const int>)> fptr1 = ((void *)0);
+  //CHECK-NEXT: _Ptr<int (_Ptr<const int>, _Ptr<const int>)> fptr2 = ((void *)0);
 
   int **fp1;
   int **fp2;

@@ -4533,7 +4533,9 @@ BoundsDeclFact
     return nullptr;
   }
 
-  return new (Context) BoundsDeclFact(VD, Bounds, IdLoc);
+  BoundsDeclFact *F = new (Context) BoundsDeclFact(VD, Bounds, IdLoc);
+  NormalizeBounds(F);
+  return F;
 }
 
 EqualityOpFact *Sema::ActOnEqualityOpFact(Expr *E, SourceLocation ExprLoc) {

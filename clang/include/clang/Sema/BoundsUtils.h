@@ -53,6 +53,11 @@ public:
 
   // Given a byte_count or count bounds expression for the VarDecl D,
   // ExpandBoundsToRange will expand it to a range bounds expression.
+  //
+  // ExpandBoundsToRange creates a DeclRefExpr for D. Clients should not
+  // call ExpandBoundsToRange directly. Instead, clients should call
+  // Sema::NormalizeBounds, which computes the expanded bounds for D once
+  // and attaches the expanded bounds to D.
   static BoundsExpr *ExpandBoundsToRange(Sema &S, VarDecl *D, BoundsExpr *B);
 
   // Given a byte_count or count bounds expression for the expression Base,
@@ -61,10 +66,6 @@ public:
   //  E : ByteCount(C)  expands to Bounds((array_ptr<char>) E,
   //                                      (array_ptr<char>) E + C)
   static BoundsExpr *ExpandToRange(Sema &S, Expr *Base, BoundsExpr *B);
-
-  // ExpandToRange expands the bounds expression for a variable declaration
-  // to a range bounds expression.
-  static BoundsExpr *ExpandToRange(Sema &S, VarDecl *D, BoundsExpr *B);
 
   // If Bounds uses the value of LValue and an original value is provided,
   // ReplaceLValueInBounds will return a bounds expression where the uses
@@ -82,6 +83,11 @@ public:
   static Expr *ReplaceLValue(Sema &S, Expr *E, Expr *LValue,
                              Expr *OriginalValue,
                              CheckedScopeSpecifier CSS);
+
+private:
+  // ExpandToRange expands the bounds expression for a variable declaration
+  // to a range bounds expression.
+  static BoundsExpr *ExpandToRange(Sema &S, VarDecl *D, BoundsExpr *B);
 };
 
 } // end namespace clang

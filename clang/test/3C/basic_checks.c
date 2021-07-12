@@ -5,11 +5,11 @@
 //
 // RUN: 3c -base-dir=%S -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
 // RUN: 3c -base-dir=%S %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: 3c -base-dir=%S %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
+// RUN: 3c -base-dir=%S %s -- | %clang -c  -Xclang -verify -fcheckedc-extension -x c -o /dev/null -
 // expected-no-diagnostics
 //
 
-typedef unsigned short wchar_t;
+#include <stddef.h>
 
 void typd_driver(void) {
   wchar_t buf[10];
@@ -38,7 +38,7 @@ void mut_pa(PA p) {
   p->a = 0;
   p->b = 1;
 }
-//CHECK: void mut_pa(_Ptr<struct _A> p) {
+//CHECK: void mut_pa(PA p) {
 
 void pa_driver(void) {
   A a = {0};
@@ -48,7 +48,7 @@ void pa_driver(void) {
 }
 //CHECK: void pa_driver(void) {
 //CHECK-NEXT: A a = {0};
-//CHECK-NEXT: _Ptr<struct _A> b = &a;
+//CHECK-NEXT: PA b = &a;
 
 int *id(int *a) { return a; }
 //CHECK: _Ptr<int> id(_Ptr<int> a) { return a; }
@@ -69,7 +69,7 @@ void fret_driver(void) {
 //CHECK-NEXT: int *d = fry();
 
 typedef int *(*fooptr)(int *, int);
-//CHECK: typedef _Ptr<_Ptr<int> (_Ptr<int> , int )> fooptr;
+//CHECK: typedef _Ptr<_Ptr<int> (_Ptr<int>, int)> fooptr;
 
 int *good_mut(int *a, int b) {
   *a = b;

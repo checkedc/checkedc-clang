@@ -4,7 +4,7 @@
 //
 // RUN: rm -rf %t*
 // RUN: 3c -base-dir=%S -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: 3c -base-dir=%S -addcr %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
+// RUN: 3c -base-dir=%S -addcr %s -- | %clang -c  -Xclang -verify -fcheckedc-extension -x c -o /dev/null -
 // RUN: 3c -base-dir=%S -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
 // RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s --
 // RUN: 3c -base-dir=%t.checked -alltypes %t.checked/simple_locals.c -- | diff %t.checked/simple_locals.c -
@@ -117,11 +117,11 @@ int baz(int *a, int b, int c) {
 //CHECK-NEXT: return tmp;
 
 int arrcheck(int *a, int b) { return a[b]; }
-//CHECK_ALL: int arrcheck(_Array_ptr<int> a : count(b), int b) _Checked { return a[b]; }
+//CHECK_ALL: int arrcheck(_Array_ptr<int> a : count(b + 1), int b) _Checked { return a[b]; }
 //CHECK_NOALL: int arrcheck(int *a : itype(_Ptr<int>), int b) { return a[b]; }
 
 int badcall(int *a, int b) { return arrcheck(a, b); }
-//CHECK_ALL: int badcall(_Array_ptr<int> a : count(b), int b) _Checked { return arrcheck(a, b); }
+//CHECK_ALL: int badcall(_Array_ptr<int> a : count(b + 1), int b) _Checked { return arrcheck(a, b); }
 //CHECK_NOALL: int badcall(_Ptr<int> a, int b) _Checked { return arrcheck(a, b); }
 
 void pullit(char *base, char *out, int *index) {
@@ -180,8 +180,8 @@ void dfnk(int a, int b) {
 }
 //CHECK: void dfnk(int a, int b) {
 //CHECK-NEXT: A j;
-//CHECK-NEXT: _Ptr<struct _A>  k = &j;
-//CHECK-NEXT: _Ptr<_Ptr<struct _A>>  u = &k;
+//CHECK-NEXT: PA k = &j;
+//CHECK-NEXT: PPA  u = &k;
 
 void adsfse(void) {
   int a = 0;

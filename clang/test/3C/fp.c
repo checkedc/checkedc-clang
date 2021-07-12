@@ -9,7 +9,7 @@ int f(int *p);
 //CHECK: int f(int *p);
 void bar() {
   int (*fp)(int *p) = f;
-  //CHECK: _Ptr<int (int *)> fp = f;
+  //CHECK: _Ptr<int (int *p)> fp = f;
   f((void *)0);
 }
 
@@ -19,6 +19,6 @@ int mul_by_2(int x) {
 }
 
 int (*foo(void))(int) {
-  //CHECK: _Ptr<int (int )> foo(void) _Checked {
+  //CHECK: _Ptr<int (int)> foo(void) _Checked {
   return mul_by_2;
 }

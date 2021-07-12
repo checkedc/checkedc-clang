@@ -11,6 +11,16 @@ import re
 import find_bin
 bin_path = find_bin.bin_path
 
+# Change to the subdirectory after calling `find_bin` (which assumes a working
+# directory of `clang/test/3C`) but before doing anything else.
+subdir_name = "generated_tests"
+# Since testgenerator deletes tests under some conditions and Git may delete
+# empty directories, theoretically the directory might not exist and we might
+# need to create it here.
+if not os.path.isdir(subdir_name):
+    os.mkdir(subdir_name)
+os.chdir(subdir_name)
+
 prefixes = [
     "arr", "arrstruct", "arrinstruct", "arrofstruct", "safefptrarg",
     "unsafefptrarg", "fptrsafe", "fptrunsafe", "fptrarr", "fptrarrstruct",
@@ -51,20 +61,9 @@ for e in it.product(prefixes, addendums, suffixes):
 # header that should top every file
 header = """\
 #include <stddef.h>
-extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size)
-    : itype(_Array_ptr<T>) byte_count(nmemb * size);
-extern _Itype_for_any(T) void free(void *pointer
-                                   : itype(_Array_ptr<T>) byte_count(0));
-extern _Itype_for_any(T) void *malloc(size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
-extern _Itype_for_any(T) void *realloc(void *pointer
-                                       : itype(_Array_ptr<T>) byte_count(1),
-                                         size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
-extern int printf(const char *restrict format
-                  : itype(restrict _Nt_array_ptr<const char>), ...);
-extern _Unchecked char *strcpy(char *restrict dest, const char *restrict src
-                               : itype(restrict _Nt_array_ptr<const char>));
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 """
 
 # miscallaneous struct definitions that may or may not be used by the files

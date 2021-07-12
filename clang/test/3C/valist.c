@@ -25,6 +25,29 @@ const char *lua_pushfstring(lua_State *L, const char *fmt, ...) {
   lua_unlock(L);
   return ret;
 }
+
+void foo(int i, ...) {
+  va_list ap;
+  va_start(ap, i);
+  char *c = (char *)va_arg(ap, char *);
+  //CHECK: char *c = (char *)va_arg(ap, char *);
+  va_end(ap);
+}
+
+// Test for issue 484. va_list should not be expanded to anything else.
+// Expanding it to struct __va_list_tag * causes compiler error on libtiff.
+// Expanding to __builtin_va_list doesn't cause an error, but va_list is still
+// preferable.
+
+void bar(va_list y, int *z) {}
+//CHECK: void bar(va_list y, _Ptr<int> z) {}
+void (*baz)(va_list, int *);
+//CHECK: _Ptr<void (va_list, _Ptr<int>)> baz = ((void *)0);
+typedef void (*fiz)(va_list, int *);
+//CHECK: typedef _Ptr<void (va_list, _Ptr<int>)> fiz;
+typedef void fuz(va_list, int *);
+//CHECK: typedef void fuz(va_list, _Ptr<int>);
+
 /*force output*/
 int *p;
 //CHECK: _Ptr<int> p = ((void *)0);

@@ -5732,6 +5732,12 @@ public:
   // normalized bounds for D.
   BoundsExpr *NormalizeBounds(const VarDecl *D);
 
+  // If the BoundsDeclFact F has a byte_count or count bounds expression,
+  // NormalizeBounds expands it to a range bounds expression.  The expanded
+  // range bounds are attached to the BoundsDeclFact F to avoid recomputing
+  // the normalized bounds for F.
+  BoundsExpr *NormalizeBounds(const BoundsDeclFact *F);
+
   // Returns the declared bounds for the lvalue expression E. Assignments
   // to E must satisfy these bounds. After checking a top-level statement,
   // the inferred bounds of E must imply these declared bounds.

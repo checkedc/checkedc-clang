@@ -290,16 +290,19 @@ class Geq : public Constraint {
   friend class VarAtom;
 
 public:
-  Geq(Atom *Lhs, Atom *Rhs, bool IsCC = true)
-      : Constraint(C_Geq), Lhs(Lhs), Rhs(Rhs), IsCheckedConstraint(IsCC) {}
+  Geq(Atom *Lhs, Atom *Rhs, bool IsCC = true, bool Soft = false)
+      : Constraint(C_Geq), Lhs(Lhs), Rhs(Rhs), IsCheckedConstraint(IsCC),
+        IsSoft(Soft) {}
 
-  Geq(Atom *Lhs, Atom *Rhs, const std::string &Rsn, bool IsCC = true)
-      : Constraint(C_Geq, Rsn), Lhs(Lhs), Rhs(Rhs), IsCheckedConstraint(IsCC) {}
+  Geq(Atom *Lhs, Atom *Rhs, const std::string &Rsn, bool IsCC = true,
+      bool Soft = false)
+      : Constraint(C_Geq, Rsn), Lhs(Lhs), Rhs(Rhs), IsCheckedConstraint(IsCC),
+        IsSoft(Soft) {}
 
   Geq(Atom *Lhs, Atom *Rhs, const std::string &Rsn, PersistentSourceLoc *PL,
-      bool IsCC = true)
+      bool IsCC = true, bool Soft = false)
       : Constraint(C_Geq, Rsn, PL), Lhs(Lhs), Rhs(Rhs),
-        IsCheckedConstraint(IsCC) {}
+        IsCheckedConstraint(IsCC), IsSoft(Soft) {}
 
   static bool classof(const Constraint *C) { return C->getKind() == C_Geq; }
 
@@ -370,10 +373,13 @@ public:
     return C_Geq < K;
   }
 
+  bool isSoft(void) { return IsSoft; }
+
 private:
   Atom *Lhs;
   Atom *Rhs;
   bool IsCheckedConstraint;
+  bool IsSoft;
 };
 
 // a ==> b
@@ -501,7 +507,8 @@ public:
   void print(llvm::raw_ostream &) const;
   void dumpJson(llvm::raw_ostream &) const;
 
-  Geq *createGeq(Atom *Lhs, Atom *Rhs, bool IsCheckedConstraint = true);
+  Geq *createGeq(Atom *Lhs, Atom *Rhs, bool IsCheckedConstraint = true,
+                 bool Soft = false);
   Geq *createGeq(Atom *Lhs, Atom *Rhs, const std::string &Rsn,
                  bool IsCheckedConstraint = true);
   Geq *createGeq(Atom *Lhs, Atom *Rhs, const std::string &Rsn,
