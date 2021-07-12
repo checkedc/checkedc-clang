@@ -39,6 +39,12 @@ Expr *NormalizeUtil::TransformAdditiveOp(Sema &S, Expr *E) {
   if (BO->getOpcode() == BinaryOperatorKind::BO_Sub)
     E2 = ExprCreatorUtil::CreateUnaryOperator(S, E2,
                              UnaryOperatorKind::UO_Minus);
+
+  // If no change was made to E1 or E2, there is no need to create
+  // a new expression.
+  if (E1 == BO->getLHS() && E2 == BO->getRHS())
+    return E;
+
   return AddExprs(S, E1, E2);
 }
 
