@@ -2010,8 +2010,66 @@ namespace {
           }
         }
         return R;
-      }
+      } else if (CompareNormalizedBounds(DeclaredBounds, SrcBounds, EquivExprs))
+        return ProofResult::True;
       return ProofResult::Maybe;
+    }
+
+    // CompareNormalizedBounds returns true if SrcBounds implies DeclaredBounds
+    // after applying certain transformations to the upper bound expressions
+    // of both bounds.
+    bool CompareNormalizedBounds(const BoundsExpr *DeclaredBounds,
+                                 const BoundsExpr *SrcBounds,
+                                 EquivExprSets *EquivExprs) {
+      // DeclaredBounds and SrcBounds must both be range bounds in order
+      // to normalize their upper bound expression.
+      const RangeBoundsExpr *DeclaredRangeBounds =
+        dyn_cast<RangeBoundsExpr>(DeclaredBounds);
+      if (!DeclaredRangeBounds)
+        return false;
+      const RangeBoundsExpr *SrcRangeBounds =
+        dyn_cast<RangeBoundsExpr>(SrcBounds);
+      if (!SrcRangeBounds)
+        return false;
+
+      // The lower bound expressions must be equivalent.
+      if (!ExprUtil::EqualValue(S.Context, DeclaredRangeBounds->getLowerExpr(),
+                                SrcRangeBounds->getLowerExpr(), EquivExprs))
+        return false;
+      
+      // Attempt to get a variable part and a constant part from the
+      // declared upper bound by applying certain normalizations.
+      Expr *DeclaredVariable = nullptr;
+      llvm::APSInt DeclaredConstant;
+      bool NormalizedDeclared =
+        NormalizeUpperBound(DeclaredRangeBounds->getUpperExpr(),
+                            DeclaredVariable, DeclaredConstant);
+
+      // Attempt to get a variable part and a constant part from the
+      // source upper bound by applying certain normalizations.
+      Expr *SrcVariable = nullptr;
+      llvm::APSInt SrcConstant;
+      bool NormalizedSrc =
+        NormalizeUpperBound(SrcRangeBounds->getUpperExpr(),
+                            SrcVariable, SrcConstant);
+
+      // We must be able to normalize at least one of the upper bounds in
+      // order to compare them.
+      if (!NormalizedDeclared && !NormalizedSrc)
+        return false;
+
+      // Both upper bounds must have a Variable part.
+      if (!DeclaredVariable || !SrcVariable)
+        return false;
+
+      // The variable parts of the upper bounds must be equivalent.
+      if (!ExprUtil::EqualValue(S.Context, DeclaredVariable, SrcVariable, EquivExprs))
+        return false;
+
+      // SrcBounds implies DeclaredBounds if and only if the declared upper
+      // constant part is less than or equal to the source upper constant part.
+      ExprUtil::EnsureEqualBitWidths(DeclaredConstant, SrcConstant);
+      return DeclaredConstant <= SrcConstant;
     }
 
     // NormalizeUpperBound attempts to extract a Variable part and a Constant
