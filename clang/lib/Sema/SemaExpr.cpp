@@ -15864,6 +15864,8 @@ ExprResult Sema::ActOnCountBoundsExpr(SourceLocation BoundsKWLoc,
                                       BoundsExpr::Kind Kind,
                                       Expr *CountExpr,
                                       SourceLocation RParenLoc) {
+  if (CountExpr->containsErrors())
+    return ExprError();
   // Do the usual C integer promotions if necessary. 
   ExprResult Result = UsualUnaryConversions(CountExpr);
   if (Result.isInvalid())
@@ -15930,6 +15932,8 @@ ExprResult Sema::ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc,
                                       Expr *LowerBound,
                                       Expr *UpperBound,
                                       SourceLocation RParenLoc) {
+  if (LowerBound->containsErrors() || UpperBound->containsErrors())
+    return ExprError();
   ExprResult Result = UsualUnaryConversions(LowerBound);
   if (Result.isInvalid())
      return ExprError();
