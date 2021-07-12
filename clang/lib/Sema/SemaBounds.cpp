@@ -1900,6 +1900,12 @@ namespace {
       Base = E->IgnoreParens();
       OffsetConstant = llvm::APSInt(PointerWidth, false);
       OffsetVariable = nullptr;
+      // If the base expression has an incomplete referent type, we consider
+      // the range to be incomplete constant-sized. This means that, if Base
+      // has an incomplete referent type, B and B + 0 will both be incomplete
+      // constant-sized ranges.
+      if (Base->getType()->getPointeeOrArrayElementType()->isIncompleteType())
+        return BaseRange::Kind::IncompleteConstantSized;
       return BaseRange::Kind::ConstantSized;
     }
 

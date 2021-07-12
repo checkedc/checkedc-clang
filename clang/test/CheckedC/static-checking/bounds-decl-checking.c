@@ -304,11 +304,8 @@ int f33(_Ptr<struct S> p) {
   return 0;
 }
 
-int f34(_Array_ptr<struct S> p : bounds(p, p), _Array_ptr<struct S> q : count(0)) { // expected-note {{(expanded) declared bounds are 'bounds(p, p)'}}
-  // The upper bound q + 0 is an incomplete constant sized upper offset,
-  // but the upper bound p is not an incomplete constant sized upper offset.
-  p = q; // expected-warning {{cannot prove declared bounds for 'p' are valid after assignment}} \
-         // expected-note {{(expanded) inferred bounds are 'bounds(q, q + 0)'}}
+int f34(_Array_ptr<struct S> p : bounds(p, p), _Array_ptr<struct S> q : count(0)) {
+  p = q;
   return 0;
 }
 
