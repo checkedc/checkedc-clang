@@ -2095,6 +2095,7 @@ namespace {
       Expr *PointerExpr;
       Expr *ConstExpr;
       llvm::APSInt C;
+      Expr *PointerAndConst;
 
       // E must be of the form X op2 Y, where op2 is + or -.
       BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens());
@@ -2135,7 +2136,7 @@ namespace {
       // If we can perform this constant folding, then Variable = E1 + E2 and
       // Constant = E3 op2 B.
       // Otherwise, Variable = E and Constant = 0.
-      Expr *PointerAndConst =
+      PointerAndConst =
         ExprCreatorUtil::CreateBinaryOperator(S, PointerExpr, ConstExpr,
                                               BO->getOpcode());
       return NormalizeUtil::ConstantFold(S, PointerAndConst, E->getType(),
