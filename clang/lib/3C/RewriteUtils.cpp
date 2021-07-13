@@ -422,7 +422,8 @@ private:
       // Replace the original type with this new one if the type has changed.
       if (CV->anyChanges(Vars)) {
         rewriteSourceRange(Writer, Range,
-                           CV->mkString(Info.getConstraints(), false));
+                           CV->mkString(Info.getConstraints(),
+                                        MKSTRING_OPTS(EmitName = false)));
         PState.incrementNumFixedCasts();
       }
   }
@@ -451,8 +452,9 @@ public:
         for (auto Entry : Info.getTypeParamBindings(CE, Context))
           if (Entry.second != nullptr) {
             AllInconsistent = false;
-            std::string TyStr = Entry.second->mkString(Info.getConstraints(),
-                                                       false, false, true);
+            std::string TyStr = Entry.second->mkString(
+                Info.getConstraints(),
+                MKSTRING_OPTS(EmitName = false, EmitPointee = true));
             if (TyStr.back() == ' ')
               TyStr.pop_back();
             TypeParamString += TyStr + ",";

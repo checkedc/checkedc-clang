@@ -158,8 +158,11 @@ CastPlacementVisitor::getCastString(ConstraintVariable *Dst,
                                     CastNeeded CastKind) {
   switch (CastKind) {
   case CAST_NT_ARRAY:
-    return std::make_pair(
-        "((" + Dst->mkString(Info.getConstraints(), false) + ")", ")");
+    return std::make_pair("((" +
+                              Dst->mkString(Info.getConstraints(),
+                                            MKSTRING_OPTS(EmitName = false)) +
+                              ")",
+                          ")");
   case CAST_TO_WILD:
     return std::make_pair("((" + Dst->getRewritableOriginalTy() + ")", ")");
   case CAST_TO_CHECKED: {
@@ -191,10 +194,10 @@ CastPlacementVisitor::getCastString(ConstraintVariable *Dst,
     if (TypeVar != nullptr) {
       Type = "_Ptr<" +
           TypeVar->mkString(Info.getConstraints(),
-                               false, false, true) +
+                            MKSTRING_OPTS(EmitName = false, EmitPointee = true)) +
           ">";
     } else {
-      Type = Dst->mkString(Info.getConstraints(), false);
+      Type = Dst->mkString(Info.getConstraints(), MKSTRING_OPTS(EmitName = false));
     }
     return std::make_pair("_Assume_bounds_cast<" + Type + ">(", Suffix);
   }

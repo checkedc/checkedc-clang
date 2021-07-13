@@ -721,11 +721,11 @@ std::string PointerVariableConstraint::gatherQualStrings(void) const {
   return S.str();
 }
 
-std::string PointerVariableConstraint::mkString(Constraints &CS, bool EmitName,
-                                                bool ForItype, bool EmitPointee,
-                                                bool UnmaskTypedef,
-                                                std::string UseName,
-                                                bool ForItypeBase) const {
+std::string
+PointerVariableConstraint::mkString(Constraints &CS,
+                                    const MkStringOpts &Opts) const {
+  UNPACK_OPTS(EmitName, ForItype, EmitPointee, UnmaskTypedef, UseName,
+              ForItypeBase);
 
   // The name field encodes if this variable is the return type for a function.
   // TODO: store this information in a separate field.
@@ -905,10 +905,11 @@ std::string PointerVariableConstraint::mkString(Constraints &CS, bool EmitName,
       }
       bool EmitFVName = !FptrInner.str().empty();
       if (EmitFVName)
-        Ss << FV->mkString(CS, true, false, false, false, FptrInner.str(),
-                           ForItypeBase);
+        Ss << FV->mkString(CS, MKSTRING_OPTS(UseName = FptrInner.str(),
+                                             ForItypeBase = ForItypeBase));
       else
-        Ss << FV->mkString(CS, false, false, false, false, "", ForItypeBase);
+        Ss << FV->mkString(
+            CS, MKSTRING_OPTS(EmitName = false, ForItypeBase = ForItypeBase));
     } else if (TypedefLevelInfo.HasTypedef) {
       std::ostringstream Buf;
       getQualString(TypedefLevelInfo.TypedefLevel, Buf);
@@ -1532,12 +1533,11 @@ bool FunctionVariableConstraint::solutionEqualTo(Constraints &CS,
   return Ret;
 }
 
-std::string FunctionVariableConstraint::mkString(Constraints &CS, bool EmitName,
-                                                 bool ForItype,
-                                                 bool EmitPointee,
-                                                 bool UnmaskTypedef,
-                                                 std::string UseName,
-                                                 bool ForItypeBase) const {
+std::string
+FunctionVariableConstraint::mkString(Constraints &CS,
+                                     const MkStringOpts &Opts) const {
+  UNPACK_OPTS(EmitName, ForItype, EmitPointee, UnmaskTypedef, UseName,
+              ForItypeBase);
   if (UseName.empty())
     UseName = Name;
   std::string Ret = ReturnVar.mkTypeStr(CS, false, "", ForItypeBase);
@@ -2058,8 +2058,9 @@ std::string FVComponentVariable::mkTypeStr(Constraints &CS, bool EmitName,
   // variable. Because the call is passed ForItypeBase, it will emit an
   // unchecked type instead of the solved type.
   if (ForItypeBase || hasCheckedSolution(CS) || (EmitName && !UseName.empty())) {
-    Ret = ExternalConstraint->mkString(CS, EmitName, false, false, false,
-                                       UseName, ForItypeBase);
+    Ret = ExternalConstraint->mkString(
+        CS, MKSTRING_OPTS(EmitName = EmitName, UseName = UseName,
+                          ForItypeBase = ForItypeBase));
   } else {
     // if no need to generate type, try to use source
     if (!SourceDeclaration.empty())
@@ -2085,7 +2086,10 @@ std::string FVComponentVariable::mkTypeStr(Constraints &CS, bool EmitName,
 std::string
 FVComponentVariable::mkItypeStr(Constraints &CS, bool ForItypeBase) const {
   if (!ForItypeBase && hasItypeSolution(CS))
-    return " : itype(" + ExternalConstraint->mkString(CS, false, true) + ")";
+    return " : itype(" +
+           ExternalConstraint->mkString(
+               CS, MKSTRING_OPTS(EmitName = false, ForItype = true)) +
+           ")";
   return "";
 }
 

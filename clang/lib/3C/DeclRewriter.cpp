@@ -42,8 +42,8 @@ void DeclRewriter::buildItypeDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
     // unchecked type from the PVConstraint. The last argument of this call
     // tells mkString to generate a string using unchecked types instead of
     // checked types.
-    Type = Defn->mkString(Info.getConstraints(), true, false, false, false, "",
-                          true);
+    Type = Defn->mkString(Info.getConstraints(),
+                          MKSTRING_OPTS(ForItypeBase = true));
   } else {
     Type = Defn->getRewritableOriginalTy();
     if (isa_and_nonnull<ParmVarDecl>(Decl)) {
@@ -68,9 +68,12 @@ void DeclRewriter::buildItypeDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
     // type to the declaration so that it can be used in checked code.
     // TODO: This could potentially be applied to typedef types even when the
     //       flag is not passed to limit spread of wildness through typedefs.
-    IType += Defn->mkString(Info.getConstraints(), false, true, false, true);
+    IType += Defn->mkString(Info.getConstraints(),
+                            MKSTRING_OPTS(EmitName = false, ForItype = true,
+                                          UnmaskTypedef = true));
   } else {
-    IType += Defn->mkString(Info.getConstraints(), false, true);
+    IType += Defn->mkString(Info.getConstraints(),
+                            MKSTRING_OPTS(EmitName = false, ForItype = true));
   }
   IType += ")" + ABR.getBoundsString(Defn, Decl, true);
 }
@@ -113,7 +116,8 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
           if (Var.anyChanges(Env)) {
             std::string NewTy =
                 getStorageQualifierString(D) +
-                Var.mkString(Info.getConstraints(), true, false, false, true);
+                Var.mkString(Info.getConstraints(),
+                             MKSTRING_OPTS(UnmaskTypedef = true));
             RewriteThese.insert(new TypedefDeclReplacement(TD, nullptr, NewTy));
           }
         }
@@ -737,7 +741,7 @@ void FunctionDeclBuilder::buildCheckedDecl(
     std::string &IType, std::string UseName, bool &RewriteParm,
     bool &RewriteRet) {
   Type =
-      Defn->mkString(Info.getConstraints(), true, false, false, false, UseName);
+      Defn->mkString(Info.getConstraints(), MKSTRING_OPTS(UseName = UseName));
   //IType = getExistingIType(Defn);
   IType = ABRewriter.getBoundsString(Defn, Decl, !IType.empty());
   RewriteParm |= getExistingIType(Defn).empty() != IType.empty() ||

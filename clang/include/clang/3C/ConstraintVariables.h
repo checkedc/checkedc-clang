@@ -26,6 +26,7 @@
 #define LLVM_CLANG_3C_CONSTRAINTVARIABLES_H
 
 #include "clang/3C/Constraints.h"
+#include "clang/3C/OptionalParams.h"
 #include "clang/3C/ProgramVar.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/Lex/Lexer.h"
@@ -40,6 +41,16 @@ class ProgramInfo;
 typedef std::set<ConstraintKey> CVars;
 // Holds Atoms, one for each of the pointer (*) declared in the program.
 typedef std::vector<Atom *> CAtoms;
+
+struct MkStringOpts {
+  bool EmitName = true;
+  bool ForItype = false;
+  bool EmitPointee = false;
+  bool UnmaskTypedef = false;
+  std::string UseName = "";
+  bool ForItypeBase = false;
+};
+#define MKSTRING_OPTS(...) PACK_OPTS(MkStringOpts, __VA_ARGS__)
 
 // Base class for ConstraintVariables. A ConstraintVariable can either be a
 // PointerVariableConstraint or a FunctionVariableConstraint. The difference
@@ -84,11 +95,8 @@ public:
   // the name of the variable, false for just the type.
   // The 'forIType' parameter is true when the generated string is expected
   // to be used inside an itype.
-  virtual std::string mkString(Constraints &CS, bool EmitName = true,
-                               bool ForItype = false, bool EmitPointee = false,
-                               bool UnmaskTypedef = false,
-                               std::string UseName = "",
-                               bool ForItypeBase = false) const = 0;
+  virtual std::string mkString(Constraints &CS,
+                               const MkStringOpts &Opts = {}) const = 0;
 
   // Debug printing of the constraint variable.
   virtual void print(llvm::raw_ostream &O) const = 0;
@@ -442,11 +450,8 @@ public:
 
   std::string gatherQualStrings(void) const;
 
-  std::string mkString(Constraints &CS, bool EmitName = true,
-                       bool ForItype = false, bool EmitPointee = false,
-                       bool UnmaskTypedef = false,
-                       std::string UseName = "",
-                       bool ForItypeBase = false) const override;
+  std::string mkString(Constraints &CS,
+                       const MkStringOpts &Opts = {}) const override;
 
   FunctionVariableConstraint *getFV() const { return FV; }
 
@@ -635,11 +640,8 @@ public:
   bool solutionEqualTo(Constraints &CS, const ConstraintVariable *CV,
                        bool ComparePtyp = true) const override;
 
-  std::string mkString(Constraints &CS, bool EmitName = true,
-                       bool ForItype = false, bool EmitPointee = false,
-                       bool UnmaskTypedef = false,
-                       std::string UseName = "",
-                       bool ForItypeBase = false) const override;
+  std::string mkString(Constraints &CS,
+                       const MkStringOpts &Opts = {}) const override;
   void print(llvm::raw_ostream &O) const override;
   void dump() const override { print(llvm::errs()); }
   void dumpJson(llvm::raw_ostream &O) const override;
