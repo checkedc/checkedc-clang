@@ -734,3 +734,17 @@ struct S3 {
 void f90(struct S3 s) {
   s.f = s.g;
 }
+
+//
+// Test invertibility for checked and unchecked pointers
+//
+
+void f91(_Array_ptr<int> p : count(1)) _Unchecked { // expected-note {{(expanded) declared bounds are 'bounds(p, p + 1)'}}
+  ++p; // expected-warning {{cannot prove declared bounds for 'p' are valid after increment}} \
+       // expected-note {{(expanded) inferred bounds are 'bounds(p - 1, p - 1 + 1)'}}
+}
+
+void f92(int *p : count(1)) _Unchecked { // expected-note {{(expanded) declared bounds are 'bounds(p, p + 1)'}}
+ ++p; // expected-warning {{cannot prove declared bounds for 'p' are valid after increment}} \
+      // expected-note {{(expanded) inferred bounds are 'bounds(p - 1, p - 1 + 1)'}}
+}
