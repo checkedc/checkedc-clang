@@ -3382,6 +3382,9 @@ namespace {
       }
 
       if (Expr *E = dyn_cast<Expr>(S)) {
+        if (E->isValueDependent())
+          return ResultBounds;
+
         // Null ptrs always have bounds(any).
         // This is the correct way to detect all the different ways that
         // C can make a null ptr.
