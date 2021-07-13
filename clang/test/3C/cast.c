@@ -22,3 +22,13 @@ void bar(void) {
   //CHECK: int *d = (int *)5;
   /*int *e = (int *)(a+5);*/
 }
+
+
+// Check that casts to generics use the local type variables
+int *mk_ptr(void);
+_For_any(T) void free_ptr(_Ptr<T> p_ptr) {}
+void work (void) {
+  int *node = mk_ptr(); // wild because extern unavailable
+  free_ptr<int>(node);
+  // CHECK: free_ptr<int>(_Assume_bounds_cast<_Ptr<int>>(node));
+}

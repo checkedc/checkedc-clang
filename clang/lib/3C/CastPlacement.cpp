@@ -53,20 +53,23 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *CE) {
       // Avoid adding incorrect casts to generic function arguments by
       // removing implicit casts when on arguments with a consistently
       // used generic type.
+      ConstraintVariable *TypeVar = nullptr;
       Expr *ArgExpr = A;
       if (FD && PIdx < FD->getNumParams()) {
         const int TyVarIdx = FV->getExternalParam(PIdx)->getGenericIndex();
         if (TypeVars.find(TyVarIdx) != TypeVars.end() &&
             TypeVars[TyVarIdx] != nullptr)
-          ArgExpr = ArgExpr->IgnoreImpCasts();
+          TypeVar = TypeVars[TyVarIdx];
       }
+      if (TypeVar != nullptr)
+        ArgExpr = ArgExpr->IgnoreImpCasts();
 
       CVarSet ArgConstraints = CR.getExprConstraintVarsSet(ArgExpr);
       for (auto *ArgC : ArgConstraints) {
         CastNeeded CastKind = needCasting(
             ArgC, ArgC, FV->getInternalParam(PIdx), FV->getExternalParam(PIdx));
         if (CastKind != NO_CAST) {
-          surroundByCast(FV->getExternalParam(PIdx), CastKind, A);
+          surroundByCast(FV->getExternalParam(PIdx), TypeVar, CastKind, A);
           ExprsWithCast.insert(ignoreCheckedCImplicit(A));
           break;
         }
@@ -91,7 +94,7 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *CE) {
                                         FV->getExternalReturn(), DstC, DstC);
       if (ExprsWithCast.find(CE) == ExprsWithCast.end() &&
           CastKind != NO_CAST) {
-        surroundByCast(DstC, CastKind, CE);
+        surroundByCast(DstC, nullptr, CastKind, CE);
         ExprsWithCast.insert(ignoreCheckedCImplicit(CE));
         break;
       }
@@ -151,6 +154,7 @@ CastPlacementVisitor::CastNeeded CastPlacementVisitor::needCasting(
 // when placed around the expression being cast.
 std::pair<std::string, std::string>
 CastPlacementVisitor::getCastString(ConstraintVariable *Dst,
+                                    ConstraintVariable *TypeVar,
                                     CastNeeded CastKind) {
   switch (CastKind) {
   case CAST_NT_ARRAY:
@@ -181,10 +185,18 @@ CastPlacementVisitor::getCastString(ConstraintVariable *Dst,
         Suffix = ", " + Bounds + ")";
       }
     }
-    return std::make_pair("_Assume_bounds_cast<" +
-                              Dst->mkString(Info.getConstraints(), false) +
-                              ">(",
-                          Suffix);
+    // The destination's type may be generic, which would have an out-of-scope
+    // type var, so use the already analysed local type var instead
+    std::string Type;
+    if (TypeVar != nullptr) {
+      Type = "_Ptr<" +
+          TypeVar->mkString(Info.getConstraints(),
+                               false, false, true) +
+          ">";
+    } else {
+      Type = Dst->mkString(Info.getConstraints(), false);
+    }
+    return std::make_pair("_Assume_bounds_cast<" + Type + ">(", Suffix);
   }
   default:
     llvm_unreachable("No casting needed");
@@ -192,6 +204,7 @@ CastPlacementVisitor::getCastString(ConstraintVariable *Dst,
 }
 
 void CastPlacementVisitor::surroundByCast(ConstraintVariable *Dst,
+                                          ConstraintVariable *TypeVar,
                                           CastNeeded CastKind, Expr *E) {
   PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(E, *Context);
   if (!canWrite(PSL.getFileName())) {
@@ -208,7 +221,7 @@ void CastPlacementVisitor::surroundByCast(ConstraintVariable *Dst,
     return;
   }
 
-  auto CastStrs = getCastString(Dst, CastKind);
+  auto CastStrs = getCastString(Dst, TypeVar, CastKind);
 
   // If E is already a cast expression, we will try to rewrite the cast instead
   // of adding a new expression.
