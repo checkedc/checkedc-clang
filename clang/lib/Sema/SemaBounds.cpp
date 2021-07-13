@@ -932,9 +932,10 @@ namespace {
     // The proof system is incomplete, so there are will be statements that
     // cannot be proved true or false.  That's why "maybe" is a result.
     enum class ProofResult {
-      True,  // Definitely provable.
-      False, // Definitely false (an error)
-      Maybe  // We're not sure yet.
+      True,           // Definitely provable.
+      False,          // Definitely false (an error)
+      Maybe,          // We're not sure yet.
+      IncompleteTypes // Unable to prove due to incomplete referent types.
     };
 
     // The kind of statement that we are trying to prove true or false.
@@ -1037,6 +1038,7 @@ namespace {
       enum Kind {
         ConstantSized,
         VariableSized,
+        IncompleteConstantSized,
         Invalid
       };
 
@@ -1047,24 +1049,31 @@ namespace {
       llvm::APSInt UpperOffsetConstant;
       Expr *LowerOffsetVariable;
       Expr *UpperOffsetVariable;
+      // HasIncompleteConstant tracks whether either the lower or upper
+      // constant offset is based on an expression with an incomplete
+      // referent type.
+      bool HasIncompleteConstant;
 
     public:
       BaseRange(Sema &S) : S(S), Base(nullptr), LowerOffsetConstant(1, true),
-        UpperOffsetConstant(1, true), LowerOffsetVariable(nullptr), UpperOffsetVariable(nullptr) {
+        UpperOffsetConstant(1, true), LowerOffsetVariable(nullptr), UpperOffsetVariable(nullptr),
+        HasIncompleteConstant(false) {
       }
 
       BaseRange(Sema &S, Expr *Base,
                          llvm::APSInt &LowerOffsetConstant,
                          llvm::APSInt &UpperOffsetConstant) :
         S(S), Base(Base), LowerOffsetConstant(LowerOffsetConstant), UpperOffsetConstant(UpperOffsetConstant),
-        LowerOffsetVariable(nullptr), UpperOffsetVariable(nullptr) {
+        LowerOffsetVariable(nullptr), UpperOffsetVariable(nullptr),
+        HasIncompleteConstant(false) {
       }
 
       BaseRange(Sema &S, Expr *Base,
                          Expr *LowerOffsetVariable,
                          Expr *UpperOffsetVariable) :
         S(S), Base(Base), LowerOffsetConstant(1, true), UpperOffsetConstant(1, true),
-        LowerOffsetVariable(LowerOffsetVariable), UpperOffsetVariable(UpperOffsetVariable) {
+        LowerOffsetVariable(LowerOffsetVariable), UpperOffsetVariable(UpperOffsetVariable),
+        HasIncompleteConstant(false) {
       }
 
     private:
@@ -1250,6 +1259,11 @@ namespace {
           return ProofResult::Maybe;
         }
 
+        // Check whether we are allowed to continue with the proof, based on
+        // whether this and R involve incomplete referent types.
+        if (!CheckIncompleteConstants(R))
+          return ProofResult::IncompleteTypes;
+
         if (ExprUtil::EqualValue(S.Context, Base, R.Base, EquivExprs)) {
           ProofResult LowerBoundsResult = CompareLowerOffsetsImpl(R, Cause, EquivExprs, Facts);
           ProofResult UpperBoundsResult = CompareUpperOffsetsImpl(R, Cause, EquivExprs, Facts);
@@ -1299,6 +1313,11 @@ namespace {
           return ProofResult::Maybe;
         }
 
+        // Check whether we are allowed to continue with the proof, based on
+        // whether this and R involve incomplete referent types.
+        if (!CheckIncompleteConstants(R))
+          return ProofResult::IncompleteTypes;
+
         FreeVariablePosition BasePos = CombineFreeVariablePosition(
             FreeVariablePosition::Lower, FreeVariablePosition::Upper);
         FreeVariablePosition DeclaredBasePos = CombineFreeVariablePosition(
@@ -1325,6 +1344,30 @@ namespace {
           return ProofResult::False;
         }
         return ProofResult::Maybe;
+      }
+
+      // This function checks whether it is possible to compare this and R,
+      // based on whether this and R have at least one offset that was derived
+      // from a base expression with an incomplete referent type.
+      //
+      // If both this and R have an offset based on types T1 and T2 with
+      // incomplete referent types, then the offsets should have been
+      // multiplied by sizeof(T1) and sizeof(T2), where the sizes of T1 and
+      // T2 could not be determined. In this case, we require that T1 and
+      // T2 are equivalent types. Otherwise, we cannot continue to compare
+      // this and R.
+      //
+      // If only one of this and R is based on an incomplete referent type,
+      // then we cannot continue to compare them.
+      bool CheckIncompleteConstants(BaseRange &R) {
+        if (HasIncompleteConstant) {
+          if (!R.HasIncompleteConstant)
+            return false;
+          if (!ExprUtil::EqualTypes(S.Context, Base->getType(), R.Base->getType()))
+            return false;
+        } else if (R.HasIncompleteConstant)
+          return false;
+        return true;
       }
 
       // This function proves whether this.LowerOffset <= R.LowerOffset.
@@ -1736,6 +1779,10 @@ namespace {
         UpperOffsetVariable = Upper;
       }
 
+      void SetHasIncompleteConstant(bool Incomplete) {
+        HasIncompleteConstant = Incomplete;
+      }
+
       void Dump(raw_ostream &OS) {
         OS << "Range:\n";
         OS << "Base: ";
@@ -1825,7 +1872,7 @@ namespace {
             }
             llvm::APSInt ElemSize;
             if (!ExprUtil::getReferentSizeInChars(S.Context, Base->getType(), ElemSize))
-                goto exit;
+              return BaseRange::Kind::IncompleteConstantSized;
             OffsetConstant = OffsetConstant.smul_ov(ElemSize, Overflow);
             if (Overflow)
               goto exit;
@@ -1843,6 +1890,12 @@ namespace {
       Base = E->IgnoreParens();
       OffsetConstant = llvm::APSInt(PointerWidth, false);
       OffsetVariable = nullptr;
+      // If the base expression has an incomplete referent type, we consider
+      // the range to be incomplete constant-sized. This means that, if Base
+      // has an incomplete referent type, B and B + 0 will both be incomplete
+      // constant-sized ranges.
+      if (Base->getType()->getPointeeOrArrayElementType()->isIncompleteType())
+        return BaseRange::Kind::IncompleteConstantSized;
       return BaseRange::Kind::ConstantSized;
     }
 
@@ -2031,11 +2084,11 @@ namespace {
           Expr *Upper = RB->getUpperExpr();
           Expr *LowerBase, *UpperBase;
           llvm::APSInt LowerOffsetConstant(1, true);
-          llvm::APSInt  UpperOffsetConstant(1, true);
+          llvm::APSInt UpperOffsetConstant(1, true);
           Expr *LowerOffsetVariable = nullptr;
           Expr *UpperOffsetVariable = nullptr;
-          SplitIntoBaseAndOffset(Lower, LowerBase, LowerOffsetConstant, LowerOffsetVariable);
-          SplitIntoBaseAndOffset(Upper, UpperBase, UpperOffsetConstant, UpperOffsetVariable);
+          BaseRange::Kind LowerKind = SplitIntoBaseAndOffset(Lower, LowerBase, LowerOffsetConstant, LowerOffsetVariable);
+          BaseRange::Kind UpperKind = SplitIntoBaseAndOffset(Upper, UpperBase, UpperOffsetConstant, UpperOffsetVariable);
 
           // If both of the offsets are constants, the range is considered constant-sized.
           // Otherwise, it is a variable-sized range.
@@ -2045,6 +2098,8 @@ namespace {
             R->SetLowerVariable(LowerOffsetVariable);
             R->SetUpperConstant(UpperOffsetConstant);
             R->SetUpperVariable(UpperOffsetVariable);
+            R->SetHasIncompleteConstant(LowerKind == BaseRange::Kind::IncompleteConstantSized ||
+                                        UpperKind == BaseRange::Kind::IncompleteConstantSized);
             return true;
           }
         }
@@ -2107,6 +2162,8 @@ namespace {
             DeclaredRange, Cause, EquivExprs, Facts, FreeVariables);
         if (R == ProofResult::True)
           return R;
+        if (R == ProofResult::IncompleteTypes)
+          return ProofResult::Maybe;
         if (R == ProofResult::False || R == ProofResult::Maybe) {
           if (R == ProofResult::False && SrcRange.IsEmpty())
             Cause = CombineFailures(Cause, ProofFailure::SrcEmpty);

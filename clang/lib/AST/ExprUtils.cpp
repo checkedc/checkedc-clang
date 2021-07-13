@@ -251,6 +251,11 @@ bool ExprUtil::EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2,
   return R == Lexicographic::Result::Equal;
 }
 
+bool ExprUtil::EqualTypes(ASTContext &Ctx, QualType T1, QualType T2) {
+  Lexicographic::Result R = Lexicographic(Ctx, nullptr).CompareType(T1, T2);
+  return R == Lexicographic::Result::Equal;
+}
+
 bool ExprUtil::CheckIsNonModifying(Sema &S, Expr *E) {
   return S.CheckIsNonModifying(E, Sema::NonModifyingContext::NMC_Unknown,
                                Sema::NonModifyingMessage::NMM_None);
