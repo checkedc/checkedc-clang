@@ -1448,7 +1448,7 @@ void original_value19(array_ptr<int> *x, array_ptr<int> *i) {
   // CHECK-NEXT: }
 
   // Original value of i in i - 1: i + 1
-  // Updated EquivExprs: { { i + 1, i } }, Updated SameValue: { i + 1 }
+  // Updated EquivExprs: { { i + 1, x } }, Updated SameValue: { i + 1 }
   i--;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} postfix '--'
