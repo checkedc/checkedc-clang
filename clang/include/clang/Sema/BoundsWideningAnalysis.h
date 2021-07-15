@@ -97,7 +97,8 @@ namespace clang {
     // Determine if the current block begins a case of a switch-case.
     // @param[in] CurrBlock is the current block.
     // @return Returns true if the current block begins a case.
-    bool IsSwitchCaseBlock(const CFGBlock *CurrBlock) const;
+    bool IsSwitchCaseBlock(const CFGBlock *CurrBlock,
+                           const CFGBlock *PredBlock) const;
 
     // Determine if the switch-case label on the current block tests for null.
     // @param[in] CurrBlock is the current block.
