@@ -2241,7 +2241,7 @@ bool InitListExpr::isNullTerminated(ASTContext &C, unsigned DeclArraySize) const
                              "sub-objects are made explicit");
 
   if (getNumInits() == 0) {
-    return true;
+    return false;
   }
 
   if (getNumInits() == 1 && getInit(0))

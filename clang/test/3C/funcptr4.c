@@ -6,7 +6,7 @@
 // RUN: 3c -base-dir=%t.checked -alltypes %t.checked/funcptr4.c -- | diff %t.checked/funcptr4.c -
 
 void f(int *(*fp)(int *)) {
-  //CHECK: void f(_Ptr<_Ptr<int> (_Ptr<int> )> fp) _Checked {
+  //CHECK: void f(_Ptr<_Ptr<int> (_Ptr<int>)> fp) _Checked {
   fp(0);
 }
 int *g2(int *x) {
@@ -20,7 +20,7 @@ int *g(int *x) {
 void h() {
   //CHECK: void h() _Checked {
   int *(*fp)(int *) = g;
-  //CHECK: _Ptr<_Ptr<int> (_Ptr<int> )> fp = g;
+  //CHECK: _Ptr<_Ptr<int> (_Ptr<int>)> fp = g;
   f(g);
   f(g2);
   g(0);

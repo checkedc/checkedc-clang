@@ -5805,7 +5805,6 @@ public:
   /// of a bounds expression.  Ty is the original unchecked type.  Returns null
   /// if none exists.
   InteropTypeExpr *SynthesizeInteropTypeExpr(QualType Ty, bool IsParam);
-  BoundsExpr *CreateCountForArrayType(QualType QT);
 
   // _Return_value in Checked C bounds expressions.
   ExprResult ActOnReturnValueExpr(SourceLocation Loc);
@@ -5994,6 +5993,12 @@ public:
   // range bounds are attached to the VarDecl D to avoid recomputing the
   // normalized bounds for D.
   BoundsExpr *NormalizeBounds(const VarDecl *D);
+
+  // If the BoundsDeclFact F has a byte_count or count bounds expression,
+  // NormalizeBounds expands it to a range bounds expression.  The expanded
+  // range bounds are attached to the BoundsDeclFact F to avoid recomputing
+  // the normalized bounds for F.
+  BoundsExpr *NormalizeBounds(const BoundsDeclFact *F);
 
   // Returns the declared bounds for the lvalue expression E. Assignments
   // to E must satisfy these bounds. After checking a top-level statement,

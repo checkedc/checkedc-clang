@@ -14,8 +14,6 @@
 #include <string.h>
 
 #include <stddef.h>
-extern _Itype_for_any(T) void *malloc(size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
 
 /*Structure for storing a graph*/
 

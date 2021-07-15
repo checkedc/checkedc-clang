@@ -61,6 +61,6 @@ int main(int argc, char **argv) {
   }
   return 0;
 }
-//CHECK: int main(int argc, _Array_ptr<_Ptr<char>> argv : count(argc)) {
-//CHECK:   _Ptr<char> PN = argv[0];
-//CHECK:   struct foo1 po = {};
+//CHECK: int main(int argc, _Array_ptr<_Nt_array_ptr<char>> argv : count(argc)) {
+//CHECK:    _Ptr<char> PN =  argv[0];
+//CHECK:    struct foo1 po = {};

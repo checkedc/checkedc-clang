@@ -12,7 +12,7 @@ clang_tablegen(OpenCLBuiltins.inc -gen-clang-opencl-builtins
 add_clang_library(clangSema
   AnalysisBasedWarnings.cpp
   AvailableFactsAnalysis.cpp
-  BoundsAnalysis.cpp
+  BoundsUtils.cpp
   BoundsWideningAnalysis.cpp
   CheckedCAlias.cpp
   CheckedCAnalysesPrepass.cpp

@@ -2,7 +2,7 @@
 //
 // RUN: rm -rf %t*
 // RUN: 3c -base-dir=%S -addcr %s -- | FileCheck -match-full-lines %s
-// RUN: 3c -base-dir=%S -addcr %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
+// RUN: 3c -base-dir=%S -addcr %s -- | %clang -c  -Xclang -verify -fcheckedc-extension -x c -o /dev/null -
 // RUN: 3c -base-dir=%S -addcr -output-dir=%t.checked %s --
 // RUN: 3c -base-dir=%t.checked -addcr %t.checked/bounds_interface.c -- | diff %t.checked/bounds_interface.c -
 // expected-no-diagnostics
@@ -21,7 +21,7 @@ void foo(int *p : itype(_Ptr<int>)) {
   *p = 0;
   return;
 }
-//CHECK: void foo(int *p : itype(_Ptr<int>)) _Checked {
+//CHECK: void foo(_Ptr<int> p) _Checked {
 
 int foo2(int *j) {
   int *a = baz();

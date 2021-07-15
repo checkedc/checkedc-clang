@@ -1182,6 +1182,8 @@ def fdump_extracted_comparison_facts : Flag<["-"], "fdump-extracted-comparison-f
   HelpText<"Dump extracted comparison facts">;
 def fdump_widened_bounds : Flag<["-"], "fdump-widened-bounds">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Dump widened bounds">;
+def fdump_widened_bounds_dataflow_sets : Flag<["-"], "fdump-widened-bounds-dataflow-sets">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Dump dataflow sets computed by the bounds widening analysis">;
 def fdump_boundsvars : Flag<["-"], "fdump-boundsvars">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Dump bounds vars">;
 def fdump_boundssiblingfields : Flag<["-"], "fdump-boundssiblingfields">, Group<f_Group>, Flags<[CC1Option]>,

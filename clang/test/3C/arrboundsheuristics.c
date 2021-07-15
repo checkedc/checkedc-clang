@@ -10,14 +10,12 @@
 
 int *glob;
 int lenplusone;
-#include <stddef.h>
-extern _Itype_for_any(T) void *malloc(size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
+#include <stdlib.h>
 //CHECK_ALL: _Array_ptr<int> glob = ((void *)0);
 //CHECK_NOALL: int *glob;
 
 void foo(int *p, int idx) { p[idx] = 0; }
-//CHECK_ALL: void foo(_Array_ptr<int> p, int idx) { p[idx] = 0; }
+//CHECK_ALL: void foo(_Array_ptr<int> p : count(idx + 1), int idx) { p[idx] = 0; }
 //CHECK_NOALL: void foo(int *p : itype(_Ptr<int>), int idx) { p[idx] = 0; }
 
 void bar(int *p, int flag) {
