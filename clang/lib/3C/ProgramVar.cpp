@@ -14,6 +14,7 @@
 
 GlobalScope *GlobalScope::ProgScope = nullptr;
 std::set<StructScope, PVSComp> StructScope::AllStScopes;
+std::set<CtxStructScope, PVSComp> CtxStructScope::AllCtxStScopes;
 std::set<FunctionParamScope, PVSComp> FunctionParamScope::AllFnParamScopes;
 std::set<FunctionScope, PVSComp> FunctionScope::AllFnScopes;
 std::set<CtxFunctionArgScope, PVSComp> CtxFunctionArgScope::AllCtxFnArgScopes;
@@ -34,6 +35,17 @@ const StructScope *StructScope::getStructScope(std::string StName) {
   return &SS;
 }
 
+const CtxStructScope *CtxStructScope::getCtxStructScope(const StructScope *SS,
+                                                        std::string AS,
+                                                        bool IsGlobal) {
+  CtxStructScope TmpCSS(SS->getSName(), AS, IsGlobal);
+  if (AllCtxStScopes.find(TmpCSS) == AllCtxStScopes.end()) {
+    AllCtxStScopes.insert(TmpCSS);
+  }
+  const auto &CSS = *AllCtxStScopes.find(TmpCSS);
+  return &CSS;
+}
+
 const FunctionParamScope *
 FunctionParamScope::getFunctionParamScope(std::string FnName, bool IsSt) {
   FunctionParamScope TmpFPS(FnName, IsSt);
@@ -42,6 +54,22 @@ FunctionParamScope::getFunctionParamScope(std::string FnName, bool IsSt) {
   }
   const auto &FPS = *AllFnParamScopes.find(TmpFPS);
   return &FPS;
+}
+
+bool FunctionScope::isInInnerScope(const ProgramVarScope &O) const {
+  // Global variables and function parameters are visible here.
+  if (clang::isa<GlobalScope>(&O))
+    return true;
+
+  // Function parameters of the same function are also visible
+  // inside the function.
+  if (auto *FPS = clang::dyn_cast<FunctionParamScope>(&O)) {
+    if (this->FName == FPS->getFName() &&
+        this->IsStatic == FPS->getIsStatic()) {
+      return true;
+    }
+  }
+  return false;
 }
 
 const CtxFunctionArgScope *

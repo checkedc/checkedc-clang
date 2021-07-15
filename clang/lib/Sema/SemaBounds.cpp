@@ -45,8 +45,8 @@
 #include "clang/AST/ExprUtils.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Sema/AvailableFactsAnalysis.h"
-#include "clang/Sema/BoundsAnalysis.h"
 #include "clang/Sema/BoundsUtils.h"
+#include "clang/Sema/BoundsWideningAnalysis.h"
 #include "clang/Sema/CheckedCAnalysesPrepass.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -426,6 +426,7 @@ namespace {
 
 namespace {
   using EqualExprTy = SmallVector<Expr *, 4>;
+  using DeclSetTy = llvm::DenseSet<const VarDecl *>;
 
   // EqualExprsContainsExpr returns true if the set Exprs contains an
   // expression that is equivalent to E.
@@ -655,10 +656,10 @@ namespace {
     ASTContext &Context;
     std::pair<ComparisonSet, ComparisonSet> &Facts;
 
-    // Having a BoundsAnalysis object here allows us to easily invoke methods
-    // for bounds-widening and get back the bounds-widening info needed for
-    // bounds inference/checking.
-    BoundsAnalysis BoundsAnalyzer;
+    // Having a BoundsWideningAnalysis object here allows us to easily invoke
+    // methods for bounds widening and get back the widened bounds info needed
+    // for bounds inference/checking.
+    BoundsWideningAnalysis BoundsWideningAnalyzer;
 
     // Having an AbstractSetManager object here allows us to create
     // AbstractSets for lvalue expressions while checking statements.
@@ -931,9 +932,10 @@ namespace {
     // The proof system is incomplete, so there are will be statements that
     // cannot be proved true or false.  That's why "maybe" is a result.
     enum class ProofResult {
-      True,  // Definitely provable.
-      False, // Definitely false (an error)
-      Maybe  // We're not sure yet.
+      True,           // Definitely provable.
+      False,          // Definitely false (an error)
+      Maybe,          // We're not sure yet.
+      IncompleteTypes // Unable to prove due to incomplete referent types.
     };
 
     // The kind of statement that we are trying to prove true or false.
@@ -1036,6 +1038,7 @@ namespace {
       enum Kind {
         ConstantSized,
         VariableSized,
+        IncompleteConstantSized,
         Invalid
       };
 
@@ -1046,24 +1049,31 @@ namespace {
       llvm::APSInt UpperOffsetConstant;
       Expr *LowerOffsetVariable;
       Expr *UpperOffsetVariable;
+      // HasIncompleteConstant tracks whether either the lower or upper
+      // constant offset is based on an expression with an incomplete
+      // referent type.
+      bool HasIncompleteConstant;
 
     public:
       BaseRange(Sema &S) : S(S), Base(nullptr), LowerOffsetConstant(1, true),
-        UpperOffsetConstant(1, true), LowerOffsetVariable(nullptr), UpperOffsetVariable(nullptr) {
+        UpperOffsetConstant(1, true), LowerOffsetVariable(nullptr), UpperOffsetVariable(nullptr),
+        HasIncompleteConstant(false) {
       }
 
       BaseRange(Sema &S, Expr *Base,
                          llvm::APSInt &LowerOffsetConstant,
                          llvm::APSInt &UpperOffsetConstant) :
         S(S), Base(Base), LowerOffsetConstant(LowerOffsetConstant), UpperOffsetConstant(UpperOffsetConstant),
-        LowerOffsetVariable(nullptr), UpperOffsetVariable(nullptr) {
+        LowerOffsetVariable(nullptr), UpperOffsetVariable(nullptr),
+        HasIncompleteConstant(false) {
       }
 
       BaseRange(Sema &S, Expr *Base,
                          Expr *LowerOffsetVariable,
                          Expr *UpperOffsetVariable) :
         S(S), Base(Base), LowerOffsetConstant(1, true), UpperOffsetConstant(1, true),
-        LowerOffsetVariable(LowerOffsetVariable), UpperOffsetVariable(UpperOffsetVariable) {
+        LowerOffsetVariable(LowerOffsetVariable), UpperOffsetVariable(UpperOffsetVariable),
+        HasIncompleteConstant(false) {
       }
 
     private:
@@ -1249,6 +1259,11 @@ namespace {
           return ProofResult::Maybe;
         }
 
+        // Check whether we are allowed to continue with the proof, based on
+        // whether this and R involve incomplete referent types.
+        if (!CheckIncompleteConstants(R))
+          return ProofResult::IncompleteTypes;
+
         if (ExprUtil::EqualValue(S.Context, Base, R.Base, EquivExprs)) {
           ProofResult LowerBoundsResult = CompareLowerOffsetsImpl(R, Cause, EquivExprs, Facts);
           ProofResult UpperBoundsResult = CompareUpperOffsetsImpl(R, Cause, EquivExprs, Facts);
@@ -1298,6 +1313,11 @@ namespace {
           return ProofResult::Maybe;
         }
 
+        // Check whether we are allowed to continue with the proof, based on
+        // whether this and R involve incomplete referent types.
+        if (!CheckIncompleteConstants(R))
+          return ProofResult::IncompleteTypes;
+
         FreeVariablePosition BasePos = CombineFreeVariablePosition(
             FreeVariablePosition::Lower, FreeVariablePosition::Upper);
         FreeVariablePosition DeclaredBasePos = CombineFreeVariablePosition(
@@ -1324,6 +1344,30 @@ namespace {
           return ProofResult::False;
         }
         return ProofResult::Maybe;
+      }
+
+      // This function checks whether it is possible to compare this and R,
+      // based on whether this and R have at least one offset that was derived
+      // from a base expression with an incomplete referent type.
+      //
+      // If both this and R have an offset based on types T1 and T2 with
+      // incomplete referent types, then the offsets should have been
+      // multiplied by sizeof(T1) and sizeof(T2), where the sizes of T1 and
+      // T2 could not be determined. In this case, we require that T1 and
+      // T2 are equivalent types. Otherwise, we cannot continue to compare
+      // this and R.
+      //
+      // If only one of this and R is based on an incomplete referent type,
+      // then we cannot continue to compare them.
+      bool CheckIncompleteConstants(BaseRange &R) {
+        if (HasIncompleteConstant) {
+          if (!R.HasIncompleteConstant)
+            return false;
+          if (!ExprUtil::EqualTypes(S.Context, Base->getType(), R.Base->getType()))
+            return false;
+        } else if (R.HasIncompleteConstant)
+          return false;
+        return true;
       }
 
       // This function proves whether this.LowerOffset <= R.LowerOffset.
@@ -1735,6 +1779,10 @@ namespace {
         UpperOffsetVariable = Upper;
       }
 
+      void SetHasIncompleteConstant(bool Incomplete) {
+        HasIncompleteConstant = Incomplete;
+      }
+
       void Dump(raw_ostream &OS) {
         OS << "Range:\n";
         OS << "Base: ";
@@ -1824,7 +1872,7 @@ namespace {
             }
             llvm::APSInt ElemSize;
             if (!ExprUtil::getReferentSizeInChars(S.Context, Base->getType(), ElemSize))
-                goto exit;
+              return BaseRange::Kind::IncompleteConstantSized;
             OffsetConstant = OffsetConstant.smul_ov(ElemSize, Overflow);
             if (Overflow)
               goto exit;
@@ -1842,6 +1890,12 @@ namespace {
       Base = E->IgnoreParens();
       OffsetConstant = llvm::APSInt(PointerWidth, false);
       OffsetVariable = nullptr;
+      // If the base expression has an incomplete referent type, we consider
+      // the range to be incomplete constant-sized. This means that, if Base
+      // has an incomplete referent type, B and B + 0 will both be incomplete
+      // constant-sized ranges.
+      if (Base->getType()->getPointeeOrArrayElementType()->isIncompleteType())
+        return BaseRange::Kind::IncompleteConstantSized;
       return BaseRange::Kind::ConstantSized;
     }
 
@@ -2030,11 +2084,11 @@ namespace {
           Expr *Upper = RB->getUpperExpr();
           Expr *LowerBase, *UpperBase;
           llvm::APSInt LowerOffsetConstant(1, true);
-          llvm::APSInt  UpperOffsetConstant(1, true);
+          llvm::APSInt UpperOffsetConstant(1, true);
           Expr *LowerOffsetVariable = nullptr;
           Expr *UpperOffsetVariable = nullptr;
-          SplitIntoBaseAndOffset(Lower, LowerBase, LowerOffsetConstant, LowerOffsetVariable);
-          SplitIntoBaseAndOffset(Upper, UpperBase, UpperOffsetConstant, UpperOffsetVariable);
+          BaseRange::Kind LowerKind = SplitIntoBaseAndOffset(Lower, LowerBase, LowerOffsetConstant, LowerOffsetVariable);
+          BaseRange::Kind UpperKind = SplitIntoBaseAndOffset(Upper, UpperBase, UpperOffsetConstant, UpperOffsetVariable);
 
           // If both of the offsets are constants, the range is considered constant-sized.
           // Otherwise, it is a variable-sized range.
@@ -2044,6 +2098,8 @@ namespace {
             R->SetLowerVariable(LowerOffsetVariable);
             R->SetUpperConstant(UpperOffsetConstant);
             R->SetUpperVariable(UpperOffsetVariable);
+            R->SetHasIncompleteConstant(LowerKind == BaseRange::Kind::IncompleteConstantSized ||
+                                        UpperKind == BaseRange::Kind::IncompleteConstantSized);
             return true;
           }
         }
@@ -2106,6 +2162,8 @@ namespace {
             DeclaredRange, Cause, EquivExprs, Facts, FreeVariables);
         if (R == ProofResult::True)
           return R;
+        if (R == ProofResult::IncompleteTypes)
+          return ProofResult::Maybe;
         if (R == ProofResult::False || R == ProofResult::Maybe) {
           if (R == ProofResult::False && SrcRange.IsEmpty())
             Cause = CombineFailures(Cause, ProofFailure::SrcEmpty);
@@ -2631,7 +2689,9 @@ namespace {
       ReturnBounds(ReturnBounds),
       Context(SemaRef.Context),
       Facts(Facts),
-      BoundsAnalyzer(BoundsAnalysis(SemaRef, Cfg)),
+      BoundsWideningAnalyzer(BoundsWideningAnalysis(SemaRef, Cfg,
+                                                    Info.BoundsVarsLower,
+                                                    Info.BoundsVarsUpper)),
       AbstractSetMgr(AbstractSetManager(SemaRef, Info.VarUses)),
       BoundsSiblingFields(Info.BoundsSiblingFields),
       IncludeNullTerminator(false) {}
@@ -2646,12 +2706,14 @@ namespace {
       ReturnBounds(nullptr),
       Context(SemaRef.Context),
       Facts(Facts),
-      BoundsAnalyzer(BoundsAnalysis(SemaRef, nullptr)),
+      BoundsWideningAnalyzer(BoundsWideningAnalysis(SemaRef, nullptr,
+                                                    Info.BoundsVarsLower,
+                                                    Info.BoundsVarsUpper)),
       AbstractSetMgr(AbstractSetManager(SemaRef, Info.VarUses)),
       BoundsSiblingFields(Info.BoundsSiblingFields),
       IncludeNullTerminator(false) {}
 
-    void IdentifyChecked(Stmt *S, StmtSet &MemoryCheckedStmts, StmtSet &BoundsCheckedStmts, CheckedScopeSpecifier CSS) {
+    void IdentifyChecked(Stmt *S, StmtSetTy &MemoryCheckedStmts, StmtSetTy &BoundsCheckedStmts, CheckedScopeSpecifier CSS) {
       if (!S)
         return;
 
@@ -2672,7 +2734,7 @@ namespace {
     }
 
     // Add any subexpressions of S that occur in TopLevelElems to NestedExprs.
-    void MarkNested(const Stmt *S, StmtSet &NestedExprs, StmtSet &TopLevelElems) {
+    void MarkNested(const Stmt *S, StmtSetTy &NestedExprs, StmtSetTy &TopLevelElems) {
       auto Begin = S->child_begin(), End = S->child_end();
       for (auto I = Begin; I != End; ++I) {
         const Stmt *Child = *I;
@@ -2710,9 +2772,9 @@ namespace {
   //
   // For now, we want to skip B1.1, B2.1, and B3.1 because they will be processed
   // as part of B4.1.
-   void FindNestedElements(StmtSet &NestedStmts) {
+   void FindNestedElements(StmtSetTy &NestedStmts) {
       // Create the set of top-level CFG elements.
-      StmtSet TopLevelElems;
+      StmtSetTy TopLevelElems;
       for (const CFGBlock *Block : *Cfg) {
         for (CFGElement Elem : *Block) {
           if (Elem.getKind() == CFGElement::Statement) {
@@ -2736,34 +2798,33 @@ namespace {
       }
    }
 
-   void UpdateWidenedBounds(BoundsAnalysis &BA, const CFGBlock *Block,
-                            CheckingState &State) {
-     for (const auto item : BA.GetWidenedBounds(Block)) {
-       const VarDecl *V = item.first;
-       BoundsExpr *Bounds = item.second;
+   void UpdateWidenedBounds(BoundsWideningAnalysis &BA, const CFGBlock *Block,
+                            Stmt *CurrStmt, CheckingState &State) {
+     // Get the bounds widened before the current statement.
+     BoundsMapTy WidenedBounds = BA.GetStmtIn(Block, CurrStmt);
 
-       // BoundsAnalysis currently uses VarDecls as keys in the widened
-       // bounds data structure, so we create an AbstractSet for each 
-       // VarDecl in the widened bounds. TODO: use AbstractSets as keys
-       // in BoundsAnalysis (checkedc-clang issue #1015).
+     // BoundsWideningAnalysis currently uses VarDecls as keys in the widened
+     // bounds data structure, so we get the AbstractSet for each VarDecl in
+     // the widened bounds.
+     // TODO: use AbstractSets as keys in BoundsWideningAnalysis
+     // (checkedc-clang issue #1015).
+
+     // Update the bounds of each variable in ObservedBounds to the bounds
+     // computed by the bounds widening analysis.
+     // Note: Bounds widening analysis resets killed bounds of a variable to
+     // its declared bounds. So we do not need to explicitly reset killed
+     // bounds here.
+     for (const auto VarBoundsPair : WidenedBounds) {
+       const VarDecl *V = VarBoundsPair.first;
+       BoundsExpr *Bounds = VarBoundsPair.second;
+       if (!Bounds)
+         continue;
+
        const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
+
        auto I = State.ObservedBounds.find(A);
        if (I != State.ObservedBounds.end())
          I->second = Bounds;
-     }
-   }
-
-   void ResetKilledBounds(BoundsAnalysis &BA, const CFGBlock *Block,
-                          const Stmt *St, CheckingState &State) {
-     for (const VarDecl *V : BA.GetKilledBounds(Block, St)) {
-       // BoundsAnalysis currently uses VarDecls as keys in the killed
-       // bounds data structure, so we create an AbstractSet for each
-       // VarDecl in the killed bounds. TODO: use AbstractSets as keys
-       // in BoundsAnalysis (checkedc-clang issue #1015).
-       const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
-       auto I = State.ObservedBounds.find(A);
-       if (I != State.ObservedBounds.end())
-         I->second = S.NormalizeBounds(V);
      }
    }
 
@@ -2834,26 +2895,24 @@ namespace {
      llvm::DenseMap<unsigned int, CheckingState> BlockStates;
      BlockStates[Cfg->getEntry().getBlockID()] = ParamsState;
 
-     StmtSet NestedElements;
+     StmtSetTy NestedElements;
      FindNestedElements(NestedElements);
-     StmtSet MemoryCheckedStmts;
-     StmtSet BoundsCheckedStmts;
+     StmtSetTy MemoryCheckedStmts;
+     StmtSetTy BoundsCheckedStmts;
      IdentifyChecked(Body, MemoryCheckedStmts, BoundsCheckedStmts, CheckedScopeSpecifier::CSS_Unchecked);
 
      // Run the bounds widening analysis on this function.
-     BoundsAnalysis &BA = getBoundsAnalyzer();
-     BA.WidenBounds(FD, NestedElements);
+     BoundsWideningAnalyzer.WidenBounds(FD, NestedElements);
      if (S.getLangOpts().DumpWidenedBounds)
-       BA.DumpWidenedBounds(FD);
+       BoundsWideningAnalyzer.DumpWidenedBounds(FD, 0);
+     if (S.getLangOpts().DumpWidenedBoundsDataflowSets)
+       BoundsWideningAnalyzer.DumpWidenedBounds(FD, 1);
 
      PostOrderCFGView POView = PostOrderCFGView(Cfg);
      ResetFacts();
      for (const CFGBlock *Block : POView) {
        AFA.GetFacts(Facts);
        CheckingState BlockState = GetIncomingBlockState(Block, BlockStates);
-
-       // Update the observed bounds with the widened bounds calculated above.
-       UpdateWidenedBounds(BA, Block, BlockState);
 
        for (CFGElement Elem : *Block) {
          if (Elem.getKind() == CFGElement::Statement) {
@@ -2866,6 +2925,10 @@ namespace {
            // another top-level element.
            if (NestedElements.find(S) != NestedElements.end())
              continue;
+
+           // Update the observed bounds with the widened bounds computed
+           // above.
+           UpdateWidenedBounds(BoundsWideningAnalyzer, Block, S, BlockState);
 
            CheckedScopeSpecifier CSS = CheckedScopeSpecifier::CSS_Unchecked;
            const Stmt *Statement = S;
@@ -2908,13 +2971,6 @@ namespace {
             // declared bounds, the observed bounds for each AbstractSet should
             // be reset to their observed bounds from before checking S.
             BlockState.ObservedBounds = InitialObservedBounds;
-
-            // If the widened bounds of any variables are killed by statement
-            // S, reset their observed bounds to their declared bounds.
-            // Resetting the widened bounds killed by S should be the last
-            // thing done as part of traversing S.  The widened bounds of each
-            // variable should be in effect until the very end of traversing S.
-            ResetKilledBounds(BA, Block, S, BlockState);
          }
          else if (Elem.getKind() == CFGElement::LifetimeEnds) {
             // Every variable going out of scope is indicated by a LifetimeEnds
@@ -3941,8 +3997,7 @@ namespace {
                 << Init->getSourceRange();
           InitBounds = S.CreateInvalidBoundsExpr();
         } else if (CheckBounds) {
-          BoundsExpr *NormalizedDeclaredBounds =
-            BoundsUtil::ExpandToRange(S, D, DeclaredBounds);
+          BoundsExpr *NormalizedDeclaredBounds = S.NormalizeBounds(D);
           CheckBoundsDeclAtInitializer(D->getLocation(), D, NormalizedDeclaredBounds,
             Init, InitBounds, State.EquivExprs, CSS);
         }
@@ -4307,10 +4362,6 @@ namespace {
       return BoundsUtil::CreateBoundsAlwaysUnknown(S);
     }
 
-  public:
-
-    BoundsAnalysis &getBoundsAnalyzer() { return BoundsAnalyzer; }
-
   private:
     // Sets the bounds expressions based on whether e is an lvalue or an
     // rvalue expression.
@@ -4357,9 +4408,8 @@ namespace {
           EquivExprs.push_back({Target, Src});
       }
 
-      BoundsAnalysis &BA = getBoundsAnalyzer();
-      DeclSetTy BoundsWidenedAndNotKilled =
-        BA.GetBoundsWidenedAndNotKilled(Block, S);
+      BoundsMapTy BoundsWidenedAndNotKilled =
+        BoundsWideningAnalyzer.GetBoundsWidenedAndNotKilled(Block, S);
 
       for (auto const &Pair : State.ObservedBounds) {
         const AbstractSet *A = Pair.first;
@@ -4377,8 +4427,8 @@ namespace {
           // If the lvalue expressions in A are variables represented by a
           // declaration Var, we should issue diagnostics for observed bounds
           // if Var is not in the set BoundsWidenedAndKilled which represents
-          // variables whose bounds are widened in this block and not killed
-          // by statement S.
+          // variables whose bounds are widened in this block before statement
+          // S and not killed by statement S.
           bool DiagnoseObservedBounds = true;
           if (const VarDecl *Var = dyn_cast<VarDecl>(V))
             DiagnoseObservedBounds = BoundsWidenedAndNotKilled.find(Var) ==
@@ -6383,6 +6433,34 @@ BoundsExpr *Sema::NormalizeBounds(const VarDecl *D) {
 
   // Attach the normalized bounds to D to avoid recomputing them.
   D->setNormalizedBounds(ExpandedBounds);
+  return ExpandedBounds;
+}
+
+// If the BoundsDeclFact F has a byte_count or count bounds expression,
+// NormalizeBounds expands it to a range bounds expression.  The expanded
+// range bounds are attached to the BoundsDeclFact F to avoid recomputing
+// the normalized bounds for F.
+BoundsExpr *Sema::NormalizeBounds(const BoundsDeclFact *F) {
+  // Do not attempt to normalize bounds for bounds facts that are
+  // associated with invalid declarations.
+  const VarDecl *D = F->getVarDecl();
+  if (D->isInvalidDecl())
+    return nullptr;
+
+  // If F already has a normalized bounds expression, do not recompute it.
+  if (BoundsExpr *NormalizedBounds = F->getNormalizedBounds())
+    return NormalizedBounds;
+
+  // Expand the bounds expression of F to a RangeBoundsExpr if possible.
+  const BoundsExpr *B = F->getBoundsExpr();
+  BoundsExpr *ExpandedBounds = BoundsUtil::ExpandBoundsToRange(*this,
+                                             const_cast<VarDecl *>(D),
+                                             const_cast<BoundsExpr *>(B));
+  if (!ExpandedBounds)
+    return nullptr;
+
+  // Attach the normalized bounds to F to avoid recomputing them.
+  F->setNormalizedBounds(ExpandedBounds);
   return ExpandedBounds;
 }
 

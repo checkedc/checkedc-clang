@@ -1,10 +1,8 @@
-// RUN: 3c -base-dir=%S -extra-arg="-Wno-everything" -verify -alltypes -warn-root-cause %s --
+// RUN: 3c -base-dir=%S -alltypes -warn-root-cause %s -- -Xclang -verify -Wno-everything
 
 // This test is unusual in that it checks for the errors in the code
 
-#include <stddef.h>
-extern _Itype_for_any(T) void *malloc(size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
+#include <stdlib.h>
 
 void *x; // expected-warning {{Default void* type}}
 
@@ -38,7 +36,19 @@ void test1() {
   int *d = malloc(1); // expected-warning {{Unsafe call to allocator function}}
 }
 
-extern int *
-    glob; // expected-warning {{External global variable glob has no definition}}
+// expected-warning@+1 {{External global variable glob has no definition}}
+extern int *glob;
+
+// expected-warning@+1 {{Unchecked pointer in parameter or return of external function glob_f}}
+int *glob_f(void);
 
 void (*f)(void *); // expected-warning {{Default void* type}}
+
+typedef struct {
+  int x;
+  float f;
+} A, *PA;
+// expected-warning@-1 {{Unable to rewrite a typedef with multiple names}}
+
+// expected-warning@+1 {{Internal constraint for generic function declaration, for which 3C currently does not support re-solving.}}
+_Itype_for_any(T) void remember(void *p : itype(_Ptr<T>)) {}

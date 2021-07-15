@@ -1,8 +1,8 @@
 // RUN: rm -rf %t*
 // RUN: 3c -base-dir=%S -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
 // RUN: 3c -base-dir=%S -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: 3c -base-dir=%S --addcr --alltypes %s -- | %clang_cc1  -fcheckedc-extension -x c -
-// RUN: 3c -base-dir=%S --addcr %s -- | %clang_cc1  -fcheckedc-extension -x c -
+// RUN: 3c -base-dir=%S --addcr --alltypes %s -- | %clang -c  -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c -base-dir=%S --addcr %s -- | %clang -c  -fcheckedc-extension -x c -o /dev/null -
 // RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s
 // RUN: 3c -base-dir=%t.checked -alltypes %t.checked/typedefs.c -- | diff %t.checked/typedefs.c -
 
@@ -31,6 +31,8 @@ intptr bar(intptr x) {
   return x;
 }
 
+typedef int *integer;
+//CHECK: typedef _Ptr<int> integer;
 int foo(void) {
   //CHECK: int foo(void) {
   int x = 3;
@@ -43,6 +45,13 @@ int foo(void) {
   bad b = (int *)3;
   //CHECK: bad b = (int *)3;
   badP b2 = (intptr *)3;
+  typedef int nat;
+  const nat z = 3;
+  const nat *cnstp = &z;
+  //CHECK: _Ptr<const nat> cnstp = &z;
+  int w = 34;
+  const integer c = &w;
+  //CHECK: const integer c = &w;
 
   return *p;
 }
@@ -64,3 +73,13 @@ void barfoo(intptr x) {
   //CHECK: void barfoo(intptr x) _Checked {
   *x = 5;
 }
+
+#define MYDECL typedef int *ZZZ;
+MYDECL
+void zzz(void) {
+  int x = 3;
+  ZZZ z = &x;
+}
+typedef int **const a;
+//CHECK: typedef const _Ptr<_Ptr<int>> a;
+void xxx(void) { a b; }

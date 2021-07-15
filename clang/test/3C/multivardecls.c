@@ -6,8 +6,7 @@
 // RUN: 3c -base-dir=%t.checked -alltypes %t.checked/multivardecls.c -- | diff %t.checked/multivardecls.c -
 
 #include <stddef.h>
-_Itype_for_any(T) void *malloc(size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
+#include <stdlib.h>
 
 void test() {
   int *a = (int *)0, *b = (int *)0;
@@ -41,7 +40,7 @@ void test() {
   //CHECK: int o;
   //CHECK_ALL: int p _Checked[1];
   //CHECK_NOALL: int p[1];
-  //CHECK_ALL: int q _Checked[2] = {1, 2};
+  //CHECK_ALL: int q _Checked[] = {1, 2};
   //CHECK_NOALL: int q[] = {1, 2};
   //CHECK_ALL: int r _Checked[1] _Checked[1];
   //CHECK_NOALL: int r[1][1];
@@ -78,7 +77,7 @@ void test2() {
 
   int h, (*i)(int), *j, (*k)(int);
   // CHECK: int h;
-  // CHECK: _Ptr<int (int )> i = ((void *)0);
+  // CHECK: _Ptr<int (int)> i = ((void *)0);
   // CHECK: _Ptr<int> j = ((void *)0);
   // CHECK: int (*k)(int);
 

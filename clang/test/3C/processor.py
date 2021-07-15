@@ -7,6 +7,10 @@ import re
 import find_bin
 bin_path = find_bin.bin_path
 
+# Change to the subdirectory after calling `find_bin` (which assumes a working
+# directory of `clang/test/3C`) but before doing anything else.
+os.chdir("b_tests")
+
 structs = """\
 struct np {
   int x;

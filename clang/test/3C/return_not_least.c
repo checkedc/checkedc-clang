@@ -40,9 +40,7 @@ int *foo(void) {
   return q;
 }
 
-#include <stddef.h>
-extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size)
-    : itype(_Array_ptr<T>) byte_count(nmemb * size);
+#include <stdlib.h>
 
 int *bar() {
   //CHECK_NOALL: int *bar(void) : itype(_Ptr<int>) {

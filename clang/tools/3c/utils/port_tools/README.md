@@ -48,7 +48,7 @@ Second, run `convert_project.py`:
 ```
 python convert_project.py --help
 
-usage: convert_project.py [-h] [--includeDir INCLUDEDIR] [-p PROG_NAME] -pr
+usage: convert_project.py [-h] [-p PROG_NAME] -pr
 
 PROJECT_PATH
 
@@ -61,12 +61,6 @@ Convert the provided project into Checked C.
 optional arguments:
 
 -h, --help show this help message and exit
-
---includeDir INCLUDEDIR
-
-Path to the checkedC headers, run from a checkedCclang
-
-repo
 
 -p PROG_NAME, --prog_name PROG_NAME
 
@@ -81,5 +75,5 @@ Path to the folder containing all project sources.
 Example:
 
 ```
-python convert_project.py -pr <project_folder> -p <checked_c_llvm_build_dir>/bin/3c --includeDir <checked_c_llvm_src_dir>/llvm/projects/checkedc-wrapper/checkedc/include
+python convert_project.py -pr <project_folder> -p <checked_c_llvm_build_dir>/bin/3c
 ```

@@ -13023,10 +13023,17 @@ bool Sema::ValidateNTCheckedType(ASTContext &Ctx, QualType VDeclType,
         }
       } else if (InitListExpr *E = dyn_cast<InitListExpr>(Init)) {
         if (!E->isNullTerminated(Ctx, *DeclaredArraySize)) {
-          const Expr *LastItem = E->getInit(E->getNumInits() - 1);
-          Diag(LastItem->getBeginLoc(),
-               diag::err_initializer_not_null_terminated_for_nt_checked)
-              << LastItem->getSourceRange();
+          if (E->getNumInits() == 0) {
+            Diag(Init->getBeginLoc(),
+                 diag::err_initializer_not_null_terminated_for_nt_checked)
+                 << Init->getSourceRange();
+
+          } else {
+            const Expr *LastItem = E->getInit(E->getNumInits() - 1);
+            Diag(LastItem->getBeginLoc(),
+                 diag::err_initializer_not_null_terminated_for_nt_checked)
+                 << LastItem->getSourceRange();
+          }
           return false;
         }
       }

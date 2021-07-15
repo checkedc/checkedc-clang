@@ -25,7 +25,8 @@ https://github.com/correctcomputation/checkedc-clang or
 https://github.com/microsoft/checkedc-clang (or, of course, a
 third-party fork, though we can't be responsible for that). Assuming
 you have already cloned one of these repositories, run the following
-(from the root of the working tree) for a basic build:
+(from the `checkedc-clang` directory or whatever you named your clone)
+for a basic build:
 
 ```
 # Get a copy of the Checked C system headers. Use Microsoft's

@@ -6,23 +6,6 @@
 #include <string.h>
 
 #include <stddef.h>
-extern _Itype_for_any(T) void *malloc(size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
-extern _Itype_for_any(T) void *realloc(void *pointer
-                                       : itype(_Array_ptr<T>) byte_count(1),
-                                         size_t size)
-    : itype(_Array_ptr<T>) byte_count(size);
-extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size)
-    : itype(_Array_ptr<T>) byte_count(nmemb * size);
-
-// From string_checked.h
-#if _FORTIFY_SOURCE == 0 || _FORTIFY_SOURCE == 2 || !defined(strcpy)
-#undef strcpy
-// Dest is left unchecked intentionally. There is no bound on dest, so this
-// is always an unchecked function
-_Unchecked char *strcpy(char *restrict dest, const char *restrict src
-                        : itype(restrict _Nt_array_ptr<const char>));
-#endif
 
 void basic1() {
   char data[] = "abcdefghijklmnop";
@@ -35,7 +18,7 @@ void basic1() {
 }
 
 //CHECK_NOALL: char data[] = "abcdefghijklmnop";
-//CHECK_ALL: char data _Nt_checked[17] =  "abcdefghijklmnop";
+//CHECK_ALL: char data _Nt_checked[] =  "abcdefghijklmnop";
 //CHECK: char *buffer = malloc<char>(50);
 
 char *basic2(int temp) {
@@ -60,8 +43,8 @@ char *basic2(int temp) {
 }
 //CHECK_ALL: char *basic2(int temp) : itype(_Nt_array_ptr<char>) {
 //CHECK_NOALL: char *basic2(int temp) : itype(_Ptr<char>) {
-//CHECK_ALL: char data _Nt_checked[17] =  "abcdefghijklmnop";
-//CHECK_ALL: char data2 _Nt_checked[65] =
+//CHECK_ALL: char data _Nt_checked[] =  "abcdefghijklmnop";
+//CHECK_ALL: char data2 _Nt_checked[] =
 //CHECK: char *buffer = malloc<char>(8);
 //CHECK: char *buffer = malloc<char>(1024);
 
@@ -200,7 +183,7 @@ struct student *new_student() {
 }
 //CHECK: _Ptr<struct student> new_student(void) {
 //CHECK_NOALL: char name[] = "Bilbo Baggins";
-//CHECK_ALL: char name _Nt_checked[14] =  "Bilbo Baggins";
+//CHECK_ALL: char name _Nt_checked[] =  "Bilbo Baggins";
 //CHECK: _Ptr<struct student> new_s =  malloc<struct student>(sizeof(struct student));
 
 int main() {

@@ -31,8 +31,8 @@ class CheckedRegionAdder
 public:
   explicit CheckedRegionAdder(
       clang::ASTContext *C, clang::Rewriter &R,
-      std::map<llvm::FoldingSetNodeID, AnnotationNeeded> &M)
-      : Context(C), Writer(R), Map(M) {}
+      std::map<llvm::FoldingSetNodeID, AnnotationNeeded> &M, ProgramInfo &I)
+      : Context(C), Writer(R), Map(M), Info(I) {}
 
   bool VisitCompoundStmt(clang::CompoundStmt *S);
   bool VisitCallExpr(clang::CallExpr *C);
@@ -45,6 +45,7 @@ private:
   clang::ASTContext *Context;
   clang::Rewriter &Writer;
   std::map<llvm::FoldingSetNodeID, AnnotationNeeded> &Map;
+  ProgramInfo &Info;
 };
 
 class CheckedRegionFinder

@@ -7156,16 +7156,62 @@ public:
 
 /// \brief Represents a Checked C where clause bounds decl fact.
 class BoundsDeclFact : public WhereClauseFact {
-public:
+private:
   VarDecl *Var;
   BoundsExpr *Bounds;
+  BoundsExpr *NormalizedBounds;
 
+public:
   BoundsDeclFact(VarDecl *Var, BoundsExpr *Bounds, SourceLocation Loc)
     : WhereClauseFact(FactKind::BoundsDeclFact, Loc),
-      Var(Var), Bounds(Bounds) {}
+      Var(Var), Bounds(Bounds), NormalizedBounds(nullptr) {}
 
   static bool classof(const WhereClauseFact *Fact) {
     return Fact->Kind == FactKind::BoundsDeclFact;
+  }
+
+  // \brief The variable declaration associated with this bounds fact.
+  VarDecl *getVarDecl() const {
+    return const_cast<BoundsDeclFact *>(this)->getVarDecl();
+  }
+
+  // \brief The variable declaration associated with this bounds fact.
+  VarDecl *getVarDecl() {
+    return Var;
+  }
+
+  // \brief The bounds expression associated with this bounds fact.
+  BoundsExpr *getBoundsExpr() const {
+    return const_cast<BoundsDeclFact *>(this)->getBoundsExpr();
+  }
+
+  // \brief The bounds expression associated with this bounds fact.
+  BoundsExpr *getBoundsExpr() {
+    return Bounds;
+  }
+
+  // \brief The bounds expression for this bounds fact, expanded to a
+  // range bounds expression.
+  BoundsExpr *getNormalizedBounds() const {
+    return const_cast<BoundsDeclFact *>(this)->getNormalizedBounds();
+  }
+
+  // \brief The bounds expression for this bounds fact, expanded to a
+  // range bounds expression.
+  BoundsExpr *getNormalizedBounds() {
+    return NormalizedBounds;
+  }
+
+  // \brief Set the bounds expression for this bounds fact, expanded to a
+  // range bounds expression.
+  void setNormalizedBounds(BoundsExpr *E) const {
+    const_cast<BoundsDeclFact *>(this)->setNormalizedBounds(E);
+  }
+
+  // \brief Set the bounds expression for this bounds fact, expanded to a
+  // range bounds expression.
+  void setNormalizedBounds(BoundsExpr *E) {
+    NormalizedBounds = E;
   }
 };
 
