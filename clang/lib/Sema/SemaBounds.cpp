@@ -2106,6 +2106,8 @@ namespace {
 
       // E must be of the form P op2 B or B + P, where P has pointer type
       // and B is an integer constant expression.
+      // Note that E cannot be of the form B - P, since a pointer cannot
+      // appear on the right-hand side of a subtraction operator.
       if (BO->getLHS()->getType()->isPointerType() &&
           BO->getRHS()->isIntegerConstantExpr(C, S.Context)) {
         PointerExpr = BO->getLHS();
