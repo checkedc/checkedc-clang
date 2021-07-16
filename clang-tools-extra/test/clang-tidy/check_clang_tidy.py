@@ -79,6 +79,9 @@ def run_test_once(args, extra_args):
   # implementations of relevant APIs.
   clang_extra_args.append('-nostdinc++')
 
+  # clang-tidy does not yet support code in Checked C.
+  clang_extra_args.append('-fno-checkedc-extension')
+
   if resource_dir is not None:
     clang_extra_args.append('-resource-dir=%s' % resource_dir)
 
