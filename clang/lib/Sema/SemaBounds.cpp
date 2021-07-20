@@ -43,6 +43,7 @@
 #include "clang/AST/AbstractSet.h"
 #include "clang/AST/CanonBounds.h"
 #include "clang/AST/ExprUtils.h"
+#include "clang/AST/NormalizeUtils.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Sema/AvailableFactsAnalysis.h"
 #include "clang/Sema/BoundsUtils.h"
@@ -1068,127 +1069,6 @@ namespace {
       }
 
     private:
-      // EnsureEqualBitWidths modifies A or B if necessary so that A and B
-      // have the same bit width. The bit width of A and B will be the larger
-      // of the original bit widths of A and B.
-      //
-      // TODO: this method is part of a temporary solution to enable bounds
-      // checking to validate bounds such as (p, p + (len + 1) - 1). In the
-      // future, we should handle constant folding, commutativity, and
-      // associativity in bounds expressions in a more general way.
-      void EnsureEqualBitWidths(llvm::APSInt &A, llvm::APSInt &B) {
-        if (A.getBitWidth() < B.getBitWidth())
-          A = A.extOrTrunc(B.getBitWidth());
-        else if (B.getBitWidth() < A.getBitWidth())
-          B = B.extOrTrunc(A.getBitWidth());
-      }
-
-      // If E is of the form e +/- c, where c is a constant, GetRHSConstant
-      // returns true and sets the out parameter Constant.
-      // If E is of the form e + c, Constant will be set to c.
-      // If E is of the form e - c, Constant will be set to -c.
-      //
-      // TODO: this method is part of a temporary solution to enable bounds
-      // checking to validate bounds such as (p, p + (len + 1) - 1). In the
-      // future, we should handle constant folding, commutativity, and
-      // associativity in bounds expressions in a more general way.
-      bool GetRHSConstant(BinaryOperator *E, llvm::APSInt &Constant) {
-        if (!E->isAdditiveOp())
-          return false;
-        if (!E->getRHS()->isIntegerConstantExpr(Constant, S.Context))
-          return false;
-
-        bool Overflow;
-        Constant = ExprUtil::ConvertToSignedPointerWidth(S.Context, Constant, Overflow);
-        if (Overflow)
-          return false;
-        // Normalize the operation by negating the offset if necessary.
-        if (E->getOpcode() == BO_Sub) {
-          uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(0);
-          Constant = llvm::APSInt(PointerWidth, false).ssub_ov(Constant, Overflow);
-          if (Overflow)
-            return false;
-        }
-        llvm::APSInt ElemSize;
-        if (!ExprUtil::getReferentSizeInChars(S.Context, Base->getType(), ElemSize))
-          return false;
-        Constant = Constant.smul_ov(ElemSize, Overflow);
-        if (Overflow)
-          return false;
-
-        return true;
-      }
-
-      // ConstantFoldUpperOffset performs simple constant folding operations on
-      // UpperOffsetVariable. It attempts to extract a Variable part and a
-      // Constant part, based on the form of UpperOffsetVariable.
-      //
-      // If UpperOffsetVariable is of the form (e + a) + b:
-      //   Variable = e, Constant = a + b.
-      // If UpperOffsetVariable is of the form (e + a) - b:
-      //   Variable = e, Constant = a + -b.
-      // If UpperOffsetVariable is of the form (e - a) + b:
-      //   Variable = e, Constant = -a + b.
-      // If UpperOffsetVariable is of the form (e - a) - b:
-      //   Variable = e, Constant = -a + -b.
-      //
-      // Otherwise, ConstantFoldUpperOffset returns false, and:
-      //   Variable = UpperOffsetVariable, Constant = 0.
-      //
-      // TODO: this method is part of a temporary solution to enable bounds
-      // checking to validate bounds such as (p, p + (len + 1) - 1). In the
-      // future, we should handle constant folding, commutativity, and
-      // associativity in bounds expressions in a more general way.
-      bool ConstantFoldUpperOffset(Expr *&Variable, llvm::APSInt &Constant) {
-        if (!IsUpperOffsetVariable())
-          return false;
-
-        llvm::APSInt LHSConst;
-        llvm::APSInt RHSConst;
-        BinaryOperator *LHSBinOp = nullptr;
-
-        // UpperOffsetVariable must be of the form LHS +/- RHS.
-        BinaryOperator *RootBinOp =
-          dyn_cast<BinaryOperator>(UpperOffsetVariable->IgnoreParens());
-        if (!RootBinOp)
-          goto exit;
-        if (!RootBinOp->isAdditiveOp())
-          goto exit;
-
-        // UpperOffsetVariable must be of the form (e1 +/- e2) +/- RHS.
-        LHSBinOp = dyn_cast<BinaryOperator>(RootBinOp->getLHS()->IgnoreParens());
-        if (!LHSBinOp)
-          goto exit;
-        if (!LHSBinOp->isAdditiveOp())
-          goto exit;
-
-        // UpperOffsetVariable must be of the form (e1 +/- e2) +/- b,
-        // where b is a constant.
-        if (!GetRHSConstant(RootBinOp, RHSConst))
-          goto exit;
-
-        // UpperOffsetVariable must be of the form (e1 +/- a) +/- b,
-        // where a is a constant.
-        if (!GetRHSConstant(LHSBinOp, LHSConst))
-          goto exit;
-
-        Variable = LHSBinOp->getLHS();
-
-        bool Overflow;
-        EnsureEqualBitWidths(LHSConst, RHSConst);
-        Constant = LHSConst.sadd_ov(RHSConst, Overflow);
-        if (Overflow)
-          goto exit;
-        return true;
-
-        exit:
-          // Return (UpperOffsetVariable, 0).
-          Variable = UpperOffsetVariable;
-          uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(0);
-          Constant = llvm::APSInt(PointerWidth, false);
-          return false;
-      }
-
       // CompareConstantFoldedUpperOffsets is a fallback method that attempts
       // to prove that R.UpperOffsetVariable <= this.UpperOffsetVariable.
       // It returns true if:
@@ -1209,13 +1089,20 @@ namespace {
       // associativity in bounds expressions in a more general way.
       bool CompareUpperOffsetsWithConstantFolding(BaseRange &R,
                                                   EquivExprSets *EquivExprs) {
+        if (!IsUpperOffsetVariable() || !R.IsUpperOffsetVariable())
+          return false;
+
         Expr *Variable = nullptr;
         llvm::APSInt Constant;
-        bool ConstFolded = ConstantFoldUpperOffset(Variable, Constant);
+        bool ConstFolded = NormalizeUtil::ConstantFold(S, UpperOffsetVariable,
+                                                       Base->getType(),
+                                                       Variable, Constant);
 
         Expr *RVariable = nullptr;
         llvm::APSInt RConstant;
-        bool RConstFolded = R.ConstantFoldUpperOffset(RVariable, RConstant);
+        bool RConstFolded = NormalizeUtil::ConstantFold(S, R.UpperOffsetVariable,
+                                                        R.Base->getType(),
+                                                        RVariable, RConstant);
 
         // If neither this nor R had their upper offsets constant folded, then
         // the variable parts will be the respective upper offsets and the
@@ -1233,7 +1120,7 @@ namespace {
         if (!ExprUtil::EqualValue(S.Context, Variable, RVariable, EquivExprs))
           return false;
 
-        EnsureEqualBitWidths(Constant, RConstant);
+        ExprUtil::EnsureEqualBitWidths(Constant, RConstant);
         return RConstant <= Constant;
       }
 
@@ -2124,8 +2011,145 @@ namespace {
           }
         }
         return R;
-      }
+      } else if (CompareNormalizedBounds(DeclaredBounds, SrcBounds, EquivExprs))
+        return ProofResult::True;
       return ProofResult::Maybe;
+    }
+
+    // CompareNormalizedBounds returns true if SrcBounds implies DeclaredBounds
+    // after applying certain transformations to the upper bound expressions
+    // of both bounds.
+    bool CompareNormalizedBounds(const BoundsExpr *DeclaredBounds,
+                                 const BoundsExpr *SrcBounds,
+                                 EquivExprSets *EquivExprs) {
+      // DeclaredBounds and SrcBounds must both be range bounds in order
+      // to normalize their upper bound expression.
+      const RangeBoundsExpr *DeclaredRangeBounds =
+        dyn_cast<RangeBoundsExpr>(DeclaredBounds);
+      if (!DeclaredRangeBounds)
+        return false;
+      const RangeBoundsExpr *SrcRangeBounds =
+        dyn_cast<RangeBoundsExpr>(SrcBounds);
+      if (!SrcRangeBounds)
+        return false;
+
+      // The lower bound expressions must be equivalent.
+      if (!ExprUtil::EqualValue(S.Context, DeclaredRangeBounds->getLowerExpr(),
+                                SrcRangeBounds->getLowerExpr(), EquivExprs))
+        return false;
+      
+      // Attempt to get a variable part and a constant part from the
+      // declared upper bound by applying certain normalizations.
+      Expr *DeclaredVariable = nullptr;
+      llvm::APSInt DeclaredConstant;
+      bool NormalizedDeclared =
+        NormalizeUpperBound(DeclaredRangeBounds->getUpperExpr(),
+                            DeclaredVariable, DeclaredConstant);
+
+      // Attempt to get a variable part and a constant part from the
+      // source upper bound by applying certain normalizations.
+      Expr *SrcVariable = nullptr;
+      llvm::APSInt SrcConstant;
+      bool NormalizedSrc =
+        NormalizeUpperBound(SrcRangeBounds->getUpperExpr(),
+                            SrcVariable, SrcConstant);
+
+      // We must be able to normalize at least one of the upper bounds in
+      // order to compare them.
+      if (!NormalizedDeclared && !NormalizedSrc)
+        return false;
+
+      // Both upper bounds must have a Variable part.
+      if (!DeclaredVariable || !SrcVariable)
+        return false;
+
+      // The variable parts of the upper bounds must be equivalent.
+      if (!ExprUtil::EqualValue(S.Context, DeclaredVariable, SrcVariable, EquivExprs))
+        return false;
+
+      // SrcBounds implies DeclaredBounds if and only if the declared upper
+      // constant part is less than or equal to the source upper constant part.
+      ExprUtil::EnsureEqualBitWidths(DeclaredConstant, SrcConstant);
+      return DeclaredConstant <= SrcConstant;
+    }
+
+    // NormalizeUpperBound attempts to extract a Variable part and a Constant
+    // part from the upper bound expression E.
+    //
+    // If E can be expressed as:
+    // 1. (E1 + (E2 op1 A)) op2 B, or:
+    // 2. B + (E1 + (E2 op1 A))
+    // where:
+    // 1. E1 has pointer type, and:
+    // 2. E2 has integer type, and:
+    // 3. A and B are integer constants, and:
+    // 4. op1 and op2 are + or -
+    // then:
+    // 1. Variable = E1 + E2
+    // 2. Constant = A' + B', where A' is -A if op1 is - and B' is -B if
+    //    op2 is -.
+    //
+    // If we cannot normalize E to one of these two forms, then Variable = E,
+    // Constant = 0, and NormalizeUpperBound returns false.
+    bool NormalizeUpperBound(Expr *E, Expr *&Variable, llvm::APSInt &Constant) {
+      Expr *PointerExpr;
+      Expr *ConstExpr;
+      llvm::APSInt C;
+      Expr *PointerAndConst;
+
+      // E must be of the form X op2 Y, where op2 is + or -.
+      BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens());
+      if (!BO)
+        goto exit;
+      if (!BinaryOperator::isAdditiveOp(BO->getOpcode()))
+        goto exit;
+
+      // E must be of the form P op2 B or B + P, where P has pointer type
+      // and B is an integer constant expression.
+      // Note that E cannot be of the form B - P, since a pointer cannot
+      // appear on the right-hand side of a subtraction operator.
+      if (BO->getLHS()->getType()->isPointerType() &&
+          BO->getRHS()->isIntegerConstantExpr(C, S.Context)) {
+        PointerExpr = BO->getLHS();
+        ConstExpr = BO->getRHS();
+      } else if (BO->getOpcode() == BinaryOperatorKind::BO_Add &&
+                 BO->getRHS()->getType()->isPointerType() &&
+                 BO->getLHS()->isIntegerConstantExpr(C, S.Context)) {
+        PointerExpr = BO->getRHS();
+        ConstExpr = BO->getLHS();
+      } else
+        goto exit;
+
+      // Normalize X - Y operators in PointerExpr and its children to X + -Y.
+      // If we cannot, then PointerExpr is not a +/- operator, so we cannot
+      // continue to normalize.
+      PointerExpr = NormalizeUtil::TransformAdditiveOp(S, PointerExpr);
+      if (!PointerExpr)
+        goto exit;
+
+      // Associate PointerExpr to the left to get (E1 + E2) + E3.
+      // If we cannot, then we cannot continue to normalize.
+      PointerExpr = NormalizeUtil::TransformAssocLeft(S, PointerExpr);
+      if (!PointerExpr)
+        goto exit;
+
+      // We have PointerExpr of the form (E1 + E2) + E3. Try to constant fold
+      // ((E1 + E2) + E3) op2 B to (E1 + E2) + (E3 op2 B).
+      // If we can perform this constant folding, then Variable = E1 + E2 and
+      // Constant = E3 op2 B.
+      // Otherwise, Variable = E and Constant = 0.
+      PointerAndConst =
+        ExprCreatorUtil::CreateBinaryOperator(S, PointerExpr, ConstExpr,
+                                              BO->getOpcode());
+      return NormalizeUtil::ConstantFold(S, PointerAndConst, E->getType(),
+                                         Variable, Constant);
+
+      exit:
+        // Return (E, 0).
+        Variable = E;
+        uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(0);
+        Constant = llvm::APSInt(PointerWidth, false);
+        return false;
     }
 
     // Try to prove that PtrBase + Offset is within Bounds, where PtrBase has pointer type.
