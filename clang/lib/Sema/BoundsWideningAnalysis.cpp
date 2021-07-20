@@ -75,6 +75,39 @@ void BoundsWideningAnalysis::WidenBounds(FunctionDecl *FD,
   }
 }
 
+BoundsMapTy BoundsWideningAnalysis::GetOutOfLastStmt(
+  ElevatedCFGBlock *EB) const {
+
+  // Traverse statements in the block and compute the SmtOut set for each
+  // statement and return the StmtOut for the last statement of the block.
+
+  BoundsMapTy StmtOut = EB->In;
+
+  for (CFGBlock::const_iterator I = EB->Block->begin(),
+                                E = EB->Block->end();
+       I != E; ++I) {
+    CFGElement Elem = *I;
+    if (Elem.getKind() != CFGElement::Statement)
+      continue;
+    const Stmt *CurrStmt = Elem.castAs<CFGStmt>().getStmt();
+    if (!CurrStmt)
+      continue;
+
+    // If this is the last statement of the current block, then at this point
+    // StmtOut contains the Out set of the second last statement of the block.
+    // This is equal to the In set for the last statement of this block. So we
+    // set InOfLastStmt to StmtOut.
+    if (CurrStmt == EB->LastStmt)
+      EB->InOfLastStmt = StmtOut;
+
+    auto Diff = BWUtil.Difference(StmtOut, EB->StmtKill[CurrStmt]);
+
+    // TODO: Update StmtOut based on the invertibility of CurrStmt.
+    StmtOut = BWUtil.Union(Diff, EB->StmtGen[CurrStmt]);
+  }
+  return StmtOut;
+}
+
 void BoundsWideningAnalysis::ComputeGenKillSets(ElevatedCFGBlock *EB,
                                                 StmtSetTy NestedStmts) {
   const Stmt *PrevStmt = nullptr;
@@ -94,12 +127,6 @@ void BoundsWideningAnalysis::ComputeGenKillSets(ElevatedCFGBlock *EB,
     // Compute Gen and Kill sets for the current statement.
     ComputeStmtGenKillSets(EB, CurrStmt, NestedStmts);
 
-    // To compute the In sets for blocks we need to union the Gen and Kill sets
-    // of all statement in the block. This union operation is independent of
-    // the fixedpoint computation and hence can be done outside the loop to
-    // speed-up the fixedpoint loop.
-    ComputeUnionGenKillSets(EB, CurrStmt, PrevStmt);
-
     // Update the list of null-terminated arrays in the function with the
     // null-terminated arrays that became part of Gen set for the current
     // statement.
@@ -108,14 +135,12 @@ void BoundsWideningAnalysis::ComputeGenKillSets(ElevatedCFGBlock *EB,
     EB->PrevStmtMap[CurrStmt] = PrevStmt;
     PrevStmt = CurrStmt;
 
-    // Store the last statement of the block. We will use it later in the block
-    // In, Gen and Kill set computations.
-    if (I == E - 1)
-      EB->LastStmt = CurrStmt;
+    // We need the last statement of the block during In/Out set computations.
+    // Let the current statement be the last statement of the block. At the end
+    // of this loop EB->LastStmt will contain the actual last statement of the
+    // block (if the block contains at least one statement, else nullptr).
+    EB->LastStmt = CurrStmt;
   }
-
-  // Compute the Gen and Kill sets for the block.
-  ComputeBlockGenKillSets(EB);
 }
 
 void BoundsWideningAnalysis::ComputeStmtGenKillSets(ElevatedCFGBlock *EB,
@@ -199,35 +224,6 @@ void BoundsWideningAnalysis::ComputeStmtGenKillSets(ElevatedCFGBlock *EB,
   FillStmtGenKillSets(EB, CurrStmt, VarsAndBounds);
 }
 
-void BoundsWideningAnalysis::ComputeUnionGenKillSets(ElevatedCFGBlock *EB,
-                                                     const Stmt *CurrStmt,
-                                                     const Stmt *PrevStmt) {
-  // If this is the first statement in the block.
-  if (!PrevStmt) {
-    EB->UnionGen[CurrStmt] = EB->StmtGen[CurrStmt];
-    EB->UnionKill[CurrStmt] = EB->StmtKill[CurrStmt];
-    return;
-  }
-
-  EB->UnionKill[CurrStmt] = BWUtil.Union(EB->UnionKill[PrevStmt],
-                                         EB->StmtKill[CurrStmt]);
-
-  auto Diff = BWUtil.Difference(EB->UnionGen[PrevStmt],
-                                EB->StmtKill[CurrStmt]);
-  EB->UnionGen[CurrStmt] = BWUtil.Union(Diff, EB->StmtGen[CurrStmt]);
-}
-
-void BoundsWideningAnalysis::ComputeBlockGenKillSets(ElevatedCFGBlock *EB) {
-  // Initialize the Gen and Kill sets for the block.
-  EB->Gen = BoundsMapTy();
-  EB->Kill = VarSetTy();
-
-  if (EB->LastStmt) {
-    EB->Gen = EB->UnionGen[EB->LastStmt];
-    EB->Kill = EB->UnionKill[EB->LastStmt];
-  }
-}
-
 bool BoundsWideningAnalysis::ComputeInSet(ElevatedCFGBlock *EB) {
   const CFGBlock *CurrBlock = EB->Block;
   auto OrigIn = EB->In;
@@ -293,10 +289,10 @@ BoundsMapTy BoundsWideningAnalysis::PruneOutSet(
   // Check if the edge from pred to the current block is a true edge.
   bool IsEdgeTrue = BWUtil.IsTrueEdge(PredBlock, CurrBlock);
 
-  // Get the StmtIn of the last statement in the pred block. If the pred
-  // block does not have any statements then StmtInOfLastStmtOfPred is set to
+  // Get the In of the last statement in the pred block. If the pred
+  // block does not have any statements then InOfLastStmtOfPred is set to
   // the In set of the pred block.
-  BoundsMapTy StmtInOfLastStmtOfPred = GetStmtIn(PredBlock, PredEB->LastStmt);
+  BoundsMapTy InOfLastStmtOfPred = PredEB->InOfLastStmt;
 
   // Check if the current block is a case of a switch-case.
   bool IsSwitchCase = BWUtil.IsSwitchCaseBlock(CurrBlock);
@@ -311,15 +307,15 @@ BoundsMapTy BoundsWideningAnalysis::PruneOutSet(
   // the current block. To determine this, we need to check if the
   // dereference is at the upper bound and if we are on a true edge. Else we
   // will reset the bounds of V in PrunedOutSet to the bounds of V in
-  // StmtInOfLastStmtOfPred.
+  // InOfLastStmtOfPred.
   for (auto VarBoundsPair : PredEB->Out) {
     const VarDecl *V = VarBoundsPair.first;
-    auto StmtInIt = StmtInOfLastStmtOfPred.find(V);
+    auto StmtInIt = InOfLastStmtOfPred.find(V);
 
-    // If V is not present in StmtIn of the last statement (maybe as a result
-    // of being killed before the last statement) then V cannot be widened in
-    // this block. So we remove V from the computation of the In set for this
-    // block. For example:
+    // If V is not present in In of the last statement (maybe as a result of
+    // being killed before the last statement) then V cannot be widened in this
+    // block. So we remove V from the computation of the In set for this block.
+    // For example:
 
     // B1:
     //   1: _Nt_array_ptr<char> p : bounds(p, p + i);
@@ -339,7 +335,7 @@ BoundsMapTy BoundsWideningAnalysis::PruneOutSet(
     // method simple we check if V is in StmtIn of the last statement of pred
     // and accordingly remove it from PrunedOutSet.
 
-    if (StmtInIt == StmtInOfLastStmtOfPred.end()) {
+    if (StmtInIt == InOfLastStmtOfPred.end()) {
       PrunedOutSet.erase(V);
       continue;
     }
@@ -442,8 +438,10 @@ BoundsMapTy BoundsWideningAnalysis::PruneOutSet(
 bool BoundsWideningAnalysis::ComputeOutSet(ElevatedCFGBlock *EB) {
   auto OrigOut = EB->Out;
 
-  auto Diff = BWUtil.Difference(EB->In, EB->Kill);
-  EB->Out = BWUtil.Union(Diff, EB->Gen);
+  // Set the Out set of the block to the Out set for the last statement of the
+  // current block. If the current block does not have any statements
+  // GetOutOfLastStmt returns the In set of the block.
+  EB->Out = GetOutOfLastStmt(EB);
 
   // Return true if the Out set has changed, false otherwise.
   return !BWUtil.IsEqual(EB->Out, OrigOut);
@@ -484,6 +482,7 @@ void BoundsWideningAnalysis::InitBlockInOutSets(FunctionDecl *FD,
     for (const VarDecl *V : AllNullTermPtrsInFunc) {
       EB->In[V] = Top;
       EB->Out[V] = Top;
+      EB->InOfLastStmt[V] = Top;
     }
   }
 }
@@ -513,9 +512,13 @@ BoundsMapTy BoundsWideningAnalysis::GetStmtOut(const CFGBlock *B,
   ElevatedCFGBlock *EB = BlockIt->second;
 
   if (CurrStmt) {
-    auto Diff = BWUtil.Difference(EB->In, EB->UnionKill[CurrStmt]);
-    return BWUtil.Union(Diff, EB->UnionGen[CurrStmt]);
+    auto Diff = BWUtil.Difference(EB->OutOfPrevStmt, EB->StmtKill[CurrStmt]);
+    auto StmtOut = BWUtil.Union(Diff, EB->StmtGen[CurrStmt]);
+    EB->OutOfPrevStmt = StmtOut;
+    return StmtOut;
   }
+
+  EB->OutOfPrevStmt = EB->In;
   return EB->In;
 }
 
@@ -545,8 +548,8 @@ BoundsMapTy BoundsWideningAnalysis::GetBoundsWidenedAndNotKilled(
 
   ElevatedCFGBlock *EB = BlockIt->second;
 
-  BoundsMapTy StmtInOfCurrStmt = GetStmtIn(B, CurrStmt);
-  return BWUtil.Difference(StmtInOfCurrStmt, EB->StmtKill[CurrStmt]);
+  BoundsMapTy InOfCurrStmt = GetStmtIn(B, CurrStmt);
+  return BWUtil.Difference(InOfCurrStmt, EB->StmtKill[CurrStmt]);
 }
 
 void BoundsWideningAnalysis::InitNullTermPtrsInFunc(FunctionDecl *FD) {
@@ -777,6 +780,11 @@ void BoundsWideningAnalysis::PrintBoundsMap(BoundsMapTy BoundsMap,
 }
 
 void BoundsWideningAnalysis::PrintStmt(const Stmt *CurrStmt) const {
+  if (!CurrStmt) {
+    OS << "\n";
+    return;
+  }
+
   std::string Str;
   llvm::raw_string_ostream SS(Str);
   CurrStmt->printPretty(SS, nullptr, Ctx.getPrintingPolicy());
@@ -825,14 +833,6 @@ void BoundsWideningAnalysis::DumpWidenedBounds(FunctionDecl *FD,
       // Print the In set for the block.
       OS << "\n  In:\n";
       PrintBoundsMap(EB->In, PrintOption);
-
-      // Print the Gen set for the block.
-      OS << "  Gen:\n";
-      PrintBoundsMap(EB->Gen, PrintOption);
-
-      // Print the Kill set for the block.
-      OS << "  Kill:\n";
-      PrintVarSet(EB->Kill, PrintOption);
 
       // Print the Out set for the block.
       OS << "  Out:\n";
