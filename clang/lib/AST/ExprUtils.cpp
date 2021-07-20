@@ -82,6 +82,17 @@ MemberExpr *ExprCreatorUtil::CreateMemberExpr(Sema &SemaRef, Expr *Base,
                                     OK_Ordinary);
 }
 
+UnaryOperator *ExprCreatorUtil::CreateUnaryOperator(Sema &SemaRef, Expr *Child,
+                                                    UnaryOperatorKind Op) {
+  return UnaryOperator::Create(SemaRef.Context, Child, Op,
+                               Child->getType(),
+                               Child->getValueKind(),
+                               Child->getObjectKind(),
+                               SourceLocation(),
+                               /*CanOverflow*/ true,
+                               FPOptionsOverride());
+}
+
 Expr *ExprCreatorUtil::EnsureRValue(Sema &SemaRef, Expr *E) {
   if (E->isRValue())
     return E;
@@ -454,6 +465,13 @@ unsigned int ExprUtil::VariableOccurrenceCount(Sema &S, ValueDecl *V, Expr *E) {
 unsigned int ExprUtil::VariableOccurrenceCount(Sema &S, DeclRefExpr *Target,
                                                Expr *E) {
   return VariableOccurrenceCount(S, Target->getDecl(), E);
+}
+
+void ExprUtil::EnsureEqualBitWidths(llvm::APSInt &A, llvm::APSInt &B) {
+  if (A.getBitWidth() < B.getBitWidth())
+    A = A.extOrTrunc(B.getBitWidth());
+  else if (B.getBitWidth() < A.getBitWidth())
+    B = B.extOrTrunc(A.getBitWidth());
 }
 
 bool InverseUtil::IsInvertible(Sema &S, Expr *LValue, Expr *E) {
