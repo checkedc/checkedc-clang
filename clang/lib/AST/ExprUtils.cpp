@@ -262,11 +262,6 @@ bool ExprUtil::EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2,
   return R == Lexicographic::Result::Equal;
 }
 
-bool ExprUtil::EqualTypes(ASTContext &Ctx, QualType T1, QualType T2) {
-  Lexicographic::Result R = Lexicographic(Ctx, nullptr).CompareType(T1, T2);
-  return R == Lexicographic::Result::Equal;
-}
-
 bool ExprUtil::CheckIsNonModifying(Sema &S, Expr *E) {
   return S.CheckIsNonModifying(E, Sema::NonModifyingContext::NMC_Unknown,
                                Sema::NonModifyingMessage::NMM_None);
@@ -555,14 +550,14 @@ bool InverseUtil::IsBinaryOperatorInvertible(Sema &S, Expr *LValue,
   Expr *LHS = E->getLHS();
   Expr *RHS = E->getRHS();
 
-  // Addition and subtraction operations must be for checked pointer
-  // arithmetic or unsigned integer arithmetic.
+  // Addition and subtraction operations must be for pointer arithmetic
+  // or unsigned integer arithmetic.
   if (Op == BinaryOperatorKind::BO_Add || Op == BinaryOperatorKind::BO_Sub) {
-    // The operation is checked pointer arithmetic if either the LHS
-    // or the RHS have checked pointer type.
-    bool IsCheckedPtrArithmetic = LHS->getType()->isCheckedPointerType() ||
-                                  RHS->getType()->isCheckedPointerType();
-    if (!IsCheckedPtrArithmetic) {
+    // The operation is pointer arithmetic if either the LHS or the RHS
+    // have pointer type.
+    bool IsPtrArithmetic = LHS->getType()->isPointerType() ||
+                           RHS->getType()->isPointerType();
+    if (!IsPtrArithmetic) {
       // The operation is unsigned integer arithmetic if both the LHS
       // and the RHS have unsigned integer type.
       bool IsUnsignedArithmetic = LHS->getType()->isUnsignedIntegerType() &&

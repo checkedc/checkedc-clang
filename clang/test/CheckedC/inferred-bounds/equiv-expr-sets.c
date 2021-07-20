@@ -1055,7 +1055,7 @@ void original_value11(array_ptr<int> p, array_ptr<int> q) {
   // CHECK-NEXT: }
 }
 
-// UnaryOperator and ArraySubscriptExpr: no inverse (unchecked pointer arithmetic)
+// UnaryOperator and ArraySubscriptExpr: unchecked pointer arithmetic inverse
 void original_value12(int *p, int *q) {
   // Updated EquivExprs: { { p + 1, q } }
   q = p + 1;
@@ -1078,8 +1078,8 @@ void original_value12(int *p, int *q) {
   // CHECK-NEXT: }
   // CHECK-NEXT: }
 
-  // Original value of p in &p[0]: null
-  // Updated EquivExprs: { { } }
+  // Original value of p in &p[0]: p - 0
+  // Updated EquivExprs: { { (p - 0) + 1, q } }
   p = &p[0];
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -1090,7 +1090,18 @@ void original_value12(int *p, int *q) {
   // CHECK-NEXT:         DeclRefExpr {{.*}} 'p'
   // CHECK-NEXT:       IntegerLiteral {{.*}} 0
   // CHECK: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'q'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
 }
 
 // UnaryOperator and ArraySubscriptExpr: combined &* and array subscript inverse
@@ -1329,7 +1340,7 @@ void original_value16(int x, int i) {
   // CHECK-NEXT: }
 }
 
-// UnaryOperator: post-increment with no inverse (unchecked pointer arithmetic)
+// UnaryOperator: post-increment with unchecked pointer arithmetic inverse
 void original_value17(unsigned *x, unsigned *i) {
   // Updated EquivExprs: { { i, x } }
   x = i;
@@ -1348,8 +1359,8 @@ void original_value17(unsigned *x, unsigned *i) {
   // CHECK-NEXT: }
   // CHECK-NEXT: }
 
-  // Original value of i in i + 1: x
-  // Updated EquivExprs: { { x + 1, i } }, Updated SameValue: { i - 1 }
+  // Original value of i in i + 1: i - 1
+  // Updated EquivExprs: { { i - 1, x } }, Updated SameValue: { i - 1 }
   i++;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} postfix '++'
@@ -1357,12 +1368,12 @@ void original_value17(unsigned *x, unsigned *i) {
   // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
-  // CHECK-NEXT: BinaryOperator {{.*}} '+'
+  // CHECK-NEXT: BinaryOperator {{.*}} '-'
   // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:     DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'i'
   // CHECK-NEXT:   IntegerLiteral {{.*}} 1
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
   // CHECK-NEXT: }
   // CHECK-NEXT: }
   // CHECK-NEXT: Expressions that produce the same value as S:
@@ -1374,7 +1385,7 @@ void original_value17(unsigned *x, unsigned *i) {
   // CHECK-NEXT: }
 }
 
-// UnaryOperator: pre-decrement with no inverse (unchecked pointer arithmetic)
+// UnaryOperator: pre-decrement with unchecked pointer arithmetic inverse
 void original_value18(float *x, float *i) {
   // Updated EquivExprs: { { i, x } }
   x = i;
@@ -1393,8 +1404,8 @@ void original_value18(float *x, float *i) {
   // CHECK-NEXT: }
   // CHECK-NEXT: }
 
-  // Original value of i in i - 1: x
-  // Updated EquivExprs: { { x - 1, i } }, Updated SameValue: { i }
+  // Original value of i in i - 1: i + 1
+  // Updated EquivExprs: { { i + 1, x } }, Updated SameValue: { i }
   --i;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '--'
@@ -1402,12 +1413,12 @@ void original_value18(float *x, float *i) {
   // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
-  // CHECK-NEXT: BinaryOperator {{.*}} '-'
+  // CHECK-NEXT: BinaryOperator {{.*}} '+'
   // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:     DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'i'
   // CHECK-NEXT:   IntegerLiteral {{.*}} 1
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
   // CHECK-NEXT: }
   // CHECK-NEXT: }
   // CHECK-NEXT: Expressions that produce the same value as S:
@@ -1417,7 +1428,7 @@ void original_value18(float *x, float *i) {
   // CHECK-NEXT: }
 }
 
-// UnaryOperator: post-decrement with no inverse (unchecked pointer arithmetic)
+// UnaryOperator: post-decrement with unchecked pointer arithmetic inverse
 void original_value19(array_ptr<int> *x, array_ptr<int> *i) {
   // Updated EquivExprs: { { i, x } }
   x = i;
@@ -1436,8 +1447,8 @@ void original_value19(array_ptr<int> *x, array_ptr<int> *i) {
   // CHECK-NEXT: }
   // CHECK-NEXT: }
 
-  // Original value of i in i - 1: x
-  // Updated EquivExprs: { { x - 1, i } }, Updated SameValue: { i + 1 }
+  // Original value of i in i - 1: i + 1
+  // Updated EquivExprs: { { i + 1, x } }, Updated SameValue: { i + 1 }
   i--;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} postfix '--'
@@ -1445,12 +1456,12 @@ void original_value19(array_ptr<int> *x, array_ptr<int> *i) {
   // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
-  // CHECK-NEXT: BinaryOperator {{.*}} '-'
+  // CHECK-NEXT: BinaryOperator {{.*}} '+'
   // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:     DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'i'
   // CHECK-NEXT:   IntegerLiteral {{.*}} 1
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
   // CHECK-NEXT: }
   // CHECK-NEXT: }
   // CHECK-NEXT: Expressions that produce the same value as S:

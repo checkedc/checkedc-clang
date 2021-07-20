@@ -133,9 +133,6 @@ public:
   static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2,
                          EquivExprSets *EquivExprs);
 
-  // EqualTypes returns true if T1 and T2 are lexicographically equivalent.
-  static bool EqualTypes(ASTContext &Ctx, QualType T1, QualType T2);
-
   // CheckIsNonModifying suppresses diagnostics while checking
   // whether e is a non-modifying expression.
   static bool CheckIsNonModifying(Sema &S, Expr *E);
