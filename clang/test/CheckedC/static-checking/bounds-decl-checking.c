@@ -736,11 +736,25 @@ void f90(struct S3 s) {
 }
 
 //
+// Test invertibility for checked and unchecked pointers
+//
+
+void f91(_Array_ptr<int> p : count(1)) _Unchecked { // expected-note {{(expanded) declared bounds are 'bounds(p, p + 1)'}}
+  ++p; // expected-warning {{cannot prove declared bounds for 'p' are valid after increment}} \
+       // expected-note {{(expanded) inferred bounds are 'bounds(p - 1, p - 1 + 1)'}}
+}
+
+void f92(int *p : count(1)) _Unchecked { // expected-note {{(expanded) declared bounds are 'bounds(p, p + 1)'}}
+ ++p; // expected-warning {{cannot prove declared bounds for 'p' are valid after increment}} \
+      // expected-note {{(expanded) inferred bounds are 'bounds(p - 1, p - 1 + 1)'}}
+}
+
+//
 // Test comparing bounds expressions using some simple normalizations
 // such as associativity and constant folding
 //
 
-void f91(_Nt_array_ptr<char> p : count(len), unsigned int len) {
+void f93(_Nt_array_ptr<char> p : count(len), unsigned int len) {
   if (*(p + len)) {
     // No warning when proving that inferred bounds (p, (p + (len - 1)) + 1)
     // imply declared bounds (p, p + len)
@@ -748,14 +762,14 @@ void f91(_Nt_array_ptr<char> p : count(len), unsigned int len) {
   }
 }
 
-void f92(_Array_ptr<int> p : bounds(p, (p + (len + 10)) + 6), int len) {
+void f94(_Array_ptr<int> p : bounds(p, (p + (len + 10)) + 6), int len) {
   _Array_ptr<int> q : bounds(q, 2 + (q + (len + 3))) = p;
   _Array_ptr<int> r : bounds(r, ((r + len) + 2) - 1) = p;
   _Array_ptr<int> s : bounds(s, (s + (len + (1 + 2))) + (3 + 4)) = p;
   _Array_ptr<int> t : bounds(t, ((t + len) - 1) + 1) = p;
 }
 
-void f93(_Nt_array_ptr<char> p : bounds(p, (p + (len + 4)) + 4), int len) {
+void f95(_Nt_array_ptr<char> p : bounds(p, (p + (len + 4)) + 4), int len) {
   _Nt_array_ptr<char> q : bounds(q, ((q + len) + 1) + 1) = p;
   _Nt_array_ptr<char> r : bounds(r, ((r + (len + 2))) - 2) = p;
 
