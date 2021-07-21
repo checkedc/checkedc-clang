@@ -87,6 +87,52 @@ Expr *NormalizeUtil::TransformAssocLeft(Sema &S, Expr *E) {
   return AddExprs(S, AddExprs(S, E1, E2), E3);
 }
 
+bool NormalizeUtil::GetVariableAndConstant(Sema &S, Expr *E, Expr *&Variable,
+                                           llvm::APSInt &Constant) {
+  // While possible, split E into a PointerExpr and an integer constant C
+  // and add C to Constant.
+  Expr *PointerExpr = E;
+  llvm::APSInt C;
+  bool GotPointerAndConst = QueryPointerAdditiveConstant(S, PointerExpr,
+                                                         PointerExpr, C);
+  while (GotPointerAndConst) {
+    if (!AddConstants(Constant, C))
+      goto exit;
+    GotPointerAndConst = QueryPointerAdditiveConstant(S, PointerExpr,
+                                                      PointerExpr, C);
+  }
+
+  if (!PointerExpr)
+    goto exit;
+
+  // If applicable, replace X - Y operations with X + -Y in PointerExpr
+  // and its children.
+  if (Expr *Additive = TransformAdditiveOp(S, PointerExpr))
+    PointerExpr = Additive;
+
+  // If PointerExpr is of the form p + (i + j) (where p is a pointer and
+  // i and j are integers), rewrite PointerExpr as (p + i) + j.
+  if (Expr *AssocLeft = TransformAssocLeft(S, PointerExpr))
+    PointerExpr = AssocLeft;
+
+  // After transforming subtraction operators and applying left-associativity,
+  // we might be able to get another integer constant from PointerExpr.
+  // If so, add it to Constant if the addition does not overflow.
+  if (QueryPointerAdditiveConstant(S, PointerExpr, PointerExpr, C))
+    if (!AddConstants(Constant, C))
+      goto exit;
+
+  Variable = PointerExpr;
+  return true;
+
+  exit:
+    // Return (E, 0).
+    Variable = E;
+    uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(0);
+    Constant = llvm::APSInt(PointerWidth, false);
+    return false;
+}
+
 // Input form: (E1 +/- A) +/- B.
 // Outputs: Variable: E1, Constant: (+/-)A + (+/-)B.
 bool NormalizeUtil::ConstantFold(Sema &S, Expr *E, QualType T, Expr *&Variable,

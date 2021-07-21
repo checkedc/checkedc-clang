@@ -44,6 +44,38 @@ public:
   // 3. E3 has integer type.
   static Expr *TransformAssocLeft(Sema &S, Expr *E);
 
+  // GetVariableAndConstant attempts to extract a Variable part and a Constant
+  // part from E.
+  //
+  // If E can be written as C1 +/- C2 +/- ... +/- Cj + E1 +/- Ck +/- ... +/- Cn,
+  // where:
+  // 1. E1 is a pointer-typed expression, and:
+  // 2. Each Ci is an optional integer constant, and:
+  // 3. C1 +/- ... +/- Cn does not overflow
+  // then:
+  // GetVariableAndConstant returns true and sets:
+  // 1. Variable = E1
+  // 2. Constant = C1 +/- ... +/- Cn
+  //
+  // GetVariableAndConstant applies left-associativity if possible.
+  // If the pointer-typed subexpression E1 of E is of the form p + (i + j),
+  // where p is a pointer and i and j are integers, then E1 is rewritten as
+  // (p + i) + j. If j is an integer constant, this allows
+  // GetVariableAndConstant to add j to the Constant part, and set the
+  // Variable part to p + i.
+  //
+  // Some examples:
+  // 1. If E is of the form (p + (i + 1)) + 2:
+  //    Variable = p + i, Constant = 3.
+  // 2. If E is of the form (p + (1 + i)) + 2:
+  //    Variable = (p + 1) + i, Constant = 2.
+  // 3. If E is of the form 1 + (2 + (p + (i + 3))):
+  //    Variable = p + i, Constant = 6.
+  // 4. If E is of the form 1 + (2 + (i + (p + 3))):
+  //    Variable = i + (p + 3), Constant = 3.
+  static bool GetVariableAndConstant(Sema &S, Expr *E, Expr *&Variable,
+                                     llvm::APSInt &Constant);
+
   // ConstantFold performs simple constant folding operations on E.
   // It attempts to extract a Variable part and a Constant part, based
   // on the form of E.
