@@ -2037,26 +2037,23 @@ namespace {
       if (!ExprUtil::EqualValue(S.Context, DeclaredRangeBounds->getLowerExpr(),
                                 SrcRangeBounds->getLowerExpr(), EquivExprs))
         return false;
-      
-      // Attempt to get a variable part and a constant part from the
-      // declared upper bound by applying certain normalizations.
-      Expr *DeclaredVariable = nullptr;
-      llvm::APSInt DeclaredConstant;
-      bool NormalizedDeclared =
-        NormalizeUpperBound(DeclaredRangeBounds->getUpperExpr(),
-                            DeclaredVariable, DeclaredConstant);
 
       // Attempt to get a variable part and a constant part from the
-      // source upper bound by applying certain normalizations.
+      // declared upper bound and the source upper bound.
+      Expr *DeclaredVariable = nullptr;
+      llvm::APSInt DeclaredConstant;
+      bool DeclaredNormalized =
+        NormalizeUtil::GetVariableAndConstant(S, DeclaredRangeBounds->getUpperExpr(),
+                                              DeclaredVariable, DeclaredConstant);
       Expr *SrcVariable = nullptr;
       llvm::APSInt SrcConstant;
-      bool NormalizedSrc =
-        NormalizeUpperBound(SrcRangeBounds->getUpperExpr(),
-                            SrcVariable, SrcConstant);
+      bool SrcNormalized =
+        NormalizeUtil::GetVariableAndConstant(S, SrcRangeBounds->getUpperExpr(),
+                                              SrcVariable, SrcConstant);
 
       // We must be able to normalize at least one of the upper bounds in
       // order to compare them.
-      if (!NormalizedDeclared && !NormalizedSrc)
+      if (!DeclaredNormalized && !SrcNormalized)
         return false;
 
       // Both upper bounds must have a Variable part.
