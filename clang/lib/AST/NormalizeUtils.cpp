@@ -193,3 +193,47 @@ bool NormalizeUtil::GetRHSConstant(Sema &S, BinaryOperator *E, QualType T,
 
   return true;
 }
+
+bool NormalizeUtil::QueryPointerAdditiveConstant(Sema &S, Expr *E,
+                                                 Expr *&PointerExpr,
+                                                 llvm::APSInt &Constant) {
+  BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens());
+  if (!BO)
+    return false;
+  if (!BO->isAdditiveOp())
+    return false;
+
+  // E must be of the form PointerExpr +/- Constant or Constant + PointerExpr,
+  // where PointerExpr has pointer type and Constant is an integer constant.
+  // Note that E cannot be of the form Constant - PointerExpr, since a pointer
+  // cannot appear on the right-hand side of a subtraction operator.
+  if (BO->getLHS()->getType()->isPointerType() &&
+      BO->getRHS()->isIntegerConstantExpr(Constant, S.Context))
+    PointerExpr = BO->getLHS();
+  else if (BO->getOpcode() == BinaryOperatorKind::BO_Add &&
+              BO->getRHS()->getType()->isPointerType() &&
+              BO->getLHS()->isIntegerConstantExpr(Constant, S.Context))
+    PointerExpr = BO->getRHS();
+  else
+    return false;
+
+  bool Overflow;
+  Constant = ExprUtil::ConvertToSignedPointerWidth(S.Context, Constant, Overflow);
+  if (Overflow)
+    return false;
+  // Normalize the operation by negating the offset if necessary.
+  if (BO->getOpcode() == BO_Sub) {
+    uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(0);
+    Constant = llvm::APSInt(PointerWidth, false).ssub_ov(Constant, Overflow);
+    if (Overflow)
+      return false;
+  }
+  llvm::APSInt ElemSize;
+  if (!ExprUtil::getReferentSizeInChars(S.Context, E->getType(), ElemSize))
+    return false;
+  Constant = Constant.smul_ov(ElemSize, Overflow);
+  if (Overflow)
+    return false;
+
+  return true;
+}

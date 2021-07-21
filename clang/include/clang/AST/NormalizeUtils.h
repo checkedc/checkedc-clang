@@ -85,6 +85,18 @@ private:
   // If E is of the form E1 - C, Constant will be set to -C.
   static bool GetRHSConstant(Sema &S, BinaryOperator *E, QualType T,
                              llvm::APSInt &Constant);
+
+  // If E is of the form P +/- C or C + P, where P is a pointer-typed
+  // expression and C is an integer constant, QueryPointerAdditiveConstant
+  // returns true and sets:
+  // 1. PointerExpr = P
+  // 2. Constant = C if E is of the form P + C or C + P
+  // 3. Constant = -C if E is of the form P - C
+  // Note that E cannot be of the form C - P, since a pointer cannot
+  // appear on the right-hand side of a subtraction operator.
+  static bool QueryPointerAdditiveConstant(Sema &S, Expr *E,
+                                           Expr *&PointerExpr,
+                                           llvm::APSInt &Constant);
 };
 
 } // end namespace clang
