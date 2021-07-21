@@ -155,6 +155,13 @@ Expr *NormalizeUtil::AddExprs(Sema &S, Expr *LHS, Expr *RHS) {
                             BinaryOperatorKind::BO_Add);
 }
 
+bool NormalizeUtil::AddConstants(llvm::APSInt &C1, llvm::APSInt C2) {
+  ExprUtil::EnsureEqualBitWidths(C1, C2);
+  bool Overflow;
+  C1 = C1.sadd_ov(C2, Overflow);
+  return !Overflow;
+}
+
 bool NormalizeUtil::GetAdditionOperands(Expr *E, Expr *&LHS, Expr *&RHS) {
   BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens());
   if (!BO)

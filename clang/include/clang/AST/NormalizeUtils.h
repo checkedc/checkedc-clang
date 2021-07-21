@@ -75,6 +75,10 @@ private:
   // AddExprs returns LHS + RHS.
   static Expr *AddExprs(Sema &S, Expr *LHS, Expr *RHS);
 
+  // AddConstants sets C1 to C1 + C2 and returns true if C1 + C2 does not
+  // overflow.
+  static bool AddConstants(llvm::APSInt &C1, llvm::APSInt C2);
+
   // If E is of the form E1 + E2, GetAdditionOperands returns true
   // and sets LHS to E1 and RHS to E2.
   static bool GetAdditionOperands(Expr *E, Expr *&LHS, Expr *&RHS);
