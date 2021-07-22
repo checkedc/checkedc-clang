@@ -103,10 +103,11 @@ Expr *NormalizeUtil::TransformAssocLeft(Sema &S, Expr *E) {
   // If E is of the form E1 + (E2 + E3), output expression is (E1 + E2) + E3.
   if (RHSBinOp->getOpcode() == BinaryOperatorKind::BO_Add)
     return AddExprs(S, AddExprs(S, E1, E2), E3);
+
   // If E is of the form E1 + (E2 - E3), output expression is (E1 + E2) - E3.
-  else if (RHSBinOp->getOpcode() == BinaryOperatorKind::BO_Sub) {
-    return ExprCreatorUtil::CreateBinaryOperator(S, AddExprs(S, E1, E2), E3, BinaryOperatorKind::BO_Sub);
-  }
+  else if (RHSBinOp->getOpcode() == BinaryOperatorKind::BO_Sub)
+    return ExprCreatorUtil::CreateBinaryOperator(S, AddExprs(S, E1, E2), E3,
+                                                 BinaryOperatorKind::BO_Sub);
 
   return nullptr;
 }
