@@ -2120,14 +2120,7 @@ namespace {
       } else
         goto exit;
 
-      // Normalize X - Y operators in PointerExpr and its children to X + -Y.
-      // If we cannot, then PointerExpr is not a +/- operator, so we cannot
-      // continue to normalize.
-      PointerExpr = NormalizeUtil::TransformAdditiveOp(S, PointerExpr);
-      if (!PointerExpr)
-        goto exit;
-
-      // Associate PointerExpr to the left to get (E1 + E2) + E3.
+      // Associate PointerExpr to the left to get (E1 + E2) +/- E3.
       // If we cannot, then we cannot continue to normalize.
       PointerExpr = NormalizeUtil::TransformAssocLeft(S, PointerExpr);
       if (!PointerExpr)
