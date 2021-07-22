@@ -50,6 +50,10 @@ public:
   static MemberExpr *CreateMemberExpr(Sema &SemaRef, Expr *Base,
                                       const FieldDecl *Field, bool IsArrow);
 
+  // Create a unary operator.
+  static UnaryOperator *CreateUnaryOperator(Sema &SemaRef, Expr *Child,
+                                            UnaryOperatorKind Op);
+
   // If e is an rvalue, EnsureRValue returns e. Otherwise, EnsureRValue
   // returns a cast of e to an rvalue, based on the type of e.
   static Expr *EnsureRValue(Sema &SemaRef, Expr *E);
@@ -129,9 +133,6 @@ public:
   static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2,
                          EquivExprSets *EquivExprs);
 
-  // EqualTypes returns true if T1 and T2 are lexicographically equivalent.
-  static bool EqualTypes(ASTContext &Ctx, QualType T1, QualType T2);
-
   // CheckIsNonModifying suppresses diagnostics while checking
   // whether e is a non-modifying expression.
   static bool CheckIsNonModifying(Sema &S, Expr *E);
@@ -165,6 +166,11 @@ public:
   // variable expression in E.
   static unsigned int VariableOccurrenceCount(Sema &S, DeclRefExpr *Target,
                                               Expr *E);
+
+  // EnsureEqualBitWidths modifies A or B if necessary so that A and B
+  // have the same bit width. The bit width of A and B will be the larger
+  // of the original bit widths of A and B.
+  static void EnsureEqualBitWidths(llvm::APSInt &A, llvm::APSInt &B);
 };
 
 } // end namespace clang

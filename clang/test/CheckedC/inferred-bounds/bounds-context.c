@@ -2638,14 +2638,13 @@ void conditional2(array_ptr<int> a : count(1),
 }
 
 // Conditional operators with widened bounds
-void conditional3(nt_array_ptr<char> p : count(i), // expected-note {{(expanded) declared bounds are 'bounds(p, p + i)'}}
+void conditional3(nt_array_ptr<char> p : count(i),
                   unsigned i, 
                   nt_array_ptr<char> q : count(j), // expected-note {{(expanded) declared bounds are 'bounds(q, q + j)'}}
                   unsigned j) {
   if (*(p + i)) {
     // Observed bounds context: { p => bounds(p, p + i - 1 + 1), q => bounds(q, q + j) }
-    1 ? i++ : ++i; // expected-warning {{cannot prove declared bounds for 'p' are valid after statement}} \
-                   // expected-note {{(expanded) inferred bounds are 'bounds(p, p + i - 1U + 1)'}}
+    1 ? i++ : ++i;
     // CHECK: Statement S:
     // CHECK:      ConditionalOperator
     // CHECK-NEXT:   IntegerLiteral {{.*}} 1

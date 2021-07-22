@@ -88,6 +88,7 @@ add_clang_library(clangAST
   MicrosoftCXXABI.cpp
   MicrosoftMangle.cpp
   NestedNameSpecifier.cpp
+  NormalizeUtils.cpp
   NSAPI.cpp
   ODRHash.cpp
   OpenMPClause.cpp

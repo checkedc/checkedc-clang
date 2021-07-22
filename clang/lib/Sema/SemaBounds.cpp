@@ -43,6 +43,7 @@
 #include "clang/AST/AbstractSet.h"
 #include "clang/AST/CanonBounds.h"
 #include "clang/AST/ExprUtils.h"
+#include "clang/AST/NormalizeUtils.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Sema/AvailableFactsAnalysis.h"
 #include "clang/Sema/BoundsUtils.h"
@@ -932,10 +933,9 @@ namespace {
     // The proof system is incomplete, so there are will be statements that
     // cannot be proved true or false.  That's why "maybe" is a result.
     enum class ProofResult {
-      True,           // Definitely provable.
-      False,          // Definitely false (an error)
-      Maybe,          // We're not sure yet.
-      IncompleteTypes // Unable to prove due to incomplete referent types.
+      True,  // Definitely provable.
+      False, // Definitely false (an error)
+      Maybe  // We're not sure yet.
     };
 
     // The kind of statement that we are trying to prove true or false.
@@ -1038,7 +1038,6 @@ namespace {
       enum Kind {
         ConstantSized,
         VariableSized,
-        IncompleteConstantSized,
         Invalid
       };
 
@@ -1049,158 +1048,27 @@ namespace {
       llvm::APSInt UpperOffsetConstant;
       Expr *LowerOffsetVariable;
       Expr *UpperOffsetVariable;
-      // HasIncompleteConstant tracks whether either the lower or upper
-      // constant offset is based on an expression with an incomplete
-      // referent type.
-      bool HasIncompleteConstant;
 
     public:
       BaseRange(Sema &S) : S(S), Base(nullptr), LowerOffsetConstant(1, true),
-        UpperOffsetConstant(1, true), LowerOffsetVariable(nullptr), UpperOffsetVariable(nullptr),
-        HasIncompleteConstant(false) {
+        UpperOffsetConstant(1, true), LowerOffsetVariable(nullptr), UpperOffsetVariable(nullptr) {
       }
 
       BaseRange(Sema &S, Expr *Base,
                          llvm::APSInt &LowerOffsetConstant,
                          llvm::APSInt &UpperOffsetConstant) :
         S(S), Base(Base), LowerOffsetConstant(LowerOffsetConstant), UpperOffsetConstant(UpperOffsetConstant),
-        LowerOffsetVariable(nullptr), UpperOffsetVariable(nullptr),
-        HasIncompleteConstant(false) {
+        LowerOffsetVariable(nullptr), UpperOffsetVariable(nullptr) {
       }
 
       BaseRange(Sema &S, Expr *Base,
                          Expr *LowerOffsetVariable,
                          Expr *UpperOffsetVariable) :
         S(S), Base(Base), LowerOffsetConstant(1, true), UpperOffsetConstant(1, true),
-        LowerOffsetVariable(LowerOffsetVariable), UpperOffsetVariable(UpperOffsetVariable),
-        HasIncompleteConstant(false) {
+        LowerOffsetVariable(LowerOffsetVariable), UpperOffsetVariable(UpperOffsetVariable) {
       }
 
     private:
-      // EnsureEqualBitWidths modifies A or B if necessary so that A and B
-      // have the same bit width. The bit width of A and B will be the larger
-      // of the original bit widths of A and B.
-      //
-      // TODO: this method is part of a temporary solution to enable bounds
-      // checking to validate bounds such as (p, p + (len + 1) - 1). In the
-      // future, we should handle constant folding, commutativity, and
-      // associativity in bounds expressions in a more general way.
-      void EnsureEqualBitWidths(llvm::APSInt &A, llvm::APSInt &B) {
-        if (A.getBitWidth() < B.getBitWidth())
-          A = A.extOrTrunc(B.getBitWidth());
-        else if (B.getBitWidth() < A.getBitWidth())
-          B = B.extOrTrunc(A.getBitWidth());
-      }
-
-      // If E is of the form e +/- c, where c is a constant, GetRHSConstant
-      // returns true and sets the out parameter Constant.
-      // If E is of the form e + c, Constant will be set to c.
-      // If E is of the form e - c, Constant will be set to -c.
-      //
-      // TODO: this method is part of a temporary solution to enable bounds
-      // checking to validate bounds such as (p, p + (len + 1) - 1). In the
-      // future, we should handle constant folding, commutativity, and
-      // associativity in bounds expressions in a more general way.
-      bool GetRHSConstant(BinaryOperator *E, llvm::APSInt &Constant) {
-        if (!E->isAdditiveOp())
-          return false;
-        Optional<llvm::APSInt> OptConstant =
-                               E->getRHS()->getIntegerConstantExpr(S.Context);
-        if (!OptConstant)
-          return false;
-
-        bool Overflow;
-        Constant = ExprUtil::ConvertToSignedPointerWidth(S.Context,
-                                                           *OptConstant, Overflow);
-        if (Overflow)
-          return false;
-        // Normalize the operation by negating the offset if necessary.
-        if (E->getOpcode() == BO_Sub) {
-          uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(0);
-          Constant = llvm::APSInt(PointerWidth, false).ssub_ov(Constant, Overflow);
-          if (Overflow)
-            return false;
-        }
-        llvm::APSInt ElemSize;
-        if (!ExprUtil::getReferentSizeInChars(S.Context, Base->getType(), ElemSize))
-          return false;
-        Constant = Constant.smul_ov(ElemSize, Overflow);
-        if (Overflow)
-          return false;
-
-        return true;
-      }
-
-      // ConstantFoldUpperOffset performs simple constant folding operations on
-      // UpperOffsetVariable. It attempts to extract a Variable part and a
-      // Constant part, based on the form of UpperOffsetVariable.
-      //
-      // If UpperOffsetVariable is of the form (e + a) + b:
-      //   Variable = e, Constant = a + b.
-      // If UpperOffsetVariable is of the form (e + a) - b:
-      //   Variable = e, Constant = a + -b.
-      // If UpperOffsetVariable is of the form (e - a) + b:
-      //   Variable = e, Constant = -a + b.
-      // If UpperOffsetVariable is of the form (e - a) - b:
-      //   Variable = e, Constant = -a + -b.
-      //
-      // Otherwise, ConstantFoldUpperOffset returns false, and:
-      //   Variable = UpperOffsetVariable, Constant = 0.
-      //
-      // TODO: this method is part of a temporary solution to enable bounds
-      // checking to validate bounds such as (p, p + (len + 1) - 1). In the
-      // future, we should handle constant folding, commutativity, and
-      // associativity in bounds expressions in a more general way.
-      bool ConstantFoldUpperOffset(Expr *&Variable, llvm::APSInt &Constant) {
-        if (!IsUpperOffsetVariable())
-          return false;
-
-        llvm::APSInt LHSConst;
-        llvm::APSInt RHSConst;
-        BinaryOperator *LHSBinOp = nullptr;
-
-        // UpperOffsetVariable must be of the form LHS +/- RHS.
-        BinaryOperator *RootBinOp =
-          dyn_cast<BinaryOperator>(UpperOffsetVariable->IgnoreParens());
-        if (!RootBinOp)
-          goto exit;
-        if (!RootBinOp->isAdditiveOp())
-          goto exit;
-
-        // UpperOffsetVariable must be of the form (e1 +/- e2) +/- RHS.
-        LHSBinOp = dyn_cast<BinaryOperator>(RootBinOp->getLHS()->IgnoreParens());
-        if (!LHSBinOp)
-          goto exit;
-        if (!LHSBinOp->isAdditiveOp())
-          goto exit;
-
-        // UpperOffsetVariable must be of the form (e1 +/- e2) +/- b,
-        // where b is a constant.
-        if (!GetRHSConstant(RootBinOp, RHSConst))
-          goto exit;
-
-        // UpperOffsetVariable must be of the form (e1 +/- a) +/- b,
-        // where a is a constant.
-        if (!GetRHSConstant(LHSBinOp, LHSConst))
-          goto exit;
-
-        Variable = LHSBinOp->getLHS();
-
-        bool Overflow;
-        EnsureEqualBitWidths(LHSConst, RHSConst);
-        Constant = LHSConst.sadd_ov(RHSConst, Overflow);
-        if (Overflow)
-          goto exit;
-        return true;
-
-        exit:
-          // Return (UpperOffsetVariable, 0).
-          Variable = UpperOffsetVariable;
-          uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(0);
-          Constant = llvm::APSInt(PointerWidth, false);
-          return false;
-      }
-
       // CompareConstantFoldedUpperOffsets is a fallback method that attempts
       // to prove that R.UpperOffsetVariable <= this.UpperOffsetVariable.
       // It returns true if:
@@ -1221,13 +1089,20 @@ namespace {
       // associativity in bounds expressions in a more general way.
       bool CompareUpperOffsetsWithConstantFolding(BaseRange &R,
                                                   EquivExprSets *EquivExprs) {
+        if (!IsUpperOffsetVariable() || !R.IsUpperOffsetVariable())
+          return false;
+
         Expr *Variable = nullptr;
         llvm::APSInt Constant;
-        bool ConstFolded = ConstantFoldUpperOffset(Variable, Constant);
+        bool ConstFolded = NormalizeUtil::ConstantFold(S, UpperOffsetVariable,
+                                                       Base->getType(),
+                                                       Variable, Constant);
 
         Expr *RVariable = nullptr;
         llvm::APSInt RConstant;
-        bool RConstFolded = R.ConstantFoldUpperOffset(RVariable, RConstant);
+        bool RConstFolded = NormalizeUtil::ConstantFold(S, R.UpperOffsetVariable,
+                                                        R.Base->getType(),
+                                                        RVariable, RConstant);
 
         // If neither this nor R had their upper offsets constant folded, then
         // the variable parts will be the respective upper offsets and the
@@ -1245,7 +1120,7 @@ namespace {
         if (!ExprUtil::EqualValue(S.Context, Variable, RVariable, EquivExprs))
           return false;
 
-        EnsureEqualBitWidths(Constant, RConstant);
+        ExprUtil::EnsureEqualBitWidths(Constant, RConstant);
         return RConstant <= Constant;
       }
 
@@ -1261,11 +1136,6 @@ namespace {
           Cause = CombineFailures(Cause, ProofFailure::DstInvalid);
           return ProofResult::Maybe;
         }
-
-        // Check whether we are allowed to continue with the proof, based on
-        // whether this and R involve incomplete referent types.
-        if (!CheckIncompleteConstants(R))
-          return ProofResult::IncompleteTypes;
 
         if (ExprUtil::EqualValue(S.Context, Base, R.Base, EquivExprs)) {
           ProofResult LowerBoundsResult = CompareLowerOffsetsImpl(R, Cause, EquivExprs, Facts);
@@ -1316,11 +1186,6 @@ namespace {
           return ProofResult::Maybe;
         }
 
-        // Check whether we are allowed to continue with the proof, based on
-        // whether this and R involve incomplete referent types.
-        if (!CheckIncompleteConstants(R))
-          return ProofResult::IncompleteTypes;
-
         FreeVariablePosition BasePos = CombineFreeVariablePosition(
             FreeVariablePosition::Lower, FreeVariablePosition::Upper);
         FreeVariablePosition DeclaredBasePos = CombineFreeVariablePosition(
@@ -1347,30 +1212,6 @@ namespace {
           return ProofResult::False;
         }
         return ProofResult::Maybe;
-      }
-
-      // This function checks whether it is possible to compare this and R,
-      // based on whether this and R have at least one offset that was derived
-      // from a base expression with an incomplete referent type.
-      //
-      // If both this and R have an offset based on types T1 and T2 with
-      // incomplete referent types, then the offsets should have been
-      // multiplied by sizeof(T1) and sizeof(T2), where the sizes of T1 and
-      // T2 could not be determined. In this case, we require that T1 and
-      // T2 are equivalent types. Otherwise, we cannot continue to compare
-      // this and R.
-      //
-      // If only one of this and R is based on an incomplete referent type,
-      // then we cannot continue to compare them.
-      bool CheckIncompleteConstants(BaseRange &R) {
-        if (HasIncompleteConstant) {
-          if (!R.HasIncompleteConstant)
-            return false;
-          if (!ExprUtil::EqualTypes(S.Context, Base->getType(), R.Base->getType()))
-            return false;
-        } else if (R.HasIncompleteConstant)
-          return false;
-        return true;
       }
 
       // This function proves whether this.LowerOffset <= R.LowerOffset.
@@ -1781,10 +1622,6 @@ namespace {
         UpperOffsetVariable = Upper;
       }
 
-      void SetHasIncompleteConstant(bool Incomplete) {
-        HasIncompleteConstant = Incomplete;
-      }
-
       void Dump(raw_ostream &OS) {
         OS << "Range:\n";
         OS << "Base: ";
@@ -1876,7 +1713,7 @@ namespace {
             }
             llvm::APSInt ElemSize;
             if (!ExprUtil::getReferentSizeInChars(S.Context, Base->getType(), ElemSize))
-              return BaseRange::Kind::IncompleteConstantSized;
+                goto exit;
             OffsetConstant = OffsetConstant.smul_ov(ElemSize, Overflow);
             if (Overflow)
               goto exit;
@@ -1894,12 +1731,6 @@ namespace {
       Base = E->IgnoreParens();
       OffsetConstant = llvm::APSInt(PointerWidth, false);
       OffsetVariable = nullptr;
-      // If the base expression has an incomplete referent type, we consider
-      // the range to be incomplete constant-sized. This means that, if Base
-      // has an incomplete referent type, B and B + 0 will both be incomplete
-      // constant-sized ranges.
-      if (Base->getType()->getPointeeOrArrayElementType()->isIncompleteType())
-        return BaseRange::Kind::IncompleteConstantSized;
       return BaseRange::Kind::ConstantSized;
     }
 
@@ -2091,11 +1922,11 @@ namespace {
           Expr *Upper = RB->getUpperExpr();
           Expr *LowerBase, *UpperBase;
           llvm::APSInt LowerOffsetConstant(1, true);
-          llvm::APSInt UpperOffsetConstant(1, true);
+          llvm::APSInt  UpperOffsetConstant(1, true);
           Expr *LowerOffsetVariable = nullptr;
           Expr *UpperOffsetVariable = nullptr;
-          BaseRange::Kind LowerKind = SplitIntoBaseAndOffset(Lower, LowerBase, LowerOffsetConstant, LowerOffsetVariable);
-          BaseRange::Kind UpperKind = SplitIntoBaseAndOffset(Upper, UpperBase, UpperOffsetConstant, UpperOffsetVariable);
+          SplitIntoBaseAndOffset(Lower, LowerBase, LowerOffsetConstant, LowerOffsetVariable);
+          SplitIntoBaseAndOffset(Upper, UpperBase, UpperOffsetConstant, UpperOffsetVariable);
 
           // If both of the offsets are constants, the range is considered constant-sized.
           // Otherwise, it is a variable-sized range.
@@ -2105,8 +1936,6 @@ namespace {
             R->SetLowerVariable(LowerOffsetVariable);
             R->SetUpperConstant(UpperOffsetConstant);
             R->SetUpperVariable(UpperOffsetVariable);
-            R->SetHasIncompleteConstant(LowerKind == BaseRange::Kind::IncompleteConstantSized ||
-                                        UpperKind == BaseRange::Kind::IncompleteConstantSized);
             return true;
           }
         }
@@ -2169,8 +1998,6 @@ namespace {
             DeclaredRange, Cause, EquivExprs, Facts, FreeVariables);
         if (R == ProofResult::True)
           return R;
-        if (R == ProofResult::IncompleteTypes)
-          return ProofResult::Maybe;
         if (R == ProofResult::False || R == ProofResult::Maybe) {
           if (R == ProofResult::False && SrcRange.IsEmpty())
             Cause = CombineFailures(Cause, ProofFailure::SrcEmpty);
@@ -2188,8 +2015,138 @@ namespace {
           }
         }
         return R;
-      }
+      } else if (CompareNormalizedBounds(DeclaredBounds, SrcBounds, EquivExprs))
+        return ProofResult::True;
       return ProofResult::Maybe;
+    }
+
+    // CompareNormalizedBounds returns true if SrcBounds implies DeclaredBounds
+    // after applying certain transformations to the upper bound expressions
+    // of both bounds.
+    bool CompareNormalizedBounds(const BoundsExpr *DeclaredBounds,
+                                 const BoundsExpr *SrcBounds,
+                                 EquivExprSets *EquivExprs) {
+      // DeclaredBounds and SrcBounds must both be range bounds in order
+      // to normalize their upper bound expression.
+      const RangeBoundsExpr *DeclaredRangeBounds =
+        dyn_cast<RangeBoundsExpr>(DeclaredBounds);
+      if (!DeclaredRangeBounds)
+        return false;
+      const RangeBoundsExpr *SrcRangeBounds =
+        dyn_cast<RangeBoundsExpr>(SrcBounds);
+      if (!SrcRangeBounds)
+        return false;
+
+      // The lower bound expressions must be equivalent.
+      if (!ExprUtil::EqualValue(S.Context, DeclaredRangeBounds->getLowerExpr(),
+                                SrcRangeBounds->getLowerExpr(), EquivExprs))
+        return false;
+      
+      // Attempt to get a variable part and a constant part from the
+      // declared upper bound by applying certain normalizations.
+      Expr *DeclaredVariable = nullptr;
+      llvm::APSInt DeclaredConstant;
+      bool NormalizedDeclared =
+        NormalizeUpperBound(DeclaredRangeBounds->getUpperExpr(),
+                            DeclaredVariable, DeclaredConstant);
+
+      // Attempt to get a variable part and a constant part from the
+      // source upper bound by applying certain normalizations.
+      Expr *SrcVariable = nullptr;
+      llvm::APSInt SrcConstant;
+      bool NormalizedSrc =
+        NormalizeUpperBound(SrcRangeBounds->getUpperExpr(),
+                            SrcVariable, SrcConstant);
+
+      // We must be able to normalize at least one of the upper bounds in
+      // order to compare them.
+      if (!NormalizedDeclared && !NormalizedSrc)
+        return false;
+
+      // Both upper bounds must have a Variable part.
+      if (!DeclaredVariable || !SrcVariable)
+        return false;
+
+      // The variable parts of the upper bounds must be equivalent.
+      if (!ExprUtil::EqualValue(S.Context, DeclaredVariable, SrcVariable, EquivExprs))
+        return false;
+
+      // SrcBounds implies DeclaredBounds if and only if the declared upper
+      // constant part is less than or equal to the source upper constant part.
+      ExprUtil::EnsureEqualBitWidths(DeclaredConstant, SrcConstant);
+      return DeclaredConstant <= SrcConstant;
+    }
+
+    // NormalizeUpperBound attempts to extract a Variable part and a Constant
+    // part from the upper bound expression E.
+    //
+    // If E can be expressed as:
+    // 1. (E1 + (E2 op1 A)) op2 B, or:
+    // 2. B + (E1 + (E2 op1 A))
+    // where:
+    // 1. E1 has pointer type, and:
+    // 2. E2 has integer type, and:
+    // 3. A and B are integer constants, and:
+    // 4. op1 and op2 are + or -
+    // then:
+    // 1. Variable = E1 + E2
+    // 2. Constant = A' + B', where A' is -A if op1 is - and B' is -B if
+    //    op2 is -.
+    //
+    // If we cannot normalize E to one of these two forms, then Variable = E,
+    // Constant = 0, and NormalizeUpperBound returns false.
+    bool NormalizeUpperBound(Expr *E, Expr *&Variable, llvm::APSInt &Constant) {
+      Expr *PointerExpr;
+      Expr *ConstExpr;
+      llvm::APSInt C;
+      Expr *PointerAndConst;
+
+      // E must be of the form X op2 Y, where op2 is + or -.
+      BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens());
+      if (!BO)
+        goto exit;
+      if (!BinaryOperator::isAdditiveOp(BO->getOpcode()))
+        goto exit;
+
+      // E must be of the form P op2 B or B + P, where P has pointer type
+      // and B is an integer constant expression.
+      // Note that E cannot be of the form B - P, since a pointer cannot
+      // appear on the right-hand side of a subtraction operator.
+      if (BO->getLHS()->getType()->isPointerType() &&
+          BO->getRHS()->isIntegerConstantExpr(C, S.Context)) {
+        PointerExpr = BO->getLHS();
+        ConstExpr = BO->getRHS();
+      } else if (BO->getOpcode() == BinaryOperatorKind::BO_Add &&
+                 BO->getRHS()->getType()->isPointerType() &&
+                 BO->getLHS()->isIntegerConstantExpr(C, S.Context)) {
+        PointerExpr = BO->getRHS();
+        ConstExpr = BO->getLHS();
+      } else
+        goto exit;
+
+      // Associate PointerExpr to the left to get (E1 + E2) +/- E3.
+      // If we cannot, then we cannot continue to normalize.
+      PointerExpr = NormalizeUtil::TransformAssocLeft(S, PointerExpr);
+      if (!PointerExpr)
+        goto exit;
+
+      // We have PointerExpr of the form (E1 + E2) + E3. Try to constant fold
+      // ((E1 + E2) + E3) op2 B to (E1 + E2) + (E3 op2 B).
+      // If we can perform this constant folding, then Variable = E1 + E2 and
+      // Constant = E3 op2 B.
+      // Otherwise, Variable = E and Constant = 0.
+      PointerAndConst =
+        ExprCreatorUtil::CreateBinaryOperator(S, PointerExpr, ConstExpr,
+                                              BO->getOpcode());
+      return NormalizeUtil::ConstantFold(S, PointerAndConst, E->getType(),
+                                         Variable, Constant);
+
+      exit:
+        // Return (E, 0).
+        Variable = E;
+        uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(0);
+        Constant = llvm::APSInt(PointerWidth, false);
+        return false;
     }
 
     // Try to prove that PtrBase + Offset is within Bounds, where PtrBase has pointer type.
