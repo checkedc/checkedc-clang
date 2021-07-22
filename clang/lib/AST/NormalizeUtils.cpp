@@ -48,43 +48,67 @@ Expr *NormalizeUtil::TransformAdditiveOp(Sema &S, Expr *E) {
   return AddExprs(S, E1, E2);
 }
 
-// Input form:  E1 + (E2 + E3)
-// Output form: (E1 + E2) + E3
+// Input form:  E1 + (E2 +/- E3)
+// Output form: (E1 + E2) +/- E3
 // Requirements:
 // 1. E1 has pointer type
 // 2. E2 has integer type
 // 3. E3 has integer type
 Expr *NormalizeUtil::TransformAssocLeft(Sema &S, Expr *E) {
-  // E must be of the form LHS + RHS.
-  Expr *LHS, *RHS;
-  if (!GetAdditionOperands(E, LHS, RHS))
+  // E must be of the form LHS +/- RHS.
+  BinaryOperator *RootBinOp = dyn_cast<BinaryOperator>(E->IgnoreParens());
+  if (!RootBinOp)
+    return nullptr;
+  if (!RootBinOp->isAdditiveOp())
     return nullptr;
 
   Expr *E1, *E2, *E3;
 
-  // Check if E is already of the form (E1 + E2) + E3.
-  if (GetAdditionOperands(LHS, E1, E2)) {
-    // Check that E1 has pointer type, and that E2 and E3 have integer type.
-    if (E1->getType()->isPointerType() && E2->getType()->isIntegerType() &&
-        RHS->getType()->isIntegerType())
-      return E;
+  // Check if E is already of the form (E1 + E2) +/- E3.
+  if (BinaryOperator *LHSBinOp = dyn_cast<BinaryOperator>(RootBinOp->getLHS()->IgnoreParens())) {
+    if (LHSBinOp->getOpcode() == BinaryOperatorKind::BO_Add) {
+      E1 = LHSBinOp->getLHS();
+      E2 = LHSBinOp->getRHS();
+      E3 = RootBinOp->getRHS();
+
+      // Check that E1 has pointer type, and that E2 and E3 have integer type.
+      if (E1->getType()->isPointerType() && E2->getType()->isIntegerType() &&
+          E3->getType()->isIntegerType())
+        return E;
+    }
   }
 
+  // E must be an addition operator.
+  if (RootBinOp->getOpcode() != BinaryOperatorKind::BO_Add)
+    return nullptr;
+
   // E1 must have pointer type.
-  E1 = LHS;
+  E1 = RootBinOp->getLHS();
   if (!E1->getType()->isPointerType())
     return nullptr;
 
-  // E must be of the form E1 + (E2 + E3).
-  if (!GetAdditionOperands(RHS, E2, E3))
+  // E must be of the form E1 + (E2 +/- E3).
+  BinaryOperator *RHSBinOp = dyn_cast<BinaryOperator>(RootBinOp->getRHS()->IgnoreParens());
+  if (!RHSBinOp)
+    return nullptr;
+  if (!RHSBinOp->isAdditiveOp())
     return nullptr;
 
   // E2 and E3 must have integer type.
+  E2 = RHSBinOp->getLHS();
+  E3 = RHSBinOp->getRHS();
   if (!E2->getType()->isIntegerType() || !E3->getType()->isIntegerType())
     return nullptr;
 
-  // Output expression is (E1 + E2) + E3.
-  return AddExprs(S, AddExprs(S, E1, E2), E3);
+  // If E is of the form E1 + (E2 + E3), output expression is (E1 + E2) + E3.
+  if (RHSBinOp->getOpcode() == BinaryOperatorKind::BO_Add)
+    return AddExprs(S, AddExprs(S, E1, E2), E3);
+  // If E is of the form E1 + (E2 - E3), output expression is (E1 + E2) - E3.
+  else if (RHSBinOp->getOpcode() == BinaryOperatorKind::BO_Sub) {
+    return ExprCreatorUtil::CreateBinaryOperator(S, AddExprs(S, E1, E2), E3, BinaryOperatorKind::BO_Sub);
+  }
+
+  return nullptr;
 }
 
 bool NormalizeUtil::GetVariableAndConstant(Sema &S, Expr *E, Expr *&Variable,
