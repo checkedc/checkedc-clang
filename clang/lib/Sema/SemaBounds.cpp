@@ -2098,7 +2098,6 @@ namespace {
     bool NormalizeUpperBound(Expr *E, Expr *&Variable, llvm::APSInt &Constant) {
       Expr *PointerExpr;
       Expr *ConstExpr;
-      llvm::APSInt C;
       Expr *PointerAndConst;
 
       // E must be of the form X op2 Y, where op2 is + or -.
@@ -2113,12 +2112,12 @@ namespace {
       // Note that E cannot be of the form B - P, since a pointer cannot
       // appear on the right-hand side of a subtraction operator.
       if (BO->getLHS()->getType()->isPointerType() &&
-          BO->getRHS()->isIntegerConstantExpr(C, S.Context)) {
+          BO->getRHS()->isIntegerConstantExpr(S.Context)) {
         PointerExpr = BO->getLHS();
         ConstExpr = BO->getRHS();
       } else if (BO->getOpcode() == BinaryOperatorKind::BO_Add &&
                  BO->getRHS()->getType()->isPointerType() &&
-                 BO->getLHS()->isIntegerConstantExpr(C, S.Context)) {
+                 BO->getLHS()->isIntegerConstantExpr(S.Context)) {
         PointerExpr = BO->getRHS();
         ConstExpr = BO->getLHS();
       } else
