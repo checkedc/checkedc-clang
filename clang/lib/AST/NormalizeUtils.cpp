@@ -129,13 +129,8 @@ bool NormalizeUtil::GetVariableAndConstant(Sema &S, Expr *E, Expr *&Variable,
   if (!PointerExpr)
     goto exit;
 
-  // If applicable, replace X - Y operations with X + -Y in PointerExpr
-  // and its children.
-  if (Expr *Additive = TransformAdditiveOp(S, PointerExpr))
-    PointerExpr = Additive;
-
-  // If PointerExpr is of the form p + (i + j) (where p is a pointer and
-  // i and j are integers), rewrite PointerExpr as (p + i) + j.
+  // If PointerExpr is of the form p + (i +/- j) (where p is a pointer and
+  // i and j are integers), rewrite PointerExpr as (p + i) +/- j.
   if (Expr *AssocLeft = TransformAssocLeft(S, PointerExpr))
     PointerExpr = AssocLeft;
 
