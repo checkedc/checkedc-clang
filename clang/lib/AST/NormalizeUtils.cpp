@@ -227,17 +227,6 @@ bool NormalizeUtil::AddConstants(llvm::APSInt &C1, llvm::APSInt C2) {
   return !Overflow;
 }
 
-bool NormalizeUtil::GetAdditionOperands(Expr *E, Expr *&LHS, Expr *&RHS) {
-  BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens());
-  if (!BO)
-    return false;
-  if (BO->getOpcode() != BinaryOperatorKind::BO_Add)
-    return false;
-  LHS = BO->getLHS();
-  RHS = BO->getRHS();
-  return true;
-}
-
 bool NormalizeUtil::GetRHSConstant(Sema &S, BinaryOperator *E, QualType T,
                                    llvm::APSInt &Constant) {
   if (!E->isAdditiveOp())
