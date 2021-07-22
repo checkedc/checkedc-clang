@@ -6377,29 +6377,37 @@ void Sema::WarnDynamicCheckAlwaysFails(const Expr *Condition) {
   }
 }
 
-// If the VarDecl D has a byte_count or count bounds expression,
-// NormalizeBounds expands it to a range bounds expression.  The expanded
-// range bounds are attached to the VarDecl D to avoid recomputing the
-// normalized bounds for D.
-BoundsExpr *Sema::NormalizeBounds(const VarDecl *D) {
+// Note: Bounds expression B is an optional parameter to this function.
+// If bounds expression B is provided normalize it to a range bounds
+// expression. In this case the normalized bounds are *not* attached to the
+// VarDecl D and will be recomputed each time this function is called with a
+// non-null bounds expression.
+// Else if bounds expression B is not provided then if the VarDecl D has a
+// byte_count or count bounds expression, NormalizeBounds expands it to a range
+// bounds expression.  The expanded range bounds are attached to the VarDecl D
+// to avoid recomputing the normalized bounds for D.
+BoundsExpr *Sema::NormalizeBounds(const VarDecl *D, BoundsExpr *B) {
   // Do not attempt to normalize bounds for invalid declarations.
   if (D->isInvalidDecl())
     return nullptr;
 
-  // If D already has a normalized bounds expression, do not recompute it.
-  if (BoundsExpr *NormalizedBounds = D->getNormalizedBounds())
-    return NormalizedBounds;
+  if (!B) {
+    // If D already has a normalized bounds expression, do not recompute it.
+    if (BoundsExpr *NormalizedBounds = D->getNormalizedBounds())
+      return NormalizedBounds;
 
-  // Expand the bounds expression of D to a RangeBoundsExpr if possible.
-  const BoundsExpr *B = D->getBoundsExpr();
+    // Expand the bounds expression of D to a RangeBoundsExpr if possible.
+    B = const_cast<BoundsExpr *>(D->getBoundsExpr());
+  }
   BoundsExpr *ExpandedBounds = BoundsUtil::ExpandBoundsToRange(*this,
-                                             const_cast<VarDecl *>(D),
-                                             const_cast<BoundsExpr *>(B));
+                                             const_cast<VarDecl *>(D), B);
   if (!ExpandedBounds)
     return nullptr;
 
-  // Attach the normalized bounds to D to avoid recomputing them.
-  D->setNormalizedBounds(ExpandedBounds);
+  if (!B) {
+    // Attach the normalized bounds to D to avoid recomputing them.
+    D->setNormalizedBounds(ExpandedBounds);
+  }
   return ExpandedBounds;
 }
 

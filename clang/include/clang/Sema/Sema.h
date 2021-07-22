@@ -5726,11 +5726,15 @@ public:
   // will always fail.
   void WarnDynamicCheckAlwaysFails(const Expr *Condition);
 
-  // If the VarDecl D has a byte_count or count bounds expression,
-  // NormalizeBounds expands it to a range bounds expression.  The expanded
-  // range bounds are attached to the VarDecl D to avoid recomputing the
-  // normalized bounds for D.
-  BoundsExpr *NormalizeBounds(const VarDecl *D);
+  // If bounds expression B is provided normalize it to a range bounds
+  // expression. In this case the normalized bounds are *not* attached to the
+  // VarDecl D and will be recomputed each time this function is called with a
+  // non-null bounds expression.
+  // Else if bounds expression B is not provided then if the VarDecl D has a
+  // byte_count or count bounds expression, NormalizeBounds expands it to a
+  // range bounds expression.  The expanded range bounds are attached to the
+  // VarDecl D to avoid recomputing the normalized bounds for D.
+  BoundsExpr *NormalizeBounds(const VarDecl *D, BoundsExpr *B = nullptr);
 
   // If the BoundsDeclFact F has a byte_count or count bounds expression,
   // NormalizeBounds expands it to a range bounds expression.  The expanded
