@@ -159,6 +159,9 @@ macro(add_clang_tool name)
 
   add_clang_executable(${name} ${ARGN})
   add_dependencies(${name} clang-resource-headers)
+  if (CHECKEDC_IN_TREE)
+    add_dependencies(${name} checkedc-headers)
+  endif()
 
   if (CLANG_BUILD_TOOLS)
     set(export_to_clangtargets)
