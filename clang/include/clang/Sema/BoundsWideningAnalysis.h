@@ -262,22 +262,30 @@ namespace clang {
     class ElevatedCFGBlock {
     public:
       const CFGBlock *Block;
-      // The In, Out and Gen sets for a block.
-      BoundsMapTy In, Out, Gen;
-      // The Kill set for a block.
-      VarSetTy Kill;
-      // The StmtGen and UnionGen sets for each statement in a block.
-      StmtBoundsMapTy StmtGen, UnionGen;
-      // The StmtKill and UnionKill sets for each statement in a block.
-      StmtVarSetTy StmtKill, UnionKill;
+      // The In and Out sets for a block.
+      BoundsMapTy In, Out;
+
+      // The Gen set for each statement in a block.
+      StmtBoundsMapTy StmtGen;
+
+      // The Kill set for each statement in a block.
+      StmtVarSetTy StmtKill;
 
       // A mapping from a statement to its previous statement in a block.
       StmtMapTy PrevStmtMap;
+
       // The last statement of the block. This is nullptr if the block is empty.
       const Stmt *LastStmt = nullptr;
+
       // The terminating condition that dereferences a pointer. This is nullptr
       // if the terminating condition does not dereference a pointer.
       Expr *TermCondDerefExpr = nullptr;
+
+      // The In set of the last statment of each block.
+      BoundsMapTy InOfLastStmt;
+
+      // The Out set of the previous statement of a statement in a block.
+      BoundsMapTy OutOfPrevStmt;
 
       ElevatedCFGBlock(const CFGBlock *B) : Block(B) {}
 
@@ -388,19 +396,6 @@ namespace clang {
     void ComputeStmtGenKillSets(ElevatedCFGBlock *EB, const Stmt *CurrStmt,
                                 StmtSetTy NestedStmts);
 
-    // Compute the union of Gen and Kill sets of all statements up to (and
-    // including) the current statement in the block.
-    // @param[in] EB is the current ElevatedCFGBlock.
-    // @param[in] CurrStmt is the current statement.
-    // @param[in] PrevStmt is the previous statement of CurrStmt in the linear
-    // ordering of statements in the block.
-    void ComputeUnionGenKillSets(ElevatedCFGBlock *EB, const Stmt *CurrStmt,
-                                 const Stmt *PrevStmt);
-
-    // Compute the Gen and Kill sets for the block.
-    // @param[in] EB is the current ElevatedCFGBlock.
-    void ComputeBlockGenKillSets(ElevatedCFGBlock *EB);
-
     // Compute the In set for the block.
     // @param[in] EB is the current ElevatedCFGBlock.
     // @return Return true if the In set of the block has changed, false
@@ -413,12 +408,18 @@ namespace clang {
     // otherwise.
     bool ComputeOutSet(ElevatedCFGBlock *EB);
 
+    // Get the Out set for the last statement of a block.
+    // @param[in] EB is the current ElevatedCFGBlock.
+    // @return Return the Out set for the last statement of EB. If EB does not
+    // contain any statement then return the In set for EB.
+    BoundsMapTy GetOutOfLastStmt(ElevatedCFGBlock *EB) const;
+
     // Initialize the In and Out sets for the block.
     // @param[in] FD is the current function.
     // @param[in] EB is the current ElevatedCFGBlock.
     void InitBlockInOutSets(FunctionDecl *FD, ElevatedCFGBlock *EB);
 
-    // Add the successor blocks of the current block to WorkList.
+    // Add the successors of the current block to WorkList.
     // @param[in] CurrBlock is the current block.
     // @param[in] WorkList stores the blocks remaining to be processed for the
     // fixpoint computation.
