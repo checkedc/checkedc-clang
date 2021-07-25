@@ -300,7 +300,7 @@ void assign1(array_ptr<int> arr : count(1)) { // expected-note {{(expanded) decl
 // Assignment to a variable used in other variables' bounds
 void assign2(
   array_ptr<int> a : count(len - 1), // expected-note {{(expanded) declared bounds are 'bounds(a, a + len - 1)'}}
-  char b nt_checked[0] : count(len), // expected-note {{(expanded) declared bounds are 'bounds(b, b + len)'}}
+  char b nt_checked[0] : count(len),
   unsigned len
 ) {
   // Observed bounds context before assignment: { a => bounds(a, a + len - 1), b => bounds(b, b + len) }
@@ -308,8 +308,6 @@ void assign2(
   // Observed bounds context after assignment : { a => bounds(a, a + ((len + 3) - 1)), b => bounds(b, b + (len + 3)) }
   len = len - 3; // expected-warning {{cannot prove declared bounds for 'a' are valid after assignment}} \
                  // expected-note {{(expanded) inferred bounds are 'bounds(a, a + len + 3 - 1)'}} \
-                 // expected-warning {{cannot prove declared bounds for 'b' are valid after assignment}} \
-                 // expected-note {{(expanded) inferred bounds are 'bounds(b, b + len + 3)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'

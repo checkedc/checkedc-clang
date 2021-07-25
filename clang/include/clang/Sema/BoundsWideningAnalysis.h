@@ -18,6 +18,7 @@
 #include "clang/AST/ExprUtils.h"
 #include "clang/AST/PrettyPrinter.h"
 #include "clang/Analysis/Analyses/PostOrderCFGView.h"
+#include "clang/Sema/BoundsUtils.h"
 #include "clang/Sema/CheckedCAnalysesPrepass.h"
 #include "clang/Sema/Sema.h"
 
@@ -53,6 +54,14 @@ namespace clang {
   // OrderedBlocksTy denotes blocks ordered by block numbers. This is useful
   // for printing the blocks in a deterministic order.
   using OrderedBlocksTy = std::vector<const CFGBlock *>;
+
+  // A tuple (Tup) of three elements such that we need to replace Tup[0] with
+  // Tup[1] in the bounds of every pointer in Tup[3].
+  using LValuesToReplaceInBoundsTy = std::tuple<Expr *, Expr *, VarSetTy>;
+
+  // A mapping of invertible statements to LValuesToReplaceInBoundsTy.
+  using InvertibleStmtMapTy = llvm::DenseMap<const Stmt *,
+                                             LValuesToReplaceInBoundsTy>;
 
 } // end namespace clang
 
@@ -128,20 +137,20 @@ namespace clang {
     // Get the set of variables that are pointers to null-terminated arrays and
     // in whose lower bounds expressions the variables in Vars occur.
     // @param[in] Vars is a set of variables.
-    // @param[out] NullTermPtrsWithVarsInLowerBounds is a set of variables that
-    // are pointers to null-terminated arrays and in whose lower bounds
-    // expressions the variables in Vars occur.
-    void GetNullTermPtrsWithVarsInLowerBounds(
-      VarSetTy &Vars, VarSetTy &NullTermPtrsWithVarsInLowerBounds) const;
+    // @param[out] PtrsWithVarsInLowerBounds is a set of variables that are
+    // pointers to null-terminated arrays and in whose lower bounds expressions
+    // the variables in Vars occur.
+    void GetPtrsWithVarsInLowerBounds(
+      VarSetTy &Vars, VarSetTy &PtrsWithVarsInLowerBounds) const;
 
     // Get the set of variables that are pointers to null-terminated arrays and
     // in whose upper bounds expressions the variables in Vars occur.
     // @param[in] Vars is a set of variables.
-    // @param[out] NullTermPtrsWithVarsInLowerBounds is a set of variables that
-    // are pointers to null-terminated arrays and in whose upper bounds
-    // expressions the variables in Vars occur.
-    void GetNullTermPtrsWithVarsInUpperBounds(
-      VarSetTy &Vars, VarSetTy &NullTermPtrsWithVarsInUpperBounds) const;
+    // @param[out] PtrsWithVarsInLowerBounds is a set of variables that are
+    // pointers to null-terminated arrays and in whose upper bounds expressions
+    // the variables in Vars occur.
+    void GetPtrsWithVarsInUpperBounds(
+      VarSetTy &Vars, VarSetTy &PtrsWithVarsInUpperBounds) const;
 
     // Add an offset to a given expression.
     // @param[in] E is the given expression.
@@ -286,6 +295,14 @@ namespace clang {
 
       // The Out set of the previous statement of a statement in a block.
       BoundsMapTy OutOfPrevStmt;
+
+      // This stores the adjusted bounds after we have determined the
+      // invertibility of the current statement that modifies variables
+      // occurring in bounds expressions.
+      StmtBoundsMapTy AdjustedBounds;
+
+      // A mapping of invertible statements to LValuesToReplaceInBoundsTy.
+      InvertibleStmtMapTy InvertibleStmts;
 
       ElevatedCFGBlock(const CFGBlock *B) : Block(B) {}
 
@@ -491,6 +508,28 @@ namespace clang {
     void GetVarsAndBoundsForModifiedVars(ElevatedCFGBlock *EB,
                                          const Stmt *CurrStmt,
                                          BoundsMapTy &VarsAndBounds);
+
+    // Check if CurrStmt is invertible w.r.t. the variables modified by
+    // CurrStmt.
+    // Note: This function modifies the set EB->InvertibleStmts.
+    // @param[in] EB is the current ElevatedCFGBlock.
+    // @param[in] CurrStmt is the current statement.
+    // @param[in] PtrsWithAffectedBounds is the set of variables that are
+    // pointers to null-terminated arrays whose bounds are affected by
+    // modification to variables that occur in their bounds expressions by
+    // CurrStmt.
+    void CheckStmtInvertibility(ElevatedCFGBlock *EB,
+                                const Stmt *CurrStmt,
+                                VarSetTy PtrsWithAffectedBounds) const;
+
+    // Update the bounds in StmtOut with the adjusted bounds for the current
+    // statement, if they exist.
+    // @param[in] EB is the current ElevatedCFGBlock.
+    // @param[in] CurrStmt is the current statement.
+    // @param[out] StmtOut is updated with the adjusted bounds for CurrStmt, if
+    // they exist.
+    void UpdateAdjustedBounds(ElevatedCFGBlock *EB, const Stmt *CurrStmt,
+                              BoundsMapTy &StmtOut) const;
 
     // Order the blocks by block number to get a deterministic iteration order
     // for the blocks.

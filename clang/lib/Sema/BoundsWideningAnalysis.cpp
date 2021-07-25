@@ -93,17 +93,90 @@ BoundsMapTy BoundsWideningAnalysis::GetOutOfLastStmt(
     if (!CurrStmt)
       continue;
 
+    // The In of the current statement is the value of StmtOut computed so far.
+    BoundsMapTy InOfCurrStmt = StmtOut;
+
     // If this is the last statement of the current block, then at this point
-    // StmtOut contains the Out set of the second last statement of the block.
-    // This is equal to the In set for the last statement of this block. So we
-    // set InOfLastStmt to StmtOut.
+    // InOfCurrStmt contains the Out set of the second last statement of the
+    // block.  This is equal to the In set for the last statement of this
+    // block. So we set InOfLastStmt to StmtOut.
     if (CurrStmt == EB->LastStmt)
-      EB->InOfLastStmt = StmtOut;
+      EB->InOfLastStmt = InOfCurrStmt;
 
-    auto Diff = BWUtil.Difference(StmtOut, EB->StmtKill[CurrStmt]);
-
-    // TODO: Update StmtOut based on the invertibility of CurrStmt.
+    // StmtOut = (InOfCurrStmt - StmtKill) u StmtGen.
+    auto Diff = BWUtil.Difference(InOfCurrStmt, EB->StmtKill[CurrStmt]);
     StmtOut = BWUtil.Union(Diff, EB->StmtGen[CurrStmt]);
+
+    // Update StmtOut based on the invertibility of CurrStmt.
+    auto InvStmtIt = EB->InvertibleStmts.find(CurrStmt);
+    if (InvStmtIt == EB->InvertibleStmts.end())
+      continue;
+
+    // At CurrStmt, we need to replace the ModifiedLValue with the
+    // OriginalLValue in the bounds of every null-terminated array occurring in
+    // PtrsWithAffectedBounds.
+    auto ValuesToReplaceInBounds = InvStmtIt->second;
+
+    Expr *ModifiedLValue = std::get<0>(ValuesToReplaceInBounds);
+    Expr *OriginalLValue = std::get<1>(ValuesToReplaceInBounds);
+    VarSetTy PtrsWithAffectedBounds = std::get<2>(ValuesToReplaceInBounds);
+
+    // TODO: 
+    CheckedScopeSpecifier CSS = CheckedScopeSpecifier::CSS_Unchecked;
+
+    for (const VarDecl *V : PtrsWithAffectedBounds) {
+      auto StmtInIt = InOfCurrStmt.find(V);
+      if (StmtInIt == InOfCurrStmt.end())
+        continue;
+
+      BoundsExpr *SrcBounds = StmtInIt->second;
+
+      // Replace the modified LValue with the original LValue in the bounds
+      // expression of V.
+      BoundsExpr *AdjustedBounds =
+        BoundsUtil::ReplaceLValueInBounds(SemaRef, SrcBounds, ModifiedLValue,
+                                          OriginalLValue, CSS);
+      RangeBoundsExpr *AdjustedRangeBounds =
+        dyn_cast_or_null<RangeBoundsExpr>(AdjustedBounds);
+
+      if (!AdjustedRangeBounds)
+        llvm_unreachable("Invalid RangeBoundsExpr!");
+
+      // In the bounds widening analysis the widest value of an upper bounds
+      // expression is Top, whereas the narrowest value is the declared upper
+      // bound. This means that the upper bound can/should never become
+      // narrower than the declared upper bound.
+      // So in case we have an invertible statement that modifies a variable
+      // occurring in the bounds expression of a null-terminated array we
+      // should always reset the bounds to the declared upper bound except when
+      // replacement of the modified LValue with its original LValue results in
+      // a bounds expression which is strictly wider than the declared upper
+      // bound.
+      // So we will proceed only if AdjustedRangeBounds is wider than
+      // StmtOut[V] which contains the delcared bounds of V at this point. For
+      // example:
+
+      // Let DB = Declared bounds, AB = Adjusted bounds.
+
+      // DB = (p, p + len), AB = (p, p + len + 1)
+      //   ==> AB is wider than DB ==> set bounds of V to AB.
+
+      // DB = (p, p + len), AB = (p, p + len - 1)
+      //   ==> AB is not wider than DB ==> set bounds of V to DB.
+
+      // DB = (p, p + len), AB = (p, p + len + i)
+      //   ==> AB cannot be compared to DB ==> set bounds of V to DB.
+
+      if (!BWUtil.IsSubRange(AdjustedRangeBounds, StmtOut[V]))
+        continue;
+
+      // Update the bounds of V with the adjusted bounds.
+      StmtOut[V] = AdjustedRangeBounds;
+
+      // Store the adjusted bounds for the current statement. We will use these
+      // when clients invoke GetStmtIn or GetStmtOut.
+      EB->AdjustedBounds[CurrStmt][V] = AdjustedRangeBounds;
+    }
   }
   return StmtOut;
 }
@@ -247,7 +320,7 @@ bool BoundsWideningAnalysis::ComputeInSet(ElevatedCFGBlock *EB) {
   }
 
   // Return true if the In set has changed, false otherwise.
-  return !BWUtil.IsEqual(EB->In, OrigIn);
+  return !BWUtil.IsEqual(OrigIn, EB->In);
 }
 
 BoundsMapTy BoundsWideningAnalysis::PruneOutSet(
@@ -444,7 +517,7 @@ bool BoundsWideningAnalysis::ComputeOutSet(ElevatedCFGBlock *EB) {
   EB->Out = GetOutOfLastStmt(EB);
 
   // Return true if the Out set has changed, false otherwise.
-  return !BWUtil.IsEqual(EB->Out, OrigOut);
+  return !BWUtil.IsEqual(OrigOut, EB->Out);
 }
 
 void BoundsWideningAnalysis::InitBlockInOutSets(FunctionDecl *FD,
@@ -511,15 +584,18 @@ BoundsMapTy BoundsWideningAnalysis::GetStmtOut(const CFGBlock *B,
 
   ElevatedCFGBlock *EB = BlockIt->second;
 
-  if (CurrStmt) {
-    auto Diff = BWUtil.Difference(EB->OutOfPrevStmt, EB->StmtKill[CurrStmt]);
-    auto StmtOut = BWUtil.Union(Diff, EB->StmtGen[CurrStmt]);
-    EB->OutOfPrevStmt = StmtOut;
-    return StmtOut;
+  if (!CurrStmt) {
+    EB->OutOfPrevStmt = EB->In;
+    return EB->In;
   }
 
-  EB->OutOfPrevStmt = EB->In;
-  return EB->In;
+  auto Diff = BWUtil.Difference(EB->OutOfPrevStmt, EB->StmtKill[CurrStmt]);
+  auto StmtOut = BWUtil.Union(Diff, EB->StmtGen[CurrStmt]);
+
+  UpdateAdjustedBounds(EB, CurrStmt, StmtOut);
+
+  EB->OutOfPrevStmt = StmtOut;
+  return StmtOut;
 }
 
 BoundsMapTy BoundsWideningAnalysis::GetStmtIn(const CFGBlock *B,
@@ -549,7 +625,11 @@ BoundsMapTy BoundsWideningAnalysis::GetBoundsWidenedAndNotKilled(
   ElevatedCFGBlock *EB = BlockIt->second;
 
   BoundsMapTy InOfCurrStmt = GetStmtIn(B, CurrStmt);
-  return BWUtil.Difference(InOfCurrStmt, EB->StmtKill[CurrStmt]);
+  auto BoundsWidenedAndNotKilled = BWUtil.Difference(InOfCurrStmt,
+                                                     EB->StmtKill[CurrStmt]);
+
+  UpdateAdjustedBounds(EB, CurrStmt, BoundsWidenedAndNotKilled);
+  return BoundsWidenedAndNotKilled;
 }
 
 void BoundsWideningAnalysis::InitNullTermPtrsInFunc(FunctionDecl *FD) {
@@ -659,20 +739,19 @@ void BoundsWideningAnalysis::GetVarsAndBoundsInPtrDeref(
   // _Nt_array_ptr<char> s : bounds(p, s);
 
   // On a dereference expression like "*(p + i + j + 1)"
-  // GetNullTermPtrsWithVarsInUpperBounds() will return {p, q, r} because p
+  // GetPtrsWithVarsInUpperBounds() will return {p, q, r} because p
   // occurs in the upper bounds expressions of p, q and r.
 
   VarSetTy Vars;
   Vars.insert(NullTermPtrInExpr);
 
-  VarSetTy NullTermPtrsWithVarsInUpperBounds;
-  BWUtil.GetNullTermPtrsWithVarsInUpperBounds(
-    Vars, NullTermPtrsWithVarsInUpperBounds);
+  VarSetTy PtrsWithAffectedBounds;
+  BWUtil.GetPtrsWithVarsInUpperBounds(Vars, PtrsWithAffectedBounds);
 
-  // Now, the bounds of all variables in NullTermPtrsWithVarsInUpperBounds can
-  // potentially be widened to bounds(lower, DerefExpr + 1).
+  // Now, the bounds of all variables in PtrsWithAffectedBounds can potentially
+  // be widened to bounds(lower, DerefExpr + 1).
 
-  for (const VarDecl *V : NullTermPtrsWithVarsInUpperBounds) {
+  for (const VarDecl *V : PtrsWithAffectedBounds) {
     BoundsExpr *NormalizedBounds = SemaRef.NormalizeBounds(V);
     RangeBoundsExpr *R = dyn_cast_or_null<RangeBoundsExpr>(NormalizedBounds);
 
@@ -700,17 +779,124 @@ void BoundsWideningAnalysis::GetVarsAndBoundsForModifiedVars(
 
   // Get the set of variables that are pointers to null-terminated arrays and
   // in whose lower and upper bounds expressions the modified variables occur.
-  VarSetTy NullTermPtrsWithVarsInBounds;
-  BWUtil.GetNullTermPtrsWithVarsInLowerBounds(ModifiedVars,
-                                              NullTermPtrsWithVarsInBounds);
-  BWUtil.GetNullTermPtrsWithVarsInUpperBounds(ModifiedVars,
-                                              NullTermPtrsWithVarsInBounds);
+  VarSetTy PtrsWithAffectedBounds;
+  BWUtil.GetPtrsWithVarsInLowerBounds(ModifiedVars,
+                                      PtrsWithAffectedBounds);
+  BWUtil.GetPtrsWithVarsInUpperBounds(ModifiedVars,
+                                      PtrsWithAffectedBounds);
 
   // For each null-terminated array we need to reset the bounds to its declared
   // bounds.
-  for (const VarDecl *V : NullTermPtrsWithVarsInBounds) {
+  for (const VarDecl *V : PtrsWithAffectedBounds) {
     BoundsExpr *NormalizedBounds = SemaRef.NormalizeBounds(V);
     VarsAndBounds[V] = dyn_cast_or_null<RangeBoundsExpr>(NormalizedBounds);
+  }
+
+  // If the modification of a variable by the current statement affects the
+  // bounds of a null-terminated array, then check invertibility of the
+  // statement. If the statement is invertible then store the statement, the
+  // modified LValue, the original LValue and the set of null-terminated arrays
+  // whose bounds are affected by the statement. We will use this info in the
+  // computation of the Out sets of blocks.
+  CheckStmtInvertibility(EB, CurrStmt, PtrsWithAffectedBounds);
+}
+
+void BoundsWideningAnalysis::CheckStmtInvertibility(ElevatedCFGBlock *EB,
+  const Stmt *CurrStmt, VarSetTy PtrsWithAffectedBounds) const {
+
+  // If the variables modified by the current statement do not affect the
+  // bounds of any null-terminated array we do not need to check statement
+  // invertibility.
+  if (PtrsWithAffectedBounds.size() == 0)
+    return;
+
+  Expr *ModifiedLValue = nullptr;
+  Expr *ModifyingExpr = nullptr;
+
+  // If the current statement is a unary inc/dec. For example: ++len
+  if (const auto *UO = dyn_cast<const UnaryOperator>(CurrStmt)) {
+    if (!UO->isIncrementDecrementOp())
+      return;
+
+    // Get the LValue being incremented/decremented. For example: len
+    ModifiedLValue = UO->getSubExpr();
+    if (!ModifiedLValue)
+      return;
+
+    // Normalize the inc/dec of the LValue to LValue +/- 1.
+    // For example: ++len is normalized to len + 1
+    //              len-- is normalized to len - 1
+    IntegerLiteral *One = ExprCreatorUtil::CreateIntegerLiteral(
+                            Ctx, 1, ModifiedLValue->getType());
+
+    BinaryOperatorKind OpKind = UnaryOperator::isIncrementOp(UO->getOpcode()) ?
+                                BO_Add : BO_Sub;
+
+    // Here ModifyingExpr will be of the form len +/- 1.
+    ModifyingExpr =
+      ExprCreatorUtil::CreateBinaryOperator(SemaRef, ModifiedLValue,
+                                            One, OpKind);
+
+    // Else if the current statement is an assignment statement. For example:
+    // len = e1
+  } else if (const auto *BO = dyn_cast<const BinaryOperator>(CurrStmt)) {
+    if (!BO->isAssignmentOp())
+      return;
+
+    // ModifiedLValue is len.
+    ModifiedLValue = BO->getLHS();
+    // ModifyingExpr is e1.
+    ModifyingExpr = BO->getRHS();
+
+    BinaryOperatorKind OpKind = BO->getOpcode();
+    // If the current statement is of the form len += e1.
+    if (OpKind == BO_AddAssign || OpKind == BO_SubAssign) {
+      OpKind = OpKind == BO_AddAssign ? BO_Add : BO_Sub;
+
+      // Normalize the ModifyingExpr to len + e1.
+      ModifyingExpr =
+        ExprCreatorUtil::CreateBinaryOperator(SemaRef, ModifiedLValue,
+                                              ModifyingExpr, OpKind);
+    }
+  }
+
+  if (!ModifiedLValue || !ModifyingExpr)
+    return;
+
+  CastExpr *Target =
+    ExprCreatorUtil::CreateImplicitCast(SemaRef, ModifiedLValue,
+                                        CK_LValueToRValue,
+                                        ModifiedLValue->getType());
+
+  // Check if the modifying expr is invertible w.r.t. the modified LValue.
+  if (InverseUtil::IsInvertible(SemaRef, ModifiedLValue, ModifyingExpr)) {
+    // Get the original LValue for the modified LValue. For example, for len++
+    // the original LValue would be len - 1.
+    Expr *OriginalLValue = InverseUtil::Inverse(SemaRef, ModifiedLValue,
+                                                Target, ModifyingExpr);
+
+    // Store the modified LValue, the original LValue and the set of
+    // null-terminated arrays whose bounds expressions are affected by the
+    // LValue being modified.
+    if (OriginalLValue)
+      EB->InvertibleStmts[CurrStmt] = std::make_tuple(ModifiedLValue,
+                                                      OriginalLValue,
+                                                      PtrsWithAffectedBounds);
+  }
+}
+
+void BoundsWideningAnalysis::UpdateAdjustedBounds(
+  ElevatedCFGBlock *EB, const Stmt *CurrStmt, BoundsMapTy &StmtOut) const {
+
+  auto AdjBoundsIt = EB->AdjustedBounds.find(CurrStmt);
+  if (AdjBoundsIt == EB->AdjustedBounds.end())
+    return;
+
+  for (auto Item : AdjBoundsIt->second) {
+    const VarDecl *V = Item.first;
+    RangeBoundsExpr *AdjustedBounds = Item.second;
+
+    StmtOut[V] = AdjustedBounds;
   }
 }
 
@@ -837,6 +1023,11 @@ void BoundsWideningAnalysis::DumpWidenedBounds(FunctionDecl *FD,
       // Print the Out set for the block.
       OS << "  Out:\n";
       PrintBoundsMap(EB->Out, PrintOption);
+    }
+
+    if (CurrBlock->empty()) {
+      OS << "\n";
+      continue;
     }
 
     for (CFGElement Elem : *CurrBlock) {
@@ -1078,8 +1269,8 @@ void BoundsWideningUtil::GetModifiedVars(const Stmt *CurrStmt,
     GetModifiedVars(NestedStmt, ModifiedVars);
 }
 
-void BoundsWideningUtil::GetNullTermPtrsWithVarsInLowerBounds(
-  VarSetTy &Vars, VarSetTy &NullTermPtrsWithVarsInLowerBounds) const {
+void BoundsWideningUtil::GetPtrsWithVarsInLowerBounds(
+  VarSetTy &Vars, VarSetTy &PtrsWithVarsInLowerBounds) const {
 
   // Get the set of variables that are pointers to null-terminated arrays and
   // in whose lower bounds expressions the variables in Vars occur.
@@ -1089,13 +1280,13 @@ void BoundsWideningUtil::GetNullTermPtrsWithVarsInLowerBounds(
     if (VarPtrIt != BoundsVarsLower.end()) {
       for (const VarDecl *Ptr : VarPtrIt->second)
         if (!Ptr->isInvalidDecl() && IsNtArrayType(Ptr))
-          NullTermPtrsWithVarsInLowerBounds.insert(Ptr);
+          PtrsWithVarsInLowerBounds.insert(Ptr);
     }
   }
 }
 
-void BoundsWideningUtil::GetNullTermPtrsWithVarsInUpperBounds(
-  VarSetTy &Vars, VarSetTy &NullTermPtrsWithVarsInUpperBounds) const {
+void BoundsWideningUtil::GetPtrsWithVarsInUpperBounds(
+  VarSetTy &Vars, VarSetTy &PtrsWithVarsInUpperBounds) const {
 
   // Get the set of variables that are pointers to null-terminated arrays and
   // in whose upper bounds expressions the variables in Vars occur.
@@ -1105,7 +1296,7 @@ void BoundsWideningUtil::GetNullTermPtrsWithVarsInUpperBounds(
     if (VarPtrIt != BoundsVarsUpper.end()) {
       for (const VarDecl *Ptr : VarPtrIt->second)
         if (!Ptr->isInvalidDecl() && IsNtArrayType(Ptr))
-          NullTermPtrsWithVarsInUpperBounds.insert(Ptr);
+          PtrsWithVarsInUpperBounds.insert(Ptr);
     }
   }
 }
