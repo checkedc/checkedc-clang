@@ -121,8 +121,8 @@ BoundsMapTy BoundsWideningAnalysis::GetOutOfLastStmt(
     Expr *OriginalLValue = std::get<1>(ValuesToReplaceInBounds);
     VarSetTy PtrsWithAffectedBounds = std::get<2>(ValuesToReplaceInBounds);
 
-    // TODO: 
-    CheckedScopeSpecifier CSS = CheckedScopeSpecifier::CSS_Unchecked;
+    // TODO: Determine the Checked scope for each statement.
+    CheckedScopeSpecifier CSS = CheckedScopeSpecifier::CSS_None;
 
     for (const VarDecl *V : PtrsWithAffectedBounds) {
       auto StmtInIt = InOfCurrStmt.find(V);
@@ -592,6 +592,8 @@ BoundsMapTy BoundsWideningAnalysis::GetStmtOut(const CFGBlock *B,
   auto Diff = BWUtil.Difference(EB->OutOfPrevStmt, EB->StmtKill[CurrStmt]);
   auto StmtOut = BWUtil.Union(Diff, EB->StmtGen[CurrStmt]);
 
+  // Account for bounds which are killed by the current statement but which may
+  // have been adjusted using invertibility of the statement.
   UpdateAdjustedBounds(EB, CurrStmt, StmtOut);
 
   EB->OutOfPrevStmt = StmtOut;
@@ -628,6 +630,8 @@ BoundsMapTy BoundsWideningAnalysis::GetBoundsWidenedAndNotKilled(
   auto BoundsWidenedAndNotKilled = BWUtil.Difference(InOfCurrStmt,
                                                      EB->StmtKill[CurrStmt]);
 
+  // Account for bounds which are killed by the current statement but which may
+  // have been adjusted using invertibility of the statement.
   UpdateAdjustedBounds(EB, CurrStmt, BoundsWidenedAndNotKilled);
   return BoundsWidenedAndNotKilled;
 }
