@@ -99,7 +99,7 @@ BoundsMapTy BoundsWideningAnalysis::GetOutOfLastStmt(
     // If this is the last statement of the current block, then at this point
     // InOfCurrStmt contains the Out set of the second last statement of the
     // block.  This is equal to the In set for the last statement of this
-    // block. So we set InOfLastStmt to StmtOut.
+    // block. So we set InOfLastStmt to InOfCurrStmt.
     if (CurrStmt == EB->LastStmt)
       EB->InOfLastStmt = InOfCurrStmt;
 
@@ -153,7 +153,7 @@ BoundsMapTy BoundsWideningAnalysis::GetOutOfLastStmt(
       // a bounds expression which is strictly wider than the declared upper
       // bound.
       // So we will proceed only if AdjustedRangeBounds is wider than
-      // StmtOut[V] which contains the delcared bounds of V at this point. For
+      // StmtOut[V] which contains the declared bounds of V at this point. For
       // example:
 
       // Let DB = Declared bounds, AB = Adjusted bounds.
@@ -584,16 +584,33 @@ BoundsMapTy BoundsWideningAnalysis::GetStmtOut(const CFGBlock *B,
 
   ElevatedCFGBlock *EB = BlockIt->second;
 
+  // CurrStmt will be null if:
+  // 1. This method is called with a null value for CurrStmt, or
+  // 2. GetStmtIn calls this method to get the In set for the first statement
+  // of the block. Because the Out of the previous statement is equal to the In
+  // of the current statement, GetStmtIn will call this function with the
+  // previous statement of the first statment (which would be null).
+
+  // In both cases we will set the OutOfPrevStmt to the In set of the block and
+  // return it.
   if (!CurrStmt) {
     EB->OutOfPrevStmt = EB->In;
     return EB->In;
   }
 
+  // If we are here it means the client wants the Out set for the first
+  // statement of the block (that is the reason PrevStmtMap[CurrStmt] is null).
+  // In this case, we set OutOfPrevStmt to the In set of the block and then
+  // apply the regular (In - Kill) u Gen computation on it.
+  if (!EB->PrevStmtMap[CurrStmt])
+    EB->OutOfPrevStmt = EB->In;
+
   auto Diff = BWUtil.Difference(EB->OutOfPrevStmt, EB->StmtKill[CurrStmt]);
   auto StmtOut = BWUtil.Union(Diff, EB->StmtGen[CurrStmt]);
 
   // Account for bounds which are killed by the current statement but which may
-  // have been adjusted using invertibility of the statement.
+  // have been adjusted using invertibility of the statement. This function
+  // modifies StmtOut.
   UpdateAdjustedBounds(EB, CurrStmt, StmtOut);
 
   EB->OutOfPrevStmt = StmtOut;
@@ -631,7 +648,8 @@ BoundsMapTy BoundsWideningAnalysis::GetBoundsWidenedAndNotKilled(
                                                      EB->StmtKill[CurrStmt]);
 
   // Account for bounds which are killed by the current statement but which may
-  // have been adjusted using invertibility of the statement.
+  // have been adjusted using invertibility of the statement. This function
+  // modifies BoundsWidenedAndNotKilled.
   UpdateAdjustedBounds(EB, CurrStmt, BoundsWidenedAndNotKilled);
   return BoundsWidenedAndNotKilled;
 }
@@ -801,7 +819,8 @@ void BoundsWideningAnalysis::GetVarsAndBoundsForModifiedVars(
   // statement. If the statement is invertible then store the statement, the
   // modified LValue, the original LValue and the set of null-terminated arrays
   // whose bounds are affected by the statement. We will use this info in the
-  // computation of the Out sets of blocks.
+  // computation of the Out sets of statements which will, in turn be used to
+  // compute the Out sets of blocks.
   CheckStmtInvertibility(EB, CurrStmt, PtrsWithAffectedBounds);
 }
 
