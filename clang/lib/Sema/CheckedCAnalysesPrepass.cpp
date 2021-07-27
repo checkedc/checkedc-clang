@@ -277,6 +277,41 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
       return ProcessWhereClause(S->getWhereClause());
     }
 
+    bool VisitCompoundStmt(CompoundStmt *CS) {
+      if (!CS)
+        return true;
+
+      // Get the checked scope specifier for the current compound statement.
+      CheckedScopeSpecifier CSS = CS->getCheckedSpecifier();
+
+      bool FirstStmt = true;
+
+      // A compound statement is of the form {stmt stmt}. Iterate through the
+      // nested statements of the compound statement.
+      for (auto I = CS->body_begin(), E = CS->body_end(); I != E; ++I) {
+        const Stmt *CurrStmt = *I;
+
+	// If this is a compound statement the RecursiveASTVisitor will visit
+	// it later. So we don't need to process it now.
+	if (isa<CompoundStmt>(CurrStmt))
+          continue;
+
+	// If this is the first statement in a compound statement store its
+	// checked scope specifier.
+	if (FirstStmt) {
+          Info.CheckedScopeMap[CurrStmt] = CSS;
+          FirstStmt = false;
+
+	// Else if the previous statement was a compound statement store the
+	// checked scope specifier of the current statement.
+	} else if (isa<CompoundStmt>(*(I - 1))) {
+          Info.CheckedScopeMap[CurrStmt] = CSS;
+        }
+      }
+
+      return true;
+    }
+
     void DumpBoundsVars(FunctionDecl *FD) {
       PrintDeclMap<const VarDecl *>(FD, "BoundsVars Lower",
                                     Info.BoundsVarsLower);

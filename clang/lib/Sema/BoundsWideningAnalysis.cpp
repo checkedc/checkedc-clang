@@ -82,6 +82,7 @@ BoundsMapTy BoundsWideningAnalysis::GetOutOfLastStmt(
   // statement and return the StmtOut for the last statement of the block.
 
   BoundsMapTy StmtOut = EB->In;
+  CheckedScopeSpecifier CSS = CheckedScopeSpecifier::CSS_None;
 
   for (CFGBlock::const_iterator I = EB->Block->begin(),
                                 E = EB->Block->end();
@@ -92,6 +93,9 @@ BoundsMapTy BoundsWideningAnalysis::GetOutOfLastStmt(
     const Stmt *CurrStmt = Elem.castAs<CFGStmt>().getStmt();
     if (!CurrStmt)
       continue;
+
+    // Update the checked scope specifier for the current statement.
+    BWUtil.UpdateCheckedScopeSpecifier(CurrStmt, CSS);
 
     // The In of the current statement is the value of StmtOut computed so far.
     BoundsMapTy InOfCurrStmt = StmtOut;
@@ -120,9 +124,6 @@ BoundsMapTy BoundsWideningAnalysis::GetOutOfLastStmt(
     Expr *ModifiedLValue = std::get<0>(ValuesToReplaceInBounds);
     Expr *OriginalLValue = std::get<1>(ValuesToReplaceInBounds);
     VarSetTy PtrsWithAffectedBounds = std::get<2>(ValuesToReplaceInBounds);
-
-    // TODO: Determine the Checked scope for each statement.
-    CheckedScopeSpecifier CSS = CheckedScopeSpecifier::CSS_None;
 
     for (const VarDecl *V : PtrsWithAffectedBounds) {
       auto StmtInIt = InOfCurrStmt.find(V);
@@ -1417,6 +1418,14 @@ const VarDecl *BoundsWideningUtil::GetNullTermPtrInExpr(Expr *E) const {
         return V;
   }
   return nullptr;
+}
+
+void BoundsWideningUtil::UpdateCheckedScopeSpecifier(
+  const Stmt *CurrStmt, CheckedScopeSpecifier &CSS) const {
+
+  auto ScopeIt = CheckedScopeMap.find(CurrStmt);
+  if (ScopeIt != CheckedScopeMap.end())
+    CSS = ScopeIt->second;
 }
 
 Expr *BoundsWideningUtil::IgnoreCasts(const Expr *E) const {
