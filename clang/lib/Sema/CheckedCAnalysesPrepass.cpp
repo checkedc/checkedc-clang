@@ -291,20 +291,28 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
       for (auto I = CS->body_begin(), E = CS->body_end(); I != E; ++I) {
         const Stmt *CurrStmt = *I;
 
-	// If this is a compound statement the RecursiveASTVisitor will visit
-	// it later. So we don't need to process it now.
-	if (isa<CompoundStmt>(CurrStmt))
+        // If this is a compound statement the RecursiveASTVisitor will visit
+        // it later. So we don't need to process it now.
+        if (isa<CompoundStmt>(CurrStmt))
           continue;
 
-	// If this is the first statement in a compound statement store its
-	// checked scope specifier.
-	if (FirstStmt) {
+        // If this is the first statement in a compound statement store its
+        // checked scope specifier.
+        if (FirstStmt) {
           Info.CheckedScopeMap[CurrStmt] = CSS;
           FirstStmt = false;
 
-	// Else if the previous statement was a compound statement store the
-	// checked scope specifier of the current statement.
-	} else if (isa<CompoundStmt>(*(I - 1))) {
+        // Else if this is a label statement. Basic blocks may begin at label
+        // statements. We need to be able to update the CSS value correctly at
+        // the beginning of a basic block as we are assured of ordered lookup
+        // only within a basic block (i.e. the first statement of a basic block
+        // may be accessed out of statement-order).
+        else if (isa<LabelStmt>(S)) {
+          Info.CheckedScopeMap[CurrStmt] = CSS;
+
+        // Else if the previous statement was a compound statement store the
+        // checked scope specifier of the current statement.
+        } else if (isa<CompoundStmt>(*(I - 1))) {
           Info.CheckedScopeMap[CurrStmt] = CSS;
         }
       }
