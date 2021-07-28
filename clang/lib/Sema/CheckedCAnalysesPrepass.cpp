@@ -307,7 +307,7 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
         // the beginning of a basic block as we are assured of ordered lookup
         // only within a basic block (i.e. the first statement of a basic block
         // may be accessed out of statement-order).
-        else if (isa<LabelStmt>(S)) {
+        } else if (isa<LabelStmt>(CurrStmt)) {
           Info.CheckedScopeMap[CurrStmt] = CSS;
 
         // Else if the previous statement was a compound statement store the
