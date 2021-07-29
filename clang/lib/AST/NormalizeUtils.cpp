@@ -199,6 +199,7 @@ bool NormalizeUtil::GetRHSConstant(Sema &S, BinaryOperator *E, QualType T,
   if (!OptConstant)
     return false;
 
+  Constant = *OptConstant;
   bool Overflow;
   Constant = ExprUtil::ConvertToSignedPointerWidth(S.Context, Constant, Overflow);
   if (Overflow)
