@@ -293,21 +293,22 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
 
         // If this is a compound statement the RecursiveASTVisitor will visit
         // it later. So we don't need to process it now.
-        if (isa<CompoundStmt>(CurrStmt))
+        if (isa<CompoundStmt>(CurrStmt)) {
           continue;
-
-        // If this is the first statement in a compound statement store its
-        // checked scope specifier.
-        if (FirstStmt) {
-          Info.CheckedScopeMap[CurrStmt] = CSS;
-          FirstStmt = false;
 
         // Else if this is a label statement. Basic blocks may begin at label
         // statements. We need to be able to update the CSS value correctly at
         // the beginning of a basic block as we are assured of ordered lookup
         // only within a basic block (i.e. the first statement of a basic block
-        // may be accessed out of statement-order).
-        } else if (isa<LabelStmt>(CurrStmt)) {
+	// may be accessed out of statement-order). The AST only stores the
+	// sub-statement of a label statement. So accordingly we store the CSS
+	// for the sub-statement.
+	} else if (auto *L = dyn_cast<LabelStmt>(CurrStmt)) {
+          Info.CheckedScopeMap[L->getSubStmt()] = CSS;
+
+        // Else if this is the first statement in a compound statement store
+        // its checked scope specifier.
+        } else if (FirstStmt) {
           Info.CheckedScopeMap[CurrStmt] = CSS;
 
         // Else if the previous statement was a compound statement store the
@@ -315,6 +316,8 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
         } else if (isa<CompoundStmt>(*(I - 1))) {
           Info.CheckedScopeMap[CurrStmt] = CSS;
         }
+
+        FirstStmt = false;
       }
 
       return true;
