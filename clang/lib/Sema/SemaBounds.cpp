@@ -2041,26 +2041,23 @@ namespace {
       if (!ExprUtil::EqualValue(S.Context, DeclaredRangeBounds->getLowerExpr(),
                                 SrcRangeBounds->getLowerExpr(), EquivExprs))
         return false;
-      
-      // Attempt to get a variable part and a constant part from the
-      // declared upper bound by applying certain normalizations.
-      Expr *DeclaredVariable = nullptr;
-      llvm::APSInt DeclaredConstant;
-      bool NormalizedDeclared =
-        NormalizeUpperBound(DeclaredRangeBounds->getUpperExpr(),
-                            DeclaredVariable, DeclaredConstant);
 
       // Attempt to get a variable part and a constant part from the
-      // source upper bound by applying certain normalizations.
+      // declared upper bound and the source upper bound.
+      Expr *DeclaredVariable = nullptr;
+      llvm::APSInt DeclaredConstant;
+      bool DeclaredNormalized =
+        NormalizeUtil::GetVariableAndConstant(S, DeclaredRangeBounds->getUpperExpr(),
+                                              DeclaredVariable, DeclaredConstant);
       Expr *SrcVariable = nullptr;
       llvm::APSInt SrcConstant;
-      bool NormalizedSrc =
-        NormalizeUpperBound(SrcRangeBounds->getUpperExpr(),
-                            SrcVariable, SrcConstant);
+      bool SrcNormalized =
+        NormalizeUtil::GetVariableAndConstant(S, SrcRangeBounds->getUpperExpr(),
+                                              SrcVariable, SrcConstant);
 
       // We must be able to normalize at least one of the upper bounds in
       // order to compare them.
-      if (!NormalizedDeclared && !NormalizedSrc)
+      if (!DeclaredNormalized && !SrcNormalized)
         return false;
 
       // Both upper bounds must have a Variable part.
@@ -2077,79 +2074,8 @@ namespace {
       return DeclaredConstant <= SrcConstant;
     }
 
-    // NormalizeUpperBound attempts to extract a Variable part and a Constant
-    // part from the upper bound expression E.
-    //
-    // If E can be expressed as:
-    // 1. (E1 + (E2 op1 A)) op2 B, or:
-    // 2. B + (E1 + (E2 op1 A))
-    // where:
-    // 1. E1 has pointer type, and:
-    // 2. E2 has integer type, and:
-    // 3. A and B are integer constants, and:
-    // 4. op1 and op2 are + or -
-    // then:
-    // 1. Variable = E1 + E2
-    // 2. Constant = A' + B', where A' is -A if op1 is - and B' is -B if
-    //    op2 is -.
-    //
-    // If we cannot normalize E to one of these two forms, then Variable = E,
-    // Constant = 0, and NormalizeUpperBound returns false.
-    bool NormalizeUpperBound(Expr *E, Expr *&Variable, llvm::APSInt &Constant) {
-      Expr *PointerExpr;
-      Expr *ConstExpr;
-      Expr *PointerAndConst;
-
-      // E must be of the form X op2 Y, where op2 is + or -.
-      BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens());
-      if (!BO)
-        goto exit;
-      if (!BinaryOperator::isAdditiveOp(BO->getOpcode()))
-        goto exit;
-
-      // E must be of the form P op2 B or B + P, where P has pointer type
-      // and B is an integer constant expression.
-      // Note that E cannot be of the form B - P, since a pointer cannot
-      // appear on the right-hand side of a subtraction operator.
-      if (BO->getLHS()->getType()->isPointerType() &&
-          BO->getRHS()->isIntegerConstantExpr(S.Context)) {
-        PointerExpr = BO->getLHS();
-        ConstExpr = BO->getRHS();
-      } else if (BO->getOpcode() == BinaryOperatorKind::BO_Add &&
-                 BO->getRHS()->getType()->isPointerType() &&
-                 BO->getLHS()->isIntegerConstantExpr(S.Context)) {
-        PointerExpr = BO->getRHS();
-        ConstExpr = BO->getLHS();
-      } else
-        goto exit;
-
-      // Associate PointerExpr to the left to get (E1 + E2) +/- E3.
-      // If we cannot, then we cannot continue to normalize.
-      PointerExpr = NormalizeUtil::TransformAssocLeft(S, PointerExpr);
-      if (!PointerExpr)
-        goto exit;
-
-      // We have PointerExpr of the form (E1 + E2) + E3. Try to constant fold
-      // ((E1 + E2) + E3) op2 B to (E1 + E2) + (E3 op2 B).
-      // If we can perform this constant folding, then Variable = E1 + E2 and
-      // Constant = E3 op2 B.
-      // Otherwise, Variable = E and Constant = 0.
-      PointerAndConst =
-        ExprCreatorUtil::CreateBinaryOperator(S, PointerExpr, ConstExpr,
-                                              BO->getOpcode());
-      return NormalizeUtil::ConstantFold(S, PointerAndConst, E->getType(),
-                                         Variable, Constant);
-
-      exit:
-        // Return (E, 0).
-        Variable = E;
-        uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(0);
-        Constant = llvm::APSInt(PointerWidth, false);
-        return false;
-    }
-
-    // Try to prove that PtrBase + Offset is within Bounds, where PtrBase has pointer type.
-    // Offset is optional and may be a nullptr.
+// Try to prove that PtrBase + Offset is within Bounds, where PtrBase has pointer type.
+// Offset is optional and may be a nullptr.
     ProofResult ProveMemoryAccessInRange(Expr *PtrBase, Expr *Offset, BoundsExpr *Bounds,
                                          BoundsCheckKind Kind, EquivExprSets *EquivExprs,
                                          ProofFailure &Cause) {
@@ -2655,7 +2581,8 @@ namespace {
       Facts(Facts),
       BoundsWideningAnalyzer(BoundsWideningAnalysis(SemaRef, Cfg,
                                                     Info.BoundsVarsLower,
-                                                    Info.BoundsVarsUpper)),
+                                                    Info.BoundsVarsUpper,
+                                                    Info.CheckedScopeMap)),
       AbstractSetMgr(AbstractSetManager(SemaRef, Info.VarUses)),
       BoundsSiblingFields(Info.BoundsSiblingFields),
       IncludeNullTerminator(false) {}
@@ -2672,7 +2599,8 @@ namespace {
       Facts(Facts),
       BoundsWideningAnalyzer(BoundsWideningAnalysis(SemaRef, nullptr,
                                                     Info.BoundsVarsLower,
-                                                    Info.BoundsVarsUpper)),
+                                                    Info.BoundsVarsUpper,
+                                                    Info.CheckedScopeMap)),
       AbstractSetMgr(AbstractSetManager(SemaRef, Info.VarUses)),
       BoundsSiblingFields(Info.BoundsSiblingFields),
       IncludeNullTerminator(false) {}

@@ -1540,7 +1540,7 @@ void f24() {
 
   while (*p) {
     p++;
-    while (*(p + 1)) { // expected-error {{out-of-bounds memory access}}
+    while (*(p + 1)) {
       a = 1;
     }
   }
@@ -1550,7 +1550,7 @@ void f24() {
 
 // CHECK: Block: B8, Pred: B9, Succ: B7
 // CHECK:   Widened bounds before stmt: _Nt_array_ptr<char> p : count(0) = "";
-// CHECK:     <no widening>
+// CHECK: <no widening>
 
 // CHECK: Block: B7, Pred: B2, B8, Succ: B6, B1
 // CHECK:   Widened bounds before stmt: *p
@@ -1562,11 +1562,11 @@ void f24() {
 
 // CHECK: Block: B5, Pred: B3, B6, Succ: B4, B2
 // CHECK:   Widened bounds before stmt: *(p + 1)
-// CHECK:     p: bounds(p, p + 0)
+// CHECK:     p: bounds(p - 1, p - 1 + 1)
 
 // CHECK: Block: B4, Pred: B5, Succ: B3
 // CHECK:   Widened bounds before stmt: a = 1
-// CHECK:     p: bounds(p, p + 0)
+// CHECK:     p: bounds(p - 1, p - 1 + 1)
 
 // CHECK: Block: B3, Pred: B4, Succ: B5
 
@@ -1642,7 +1642,7 @@ void f25_1() {
 
   for (; *p; ) {
     p++;
-    for (; *(p + 1); ) { // expected-error {{out-of-bounds memory access}}
+    for (; *(p + 1); ) {
       a = 7;
     }
   }
@@ -1657,11 +1657,11 @@ void f25_1() {
 
 // CHECK: Block: B5, Pred: B3, B6, Succ: B4, B2
 // CHECK:   Widened bounds before stmt: *(p + 1)
-// CHECK:     p: bounds(p, p + 0)
+// CHECK:     p: bounds(p - 1, p - 1 + 1)
 
 // CHECK: Block: B4, Pred: B5, Succ: B3
 // CHECK:   Widened bounds before stmt: a = 7
-// CHECK:     p: bounds(p, p + 0)
+// CHECK:     p: bounds(p - 1, p - 1 + 1)
 
 // CHECK: Block: B3, Pred: B4, Succ: B5
 

@@ -33,10 +33,6 @@ void f1(_Nt_array_ptr<char> p : bounds(p, p + i), int i,
 // CHECK:   In:
 // CHECK:     p: bounds(p, p + i)
 // CHECK:     q: bounds(q, q + j)
-// CHECK:   Gen:
-// CHECK:     {}
-// CHECK:   Kill:
-// CHECK:     {}
 // CHECK:   Out:
 // CHECK:     p: bounds(p, p + i)
 // CHECK:     q: bounds(q, q + j)
@@ -46,12 +42,6 @@ void f1(_Nt_array_ptr<char> p : bounds(p, p + i), int i,
 // CHECK:     p: bounds(p, p + i)
 // CHECK:     q: bounds(q, q + j)
 // CHECK:     r: Top
-// CHECK:   Gen:
-// CHECK:     p: bounds(p, p + i + 1)
-// CHECK:     r: bounds(r, r + 2)
-// CHECK:   Kill:
-// CHECK:     p
-// CHECK:     r
 // CHECK:   Out:
 // CHECK:     p: bounds(p, p + i + 1)
 // CHECK:     q: bounds(q, q + j)
@@ -90,10 +80,6 @@ void f1(_Nt_array_ptr<char> p : bounds(p, p + i), int i,
 // CHECK:     p: bounds(p, p + i + 1)
 // CHECK:     q: bounds(q, q + j)
 // CHECK:     r: bounds(r, r + 2)
-// CHECK:   Gen:
-// CHECK:     p: bounds(p, p + i + 1 + 1)
-// CHECK:   Kill:
-// CHECK:     p
 // CHECK:   Out:
 // CHECK:     p: bounds(p, p + i + 1 + 1)
 // CHECK:     q: bounds(q, q + j)
@@ -118,10 +104,6 @@ void f1(_Nt_array_ptr<char> p : bounds(p, p + i), int i,
 // CHECK:     p: bounds(p, p + i + 1 + 1)
 // CHECK:     q: bounds(q, q + j)
 // CHECK:     r: bounds(r, r + 2)
-// CHECK:   Gen:
-// CHECK:     {}
-// CHECK:   Kill:
-// CHECK:     {}
 // CHECK:   Out:
 // CHECK:     p: bounds(p, p + i + 1 + 1)
 // CHECK:     q: bounds(q, q + j)
@@ -146,10 +128,6 @@ void f1(_Nt_array_ptr<char> p : bounds(p, p + i), int i,
 // CHECK:     p: bounds(p, p + i)
 // CHECK:     q: bounds(q, q + j)
 // CHECK:     r: bounds(r, r + 2)
-// CHECK:   Gen:
-// CHECK:     q: bounds(q, q + j + 1)
-// CHECK:   Kill:
-// CHECK:     q
 // CHECK:   Out:
 // CHECK:     p: bounds(p, p + i)
 // CHECK:     q: bounds(q, q + j + 1)
@@ -174,10 +152,6 @@ void f1(_Nt_array_ptr<char> p : bounds(p, p + i), int i,
 // CHECK:     p: bounds(p, p + i)
 // CHECK:     q: bounds(q, q + j + 1)
 // CHECK:     r: bounds(r, r + 2)
-// CHECK:   Gen:
-// CHECK:     {}
-// CHECK:   Kill:
-// CHECK:     {}
 // CHECK:   Out:
 // CHECK:     p: bounds(p, p + i)
 // CHECK:     q: bounds(q, q + j + 1)
@@ -202,12 +176,6 @@ void f1(_Nt_array_ptr<char> p : bounds(p, p + i), int i,
 // CHECK:     p: bounds(p, p + i)
 // CHECK:     q: bounds(q, q + j)
 // CHECK:     r: bounds(r, r + 2)
-// CHECK:   Gen:
-// CHECK:     p: bounds(p, p + i + 1)
-// CHECK:     r: bounds(r, r + 1)
-// CHECK:   Kill:
-// CHECK:     p
-// CHECK:     r
 // CHECK:   Out:
 // CHECK:     p: bounds(p, p + i + 1)
 // CHECK:     q: bounds(q, q + j)
@@ -260,10 +228,6 @@ void f1(_Nt_array_ptr<char> p : bounds(p, p + i), int i,
 // CHECK:     p: bounds(p, p + i + 1)
 // CHECK:     q: bounds(q, q + j)
 // CHECK:     r: bounds(r, r + 1)
-// CHECK:   Gen:
-// CHECK:     {}
-// CHECK:   Kill:
-// CHECK:     {}
 // CHECK:   Out:
 // CHECK:     p: bounds(p, p + i + 1)
 // CHECK:     q: bounds(q, q + j)
@@ -288,10 +252,6 @@ void f1(_Nt_array_ptr<char> p : bounds(p, p + i), int i,
 // CHECK:     p: bounds(p, p + i)
 // CHECK:     q: bounds(q, q + j)
 // CHECK:     r: bounds(r, r + 1)
-// CHECK:   Gen:
-// CHECK:     {}
-// CHECK:   Kill:
-// CHECK:     {}
 // CHECK:   Out:
 // CHECK:     p: bounds(p, p + i)
 // CHECK:     q: bounds(q, q + j)
