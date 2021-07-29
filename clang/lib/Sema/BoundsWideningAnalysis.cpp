@@ -97,6 +97,10 @@ BoundsMapTy BoundsWideningAnalysis::GetOutOfLastStmt(
     // Update the checked scope specifier for the current statement.
     BWUtil.UpdateCheckedScopeSpecifier(CurrStmt, CSS);
 
+    CurrStmt->dump();
+    OS << "Scope: " << CurrStmt->getCheckedScopeSpecifier() << "\n";
+    OS << "-----------------------------------------------------\n";
+
     // The In of the current statement is the value of StmtOut computed so far.
     BoundsMapTy InOfCurrStmt = StmtOut;
 

@@ -2612,8 +2612,18 @@ namespace {
         if (isa<Expr>(S) || isa<DeclStmt>(S) || isa<ReturnStmt>(S))
           BoundsCheckedStmts.insert(S);
 
-      if (const CompoundStmt *CS = dyn_cast<CompoundStmt>(S))
+      if (const CompoundStmt *CS = dyn_cast<CompoundStmt>(S)) {
         CSS = CS->getCheckedSpecifier();
+
+        for (auto I = CS->body_begin(), E = CS->body_end(); I != E; ++I) {
+          Stmt *Child = *I;
+          if (isa<CompoundStmt>(Child))
+            continue;
+          if (auto *L = dyn_cast<LabelStmt>(Child))
+            Child = L->getSubStmt();
+          Child->setCheckedScopeSpecifier(CSS);
+        }
+      }
 
       auto Begin = S->child_begin(), End = S->child_end();
       for (auto I = Begin; I != End; ++I)
