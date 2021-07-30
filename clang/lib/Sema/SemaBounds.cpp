@@ -2576,8 +2576,7 @@ namespace {
       Facts(Facts),
       BoundsWideningAnalyzer(BoundsWideningAnalysis(SemaRef, Cfg,
                                                     Info.BoundsVarsLower,
-                                                    Info.BoundsVarsUpper,
-                                                    Info.CheckedScopeMap)),
+                                                    Info.BoundsVarsUpper)),
       AbstractSetMgr(AbstractSetManager(SemaRef, Info.VarUses)),
       BoundsSiblingFields(Info.BoundsSiblingFields),
       IncludeNullTerminator(false) {}
@@ -2594,8 +2593,7 @@ namespace {
       Facts(Facts),
       BoundsWideningAnalyzer(BoundsWideningAnalysis(SemaRef, nullptr,
                                                     Info.BoundsVarsLower,
-                                                    Info.BoundsVarsUpper,
-                                                    Info.CheckedScopeMap)),
+                                                    Info.BoundsVarsUpper)),
       AbstractSetMgr(AbstractSetManager(SemaRef, Info.VarUses)),
       BoundsSiblingFields(Info.BoundsSiblingFields),
       IncludeNullTerminator(false) {}

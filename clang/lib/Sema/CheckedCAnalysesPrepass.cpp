@@ -277,52 +277,6 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
       return ProcessWhereClause(S->getWhereClause());
     }
 
-    bool VisitCompoundStmt(CompoundStmt *CS) {
-      if (!CS)
-        return true;
-
-      // Get the checked scope specifier for the current compound statement.
-      CheckedScopeSpecifier CSS = CS->getCheckedSpecifier();
-
-      bool FirstStmt = true;
-
-      // A compound statement is of the form {stmt stmt}. Iterate through the
-      // nested statements of the compound statement.
-      for (auto I = CS->body_begin(), E = CS->body_end(); I != E; ++I) {
-        const Stmt *CurrStmt = *I;
-
-        // If this is a compound statement the RecursiveASTVisitor will visit
-        // it later. So we don't need to process it now.
-        if (isa<CompoundStmt>(CurrStmt)) {
-          continue;
-
-        // Else if this is a label statement. Basic blocks may begin at label
-        // statements. We need to be able to update the CSS value correctly at
-        // the beginning of a basic block as we are assured of ordered lookup
-        // only within a basic block (i.e. the first statement of a basic block
-	// may be accessed out of statement-order). The AST only stores the
-	// sub-statement of a label statement. So accordingly we store the CSS
-	// for the sub-statement.
-	} else if (auto *L = dyn_cast<LabelStmt>(CurrStmt)) {
-          Info.CheckedScopeMap[L->getSubStmt()] = CSS;
-
-        // Else if this is the first statement in a compound statement store
-        // its checked scope specifier.
-        } else if (FirstStmt) {
-          Info.CheckedScopeMap[CurrStmt] = CSS;
-
-        // Else if the previous statement was a compound statement store the
-        // checked scope specifier of the current statement.
-        } else if (isa<CompoundStmt>(*(I - 1))) {
-          Info.CheckedScopeMap[CurrStmt] = CSS;
-        }
-
-        FirstStmt = false;
-      }
-
-      return true;
-    }
-
     void DumpBoundsVars(FunctionDecl *FD) {
       PrintDeclMap<const VarDecl *>(FD, "BoundsVars Lower",
                                     Info.BoundsVarsLower);
