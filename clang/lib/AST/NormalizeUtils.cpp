@@ -268,20 +268,22 @@ bool NormalizeUtil::QueryPointerAdditiveConstant(Sema &S, Expr *E,
   if (!BO->isAdditiveOp())
     return false;
 
+  Optional<llvm::APSInt> OptConstant;
   // E must be of the form PointerExpr +/- Constant or Constant + PointerExpr,
   // where PointerExpr has pointer type and Constant is an integer constant.
   // Note that E cannot be of the form Constant - PointerExpr, since a pointer
   // cannot appear on the right-hand side of a subtraction operator.
   if (BO->getLHS()->getType()->isPointerType() &&
-      BO->getRHS()->isIntegerConstantExpr(S.Context))
+      (OptConstant = BO->getRHS()->getIntegerConstantExpr(S.Context)))
     PointerExpr = BO->getLHS();
   else if (BO->getOpcode() == BinaryOperatorKind::BO_Add &&
               BO->getRHS()->getType()->isPointerType() &&
-              BO->getLHS()->isIntegerConstantExpr(S.Context))
+              (OptConstant = BO->getLHS()->getIntegerConstantExpr(S.Context)))
     PointerExpr = BO->getRHS();
   else
     return false;
 
+  Constant = *OptConstant;
   bool Overflow;
   Constant = ExprUtil::ConvertToSignedPointerWidth(S.Context, Constant, Overflow);
   if (Overflow)
