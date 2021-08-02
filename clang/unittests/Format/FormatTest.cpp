@@ -10248,6 +10248,21 @@ TEST_F(FormatTest, SplitEmptyClass) {
                "{\n"
                "};",
                Style);
+
+  verifyFormat("#include \"stdint.h\"\n"
+               "namespace rep {}",
+               Style);
+  verifyFormat("#include <stdint.h>\n"
+               "namespace rep {}",
+               Style);
+  verifyFormat("#include <stdint.h>\n"
+               "namespace rep {}",
+               "#include <stdint.h>\n"
+               "namespace rep {\n"
+               "\n"
+               "\n"
+               "}",
+               Style);
 }
 
 TEST_F(FormatTest, SplitEmptyStruct) {
@@ -12353,6 +12368,17 @@ TEST_F(FormatTest, ConfigurableSpacesInParentheses) {
   verifyFormat("size_t idx = (a->*foo)(a - 1);", Spaces);
   verifyFormat("size_t idx = (a->foo)(a - 1);", Spaces);
   verifyFormat("size_t idx = (*foo)(a - 1);", Spaces);
+  verifyFormat("size_t idx = (*(foo))(a - 1);", Spaces);
+  Spaces.ColumnLimit = 80;
+  Spaces.IndentWidth = 4;
+  Spaces.AlignAfterOpenBracket = FormatStyle::BAS_AlwaysBreak;
+  verifyFormat("void foo( ) {\n"
+               "    size_t foo = (*(function))(\n"
+               "        Foooo, Barrrrr, Foooo, Barrrr, FoooooooooLooooong, "
+               "BarrrrrrrrrrrrLong,\n"
+               "        FoooooooooLooooong);\n"
+               "}",
+               Spaces);
   Spaces.SpaceAfterCStyleCast = false;
   verifyFormat("size_t idx = (size_t)(ptr - ((char *)file));", Spaces);
   verifyFormat("size_t idx = (size_t)a;", Spaces);
@@ -12360,6 +12386,15 @@ TEST_F(FormatTest, ConfigurableSpacesInParentheses) {
   verifyFormat("size_t idx = (a->*foo)(a - 1);", Spaces);
   verifyFormat("size_t idx = (a->foo)(a - 1);", Spaces);
   verifyFormat("size_t idx = (*foo)(a - 1);", Spaces);
+  verifyFormat("size_t idx = (*(foo))(a - 1);", Spaces);
+
+  verifyFormat("void foo( ) {\n"
+               "    size_t foo = (*(function))(\n"
+               "        Foooo, Barrrrr, Foooo, Barrrr, FoooooooooLooooong, "
+               "BarrrrrrrrrrrrLong,\n"
+               "        FoooooooooLooooong);\n"
+               "}",
+               Spaces);
 }
 
 TEST_F(FormatTest, ConfigurableSpacesInSquareBrackets) {
@@ -14706,6 +14741,7 @@ TEST_F(FormatTest, WhitesmithsBraceBreaking) {
                WhitesmithsBraceStyle);
   */
 
+  WhitesmithsBraceStyle.NamespaceIndentation = FormatStyle::NI_None;
   verifyFormat("namespace a\n"
                "  {\n"
                "class A\n"
@@ -14728,6 +14764,89 @@ TEST_F(FormatTest, WhitesmithsBraceBreaking) {
                "  int x;\n"
                "  };\n"
                "  } // namespace a",
+               WhitesmithsBraceStyle);
+
+  verifyFormat("namespace a\n"
+               "  {\n"
+               "namespace b\n"
+               "  {\n"
+               "class A\n"
+               "  {\n"
+               "  void f()\n"
+               "    {\n"
+               "    if (true)\n"
+               "      {\n"
+               "      a();\n"
+               "      b();\n"
+               "      }\n"
+               "    }\n"
+               "  void g()\n"
+               "    {\n"
+               "    return;\n"
+               "    }\n"
+               "  };\n"
+               "struct B\n"
+               "  {\n"
+               "  int x;\n"
+               "  };\n"
+               "  } // namespace b\n"
+               "  } // namespace a",
+               WhitesmithsBraceStyle);
+
+  WhitesmithsBraceStyle.NamespaceIndentation = FormatStyle::NI_Inner;
+  verifyFormat("namespace a\n"
+               "  {\n"
+               "namespace b\n"
+               "  {\n"
+               "  class A\n"
+               "    {\n"
+               "    void f()\n"
+               "      {\n"
+               "      if (true)\n"
+               "        {\n"
+               "        a();\n"
+               "        b();\n"
+               "        }\n"
+               "      }\n"
+               "    void g()\n"
+               "      {\n"
+               "      return;\n"
+               "      }\n"
+               "    };\n"
+               "  struct B\n"
+               "    {\n"
+               "    int x;\n"
+               "    };\n"
+               "  } // namespace b\n"
+               "  } // namespace a",
+               WhitesmithsBraceStyle);
+
+  WhitesmithsBraceStyle.NamespaceIndentation = FormatStyle::NI_All;
+  verifyFormat("namespace a\n"
+               "  {\n"
+               "  namespace b\n"
+               "    {\n"
+               "    class A\n"
+               "      {\n"
+               "      void f()\n"
+               "        {\n"
+               "        if (true)\n"
+               "          {\n"
+               "          a();\n"
+               "          b();\n"
+               "          }\n"
+               "        }\n"
+               "      void g()\n"
+               "        {\n"
+               "        return;\n"
+               "        }\n"
+               "      };\n"
+               "    struct B\n"
+               "      {\n"
+               "      int x;\n"
+               "      };\n"
+               "    } // namespace b\n"
+               "  }   // namespace a",
                WhitesmithsBraceStyle);
 
   verifyFormat("void f()\n"
@@ -14764,7 +14883,7 @@ TEST_F(FormatTest, WhitesmithsBraceBreaking) {
                "  }\n",
                WhitesmithsBraceStyle);
 
-  WhitesmithsBraceStyle.IndentCaseBlocks = true;
+  WhitesmithsBraceStyle.IndentCaseLabels = true;
   verifyFormat("void switchTest1(int a)\n"
                "  {\n"
                "  switch (a)\n"
@@ -14772,7 +14891,7 @@ TEST_F(FormatTest, WhitesmithsBraceBreaking) {
                "    case 2:\n"
                "      {\n"
                "      }\n"
-               "    break;\n"
+               "      break;\n"
                "    }\n"
                "  }\n",
                WhitesmithsBraceStyle);
@@ -14782,7 +14901,7 @@ TEST_F(FormatTest, WhitesmithsBraceBreaking) {
                "  switch (a)\n"
                "    {\n"
                "    case 0:\n"
-               "    break;\n"
+               "      break;\n"
                "    case 1:\n"
                "      {\n"
                "      break;\n"
@@ -14790,9 +14909,9 @@ TEST_F(FormatTest, WhitesmithsBraceBreaking) {
                "    case 2:\n"
                "      {\n"
                "      }\n"
-               "    break;\n"
+               "      break;\n"
                "    default:\n"
-               "    break;\n"
+               "      break;\n"
                "    }\n"
                "  }\n",
                WhitesmithsBraceStyle);
@@ -14805,17 +14924,17 @@ TEST_F(FormatTest, WhitesmithsBraceBreaking) {
                "      {\n"
                "      foo(x);\n"
                "      }\n"
-               "    break;\n"
+               "      break;\n"
                "    default:\n"
                "      {\n"
                "      foo(1);\n"
                "      }\n"
-               "    break;\n"
+               "      break;\n"
                "    }\n"
                "  }\n",
                WhitesmithsBraceStyle);
 
-  WhitesmithsBraceStyle.IndentCaseBlocks = false;
+  WhitesmithsBraceStyle.IndentCaseLabels = false;
 
   verifyFormat("void switchTest4(int a)\n"
                "  {\n"

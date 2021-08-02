@@ -94,6 +94,9 @@ struct Fragment {
     /// Absolute path to directory the fragment is associated with. Relative
     /// paths mentioned in the fragment are resolved against this.
     std::string Directory;
+    /// Whether this fragment is allowed to make critical security/privacy
+    /// decisions.
+    bool Trusted = false;
   };
   SourceInfo Source;
 
@@ -203,6 +206,29 @@ struct Fragment {
     /// (e.g. by disabling a clang-tidy check, or the -Wunused compile flag).
     /// This often has other advantages, such as skipping some analysis.
     std::vector<Located<std::string>> Suppress;
+
+    /// Controls how clang-tidy will run over the code base.
+    ///
+    /// The settings are merged with any settings found in .clang-tidy
+    /// configiration files with these ones taking precedence.
+    struct ClangTidyBlock {
+      std::vector<Located<std::string>> Add;
+      /// List of checks to disable.
+      /// Takes precedence over Add. To enable all llvm checks except include
+      /// order:
+      ///   Add: llvm-*
+      ///   Remove: llvm-include-onder
+      std::vector<Located<std::string>> Remove;
+
+      /// A Key-Value pair list of options to pass to clang-tidy checks
+      /// These take precedence over options specified in clang-tidy
+      /// configuration files. Example:
+      ///   CheckOptions:
+      ///     readability-braces-around-statements.ShortStatementLines: 2
+      std::vector<std::pair<Located<std::string>, Located<std::string>>>
+          CheckOptions;
+    };
+    ClangTidyBlock ClangTidy;
   };
   DiagnosticsBlock Diagnostics;
 
@@ -215,30 +241,6 @@ struct Fragment {
     std::vector<Located<std::string>> FullyQualifiedNamespaces;
   };
   StyleBlock Style;
-
-  /// Controls how clang-tidy will run over the code base.
-  ///
-  /// The settings are merged with any settings found in .clang-tidy
-  /// configiration files with these ones taking precedence.
-  // FIXME: move this to Diagnostics.Tidy.
-  struct ClangTidyBlock {
-    std::vector<Located<std::string>> Add;
-    /// List of checks to disable.
-    /// Takes precedence over Add. To enable all llvm checks except include
-    /// order:
-    ///   Add: llvm-*
-    ///   Remove: llvm-include-onder
-    std::vector<Located<std::string>> Remove;
-
-    /// A Key-Value pair list of options to pass to clang-tidy checks
-    /// These take precedence over options specified in clang-tidy configuration
-    /// files. Example:
-    ///   CheckOptions:
-    ///     readability-braces-around-statements.ShortStatementLines: 2
-    std::vector<std::pair<Located<std::string>, Located<std::string>>>
-        CheckOptions;
-  };
-  ClangTidyBlock ClangTidy;
 };
 
 } // namespace config

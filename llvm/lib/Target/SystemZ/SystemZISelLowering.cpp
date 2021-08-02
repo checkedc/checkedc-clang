@@ -285,10 +285,13 @@ SystemZTargetLowering::SystemZTargetLowering(const TargetMachine &TM,
   // Give LowerOperation the chance to replace 64-bit ORs with subregs.
   setOperationAction(ISD::OR, MVT::i64, Custom);
 
-  // FIXME: Can we support these natively?
+  // Expand 128 bit shifts without using a libcall.
   setOperationAction(ISD::SRL_PARTS, MVT::i64, Expand);
   setOperationAction(ISD::SHL_PARTS, MVT::i64, Expand);
   setOperationAction(ISD::SRA_PARTS, MVT::i64, Expand);
+  setLibcallName(RTLIB::SRL_I128, nullptr);
+  setLibcallName(RTLIB::SHL_I128, nullptr);
+  setLibcallName(RTLIB::SRA_I128, nullptr);
 
   // We have native instructions for i8, i16 and i32 extensions, but not i1.
   setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i1, Expand);
@@ -1547,6 +1550,7 @@ SystemZTargetLowering::LowerCall(CallLoweringInfo &CLI,
   bool IsVarArg = CLI.IsVarArg;
   MachineFunction &MF = DAG.getMachineFunction();
   EVT PtrVT = getPointerTy(MF.getDataLayout());
+  LLVMContext &Ctx = *DAG.getContext();
 
   // Detect unsupported vector argument and return types.
   if (Subtarget.hasVector()) {
@@ -1556,7 +1560,7 @@ SystemZTargetLowering::LowerCall(CallLoweringInfo &CLI,
 
   // Analyze the operands of the call, assigning locations to each operand.
   SmallVector<CCValAssign, 16> ArgLocs;
-  SystemZCCState ArgCCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
+  SystemZCCState ArgCCInfo(CallConv, IsVarArg, MF, ArgLocs, Ctx);
   ArgCCInfo.AnalyzeCallOperands(Outs, CC_SystemZ);
 
   // We don't support GuaranteedTailCallOpt, only automatically-detected
@@ -1581,14 +1585,25 @@ SystemZTargetLowering::LowerCall(CallLoweringInfo &CLI,
 
     if (VA.getLocInfo() == CCValAssign::Indirect) {
       // Store the argument in a stack slot and pass its address.
-      SDValue SpillSlot = DAG.CreateStackTemporary(Outs[I].ArgVT);
+      unsigned ArgIndex = Outs[I].OrigArgIndex;
+      EVT SlotVT;
+      if (I + 1 != E && Outs[I + 1].OrigArgIndex == ArgIndex) {
+        // Allocate the full stack space for a promoted (and split) argument.
+        Type *OrigArgType = CLI.Args[Outs[I].OrigArgIndex].Ty;
+        EVT OrigArgVT = getValueType(MF.getDataLayout(), OrigArgType);
+        MVT PartVT = getRegisterTypeForCallingConv(Ctx, CLI.CallConv, OrigArgVT);
+        unsigned N = getNumRegistersForCallingConv(Ctx, CLI.CallConv, OrigArgVT);
+        SlotVT = EVT::getIntegerVT(Ctx, PartVT.getSizeInBits() * N);
+      } else {
+        SlotVT = Outs[I].ArgVT;
+      }
+      SDValue SpillSlot = DAG.CreateStackTemporary(SlotVT);
       int FI = cast<FrameIndexSDNode>(SpillSlot)->getIndex();
       MemOpChains.push_back(
           DAG.getStore(Chain, DL, ArgValue, SpillSlot,
                        MachinePointerInfo::getFixedStack(MF, FI)));
       // If the original argument was split (e.g. i128), we need
       // to store all parts of it here (and pass just one address).
-      unsigned ArgIndex = Outs[I].OrigArgIndex;
       assert (Outs[I].PartOffset == 0);
       while (I + 1 != E && Outs[I + 1].OrigArgIndex == ArgIndex) {
         SDValue PartValue = OutVals[I + 1];
@@ -1598,6 +1613,8 @@ SystemZTargetLowering::LowerCall(CallLoweringInfo &CLI,
         MemOpChains.push_back(
             DAG.getStore(Chain, DL, PartValue, Address,
                          MachinePointerInfo::getFixedStack(MF, FI)));
+        assert((PartOffset + PartValue.getValueType().getStoreSize() <=
+                SlotVT.getStoreSize()) && "Not enough space for argument part!");
         ++I;
       }
       ArgValue = SpillSlot;
@@ -1691,7 +1708,7 @@ SystemZTargetLowering::LowerCall(CallLoweringInfo &CLI,
 
   // Assign locations to each value returned by this call.
   SmallVector<CCValAssign, 16> RetLocs;
-  CCState RetCCInfo(CallConv, IsVarArg, MF, RetLocs, *DAG.getContext());
+  CCState RetCCInfo(CallConv, IsVarArg, MF, RetLocs, Ctx);
   RetCCInfo.AnalyzeCallResult(Ins, RetCC_SystemZ);
 
   // Copy all of the result registers out of their specified physreg.

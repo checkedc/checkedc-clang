@@ -10,6 +10,15 @@
 #
 ##===----------------------------------------------------------------------===##
 
+# By default we will not build NVPTX deviceRTL on a CUDA free system
+set(LIBOMPTARGET_BUILD_NVPTX_BCLIB FALSE CACHE BOOL
+  "Whether build NVPTX deviceRTL on CUDA free system.")
+
+if (NOT (LIBOMPTARGET_DEP_CUDA_FOUND OR LIBOMPTARGET_BUILD_NVPTX_BCLIB))
+  libomptarget_say("Not building NVPTX deviceRTL by default on CUDA free system.")
+  return()
+endif()
+
 # Check if we can create an LLVM bitcode implementation of the runtime library
 # that could be inlined in the user application. For that we need to find
 # a Clang compiler capable of compiling our CUDA files to LLVM bitcode and
@@ -64,16 +73,22 @@ set(devicertl_common_directory
 set(devicertl_nvptx_directory
   ${devicertl_base_directory}/nvptx)
 
-if (DEFINED LIBOMPTARGET_DEP_CUDA_ARCH)
-  set(default_capabilities ${LIBOMPTARGET_DEP_CUDA_ARCH})
-else()
-  set(default_capabilities 35 37 50 52 53 60 61 62 70 72 75 80)
-endif()
+set(all_capabilities 35 37 50 52 53 60 61 62 70 72 75 80)
 
-set(LIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES ${default_capabilities} CACHE STRING
+set(LIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES ${all_capabilities} CACHE STRING
   "List of CUDA Compute Capabilities to be used to compile the NVPTX device RTL.")
+string(TOLOWER ${LIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES} LIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES)
 
-set(nvptx_sm_list ${LIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES})
+if (LIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES STREQUAL "all")
+  set(nvptx_sm_list ${all_capabilities})
+elseif(LIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES STREQUAL "auto")
+  if (NOT LIBOMPTARGET_DEP_CUDA_FOUND)
+    libomptarget_error_say("[NVPTX] Cannot auto detect compute capability as CUDA not found.")
+  endif()
+  set(nvptx_sm_list ${LIBOMPTARGET_DEP_CUDA_ARCH})
+else()
+  string(REPLACE "," ";" nvptx_sm_list "${LIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES}")
+endif()
 
 # If user set LIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES to empty, we disable the
 # build.
@@ -84,8 +99,8 @@ endif()
 
 # Check all SM values
 foreach(sm ${nvptx_sm_list})
-  if (NOT ${sm} IN_LIST default_capabilities)
-    message(FATAL_ERROR "LIBOMPTARGET-NVPTX: compute capability ${sm} is not supported. Supported values: ${default_capabilities}")
+  if (NOT ${sm} IN_LIST all_capabilities)
+    libomptarget_warning_say("[NVPTX] Compute capability ${sm} is not supported. Make sure clang can work with it.")
   endif()
 endforeach()
 
@@ -117,14 +132,14 @@ set(cuda_src_files
 )
 
 # Set flags for LLVM Bitcode compilation.
-set(bc_flags -S -x c++
-              -target nvptx64
-              -Xclang -emit-llvm-bc
-              -Xclang -aux-triple -Xclang ${aux_triple}
-              -fopenmp -fopenmp-cuda-mode -Xclang -fopenmp-is-device
-              -D__CUDACC__
-              -I${devicertl_base_directory}
-              -I${devicertl_nvptx_directory}/src)
+set(bc_flags -S -x c++ -O1 -std=c++14
+             -target nvptx64
+             -Xclang -emit-llvm-bc
+             -Xclang -aux-triple -Xclang ${aux_triple}
+             -fopenmp -fopenmp-cuda-mode -Xclang -fopenmp-is-device
+             -D__CUDACC__
+             -I${devicertl_base_directory}
+             -I${devicertl_nvptx_directory}/src)
 
 if(${LIBOMPTARGET_NVPTX_DEBUG})
   list(APPEND bc_flags -DOMPTARGET_NVPTX_DEBUG=-1)
@@ -137,8 +152,8 @@ add_custom_target(omptarget-nvptx-bc)
 
 # This map is from clang/lib/Driver/ToolChains/Cuda.cpp.
 # The last element is the default case.
-set(cuda_version_list 110 102 101 100 92 91 90 80)
-set(ptx_feature_list 70 65 64 63 61 61 60 42)
+set(cuda_version_list 112 111 110 102 101 100 92 91 90 80)
+set(ptx_feature_list 70 70 70 65 64 63 61 61 60 42)
 # The following two lines of ugly code is not needed when the minimal CMake
 # version requirement is 3.17+.
 list(LENGTH cuda_version_list num_version_supported)

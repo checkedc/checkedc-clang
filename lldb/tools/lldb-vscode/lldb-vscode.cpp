@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "VSCode.h"
+
 #include <assert.h>
 #include <limits.h>
 #include <stdarg.h>
@@ -52,7 +54,6 @@
 
 #include "JSONUtils.h"
 #include "LLDBUtils.h"
-#include "VSCode.h"
 
 #if defined(_WIN32)
 #ifndef PATH_MAX
@@ -3002,8 +3003,8 @@ EXAMPLES:
 // emitted to the debug adaptor.
 void LaunchRunInTerminalTarget(llvm::opt::Arg &target_arg,
                                llvm::StringRef comm_file, char *argv[]) {
-#if defined(WIN_32)
-  llvm::errs() << "runInTerminal is not supported on Windows\n";
+#if defined(_WIN32)
+  llvm::errs() << "runInTerminal is only supported on POSIX systems\n";
   exit(EXIT_FAILURE);
 #else
   RunInTerminalLauncherCommChannel comm_channel(comm_file);

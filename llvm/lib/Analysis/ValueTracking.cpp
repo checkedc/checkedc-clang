@@ -5018,36 +5018,14 @@ bool llvm::isGuaranteedToTransferExecutionToSuccessor(const Instruction *I) {
   // arbitrary length of time, but programs aren't allowed to rely on that.
 
   // If there is no successor, then execution can't transfer to it.
-  if (const auto *CRI = dyn_cast<CleanupReturnInst>(I))
-    return !CRI->unwindsToCaller();
-  if (const auto *CatchSwitch = dyn_cast<CatchSwitchInst>(I))
-    return !CatchSwitch->unwindsToCaller();
-  if (isa<ResumeInst>(I))
-    return false;
   if (isa<ReturnInst>(I))
     return false;
   if (isa<UnreachableInst>(I))
     return false;
 
-  // Calls can throw, or contain an infinite loop, or kill the process.
-  if (const auto *CB = dyn_cast<CallBase>(I)) {
-    // Call sites that throw have implicit non-local control flow.
-    if (!CB->doesNotThrow())
-      return false;
-
-    // A function which doens't throw and has "willreturn" attribute will
-    // always return.
-    if (CB->hasFnAttr(Attribute::WillReturn))
-      return true;
-
-    // FIXME: Temporarily assume that all side-effect free intrinsics will
-    // return. Remove this workaround once all intrinsics are appropriately
-    // annotated.
-    return isa<IntrinsicInst>(CB) && CB->onlyReadsMemory();
-  }
-
-  // Other instructions return normally.
-  return true;
+  // An instruction that returns without throwing must transfer control flow
+  // to a successor.
+  return !I->mayThrow() && I->willReturn();
 }
 
 bool llvm::isGuaranteedToTransferExecutionToSuccessor(const BasicBlock *BB) {
@@ -5172,6 +5150,9 @@ static bool programUndefinedIfUndefOrPoison(const Value *V,
     return false;
   }
 
+  // Limit number of instructions we look at, to avoid scanning through large
+  // blocks. The current limit is chosen arbitrarily.
+  unsigned ScanLimit = 32;
   BasicBlock::const_iterator End = BB->end();
 
   if (!PoisonOnly) {
@@ -5182,6 +5163,11 @@ static bool programUndefinedIfUndefOrPoison(const Value *V,
     // For example, 'udiv x, (undef | 1)' isn't UB.
 
     for (auto &I : make_range(Begin, End)) {
+      if (isa<DbgInfoIntrinsic>(I))
+        continue;
+      if (--ScanLimit == 0)
+        break;
+
       if (const auto *CB = dyn_cast<CallBase>(&I)) {
         for (unsigned i = 0; i < CB->arg_size(); ++i) {
           if (CB->paramHasAttr(i, Attribute::NoUndef) &&
@@ -5208,9 +5194,12 @@ static bool programUndefinedIfUndefOrPoison(const Value *V,
   for_each(V->users(), Propagate);
   Visited.insert(BB);
 
-  unsigned Iter = 0;
-  while (Iter++ < MaxAnalysisRecursionDepth) {
+  while (true) {
     for (auto &I : make_range(Begin, End)) {
+      if (isa<DbgInfoIntrinsic>(I))
+        continue;
+      if (--ScanLimit == 0)
+        return false;
       if (mustTriggerUB(&I, YieldsPoison))
         return true;
       if (!isGuaranteedToTransferExecutionToSuccessor(&I))

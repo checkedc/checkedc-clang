@@ -14,6 +14,8 @@
 #ifndef _OMPTARGET_H_
 #define _OMPTARGET_H_
 
+#include <deque>
+#include <stddef.h>
 #include <stdint.h>
 #include <stddef.h>
 
@@ -119,10 +121,18 @@ struct __tgt_target_table {
 /// This struct contains information exchanged between different asynchronous
 /// operations for device-dependent optimization and potential synchronization
 struct __tgt_async_info {
+  /// Locations we used in (potentially) asynchronous calls which should live
+  /// as long as this AsyncInfoTy object.
+  std::deque<void *> BufferLocations;
+
   // A pointer to a queue-like structure where offloading operations are issued.
   // We assume to use this structure to do synchronization. In CUDA backend, it
   // is CUstream.
   void *Queue = nullptr;
+
+  /// Return a void* reference with a lifetime that is at least as long as this
+  /// AsyncInfoTy object. The location can be used as intermediate buffer.
+  void *&getVoidPtrLocation();
 };
 
 /// This struct is a record of non-contiguous information
@@ -273,8 +283,10 @@ int __tgt_target_teams_nowait_mapper(
     int32_t thread_limit, int32_t depNum, void *depList, int32_t noAliasDepNum,
     void *noAliasDepList);
 
-void __kmpc_push_target_tripcount(ident_t *loc, int64_t device_id,
-                                  uint64_t loop_tripcount);
+void __kmpc_push_target_tripcount(int64_t device_id, uint64_t loop_tripcount);
+
+void __kmpc_push_target_tripcount_mapper(ident_t *loc, int64_t device_id,
+                                         uint64_t loop_tripcount);
 
 #ifdef __cplusplus
 }

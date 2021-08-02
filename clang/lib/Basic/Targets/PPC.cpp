@@ -57,6 +57,7 @@ bool PPCTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
     } else if (Feature == "+pcrelative-memops") {
       HasPCRelativeMemops = true;
     } else if (Feature == "+spe" || Feature == "+efpu2") {
+      HasStrictFP = false;
       HasSPE = true;
       LongDoubleWidth = LongDoubleAlign = 64;
       LongDoubleFormat = &llvm::APFloat::IEEEdouble();
@@ -317,9 +318,6 @@ bool PPCTargetInfo::initFeatureMap(
                         .Case("ppc64le", true)
                         .Case("pwr9", true)
                         .Case("pwr8", true)
-                        .Default(false);
-  Features["float128"] = llvm::StringSwitch<bool>(CPU)
-                        .Case("pwr9", true)
                         .Default(false);
 
   Features["spe"] = llvm::StringSwitch<bool>(CPU)

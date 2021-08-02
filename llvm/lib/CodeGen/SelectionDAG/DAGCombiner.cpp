@@ -6517,8 +6517,11 @@ static SDValue extractShiftForRotate(SelectionDAG &DAG, SDValue OppShift,
 // reduces to a rotate in direction shift2 by Pos or (equivalently) a rotate
 // in direction shift1 by Neg.  The range [0, EltSize) means that we only need
 // to consider shift amounts with defined behavior.
+//
+// The IsRotate flag should be set when the LHS of both shifts is the same.
+// Otherwise if matching a general funnel shift, it should be clear.
 static bool matchRotateSub(SDValue Pos, SDValue Neg, unsigned EltSize,
-                           SelectionDAG &DAG) {
+                           SelectionDAG &DAG, bool IsRotate) {
   // If EltSize is a power of 2 then:
   //
   //  (a) (Pos == 0 ? 0 : EltSize - Pos) == (EltSize - Pos) & (EltSize - 1)
@@ -6550,8 +6553,11 @@ static bool matchRotateSub(SDValue Pos, SDValue Neg, unsigned EltSize,
   // always invokes undefined behavior for 32-bit X.
   //
   // Below, Mask == EltSize - 1 when using [A] and is all-ones otherwise.
+  //
+  // NOTE: We can only do this when matching an AND and not a general
+  // funnel shift.
   unsigned MaskLoBits = 0;
-  if (Neg.getOpcode() == ISD::AND && isPowerOf2_64(EltSize)) {
+  if (IsRotate && Neg.getOpcode() == ISD::AND && isPowerOf2_64(EltSize)) {
     if (ConstantSDNode *NegC = isConstOrConstSplat(Neg.getOperand(1))) {
       KnownBits Known = DAG.computeKnownBits(Neg.getOperand(0));
       unsigned Bits = Log2_64(EltSize);
@@ -6641,7 +6647,8 @@ SDValue DAGCombiner::MatchRotatePosNeg(SDValue Shifted, SDValue Pos,
   //          (srl x, (*ext y))) ->
   //   (rotr x, y) or (rotl x, (sub 32, y))
   EVT VT = Shifted.getValueType();
-  if (matchRotateSub(InnerPos, InnerNeg, VT.getScalarSizeInBits(), DAG)) {
+  if (matchRotateSub(InnerPos, InnerNeg, VT.getScalarSizeInBits(), DAG,
+                     /*IsRotate*/ true)) {
     bool HasPos = TLI.isOperationLegalOrCustom(PosOpcode, VT);
     return DAG.getNode(HasPos ? PosOpcode : NegOpcode, DL, VT, Shifted,
                        HasPos ? Pos : Neg);
@@ -6670,7 +6677,7 @@ SDValue DAGCombiner::MatchFunnelPosNeg(SDValue N0, SDValue N1, SDValue Pos,
   // fold (or (shl x0, (*ext (sub 32, y))),
   //          (srl x1, (*ext y))) ->
   //   (fshr x0, x1, y) or (fshl x0, x1, (sub 32, y))
-  if (matchRotateSub(InnerPos, InnerNeg, EltBits, DAG)) {
+  if (matchRotateSub(InnerPos, InnerNeg, EltBits, DAG, /*IsRotate*/ N0 == N1)) {
     bool HasPos = TLI.isOperationLegalOrCustom(PosOpcode, VT);
     return DAG.getNode(HasPos ? PosOpcode : NegOpcode, DL, VT, N0, N1,
                        HasPos ? Pos : Neg);
@@ -7098,14 +7105,22 @@ SDValue DAGCombiner::mergeTruncStores(StoreSDNode *N) {
   if (LegalOperations)
     return SDValue();
 
-  // Collect all the stores in the chain.
-  SDValue Chain;
-  SmallVector<StoreSDNode *, 8> Stores;
-  for (StoreSDNode *Store = N; Store; Store = dyn_cast<StoreSDNode>(Chain)) {
-    // TODO: Allow unordered atomics when wider type is legal (see D66309)
-    EVT MemVT = Store->getMemoryVT();
-    if (!(MemVT == MVT::i8 || MemVT == MVT::i16 || MemVT == MVT::i32) ||
-        !Store->isSimple() || Store->isIndexed())
+  // We only handle merging simple stores of 1-4 bytes.
+  // TODO: Allow unordered atomics when wider type is legal (see D66309)
+  EVT MemVT = N->getMemoryVT();
+  if (!(MemVT == MVT::i8 || MemVT == MVT::i16 || MemVT == MVT::i32) ||
+      !N->isSimple() || N->isIndexed())
+    return SDValue();
+
+  // Collect all of the stores in the chain.
+  SDValue Chain = N->getChain();
+  SmallVector<StoreSDNode *, 8> Stores = {N};
+  while (auto *Store = dyn_cast<StoreSDNode>(Chain)) {
+    // All stores must be the same size to ensure that we are writing all of the
+    // bytes in the wide value.
+    // TODO: We could allow multiple sizes by tracking each stored byte.
+    if (Store->getMemoryVT() != MemVT || !Store->isSimple() ||
+        Store->isIndexed())
       return SDValue();
     Stores.push_back(Store);
     Chain = Store->getChain();
@@ -21174,7 +21189,7 @@ SDValue DAGCombiner::visitFP16_TO_FP(SDNode *N) {
   SDValue N0 = N->getOperand(0);
 
   // fold fp16_to_fp(op & 0xffff) -> fp16_to_fp(op)
-  if (N0->getOpcode() == ISD::AND) {
+  if (!TLI.shouldKeepZExtForFP16Conv() && N0->getOpcode() == ISD::AND) {
     ConstantSDNode *AndConst = getAsNonOpaqueConstant(N0.getOperand(1));
     if (AndConst && AndConst->getAPIntValue() == 0xffff) {
       return DAG.getNode(ISD::FP16_TO_FP, SDLoc(N), N->getValueType(0),

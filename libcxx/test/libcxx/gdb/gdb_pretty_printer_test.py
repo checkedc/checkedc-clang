@@ -37,6 +37,23 @@ class CheckResult(gdb.Command):
             compare_frame = gdb.newest_frame().older()
             testcase_frame = compare_frame.older()
             test_loc = testcase_frame.find_sal()
+
+            expectation_val = compare_frame.read_var("expectation")
+            check_literal = expectation_val.string(encoding="utf-8")
+
+            # Heuristic to determine if libc++ itself has debug
+            # info. If it doesn't, then anything normally homed there
+            # won't be found, and the printer will error. We don't
+            # want to fail the test in this case--the printer itself
+            # is probably fine, or at least we can't tell.
+            if check_literal.startswith("std::shared_ptr"):
+                shared_ptr = compare_frame.read_var("value")
+                if not "__shared_owners_" in shared_ptr.type.fields():
+                    print("IGNORED (no debug info in libc++): " +
+                          test_loc.symtab.filename + ":" +
+                          str(test_loc.line))
+                    return
+
             # Use interactive commands in the correct context to get the pretty
             # printed version
 
@@ -45,11 +62,10 @@ class CheckResult(gdb.Command):
             # Ignore the convenience variable name and newline
             value = value_str[value_str.find("= ") + 2:-1]
             gdb.newest_frame().select()
-
             expectation_val = compare_frame.read_var("expectation")
             check_literal = expectation_val.string(encoding="utf-8")
             if "PrettyPrintToRegex" in compare_frame.name():
-                test_fails = not re.match(check_literal, value)
+                test_fails = not re.search(check_literal, value)
             else:
                 test_fails = value != check_literal
 

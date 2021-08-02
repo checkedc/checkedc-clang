@@ -969,6 +969,19 @@ define <vscale x 2 x i1> @ignore_scalable_undef(<vscale x 2 x i1> %cond) {
   ret <vscale x 2 x i1> %s
 }
 
+define <2 x i32> @vec_select_no_equivalence(<2 x i32> %x, <2 x i32> %y) {
+; CHECK-LABEL: @vec_select_no_equivalence(
+; CHECK-NEXT:    [[X10:%.*]] = shufflevector <2 x i32> [[X:%.*]], <2 x i32> undef, <2 x i32> <i32 1, i32 0>
+; CHECK-NEXT:    [[COND:%.*]] = icmp eq <2 x i32> [[X]], zeroinitializer
+; CHECK-NEXT:    [[S:%.*]] = select <2 x i1> [[COND]], <2 x i32> [[X10]], <2 x i32> zeroinitializer
+; CHECK-NEXT:    ret <2 x i32> [[S]]
+;
+  %x10 = shufflevector <2 x i32> %x, <2 x i32> undef, <2 x i32> <i32 1, i32 0>
+  %cond = icmp eq <2 x i32> %x, zeroinitializer
+  %s = select <2 x i1> %cond, <2 x i32> %x10, <2 x i32> zeroinitializer
+  ret <2 x i32> %s
+}
+
 ; TODO: these can be optimized more
 
 define i32 @poison(i32 %x, i32 %y) {

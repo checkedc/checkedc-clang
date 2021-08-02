@@ -58,10 +58,10 @@ static void HandleTargetOutcome(bool success, ident_t *loc = nullptr) {
   case tgt_mandatory:
     if (!success) {
       if (getInfoLevel() & OMP_INFOTYPE_DUMP_TABLE)
-        for (const auto &Device : PM->Devices)
+        for (auto &Device : PM->Devices)
           dumpTargetPointerMappings(loc, Device);
       else
-        FAILURE_MESSAGE("Run with LIBOMPTARGET_DEBUG=%d to dump host-target "
+        FAILURE_MESSAGE("Run with LIBOMPTARGET_INFO=%d to dump host-target "
                         "pointer mappings.\n",
                         OMP_INFOTYPE_DUMP_TABLE);
 
@@ -76,7 +76,7 @@ static void HandleTargetOutcome(bool success, ident_t *loc = nullptr) {
           1, "failure of target construct while offloading is mandatory");
     } else {
       if (getInfoLevel() & OMP_INFOTYPE_DUMP_TABLE)
-        for (const auto &Device : PM->Devices)
+        for (auto &Device : PM->Devices)
           dumpTargetPointerMappings(loc, Device);
     }
     break;
@@ -94,7 +94,7 @@ EXTERN void __tgt_register_requires(int64_t flags) {
 /// adds a target shared library to the target execution image
 EXTERN void __tgt_register_lib(__tgt_bin_desc *desc) {
   TIMESCOPE();
-  std::call_once(PM->RTLs.initFlag, &RTLsTy::LoadRTLs, PM->RTLs);
+  std::call_once(PM->RTLs.initFlag, &RTLsTy::LoadRTLs, &PM->RTLs);
   for (auto &RTL : PM->RTLs.AllRTLs) {
     if (RTL.register_lib) {
       if ((*RTL.register_lib)(desc) != OFFLOAD_SUCCESS) {
@@ -514,8 +514,13 @@ EXTERN void __tgt_push_mapper_component(void *rt_mapper_handle, void *base,
       MapComponentInfoTy(base, begin, size, type, name));
 }
 
-EXTERN void __kmpc_push_target_tripcount(ident_t *loc, int64_t device_id,
+EXTERN void __kmpc_push_target_tripcount(int64_t device_id,
                                          uint64_t loop_tripcount) {
+  __kmpc_push_target_tripcount_mapper(nullptr, device_id, loop_tripcount);
+}
+
+EXTERN void __kmpc_push_target_tripcount_mapper(ident_t *loc, int64_t device_id,
+                                                uint64_t loop_tripcount) {
   TIMESCOPE_WITH_IDENT(loc);
   if (IsOffloadDisabled())
     return;
