@@ -35,7 +35,6 @@ public:
   // Discriminator for LLVM-style RTTI (dyn_cast<> et al.).
   enum DRKind {
     DRK_VarDecl,
-    DRK_ParmVarDecl,
     DRK_FunctionDecl,
     DRK_FieldDecl,
     DRK_TypedefDecl
@@ -75,8 +74,6 @@ protected:
 
 typedef DeclReplacementTempl<VarDecl, DeclReplacement::DRK_VarDecl>
     VarDeclReplacement;
-typedef DeclReplacementTempl<ParmVarDecl, DeclReplacement::DRK_ParmVarDecl>
-    ParmVarDeclReplacement;
 typedef DeclReplacementTempl<FieldDecl, DeclReplacement::DRK_FieldDecl>
     FieldDeclReplacement;
 typedef DeclReplacementTempl<TypedefDecl, DeclReplacement::DRK_TypedefDecl>
@@ -107,40 +104,7 @@ private:
   SourceLocation getDeclEnd(SourceManager &SM) const;
 };
 
-// Compare two DeclReplacement values. The algorithm for comparing them relates
-// their source positions. If two DeclReplacement values refer to overlapping
-// source positions, then they are the same. Otherwise, they are ordered
-// by their placement in the input file.
-//
-// There are two special cases: Function declarations, and DeclStmts. In turn:
-//
-//  - Function declarations might either be a DeclReplacement describing the
-//    entire declaration, i.e. replacing "int *foo(void)"
-//    with "int *foo(void) : itype(_Ptr<int>)". Or, it might describe just
-//    replacing only the return type, i.e. "_Ptr<int> foo(void)". This is
-//    discriminated against with the 'fullDecl' field of the DeclReplacement
-//    type and the comparison function first checks if the operands are
-//    FunctionDecls and if the 'fullDecl' field is set.
-//  - A DeclStmt of mupltiple Decls, i.e. 'int *a = 0, *b = 0'. In this case,
-//    we want the DeclReplacement to refer only to the specific sub-region that
-//    would be replaced, i.e. '*a = 0' and '*b = 0'. To do that, we traverse
-//    the Decls contained in a DeclStmt and figure out what the appropriate
-//    source locations are to describe the positions of the independent
-//    declarations.
-class DComp {
-public:
-  DComp(SourceManager &S) : SM(S) {}
-
-  bool operator()(DeclReplacement *Lhs, DeclReplacement *Rhs) const;
-
-private:
-  SourceManager &SM;
-
-  SourceRange getReplacementSourceRange(DeclReplacement *D) const;
-  SourceLocation getDeclBegin(DeclReplacement *D) const;
-};
-
-typedef std::set<DeclReplacement *, DComp> RSet;
+typedef std::map<Decl *, DeclReplacement *> RSet;
 
 // This class is used to figure out which global variables are part of
 // multi-variable declarations. For local variables, all variables in a single

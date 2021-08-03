@@ -100,8 +100,6 @@ clang::FunctionDecl *getDefinition(clang::FunctionDecl *FD);
 clang::CheckedPointerKind
 getCheckedPointerKind(clang::InteropTypeExpr *ItypeExpr);
 
-bool hasFunctionBody(clang::Decl *D);
-
 std::string getStorageQualifierString(clang::Decl *D);
 
 std::error_code tryGetCanonicalFilePath(const std::string &FileName,

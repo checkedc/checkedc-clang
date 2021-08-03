@@ -105,24 +105,6 @@ clang::CheckedPointerKind getCheckedPointerKind(InteropTypeExpr *ItypeExpr) {
   return CheckedPointerKind::Unchecked;
 }
 
-// Check if function body exists for the
-// provided declaration.
-bool hasFunctionBody(clang::Decl *D) {
-  // If this a parameter?
-  if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D)) {
-    if (DeclContext *DC = PD->getParentFunctionOrMethod()) {
-      FunctionDecl *FD = dyn_cast<FunctionDecl>(DC);
-      if (getDefinition(FD) != nullptr) {
-        return true;
-      }
-    }
-    return false;
-  }
-  // Else this should be within body and
-  // the function body should exist.
-  return true;
-}
-
 static std::string storageClassToString(StorageClass SC) {
   switch (SC) {
   case StorageClass::SC_Static:

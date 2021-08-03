@@ -64,7 +64,8 @@ void StructVariableInitializer::insertVarDecl(VarDecl *VD, DeclStmt *S) {
       TQ += " ";
     std::string ToReplace = getStorageQualifierString(VD) + TQ + tyToStr(Ty) +
                             " " + VD->getName().str() + " = {}";
-    RewriteThese.insert(new VarDeclReplacement(VD, S, ToReplace));
+    RewriteThese.insert(
+        std::make_pair(VD, new VarDeclReplacement(VD, S, ToReplace)));
   }
 }
 

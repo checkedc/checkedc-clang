@@ -27,8 +27,7 @@ using namespace clang;
 class DeclRewriter {
 public:
   DeclRewriter(Rewriter &R, ASTContext &A, GlobalVariableGroups &GP)
-      : R(R), A(A), GP(GP),
-        VisitedMultiDeclMembers(DComp(A.getSourceManager())) {}
+      : R(R), A(A), GP(GP) {}
 
   // The publicly accessible interface for performing declaration rewriting.
   // All declarations for variables with checked types in the variable map of
@@ -54,7 +53,7 @@ private:
   // It is not used with individual declarations outside of multi-declarations
   // because these declarations are seen exactly once, rather than every time a
   // declaration in the containing multi-decl is visited.
-  RSet VisitedMultiDeclMembers;
+  std::set<Decl *> VisitedMultiDeclMembers;
 
   // Visit each Decl in ToRewrite and apply the appropriate pointer type
   // to that Decl. ToRewrite is the set of all declarations to rewrite.
@@ -63,8 +62,6 @@ private:
   // Rewrite a specific variable declaration using the replacement string in the
   // DAndReplace structure. Each of these functions is specialized to handling
   // one subclass of declarations.
-  void rewriteParmVarDecl(ParmVarDeclReplacement *N);
-
   template <typename DRType>
   void rewriteFieldOrVarDecl(DRType *N, RSet &ToRewrite);
   void rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite,
@@ -76,7 +73,6 @@ private:
   void rewriteTypedefDecl(TypedefDeclReplacement *TDT, RSet &ToRewrite);
   void getDeclsOnSameLine(DeclReplacement *N, std::vector<Decl *> &Decls);
   bool isSingleDeclaration(DeclReplacement *N);
-  bool areDeclarationsOnSameLine(DeclReplacement *N1, DeclReplacement *N2);
   SourceRange getNextCommaOrSemicolon(SourceLocation L);
   static void detectInlineStruct(Decl *D, SourceManager &SM);
 };
