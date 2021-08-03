@@ -1,19 +1,8 @@
 set(LLVM_LINK_COMPONENTS
+  Core
   FrontendOpenMP
   Support
   )
-
-if (MSVC)
-  set_source_files_properties(SemaDeclAttr.cpp PROPERTIES COMPILE_FLAGS /bigobj)
-  set_source_files_properties(SemaExpr.cpp PROPERTIES COMPILE_FLAGS /bigobj)
-  set_source_files_properties(SemaExprCXX.cpp PROPERTIES COMPILE_FLAGS /bigobj)
-  set_source_files_properties(SemaTemplate.cpp PROPERTIES COMPILE_FLAGS /bigobj)
-  set_source_files_properties(SemaTemplateDeduction.cpp PROPERTIES COMPILE_FLAGS /bigobj)
-  set_source_files_properties(SemaOpenMP.cpp PROPERTIES COMPILE_FLAGS /bigobj)
-  set_source_files_properties(SemaBounds.cpp PROPERTIES COMPILE_FLAGS /bigobj)
-  set_source_files_properties(CheckedCAlias.cpp PROPERTIES COMPILE_FLAGS /bigobj)
-  set_source_files_properties(CheckedCSubst.cpp PROPERTIES COMPILE_FLAGS /bigobj)
-endif()
 
 clang_tablegen(OpenCLBuiltins.inc -gen-clang-opencl-builtins
   SOURCE OpenCLBuiltins.td
@@ -23,7 +12,6 @@ clang_tablegen(OpenCLBuiltins.inc -gen-clang-opencl-builtins
 add_clang_library(clangSema
   AnalysisBasedWarnings.cpp
   AvailableFactsAnalysis.cpp
-  BoundsAnalysis.cpp
   BoundsUtils.cpp
   BoundsWideningAnalysis.cpp
   CheckedCAlias.cpp

@@ -62,6 +62,12 @@ foreach(tool ${SUPPORTED_TOOLS})
   if(APPLE)
     darwin_filter_host_archs(${tool_toupper}_SUPPORTED_ARCH TEST_ARCH)
   endif()
+  if(${tool} STREQUAL "asan")
+    list(REMOVE_ITEM TEST_ARCH sparc sparcv9)
+  endif()
+  if(OS_NAME MATCHES "SunOS" AND ${tool} STREQUAL "asan")
+    list(REMOVE_ITEM TEST_ARCH x86_64)
+  endif()
 
   # TODO(dliew): We should iterate over the different
   # Apple platforms, not just macOS.

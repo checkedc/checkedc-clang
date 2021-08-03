@@ -1,5 +1,5 @@
 ====================================================
-Extra Clang Tools 11.0.0 (In-Progress) Release Notes
+Extra Clang Tools 12.0.0 (In-Progress) Release Notes
 ====================================================
 
 .. contents::
@@ -10,7 +10,7 @@ Written by the `LLVM Team <https://llvm.org/>`_
 
 .. warning::
 
-   These are in-progress notes for the upcoming Extra Clang Tools 11 release.
+   These are in-progress notes for the upcoming Extra Clang Tools 12 release.
    Release notes for previous releases can be found on
    `the Download Page <https://releases.llvm.org/download.html>`_.
 
@@ -18,7 +18,7 @@ Introduction
 ============
 
 This document contains the release notes for the Extra Clang Tools, part of the
-Clang release 11.0.0. Here we describe the status of the Extra Clang Tools in
+Clang release 12.0.0. Here we describe the status of the Extra Clang Tools in
 some detail, including major improvements from the previous release and new
 feature work. All LLVM releases may be downloaded from the `LLVM releases web
 site <https://llvm.org/releases/>`_.
@@ -32,7 +32,7 @@ main Clang web page, this document applies to the *next* release, not
 the current one. To see the release notes for a specific release, please
 see the `releases page <https://llvm.org/releases/>`_.
 
-What's New in Extra Clang Tools 11.0.0?
+What's New in Extra Clang Tools 12.0.0?
 =======================================
 
 Some of the major new features and improvements to Extra Clang Tools are listed
@@ -47,7 +47,17 @@ Major New Features
 Improvements to clangd
 ----------------------
 
-The improvements are...
+- clangd's memory usage is significantly reduced on most Linux systems.
+  In particular, memory usage should not increase dramatically over time.
+
+  The standard allocator on most systems is glibc's ptmalloc2, and it creates
+  disproportionately large heaps when handling clangd's allocation patterns.
+  By default, clangd will now periodically call ``malloc_trim`` to release free
+  pages on glibc systems.
+
+  Users of other allocators (such as ``jemalloc`` or ``tcmalloc``) on glibc
+  systems can disable this using ``--malloc_trim=0`` or the CMake flag
+  ``-DCLANGD_MALLOC_TRIM=0``.
 
 Improvements to clang-doc
 -------------------------
@@ -57,7 +67,7 @@ The improvements are...
 Improvements to clang-query
 ---------------------------
 
-The improvements are...
+- The IgnoreImplicitCastsAndParentheses traversal mode has been removed.
 
 Improvements to clang-rename
 ----------------------------
@@ -67,187 +77,123 @@ The improvements are...
 Improvements to clang-tidy
 --------------------------
 
-New module
-^^^^^^^^^^
-- New module `llvmlibc`.
+- Checks that allow configuring names of headers to include now support wrapping
+  the include in angle brackets to create a system include. For example,
+  :doc:`cppcoreguidelines-init-variables
+  <clang-tidy/checks/cppcoreguidelines-init-variables>` and
+  :doc:`modernize-make-unique <clang-tidy/checks/modernize-make-unique>`.
 
-  This module contains checks related to the LLVM-libc coding standards.
+- CheckOptions that take boolean values now support all spellings supported in 
+  the `YAML format <https://yaml.org/type/bool.html>`_.
+
+New modules
+^^^^^^^^^^^
+
+- New ``altera`` module.
+
+  Includes checks related to OpenCL for FPGA coding guidelines, based on the
+  `Altera SDK for OpenCL: Best Practices Guide
+  <https://www.altera.com/en_US/pdfs/literature/hb/opencl-sdk/aocl_optimization_guide.pdf>`_.
+
+- New ``concurrency`` module.
+
+  Includes checks related to concurrent programming (e.g. threads, fibers,
+  coroutines, etc.).
 
 New checks
 ^^^^^^^^^^
 
-- New :doc:`abseil-string-find-str-contains
-  <clang-tidy/checks/abseil-string-find-str-contains>` check.
+- New :doc:`altera-kernel-name-restriction
+  <clang-tidy/checks/altera-kernel-name-restriction>` check.
 
-  Finds ``s.find(...) == string::npos`` comparisons (for various string-like types)
-  and suggests replacing with ``absl::StrContains()``.
+  Finds kernel files and include directives whose filename is `kernel.cl`,
+  `Verilog.cl`, or `VHDL.cl`.
 
-- New :doc:`cppcoreguidelines-avoid-non-const-global-variables
-  <clang-tidy/checks/cppcoreguidelines-avoid-non-const-global-variables>` check.
-  Finds non-const global variables as described in check I.2 of C++ Core
-  Guidelines.
+- New :doc:`altera-single-work-item-barrier
+  <clang-tidy/checks/altera-single-work-item-barrier>` check.
+
+  Finds OpenCL kernel functions that call a barrier function but do not call
+  an ID function.
+
+- New :doc:`altera-struct-pack-align
+  <clang-tidy/checks/altera-struct-pack-align>` check.
+
+  Finds structs that are inefficiently packed or aligned, and recommends
+  packing and/or aligning of said structs as needed.
+
+- New :doc:`cppcoreguidelines-prefer-member-initializer
+  <clang-tidy/checks/cppcoreguidelines-prefer-member-initializer>` check.
+
+  Finds member initializations in the constructor body which can be placed into
+  the initialization list instead.
 
 - New :doc:`bugprone-misplaced-pointer-arithmetic-in-alloc
   <clang-tidy/checks/bugprone-misplaced-pointer-arithmetic-in-alloc>` check.
 
-  Finds cases where an integer expression is added to or subtracted from the
-  result of a memory allocation function (``malloc()``, ``calloc()``,
-  ``realloc()``, ``alloca()``) instead of its argument.
+- New :doc:`bugprone-redundant-branch-condition
+  <clang-tidy/checks/bugprone-redundant-branch-condition>` check.
 
-- New :doc:`bugprone-no-escape
-  <clang-tidy/checks/bugprone-no-escape>` check.
+  Finds condition variables in nested ``if`` statements that were also checked
+  in the outer ``if`` statement and were not changed.
 
-  Finds pointers with the ``noescape`` attribute that are captured by an
-  asynchronously-executed block.
+- New :doc:`concurrency-mt-unsafe <clang-tidy/checks/concurrency-mt-unsafe>`
+  check.
 
-- New :doc:`bugprone-spuriously-wake-up-functions
-  <clang-tidy/checks/bugprone-spuriously-wake-up-functions>` check.
+  Finds thread-unsafe functions usage. Currently knows about POSIX and
+  Glibc function sets.
 
-  Finds ``cnd_wait``, ``cnd_timedwait``, ``wait``, ``wait_for``, or
-  ``wait_until`` function calls when the function is not invoked from a loop
-  that checks whether a condition predicate holds or the function has a
-  condition parameter.
+- New :doc:`bugprone-signal-handler
+  <clang-tidy/checks/bugprone-signal-handler>` check.
 
-- New :doc:`bugprone-reserved-identifier
-  <clang-tidy/checks/bugprone-reserved-identifier>` check.
+  Finds functions registered as signal handlers that call non asynchronous-safe
+  functions.
 
-  Checks for usages of identifiers reserved for use by the implementation.
+- New :doc:`cert-sig30-c
+  <clang-tidy/checks/cert-sig30-c>` check.
 
-- New :doc:`bugprone-suspicious-include
-  <clang-tidy/checks/bugprone-suspicious-include>` check.
+  Alias to the :doc:`bugprone-signal-handler
+  <clang-tidy/checks/bugprone-signal-handler>` check.
 
-  Finds cases where an include refers to what appears to be an implementation
-  file, which often leads to hard-to-track-down ODR violations, and diagnoses
-  them.
+- New :doc:`performance-no-int-to-ptr
+  <clang-tidy/checks/performance-no-int-to-ptr>` check.
 
-- New :doc:`cert-oop57-cpp
-  <clang-tidy/checks/cert-oop57-cpp>` check.
+  Diagnoses every integer to pointer cast.
 
-  Flags use of the `C` standard library functions ``memset``, ``memcpy`` and
-  ``memcmp`` and similar derivatives on non-trivial types.
+- New :doc:`readability-function-cognitive-complexity
+  <clang-tidy/checks/readability-function-cognitive-complexity>` check.
 
-- New :doc:`llvmlibc-callee-namespace
-  <clang-tidy/checks/llvmlibc-callee-namespace>` check.
-
-  Checks all calls resolve to functions within ``__llvm_libc`` namespace.
-
-- New :doc:`llvmlibc-implementation-in-namespace
-  <clang-tidy/checks/llvmlibc-implementation-in-namespace>` check.
-
-  Checks all llvm-libc implementation is within the correct namespace.
-
-- New :doc:`llvmlibc-restrict-system-libc-headers
-  <clang-tidy/checks/llvmlibc-restrict-system-libc-headers>` check.
-
-  Finds includes of system libc headers not provided by the compiler within
-  llvm-libc implementations.
-
-- New :doc:`modernize-replace-disallow-copy-and-assign-macro
-  <clang-tidy/checks/modernize-replace-disallow-copy-and-assign-macro>` check.
-
-  Finds macro expansions of ``DISALLOW_COPY_AND_ASSIGN`` and replaces them with
-  a deleted copy constructor and a deleted assignment operator.
-
-- New :doc:`objc-dealloc-in-category
-  <clang-tidy/checks/objc-dealloc-in-category>` check.
-
-  Finds implementations of -dealloc in Objective-C categories.
-
-- New :doc:`misc-no-recursion
-  <clang-tidy/checks/misc-no-recursion>` check.
-
-  Finds recursive functions and diagnoses them.
-
-- New :doc:`objc-nsinvocation-argument-lifetime
-  <clang-tidy/checks/objc-nsinvocation-argument-lifetime>` check.
-
-  Finds calls to ``NSInvocation`` methods under ARC that don't have proper
-  argument object lifetimes.
-
-- New :doc:`readability-use-anyofallof
-  <clang-tidy/checks/readability-use-anyofallof>` check.
-
-  Finds range-based for loops that can be replaced by a call to ``std::any_of``
-  or ``std::all_of``.
-
-New check aliases
-^^^^^^^^^^^^^^^^^
-
-- New alias :doc:`cert-con36-c
-  <clang-tidy/checks/cert-con36-c>` to
-  :doc:`bugprone-spuriously-wake-up-functions
-  <clang-tidy/checks/bugprone-spuriously-wake-up-functions>` was added.
-
-- New alias :doc:`cert-con54-cpp
-  <clang-tidy/checks/cert-con54-cpp>` to
-  :doc:`bugprone-spuriously-wake-up-functions
-  <clang-tidy/checks/bugprone-spuriously-wake-up-functions>` was added.
-
-- New alias :doc:`cert-dcl37-c
-  <clang-tidy/checks/cert-dcl37-c>` to
-  :doc:`bugprone-reserved-identifier
-  <clang-tidy/checks/bugprone-reserved-identifier>` was added.
-
-- New alias :doc:`cert-dcl51-cpp
-  <clang-tidy/checks/cert-dcl51-cpp>` to
-  :doc:`bugprone-reserved-identifier
-  <clang-tidy/checks/bugprone-reserved-identifier>` was added.
-
-- New alias :doc:`cert-str34-c
-  <clang-tidy/checks/cert-str34-c>` to
-  :doc:`bugprone-signed-char-misuse
-  <clang-tidy/checks/bugprone-signed-char-misuse>` was added.
-
-- New alias :doc:`llvm-else-after-return
-  <clang-tidy/checks/llvm-else-after-return>` to
-  :doc:`readability-else-after-return
-  <clang-tidy/checks/readability-else-after-return>` was added.
+  Flags functions with Cognitive Complexity metric exceeding the configured limit.
 
 Changes in existing checks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- Improved :doc:`performance-faster-string-find
-  <clang-tidy/checks/performance-faster-string-find>` check.
+- Improved :doc:`modernize-loop-convert
+  <clang-tidy/checks/modernize-loop-convert>` check.
 
-  Now checks ``std::basic_string_view`` by default.
-
-- Improved :doc:`readability-else-after-return
-  <clang-tidy/checks/readability-else-after-return>` check now supports a
-  `WarnOnConditionVariables` option to control whether to refactor condition
-  variables where possible.
+  Now able to transform iterator loops using ``rbegin`` and ``rend`` methods.
 
 - Improved :doc:`readability-identifier-naming
   <clang-tidy/checks/readability-identifier-naming>` check.
 
-  Now able to rename member references in class template definitions with
-  explicit access.
+  Added an option `GetConfigPerFile` to support including files which use
+  different naming styles.
 
-- Improved :doc:`readability-qualified-auto
-  <clang-tidy/checks/readability-qualified-auto>` check now supports a
-  `AddConstToQualified` to enable adding ``const`` qualifiers to variables
-  typed with ``auto *`` and ``auto &``.
+  Now renames overridden virtual methods if the method they override has a
+  style violation.
+  
+  Added support for specifying the style of scoped ``enum`` constants. If 
+  unspecified, will fall back to the style for regular ``enum`` constants.
+
+  Added an option `IgnoredRegexp` per identifier type to suppress identifier
+  naming checks for names matching a regular expression.
+
+- Removed `google-runtime-references` check because the rule it checks does
+  not exist in the Google Style Guide anymore.
 
 - Improved :doc:`readability-redundant-string-init
-  <clang-tidy/checks/readability-redundant-string-init>` check now supports a
-  `StringNames` option enabling its application to custom string classes. The
-  check now detects in class initializers and constructor initializers which
-  are deemed to be redundant.
+  <clang-tidy/checks/readability-redundant-string-init>` check.
 
-- Checks supporting the ``HeaderFileExtensions`` flag now support ``;`` as a
-  delimiter in addition to ``,``, with the latter being deprecated as of this
-  release. This simplifies how one specifies the options on the command line:
-  ``--config="{CheckOptions: [{ key: HeaderFileExtensions, value: h;;hpp;hxx }]}"``
-
-Renamed checks
-^^^^^^^^^^^^^^
-
-- The 'fuchsia-restrict-system-headers' check was renamed to :doc:`portability-restrict-system-includes
-  <clang-tidy/checks/portability-restrict-system-includes>`
-
-Other improvements
-^^^^^^^^^^^^^^^^^^
-
-- For 'run-clang-tidy.py' add option to use alpha checkers from clang-analyzer.
+  Added `std::basic_string_view` to default list of ``string``-like types.
 
 Improvements to include-fixer
 -----------------------------

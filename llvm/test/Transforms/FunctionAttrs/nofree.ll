@@ -1,4 +1,4 @@
-; RUN: opt < %s -functionattrs -S | FileCheck %s
+; RUN: opt < %s -function-attrs -S | FileCheck %s
 ; RUN: opt < %s -passes=function-attrs -S | FileCheck %s
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
@@ -107,7 +107,7 @@ attributes #5 = { builtin nounwind }
 ; CHECK: attributes #0 = { uwtable }
 ; CHECK: attributes #1 = { nounwind uwtable }
 ; CHECK: attributes #2 = { nounwind }
-; CHECK: attributes #3 = { norecurse nounwind readonly uwtable }
+; CHECK: attributes #3 = { norecurse nounwind readonly uwtable willreturn }
 ; CHECK: attributes #4 = { nobuiltin nounwind }
 ; CHECK: attributes #5 = { builtin nounwind }
 

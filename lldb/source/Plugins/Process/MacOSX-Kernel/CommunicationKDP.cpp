@@ -194,12 +194,11 @@ size_t CommunicationKDP::WaitForPacketWithTimeoutMicroSecondsNoLock(
                                  : std::chrono::microseconds(timeout_usec),
                              status, &error);
 
-    LLDB_LOGV(log, 
-      "Read (buffer, sizeof(buffer), timeout_usec = 0x{0:x}, "
-                  "status = {1}, error = {2}) => bytes_read = {4}",
-                  timeout_usec,
-                  Communication::ConnectionStatusAsCString(status),
-                  error, bytes_read);
+    LLDB_LOGV(log,
+              "Read (buffer, sizeof(buffer), timeout_usec = 0x{0:x}, "
+              "status = {1}, error = {2}) => bytes_read = {4}",
+              timeout_usec, Communication::ConnectionStatusAsString(status),
+              error, bytes_read);
 
     if (bytes_read > 0) {
       if (CheckForPacket(buffer, bytes_read, packet))
@@ -239,6 +238,7 @@ bool CommunicationKDP::CheckForPacket(const uint8_t *src, size_t src_len,
     if (log && log->GetVerbose()) {
       PacketStreamType log_strm;
       DumpHexBytes(&log_strm, src, src_len, UINT32_MAX, LLDB_INVALID_ADDRESS);
+      log_strm.PutChar('\0');
       LLDB_LOGF(log, "CommunicationKDP::%s adding %u bytes: %s", __FUNCTION__,
                 (uint32_t)src_len, log_strm.GetData());
     }

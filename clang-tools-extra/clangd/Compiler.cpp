@@ -60,6 +60,10 @@ buildCompilerInvocation(const ParseInputs &Inputs, clang::DiagnosticConsumer &D,
   CI->getFrontendOpts().DisableFree = false;
   CI->getLangOpts()->CommentOpts.ParseAllComments = true;
   CI->getLangOpts()->RetainCommentsFromSystemHeaders = true;
+  // Disable "clang -verify" diagnostics, they are rarely useful in clangd, and
+  // our compiler invocation set-up doesn't seem to work with it (leading
+  // assertions in VerifyDiagnosticConsumer).
+  CI->getDiagnosticOpts().VerifyDiagnostics = false;
 
   // Disable any dependency outputting, we don't want to generate files or write
   // to stdout/stderr.
@@ -78,12 +82,9 @@ buildCompilerInvocation(const ParseInputs &Inputs, clang::DiagnosticConsumer &D,
   CI->getPreprocessorOpts().PCHThroughHeader.clear();
   CI->getPreprocessorOpts().PCHWithHdrStop = false;
   CI->getPreprocessorOpts().PCHWithHdrStopCreate = false;
+  // Don't crash on `#pragma clang __debug parser_crash`
+  CI->getPreprocessorOpts().DisablePragmaDebugCrash = true;
 
-  // Recovery expression currently only works for C++.
-  if (CI->getLangOpts()->CPlusPlus) {
-    CI->getLangOpts()->RecoveryAST = Inputs.Opts.BuildRecoveryAST;
-    CI->getLangOpts()->RecoveryASTType = Inputs.Opts.PreserveRecoveryASTType;
-  }
   return CI;
 }
 

@@ -61,12 +61,12 @@ def run_test_once(args, extra_args):
     clang_extra_args = clang_tidy_extra_args[i + 1:]
     clang_tidy_extra_args = clang_tidy_extra_args[:i]
 
-  # If the test does not specify a formatting style, force "none"; otherwise
+  # If the test does not specify a config style, force an empty one; otherwise
   # autodetection logic can discover a ".clang-tidy" file that is not related to
   # the test.
   if not any(
-      [arg.startswith('-format-style=') for arg in clang_tidy_extra_args]):
-    clang_tidy_extra_args.append('-format-style=none')
+      [arg.startswith('-config=') for arg in clang_tidy_extra_args]):
+    clang_tidy_extra_args.append('-config={}')
 
   if extension in ['.m', '.mm']:
     clang_extra_args = ['-fobjc-abi-version=2', '-fobjc-arc', '-fblocks'] + \
@@ -78,6 +78,9 @@ def run_test_once(args, extra_args):
   # Tests should not rely on STL being available, and instead provide mock
   # implementations of relevant APIs.
   clang_extra_args.append('-nostdinc++')
+
+  # clang-tidy does not yet support code in Checked C.
+  clang_extra_args.append('-fno-checkedc-extension')
 
   if resource_dir is not None:
     clang_extra_args.append('-resource-dir=%s' % resource_dir)

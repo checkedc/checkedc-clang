@@ -50,6 +50,18 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
     // };
     FieldDecl *FieldWithBounds = nullptr;
 
+    // InBoundsExprLower indicates that we are currently processing the lower
+    // bounds expression of a BoundsExpr that has been expanded to a
+    // RangeBoundsExpr. This flag is used to determine whether a variable
+    // occurs in the lower bounds expression of a VarWithBounds.
+    bool InBoundsExprLower = false;
+
+    // InBoundsExprUpper indicates that we are currently processing the upper
+    // bounds expression of a BoundsExpr that has been expanded to a
+    // RangeBoundsExpr. This flag is used to determine whether a variable
+    // occurs in the upper bounds expression of a VarWithBounds.
+    bool InBoundsExprUpper = false;
+
     // ProcessedRecords keeps tracks of the record declarations whose fields
     // have been traversed by the FillBoundsSiblingFields method. This avoids
     // unnecessary duplicate traversals of record fields.
@@ -70,16 +82,17 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
       return T->getAsRecordDecl();
     }
 
-    // AddBoundsSiblingField adds FieldWithBounds to the set of fields in
-    // whose declared bounds F occurs.
-    void AddBoundsSiblingField(const FieldDecl *F) {
-      auto It = Info.BoundsSiblingFields.find(F);
-      if (It != Info.BoundsSiblingFields.end())
-        It->second.insert(FieldWithBounds);
+    // AddPtrWithBounds adds PtrWithBounds to the set of variables or fields in
+    // whose bounds VarOrField occurs.
+    template<class T, class U>
+    void AddPtrWithBounds(T &Map, const U *PtrWithBounds, const U *VarOrField) {
+      auto It = Map.find(VarOrField);
+      if (It != Map.end())
+        It->second.insert(PtrWithBounds);
       else {
-        FieldSetTy Fields;
-        Fields.insert(FieldWithBounds);
-        Info.BoundsSiblingFields[F] = Fields;
+        typename T::mapped_type Ptrs;
+        Ptrs.insert(PtrWithBounds);
+        Map[VarOrField] = Ptrs;
       }
     }
 
@@ -115,7 +128,7 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
           // bounds. For example, if a field p has declared bounds count(1),
           // then p occurs in the declared bounds of p.
           if (isa<CountBoundsExpr>(FieldBounds))
-            AddBoundsSiblingField(Field);
+            AddPtrWithBounds(Info.BoundsSiblingFields, FieldWithBounds, Field);
 
           // Traverse the declared bounds to visit the DeclRefExprs that
           // explicitly occur in the declared bounds. These DeclRefExprs
@@ -148,6 +161,17 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
           TraverseStmt(B);
           VarWithBounds = nullptr;
         }
+
+      // Else if V does not have a bounds expression but V is a checked array
+      // or a checked null-terminated array then V occurs in its upper and
+      // lower bounds. So we add V to the set of variables that occur in its
+      // lower and upper bounds. For example:
+      // void f(_Nt_array_ptr<char> p);
+      // char p _Checked[] = "ab";
+      } else if (V->getType()->isCheckedPointerArrayType() ||
+                 V->getType()->isCheckedArrayType()) {
+        AddPtrWithBounds(Info.BoundsVarsLower, V, V);
+        AddPtrWithBounds(Info.BoundsVarsUpper, V, V);
       }
 
       // Process any where clause attached to this VarDecl.
@@ -165,7 +189,7 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
       if (FieldWithBounds) {
         const FieldDecl *F = dyn_cast_or_null<FieldDecl>(E->getDecl());
         if (F && !F->isInvalidDecl())
-          AddBoundsSiblingField(F);
+          AddPtrWithBounds(Info.BoundsSiblingFields, FieldWithBounds, F);
         return true;
       }
 
@@ -180,17 +204,13 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
           Info.VarUses[V] = E;
       }
 
-      // We add VarWithBounds to the set of all variables in whose bounds
-      // expressions V occurs.
       if (VarWithBounds) {
-        auto It = Info.BoundsVars.find(V);
-        if (It != Info.BoundsVars.end())
-          It->second.insert(VarWithBounds);
-        else {
-          VarSetTy Vars;
-          Vars.insert(VarWithBounds);
-          Info.BoundsVars[V] = Vars;
-        }
+        // We add VarWithBounds to the set of all variables in whose lower and
+        // upper bounds expressions V occurs.
+        if (InBoundsExprLower)
+          AddPtrWithBounds(Info.BoundsVarsLower, VarWithBounds, V);
+        else if (InBoundsExprUpper)
+          AddPtrWithBounds(Info.BoundsVarsUpper, VarWithBounds, V);
       }
 
       return true;
@@ -210,19 +230,35 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
       return true;
     }
 
+    bool VisitBoundsExpr(BoundsExpr *B) {
+      if (!VarWithBounds)
+        return true;
+
+      if (RangeBoundsExpr *R = dyn_cast_or_null<RangeBoundsExpr>(B)) {
+        InBoundsExprLower = true;
+        TraverseStmt(R->getLowerExpr());
+        InBoundsExprLower = false;
+
+        InBoundsExprUpper = true;
+        TraverseStmt(R->getUpperExpr());
+        InBoundsExprUpper = false;
+      }
+
+      return true;
+    }
+
     bool ProcessWhereClause(WhereClause *WC) {
       if (!WC)
         return true;
 
       for (WhereClauseFact *Fact : WC->getFacts()) {
-        if (BoundsDeclFact *BDF = dyn_cast<BoundsDeclFact>(Fact)) {
-          VarDecl *V = BDF->Var;
-          BoundsExpr *B = BDF->Bounds;
-
-          VarDecl *OrigVarWithBounds = VarWithBounds;
-          VarWithBounds = V;
-          TraverseStmt(B);
-          VarWithBounds = OrigVarWithBounds;
+        if (BoundsDeclFact *F = dyn_cast<BoundsDeclFact>(Fact)) {
+          if (BoundsExpr *NormalizedBounds = SemaRef.NormalizeBounds(F)) {
+            VarDecl *OrigVarWithBounds = VarWithBounds;
+            VarWithBounds = F->getVarDecl();
+            TraverseStmt(NormalizedBounds);
+            VarWithBounds = OrigVarWithBounds;
+          }
         }
       }
 
@@ -241,8 +277,57 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
       return ProcessWhereClause(S->getWhereClause());
     }
 
+    bool VisitCompoundStmt(CompoundStmt *CS) {
+      if (!CS)
+        return true;
+
+      // Get the checked scope specifier for the current compound statement.
+      CheckedScopeSpecifier CSS = CS->getCheckedSpecifier();
+
+      bool FirstStmt = true;
+
+      // A compound statement is of the form {stmt stmt}. Iterate through the
+      // nested statements of the compound statement.
+      for (auto I = CS->body_begin(), E = CS->body_end(); I != E; ++I) {
+        const Stmt *CurrStmt = *I;
+
+        // If this is a compound statement the RecursiveASTVisitor will visit
+        // it later. So we don't need to process it now.
+        if (isa<CompoundStmt>(CurrStmt)) {
+          continue;
+
+        // Else if this is a label statement. Basic blocks may begin at label
+        // statements. We need to be able to update the CSS value correctly at
+        // the beginning of a basic block as we are assured of ordered lookup
+        // only within a basic block (i.e. the first statement of a basic block
+	// may be accessed out of statement-order). The AST only stores the
+	// sub-statement of a label statement. So accordingly we store the CSS
+	// for the sub-statement.
+	} else if (auto *L = dyn_cast<LabelStmt>(CurrStmt)) {
+          Info.CheckedScopeMap[L->getSubStmt()] = CSS;
+
+        // Else if this is the first statement in a compound statement store
+        // its checked scope specifier.
+        } else if (FirstStmt) {
+          Info.CheckedScopeMap[CurrStmt] = CSS;
+
+        // Else if the previous statement was a compound statement store the
+        // checked scope specifier of the current statement.
+        } else if (isa<CompoundStmt>(*(I - 1))) {
+          Info.CheckedScopeMap[CurrStmt] = CSS;
+        }
+
+        FirstStmt = false;
+      }
+
+      return true;
+    }
+
     void DumpBoundsVars(FunctionDecl *FD) {
-      PrintDeclMap<const VarDecl *>(FD, "BoundsVars", Info.BoundsVars);
+      PrintDeclMap<const VarDecl *>(FD, "BoundsVars Lower",
+                                    Info.BoundsVarsLower);
+      PrintDeclMap<const VarDecl *>(FD, "BoundsVars Upper",
+                                    Info.BoundsVarsUpper);
     }
 
     void DumpBoundsSiblingFields(FunctionDecl *FD) {
@@ -252,8 +337,8 @@ class PrepassHelper : public RecursiveASTVisitor<PrepassHelper> {
 
     // Print a map from a key of type T to a set of elements of type T,
     // where T should inherit from NamedDecl.
-    // This method can be used to print the BoundsVars and
-    // BoundsSiblingFields maps.
+    // This method can be used to print the BoundsVarsLower, BoundsVarsUpper
+    // and BoundsSiblingFields maps.
     template<class T>
     void PrintDeclMap(FunctionDecl *FD, const char *Message,
                       llvm::DenseMap<T, llvm::SmallPtrSet<T, 2>> Map) {

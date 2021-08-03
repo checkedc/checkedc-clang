@@ -78,22 +78,24 @@ public:
   };
 
   // Child process control
-  pid_t AttachForDebug(pid_t pid, char *err_str, size_t err_len);
+  pid_t AttachForDebug(pid_t pid, bool unmask_signals, char *err_str,
+                       size_t err_len);
   pid_t LaunchForDebug(const char *path, char const *argv[], char const *envp[],
                        const char *working_directory, const char *stdin_path,
                        const char *stdout_path, const char *stderr_path,
                        bool no_stdio, nub_launch_flavor_t launch_flavor,
-                       int disable_aslr, const char *event_data, DNBError &err);
+                       int disable_aslr, const char *event_data,
+                       bool unmask_signals, DNBError &err);
 
   static uint32_t GetCPUTypeForLocalProcess(pid_t pid);
   static pid_t ForkChildForPTraceDebugging(const char *path, char const *argv[],
                                            char const *envp[],
                                            MachProcess *process, DNBError &err);
   static pid_t PosixSpawnChildForPTraceDebugging(
-      const char *path, cpu_type_t cpu_type, char const *argv[],
-      char const *envp[], const char *working_directory, const char *stdin_path,
-      const char *stdout_path, const char *stderr_path, bool no_stdio,
-      MachProcess *process, int disable_aslr, DNBError &err);
+      const char *path, cpu_type_t cpu_type, cpu_subtype_t cpu_subtype,
+      char const *argv[], char const *envp[], const char *working_directory,
+      const char *stdin_path, const char *stdout_path, const char *stderr_path,
+      bool no_stdio, MachProcess *process, int disable_aslr, DNBError &err);
   nub_addr_t GetDYLDAllImageInfosAddress();
   static const void *PrepareForAttach(const char *path,
                                       nub_launch_flavor_t launch_flavor,
@@ -107,7 +109,7 @@ public:
   pid_t BoardServiceLaunchForDebug(const char *app_bundle_path,
                                    char const *argv[], char const *envp[],
                                    bool no_stdio, bool disable_aslr,
-                                   const char *event_data,
+                                   const char *event_data, bool unmask_signals,
                                    DNBError &launch_err);
   pid_t BoardServiceForkChildForPTraceDebugging(
       const char *path, char const *argv[], char const *envp[], bool no_stdio,
@@ -128,7 +130,7 @@ public:
 #ifdef WITH_SPRINGBOARD
   pid_t SBLaunchForDebug(const char *app_bundle_path, char const *argv[],
                          char const *envp[], bool no_stdio, bool disable_aslr,
-                         DNBError &launch_err);
+                         bool unmask_signals, DNBError &launch_err);
   static pid_t SBForkChildForPTraceDebugging(const char *path,
                                              char const *argv[],
                                              char const *envp[], bool no_stdio,
@@ -236,15 +238,13 @@ public:
     operator bool() { return platform > 0; }
     /// The Mach-O platform type;
     unsigned char platform = 0;
-    /// Pre-LC_BUILD_VERSION files don't disambiguate between ios and ios
-    /// simulator.
-    bool maybe_simulator = false;
     uint32_t major_version = 0;
     uint32_t minor_version = 0;
     uint32_t patch_version = 0;
   };
   DeploymentInfo GetDeploymentInfo(const struct load_command &,
-                                   uint64_t load_command_address);
+                                   uint64_t load_command_address,
+                                   bool is_executable);
   static const char *GetPlatformString(unsigned char platform);
   bool GetMachOInformationFromMemory(uint32_t platform,
                                      nub_addr_t mach_o_header_addr,
@@ -252,7 +252,15 @@ public:
                                      struct mach_o_information &inf);
   JSONGenerator::ObjectSP FormatDynamicLibrariesIntoJSON(
       const std::vector<struct binary_image_information> &image_infos);
-  uint32_t GetAllLoadedBinariesViaDYLDSPI(
+  /// Get the runtime platform from DYLD via SPI.
+  uint32_t GetProcessPlatformViaDYLDSPI();
+  /// Use the dyld SPI present in macOS 10.12, iOS 10, tvOS 10,
+  /// watchOS 3 and newer to get the load address, uuid, and filenames
+  /// of all the libraries.  This only fills in those three fields in
+  /// the 'struct binary_image_information' - call
+  /// GetMachOInformationFromMemory to fill in the mach-o header/load
+  /// command details.
+  void GetAllLoadedBinariesViaDYLDSPI(
       std::vector<struct binary_image_information> &image_infos);
   JSONGenerator::ObjectSP GetLoadedDynamicLibrariesInfos(
       nub_process_t pid, nub_addr_t image_list_address, nub_addr_t image_count);

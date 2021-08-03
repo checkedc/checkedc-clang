@@ -12,9 +12,9 @@ define i32 @vaddv(i32* nocapture readonly %data, i32 %N) {
 ; CHECK-NEXT:    cmp r1, #1
 ; CHECK-NEXT:    blt .LBB0_4
 ; CHECK-NEXT:  @ %bb.1: @ %for.body.preheader
+; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:    mov r1, r0
 ; CHECK-NEXT:    movs r0, #0
-; CHECK-NEXT:    dls lr, lr
 ; CHECK-NEXT:  .LBB0_2: @ %for.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q0, [r1], #32
@@ -106,14 +106,12 @@ define void @arm_cmplx_dot_prod_q15(i16* nocapture readonly %pSrcA, i16* nocaptu
 ; CHECK-NEXT:    wls lr, lr, .LBB1_7
 ; CHECK-NEXT:  .LBB1_5: @ %while.body11
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    ldrsh.w r5, [r0, #2]
-; CHECK-NEXT:    ldrsh.w r6, [r1]
-; CHECK-NEXT:    ldrsh.w r9, [r0]
-; CHECK-NEXT:    adds r0, #4
-; CHECK-NEXT:    ldrsh.w r2, [r1, #2]
-; CHECK-NEXT:    adds r1, #4
-; CHECK-NEXT:    smlalbb r4, r11, r6, r5
+; CHECK-NEXT:    ldrsh r9, [r0], #4
+; CHECK-NEXT:    ldrsh r6, [r1], #4
+; CHECK-NEXT:    ldrsh r5, [r0, #-2]
+; CHECK-NEXT:    ldrsh r2, [r1, #-2]
 ; CHECK-NEXT:    smlalbb r12, r7, r6, r9
+; CHECK-NEXT:    smlalbb r4, r11, r6, r5
 ; CHECK-NEXT:    muls r5, r2, r5
 ; CHECK-NEXT:    smlalbb r4, r11, r2, r9
 ; CHECK-NEXT:    subs.w r12, r12, r5
@@ -287,8 +285,8 @@ define void @fma8(float* noalias nocapture readonly %A, float* noalias nocapture
 ; CHECK-NEXT:    mov r4, r0
 ; CHECK-NEXT:    add.w lr, r5, r6, lsr #3
 ; CHECK-NEXT:    mov r5, r1
-; CHECK-NEXT:    mov r6, r2
 ; CHECK-NEXT:    dls lr, lr
+; CHECK-NEXT:    mov r6, r2
 ; CHECK-NEXT:  .LBB2_4: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q0, [r4, #16]

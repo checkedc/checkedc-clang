@@ -300,7 +300,7 @@ void assign1(array_ptr<int> arr : count(1)) { // expected-note {{(expanded) decl
 // Assignment to a variable used in other variables' bounds
 void assign2(
   array_ptr<int> a : count(len - 1), // expected-note {{(expanded) declared bounds are 'bounds(a, a + len - 1)'}}
-  char b nt_checked[0] : count(len), // expected-note {{(expanded) declared bounds are 'bounds(b, b + len)'}}
+  char b nt_checked[0] : count(len),
   unsigned len
 ) {
   // Observed bounds context before assignment: { a => bounds(a, a + len - 1), b => bounds(b, b + len) }
@@ -308,8 +308,6 @@ void assign2(
   // Observed bounds context after assignment : { a => bounds(a, a + ((len + 3) - 1)), b => bounds(b, b + (len + 3)) }
   len = len - 3; // expected-warning {{cannot prove declared bounds for 'a' are valid after assignment}} \
                  // expected-note {{(expanded) inferred bounds are 'bounds(a, a + len + 3 - 1)'}} \
-                 // expected-warning {{cannot prove declared bounds for 'b' are valid after assignment}} \
-                 // expected-note {{(expanded) inferred bounds are 'bounds(b, b + len + 3)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
@@ -2077,7 +2075,7 @@ void killed_widened_bounds2(nt_array_ptr<char> p : count(0), int other) {
     // CHECK-NEXT: }
 
     // Bounds of p are currently widened by 1
-    // Observed bounds context: { p => bounds(p, (p + 0) + 1) }
+    // Observed bounds context: { p => bounds(p, p + 1) }
     p[1];
     // CHECK: Statement S:
     // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
@@ -2087,10 +2085,8 @@ void killed_widened_bounds2(nt_array_ptr<char> p : count(0), int other) {
     // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:           DeclRefExpr {{.*}} 'p'
     // CHECK-NEXT:         BinaryOperator {{.*}} '+'
-    // CHECK-NEXT:           BinaryOperator {{.*}} '+'
-    // CHECK-NEXT:             ImplicitCastExpr {{.*}} <LValueToRValue>
-    // CHECK-NEXT:               DeclRefExpr {{.*}} 'p'
-    // CHECK-NEXT:             IntegerLiteral {{.*}} 0
+    // CHECK-NEXT:           ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:             DeclRefExpr {{.*}} 'p'
     // CHECK-NEXT:           IntegerLiteral {{.*}} 1
     // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
@@ -2104,10 +2100,8 @@ void killed_widened_bounds2(nt_array_ptr<char> p : count(0), int other) {
     // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:     DeclRefExpr {{.*}} 'p'
     // CHECK-NEXT:   BinaryOperator {{.*}} '+'
-    // CHECK-NEXT:     BinaryOperator {{.*}} '+'
-    // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
-    // CHECK-NEXT:         DeclRefExpr {{.*}} 'p'
-    // CHECK-NEXT:       IntegerLiteral {{.*}} 0
+    // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
     // CHECK-NEXT:     IntegerLiteral {{.*}} 1
     // CHECK-NEXT: }
 
@@ -2642,14 +2636,13 @@ void conditional2(array_ptr<int> a : count(1),
 }
 
 // Conditional operators with widened bounds
-void conditional3(nt_array_ptr<char> p : count(i), // expected-note {{(expanded) declared bounds are 'bounds(p, p + i)'}}
+void conditional3(nt_array_ptr<char> p : count(i),
                   unsigned i, 
                   nt_array_ptr<char> q : count(j), // expected-note {{(expanded) declared bounds are 'bounds(q, q + j)'}}
                   unsigned j) {
   if (*(p + i)) {
     // Observed bounds context: { p => bounds(p, p + i - 1 + 1), q => bounds(q, q + j) }
-    1 ? i++ : ++i; // expected-warning {{cannot prove declared bounds for 'p' are valid after statement}} \
-                   // expected-note {{(expanded) inferred bounds are 'bounds(p, p + i - 1U + 1)'}}
+    1 ? i++ : ++i;
     // CHECK: Statement S:
     // CHECK:      ConditionalOperator
     // CHECK-NEXT:   IntegerLiteral {{.*}} 1

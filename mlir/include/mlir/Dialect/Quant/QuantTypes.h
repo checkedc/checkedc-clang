@@ -11,9 +11,9 @@
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/Types.h"
 #include "llvm/Support/MathExtras.h"
 
@@ -28,17 +28,9 @@ struct QuantizedTypeStorage;
 struct AnyQuantizedTypeStorage;
 struct UniformQuantizedTypeStorage;
 struct UniformQuantizedPerAxisTypeStorage;
+struct CalibratedQuantizedTypeStorage;
 
 } // namespace detail
-
-namespace QuantizationTypes {
-enum Kind {
-  Any = Type::FIRST_QUANTIZATION_TYPE,
-  UniformQuantized,
-  UniformQuantizedPerAxis,
-  LAST_USED_QUANTIZATION_TYPE = UniformQuantizedPerAxis,
-};
-} // namespace QuantizationTypes
 
 /// Enumeration of bit-mapped flags related to quantized types.
 namespace QuantizationFlags {
@@ -71,10 +63,7 @@ public:
                                int64_t storageTypeMax);
 
   /// Support method to enable LLVM-style type casting.
-  static bool classof(Type type) {
-    return type.getKind() >= Type::FIRST_QUANTIZATION_TYPE &&
-           type.getKind() <= QuantizationTypes::LAST_USED_QUANTIZATION_TYPE;
-  }
+  static bool classof(Type type);
 
   /// Gets the minimum possible stored by a storageType. storageTypeMin must
   /// be greater than or equal to this value.
@@ -211,9 +200,6 @@ class AnyQuantizedType
 public:
   using Base::Base;
 
-  /// Support method to enable LLVM-style type casting.
-  static bool kindof(unsigned kind) { return kind == QuantizationTypes::Any; }
-
   /// Gets an instance of the type with all parameters specified but not
   /// checked.
   static AnyQuantizedType get(unsigned flags, Type storageType,
@@ -292,11 +278,6 @@ public:
                                int64_t zeroPoint, int64_t storageTypeMin,
                                int64_t storageTypeMax);
 
-  /// Support method to enable LLVM-style type casting.
-  static bool kindof(unsigned kind) {
-    return kind == QuantizationTypes::UniformQuantized;
-  }
-
   /// Gets the scale term. The scale designates the difference between the real
   /// values corresponding to consecutive quantized values differing by 1.
   double getScale() const;
@@ -357,11 +338,6 @@ public:
                                int32_t quantizedDimension,
                                int64_t storageTypeMin, int64_t storageTypeMax);
 
-  /// Support method to enable LLVM-style type casting.
-  static bool kindof(unsigned kind) {
-    return kind == QuantizationTypes::UniformQuantizedPerAxis;
-  }
-
   /// Gets the quantization scales. The scales designate the difference between
   /// the real values corresponding to consecutive quantized values differing
   /// by 1. The ith scale corresponds to the ith slice in the
@@ -394,6 +370,34 @@ public:
     return llvm::all_of(getZeroPoints(),
                         [](int64_t zeroPoint) { return zeroPoint != 0; });
   }
+};
+
+/// A quantized type that infers its range from given min/max values.
+///
+/// Typical syntax:
+///   quant.calibrated<f32<-0.922,0.981>>
+class CalibratedQuantizedType
+    : public Type::TypeBase<CalibratedQuantizedType, QuantizedType,
+                            detail::CalibratedQuantizedTypeStorage> {
+public:
+  using Base::Base;
+
+  /// Gets an instance of the type with all parameters specified but not
+  /// checked.
+  static CalibratedQuantizedType get(Type expressedType, double min,
+                                     double max);
+
+  /// Gets an instance of the type with all specified parameters checked.
+  /// Returns a nullptr convertible type on failure.
+  static CalibratedQuantizedType getChecked(Type expressedType, double min,
+                                            double max, Location location);
+
+  /// Verifies construction invariants and issues errors/warnings.
+  static LogicalResult verifyConstructionInvariants(Location loc,
+                                                    Type expressedType,
+                                                    double min, double max);
+  double getMin() const;
+  double getMax() const;
 };
 
 } // namespace quant

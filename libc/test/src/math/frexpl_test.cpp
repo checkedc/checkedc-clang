@@ -6,15 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "include/math.h"
 #include "src/math/frexpl.h"
 #include "utils/FPUtil/BasicOperations.h"
 #include "utils/FPUtil/FPBits.h"
+#include "utils/MPFRWrapper/MPFRUtils.h"
 #include "utils/UnitTest/Test.h"
+#include <math.h>
 
 using FPBits = __llvm_libc::fputil::FPBits<long double>;
 
-TEST(FrexplTest, SpecialNumbers) {
+namespace mpfr = __llvm_libc::testing::mpfr;
+
+TEST(LlvmLibcFrexplTest, SpecialNumbers) {
   int exponent;
 
   EXPECT_TRUE(FPBits::inf() == __llvm_libc::frexpl(FPBits::inf(), &exponent));
@@ -32,7 +35,7 @@ TEST(FrexplTest, SpecialNumbers) {
       FPBits(__llvm_libc::frexpl(FPBits::buildNaN(1), &exponent)).isNaN());
 }
 
-TEST(FrexplTest, PowersOfTwo) {
+TEST(LlvmLibcFrexplTest, PowersOfTwo) {
   int exponent;
 
   EXPECT_TRUE(0.5l == __llvm_libc::frexpl(1.0l, &exponent));
@@ -66,7 +69,7 @@ TEST(FrexplTest, PowersOfTwo) {
   EXPECT_EQ(exponent, 6);
 }
 
-TEST(FrexplTest, SomeIntegers) {
+TEST(LlvmLibcFrexplTest, SomeIntegers) {
   int exponent;
 
   EXPECT_TRUE(0.75l == __llvm_libc::frexpl(24.0l, &exponent));
@@ -85,7 +88,7 @@ TEST(FrexplTest, SomeIntegers) {
   EXPECT_EQ(exponent, 10);
 }
 
-TEST(FrexplTest, LongDoubleRange) {
+TEST(LlvmLibcFrexplTest, LongDoubleRange) {
   using UIntType = FPBits::UIntType;
   constexpr UIntType count = 10000000;
   constexpr UIntType step = UIntType(-1) / count;
@@ -94,10 +97,11 @@ TEST(FrexplTest, LongDoubleRange) {
     if (isnan(x) || isinf(x) || x == 0.0l)
       continue;
 
-    int exponent;
-    long double frac = __llvm_libc::frexpl(x, &exponent);
+    mpfr::BinaryOutput<long double> result;
+    result.f = __llvm_libc::frexpl(x, &result.i);
 
-    ASSERT_TRUE(__llvm_libc::fputil::abs(frac) < 1.0l);
-    ASSERT_TRUE(__llvm_libc::fputil::abs(frac) >= 0.5l);
+    ASSERT_TRUE(__llvm_libc::fputil::abs(result.f) < 1.0);
+    ASSERT_TRUE(__llvm_libc::fputil::abs(result.f) >= 0.5);
+    ASSERT_MPFR_MATCH(mpfr::Operation::Frexp, x, result, 0.0);
   }
 }

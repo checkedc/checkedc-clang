@@ -8,8 +8,8 @@
 
 #include "mlir/IR/Value.h"
 #include "mlir/IR/Block.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Operation.h"
-#include "mlir/IR/StandardTypes.h"
 #include "llvm/ADT/SmallPtrSet.h"
 
 using namespace mlir;
@@ -63,7 +63,7 @@ void Value::setType(Type newType) {
     return;
   auto newTypes = llvm::to_vector<4>(curTypes);
   newTypes[resultNo] = newType;
-  owner->resultType = TupleType::get(newTypes, newType.getContext());
+  owner->resultType = TupleType::get(newType.getContext(), newTypes);
 }
 
 /// If this value is the result of an Operation, return the operation that
@@ -77,7 +77,11 @@ Operation *Value::getDefiningOp() const {
 Location Value::getLoc() const {
   if (auto *op = getDefiningOp())
     return op->getLoc();
-  return UnknownLoc::get(getContext());
+
+  // Use the location of the parent operation if this is a block argument.
+  // TODO: Should we just add locations to block arguments?
+  Operation *parentOp = cast<BlockArgument>().getOwner()->getParentOp();
+  return parentOp ? parentOp->getLoc() : UnknownLoc::get(getContext());
 }
 
 /// Return the Region in which this Value is defined.

@@ -23,7 +23,6 @@
 #include "clang/AST/Attr.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticOptions.h"
-#include "clang/Basic/FileManager.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Frontend/DiagnosticRenderer.h"
 #include "clang/Tooling/Core/Diagnostic.h"
@@ -37,6 +36,10 @@
 #include <vector>
 using namespace clang;
 using namespace tidy;
+
+#ifdef LLVM_CLANG_AST_ATTR_H
+//#error
+#endif
 
 namespace {
 class ClangTidyDiagnosticRenderer : public DiagnosticRenderer {
@@ -176,6 +179,21 @@ DiagnosticBuilder ClangTidyContext::diag(
   return DiagEngine->Report(Loc, ID);
 }
 
+DiagnosticBuilder ClangTidyContext::diag(
+    StringRef CheckName, StringRef Description,
+    DiagnosticIDs::Level Level /* = DiagnosticIDs::Warning*/) {
+  unsigned ID = DiagEngine->getDiagnosticIDs()->getCustomDiagID(
+      Level, (Description + " [" + CheckName + "]").str());
+  CheckNamesByDiagnosticID.try_emplace(ID, CheckName);
+  return DiagEngine->Report(ID);
+}
+
+DiagnosticBuilder ClangTidyContext::configurationDiag(
+    StringRef Message,
+    DiagnosticIDs::Level Level /* = DiagnosticIDs::Warning*/) {
+  return diag("clang-tidy-config", Message, Level);
+}
+
 void ClangTidyContext::setSourceManager(SourceManager *SourceMgr) {
   DiagEngine->setSourceManager(SourceMgr);
 }
@@ -204,7 +222,7 @@ const ClangTidyOptions &ClangTidyContext::getOptions() const {
 ClangTidyOptions ClangTidyContext::getOptionsForFile(StringRef File) const {
   // Merge options on top of getDefaults() as a safeguard against options with
   // unset values.
-  return ClangTidyOptions::getDefaults().mergeWith(
+  return ClangTidyOptions::getDefaults().merge(
       OptionsProvider->getOptions(File), 0);
 }
 
@@ -255,8 +273,10 @@ ClangTidyDiagnosticConsumer::ClangTidyDiagnosticConsumer(
 void ClangTidyDiagnosticConsumer::finalizeLastError() {
   if (!Errors.empty()) {
     ClangTidyError &Error = Errors.back();
-    if (!Context.isCheckEnabled(Error.DiagnosticName) &&
-        Error.DiagLevel != ClangTidyError::Error) {
+    if (Error.DiagnosticName == "clang-tidy-config") {
+      // Never ignore these.
+    } else if (!Context.isCheckEnabled(Error.DiagnosticName) &&
+               Error.DiagLevel != ClangTidyError::Error) {
       ++Context.Stats.ErrorsIgnoredCheckFilter;
       Errors.pop_back();
     } else if (!LastErrorRelatesToUserCode) {
@@ -304,22 +324,8 @@ static bool IsNOLINTFound(StringRef NolintDirectiveText, StringRef Line,
 
 static llvm::Optional<StringRef> getBuffer(const SourceManager &SM, FileID File,
                                            bool AllowIO) {
-  // This is similar to the implementation of SourceManager::getBufferData(),
-  // but uses ContentCache::getRawBuffer() rather than getBuffer() if
-  // AllowIO=false, to avoid triggering file I/O if the file contents aren't
-  // already mapped.
-  bool CharDataInvalid = false;
-  const SrcMgr::SLocEntry &Entry = SM.getSLocEntry(File, &CharDataInvalid);
-  if (CharDataInvalid || !Entry.isFile())
-    return llvm::None;
-  const SrcMgr::ContentCache *Cache = Entry.getFile().getContentCache();
-  const llvm::MemoryBuffer *Buffer =
-      AllowIO ? Cache->getBuffer(SM.getDiagnostics(), SM.getFileManager(),
-                                 SourceLocation(), &CharDataInvalid)
-              : Cache->getRawBuffer();
-  if (!Buffer || CharDataInvalid)
-    return llvm::None;
-  return Buffer->getBuffer();
+  return AllowIO ? SM.getBufferDataOrNone(File)
+                 : SM.getBufferDataIfLoaded(File);
 }
 
 static bool LineIsMarkedWithNOLINT(const SourceManager &SM, SourceLocation Loc,
@@ -590,6 +596,7 @@ void ClangTidyDiagnosticConsumer::removeIncompatibleErrors() {
     // An event can be either the begin or the end of an interval.
     enum EventType {
       ET_Begin = 1,
+      ET_Insert = 0,
       ET_End = -1,
     };
 
@@ -621,10 +628,17 @@ void ClangTidyDiagnosticConsumer::removeIncompatibleErrors() {
       //   one will be processed before, disallowing the second one, and the
       //   end point of the first one will also be processed before,
       //   disallowing the first one.
-      if (Type == ET_Begin)
+      switch (Type) {
+      case ET_Begin:
         Priority = std::make_tuple(Begin, Type, -End, -ErrorSize, ErrorId);
-      else
+        break;
+      case ET_Insert:
+        Priority = std::make_tuple(Begin, Type, -End, ErrorSize, ErrorId);
+        break;
+      case ET_End:
         Priority = std::make_tuple(End, Type, -Begin, ErrorSize, ErrorId);
+        break;
+      }
     }
 
     bool operator<(const Event &Other) const {
@@ -662,19 +676,19 @@ void ClangTidyDiagnosticConsumer::removeIncompatibleErrors() {
   }
 
   // Build events from error intervals.
-  std::map<std::string, std::vector<Event>> FileEvents;
+  llvm::StringMap<std::vector<Event>> FileEvents;
   for (unsigned I = 0; I < ErrorFixes.size(); ++I) {
     for (const auto &FileAndReplace : *ErrorFixes[I].second) {
       for (const auto &Replace : FileAndReplace.second) {
         unsigned Begin = Replace.getOffset();
         unsigned End = Begin + Replace.getLength();
-        const std::string &FilePath = std::string(Replace.getFilePath());
-        // FIXME: Handle empty intervals, such as those from insertions.
-        if (Begin == End)
-          continue;
-        auto &Events = FileEvents[FilePath];
-        Events.emplace_back(Begin, End, Event::ET_Begin, I, Sizes[I]);
-        Events.emplace_back(Begin, End, Event::ET_End, I, Sizes[I]);
+        auto &Events = FileEvents[Replace.getFilePath()];
+        if (Begin == End) {
+          Events.emplace_back(Begin, End, Event::ET_Insert, I, Sizes[I]);
+        } else {
+          Events.emplace_back(Begin, End, Event::ET_Begin, I, Sizes[I]);
+          Events.emplace_back(Begin, End, Event::ET_End, I, Sizes[I]);
+        }
       }
     }
   }
@@ -686,14 +700,20 @@ void ClangTidyDiagnosticConsumer::removeIncompatibleErrors() {
     llvm::sort(Events);
     int OpenIntervals = 0;
     for (const auto &Event : Events) {
-      if (Event.Type == Event::ET_End)
-        --OpenIntervals;
-      // This has to be checked after removing the interval from the count if it
-      // is an end event, or before adding it if it is a begin event.
-      if (OpenIntervals != 0)
-        Apply[Event.ErrorId] = false;
-      if (Event.Type == Event::ET_Begin)
-        ++OpenIntervals;
+      switch (Event.Type) {
+      case Event::ET_Begin:
+        if (OpenIntervals++ != 0)
+          Apply[Event.ErrorId] = false;
+        break;
+      case Event::ET_Insert:
+        if (OpenIntervals != 0)
+          Apply[Event.ErrorId] = false;
+        break;
+      case Event::ET_End:
+        if (--OpenIntervals != 0)
+          Apply[Event.ErrorId] = false;
+        break;
+      }
     }
     assert(OpenIntervals == 0 && "Amount of begin/end points doesn't match");
   }
@@ -729,7 +749,7 @@ struct EqualClangTidyError {
 std::vector<ClangTidyError> ClangTidyDiagnosticConsumer::take() {
   finalizeLastError();
 
-  llvm::sort(Errors, LessClangTidyError());
+  llvm::stable_sort(Errors, LessClangTidyError());
   Errors.erase(std::unique(Errors.begin(), Errors.end(), EqualClangTidyError()),
                Errors.end());
   if (RemoveIncompatibleErrors)

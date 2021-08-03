@@ -1,4 +1,7 @@
-// RUN: mlir-rocm-runner %s --shared-libs=%rocm_wrapper_library_dir/librocm-runtime-wrappers%shlibext,%linalg_test_lib_dir/libmlir_runner_utils%shlibext --entry-point-result=void | FileCheck %s
+// RUN: mlir-rocm-runner %s \
+// RUN:   --shared-libs=%cuda_wrapper_library_dir/libcuda-runtime-wrappers%shlibext,%linalg_test_lib_dir/libmlir_runner_utils%shlibext \
+// RUN:   --entry-point-result=void \
+// RUN: | FileCheck %s
 
 func @other_func(%arg0 : f32, %arg1 : memref<?xf32>) {
   %c0 = constant 0 : index
@@ -18,7 +21,7 @@ func @main() {
   %21 = constant 5 : i32
   %22 = memref_cast %arg0 : memref<5xf32> to memref<?xf32>
   %cast = memref_cast %22 : memref<?xf32> to memref<*xf32>
-  call @mgpuMemHostRegisterFloat(%cast) : (memref<*xf32>) -> ()
+  gpu.host_register %cast : memref<*xf32>
   %23 = memref_cast %22 : memref<?xf32> to memref<*xf32>
   call @print_memref_f32(%23) : (memref<*xf32>) -> ()
   %24 = constant 1.0 : f32
@@ -28,6 +31,5 @@ func @main() {
   return
 }
 
-func @mgpuMemHostRegisterFloat(%ptr : memref<*xf32>)
-func @mgpuMemGetDeviceMemRef1dFloat(%ptr : memref<?xf32>) -> (memref<?xf32>)
-func @print_memref_f32(%ptr : memref<*xf32>)
+func private @mgpuMemGetDeviceMemRef1dFloat(%ptr : memref<?xf32>) -> (memref<?xf32>)
+func private @print_memref_f32(%ptr : memref<*xf32>)

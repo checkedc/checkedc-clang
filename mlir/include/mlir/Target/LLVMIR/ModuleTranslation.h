@@ -17,8 +17,9 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/Transforms/LegalizeForExport.h"
 #include "mlir/IR/Block.h"
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Value.h"
+#include "mlir/Target/LLVMIR/TypeTranslation.h"
 
 #include "llvm/Frontend/OpenMP/OMPIRBuilder.h"
 #include "llvm/IR/BasicBlock.h"
@@ -49,14 +50,15 @@ class LLVMFuncOp;
 class ModuleTranslation {
 public:
   template <typename T = ModuleTranslation>
-  static std::unique_ptr<llvm::Module> translateModule(Operation *m) {
+  static std::unique_ptr<llvm::Module>
+  translateModule(Operation *m, llvm::LLVMContext &llvmContext,
+                  StringRef name = "LLVMDialectModule") {
     if (!satisfiesLLVMModule(m))
       return nullptr;
     if (failed(checkSupportedModuleOps(m)))
       return nullptr;
-    auto llvmModule = prepareLLVMModule(m);
-    if (!llvmModule)
-      return nullptr;
+    std::unique_ptr<llvm::Module> llvmModule =
+        prepareLLVMModule(m, llvmContext, name);
 
     LLVM::ensureDistinctSuccessors(m);
 
@@ -89,7 +91,24 @@ protected:
                                             llvm::IRBuilder<> &builder);
   virtual LogicalResult convertOmpParallel(Operation &op,
                                            llvm::IRBuilder<> &builder);
-  static std::unique_ptr<llvm::Module> prepareLLVMModule(Operation *m);
+  virtual LogicalResult convertOmpMaster(Operation &op,
+                                         llvm::IRBuilder<> &builder);
+  void convertOmpOpRegions(Region &region, StringRef blockName,
+                           DenseMap<Value, llvm::Value *> &valueMapping,
+                           DenseMap<Block *, llvm::BasicBlock *> &blockMapping,
+                           llvm::BasicBlock &sourceBlock,
+                           llvm::BasicBlock &continuationBlock,
+                           llvm::IRBuilder<> &builder,
+                           LogicalResult &bodyGenStatus);
+  virtual LogicalResult convertOmpWsLoop(Operation &opInst,
+                                         llvm::IRBuilder<> &builder);
+
+  /// Converts the type from MLIR LLVM dialect to LLVM.
+  llvm::Type *convertType(Type type);
+
+  static std::unique_ptr<llvm::Module>
+  prepareLLVMModule(Operation *m, llvm::LLVMContext &llvmContext,
+                    StringRef name);
 
   /// A helper to look up remapped operands in the value remapping table.
   SmallVector<llvm::Value *, 8> lookupValues(ValueRange values);
@@ -102,7 +121,8 @@ private:
   LogicalResult convertFunctions();
   LogicalResult convertGlobals();
   LogicalResult convertOneFunction(LLVMFuncOp func);
-  LogicalResult convertBlock(Block &bb, bool ignoreArguments);
+  LogicalResult convertBlock(Block &bb, bool ignoreArguments,
+                             llvm::IRBuilder<> &builder);
 
   llvm::Constant *getLLVMConstant(llvm::Type *llvmType, Attribute attr,
                                   Location loc);
@@ -115,19 +135,28 @@ private:
 
   /// Builder for LLVM IR generation of OpenMP constructs.
   std::unique_ptr<llvm::OpenMPIRBuilder> ompBuilder;
-  /// Precomputed pointer to OpenMP dialect.
+
+  /// Precomputed pointer to OpenMP dialect. Note this can be nullptr if the
+  /// OpenMP dialect hasn't been loaded (it is always loaded if there are OpenMP
+  /// operations in the module though).
   const Dialect *ompDialect;
-  /// Pointer to the llvmDialect;
-  LLVMDialect *llvmDialect;
 
   /// Mappings between llvm.mlir.global definitions and corresponding globals.
   DenseMap<Operation *, llvm::GlobalValue *> globalsMapping;
+
+  /// A stateful object used to translate types.
+  TypeToLLVMIRTranslator typeTranslator;
 
 protected:
   /// Mappings between original and translated values, used for lookups.
   llvm::StringMap<llvm::Function *> functionMapping;
   DenseMap<Value, llvm::Value *> valueMapping;
   DenseMap<Block *, llvm::BasicBlock *> blockMapping;
+
+  /// A mapping between MLIR LLVM dialect terminators and LLVM IR terminators
+  /// they are converted to. This allows for connecting PHI nodes to the source
+  /// values after all operations are converted.
+  DenseMap<Operation *, llvm::Instruction *> branchMapping;
 };
 
 } // namespace LLVM

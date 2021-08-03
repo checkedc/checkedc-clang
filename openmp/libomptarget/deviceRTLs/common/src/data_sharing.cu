@@ -9,6 +9,8 @@
 // This file contains the implementation of data sharing environments
 //
 //===----------------------------------------------------------------------===//
+#pragma omp declare target
+
 #include "common/omptarget.h"
 #include "target_impl.h"
 
@@ -26,7 +28,7 @@ INLINE static void data_sharing_init_stack_common() {
   omptarget_nvptx_TeamDescr *teamDescr =
       &omptarget_nvptx_threadPrivateContext->TeamContext();
 
-  for (int WID = 0; WID < WARPSIZE; WID++) {
+  for (int WID = 0; WID < DS_Max_Warp_Number; WID++) {
     __kmpc_data_sharing_slot *RootS = teamDescr->GetPreallocatedSlotAddr(WID);
     DataSharingState.SlotPtr[WID] = RootS;
     DataSharingState.StackPtr[WID] = (void *)&RootS->Data[0];
@@ -275,3 +277,4 @@ EXTERN void __kmpc_restore_team_static_memory(int16_t isSPMDExecutionMode,
   omptarget_nvptx_simpleMemoryManager.Release();
 }
 
+#pragma omp end declare target

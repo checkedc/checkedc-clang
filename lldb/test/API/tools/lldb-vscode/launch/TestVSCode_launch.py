@@ -181,7 +181,8 @@ class TestVSCode_launch(lldbvscode_testcase.VSCodeTestCaseBase):
 
     @skipIfWindows
     @skipIfLinux # shell argument expansion doesn't seem to work on Linux
-    @expectedFailureNetBSD
+    @expectedFailureAll(oslist=["freebsd", "netbsd"],
+                        bugnumber="llvm.org/pr48349")
     @skipIfRemote
     def test_shellExpandArguments_enabled(self):
         '''
@@ -431,7 +432,7 @@ class TestVSCode_launch(lldbvscode_testcase.VSCodeTestCaseBase):
     @skipIfWindows
     @skipIfNetBSD # Hangs on NetBSD as well
     @skipIfDarwin
-    @skipIf(archs="aarch64") # Example of a flaky run http://lab.llvm.org:8011/builders/lldb-aarch64-ubuntu/builds/5540/steps/test/logs/stdio
+    @skipIf(archs=["arm", "aarch64"]) # Example of a flaky run http://lab.llvm.org:8011/builders/lldb-aarch64-ubuntu/builds/5540/steps/test/logs/stdio
     def test_terminate_commands(self):
         '''
             Tests that the "terminateCommands", that can be passed during

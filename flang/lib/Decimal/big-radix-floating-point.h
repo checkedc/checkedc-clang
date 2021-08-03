@@ -24,7 +24,6 @@
 #include "flang/Common/bit-population-count.h"
 #include "flang/Common/leading-zero-bit-count.h"
 #include "flang/Common/uint128.h"
-#include "flang/Common/unsigned-const-division.h"
 #include "flang/Decimal/binary-floating-point.h"
 #include "flang/Decimal/decimal.h"
 #include <cinttypes>
@@ -66,12 +65,12 @@ private:
 
 public:
   explicit BigRadixFloatingPointNumber(
-      enum FortranRounding rounding = RoundDefault)
+      enum FortranRounding rounding = RoundNearest)
       : rounding_{rounding} {}
 
   // Converts a binary floating point value.
   explicit BigRadixFloatingPointNumber(
-      Real, enum FortranRounding = RoundDefault);
+      Real, enum FortranRounding = RoundNearest);
 
   BigRadixFloatingPointNumber &SetToZero() {
     isNegative_ = false;
@@ -147,7 +146,7 @@ private:
         std::is_same_v<UINT, common::uint128_t> || std::is_unsigned_v<UINT>);
     SetToZero();
     while (n != 0) {
-      auto q{common::DivideUnsignedBy<UINT, 10>(n)};
+      auto q{n / 10u};
       if (n != q * 10) {
         break;
       }
@@ -161,7 +160,7 @@ private:
       return 0;
     } else {
       while (n != 0 && digits_ < digitLimit_) {
-        auto q{common::DivideUnsignedBy<UINT, radix>(n)};
+        auto q{n / radix};
         digit_[digits_++] = static_cast<Digit>(n - q * radix);
         n = q;
       }
@@ -214,7 +213,7 @@ private:
   template <unsigned DIVISOR> int DivideBy() {
     Digit remainder{0};
     for (int j{digits_ - 1}; j >= 0; --j) {
-      Digit q{common::DivideUnsignedBy<Digit, DIVISOR>(digit_[j])};
+      Digit q{digit_[j] / DIVISOR};
       Digit nrem{digit_[j] - DIVISOR * q};
       digit_[j] = q + (radix / DIVISOR) * remainder;
       remainder = nrem;
@@ -295,7 +294,7 @@ private:
   template <int N> int MultiplyByHelper(int carry = 0) {
     for (int j{0}; j < digits_; ++j) {
       auto v{N * digit_[j] + carry};
-      carry = common::DivideUnsignedBy<Digit, radix>(v);
+      carry = v / radix;
       digit_[j] = v - carry * radix; // i.e., v % radix
     }
     return carry;
@@ -355,7 +354,7 @@ private:
   int digitLimit_{maxDigits}; // precision clamp
   int exponent_{0}; // signed power of ten
   bool isNegative_{false};
-  enum FortranRounding rounding_ { RoundDefault };
+  enum FortranRounding rounding_ { RoundNearest };
 };
 } // namespace Fortran::decimal
 #endif

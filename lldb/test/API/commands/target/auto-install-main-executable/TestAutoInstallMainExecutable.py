@@ -19,7 +19,6 @@ class TestAutoInstallMainExecutable(gdbremote_testcase.GdbRemoteTestCaseBase):
     @expectedFailureAll(hostoslist=["windows"], triple='.*-android')
     def test_target_auto_install_main_executable(self):
         self.build()
-        self.init_llgs_test(False)
 
         # Manually install the modified binary.
         working_dir = lldb.remote_platform.GetWorkingDirectory()
@@ -66,7 +65,7 @@ class TestAutoInstallMainExecutable(gdbremote_testcase.GdbRemoteTestCaseBase):
 
         # Disable the auto install.
         self.runCmd("settings set target.auto-install-main-executable false")
-        self.expect("settings show target.auto-install-main-executable", 
+        self.expect("settings show target.auto-install-main-executable",
             substrs=["target.auto-install-main-executable (boolean) = false"])
 
         self.runCmd("platform select %s"%configuration.lldb_platform_name)
@@ -77,10 +76,10 @@ class TestAutoInstallMainExecutable(gdbremote_testcase.GdbRemoteTestCaseBase):
                                         (os.path.join(working_dir,dest.GetFilename()),
                                             self.getBuildArtifact("a.out")))
 
-        target = new_debugger.GetSelectedTarget()
+        target = self.dbg.GetSelectedTarget()
         breakpoint = target.BreakpointCreateByName("main")
 
-        launch_info = lldb.SBLaunchInfo(None)
+        launch_info = target.GetLaunchInfo()
         error = lldb.SBError()
         process = target.Launch(launch_info, error)
         self.assertTrue(process, PROCESS_IS_VALID)

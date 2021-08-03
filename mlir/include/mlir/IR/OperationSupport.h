@@ -15,8 +15,10 @@
 #define MLIR_IR_OPERATION_SUPPORT_H
 
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/BlockSupport.h"
 #include "mlir/IR/Identifier.h"
 #include "mlir/IR/Location.h"
+#include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Support/InterfaceSupport.h"
@@ -27,8 +29,9 @@
 #include <memory>
 
 namespace mlir {
-class Block;
 class Dialect;
+class DictionaryAttr;
+class ElementsAttr;
 class Operation;
 struct OperationState;
 class OpAsmParser;
@@ -41,7 +44,6 @@ class Pattern;
 class Region;
 class ResultRange;
 class RewritePattern;
-class SuccessorRange;
 class Type;
 class Value;
 class ValueRange;
@@ -80,8 +82,17 @@ class AbstractOperation {
 public:
   using OperationProperties = uint32_t;
 
+  using GetCanonicalizationPatternsFn = void (*)(OwningRewritePatternList &,
+                                                 MLIRContext *);
+  using FoldHookFn = LogicalResult (*)(Operation *, ArrayRef<Attribute>,
+                                       SmallVectorImpl<OpFoldResult> &);
+  using HasTraitFn = bool (*)(TypeID);
+  using ParseAssemblyFn = ParseResult (*)(OpAsmParser &, OperationState &);
+  using PrintAssemblyFn = void (*)(Operation *, OpAsmPrinter &);
+  using VerifyInvariantsFn = LogicalResult (*)(Operation *);
+
   /// This is the name of the operation.
-  const StringRef name;
+  const Identifier name;
 
   /// This is the dialect that this operation belongs to.
   Dialect &dialect;
@@ -90,15 +101,19 @@ public:
   TypeID typeID;
 
   /// Use the specified object to parse this ops custom assembly format.
-  ParseResult (&parseAssembly)(OpAsmParser &parser, OperationState &result);
+  ParseResult parseAssembly(OpAsmParser &parser, OperationState &result) const;
 
   /// This hook implements the AsmPrinter for this operation.
-  void (&printAssembly)(Operation *op, OpAsmPrinter &p);
+  void printAssembly(Operation *op, OpAsmPrinter &p) const {
+    return printAssemblyFn(op, p);
+  }
 
   /// This hook implements the verifier for this operation.  It should emits an
   /// error message and returns failure if a problem is detected, or returns
   /// success if everything is ok.
-  LogicalResult (&verifyInvariants)(Operation *op);
+  LogicalResult verifyInvariants(Operation *op) const {
+    return verifyInvariantsFn(op);
+  }
 
   /// This hook implements a generalized folder for this operation.  Operations
   /// can implement this to provide simplifications rules that are applied by
@@ -119,13 +134,17 @@ public:
   /// This allows expression of some simple in-place canonicalizations (e.g.
   /// "x+0 -> x", "min(x,y,x,z) -> min(x,y,z)", "x+y-x -> y", etc), as well as
   /// generalized constant folding.
-  LogicalResult (&foldHook)(Operation *op, ArrayRef<Attribute> operands,
-                            SmallVectorImpl<OpFoldResult> &results);
+  LogicalResult foldHook(Operation *op, ArrayRef<Attribute> operands,
+                         SmallVectorImpl<OpFoldResult> &results) const {
+    return foldHookFn(op, operands, results);
+  }
 
   /// This hook returns any canonicalization pattern rewrites that the operation
   /// supports, for use by the canonicalization pass.
-  void (&getCanonicalizationPatterns)(OwningRewritePatternList &results,
-                                      MLIRContext *context);
+  void getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                   MLIRContext *context) const {
+    return getCanonicalizationPatternsFn(results, context);
+  }
 
   /// Returns whether the operation has a particular property.
   bool hasProperty(OperationProperty property) const {
@@ -139,9 +158,9 @@ public:
     return interfaceMap.lookup<T>();
   }
 
-  /// Returns if the operation has a particular trait.
+  /// Returns true if the operation has a particular trait.
   template <template <typename T> class Trait> bool hasTrait() const {
-    return hasRawTrait(TypeID::get<Trait>());
+    return hasTraitFn(TypeID::get<Trait>());
   }
 
   /// Look up the specified operation in the specified MLIRContext and return a
@@ -151,32 +170,30 @@ public:
 
   /// This constructor is used by Dialect objects when they register the list of
   /// operations they contain.
-  template <typename T> static AbstractOperation get(Dialect &dialect) {
-    return AbstractOperation(
-        T::getOperationName(), dialect, T::getOperationProperties(),
-        TypeID::get<T>(), T::parseAssembly, T::printAssembly,
-        T::verifyInvariants, T::foldHook, T::getCanonicalizationPatterns,
-        T::getInterfaceMap(), T::hasTrait);
+  template <typename T> static void insert(Dialect &dialect) {
+    insert(T::getOperationName(), dialect, T::getOperationProperties(),
+           TypeID::get<T>(), T::getParseAssemblyFn(), T::getPrintAssemblyFn(),
+           T::getVerifyInvariantsFn(), T::getFoldHookFn(),
+           T::getGetCanonicalizationPatternsFn(), T::getInterfaceMap(),
+           T::getHasTraitFn());
   }
 
 private:
-  AbstractOperation(
-      StringRef name, Dialect &dialect, OperationProperties opProperties,
-      TypeID typeID,
-      ParseResult (&parseAssembly)(OpAsmParser &parser, OperationState &result),
-      void (&printAssembly)(Operation *op, OpAsmPrinter &p),
-      LogicalResult (&verifyInvariants)(Operation *op),
-      LogicalResult (&foldHook)(Operation *op, ArrayRef<Attribute> operands,
-                                SmallVectorImpl<OpFoldResult> &results),
-      void (&getCanonicalizationPatterns)(OwningRewritePatternList &results,
-                                          MLIRContext *context),
-      detail::InterfaceMap &&interfaceMap, bool (&hasTrait)(TypeID traitID))
-      : name(name), dialect(dialect), typeID(typeID),
-        parseAssembly(parseAssembly), printAssembly(printAssembly),
-        verifyInvariants(verifyInvariants), foldHook(foldHook),
-        getCanonicalizationPatterns(getCanonicalizationPatterns),
-        opProperties(opProperties), interfaceMap(std::move(interfaceMap)),
-        hasRawTrait(hasTrait) {}
+  static void insert(StringRef name, Dialect &dialect,
+                     OperationProperties opProperties, TypeID typeID,
+                     ParseAssemblyFn parseAssembly,
+                     PrintAssemblyFn printAssembly,
+                     VerifyInvariantsFn verifyInvariants, FoldHookFn foldHook,
+                     GetCanonicalizationPatternsFn getCanonicalizationPatterns,
+                     detail::InterfaceMap &&interfaceMap, HasTraitFn hasTrait);
+
+  AbstractOperation(StringRef name, Dialect &dialect,
+                    OperationProperties opProperties, TypeID typeID,
+                    ParseAssemblyFn parseAssembly,
+                    PrintAssemblyFn printAssembly,
+                    VerifyInvariantsFn verifyInvariants, FoldHookFn foldHook,
+                    GetCanonicalizationPatternsFn getCanonicalizationPatterns,
+                    detail::InterfaceMap &&interfaceMap, HasTraitFn hasTrait);
 
   /// The properties of the operation.
   const OperationProperties opProperties;
@@ -184,9 +201,13 @@ private:
   /// A map of interfaces that were registered to this operation.
   detail::InterfaceMap interfaceMap;
 
-  /// This hook returns if the operation contains the trait corresponding
-  /// to the given TypeID.
-  bool (&hasRawTrait)(TypeID traitID);
+  /// Internal callback hooks provided by the op implementation.
+  FoldHookFn foldHookFn;
+  GetCanonicalizationPatternsFn getCanonicalizationPatternsFn;
+  HasTraitFn hasTraitFn;
+  ParseAssemblyFn parseAssemblyFn;
+  PrintAssemblyFn printAssemblyFn;
+  VerifyInvariantsFn verifyInvariantsFn;
 };
 
 //===----------------------------------------------------------------------===//
@@ -204,6 +225,7 @@ public:
 
   NamedAttrList() : dictionarySorted({}, true) {}
   NamedAttrList(ArrayRef<NamedAttribute> attributes);
+  NamedAttrList(DictionaryAttr attributes);
   NamedAttrList(const_iterator in_start, const_iterator in_end);
 
   bool operator!=(const NamedAttrList &other) const {
@@ -217,13 +239,26 @@ public:
   void append(StringRef name, Attribute attr);
 
   /// Add an attribute with the specified name.
-  void append(Identifier name, Attribute attr);
+  void append(Identifier name, Attribute attr) {
+    append(NamedAttribute(name, attr));
+  }
+
+  /// Append the given named attribute.
+  void append(NamedAttribute attr) { push_back(attr); }
 
   /// Add an array of named attributes.
-  void append(ArrayRef<NamedAttribute> newAttributes);
+  template <typename RangeT> void append(RangeT &&newAttributes) {
+    append(std::begin(newAttributes), std::end(newAttributes));
+  }
 
   /// Add a range of named attributes.
-  void append(const_iterator in_start, const_iterator in_end);
+  template <typename IteratorT>
+  void append(IteratorT in_start, IteratorT in_end) {
+    // TODO: expand to handle case where values appended are in order & after
+    // end of current list.
+    dictionarySorted.setPointerAndInt(nullptr, false);
+    attrs.append(in_start, in_end);
+  }
 
   /// Replaces the attributes with new list of attributes.
   void assign(const_iterator in_start, const_iterator in_end);
@@ -243,6 +278,10 @@ public:
   /// Pop last element from list.
   void pop_back() { attrs.pop_back(); }
 
+  /// Returns an entry with a duplicate name the list, if it exists, else
+  /// returns llvm::None.
+  Optional<NamedAttribute> findDuplicate() const;
+
   /// Return a dictionary attribute for the underlying dictionary. This will
   /// return an empty dictionary attribute if empty rather than null.
   DictionaryAttr getDictionary(MLIRContext *context) const;
@@ -259,20 +298,30 @@ public:
   Optional<NamedAttribute> getNamed(Identifier name) const;
 
   /// If the an attribute exists with the specified name, change it to the new
-  /// value.  Otherwise, add a new attribute with the specified name/value.
-  void set(Identifier name, Attribute value);
-  void set(StringRef name, Attribute value);
+  /// value. Otherwise, add a new attribute with the specified name/value.
+  /// Returns the previous attribute value of `name`, or null if no
+  /// attribute previously existed with `name`.
+  Attribute set(Identifier name, Attribute value);
+  Attribute set(StringRef name, Attribute value);
+
+  /// Erase the attribute with the given name from the list. Return the
+  /// attribute that was erased, or nullptr if there was no attribute with such
+  /// name.
+  Attribute erase(Identifier name);
+  Attribute erase(StringRef name);
 
   const_iterator begin() const { return attrs.begin(); }
   const_iterator end() const { return attrs.end(); }
 
   NamedAttrList &operator=(const SmallVectorImpl<NamedAttribute> &rhs);
   operator ArrayRef<NamedAttribute>() const;
-  operator MutableDictionaryAttr() const;
 
 private:
   /// Return whether the attributes are sorted.
   bool isSorted() const { return dictionarySorted.getInt(); }
+
+  /// Erase the attribute at the given iterator position.
+  Attribute eraseImpl(SmallVectorImpl<NamedAttribute>::iterator it);
 
   // These are marked mutable as they may be modified (e.g., sorted)
   mutable SmallVector<NamedAttribute, 4> attrs;
@@ -301,8 +350,11 @@ public:
   /// Return the operation name with dialect name stripped, if it has one.
   StringRef stripDialect() const;
 
-  /// Return the name of this operation.  This always succeeds.
+  /// Return the name of this operation. This always succeeds.
   StringRef getStringRef() const;
+
+  /// Return the name of this operation as an identifier. This always succeeds.
+  Identifier getIdentifier() const;
 
   /// If this operation has a registered operation description, return it.
   /// Otherwise return null.
@@ -314,7 +366,7 @@ public:
   void *getAsOpaquePointer() const {
     return static_cast<void *>(representation.getOpaqueValue());
   }
-  static OperationName getFromOpaquePointer(void *pointer);
+  static OperationName getFromOpaquePointer(const void *pointer);
 
 private:
   RepresentationUnion representation;
@@ -366,8 +418,8 @@ public:
   OperationState(Location location, OperationName name);
 
   OperationState(Location location, StringRef name, ValueRange operands,
-                 ArrayRef<Type> types, ArrayRef<NamedAttribute> attributes,
-                 ArrayRef<Block *> successors = {},
+                 TypeRange types, ArrayRef<NamedAttribute> attributes,
+                 BlockRange successors = {},
                  MutableArrayRef<std::unique_ptr<Region>> regions = {});
 
   void addOperands(ValueRange newOperands);
@@ -396,12 +448,8 @@ public:
     attributes.append(newAttributes);
   }
 
-  /// Add an array of successors.
-  void addSuccessors(ArrayRef<Block *> newSuccessors) {
-    successors.append(newSuccessors.begin(), newSuccessors.end());
-  }
   void addSuccessors(Block *successor) { successors.push_back(successor); }
-  void addSuccessors(SuccessorRange newSuccessors);
+  void addSuccessors(BlockRange newSuccessors);
 
   /// Create a region that should be attached to the operation.  These regions
   /// can be filled in immediately without waiting for Operation to be
@@ -412,6 +460,10 @@ public:
   /// region will be transferred when the Operation is constructed.  If the
   /// region is null, a new empty region will be attached to the Operation.
   void addRegion(std::unique_ptr<Region> &&region);
+
+  /// Take ownership of a set of regions that should be attached to the
+  /// Operation.
+  void addRegions(MutableArrayRef<std::unique_ptr<Region>> regions);
 
   /// Get the context held by this operation state.
   MLIRContext *getContext() const { return location->getContext(); }
@@ -532,11 +584,11 @@ namespace detail {
 /// This class provides the implementation for an in-line operation result. This
 /// is an operation result whose number can be stored inline inside of the bits
 /// of an Operation*.
-struct InLineOpResult : public IRObjectWithUseList<OpOperand> {};
+struct alignas(8) InLineOpResult : public IRObjectWithUseList<OpOperand> {};
 /// This class provides the implementation for an out-of-line operation result.
 /// This is an operation result whose number cannot be stored inline inside of
 /// the bits of an Operation*.
-struct TrailingOpResult : public IRObjectWithUseList<OpOperand> {
+struct alignas(8) TrailingOpResult : public IRObjectWithUseList<OpOperand> {
   TrailingOpResult(uint64_t trailingResultNumber)
       : trailingResultNumber(trailingResultNumber) {}
 
@@ -565,10 +617,10 @@ public:
   OpPrintingFlags();
   OpPrintingFlags(llvm::NoneType) : OpPrintingFlags() {}
 
-  /// Enable the elision of large elements attributes, by printing a '...'
-  /// instead of the element data. Note: The IR generated with this option is
-  /// not parsable. `largeElementLimit` is used to configure what is considered
-  /// to be a "large" ElementsAttr by providing an upper limit to the number of
+  /// Enables the elision of large elements attributes by printing a lexically
+  /// valid but otherwise meaningless form instead of the element data. The
+  /// `largeElementLimit` is used to configure what is considered to be a
+  /// "large" ElementsAttr by providing an upper limit to the number of
   /// elements.
   OpPrintingFlags &elideLargeElementsAttrs(int64_t largeElementLimit = 16);
 
@@ -623,104 +675,6 @@ private:
 //===----------------------------------------------------------------------===//
 // Operation Value-Iterators
 //===----------------------------------------------------------------------===//
-
-//===----------------------------------------------------------------------===//
-// TypeRange
-
-/// This class provides an abstraction over the various different ranges of
-/// value types. In many cases, this prevents the need to explicitly materialize
-/// a SmallVector/std::vector. This class should be used in places that are not
-/// suitable for a more derived type (e.g. ArrayRef) or a template range
-/// parameter.
-class TypeRange
-    : public llvm::detail::indexed_accessor_range_base<
-          TypeRange,
-          llvm::PointerUnion<const Value *, const Type *, OpOperand *>, Type,
-          Type, Type> {
-public:
-  using RangeBaseT::RangeBaseT;
-  TypeRange(ArrayRef<Type> types = llvm::None);
-  explicit TypeRange(OperandRange values);
-  explicit TypeRange(ResultRange values);
-  explicit TypeRange(ValueRange values);
-  explicit TypeRange(ArrayRef<Value> values);
-  explicit TypeRange(ArrayRef<BlockArgument> values)
-      : TypeRange(ArrayRef<Value>(values.data(), values.size())) {}
-  template <typename ValueRangeT>
-  TypeRange(ValueTypeRange<ValueRangeT> values)
-      : TypeRange(ValueRangeT(values.begin().getCurrent(),
-                              values.end().getCurrent())) {}
-  template <typename Arg,
-            typename = typename std::enable_if_t<
-                std::is_constructible<ArrayRef<Type>, Arg>::value>>
-  TypeRange(Arg &&arg) : TypeRange(ArrayRef<Type>(std::forward<Arg>(arg))) {}
-  TypeRange(std::initializer_list<Type> types)
-      : TypeRange(ArrayRef<Type>(types)) {}
-
-private:
-  /// The owner of the range is either:
-  /// * A pointer to the first element of an array of values.
-  /// * A pointer to the first element of an array of types.
-  /// * A pointer to the first element of an array of operands.
-  using OwnerT = llvm::PointerUnion<const Value *, const Type *, OpOperand *>;
-
-  /// See `llvm::detail::indexed_accessor_range_base` for details.
-  static OwnerT offset_base(OwnerT object, ptrdiff_t index);
-  /// See `llvm::detail::indexed_accessor_range_base` for details.
-  static Type dereference_iterator(OwnerT object, ptrdiff_t index);
-
-  /// Allow access to `offset_base` and `dereference_iterator`.
-  friend RangeBaseT;
-};
-
-//===----------------------------------------------------------------------===//
-// ValueTypeRange
-
-/// This class implements iteration on the types of a given range of values.
-template <typename ValueIteratorT>
-class ValueTypeIterator final
-    : public llvm::mapped_iterator<ValueIteratorT, Type (*)(Value)> {
-  static Type unwrap(Value value) { return value.getType(); }
-
-public:
-  using reference = Type;
-
-  /// Provide a const dereference method.
-  Type operator*() const { return unwrap(*this->I); }
-
-  /// Initializes the type iterator to the specified value iterator.
-  ValueTypeIterator(ValueIteratorT it)
-      : llvm::mapped_iterator<ValueIteratorT, Type (*)(Value)>(it, &unwrap) {}
-};
-
-/// This class implements iteration on the types of a given range of values.
-template <typename ValueRangeT>
-class ValueTypeRange final
-    : public llvm::iterator_range<
-          ValueTypeIterator<typename ValueRangeT::iterator>> {
-public:
-  using llvm::iterator_range<
-      ValueTypeIterator<typename ValueRangeT::iterator>>::iterator_range;
-  template <typename Container>
-  ValueTypeRange(Container &&c) : ValueTypeRange(c.begin(), c.end()) {}
-
-  /// Compare this range with another.
-  template <typename OtherT>
-  bool operator==(const OtherT &other) const {
-    return llvm::size(*this) == llvm::size(other) &&
-           std::equal(this->begin(), this->end(), other.begin());
-  }
-  template <typename OtherT>
-  bool operator!=(const OtherT &other) const {
-    return !(*this == other);
-  }
-};
-
-template <typename RangeT>
-inline bool operator==(ArrayRef<Type> lhs, const ValueTypeRange<RangeT> &rhs) {
-  return lhs.size() == static_cast<size_t>(llvm::size(rhs)) &&
-         std::equal(lhs.begin(), lhs.end(), rhs.begin());
-}
 
 //===----------------------------------------------------------------------===//
 // OperandRange

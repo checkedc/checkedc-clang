@@ -521,6 +521,10 @@ void foo() {
       return undeclared_error; // expected-error {{use of undeclared identifier}}
     return 0;
   };
+  auto bar = []() {
+    return undef(); // expected-error {{use of undeclared identifier}}
+    return 0; // verify no init_conversion_failed diagnostic emitted.
+  };
 }
 }
 
@@ -649,3 +653,14 @@ void Run(const int& points) {
 void operator_parens() {
   [&](int x){ operator()(); }(0); // expected-error {{undeclared 'operator()'}}
 }
+
+namespace captured_name {
+void Test() {
+  union {           // expected-note {{'' declared here}}
+    int i;
+  };
+  [] { return i; }; // expected-error {{variable '' cannot be implicitly captured in a lambda with no capture-default specified}}
+                    // expected-note@-1 {{lambda expression begins here}}
+
+}
+};

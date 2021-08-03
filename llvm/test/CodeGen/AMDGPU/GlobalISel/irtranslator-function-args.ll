@@ -553,6 +553,104 @@ define void @void_func_v2i32(<2 x i32> %arg0) #0 {
   ret void
 }
 
+define void @void_func_v2i24(<2 x i24> %arg0) #0 {
+  ; CHECK-LABEL: name: void_func_v2i24
+  ; CHECK: bb.1 (%ir-block.0):
+  ; CHECK:   liveins: $vgpr0, $vgpr1, $sgpr30_sgpr31
+  ; CHECK:   [[COPY:%[0-9]+]]:_(s32) = COPY $vgpr0
+  ; CHECK:   [[COPY1:%[0-9]+]]:_(s32) = COPY $vgpr1
+  ; CHECK:   [[COPY2:%[0-9]+]]:sgpr_64 = COPY $sgpr30_sgpr31
+  ; CHECK:   [[BUILD_VECTOR:%[0-9]+]]:_(<2 x s32>) = G_BUILD_VECTOR [[COPY]](s32), [[COPY1]](s32)
+  ; CHECK:   [[TRUNC:%[0-9]+]]:_(<2 x s24>) = G_TRUNC [[BUILD_VECTOR]](<2 x s32>)
+  ; CHECK:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
+  ; CHECK:   G_STORE [[TRUNC]](<2 x s24>), [[DEF]](p1) :: (store 6 into `<2 x i24> addrspace(1)* undef`, align 8, addrspace 1)
+  ; CHECK:   [[COPY3:%[0-9]+]]:ccr_sgpr_64 = COPY [[COPY2]]
+  ; CHECK:   S_SETPC_B64_return [[COPY3]]
+  store <2 x i24> %arg0, <2 x i24> addrspace(1)* undef
+  ret void
+}
+
+define void @void_func_v3i24(<3 x i24> %arg0) #0 {
+  ; CHECK-LABEL: name: void_func_v3i24
+  ; CHECK: bb.1 (%ir-block.0):
+  ; CHECK:   liveins: $vgpr0, $vgpr1, $vgpr2, $sgpr30_sgpr31
+  ; CHECK:   [[COPY:%[0-9]+]]:_(s32) = COPY $vgpr0
+  ; CHECK:   [[COPY1:%[0-9]+]]:_(s32) = COPY $vgpr1
+  ; CHECK:   [[COPY2:%[0-9]+]]:_(s32) = COPY $vgpr2
+  ; CHECK:   [[COPY3:%[0-9]+]]:sgpr_64 = COPY $sgpr30_sgpr31
+  ; CHECK:   [[BUILD_VECTOR:%[0-9]+]]:_(<3 x s32>) = G_BUILD_VECTOR [[COPY]](s32), [[COPY1]](s32), [[COPY2]](s32)
+  ; CHECK:   [[TRUNC:%[0-9]+]]:_(<3 x s24>) = G_TRUNC [[BUILD_VECTOR]](<3 x s32>)
+  ; CHECK:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
+  ; CHECK:   G_STORE [[TRUNC]](<3 x s24>), [[DEF]](p1) :: (store 9 into `<3 x i24> addrspace(1)* undef`, align 16, addrspace 1)
+  ; CHECK:   [[COPY4:%[0-9]+]]:ccr_sgpr_64 = COPY [[COPY3]]
+  ; CHECK:   S_SETPC_B64_return [[COPY4]]
+  store <3 x i24> %arg0, <3 x i24> addrspace(1)* undef
+  ret void
+}
+
+define void @void_func_v2i8(<2 x i8> %arg0) #0 {
+  ; CHECK-LABEL: name: void_func_v2i8
+  ; CHECK: bb.1 (%ir-block.0):
+  ; CHECK:   liveins: $vgpr0, $vgpr1, $sgpr30_sgpr31
+  ; CHECK:   [[COPY:%[0-9]+]]:_(s32) = COPY $vgpr0
+  ; CHECK:   [[TRUNC:%[0-9]+]]:_(s16) = G_TRUNC [[COPY]](s32)
+  ; CHECK:   [[COPY1:%[0-9]+]]:_(s32) = COPY $vgpr1
+  ; CHECK:   [[TRUNC1:%[0-9]+]]:_(s16) = G_TRUNC [[COPY1]](s32)
+  ; CHECK:   [[COPY2:%[0-9]+]]:sgpr_64 = COPY $sgpr30_sgpr31
+  ; CHECK:   [[BUILD_VECTOR:%[0-9]+]]:_(<2 x s16>) = G_BUILD_VECTOR [[TRUNC]](s16), [[TRUNC1]](s16)
+  ; CHECK:   [[TRUNC2:%[0-9]+]]:_(<2 x s8>) = G_TRUNC [[BUILD_VECTOR]](<2 x s16>)
+  ; CHECK:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
+  ; CHECK:   G_STORE [[TRUNC2]](<2 x s8>), [[DEF]](p1) :: (store 2 into `<2 x i8> addrspace(1)* undef`, addrspace 1)
+  ; CHECK:   [[COPY3:%[0-9]+]]:ccr_sgpr_64 = COPY [[COPY2]]
+  ; CHECK:   S_SETPC_B64_return [[COPY3]]
+  store <2 x i8> %arg0, <2 x i8> addrspace(1)* undef
+  ret void
+}
+
+define void @void_func_v3i8(<3 x i8> %arg0) #0 {
+  ; CHECK-LABEL: name: void_func_v3i8
+  ; CHECK: bb.1 (%ir-block.0):
+  ; CHECK:   liveins: $vgpr0, $vgpr1, $vgpr2, $sgpr30_sgpr31
+  ; CHECK:   [[COPY:%[0-9]+]]:_(s32) = COPY $vgpr0
+  ; CHECK:   [[TRUNC:%[0-9]+]]:_(s16) = G_TRUNC [[COPY]](s32)
+  ; CHECK:   [[COPY1:%[0-9]+]]:_(s32) = COPY $vgpr1
+  ; CHECK:   [[TRUNC1:%[0-9]+]]:_(s16) = G_TRUNC [[COPY1]](s32)
+  ; CHECK:   [[COPY2:%[0-9]+]]:_(s32) = COPY $vgpr2
+  ; CHECK:   [[TRUNC2:%[0-9]+]]:_(s16) = G_TRUNC [[COPY2]](s32)
+  ; CHECK:   [[COPY3:%[0-9]+]]:sgpr_64 = COPY $sgpr30_sgpr31
+  ; CHECK:   [[BUILD_VECTOR:%[0-9]+]]:_(<3 x s16>) = G_BUILD_VECTOR [[TRUNC]](s16), [[TRUNC1]](s16), [[TRUNC2]](s16)
+  ; CHECK:   [[TRUNC3:%[0-9]+]]:_(<3 x s8>) = G_TRUNC [[BUILD_VECTOR]](<3 x s16>)
+  ; CHECK:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
+  ; CHECK:   G_STORE [[TRUNC3]](<3 x s8>), [[DEF]](p1) :: (store 3 into `<3 x i8> addrspace(1)* undef`, align 4, addrspace 1)
+  ; CHECK:   [[COPY4:%[0-9]+]]:ccr_sgpr_64 = COPY [[COPY3]]
+  ; CHECK:   S_SETPC_B64_return [[COPY4]]
+  store <3 x i8> %arg0, <3 x i8> addrspace(1)* undef
+  ret void
+}
+
+define void @void_func_v4i8(<4 x i8> %arg0) #0 {
+  ; CHECK-LABEL: name: void_func_v4i8
+  ; CHECK: bb.1 (%ir-block.0):
+  ; CHECK:   liveins: $vgpr0, $vgpr1, $vgpr2, $vgpr3, $sgpr30_sgpr31
+  ; CHECK:   [[COPY:%[0-9]+]]:_(s32) = COPY $vgpr0
+  ; CHECK:   [[TRUNC:%[0-9]+]]:_(s16) = G_TRUNC [[COPY]](s32)
+  ; CHECK:   [[COPY1:%[0-9]+]]:_(s32) = COPY $vgpr1
+  ; CHECK:   [[TRUNC1:%[0-9]+]]:_(s16) = G_TRUNC [[COPY1]](s32)
+  ; CHECK:   [[COPY2:%[0-9]+]]:_(s32) = COPY $vgpr2
+  ; CHECK:   [[TRUNC2:%[0-9]+]]:_(s16) = G_TRUNC [[COPY2]](s32)
+  ; CHECK:   [[COPY3:%[0-9]+]]:_(s32) = COPY $vgpr3
+  ; CHECK:   [[TRUNC3:%[0-9]+]]:_(s16) = G_TRUNC [[COPY3]](s32)
+  ; CHECK:   [[COPY4:%[0-9]+]]:sgpr_64 = COPY $sgpr30_sgpr31
+  ; CHECK:   [[BUILD_VECTOR:%[0-9]+]]:_(<4 x s16>) = G_BUILD_VECTOR [[TRUNC]](s16), [[TRUNC1]](s16), [[TRUNC2]](s16), [[TRUNC3]](s16)
+  ; CHECK:   [[TRUNC4:%[0-9]+]]:_(<4 x s8>) = G_TRUNC [[BUILD_VECTOR]](<4 x s16>)
+  ; CHECK:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
+  ; CHECK:   G_STORE [[TRUNC4]](<4 x s8>), [[DEF]](p1) :: (store 4 into `<4 x i8> addrspace(1)* undef`, addrspace 1)
+  ; CHECK:   [[COPY5:%[0-9]+]]:ccr_sgpr_64 = COPY [[COPY4]]
+  ; CHECK:   S_SETPC_B64_return [[COPY5]]
+  store <4 x i8> %arg0, <4 x i8> addrspace(1)* undef
+  ret void
+}
+
 define void @void_func_v2p3i8(<2 x i8 addrspace(3)*> %arg0) #0 {
   ; CHECK-LABEL: name: void_func_v2p3i8
   ; CHECK: bb.1 (%ir-block.0):
@@ -1585,7 +1683,7 @@ define void @void_func_struct_i8_i32({ i8, i32 } %arg0) #0 {
   ret void
 }
 
-define void @void_func_byval_struct_i8_i32({ i8, i32 } addrspace(5)* byval %arg0) #0 {
+define void @void_func_byval_struct_i8_i32({ i8, i32 } addrspace(5)* byval({ i8, i32 }) %arg0) #0 {
   ; CHECK-LABEL: name: void_func_byval_struct_i8_i32
   ; CHECK: bb.1 (%ir-block.0):
   ; CHECK:   liveins: $sgpr30_sgpr31
@@ -1608,7 +1706,7 @@ define void @void_func_byval_struct_i8_i32({ i8, i32 } addrspace(5)* byval %arg0
   ret void
 }
 
-define void @void_func_byval_struct_i8_i32_x2({ i8, i32 } addrspace(5)* byval %arg0, { i8, i32 } addrspace(5)* byval %arg1, i32 %arg2) #0 {
+define void @void_func_byval_struct_i8_i32_x2({ i8, i32 } addrspace(5)* byval({ i8, i32 }) %arg0, { i8, i32 } addrspace(5)* byval({ i8, i32 }) %arg1, i32 %arg2) #0 {
   ; CHECK-LABEL: name: void_func_byval_struct_i8_i32_x2
   ; CHECK: bb.1 (%ir-block.0):
   ; CHECK:   liveins: $vgpr0, $sgpr30_sgpr31
@@ -1645,7 +1743,7 @@ define void @void_func_byval_struct_i8_i32_x2({ i8, i32 } addrspace(5)* byval %a
   ret void
 }
 
-define void @void_func_byval_i32_byval_i64(i32 addrspace(5)* byval %arg0, i64 addrspace(5)* byval %arg1) #0 {
+define void @void_func_byval_i32_byval_i64(i32 addrspace(5)* byval(i32) %arg0, i64 addrspace(5)* byval(i64) %arg1) #0 {
   ; CHECK-LABEL: name: void_func_byval_i32_byval_i64
   ; CHECK: bb.1 (%ir-block.0):
   ; CHECK:   liveins: $sgpr30_sgpr31
@@ -1792,6 +1890,62 @@ define void @void_func_v32i32_i1_i8_i16(<32 x i32> %arg0, i1 %arg1, i8 %arg2, i1
   store volatile i8 %arg2, i8 addrspace(1)* undef
   store volatile i16 %arg3, i16 addrspace(1)* undef
   store volatile half %arg4, half addrspace(1)* undef
+  ret void
+}
+
+define void @void_func_v32i32_p3_p5_i16(<32 x i32> %arg0, i8 addrspace(3)* %arg1, i8 addrspace(5)* %arg2) #0 {
+  ; CHECK-LABEL: name: void_func_v32i32_p3_p5_i16
+  ; CHECK: bb.1 (%ir-block.0):
+  ; CHECK:   liveins: $vgpr0, $vgpr1, $vgpr2, $vgpr3, $vgpr4, $vgpr5, $vgpr6, $vgpr7, $vgpr8, $vgpr9, $vgpr10, $vgpr11, $vgpr12, $vgpr13, $vgpr14, $vgpr15, $vgpr16, $vgpr17, $vgpr18, $vgpr19, $vgpr20, $vgpr21, $vgpr22, $vgpr23, $vgpr24, $vgpr25, $vgpr26, $vgpr27, $vgpr28, $vgpr29, $vgpr30, $vgpr31, $sgpr30_sgpr31
+  ; CHECK:   [[COPY:%[0-9]+]]:_(s32) = COPY $vgpr0
+  ; CHECK:   [[COPY1:%[0-9]+]]:_(s32) = COPY $vgpr1
+  ; CHECK:   [[COPY2:%[0-9]+]]:_(s32) = COPY $vgpr2
+  ; CHECK:   [[COPY3:%[0-9]+]]:_(s32) = COPY $vgpr3
+  ; CHECK:   [[COPY4:%[0-9]+]]:_(s32) = COPY $vgpr4
+  ; CHECK:   [[COPY5:%[0-9]+]]:_(s32) = COPY $vgpr5
+  ; CHECK:   [[COPY6:%[0-9]+]]:_(s32) = COPY $vgpr6
+  ; CHECK:   [[COPY7:%[0-9]+]]:_(s32) = COPY $vgpr7
+  ; CHECK:   [[COPY8:%[0-9]+]]:_(s32) = COPY $vgpr8
+  ; CHECK:   [[COPY9:%[0-9]+]]:_(s32) = COPY $vgpr9
+  ; CHECK:   [[COPY10:%[0-9]+]]:_(s32) = COPY $vgpr10
+  ; CHECK:   [[COPY11:%[0-9]+]]:_(s32) = COPY $vgpr11
+  ; CHECK:   [[COPY12:%[0-9]+]]:_(s32) = COPY $vgpr12
+  ; CHECK:   [[COPY13:%[0-9]+]]:_(s32) = COPY $vgpr13
+  ; CHECK:   [[COPY14:%[0-9]+]]:_(s32) = COPY $vgpr14
+  ; CHECK:   [[COPY15:%[0-9]+]]:_(s32) = COPY $vgpr15
+  ; CHECK:   [[COPY16:%[0-9]+]]:_(s32) = COPY $vgpr16
+  ; CHECK:   [[COPY17:%[0-9]+]]:_(s32) = COPY $vgpr17
+  ; CHECK:   [[COPY18:%[0-9]+]]:_(s32) = COPY $vgpr18
+  ; CHECK:   [[COPY19:%[0-9]+]]:_(s32) = COPY $vgpr19
+  ; CHECK:   [[COPY20:%[0-9]+]]:_(s32) = COPY $vgpr20
+  ; CHECK:   [[COPY21:%[0-9]+]]:_(s32) = COPY $vgpr21
+  ; CHECK:   [[COPY22:%[0-9]+]]:_(s32) = COPY $vgpr22
+  ; CHECK:   [[COPY23:%[0-9]+]]:_(s32) = COPY $vgpr23
+  ; CHECK:   [[COPY24:%[0-9]+]]:_(s32) = COPY $vgpr24
+  ; CHECK:   [[COPY25:%[0-9]+]]:_(s32) = COPY $vgpr25
+  ; CHECK:   [[COPY26:%[0-9]+]]:_(s32) = COPY $vgpr26
+  ; CHECK:   [[COPY27:%[0-9]+]]:_(s32) = COPY $vgpr27
+  ; CHECK:   [[COPY28:%[0-9]+]]:_(s32) = COPY $vgpr28
+  ; CHECK:   [[COPY29:%[0-9]+]]:_(s32) = COPY $vgpr29
+  ; CHECK:   [[COPY30:%[0-9]+]]:_(s32) = COPY $vgpr30
+  ; CHECK:   [[COPY31:%[0-9]+]]:_(s32) = COPY $vgpr31
+  ; CHECK:   [[FRAME_INDEX:%[0-9]+]]:_(p5) = G_FRAME_INDEX %fixed-stack.1
+  ; CHECK:   [[LOAD:%[0-9]+]]:_(p3) = G_LOAD [[FRAME_INDEX]](p5) :: (invariant load 4 from %fixed-stack.1, align 16, addrspace 5)
+  ; CHECK:   [[FRAME_INDEX1:%[0-9]+]]:_(p5) = G_FRAME_INDEX %fixed-stack.0
+  ; CHECK:   [[LOAD1:%[0-9]+]]:_(p5) = G_LOAD [[FRAME_INDEX1]](p5) :: (invariant load 4 from %fixed-stack.0, addrspace 5)
+  ; CHECK:   [[COPY32:%[0-9]+]]:sgpr_64 = COPY $sgpr30_sgpr31
+  ; CHECK:   [[BUILD_VECTOR:%[0-9]+]]:_(<32 x s32>) = G_BUILD_VECTOR [[COPY]](s32), [[COPY1]](s32), [[COPY2]](s32), [[COPY3]](s32), [[COPY4]](s32), [[COPY5]](s32), [[COPY6]](s32), [[COPY7]](s32), [[COPY8]](s32), [[COPY9]](s32), [[COPY10]](s32), [[COPY11]](s32), [[COPY12]](s32), [[COPY13]](s32), [[COPY14]](s32), [[COPY15]](s32), [[COPY16]](s32), [[COPY17]](s32), [[COPY18]](s32), [[COPY19]](s32), [[COPY20]](s32), [[COPY21]](s32), [[COPY22]](s32), [[COPY23]](s32), [[COPY24]](s32), [[COPY25]](s32), [[COPY26]](s32), [[COPY27]](s32), [[COPY28]](s32), [[COPY29]](s32), [[COPY30]](s32), [[COPY31]](s32)
+  ; CHECK:   [[DEF:%[0-9]+]]:_(p1) = G_IMPLICIT_DEF
+  ; CHECK:   [[COPY33:%[0-9]+]]:_(p1) = COPY [[DEF]](p1)
+  ; CHECK:   [[COPY34:%[0-9]+]]:_(p1) = COPY [[DEF]](p1)
+  ; CHECK:   G_STORE [[BUILD_VECTOR]](<32 x s32>), [[DEF]](p1) :: (volatile store 128 into `<32 x i32> addrspace(1)* undef`, addrspace 1)
+  ; CHECK:   G_STORE [[LOAD]](p3), [[COPY33]](p1) :: (volatile store 4 into `i8 addrspace(3)* addrspace(1)* undef`, addrspace 1)
+  ; CHECK:   G_STORE [[LOAD1]](p5), [[COPY34]](p1) :: (volatile store 4 into `i8 addrspace(5)* addrspace(1)* undef`, addrspace 1)
+  ; CHECK:   [[COPY35:%[0-9]+]]:ccr_sgpr_64 = COPY [[COPY32]]
+  ; CHECK:   S_SETPC_B64_return [[COPY35]]
+  store volatile <32 x i32> %arg0, <32 x i32> addrspace(1)* undef
+  store volatile i8 addrspace(3)* %arg1, i8 addrspace(3)* addrspace(1)* undef
+  store volatile i8 addrspace(5)* %arg2, i8 addrspace(5)* addrspace(1)* undef
   ret void
 }
 

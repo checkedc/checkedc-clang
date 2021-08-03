@@ -40,6 +40,7 @@ static void DescribeIEEESignaledExceptions() {
     if (excepts & FE_UNDERFLOW) {
       std::fputs(" UNDERFLOW", stderr);
     }
+    std::fputc('\n', stderr);
   }
 }
 
@@ -52,36 +53,64 @@ static void CloseAllExternalUnits(const char *why) {
     int code, bool isErrorStop, bool quiet) {
   CloseAllExternalUnits("STOP statement");
   if (!quiet) {
+    std::fprintf(stderr, "Fortran %s", isErrorStop ? "ERROR STOP" : "STOP");
     if (code != EXIT_SUCCESS) {
-      std::fprintf(stderr, "Fortran %s: code %d\n",
-          isErrorStop ? "ERROR STOP" : "STOP", code);
+      std::fprintf(stderr, ": code %d\n", code);
     }
+    std::fputc('\n', stderr);
     DescribeIEEESignaledExceptions();
   }
   std::exit(code);
 }
 
 [[noreturn]] void RTNAME(StopStatementText)(
-    const char *code, bool isErrorStop, bool quiet) {
+    const char *code, std::size_t length, bool isErrorStop, bool quiet) {
   CloseAllExternalUnits("STOP statement");
   if (!quiet) {
-    std::fprintf(
-        stderr, "Fortran %s: %s\n", isErrorStop ? "ERROR STOP" : "STOP", code);
+    std::fprintf(stderr, "Fortran %s: %.*s\n",
+        isErrorStop ? "ERROR STOP" : "STOP", static_cast<int>(length), code);
     DescribeIEEESignaledExceptions();
   }
   std::exit(EXIT_FAILURE);
 }
 
-void RTNAME(PauseStatement)() {
+static bool StartPause() {
   if (Fortran::runtime::io::IsATerminal(0)) {
     Fortran::runtime::io::IoErrorHandler handler{"PAUSE statement"};
     Fortran::runtime::io::ExternalFileUnit::FlushAll(handler);
+    return true;
+  }
+  return false;
+}
+
+static void EndPause() {
+  std::fflush(nullptr);
+  if (std::fgetc(stdin) == EOF) {
+    CloseAllExternalUnits("PAUSE statement");
+    std::exit(EXIT_SUCCESS);
+  }
+}
+
+void RTNAME(PauseStatement)() {
+  if (StartPause()) {
     std::fputs("Fortran PAUSE: hit RETURN to continue:", stderr);
-    std::fflush(nullptr);
-    if (std::fgetc(stdin) == EOF) {
-      CloseAllExternalUnits("PAUSE statement");
-      std::exit(EXIT_SUCCESS);
-    }
+    EndPause();
+  }
+}
+
+void RTNAME(PauseStatementInt)(int code) {
+  if (StartPause()) {
+    std::fprintf(stderr, "Fortran PAUSE %d: hit RETURN to continue:", code);
+    EndPause();
+  }
+}
+
+void RTNAME(PauseStatementText)(const char *code, std::size_t length) {
+  if (StartPause()) {
+    std::fprintf(stderr,
+        "Fortran PAUSE %.*s: hit RETURN to continue:", static_cast<int>(length),
+        code);
+    EndPause();
   }
 }
 

@@ -43,8 +43,7 @@ define <vscale x 16 x i8> @ld1b_upper_bound(<vscale x 16 x i8>* %a) {
 define <vscale x 16 x i8> @ld1b_out_of_upper_bound(<vscale x 16 x i8>* %a) {
 ; CHECK-LABEL: ld1b_out_of_upper_bound:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    rdvl x8, #8
-; CHECK-NEXT:    add x8, x0, x8
+; CHECK-NEXT:    addvl x8, x0, #8
 ; CHECK-NEXT:    ptrue p0.b
 ; CHECK-NEXT:    ld1b { z0.b }, p0/z, [x8]
 ; CHECK-NEXT:    ret
@@ -56,8 +55,7 @@ define <vscale x 16 x i8> @ld1b_out_of_upper_bound(<vscale x 16 x i8>* %a) {
 define <vscale x 16 x i8> @ld1b_out_of_lower_bound(<vscale x 16 x i8>* %a) {
 ; CHECK-LABEL: ld1b_out_of_lower_bound:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    rdvl x8, #-9
-; CHECK-NEXT:    add x8, x0, x8
+; CHECK-NEXT:    addvl x8, x0, #-9
 ; CHECK-NEXT:    ptrue p0.b
 ; CHECK-NEXT:    ld1b { z0.b }, p0/z, [x8]
 ; CHECK-NEXT:    ret
@@ -104,3 +102,40 @@ define <vscale x 2 x i64> @ld1d_inbound(<vscale x 2 x i64>* %a) {
   %load = load <vscale x 2 x i64>, <vscale x 2 x i64>* %base
   ret <vscale x 2 x i64> %load
 }
+
+define void @load_nxv6f16(<vscale x 6 x half>* %a) {
+; CHECK-LABEL: load_nxv6f16:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    ptrue p0.d
+; CHECK-NEXT:    ptrue p1.s
+; CHECK-NEXT:    ld1h { z0.d }, p0/z, [x0, #2, mul vl]
+; CHECK-NEXT:    ld1h { z0.s }, p1/z, [x0]
+; CHECK-NEXT:    ret
+  %val = load volatile <vscale x 6 x half>, <vscale x 6 x half>* %a
+  ret void
+}
+
+define void @load_nxv6f32(<vscale x 6 x float>* %a) {
+; CHECK-LABEL: load_nxv6f32:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    ptrue p0.d
+; CHECK-NEXT:    ptrue p1.s
+; CHECK-NEXT:    ld1w { z0.d }, p0/z, [x0, #2, mul vl]
+; CHECK-NEXT:    ld1w { z0.s }, p1/z, [x0]
+; CHECK-NEXT:    ret
+  %val = load volatile <vscale x 6 x float>, <vscale x 6 x float>* %a
+  ret void
+}
+
+define void @load_nxv12f16(<vscale x 12 x half>* %a) {
+; CHECK-LABEL: load_nxv12f16:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    ptrue p0.s
+; CHECK-NEXT:    ptrue p1.h
+; CHECK-NEXT:    ld1h { z0.s }, p0/z, [x0, #2, mul vl]
+; CHECK-NEXT:    ld1h { z0.h }, p1/z, [x0]
+; CHECK-NEXT:    ret
+  %val = load volatile <vscale x 12 x half>, <vscale x 12 x half>* %a
+  ret void
+}
+

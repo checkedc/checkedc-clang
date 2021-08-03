@@ -23,8 +23,9 @@ namespace modernize {
 ReplaceRandomShuffleCheck::ReplaceRandomShuffleCheck(StringRef Name,
                                                      ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      IncludeStyle(Options.getLocalOrGlobal("IncludeStyle",
-                                            utils::IncludeSorter::IS_LLVM)) {}
+      IncludeInserter(Options.getLocalOrGlobal("IncludeStyle",
+                                               utils::IncludeSorter::IS_LLVM)) {
+}
 
 void ReplaceRandomShuffleCheck::registerMatchers(MatchFinder *Finder) {
   const auto Begin = hasArgument(0, expr());
@@ -32,7 +33,7 @@ void ReplaceRandomShuffleCheck::registerMatchers(MatchFinder *Finder) {
   const auto RandomFunc = hasArgument(2, expr().bind("randomFunc"));
   Finder->addMatcher(
       traverse(
-          ast_type_traits::TK_AsIs,
+          TK_AsIs,
           callExpr(
               anyOf(allOf(Begin, End, argumentCountIs(2)),
                     allOf(Begin, End, RandomFunc, argumentCountIs(3))),
@@ -44,14 +45,12 @@ void ReplaceRandomShuffleCheck::registerMatchers(MatchFinder *Finder) {
 
 void ReplaceRandomShuffleCheck::registerPPCallbacks(
     const SourceManager &SM, Preprocessor *PP, Preprocessor *ModuleExpanderPP) {
-  IncludeInserter = std::make_unique<utils::IncludeInserter>(SM, getLangOpts(),
-                                                              IncludeStyle);
-  PP->addPPCallbacks(IncludeInserter->CreatePPCallbacks());
+  IncludeInserter.registerPreprocessor(PP);
 }
 
 void ReplaceRandomShuffleCheck::storeOptions(
     ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "IncludeStyle", IncludeStyle);
+  Options.store(Opts, "IncludeStyle", IncludeInserter.getStyle());
 }
 
 void ReplaceRandomShuffleCheck::check(const MatchFinder::MatchResult &Result) {
@@ -92,10 +91,10 @@ void ReplaceRandomShuffleCheck::check(const MatchFinder::MatchResult &Result) {
 
   Diag << FixItHint::CreateRemoval(MatchedDecl->getSourceRange());
   Diag << FixItHint::CreateInsertion(MatchedDecl->getBeginLoc(), NewName);
-  Diag << IncludeInserter->CreateIncludeInsertion(
+  Diag << IncludeInserter.createIncludeInsertion(
       Result.Context->getSourceManager().getFileID(
           MatchedCallExpr->getBeginLoc()),
-      "random", /*IsAngled=*/true);
+      "<random>");
 }
 
 } // namespace modernize
