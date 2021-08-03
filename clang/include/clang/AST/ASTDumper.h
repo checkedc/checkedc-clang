@@ -55,6 +55,7 @@ public:
   void VisitDeclRefExpr(const DeclRefExpr *Node);
   void VisitArraySubscriptExpr(const ArraySubscriptExpr *Node);
   void VisitCompoundStmt(const CompoundStmt *Node);
+  void VisitVarDecl(const VarDecl *D);
   void VisitWhereClause(const WhereClause *WC);
   void VisitWhereClauseFact(const WhereClauseFact *Fact);
   void VisitRangeBoundsExpr(const RangeBoundsExpr *Node);

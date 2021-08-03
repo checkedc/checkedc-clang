@@ -359,6 +359,15 @@ void ASTDumper::VisitCompoundStmt(const CompoundStmt *Node) {
   }
 }
 
+void ASTDumper::VisitVarDecl(const VarDecl *D) {
+  dumpBoundsAnnotations(D->getBoundsAnnotations());
+
+  if (D->hasInit())
+    Visit(D->getInit());
+  
+  VisitWhereClause(D->getWhereClause());
+}
+
 void ASTDumper::VisitWhereClause(const WhereClause *WC) {
   if (!WC || !DumpWhereClauses)
     return;
