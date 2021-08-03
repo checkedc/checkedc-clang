@@ -49,6 +49,7 @@ public:
   void VisitVarTemplateDecl(const VarTemplateDecl *D);
 
   // Checked C specific methods.
+  void VisitForWhereClause(const Stmt *Stmt);
   void VisitMemberExpr(const MemberExpr *Node);
   void VisitUnaryOperator(const UnaryOperator *Node);
   void VisitCastExpr(const CastExpr *Node);

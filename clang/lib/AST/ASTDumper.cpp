@@ -342,6 +342,13 @@ void ASTDumper::VisitUnaryOperator(const UnaryOperator *Node) {
   }
 }
 
+void ASTDumper::VisitForWhereClause(const Stmt *Stmt) {
+  if (const auto VS = dyn_cast<ValueStmt>(Stmt))
+    VisitWhereClause(VS->getWhereClause());
+  else if (const auto N = dyn_cast<NullStmt>(Stmt))
+    VisitWhereClause(N->getWhereClause());
+}
+
 void ASTDumper::VisitCompoundStmt(const CompoundStmt *Node) {
   VisitStmt(Node);
   CheckedScopeSpecifier WrittenCSS = Node->getWrittenCheckedSpecifier();

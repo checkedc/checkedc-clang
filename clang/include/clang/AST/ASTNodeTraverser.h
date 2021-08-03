@@ -160,8 +160,12 @@ public:
 
       for (const Stmt *SubStmt : S->children())
         Visit(SubStmt);
+
+      VisitForWhereClause(S);
     });
   }
+
+  virtual void VisitForWhereClause(const Stmt *Stmt) {}
 
   void Visit(QualType T) {
     SplitQualType SQT = T.split();
