@@ -359,6 +359,38 @@ void ASTDumper::VisitCompoundStmt(const CompoundStmt *Node) {
   }
 }
 
+void ASTDumper::VisitWhereClause(const WhereClause *WC) {
+  if (!WC || !DumpWhereClauses)
+    return;
+
+  NodeDumper.AddChild([=] {
+    ColorScope Color(OS, ShowColors, StmtColor);
+    OS << "WhereClause";
+    
+    FactListTy Facts = WC->getFacts(); 
+    for (auto *Fact : Facts) {
+      VisitWhereClauseFact(Fact);
+      }
+  }); 
+}
+
+void ASTDumper::VisitWhereClauseFact(const WhereClauseFact *Fact) {
+  if (auto *BF = dyn_cast<BoundsDeclFact>(Fact)) {    
+    NodeDumper.AddChild([=] {
+      ColorScope Color(OS, ShowColors, DeclNameColor);
+      OS << "BoundsFact: " << BF->getVarDecl()->getQualifiedNameAsString();
+      // Visit(BF->getVarDecl());
+      Visit(BF->getBoundsExpr());
+    });
+  } else if (auto *EF = dyn_cast<EqualityOpFact>(Fact)) {
+    NodeDumper.AddChild([=] {
+      ColorScope Color(OS, ShowColors, DeclNameColor);
+      OS << "RelationalFact";
+      Visit(EF->EqualityOp);
+    });
+  }
+}
+
 void ASTDumper::VisitRangeBoundsExpr(const RangeBoundsExpr *Node) {
   if (Node->getKind() != BoundsExpr::Kind::Range)
     NodeDumper.Visit(Node->getKind());
