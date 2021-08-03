@@ -23,12 +23,16 @@ class ASTDumper : public ASTNodeTraverser<ASTDumper, TextNodeDumper> {
 
   const bool ShowColors;
 
+  const bool DumpWhereClauses;
+
 public:
   ASTDumper(raw_ostream &OS, const ASTContext &Context, bool ShowColors)
-      : NodeDumper(OS, Context, ShowColors), OS(OS), ShowColors(ShowColors) {}
+      : NodeDumper(OS, Context, ShowColors), OS(OS), ShowColors(ShowColors),
+        DumpWhereClauses(Context.getLangOpts().DumpWhereClauses) {}
 
   ASTDumper(raw_ostream &OS, bool ShowColors)
-      : NodeDumper(OS, ShowColors), OS(OS), ShowColors(ShowColors) {}
+      : NodeDumper(OS, ShowColors), OS(OS), ShowColors(ShowColors),
+        DumpWhereClauses(false) {}
 
   TextNodeDumper &doGetNodeDelegate() { return NodeDumper; }
 
