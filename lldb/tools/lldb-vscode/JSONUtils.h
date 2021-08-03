@@ -9,11 +9,11 @@
 #ifndef LLDB_TOOLS_LLDB_VSCODE_JSONUTILS_H
 #define LLDB_TOOLS_LLDB_VSCODE_JSONUTILS_H
 
-#include <stdint.h>
-#include "llvm/ADT/StringRef.h"
-#include "llvm/Support/JSON.h"
 #include "VSCodeForward.h"
 #include "lldb/API/SBModule.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/JSON.h"
+#include <stdint.h>
 
 namespace lldb_vscode {
 
@@ -442,6 +442,30 @@ llvm::json::Value CreateVariable(lldb::SBValue v, int64_t variablesReference,
                                  int64_t varID, bool format_hex);
 
 llvm::json::Value CreateCompileUnit(lldb::SBCompileUnit unit);
+
+/// Create a runInTerminal reverse request object
+///
+/// \param[in] launch_request
+///     The original launch_request object whose fields are used to construct
+///     the reverse request object.
+///
+/// \param[in] debug_adaptor_path
+///     Path to the current debug adaptor. It will be used to delegate the
+///     launch of the target.
+///
+/// \param[in] comm_file
+///     The fifo file used to communicate the with the target launcher.
+///
+/// \return
+///     A "runInTerminal" JSON object that follows the specification outlined by
+///     Microsoft.
+llvm::json::Object
+CreateRunInTerminalReverseRequest(const llvm::json::Object &launch_request,
+                                  llvm::StringRef debug_adaptor_path,
+                                  llvm::StringRef comm_file);
+
+/// Convert a given JSON object to a string.
+std::string JSONToString(const llvm::json::Value &json);
 
 } // namespace lldb_vscode
 

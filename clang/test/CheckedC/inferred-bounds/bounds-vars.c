@@ -3,8 +3,6 @@
 //
 // RUN: %clang_cc1 -fdump-boundsvars -verify -verify-ignore-unexpected=note -verify-ignore-unexpected=warning %s | FileCheck %s
 
-// expected-no-diagnostics
-
 void f1(_Array_ptr<char> param1 : bounds(param1, param1 + 1),
         _Nt_array_ptr<char> param2 : bounds(param2, param2 + 1),
         int x, int y) {
@@ -30,13 +28,25 @@ void f1(_Array_ptr<char> param1 : bounds(param1, param1 + 1),
     int w;
     _Nt_array_ptr<char> a : bounds(a, a + 1) = "a";
 
-    w = 1 _Where a : bounds(a, a + 1);
-    x = 2 _Where a : count(x + y + w);
+    w = 1 _Where a : bounds(a, a + 1); // expected-error {{it is not possible to prove that the inferred bounds of 'param2' imply the declared bounds of 'param2' after statement}}
+    x = 2 _Where a : count(x + y + w); // expected-error {{inferred bounds for 'q' are unknown after assignment}}
     y = 3 _Where param2 : bounds(param1, param1 + w);
   }
 
 // CHECK-LABEL: In function: f1
-// CHECK: BoundsVars:
+// CHECK: BoundsVars Lower:
+// CHECK: a: { a }
+// CHECK: m: { m }
+// CHECK: p: { p }
+// CHECK: p: { p q }
+// CHECK: param1: { param1 param2 }
+// CHECK: param2: { param2 }
+// CHECK: q: { q }
+// CHECK: q: { m q }
+// CHECK: x: { p }
+
+// CHECK-LABEL: In function: f1
+// CHECK: BoundsVars Upper:
 // CHECK: a: { a }
 // CHECK: m: { m }
 // CHECK: p: { p }
@@ -46,7 +56,7 @@ void f1(_Array_ptr<char> param1 : bounds(param1, param1 + 1),
 // CHECK: q: { q }
 // CHECK: q: { m q }
 // CHECK: w: { a param2 }
-// CHECK: x: { a p param1 q }
+// CHECK: x: { a param1 q }
 // CHECK: y: { a p param1 param2 }
 // CHECK: z: { m p q }
 }

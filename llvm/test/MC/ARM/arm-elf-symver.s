@@ -1,5 +1,5 @@
-@ RUN: llvm-mc -filetype=obj -triple arm-none-linux-gnueabi %s -o - | llvm-readobj -r --symbols | FileCheck %s
-@ RUN: llvm-mc -filetype=obj -triple thumb-none-linux-gnueabi %s -o - | llvm-readobj -r --symbols | FileCheck %s
+@ RUN: llvm-mc -filetype=obj -triple arm-none-linux-gnueabi %s -o - | llvm-readobj -r --symbols - | FileCheck %s
+@ RUN: llvm-mc -filetype=obj -triple thumb-none-linux-gnueabi %s -o - | llvm-readobj -r --symbols - | FileCheck %s
 
 defined1:
 defined2:
@@ -24,11 +24,11 @@ global1:
 
 @ CHECK: Relocations [
 @ CHECK-NEXT:   Section {{.*}} .rel.text {
-@ CHECK-NEXT:     0x0 R_ARM_ABS32 .text 0x0
-@ CHECK-NEXT:     0x4 R_ARM_ABS32 bar2@zed 0x0
-@ CHECK-NEXT:     0x8 R_ARM_ABS32 .text 0x0
-@ CHECK-NEXT:     0xC R_ARM_ABS32 .text 0x0
-@ CHECK-NEXT:     0x10 R_ARM_ABS32 bar6@zed 0x0
+@ CHECK-NEXT:     0x0 R_ARM_ABS32 .text
+@ CHECK-NEXT:     0x4 R_ARM_ABS32 bar2@zed
+@ CHECK-NEXT:     0x8 R_ARM_ABS32 .text
+@ CHECK-NEXT:     0xC R_ARM_ABS32 .text
+@ CHECK-NEXT:     0x10 R_ARM_ABS32 bar6@zed
 @ CHECK-NEXT:   }
 @ CHECK-NEXT: ]
 

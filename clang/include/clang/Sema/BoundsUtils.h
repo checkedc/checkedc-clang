@@ -33,6 +33,40 @@ public:
   // CreateBoundsUnknown returns bounds(unknown).
   static BoundsExpr *CreateBoundsUnknown(Sema &S);
 
+  // This describes that this is an expression we will never
+  // be able to infer bounds for.
+  static BoundsExpr *CreateBoundsAlwaysUnknown(Sema &S);
+
+  // If we have an error in our bounds inference that we can't
+  // recover from, bounds(unknown) is our error value.
+  static BoundsExpr *CreateBoundsInferenceError(Sema &S);
+
+  // Given an array type with constant dimension size, CreateBoundsForArrayType
+  // returns a count expression with that size.
+  static BoundsExpr *CreateBoundsForArrayType(Sema &S, QualType T,
+                                              bool IncludeNullTerminator = false);
+
+  // Compute bounds for a variable expression or member reference expression
+  // with an array type.
+  static BoundsExpr *ArrayExprBounds(Sema &S, Expr *E,
+                                     bool IncludeNullTerminator = false);
+
+  // Given a byte_count or count bounds expression for the VarDecl D,
+  // ExpandBoundsToRange will expand it to a range bounds expression.
+  //
+  // ExpandBoundsToRange creates a DeclRefExpr for D. Clients should not
+  // call ExpandBoundsToRange directly. Instead, clients should call
+  // Sema::NormalizeBounds, which computes the expanded bounds for D once
+  // and attaches the expanded bounds to D.
+  static BoundsExpr *ExpandBoundsToRange(Sema &S, VarDecl *D, BoundsExpr *B);
+
+  // Given a byte_count or count bounds expression for the expression Base,
+  // expand it to a range bounds expression:
+  //  E : Count(C) expands to Bounds(E, E + C)
+  //  E : ByteCount(C)  expands to Bounds((array_ptr<char>) E,
+  //                                      (array_ptr<char>) E + C)
+  static BoundsExpr *ExpandToRange(Sema &S, Expr *Base, BoundsExpr *B);
+
   // If Bounds uses the value of LValue and an original value is provided,
   // ReplaceLValueInBounds will return a bounds expression where the uses
   // of LValue are replaced with the original value.
@@ -49,6 +83,11 @@ public:
   static Expr *ReplaceLValue(Sema &S, Expr *E, Expr *LValue,
                              Expr *OriginalValue,
                              CheckedScopeSpecifier CSS);
+
+private:
+  // ExpandToRange expands the bounds expression for a variable declaration
+  // to a range bounds expression.
+  static BoundsExpr *ExpandToRange(Sema &S, VarDecl *D, BoundsExpr *B);
 };
 
 } // end namespace clang

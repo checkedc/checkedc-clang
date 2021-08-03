@@ -16,8 +16,7 @@
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/ROCDLDialect.h"
-#include "mlir/IR/Function.h"
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Target/LLVMIR/ModuleTranslation.h"
 #include "mlir/Translation.h"
 
@@ -75,17 +74,20 @@ protected:
 };
 } // namespace
 
-std::unique_ptr<llvm::Module> mlir::translateModuleToROCDLIR(Operation *m) {
+std::unique_ptr<llvm::Module>
+mlir::translateModuleToROCDLIR(Operation *m, llvm::LLVMContext &llvmContext,
+                               StringRef name) {
   // lower MLIR (with RODL Dialect) to LLVM IR (with ROCDL intrinsics)
-  auto llvmModule =
-      LLVM::ModuleTranslation::translateModule<ModuleTranslation>(m);
+  auto llvmModule = LLVM::ModuleTranslation::translateModule<ModuleTranslation>(
+      m, llvmContext, name);
 
   // foreach GPU kernel
   // 1. Insert AMDGPU_KERNEL calling convention.
   // 2. Insert amdgpu-flat-workgroup-size(1, 1024) attribute.
   for (auto func :
        ModuleTranslation::getModuleBody(m).getOps<LLVM::LLVMFuncOp>()) {
-    if (!func.getAttrOfType<UnitAttr>(gpu::GPUDialect::getKernelFuncAttrName()))
+    if (!func->getAttrOfType<UnitAttr>(
+            gpu::GPUDialect::getKernelFuncAttrName()))
       continue;
 
     auto *llvmFunc = llvmModule->getFunction(func.getName());
@@ -101,13 +103,18 @@ std::unique_ptr<llvm::Module> mlir::translateModuleToROCDLIR(Operation *m) {
 namespace mlir {
 void registerToROCDLIRTranslation() {
   TranslateFromMLIRRegistration registration(
-      "mlir-to-rocdlir", [](ModuleOp module, raw_ostream &output) {
-        auto llvmModule = mlir::translateModuleToROCDLIR(module);
+      "mlir-to-rocdlir",
+      [](ModuleOp module, raw_ostream &output) {
+        llvm::LLVMContext llvmContext;
+        auto llvmModule = mlir::translateModuleToROCDLIR(module, llvmContext);
         if (!llvmModule)
           return failure();
 
         llvmModule->print(output, nullptr);
         return success();
+      },
+      [](DialectRegistry &registry) {
+        registry.insert<ROCDL::ROCDLDialect, LLVM::LLVMDialect>();
       });
 }
 } // namespace mlir

@@ -50,7 +50,7 @@ public:
   Result operator()(const common::Indirection<A, C> &x) const {
     return visitor_(x.value());
   }
-  template <typename A> Result operator()(SymbolRef x) const {
+  template <typename A> Result operator()(const SymbolRef x) const {
     return visitor_(*x);
   }
   template <typename A> Result operator()(const std::unique_ptr<A> &x) const {
@@ -120,7 +120,7 @@ public:
       return visitor_(x.GetFirstSymbol());
     }
   }
-  template <int KIND> Result operator()(const TypeParamInquiry<KIND> &x) const {
+  Result operator()(const TypeParamInquiry &x) const {
     return visitor_(x.base());
   }
   Result operator()(const Triplet &x) const {
@@ -241,7 +241,7 @@ private:
   }
 
   template <typename A, typename... Bs>
-  Result Combine(const A &x, const Bs &... ys) const {
+  Result Combine(const A &x, const Bs &...ys) const {
     if constexpr (sizeof...(Bs) == 0) {
       return visitor_(x);
     } else {

@@ -48,10 +48,20 @@ def use_lldb_substitutions(config):
     primary_tools = [
         ToolSubst('%lldb',
                   command=FindTool('lldb'),
-                  extra_args=['--no-lldbinit', '-S', lldb_init]),
+                  extra_args=['--no-lldbinit', '-S', lldb_init],
+                  unresolved='fatal'),
         ToolSubst('%lldb-init',
                   command=FindTool('lldb'),
-                  extra_args=['-S', lldb_init]),
+                  extra_args=['-S', lldb_init],
+                  unresolved='fatal'),
+        ToolSubst('%lldb-noinit',
+                  command=FindTool('lldb'),
+                  extra_args=['--no-lldbinit'],
+                  unresolved='fatal'),
+        ToolSubst('%lldb-server',
+                  command=FindTool("lldb-server"),
+                  extra_args=[],
+                  unresolved='ignore'),
         ToolSubst('%debugserver',
                   command=FindTool(dsname),
                   extra_args=dsargs,
@@ -69,6 +79,7 @@ def use_lldb_substitutions(config):
         ]
 
     _disallow(config, 'lldb')
+    _disallow(config, 'lldb-server')
     _disallow(config, 'debugserver')
     _disallow(config, 'platformserver')
 
@@ -114,7 +125,7 @@ def use_support_substitutions(config):
             sdk_path = lit.util.to_string(out)
             llvm_config.lit_config.note('using SDKROOT: %r' % sdk_path)
             host_flags += ['-isysroot', sdk_path]
-    elif platform.system() in ['NetBSD', 'OpenBSD', 'Linux']:
+    elif sys.platform != 'win32':
         host_flags += ['-pthread']
 
     if sys.platform.startswith('netbsd'):

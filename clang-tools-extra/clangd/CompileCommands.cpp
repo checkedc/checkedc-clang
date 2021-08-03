@@ -271,6 +271,7 @@ std::pair<unsigned, unsigned> getArgCount(const llvm::opt::Option &Opt) {
   case Option::RemainingArgsJoinedClass:
     return {Rest, Rest};
   }
+  llvm_unreachable("Unhandled option kind");
 }
 
 // Flag-parsing mode, which affects which flags are available.
@@ -321,7 +322,7 @@ unsigned char getModes(const llvm::opt::Option &Opt) {
     }
   }
   return Result;
-};
+}
 
 } // namespace
 
@@ -366,7 +367,7 @@ llvm::ArrayRef<ArgStripper::Rule> ArgStripper::rulesFor(llvm::StringRef Arg) {
     for (unsigned ID = 1 /*Skip INVALID */; ID < DriverID::LastOption; ++ID) {
       if (PrevAlias[ID] || ID == DriverID::OPT_Xclang)
         continue; // Not canonical, or specially handled.
-      llvm::SmallVector<Rule, 8> Rules;
+      llvm::SmallVector<Rule> Rules;
       // Iterate over each alias, to add rules for parsing it.
       for (unsigned A = ID; A != DriverID::OPT_INVALID; A = NextAlias[A]) {
         if (Prefixes[A] == nullptr) // option groups.
@@ -475,7 +476,7 @@ void ArgStripper::process(std::vector<std::string> &Args) const {
   bool WasXclang = false;
   while (Read < Args.size()) {
     unsigned ArgCount = 0;
-    if (const Rule *R = matchingRule(Args[Read], CurrentMode, ArgCount)) {
+    if (matchingRule(Args[Read], CurrentMode, ArgCount)) {
       // Delete it and its args.
       if (WasXclang) {
         assert(Write > 0);

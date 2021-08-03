@@ -675,8 +675,8 @@ void ClangMoveTool::run(const ast_matchers::MatchFinder::MatchResult &Result) {
                  Result.Nodes.getNodeAs<NamedDecl>("helper_decls")) {
     MovedDecls.push_back(ND);
     HelperDeclarations.push_back(ND);
-    LLVM_DEBUG(llvm::dbgs() << "Add helper : " << ND->getNameAsString() << " ("
-                            << ND << ")\n");
+    LLVM_DEBUG(llvm::dbgs()
+               << "Add helper : " << ND->getDeclName() << " (" << ND << ")\n");
   } else if (const auto *UD = Result.Nodes.getNodeAs<NamedDecl>("using_decl")) {
     MovedDecls.push_back(UD);
   }
@@ -691,11 +691,10 @@ void ClangMoveTool::addIncludes(llvm::StringRef IncludeHeader, bool IsAngled,
                                 llvm::StringRef FileName,
                                 CharSourceRange IncludeFilenameRange,
                                 const SourceManager &SM) {
-  SmallVector<char, 128> HeaderWithSearchPath;
+  SmallString<128> HeaderWithSearchPath;
   llvm::sys::path::append(HeaderWithSearchPath, SearchPath, IncludeHeader);
   std::string AbsoluteIncludeHeader =
-      MakeAbsolutePath(SM, llvm::StringRef(HeaderWithSearchPath.data(),
-                                           HeaderWithSearchPath.size()));
+      MakeAbsolutePath(SM, HeaderWithSearchPath);
   std::string IncludeLine =
       IsAngled ? ("#include <" + IncludeHeader + ">\n").str()
                : ("#include \"" + IncludeHeader + "\"\n").str();
@@ -735,12 +734,12 @@ void ClangMoveTool::removeDeclsInOldFiles() {
     // We remove the helper declarations which are not used in the old.cc after
     // moving the given declarations.
     for (const auto *D : HelperDeclarations) {
-      LLVM_DEBUG(llvm::dbgs() << "Check helper is used: "
-                              << D->getNameAsString() << " (" << D << ")\n");
+      LLVM_DEBUG(llvm::dbgs() << "Check helper is used: " << D->getDeclName()
+                              << " (" << D << ")\n");
       if (!UsedDecls.count(HelperDeclRGBuilder::getOutmostClassOrFunDecl(
               D->getCanonicalDecl()))) {
         LLVM_DEBUG(llvm::dbgs() << "Helper removed in old.cc: "
-                                << D->getNameAsString() << " (" << D << ")\n");
+                                << D->getDeclName() << " (" << D << ")\n");
         RemovedDecls.push_back(D);
       }
     }
@@ -820,7 +819,7 @@ void ClangMoveTool::moveDeclsToNewFiles() {
             D->getCanonicalDecl())))
       continue;
 
-    LLVM_DEBUG(llvm::dbgs() << "Helper used in new.cc: " << D->getNameAsString()
+    LLVM_DEBUG(llvm::dbgs() << "Helper used in new.cc: " << D->getDeclName()
                             << " " << D << "\n");
     ActualNewCCDecls.push_back(D);
   }

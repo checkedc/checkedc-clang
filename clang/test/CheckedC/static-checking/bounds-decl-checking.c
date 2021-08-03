@@ -727,10 +727,92 @@ void f89(_Ptr<int> p) {
 
 struct S3 {
   _Array_ptr<char> f : count(len - 2 + 1);
-  _Array_ptr<char> g : count(len);
+  _Array_ptr<char> g : count(len); // expected-note{{(expanded) declared bounds are 'bounds(s.g, s.g + s.len)}}
   int len;
 };
 
 void f90(struct S3 s) {
   s.f = s.g;
+}
+
+//
+// Negative test comparing bounds expressions using simple constant folding
+//
+
+void f89_neg(_Ptr<int> p) {
+  _Nt_array_ptr<char> a : count(*p) = 0;
+  _Nt_array_ptr<char> b : count(*p + 2 - 1) = 0; // expected-note{{(expanded) declared bounds are 'bounds(b, b + *p + 2 - 1)}}
+  b = a; // expected-warning{{cannot prove declared bounds for 'b' are valid after assignment}} \
+         // expected-note{{(expanded) inferred bounds are 'bounds(a, a + *p)}}
+}
+
+void f90_neg(struct S3 s) {
+  s.g = s.f; // expected-warning{{cannot prove declared bounds for 's.g' are valid after assignment}} \
+             // expected-note{{(expanded) inferred bounds are 'bounds(s.f, s.f + s.len - 2 + 1)}}
+}
+
+//
+// Test invertibility for checked and unchecked pointers
+//
+
+void f91(_Array_ptr<int> p : count(1)) _Unchecked { // expected-note {{(expanded) declared bounds are 'bounds(p, p + 1)'}}
+  ++p; // expected-warning {{cannot prove declared bounds for 'p' are valid after increment}} \
+       // expected-note {{(expanded) inferred bounds are 'bounds(p - 1, p - 1 + 1)'}}
+}
+
+void f92(int *p : count(1)) _Unchecked { // expected-note {{(expanded) declared bounds are 'bounds(p, p + 1)'}}
+ ++p; // expected-warning {{cannot prove declared bounds for 'p' are valid after increment}} \
+      // expected-note {{(expanded) inferred bounds are 'bounds(p - 1, p - 1 + 1)'}}
+}
+
+//
+// Test comparing bounds expressions using some simple normalizations
+// such as associativity and constant folding
+//
+
+void f93(_Nt_array_ptr<char> p : count(len), unsigned int len) {
+  if (*(p + len)) {
+    // No warning when proving that inferred bounds (p, (p + (len - 1)) + 1)
+    // imply declared bounds (p, p + len)
+    ++len;
+  }
+}
+
+void f94(_Nt_array_ptr<char> p : count(len), unsigned int len) {
+  if (*(p + len)) {
+    if (*(p + len + 1)) {
+      if (*(p + len + 2)) {
+        // No warning when proving that inferred bounds (p, ((p + (len - 1)) + 2) + 1)
+        // imply declared bounds (p, p + len)
+        ++len;
+      }
+    }
+  }
+}
+
+void f95(_Array_ptr<int> p : bounds(p, (p + (len + 10)) + 6), int len) {
+  _Array_ptr<int> q : bounds(q, 2 + (q + (len + 3))) = p;
+  _Array_ptr<int> r : bounds(r, ((r + len) + 2) - 1) = p;
+  _Array_ptr<int> s : bounds(s, (s + (len + (1 + 2))) + (3 + 4)) = p;
+  _Array_ptr<int> t : bounds(t, ((t + len) - 1) + 1) = p;
+  _Array_ptr<int> u : bounds(u, (u + len) + 1) = p;
+  _Array_ptr<int> v : bounds(v, (1 + (v + len)) + 1) = p;
+}
+
+void f96(_Nt_array_ptr<char> p : bounds(p, (p + (len + 4)) + 4), int len) {
+  _Nt_array_ptr<char> q : bounds(q, ((q + len) + 1) + 1) = p;
+  _Nt_array_ptr<char> r : bounds(r, ((r + (len + 2))) - 2) = p;
+
+  // We cannot normalize a multiplication operator.
+  _Nt_array_ptr<char> s : bounds(s, (s + (len * 2)) - 2) = p; // expected-warning {{cannot prove declared bounds for 's' are valid after initialization}} \
+                                                              // expected-note {{(expanded) declared bounds are 'bounds(s, (s + (len * 2)) - 2)'}} \
+                                                              // expected-note {{(expanded) inferred bounds are 'bounds(p, (p + (len + 4)) + 4)'}}
+
+  // We can express (v + (1 + len)) + 2 as ((v + 1) + len) + 2, but we
+  // currently cannot constant fold this expression since len is not
+  // an integer constant. Constant folding would expect the expression
+  // to be in the form ((v + len) + 1) + 2.
+  _Nt_array_ptr<char> v : bounds(v, (v + (1 + len)) + 2) = p; // expected-warning {{cannot prove declared bounds for 'v' are valid after initialization}} \
+                                                              // expected-note {{(expanded) declared bounds are 'bounds(v, (v + (1 + len)) + 2)'}} \
+                                                              // expected-note {{(expanded) inferred bounds are 'bounds(p, (p + (len + 4)) + 4)'}}
 }

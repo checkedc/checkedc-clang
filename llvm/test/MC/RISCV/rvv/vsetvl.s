@@ -8,11 +8,71 @@
 # RUN: llvm-mc -triple=riscv64 -filetype=obj --mattr=+experimental-v %s \
 # RUN:        | llvm-objdump -d - | FileCheck %s --check-prefix=CHECK-UNKNOWN
 
-vsetvli a2, a0, e32,m4
-# CHECK-INST: vsetvli a2, a0, e32,m4
-# CHECK-ENCODING: [0x57,0x76,0xa5,0x00]
+vsetvli a2, a0, e32,m1,ta,ma
+# CHECK-INST: vsetvli a2, a0, e32,m1,ta,ma
+# CHECK-ENCODING: [0x57,0x76,0x05,0x0d]
 # CHECK-ERROR: instruction requires the following: 'V' (Vector Instructions)
-# CHECK-UNKNOWN: 57 76 a5 00 <unknown>
+# CHECK-UNKNOWN: 57 76 05 0d <unknown>
+
+vsetvli a2, a0, e32,m2,ta,ma
+# CHECK-INST: vsetvli a2, a0, e32,m2,ta,ma
+# CHECK-ENCODING: [0x57,0x76,0x15,0x0d]
+# CHECK-ERROR: instruction requires the following: 'V' (Vector Instructions)
+# CHECK-UNKNOWN: 57 76 15 0d <unknown>
+
+vsetvli a2, a0, e32,m4,ta,ma
+# CHECK-INST: vsetvli a2, a0, e32,m4,ta,ma
+# CHECK-ENCODING: [0x57,0x76,0x25,0x0d]
+# CHECK-ERROR: instruction requires the following: 'V' (Vector Instructions)
+# CHECK-UNKNOWN: 57 76 25 0d <unknown>
+
+vsetvli a2, a0, e32,m8,ta,ma
+# CHECK-INST: vsetvli a2, a0, e32,m8,ta,ma
+# CHECK-ENCODING: [0x57,0x76,0x35,0x0d]
+# CHECK-ERROR: instruction requires the following: 'V' (Vector Instructions)
+# CHECK-UNKNOWN: 57 76 35 0d <unknown>
+
+vsetvli a2, a0, e32,mf2,ta,ma
+# CHECK-INST: vsetvli a2, a0, e32,mf2,ta,ma
+# CHECK-ENCODING: [0x57,0x76,0x75,0x0d]
+# CHECK-ERROR: instruction requires the following: 'V' (Vector Instructions)
+# CHECK-UNKNOWN: 57 76 75 0d <unknown>
+
+vsetvli a2, a0, e32,mf4,ta,ma
+# CHECK-INST: vsetvli a2, a0, e32,mf4,ta,ma
+# CHECK-ENCODING: [0x57,0x76,0x65,0x0d]
+# CHECK-ERROR: instruction requires the following: 'V' (Vector Instructions)
+# CHECK-UNKNOWN: 57 76 65 0d <unknown>
+
+vsetvli a2, a0, e32,mf8,ta,ma
+# CHECK-INST: vsetvli a2, a0, e32,mf8,ta,ma
+# CHECK-ENCODING: [0x57,0x76,0x55,0x0d]
+# CHECK-ERROR: instruction requires the following: 'V' (Vector Instructions)
+# CHECK-UNKNOWN: 57 76 55 0d <unknown>
+
+vsetvli a2, a0, e32,m1,ta,ma
+# CHECK-INST: vsetvli a2, a0, e32,m1,ta,ma
+# CHECK-ENCODING: [0x57,0x76,0x05,0x0d]
+# CHECK-ERROR: instruction requires the following: 'V' (Vector Instructions)
+# CHECK-UNKNOWN: 57 76 05 0d <unknown>
+
+vsetvli a2, a0, e32,m1,tu,ma
+# CHECK-INST: vsetvli a2, a0, e32,m1,tu,ma
+# CHECK-ENCODING: [0x57,0x76,0x05,0x09]
+# CHECK-ERROR: instruction requires the following: 'V' (Vector Instructions)
+# CHECK-UNKNOWN: 57 76 05 09 <unknown>
+
+vsetvli a2, a0, e32,m1,ta,mu
+# CHECK-INST: vsetvli a2, a0, e32,m1,ta,mu
+# CHECK-ENCODING: [0x57,0x76,0x05,0x05]
+# CHECK-ERROR: instruction requires the following: 'V' (Vector Instructions)
+# CHECK-UNKNOWN: 57 76 05 05 <unknown>
+
+vsetvli a2, a0, e32,m1,tu,mu
+# CHECK-INST: vsetvli a2, a0, e32,m1
+# CHECK-ENCODING: [0x57,0x76,0x05,0x01]
+# CHECK-ERROR: instruction requires the following: 'V' (Vector Instructions)
+# CHECK-UNKNOWN: 57 76 05 01 <unknown>
 
 vsetvl a2, a0, a1
 # CHECK-INST: vsetvl a2, a0, a1

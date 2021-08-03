@@ -41,7 +41,7 @@ FunctionDecl *getFunctionDeclOfBody(ASTContext *Context, CompoundStmt *S) {
 
 bool CheckedRegionAdder::VisitCompoundStmt(CompoundStmt *S) {
   llvm::FoldingSetNodeID Id;
-  ast_type_traits::DynTypedNode DTN = ast_type_traits::DynTypedNode::create(*S);
+  DynTypedNode DTN = DynTypedNode::create(*S);
 
   auto &PState = Info.getPerfStats();
   S->Profile(Id, *Context, true);
@@ -70,7 +70,7 @@ bool CheckedRegionAdder::VisitCompoundStmt(CompoundStmt *S) {
 bool CheckedRegionAdder::VisitCallExpr(CallExpr *C) {
   auto *FD = C->getDirectCallee();
   FoldingSetNodeID ID;
-  ast_type_traits::DynTypedNode DTN = ast_type_traits::DynTypedNode::create(*C);
+  DynTypedNode DTN = DynTypedNode::create(*C);
   auto &PState = Info.getPerfStats();
 
   C->Profile(ID, *Context, true);
@@ -89,7 +89,7 @@ bool CheckedRegionAdder::VisitCallExpr(CallExpr *C) {
 typedef std::pair<const CompoundStmt *, int> StmtPair;
 
 StmtPair
-CheckedRegionAdder::findParentCompound(const ast_type_traits::DynTypedNode &N,
+CheckedRegionAdder::findParentCompound(const DynTypedNode &N,
                                        int Distance = 1) {
   auto Parents = Context->getParents(N);
   if (Parents.empty())
@@ -108,8 +108,7 @@ CheckedRegionAdder::findParentCompound(const ast_type_traits::DynTypedNode &N,
   return *Min;
 }
 
-bool CheckedRegionAdder::isParentChecked(
-    const ast_type_traits::DynTypedNode &DTN) {
+bool CheckedRegionAdder::isParentChecked(const DynTypedNode &DTN) {
   if (const auto *Parent = findParentCompound(DTN).first) {
     llvm::FoldingSetNodeID ID;
     Parent->Profile(ID, *Context, true);

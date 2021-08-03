@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fprofile-instrument=clang -fcoverage-mapping -dump-coverage-mapping -emit-llvm-only -main-file-name preprocessor.c %s | FileCheck %s
+// RUN: %clang_cc1 -mllvm -emptyline-comment-coverage=false -fprofile-instrument=clang -fcoverage-mapping -dump-coverage-mapping -emit-llvm-only -main-file-name preprocessor.c %s | FileCheck %s
 
-                 // CHECK: func
+// CHECK: func
 void func() {    // CHECK: File 0, [[@LINE]]:13 -> [[@LINE+5]]:2 = #0
   int i = 0;
 #ifdef MACRO     // CHECK-NEXT: Skipped,File 0, [[@LINE]]:1 -> [[@LINE+2]]:7 = 0
@@ -11,7 +11,7 @@ void func() {    // CHECK: File 0, [[@LINE]]:13 -> [[@LINE+5]]:2 = #0
                  // CHECK: main
 int main() {     // CHECK-NEXT: File 0, [[@LINE]]:12 -> {{[0-9]+}}:2 = #0
   int i = 0;
-#  if 0            // CHECK-NEXT: Skipped,File 0, [[@LINE]]:1 -> [[@LINE+4]]:29 = 0
+#if 0 // CHECK-NEXT: Skipped,File 0, [[@LINE]]:1 -> [[@LINE+4]]:29 = 0
   if(i == 0) {
     i = 1;
   }

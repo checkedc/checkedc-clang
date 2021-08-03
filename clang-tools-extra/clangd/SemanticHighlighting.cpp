@@ -90,8 +90,10 @@ llvm::Optional<HighlightingKind> kindForDecl(const NamedDecl *D) {
                ? HighlightingKind::StaticField
                : VD->isLocalVarDecl() ? HighlightingKind::LocalVariable
                                       : HighlightingKind::Variable;
-  if (isa<BindingDecl>(D))
-    return HighlightingKind::Variable;
+  if (const auto *BD = dyn_cast<BindingDecl>(D))
+    return BD->getDeclContext()->isFunctionOrMethod()
+               ? HighlightingKind::LocalVariable
+               : HighlightingKind::Variable;
   if (isa<FunctionDecl>(D))
     return HighlightingKind::Function;
   if (isa<NamespaceDecl>(D) || isa<NamespaceAliasDecl>(D) ||
@@ -219,23 +221,55 @@ public:
       // the end of the Tokens).
       TokRef = TokRef.drop_front(Conflicting.size());
     }
-    // Add tokens indicating lines skipped by the preprocessor.
-    for (const Range &R : AST.getMacros().SkippedRanges) {
+    const auto &SM = AST.getSourceManager();
+    StringRef MainCode = SM.getBufferOrFake(SM.getMainFileID()).getBuffer();
+
+    // Merge token stream with "inactive line" markers.
+    std::vector<HighlightingToken> WithInactiveLines;
+    auto SortedSkippedRanges = AST.getMacros().SkippedRanges;
+    llvm::sort(SortedSkippedRanges);
+    auto It = NonConflicting.begin();
+    for (const Range &R : SortedSkippedRanges) {
       // Create one token for each line in the skipped range, so it works
       // with line-based diffing.
       assert(R.start.line <= R.end.line);
       for (int Line = R.start.line; Line <= R.end.line; ++Line) {
-        // Don't bother computing the offset for the end of the line, just use
-        // zero. The client will treat this highlighting kind specially, and
-        // highlight the entire line visually (i.e. not just to where the text
-        // on the line ends, but to the end of the screen).
-        NonConflicting.push_back({HighlightingKind::InactiveCode,
-                                  {Position{Line, 0}, Position{Line, 0}}});
+        // If the end of the inactive range is at the beginning
+        // of a line, that line is not inactive.
+        if (Line == R.end.line && R.end.character == 0)
+          continue;
+        // Copy tokens before the inactive line
+        for (; It != NonConflicting.end() && It->R.start.line < Line; ++It)
+          WithInactiveLines.push_back(std::move(*It));
+        // Add a token for the inactive line itself.
+        auto StartOfLine = positionToOffset(MainCode, Position{Line, 0});
+        if (StartOfLine) {
+          StringRef LineText =
+              MainCode.drop_front(*StartOfLine).take_until([](char C) {
+                return C == '\n';
+              });
+          WithInactiveLines.push_back(
+              {HighlightingKind::InactiveCode,
+               {Position{Line, 0},
+                Position{Line, static_cast<int>(lspLength(LineText))}}});
+        } else {
+          elog("Failed to convert position to offset: {0}",
+               StartOfLine.takeError());
+        }
+
+        // Skip any other tokens on the inactive line. e.g.
+        // `#ifndef Foo` is considered as part of an inactive region when Foo is
+        // defined, and there is a Foo macro token.
+        // FIXME: we should reduce the scope of the inactive region to not
+        // include the directive itself.
+        while (It != NonConflicting.end() && It->R.start.line == Line)
+          ++It;
       }
     }
-    // Re-sort the tokens because that's what the diffing expects.
-    llvm::sort(NonConflicting);
-    return NonConflicting;
+    // Copy tokens after the last inactive line
+    for (; It != NonConflicting.end(); ++It)
+      WithInactiveLines.push_back(std::move(*It));
+    return WithInactiveLines;
   }
 
 private:
@@ -296,6 +330,18 @@ public:
     return true;
   }
 
+  bool TraverseTemplateArgumentLoc(TemplateArgumentLoc L) {
+    switch (L.getArgument().getKind()) {
+    case TemplateArgument::Template:
+    case TemplateArgument::TemplateExpansion:
+      H.addToken(L.getTemplateNameLoc(), HighlightingKind::DependentType);
+      break;
+    default:
+      break;
+    }
+    return RecursiveASTVisitor::TraverseTemplateArgumentLoc(L);
+  }
+
   // findExplicitReferences will walk nested-name-specifiers and
   // find anything that can be resolved to a Decl. However, non-leaf
   // components of nested-name-specifiers which are dependent names
@@ -351,10 +397,10 @@ std::vector<HighlightingToken> getSemanticHighlightings(ParsedAST &AST) {
   // Add highlightings for macro references.
   for (const auto &SIDToRefs : AST.getMacros().MacroRefs) {
     for (const auto &M : SIDToRefs.second)
-      Builder.addToken({HighlightingKind::Macro, M});
+      Builder.addToken({HighlightingKind::Macro, M.Rng});
   }
   for (const auto &M : AST.getMacros().UnknownMacros)
-    Builder.addToken({HighlightingKind::Macro, M});
+    Builder.addToken({HighlightingKind::Macro, M.Rng});
 
   return std::move(Builder).collect(AST);
 }
@@ -479,9 +525,6 @@ toSemanticTokens(llvm::ArrayRef<HighlightingToken> Tokens) {
   std::vector<SemanticToken> Result;
   const HighlightingToken *Last = nullptr;
   for (const HighlightingToken &Tok : Tokens) {
-    // FIXME: support inactive code - we need to provide the actual bounds.
-    if (Tok.Kind == HighlightingKind::InactiveCode)
-      continue;
     Result.emplace_back();
     SemanticToken &Out = Result.back();
     // deltaStart/deltaLine are relative if possible.
@@ -517,18 +560,18 @@ llvm::StringRef toSemanticTokenType(HighlightingKind Kind) {
   case HighlightingKind::Function:
     return "function";
   case HighlightingKind::Method:
-    return "member";
+    return "method";
   case HighlightingKind::StaticMethod:
-    // FIXME: better function/member with static modifier?
+    // FIXME: better method with static modifier?
     return "function";
   case HighlightingKind::Field:
-    return "member";
+    return "property";
   case HighlightingKind::Class:
     return "class";
   case HighlightingKind::Enum:
     return "enum";
   case HighlightingKind::EnumConstant:
-    return "enumConstant"; // nonstandard
+    return "enumMember";
   case HighlightingKind::Typedef:
     return "type";
   case HighlightingKind::DependentType:
@@ -562,7 +605,7 @@ toTheiaSemanticHighlightingInformation(
   std::vector<TheiaSemanticHighlightingInformation> Lines;
   Lines.reserve(Tokens.size());
   for (const auto &Line : Tokens) {
-    llvm::SmallVector<char, 128> LineByteTokens;
+    llvm::SmallVector<char> LineByteTokens;
     llvm::raw_svector_ostream OS(LineByteTokens);
     for (const auto &Token : Line.Tokens) {
       // Writes the token to LineByteTokens in the byte format specified by the

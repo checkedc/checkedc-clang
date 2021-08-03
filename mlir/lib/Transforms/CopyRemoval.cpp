@@ -19,16 +19,47 @@ namespace {
 //===----------------------------------------------------------------------===//
 // CopyRemovalPass
 //===----------------------------------------------------------------------===//
+
 /// This pass removes the redundant Copy operations. Additionally, it
 /// removes the leftover definition and deallocation operations by erasing the
 /// copy operation.
 class CopyRemovalPass : public PassWrapper<CopyRemovalPass, OperationPass<>> {
+public:
+  void runOnOperation() override {
+    getOperation()->walk([&](CopyOpInterface copyOp) {
+      reuseCopySourceAsTarget(copyOp);
+      reuseCopyTargetAsSource(copyOp);
+    });
+    for (std::pair<Value, Value> &pair : replaceList)
+      pair.first.replaceAllUsesWith(pair.second);
+    for (Operation *op : eraseList)
+      op->erase();
+  }
+
 private:
   /// List of operations that need to be removed.
-  DenseSet<Operation *> eraseList;
+  llvm::SmallPtrSet<Operation *, 4> eraseList;
+
+  /// List of values that need to be replaced with their counterparts.
+  llvm::SmallDenseSet<std::pair<Value, Value>, 4> replaceList;
+
+  /// Returns the allocation operation for `value` in `block` if it exists.
+  /// nullptr otherwise.
+  Operation *getAllocationOpInBlock(Value value, Block *block) {
+    assert(block && "Block cannot be null");
+    Operation *op = value.getDefiningOp();
+    if (op && op->getBlock() == block) {
+      auto effects = dyn_cast<MemoryEffectOpInterface>(op);
+      if (effects && effects.hasEffect<Allocate>())
+        return op;
+    }
+    return nullptr;
+  }
 
   /// Returns the deallocation operation for `value` in `block` if it exists.
-  Operation *getDeallocationInBlock(Value value, Block *block) {
+  /// nullptr otherwise.
+  Operation *getDeallocationOpInBlock(Value value, Block *block) {
+    assert(block && "Block cannot be null");
     auto valueUsers = value.getUsers();
     auto it = llvm::find_if(valueUsers, [&](Operation *op) {
       auto effects = dyn_cast<MemoryEffectOpInterface>(op);
@@ -40,12 +71,12 @@ private:
   /// Returns true if an operation between start and end operations has memory
   /// effect.
   bool hasMemoryEffectOpBetween(Operation *start, Operation *end) {
+    assert((start || end) && "Start and end operations cannot be null");
     assert(start->getBlock() == end->getBlock() &&
            "Start and end operations should be in the same block.");
     Operation *op = start->getNextNode();
     while (op->isBeforeInBlock(end)) {
-      auto effects = dyn_cast<MemoryEffectOpInterface>(op);
-      if (effects)
+      if (isa<MemoryEffectOpInterface>(op))
         return true;
       op = op->getNextNode();
     }
@@ -55,6 +86,7 @@ private:
   /// Returns true if `val` value has at least a user between `start` and
   /// `end` operations.
   bool hasUsersBetween(Value val, Operation *start, Operation *end) {
+    assert((start || end) && "Start and end operations cannot be null");
     Block *block = start->getBlock();
     assert(block == end->getBlock() &&
            "Start and end operations should be in the same block.");
@@ -65,10 +97,11 @@ private:
   };
 
   bool areOpsInTheSameBlock(ArrayRef<Operation *> operations) {
-    llvm::SmallPtrSet<Block *, 4> blocks;
-    for (Operation *op : operations)
-      blocks.insert(op->getBlock());
-    return blocks.size() == 1;
+    assert(!operations.empty() &&
+           "The operations list should contain at least a single operation");
+    Block *block = operations.front()->getBlock();
+    return llvm::none_of(
+        operations, [&](Operation *op) { return block != op->getBlock(); });
   }
 
   /// Input:
@@ -97,7 +130,7 @@ private:
   /// TODO: Alias analysis is not available at the moment. Currently, we check
   /// if there are any operations with memory effects between copy and
   /// deallocation operations.
-  void ReuseCopySourceAsTarget(CopyOpInterface copyOp) {
+  void reuseCopySourceAsTarget(CopyOpInterface copyOp) {
     if (eraseList.count(copyOp))
       return;
 
@@ -105,9 +138,10 @@ private:
     Value to = copyOp.getTarget();
 
     Operation *copy = copyOp.getOperation();
+    Block *copyBlock = copy->getBlock();
     Operation *fromDefiningOp = from.getDefiningOp();
-    Operation *fromFreeingOp = getDeallocationInBlock(from, copy->getBlock());
-    Operation *toDefiningOp = to.getDefiningOp();
+    Operation *fromFreeingOp = getDeallocationOpInBlock(from, copyBlock);
+    Operation *toDefiningOp = getAllocationOpInBlock(to, copyBlock);
     if (!fromDefiningOp || !fromFreeingOp || !toDefiningOp ||
         !areOpsInTheSameBlock({fromFreeingOp, toDefiningOp, copy}) ||
         hasUsersBetween(to, toDefiningOp, copy) ||
@@ -115,7 +149,7 @@ private:
         hasMemoryEffectOpBetween(copy, fromFreeingOp))
       return;
 
-    to.replaceAllUsesWith(from);
+    replaceList.insert({to, from});
     eraseList.insert(copy);
     eraseList.insert(toDefiningOp);
     eraseList.insert(fromFreeingOp);
@@ -147,7 +181,7 @@ private:
   /// TODO: Alias analysis is not available at the moment. Currently, we check
   /// if there are any operations with memory effects between copy and
   /// deallocation operations.
-  void ReuseCopyTargetAsSource(CopyOpInterface copyOp) {
+  void reuseCopyTargetAsSource(CopyOpInterface copyOp) {
     if (eraseList.count(copyOp))
       return;
 
@@ -155,8 +189,9 @@ private:
     Value to = copyOp.getTarget();
 
     Operation *copy = copyOp.getOperation();
-    Operation *fromDefiningOp = from.getDefiningOp();
-    Operation *fromFreeingOp = getDeallocationInBlock(from, copy->getBlock());
+    Block *copyBlock = copy->getBlock();
+    Operation *fromDefiningOp = getAllocationOpInBlock(from, copyBlock);
+    Operation *fromFreeingOp = getDeallocationOpInBlock(from, copyBlock);
     if (!fromDefiningOp || !fromFreeingOp ||
         !areOpsInTheSameBlock({fromFreeingOp, fromDefiningOp, copy}) ||
         hasUsersBetween(to, fromDefiningOp, copy) ||
@@ -164,20 +199,10 @@ private:
         hasMemoryEffectOpBetween(copy, fromFreeingOp))
       return;
 
-    from.replaceAllUsesWith(to);
+    replaceList.insert({from, to});
     eraseList.insert(copy);
     eraseList.insert(fromDefiningOp);
     eraseList.insert(fromFreeingOp);
-  }
-
-public:
-  void runOnOperation() override {
-    getOperation()->walk([&](CopyOpInterface copyOp) {
-      ReuseCopySourceAsTarget(copyOp);
-      ReuseCopyTargetAsSource(copyOp);
-    });
-    for (Operation *op : eraseList)
-      op->erase();
   }
 };
 
@@ -186,6 +211,7 @@ public:
 //===----------------------------------------------------------------------===//
 // CopyRemovalPass construction
 //===----------------------------------------------------------------------===//
+
 std::unique_ptr<Pass> mlir::createCopyRemovalPass() {
   return std::make_unique<CopyRemovalPass>();
 }

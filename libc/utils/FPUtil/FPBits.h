@@ -73,10 +73,21 @@ template <typename T> struct __attribute__((packed)) FPBits {
   static constexpr int exponentBias = (1 << (ExponentWidth<T>::value - 1)) - 1;
   static constexpr int maxExponent = (1 << ExponentWidth<T>::value) - 1;
 
+  static constexpr UIntType minSubnormal = UIntType(1);
+  static constexpr UIntType maxSubnormal =
+      (UIntType(1) << MantissaWidth<T>::value) - 1;
+  static constexpr UIntType minNormal =
+      (UIntType(1) << MantissaWidth<T>::value);
+  static constexpr UIntType maxNormal =
+      ((UIntType(maxExponent) - 1) << MantissaWidth<T>::value) | maxSubnormal;
+
   // We don't want accidental type promotions/conversions so we require exact
   // type match.
   template <typename XType,
-            cpp::EnableIfType<cpp::IsSame<T, XType>::Value, int> = 0>
+            cpp::EnableIfType<cpp::IsSame<T, XType>::Value ||
+                                  (cpp::IsIntegral<XType>::Value &&
+                                   (sizeof(XType) == sizeof(UIntType))),
+                              int> = 0>
   explicit FPBits(XType x) {
     *this = *reinterpret_cast<FPBits<T> *>(&x);
   }
@@ -97,13 +108,6 @@ template <typename T> struct __attribute__((packed)) FPBits {
   // The to and from integer bits converters are only used in tests. Hence,
   // the potential software implementations of UIntType will not slow real
   // code.
-
-  template <typename XType,
-            cpp::EnableIfType<cpp::IsSame<UIntType, XType>::Value, int> = 0>
-  explicit FPBits<long double>(XType x) {
-    // The last 4 bytes of v are ignored in case of i386.
-    *this = *reinterpret_cast<FPBits<T> *>(&x);
-  }
 
   UIntType bitsAsUInt() const {
     return *reinterpret_cast<const UIntType *>(this);

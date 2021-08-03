@@ -16,7 +16,7 @@
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Target/LLVMIR/ModuleTranslation.h"
 #include "mlir/Translation.h"
 
@@ -65,9 +65,11 @@ protected:
 };
 } // namespace
 
-std::unique_ptr<llvm::Module> mlir::translateModuleToNVVMIR(Operation *m) {
-  auto llvmModule =
-      LLVM::ModuleTranslation::translateModule<ModuleTranslation>(m);
+std::unique_ptr<llvm::Module>
+mlir::translateModuleToNVVMIR(Operation *m, llvm::LLVMContext &llvmContext,
+                              StringRef name) {
+  auto llvmModule = LLVM::ModuleTranslation::translateModule<ModuleTranslation>(
+      m, llvmContext, name);
   if (!llvmModule)
     return llvmModule;
 
@@ -97,13 +99,18 @@ std::unique_ptr<llvm::Module> mlir::translateModuleToNVVMIR(Operation *m) {
 namespace mlir {
 void registerToNVVMIRTranslation() {
   TranslateFromMLIRRegistration registration(
-      "mlir-to-nvvmir", [](ModuleOp module, raw_ostream &output) {
-        auto llvmModule = mlir::translateModuleToNVVMIR(module);
+      "mlir-to-nvvmir",
+      [](ModuleOp module, raw_ostream &output) {
+        llvm::LLVMContext llvmContext;
+        auto llvmModule = mlir::translateModuleToNVVMIR(module, llvmContext);
         if (!llvmModule)
           return failure();
 
         llvmModule->print(output, nullptr);
         return success();
+      },
+      [](DialectRegistry &registry) {
+        registry.insert<LLVM::LLVMDialect, NVVM::NVVMDialect>();
       });
 }
 } // namespace mlir

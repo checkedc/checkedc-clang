@@ -77,6 +77,7 @@ if(NOT LLDB_BUILT_STANDALONE)
     dsymutil
     llvm-strip
     not
+    split-file
     yaml2obj
   )
 endif()
@@ -140,6 +141,7 @@ add_lldb_test_dependency(
   llvm-nm
   llvm-mc
   llvm-objcopy
+  llvm-pdbutil
   llvm-readobj
   )
 
@@ -164,6 +166,7 @@ llvm_canonicalize_cmake_booleans(
   LLDB_ENABLE_LZMA
   LLVM_ENABLE_ZLIB
   LLVM_ENABLE_SHARED_LIBS
+  LLDB_USE_SYSTEM_DEBUGSERVER
   LLDB_IS_64_BITS)
 
 # Configure the individual test suites.
@@ -213,9 +216,35 @@ add_lit_testsuite(check-lldb-reproducers
   DEPENDS lldb-test-deps)
 add_dependencies(check-lldb-reproducers check-lldb-reproducers-capture)
 
+# Targets for running the test suite on the different Apple simulators.
+add_lit_testsuite(check-lldb-simulator-ios
+  "Running lldb test suite on the iOS simulator"
+  ${CMAKE_CURRENT_BINARY_DIR}/API
+  PARAMS "lldb-run-with-simulator=ios"
+  EXCLUDE_FROM_CHECK_ALL
+  DEPENDS lldb-test-deps)
+
+add_lit_testsuite(check-lldb-simulator-watchos
+  "Running lldb test suite on the watchOS simulator"
+  ${CMAKE_CURRENT_BINARY_DIR}/API
+  PARAMS "lldb-run-with-simulator=watchos"
+  EXCLUDE_FROM_CHECK_ALL
+  DEPENDS lldb-test-deps)
+
+add_lit_testsuite(check-lldb-simulator-tvos
+  "Running lldb test suite on the tvOS simulator"
+  ${CMAKE_CURRENT_BINARY_DIR}/API
+  PARAMS "lldb-run-with-simulator=tvos"
+  EXCLUDE_FROM_CHECK_ALL
+  DEPENDS lldb-test-deps)
+
+
 if(LLDB_BUILT_STANDALONE)
   # This has to happen *AFTER* add_lit_testsuite.
   if (EXISTS ${LLVM_MAIN_SRC_DIR}/utils/llvm-lit)
+    # LLVM's make_paths_relative uses Python3_EXECUTABLE which isn't set in a
+    # standalone LLDB build.
+    set(Python3_EXECUTABLE ${Python3_EXECUTABLE})
     add_subdirectory(${LLVM_MAIN_SRC_DIR}/utils/llvm-lit ${CMAKE_CURRENT_BINARY_DIR}/llvm-lit)
   endif()
 endif()

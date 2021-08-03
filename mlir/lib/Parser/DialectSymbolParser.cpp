@@ -12,9 +12,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "Parser.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/DialectImplementation.h"
-#include "mlir/IR/StandardTypes.h"
 #include "llvm/Support/SourceMgr.h"
 
 using namespace mlir;
@@ -82,20 +82,7 @@ public:
 
   /// Parse an optional integer value from the stream.
   OptionalParseResult parseOptionalInteger(uint64_t &result) override {
-    Token curToken = parser.getToken();
-    if (curToken.isNot(Token::integer, Token::minus))
-      return llvm::None;
-
-    bool negative = parser.consumeIf(Token::minus);
-    Token curTok = parser.getToken();
-    if (parser.parseToken(Token::integer, "expected integer value"))
-      return failure();
-
-    auto val = curTok.getUInt64IntegerValue();
-    if (!val)
-      return emitError(curTok.getLoc(), "integer value too large");
-    result = negative ? -*val : *val;
-    return success();
+    return parser.parseOptionalInteger(result);
   }
 
   //===--------------------------------------------------------------------===//
@@ -237,7 +224,18 @@ public:
     return success(parser.consumeIf(Token::star));
   }
 
-  /// Returns if the current token corresponds to a keyword.
+  /// Parses a quoted string token if present.
+  ParseResult parseOptionalString(StringRef *string) override {
+    if (!parser.getToken().is(Token::string))
+      return failure();
+
+    if (string)
+      *string = parser.getTokenSpelling().drop_front().drop_back();
+    parser.consumeToken();
+    return success();
+  }
+
+  /// Returns true if the current token corresponds to a keyword.
   bool isCurrentTokenAKeyword() const {
     return parser.getToken().is(Token::bare_identifier) ||
            parser.getToken().isKeyword();
@@ -295,6 +293,10 @@ public:
   ParseResult parseDimensionList(SmallVectorImpl<int64_t> &dimensions,
                                  bool allowDynamic) override {
     return parser.parseDimensionListRanked(dimensions, allowDynamic);
+  }
+
+  OptionalParseResult parseOptionalType(Type &result) override {
+    return parser.parseOptionalType(result);
   }
 
 private:
@@ -511,7 +513,8 @@ Attribute Parser::parseExtendedAttr(Type type) {
           return Attribute();
 
         // If we found a registered dialect, then ask it to parse the attribute.
-        if (auto *dialect = state.context->getRegisteredDialect(dialectName)) {
+        if (Dialect *dialect =
+                builder.getContext()->getOrLoadDialect(dialectName)) {
           return parseSymbol<Attribute>(
               symbolData, state.context, state.symbols, [&](Parser &parser) {
                 CustomDialectAsmParser customParser(symbolData, parser);
@@ -548,7 +551,9 @@ Type Parser::parseExtendedType() {
       [&](StringRef dialectName, StringRef symbolData,
           llvm::SMLoc loc) -> Type {
         // If we found a registered dialect, then ask it to parse the type.
-        if (auto *dialect = state.context->getRegisteredDialect(dialectName)) {
+        auto *dialect = state.context->getOrLoadDialect(dialectName);
+
+        if (dialect) {
           return parseSymbol<Type>(
               symbolData, state.context, state.symbols, [&](Parser &parser) {
                 CustomDialectAsmParser customParser(symbolData, parser);
@@ -558,8 +563,8 @@ Type Parser::parseExtendedType() {
 
         // Otherwise, form a new opaque type.
         return OpaqueType::getChecked(
-            Identifier::get(dialectName, state.context), symbolData,
-            state.context, getEncodedSourceLocation(loc));
+            getEncodedSourceLocation(loc),
+            Identifier::get(dialectName, state.context), symbolData);
       });
 }
 

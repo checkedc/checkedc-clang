@@ -28,6 +28,161 @@ BoundsExpr *BoundsUtil::CreateBoundsUnknown(Sema &S) {
   return S.Context.getPrebuiltBoundsUnknown();
 }
 
+BoundsExpr *BoundsUtil::CreateBoundsAlwaysUnknown(Sema &S) {
+  return CreateBoundsUnknown(S);
+}
+
+BoundsExpr *BoundsUtil::CreateBoundsInferenceError(Sema &S) {
+  return CreateBoundsUnknown(S);
+}
+
+BoundsExpr *BoundsUtil::CreateBoundsForArrayType(Sema &S, QualType T,
+                                                 bool IncludeNullTerminator) {
+  const IncompleteArrayType *IAT = S.Context.getAsIncompleteArrayType(T);
+  if (IAT) {
+    if (IAT->getKind() == CheckedArrayKind::NtChecked)
+      return S.Context.getPrebuiltCountZero();
+    else
+      return CreateBoundsAlwaysUnknown(S);
+  }
+  const ConstantArrayType *CAT = S.Context.getAsConstantArrayType(T);
+  if (!CAT)
+    return CreateBoundsAlwaysUnknown(S);
+
+  llvm::APInt size = CAT->getSize();
+  // Null-terminated arrays of size n have bounds of count(n - 1).
+  // The null terminator is excluded from the count.
+  if (!IncludeNullTerminator &&
+      CAT->getKind() == CheckedArrayKind::NtChecked) {
+    assert(size.uge(1) && "must have at least one element");
+    size = size - 1;
+  }
+  IntegerLiteral *Size =
+    ExprCreatorUtil::CreateIntegerLiteral(S.Context, size);
+  CountBoundsExpr *CBE =
+      new (S.Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
+                                    Size, SourceLocation(),
+                                    SourceLocation());
+  return CBE;
+}
+
+BoundsExpr *BoundsUtil::ArrayExprBounds(Sema &S, Expr *E,
+                                        bool IncludeNullTerminator) {
+  DeclRefExpr *DR = dyn_cast<DeclRefExpr>(E);
+  assert((DR && dyn_cast<VarDecl>(DR->getDecl())) || isa<MemberExpr>(E));
+  BoundsExpr *BE = CreateBoundsForArrayType(S, E->getType(), IncludeNullTerminator);
+  if (BE->isUnknown())
+    return BE;
+
+  Expr *Base = ExprCreatorUtil::CreateImplicitCast(S, E,
+                                  CastKind::CK_ArrayToPointerDecay,
+                                  S.Context.getDecayedType(E->getType()));
+  return ExpandToRange(S, Base, BE);
+}
+
+BoundsExpr *BoundsUtil::ExpandBoundsToRange(Sema &S, VarDecl *D, BoundsExpr *B) {
+  // If the bounds expr is already a RangeBoundsExpr, there is no need
+  // to expand it.
+  if (B && isa<RangeBoundsExpr>(B))
+    return B;
+
+  if (D->getType()->isArrayType()) {
+    ExprResult ER = S.BuildDeclRefExpr(D, D->getType(),
+                                       clang::ExprValueKind::VK_LValue,
+                                       SourceLocation());
+    if (ER.isInvalid())
+      return nullptr;
+    Expr *Base = ER.get();
+
+    // Declared bounds override the bounds based on the array type.
+    if (!B)
+      return ArrayExprBounds(S, Base);
+    Base = ExprCreatorUtil::CreateImplicitCast(S, Base,
+                              CastKind::CK_ArrayToPointerDecay,
+                              S.Context.getDecayedType(Base->getType()));
+    return ExpandToRange(S, Base, B);
+  }
+
+  return ExpandToRange(S, D, B);
+}
+
+BoundsExpr *BoundsUtil::ExpandToRange(Sema &S, Expr *Base, BoundsExpr *B) {
+  assert(Base->isRValue() && "expected rvalue expression");
+  if (!B)
+    return B;
+  BoundsExpr::Kind K = B->getKind();
+  switch (K) {
+    case BoundsExpr::Kind::ByteCount:
+    case BoundsExpr::Kind::ElementCount: {
+      CountBoundsExpr *BC = dyn_cast<CountBoundsExpr>(B);
+      if (!BC) {
+        llvm_unreachable("unexpected cast failure");
+        return CreateBoundsInferenceError(S);
+      }
+      Expr *Count = BC->getCountExpr();
+      QualType ResultTy;
+      Expr *LowerBound;
+      Base = S.MakeAssignmentImplicitCastExplicit(Base);
+      if (K == BoundsExpr::ByteCount) {
+        ResultTy = S.Context.getPointerType(S.Context.CharTy,
+                                            CheckedPointerKind::Array);
+        // When bounds are pretty-printed as source code, the cast needs
+        // to appear in the source code for the code to be correct, so
+        // use an explicit cast operation.
+        //
+        // The bounds-safe interface argument is false because casts
+        // to checked pointer types are always allowed by type checking.
+        LowerBound =
+          ExprCreatorUtil::CreateExplicitCast(S, ResultTy,
+                                              CastKind::CK_BitCast,
+                                              Base, false);
+      } else {
+        ResultTy = Base->getType();
+        LowerBound = Base;
+        if (ResultTy->isCheckedPointerPtrType()) {
+          ResultTy = S.Context.getPointerType(ResultTy->getPointeeType(),
+            CheckedPointerKind::Array);
+          // The bounds-safe interface argument is false because casts
+          // between checked pointer types are always allowed by type
+          // checking.
+          LowerBound =
+            ExprCreatorUtil::CreateExplicitCast(S, ResultTy,
+                                                CastKind::CK_BitCast,
+                                                Base, false);
+        }
+      }
+      Expr *UpperBound =
+        BinaryOperator::Create(S.Context, LowerBound, Count,
+                               BinaryOperatorKind::BO_Add,
+                               ResultTy,
+                               ExprValueKind::VK_RValue,
+                               ExprObjectKind::OK_Ordinary,
+                               SourceLocation(),
+                               FPOptionsOverride());
+      RangeBoundsExpr *R = new (S.Context) RangeBoundsExpr(LowerBound, UpperBound,
+                                            SourceLocation(),
+                                            SourceLocation());
+      return R;
+    }
+    default:
+      return B;
+  }
+}
+
+BoundsExpr *BoundsUtil::ExpandToRange(Sema &S, VarDecl *D, BoundsExpr *B) {
+  if (!B)
+    return B;
+  QualType QT = D->getType();
+  ExprResult ER = S.BuildDeclRefExpr(D, QT,
+                                     clang::ExprValueKind::VK_LValue, SourceLocation());
+  if (ER.isInvalid())
+    return nullptr;
+  Expr *Base = ER.get();
+  if (!QT->isArrayType())
+    Base = ExprCreatorUtil::CreateImplicitCast(S, Base, CastKind::CK_LValueToRValue, QT);
+  return ExpandToRange(S, Base, B);
+}
+
 BoundsExpr *BoundsUtil::ReplaceLValueInBounds(Sema &S, BoundsExpr *Bounds,
                                               Expr *LValue, Expr *OriginalValue,
                                               CheckedScopeSpecifier CSS) {

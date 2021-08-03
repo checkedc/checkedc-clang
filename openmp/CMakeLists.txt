@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.13.4)
 
 # Add cmake directory to search for custom cmake functions.
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
@@ -39,6 +39,8 @@ else()
     set(OPENMP_TEST_C_COMPILER ${LLVM_RUNTIME_OUTPUT_INTDIR}/clang.exe)
     set(OPENMP_TEST_CXX_COMPILER ${LLVM_RUNTIME_OUTPUT_INTDIR}/clang++.exe)
   endif()
+
+  list(APPEND LIBOMPTARGET_LLVM_INCLUDE_DIRS ${LLVM_MAIN_INCLUDE_DIR} ${LLVM_BINARY_DIR}/include)
 endif()
 
 # Check and set up common compiler flags.
@@ -66,7 +68,23 @@ if (APPLE OR WIN32 OR NOT OPENMP_HAVE_STD_CPP14_FLAG)
   set(ENABLE_LIBOMPTARGET OFF)
 endif()
 
+# Attempt to locate LLVM source, required by libomptarget
+if (NOT LIBOMPTARGET_LLVM_INCLUDE_DIRS)
+  if (LLVM_MAIN_INCLUDE_DIR)
+    list(APPEND LIBOMPTARGET_LLVM_INCLUDE_DIRS ${LLVM_MAIN_INCLUDE_DIR})
+  elseif (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../llvm/include)
+    list(APPEND LIBOMPTARGET_LLVM_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/../llvm/include)
+  endif()
+endif()
+
+if (NOT LIBOMPTARGET_LLVM_INCLUDE_DIRS)
+  message(STATUS "Missing definition for LIBOMPTARGET_LLVM_INCLUDE_DIRS, disabling libomptarget")
+  set(ENABLE_LIBOMPTARGET OFF)
+endif()
+
 option(OPENMP_ENABLE_LIBOMPTARGET "Enable building libomptarget for offloading."
+       ${ENABLE_LIBOMPTARGET})
+option(OPENMP_ENABLE_LIBOMPTARGET_PROFILING "Enable time profiling for libomptarget."
        ${ENABLE_LIBOMPTARGET})
 if (OPENMP_ENABLE_LIBOMPTARGET)
   # Check that the library can actually be built.
@@ -90,6 +108,10 @@ option(OPENMP_ENABLE_OMPT_TOOLS "Enable building ompt based tools for OpenMP."
 if (OPENMP_ENABLE_OMPT_TOOLS)
   add_subdirectory(tools)
 endif()
+
+
+# Build documentation
+add_subdirectory(docs)
 
 # Now that we have seen all testsuites, create the check-openmp target.
 construct_check_openmp_target()

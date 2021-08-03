@@ -1,4 +1,7 @@
-// RUN: %clang_cc1 -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsyntax-only -verify \
+// RUN: -verify-ignore-unexpected=note \
+// RUN: -verify-ignore-unexpected=warning \
+// RUN: -verify-ignore-unexpected=error %s
 
 // Test valid where clause cases.
 

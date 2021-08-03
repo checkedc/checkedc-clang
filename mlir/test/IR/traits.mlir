@@ -166,6 +166,84 @@ func @failedSameOperandAndResultType_operand_result_mismatch(%t10 : tensor<10xf3
 
 // -----
 
+func @failedElementwiseMappable_different_rankedness(%arg0: tensor<?xf32>, %arg1: tensor<*xf32>) {
+  // expected-error@+1 {{all non-scalar operands/results must have the same shape and base type: found 'tensor<*xf32>' and 'tensor<?xf32>'}}
+  %0 = "test.elementwise_mappable"(%arg0, %arg1) : (tensor<?xf32>, tensor<*xf32>) -> tensor<*xf32>
+}
+
+// -----
+
+func @failedElementwiseMappable_different_rank(%arg0: tensor<?xf32>, %arg1: tensor<?x?xf32>) {
+  // expected-error@+1 {{all non-scalar operands/results must have the same shape and base type: found 'tensor<?x?xf32>' and 'tensor<?xf32>'}}
+  %0 = "test.elementwise_mappable"(%arg0, %arg1) : (tensor<?xf32>, tensor<?x?xf32>) -> tensor<?x?xf32>
+}
+
+// -----
+
+func @failedElementwiseMappable_different_shape(%arg0: tensor<?xf32>, %arg1: tensor<5xf32>) {
+  // expected-error@+1 {{all non-scalar operands/results must have the same shape and base type: found 'tensor<5xf32>' and 'tensor<?xf32>'}}
+  %0 = "test.elementwise_mappable"(%arg0, %arg1) : (tensor<?xf32>, tensor<5xf32>) -> tensor<?xf32>
+}
+
+// -----
+
+func @failedElementwiseMappable_different_base_type(%arg0: vector<2xf32>, %arg1: tensor<2xf32>) {
+  // expected-error@+1 {{all non-scalar operands/results must have the same shape and base type: found 'tensor<2xf32>' and 'vector<2xf32>'}}
+  %0 = "test.elementwise_mappable"(%arg0, %arg1) : (vector<2xf32>, tensor<2xf32>) -> tensor<2xf32>
+  return
+}
+
+// -----
+
+func @failedElementwiseMappable_non_scalar_output(%arg0: vector<2xf32>) {
+  // expected-error@+1 {{if an operand is non-scalar, then there must be at least one non-scalar result}}
+  %0 = "test.elementwise_mappable"(%arg0) : (vector<2xf32>) -> f32
+  return
+}
+
+// -----
+
+func @failedElementwiseMappable_non_scalar_result_all_scalar_input(%arg0: f32) {
+  // expected-error@+1 {{if a result is non-scalar, then at least one operand must be non-scalar}}
+  %0 = "test.elementwise_mappable"(%arg0) : (f32) -> tensor<f32>
+  return
+}
+
+// -----
+
+func @failedElementwiseMappable_mixed_scalar_non_scalar_results(%arg0: tensor<10xf32>) {
+  // expected-error@+1 {{if an operand is non-scalar, then all results must be non-scalar}}
+  %0, %1 = "test.elementwise_mappable"(%arg0) : (tensor<10xf32>) -> (f32, tensor<10xf32>)
+  return
+}
+
+// -----
+
+func @failedElementwiseMappable_zero_results(%arg0: tensor<10xf32>) {
+  // expected-error@+1 {{if an operand is non-scalar, then there must be at least one non-scalar result}}
+  "test.elementwise_mappable"(%arg0) : (tensor<10xf32>) -> ()
+  return
+}
+
+// -----
+
+func @failedElementwiseMappable_zero_operands() {
+  // expected-error@+1 {{if a result is non-scalar, then at least one operand must be non-scalar}}
+  "test.elementwise_mappable"() : () -> (tensor<6xf32>)
+  return
+}
+
+// -----
+
+func @succeededElementwiseMappable(%arg0: vector<2xf32>) {
+  // Check that varying element types are allowed.
+  // CHECK: test.elementwise_mappable
+  %0 = "test.elementwise_mappable"(%arg0) : (vector<2xf32>) -> vector<2xf16>
+  return
+}
+
+// -----
+
 func @failedHasParent_wrong_parent() {
   "some.op"() ({
    // expected-error@+1 {{'test.child' op expects parent op 'test.parent'}}
@@ -266,12 +344,10 @@ func @failedSingleBlockImplicitTerminator_missing_terminator() {
 
 // Test that operation with the SymbolTable Trait define a new symbol scope.
 "test.symbol_scope"() ({
-  func @foo() {
-  }
+  func private @foo()
   "test.finish" () : () -> ()
 }) : () -> ()
-func @foo() {
-}
+func private @foo() 
 
 // -----
 
@@ -372,7 +448,7 @@ func @failedResultSizeAttrWrongTotalSize() {
 // -----
 
 func @failedResultSizeAttrWrongCount() {
-  // expected-error @+1 {{'result_segment_sizes' attribute for specifying result segments must have 4 elements}}
+  // expected-error @+1 {{'result_segment_sizes' attribute for specifying result segments must have 4 elements, but got 3}}
   %0:4 = "test.attr_sized_results"() {result_segment_sizes = dense<[2, 1, 1]>: vector<3xi32>} : () -> (i32, i32, i32, i32)
 }
 
@@ -382,4 +458,83 @@ func @succeededResultSizeAttr() {
   // CHECK: test.attr_sized_results
   %0:4 = "test.attr_sized_results"() {result_segment_sizes = dense<[0, 2, 1, 1]>: vector<4xi32>} : () -> (i32, i32, i32, i32)
   return
+}
+
+// -----
+
+func @failedHasDominanceScopeOutsideDominanceFreeScope() -> () {
+  "test.ssacfg_region"() ({
+    test.graph_region {
+      // expected-error @+1 {{operand #0 does not dominate this use}}
+      %2:3 = "bar"(%1) : (i64) -> (i1,i1,i1)
+    }
+    // expected-note @+1 {{operand defined here}}
+    %1 = "baz"() : () -> (i64)
+  }) : () -> ()
+  return
+}
+
+// -----
+
+// Ensure that SSACFG regions of operations in GRAPH regions are
+// checked for dominance
+func @illegalInsideDominanceFreeScope() -> () {
+  test.graph_region {
+    func @test() -> i1 {
+    ^bb1:
+      // expected-error @+1 {{operand #0 does not dominate this use}}
+      %2:3 = "bar"(%1) : (i64) -> (i1,i1,i1)
+      // expected-note @+1 {{operand defined here}}
+	   %1 = "baz"(%2#0) : (i1) -> (i64)
+      return %2#1 : i1
+    }
+    "terminator"() : () -> ()
+  }
+  return
+}
+
+// -----
+
+// Ensure that SSACFG regions of operations in GRAPH regions are
+// checked for dominance
+func @illegalCDFGInsideDominanceFreeScope() -> () {
+  test.graph_region {
+    func @test() -> i1 {
+    ^bb1:
+      // expected-error @+1 {{operand #0 does not dominate this use}}
+      %2:3 = "bar"(%1) : (i64) -> (i1,i1,i1)
+      br ^bb4
+    ^bb2:
+      br ^bb2
+    ^bb4:
+      %1 = "foo"() : ()->i64   // expected-note {{operand defined here}}
+		return %2#1 : i1
+    }
+     "terminator"() : () -> ()
+  }
+  return
+}
+
+// -----
+
+// Ensure that GRAPH regions still have all values defined somewhere.
+func @illegalCDFGInsideDominanceFreeScope() -> () {
+  test.graph_region {
+    // expected-error @+1 {{use of undeclared SSA value name}}
+    %2:3 = "bar"(%1) : (i64) -> (i1,i1,i1)
+    "terminator"() : () -> ()
+  }
+  return
+}
+
+// -----
+
+func @graph_region_cant_have_blocks() {
+  test.graph_region {
+    // expected-error@-1 {{'test.graph_region' op expects graph region #0 to have 0 or 1 blocks}}
+  ^bb42:
+    br ^bb43
+  ^bb43:
+    "terminator"() : () -> ()
+  }
 }

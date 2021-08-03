@@ -204,9 +204,11 @@ std::optional<Expr<SomeCharacter>> Substring::Fold(FoldingContext &context) {
       *ubi = *length;
     }
     if (lbi && literal) {
-      CHECK(*ubi >= *lbi);
       auto newStaticData{StaticDataObject::Create()};
-      auto items{*ubi - *lbi + 1};
+      auto items{0}; // If the lower bound is greater, the length is 0
+      if (*ubi >= *lbi) {
+        items = *ubi - *lbi + 1;
+      }
       auto width{(*literal)->itemBytes()};
       auto bytes{items * width};
       auto startByte{(*lbi - 1) * width};
@@ -562,10 +564,17 @@ template <typename T> const Symbol *Designator<T>::GetLastSymbol() const {
 template <typename T>
 std::optional<DynamicType> Designator<T>::GetType() const {
   if constexpr (IsLengthlessIntrinsicType<Result>) {
-    return {Result::GetType()};
-  } else {
-    return DynamicType::From(GetLastSymbol());
+    return Result::GetType();
+  } else if (const Symbol * symbol{GetLastSymbol()}) {
+    return DynamicType::From(*symbol);
+  } else if constexpr (Result::category == TypeCategory::Character) {
+    if (const Substring * substring{std::get_if<Substring>(&u)}) {
+      const auto *parent{substring->GetParentIf<StaticDataObject::Pointer>()};
+      CHECK(parent);
+      return DynamicType{TypeCategory::Character, (*parent)->itemBytes()};
+    }
   }
+  return std::nullopt;
 }
 
 static NamedEntity AsNamedEntity(const SymbolVector &x) {
@@ -628,9 +637,7 @@ bool NamedEntity::operator==(const NamedEntity &that) const {
     return !that.IsSymbol() && GetComponent() == that.GetComponent();
   }
 }
-template <int KIND>
-bool TypeParamInquiry<KIND>::operator==(
-    const TypeParamInquiry<KIND> &that) const {
+bool TypeParamInquiry::operator==(const TypeParamInquiry &that) const {
   return &*parameter_ == &*that.parameter_ && base_ == that.base_;
 }
 bool Triplet::operator==(const Triplet &that) const {
