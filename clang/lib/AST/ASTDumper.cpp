@@ -395,7 +395,6 @@ void ASTDumper::VisitWhereClauseFact(const WhereClauseFact *Fact) {
     NodeDumper.AddChild([=] {
       ColorScope Color(OS, ShowColors, DeclNameColor);
       OS << "BoundsDeclFact: " << BF->getVarDecl()->getQualifiedNameAsString();
-      // Visit(BF->getVarDecl());
       Visit(BF->getBoundsExpr());
     });
   } else if (auto *EF = dyn_cast<EqualityOpFact>(Fact)) {
