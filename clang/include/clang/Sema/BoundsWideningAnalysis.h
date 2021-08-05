@@ -82,17 +82,14 @@ namespace clang {
     Lexicographic Lex;
     BoundsVarsTy &BoundsVarsLower;
     BoundsVarsTy &BoundsVarsUpper;
-    CheckedScopeMapTy &CheckedScopeMap;
 
   public:
     BoundsWideningUtil(Sema &SemaRef, CFG *Cfg,
                        ASTContext &Ctx, Lexicographic Lex,
                        BoundsVarsTy &BoundsVarsLower,
-                       BoundsVarsTy &BoundsVarsUpper,
-                       CheckedScopeMapTy &CheckedScopeMap) :
+                       BoundsVarsTy &BoundsVarsUpper) :
       SemaRef(SemaRef), Cfg(Cfg), Ctx(Ctx), Lex(Lex),
-      BoundsVarsLower(BoundsVarsLower), BoundsVarsUpper(BoundsVarsUpper),
-      CheckedScopeMap(CheckedScopeMap) {}
+      BoundsVarsLower(BoundsVarsLower), BoundsVarsUpper(BoundsVarsUpper) {}
 
     // Check if B2 is a subrange of B1.
     // @param[in] B1 is the first range.
@@ -175,14 +172,6 @@ namespace clang {
     // null-terminated array; nullptr if no such variable exists in the
     // expression.
     const VarDecl *GetNullTermPtrInExpr(Expr *E) const;
-
-    // Update the checked scope specifier for the current statement if it has
-    // changed from that of the previous statement.
-    // @param[in] CurrStmt is the current statement.
-    // @param[out] CSS is updated with the checked scope specifier for the
-    // current statement if it has changed from that of the previous statement.
-    void UpdateCheckedScopeSpecifier(const Stmt *CurrStmt,
-                                     CheckedScopeSpecifier &CSS) const;
 
     // Invoke IgnoreValuePreservingOperations to strip off casts.
     // @param[in] E is the expression whose casts must be stripped.
@@ -344,13 +333,11 @@ namespace clang {
 
     BoundsWideningAnalysis(Sema &SemaRef, CFG *Cfg,
                            BoundsVarsTy &BoundsVarsLower,
-                           BoundsVarsTy &BoundsVarsUpper,
-                           CheckedScopeMapTy &CheckedScopeMap) :
+                           BoundsVarsTy &BoundsVarsUpper) :
       SemaRef(SemaRef), Cfg(Cfg), Ctx(SemaRef.Context),
       Lex(Lexicographic(Ctx, nullptr)), OS(llvm::outs()),
       BWUtil(BoundsWideningUtil(SemaRef, Cfg, Ctx, Lex,
-                                BoundsVarsLower, BoundsVarsUpper,
-                                CheckedScopeMap)) {}
+                                BoundsVarsLower, BoundsVarsUpper)) {}
 
     // Run the dataflow analysis to widen bounds for null-terminated arrays.
     // @param[in] FD is the current function.
