@@ -71,11 +71,17 @@ void unwritable_func_with_itype_and_bounds(int *p
 // expected-warning@+1 {{Declaration in non-writable file}}
 _Itype_for_any(T) void my_generic_function(void *p : itype(_Ptr<T>));
 
+// expected-warning@+1 {{Declaration in non-writable file}}
+_Itype_for_any(T) void *my_generic_return(void) : itype(_Ptr<T>);
+
 void unwritable_type_argument() {
   int i;
+  int *b; // expected-warning {{Declaration in non-writable file}}
   // This warning relates to the atom representing the temporary pointer of
   // `&i`. https://github.com/correctcomputation/checkedc-clang/issues/618 would
   // make 3C smarter to avoid the need to constrain the temporary pointer.
   // expected-warning@+1 {{Expression in non-writable file}}
   my_generic_function(&i);
+  
+  b = my_generic_return(); // expected-warning {{Expression in non-writable file}}
 }

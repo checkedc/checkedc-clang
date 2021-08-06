@@ -325,6 +325,7 @@ private:
   // String representing declared bounds expression.
   std::string BoundsAnnotationStr;
 
+  // TODO can we move this to an optional instead of the -1?
   // Does this variable represent a generic type? Which one (or -1 for none)?
   // Generic types can be used with fewer restrictions, so this field is used
   // stop assignments with generic variables from forcing constraint variables
