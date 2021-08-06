@@ -437,7 +437,7 @@ StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
   // compound statement.
   CheckedScopeSpecifier InferredCSS = GetCheckedScopeInfo();
   for (Stmt *S : Elts) {
-    if (!S || isa<CompoundStmt>(S))
+    if (!S)
       continue;
     if (auto *L = dyn_cast<LabelStmt>(S))
       S = L->getSubStmt();
