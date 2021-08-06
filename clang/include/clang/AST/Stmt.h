@@ -102,8 +102,10 @@ protected:
 
     /// The statement class.
     unsigned sClass : 8;
+    /// The checked scope specifier for the statement.
+    unsigned CSS : 2;
   };
-  enum { NumStmtBits = 8 };
+  enum { NumStmtBits = 10 };
 
   class NullStmtBitfields {
     friend class ASTStmtReader;
@@ -1206,6 +1208,14 @@ public:
   }
 
   const char *getStmtClassName() const;
+
+  CheckedScopeSpecifier getCheckedScopeSpecifier() const {
+    return static_cast<CheckedScopeSpecifier>(StmtBits.CSS);
+  }
+
+  void setCheckedScopeSpecifier(CheckedScopeSpecifier CSS) {
+    StmtBits.CSS = CSS;
+  }
 
   /// SourceLocation tokens are not useful in isolation - they are low level
   /// value objects created/interpreted by SourceManager. We assume AST

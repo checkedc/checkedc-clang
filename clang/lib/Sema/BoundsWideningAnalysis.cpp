@@ -121,8 +121,7 @@ BoundsMapTy BoundsWideningAnalysis::GetOutOfLastStmt(
     Expr *OriginalLValue = std::get<1>(ValuesToReplaceInBounds);
     VarSetTy PtrsWithAffectedBounds = std::get<2>(ValuesToReplaceInBounds);
 
-    // TODO: Determine the Checked scope for each statement.
-    CheckedScopeSpecifier CSS = CheckedScopeSpecifier::CSS_None;
+    CheckedScopeSpecifier CSS = CurrStmt->getCheckedScopeSpecifier();
 
     for (const VarDecl *V : PtrsWithAffectedBounds) {
       auto StmtInIt = InOfCurrStmt.find(V);
