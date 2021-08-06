@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "include/errno.h"
-#include "include/math.h"
 #include "src/errno/llvmlibc_errno.h"
 #include "src/math/exp2f.h"
 #include "utils/FPUtil/BitPatterns.h"
@@ -16,6 +15,7 @@
 #include "utils/FPUtil/FloatProperties.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
 #include "utils/UnitTest/Test.h"
+#include <math.h>
 
 #include <stdint.h>
 
@@ -28,12 +28,7 @@ using BitPatterns = __llvm_libc::fputil::BitPatterns<float>;
 
 namespace mpfr = __llvm_libc::testing::mpfr;
 
-// 12 additional bits of precision over the base precision of a |float|
-// value.
-static constexpr mpfr::Tolerance tolerance{mpfr::Tolerance::floatPrecision, 12,
-                                           0xFFF};
-
-TEST(exp2fTest, SpecialNumbers) {
+TEST(LlvmLibcexp2fTest, SpecialNumbers) {
   llvmlibc_errno = 0;
 
   EXPECT_TRUE(
@@ -69,7 +64,7 @@ TEST(exp2fTest, SpecialNumbers) {
   EXPECT_EQ(llvmlibc_errno, 0);
 }
 
-TEST(ExpfTest, Overflow) {
+TEST(LlvmLibcExpfTest, Overflow) {
   llvmlibc_errno = 0;
   EXPECT_EQ(BitPatterns::inf,
             valueAsBits(__llvm_libc::exp2f(valueFromBits(0x7f7fffffU))));
@@ -88,36 +83,36 @@ TEST(ExpfTest, Overflow) {
 
 // Test with inputs which are the borders of underflow/overflow but still
 // produce valid results without setting errno.
-TEST(ExpfTest, Borderline) {
+TEST(LlvmLibcExpfTest, Borderline) {
   float x;
 
   llvmlibc_errno = 0;
   x = valueFromBits(0x42fa0001U);
-  EXPECT_MPFR_MATCH(mpfr::Operation::Exp2, x, __llvm_libc::exp2f(x), tolerance);
+  EXPECT_MPFR_MATCH(mpfr::Operation::Exp2, x, __llvm_libc::exp2f(x), 1.0);
   EXPECT_EQ(llvmlibc_errno, 0);
 
   x = valueFromBits(0x42ffffffU);
-  EXPECT_MPFR_MATCH(mpfr::Operation::Exp2, x, __llvm_libc::exp2f(x), tolerance);
+  EXPECT_MPFR_MATCH(mpfr::Operation::Exp2, x, __llvm_libc::exp2f(x), 1.0);
   EXPECT_EQ(llvmlibc_errno, 0);
 
   x = valueFromBits(0xc2fa0001U);
-  EXPECT_MPFR_MATCH(mpfr::Operation::Exp2, x, __llvm_libc::exp2f(x), tolerance);
+  EXPECT_MPFR_MATCH(mpfr::Operation::Exp2, x, __llvm_libc::exp2f(x), 1.0);
   EXPECT_EQ(llvmlibc_errno, 0);
 
   x = valueFromBits(0xc2fc0000U);
-  EXPECT_MPFR_MATCH(mpfr::Operation::Exp2, x, __llvm_libc::exp2f(x), tolerance);
+  EXPECT_MPFR_MATCH(mpfr::Operation::Exp2, x, __llvm_libc::exp2f(x), 1.0);
   EXPECT_EQ(llvmlibc_errno, 0);
 
   x = valueFromBits(0xc2fc0001U);
-  EXPECT_MPFR_MATCH(mpfr::Operation::Exp2, x, __llvm_libc::exp2f(x), tolerance);
+  EXPECT_MPFR_MATCH(mpfr::Operation::Exp2, x, __llvm_libc::exp2f(x), 1.0);
   EXPECT_EQ(llvmlibc_errno, 0);
 
   x = valueFromBits(0xc3150000U);
-  EXPECT_MPFR_MATCH(mpfr::Operation::Exp2, x, __llvm_libc::exp2f(x), tolerance);
+  EXPECT_MPFR_MATCH(mpfr::Operation::Exp2, x, __llvm_libc::exp2f(x), 1.0);
   EXPECT_EQ(llvmlibc_errno, 0);
 }
 
-TEST(ExpfTest, Underflow) {
+TEST(LlvmLibcExpfTest, Underflow) {
   llvmlibc_errno = 0;
   EXPECT_EQ(BitPatterns::zero,
             valueAsBits(__llvm_libc::exp2f(valueFromBits(0xff7fffffU))));
@@ -125,16 +120,16 @@ TEST(ExpfTest, Underflow) {
 
   llvmlibc_errno = 0;
   float x = valueFromBits(0xc3158000U);
-  EXPECT_MPFR_MATCH(mpfr::Operation::Exp2, x, __llvm_libc::exp2f(x), tolerance);
+  EXPECT_MPFR_MATCH(mpfr::Operation::Exp2, x, __llvm_libc::exp2f(x), 1.0);
   EXPECT_EQ(llvmlibc_errno, ERANGE);
 
   llvmlibc_errno = 0;
   x = valueFromBits(0xc3165432U);
-  EXPECT_MPFR_MATCH(mpfr::Operation::Exp2, x, __llvm_libc::exp2f(x), tolerance);
+  EXPECT_MPFR_MATCH(mpfr::Operation::Exp2, x, __llvm_libc::exp2f(x), 1.0);
   EXPECT_EQ(llvmlibc_errno, ERANGE);
 }
 
-TEST(exp2fTest, InFloatRange) {
+TEST(LlvmLibcexp2fTest, InFloatRange) {
   constexpr uint32_t count = 1000000;
   constexpr uint32_t step = UINT32_MAX / count;
   for (uint32_t i = 0, v = 0; i <= count; ++i, v += step) {
@@ -150,7 +145,6 @@ TEST(exp2fTest, InFloatRange) {
     // wider precision.
     if (isnan(result) || isinf(result) || llvmlibc_errno != 0)
       continue;
-    ASSERT_MPFR_MATCH(mpfr::Operation::Exp2, x, __llvm_libc::exp2f(x),
-                      tolerance);
+    ASSERT_MPFR_MATCH(mpfr::Operation::Exp2, x, __llvm_libc::exp2f(x), 1.0);
   }
 }

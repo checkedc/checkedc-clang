@@ -149,7 +149,7 @@ void copy(const std::vector<int> &v) {
   clang_analyzer_express(clang_analyzer_iterator_position(i2));     // expected-warning-re {{$v.end(){{$}}}}
 }
 
-void plus(const std::vector<int> &v) {
+void plus_lhs(const std::vector<int> &v) {
   auto i1 = v.begin();
 
   clang_analyzer_denote(clang_analyzer_container_begin(v), "$v.begin()");
@@ -161,12 +161,36 @@ void plus(const std::vector<int> &v) {
   clang_analyzer_express(clang_analyzer_iterator_position(i2));     // expected-warning-re{{$v.begin() + 2{{$}}}}
 }
 
-void plus_negative(const std::vector<int> &v) {
+void plus_rhs(const std::vector<int> &v) {
+  auto i1 = v.begin();
+
+  clang_analyzer_denote(clang_analyzer_container_begin(v), "$v.begin()");
+
+  auto i2 = 2 + i1;
+
+  clang_analyzer_eval(clang_analyzer_iterator_container(i2) == &v); // expected-warning{{TRUE}}
+  clang_analyzer_express(clang_analyzer_iterator_position(i1));     // expected-warning-re{{$v.begin(){{$}}}}
+  clang_analyzer_express(clang_analyzer_iterator_position(i2));     // expected-warning-re{{$v.begin() + 2{{$}}}}
+}
+
+void plus_lhs_negative(const std::vector<int> &v) {
   auto i1 = v.end();
 
   clang_analyzer_denote(clang_analyzer_container_end(v), "$v.end()");
 
   auto i2 = i1 + (-2);
+
+  clang_analyzer_eval(clang_analyzer_iterator_container(i2) == &v); // expected-warning{{TRUE}}
+  clang_analyzer_express(clang_analyzer_iterator_position(i1));     // expected-warning-re {{$v.end(){{$}}}}
+  clang_analyzer_express(clang_analyzer_iterator_position(i2));     // expected-warning-re {{$v.end() - 2{{$}}}}
+}
+
+void plus_rhs_negative(const std::vector<int> &v) {
+  auto i1 = v.end();
+
+  clang_analyzer_denote(clang_analyzer_container_end(v), "$v.end()");
+
+  auto i2 = (-2) + i1;
 
   clang_analyzer_eval(clang_analyzer_iterator_container(i2) == &v); // expected-warning{{TRUE}}
   clang_analyzer_express(clang_analyzer_iterator_position(i1));     // expected-warning-re {{$v.end(){{$}}}}
@@ -1948,7 +1972,14 @@ void minus_equal_ptr_iterator(const cont_with_ptr_iterator<int> &c) {
   clang_analyzer_express(clang_analyzer_iterator_position(i)); // expected-warning{{$c.end() - 2}}
 }
 
-void plus_ptr_iterator(const cont_with_ptr_iterator<int> &c) {
+void minus_equal_ptr_iterator_variable(const cont_with_ptr_iterator<int> &c,
+                                       int n) {
+  auto i = c.end();
+
+  i -= n; // no-crash
+}
+
+void plus_lhs_ptr_iterator(const cont_with_ptr_iterator<int> &c) {
   auto i1 = c.begin();
 
   clang_analyzer_denote(clang_analyzer_container_begin(c), "$c.begin()");
@@ -1958,6 +1989,18 @@ void plus_ptr_iterator(const cont_with_ptr_iterator<int> &c) {
   clang_analyzer_eval(clang_analyzer_iterator_container(i2) == &c); // expected-warning{{TRUE}}
   clang_analyzer_express(clang_analyzer_iterator_position(i1)); // expected-warning{{$c.begin()}}
   clang_analyzer_express(clang_analyzer_iterator_position(i2)); // expected-warning{{$c.begin() + 2}}
+}
+
+void plus_rhs_ptr_iterator(const cont_with_ptr_iterator<int> &c) {
+  auto i1 = c.begin();
+
+  clang_analyzer_denote(clang_analyzer_container_begin(c), "$c.begin()");
+
+  auto i2 = 2 + i1;
+
+  clang_analyzer_eval(clang_analyzer_iterator_container(i2) == &c); // expected-warning{{TRUE}}
+  clang_analyzer_express(clang_analyzer_iterator_position(i1));     // expected-warning{{$c.begin()}}
+  clang_analyzer_express(clang_analyzer_iterator_position(i2));     // expected-warning{{$c.begin() + 2}}
 }
 
 void minus_ptr_iterator(const cont_with_ptr_iterator<int> &c) {
@@ -1970,6 +2013,17 @@ void minus_ptr_iterator(const cont_with_ptr_iterator<int> &c) {
   clang_analyzer_eval(clang_analyzer_iterator_container(i2) == &c); // expected-warning{{TRUE}}
   clang_analyzer_express(clang_analyzer_iterator_position(i1)); // expected-warning{{$c.end()}}
   clang_analyzer_express(clang_analyzer_iterator_position(i2)); // expected-warning{{$c.end() - 2}}
+}
+
+void ptr_iter_diff(cont_with_ptr_iterator<int> &c) {
+  auto i0 = c.begin(), i1 = c.end();
+  ptrdiff_t len = i1 - i0; // no-crash
+}
+
+void ptr_iter_cmp_nullptr(cont_with_ptr_iterator<int> &c) {
+  auto i0 = c.begin();
+  if (i0 != nullptr) // no-crash
+    ++i0;
 }
 
 void clang_analyzer_printState();

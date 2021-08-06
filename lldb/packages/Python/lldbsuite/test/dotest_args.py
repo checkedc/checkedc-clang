@@ -124,16 +124,6 @@ def create_parser():
         action='append',
         help='Run "setting set SETTING VALUE" before executing any test.')
     group.add_argument(
-        '-s',
-        metavar='name',
-        help='Specify the name of the dir created to store the session files of tests with errored or failed status. If not specified, the test driver uses the timestamp as the session dir name')
-    group.add_argument(
-        '-S',
-        '--session-file-format',
-        default=configuration.session_file_format,
-        metavar='format',
-        help='Specify session file name format.  See configuration.py for a description.')
-    group.add_argument(
         '-y',
         type=int,
         metavar='count',
@@ -243,16 +233,6 @@ def create_parser():
         action='store_false',
         help='(Windows only) When LLDB crashes, display the Windows crash dialog.')
     group.set_defaults(disable_crash_dialog=True)
-
-    # Re-run related arguments
-    group = parser.add_argument_group('Test Re-run Options')
-    group.add_argument(
-        '--rerun-all-issues',
-        action='store_true',
-        help=('Re-run all issues that occurred during the test run '
-              'irrespective of the test method\'s marking as flakey. '
-              'Default behavior is to apply re-runs only to flakey '
-              'tests that generate issues.'))
 
     # Remove the reference to our helper function
     del X

@@ -39,12 +39,12 @@ subroutine s1
   !ERROR: Initializer for 'rt' must not be a procedure
   data rt/rfunc/
   integer :: jx, jy
-  !ERROR: DATA statement value could not be converted to the type 'INTEGER(4)' of the object 'jx'
+  !WARNING: DATA statement value initializes 'jx' of type 'INTEGER(4)' with CHARACTER
   data jx/'abc'/
   !ERROR: DATA statement value could not be converted to the type 'INTEGER(4)' of the object 'jx'
   data jx/t1()/
   !ERROR: DATA statement value could not be converted to the type 'INTEGER(4)' of the object 'jx'
   data jx/.false./
-  !ERROR: must be a constant
+  !ERROR: DATA statement value 'jy' for 'jx' is not a constant
   data jx/jy/
 end subroutine

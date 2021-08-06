@@ -16,15 +16,12 @@
 
 --- !ELF
 FileHeader:
-  Class:   ELFCLASS64
-  Data:    ELFDATA2LSB
-  Type:    ET_REL
-  Machine: EM_X86_64
+  Class: ELFCLASS64
+  Data:  ELFDATA2LSB
+  Type:  ET_REL
 ProgramHeaders:
-  - Type:     PT_LOAD
-    Sections: []
-  - Type:     PT_LOAD
-    Sections: []
+  - Type: PT_LOAD
+  - Type: PT_LOAD
 
 ## Check we can override all default values using the same values
 ## and that this does not change the output.
@@ -36,7 +33,6 @@ FileHeader:
   Class:      ELFCLASS64
   Data:       ELFDATA2LSB
   Type:       ET_REL
-  Machine:    EM_X86_64
   EShEntSize: [[SHENTSIZE=64]]
   EShOff:     [[SHOFF=200]]
   EShNum:     [[SHNUM=3]]
@@ -45,10 +41,8 @@ FileHeader:
   EPhEntSize: [[PHENTSIZE=56]]
   EPhNum:     [[PHNUM=2]]
 ProgramHeaders:
-  - Type:     PT_LOAD
-    Sections: []
-  - Type:     PT_LOAD
-    Sections: []
+  - Type: PT_LOAD
+  - Type: PT_LOAD
 
 ## Override different fields to check the output produced.
 

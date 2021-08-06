@@ -24,7 +24,7 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/IR/PatternMatch.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/LoopUtils.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/Support/CommandLine.h"
@@ -212,7 +212,7 @@ void AffineDataCopyGeneration::runOnFunction() {
   // Promote any single iteration loops in the copy nests and collect
   // load/stores to simplify.
   SmallVector<Operation *, 4> copyOps;
-  for (auto nest : copyNests)
+  for (Operation *nest : copyNests)
     // With a post order walk, the erasure of loops does not affect
     // continuation of the walk or the collection of load/store ops.
     nest->walk([&](Operation *op) {
@@ -228,6 +228,7 @@ void AffineDataCopyGeneration::runOnFunction() {
   OwningRewritePatternList patterns;
   AffineLoadOp::getCanonicalizationPatterns(patterns, &getContext());
   AffineStoreOp::getCanonicalizationPatterns(patterns, &getContext());
-  for (auto op : copyOps)
-    applyOpPatternsAndFold(op, std::move(patterns));
+  FrozenRewritePatternList frozenPatterns(std::move(patterns));
+  for (Operation *op : copyOps)
+    applyOpPatternsAndFold(op, frozenPatterns);
 }

@@ -224,11 +224,11 @@ void polly::splitEntryBlockForAlloca(BasicBlock *EntryBlock, Pass *P) {
 void polly::recordAssumption(polly::RecordedAssumptionsTy *RecordedAssumptions,
                              polly::AssumptionKind Kind, isl::set Set,
                              DebugLoc Loc, polly::AssumptionSign Sign,
-                             BasicBlock *BB) {
+                             BasicBlock *BB, bool RTC) {
   assert((Set.is_params() || BB) &&
          "Assumptions without a basic block must be parameter sets");
   if (RecordedAssumptions)
-    RecordedAssumptions->push_back({Kind, Sign, Set, Loc, BB});
+    RecordedAssumptions->push_back({Kind, Sign, Set, Loc, BB, RTC});
 }
 
 /// The SCEVExpander will __not__ generate any code for an existing SDiv/SRem
@@ -243,8 +243,8 @@ struct ScopExpander : SCEVVisitor<ScopExpander, const SCEV *> {
   explicit ScopExpander(const Region &R, ScalarEvolution &SE,
                         const DataLayout &DL, const char *Name, ValueMapT *VMap,
                         BasicBlock *RTCBB)
-      : Expander(SE, DL, Name), SE(SE), Name(Name), R(R), VMap(VMap),
-        RTCBB(RTCBB) {}
+      : Expander(SE, DL, Name, /*PreserveLCSSA=*/false), SE(SE), Name(Name),
+        R(R), VMap(VMap), RTCBB(RTCBB) {}
 
   Value *expandCodeFor(const SCEV *E, Type *Ty, Instruction *I) {
     // If we generate code in the region we will immediately fall back to the
@@ -341,6 +341,9 @@ private:
   ///
   ///{
   const SCEV *visitConstant(const SCEVConstant *E) { return E; }
+  const SCEV *visitPtrToIntExpr(const SCEVPtrToIntExpr *E) {
+    return SE.getPtrToIntExpr(visit(E->getOperand()), E->getType());
+  }
   const SCEV *visitTruncateExpr(const SCEVTruncateExpr *E) {
     return SE.getTruncateExpr(visit(E->getOperand()), E->getType());
   }

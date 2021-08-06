@@ -35,7 +35,6 @@
 #include "test_iterators.h"
 #include "count_new.h"
 #include "filesystem_test_helper.h"
-#include "verbose_assert.h"
 
 struct PathCompareTest {
   const char* LHS;
@@ -66,8 +65,8 @@ const PathCompareTest CompareTestCases[] =
     {"/foo/bar/", "/foo/bar", 1}, // trailing separator
     {"foo", "/foo", -1}, // if !this->has_root_directory() and p.has_root_directory(), a value less than 0.
     {"/foo", "foo", 1}, //  if this->has_root_directory() and !p.has_root_directory(), a value greater than 0.
-    {"//" LONGA "////" LONGB "/" LONGC "///" LONGD, "//" LONGA "/" LONGB "/" LONGC "/" LONGD, 0},
-    { LONGA "/" LONGB "/" LONGC, LONGA "/" LONGB "/" LONGB, 1}
+    {("//" LONGA "////" LONGB "/" LONGC "///" LONGD), ("//" LONGA "/" LONGB "/" LONGC "/" LONGD), 0},
+    {(LONGA "/" LONGB "/" LONGC), (LONGA "/" LONGB "/" LONGB), 1}
 
 };
 #undef LONGA
@@ -99,11 +98,10 @@ void test_compare_basic()
       int ret4 = normalize_ret(p1.compare(RV));
 
       g.release();
-      ASSERT_EQ(ret1, ret2);
-      ASSERT_EQ(ret1, ret3);
-      ASSERT_EQ(ret1, ret4);
-      ASSERT_EQ(ret1, E)
-          << DISPLAY(TC.LHS) << DISPLAY(TC.RHS);
+      assert(ret1 == ret2);
+      assert(ret1 == ret3);
+      assert(ret1 == ret4);
+      assert(ret1 == E);
 
       // check signatures
       ASSERT_NOEXCEPT(p1.compare(p2));

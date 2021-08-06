@@ -6,71 +6,70 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "include/math.h"
 #include "src/math/floorf.h"
-#include "utils/FPUtil/BitPatterns.h"
-#include "utils/FPUtil/FloatOperations.h"
-#include "utils/FPUtil/FloatProperties.h"
+#include "utils/FPUtil/FPBits.h"
+#include "utils/FPUtil/TestHelpers.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
 #include "utils/UnitTest/Test.h"
+#include <math.h>
 
-using __llvm_libc::fputil::valueAsBits;
-using __llvm_libc::fputil::valueFromBits;
+using FPBits = __llvm_libc::fputil::FPBits<float>;
 
-using BitPatterns = __llvm_libc::fputil::BitPatterns<float>;
-using Properties = __llvm_libc::fputil::FloatProperties<float>;
+DECLARE_SPECIAL_CONSTANTS(float)
 
 namespace mpfr = __llvm_libc::testing::mpfr;
 
-// Zero tolerance; As in, exact match with MPFR result.
-static constexpr mpfr::Tolerance tolerance{mpfr::Tolerance::doublePrecision, 0,
-                                           0};
+TEST(LlvmLibcFloorfTest, SpecialNumbers) {
+  EXPECT_FP_EQ(zero, __llvm_libc::floorf(zero));
+  EXPECT_FP_EQ(negZero, __llvm_libc::floorf(negZero));
 
-TEST(FloorfTest, SpecialNumbers) {
-  EXPECT_EQ(
-      BitPatterns::aQuietNaN,
-      valueAsBits(__llvm_libc::floorf(valueFromBits(BitPatterns::aQuietNaN))));
-  EXPECT_EQ(BitPatterns::aNegativeQuietNaN,
-            valueAsBits(__llvm_libc::floorf(
-                valueFromBits(BitPatterns::aNegativeQuietNaN))));
+  EXPECT_FP_EQ(inf, __llvm_libc::floorf(inf));
+  EXPECT_FP_EQ(negInf, __llvm_libc::floorf(negInf));
 
-  EXPECT_EQ(BitPatterns::aSignallingNaN,
-            valueAsBits(__llvm_libc::floorf(
-                valueFromBits(BitPatterns::aSignallingNaN))));
-  EXPECT_EQ(BitPatterns::aNegativeSignallingNaN,
-            valueAsBits(__llvm_libc::floorf(
-                valueFromBits(BitPatterns::aNegativeSignallingNaN))));
-
-  EXPECT_EQ(BitPatterns::inf,
-            valueAsBits(__llvm_libc::floorf(valueFromBits(BitPatterns::inf))));
-  EXPECT_EQ(BitPatterns::negInf, valueAsBits(__llvm_libc::floorf(
-                                     valueFromBits(BitPatterns::negInf))));
-
-  EXPECT_EQ(BitPatterns::zero,
-            valueAsBits(__llvm_libc::floorf(valueFromBits(BitPatterns::zero))));
-  EXPECT_EQ(BitPatterns::negZero, valueAsBits(__llvm_libc::floorf(
-                                      valueFromBits(BitPatterns::negZero))));
+  EXPECT_FP_EQ(aNaN, __llvm_libc::floorf(aNaN));
 }
 
-TEST(FloorfTest, RoundedNumbers) {
-  EXPECT_EQ(valueAsBits(1.0f), valueAsBits(__llvm_libc::floorf(1.0f)));
-  EXPECT_EQ(valueAsBits(-1.0f), valueAsBits(__llvm_libc::floorf(-1.0f)));
-  EXPECT_EQ(valueAsBits(10.0f), valueAsBits(__llvm_libc::floorf(10.0f)));
-  EXPECT_EQ(valueAsBits(-10.0f), valueAsBits(__llvm_libc::floorf(-10.0f)));
-  EXPECT_EQ(valueAsBits(12345.0f), valueAsBits(__llvm_libc::floorf(12345.0f)));
-  EXPECT_EQ(valueAsBits(-12345.0f),
-            valueAsBits(__llvm_libc::floorf(-12345.0f)));
+TEST(LlvmLibcFloorfTest, RoundedNumbers) {
+  EXPECT_FP_EQ(1.0f, __llvm_libc::floorf(1.0f));
+  EXPECT_FP_EQ(-1.0f, __llvm_libc::floorf(-1.0f));
+  EXPECT_FP_EQ(10.0f, __llvm_libc::floorf(10.0f));
+  EXPECT_FP_EQ(-10.0f, __llvm_libc::floorf(-10.0f));
+  EXPECT_FP_EQ(1234.0f, __llvm_libc::floorf(1234.0f));
+  EXPECT_FP_EQ(-1234.0f, __llvm_libc::floorf(-1234.0f));
 }
 
-TEST(FloorfTest, InFloatRange) {
-  using BitsType = Properties::BitsType;
-  constexpr BitsType count = 1000000;
-  constexpr BitsType step = UINT32_MAX / count;
-  for (BitsType i = 0, v = 0; i <= count; ++i, v += step) {
-    double x = valueFromBits(v);
+TEST(LlvmLibcFloorfTest, Fractions) {
+  EXPECT_FP_EQ(0.0f, __llvm_libc::floorf(0.5f));
+  EXPECT_FP_EQ(-1.0f, __llvm_libc::floorf(-0.5f));
+  EXPECT_FP_EQ(0.0f, __llvm_libc::floorf(0.115f));
+  EXPECT_FP_EQ(-1.0f, __llvm_libc::floorf(-0.115f));
+  EXPECT_FP_EQ(0.0f, __llvm_libc::floorf(0.715f));
+  EXPECT_FP_EQ(-1.0f, __llvm_libc::floorf(-0.715f));
+  EXPECT_FP_EQ(1.0f, __llvm_libc::floorf(1.3f));
+  EXPECT_FP_EQ(-2.0f, __llvm_libc::floorf(-1.3f));
+  EXPECT_FP_EQ(1.0f, __llvm_libc::floorf(1.5f));
+  EXPECT_FP_EQ(-2.0f, __llvm_libc::floorf(-1.5f));
+  EXPECT_FP_EQ(1.0f, __llvm_libc::floorf(1.75f));
+  EXPECT_FP_EQ(-2.0f, __llvm_libc::floorf(-1.75f));
+  EXPECT_FP_EQ(10.0f, __llvm_libc::floorf(10.32f));
+  EXPECT_FP_EQ(-11.0f, __llvm_libc::floorf(-10.32f));
+  EXPECT_FP_EQ(10.0f, __llvm_libc::floorf(10.65f));
+  EXPECT_FP_EQ(-11.0f, __llvm_libc::floorf(-10.65f));
+  EXPECT_FP_EQ(1234.0f, __llvm_libc::floorf(1234.38f));
+  EXPECT_FP_EQ(-1235.0f, __llvm_libc::floorf(-1234.38f));
+  EXPECT_FP_EQ(1234.0f, __llvm_libc::floorf(1234.96f));
+  EXPECT_FP_EQ(-1235.0f, __llvm_libc::floorf(-1234.96f));
+}
+
+TEST(LlvmLibcFloorfTest, InFloatRange) {
+  using UIntType = FPBits::UIntType;
+  constexpr UIntType count = 1000000;
+  constexpr UIntType step = UIntType(-1) / count;
+  for (UIntType i = 0, v = 0; i <= count; ++i, v += step) {
+    float x = FPBits(v);
     if (isnan(x) || isinf(x))
       continue;
-    ASSERT_MPFR_MATCH(mpfr::Operation::Floor, x, __llvm_libc::floorf(x),
-                      tolerance);
+
+    ASSERT_MPFR_MATCH(mpfr::Operation::Floor, x, __llvm_libc::floorf(x), 0.0);
   }
 }

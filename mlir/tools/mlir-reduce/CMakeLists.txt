@@ -13,6 +13,18 @@ set(LLVM_LINK_COMPONENTS
   TransformUtils
   )
 
+if(MLIR_INCLUDE_TESTS)
+  set(test_libs
+    MLIRAffineTransformsTestPasses
+    MLIRSPIRVTestPasses
+    MLIRTestDialect
+    MLIRTestIR
+    MLIRTestPass
+    MLIRTestReducer
+    MLIRTestTransforms
+    )
+endif()
+
 set(LIBS
   ${dialect_libs}
   ${conversion_libs}
@@ -32,7 +44,17 @@ set(LIBS
   )
 
 add_llvm_tool(mlir-reduce
+  OptReductionPass.cpp
+  Passes/OpReducer.cpp
+  ReductionNode.cpp
+  ReductionTreeUtils.cpp
   mlir-reduce.cpp
+
+  ADDITIONAL_HEADER_DIRS
+  ${MLIR_MAIN_INCLUDE_DIR}/mlir/Reducer
+
+  DEPENDS
+  MLIRReducerIncGen
   )
 
 target_link_libraries(mlir-reduce PRIVATE ${LIBS})

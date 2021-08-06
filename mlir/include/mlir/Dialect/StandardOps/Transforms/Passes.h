@@ -15,19 +15,47 @@
 #ifndef MLIR_DIALECT_STANDARD_TRANSFORMS_PASSES_H_
 #define MLIR_DIALECT_STANDARD_TRANSFORMS_PASSES_H_
 
-#include <memory>
+#include "mlir/Pass/Pass.h"
+#include "mlir/Transforms/Bufferize.h"
 
 namespace mlir {
 
-class Pass;
-class MLIRContext;
 class OwningRewritePatternList;
-
-/// Creates an instance of the ExpandAtomic pass.
-std::unique_ptr<Pass> createExpandAtomicPass();
 
 void populateExpandTanhPattern(OwningRewritePatternList &patterns,
                                MLIRContext *ctx);
+
+void populateStdBufferizePatterns(MLIRContext *context,
+                                  BufferizeTypeConverter &typeConverter,
+                                  OwningRewritePatternList &patterns);
+
+/// Creates an instance of std bufferization pass.
+std::unique_ptr<Pass> createStdBufferizePass();
+
+/// Creates an instance of func bufferization pass.
+std::unique_ptr<Pass> createFuncBufferizePass();
+
+/// Creates an instance of tensor constant bufferization pass.
+std::unique_ptr<Pass> createTensorConstantBufferizePass();
+
+/// Creates an instance of the StdExpand pass that legalizes Std
+/// dialect ops to be convertible to LLVM. For example,
+/// `std.ceildivi_signed` gets transformed to a number of std operations,
+/// which can be lowered to LLVM; `memref_reshape` gets converted to
+/// `memref_reinterpret_cast`.
+std::unique_ptr<Pass> createStdExpandOpsPass();
+
+/// Collects a set of patterns to rewrite ops within the Std dialect.
+void populateStdExpandOpsPatterns(MLIRContext *context,
+                                  OwningRewritePatternList &patterns);
+
+//===----------------------------------------------------------------------===//
+// Registration
+//===----------------------------------------------------------------------===//
+
+/// Generate the code for registering passes.
+#define GEN_PASS_REGISTRATION
+#include "mlir/Dialect/StandardOps/Transforms/Passes.h.inc"
 
 } // end namespace mlir
 

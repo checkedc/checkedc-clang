@@ -13,10 +13,10 @@
 #include "src/signal/sigfillset.h"
 #include "src/signal/sigprocmask.h"
 
-#include "utils/UnitTest/ErrnoSetterMatcher.h"
+#include "test/ErrnoSetterMatcher.h"
 #include "utils/UnitTest/Test.h"
 
-TEST(Sigdelset, Invalid) {
+TEST(LlvmLibcSigdelset, Invalid) {
   using __llvm_libc::testing::ErrnoSetterMatcher::Fails;
   // Invalid set.
   EXPECT_THAT(__llvm_libc::sigdelset(nullptr, SIGUSR1), Fails(EINVAL));
@@ -26,7 +26,7 @@ TEST(Sigdelset, Invalid) {
   EXPECT_THAT(__llvm_libc::sigdelset(&set, -1), Fails(EINVAL));
 }
 
-TEST(Sigdelset, UnblockOne) {
+TEST(LlvmLibcSigdelset, UnblockOne) {
   using __llvm_libc::testing::ErrnoSetterMatcher::Succeeds;
   sigset_t set;
   EXPECT_THAT(__llvm_libc::sigfillset(&set), Succeeds());

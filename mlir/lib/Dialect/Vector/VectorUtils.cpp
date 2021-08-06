@@ -243,6 +243,18 @@ AffineMap mlir::makePermutationMap(
   return ::makePermutationMap(indices, enclosingLoopToVectorDim);
 }
 
+AffineMap mlir::getTransferMinorIdentityMap(ShapedType shapedType,
+                                            VectorType vectorType) {
+  int64_t elementVectorRank = 0;
+  VectorType elementVectorType =
+      shapedType.getElementType().dyn_cast<VectorType>();
+  if (elementVectorType)
+    elementVectorRank += elementVectorType.getRank();
+  return AffineMap::getMinorIdentityMap(
+      shapedType.getRank(), vectorType.getRank() - elementVectorRank,
+      shapedType.getContext());
+}
+
 bool matcher::operatesOnSuperVectorsOf(Operation &op,
                                        VectorType subVectorType) {
   // First, extract the vector type and distinguish between:
@@ -257,11 +269,8 @@ bool matcher::operatesOnSuperVectorsOf(Operation &op,
   bool mustDivide = false;
   (void)mustDivide;
   VectorType superVectorType;
-  if (auto read = dyn_cast<vector::TransferReadOp>(op)) {
-    superVectorType = read.getVectorType();
-    mustDivide = true;
-  } else if (auto write = dyn_cast<vector::TransferWriteOp>(op)) {
-    superVectorType = write.getVectorType();
+  if (auto transfer = dyn_cast<VectorTransferOpInterface>(op)) {
+    superVectorType = transfer.getVectorType();
     mustDivide = true;
   } else if (op.getNumResults() == 0) {
     if (!isa<ReturnOp>(op)) {
@@ -303,3 +312,41 @@ bool matcher::operatesOnSuperVectorsOf(Operation &op,
   return true;
 }
 
+bool mlir::isDisjointTransferIndices(VectorTransferOpInterface transferA,
+                                     VectorTransferOpInterface transferB) {
+  // For simplicity only look at transfer of same type.
+  if (transferA.getVectorType() != transferB.getVectorType())
+    return false;
+  unsigned rankOffset = transferA.getLeadingShapedRank();
+  for (unsigned i = 0, e = transferA.indices().size(); i < e; i++) {
+    auto indexA = transferA.indices()[i].getDefiningOp<ConstantOp>();
+    auto indexB = transferB.indices()[i].getDefiningOp<ConstantOp>();
+    // If any of the indices are dynamic we cannot prove anything.
+    if (!indexA || !indexB)
+      continue;
+
+    if (i < rankOffset) {
+      // For leading dimensions, if we can prove that index are different we
+      // know we are accessing disjoint slices.
+      if (indexA.getValue().cast<IntegerAttr>().getInt() !=
+          indexB.getValue().cast<IntegerAttr>().getInt())
+        return true;
+    } else {
+      // For this dimension, we slice a part of the memref we need to make sure
+      // the intervals accessed don't overlap.
+      int64_t distance =
+          std::abs(indexA.getValue().cast<IntegerAttr>().getInt() -
+                   indexB.getValue().cast<IntegerAttr>().getInt());
+      if (distance >= transferA.getVectorType().getDimSize(i - rankOffset))
+        return true;
+    }
+  }
+  return false;
+}
+
+bool mlir::isDisjointTransferSet(VectorTransferOpInterface transferA,
+                                 VectorTransferOpInterface transferB) {
+  if (transferA.source() != transferB.source())
+    return false;
+  return isDisjointTransferIndices(transferA, transferB);
+}

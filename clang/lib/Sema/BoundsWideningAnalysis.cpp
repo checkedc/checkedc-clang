@@ -367,7 +367,7 @@ BoundsMapTy BoundsWideningAnalysis::PruneOutSet(
   BoundsMapTy InOfLastStmtOfPred = PredEB->InOfLastStmt;
 
   // Check if the current block is a case of a switch-case.
-  bool IsSwitchCase = BWUtil.IsSwitchCaseBlock(CurrBlock);
+  bool IsSwitchCase = BWUtil.IsSwitchCaseBlock(CurrBlock, PredBlock);
 
   // If the current block is a case of a switch-case, check if the case label
   // tests for null. CaseLabelTestsForNull returns false for the default case.
@@ -1170,7 +1170,19 @@ bool BoundsWideningUtil::ExistsNullCaseLabel(const CFGBlock *CurrBlock) const {
   return false;
 }
 
-bool BoundsWideningUtil::IsSwitchCaseBlock(const CFGBlock *CurrBlock) const {
+bool BoundsWideningUtil::IsSwitchCaseBlock(const CFGBlock *CurrBlock,
+                                           const CFGBlock *PredBlock) const {
+  // Check if PredBlock ends in a switch statement.
+  const Stmt *TerminatorStmt = PredBlock->getTerminatorStmt();
+  if (TerminatorStmt && isa<SwitchStmt>(TerminatorStmt)) {
+    // Get the SwitchStmt and check if it contains errors
+    const auto *SSCond =
+               (dyn_cast_or_null<SwitchStmt>(TerminatorStmt))->getCond();
+    if (SSCond->containsErrors())
+      return false;
+  } else
+    return false;
+
   const Stmt *BlockLabel = CurrBlock->getLabel();
   return BlockLabel &&
         (isa<CaseStmt>(BlockLabel) ||

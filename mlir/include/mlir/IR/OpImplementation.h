@@ -13,6 +13,7 @@
 #ifndef MLIR_IR_OPIMPLEMENTATION_H
 #define MLIR_IR_OPIMPLEMENTATION_H
 
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectInterface.h"
 #include "mlir/IR/OpDefinition.h"
 #include "llvm/ADT/Twine.h"
@@ -34,6 +35,10 @@ public:
   OpAsmPrinter() {}
   virtual ~OpAsmPrinter();
   virtual raw_ostream &getStream() const = 0;
+
+  /// Print a newline and indent the printer to the start of the current
+  /// operation.
+  virtual void printNewline() = 0;
 
   /// Print implementations for various things an operation contains.
   virtual void printOperand(Value value) = 0;
@@ -123,16 +128,15 @@ public:
   }
 
   /// Print the complete type of an operation in functional form.
-  void printFunctionalType(Operation *op) {
-    printFunctionalType(op->getOperandTypes(), op->getResultTypes());
-  }
+  void printFunctionalType(Operation *op);
+
   /// Print the two given type ranges in a functional form.
   template <typename InputRangeT, typename ResultRangeT>
   void printFunctionalType(InputRangeT &&inputs, ResultRangeT &&results) {
     auto &os = getStream();
-    os << "(";
+    os << '(';
     llvm::interleaveComma(inputs, *this);
-    os << ")";
+    os << ')';
     printArrowTypeList(results);
   }
 
@@ -199,6 +203,10 @@ inline OpAsmPrinter &operator<<(OpAsmPrinter &p, Block *value) {
 template <typename ValueRangeT>
 inline OpAsmPrinter &operator<<(OpAsmPrinter &p,
                                 const ValueTypeRange<ValueRangeT> &types) {
+  llvm::interleaveComma(types, p);
+  return p;
+}
+inline OpAsmPrinter &operator<<(OpAsmPrinter &p, const TypeRange &types) {
   llvm::interleaveComma(types, p);
   return p;
 }
@@ -289,6 +297,18 @@ public:
   /// Parse a '->' token if present
   virtual ParseResult parseOptionalArrow() = 0;
 
+  /// Parse a `{` token.
+  virtual ParseResult parseLBrace() = 0;
+
+  /// Parse a `{` token if present.
+  virtual ParseResult parseOptionalLBrace() = 0;
+
+  /// Parse a `}` token.
+  virtual ParseResult parseRBrace() = 0;
+
+  /// Parse a `}` token if present.
+  virtual ParseResult parseOptionalRBrace() = 0;
+
   /// Parse a `:` token.
   virtual ParseResult parseColon() = 0;
 
@@ -304,11 +324,38 @@ public:
   /// Parse a `=` token.
   virtual ParseResult parseEqual() = 0;
 
+  /// Parse a `=` token if present.
+  virtual ParseResult parseOptionalEqual() = 0;
+
   /// Parse a '<' token.
   virtual ParseResult parseLess() = 0;
 
+  /// Parse a '<' token if present.
+  virtual ParseResult parseOptionalLess() = 0;
+
   /// Parse a '>' token.
   virtual ParseResult parseGreater() = 0;
+
+  /// Parse a '>' token if present.
+  virtual ParseResult parseOptionalGreater() = 0;
+
+  /// Parse a '?' token.
+  virtual ParseResult parseQuestion() = 0;
+
+  /// Parse a '?' token if present.
+  virtual ParseResult parseOptionalQuestion() = 0;
+
+  /// Parse a '+' token.
+  virtual ParseResult parsePlus() = 0;
+
+  /// Parse a '+' token if present.
+  virtual ParseResult parseOptionalPlus() = 0;
+
+  /// Parse a '*' token.
+  virtual ParseResult parseStar() = 0;
+
+  /// Parse a '*' token if present.
+  virtual ParseResult parseOptionalStar() = 0;
 
   /// Parse a given keyword.
   ParseResult parseKeyword(StringRef keyword, const Twine &msg = "") {
@@ -331,6 +378,12 @@ public:
 
   /// Parse a keyword, if present, into 'keyword'.
   virtual ParseResult parseOptionalKeyword(StringRef *keyword) = 0;
+
+  /// Parse a keyword, if present, and if one of the 'allowedValues',
+  /// into 'keyword'
+  virtual ParseResult
+  parseOptionalKeyword(StringRef *keyword,
+                       ArrayRef<StringRef> allowedValues) = 0;
 
   /// Parse a `(` token.
   virtual ParseResult parseLParen() = 0;
@@ -359,9 +412,59 @@ public:
   /// Parse a `...` token if present;
   virtual ParseResult parseOptionalEllipsis() = 0;
 
+  /// Parse an integer value from the stream.
+  template <typename IntT>
+  ParseResult parseInteger(IntT &result) {
+    auto loc = getCurrentLocation();
+    OptionalParseResult parseResult = parseOptionalInteger(result);
+    if (!parseResult.hasValue())
+      return emitError(loc, "expected integer value");
+    return *parseResult;
+  }
+
+  /// Parse an optional integer value from the stream.
+  virtual OptionalParseResult parseOptionalInteger(uint64_t &result) = 0;
+
+  template <typename IntT>
+  OptionalParseResult parseOptionalInteger(IntT &result) {
+    auto loc = getCurrentLocation();
+
+    // Parse the unsigned variant.
+    uint64_t uintResult;
+    OptionalParseResult parseResult = parseOptionalInteger(uintResult);
+    if (!parseResult.hasValue() || failed(*parseResult))
+      return parseResult;
+
+    // Try to convert to the provided integer type.
+    result = IntT(uintResult);
+    if (uint64_t(result) != uintResult)
+      return emitError(loc, "integer value too large");
+    return success();
+  }
+
   //===--------------------------------------------------------------------===//
   // Attribute Parsing
   //===--------------------------------------------------------------------===//
+
+  /// Parse an arbitrary attribute of a given type and return it in result.
+  virtual ParseResult parseAttribute(Attribute &result, Type type = {}) = 0;
+
+  /// Parse an attribute of a specific kind and type.
+  template <typename AttrType>
+  ParseResult parseAttribute(AttrType &result, Type type = {}) {
+    llvm::SMLoc loc = getCurrentLocation();
+
+    // Parse any kind of attribute.
+    Attribute attr;
+    if (parseAttribute(attr, type))
+      return failure();
+
+    // Check for the right kind of attribute.
+    if (!(result = attr.dyn_cast<AttrType>()))
+      return emitError(loc, "invalid kind of attribute specified");
+
+    return success();
+  }
 
   /// Parse an arbitrary attribute and return it in result.  This also adds the
   /// attribute to the specified attribute list with the specified name.
@@ -377,25 +480,31 @@ public:
     return parseAttribute(result, Type(), attrName, attrs);
   }
 
-  /// Parse an arbitrary attribute of a given type and return it in result. This
-  /// also adds the attribute to the specified attribute list with the specified
-  /// name.
-  virtual ParseResult parseAttribute(Attribute &result, Type type,
-                                     StringRef attrName,
-                                     NamedAttrList &attrs) = 0;
-
   /// Parse an optional attribute.
   virtual OptionalParseResult parseOptionalAttribute(Attribute &result,
                                                      Type type,
                                                      StringRef attrName,
                                                      NamedAttrList &attrs) = 0;
-  OptionalParseResult parseOptionalAttribute(Attribute &result,
-                                             StringRef attrName,
+  template <typename AttrT>
+  OptionalParseResult parseOptionalAttribute(AttrT &result, StringRef attrName,
                                              NamedAttrList &attrs) {
     return parseOptionalAttribute(result, Type(), attrName, attrs);
   }
 
-  /// Parse an attribute of a specific kind and type.
+  /// Specialized variants of `parseOptionalAttribute` that remove potential
+  /// ambiguities in syntax.
+  virtual OptionalParseResult parseOptionalAttribute(ArrayAttr &result,
+                                                     Type type,
+                                                     StringRef attrName,
+                                                     NamedAttrList &attrs) = 0;
+  virtual OptionalParseResult parseOptionalAttribute(StringAttr &result,
+                                                     Type type,
+                                                     StringRef attrName,
+                                                     NamedAttrList &attrs) = 0;
+
+  /// Parse an arbitrary attribute of a given type and return it in result. This
+  /// also adds the attribute to the specified attribute list with the specified
+  /// name.
   template <typename AttrType>
   ParseResult parseAttribute(AttrType &result, Type type, StringRef attrName,
                              NamedAttrList &attrs) {
@@ -403,7 +512,7 @@ public:
 
     // Parse any kind of attribute.
     Attribute attr;
-    if (parseAttribute(attr, type, attrName, attrs))
+    if (parseAttribute(attr, type))
       return failure();
 
     // Check for the right kind of attribute.
@@ -411,6 +520,7 @@ public:
     if (!result)
       return emitError(loc, "invalid kind of attribute specified");
 
+    attrs.append(attrName, result);
     return success();
   }
 
@@ -569,23 +679,30 @@ public:
   // Region Parsing
   //===--------------------------------------------------------------------===//
 
-  /// Parses a region. Any parsed blocks are appended to "region" and must be
+  /// Parses a region. Any parsed blocks are appended to 'region' and must be
   /// moved to the op regions after the op is created. The first block of the
-  /// region takes "arguments" of types "argTypes". If "enableNameShadowing" is
+  /// region takes 'arguments' of types 'argTypes'. If 'enableNameShadowing' is
   /// set to true, the argument names are allowed to shadow the names of other
-  /// existing SSA values defined above the region scope. "enableNameShadowing"
+  /// existing SSA values defined above the region scope. 'enableNameShadowing'
   /// can only be set to true for regions attached to operations that are
-  /// "IsolatedFromAbove".
+  /// 'IsolatedFromAbove.
   virtual ParseResult parseRegion(Region &region,
-                                  ArrayRef<OperandType> arguments,
-                                  ArrayRef<Type> argTypes,
+                                  ArrayRef<OperandType> arguments = {},
+                                  ArrayRef<Type> argTypes = {},
                                   bool enableNameShadowing = false) = 0;
 
   /// Parses a region if present.
-  virtual ParseResult parseOptionalRegion(Region &region,
-                                          ArrayRef<OperandType> arguments,
-                                          ArrayRef<Type> argTypes,
-                                          bool enableNameShadowing = false) = 0;
+  virtual OptionalParseResult
+  parseOptionalRegion(Region &region, ArrayRef<OperandType> arguments = {},
+                      ArrayRef<Type> argTypes = {},
+                      bool enableNameShadowing = false) = 0;
+
+  /// Parses a region if present. If the region is present, a new region is
+  /// allocated and placed in `region`. If no region is present or on failure,
+  /// `region` remains untouched.
+  virtual OptionalParseResult parseOptionalRegion(
+      std::unique_ptr<Region> &region, ArrayRef<OperandType> arguments = {},
+      ArrayRef<Type> argTypes = {}, bool enableNameShadowing = false) = 0;
 
   /// Parse a region argument, this argument is resolved when calling
   /// 'parseRegion'.
@@ -699,11 +816,18 @@ public:
   parseOptionalColonTypeList(SmallVectorImpl<Type> &result) = 0;
 
   /// Parse a list of assignments of the form
-  /// (%x1 = %y1 : type1, %x2 = %y2 : type2, ...).
-  /// The list must contain at least one entry
-  virtual ParseResult
-  parseAssignmentList(SmallVectorImpl<OperandType> &lhs,
-                      SmallVectorImpl<OperandType> &rhs) = 0;
+  ///   (%x1 = %y1, %x2 = %y2, ...)
+  ParseResult parseAssignmentList(SmallVectorImpl<OperandType> &lhs,
+                                  SmallVectorImpl<OperandType> &rhs) {
+    OptionalParseResult result = parseOptionalAssignmentList(lhs, rhs);
+    if (!result.hasValue())
+      return emitError(getCurrentLocation(), "expected '('");
+    return result.getValue();
+  }
+
+  virtual OptionalParseResult
+  parseOptionalAssignmentList(SmallVectorImpl<OperandType> &lhs,
+                              SmallVectorImpl<OperandType> &rhs) = 0;
 
   /// Parse a keyword followed by a type.
   ParseResult parseKeywordType(const char *keyword, Type &result) {
@@ -749,21 +873,17 @@ class OpAsmDialectInterface
 public:
   OpAsmDialectInterface(Dialect *dialect) : Base(dialect) {}
 
-  /// Hooks for getting identifier aliases for symbols. The identifier is used
-  /// in place of the symbol when printing textual IR.
-  ///
-  /// Hook for defining Attribute kind aliases. This will generate an alias for
-  /// all attributes of the given kind in the form : <alias>[0-9]+. These
-  /// aliases must not contain `.`.
-  virtual void getAttributeKindAliases(
-      SmallVectorImpl<std::pair<unsigned, StringRef>> &aliases) const {}
-  /// Hook for defining Attribute aliases. These aliases must not contain `.` or
-  /// end with a numeric digit([0-9]+).
-  virtual void getAttributeAliases(
-      SmallVectorImpl<std::pair<Attribute, StringRef>> &aliases) const {}
-  /// Hook for defining Type aliases.
-  virtual void
-  getTypeAliases(SmallVectorImpl<std::pair<Type, StringRef>> &aliases) const {}
+  /// Hooks for getting an alias identifier alias for a given symbol, that is
+  /// not necessarily a part of this dialect. The identifier is used in place of
+  /// the symbol when printing textual IR. These aliases must not contain `.` or
+  /// end with a numeric digit([0-9]+). Returns success if an alias was
+  /// provided, failure otherwise.
+  virtual LogicalResult getAlias(Attribute attr, raw_ostream &os) const {
+    return failure();
+  }
+  virtual LogicalResult getAlias(Type type, raw_ostream &os) const {
+    return failure();
+  }
 
   /// Get a special name to use when printing the given operation. See
   /// OpAsmInterface.td#getAsmResultNames for usage details and documentation.

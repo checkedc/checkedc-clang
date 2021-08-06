@@ -462,6 +462,7 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) const {
      case Expr::BlockExprClass: Cmp = Compare<BlockExpr>(E1, E2); break;
      case Expr::OpaqueValueExprClass: break;
      case Expr::TypoExprClass: break;
+     case Expr::RecoveryExprClass: break;
      // TODO:
      // case Expr::MSPropertyRefExprClass:
      // case Expr::MSPropertySubscriptExprClass:

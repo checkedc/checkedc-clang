@@ -1013,23 +1013,11 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
     Res = Actions.ActOnCXXNullPtrLiteral(ConsumeToken());
     break;
 
-  case tok::annot_uneval_primary_expr:
   case tok::annot_primary_expr:
+  case tok::annot_overload_set:
     Res = getExprAnnotation(Tok);
-    if (SavedKind == tok::annot_uneval_primary_expr) {
-      if (Expr *E = Res.get()) {
-        if (!E->isTypeDependent() && !E->containsErrors()) {
-          // TransformToPotentiallyEvaluated expects that it will still be in a
-          // (temporary) unevaluated context and then looks through that context
-          // to build it in the surrounding context. So we need to push an
-          // unevaluated context to balance things out.
-          EnterExpressionEvaluationContext Unevaluated(
-              Actions, Sema::ExpressionEvaluationContext::Unevaluated,
-              Sema::ReuseLambdaContextDecl);
-          Res = Actions.TransformToPotentiallyEvaluated(Res.get());
-        }
-      }
-    }
+    if (!Res.isInvalid() && Tok.getKind() == tok::annot_overload_set)
+      Res = Actions.ActOnNameClassifiedAsOverloadSet(getCurScope(), Res.get());
     ConsumeAnnotationToken();
     if (!Res.isInvalid() && Tok.is(tok::less))
       checkPotentialAngleBracket(Res);
@@ -1229,7 +1217,7 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
             DS.SetTypeSpecType(TST_typename, ILoc, PrevSpec, DiagID, Typ,
                                Actions.getASTContext().getPrintingPolicy());
 
-            Declarator DeclaratorInfo(DS, DeclaratorContext::TypeNameContext);
+            Declarator DeclaratorInfo(DS, DeclaratorContext::TypeName);
             TypeResult Ty = Actions.ActOnTypeName(getCurScope(),
                                                   DeclaratorInfo);
             if (Ty.isInvalid())
@@ -1487,9 +1475,6 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
   case tok::kw_this:
     Res = ParseCXXThis();
     break;
-  case tok::kw___builtin_unique_stable_name:
-    Res = ParseUniqueStableNameExpression();
-    break;
   case tok::kw__Assume_bounds_cast:
   case tok::kw__Dynamic_bounds_cast:
     Res = ParseBoundsCastExpression();
@@ -1512,7 +1497,7 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
                          PrevSpec, DiagID, Type,
                          Actions.getASTContext().getPrintingPolicy());
 
-      Declarator DeclaratorInfo(DS, DeclaratorContext::TypeNameContext);
+      Declarator DeclaratorInfo(DS, DeclaratorContext::TypeName);
       TypeResult Ty = Actions.ActOnTypeName(getCurScope(), DeclaratorInfo);
       if (Ty.isInvalid())
         break;
@@ -2320,16 +2305,21 @@ Parser::ParseExprAfterUnaryExprOrTypeTrait(const Token &OpTok,
       if (isTypeIdUnambiguously()) {
         DeclSpec DS(AttrFactory);
         ParseSpecifierQualifierList(DS);
-        Declarator DeclaratorInfo(DS, DeclaratorContext::TypeNameContext);
+        Declarator DeclaratorInfo(DS, DeclaratorContext::TypeName);
         ParseDeclarator(DeclaratorInfo);
         ExitQuantifiedTypeScope(DS);
 
         SourceLocation LParenLoc = PP.getLocForEndOfToken(OpTok.getLocation());
         SourceLocation RParenLoc = PP.getLocForEndOfToken(PrevTokLocation);
-        Diag(LParenLoc, diag::err_expected_parentheses_around_typename)
-          << OpTok.getName()
-          << FixItHint::CreateInsertion(LParenLoc, "(")
-          << FixItHint::CreateInsertion(RParenLoc, ")");
+        if (LParenLoc.isInvalid() || RParenLoc.isInvalid()) {
+          Diag(OpTok.getLocation(),
+               diag::err_expected_parentheses_around_typename)
+              << OpTok.getName();
+        } else {
+          Diag(LParenLoc, diag::err_expected_parentheses_around_typename)
+              << OpTok.getName() << FixItHint::CreateInsertion(LParenLoc, "(")
+              << FixItHint::CreateInsertion(RParenLoc, ")");
+        }
         isCastExpr = true;
         return ExprEmpty();
       }
@@ -2377,43 +2367,6 @@ Parser::ParseExprAfterUnaryExprOrTypeTrait(const Token &OpTok,
   return Operand;
 }
 
-
-ExprResult Parser::ParseUniqueStableNameExpression() {
-  assert(Tok.is(tok::kw___builtin_unique_stable_name) &&
-         "Not __bulitin_unique_stable_name");
-
-  SourceLocation OpLoc = ConsumeToken();
-  BalancedDelimiterTracker T(*this, tok::l_paren);
-
-  // typeid expressions are always parenthesized.
-  if (T.expectAndConsume(diag::err_expected_lparen_after,
-                         "__builtin_unique_stable_name"))
-    return ExprError();
-
-  if (isTypeIdInParens()) {
-    TypeResult Ty = ParseTypeName();
-    T.consumeClose();
-
-    if (Ty.isInvalid())
-      return ExprError();
-
-    return Actions.ActOnUniqueStableNameExpr(OpLoc, T.getOpenLocation(),
-                                             T.getCloseLocation(), Ty.get());
-  }
-
-  EnterExpressionEvaluationContext Unevaluated(
-      Actions, Sema::ExpressionEvaluationContext::Unevaluated);
-  ExprResult Result = ParseExpression();
-
-  if (Result.isInvalid()) {
-    SkipUntil(tok::r_paren, StopAtSemi);
-    return Result;
-  }
-
-  T.consumeClose();
-  return Actions.ActOnUniqueStableNameExpr(OpLoc, T.getOpenLocation(),
-                                           T.getCloseLocation(), Result.get());
-}
 
 /// Parse a sizeof or alignof expression.
 ///
@@ -2898,6 +2851,8 @@ Parser::ParseParenExpression(ParenParseOption &ExprType, bool stopIfCastExpr,
   if (ExprType >= CompoundStmt && Tok.is(tok::l_brace)) {
     Diag(Tok, diag::ext_gnu_statement_expr);
 
+    checkCompoundToken(OpenLoc, tok::l_paren, CompoundToken::StmtExprBegin);
+
     if (!getCurScope()->getFnParent() && !getCurScope()->getBlockParent()) {
       Result = ExprError(Diag(OpenLoc, diag::err_stmtexpr_file_scope));
     } else {
@@ -2986,7 +2941,7 @@ Parser::ParseParenExpression(ParenParseOption &ExprType, bool stopIfCastExpr,
     // Adjust checked scope properties if _Checked or _Unchecked was
     // specified.
     Sema::CheckedScopeRAII CheckedScope(Actions, DS);
-    Declarator DeclaratorInfo(DS, DeclaratorContext::TypeNameContext);
+    Declarator DeclaratorInfo(DS, DeclaratorContext::TypeName);
     ParseDeclarator(DeclaratorInfo);
     ExitQuantifiedTypeScope(DS);
 
@@ -3211,6 +3166,7 @@ Parser::ParseCompoundLiteralExpression(ParsedType Ty,
   assert(Tok.is(tok::l_brace) && "Not a compound literal!");
   if (!getLangOpts().C99)   // Compound literals don't exist in C90.
     Diag(LParenLoc, diag::ext_c99_compound_literal);
+  PreferredType.enterTypeCast(Tok.getLocation(), Ty.get());
   ExprResult Result = ParseInitializer();
   if (!Result.isInvalid() && Ty)
     return Actions.ActOnCompoundLiteral(LParenLoc, Ty, RParenLoc, Result.get());
@@ -3387,8 +3343,9 @@ ExprResult Parser::ParseFoldExpression(ExprResult LHS,
                         : diag::ext_fold_expression);
 
   T.consumeClose();
-  return Actions.ActOnCXXFoldExpr(T.getOpenLocation(), LHS.get(), Kind,
-                                  EllipsisLoc, RHS.get(), T.getCloseLocation());
+  return Actions.ActOnCXXFoldExpr(getCurScope(), T.getOpenLocation(), LHS.get(),
+                                  Kind, EllipsisLoc, RHS.get(),
+                                  T.getCloseLocation());
 }
 
 /// ParseExpressionList - Used for C/C++ (argument-)expression-list.
@@ -3515,8 +3472,8 @@ void Parser::ParseBlockId(SourceLocation CaretLoc) {
   Sema::CheckedScopeRAII CheckedScope(Actions, DS);
 
   // Parse the block-declarator.
-  Declarator DeclaratorInfo(DS, DeclaratorContext::BlockLiteralContext);
-  DeclaratorInfo.setFunctionDefinitionKind(FDK_Definition);
+  Declarator DeclaratorInfo(DS, DeclaratorContext::BlockLiteral);
+  DeclaratorInfo.setFunctionDefinitionKind(FunctionDefinitionKind::Definition);
   ParseDeclarator(DeclaratorInfo);
   ExitQuantifiedTypeScope(DS);
 
@@ -3572,7 +3529,7 @@ ExprResult Parser::ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn
     // declared as part of the first dimension. For example:
     //     int a[static 10] : itype(int [static 10])
     // This is not allowed in other contexts.
-    DeclaratorContext TypeContext = DeclaratorContext::TypeNameContext;
+    DeclaratorContext TypeContext = DeclaratorContext::TypeName;
     if (D.isPrototypeContext())
        TypeContext = D.getContext();
     TypeResult Ty = ParseTypeName(nullptr, TypeContext);
@@ -3840,7 +3797,7 @@ std::pair<bool, Parser::TypeArgVector> Parser::ParseGenericTypeArgumentList(Sour
       firstTypeArgument = false;
 
     // Expect to see type name.
-    TypeResult Ty = ParseTypeName(nullptr /*Range*/, DeclaratorContext::TypeNameContext, AS_none, nullptr /*OwnedType*/, nullptr /*Attrs*/);
+    TypeResult Ty = ParseTypeName(nullptr /*Range*/, DeclaratorContext::TypeName, AS_none, nullptr /*OwnedType*/, nullptr /*Attrs*/);
     if (Ty.isInvalid()) {
       // We do not need to write an error message since ParseTypeName does.
       // We want to consume greater, but not consume semi
@@ -3921,7 +3878,8 @@ Parser::ParseRelativeBoundsClause(bool &isError, IdentifierInfo *Ident,
       SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
       isError = true;
     } else {
-      ConstExpr = Actions.VerifyIntegerConstantExpression(ConstExpr.get());
+      ConstExpr = Actions.VerifyIntegerConstantExpression(ConstExpr.get(),
+                                          Sema::AllowFoldKind::AllowFold);
       if (!ConstExpr.isInvalid())
         RelativeClause = Actions.ActOnRelativeConstExprClause(
             ConstExpr.get(), BoundsKWLoc, Tok.getLocation());
@@ -4260,8 +4218,8 @@ ExprResult Parser::ParseBlockLiteralExpression() {
 
   // Parse the return type if present.
   DeclSpec DS(AttrFactory);
-  Declarator ParamInfo(DS, DeclaratorContext::BlockLiteralContext);
-  ParamInfo.setFunctionDefinitionKind(FDK_Definition);
+  Declarator ParamInfo(DS, DeclaratorContext::BlockLiteral);
+  ParamInfo.setFunctionDefinitionKind(FunctionDefinitionKind::Definition);
   // FIXME: Since the return type isn't actually parsed, it can't be used to
   // fill ParamInfo with an initial valid range, so do it manually.
   ParamInfo.SetSourceRange(SourceRange(Tok.getLocation(), Tok.getLocation()));

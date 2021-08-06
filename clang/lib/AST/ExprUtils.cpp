@@ -43,9 +43,8 @@ IntegerLiteral *ExprCreatorUtil::CreateUnsignedInt(Sema &SemaRef,
 ImplicitCastExpr *ExprCreatorUtil::CreateImplicitCast(Sema &SemaRef, Expr *E,
                                                       CastKind CK,
                                                       QualType T) {
-  return ImplicitCastExpr::Create(SemaRef.Context, T,
-                                  CK, E, nullptr,
-                                  ExprValueKind::VK_RValue);
+  return ImplicitCastExpr::Create(SemaRef.Context, T, CK, E, nullptr,
+                                  ExprValueKind::VK_RValue, FPOptionsOverride());
 }
 
 Expr *ExprCreatorUtil::CreateExplicitCast(Sema &SemaRef, QualType Target,
@@ -57,8 +56,8 @@ Expr *ExprCreatorUtil::CreateExplicitCast(Sema &SemaRef, QualType Target,
   // Synthesize some dummy type source source information.
   TypeSourceInfo *DI = SemaRef.Context.getTrivialTypeSourceInfo(Target);
   CStyleCastExpr *CE = CStyleCastExpr::Create(SemaRef.Context, Target,
-    ExprValueKind::VK_RValue, CK, E, nullptr, DI, SourceLocation(),
-    SourceLocation());
+    ExprValueKind::VK_RValue, CK, E, nullptr, FPOptionsOverride(), DI,
+    SourceLocation(), SourceLocation());
   CE->setBoundsSafeInterface(isBoundsSafeInterface);
   return CE;
 }

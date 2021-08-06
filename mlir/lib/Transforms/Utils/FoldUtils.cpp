@@ -22,9 +22,9 @@ using namespace mlir;
 
 /// Given an operation, find the parent region that folded constants should be
 /// inserted into.
-static Region *getInsertionRegion(
-    DialectInterfaceCollection<OpFolderDialectInterface> &interfaces,
-    Block *insertionBlock) {
+static Region *
+getInsertionRegion(DialectInterfaceCollection<DialectFoldInterface> &interfaces,
+                   Block *insertionBlock) {
   while (Region *region = insertionBlock->getParent()) {
     // Insert in this region for any of the following scenarios:
     //  * The parent is unregistered, or is known to be isolated from above.
@@ -61,6 +61,18 @@ static Operation *materializeConstant(Dialect *dialect, OpBuilder &builder,
     return constOp;
   }
 
+  // TODO: To facilitate splitting the std dialect (PR48490), have a special
+  // case for falling back to std.constant. Eventually, we will have separate
+  // ops tensor.constant, int.constant, float.constant, etc. that live in their
+  // respective dialects, which will allow each dialect to implement the
+  // materializeConstant hook above.
+  //
+  // The special case is needed because in the interim state while we are
+  // splitting out those dialects from std, the std dialect depends on the
+  // tensor dialect, which makes it impossible for the tensor dialect to use
+  // std.constant (it would be a cyclic dependency) as part of its
+  // materializeConstant hook.
+  //
   // If the dialect is unable to materialize a constant, check to see if the
   // standard constant can be used.
   if (ConstantOp::isBuildableWith(value, type))

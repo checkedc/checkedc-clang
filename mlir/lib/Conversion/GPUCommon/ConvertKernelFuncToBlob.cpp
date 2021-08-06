@@ -18,8 +18,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/Function.h"
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Support/LogicalResult.h"
@@ -59,14 +58,11 @@ public:
   void runOnOperation() override {
     gpu::GPUModuleOp module = getOperation();
 
-    // Lock access to the llvm context.
-    llvm::sys::SmartScopedLock<true> scopedLock(
-        module.getContext()
-            ->getRegisteredDialect<LLVM::LLVMDialect>()
-            ->getLLVMContextMutex());
-
-    // Lower the module to a llvm module.
-    std::unique_ptr<llvm::Module> llvmModule = loweringCallback(module);
+    // Lower the module to an LLVM IR module using a separate context to enable
+    // multi-threaded processing.
+    llvm::LLVMContext llvmContext;
+    std::unique_ptr<llvm::Module> llvmModule =
+        loweringCallback(module, llvmContext, "LLVMDialectModule");
     if (!llvmModule)
       return signalPassFailure();
 
@@ -74,7 +70,7 @@ public:
     // attribute to the module.
     if (auto blobAttr = translateGPUModuleToBinaryAnnotation(
             *llvmModule, module.getLoc(), module.getName()))
-      module.setAttr(blobAnnotation, blobAttr);
+      module->setAttr(blobAnnotation, blobAttr);
     else
       signalPassFailure();
   }
@@ -109,17 +105,12 @@ GpuKernelToBlobPass::translateModuleToISA(llvm::Module &module,
                                           llvm::TargetMachine &targetMachine) {
   std::string targetISA;
   {
-    // Clone the llvm module into a new context to enable concurrent compilation
-    // with multiple threads.
-    llvm::LLVMContext llvmContext;
-    auto clone = LLVM::cloneModuleIntoNewContext(&llvmContext, &module);
-
     llvm::raw_string_ostream stream(targetISA);
     llvm::buffer_ostream pstream(stream);
     llvm::legacy::PassManager codegenPasses;
     targetMachine.addPassesToEmitFile(codegenPasses, pstream, nullptr,
                                       llvm::CGFT_AssemblyFile);
-    codegenPasses.run(*clone);
+    codegenPasses.run(module);
   }
 
   return targetISA;
@@ -139,6 +130,10 @@ OwnedBlob GpuKernelToBlobPass::convertModuleToBlob(llvm::Module &llvmModule,
     }
     targetMachine.reset(target->createTargetMachine(triple.str(), targetChip,
                                                     features, {}, {}));
+    if (targetMachine == nullptr) {
+      emitError(loc, "cannot initialize target machine");
+      return {};
+    }
   }
 
   llvmModule.setDataLayout(targetMachine->createDataLayout());

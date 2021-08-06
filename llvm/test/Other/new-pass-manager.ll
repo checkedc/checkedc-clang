@@ -19,14 +19,11 @@
 ; RUN:     -passes='cgscc(no-op-cgscc)' %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefix=CHECK-CGSCC-PASS
 ; CHECK-CGSCC-PASS: Starting llvm::Module pass manager run
-; CHECK-CGSCC-PASS-NEXT: Running pass: ModuleToPostOrderCGSCCPassAdaptor
 ; CHECK-CGSCC-PASS-NEXT: Running analysis: InnerAnalysisManagerProxy<{{.*(CGSCCAnalysisManager|AnalysisManager<.*LazyCallGraph::SCC.*>).*}},{{.*}}Module>
 ; CHECK-CGSCC-PASS-NEXT: Running analysis: InnerAnalysisManagerProxy<{{.*(FunctionAnalysisManager|AnalysisManager<.*Function.*>).*}},{{.*}}Module>
 ; CHECK-CGSCC-PASS-NEXT: Running analysis: LazyCallGraphAnalysis
 ; CHECK-CGSCC-PASS-NEXT: Running analysis: TargetLibraryAnalysis
-; CHECK-CGSCC-PASS-NEXT: Running analysis: PassInstrumentationAnalysis
 ; CHECK-CGSCC-PASS-NEXT: Running analysis: FunctionAnalysisManagerCGSCCProxy
-; CHECK-CGSCC-PASS-NEXT: Running analysis: PassInstrumentationAnalysis
 ; CHECK-CGSCC-PASS-NEXT: Running analysis: OuterAnalysisManagerProxy<{{.*}}LazyCallGraph::SCC{{.*}}>
 ; CHECK-CGSCC-PASS-NEXT: Starting CGSCC pass manager run
 ; CHECK-CGSCC-PASS-NEXT: Running pass: NoOpCGSCCPass
@@ -40,9 +37,7 @@
 ; RUN:     -passes='function(no-op-function)' %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefix=CHECK-FUNCTION-PASS
 ; CHECK-FUNCTION-PASS: Starting llvm::Module pass manager run
-; CHECK-FUNCTION-PASS-NEXT: Running pass: ModuleToFunctionPassAdaptor
 ; CHECK-FUNCTION-PASS-NEXT: Running analysis: InnerAnalysisManagerProxy<{{.*}}>
-; CHECK-FUNCTION-PASS-NEXT: Running analysis: PassInstrumentationAnalysis
 ; CHECK-FUNCTION-PASS-NEXT: Starting llvm::Function pass manager run
 ; CHECK-FUNCTION-PASS-NEXT: Running pass: NoOpFunctionPass
 ; CHECK-FUNCTION-PASS-NEXT: Finished llvm::Function pass manager run
@@ -71,7 +66,6 @@
 ; RUN:     | FileCheck %s --check-prefix=CHECK-FUNCTION-PRINT
 ; CHECK-FUNCTION-PRINT: Starting llvm::Module pass manager run
 ; CHECK-FUNCTION-PRINT: Running pass: VerifierPass
-; CHECK-FUNCTION-PRINT: Running pass: ModuleToFunctionPassAdaptor
 ; CHECK-FUNCTION-PRINT: Running analysis: InnerAnalysisManagerProxy<{{.*}}>
 ; CHECK-FUNCTION-PRINT: Starting llvm::Function pass manager run
 ; CHECK-FUNCTION-PRINT: Running pass: PrintFunctionPass
@@ -110,19 +104,6 @@
 ; RUN:     | llvm-dis \
 ; RUN:     | FileCheck %s --check-prefix=CHECK-NOOP
 
-; RUN: opt -disable-output -debug-pass-manager -verify-each -passes='no-op-module,function(no-op-function)' %s 2>&1 \
-; RUN:     | FileCheck %s --check-prefix=CHECK-VERIFY-EACH
-; CHECK-VERIFY-EACH: Starting llvm::Module pass manager run
-; CHECK-VERIFY-EACH: Running pass: VerifierPass
-; CHECK-VERIFY-EACH: Running pass: NoOpModulePass
-; CHECK-VERIFY-EACH: Running pass: VerifierPass
-; CHECK-VERIFY-EACH: Starting llvm::Function pass manager run
-; CHECK-VERIFY-EACH: Running pass: NoOpFunctionPass
-; CHECK-VERIFY-EACH: Running pass: VerifierPass
-; CHECK-VERIFY-EACH: Finished llvm::Function pass manager run
-; CHECK-VERIFY-EACH: Running pass: VerifierPass
-; CHECK-VERIFY-EACH: Finished llvm::Module pass manager run
-
 ; RUN: opt -disable-output -debug-pass-manager -disable-verify -passes='no-op-module,function(no-op-function)' %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefix=CHECK-NO-VERIFY
 ; CHECK-NO-VERIFY: Starting llvm::Module pass manager run
@@ -155,7 +136,6 @@
 ; RUN:     -passes='require<no-op-module>,cgscc(require<no-op-cgscc>,function(require<no-op-function>))' %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefix=CHECK-NO-OP-INVALIDATION
 ; CHECK-NO-OP-INVALIDATION: Starting llvm::Module pass manager run
-; CHECK-NO-OP-INVALIDATION-NOT: Invalidating all non-preserved analyses
 
 ; RUN: opt -disable-output -debug-pass-manager \
 ; RUN:     -passes='require<no-op-module>,require<no-op-module>,require<no-op-module>' %s 2>&1 \
@@ -214,7 +194,6 @@
 ; CHECK-INVALIDATE-ALL: Starting llvm::Module pass manager run
 ; CHECK-INVALIDATE-ALL: Running pass: RequireAnalysisPass
 ; CHECK-INVALIDATE-ALL: Running analysis: NoOpModuleAnalysis
-; CHECK-INVALIDATE-ALL: Starting llvm::Module pass manager run
 ; CHECK-INVALIDATE-ALL: Running pass: RequireAnalysisPass
 ; CHECK-INVALIDATE-ALL-NOT: Running analysis: NoOpModuleAnalysis
 ; CHECK-INVALIDATE-ALL: Starting llvm::Function pass manager run
@@ -228,7 +207,6 @@
 ; CHECK-INVALIDATE-ALL: Invalidating analysis: NoOpModuleAnalysis
 ; CHECK-INVALIDATE-ALL: Running pass: RequireAnalysisPass
 ; CHECK-INVALIDATE-ALL: Running analysis: NoOpModuleAnalysis
-; CHECK-INVALIDATE-ALL: Finished llvm::Module pass manager run
 ; CHECK-INVALIDATE-ALL-NOT: Invalidating analysis: NoOpModuleAnalysis
 ; CHECK-INVALIDATE-ALL: Running pass: RequireAnalysisPass
 ; CHECK-INVALIDATE-ALL-NOT: Running analysis: NoOpModuleAnalysis
@@ -240,7 +218,6 @@
 ; CHECK-INVALIDATE-ALL-CG: Starting llvm::Module pass manager run
 ; CHECK-INVALIDATE-ALL-CG: Running pass: RequireAnalysisPass
 ; CHECK-INVALIDATE-ALL-CG: Running analysis: NoOpModuleAnalysis
-; CHECK-INVALIDATE-ALL-CG: Starting llvm::Module pass manager run
 ; CHECK-INVALIDATE-ALL-CG: Running pass: RequireAnalysisPass
 ; CHECK-INVALIDATE-ALL-CG-NOT: Running analysis: NoOpModuleAnalysis
 ; CHECK-INVALIDATE-ALL-CG: Starting CGSCC pass manager run
@@ -263,7 +240,6 @@
 ; CHECK-INVALIDATE-ALL-CG: Invalidating analysis: NoOpModuleAnalysis
 ; CHECK-INVALIDATE-ALL-CG: Running pass: RequireAnalysisPass
 ; CHECK-INVALIDATE-ALL-CG: Running analysis: NoOpModuleAnalysis
-; CHECK-INVALIDATE-ALL-CG: Finished llvm::Module pass manager run
 ; CHECK-INVALIDATE-ALL-CG-NOT: Invalidating analysis: NoOpModuleAnalysis
 ; CHECK-INVALIDATE-ALL-CG: Running pass: RequireAnalysisPass
 ; CHECK-INVALIDATE-ALL-CG-NOT: Running analysis: NoOpModuleAnalysis
@@ -382,8 +358,17 @@
 
 ; RUN: opt -disable-output -disable-verify -debug-pass-manager \
 ; RUN:     -passes='default<O0>' %s 2>&1 \
-; RUN:     | FileCheck %s --check-prefix=CHECK-O0
+; RUN:     | FileCheck %s --check-prefix=CHECK-O0 --check-prefix=%llvmcheckext
 ; CHECK-O0: Starting llvm::Module pass manager run
+; CHECK-O0-NEXT: Running pass: AlwaysInlinerPass
+; CHECK-O0-NEXT: Running analysis: InnerAnalysisManagerProxy<{{.*}}>
+; CHECK-O0-NEXT: Running analysis: ProfileSummaryAnalysis
+; CHECK-EXT-NEXT: Starting llvm::Function pass manager run.
+; CHECK-EXT-NEXT: Running pass: {{.*}}Bye
+; CHECK-EXT-NEXT: Finished llvm::Function pass manager run.
+; We don't have checks for CHECK-NOEXT here, but this simplifies the test, while
+; avoiding FileCheck complaining about the unused prefix.
+; CHECK-NOEXT: {{.*}}
 ; CHECK-O0-NEXT: Finished llvm::Module pass manager run
 
 ; RUN: opt -disable-output -disable-verify -debug-pass-manager \
@@ -406,14 +391,11 @@
 ; RUN:     -passes='cgscc(repeat<3>(no-op-cgscc))' %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefix=CHECK-REPEAT-CGSCC-PASS
 ; CHECK-REPEAT-CGSCC-PASS: Starting llvm::Module pass manager run
-; CHECK-REPEAT-CGSCC-PASS-NEXT: Running pass: ModuleToPostOrderCGSCCPassAdaptor
 ; CHECK-REPEAT-CGSCC-PASS-NEXT: Running analysis: InnerAnalysisManagerProxy<{{.*(CGSCCAnalysisManager|AnalysisManager<.*LazyCallGraph::SCC.*>).*}},{{.*}}Module>
 ; CHECK-REPEAT-CGSCC-PASS-NEXT: Running analysis: InnerAnalysisManagerProxy<{{.*(FunctionAnalysisManager|AnalysisManager<.*Function.*>).*}},{{.*}}Module>
 ; CHECK-REPEAT-CGSCC-PASS-NEXT: Running analysis: LazyCallGraphAnalysis
 ; CHECK-REPEAT-CGSCC-PASS-NEXT: Running analysis: TargetLibraryAnalysis
-; CHECK-REPEAT-CGSCC-PASS-NEXT: Running analysis: PassInstrumentationAnalysis
 ; CHECK-REPEAT-CGSCC-PASS-NEXT: Running analysis: FunctionAnalysisManagerCGSCCProxy
-; CHECK-REPEAT-CGSCC-PASS-NEXT: Running analysis: PassInstrumentationAnalysis
 ; CHECK-REPEAT-CGSCC-PASS-NEXT: Running analysis: OuterAnalysisManagerProxy<{{.*}}LazyCallGraph::SCC{{.*}}>
 ; CHECK-REPEAT-CGSCC-PASS-NEXT: Starting CGSCC pass manager run
 ; CHECK-REPEAT-CGSCC-PASS-NEXT: Running pass: RepeatedPass
@@ -433,9 +415,7 @@
 ; RUN:     -passes='function(repeat<3>(no-op-function))' %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefix=CHECK-REPEAT-FUNCTION-PASS
 ; CHECK-REPEAT-FUNCTION-PASS: Starting llvm::Module pass manager run
-; CHECK-REPEAT-FUNCTION-PASS-NEXT: Running pass: ModuleToFunctionPassAdaptor
 ; CHECK-REPEAT-FUNCTION-PASS-NEXT: Running analysis: InnerAnalysisManagerProxy<{{.*}}>
-; CHECK-REPEAT-FUNCTION-PASS-NEXT: Running analysis: PassInstrumentationAnalysis
 ; CHECK-REPEAT-FUNCTION-PASS-NEXT: Starting llvm::Function pass manager run
 ; CHECK-REPEAT-FUNCTION-PASS-NEXT: Running pass: RepeatedPass
 ; CHECK-REPEAT-FUNCTION-PASS-NEXT: Starting llvm::Function pass manager run
@@ -454,26 +434,25 @@
 ; RUN:     -passes='loop(repeat<3>(no-op-loop))' %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefix=CHECK-REPEAT-LOOP-PASS
 ; CHECK-REPEAT-LOOP-PASS: Starting llvm::Module pass manager run
-; CHECK-REPEAT-LOOP-PASS-NEXT: Running pass: ModuleToFunctionPassAdaptor
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Running analysis: InnerAnalysisManagerProxy<{{.*}}>
-; CHECK-REPEAT-LOOP-PASS-NEXT: Running analysis: PassInstrumentationAnalysis
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Starting llvm::Function pass manager run
-; CHECK-REPEAT-LOOP-PASS-NEXT: Running pass: FunctionToLoopPassAdaptor
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Starting llvm::Function pass manager run
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Running pass: LoopSimplify
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Running analysis: LoopAnalysis
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Running analysis: DominatorTreeAnalysis
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Running analysis: AssumptionAnalysis
-; CHECK-REPEAT-LOOP-PASS-NEXT: Invalidating all non-preserved analyses
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Running pass: LCSSAPass
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Finished llvm::Function pass manager run
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Running analysis: AAManager
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Running analysis: TargetLibraryAnalysis
+; CHECK-REPEAT-LOOP-PASS-NEXT: Running analysis: BasicAA
+; CHECK-REPEAT-LOOP-PASS-NEXT: Running analysis: ScopedNoAliasAA
+; CHECK-REPEAT-LOOP-PASS-NEXT: Running analysis: TypeBasedAA
+; CHECK-REPEAT-LOOP-PASS-NEXT: Running analysis: OuterAnalysisManagerProxy
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Running analysis: ScalarEvolutionAnalysis
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Running analysis: TargetIRAnalysis
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Running analysis: InnerAnalysisManagerProxy<{{.*}}>
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Starting Loop pass manager run
-; CHECK-REPEAT-LOOP-PASS-NEXT: Running analysis: PassInstrumentationAnalysis
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Running pass: RepeatedPass
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Starting Loop pass manager run
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Running pass: NoOpLoopPass
@@ -486,7 +465,6 @@
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Finished Loop pass manager run
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Finished Loop pass manager run
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Finished llvm::Function pass manager run
-; CHECK-REPEAT-LOOP-PASS-NEXT: Invalidating all non-preserved analyses
 ; CHECK-REPEAT-LOOP-PASS-NEXT: Finished llvm::Module pass manager run
 
 define void @foo(i1 %x, i8* %p1, i8* %p2) {

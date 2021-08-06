@@ -50,12 +50,11 @@ define void @foo(<3 x float> %in, <4 x i8>* nocapture %out) nounwind {
 define <4 x float> @test_negative_zero_1(<4 x float> %A) {
 ; SSE2-LABEL: test_negative_zero_1:
 ; SSE2:       # %bb.0: # %entry
-; SSE2-NEXT:    movaps %xmm0, %xmm1
-; SSE2-NEXT:    unpckhpd {{.*#+}} xmm1 = xmm1[1],xmm0[1]
-; SSE2-NEXT:    movss {{.*#+}} xmm2 = mem[0],zero,zero,zero
-; SSE2-NEXT:    unpcklps {{.*#+}} xmm0 = xmm0[0],xmm2[0],xmm0[1],xmm2[1]
-; SSE2-NEXT:    xorps %xmm2, %xmm2
-; SSE2-NEXT:    movss {{.*#+}} xmm2 = xmm1[0],xmm2[1,2,3]
+; SSE2-NEXT:    xorps %xmm1, %xmm1
+; SSE2-NEXT:    movaps %xmm0, %xmm2
+; SSE2-NEXT:    unpckhps {{.*#+}} xmm2 = xmm2[2],xmm1[2],xmm2[3],xmm1[3]
+; SSE2-NEXT:    movss {{.*#+}} xmm1 = mem[0],zero,zero,zero
+; SSE2-NEXT:    unpcklps {{.*#+}} xmm0 = xmm0[0],xmm1[0],xmm0[1],xmm1[1]
 ; SSE2-NEXT:    movlhps {{.*#+}} xmm0 = xmm0[0],xmm2[0]
 ; SSE2-NEXT:    retq
 ;
@@ -792,9 +791,9 @@ define i32 @PR46586(i8* %p, <4 x i32> %v) {
 ; SSE2-NEXT:    movzbl 3(%rdi), %eax
 ; SSE2-NEXT:    pxor %xmm1, %xmm1
 ; SSE2-NEXT:    pinsrw $6, %eax, %xmm1
-; SSE2-NEXT:    pshufd {{.*#+}} xmm1 = xmm1[3,1,2,3]
+; SSE2-NEXT:    pshufd {{.*#+}} xmm1 = xmm1[3,3,3,3]
 ; SSE2-NEXT:    movd %xmm1, %eax
-; SSE2-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[3,1,2,3]
+; SSE2-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[3,3,3,3]
 ; SSE2-NEXT:    movd %xmm0, %ecx
 ; SSE2-NEXT:    xorl %edx, %edx
 ; SSE2-NEXT:    divl %ecx

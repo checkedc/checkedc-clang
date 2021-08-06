@@ -16,6 +16,7 @@
 #include "mlir/Support/LLVM.h"
 #include "mlir/TableGen/Argument.h"
 #include "mlir/TableGen/Attribute.h"
+#include "mlir/TableGen/Builder.h"
 #include "mlir/TableGen/Dialect.h"
 #include "mlir/TableGen/OpTrait.h"
 #include "mlir/TableGen/Region.h"
@@ -28,7 +29,6 @@
 #include "llvm/Support/SMLoc.h"
 
 namespace llvm {
-class CodeInit;
 class DefInit;
 class Record;
 class StringInit;
@@ -150,6 +150,17 @@ public:
 
   // Returns the total number of arguments.
   int getNumArgs() const { return arguments.size(); }
+
+  // Returns true of the operation has a single variadic arg.
+  bool hasSingleVariadicArg() const;
+
+  // Returns true if the operation has a single variadic result.
+  bool hasSingleVariadicResult() const {
+    return getNumResults() == 1 && getResult(0).isVariadic();
+  }
+
+  // Returns true of the operation has no variadic regions.
+  bool hasNoVariadicRegions() const { return getNumVariadicRegions() == 0; }
 
   using arg_iterator = const Argument *;
   using arg_range = llvm::iterator_range<arg_iterator>;
@@ -277,6 +288,9 @@ public:
   // Returns the OperandOrAttribute corresponding to the index.
   OperandOrAttribute getArgToOperandOrAttribute(int index) const;
 
+  // Returns the builders of this operation.
+  ArrayRef<Builder> getBuilders() const { return builders; }
+
 private:
   // Populates the vectors containing operands, attributes, results and traits.
   void populateOpStructure();
@@ -321,6 +335,9 @@ private:
 
   // Map from argument to attribute or operand number.
   SmallVector<OperandOrAttribute, 4> attrOrOperandMapping;
+
+  // The builders of this operator.
+  SmallVector<Builder> builders;
 
   // The number of native attributes stored in the leading positions of
   // `attributes`.

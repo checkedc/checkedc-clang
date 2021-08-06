@@ -40,7 +40,7 @@ define i16 @trunc_bitcast_v2i32_to_i16(<2 x i32> %bar) {
 ; VI:       ; %bb.0:
 ; VI-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
 ; VI-NEXT:    flat_load_dword v0, v[0:1]
-; VI-NEXT:    s_waitcnt vmcnt(0) lgkmcnt(0)
+; VI-NEXT:    s_waitcnt vmcnt(0)
 ; VI-NEXT:    v_add_u16_e32 v0, 4, v0
 ; VI-NEXT:    s_setpc_b64 s[30:31]
   %load0 = load i32, i32 addrspace(1)* undef
@@ -69,7 +69,7 @@ define i16 @trunc_bitcast_v2f32_to_i16(<2 x float> %bar) {
 ; VI:       ; %bb.0:
 ; VI-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
 ; VI-NEXT:    flat_load_dword v0, v[0:1]
-; VI-NEXT:    s_waitcnt vmcnt(0) lgkmcnt(0)
+; VI-NEXT:    s_waitcnt vmcnt(0)
 ; VI-NEXT:    v_add_u16_e32 v0, 4, v0
 ; VI-NEXT:    s_setpc_b64 s[30:31]
   %load0 = load float, float addrspace(1)* undef
@@ -106,13 +106,13 @@ define amdgpu_kernel void @truncate_high_elt_extract_vector(<2 x i16> addrspace(
 ; VI-NEXT:    s_load_dwordx4 s[4:7], s[0:1], 0x24
 ; VI-NEXT:    s_load_dwordx2 s[0:1], s[0:1], 0x34
 ; VI-NEXT:    s_waitcnt lgkmcnt(0)
+; VI-NEXT:    s_load_dword s2, s[4:5], 0x0
+; VI-NEXT:    s_load_dword s3, s[6:7], 0x0
 ; VI-NEXT:    v_mov_b32_e32 v0, s0
 ; VI-NEXT:    v_mov_b32_e32 v1, s1
-; VI-NEXT:    s_load_dword s0, s[4:5], 0x0
-; VI-NEXT:    s_load_dword s1, s[6:7], 0x0
 ; VI-NEXT:    s_waitcnt lgkmcnt(0)
-; VI-NEXT:    s_sext_i32_i16 s0, s0
-; VI-NEXT:    s_sext_i32_i16 s1, s1
+; VI-NEXT:    s_sext_i32_i16 s0, s2
+; VI-NEXT:    s_sext_i32_i16 s1, s3
 ; VI-NEXT:    v_mov_b32_e32 v2, s0
 ; VI-NEXT:    v_mul_i32_i24_e32 v2, s1, v2
 ; VI-NEXT:    v_lshrrev_b32_e32 v2, 16, v2

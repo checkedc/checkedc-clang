@@ -20,6 +20,7 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/Support/SourceMgr.h"
 #include <cassert>
 #include <string>
 
@@ -86,10 +87,11 @@ struct Note : DiagBase {};
 struct Diag : DiagBase {
   std::string Name; // if ID was recognized.
   // The source of this diagnostic.
-  enum {
+  enum DiagSource {
     Unknown,
     Clang,
     ClangTidy,
+    ClangdConfig,
   } Source = Unknown;
   /// Elaborate on the problem, usually pointing to a related piece of code.
   std::vector<Note> Notes;
@@ -97,6 +99,8 @@ struct Diag : DiagBase {
   std::vector<Fix> Fixes;
 };
 llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Diag &D);
+
+Diag toDiag(const llvm::SMDiagnostic &, Diag::DiagSource Source);
 
 /// Conversion to LSP diagnostics. Formats the error message of each diagnostic
 /// to include all its notes. Notes inside main file are also provided as
@@ -122,7 +126,8 @@ public:
   // The ClangTidyContext populates Source and Name for clang-tidy diagnostics.
   std::vector<Diag> take(const clang::tidy::ClangTidyContext *Tidy = nullptr);
 
-  void BeginSourceFile(const LangOptions &Opts, const Preprocessor *) override;
+  void BeginSourceFile(const LangOptions &Opts,
+                       const Preprocessor *PP) override;
   void EndSourceFile() override;
   void HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
                         const clang::Diagnostic &Info) override;
@@ -148,10 +153,20 @@ private:
   llvm::Optional<Diag> LastDiag;
   llvm::Optional<FullSourceLoc> LastDiagLoc; // Valid only when LastDiag is set.
   bool LastDiagOriginallyError = false;      // Valid only when LastDiag is set.
+  SourceManager *OrigSrcMgr = nullptr;
 
   llvm::DenseSet<std::pair<unsigned, unsigned>> IncludedErrorLocations;
   bool LastPrimaryDiagnosticWasSuppressed = false;
 };
+
+/// Determine whether a (non-clang-tidy) diagnostic is suppressed by config.
+bool isBuiltinDiagnosticSuppressed(unsigned ID,
+                                   const llvm::StringSet<> &Suppressed);
+/// Take a user-specified diagnostic code, and convert it to a normalized form
+/// stored in the config and consumed by isBuiltinDiagnosticsSuppressed.
+///
+/// (This strips err_ and -W prefix so we can match with or without them.)
+llvm::StringRef normalizeSuppressedCode(llvm::StringRef);
 
 } // namespace clangd
 } // namespace clang

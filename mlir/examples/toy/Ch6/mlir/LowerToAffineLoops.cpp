@@ -39,13 +39,13 @@ static Value insertAllocAndDealloc(MemRefType type, Location loc,
   auto alloc = rewriter.create<AllocOp>(loc, type);
 
   // Make sure to allocate at the beginning of the block.
-  auto *parentBlock = alloc.getOperation()->getBlock();
-  alloc.getOperation()->moveBefore(&parentBlock->front());
+  auto *parentBlock = alloc->getBlock();
+  alloc->moveBefore(&parentBlock->front());
 
   // Make sure to deallocate this alloc at the end of the block. This is fine
   // as toy functions have no control flow.
   auto dealloc = rewriter.create<DeallocOp>(loc, alloc);
-  dealloc.getOperation()->moveBefore(&parentBlock->back());
+  dealloc->moveBefore(&parentBlock->back());
   return alloc;
 }
 
@@ -255,6 +255,9 @@ struct TransposeOpLowering : public ConversionPattern {
 namespace {
 struct ToyToAffineLoweringPass
     : public PassWrapper<ToyToAffineLoweringPass, FunctionPass> {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<AffineDialect, StandardOpsDialect>();
+  }
   void runOnFunction() final;
 };
 } // end anonymous namespace.
@@ -298,7 +301,8 @@ void ToyToAffineLoweringPass::runOnFunction() {
   // With the target and rewrite patterns defined, we can now attempt the
   // conversion. The conversion will signal failure if any of our `illegal`
   // operations were not converted successfully.
-  if (failed(applyPartialConversion(getFunction(), target, patterns)))
+  if (failed(
+          applyPartialConversion(getFunction(), target, std::move(patterns))))
     signalPassFailure();
 }
 

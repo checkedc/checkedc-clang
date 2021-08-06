@@ -653,7 +653,7 @@ void StmtPrinter::PrintOMPExecutableDirective(OMPExecutableDirective *S,
     }
   OS << NL;
   if (!ForceNoStmt && S->hasAssociatedStmt())
-    PrintStmt(S->getInnermostCapturedStmt()->getCapturedStmt());
+    PrintStmt(S->getRawStmt());
 }
 
 void StmtPrinter::VisitOMPParallelDirective(OMPParallelDirective *Node) {
@@ -974,6 +974,10 @@ void StmtPrinter::VisitConstantExpr(ConstantExpr *Node) {
 void StmtPrinter::VisitDeclRefExpr(DeclRefExpr *Node) {
   if (const auto *OCED = dyn_cast<OMPCapturedExprDecl>(Node->getDecl())) {
     OCED->getInit()->IgnoreImpCasts()->printPretty(OS, nullptr, Policy);
+    return;
+  }
+  if (const auto *TPOD = dyn_cast<TemplateParamObjectDecl>(Node->getDecl())) {
+    TPOD->printAsExpr(OS);
     return;
   }
   if (NestedNameSpecifier *Qualifier = Node->getQualifier())
@@ -2144,8 +2148,23 @@ void StmtPrinter::VisitLambdaExpr(LambdaExpr *Node) {
     if (C->isPackExpansion())
       OS << "...";
 
-    if (Node->isInitCapture(C))
-      PrintExpr(C->getCapturedVar()->getInit());
+    if (Node->isInitCapture(C)) {
+      VarDecl *D = C->getCapturedVar();
+
+      llvm::StringRef Pre;
+      llvm::StringRef Post;
+      if (D->getInitStyle() == VarDecl::CallInit &&
+          !isa<ParenListExpr>(D->getInit())) {
+        Pre = "(";
+        Post = ")";
+      } else if (D->getInitStyle() == VarDecl::CInit) {
+        Pre = " = ";
+      }
+
+      OS << Pre;
+      PrintExpr(D->getInit());
+      OS << Post;
+    }
   }
   OS << ']';
 

@@ -1517,8 +1517,7 @@ namespace {
         }
 
         for (const auto &E : EquivSet) {
-          llvm::APSInt Val;
-          if (E->isIntegerConstantExpr(Val, S.Context))
+          if (E->isIntegerConstantExpr(S.Context))
             return true;
         }
 
@@ -1698,7 +1697,9 @@ namespace {
           } else
             goto exit;
           assert(Other->getType()->isIntegerType());
-          if (Other->isIntegerConstantExpr(OffsetConstant, S.Context)) {
+          Optional<llvm::APSInt> OptOffsetConstant = Other->getIntegerConstantExpr(S.Context);
+          if (OptOffsetConstant) {
+            OffsetConstant = *OptOffsetConstant;
             // Widen the integer to the number of bits in a pointer.
             bool Overflow;
             OffsetConstant = ExprUtil::ConvertToSignedPointerWidth(S.Context, OffsetConstant, Overflow);
@@ -1757,11 +1758,14 @@ namespace {
           // Check to see if Offset is already of the form e * i or i * e. In this case,
           // ConstantPart = i, VariablePart = e.
           if (BinaryOperator::isMultiplicativeOp(BO->getOpcode())) {
-            if (BO->getRHS()->isIntegerConstantExpr(ConstantPart, Ctx))
+            Optional<llvm::APSInt> OptConstantPart;
+            if (OptConstantPart = BO->getRHS()->getIntegerConstantExpr(Ctx)) {
+              ConstantPart = *OptConstantPart;
               VariablePart = BO->getLHS();
-            else if (BO->getLHS()->isIntegerConstantExpr(ConstantPart, Ctx))
+	    } else if (OptConstantPart = BO->getLHS()->getIntegerConstantExpr(Ctx)) {
+              ConstantPart = *OptConstantPart;
               VariablePart = BO->getRHS();
-            else
+	    } else
               goto fallback_std_form;
             IsOpSigned = VariablePart->getType()->isSignedIntegerType();
             ConstantPart = ExprUtil::ConvertToSignedPointerWidth(Ctx, ConstantPart, Overflow);
@@ -2070,8 +2074,8 @@ namespace {
       return DeclaredConstant <= SrcConstant;
     }
 
-    // Try to prove that PtrBase + Offset is within Bounds, where PtrBase has pointer type.
-    // Offset is optional and may be a nullptr.
+// Try to prove that PtrBase + Offset is within Bounds, where PtrBase has pointer type.
+// Offset is optional and may be a nullptr.
     ProofResult ProveMemoryAccessInRange(Expr *PtrBase, Expr *Offset, BoundsExpr *Bounds,
                                          BoundsCheckKind Kind, EquivExprSets *EquivExprs,
                                          ProofFailure &Cause) {
@@ -2122,9 +2126,10 @@ namespace {
 
       if (Offset) {
         llvm::APSInt IntVal;
-        if (!Offset->isIntegerConstantExpr(IntVal, S.Context))
+        Optional<llvm::APSInt> OptIntVal = Offset->getIntegerConstantExpr(S.Context);
+        if (!OptIntVal)
           return ProofResult::Maybe;
-        IntVal = ExprUtil::ConvertToSignedPointerWidth(S.Context, IntVal, Overflow);
+        IntVal = ExprUtil::ConvertToSignedPointerWidth(S.Context, *OptIntVal, Overflow);
         if (Overflow)
           return ProofResult::Maybe;
         IntVal = IntVal.smul_ov(ElementSize, Overflow);
@@ -2939,6 +2944,8 @@ namespace {
         return CreateBoundsEmpty();
 
       if (Expr *E = dyn_cast<Expr>(S)) {
+        if (E->containsErrors())
+          return CreateBoundsEmpty();
         E = E->IgnoreParens();
         S = E;
         if (E->isLValue()) {
@@ -3012,6 +3019,9 @@ namespace {
       }
 
       if (Expr *E = dyn_cast<Expr>(S)) {
+        if (E->isValueDependent())
+          return ResultBounds;
+
         // Null ptrs always have bounds(any).
         // This is the correct way to detect all the different ways that
         // C can make a null ptr.
@@ -3040,6 +3050,9 @@ namespace {
     BoundsExpr *CheckLValue(Expr *E, CheckedScopeSpecifier CSS,
                             CheckingState &State) {
       if (!E->isLValue())
+        return BoundsUtil::CreateBoundsInferenceError(S);
+
+      if (E->containsErrors())
         return BoundsUtil::CreateBoundsInferenceError(S);
 
       E = E->IgnoreParens();
@@ -3816,6 +3829,8 @@ namespace {
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
 
       Expr *Init = D->getInit();
+      if (Init && Init->containsErrors())
+        return ResultBounds;
       BoundsExpr *InitBounds = nullptr;
       const AbstractSet *A = nullptr;
 
@@ -5983,6 +5998,7 @@ Expr *Sema::GetArrayPtrDereference(Expr *E, QualType &Result) {
     case Expr::MemberExprClass:
     case Expr::CompoundLiteralExprClass:
     case Expr::ExtVectorElementExprClass:
+    case Expr::RecoveryExprClass:
       return nullptr;
     case Expr::UnaryOperatorClass: {
       UnaryOperator *UO = cast<UnaryOperator>(E);

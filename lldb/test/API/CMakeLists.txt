@@ -1,6 +1,6 @@
 function(add_python_test_target name test_script args comment)
   set(PYTHON_TEST_COMMAND
-    ${PYTHON_EXECUTABLE}
+    ${Python3_EXECUTABLE}
     ${test_script}
     ${args}
     )
@@ -13,10 +13,10 @@ function(add_python_test_target name test_script args comment)
   add_dependencies(${name} lldb-test-deps)
 endfunction()
 
-# The default architecture with which to compile test executables is the default LLVM target
-# architecture, which itself defaults to the host architecture.
-string(TOLOWER "${LLVM_TARGET_ARCH}" LLDB_DEFAULT_TEST_ARCH)
-if( LLDB_DEFAULT_TEST_ARCH STREQUAL "host" )
+# The default architecture with which to compile test executables is the
+# default LLVM target architecture, which itself defaults to the host
+# architecture.
+if(NOT LLDB_DEFAULT_TEST_ARCH)
   string(REGEX MATCH "^[^-]*" LLDB_DEFAULT_TEST_ARCH ${LLVM_HOST_TRIPLE})
 endif ()
 
@@ -36,9 +36,6 @@ set(LLDB_TEST_USER_ARGS
 # hash of filename and .text section, there *will* be conflicts inside
 # the build directory.
 set(LLDB_TEST_COMMON_ARGS
-  -s
-  ${CMAKE_BINARY_DIR}/lldb-test-traces
-  -S nm
   -u CXXFLAGS
   -u CFLAGS
   )
@@ -68,9 +65,6 @@ if ("${LLDB_TEST_COMPILER}" STREQUAL "")
 endif()
 
 if ( CMAKE_SYSTEM_NAME MATCHES "Windows" )
-  # All tests are currently flaky on Windows, so rerun them all once when they fail.
-  set(LLDB_TEST_COMMON_ARGS ${LLDB_TEST_COMMON_ARGS} --rerun-all-issues)
-
   set(LLDB_TEST_DEBUG_TEST_CRASHES
     0
     CACHE BOOL "(Windows only) Enables debugging of tests in the test suite by showing the crash dialog when lldb crashes")
@@ -101,7 +95,7 @@ endif()
 
 if(CMAKE_HOST_APPLE)
   if(LLDB_BUILD_FRAMEWORK)
-    list(APPEND LLDB_TEST_COMMON_ARGS --framework ${LLDB_FRAMEWORK_ABSOLUTE_BUILD_DIR}/LLDB.framework)
+    set(LLDB_FRAMEWORK_DIR ${LLDB_FRAMEWORK_ABSOLUTE_BUILD_DIR}/LLDB.framework)
   endif()
 
   # Use the same identity for testing
@@ -122,12 +116,12 @@ if(CMAKE_HOST_APPLE)
   elseif(TARGET debugserver)
     set(debugserver_path ${LLVM_RUNTIME_OUTPUT_INTDIR}/debugserver)
     message(STATUS "LLDB Tests use just-built debugserver: ${debugserver_path}")
-    list(APPEND LLDB_TEST_COMMON_ARGS --server ${debugserver_path})
+    set(LLDB_TEST_SERVER ${debugserver_path})
     add_lldb_test_dependency(debugserver)
   elseif(TARGET lldb-server)
     set(lldb_server_path ${LLVM_RUNTIME_OUTPUT_INTDIR}/lldb-server)
     message(STATUS "LLDB Tests use just-built lldb-server: ${lldb_server_path}")
-    list(APPEND LLDB_TEST_COMMON_ARGS --server ${lldb_server_path})
+    set(LLDB_TEST_SERVER ${lldb_server_path})
     add_lldb_test_dependency(lldb-server)
   else()
     message(WARNING "LLDB Tests enabled, but no server available")
@@ -142,12 +136,14 @@ if(LLDB_BUILT_STANDALONE)
   string(REPLACE ${CMAKE_CFG_INTDIR} ${LLVM_BUILD_MODE} config_runtime_output_dir ${LLVM_RUNTIME_OUTPUT_INTDIR})
   string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_DOTEST_ARGS "${LLDB_DOTEST_ARGS}")
   string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_SOURCE_DIR "${LLDB_SOURCE_DIR}")
+  string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_FRAMEWORK_DIR "${LLDB_FRAMEWORK_DIR}")
   string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_TEST_BUILD_DIRECTORY "${LLDB_TEST_BUILD_DIRECTORY}")
   string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_TEST_EXECUTABLE "${LLDB_TEST_EXECUTABLE}")
   string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_TEST_COMPILER "${LLDB_TEST_COMPILER}")
   string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_TEST_DSYMUTIL "${LLDB_TEST_DSYMUTIL}")
   string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_TEST_FILECHECK "${LLDB_TEST_FILECHECK}")
   string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_TEST_YAML2OBJ "${LLDB_TEST_YAML2OBJ}")
+  string(REPLACE ${LLVM_RUNTIME_OUTPUT_INTDIR} ${config_runtime_output_dir} LLDB_TEST_SERVER "${LLDB_TEST_SERVER}")
 
   # Remaining ones must be paths to the provided LLVM build-tree.
   if(LLVM_CONFIGURATION_TYPES)
@@ -176,6 +172,7 @@ string(REPLACE ${CMAKE_CFG_INTDIR} ${dotest_args_replacement} LLDB_TEST_COMPILER
 string(REPLACE ${CMAKE_CFG_INTDIR} ${dotest_args_replacement} LLDB_TEST_DSYMUTIL "${LLDB_TEST_DSYMUTIL}")
 string(REPLACE ${CMAKE_CFG_INTDIR} ${dotest_args_replacement} LLDB_TEST_FILECHECK "${LLDB_TEST_FILECHECK}")
 string(REPLACE ${CMAKE_CFG_INTDIR} ${dotest_args_replacement} LLDB_TEST_YAML2OBJ "${LLDB_TEST_YAML2OBJ}")
+string(REPLACE ${CMAKE_CFG_INTDIR} ${dotest_args_replacement} LLDB_TEST_SERVER "${LLDB_TEST_SERVER}")
 
 # Configure the API test suite.
 configure_lit_site_cfg(

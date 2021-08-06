@@ -44,12 +44,12 @@ llvm::StringRef InternalOpTrait::getTrait() const {
 }
 
 std::string PredOpTrait::getPredTemplate() const {
-  auto pred = tblgen::Pred(def->getValueInit("predicate"));
+  auto pred = Pred(def->getValueInit("predicate"));
   return pred.getCondition();
 }
 
-llvm::StringRef PredOpTrait::getDescription() const {
-  return def->getValueAsString("description");
+llvm::StringRef PredOpTrait::getSummary() const {
+  return def->getValueAsString("summary");
 }
 
 OpInterface InterfaceOpTrait::getOpInterface() const {

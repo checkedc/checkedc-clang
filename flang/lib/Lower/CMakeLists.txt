@@ -1,4 +1,3 @@
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error -Wno-unused-parameter")
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 
 add_flang_library(FortranLower
@@ -7,11 +6,13 @@ add_flang_library(FortranLower
   Coarray.cpp
   ComplexExpr.cpp
   ConvertType.cpp
+  ConvertExpr.cpp
   DoLoopHelper.cpp
   FIRBuilder.cpp
   IntrinsicCall.cpp
   IO.cpp
   Mangler.cpp
+  OpenACC.cpp
   OpenMP.cpp
   PFTBuilder.cpp
 
@@ -29,7 +30,7 @@ add_flang_library(FortranLower
   MLIRAffineToStandard
   MLIRLLVMIR
   MLIRSCFToStandard
-  MLIRStandardOps
+  MLIRStandard
 
   LINK_COMPONENTS
   Support

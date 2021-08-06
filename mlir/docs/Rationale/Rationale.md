@@ -202,32 +202,19 @@ and described in
 interest
 [starts here](https://www.google.com/url?q=https://youtu.be/Ntj8ab-5cvE?t%3D596&sa=D&ust=1529450150971000&usg=AFQjCNFQHEWL7m8q3eO-1DiKw9zqC2v24Q).
 
-### Index type disallowed in vector/memref types
+### Index type disallowed in vector types
 
-Index types are not allowed as elements of `vector` and `memref` types. Index
+Index types are not allowed as elements of `vector` types. Index
 types are intended to be used for platform-specific "size" values and may appear
 in subscripts, sizes of aggregate types and affine expressions. They are also
 tightly coupled with `affine.apply` and affine.load/store operations; having
 `index` type is a necessary precondition of a value to be acceptable by these
-operations. While it may be useful to have `memref<?xindex>` to express indirect
-accesses, e.g. sparse matrix manipulations or lookup tables, it creates problems
-MLIR is not ready to address yet. MLIR needs to internally store constants of
-aggregate types and emit code operating on values of those types, which are
-subject to target-specific size and alignment constraints. Since MLIR does not
-have a target description mechanism at the moment, it cannot reliably emit such
-code. Moreover, some platforms may not support vectors of type equivalent to
-`index`.
+operations.
 
-Indirect access use cases can be alternatively supported by providing and
-`index_cast` instruction that allows for conversion between `index` and
-fixed-width integer types, at the SSA value level. It has an additional benefit
-of supporting smaller integer types, e.g. `i8` or `i16`, for small indices
-instead of (presumably larger) `index` type.
-
-Index types are allowed as element types of `tensor` types. The `tensor` type
-specifically abstracts the target-specific aspects that intersect with the
-code-generation-related/lowering-related concerns explained above. In fact, the
-`tensor` type even allows dialect-specific types as element types.
+We allow `index` types in tensors and memrefs as a code generation strategy has
+to map `index` to an implementation type and hence needs to be able to
+materialize corresponding values. However, the target might lack support for
+`vector` values with the target specific equivalent of the `index` type.
 
 ### Bit width of a non-primitive type and `index` is undefined
 
@@ -440,43 +427,10 @@ arguments to explicitly break the use-def chains in the current proposal. This
 can be combined with an attribute-imposed semantic requirement disallowing the
 body of the region to refer to any value from outside it.
 
-### Quantized integer operations
-
-We haven't designed integer quantized operations in MLIR, but experience from
-TensorFlow suggests that it is better to put information about the quantization
-range/scale into the type itself, rather than have a single type like "qint8"
-and put these on attributes of the operation.
-
-There are a few ways to do this with MLIR, including at least:
-
-*   We could do the same thing TensorFlow does - and we will _have_ to support
-    that model to some extent for compatibility.
-*   We can encode the fp range of quantized integers directly into the types
-    when they are constants. The best practice on this seems to be to encode the
-    zero point as well as a scale factor. This ensures that 0.0 is always
-    exactly representable, e.g. `qi8<-1.42, 31.23x>`.
-*   We could theoretically encode dynamically determined ranges into the types
-    using something like `qi8<?,?>` with the bounds being determined through the
-    SSA dataflow graph dynamically - similar to how dynamic shapes are handled.
-
-We will definitely need to do #1 for compatibility, we probably want to do #2,
-and we should investigate #3 over time. That said, our short term plan is to get
-more implementation experience with the rest of the system first, then come back
-to re-examine the representation for quantized arithmetic when we have that
-experience. When we do, we should chat with benoitjacob@ and
-[read the paper](https://arxiv.org/abs/1712.05877).
-
 ### Dialect type extensions
 
 This section describes the design decisions that shaped the dialect extensible
 type system present in MLIR.
-
-#### Reserving dialect type kinds
-
-Dialects that wish to define type extensions must reserve a range of type kinds
-within a '.def' file within the core IR library. This means that every dialect
-wishing to define custom types must modify this file, but it guarantees that all
-type casting checkings are performed in O(1) time.
 
 #### Interactions between dialects
 
@@ -485,23 +439,23 @@ understand. When types of a dialect are:
 
 *   In operations of other dialects
 
-    -   For standard/builtin operations, only standard/builtin types are
-        allowed. This restriction allows for operations to clearly understand
-        the invariants that they are working under.
+    -   For standard/builtin operations, only builtin types are allowed. This
+        restriction allows for operations to clearly understand the invariants
+        that they are working under.
     -   Outside of standard/builtin operations, dialects are expected to verify
         the allowable operation types per operation.
 
 *   In types of other dialects
 
-    -   For standard/builtin types, these types are allowed to contain types
-        from other dialects. This simplifies the type system and removes the
-        need for dialects to redefine all of the standard aggregate types, e.g.
-        tensor, as well as the memref type. Dialects are expected to verify that
-        a specific type is valid within a standard type, e.g. if a type can be
-        an element of a tensor.
+    -   For builtin types, these types are allowed to contain types from other
+        dialects. This simplifies the type system and removes the need for
+        dialects to redefine all of the builtin aggregate types, e.g. tensor, as
+        well as the memref type. Dialects are expected to verify that a specific
+        type is valid within a builtin type, e.g. if a type can be an element of
+        a tensor.
     -   For dialect types, the dialect is expected to verify any type
-        invariants, e.g. if the standard tensor type can contain a specific type
-        of that dialect.
+        invariants, e.g. if the tensor type can contain a specific type of that
+        dialect.
 
 #### Separating builtin and standard types
 
@@ -616,10 +570,10 @@ for (i = 0; i < N; i++) {
 ```
 
 The presence of dynamic control flow leads to an inner non-affine function
-nested in an outer function that using affine loops.
+nested in an outer function that uses affine loops.
 
 ```mlir
-func @search(%A: memref<?x?xi32, %S: <?xi32>, %key : i32) {
+func @search(%A: memref<?x?xi32>, %S: <?xi32>, %key : i32) {
   %ni = dim %A, 0 : memref<?x?xi32>
   // This loop can be parallelized
   affine.for %i = 0 to %ni {

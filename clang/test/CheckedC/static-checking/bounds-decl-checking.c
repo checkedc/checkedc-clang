@@ -727,12 +727,28 @@ void f89(_Ptr<int> p) {
 
 struct S3 {
   _Array_ptr<char> f : count(len - 2 + 1);
-  _Array_ptr<char> g : count(len);
+  _Array_ptr<char> g : count(len); // expected-note{{(expanded) declared bounds are 'bounds(s.g, s.g + s.len)}}
   int len;
 };
 
 void f90(struct S3 s) {
   s.f = s.g;
+}
+
+//
+// Negative test comparing bounds expressions using simple constant folding
+//
+
+void f89_neg(_Ptr<int> p) {
+  _Nt_array_ptr<char> a : count(*p) = 0;
+  _Nt_array_ptr<char> b : count(*p + 2 - 1) = 0; // expected-note{{(expanded) declared bounds are 'bounds(b, b + *p + 2 - 1)}}
+  b = a; // expected-warning{{cannot prove declared bounds for 'b' are valid after assignment}} \
+         // expected-note{{(expanded) inferred bounds are 'bounds(a, a + *p)}}
+}
+
+void f90_neg(struct S3 s) {
+  s.g = s.f; // expected-warning{{cannot prove declared bounds for 's.g' are valid after assignment}} \
+             // expected-note{{(expanded) inferred bounds are 'bounds(s.f, s.f + s.len - 2 + 1)}}
 }
 
 //

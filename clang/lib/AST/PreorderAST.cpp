@@ -391,10 +391,12 @@ bool BinaryOperatorNode::ConstantFold(bool &Error, ASTContext &Ctx) {
       continue;
 
     // Check if the child node is an integer constant.
-    llvm::APSInt CurrConstVal;
-    if (!ChildLeafNode->E->isIntegerConstantExpr(CurrConstVal, Ctx))
+    Optional<llvm::APSInt> OptCurrConstVal =
+          ChildLeafNode->E->getIntegerConstantExpr(Ctx);
+    if (!OptCurrConstVal)
       continue;
 
+    llvm::APSInt CurrConstVal = *OptCurrConstVal;
     ++NumConsts;
 
     if (NumConsts == 1) {
@@ -537,12 +539,14 @@ bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
       return false;
 
     // Return false if either of the leaf nodes is not an integer constant.
-    llvm::APSInt UpperOffset;
-    if (!L1->E->isIntegerConstantExpr(UpperOffset, Ctx))
+    Optional<llvm::APSInt> OptUpperOffset =
+                           L1->E->getIntegerConstantExpr(Ctx);
+    if (!OptUpperOffset)
       return false;
 
-    llvm::APSInt DerefOffset;
-    if (!L2->E->isIntegerConstantExpr(DerefOffset, Ctx))
+    Optional<llvm::APSInt> OptDerefOffset =
+                           L2->E->getIntegerConstantExpr(Ctx);
+    if (!OptDerefOffset)
       return false;
 
     // Offset should always be of the form (ptr + offset). So we check for
@@ -562,7 +566,7 @@ bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
     // offset = deref offset - declared upper bound offset.
     // Return false if we encounter an overflow.
     bool Overflow;
-    Offset = DerefOffset.ssub_ov(UpperOffset, Overflow);
+    Offset = (*OptDerefOffset).ssub_ov(*OptUpperOffset, Overflow);
     if (Overflow)
       return false;
   }
@@ -623,12 +627,12 @@ bool PreorderAST::GetExprIntDiff(Node *E1, Node *E2, llvm::APSInt &Offset) {
       return false;
 
     // Return false if either of the leaf nodes is not an integer constant.
-    llvm::APSInt IntegerPart1;
-    if (!L1->E->isIntegerConstantExpr(IntegerPart1, Ctx))
+    Optional<llvm::APSInt> OptIntegerPart1;
+    if (!(OptIntegerPart1 = L1->E->getIntegerConstantExpr(Ctx)))
       return false;
 
-    llvm::APSInt IntegerPart2;
-    if (!L2->E->isIntegerConstantExpr(IntegerPart2, Ctx))
+    Optional<llvm::APSInt> OptIntegerPart2;
+    if (!(OptIntegerPart2 = L2->E->getIntegerConstantExpr(Ctx)))
       return false;
 
     // This guards us from a case where the constants were not folded for
@@ -640,7 +644,7 @@ bool PreorderAST::GetExprIntDiff(Node *E1, Node *E2, llvm::APSInt &Offset) {
     // Offset = IntegerPart1 - IntegerPart2.
     // Return false if we encounter an overflow.
     bool Overflow;
-    Offset = IntegerPart1.ssub_ov(IntegerPart2, Overflow);
+    Offset = (*OptIntegerPart1).ssub_ov(*OptIntegerPart2, Overflow);
     if (Overflow)
       return false;
   }
