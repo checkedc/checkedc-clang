@@ -652,8 +652,20 @@ namespace {
     uint64_t PointerWidth;
     Stmt *Body;
     CFG *Cfg;
-    BoundsExpr *ReturnBounds; // return bounds expression for enclosing
-                              // function, if any.
+
+    // Declaration for enclosing function. Having this here allows us to emit
+    // the name of the function in any diagnostic message when checking return
+    // bounds.
+    FunctionDecl *FunctionDeclaration;
+    // Return value expression for enclosing function, if any. Having this
+    // here allows us to avoid reconstructing a return value for each
+    // return statement.
+    BoundsValueExpr *ReturnVal;
+    // Expanded declared return bounds expression for enclosing function, if
+    // any. Having this here allows us to avoid re-expanding the return bounds
+    // for each return statement.
+    BoundsExpr *ReturnBounds;
+
     ASTContext &Context;
     std::pair<ComparisonSet, ComparisonSet> &Facts;
 
@@ -2569,14 +2581,16 @@ namespace {
 
 
   public:
-    CheckBoundsDeclarations(Sema &SemaRef, PrepassInfo &Info, Stmt *Body, CFG *Cfg, BoundsExpr *ReturnBounds, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
+    CheckBoundsDeclarations(Sema &SemaRef, PrepassInfo &Info, Stmt *Body, CFG *Cfg, FunctionDecl *FD, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
       DumpState(SemaRef.getLangOpts().DumpCheckingState),
       DumpSynthesizedMembers(SemaRef.getLangOpts().DumpSynthesizedMembers),
       PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
       Body(Body),
       Cfg(Cfg),
-      ReturnBounds(ReturnBounds),
+      FunctionDeclaration(FD),
+      ReturnVal(nullptr),
+      ReturnBounds(nullptr),
       Context(SemaRef.Context),
       Facts(Facts),
       BoundsWideningAnalyzer(BoundsWideningAnalysis(SemaRef, Cfg,
@@ -2584,7 +2598,16 @@ namespace {
                                                     Info.BoundsVarsUpper)),
       AbstractSetMgr(AbstractSetManager(SemaRef, Info.VarUses)),
       BoundsSiblingFields(Info.BoundsSiblingFields),
-      IncludeNullTerminator(false) {}
+      IncludeNullTerminator(false) {
+        if (FD) {
+          ReturnVal =
+            new (S.Context) BoundsValueExpr(SourceLocation(),
+                                            FD->getReturnType(),
+                                            BoundsValueExpr::Kind::Return);
+          ReturnBounds =
+            BoundsUtil::ExpandToRange(S, ReturnVal, FD->getBoundsExpr());
+        }
+      }
 
     CheckBoundsDeclarations(Sema &SemaRef, PrepassInfo &Info, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
@@ -2593,6 +2616,8 @@ namespace {
       PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
       Body(nullptr),
       Cfg(nullptr),
+      FunctionDeclaration(nullptr),
+      ReturnVal(nullptr),
       ReturnBounds(nullptr),
       Context(SemaRef.Context),
       Facts(Facts),
@@ -6167,7 +6192,7 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   BO.AddLifetime = true;
   BO.AddNullStmt = true;
   std::unique_ptr<CFG> Cfg = CFG::buildCFG(nullptr, Body, &getASTContext(), BO);
-  CheckBoundsDeclarations Checker(*this, Info, Body, Cfg.get(), FD->getBoundsExpr(), EmptyFacts);
+  CheckBoundsDeclarations Checker(*this, Info, Body, Cfg.get(), FD, EmptyFacts);
   if (Cfg != nullptr) {
     AvailableFactsAnalysis Collector(*this, Cfg.get());
     Collector.Analyze();
