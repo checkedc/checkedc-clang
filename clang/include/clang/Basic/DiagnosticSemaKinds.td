@@ -11623,6 +11623,21 @@ def err_bounds_type_annotation_lost_checking : Error<
   def error_static_cast_bounds_invalid : Error<
     "cast source bounds are too narrow for %0">;
 
+  def error_return_bounds_invalid : Error<
+    "return value bounds do not imply declared return bounds for %0">;
+
+  def error_return_bounds_unprovable: Error<
+    "it is not possible to prove that return value bounds "
+    "imply declared return bounds for %0">;
+
+  def warn_return_bounds_invalid: Warning<
+    "cannot prove return value bounds imply declared return bounds for %0">,
+    InGroup<CheckBoundsDeclsUnchecked>;
+
+  def warn_checked_scope_return_bounds_invalid : Warning<
+    "cannot prove return value bounds imply declared return bounds for %0">,
+    InGroup<CheckBoundsDeclsChecked>;
+
   def note_declared_return_bounds : Note<
     "(expanded) declared return bounds are '%0'">;
 

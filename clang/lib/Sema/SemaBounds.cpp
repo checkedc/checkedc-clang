@@ -4587,17 +4587,50 @@ namespace {
       return Loc;
     }
 
-    // DiagnoseUnknownReturnBounds emits an error message at the return
-    // statement RS and return expression RetExpr whose inferred bounds are
-    // unknown, where the enclosing function has declared bounds ReturnBounds.
-    void DiagnoseUnknownReturnBounds(ReturnStmt *RS, Expr *RetExpr) {
+    // ValidateReturnBounds checks that the observed bounds for the return
+    // value RetExpr imply the declared bounds for the enclosing function.
+    void ValidateReturnBounds(ReturnStmt *RS, Expr *RetExpr,
+                              BoundsExpr *RetExprBounds,
+                              const EquivExprSets EquivExprs,
+                              CheckedScopeSpecifier CSS) {
+      ProofFailure Cause;
+      FreeVariableListTy FreeVars;
+      ProofResult Result = ProveReturnBoundsValidity(RetExpr, RetExprBounds,
+                                                     EquivExprs, Cause,
+                                                     FreeVars);
+
+      if (Result == ProofResult::True)
+        return;
+
+      if (RetExprBounds->isUnknown()) {
+        DiagnoseUnknownReturnBounds(RS, RetExpr);
+        return;
+      }
+
+      // Which diagnostic message to print?
+      unsigned DiagId =
+          (Result == ProofResult::False)
+              ? (TestFailure(Cause, ProofFailure::HasFreeVariables)
+                     ? diag::error_return_bounds_unprovable
+                     : diag::error_return_bounds_invalid)
+              : (CSS != CheckedScopeSpecifier::CSS_Unchecked
+                     ? diag::warn_checked_scope_return_bounds_invalid
+                     : diag::warn_return_bounds_invalid);
+
       SourceLocation Loc = RetExpr->getBeginLoc();
-      S.Diag(Loc, diag::err_expected_bounds_for_return)
-        << FunctionDeclaration << RS->getSourceRange();
+      S.Diag(Loc, DiagId) << FunctionDeclaration << RS->getSourceRange();
+      if (Result == ProofResult::False)
+        ExplainProofFailure(Loc, Cause, ProofStmtKind::ReturnStmt);
+      
+      if (TestFailure(Cause, ProofFailure::HasFreeVariables))
+        DiagnoseFreeVariables(diag::note_free_variable_decl_or_inferred, Loc,
+                              FreeVars);
 
       SourceLocation DeclaredLoc = FunctionDeclaration->getLocation();
       S.Diag(DeclaredLoc, diag::note_declared_return_bounds)
         << ReturnBounds << ReturnBounds->getSourceRange();
+      S.Diag(Loc, diag::note_inferred_return_bounds)
+        << RetExprBounds << RetExprBounds->getSourceRange();
     }
 
     // DiagnoseUnknownReturnBounds emits an error message at the return
