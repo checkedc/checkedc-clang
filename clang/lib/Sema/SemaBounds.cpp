@@ -1961,6 +1961,9 @@ namespace {
       return false;
     }
 
+    // Methods to try to prove that an inferred bounds expression implies
+    // the validity of a target bounds expression.
+
     // Try to prove that SrcBounds implies the validity of DeclaredBounds.
     //
     // If Kind is StaticBoundsCast, check whether a static cast between Ptr
@@ -2036,6 +2039,59 @@ namespace {
       } else if (CompareNormalizedBounds(DeclaredBounds, SrcBounds, EquivExprs))
         return ProofResult::True;
       return ProofResult::Maybe;
+    }
+
+    // Try to prove that RetExprBounds implies the validity of ReturnBounds
+    // (the declared return bounds for the enclosing function).
+    ProofResult ProveReturnBoundsValidity(Expr *RetExpr,
+                                          BoundsExpr *RetExprBounds,
+                                          const EquivExprSets EQ,
+                                          ProofFailure &Cause,
+                                          FreeVariableListTy &FreeVariables) {
+      // Check some basic properties of the declared ReturnBounds and the
+      // source RetExprBounds. Even though these checks will also be done
+      // in ProveBoundsDeclValidity, if any of these checks result in an
+      // early return, we can avoid constructing a modified EquivExprs set
+      // that records equality between RetVal and RetExpr.
+      
+      // Null declared return bounds or declared return bounds(unknown) 
+      // implied by any other bounds.
+      if (!ReturnBounds || ReturnBounds->isUnknown())
+        return ProofResult::True;
+
+      // Ignore invalid bounds.
+      if (RetExprBounds->isInvalid() || ReturnBounds->isInvalid())
+        return ProofResult::True;
+
+      // Return expression bounds(any) implies any declared return bounds.
+      if (RetExprBounds->isAny())
+        return ProofResult::True;
+
+      // Return expression bounds(unknown) cannot imply any non-unknown
+      // declared return bounds.
+      if (RetExprBounds->isUnknown())
+        return ProofResult::False;
+
+      // Record equality between RetVal and RetExpr. This allows
+      // ProveBoundsDeclValidity to validate bounds that depend on the return
+      // value of the function. For example, if the declared function bounds
+      // are count(1), then the expanded ReturnBounds will be
+      // bounds(RetVal, RetVal + 1).
+      EquivExprSets EquivExprs = EQ;
+      bool FoundRetExpr = false;
+      for (auto F = EquivExprs.begin(); F != EquivExprs.end(); ++F) {
+        if (EqualExprsContainsExpr(*F, RetExpr)) {
+          F->push_back(ReturnVal);
+          FoundRetExpr = true;
+          break;
+        }
+      }
+      if (!FoundRetExpr)
+        EquivExprs.push_back({RetExpr, ReturnVal});
+
+      return ProveBoundsDeclValidity(ReturnBounds, RetExprBounds, Cause,
+                                     &EquivExprs, FreeVariables,
+                                     ProofStmtKind::ReturnStmt);
     }
 
     // CompareNormalizedBounds returns true if SrcBounds implies DeclaredBounds
