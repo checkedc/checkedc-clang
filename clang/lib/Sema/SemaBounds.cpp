@@ -4587,6 +4587,32 @@ namespace {
       return Loc;
     }
 
+    // DiagnoseUnknownReturnBounds emits an error message at the return
+    // statement RS and return expression RetExpr whose inferred bounds are
+    // unknown, where the enclosing function has declared bounds ReturnBounds.
+    void DiagnoseUnknownReturnBounds(ReturnStmt *RS, Expr *RetExpr) {
+      SourceLocation Loc = RetExpr->getBeginLoc();
+      S.Diag(Loc, diag::err_expected_bounds_for_return)
+        << FunctionDeclaration << RS->getSourceRange();
+
+      SourceLocation DeclaredLoc = FunctionDeclaration->getLocation();
+      S.Diag(DeclaredLoc, diag::note_declared_return_bounds)
+        << ReturnBounds << ReturnBounds->getSourceRange();
+    }
+
+    // DiagnoseUnknownReturnBounds emits an error message at the return
+    // statement RS and return expression RetExpr whose inferred bounds are
+    // unknown, where the enclosing function has declared bounds ReturnBounds.
+    void DiagnoseUnknownReturnBounds(ReturnStmt *RS, Expr *RetExpr) {
+      SourceLocation Loc = RetExpr->getBeginLoc();
+      S.Diag(Loc, diag::err_expected_bounds_for_return)
+        << FunctionDeclaration << RS->getSourceRange();
+
+      SourceLocation DeclaredLoc = FunctionDeclaration->getLocation();
+      S.Diag(DeclaredLoc, diag::note_declared_return_bounds)
+        << ReturnBounds << ReturnBounds->getSourceRange();
+    }
+
     // Methods to update the checking state.
 
     // UpdateAfterAssignment updates the checking state after the lvalue

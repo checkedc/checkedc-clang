@@ -11386,6 +11386,10 @@ def err_bounds_type_annotation_lost_checking : Error<
     "argument has unknown bounds, bounds expected because the "
     "%ordinal0 parameter has bounds">;
 
+  def err_expected_bounds_for_return : Error<
+    "return value has unknown bounds, bounds expected because the "
+    "function %0 has bounds">;
+
   def err_initializer_expected_with_bounds : Error<
     "automatic variable %0 with bounds must have initializer">;
 
