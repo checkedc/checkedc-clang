@@ -298,20 +298,20 @@ _Array_ptr<struct S> f37_i(unsigned num) : count(num) {
   _Array_ptr<struct S> p : count(0) = q; // expected-warning {{cannot prove declared bounds for 'p' are valid after initialization}} \
                                          // expected-note {{(expanded) declared bounds are 'bounds(p, p + 0)'}} \
                                          // expected-note {{(expanded) inferred bounds are 'bounds(q, q + num)'}}
-  return p;
+  return q;
 }
 
 _Array_ptr<int> f37(unsigned num) : count(num) {
   _Array_ptr<int> q : count(num) = 0;
   _Array_ptr<int> p : count(0) = q;
-  return p;
+  return q;
 }
 
 
 _Nt_array_ptr<int> f37_n(unsigned num) : count(num) {
   _Nt_array_ptr<int> q : count(num) = 0;
   _Nt_array_ptr<int> p : count(0) = q;
-  return p;
+  return q;
 }
 
 //
@@ -605,7 +605,7 @@ void a_f_15(void) {
 static _Array_ptr<char> v23 : count(32768);
 static _Array_ptr<void> a_f_16(int size) : byte_count(size) {
   v23 = simulate_calloc<char>(32768, sizeof(char));
-  return v23;
+  return 0;
 }
 
 //
