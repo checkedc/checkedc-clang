@@ -11620,7 +11620,7 @@ def err_bounds_type_annotation_lost_checking : Error<
     "cast source bounds are too narrow for %0">;
 
   def error_out_of_bounds_access : Error<
-    "out-of-bounds %select{||memory access|base value}0">;
+    "out-of-bounds %select{|||memory access|base value}0">;
 
   def note_source_bounds_empty : Note<"source bounds are an empty range">;
 
@@ -11631,21 +11631,22 @@ def err_bounds_type_annotation_lost_checking : Error<
   def note_destination_bounds_invalid : Note<"destination bounds are an invalid range">;
 
   def note_bounds_too_narrow : Note<
-    "%select{destination bounds are|target bounds are|memory accessed is|"
-    "struct/union pointed to by base is}0 wider than the "
-    "%select{source|source||}0 bounds">;
+    "%select{destination bounds are|target bounds are|declared return bounds are|"
+    "memory accessed is|struct/union pointed to by base is|}0 wider "
+    "than the %select{source|source|return value|source|source}0 bounds">;
 
   def note_lower_out_of_bounds : Note<
-    "%select{destination lower bound is|target lower bound is|accesses memory|"
-    "base value is}0 below %select{source|source|the|its}0 lower bound">;
+    "%select{destination lower bound is|target lower bound is|"
+    "declared return lower bound is|accesses memory|base value is}0 "
+    "below %select{source|source|return value|the|its}0 lower bound">;
 
   def note_upper_out_of_bounds : Note<
     "%select{destination upper bound is|target upper bound is|"
-    "accesses memory at or|base value is}0 "
-    "above %select{source|source|the|its}0 upper bound">;
+    "declared return upper bound is|accesses memory at or|base value is}0 "
+    "above %select{source|source|return value|the|its}0 upper bound">;
 
    def note_bounds_partially_overlap : Note<
-    "%select{||accesses memory that|struct/union pointed to by base value}0 is "
+    "%select{|||accesses memory that|struct/union pointed to by base value}0 is "
     "only partially in bounds">;
 
   def no_prototype_generic_function : Error<

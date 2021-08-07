@@ -958,6 +958,7 @@ namespace {
     enum class ProofStmtKind : unsigned {
       BoundsDeclaration,
       StaticBoundsCast,
+      ReturnStmt,
       MemoryAccess,
       MemberArrowBase
     };
