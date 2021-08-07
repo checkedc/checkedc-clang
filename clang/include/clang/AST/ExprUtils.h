@@ -145,6 +145,10 @@ public:
   // pointer). Returns false if E is nullptr.
   static bool ReadsMemoryViaPointer(Expr *E, bool IncludeAllMemberExprs = false);
 
+  // IsReturnValueExpr return true if the expression E is a _Return_value
+  // expression.
+  static bool IsReturnValueExpr(Expr *E);
+
   // FindLValue returns true if the given lvalue expression occurs in E.
   static bool FindLValue(Sema &S, Expr *LValue, Expr *E);
 

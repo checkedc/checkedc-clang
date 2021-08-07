@@ -1379,6 +1379,11 @@ namespace {
             ExprUtil::ReadsMemoryViaPointer(E2, true))
           return false;
 
+        // If E1 or E2 is a _Return_value expression, we skip since we cannot
+        // determine the set of variables that occur in these expressions.
+        if (ExprUtil::IsReturnValueExpr(E1) || ExprUtil::IsReturnValueExpr(E2))
+          return false;
+
         bool HasFreeVariables = false;
         EqualExprTy Vars1 = CollectVariableSet(S, E1);
         EqualExprTy Vars2 = CollectVariableSet(S, E2);

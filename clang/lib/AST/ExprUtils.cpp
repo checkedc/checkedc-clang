@@ -306,6 +306,13 @@ bool ExprUtil::ReadsMemoryViaPointer(Expr *E, bool IncludeAllMemberExprs) {
   }
 }
 
+bool ExprUtil::IsReturnValueExpr(Expr *E) {
+  BoundsValueExpr *BVE = dyn_cast_or_null<BoundsValueExpr>(E);
+  if (!BVE)
+    return false;
+  return BVE->getKind() == BoundsValueExpr::Kind::Return;
+}
+
 namespace {
   class FindLValueHelper : public RecursiveASTVisitor<FindLValueHelper> {
     private:
