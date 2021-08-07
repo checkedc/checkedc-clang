@@ -4009,14 +4009,13 @@ namespace {
         return ResultBounds;
 
       // Check the return value if it exists.
-      Check(RetValue, CSS, State);
+      BoundsExpr *RetValueBounds = Check(RetValue, CSS, State);
 
-      if (!ReturnBounds)
-        return ResultBounds;
+      // Check that the return expression bounds imply the return bounds.
+      ValidateReturnBounds(RS, RetValue, RetValueBounds, State.EquivExprs,
+                           CSS);
 
-      // TODO: Actually check that the return expression bounds imply the 
-      // return bounds.
-      // TODO: Also check that any parameters used in the return bounds are
+      // TODO: Check that any parameters used in the return bounds are
       // unmodified.
       return ResultBounds;
     }
