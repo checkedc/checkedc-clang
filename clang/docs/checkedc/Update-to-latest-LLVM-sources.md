@@ -135,7 +135,7 @@ branch in step 8, then it should be possible to do a fast-forward merge of
 branch `updated_baseline_master_12` into the `master` branch.
 ```
     git checkout master
-    git merge -ff-only updated_baseline_master_12
+    git merge --ff-only updated_baseline_master_12
     git push origin master
 ```
 
@@ -216,11 +216,19 @@ checkedc-specific changes and llvm-11-to-12 changes:
 
     The description of the three snapshots above holds only for the initial 
     merge from LLVM 11 to 12 in phase 1 step 6. For a merge of additional
-    Checked C feature development in phase 1 step 8, the relevant versions are a
-    snapshot of branch `updated_baseline_master_12` after step 6 or an earlier
-    iteration of step 8 (i.e. the common ancestor), a snapshot of the current
-    `master` branch that is being merged, and a snapshot of the current
-    `updated_baseline_master_12` branch before starting the merge.
+    Checked C feature development in phase 1 step 8, here are the relevant
+    snapshots and their commit hashes, which we get from the in-progress merge:
+    - A snapshot of branch `updated_baseline_master_12` after phase 1 step 7, or
+    an earlier iteration of step 8. The commit hash that corresponds to this
+    snapshot is `HEAD` - use command `git rev-parse HEAD` to dump the commit
+    hash.
+    - A snapshot of the `master` branch that participated in the previous merge
+    that produced the above snapshot. The commit hash that corresponds to this
+    snapshot is the common ancestor - use command
+    `git merge-base HEAD MERGE_HEAD` to dump the commit hash.
+    - A snapshot of the current `master` branch. The commit hash that
+    corresponds to this is `MERGE_HEAD` - use command `git rev-parse MERGE_HEAD`
+    to dump the commit hash.
 
     Here are some alternatives to the above approach of using source snapshots
     to manually perform diffs of the relevant files:
