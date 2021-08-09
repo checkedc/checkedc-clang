@@ -120,12 +120,11 @@ void rewriteSourceRange(Rewriter &R, const CharSourceRange &Range,
   }
 }
 
-static void emit(Rewriter &R, ASTContext &C) {
+static void emit(Rewriter &R, ASTContext &C, bool &StdoutModeEmittedMainFile) {
   if (Verbose)
     errs() << "Writing files out\n";
 
   bool StdoutMode = (OutputPostfix == "-" && OutputDir.empty());
-  bool StdoutModeSawMainFile = false;
   SourceManager &SM = C.getSourceManager();
   // Iterate over each modified rewrite buffer.
   for (auto Buffer = R.buffer_begin(); Buffer != R.buffer_end(); ++Buffer) {
@@ -226,9 +225,15 @@ static void emit(Rewriter &R, ASTContext &C) {
 
       if (StdoutMode) {
         if (Buffer->first == SM.getMainFileID()) {
-          // This is the new version of the main file. Print it to stdout.
-          Buffer->second.write(outs());
-          StdoutModeSawMainFile = true;
+          // This is the new version of the main file. Print it to stdout,
+          // except in the edge case where we have a compilation database with
+          // multiple translation units with the same main file and we already
+          // emitted a copy of the main file for a previous translation unit
+          // (https://github.com/correctcomputation/checkedc-clang/issues/374#issuecomment-893612654).
+          if (!StdoutModeEmittedMainFile) {
+            Buffer->second.write(outs());
+            StdoutModeEmittedMainFile = true;
+          }
         } else {
           unsigned ID = DE.getCustomDiagID(
               UnwritableChangeDiagnosticLevel,
@@ -300,9 +305,10 @@ static void emit(Rewriter &R, ASTContext &C) {
     }
   }
 
-  if (StdoutMode && !StdoutModeSawMainFile) {
+  if (StdoutMode && !StdoutModeEmittedMainFile) {
     // The main file is unchanged. Write out its original content.
     outs() << SM.getBufferOrFake(SM.getMainFileID()).getBuffer();
+    StdoutModeEmittedMainFile = true;
   }
 }
 
@@ -632,7 +638,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   }
 
   // Output files.
-  emit(R, Context);
+  emit(R, Context, StdoutModeEmittedMainFile);
 
   Info.getPerfStats().endRewritingTime();
 

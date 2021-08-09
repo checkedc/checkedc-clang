@@ -159,6 +159,12 @@ private:
   static std::set<PersistentSourceLoc> EmittedDiagnostics;
 
   void emitRootCauseDiagnostics(ASTContext &Context);
+
+  // Hack to avoid printing the main file to stdout multiple times in the edge
+  // case of a compilation database containing multiple translation units for
+  // the main file
+  // (https://github.com/correctcomputation/checkedc-clang/issues/374#issuecomment-893612654).
+  bool StdoutModeEmittedMainFile = false;
 };
 
 bool canRewrite(Rewriter &R, const SourceRange &SR);
