@@ -14,6 +14,7 @@ versioned as &lt;major-version&gt;.&lt;minor-version&gt;.&lt;patch-version&gt;.
 The LLVM/Clang repository has a branch called `main`, and several release
 branches (created off `main`) called `release/<major-version>.x`, each
 corresponding to the major version number of a release. New features go on the
+`main` branch. At an appropriate commit on the `main` branch, a release branch
 is created. Bug fixes go on the release branch and only some of these bug fixes
 get merged back into the `main` branch. Typically, LLVM/Clang makes two final
 releases for each major version.
