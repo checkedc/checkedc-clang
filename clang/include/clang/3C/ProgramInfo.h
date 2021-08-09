@@ -90,6 +90,7 @@ public:
   // Store CVarSet with an empty set of BoundsKey into persistent contents.
   void storePersistentConstraints(clang::Expr *E, const CVarSet &Vars,
                                   ASTContext *C);
+  void removePersistentConstraints(Expr *E, ASTContext *C);
 
   // Get constraint variable for the provided Decl
   CVarOption getVariable(clang::Decl *D, clang::ASTContext *C);
@@ -169,6 +170,8 @@ private:
   // expected that multiple entries will map to the same source location.
   std::map<IDAndTranslationUnit, PersistentSourceLoc> ExprLocations;
 
+  std::map<ConstraintKey, PersistentSourceLoc> DeletedAtomLocations;
+
   //Performance stats
   PerformanceStats PerfS;
 
@@ -210,8 +213,7 @@ private:
   // Retrieves a FVConstraint* from a Decl (which could be static, or global)
   FVConstraint *getFuncFVConstraint(FunctionDecl *FD, ASTContext *C);
 
-  void insertIntoPtrSourceMap(const PersistentSourceLoc *PSL,
-                              ConstraintVariable *CV);
+  void insertIntoPtrSourceMap(PersistentSourceLoc PSL, ConstraintVariable *CV);
 
   void computePtrLevelStats();
 

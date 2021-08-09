@@ -127,12 +127,27 @@ bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
 
         // Constrain this variable GEQ the function arguments using the type
         // variable so if any of them are wild, the type argument will also be
-        // an unchecked pointer.
-        constrainConsVarGeq(P, TVEntry.second.getConstraintVariables(),
+        // an unchecked pointer. Except for realloc, which has special casing
+        // elsewhere, especially `ConstraintResolver::getExprConstraintVars`
+        // using variable `ReallocFlow`. Because `realloc` can take a wild
+        // pointer and return a safe one.
+        if (FD->getNameAsString() == "realloc") {
+          constrainConsVarGeq(P, TVEntry.second.getConstraintVariables(),
+                              Info.getConstraints(), nullptr, Wild_to_Safe, false,
+                              &Info);
+
+        } else {
+          constrainConsVarGeq(P, TVEntry.second.getConstraintVariables(),
                             Info.getConstraints(), nullptr, Safe_to_Wild, false,
                             &Info);
+      }
 
         TVEntry.second.setTypeParamConsVar(P);
+        // Since we've changed the constraint variable for this context, we
+        // need to remove the cache from the old one. Our new info will be
+        // used next request.
+        if (Info.hasPersistentConstraints(CE,Context))
+          Info.removePersistentConstraints(CE,Context);
       } else {
         // TODO: This might be too cautious.
         CR.constraintAllCVarsToWild(TVEntry.second.getConstraintVariables(),

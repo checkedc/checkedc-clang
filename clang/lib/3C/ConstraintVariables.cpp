@@ -1786,10 +1786,11 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
 
         // Only generate constraint if LHS is not a base type.
         if (CLHS.size() != 0) {
-          if (CLHS.size() == CRHS.size() || PCLHS->getIsGeneric() ||
-              PCRHS->getIsGeneric()) {
-            unsigned Max = std::max(CLHS.size(), CRHS.size());
-            for (unsigned N = 0; N < Max; N++) {
+          if (CLHS.size() == CRHS.size() ||
+              (CLHS.size() < CRHS.size() && PCLHS->getIsGeneric()) ||
+              (CLHS.size() > CRHS.size() && PCRHS->getIsGeneric())) {
+            unsigned Min = std::min(CLHS.size(), CRHS.size());
+            for (unsigned N = 0; N < Min; N++) {
               Atom *IAtom = PCLHS->getAtom(N, CS);
               Atom *JAtom = PCRHS->getAtom(N, CS);
               if (IAtom == nullptr || JAtom == nullptr)
@@ -1931,20 +1932,8 @@ void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
 }
 
 Atom *PointerVariableConstraint::getAtom(unsigned AtomIdx, Constraints &CS) {
-  if (AtomIdx < Vars.size()) {
-    // If index is in bounds, just return the atom.
-    return Vars[AtomIdx];
-  }
-  if (getIsGeneric() && AtomIdx == Vars.size()) {
-    // Polymorphic types don't know how "deep" their pointers are beforehand so,
-    // we need to create new atoms for new pointer levels on the fly.
-    std::string Stars(Vars.size(), '*');
-    Atom *A = CS.getFreshVar(Name + Stars, VarAtom::V_Other);
-    Vars.push_back(A);
-    SrcVars.push_back(CS.getWild());
-    return A;
-  }
-  return nullptr;
+  assert(AtomIdx < Vars.size());
+  return Vars[AtomIdx];
 }
 
 void PointerVariableConstraint::equateWithItype(

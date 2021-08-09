@@ -131,9 +131,8 @@ private:
 // and imposing constraints on variables it uses
 class FunctionVisitor : public RecursiveASTVisitor<FunctionVisitor> {
 public:
-  explicit FunctionVisitor(ASTContext *C, ProgramInfo &I, FunctionDecl *FD,
-                           TypeVarInfo &TVI)
-      : Context(C), Info(I), Function(FD), CB(Info, Context), TVInfo(TVI),
+  explicit FunctionVisitor(ASTContext *C, ProgramInfo &I, FunctionDecl *FD)
+      : Context(C), Info(I), Function(FD), CB(Info, Context),
         ISD() {}
 
   // T x = e
@@ -217,9 +216,10 @@ public:
 
     // Collect type parameters for this function call that are
     // consistently instantiated as single type in this function call.
-    std::set<unsigned int> ConsistentTypeParams;
-    if (TFD != nullptr)
-      TVInfo.getConsistentTypeParams(E, ConsistentTypeParams);
+    auto ConsistentTypeParams =
+        Info.hasTypeParamBindings(E,Context) ?
+          Info.getTypeParamBindings(E,Context) :
+          ProgramInfo::CallTypeParamBindingsT();
 
     // Now do the call: Constrain arguments to parameters (but ignore returns)
     if (FVCons.empty()) {
@@ -436,7 +436,6 @@ private:
   ProgramInfo &Info;
   FunctionDecl *Function;
   ConstraintResolver CB;
-  TypeVarInfo &TVInfo;
   InlineStructDetector ISD;
 };
 
@@ -485,9 +484,8 @@ private:
 // for functions, variables, types, etc. that are visited.
 class ConstraintGenVisitor : public RecursiveASTVisitor<ConstraintGenVisitor> {
 public:
-  explicit ConstraintGenVisitor(ASTContext *Context, ProgramInfo &I,
-                                TypeVarInfo &TVI)
-      : Context(Context), Info(I), CB(Info, Context), TVInfo(TVI), ISD() {}
+  explicit ConstraintGenVisitor(ASTContext *Context, ProgramInfo &I)
+      : Context(Context), Info(I), CB(Info, Context), ISD() {}
 
   bool VisitVarDecl(VarDecl *G) {
 
@@ -526,7 +524,7 @@ public:
     if (FL.isValid()) { // TODO: When would this ever be false?
       if (D->hasBody() && D->isThisDeclarationADefinition()) {
         Stmt *Body = D->getBody();
-        FunctionVisitor FV = FunctionVisitor(Context, Info, D, TVInfo);
+        FunctionVisitor FV = FunctionVisitor(Context, Info, D);
         FV.TraverseStmt(Body);
         if (AllTypes) {
           // Only do this, if all types is enabled.
@@ -551,7 +549,6 @@ private:
   ASTContext *Context;
   ProgramInfo &Info;
   ConstraintResolver CB;
-  TypeVarInfo &TVInfo;
   InlineStructDetector ISD;
 };
 
@@ -669,7 +666,7 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
   ConstraintResolver CSResolver(Info, &C);
   ContextSensitiveBoundsKeyVisitor CSBV =
       ContextSensitiveBoundsKeyVisitor(&C, Info, &CSResolver);
-  ConstraintGenVisitor GV = ConstraintGenVisitor(&C, Info, TV);
+  ConstraintGenVisitor GV = ConstraintGenVisitor(&C, Info);
   TranslationUnitDecl *TUD = C.getTranslationUnitDecl();
   StatsRecorder SR(&C, &Info);
 
@@ -681,12 +678,15 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
 
     CSBV.TraverseDecl(D);
     TV.TraverseDecl(D);
-    GV.TraverseDecl(D);
-    SR.TraverseDecl(D);
   }
 
   // Store type variable information for use in rewriting
   TV.setProgramInfoTypeVars();
+
+  for (const auto &D : TUD->decls()) {
+    GV.TraverseDecl(D);
+    SR.TraverseDecl(D);
+  }
 
   if (Verbose)
     errs() << "Done analyzing\n";

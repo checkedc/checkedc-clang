@@ -50,7 +50,7 @@ public:
   CVars TotalNonDirectWildAtoms;
   CVars InSrcNonDirectWildAtoms;
   std::set<std::string> ValidSourceFiles;
-  std::map<ConstraintKey, const PersistentSourceLoc *> AtomSourceMap;
+  std::map<ConstraintKey, PersistentSourceLoc> AtomSourceMap;
 
 private:
   // Root cause map: This is the map of a Constraint var and a set of

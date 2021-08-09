@@ -829,6 +829,24 @@ void ProgramInfo::storePersistentConstraints(Expr *E, const CSetBkeyPair &Vars,
   ExprLocations[Key] = PSL;
 }
 
+void ProgramInfo::removePersistentConstraints(Expr *E, ASTContext *C) {
+  assert(hasPersistentConstraints(E, C) &&
+         "Persistent constraints not present.");
+
+  IDAndTranslationUnit Key = getExprKey(E, C);
+
+  // Save VarAtom locations so they can be used to assign source locations to
+  // root causes.
+  for (auto *CV : ExprConstraintVars[Key].first)
+    if (auto *PVC  = dyn_cast<PointerVariableConstraint>(CV))
+      for (Atom *A : PVC->getCvars())
+        if (auto *VA = dyn_cast<VarAtom>(A))
+          DeletedAtomLocations[VA->getLoc()] = ExprLocations[Key];
+
+  ExprConstraintVars.erase(Key);
+  ExprLocations.erase(Key);
+}
+
 // The Rewriter won't let us re-write things that are in macros. So, we
 // should check to see if what we just added was defined within a macro.
 // If it was, we should constrain it to top. This is sad. Hopefully,
@@ -1043,12 +1061,14 @@ bool ProgramInfo::computeInterimConstraintState(
   // Variables before ExprConstraintVars and making insertIntoPtrSourceMap not
   // overwrite a PSL already recorded for a given atom.
   for (const auto &I : Variables)
-    insertIntoPtrSourceMap(&(I.first), I.second);
+    insertIntoPtrSourceMap(I.first, I.second);
   for (const auto &I : ExprConstraintVars) {
-    PersistentSourceLoc *PSL = &ExprLocations[I.first];
+    PersistentSourceLoc PSL = ExprLocations[I.first];
     for (auto *J : I.second.first)
       insertIntoPtrSourceMap(PSL, J);
   }
+  for (auto E : DeletedAtomLocations)
+    CState.AtomSourceMap.insert(std::make_pair(E.first, E.second));
 
   auto &WildPtrsReason = CState.RootWildAtomsWithReason;
   for (auto *CurrC : CS.getConstraints()) {
@@ -1056,9 +1076,9 @@ bool ProgramInfo::computeInterimConstraintState(
       VarAtom *VLhs = dyn_cast<VarAtom>(EC->getLHS());
       if (EC->constraintIsChecked() && dyn_cast<WildAtom>(EC->getRHS())) {
         PersistentSourceLoc PSL = EC->getLocation();
-        const PersistentSourceLoc *APSL = CState.AtomSourceMap[VLhs->getLoc()];
-        if (!PSL.valid() && APSL && APSL->valid())
-          PSL = *APSL;
+        PersistentSourceLoc APSL = CState.AtomSourceMap[VLhs->getLoc()];
+        if (!PSL.valid() && APSL.valid())
+          PSL = APSL;
         WildPointerInferenceInfo Info(EC->getReason(), PSL);
         WildPtrsReason.insert(std::make_pair(VLhs->getLoc(), Info));
       }
@@ -1069,9 +1089,9 @@ bool ProgramInfo::computeInterimConstraintState(
   return true;
 }
 
-void ProgramInfo::insertIntoPtrSourceMap(const PersistentSourceLoc *PSL,
+void ProgramInfo::insertIntoPtrSourceMap(PersistentSourceLoc PSL,
                                          ConstraintVariable *CV) {
-  std::string FilePath = PSL->getFileName();
+  std::string FilePath = PSL.getFileName();
   if (canWrite(FilePath))
     CState.ValidSourceFiles.insert(FilePath);
 
