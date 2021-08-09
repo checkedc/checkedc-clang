@@ -147,7 +147,7 @@ class RewriteConsumer : public ASTConsumer {
 public:
   explicit RewriteConsumer(ProgramInfo &I) : Info(I) {}
 
-  virtual void HandleTranslationUnit(ASTContext &Context);
+  void HandleTranslationUnit(ASTContext &Context) override;
 
 private:
   ProgramInfo &Info;

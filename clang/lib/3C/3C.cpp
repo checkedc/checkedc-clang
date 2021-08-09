@@ -160,7 +160,7 @@ public:
     return UnderlyingConsumer->getNumErrors() == 0;
   }
 
-  ~_3CDiagnosticConsumer() {
+  ~_3CDiagnosticConsumer() override {
     // We considered asserting that the state is S_Done here, but if
     // ASTUnit::LoadFromCompilerInvocation fails and returns null, the
     // _3CDiagnosticConsumer may be destructed without reaching S_Done. However,

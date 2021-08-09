@@ -25,7 +25,7 @@ class AllocBasedBoundsInference : public ASTConsumer {
 public:
   explicit AllocBasedBoundsInference(ProgramInfo &I, clang::ASTContext *C)
       : Info(I) {}
-  virtual void HandleTranslationUnit(ASTContext &Context);
+  void HandleTranslationUnit(ASTContext &Context) override;
 
 private:
   ProgramInfo &Info;

@@ -72,23 +72,25 @@ public:
 class GlobalScope : public ProgramVarScope {
 public:
   GlobalScope() : ProgramVarScope(GlobalScopeKind) {}
-  virtual ~GlobalScope() {}
+  ~GlobalScope() override {}
 
   static bool classof(const ProgramVarScope *S) {
     return S->getKind() == GlobalScopeKind;
   }
 
-  bool operator==(const ProgramVarScope &O) const {
+  bool operator==(const ProgramVarScope &O) const override {
     return clang::isa<GlobalScope>(&O);
   }
 
-  bool operator!=(const ProgramVarScope &O) const { return !(*this == O); }
+  bool operator!=(const ProgramVarScope &O) const override {
+    return !(*this == O);
+  }
 
-  bool operator<(const ProgramVarScope &O) const { return false; }
+  bool operator<(const ProgramVarScope &O) const override { return false; }
 
-  bool isInInnerScope(const ProgramVarScope &O) const { return false; }
+  bool isInInnerScope(const ProgramVarScope &O) const override { return false; }
 
-  std::string getStr() const { return "Global"; }
+  std::string getStr() const override { return "Global"; }
 
   static GlobalScope *getGlobalScope();
 
@@ -100,22 +102,24 @@ class StructScope : public ProgramVarScope {
 public:
   StructScope(std::string SN) : ProgramVarScope(StructScopeKind), StName(SN) {}
 
-  virtual ~StructScope() {}
+  ~StructScope() override {}
 
   static bool classof(const ProgramVarScope *S) {
     return S->getKind() == StructScopeKind;
   }
 
-  bool operator==(const ProgramVarScope &O) const {
+  bool operator==(const ProgramVarScope &O) const override {
     if (auto *SS = clang::dyn_cast<StructScope>(&O)) {
       return SS->StName == StName;
     }
     return false;
   }
 
-  bool operator!=(const ProgramVarScope &O) const { return !(*this == O); }
+  bool operator!=(const ProgramVarScope &O) const override {
+    return !(*this == O);
+  }
 
-  bool operator<(const ProgramVarScope &O) const {
+  bool operator<(const ProgramVarScope &O) const override {
     if (clang::isa<GlobalScope>(&O)) {
       return true;
     }
@@ -130,12 +134,12 @@ public:
     return false;
   }
 
-  bool isInInnerScope(const ProgramVarScope &O) const {
+  bool isInInnerScope(const ProgramVarScope &O) const override {
     // only global variables are visible here.
     return clang::isa<GlobalScope>(&O);
   }
 
-  std::string getStr() const { return "Struct_" + StName; }
+  std::string getStr() const override { return "Struct_" + StName; }
 
   std::string getSName() const { return this->StName; }
 
@@ -155,22 +159,24 @@ public:
     this->Kind = CtxStructScopeKind;
   }
 
-  virtual ~CtxStructScope() {}
+  ~CtxStructScope() override {}
 
   static bool classof(const ProgramVarScope *S) {
     return S->getKind() == CtxStructScopeKind;
   }
 
-  bool operator==(const ProgramVarScope &O) const {
+  bool operator==(const ProgramVarScope &O) const override {
     if (auto *CS = clang::dyn_cast<CtxStructScope>(&O)) {
       return CS->StName == StName && CS->ASKey == ASKey && CS->IsG == IsG;
     }
     return false;
   }
 
-  bool operator!=(const ProgramVarScope &O) const { return !(*this == O); }
+  bool operator!=(const ProgramVarScope &O) const override {
+    return !(*this == O);
+  }
 
-  bool operator<(const ProgramVarScope &O) const {
+  bool operator<(const ProgramVarScope &O) const override {
     if (clang::isa<GlobalScope>(&O) || clang::isa<StructScope>(&O)) {
       return true;
     }
@@ -191,7 +197,7 @@ public:
     return false;
   }
 
-  std::string getStr() const {
+  std::string getStr() const override {
     return "CtxStruct_" + ASKey + "_" + StName + "_" + std::to_string(IsG);
   }
 
@@ -210,22 +216,24 @@ public:
   FunctionParamScope(const std::string &FN, bool IsSt)
       : ProgramVarScope(FunctionParamScopeKind), FName(FN), IsStatic(IsSt) {}
 
-  virtual ~FunctionParamScope() {}
+  ~FunctionParamScope() override {}
 
   static bool classof(const ProgramVarScope *S) {
     return S->getKind() == FunctionParamScopeKind;
   }
 
-  bool operator==(const ProgramVarScope &O) const {
+  bool operator==(const ProgramVarScope &O) const override {
     if (auto *FPS = clang::dyn_cast<FunctionParamScope>(&O)) {
       return (FPS->FName == FName && FPS->IsStatic == IsStatic);
     }
     return false;
   }
 
-  bool operator!=(const ProgramVarScope &O) const { return !(*this == O); }
+  bool operator!=(const ProgramVarScope &O) const override {
+    return !(*this == O);
+  }
 
-  bool operator<(const ProgramVarScope &O) const {
+  bool operator<(const ProgramVarScope &O) const override {
     if (clang::isa<GlobalScope>(&O) || clang::isa<StructScope>(&O)) {
       return true;
     }
@@ -243,12 +251,12 @@ public:
     return false;
   }
 
-  bool isInInnerScope(const ProgramVarScope &O) const {
+  bool isInInnerScope(const ProgramVarScope &O) const override {
     // only global variables are visible here.
     return clang::isa<GlobalScope>(&O);
   }
 
-  std::string getStr() const { return "FuncParm_" + FName; }
+  std::string getStr() const override { return "FuncParm_" + FName; }
 
   const llvm::StringRef getFName() const { return this->FName; }
 
@@ -287,13 +295,13 @@ public:
     this->Kind = CtxFunctionArgScopeKind;
   }
 
-  virtual ~CtxFunctionArgScope() {}
+  ~CtxFunctionArgScope() override {}
 
   static bool classof(const ProgramVarScope *S) {
     return S->getKind() == CtxFunctionArgScopeKind;
   }
 
-  bool operator==(const ProgramVarScope &O) const {
+  bool operator==(const ProgramVarScope &O) const override {
     if (auto *FPS = clang::dyn_cast<CtxFunctionArgScope>(&O)) {
       return (FPS->FName == FName && FPS->IsStatic == IsStatic &&
               !(FPS->PSL < PSL || PSL < FPS->PSL));
@@ -301,9 +309,11 @@ public:
     return false;
   }
 
-  bool operator!=(const ProgramVarScope &O) const { return !(*this == O); }
+  bool operator!=(const ProgramVarScope &O) const override {
+    return !(*this == O);
+  }
 
-  bool operator<(const ProgramVarScope &O) const {
+  bool operator<(const ProgramVarScope &O) const override {
     if (clang::isa<GlobalScope>(&O) || clang::isa<FunctionParamScope>(&O) ||
         clang::isa<StructScope>(&O)) {
       return true;
@@ -325,7 +335,7 @@ public:
     return false;
   }
 
-  std::string getStr() const { return FName + "_Ctx_" + CtxIDStr; }
+  std::string getStr() const override { return FName + "_Ctx_" + CtxIDStr; }
 
   static const CtxFunctionArgScope *
   getCtxFunctionParamScope(const FunctionParamScope *FPS,
@@ -342,13 +352,13 @@ public:
   FunctionScope(std::string FN, bool IsSt)
       : ProgramVarScope(FunctionScopeKind), FName(FN), IsStatic(IsSt) {}
 
-  virtual ~FunctionScope() {}
+  ~FunctionScope() override {}
 
   static bool classof(const ProgramVarScope *S) {
     return S->getKind() == FunctionScopeKind;
   }
 
-  bool operator==(const ProgramVarScope &O) const {
+  bool operator==(const ProgramVarScope &O) const override {
     if (auto *FS = clang::dyn_cast<FunctionScope>(&O)) {
       return (FS->FName == FName && FS->IsStatic == IsStatic);
     }
@@ -358,9 +368,11 @@ public:
     return false;
   }
 
-  bool operator!=(const ProgramVarScope &O) const { return !(*this == O); }
+  bool operator!=(const ProgramVarScope &O) const override {
+    return !(*this == O);
+  }
 
-  bool operator<(const ProgramVarScope &O) const {
+  bool operator<(const ProgramVarScope &O) const override {
     if (clang::isa<GlobalScope>(&O) || clang::isa<FunctionParamScope>(&O) ||
         clang::isa<CtxFunctionArgScope>(&O) || clang::isa<StructScope>(&O)) {
       return true;
@@ -378,9 +390,9 @@ public:
     return false;
   }
 
-  bool isInInnerScope(const ProgramVarScope &O) const;
+  bool isInInnerScope(const ProgramVarScope &O) const override;
 
-  std::string getStr() const { return "InFunc_" + FName; }
+  std::string getStr() const override { return "InFunc_" + FName; }
 
   static const FunctionScope *getFunctionScope(std::string FnName, bool IsSt);
 

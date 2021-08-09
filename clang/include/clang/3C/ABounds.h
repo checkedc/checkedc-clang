@@ -71,7 +71,7 @@ public:
     addBoundsUsedKey(Var);
   }
 
-  virtual ~CountBound() {}
+  ~CountBound() override {}
 
   std::string mkString(AVarBoundsInfo *ABI, clang::Decl *D = nullptr) override;
   bool areSame(ABounds *O, AVarBoundsInfo *ABI) override;
@@ -108,7 +108,7 @@ public:
     addBoundsUsedKey(Var);
   }
 
-  virtual ~ByteBound() {}
+  ~ByteBound() override {}
 
   std::string mkString(AVarBoundsInfo *ABI, clang::Decl *D = nullptr) override;
   bool areSame(ABounds *O, AVarBoundsInfo *ABI) override;
@@ -131,7 +131,7 @@ public:
     addBoundsUsedKey(R);
   }
 
-  virtual ~RangeBound() {}
+  ~RangeBound() override {}
 
   std::string mkString(AVarBoundsInfo *ABI, clang::Decl *D = nullptr) override;
   bool areSame(ABounds *O, AVarBoundsInfo *ABI) override;

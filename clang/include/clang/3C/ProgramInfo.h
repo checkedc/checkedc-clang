@@ -103,7 +103,7 @@ public:
 
   const VariableMap &getVarMap() const { return Variables; }
   Constraints &getConstraints() { return CS; }
-  AVarBoundsInfo &getABoundsInfo() { return ArrBInfo; }
+  AVarBoundsInfo &getABoundsInfo() override { return ArrBInfo; }
 
   PerformanceStats &getPerfStats() { return PerfS; }
 
@@ -135,10 +135,10 @@ public:
 
   CVarOption lookupTypedef(PersistentSourceLoc PSL);
 
-  bool seenTypedef(PersistentSourceLoc PSL);
+  bool seenTypedef(PersistentSourceLoc PSL) override;
 
   void addTypedef(PersistentSourceLoc PSL, bool CanRewriteDef, TypedefDecl *TD,
-                  ASTContext &C);
+                  ASTContext &C) override;
 
   // Store mapping from ASTContexts to a unique index in the ASTs vector in
   // the ProgramInfo object. This function must be called prior to any AST
@@ -240,7 +240,8 @@ private:
 
   // For each pointer type in the declaration of D, add a variable to the
   // constraint system for that pointer type.
-  void addVariable(clang::DeclaratorDecl *D, clang::ASTContext *AstContext);
+  void addVariable(clang::DeclaratorDecl *D,
+                   clang::ASTContext *AstContext) override;
 };
 
 #endif
