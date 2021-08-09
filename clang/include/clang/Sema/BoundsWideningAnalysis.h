@@ -333,8 +333,7 @@ namespace clang {
       // The last statement of the block. This is nullptr if the block is empty.
       const Stmt *LastStmt = nullptr;
 
-      // The terminating condition that dereferences a pointer. This is nullptr
-      // if the terminating condition does not dereference a pointer.
+      // Various information about the terminating condition of the block.
       TermCondInfoTy TermCondInfo;
 
       // The In set of the last statment of each block.
