@@ -14,7 +14,6 @@ versioned as &lt;major-version&gt;.&lt;minor-version&gt;.&lt;patch-version&gt;.
 The LLVM/Clang repository has a branch called `main`, and several release
 branches (created off `main`) called `release/<major-version>.x`, each
 corresponding to the major version number of a release. New features go on the
-`main` branch. At an appropriate commit on the `main` branch, a release branch
 is created. Bug fixes go on the release branch and only some of these bug fixes
 get merged back into the `main` branch. Typically, LLVM/Clang makes two final
 releases for each major version.
@@ -28,7 +27,9 @@ phase.
 **Phase 1**: We upgrade the `master` branch of the `checkedc-clang` repository
 up to the commit hash on the `main` branch of the LLVM/Clang repository at which
 the branch `release/12.x` is created - we shall refer to this commit hash as
-&lt;branch-point-of-12-on-main&gt;. Note that &lt;branch-point-of-12-on-main&gt;
+&lt;branch-point-of-12-on-main&gt;. We get this commit hash by executing the
+command `git merge-base main release/12.x` in a clone of the LLVM/Clang
+repository. Note that &lt;branch-point-of-12-on-main&gt;
 needs to be the full commit hash and not just the 7-digit abbreviation. This
 phase constitutes the major portion of the developer effort towards the merge.
 
@@ -79,10 +80,11 @@ hash &lt;branch-point-of-12-on-main&gt; in the document LLVM-Upgrade-Notes.md.
 3. Execute  LLVM/Clang tests on the branch `updated_baseline` on your local
 machine to make sure that the upgrade is stable.
 
-4. Merge the `updated_baseline` branch back to the `baseline` branch.
+4. Merge the `updated_baseline` branch back to the `baseline` branch. We expect
+branch `updated_baseline` to be a descendant of branch `baseline`.
 ```
     git checkout baseline
-    git merge updated_baseline
+    git merge --ff-only updated_baseline
 ```
 5. Create a new branch, say, `updated_baseline_master_12` from the `baseline`
 branch.
@@ -113,20 +115,26 @@ that the `master` branch has had several commits. Merge the `master` branch into
 `updated_baseline_master_12` branch, and resolve the new conflicts and failures
 if necessary.
 ```
-    git merge master >> merge_conflicts_list.txt
+    git merge master >> merge_conflict_list.txt
 ```
 9. After all the merge conflicts and test failures on the local machine are
 fixed, push the `baseline` and `updated_baseline_master_12` branches to the
-remote repository and excute the ADO tests on `updated_baseline_master_12`.
+remote repository and execute the ADO tests on branch 
+`updated_baseline_master_12`. Commits to the `master` branch should be held off
+during the final execution of these tests, i.e. just prior to executing step 10
+below. 
 ```
     git push origin baseline
     git push origin updated_baseline_master_12
 ```
 10. After the ADO tests are successful, merge the `updated_baseline_master_12`
-branch into `master` and push to the remote repository.
+branch into `master` and push to the remote repository. If all the changes on
+the `master` branch have been merged into the `updated_baseline_master_12`
+branch in step 8, then it should be possible to do a fast-forward merge of
+branch `updated_baseline_master_12` into the `master` branch.
 ```
     git checkout master
-    git merge updated_baseline_master_12
+    git merge -ff-only updated_baseline_master_12
     git push origin master
 ```
 
@@ -144,13 +152,14 @@ have to be followed for the other sub-phase.
     git merge master
 ```     
 2. Upgrade the branch `release_12.x` to the LLVM/Clang sources corresponding to
-the 12.0.0 release. For this, we need to get the commit hash associated with the
-12.0.0 release from https://github.com/llvm/llvm-project/releases. Let this 
-commit hash be &lt;12.0.0-commit-hash&gt;. Note that it should be the full
-commit hash. Resolve merge conflicts and test failures if any.
+the 12.0.0 release. The commit hash associated with the 12.0.0 release is given
+by the LLVM/Clang tag `llvmorg-12.0.0`. Resolve merge conflicts and test
+failures if any. Record the fact that the `release_12.x` branch has been
+upgraded upto the commit hash given by the `llvmorg-12.0.0` tag, in the document
+LLVM-Upgrade-Notes.md.
 ```
     git remote add upstream https://github.com/llvm/llvm-project.git
-    git pull upstream <12.0.0-commit-hash>
+    git pull upstream llvmorg-12.0.0
 ```
 3. Push the branch `release_12.x` to the remote repository, run ADO tests
 on it and fix test failures to make sure that the branch is stable.
@@ -203,6 +212,27 @@ checkedc-specific changes and llvm-11-to-12 changes:
   which was merged into `updated_baseline_master_12`.
     - The pristine LLVM/Clang source at &lt;branch-point-of-11-on-main&gt;
     - The pristine LLVM/Clang source at &lt;branch-point-of-12-on-main&gt;
+
+    The description of the three snapshots above holds only for the initial 
+    merge from LLVM 11 to 12 in phase 1 step 6. For a merge of additional
+    Checked C feature development in phase 1 step 8, the relevant versions are a
+    snapshot of branch `updated_baseline_master_12` after step 6 or an earlier
+    iteration of step 8 (i.e. the common ancestor), a snapshot of the current
+    `master` branch that is being merged, and a snapshot of the current
+    `updated_baseline_master_12` branch before starting the merge.
+
+    Here are some alternatives to the above approach of using source snapshots
+    to manually perform diffs of the relevant files:
+    - Run `git mergetool` - you may need to have a merge tool that is suitable
+    for your environment (Linux/Windows) installed and configured
+    (ex.: `kdiff3`).
+    - Set `git config merge.conflictstyle diff3` before running `git merge` so
+    that the conflict markup written to the file shows all three versions rather
+    than just two.
+    - Run
+    `git show :1:clang/path/to/some/File.cpp > clang/path/to/some/File.1.cpp`
+    (and similarly with 2 or 3 in place of 1) to write out the three versions
+    for inspection with other tools.
 
 3. When bitfields are modified (or need modification to accommodate changes
 related to Checked C) in files like `clang/include/clang/AST/Stmt.h` (see
