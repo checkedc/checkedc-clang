@@ -361,6 +361,10 @@ BoundsMapTy BoundsWideningAnalysis::PruneOutSet(
   // Check if the edge from pred to the current block is a true edge.
   bool IsEdgeTrue = BWUtil.IsTrueEdge(PredBlock, CurrBlock);
 
+  // Check if the terminating condition of the pred block tests for a null
+  // terminator.
+  bool TermCondChecksNull = DoesTermCondCheckNull(PredEB);
+
   // Get the In of the last statement in the pred block. If the pred
   // block does not have any statements then InOfLastStmtOfPred is set to
   // the In set of the pred block.
@@ -433,9 +437,28 @@ BoundsMapTy BoundsWideningAnalysis::PruneOutSet(
 
     // Note: Switch cases are handled separately later in this function.
 
-    if (!IsSwitchCase && !IsEdgeTrue) {
-      PrunedOutSet[V] = BoundsOfVInStmtIn;
-      continue;
+    if (!IsSwitchCase) {
+      // if (*p != 0) {
+      //   IsEdgeTrue = True, TermCondChecksNull = False
+      //     ==> widen bounds of p
+      //
+      // } else {
+      //   IsEdgeTrue = False, TermCondChecksNull = False
+      //     ==> do not widen bounds of p
+      // }
+
+      // if (*p == 0) {
+      //   IsEdgeTrue = True, TermCondChecksNull = True
+      //     ==> do not widen bounds of p
+      //
+      // } else {
+      //   IsEdgeTrue = False, TermCondChecksNull = True
+      //     ==> widen bounds of p
+      // }
+      if (IsEdgeTrue == TermCondChecksNull) {
+        PrunedOutSet[V] = BoundsOfVInStmtIn;
+        continue;
+      }
     }
 
     // If the terminating condition of the pred block does not
@@ -457,8 +480,8 @@ BoundsMapTy BoundsWideningAnalysis::PruneOutSet(
     // upon entry to blocks 2 and 3.
 
     bool IsDerefAtUpperBound =
-      PredEB->TermCondDerefExpr && BoundsOfVInStmtIn != Top &&
-      Lex.CompareExprSemantically(PredEB->TermCondDerefExpr,
+      PredEB->TermCondInfo.DerefExpr && BoundsOfVInStmtIn != Top &&
+      Lex.CompareExprSemantically(PredEB->TermCondInfo.DerefExpr,
                                   BoundsOfVInStmtIn->getUpperExpr());
 
     if (!IsDerefAtUpperBound) {
@@ -729,24 +752,24 @@ void BoundsWideningAnalysis::GetVarsAndBoundsInPtrDeref(
   if (!TermCond)
     return;
 
-  // If the terminating condition is a dereference expression get that
-  // expression. For example, from a terminating condition like "if (*(p +
-  // 1))", extract the expression "p + 1".
-  Expr *DerefExpr = BWUtil.GetDerefExpr(TermCond);
-  if (!DerefExpr)
+  // Get information about the terminating condition such as the dereference
+  // expression, whether the condition check is positive or not (== vs !=),
+  // whether the compared value is null or not (== '0' vs == 'a').
+  EB->TermCondInfo = BWUtil.GetTermCondInfo(TermCond);
+
+  // If the terminating condition does not contain a dereference (or an array
+  // subscript) we cannot possibly widen a pointer.
+  if (!EB->TermCondInfo.DerefExpr)
     return;
 
-  // Store the dereference condition for the block. We will use it later in the
-  // In set calculation.
-  EB->TermCondDerefExpr = DerefExpr;
-
-  // Get the variable in the expression that is a pointers to a null-terminated
+  // Get the variable in the expression that is a pointer to a null-terminated
   // array. For example: On a dereference expression like "*(p + i + j + 1)"
   // GetNullTermPtrInExpr() will return p if p is a pointer to a null-terminated
   // array.
   // Note: We assume that a dereference expression can only contain at most one
   // pointer to a null-terminated array.
-  const VarDecl *NullTermPtrInExpr = BWUtil.GetNullTermPtrInExpr(DerefExpr);
+  const VarDecl *NullTermPtrInExpr =
+    BWUtil.GetNullTermPtrInExpr(EB->TermCondInfo.DerefExpr);
   if (!NullTermPtrInExpr)
     return;
 
@@ -785,8 +808,9 @@ void BoundsWideningAnalysis::GetVarsAndBoundsInPtrDeref(
 
     RangeBoundsExpr *WidenedBounds =
       new (Ctx) RangeBoundsExpr(R->getLowerExpr(),
-                                BWUtil.AddOffsetToExpr(DerefExpr, 1),
-                                SourceLocation(), SourceLocation());
+        BWUtil.AddOffsetToExpr(EB->TermCondInfo.DerefExpr, 1),
+        SourceLocation(), SourceLocation());
+
     VarsAndBounds[V] = WidenedBounds;
   }
 }
@@ -905,6 +929,25 @@ void BoundsWideningAnalysis::CheckStmtInvertibility(ElevatedCFGBlock *EB,
                                                       OriginalLValue,
                                                       PtrsWithAffectedBounds);
   }
+}
+
+bool BoundsWideningAnalysis::DoesTermCondCheckNull(
+  ElevatedCFGBlock *EB) const {
+
+  // *p == 0
+  //   ==> IsComparedValNull = True, IsCheckPositive = True, return True
+
+  // *p != 0
+  //   ==> IsComparedValNull = True, IsCheckPositive = False, return False
+
+  // *p == 'a'
+  //   ==> IsComparedValNull = False, IsCheckPositive = True, return False
+
+  // *p != 'a'
+  // ==> IsComparedValNull = False, IsCheckPositive = False, return True
+
+  return EB->TermCondInfo.IsComparedValNull ==
+         EB->TermCondInfo.IsCheckPositive;
 }
 
 void BoundsWideningAnalysis::UpdateAdjustedBounds(
@@ -1064,7 +1107,7 @@ void BoundsWideningAnalysis::DumpWidenedBounds(FunctionDecl *FD,
       } else if (PrintOption == 1) {
         OS << "\n  Stmt: ";
       }
-  
+
       // Print the current statement.
       PrintStmt(CurrStmt);
 
@@ -1353,45 +1396,166 @@ Expr *BoundsWideningUtil::AddOffsetToExpr(Expr *E, unsigned Offset) const {
                                                BinaryOperatorKind::BO_Add);
 }
 
-Expr *BoundsWideningUtil::GetDerefExpr(const Expr *TermCond) const {
-  if (!TermCond)
-    return nullptr;
+TermCondInfoTy BoundsWideningUtil::GetTermCondInfo(
+  const Expr *TermCond) const {
 
-  Expr *E = const_cast<Expr *>(TermCond);
+  TermCondInfoTy TermCondInfo;
+  // Initialize fields of TermCondInfo.
+  TermCondInfo.DerefExpr = nullptr;
+  TermCondInfo.IsComparedValNull = false;
+  TermCondInfo.IsCheckPositive = false;
+  TermCondInfo.HasBinaryOp = false;
+  TermCondInfo.HasUnaryNot = false;
 
-  // According to C11 standard section 6.5.13, the logical AND Operator shall
-  // yield 1 if both of its operands compare unequal to 0; otherwise, it yields
-  // 0. The result has type int. An IntegralCast is generated for "if (e1 &&
-  // e2)" Here we strip off the IntegralCast.
-  if (auto *CE = dyn_cast<CastExpr>(E)) {
-    if (CE->getCastKind() == CastKind::CK_IntegralCast)
-      E = CE->getSubExpr();
-  }
+  FillTermCondInfo(TermCond, TermCondInfo);
+  return TermCondInfo;
+}
 
-  if (auto *CE = dyn_cast<CastExpr>(E))
-    if (CE->getCastKind() == CastKind::CK_LValueToRValue)
-      E = CE->getSubExpr();
+void BoundsWideningUtil::FillTermCondInfo(const Expr *TermCond,
+                                          TermCondInfoTy &TermCondInfo) const {
+  Expr *E = StripCasts(TermCond);
 
-  E = IgnoreCasts(E);
-
-  // A dereference expression can contain an array subscript or a pointer
-  // dereference.
-
-  // If a dereference expression is of the form "*(p + i)".
   if (auto *UO = dyn_cast<UnaryOperator>(E)) {
-    if (UO->getOpcode() == UO_Deref)
-      return IgnoreCasts(UO->getSubExpr());
+    UnaryOperatorKind UnaryOp = UO->getOpcode();
 
-  // Else if a dereference expression is an array access. An array access can
-  // be written A[i] or i[A] (both are equivalent).  getBase() and getIdx()
-  // always present the normalized view: A[i]. In this case getBase() returns
-  // "A" and getIdx() returns "i".
+    if (UnaryOp == UO_Deref) {
+      Expr *SubExpr = IgnoreCasts(UO->getSubExpr());
+
+      // *p ==> DerefExpr = p
+      // *(p + i) ==> DerefExpr = p + i
+      TermCondInfo.DerefExpr = SubExpr;
+
+      if (TermCondInfo.HasBinaryOp) {
+        // *p == 0 ==> HasUnaryNot = False, IsCheckPositive = True
+        // *p != 0 ==> HasUnaryNot = True, IsCheckPositive = False
+        // !(*p == 0) ==> HasUnaryNot = True, IsCheckPositive = False
+        // !(*p != 0) ==> HasUnaryNot = False, IsCheckPositive = True
+        TermCondInfo.IsCheckPositive =
+          TermCondInfo.IsCheckPositive != TermCondInfo.HasUnaryNot;
+
+      } else {
+        // *p ==> *p != 0 ==> HasUnaryNot = False
+        //                    IsCheckPositive = False,
+        //                    IsComparedValNull = True
+
+        // !*p ==> *p == 0 ==> HasUnaryNot = True
+        //                     IsCheckPositive = True,
+        //                     IsComparedValNull = True
+        TermCondInfo.IsCheckPositive = TermCondInfo.HasUnaryNot;
+        TermCondInfo.IsComparedValNull = true;
+      }
+
+    } else if (UnaryOp == UO_LNot) {
+      Expr *SubExpr = IgnoreCasts(UO->getSubExpr());
+
+      // *p ==> HasUnaryNot = False
+      // !*p ==> HasUnaryNot = True
+      // !!*p ==> HasUnaryNot = False
+      // !!!*p ==> HasUnaryNot = True
+      TermCondInfo.HasUnaryNot = !TermCondInfo.HasUnaryNot;
+
+      // !*p ==> FillTermCondInfo(*p);
+      // !!*p ==> FillTermCondInfo(!*p);
+      // !!!*p ==> FillTermCondInfo(!!*p);
+      // !(*p == 0) ==> FillTermCondInfo(*p == 0);
+      FillTermCondInfo(SubExpr, TermCondInfo);
+    }
+
+    // If dereference expression contains an array access. An array access can
+    // be written A[i] or i[A] (both are equivalent).  getBase() and getIdx()
+    // always present the normalized view: A[i]. In this case getBase() returns
+    // "A" and getIdx() returns "i".
   } else if (auto *AE = dyn_cast<ArraySubscriptExpr>(E)) {
-    return ExprCreatorUtil::CreateBinaryOperator(SemaRef, AE->getBase(),
-                                                 AE->getIdx(),
-                                                 BinaryOperatorKind::BO_Add);
+    // p[i] ==> DerefExpr = p + i
+    TermCondInfo.DerefExpr =
+      ExprCreatorUtil::CreateBinaryOperator(SemaRef, AE->getBase(),
+                                            AE->getIdx(),
+                                            BinaryOperatorKind::BO_Add);
+    if (TermCondInfo.HasBinaryOp) {
+      // p[i] == 0 ==> IsCheckPositive = True
+      // p[i] != 0 ==> IsCheckPositive = False
+      // !(p[i] == 0) ==> IsCheckPositive = False
+      // !(p[i] != 0) ==> IsCheckPositive = True
+      TermCondInfo.IsCheckPositive =
+        TermCondInfo.IsCheckPositive != TermCondInfo.HasUnaryNot;
+
+    } else {
+      // p[i] ==> p[i] != 0 ==> HasUnaryNot = False
+      //                        IsCheckPositive = False,
+      //                        IsComparedValNull = True
+
+      // !p[i] ==> p[i] == 0 ==> HasUnaryNot = True
+      //                         IsCheckPositive = True,
+      //                         IsComparedValNull = True
+      TermCondInfo.IsCheckPositive = TermCondInfo.HasUnaryNot;
+      TermCondInfo.IsComparedValNull = true;
+    }
+
+  } else if (auto *BO = dyn_cast<BinaryOperator>(E)) {
+    BinaryOperatorKind BinOp = BO->getOpcode();
+
+    // *p == 0, 0 != *p
+    if (BinOp == BO_EQ || BinOp == BO_NE) {
+      // *p == 0 ==> HasBinaryOp = True
+      // *p != 0 ==> HasBinaryOp = True
+      // (c = *p) != 0 ==> HasBinaryOp = True
+      TermCondInfo.HasBinaryOp = true;
+
+      // *p == 0 ==> IsCheckPositive = True
+      // *p != 0 ==> IsCheckPositive = False
+      TermCondInfo.IsCheckPositive = BinOp == BO_EQ;
+
+      Expr *LHS = BO->getLHS();
+      Expr *RHS = BO->getRHS();
+
+      // 0 == *p ==> LHSVal = 0
+      // 'a' != *p ==> LHSVal = 'a'
+      // a != *p ==> LHSVal = nullptr
+      // *p == *q ==> LHSVal = nullptr;
+      Optional<llvm::APSInt> LHSVal = LHS->getIntegerConstantExpr(Ctx);
+
+      // *p == 0 ==> RHSVal = 0
+      // *p != 'a' ==> RHSVal = 'a'
+      // *p != a ==> RHSVal = nullptr
+      // *p == *q ==> RHSVal = nullptr
+      Optional<llvm::APSInt> RHSVal = RHS->getIntegerConstantExpr(Ctx);
+
+      // 1 == 2 ==> DerefExpr = nullptr
+      // *p != q ==> DerefExpr = nullptr
+      if (LHSVal == RHSVal) {
+        TermCondInfo.DerefExpr = nullptr;
+        return;
+      }
+
+      llvm::APSInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
+      if (LHSVal) {
+        // 0 == *p ==> IsComparedValNull = True
+        // 'a' != *p ==> IsComparedValNull = False
+        TermCondInfo.IsComparedValNull =
+          llvm::APSInt::compareValues(*LHSVal, Zero) == 0;
+
+        // 0 == *p ==> FillTermCondInfo(*p);
+        // 'a' != *p ==> FillTermCondInfo(*p);
+        FillTermCondInfo(RHS, TermCondInfo);
+
+      } else if (RHSVal) {
+        // *p == 0 ==> IsComparedValNull = True
+        // *p != 'a' ==> IsComparedValNull = False
+        TermCondInfo.IsComparedValNull =
+          llvm::APSInt::compareValues(*RHSVal, Zero) == 0;
+
+        // *p == 0 ==> FillTermCondInfo(*p);
+        // *p != 'a' ==> FillTermCondInfo(*p);
+        FillTermCondInfo(LHS, TermCondInfo);
+      }
+
+      // (c = *p) != 0
+    } else if (BinOp == BO_Assign) {
+      // (c = *p) ==> RHS = *p
+      Expr *RHS = BO->getRHS();
+      FillTermCondInfo(RHS, TermCondInfo);
+    }
   }
-  return nullptr;
 }
 
 const VarDecl *BoundsWideningUtil::GetNullTermPtrInExpr(Expr *E) const {
@@ -1428,6 +1592,25 @@ const VarDecl *BoundsWideningUtil::GetNullTermPtrInExpr(Expr *E) const {
         return V;
   }
   return nullptr;
+}
+
+Expr *BoundsWideningUtil::StripCasts(const Expr *TermCond) const {
+  Expr *E = const_cast<Expr *>(TermCond);
+
+  // According to C11 standard section 6.5.13, the logical AND Operator shall
+  // yield 1 if both of its operands compare unequal to 0; otherwise, it yields
+  // 0. The result has type int. An IntegralCast is generated for "if (e1 &&
+  // e2)" Here we strip off the IntegralCast.
+  if (auto *CE = dyn_cast<CastExpr>(E)) {
+    if (CE->getCastKind() == CastKind::CK_IntegralCast)
+      E = CE->getSubExpr();
+  }
+
+  if (auto *CE = dyn_cast<CastExpr>(E))
+    if (CE->getCastKind() == CastKind::CK_LValueToRValue)
+      E = CE->getSubExpr();
+
+  return IgnoreCasts(E);
 }
 
 Expr *BoundsWideningUtil::IgnoreCasts(const Expr *E) const {

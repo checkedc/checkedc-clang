@@ -63,6 +63,39 @@ namespace clang {
   using InvertibleStmtMapTy = llvm::DenseMap<const Stmt *,
                                              LValuesToReplaceInBoundsTy>;
 
+  // A struct representing various information about the terminating condition
+  // of a block.
+  struct TermCondInfoTy {
+    // The expression that dereferences a pointer or subscripts an array. For
+    // example:
+    // if (*(p + i) == 0) ==> DerefExpr = p + i
+    Expr *DerefExpr;
+
+    // Whether the value that an expression is compared against is null. For
+    // example:
+    // if (*p == 0)   ==> IsComparedValNull = True
+    // if (*p == 'a') ==> IsComparedValNull = False
+    bool IsComparedValNull;
+
+    // Whether the operator of the conditional is positive. For example:
+    // if (*p == 0) ==> IsCheckPositive = True
+    // if (*p != 0) ==> IsCheckPositive = False
+    bool IsCheckPositive;
+
+    // Whether the terminating condition is an expression involving a binary
+    // operator. For example:
+    // if (*p == 0) ==> HasBinaryOp = True
+    // if (!*p)     ==> HasBinaryOp = False
+    bool HasBinaryOp;
+
+    // Whether the terminating condition is an expression involving a unary not
+    // operator. For example:
+    // if (!*p)        ==> HasUnaryNot = True
+    // if (!(*p == 0)) ==> HasUnaryNot = True
+    // if (*p == 0)    ==> HasUnaryNot = False
+    bool HasUnaryNot;
+  };
+
 } // end namespace clang
 
 namespace clang {
@@ -159,11 +192,19 @@ namespace clang {
     // @return Returns the expression E + Offset.
     Expr *AddOffsetToExpr(Expr *E, unsigned Offset) const;
 
-    // From the given expression get the dereference expression. A dereference
-    // expression can be of the form "*(p + 1)" or "p[1]".
-    // @param[in] E is the given expression.
-    // @return Returns the dereference expression, if it exists.
-    Expr *GetDerefExpr(const Expr *E) const;
+    // Get various information about the terminating condition of a block.
+    // @param[in] TermCond is the terminating condition of a block.
+    // @return A struct containing various information about the terminating
+    // condition.
+    TermCondInfoTy GetTermCondInfo(const Expr *TermCond) const;
+
+    // Fill the TermCondInfo parameter with information about the terminating
+    // condition TermCond.
+    // @param[in] TermCond is the terminating condition of a block.
+    // @param[out] TermCondInfo is the struct that is filled with various
+    // information about the terminating condition.
+    void FillTermCondInfo(const Expr *TermCond,
+                          TermCondInfoTy &TermCondInfo) const;
 
     // Get the variable in an expression that is a pointer to a null-terminated
     // array.
@@ -177,6 +218,11 @@ namespace clang {
     // @param[in] E is the expression whose casts must be stripped.
     // @return E with casts stripped off.
     Expr *IgnoreCasts(const Expr *E) const;
+
+    // Strip off more casts than IgnoreCasts.
+    // @param[in] E is the expression whose casts must be stripped.
+    // @return E with casts stripped off.
+    Expr *StripCasts(const Expr *E) const;
 
     // We do not want to run dataflow analysis on null blocks or the exit
     // block. So we skip them.
@@ -289,7 +335,7 @@ namespace clang {
 
       // The terminating condition that dereferences a pointer. This is nullptr
       // if the terminating condition does not dereference a pointer.
-      Expr *TermCondDerefExpr = nullptr;
+      TermCondInfoTy TermCondInfo;
 
       // The In set of the last statment of each block.
       BoundsMapTy InOfLastStmt;
@@ -522,6 +568,13 @@ namespace clang {
     void CheckStmtInvertibility(ElevatedCFGBlock *EB,
                                 const Stmt *CurrStmt,
                                 VarSetTy PtrsWithAffectedBounds) const;
+
+    // Check whether the terminating condition of a block tests for a
+    // null-terminator.
+    // @param[in] EB is the current ElevatedCFGBlock.
+    // @return Returns true if the terminating condition of block EB tests for
+    // a null-terminator, false otherwise.
+    bool DoesTermCondCheckNull(ElevatedCFGBlock *EB) const;
 
     // Update the bounds in StmtOut with the adjusted bounds for the current
     // statement, if they exist.
