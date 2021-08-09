@@ -69,8 +69,6 @@ private:
 
   CVarSet getInvalidCastPVCons(CastExpr *E);
 
-  // Update a PVConstraint with one additional level of indirection
-  PVConstraint *addAtom(PVConstraint *PVC, ConstAtom *NewA, Constraints &CS);
   CVarSet addAtomAll(CVarSet CVS, ConstAtom *PtrTyp, Constraints &CS);
   CVarSet pvConstraintFromType(QualType TypE);
 

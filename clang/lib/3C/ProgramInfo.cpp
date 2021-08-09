@@ -774,14 +774,8 @@ void ProgramInfo::unifyIfTypedef(const Type *Ty, ASTContext &Context,
 
 ProgramInfo::IDAndTranslationUnit ProgramInfo::getExprKey(Expr *E,
                                                           ASTContext *C) const {
-  // TODO: Main file name can be shared by multiple translation units if on file
-  //       is compiled multiple times with different defines
-  std::string Name =
-      C->getSourceManager()
-          .getFileEntryForID(C->getSourceManager().getMainFileID())
-          ->getName()
-          .str();
-  return std::make_pair(getStmtIdWorkaround(E, *C), Name);
+  return std::make_pair(getStmtIdWorkaround(E, *C),
+                        TranslationUnitIdxMap.at(C));
 }
 
 bool ProgramInfo::hasPersistentConstraints(Expr *E, ASTContext *C) const {
@@ -1161,28 +1155,28 @@ void ProgramInfo::computePtrLevelStats() {
 void ProgramInfo::setTypeParamBinding(CallExpr *CE, unsigned int TypeVarIdx,
                                       ConstraintVariable *CV, ASTContext *C) {
 
-  auto PSL = PersistentSourceLoc::mkPSL(CE, *C);
-  auto CallMap = TypeParamBindings[PSL];
+  auto Key = getExprKey(CE, C);
+  auto CallMap = TypeParamBindings[Key];
   if (CallMap.find(TypeVarIdx) == CallMap.end()) {
-    TypeParamBindings[PSL][TypeVarIdx] = CV;
+    TypeParamBindings[Key][TypeVarIdx] = CV;
   } else {
     // If this CE/idx is at the same location, it's in a macro,
     // so mark it as inconsistent.
-    TypeParamBindings[PSL][TypeVarIdx] = nullptr;
+    TypeParamBindings[Key][TypeVarIdx] = nullptr;
   }
 }
 
 bool ProgramInfo::hasTypeParamBindings(CallExpr *CE, ASTContext *C) const {
-  auto PSL = PersistentSourceLoc::mkPSL(CE, *C);
-  return TypeParamBindings.find(PSL) != TypeParamBindings.end();
+  auto Key = getExprKey(CE, C);
+  return TypeParamBindings.find(Key) != TypeParamBindings.end();
 }
 
 const ProgramInfo::CallTypeParamBindingsT &
 ProgramInfo::getTypeParamBindings(CallExpr *CE, ASTContext *C) const {
-  auto PSL = PersistentSourceLoc::mkPSL(CE, *C);
+  auto Key = getExprKey(CE, C);
   assert("Type parameter bindings could not be found." &&
-         TypeParamBindings.find(PSL) != TypeParamBindings.end());
-  return TypeParamBindings.at(PSL);
+         TypeParamBindings.find(Key) != TypeParamBindings.end());
+  return TypeParamBindings.at(Key);
 }
 
 CVarOption ProgramInfo::lookupTypedef(PersistentSourceLoc PSL) {
@@ -1209,4 +1203,14 @@ void ProgramInfo::addTypedef(PersistentSourceLoc PSL, bool CanRewriteDef,
   }
   constrainWildIfMacro(V, TD->getLocation(), &PSL);
   this->TypedefVars[PSL] = {*V};
+}
+
+void ProgramInfo::registerTranslationUnits(
+    const std::vector<std::unique_ptr<clang::ASTUnit>> &ASTs) {
+  assert(TranslationUnitIdxMap.empty());
+  unsigned int Idx = 0;
+  for (const auto &AST : ASTs) {
+    TranslationUnitIdxMap[&(AST->getASTContext())] = Idx;
+    Idx++;
+  }
 }

@@ -500,8 +500,9 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
               ReturnCVs.insert(localReturnConstraint(FVC,TypeVars,CS));
             else {
               // No FVConstraint -- make WILD.
-              auto *TmpFV = new FVConstraint();
-              ReturnCVs.insert(TmpFV);
+              std::string Rsn = "Can't get return variable of function call.";
+              PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CE, *Context);
+              ReturnCVs.insert(PVConstraint::getWildPVConstraint(CS, Rsn, &PL));
             }
           }
         }

@@ -511,6 +511,8 @@ bool _3CInterface::parseASTs() {
   int ToolExitStatus = Tool->run(&Action);
   HadNonDiagnosticError |= (ToolExitStatus != 0);
 
+  GlobalProgramInfo.registerTranslationUnits(ASTs);
+
   return isSuccessfulSoFar();
 }
 

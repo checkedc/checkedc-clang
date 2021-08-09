@@ -45,12 +45,7 @@ typedef std::pair<CVarSet, BKeySet> CSetBkeyPair;
 
 class ProgramInfo : public ProgramVariableAdder {
 public:
-  // This map holds similar information as the type variable map in
-  // ConstraintBuilder.cpp, but it is stored in a form that is usable during
-  // rewriting.
   typedef std::map<unsigned int, ConstraintVariable *> CallTypeParamBindingsT;
-  typedef std::map<PersistentSourceLoc, CallTypeParamBindingsT>
-      TypeParamBindingsT;
 
   typedef std::map<std::string, FVConstraint *> ExternalFunctionMapType;
   typedef std::map<std::string, ExternalFunctionMapType> StaticFunctionMapType;
@@ -145,6 +140,12 @@ public:
   void addTypedef(PersistentSourceLoc PSL, bool CanRewriteDef, TypedefDecl *TD,
                   ASTContext &C);
 
+  // Store mapping from ASTContexts to a unique index in the ASTs vector in
+  // the ProgramInfo object. This function must be called prior to any AST
+  // traversals so that the map is populated.
+  void registerTranslationUnits(
+      const std::vector<std::unique_ptr<clang::ASTUnit>> &ASTs);
+
 private:
   // List of constraint variables for declarations, indexed by their location in
   // the source. This information persists across invocations of the constraint
@@ -156,9 +157,11 @@ private:
   // rewritten.
   std::map<PersistentSourceLoc, CVarOption> TypedefVars;
 
-  // A pair containing an AST node ID and the name of the main file in the
-  // translation unit. Used as a key to index expression in the following maps.
-  typedef std::pair<int64_t, std::string> IDAndTranslationUnit;
+  // A pair containing an AST node ID and an index that uniquely identifies the
+  // translation unit. Translation unit identifiers are drawn from the
+  // TranslationUnitIdxMap. Used as a key to index expression in the following
+  // maps.
+  typedef std::pair<int64_t, unsigned int> IDAndTranslationUnit;
   IDAndTranslationUnit getExprKey(clang::Expr *E, clang::ASTContext *C) const;
 
   // Map with the similar purpose as the Variables map. This stores a set of
@@ -169,6 +172,12 @@ private:
   // location for the expression. This is used to emit diagnostics. It is
   // expected that multiple entries will map to the same source location.
   std::map<IDAndTranslationUnit, PersistentSourceLoc> ExprLocations;
+
+  // This map holds similar information as the type variable map in
+  // ConstraintBuilder.cpp, but it is stored in a form that is usable during
+  // rewriting.
+  typedef std::map<IDAndTranslationUnit, CallTypeParamBindingsT>
+      TypeParamBindingsT;
 
   std::map<ConstraintKey, PersistentSourceLoc> DeletedAtomLocations;
 
@@ -198,6 +207,15 @@ private:
   // For each call to a generic function, remember how the type parameters were
   // instantiated so they can be inserted during rewriting.
   TypeParamBindingsT TypeParamBindings;
+
+  // Maps each ASTContext to a unique index in the vector of ASTs being
+  // processed. This is used to uniquely determine the translation unit an AST
+  // belongs to given its corresponding ASTContext. By using this index instead
+  // of the name of the main file, this uniquely identifies the translation unit
+  // even when a file is the main file of multiple translation units. The values
+  // in this map are used as part of the IDAndTranslationUnit which is the type
+  // used as keys for maps from ASTNodes.
+  std::map<ASTContext *, unsigned int> TranslationUnitIdxMap;
 
   // Special-case handling for decl introductions. For the moment this covers:
   //  * void-typed variables

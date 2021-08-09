@@ -48,47 +48,54 @@ std::string ConstraintVariable::getRewritableOriginalTy() const {
 
 PointerVariableConstraint *PointerVariableConstraint::getWildPVConstraint(
     Constraints &CS, const std::string &Rsn, PersistentSourceLoc *PSL) {
-  VarAtom *VA =
-      CS.createFreshGEQ("wildvar", VarAtom::V_Other, CS.getWild(), Rsn, PSL);
-  return new PointerVariableConstraint({VA}, {CS.getWild()}, "unsigned",
-                                       "wildvar", nullptr, "");
+  auto *WildPVC = new PointerVariableConstraint("wildvar");
+  VarAtom *VA = CS.createFreshGEQ("wildvar", VarAtom::V_Other, CS.getWild(),
+                                  Rsn, PSL);
+  WildPVC->Vars.push_back(VA);
+  WildPVC->SrcVars.push_back(CS.getWild());
+
+  return WildPVC;
 }
 
 PointerVariableConstraint *
 PointerVariableConstraint::getNonPtrPVConstraint(Constraints &CS) {
   static PointerVariableConstraint *GlobalNonPtrPV = nullptr;
-  if (GlobalNonPtrPV == nullptr) {
-    return new PointerVariableConstraint({}, {}, "unsigned", "basevar", nullptr,
-                                         "");
-  }
+  if (GlobalNonPtrPV == nullptr)
+    GlobalNonPtrPV = new PointerVariableConstraint("basevar");
   return GlobalNonPtrPV;
 }
 
 PointerVariableConstraint *
 PointerVariableConstraint::getNamedNonPtrPVConstraint(StringRef Name,
                                                       Constraints &CS) {
-  return new PointerVariableConstraint({}, {}, "unsigned", std::string(Name),
-                                       nullptr, "");
+  return new PointerVariableConstraint(std::string(Name));
 }
 
 PointerVariableConstraint *
 PointerVariableConstraint::derefPVConstraint(PointerVariableConstraint *PVC) {
-  std::vector<Atom *> Vars = PVC->Vars;
-  std::vector<ConstAtom *> SrcVars = PVC->SrcVars;
-  assert(!PVC->Vars.empty() && !SrcVars.empty());
-  Vars.erase(Vars.begin());
-  SrcVars.erase(SrcVars.begin());
-  return new PointerVariableConstraint(Vars, SrcVars, PVC->getTy(),
-                                       PVC->getName(), PVC->getFV(),
-                                       PVC->getItype());
+  // Make a copy of the PVConstraint using the same VarAtoms
+  auto *Copy = new PointerVariableConstraint(PVC);
+
+  // Get rid of the outer atom to dereference the pointer.
+  assert(!Copy->Vars.empty() && !Copy->SrcVars.empty());
+  Copy->Vars.erase(Copy->Vars.begin());
+  Copy->SrcVars.erase(Copy->SrcVars.begin());
+
+  // This can't have bounds because bounds only apply to the top pointer level.
+  Copy->BKey = 0;
+  Copy->ValidBoundsKey = false;
+
+  return Copy;
 }
 
 PointerVariableConstraint *PointerVariableConstraint::addAtomPVConstraint(
     PointerVariableConstraint *PVC, ConstAtom *PtrTyp, Constraints &CS) {
-  VarAtom *NewA = CS.getFreshVar("&" + PVC->Name, VarAtom::V_Other);
+  auto *Copy = new PointerVariableConstraint(PVC);
+  std::vector<Atom *> &Vars = Copy->Vars;
+  std::vector<ConstAtom *> &SrcVars = Copy->SrcVars;
+
+  VarAtom *NewA = CS.getFreshVar("&" + Copy->Name, VarAtom::V_Other);
   CS.addConstraint(CS.createGeq(NewA, PtrTyp, false));
-  std::vector<Atom *> Vars = PVC->Vars;
-  std::vector<ConstAtom *> SrcVars = PVC->SrcVars;
 
   // Add a constraint between the new atom and any existing atom for this
   // pointer. This is the same constraint that is added between atoms of a
@@ -100,49 +107,26 @@ PointerVariableConstraint *PointerVariableConstraint::addAtomPVConstraint(
 
   Vars.insert(Vars.begin(), NewA);
   SrcVars.insert(SrcVars.begin(), PtrTyp);
-  return new PointerVariableConstraint(Vars, SrcVars, PVC->BaseType, PVC->Name,
-                                       PVC->FV, PVC->ItypeStr);
+
+  return Copy;
 }
 
 PointerVariableConstraint::PointerVariableConstraint(
-    PointerVariableConstraint *Ot, Constraints &CS)
-    : ConstraintVariable(ConstraintVariable::PointerVariable, Ot->OriginalType,
-                         Ot->Name),
-      FV(nullptr), PartOfFuncPrototype(Ot->PartOfFuncPrototype) {
-  this->ArrSizes = Ot->ArrSizes;
-  this->ArrSizeStrs = Ot->ArrSizeStrs;
+    PointerVariableConstraint *Ot)
+  : ConstraintVariable(ConstraintVariable::PointerVariable, Ot->OriginalType,
+                       Ot->Name), BaseType(Ot->BaseType), Vars(Ot->Vars),
+    SrcVars(Ot->SrcVars), FV(Ot->FV), QualMap(Ot->QualMap),
+    ArrSizes(Ot->ArrSizes), ArrSizeStrs(Ot->ArrSizeStrs),
+    SrcHasItype(Ot->SrcHasItype), ItypeStr(Ot->ItypeStr),
+    PartOfFuncPrototype(Ot->PartOfFuncPrototype), Parent(Ot),
+    BoundsAnnotationStr(Ot->BoundsAnnotationStr),
+    GenericIndex(Ot->GenericIndex), IsZeroWidthArray(Ot->IsZeroWidthArray),
+    IsTypedef(Ot->IsTypedef), TDT(Ot->TDT), TypedefString(Ot->TypedefString),
+    TypedefLevelInfo(Ot->TypedefLevelInfo), IsVoidPtr(Ot->IsVoidPtr) {
+  // These are fields of the super class Constraint Variable
   this->HasEqArgumentConstraints = Ot->HasEqArgumentConstraints;
   this->ValidBoundsKey = Ot->ValidBoundsKey;
   this->BKey = Ot->BKey;
-
-  assert(Ot->Vars.size() == Ot->SrcVars.size());
-  auto VAIt = Ot->Vars.begin();
-  auto CAIt = Ot->SrcVars.begin();
-  while (VAIt != Ot->Vars.end() && CAIt != Ot->SrcVars.end()) {
-    if (ConstAtom *CA = dyn_cast<ConstAtom>(*VAIt)) {
-      this->Vars.push_back(CA);
-      this->SrcVars.push_back(CA);
-    } else if (VarAtom *VA = dyn_cast<VarAtom>(*VAIt)) {
-      VarAtom *FreshVA = CS.getFreshVar(VA->getName(), VA->getVarKind());
-      this->Vars.push_back(FreshVA);
-      this->SrcVars.push_back(*CAIt);
-      if (!isa<WildAtom>(*CAIt))
-        CS.addConstraint(CS.createGeq(*CAIt, FreshVA, false));
-    }
-    ++VAIt;
-    ++CAIt;
-  }
-
-  if (Ot->FV != nullptr) {
-    this->FV = dyn_cast<FVConstraint>(Ot->FV->getCopy(CS));
-  }
-  this->Parent = Ot;
-  this->GenericIndex = Ot->GenericIndex;
-  this->IsZeroWidthArray = Ot->IsZeroWidthArray;
-  this->BaseType = Ot->BaseType;
-  this->SrcHasItype = Ot->SrcHasItype;
-  this->IsVoidPtr = Ot->IsVoidPtr;
-  this->TypedefLevelInfo = Ot->TypedefLevelInfo;
 }
 
 PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
@@ -963,22 +947,13 @@ const CVarSet &PVConstraint::getArgumentConstraints() const {
   return ArgumentConstraints;
 }
 
-FunctionVariableConstraint::FunctionVariableConstraint(
-    FunctionVariableConstraint *Ot, Constraints &CS)
-    : ConstraintVariable(ConstraintVariable::FunctionVariable, Ot->OriginalType,
-                         Ot->getName()) {
-  this->IsStatic = Ot->IsStatic;
-  this->FileName = Ot->FileName;
-  this->Hasbody = Ot->Hasbody;
-  this->Hasproto = Ot->Hasproto;
+FunctionVariableConstraint::FunctionVariableConstraint(FVConstraint *Ot)
+  : ConstraintVariable(ConstraintVariable::FunctionVariable, Ot->OriginalType,
+                       Ot->getName()), ReturnVar(Ot->ReturnVar),
+    ParamVars(Ot->ParamVars), FileName(Ot->FileName), Hasproto(Ot->Hasproto),
+    Hasbody(Ot->Hasbody), IsStatic(Ot->IsStatic), Parent(Ot),
+    IsFunctionPtr(Ot->IsFunctionPtr), TypeParams(Ot->TypeParams) {
   this->HasEqArgumentConstraints = Ot->HasEqArgumentConstraints;
-  this->IsFunctionPtr = Ot->IsFunctionPtr;
-  this->HasEqArgumentConstraints = Ot->HasEqArgumentConstraints;
-  this->ReturnVar = FVComponentVariable(&Ot->ReturnVar, CS);
-  // Make copy of ParameterCVs too.
-  for (auto &ParmPv : Ot->ParamVars)
-    this->ParamVars.push_back(FVComponentVariable(&ParmPv, CS));
-  this->Parent = Ot;
 }
 
 // This describes a function, either a function pointer or a function
@@ -1151,7 +1126,14 @@ bool FunctionVariableConstraint::hasNtArr(const EnvironmentMap &E,
 }
 
 FVConstraint *FunctionVariableConstraint::getCopy(Constraints &CS) {
-  return new FVConstraint(this, CS);
+  FunctionVariableConstraint *Copy = new FunctionVariableConstraint(this);
+  Copy->ReturnVar = FVComponentVariable(&Copy->ReturnVar, CS);
+  // Make copy of ParameterCVs too.
+  std::vector<FVComponentVariable> FreshParams;
+  for (auto &ParmPv : Copy->ParamVars)
+    FreshParams.push_back(FVComponentVariable(&ParmPv, CS));
+  Copy->ParamVars = FreshParams;
+  return Copy;
 }
 
 void PVConstraint::equateArgumentConstraints(ProgramInfo &Info) {
@@ -1305,7 +1287,31 @@ bool PointerVariableConstraint::anyChanges(const EnvironmentMap &E) const {
 }
 
 PVConstraint *PointerVariableConstraint::getCopy(Constraints &CS) {
-  return new PointerVariableConstraint(this, CS);
+  auto *Copy = new PointerVariableConstraint(this);
+
+  // After the copy construct, the copy Vars vector holds exactly the same
+  // atoms as this. For this method, we want it to contain fresh VarAtoms.
+  std::vector<Atom *> FreshVars;
+  auto VAIt = Copy->Vars.begin();
+  auto CAIt = Copy->SrcVars.begin();
+  while (VAIt != Copy->Vars.end() && CAIt != Copy->SrcVars.end()) {
+    if (auto *CA = dyn_cast<ConstAtom>(*VAIt)) {
+      FreshVars.push_back(CA);
+    } else if (auto *VA = dyn_cast<VarAtom>(*VAIt)) {
+      VarAtom *FreshVA = CS.getFreshVar(VA->getName(), VA->getVarKind());
+      FreshVars.push_back(FreshVA);
+      if (!isa<WildAtom>(*CAIt))
+        CS.addConstraint(CS.createGeq(*CAIt, FreshVA, false));
+    }
+    ++VAIt;
+    ++CAIt;
+  }
+  Copy->Vars = FreshVars;
+
+  if (Copy->FV != nullptr)
+    Copy->FV = Copy->FV->getCopy(CS);
+
+  return Copy;
 }
 
 const ConstAtom *
