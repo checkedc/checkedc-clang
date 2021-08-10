@@ -162,3 +162,23 @@ _Array_ptr<int> f23(_Array_ptr<int> p : count(4), int i) : count(i) {
 _Array_ptr<int> f24(_Array_ptr<int> p : count(i), int i) : count(2) {
   return _Dynamic_bounds_cast<_Array_ptr<int>>(p + 1, count(2));
 }
+
+//
+// Test function calls
+//
+
+extern _Array_ptr<int> g1(void) : count(2);
+extern int *g2(int size) : count(size);
+extern _Nt_array_ptr<char> g3(_Nt_array_ptr<char> p) : bounds(p, p);
+
+_Array_ptr<int> f25(void) : count(2) {
+  return g1();
+}
+
+_Array_ptr<int> f26(int len) : count(len + 1) {
+  return g2(len + 1);
+}
+
+_Nt_array_ptr<char> f27(_Nt_array_ptr<char> p) : bounds(p, p) {
+  return g3(p);
+}
