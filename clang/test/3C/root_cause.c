@@ -34,6 +34,7 @@ void test1() {
   c++; // expected-warning {{1 unchecked pointer: Pointer arithmetic performed on a function pointer}}
 
   int *d = malloc(1); // expected-warning {{1 unchecked pointer: Unsafe call to allocator function}}
+  int **e = malloc(1); // expected-warning {{1 unchecked pointer: Unsafe call to allocator function}}
 }
 
 // expected-warning@+1 {{1 unchecked pointer: External global variable glob has no definition}}
