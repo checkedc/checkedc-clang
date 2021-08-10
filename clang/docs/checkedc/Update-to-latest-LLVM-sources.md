@@ -109,7 +109,7 @@ such commit hash on branch &lt;cherry-pick-branch&gt; of the LLVM/Clang
 repository. 
 ```
     git fetch upstream <cherry-pick-branch>
-    git cherry-pick <commit-to-cherry-pick>
+    git cherry-pick -x <commit-to-cherry-pick>
 ```
 8. While the merge conflicts and test failures are being fixed, it is possible
 that the `master` branch has had several commits. Merge the `master` branch into
@@ -188,10 +188,10 @@ on GitHub.  Just push the branches up to GitHub.
 
 1. When merge.renamelimit is set to a large value, the output of the `git merge`
 command may have several lines like:
-CONFLICT (rename/delete): ... in master renamed to ... in HEAD. Version HEAD ...
-left in tree.
-CONFLICT (rename/delete): ... in master renamed to ... in HEAD. Version master
-... left in tree.
+    - CONFLICT (rename/delete): ... in master renamed to ... in HEAD. Version
+    HEAD ... left in tree.
+    - CONFLICT (rename/delete): ... in master renamed to ... in HEAD. Version
+    master ... left in tree.
 
     If the version in HEAD is left in tree, it is very likely a valid change -
     the file may have been moved. If the version in `master` is left in tree,
