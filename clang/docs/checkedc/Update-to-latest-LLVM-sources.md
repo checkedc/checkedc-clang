@@ -4,8 +4,8 @@ We are staying in sync with the upstream LLVM/Clang repository. The `baseline`
 branch of the `checkedc-clang` repository is a pristine copy of LLVM/Clang
 sources, and the `master` branch contains LLVM/Clang sources plus the support
 for Checked C language extensions. We periodically upgrade the `baseline` branch
-and the `master` branch to sources of the most recent releases from the upstream
-LLVM/Clang repository.
+and the `master` branch to the sources of the most recent releases from the
+upstream LLVM/Clang repository.
 
 The branching and merging policies of the `checkedc-clang` repository are
 aligned with the versioning and branching of upstream LLVM/Clang repository in
@@ -72,7 +72,7 @@ repository. Let us call this new branch `updated_baseline`.
     git checkout -b updated_baseline baseline
 ```     
 2. Upgrade the branch `updated_baseline` to &lt;branch-point-of-12-on-main&gt;
-commit hash on the branch `main` of the LLVM/Clang repository. Record the commit
+commit hash on the `main` branch of the LLVM/Clang repository. Record the commit
 hash &lt;branch-point-of-12-on-main&gt; in the document LLVM-Upgrade-Notes.md.
 ```
     git remote add upstream https://github.com/llvm/llvm-project.git 
@@ -95,8 +95,8 @@ branch.
 6. Merge the `master` branch of the checkedc-clang repository into the
 `updated_baseline_master_12` branch. This merge may cause several merge
 conflicts and test case failures. After the merge command, git may suggest to
-you to set merge.renamelimit to a specific value. It is a good idea to set it as
-suggested and re-run the merge. The last section in this document gives
+you to set `merge.renamelimit` to a specific value. It is a good idea to set it
+as suggested and re-run the merge. The last section in this document gives
 guidelines on fixing the merge conflicts and test failures.
 ```
     git checkout updated_baseline_master_12
@@ -186,8 +186,8 @@ on GitHub.  Just push the branches up to GitHub.
 
 ## Handling Merge Conflicts and Test Failures
 
-1. When merge.renamelimit is set to a large value, the output of the `git merge`
-command may have several lines like:
+1. When `merge.renamelimit` is set to a large value, the output of the
+`git merge` command may have several lines like:
     - CONFLICT (rename/delete): ... in master renamed to ... in HEAD. Version
     HEAD ... left in tree.
     - CONFLICT (rename/delete): ... in master renamed to ... in HEAD. Version
@@ -247,5 +247,5 @@ checkedc-specific changes and llvm-11-to-12 changes:
 related to Checked C) in files like `clang/include/clang/AST/Stmt.h` (see
 commit hash af12895f631), and `clang/include/clang/AST/DeclBase.h` (see the diff
 between commits bc556e5 and e08e3f6 - this change was required for a previous
-merge), it may need more manual investigation to check the correctness of the
+merge), more manual investigation may be needed to check the correctness of the
 changes.
