@@ -31,7 +31,7 @@ Cherry-picked commits (on `master` of `checkedc-clang`) from the upstream
 LLVM/Clang repository:
 
   - Commit hash 0024efc69ea6cd0b630cd11cef5991b7edb73ffc on the `main` branch
-    of the upstream LLVM/Clang repo (See LLVm/Clang bug 
+    of the upstream LLVM/Clang repo (See LLVM/Clang bug
     [#48920](https://bugs.llvm.org/show_bug.cgi?id=48920) for details.)
 
 The branch `release_12.x` of the `checkedc-clang` repository is upgraded to

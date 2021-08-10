@@ -78,7 +78,7 @@ hash &lt;branch-point-of-12-on-main&gt; in the document LLVM-Upgrade-Notes.md.
     git remote add upstream https://github.com/llvm/llvm-project.git 
     git pull upstream <branch-point-of-12-on-main>
 ```
-3. Execute  LLVM/Clang tests on the branch `updated_baseline` on your local
+3. Execute LLVM/Clang tests on the branch `updated_baseline` on your local
 machine to make sure that the upgrade is stable.
 
 4. Merge the `updated_baseline` branch back to the `baseline` branch. We expect
