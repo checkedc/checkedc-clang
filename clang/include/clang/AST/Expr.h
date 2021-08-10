@@ -7336,6 +7336,7 @@ public:
   void addFact(WhereClauseFact *Fact) { Facts.push_back(Fact); }
   bool isInvalid() const { return Facts.size() == 0; }
   FactListTy getFacts() { return Facts; }
+  FactListTy getFacts() const { return Facts; }
   static bool classof(const WhereClause *) { return true; }
 };
 
