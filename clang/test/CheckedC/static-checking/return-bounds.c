@@ -146,3 +146,19 @@ int *f20(int *p : count(7)) : bounds(p, p + 7) _Checked {
 int *f21(_Array_ptr<int> p : count(8)) : count(8) _Unchecked {
   return p;
 }
+
+//
+// Test bounds casts
+//
+
+_Array_ptr<char> f22(_Array_ptr<char> p : count(i), int i) : count(3) {
+  return _Dynamic_bounds_cast<_Array_ptr<char>>(p, count(3));
+}
+
+_Array_ptr<int> f23(_Array_ptr<int> p : count(4), int i) : count(i) {
+  return _Assume_bounds_cast<_Array_ptr<int>>(p, count(i));
+}
+
+_Array_ptr<int> f24(_Array_ptr<int> p : count(i), int i) : count(2) {
+  return _Dynamic_bounds_cast<_Array_ptr<int>>(p + 1, count(2));
+}
