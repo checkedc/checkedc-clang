@@ -121,3 +121,28 @@ _Nt_array_ptr<char> f15(int i) : count(i) { // expected-note {{(expanded) declar
                 // expected-note {{the declared upper bounds use the variable 'i' and there is no relational information involving 'i' and any of the expressions used by the inferred upper bounds}} \
                 // expected-note {{(expanded) inferred return value bounds are 'bounds(value of "abc", value of "abc" + 3)'}}
 }
+
+//
+// Test bounds-safe interfaces
+//
+
+int *f16(int *p) : byte_count(4) _Unchecked { // expected-note {{(expanded) declared return bounds are 'bounds((_Array_ptr<char>)_Return_value, (_Array_ptr<char>)_Return_value + 4)'}}
+  return p; // expected-error {{return value has unknown bounds, bounds expected because the function 'f16' has bounds}}
+}
+
+int *f17(int *p : bounds(unknown)) : count(5) _Checked { // expected-note {{(expanded) declared return bounds are 'bounds(_Return_value, _Return_value + 5)'}}
+  return p; // expected-error {{return value has unknown bounds, bounds expected because the function 'f17' has bounds}}
+}
+
+int *f19(int *p : count(6)) : count(6) _Unchecked { // expected-note {{(expanded) declared return bounds are 'bounds(_Return_value, _Return_value + 6)'}}
+  return p + 1; // expected-warning {{cannot prove return value bounds imply declared return bounds for 'f19'}} \
+                // expected-note {{(expanded) inferred return value bounds are 'bounds(p, p + 6)'}}
+}
+
+int *f20(int *p : count(7)) : bounds(p, p + 7) _Checked {
+  return p + 1;
+}
+
+int *f21(_Array_ptr<int> p : count(8)) : count(8) _Unchecked {
+  return p;
+}
