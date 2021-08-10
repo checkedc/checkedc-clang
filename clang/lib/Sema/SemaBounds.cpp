@@ -2046,6 +2046,7 @@ namespace {
     ProofResult ProveReturnBoundsValidity(Expr *RetExpr,
                                           BoundsExpr *RetExprBounds,
                                           const EquivExprSets EQ,
+                                          const EqualExprTy G,
                                           ProofFailure &Cause,
                                           FreeVariableListTy &FreeVariables) {
       // Check some basic properties of the declared ReturnBounds and the
@@ -2072,22 +2073,42 @@ namespace {
       if (RetExprBounds->isUnknown())
         return ProofResult::False;
 
-      // Record equality between RetVal and RetExpr. This allows
-      // ProveBoundsDeclValidity to validate bounds that depend on the return
-      // value of the function. For example, if the declared function bounds
-      // are count(1), then the expanded ReturnBounds will be
-      // bounds(RetVal, RetVal + 1).
+      // Record equality between ReturnVal and all expressions that produce
+      // the same value as RetExpr. This allows ProveBoundsDeclValidity to
+      // validate bounds that depend on the return value of the function.
+      // For example, if the declared function bounds are count(1), then the
+      // expanded ReturnBounds will be bounds(RetVal, RetVal + 1).
       EquivExprSets EquivExprs = EQ;
+
+      // Determine the set of expressions that produce the same value as
+      // RetExpr.
+      // If G (the set of expressions that produce the same value as RetExpr)
+      // is empty, then RetExpr may be an expression that is not allowed to
+      // be recorded in State.EquivExprs (e.g. an expression that reads memory
+      // via a pointer). The EquivExprs set that we construct here is temporary
+      // and is only used to check the return bounds for one return statement,
+      // so we can add RetExpr to EquivExprs in this case.
+      EqualExprTy RetSameValue = G;
+      if (RetSameValue.size() == 0)
+        RetSameValue.push_back(RetExpr);
+
       bool FoundRetExpr = false;
       for (auto F = EquivExprs.begin(); F != EquivExprs.end(); ++F) {
-        if (EqualExprsContainsExpr(*F, RetExpr)) {
+        if (DoExprSetsIntersect(*F, RetSameValue)) {
+          // Add all expressions in RetSameValue to F that are not already in F.
+          for (Expr *E : RetSameValue)
+            if (!EqualExprsContainsExpr(*F, E))
+              F->push_back(E);
           F->push_back(ReturnVal);
           FoundRetExpr = true;
           break;
         }
       }
-      if (!FoundRetExpr)
-        EquivExprs.push_back({RetExpr, ReturnVal});
+      if (!FoundRetExpr) {
+        EqualExprTy F = RetSameValue;
+        F.push_back(ReturnVal);
+        EquivExprs.push_back(F);
+      }
 
       return ProveBoundsDeclValidity(ReturnBounds, RetExprBounds, Cause,
                                      &EquivExprs, FreeVariables,
@@ -4013,7 +4034,7 @@ namespace {
 
       // Check that the return expression bounds imply the return bounds.
       ValidateReturnBounds(RS, RetValue, RetValueBounds, State.EquivExprs,
-                           CSS);
+                           State.SameValue, CSS);
 
       // TODO: Check that any parameters used in the return bounds are
       // unmodified.
@@ -4591,12 +4612,13 @@ namespace {
     void ValidateReturnBounds(ReturnStmt *RS, Expr *RetExpr,
                               BoundsExpr *RetExprBounds,
                               const EquivExprSets EquivExprs,
+                              const EqualExprTy RetSameValue,
                               CheckedScopeSpecifier CSS) {
       ProofFailure Cause;
       FreeVariableListTy FreeVars;
       ProofResult Result = ProveReturnBoundsValidity(RetExpr, RetExprBounds,
-                                                     EquivExprs, Cause,
-                                                     FreeVars);
+                                                     EquivExprs, RetSameValue,
+                                                     Cause, FreeVars);
 
       if (Result == ProofResult::True)
         return;
