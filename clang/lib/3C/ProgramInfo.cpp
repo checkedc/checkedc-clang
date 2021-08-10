@@ -567,16 +567,11 @@ ProgramInfo::insertNewFVConstraint(FunctionDecl *FD, FVConstraint *NewC,
     return (*Map)[FuncName];
 
   // Error reporting
-  { // block to force DiagBuilder destructor and emit message
-    clang::DiagnosticsEngine &DE = C->getDiagnostics();
-    unsigned FailID = DE.getCustomDiagID(DiagnosticsEngine::Fatal,
-                                         "merging failed for %q0 due to %1");
-    const auto Pointer = reinterpret_cast<intptr_t>(FD);
-    const auto Kind = clang::DiagnosticsEngine::ArgumentKind::ak_nameddecl;
-    auto DiagBuilder = DE.Report(FD->getLocation(), FailID);
-    DiagBuilder.AddTaggedVal(Pointer, Kind);
-    DiagBuilder.AddString(ReasonFailed);
-  }
+  reportCustomDiagnostic(C->getDiagnostics(),
+                         DiagnosticsEngine::Fatal,
+                         "merging failed for %q0 due to %1",
+                         FD->getLocation())
+      << FD << ReasonFailed;
   // A failed merge will provide poor data, but the diagnostic error report
   // will cause the program to terminate after the variable adder step.
   return (*Map)[FuncName];

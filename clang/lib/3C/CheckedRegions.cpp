@@ -432,10 +432,6 @@ void CheckedRegionFinder::markChecked(CompoundStmt *S, int Localwild) {
 
 void CheckedRegionFinder::emitCauseDiagnostic(PersistentSourceLoc *PSL) {
   if (Emitted.find(PSL) == Emitted.end()) {
-    clang::DiagnosticsEngine &DE = Context->getDiagnostics();
-    unsigned ID =
-        DE.getCustomDiagID(DiagnosticsEngine::Warning,
-                           "Root cause of unchecked region: Variadic Call");
     SourceManager &SM = Context->getSourceManager();
     llvm::ErrorOr<const clang::FileEntry *> File =
         SM.getFileManager().getFile(PSL->getFileName());
@@ -444,7 +440,10 @@ void CheckedRegionFinder::emitCauseDiagnostic(PersistentSourceLoc *PSL) {
     SourceLocation SL =
         SM.translateFileLineCol(*File, PSL->getLineNo(), PSL->getColSNo());
     if (SL.isValid())
-      DE.Report(SL, ID);
+      reportCustomDiagnostic(Context->getDiagnostics(),
+                             DiagnosticsEngine::Warning,
+                             "Root cause of unchecked region: Variadic Call",
+                             SL);
     Emitted.insert(PSL);
   }
 }

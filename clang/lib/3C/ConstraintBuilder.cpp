@@ -99,9 +99,8 @@ public:
           CVarOption CV = Info.getVariable(VD, Context);
           CB.constraintCVarToWild(CV, "Inline struct encountered.");
         } else {
-          clang::DiagnosticsEngine &DE = Context->getDiagnostics();
-          unsigned InlineStructWarning =
-              DE.getCustomDiagID(DiagnosticsEngine::Warning,
+          reportCustomDiagnostic(Context->getDiagnostics(),
+                                 DiagnosticsEngine::Warning,
                                  "\n Rewriting failed"
                                  "for %q0 because an inline "
                                  "or anonymous struct instance "
@@ -110,12 +109,9 @@ public:
                                  "definition inside the _Ptr "
                                  "annotation.\n "
                                  "EX. struct {int *a; int *b;} x; "
-                                 "_Ptr<struct {int *a; _Ptr<int> b;}>;");
-          const auto Pointer = reinterpret_cast<intptr_t>(VD);
-          const auto Kind =
-              clang::DiagnosticsEngine::ArgumentKind::ak_nameddecl;
-          auto DiagBuilder = DE.Report(VD->getLocation(), InlineStructWarning);
-          DiagBuilder.AddTaggedVal(Pointer, Kind);
+                                 "_Ptr<struct {int *a; _Ptr<int> b;}>;",
+                                 VD->getLocation())
+              << VD;
         }
       }
     }

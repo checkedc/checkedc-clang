@@ -13,6 +13,7 @@
 
 #include "clang/3C/PersistentSourceLoc.h"
 #include "clang/AST/Type.h"
+#include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
@@ -224,5 +225,32 @@ void getPrintfStringArgIndices(const clang::CallExpr *CE,
 // string literals (https://bugs.llvm.org/show_bug.cgi?id=49926).
 int64_t getStmtIdWorkaround(const clang::Stmt *St,
                             const clang::ASTContext &Context);
+
+// Shortcut for the getCustomDiagID + Report sequence to report a custom
+// diagnostic as we currently do in 3C.
+//
+// Unlike DiagnosticEngine::Report, to make it harder to forget to provide a
+// source location when we intend to, we don't provide a version that doesn't
+// take a source location; instead, the caller should just pass
+// SourceLocation().
+
+template <unsigned N>
+inline clang::DiagnosticBuilder reportCustomDiagnostic(
+    clang::DiagnosticsEngine &DE,
+    clang::DiagnosticsEngine::Level Level,
+    const char (&FormatString)[N],
+    clang::SourceLocation Loc) {
+  return DE.Report(Loc, DE.getCustomDiagID(Level, FormatString));
+}
+
+// For whatever reason, Clang provides << equivalents for many other
+// DiagnosticBuilder::Add* methods but not this one, and we want it in a few
+// places.
+inline const clang::DiagnosticBuilder &operator<<(
+    const clang::DiagnosticBuilder &DB, clang::NamedDecl *ND) {
+  DB.AddTaggedVal(reinterpret_cast<intptr_t>(ND),
+                  clang::DiagnosticsEngine::ArgumentKind::ak_nameddecl);
+  return DB;
+}
 
 #endif

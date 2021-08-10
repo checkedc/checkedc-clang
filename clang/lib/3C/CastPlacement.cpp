@@ -215,12 +215,12 @@ void CastPlacementVisitor::surroundByCast(ConstraintVariable *Dst,
     // unwritable files in common use cases. Until they are fixed, report a
     // warning rather than letting the main "unwritable change" error trigger
     // later.
-    clang::DiagnosticsEngine &DE = Writer.getSourceMgr().getDiagnostics();
-    unsigned ErrorId = DE.getCustomDiagID(
+    reportCustomDiagnostic(
+        Writer.getSourceMgr().getDiagnostics(),
         DiagnosticsEngine::Warning,
         "3C internal error: tried to insert a cast into an unwritable file "
-        "(https://github.com/correctcomputation/checkedc-clang/issues/454)");
-    DE.Report(E->getBeginLoc(), ErrorId);
+        "(https://github.com/correctcomputation/checkedc-clang/issues/454)",
+        E->getBeginLoc());
     return;
   }
 
@@ -277,14 +277,13 @@ void CastPlacementVisitor::reportCastInsertionFailure(
   // FIXME: This is a warning rather than an error so that a new benchmark
   //        failure is not introduced in Lua.
   //        github.com/correctcomputation/checkedc-clang/issues/439
-  clang::DiagnosticsEngine &DE = Context->getDiagnostics();
-  unsigned ErrorId = DE.getCustomDiagID(
-      DiagnosticsEngine::Warning, "Unable to surround expression with cast.\n"
-                                  "Intended cast: \"%0\"");
-  auto ErrorBuilder = DE.Report(E->getExprLoc(), ErrorId);
-  ErrorBuilder.AddSourceRange(
-      Context->getSourceManager().getExpansionRange(E->getSourceRange()));
-  ErrorBuilder.AddString(CastStr);
+  reportCustomDiagnostic(Context->getDiagnostics(),
+                         DiagnosticsEngine::Warning,
+                         "Unable to surround expression with cast.\n"
+                         "Intended cast: \"%0\"",
+                         E->getExprLoc())
+      << Context->getSourceManager().getExpansionRange(E->getSourceRange())
+      << CastStr;
 }
 
 void CastPlacementVisitor::updateRewriteStats(CastNeeded CastKind) {
