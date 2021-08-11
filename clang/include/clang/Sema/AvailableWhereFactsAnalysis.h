@@ -66,6 +66,21 @@ namespace clang {
                        ASTContext &Ctx, Lexicographic Lex) :
       SemaRef(SemaRef), Cfg(Cfg), Ctx(Ctx), Lex(Lex), OS(llvm::outs()) {}
 
+    // Pretty print a expr
+    void Print(const Expr *) const;
+
+    // Pretty print a Stmt
+    void Print(const Stmt *) const;
+
+    // Pretty print an abstract fact
+    void DumpAbstractFact(const AbstractFact *Fact) const;
+
+    // Pretty print a list of abstract facts
+    void DumpAbstractFacts(const AbstractFactListTy &Facts) const;
+
+    // Pretty print a set of variables.
+    void PrintVarSet(VarSetTy VarSet) const;
+
   }; // end of AvailableFactsUtil class.
 
 } // end namespace clang
