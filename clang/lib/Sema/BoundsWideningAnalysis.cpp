@@ -362,7 +362,7 @@ BoundsMapTy BoundsWideningAnalysis::PruneOutSet(
   bool IsEdgeTrue = BWUtil.IsTrueEdge(PredBlock, CurrBlock);
 
   // Does the terminating condition of the pred block tests for a null value.
-  bool TermCondChecksNull = PredEB->TermCondInfo.IsCheckNull;
+  bool TermCondAssertsNullness = PredEB->TermCondInfo.DoesCondAssertNullness;
 
   // Get the In of the last statement in the pred block. If the pred
   // block does not have any statements then InOfLastStmtOfPred is set to
@@ -438,23 +438,23 @@ BoundsMapTy BoundsWideningAnalysis::PruneOutSet(
 
     if (!IsSwitchCase) {
       // if (*p != 0) {
-      //   IsEdgeTrue = True, TermCondChecksNull = False
+      //   IsEdgeTrue = True, TermCondAssertsNullness = False
       //     ==> widen bounds of p
       //
       // } else {
-      //   IsEdgeTrue = False, TermCondChecksNull = False
+      //   IsEdgeTrue = False, TermCondAssertsNullness = False
       //     ==> do not widen bounds of p
       // }
 
       // if (*p == 0) {
-      //   IsEdgeTrue = True, TermCondChecksNull = True
+      //   IsEdgeTrue = True, TermCondAssertsNullness = True
       //     ==> do not widen bounds of p
       //
       // } else {
-      //   IsEdgeTrue = False, TermCondChecksNull = True
+      //   IsEdgeTrue = False, TermCondAssertsNullness = True
       //     ==> widen bounds of p
       // }
-      if (IsEdgeTrue == TermCondChecksNull) {
+      if (IsEdgeTrue == TermCondAssertsNullness) {
         PrunedOutSet[V] = BoundsOfVInStmtIn;
         continue;
       }
@@ -752,7 +752,7 @@ void BoundsWideningAnalysis::GetVarsAndBoundsInPtrDeref(
     return;
 
   // Get information about the terminating condition such as the dereference
-  // expression and whether the condition tests for a null value.
+  // expression and whether the condition asserts nullness of the element.
   EB->TermCondInfo = BWUtil.GetTermCondInfo(TermCond);
 
   // If the terminating condition does not contain a dereference (or an array
@@ -1381,15 +1381,14 @@ TermCondInfoTy BoundsWideningUtil::GetTermCondInfo(
   TermCondInfoTy TermCondInfo;
   // Initialize fields of TermCondInfo.
   TermCondInfo.DerefExpr = nullptr;
-  TermCondInfo.IsCheckNull = false;
+  TermCondInfo.DoesCondAssertNullness = false;
 
-  FillTermCondInfo(TermCond, TermCondInfo, /*HasUnaryNot*/ false);
+  FillTermCondInfo(TermCond, TermCondInfo);
   return TermCondInfo;
 }
 
 void BoundsWideningUtil::FillTermCondInfo(const Expr *TermCond,
-                                          TermCondInfoTy &TermCondInfo,
-                                          bool HasUnaryNot) const {
+                                          TermCondInfoTy &TermCondInfo) const {
   Expr *E = StripCasts(TermCond);
 
   // *p, !*p, !(*p == 0), etc.
@@ -1411,11 +1410,10 @@ void BoundsWideningUtil::FillTermCondInfo(const Expr *TermCond,
         // *p ==> *p != 0
         // !*p ==> *p == 0
         // In the above normalizations the compared value would always be null.
-        // Whether the check is null or not is determined by the
-        // presence/absence of the unary not operator as follows:
-        // *p == 0 ==> HasUnaryNot = True, IsCheckNull = True
-        // *p != 0 ==> HasUnaryNot = False, IsCheckNull = False
-        TermCondInfo.IsCheckNull = HasUnaryNot;
+        // Whether the condition asserts nullness will be determined in the
+        // logic for UO_LNot after we return from the current recursive. So for
+        // now simply set TermCondInfo.DoesCondAssertNullness to false.
+        TermCondInfo.DoesCondAssertNullness = false;
       }
 
       // *p ==> DerefExpr = p
@@ -1425,21 +1423,18 @@ void BoundsWideningUtil::FillTermCondInfo(const Expr *TermCond,
     } else if (UnaryOp == UO_LNot) {
       Expr *SubExpr = IgnoreCasts(UO->getSubExpr());
 
-      // *p ==> *p != 0 ==> HasUnaryNot = False, IsCheckNull = False
-      // !*p ==> *p == 0 ==> HasUnaryNot = True, IsCheckNull = True
-      TermCondInfo.IsCheckNull = HasUnaryNot;
-
-      // *p ==> HasUnaryNot = False
-      // !*p ==> HasUnaryNot = True
-      // !!*p ==> HasUnaryNot = False
-      // !!!*p ==> HasUnaryNot = True
-      HasUnaryNot = !HasUnaryNot;
-
       // !*p ==> FillTermCondInfo(*p);
       // !!*p ==> FillTermCondInfo(!*p);
       // !!!*p ==> FillTermCondInfo(!!*p);
       // !(*p == 0) ==> FillTermCondInfo(*p == 0);
-      FillTermCondInfo(SubExpr, TermCondInfo, HasUnaryNot);
+      FillTermCondInfo(SubExpr, TermCondInfo);
+
+      // *p ==> DoesCondAssertNullness = False
+      // !*p ==> DoesCondAssertNullness = True
+      // !!*p ==> DoesCondAssertNullness = False
+      // !!!*p ==> DoesCondAssertNullness = True
+      TermCondInfo.DoesCondAssertNullness =
+        !TermCondInfo.DoesCondAssertNullness;
     }
 
     // If dereference expression contains an array access. An array access can
@@ -1457,11 +1452,10 @@ void BoundsWideningUtil::FillTermCondInfo(const Expr *TermCond,
       // p[i] ==> p[i] != 0
       // !p[i] ==> p[i] == 0
       // In the above normalizations the compared value would always be null.
-      // Whether the check is null or not is determined by the
-      // presence/absence of the unary not operator as follows:
-      // p[i] == 0 ==> HasUnaryNot = True, IsCheckNull = True
-      // p[i] != 0 ==> HasUnaryNot = False, IsCheckNull = False
-      TermCondInfo.IsCheckNull = HasUnaryNot;
+      // Whether the condition asserts nullness will be determined in the
+      // logic for UO_LNot after we return from the current recursive. So for
+      // now simply set TermCondInfo.DoesCondAssertNullness to false.
+      TermCondInfo.DoesCondAssertNullness = false;
     }
 
     // p[i] ==> DerefExpr = p + i
@@ -1497,26 +1491,14 @@ void BoundsWideningUtil::FillTermCondInfo(const Expr *TermCond,
         return;
       }
 
-      // *p == 0  ==> BinOp == BO_EQ, HasUnaryNot = False
-      //          ==> IsCheckPositive = True
-      // *p != 0  ==> BinOp != BO_EQ, HasUnaryNot = False
-      //          ==> IsCheckPositive = False
-      // !*p == 0 ==> BinOp == BO_EQ, HasUnaryNot = True
-      //          ==> IsCheckPositive = False
-      // !*p != 0 ==> BinOp != BO_EQ, HasUnaryNot = True
-      //          ==> IsCheckPositive = True
-      bool IsCheckPositive = (BinOp == BO_EQ && !HasUnaryNot) ||
-                             (BinOp != BO_EQ && HasUnaryNot);
+      bool IsComparedValNull = false;
 
       llvm::APSInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
       if (LHSVal) {
         // 0 == *p ==> IsComparedValNull = True
         // 'a' != *p ==> IsComparedValNull = False
-        bool IsComparedValNull =
+        IsComparedValNull =
           llvm::APSInt::compareValues(*LHSVal, Zero) == 0;
-
-        TermCondInfo.IsCheckNull = IsCheckPositive ==
-                                   IsComparedValNull;
 
         // We are setting DerefExpr here to the RHS just to signal to unary
         // operator logic above that a binary expression has been visited.
@@ -1524,16 +1506,13 @@ void BoundsWideningUtil::FillTermCondInfo(const Expr *TermCond,
 
         // 0 == *p ==> FillTermCondInfo(*p);
         // 'a' != *p ==> FillTermCondInfo(*p);
-        FillTermCondInfo(RHS, TermCondInfo, HasUnaryNot);
+        FillTermCondInfo(RHS, TermCondInfo);
 
       } else if (RHSVal) {
         // *p == 0 ==> IsComparedValNull = True
         // *p != 'a' ==> IsComparedValNull = False
-        bool IsComparedValNull =
+        IsComparedValNull =
           llvm::APSInt::compareValues(*RHSVal, Zero) == 0;
-
-        TermCondInfo.IsCheckNull = IsCheckPositive ==
-                                   IsComparedValNull;
 
         // We are setting DerefExpr here to the LHS just to signal to unary
         // operator logic above that a binary expression has been visited.
@@ -1541,14 +1520,27 @@ void BoundsWideningUtil::FillTermCondInfo(const Expr *TermCond,
 
         // *p == 0 ==> FillTermCondInfo(*p);
         // *p != 'a' ==> FillTermCondInfo(*p);
-        FillTermCondInfo(LHS, TermCondInfo, HasUnaryNot);
+        FillTermCondInfo(LHS, TermCondInfo);
       }
+
+      // *p == 0  ==> BinOp == BO_EQ, IsComparedValNull = True,
+      //              DoesCondAssertNullness(prev value) = False
+      //          ==> DoesCondAssertNullness = True
+
+      // *p != 'a' ==> BinOp != BO_EQ, IsComparedValNull = False,
+      //               DoesCondAssertNullness(prev value) = False
+      //           ==> DoesCondAssertNullness = True
+      TermCondInfo.DoesCondAssertNullness =
+        (BinOp == BO_EQ && IsComparedValNull &&
+           !TermCondInfo.DoesCondAssertNullness) ||
+        (BinOp != BO_EQ && !IsComparedValNull &&
+           !TermCondInfo.DoesCondAssertNullness);
 
       // (c = *p) != 0
     } else if (BinOp == BO_Assign) {
       // (c = *p) ==> RHS = *p
       Expr *RHS = BO->getRHS();
-      FillTermCondInfo(RHS, TermCondInfo, HasUnaryNot);
+      FillTermCondInfo(RHS, TermCondInfo);
     }
   }
 }

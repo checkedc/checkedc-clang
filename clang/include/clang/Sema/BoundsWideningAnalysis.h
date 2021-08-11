@@ -71,12 +71,13 @@ namespace clang {
     // if (*(p + i) == 0) ==> DerefExpr = p + i
     Expr *DerefExpr;
 
-    // Whether the terminating condition checks for a null value. For example:
-    // if (*p == 0)   ==> IsCheckNull = True
-    // if (*p != 0)   ==> IsCheckNull = False
-    // if (*p == 'a') ==> IsCheckNull = False
-    // if (*p != 'a') ==> IsCheckNull = True
-    bool IsCheckNull;
+    // Whether the terminating condition asserts nullness of the element. For
+    // example:
+    // if (*p == 0)   ==> DoesCondAssertNullness = True
+    // if (*p != 0)   ==> DoesCondAssertNullness = False
+    // if (*p == 'a') ==> DoesCondAssertNullness = False
+    // if (*p != 'a') ==> DoesCondAssertNullness = True
+    bool DoesCondAssertNullness;
   };
 
 } // end namespace clang
@@ -187,8 +188,7 @@ namespace clang {
     // @param[out] TermCondInfo is the struct that is filled with various
     // information about the terminating condition.
     void FillTermCondInfo(const Expr *TermCond,
-                          TermCondInfoTy &TermCondInfo,
-                          bool HasUnaryNot) const;
+                          TermCondInfoTy &TermCondInfo) const;
 
     // Get the variable in an expression that is a pointer to a null-terminated
     // array.
