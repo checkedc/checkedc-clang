@@ -292,6 +292,10 @@ namespace clang {
                                    VarSetTy &Kill,
                                    WhereClause *WC);
 
+    // Collect the facts on the edges between blocks (EB and its successors)
+    // @param[in] EB is the current ElevatedCFGBlock.
+    void InitBlockGenOut(ElevatedCFGBlock *EB);
+
     // Get the Out set for the statement. 
     AbstractFactListTy GetStmtOut(ElevatedCFGBlock *EB, const Stmt *CurrStmt) const;
 

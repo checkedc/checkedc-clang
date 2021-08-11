@@ -152,6 +152,109 @@ void AvailableWhereFactsAnalysis::CollectFactsInWhereClause(
   }
 }
 
+// Initiazlize Gen and Out of a block
+void AvailableWhereFactsAnalysis::InitBlockGenOut(ElevatedCFGBlock *EB) {
+
+  const CFGBlock *CurrBlock = EB->Block;
+
+  const Stmt *TermStmt = CurrBlock->getTerminatorStmt();
+  if (!TermStmt || isa<AsmStmt>(TermStmt))
+    return;
+
+  // See CFGBlock::getLastCondition() at line 5950
+  // The result is non-null if only CFGTerminator::StmtBranch,
+  //  the block's size > 0, the succ_size() >= 2, the last
+  //  stmt is a CFGStmt
+  const Expr *TermCond = CurrBlock->getLastCondition();
+  if (!TermCond)
+    return;
+  
+  for (const CFGBlock *SuccBlock : CurrBlock->succs()) {
+    if (AFUtil.SkipBlock(SuccBlock))
+      continue;
+    ElevatedCFGBlock *SuccEB = BlockMap[SuccBlock];
+
+    EB->Gen[SuccEB] = AbstractFactListTy();
+    EB->Out[SuccEB] = AbstractFactListTy();
+
+    if (AFUtil.IsFallthroughEdge(CurrBlock, SuccBlock))
+      continue;
+
+    //
+    // check SwitchStmt
+    //
+    bool IsSwitchCase = AFUtil.IsSwitchCaseBlock(CurrBlock, SuccBlock);
+    if (IsSwitchCase) {
+      const SwitchStmt *SS = dyn_cast<SwitchStmt>(TermStmt);
+      // a fallthrough case
+      if (!SS)
+        continue;
+
+      const Stmt *SuccLabel = SuccBlock->getLabel();
+      bool IsDefaultCase = isa<DefaultStmt>(SuccLabel);
+
+      // TODO: handle default case
+      if (IsDefaultCase)
+        continue;
+
+      // When reaching here, it should be a valid switch-case edge on blocks
+      const CaseStmt *CS = dyn_cast<CaseStmt>(SuccLabel);
+      if (!CS)
+        llvm_unreachable("not a CaseStmt");
+      Expr *LHS = const_cast<Expr *>(CS->getLHS());    
+      if (!LHS)
+        llvm_unreachable("the case should have getLHS()");
+      
+      // Get the switch condition expression
+      Expr *StmtCond = const_cast<Expr *>(SS->getCond());
+      
+      // Make an inferred fact with switch condition expression equals the labal value on CaseStmt
+      BinaryOperator *Binop = ExprCreatorUtil::CreateBinaryOperator(SemaRef, StmtCond, LHS, BinaryOperatorKind::BO_EQ);
+      InferredFact *EqFact = new InferredFact(Binop, SourceLocation());
+      EB->Gen[SuccEB].push_back(EqFact);
+
+      continue;
+    }
+
+    //
+    // check IfStmt
+    //
+    // TODO: need guard from non-IfStmt
+    bool EdgeCondition = AFUtil.ConditionOnEdge(CurrBlock, SuccBlock);
+
+    // If the condition expression used in the if is a binary comparision, the inferred fact
+    // is generated based on whether the edge is for then-block or the else-block
+    if (const auto *BO = dyn_cast<BinaryOperator>(TermCond)) {
+      if (BO->isComparisonOp()) {
+        BinaryOperatorKind Op = EdgeCondition ? BO->getOpcode() : BinaryOperator::negateComparisonOp(BO->getOpcode());
+        Expr *LHS = const_cast<Expr *>(BO->getLHS());
+        Expr *RHS = const_cast<Expr *>(BO->getRHS());
+        BinaryOperator *Binop = ExprCreatorUtil::CreateBinaryOperator(SemaRef, LHS, RHS, Op);
+        InferredFact *EqFact = new InferredFact(Binop, SourceLocation());
+        EB->Gen[SuccEB].push_back(EqFact);
+        continue;
+      }
+    }
+
+    // Otherwise, the fact is in a general form on the the condition expression
+    // The unsupported expression will be dropped when the fact is used to 
+    // generate the constraints. Here we just create the fact universally.
+    const llvm::APInt APZero;
+    Expr *LHS = const_cast<Expr *>(TermCond); 
+    IntegerLiteral *Zero = ExprCreatorUtil::CreateIntegerLiteral(Ctx, APZero);
+
+    if (EdgeCondition) {
+      BinaryOperator *Binop = ExprCreatorUtil::CreateBinaryOperator(SemaRef, LHS, Zero, BinaryOperatorKind::BO_NE);
+      InferredFact *EqFact = new InferredFact(Binop, SourceLocation());
+      EB->Gen[SuccEB].push_back(EqFact);
+    } else {
+      BinaryOperator *Binop = ExprCreatorUtil::CreateBinaryOperator(SemaRef, LHS, Zero, BinaryOperatorKind::BO_EQ);
+      InferredFact *EqFact = new InferredFact(Binop, SourceLocation());
+      EB->Gen[SuccEB].push_back(EqFact);
+    }
+  }
+}
+
 AbstractFactListTy AvailableWhereFactsAnalysis::GetStmtOut(ElevatedCFGBlock *EB,
                       const Stmt *CurrStmt) const {
   if (CurrStmt) {
