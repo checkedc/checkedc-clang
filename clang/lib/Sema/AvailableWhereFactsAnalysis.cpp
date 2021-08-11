@@ -26,6 +26,55 @@ namespace clang {
 
 void AvailableWhereFactsAnalysis::Analyze(FunctionDecl *FD,
                                           StmtSetTy NestedStmts) {
+  assert(Cfg && "expected CFG to exist");
+
+  // Note: By default, PostOrderCFGView iterates in reverse order. So we always
+  // get a reverse post order when we iterate PostOrderCFGView.
+  for (const CFGBlock *B : PostOrderCFGView(Cfg)) {
+    // SkipBlock will skip all null blocks and the exit block. PostOrderCFGView
+    // does not traverse any unreachable blocks. So at the end of this loop
+    // BlockMap only contains reachable blocks.
+    if (AFUtil.SkipBlock(B))
+      continue;
+
+    // Create a mapping from CFGBlock to ElevatedCFGBlock.
+    auto EB = new ElevatedCFGBlock(B);
+    BlockMap[B] = EB;
+
+    // Compute Gen and Kill sets for statements in the block and the block.
+    if (B == &Cfg->getEntry()) {
+      ComputeEntryGenKillSets(FD, EB);
+    } else {
+      ComputeGenKillSets(EB, NestedStmts);
+    }
+  }
+
+  // Compute Gen sets between blocks.
+  for (const CFGBlock *B : PostOrderCFGView(Cfg)) {
+    if (AFUtil.SkipBlock(B))
+      continue;
+
+    ElevatedCFGBlock *EB = BlockMap[B];
+
+    InitBlockGenOut(EB);
+  }
+
+  WorkListTy WorkList;
+  WorkList.append(BlockMap[&Cfg->getEntry()]);
+  AddSuccsToWorkList(&Cfg->getEntry(), WorkList);
+
+  // Compute the In and Out sets for blocks.
+  while (!WorkList.empty()) {
+    ElevatedCFGBlock *EB = WorkList.next();
+    WorkList.remove(EB);
+
+    bool Changed = false;
+    Changed |= ComputeInSet(EB);
+    Changed |= ComputeOutSet(EB, WorkList);
+
+    if (Changed)
+      AddSuccsToWorkList(EB->Block, WorkList);
+  }
 }
 
 void AvailableWhereFactsAnalysis::AddSuccsToWorkList(const CFGBlock *CurrBlock,
