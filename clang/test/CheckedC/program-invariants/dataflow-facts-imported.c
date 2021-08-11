@@ -174,12 +174,14 @@ _Nt_array_ptr<int> fn_5(int a) {
 // CHECK:   d > a
 //
 // CHECK: Block: B1; Pred: B3; Succ: B0
-// CHECK: Gen [B1, AllSucc]: {}
+// CHECK: Gen [B1, AllSucc]:
+// CHECK-DAG:   p: bounds((_Array_ptr<char>)p, (_Array_ptr<char>)p + d)
 // CHECK: Kill [B1, AllSucc]: p
 // CHECK: In [B1]:
 // CHECK:   d <= a
 // CHECK: Out [B1, AllSucc]:
-// CHECK:   d <= a
+// CHECK-DAG:   p: bounds((_Array_ptr<char>)p, (_Array_ptr<char>)p + d)
+// CHECK-DAG:   d <= a
 
 _Nt_array_ptr<int> fn_6(int a) {
   int d;
@@ -202,12 +204,14 @@ _Nt_array_ptr<int> fn_6(int a) {
 // CHECK:   d > a
 //
 // CHECK: Block: B2; Pred: B3; Succ: B0
-// CHECK: Gen [B2, AllSucc]: {}
+// CHECK: Gen [B2, AllSucc]:
+// CHECK-DAG:   p: bounds((_Array_ptr<char>)p, (_Array_ptr<char>)p + d)
 // CHECK: Kill [B2, AllSucc]: p
 // CHECK: In [B2]:
 // CHECK:   d <= a
 // CHECK: Out [B2, AllSucc]:
-// CHECK:   d <= a
+// CHECK-DAG:   p: bounds((_Array_ptr<char>)p, (_Array_ptr<char>)p + d)
+// CHECK-DAG:   d <= a
 //
 // CHECK: Block: B1; Pred: B3; Succ: B0
 // CHECK: Gen [B1, AllSucc]: {}
@@ -592,15 +596,6 @@ void fn_12(void) {
 // CHECK-DAG:   (*st_a).x >= b
 //
 
-void fn_13(void) {
-  static int x, y;
-  int i, a;
-  y = a = x;
-  if (x != 0) return;
-  for (i = 0, x = (x + i) & 1023; i < a; i++)
-    _Unchecked { printf("\n"); }
-}
-
 // TODO: fn_13
 // unchecked and for-loop
 
@@ -625,10 +620,12 @@ void fn_16(_Ptr<struct st_80_arr> arr, int b) {
 // CHECK-LABEL: fn_16
 //
 // CHECK: Block: B3; Pred: B4; Succ: B2, B1
-// CHECK: Gen [B3, AllSucc]: {}
+// CHECK: Gen [B3, AllSucc]: 
+// CHECK-DAG:   a: bounds(a, a + b)
 // CHECK: Kill [B3, AllSucc]: a
 // CHECK: In [B3]: {}
-// CHECK: Out [B3, AllSucc]: {}
+// CHECK: Out [B3, AllSucc]:
+// CHECK-DAG:   a: bounds(a, a + b)
 // CHECK: Gen [B3 -> B2]:
 // CHECK-DAG:   arr->c <= b
 // CHECK: Out [B3 -> B2]:
@@ -643,9 +640,12 @@ void fn_16(_Ptr<struct st_80_arr> arr, int b) {
 // CHECK: Kill [B2, AllSucc]: arr
 // CHECK: In [B2]:
 // CHECK-DAG:   arr->c <= b
-// CHECK: Out [B2, AllSucc]: {}
+// CHECK-DAG:   a: bounds(a, a + b)
+// CHECK: Out [B2, AllSucc]:
+// CHECK-DAG:   a: bounds(a, a + b)
 // CHECK: Gen [B2 -> B1]: {}
-// CHECK: Out [B2 -> B1]: {}
+// CHECK: Out [B2 -> B1]:
+// CHECK-DAG:   a: bounds(a, a + b)
 //
 
 // TODO: fn_17
@@ -669,10 +669,14 @@ void fn_20(void) {
 // CHECK-LABEL: fn_20
 //
 // CHECK: Block: B3; Pred: B4; Succ: B2, B1
-// CHECK: Gen [B3, AllSucc]: {}
+// CHECK: Gen [B3, AllSucc]:
+// CHECK-DAG:   gp1: bounds(gp1, gp1 + 3)
+// CHECK-DAG:   gp3: bounds(gp3, gp3 + 3)
 // CHECK: Kill [B3, AllSucc]: a, gp1, gp3
 // CHECK: In [B3]: {}
-// CHECK: Out [B3, AllSucc]: {}
+// CHECK: Out [B3, AllSucc]:
+// CHECK-DAG:   gp1: bounds(gp1, gp1 + 3)
+// CHECK-DAG:   gp3: bounds(gp3, gp3 + 3)
 // CHECK: Gen [B3 -> B2]:
 // CHECK-DAG:   gp3->f1 != 0
 // CHECK: Out [B3 -> B2]:
@@ -687,14 +691,12 @@ void fn_20(void) {
 // CHECK: Kill [B2, AllSucc]: a
 // CHECK: In [B2]:
 // CHECK-DAG:   gp3->f1 != 0
+// CHECK-DAG:   gp1: bounds(gp1, gp1 + 3)
+// CHECK-DAG:   gp3: bounds(gp3, gp3 + 3)
 // CHECK: Out [B2, AllSucc]:
 // CHECK-DAG:   gp3->f1 != 0
+// CHECK-DAG:   gp1: bounds(gp1, gp1 + 3)
+// CHECK-DAG:   gp3: bounds(gp3, gp3 + 3)
 // CHECK: Gen [B2 -> B1]: {}
 // CHECK: Out [B2 -> B1]:
 // CHECK-DAG:   gp3->f1 != 0
-//
-// CHECK: Block: B1; Pred: B2, B3; Succ: B0
-// CHECK: Gen [B1, AllSucc]: {}
-// CHECK: Kill [B1, AllSucc]: {}
-// CHECK: In [B1]: {}
-// CHECK: Out [B1, AllSucc]: {}
