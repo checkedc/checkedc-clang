@@ -7258,28 +7258,6 @@ public:
   }
 };
 
-// /// \brief Represents a Checked C where clause fact.
-// class WhereClauseFact {
-// public:
-//   enum class FactKind { BoundsDeclFact, EqualityOpFact };
-//   FactKind Kind;
-
-// private:
-//   // For a BoundsDeclFact, Loc gives the location of the variable whose bounds
-//   // are being redeclared in the where clause. For example, "_Where p :
-//   // bounds(p, p + 1)".                                                     ^
-//   // For an EqualityOpFact, Loc gives the location of the start of the equality
-//   // expression. For example, "_Where a < 1".
-//   //                                  ^
-//   // TODO: Implement richer location information by capturing the start and end
-//   // locations of where clause facts.
-//   SourceLocation Loc;
-
-// public:
-//   WhereClauseFact(FactKind Kind, SourceLocation Loc)
-//     : Kind(Kind), Loc(Loc) {}
-// };
-
 /// \brief Represents a Checked C where clause fact.
 class WhereClauseFact : public AbstractFact {
 public:
