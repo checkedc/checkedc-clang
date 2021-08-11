@@ -23,12 +23,16 @@ class ASTDumper : public ASTNodeTraverser<ASTDumper, TextNodeDumper> {
 
   const bool ShowColors;
 
+  const bool DumpWhereClauses;
+
 public:
   ASTDumper(raw_ostream &OS, const ASTContext &Context, bool ShowColors)
-      : NodeDumper(OS, Context, ShowColors), OS(OS), ShowColors(ShowColors) {}
+      : NodeDumper(OS, Context, ShowColors), OS(OS), ShowColors(ShowColors),
+        DumpWhereClauses(Context.getLangOpts().DumpWhereClauses) {}
 
   ASTDumper(raw_ostream &OS, bool ShowColors)
-      : NodeDumper(OS, ShowColors), OS(OS), ShowColors(ShowColors) {}
+      : NodeDumper(OS, ShowColors), OS(OS), ShowColors(ShowColors),
+        DumpWhereClauses(false) {}
 
   TextNodeDumper &doGetNodeDelegate() { return NodeDumper; }
 
@@ -51,6 +55,10 @@ public:
   void VisitDeclRefExpr(const DeclRefExpr *Node);
   void VisitArraySubscriptExpr(const ArraySubscriptExpr *Node);
   void VisitCompoundStmt(const CompoundStmt *Node);
+  void VisitVarDecl(const VarDecl *D);
+  void VisitWhereClauseOnStmt(const Stmt *Stmt) override;
+  void VisitWhereClause(const WhereClause *WC);
+  void VisitWhereClauseFact(const WhereClauseFact *Fact);
   void VisitRangeBoundsExpr(const RangeBoundsExpr *Node);
   void VisitInteropTypeExpr(const InteropTypeExpr *Node);
   void VisitFunctionProtoType(const FunctionProtoType *T);

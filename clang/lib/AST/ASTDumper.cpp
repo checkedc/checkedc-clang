@@ -359,6 +359,53 @@ void ASTDumper::VisitCompoundStmt(const CompoundStmt *Node) {
   }
 }
 
+void ASTDumper::VisitVarDecl(const VarDecl *D) {
+  dumpBoundsAnnotations(D->getBoundsAnnotations());
+
+  if (D->hasInit())
+    Visit(D->getInit());
+  
+  VisitWhereClause(D->getWhereClause());
+}
+
+void ASTDumper::VisitWhereClauseOnStmt(const Stmt *Stmt) {
+  if (const auto VS = dyn_cast<ValueStmt>(Stmt))
+    VisitWhereClause(VS->getWhereClause());
+  else if (const auto N = dyn_cast<NullStmt>(Stmt))
+    VisitWhereClause(N->getWhereClause());
+}
+
+void ASTDumper::VisitWhereClause(const WhereClause *WC) {
+  if (!WC || !DumpWhereClauses)
+    return;
+
+  NodeDumper.AddChild([=] {
+    ColorScope Color(OS, ShowColors, StmtColor);
+    OS << "WhereClause";
+    
+    FactListTy Facts = WC->getFacts(); 
+    for (auto *Fact : Facts) {
+      VisitWhereClauseFact(Fact);
+    }
+  }); 
+}
+
+void ASTDumper::VisitWhereClauseFact(const WhereClauseFact *Fact) {
+  if (auto *BF = dyn_cast<BoundsDeclFact>(Fact)) {    
+    NodeDumper.AddChild([=] {
+      ColorScope Color(OS, ShowColors, DeclNameColor);
+      OS << "BoundsDeclFact: " << BF->getVarDecl()->getQualifiedNameAsString();
+      Visit(BF->getBoundsExpr());
+    });
+  } else if (auto *EF = dyn_cast<EqualityOpFact>(Fact)) {
+    NodeDumper.AddChild([=] {
+      ColorScope Color(OS, ShowColors, DeclNameColor);
+      OS << "ComparisonFact";
+      Visit(EF->EqualityOp);
+    });
+  }
+}
+
 void ASTDumper::VisitRangeBoundsExpr(const RangeBoundsExpr *Node) {
   if (Node->getKind() != BoundsExpr::Kind::Range)
     NodeDumper.Visit(Node->getKind());
