@@ -230,6 +230,7 @@ namespace clang {
       const Stmt *LastStmt = nullptr;
 
       ElevatedCFGBlock(const CFGBlock *B) : Block(B) {}
+      ~ElevatedCFGBlock();
 
     }; // end of ElevatedCFGBlock class.
 
@@ -257,6 +258,8 @@ namespace clang {
       AFUtil(AvailableFactsUtil(SemaRef, Cfg, Ctx, Lex)),
       DebugAvailableFacts(SemaRef.getLangOpts().DebugAvailableFacts) {}
 
+    ~AvailableWhereFactsAnalysis();
+    
     // Run the dataflow analysis.
     // @param[in] FD is the current function.
     void Analyze(FunctionDecl *FD, StmtSetTy NestedStmts);

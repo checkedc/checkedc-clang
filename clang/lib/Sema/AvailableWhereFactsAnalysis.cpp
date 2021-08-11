@@ -24,6 +24,19 @@ namespace clang {
 // defined later in this file.
 //===---------------------------------------------------------------------===//
 
+AvailableWhereFactsAnalysis::~AvailableWhereFactsAnalysis() {
+  for (auto &BlockKV : BlockMap) {
+    delete BlockKV.second;
+  }
+}
+
+AvailableWhereFactsAnalysis::ElevatedCFGBlock::~ElevatedCFGBlock() {
+  for (auto &EdgeStmtMap : Gen)
+    for (auto *Fact : EdgeStmtMap.second)
+      if (const InferredFact *IF = dyn_cast<InferredFact>(Fact))
+        delete IF;
+}
+
 void AvailableWhereFactsAnalysis::Analyze(FunctionDecl *FD,
                                           StmtSetTy NestedStmts) {
   assert(Cfg && "expected CFG to exist");
