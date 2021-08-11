@@ -269,6 +269,29 @@ namespace clang {
   private:
     void AddSuccsToWorkList(const CFGBlock *CurrBlock, WorkListTy &WorkList);
 
+    // Compute Gen and Kill sets for the entry block.
+    // @param[in] FD is the FunctionDecl of this intra-procedure analysis.
+    // @param[in] EB is the ElevatedCFGBlock for the enty block.
+    void ComputeEntryGenKillSets(FunctionDecl *FD, ElevatedCFGBlock *EB);
+
+    // Compute Gen and Kill sets for the block and statements in the block.
+    // @param[in] EB is the current ElevatedCFGBlock.
+    void ComputeGenKillSets(ElevatedCFGBlock *EB, StmtSetTy NestedStmts);
+
+    // Compute the StmtGen and StmtKill sets for a statement in a block.
+    // @param[in] EB is the current ElevatedCFGBlock.
+    // @param[in] CurrStmt is the current statement.
+    void ComputeStmtGenKillSets(ElevatedCFGBlock *EB, const Stmt *CurrStmt,
+                                StmtSetTy NestedStmts);
+
+    // Collect the facts and killed varibles in the where clauses.
+    // @param[in] Gen is the container for the facts set.
+    // @param[in] Gen is the container for the Kill set.
+    // @param[in] WC is the where clause to act.
+    void CollectFactsInWhereClause(AbstractFactListTy &Gen,
+                                   VarSetTy &Kill,
+                                   WhereClause *WC);
+
     // Get the Out set for the statement. 
     AbstractFactListTy GetStmtOut(ElevatedCFGBlock *EB, const Stmt *CurrStmt) const;
 

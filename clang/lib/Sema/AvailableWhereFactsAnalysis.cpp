@@ -39,6 +39,119 @@ void AvailableWhereFactsAnalysis::AddSuccsToWorkList(const CFGBlock *CurrBlock,
   }
 }
 
+void AvailableWhereFactsAnalysis::ComputeEntryGenKillSets(FunctionDecl *FD,
+                                                          ElevatedCFGBlock *EB) {
+  EB->Kill = VarSetTy();
+  EB->GenAllSucc = AbstractFactListTy();
+
+  for (const ParmVarDecl *PD : FD->parameters()) {
+      CollectFactsInWhereClause(EB->GenAllSucc, EB->Kill, PD->getWhereClause());
+    }
+}
+
+void AvailableWhereFactsAnalysis::ComputeGenKillSets(ElevatedCFGBlock *EB,
+                                                     StmtSetTy NestedStmts) {
+  const Stmt *PrevStmt = nullptr;
+  EB->Kill = VarSetTy();
+  EB->GenAllSucc = AbstractFactListTy();
+
+  for (CFGBlock::const_iterator I = EB->Block->begin(),
+                                E = EB->Block->end();
+       I != E; ++I) {
+    CFGElement Elem = *I;
+    if (Elem.getKind() != CFGElement::Statement)
+      continue;
+    const Stmt *CurrStmt = Elem.castAs<CFGStmt>().getStmt();
+    if (!CurrStmt)
+      continue;
+
+    ComputeStmtGenKillSets(EB, CurrStmt, NestedStmts);
+
+    // EB->GenAllSucc and EB->Kill are accumulated along the statements.
+    // When the loop finishes, they have processed the last statements,
+    // and have the final Gen and Kill for the block's result for AllSucc.
+    if (!PrevStmt) {
+      EB->Kill = EB->StmtKill[CurrStmt];
+      EB->GenAllSucc = EB->StmtGen[CurrStmt];
+    } else {
+      EB->Kill = AFUtil.Union(EB->Kill, EB->StmtKill[CurrStmt]);
+      auto FactsDiff = AFUtil.Difference(EB->GenAllSucc,
+                                         EB->StmtKill[CurrStmt]);
+      EB->GenAllSucc = AFUtil.Union(FactsDiff, EB->StmtGen[CurrStmt]);
+    }
+    
+    EB->PrevStmtMap[CurrStmt] = PrevStmt;
+    PrevStmt = CurrStmt;
+
+    EB->LastStmt = CurrStmt;
+  };
+}
+
+void AvailableWhereFactsAnalysis::ComputeStmtGenKillSets(ElevatedCFGBlock *EB,
+                                                         const Stmt *CurrStmt,
+                                                         StmtSetTy NestedStmts) {
+  EB->StmtKill[CurrStmt] = VarSetTy();
+  EB->StmtGen[CurrStmt] = AbstractFactListTy();
+
+  // Determine whether CurrStmt generates a dataflow fact and a kill var.
+
+  // A var declaration may have a where clause and have a kill var.
+  if (const auto *DS = dyn_cast<DeclStmt>(CurrStmt)) {
+    for (const Decl *D : DS->decls()) {
+      if (const auto *V = dyn_cast<VarDecl>(D)) {
+        if (!V->isInvalidDecl()) {
+          EB->StmtKill[CurrStmt].insert(V);
+
+          CollectFactsInWhereClause(EB->StmtGen[CurrStmt], EB->StmtKill[CurrStmt], V->getWhereClause());
+        }
+      }
+    }
+  // A where clause on an expression statement (which is represented in the
+  // AST as a ValueStmt) can generate a dataflow fact.
+  // For example: x = strlen(p) _Where p : bounds(p, p + x);
+  } else if (const auto *VS = dyn_cast<ValueStmt>(CurrStmt)) {
+    if (VS->getWhereClause())
+      CollectFactsInWhereClause(EB->StmtGen[CurrStmt], EB->StmtKill[CurrStmt], VS->getWhereClause());
+
+  // A where clause on a null statement (meaning a standalone where clause) can
+  // generate a dataflow fact.
+  // For example: _Where p : bounds(p, p + 1);
+  } else if (const auto *NS = dyn_cast<NullStmt>(CurrStmt)) {
+    CollectFactsInWhereClause(EB->StmtGen[CurrStmt], EB->StmtKill[CurrStmt], NS->getWhereClause());
+  }
+
+  // If a variable modified by CurrStmt occurs in the bounds expression of a
+  // null-terminated array then the bounds of that null-terminated array should
+  // be killed and its bounds should be reset to its declared bounds.
+  // Note: Skip top-level statements that are nested in another top-level
+  // statement.
+  if (NestedStmts.find(CurrStmt) == NestedStmts.end()) {
+    VarSetTy ModifiedVars;
+    AFUtil.GetModifiedVars(CurrStmt, ModifiedVars);
+    for (const VarDecl *V : ModifiedVars)
+      EB->StmtKill[CurrStmt].insert(V);
+  }
+}
+
+void AvailableWhereFactsAnalysis::CollectFactsInWhereClause(
+  AbstractFactListTy &Gen, VarSetTy &Kill, WhereClause *WC) {
+
+  if (!WC)
+    return;
+
+  for (auto *Fact : WC->getFacts()) {
+    if (auto *BF = dyn_cast<BoundsDeclFact>(Fact)) {
+      // ignore the result value here,
+      // just take the side-effect to save the normalzied bounds
+      SemaRef.NormalizeBounds(BF);
+      Gen.push_back(Fact);
+      Kill.insert(BF->getVarDecl());
+    } else if (dyn_cast<EqualityOpFact>(Fact)) {
+      Gen.push_back(Fact);
+    }
+  }
+}
+
 AbstractFactListTy AvailableWhereFactsAnalysis::GetStmtOut(ElevatedCFGBlock *EB,
                       const Stmt *CurrStmt) const {
   if (CurrStmt) {
