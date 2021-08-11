@@ -792,23 +792,25 @@ bool AvailableFactsUtil::IsVarInFact(const AbstractFact *Fact, const VarDecl *V)
   if (!Fact)
     return false;
 
+  VarDecl *VV = const_cast<VarDecl *>(V);
   if (const auto *WF = dyn_cast<WhereClauseFact>(Fact)) {
     if (const auto *BF = dyn_cast<BoundsDeclFact>(WF)) {
-      BoundsExpr *NormalizedBounds = SemaRef.NormalizeBounds(BF);
 
+      BoundsExpr *NormalizedBounds = SemaRef.NormalizeBounds(BF);
+      
       return (BF->getVarDecl() == V) 
-          || (BoundsUtil::IsVarInNormalizeBounds(NormalizedBounds, V));
+          || (BoundsUtil::IsVarInNormalizeBounds(SemaRef, NormalizedBounds, VV));
     }
 
     if (const auto *EF = dyn_cast<EqualityOpFact>(WF)) {
-      return ExprUtil::IsVarUsed(V, EF->EqualityOp);
+      return ExprUtil::IsVarUsed(SemaRef, VV, EF->EqualityOp);
     }
     
     llvm_unreachable("no other subclass of WhereClauseFact yet");
   }
 
   if (const auto *IF = dyn_cast<InferredFact>(Fact)) {
-    return ExprUtil::IsVarUsed(V, IF->EqualityOp);;
+    return ExprUtil::IsVarUsed(SemaRef, VV, IF->EqualityOp);;
   }    
 
   return false;

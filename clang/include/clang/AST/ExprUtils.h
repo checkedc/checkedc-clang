@@ -173,7 +173,7 @@ public:
   static void EnsureEqualBitWidths(llvm::APSInt &A, llvm::APSInt &B);
 
   // IsVarUsed searches whether V is used in E.
-  static bool IsVarUsed(const VarDecl *V, Expr *E);
+  static bool IsVarUsed(Sema &S, VarDecl *V, Expr *E);
 };
 
 } // end namespace clang

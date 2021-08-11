@@ -312,18 +312,29 @@ namespace {
       Sema &SemaRef;
       Lexicographic Lex;
       Expr *LValue;
+      ValueDecl *V;
       bool Found;
 
     public:
-      FindLValueHelper(Sema &SemaRef, Expr *LValue) :
+      FindLValueHelper(Sema &SemaRef, Expr *LValue, ValueDecl *V) :
         SemaRef(SemaRef),
         Lex(Lexicographic(SemaRef.Context, nullptr)),
         LValue(LValue),
+        V(V),
         Found(false) {}
 
       bool IsFound() { return Found; }
 
       bool VisitDeclRefExpr(DeclRefExpr *E) {
+        if (V) {
+          if (ValueDecl *D = E->getDecl()) {
+            if (Lex.CompareDecl(D, V) == Lexicographic::Result::Equal)
+              Found = true;
+          };
+
+          return true;
+        }
+
         DeclRefExpr *V = dyn_cast_or_null<DeclRefExpr>(LValue);
         if (!V)
           return true;
@@ -360,7 +371,13 @@ namespace {
 }
 
 bool ExprUtil::FindLValue(Sema &S, Expr *LValue, Expr *E) {
-  FindLValueHelper Finder(S, LValue);
+  FindLValueHelper Finder(S, LValue, nullptr);
+  Finder.TraverseStmt(E);
+  return Finder.IsFound();
+}
+
+bool ExprUtil::IsVarUsed(Sema &S, VarDecl *V, Expr *E) {
+  FindLValueHelper Finder(S, nullptr, V);
   Finder.TraverseStmt(E);
   return Finder.IsFound();
 }
@@ -440,36 +457,6 @@ namespace {
         return true;
       }
   };
-
-  class VarUsedHelper : public RecursiveASTVisitor<VarUsedHelper> {
-    private:
-      const VarDecl *TargetV;
-      bool Found;
-
-    public:
-      explicit VarUsedHelper(const VarDecl *V) : TargetV(V), Found(false) {}
-
-      bool VisitDeclRefExpr(DeclRefExpr *E) {
-        if (const VarDecl *V = dyn_cast_or_null<VarDecl>(E->getDecl())) {
-          Found = (V == TargetV);
-          return !Found;
-        }
-
-        return true;
-      }
-
-      bool TraverseBoundsValueExpr(BoundsValueExpr *E) {
-        return true;
-      }
-
-      bool GetFound() { return Found; }
-  };
-}
-
-bool ExprUtil::IsVarUsed(const VarDecl *V, Expr *E) {
-  VarUsedHelper Visitor(V);
-  Visitor.TraverseStmt(E);
-  return Visitor.GetFound();
 }
 
 unsigned int ExprUtil::LValueOccurrenceCount(Sema &S, Expr *LValue, Expr *E) {
