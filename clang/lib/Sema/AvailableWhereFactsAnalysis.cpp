@@ -840,20 +840,18 @@ bool AvailableFactsUtil::IsFactEqual(const AbstractFact *Fact1, const AbstractFa
             && Lex.CompareExprSemantically(RBE1->getUpperExpr(), RBE2->getUpperExpr()) ;
         }
 
-      // TODO
-      // if (const auto *EF1 = dyn_cast<EqualityOpFact>(WF1))
-      //   if (const auto *EF2 = dyn_cast<EqualityOpFact>(WF2)) {
-      //     return false;
-      //   }
+      if (const auto *EF1 = dyn_cast<EqualityOpFact>(WF1))
+        if (const auto *EF2 = dyn_cast<EqualityOpFact>(WF2)) {
+          return Lex.CompareExprSemantically(EF1->EqualityOp, EF2->EqualityOp);
+        }
 
       return false;      
     }
 
-  // TODO
-  // if (const auto *IF1 = dyn_cast<InferredFact>(Fact1))
-  //   if (const auto *IF2 = dyn_cast<InferredFact>(Fact2)) {
-  //     return false;
-  //   }
+  if (const auto *IF1 = dyn_cast<InferredFact>(Fact1))
+    if (const auto *IF2 = dyn_cast<InferredFact>(Fact2)) {
+      return Lex.CompareExprSemantically(IF1->EqualityOp, IF2->EqualityOp);
+    }
 
   return false;
 }
