@@ -1188,6 +1188,10 @@ def fdump_boundsvars : Flag<["-"], "fdump-boundsvars">, Group<f_Group>, Flags<[C
   HelpText<"Dump bounds vars">;
 def fdump_boundssiblingfields : Flag<["-"], "fdump-boundssiblingfields">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Dump bounds sibling fields">;
+def fdump_available_facts : Flag<["-"], "fdump-available-facts">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Dump avaialable facts">;
+def fdebug_available_facts : Flag<["-"], "fdebug-available-facts">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Debug avaialable facts">;
 def fdump_preorder_ast : Flag<["-"], "fdump-preorder-ast">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Dump the preorder AST">;
 def fdump_checking_state : Flag<["-"], "fdump-checking-state">, Group<f_Group>, Flags<[CC1Option]>,
