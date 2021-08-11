@@ -752,8 +752,7 @@ void BoundsWideningAnalysis::GetVarsAndBoundsInPtrDeref(
     return;
 
   // Get information about the terminating condition such as the dereference
-  // expression, whether the condition check is positive or not (== vs !=),
-  // whether the compared value is null or not (== '0' vs == 'a').
+  // expression and whether the condition tests for a null value.
   EB->TermCondInfo = BWUtil.GetTermCondInfo(TermCond);
 
   // If the terminating condition does not contain a dereference (or an array
@@ -1401,10 +1400,11 @@ void BoundsWideningUtil::FillTermCondInfo(const Expr *TermCond,
     if (UnaryOp == UO_Deref) {
       Expr *SubExpr = IgnoreCasts(UO->getSubExpr());
 
-      // If the expression is a binary expression then we set
-      // TermCondInfo.DerefExpr to the binary expression just to signal that we
-      // have visited a biary expression. If TermCondInfo.DerefExpr is nullptr
-      // then it means we did not visit a binary expression.
+      // In the logic for a binary expression below we set
+      // TermCondInfo.DerefExpr to either the LHS or the RHS of the binary
+      // expression just to signal that we have visited a biary expression. If
+      // TermCondInfo.DerefExpr is nullptr here then it means we did not visit
+      // a binary expression.
       if (!TermCondInfo.DerefExpr) {
         // If we do not have a binary operator then we do the following
         // normalizations:
@@ -1447,10 +1447,10 @@ void BoundsWideningUtil::FillTermCondInfo(const Expr *TermCond,
     // always present the normalized view: A[i]. In this case getBase() returns
     // "A" and getIdx() returns "i".
   } else if (auto *AE = dyn_cast<ArraySubscriptExpr>(E)) {
-    // If the expression is a binary expression then we set
-    // TermCondInfo.DerefExpr to the binary expression just to signal that we
-    // have visited a biary expression. If TermCondInfo.DerefExpr is nullptr
-    // then it means we did not visit a binary expression.
+    // In the logic for a binary expression below we set TermCondInfo.DerefExpr
+    // to either the LHS or the RHS of the binary expression just to signal
+    // that we have visited a biary expression. If TermCondInfo.DerefExpr is
+    // nullptr here then it means we did not visit a binary expression.
     if (!TermCondInfo.DerefExpr) {
       // If we do not have a binary operator then we do the following
       // normalizations:
@@ -1473,9 +1473,8 @@ void BoundsWideningUtil::FillTermCondInfo(const Expr *TermCond,
   } else if (auto *BO = dyn_cast<BinaryOperator>(E)) {
     BinaryOperatorKind BinOp = BO->getOpcode();
 
-    // *p == 0, 0 != *p
+    // *p == 0, 0 != *p, etc.
     if (BinOp == BO_EQ || BinOp == BO_NE) {
-
       Expr *LHS = BO->getLHS();
       Expr *RHS = BO->getRHS();
 
