@@ -49,6 +49,9 @@ namespace clang {
   using KillVarSetTy = llvm::SmallSet<KillVar, 2>;
   using StmtKillVarSetTy = llvm::DenseMap<const Stmt *, KillVarSetTy>;
 
+  using FactComparision = std::pair<const AbstractFact *, const AbstractFact *>;
+  using FactComparisionMapTy = llvm::DenseMap<FactComparision, bool>;
+
 } // end namespace clang
 
 namespace clang {
@@ -67,11 +70,13 @@ namespace clang {
     ASTContext &Ctx;
     Lexicographic Lex;
     llvm::raw_ostream &OS;
+    FactComparisionMapTy FactComparisionMap;
 
   public:
     AvailableFactsUtil(Sema &SemaRef, CFG *Cfg,
                        ASTContext &Ctx, Lexicographic Lex) :
-      SemaRef(SemaRef), Cfg(Cfg), Ctx(Ctx), Lex(Lex), OS(llvm::outs()) {}
+      SemaRef(SemaRef), Cfg(Cfg), Ctx(Ctx), Lex(Lex), OS(llvm::outs()),
+      FactComparisionMap(FactComparisionMapTy()) {}
 
     // Pretty print a expr
     void Print(const Expr *) const;
@@ -134,29 +139,33 @@ namespace clang {
     // Determine if a variable is used in a fact.
     bool IsVarInFact(const AbstractFact *Fact, const VarDecl *Var) const;
 
-    // Determine if two facts equal.
-    bool IsFactEqual(const AbstractFact *Fact1, const AbstractFact *Fact2) const;
+    // Determine if two facts equal. First check if the comparision is check before,
+    // otherwise, perform the real check.
+    bool IsFactEqual(const AbstractFact *Fact1, const AbstractFact *Fact2);
+
+    // Check if two facts equal.
+    bool CheckFactEqual(const AbstractFact *Fact1, const AbstractFact *Fact2) const;
 
     // Compute the set difference of sets A and B.
     // @param[in] A is a set.
     // @param[in] B is a set.
     // @return The set difference of sets A and B.
     template<class T, class U>
-    T Difference(T &A, U &B) const;
+    T Difference(T &A, U &B);
 
     // Compute the intersection of sets A and B.
     // @param[in] A is a set.
     // @param[in] B is a set.
     // @return The intersection of sets A and B.
     template<class T>
-    T Intersect(T &A, T &B) const;
+    T Intersect(T &A, T &B);
 
     // Compute the union of sets A and B.
     // @param[in] A is a set.
     // @param[in] B is a set.
     // @return The union of sets A and B.
     template<class T>
-    T Union(T &A, T &B) const;
+    T Union(T &A, T &B);
 
   }; // end of AvailableFactsUtil class.
 
@@ -165,17 +174,17 @@ namespace clang {
   // specializations outside the class declaration.
   template<>
   AbstractFactListTy AvailableFactsUtil::Difference<AbstractFactListTy, KillVarSetTy>(
-    AbstractFactListTy &A, KillVarSetTy &B) const;
+    AbstractFactListTy &A, KillVarSetTy &B);
 
   // Template specialization for computing the union of AbstractFactListTy.
   template<>
   AbstractFactListTy AvailableFactsUtil::Union<AbstractFactListTy>(
-    AbstractFactListTy &A, AbstractFactListTy &B) const;
+    AbstractFactListTy &A, AbstractFactListTy &B);
 
   // Template specialization for computing the intersection of AbstractFactListTy.
   template<>
   AbstractFactListTy AvailableFactsUtil::Intersect<AbstractFactListTy>(
-    AbstractFactListTy &A, AbstractFactListTy &B) const;
+    AbstractFactListTy &A, AbstractFactListTy &B);
 
 } // end namespace clang
 

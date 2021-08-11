@@ -190,7 +190,6 @@ void AvailableWhereFactsAnalysis::ComputeStmtGenKillSets(ElevatedCFGBlock *EB,
     VarSetTy ModifiedVars;
     AFUtil.GetModifiedVars(CurrStmt, ModifiedVars);
     for (const VarDecl *V : ModifiedVars) {
-      OS << "  V: " << V->getQualifiedNameAsString() << "\n";
       if (!V->isInvalidDecl()) {
         CollectFactsInDecl(EB->StmtGen[CurrStmt], EB->StmtKill[CurrStmt], V);
       }
@@ -748,7 +747,7 @@ bool AvailableFactsUtil::SkipBlock(const CFGBlock *B) const {
 
 // Common templated set operation functions.
 template<class T, class U>
-T AvailableFactsUtil::Difference(T &A, U &B) const {
+T AvailableFactsUtil::Difference(T &A, U &B) {
   if (!A.size() || !B.size())
     return A;
 
@@ -761,7 +760,7 @@ T AvailableFactsUtil::Difference(T &A, U &B) const {
 }
 
 template<class T>
-T AvailableFactsUtil::Union(T &A, T &B) const {
+T AvailableFactsUtil::Union(T &A, T &B) {
   auto CopyA = A;
   for (auto Item : B)
     CopyA.insert(Item);
@@ -770,7 +769,7 @@ T AvailableFactsUtil::Union(T &A, T &B) const {
 }
 
 template<class T>
-T AvailableFactsUtil::Intersect(T &A, T &B) const {
+T AvailableFactsUtil::Intersect(T &A, T &B) {
   if (!A.size() || !B.size())
     return T();
 
@@ -810,8 +809,7 @@ bool AvailableFactsUtil::IsVarInFact(const AbstractFact *Fact, const VarDecl *V)
   return false;
 }
 
-// Template specializations of common set operation functions.
-bool AvailableFactsUtil::IsFactEqual(const AbstractFact *Fact1, const AbstractFact *Fact2) const {
+bool AvailableFactsUtil::IsFactEqual(const AbstractFact *Fact1, const AbstractFact *Fact2) {
   if (!Fact1 || !Fact2)
     llvm_unreachable("A fact in a container should not be null");
 
@@ -819,6 +817,26 @@ bool AvailableFactsUtil::IsFactEqual(const AbstractFact *Fact1, const AbstractFa
   if (Fact1 == Fact2)
     return true;
 
+  if (Fact1 > Fact2) {
+    const auto *Tmp = Fact1;
+    Fact1 = Fact2;
+    Fact2 = Tmp;
+  }
+
+  FactComparision FactPair = std::make_pair(Fact1, Fact2);
+  const auto FactPairIt = FactComparisionMap.find(FactPair);
+
+  if (FactPairIt != FactComparisionMap.end())
+    return FactPairIt->second;
+
+  bool Result = AvailableFactsUtil::CheckFactEqual(Fact1, Fact2);
+  
+  FactComparisionMap[FactPair] = Result;
+
+  return Result;
+}
+
+bool AvailableFactsUtil::CheckFactEqual(const AbstractFact *Fact1, const AbstractFact *Fact2) const {
   // value equality
   if (const auto *WF1 = dyn_cast<WhereClauseFact>(Fact1))
     if (const auto *WF2 = dyn_cast<WhereClauseFact>(Fact2)) {
@@ -858,7 +876,7 @@ bool AvailableFactsUtil::IsFactEqual(const AbstractFact *Fact1, const AbstractFa
 
 template<>
 AbstractFactListTy AvailableFactsUtil::Difference<AbstractFactListTy, KillVarSetTy>(
-  AbstractFactListTy &Facts, KillVarSetTy &Kill) const {
+  AbstractFactListTy &Facts, KillVarSetTy &Kill) {
   
 if (!Facts.size() || !Kill.size())
     return Facts;
@@ -901,12 +919,12 @@ if (!Facts.size() || !Kill.size())
 
 template<>
 AbstractFactListTy AvailableFactsUtil::Union<AbstractFactListTy>(
-  AbstractFactListTy &A, AbstractFactListTy &B) const {
+  AbstractFactListTy &A, AbstractFactListTy &B) {
   
   auto result = A;
   for (auto Fact2 : B) {
     auto FindB = std::find_if(A.begin(), A.end(), [&](auto Fact1) {
-      return AvailableFactsUtil::IsFactEqual(Fact1, Fact2);
+      return this->IsFactEqual(Fact1, Fact2);
     });
 
     if (FindB != std::end(A))
@@ -920,7 +938,7 @@ AbstractFactListTy AvailableFactsUtil::Union<AbstractFactListTy>(
 
 template<>
 AbstractFactListTy AvailableFactsUtil::Intersect<AbstractFactListTy>(
-  AbstractFactListTy &A, AbstractFactListTy &B) const {
+  AbstractFactListTy &A, AbstractFactListTy &B) {
 
   auto result = AbstractFactListTy();
 
@@ -929,7 +947,7 @@ AbstractFactListTy AvailableFactsUtil::Intersect<AbstractFactListTy>(
 
   for (auto Fact1 : A) {
     auto FindA = std::find_if(B.begin(), B.end(), [&](auto Fact2) {
-      return AvailableFactsUtil::IsFactEqual(Fact1, Fact2);
+      return this->IsFactEqual(Fact1, Fact2);
     });
 
     if (FindA != std::end(B))
