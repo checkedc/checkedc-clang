@@ -171,6 +171,9 @@ public:
   // have the same bit width. The bit width of A and B will be the larger
   // of the original bit widths of A and B.
   static void EnsureEqualBitWidths(llvm::APSInt &A, llvm::APSInt &B);
+
+  // IsVarUsed searches whether V is used in E.
+  static bool IsVarUsed(const VarDecl *V, Expr *E);
 };
 
 } // end namespace clang

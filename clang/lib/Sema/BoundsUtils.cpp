@@ -290,3 +290,17 @@ Expr *BoundsUtil::ReplaceLValue(Sema &S, Expr *E, Expr *LValue,
   else
     return R.get();
 }
+
+bool BoundsUtil::IsVarInNormalizeBounds(BoundsExpr *Bounds, const VarDecl *V) {
+  if (!Bounds)
+    return false;
+
+  RangeBoundsExpr *R = dyn_cast<RangeBoundsExpr>(Bounds);
+  if (!R)
+    return false;
+  
+  Expr *Lower = R->getLowerExpr();
+  Expr *Upper = R->getUpperExpr();
+
+  return ExprUtil::IsVarUsed(V, Lower) || ExprUtil::IsVarUsed(V, Upper);
+}

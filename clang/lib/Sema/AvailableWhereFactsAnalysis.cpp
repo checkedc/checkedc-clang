@@ -10,6 +10,8 @@
 // This file implements a dataflow analysis for available facts analysis.
 //===---------------------------------------------------------------------===//
 
+#include "clang/AST/ExprUtils.h"
+#include "clang/Sema/BoundsUtils.h"
 #include "clang/Sema/AvailableWhereFactsAnalysis.h"
 
 namespace clang {

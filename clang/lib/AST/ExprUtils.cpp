@@ -440,6 +440,36 @@ namespace {
         return true;
       }
   };
+
+  class VarUsedHelper : public RecursiveASTVisitor<VarUsedHelper> {
+    private:
+      const VarDecl *TargetV;
+      bool Found;
+
+    public:
+      explicit VarUsedHelper(const VarDecl *V) : TargetV(V), Found(false) {}
+
+      bool VisitDeclRefExpr(DeclRefExpr *E) {
+        if (const VarDecl *V = dyn_cast_or_null<VarDecl>(E->getDecl())) {
+          Found = (V == TargetV);
+          return !Found;
+        }
+
+        return true;
+      }
+
+      bool TraverseBoundsValueExpr(BoundsValueExpr *E) {
+        return true;
+      }
+
+      bool GetFound() { return Found; }
+  };
+}
+
+bool ExprUtil::IsVarUsed(const VarDecl *V, Expr *E) {
+  VarUsedHelper Visitor(V);
+  Visitor.TraverseStmt(E);
+  return Visitor.GetFound();
 }
 
 unsigned int ExprUtil::LValueOccurrenceCount(Sema &S, Expr *LValue, Expr *E) {
