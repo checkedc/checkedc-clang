@@ -25,12 +25,6 @@ namespace clang {
   // with it.
   using StmtFactsMapTy = llvm::DenseMap<const Stmt *, AbstractFactListTy>;
 
-  // StmtVarSetTy denotes a set of variables that are pointers to
-  // null-terminated arrays and that are associated with a statement. The set
-  // of variables whose bounds are killed by a statement has the type
-  // StmtVarSetTy.
-  using StmtVarSetTy = llvm::DenseMap<const Stmt *, VarSetTy>;
-
   // StmtSetTy denotes a set of statements.
   using StmtSetTy = llvm::SmallPtrSet<const Stmt *, 16>;
 
@@ -41,6 +35,19 @@ namespace clang {
   // OrderedBlocksTy denotes blocks ordered by block numbers. This is useful
   // for printing the blocks in a deterministic order.
   using OrderedBlocksTy = std::vector<const CFGBlock *>;
+
+  // AvailableFactsKillKind denotes two kinds of kill variables.
+  // KillExpr denotes a variable to kill a EqualityOpFact or a InferredFact
+  // KillBounds denotes a variable to kill a BoundsDeclFact
+  enum AvailableFactsKillKind {
+    KillExpr,
+    KillBounds
+  };
+
+  // KillVar (a pair of VarDecl with its kind) and the containers based on it
+  using KillVar = std::pair<VarDecl *, AvailableFactsKillKind>;
+  using KillVarSetTy = llvm::SmallSet<KillVar, 2>;
+  using StmtKillVarSetTy = llvm::DenseMap<const Stmt *, KillVarSetTy>;
 
 } // end namespace clang
 
@@ -79,7 +86,7 @@ namespace clang {
     void DumpAbstractFacts(const AbstractFactListTy &Facts) const;
 
     // Pretty print a set of variables.
-    void PrintVarSet(VarSetTy VarSet) const;
+    void PrintKillVarSet(KillVarSetTy VarSet) const;
 
    // Determine if the edge from PredBlock to CurrBlock is a fallthrough.
     // @param[in] PredBlock is a predecessor block of the current block.
@@ -165,8 +172,8 @@ namespace clang {
   // same namespace level as the class. So we need to declare template
   // specializations outside the class declaration.
   template<>
-  AbstractFactListTy AvailableFactsUtil::Difference<AbstractFactListTy, VarSetTy>(
-    AbstractFactListTy &A, VarSetTy &B) const;
+  AbstractFactListTy AvailableFactsUtil::Difference<AbstractFactListTy, KillVarSetTy>(
+    AbstractFactListTy &A, KillVarSetTy &B) const;
 
   // Template specialization for computing the union of AbstractFactListTy.
   template<>
@@ -213,7 +220,7 @@ namespace clang {
 
       // Block-wise
       AbstractFactListTy In;
-      VarSetTy Kill;
+      KillVarSetTy Kill;
 
       // Edge-wise
       EdgeFactsTy Gen, Out;
@@ -222,7 +229,7 @@ namespace clang {
 
       // Statement-wise
       StmtFactsMapTy StmtGen;
-      StmtVarSetTy StmtKill;
+      StmtKillVarSetTy StmtKill;
 
       // A mapping from a statement to its previous statement in a block.
       StmtMapTy PrevStmtMap;
@@ -287,12 +294,16 @@ namespace clang {
     void ComputeStmtGenKillSets(ElevatedCFGBlock *EB, const Stmt *CurrStmt,
                                 StmtSetTy NestedStmts);
 
+    void CollectFactsInDecl(AbstractFactListTy &Gen,
+                            KillVarSetTy &Kill,
+                            const VarDecl *V);
+
     // Collect the facts and killed varibles in the where clauses.
     // @param[in] Gen is the container for the facts set.
     // @param[in] Gen is the container for the Kill set.
     // @param[in] WC is the where clause to act.
     void CollectFactsInWhereClause(AbstractFactListTy &Gen,
-                                   VarSetTy &Kill,
+                                   KillVarSetTy &Kill,
                                    WhereClause *WC);
 
     // Collect the facts on the edges between blocks (EB and its successors)

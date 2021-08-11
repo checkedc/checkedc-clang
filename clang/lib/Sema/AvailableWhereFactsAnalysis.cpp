@@ -103,18 +103,19 @@ void AvailableWhereFactsAnalysis::AddSuccsToWorkList(const CFGBlock *CurrBlock,
 
 void AvailableWhereFactsAnalysis::ComputeEntryGenKillSets(FunctionDecl *FD,
                                                           ElevatedCFGBlock *EB) {
-  EB->Kill = VarSetTy();
+  EB->Kill = KillVarSetTy();
   EB->GenAllSucc = AbstractFactListTy();
 
   for (const ParmVarDecl *PD : FD->parameters()) {
-      CollectFactsInWhereClause(EB->GenAllSucc, EB->Kill, PD->getWhereClause());
-    }
+    CollectFactsInDecl(EB->GenAllSucc, EB->Kill, PD);
+    CollectFactsInWhereClause(EB->GenAllSucc, EB->Kill, PD->getWhereClause());
+  }
 }
 
 void AvailableWhereFactsAnalysis::ComputeGenKillSets(ElevatedCFGBlock *EB,
                                                      StmtSetTy NestedStmts) {
   const Stmt *PrevStmt = nullptr;
-  EB->Kill = VarSetTy();
+  EB->Kill = KillVarSetTy();
   EB->GenAllSucc = AbstractFactListTy();
 
   for (CFGBlock::const_iterator I = EB->Block->begin(),
@@ -152,7 +153,7 @@ void AvailableWhereFactsAnalysis::ComputeGenKillSets(ElevatedCFGBlock *EB,
 void AvailableWhereFactsAnalysis::ComputeStmtGenKillSets(ElevatedCFGBlock *EB,
                                                          const Stmt *CurrStmt,
                                                          StmtSetTy NestedStmts) {
-  EB->StmtKill[CurrStmt] = VarSetTy();
+  EB->StmtKill[CurrStmt] = KillVarSetTy();
   EB->StmtGen[CurrStmt] = AbstractFactListTy();
 
   // Determine whether CurrStmt generates a dataflow fact and a kill var.
@@ -162,8 +163,7 @@ void AvailableWhereFactsAnalysis::ComputeStmtGenKillSets(ElevatedCFGBlock *EB,
     for (const Decl *D : DS->decls()) {
       if (const auto *V = dyn_cast<VarDecl>(D)) {
         if (!V->isInvalidDecl()) {
-          EB->StmtKill[CurrStmt].insert(V);
-
+          CollectFactsInDecl(EB->StmtGen[CurrStmt], EB->StmtKill[CurrStmt], V);
           CollectFactsInWhereClause(EB->StmtGen[CurrStmt], EB->StmtKill[CurrStmt], V->getWhereClause());
         }
       }
@@ -172,8 +172,7 @@ void AvailableWhereFactsAnalysis::ComputeStmtGenKillSets(ElevatedCFGBlock *EB,
   // AST as a ValueStmt) can generate a dataflow fact.
   // For example: x = strlen(p) _Where p : bounds(p, p + x);
   } else if (const auto *VS = dyn_cast<ValueStmt>(CurrStmt)) {
-    if (VS->getWhereClause())
-      CollectFactsInWhereClause(EB->StmtGen[CurrStmt], EB->StmtKill[CurrStmt], VS->getWhereClause());
+    CollectFactsInWhereClause(EB->StmtGen[CurrStmt], EB->StmtKill[CurrStmt], VS->getWhereClause());
 
   // A where clause on a null statement (meaning a standalone where clause) can
   // generate a dataflow fact.
@@ -190,13 +189,33 @@ void AvailableWhereFactsAnalysis::ComputeStmtGenKillSets(ElevatedCFGBlock *EB,
   if (NestedStmts.find(CurrStmt) == NestedStmts.end()) {
     VarSetTy ModifiedVars;
     AFUtil.GetModifiedVars(CurrStmt, ModifiedVars);
-    for (const VarDecl *V : ModifiedVars)
-      EB->StmtKill[CurrStmt].insert(V);
+    for (const VarDecl *V : ModifiedVars) {
+      OS << "  V: " << V->getQualifiedNameAsString() << "\n";
+      if (!V->isInvalidDecl()) {
+        CollectFactsInDecl(EB->StmtGen[CurrStmt], EB->StmtKill[CurrStmt], V);
+      }
+    }
   }
 }
 
+void AvailableWhereFactsAnalysis::CollectFactsInDecl(
+  AbstractFactListTy &Gen, KillVarSetTy &Kill, const VarDecl *V) {
+  
+  VarDecl *CV = const_cast<VarDecl *>(V);
+
+  if (V->hasBoundsExpr()) {
+    BoundsExpr *NormalizedBounds = SemaRef.NormalizeBounds(V);
+    if (BoundsExpr *RBE = dyn_cast_or_null<RangeBoundsExpr>(NormalizedBounds)) {
+      BoundsDeclFact *BDFact = new BoundsDeclFact(CV, RBE, SourceLocation());          
+      Gen.push_back(BDFact);
+      Kill.insert(std::make_pair(CV, KillBounds));
+    }
+  } else        
+    Kill.insert(std::make_pair(CV, KillExpr));
+}
+
 void AvailableWhereFactsAnalysis::CollectFactsInWhereClause(
-  AbstractFactListTy &Gen, VarSetTy &Kill, WhereClause *WC) {
+  AbstractFactListTy &Gen, KillVarSetTy &Kill, WhereClause *WC) {
 
   if (!WC)
     return;
@@ -207,7 +226,7 @@ void AvailableWhereFactsAnalysis::CollectFactsInWhereClause(
       // just take the side-effect to save the normalzied bounds
       SemaRef.NormalizeBounds(BF);
       Gen.push_back(Fact);
-      Kill.insert(BF->getVarDecl());
+      Kill.insert(std::make_pair(BF->getVarDecl(), KillBounds));
     } else if (dyn_cast<EqualityOpFact>(Fact)) {
       Gen.push_back(Fact);
     }
@@ -234,6 +253,7 @@ void AvailableWhereFactsAnalysis::InitBlockGenOut(ElevatedCFGBlock *EB) {
   for (const CFGBlock *SuccBlock : CurrBlock->succs()) {
     if (AFUtil.SkipBlock(SuccBlock))
       continue;
+    
     ElevatedCFGBlock *SuccEB = BlockMap[SuccBlock];
 
     EB->Gen[SuccEB] = AbstractFactListTy();
@@ -326,7 +346,11 @@ bool AvailableWhereFactsAnalysis::ComputeInSet(ElevatedCFGBlock *EB) {
 
   // Iterate through all the predecessor blocks of EB.
   for (const CFGBlock *PredBlock : CurrBlock->preds()) {
-    ElevatedCFGBlock *PredEB = BlockMap[PredBlock];
+    auto BlockIt = BlockMap.find(PredBlock);
+    if (BlockIt == BlockMap.end())
+      continue;
+
+    ElevatedCFGBlock *PredEB = BlockIt->second;
 
     AbstractFactListTy PredOut = AFUtil.Union(PredEB->Out[EB], PredEB->OutAllSucc);
 
@@ -438,7 +462,7 @@ void AvailableWhereFactsAnalysis::DumpAvailableFacts(FunctionDecl *FD) {
         AFUtil.DumpAbstractFacts(Facts);
 
         OS << "    KillVars: ";
-        AFUtil.PrintVarSet(EB->StmtKill[CurrStmt]);
+        AFUtil.PrintKillVarSet(EB->StmtKill[CurrStmt]);
 
         OS << "\n";
       }
@@ -448,7 +472,7 @@ void AvailableWhereFactsAnalysis::DumpAvailableFacts(FunctionDecl *FD) {
     AFUtil.DumpAbstractFacts(EB->GenAllSucc);
 
     OS << "\n  Kill [B" << CurrBlock->getBlockID() << ", AllSucc]: ";
-    AFUtil.PrintVarSet(EB->Kill);
+    AFUtil.PrintKillVarSet(EB->Kill);
 
     OS << "\n  In [B" << CurrBlock->getBlockID() << "]: ";
     AFUtil.DumpAbstractFacts(EB->In);
@@ -571,8 +595,7 @@ void AvailableFactsUtil::DumpAbstractFact(const AbstractFact *AFact) const {
         OS << "     " << SS.str();
       }
     }
-  } 
-  else if (auto *IF = dyn_cast<InferredFact>(AFact)) {
+  } else if (auto *IF = dyn_cast<InferredFact>(AFact)) {
     if (const BinaryOperator *BO = IF->EqualityOp) {
       std::string Str;
       llvm::raw_string_ostream SS(Str);
@@ -600,24 +623,22 @@ void AvailableFactsUtil::DumpAbstractFacts(const AbstractFactListTy &Facts) cons
   }
 }
 
-void AvailableFactsUtil::PrintVarSet(VarSetTy VarSet) const {
+void AvailableFactsUtil::PrintKillVarSet(KillVarSetTy VarSet) const {
   if (VarSet.size() == 0) {
     OS << "{}\n";
     return;
   }
 
-  // A VarSetTy has const iterator. So we cannot simply sort a VarSetTy and
-  // need to copy the elements to a vector to sort.
-  std::vector<const VarDecl *> Vars(VarSet.begin(), VarSet.end());
+  std::vector<KillVar> Vars(VarSet.begin(), VarSet.end());
 
   llvm::sort(Vars.begin(), Vars.end(),
-    [](const VarDecl *A, const VarDecl *B) {
-       return A->getQualifiedNameAsString().compare(
-              B->getQualifiedNameAsString()) < 0;
+    [&](const KillVar &A, const KillVar &B) {
+       return (A.first->getQualifiedNameAsString().compare(
+              B.first->getQualifiedNameAsString()) < 0) || (A.second < B.second);
     });
 
-  for (const VarDecl *V : Vars)
-    OS << V->getQualifiedNameAsString() << ", ";
+  for (const KillVar &V : Vars)
+    OS << V.first->getQualifiedNameAsString() << ", ";
   OS << "\n";
 }
 
@@ -842,22 +863,42 @@ bool AvailableFactsUtil::IsFactEqual(const AbstractFact *Fact1, const AbstractFa
 }
 
 template<>
-AbstractFactListTy AvailableFactsUtil::Difference<AbstractFactListTy, VarSetTy>(
-  AbstractFactListTy &A, VarSetTy &B) const {
+AbstractFactListTy AvailableFactsUtil::Difference<AbstractFactListTy, KillVarSetTy>(
+  AbstractFactListTy &Facts, KillVarSetTy &Kill) const {
   
-  if (!A.size() || !B.size())
-    return A;
+if (!Facts.size() || !Kill.size())
+    return Facts;
 
   auto result = AbstractFactListTy();
 
-  for (auto AFact : A) {
+  for (auto AFact : Facts) {
     bool found = false;
-    for (auto Var : B) {
-      if (IsVarInFact(AFact, Var)) {
-        found = true;
-        break;
+
+    if (auto *Fact = dyn_cast<WhereClauseFact>(AFact)) {
+      if (auto *BF = dyn_cast<BoundsDeclFact>(Fact)) {
+        for (auto KillVar : Kill) {
+          if (KillVar.second == KillBounds && BF->getVarDecl() == KillVar.first) {
+            found = true;
+            break;
+          }
+        }
+      } else if (auto *EF = dyn_cast<EqualityOpFact>(Fact)) {
+        for (auto KillVar : Kill) {
+          if (KillVar.second == KillExpr && IsVarInFact(AFact, KillVar.first)) {
+            found = true;
+            break;
+          }
+        }
+      }
+    } else if (auto *IF = dyn_cast<InferredFact>(AFact)) {
+        for (auto KillVar : Kill) {
+          if (KillVar.second == KillExpr && IsVarInFact(AFact, KillVar.first)) {
+            found = true;
+          break;
+        }
       }
     }
+
     if (!found)
       result.push_back(AFact);
   }
