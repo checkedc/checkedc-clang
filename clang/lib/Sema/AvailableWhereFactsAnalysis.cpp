@@ -365,7 +365,7 @@ bool AvailableWhereFactsAnalysis::ComputeInSet(ElevatedCFGBlock *EB) {
 
   EB->In = Accu;
 
-  return !AFUtil.IsEqual(OrigIn, EB->In);
+  return OrigIn.size() != EB->In.size();
 }
 
 bool AvailableWhereFactsAnalysis::ComputeOutSet(ElevatedCFGBlock *EB,
@@ -376,7 +376,7 @@ bool AvailableWhereFactsAnalysis::ComputeOutSet(ElevatedCFGBlock *EB,
 
   // If the OutAllSucc is changed, all the successors block will be added to the 
   // WorkList after this function
-  const bool isOutAllSuccChanged = !AFUtil.IsEqual(EB->OutAllSucc, OrigOutAllSucc);
+  const bool isOutAllSuccChanged = EB->OutAllSucc.size() != OrigOutAllSucc.size();
 
   for (const CFGBlock *SuccBlock : EB->Block->succs()) {
     if (AFUtil.SkipBlock(SuccBlock))
@@ -386,7 +386,7 @@ bool AvailableWhereFactsAnalysis::ComputeOutSet(ElevatedCFGBlock *EB,
     auto OrigOut = EB->Out[SuccEB];
     EB->Out[SuccEB] = AFUtil.Union(EB->Gen[SuccEB], FactsDiff);
 
-    const bool isThisOutChanged = !AFUtil.IsEqual(EB->Out[SuccEB], OrigOut);
+    const bool isThisOutChanged = EB->Out[SuccEB].size() != OrigOut.size();
 
     // If OutAllSucc is changed, then all successors block will be added outside.
     // When OutAllSucc is not changed but the Out for this succ block is changed,
@@ -782,12 +782,6 @@ T AvailableFactsUtil::Intersect(T &A, T &B) const {
   return CopyA;
 }
 
-template<class T>
-bool AvailableFactsUtil::IsEqual(T &A, T &B) const {
-  return A.size() == B.size() &&
-         A.size() == Intersect(A, B).size();
-}
-
 bool AvailableFactsUtil::IsVarInFact(const AbstractFact *Fact, const VarDecl *V) const {
   if (!Fact)
     return false;
@@ -945,13 +939,6 @@ AbstractFactListTy AvailableFactsUtil::Intersect<AbstractFactListTy>(
   }
 
   return result;
-}
-
-template<>
-bool AvailableFactsUtil::IsEqual<AbstractFactListTy>(
-  AbstractFactListTy &A, AbstractFactListTy &B) const {
-  return A.size() == B.size() &&
-         A.size() == Intersect(A, B).size();
 }
 
 // end of methods for the AvailableWhereFactsAnalysis class.

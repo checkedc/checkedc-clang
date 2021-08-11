@@ -158,14 +158,6 @@ namespace clang {
     template<class T>
     T Union(T &A, T &B) const;
 
-    // Determine whether sets A and B are equal. Equality is determined by
-    // comparing each element in the two input sets.
-    // @param[in] A is a set.
-    // @param[in] B is a set.
-    // @return Whether sets A and B are equal.
-    template<class T>
-    bool IsEqual(T &A, T &B) const;
-
   }; // end of AvailableFactsUtil class.
 
   // Note: Template specializations of a class member must be present at the
@@ -183,11 +175,6 @@ namespace clang {
   // Template specialization for computing the intersection of AbstractFactListTy.
   template<>
   AbstractFactListTy AvailableFactsUtil::Intersect<AbstractFactListTy>(
-    AbstractFactListTy &A, AbstractFactListTy &B) const;
-
-  // Template specialization for determining the equality of AbstractFactListTy.
-  template<>
-  bool AvailableFactsUtil::IsEqual<AbstractFactListTy>(
     AbstractFactListTy &A, AbstractFactListTy &B) const;
 
 } // end namespace clang
