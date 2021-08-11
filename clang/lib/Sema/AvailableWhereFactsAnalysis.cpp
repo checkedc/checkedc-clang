@@ -12,6 +12,7 @@
 
 #include "clang/AST/ExprUtils.h"
 #include "clang/Sema/BoundsUtils.h"
+#include "clang/AST/PrettyPrinter.h"
 #include "clang/Sema/AvailableWhereFactsAnalysis.h"
 
 namespace clang {
@@ -25,6 +26,31 @@ namespace clang {
 
 void AvailableWhereFactsAnalysis::Analyze(FunctionDecl *FD,
                                           StmtSetTy NestedStmts) {
+}
+
+void AvailableWhereFactsAnalysis::AddSuccsToWorkList(const CFGBlock *CurrBlock,
+                                                     WorkListTy &WorkList) {
+  if (!CurrBlock)
+    return;
+
+  for (const CFGBlock *SuccBlock : CurrBlock->succs()) {
+    if (!AFUtil.SkipBlock(SuccBlock))
+      WorkList.append(BlockMap[SuccBlock]);
+  }
+}
+
+AbstractFactListTy AvailableWhereFactsAnalysis::GetStmtOut(ElevatedCFGBlock *EB,
+                      const Stmt *CurrStmt) const {
+  if (CurrStmt) {
+    return EB->StmtGen[CurrStmt];
+  }
+  return EB->In;
+}
+
+AbstractFactListTy AvailableWhereFactsAnalysis::GetStmtIn(ElevatedCFGBlock *EB,
+                      const Stmt *CurrStmt) const {
+  // StmtIn of a statement is equal to the StmtOut of its previous statement.
+  return GetStmtOut(EB, EB->PrevStmtMap[CurrStmt]);
 }
 
 void AvailableWhereFactsAnalysis::DumpAvailableFacts(FunctionDecl *FD) {
@@ -122,6 +148,24 @@ void AvailableWhereFactsAnalysis::DumpAvailableFacts(FunctionDecl *FD) {
 
   OS << "==-----------------------------------==\n";
 }
+
+OrderedBlocksTy AvailableWhereFactsAnalysis::GetOrderedBlocks() const {
+  // We order the CFG blocks based on block ID. Block IDs decrease from entry
+  // to exit. So we sort in the reverse order.
+  OrderedBlocksTy OrderedBlocks;
+  for (auto BlockEBPair : BlockMap) {
+    const CFGBlock *B = BlockEBPair.first;
+    OrderedBlocks.push_back(B);
+  }
+
+  llvm::sort(OrderedBlocks.begin(), OrderedBlocks.end(),
+    [] (const CFGBlock *A, const CFGBlock *B) {
+        return A->getBlockID() > B->getBlockID();
+    });
+  return OrderedBlocks;
+}
+// end of methods for the AvailableWhereFactsAnalysis class.
+
 //===---------------------------------------------------------------------===//
 // Implementation of the methods in the AvailableFactsUtil class. This class
 // contains helper methods that are used by the AvailableFactsUtil class to
@@ -240,6 +284,65 @@ void AvailableFactsUtil::PrintVarSet(VarSetTy VarSet) const {
   for (const VarDecl *V : Vars)
     OS << V->getQualifiedNameAsString() << ", ";
   OS << "\n";
+}
+
+bool AvailableFactsUtil::IsFallthroughEdge(const CFGBlock *PredBlock,
+                                           const CFGBlock *CurrBlock) const {
+  // A fallthrough edge between two blocks is always a true edge. If PredBlock
+  // has only one successor and CurrBlock is that successor then it means the
+  // edge between PredBlock and CurrBlock is a fallthrough edge.
+  return PredBlock->succ_size() == 1 &&
+         CurrBlock == *(PredBlock->succs().begin());
+}
+
+Expr *AvailableFactsUtil::IgnoreCasts(const Expr *E) const {
+  return Lex.IgnoreValuePreservingOperations(Ctx, const_cast<Expr *>(E));
+}
+
+bool AvailableFactsUtil::SkipBlock(const CFGBlock *B) const {
+  return !B || B == &Cfg->getExit();
+}
+
+// Common templated set operation functions.
+template<class T, class U>
+T AvailableFactsUtil::Difference(T &A, U &B) const {
+  if (!A.size() || !B.size())
+    return A;
+
+  auto CopyA = A;
+  for (auto Item : A) {
+    if (B.count(Item))
+      CopyA.erase(Item);
+  }
+  return CopyA;
+}
+
+template<class T>
+T AvailableFactsUtil::Union(T &A, T &B) const {
+  auto CopyA = A;
+  for (auto Item : B)
+    CopyA.insert(Item);
+
+  return CopyA;
+}
+
+template<class T>
+T AvailableFactsUtil::Intersect(T &A, T &B) const {
+  if (!A.size() || !B.size())
+    return T();
+
+  auto CopyA = A;
+  for (auto Item : A) {
+    if (!B.count(Item))
+      CopyA.erase(Item);
+  }
+  return CopyA;
+}
+
+template<class T>
+bool AvailableFactsUtil::IsEqual(T &A, T &B) const {
+  return A.size() == B.size() &&
+         A.size() == Intersect(A, B).size();
 }
 
 // end of methods for the AvailableWhereFactsAnalysis class.

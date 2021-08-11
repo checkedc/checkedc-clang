@@ -81,6 +81,54 @@ namespace clang {
     // Pretty print a set of variables.
     void PrintVarSet(VarSetTy VarSet) const;
 
+   // Determine if the edge from PredBlock to CurrBlock is a fallthrough.
+    // @param[in] PredBlock is a predecessor block of the current block.
+    // @param[in] CurrBlock is the current block.
+    // @return Returns true if the edge is a fallthrough, false otherwise.
+    bool IsFallthroughEdge(const CFGBlock *PredBlock,
+                           const CFGBlock *CurrBlock) const;
+
+    // Invoke IgnoreValuePreservingOperations to strip off casts.
+    // @param[in] E is the expression whose casts must be stripped.
+    // @return E with casts stripped off.
+    Expr *IgnoreCasts(const Expr *E) const;
+
+    // We do not want to run dataflow analysis on null blocks or the exit
+    // block. So we skip them.
+    // @param[in] B is the block which may need to be skipped from dataflow
+    // analysis.
+    // @return Whether B should be skipped.
+    bool SkipBlock(const CFGBlock *B) const;
+
+    // Compute the set difference of sets A and B.
+    // @param[in] A is a set.
+    // @param[in] B is a set.
+    // @return The set difference of sets A and B.
+    template<class T, class U>
+    T Difference(T &A, U &B) const;
+
+    // Compute the intersection of sets A and B.
+    // @param[in] A is a set.
+    // @param[in] B is a set.
+    // @return The intersection of sets A and B.
+    template<class T>
+    T Intersect(T &A, T &B) const;
+
+    // Compute the union of sets A and B.
+    // @param[in] A is a set.
+    // @param[in] B is a set.
+    // @return The union of sets A and B.
+    template<class T>
+    T Union(T &A, T &B) const;
+
+    // Determine whether sets A and B are equal. Equality is determined by
+    // comparing each element in the two input sets.
+    // @param[in] A is a set.
+    // @param[in] B is a set.
+    // @return Whether sets A and B are equal.
+    template<class T>
+    bool IsEqual(T &A, T &B) const;
+
   }; // end of AvailableFactsUtil class.
 
 } // end namespace clang
@@ -105,6 +153,34 @@ namespace clang {
     AvailableFactsUtil AFUtil;
     const bool DebugAvailableFacts;
 
+    class ElevatedCFGBlock {
+    public:
+      using EdgeFactsTy = llvm::DenseMap<const ElevatedCFGBlock *, AbstractFactListTy>;
+
+      const CFGBlock *Block;
+
+      // Block-wise
+      AbstractFactListTy In;
+      VarSetTy Kill;
+
+      // Edge-wise
+      EdgeFactsTy Gen, Out;
+      // Edge-wise (but on a Block)
+      AbstractFactListTy GenAllSucc, OutAllSucc;
+
+      // Statement-wise
+      StmtFactsMapTy StmtGen;
+      StmtVarSetTy StmtKill;
+
+      // A mapping from a statement to its previous statement in a block.
+      StmtMapTy PrevStmtMap;
+      // The last statement of the block. This is nullptr if the block is empty.
+      const Stmt *LastStmt = nullptr;
+
+      ElevatedCFGBlock(const CFGBlock *B) : Block(B) {}
+
+    }; // end of ElevatedCFGBlock class.
+
   private:
 
     // BlockMapTy denotes the mapping from CFGBlocks to ElevatedCFGBlocks.
@@ -119,6 +195,10 @@ namespace clang {
     BlockMapTy BlockMap;
   
   public:
+    // Top is a special bounds expression that denotes the super set of all
+    // bounds expressions.
+    static constexpr RangeBoundsExpr *Top = nullptr;
+
     AvailableWhereFactsAnalysis(Sema &SemaRef, CFG *Cfg) :
       SemaRef(SemaRef), Cfg(Cfg), Ctx(SemaRef.Context),
       Lex(Lexicographic(Ctx, nullptr)), OS(llvm::outs()),
@@ -134,6 +214,20 @@ namespace clang {
     // @param[in] FD is the current function.
     void DumpAvailableFacts(FunctionDecl *FD);
 
+  private:
+    void AddSuccsToWorkList(const CFGBlock *CurrBlock, WorkListTy &WorkList);
+
+    // Get the Out set for the statement. 
+    AbstractFactListTy GetStmtOut(ElevatedCFGBlock *EB, const Stmt *CurrStmt) const;
+
+    // Get the In set for the statement. 
+    AbstractFactListTy GetStmtIn(ElevatedCFGBlock *EB, const Stmt *CurrStmt) const;
+
+    // Order the blocks by block number to get a deterministic iteration order
+    // for the blocks.
+    // @return Blocks ordered by block number from higher to lower since block
+    // numbers decrease from entry to exit.
+    OrderedBlocksTy GetOrderedBlocks() const;
   }; // end of AvailableWhereFactsAnalysis class.
 
 } // end namespace clang
