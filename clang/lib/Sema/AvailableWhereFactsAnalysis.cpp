@@ -432,6 +432,150 @@ bool AvailableFactsUtil::IsEqual(T &A, T &B) const {
          A.size() == Intersect(A, B).size();
 }
 
+bool AvailableFactsUtil::IsVarInFact(const AbstractFact *Fact, const VarDecl *V) const {
+  if (!Fact)
+    return false;
+
+  if (const auto *WF = dyn_cast<WhereClauseFact>(Fact)) {
+    if (const auto *BF = dyn_cast<BoundsDeclFact>(WF)) {
+      BoundsExpr *NormalizedBounds = SemaRef.NormalizeBounds(BF);
+
+      return (BF->getVarDecl() == V) 
+          || (BoundsUtil::IsVarInNormalizeBounds(NormalizedBounds, V));
+    }
+
+    if (const auto *EF = dyn_cast<EqualityOpFact>(WF)) {
+      return ExprUtil::IsVarUsed(V, EF->EqualityOp);
+    }
+    
+    llvm_unreachable("no other subclass of WhereClauseFact yet");
+  }
+
+  if (const auto *IF = dyn_cast<InferredFact>(Fact)) {
+    return ExprUtil::IsVarUsed(V, IF->EqualityOp);;
+  }    
+
+  return false;
+}
+
+// Template specializations of common set operation functions.
+bool AvailableFactsUtil::IsFactEqual(const AbstractFact *Fact1, const AbstractFact *Fact2) const {
+  if (!Fact1 || !Fact2)
+    llvm_unreachable("A fact in a container should not be null");
+
+  // pointer equality
+  if (Fact1 == Fact2)
+    return true;
+
+  // value equality
+  if (const auto *WF1 = dyn_cast<WhereClauseFact>(Fact1))
+    if (const auto *WF2 = dyn_cast<WhereClauseFact>(Fact2)) {
+
+      if (const auto *BF1 = dyn_cast<BoundsDeclFact>(WF1))
+        if (const auto *BF2 = dyn_cast<BoundsDeclFact>(WF2)) {
+          BoundsExpr *NormalizedBounds1 = SemaRef.NormalizeBounds(BF1);
+          RangeBoundsExpr *RBE1 = dyn_cast_or_null<RangeBoundsExpr>(NormalizedBounds1);
+
+          BoundsExpr *NormalizedBounds2 = SemaRef.NormalizeBounds(BF2);
+          RangeBoundsExpr *RBE2 = dyn_cast_or_null<RangeBoundsExpr>(NormalizedBounds2);
+
+          if (RBE1 == AvailableWhereFactsAnalysis::Top) {
+            return (RBE2 == AvailableWhereFactsAnalysis::Top);
+          }
+
+          return 
+            Lex.CompareExprSemantically(RBE1->getLowerExpr(), RBE2->getLowerExpr()) 
+            && Lex.CompareExprSemantically(RBE1->getUpperExpr(), RBE2->getUpperExpr()) ;
+        }
+
+      // TODO
+      // if (const auto *EF1 = dyn_cast<EqualityOpFact>(WF1))
+      //   if (const auto *EF2 = dyn_cast<EqualityOpFact>(WF2)) {
+      //     return false;
+      //   }
+
+      return false;      
+    }
+
+  // TODO
+  // if (const auto *IF1 = dyn_cast<InferredFact>(Fact1))
+  //   if (const auto *IF2 = dyn_cast<InferredFact>(Fact2)) {
+  //     return false;
+  //   }
+
+  return false;
+}
+
+template<>
+AbstractFactListTy AvailableFactsUtil::Difference<AbstractFactListTy, VarSetTy>(
+  AbstractFactListTy &A, VarSetTy &B) const {
+  
+  if (!A.size() || !B.size())
+    return A;
+
+  auto result = AbstractFactListTy();
+
+  for (auto AFact : A) {
+    bool found = false;
+    for (auto Var : B) {
+      if (IsVarInFact(AFact, Var)) {
+        found = true;
+        break;
+      }
+    }
+    if (!found)
+      result.push_back(AFact);
+  }
+  return result;
+}
+
+template<>
+AbstractFactListTy AvailableFactsUtil::Union<AbstractFactListTy>(
+  AbstractFactListTy &A, AbstractFactListTy &B) const {
+  
+  auto result = A;
+  for (auto Fact2 : B) {
+    auto FindB = std::find_if(A.begin(), A.end(), [&](auto Fact1) {
+      return AvailableFactsUtil::IsFactEqual(Fact1, Fact2);
+    });
+
+    if (FindB != std::end(A))
+      continue;
+    else
+      result.push_back(Fact2);
+  }
+
+  return result;
+}
+
+template<>
+AbstractFactListTy AvailableFactsUtil::Intersect<AbstractFactListTy>(
+  AbstractFactListTy &A, AbstractFactListTy &B) const {
+
+  auto result = AbstractFactListTy();
+
+  if (!A.size() || !B.size())
+    return result;
+
+  for (auto Fact1 : A) {
+    auto FindA = std::find_if(B.begin(), B.end(), [&](auto Fact2) {
+      return AvailableFactsUtil::IsFactEqual(Fact1, Fact2);
+    });
+
+    if (FindA != std::end(B))
+      result.push_back(Fact1);
+  }
+
+  return result;
+}
+
+template<>
+bool AvailableFactsUtil::IsEqual<AbstractFactListTy>(
+  AbstractFactListTy &A, AbstractFactListTy &B) const {
+  return A.size() == B.size() &&
+         A.size() == Intersect(A, B).size();
+}
+
 // end of methods for the AvailableWhereFactsAnalysis class.
 
 } // end namespace clang

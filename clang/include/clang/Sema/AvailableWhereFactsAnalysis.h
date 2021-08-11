@@ -124,6 +124,12 @@ namespace clang {
     // @return Whether B should be skipped.
     bool SkipBlock(const CFGBlock *B) const;
 
+    // Determine if a variable is used in a fact.
+    bool IsVarInFact(const AbstractFact *Fact, const VarDecl *Var) const;
+
+    // Determine if two facts equal.
+    bool IsFactEqual(const AbstractFact *Fact1, const AbstractFact *Fact2) const;
+
     // Compute the set difference of sets A and B.
     // @param[in] A is a set.
     // @param[in] B is a set.
@@ -154,6 +160,28 @@ namespace clang {
     bool IsEqual(T &A, T &B) const;
 
   }; // end of AvailableFactsUtil class.
+
+  // Note: Template specializations of a class member must be present at the
+  // same namespace level as the class. So we need to declare template
+  // specializations outside the class declaration.
+  template<>
+  AbstractFactListTy AvailableFactsUtil::Difference<AbstractFactListTy, VarSetTy>(
+    AbstractFactListTy &A, VarSetTy &B) const;
+
+  // Template specialization for computing the union of AbstractFactListTy.
+  template<>
+  AbstractFactListTy AvailableFactsUtil::Union<AbstractFactListTy>(
+    AbstractFactListTy &A, AbstractFactListTy &B) const;
+
+  // Template specialization for computing the intersection of AbstractFactListTy.
+  template<>
+  AbstractFactListTy AvailableFactsUtil::Intersect<AbstractFactListTy>(
+    AbstractFactListTy &A, AbstractFactListTy &B) const;
+
+  // Template specialization for determining the equality of AbstractFactListTy.
+  template<>
+  bool AvailableFactsUtil::IsEqual<AbstractFactListTy>(
+    AbstractFactListTy &A, AbstractFactListTy &B) const;
 
 } // end namespace clang
 
