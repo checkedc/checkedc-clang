@@ -21,8 +21,26 @@
 
 namespace clang {
 
+  // StmtFactsMapTy denotes a map from a statement to the facts associated 
+  // with it.
+  using StmtFactsMapTy = llvm::DenseMap<const Stmt *, AbstractFactListTy>;
+
+  // StmtVarSetTy denotes a set of variables that are pointers to
+  // null-terminated arrays and that are associated with a statement. The set
+  // of variables whose bounds are killed by a statement has the type
+  // StmtVarSetTy.
+  using StmtVarSetTy = llvm::DenseMap<const Stmt *, VarSetTy>;
+
   // StmtSetTy denotes a set of statements.
   using StmtSetTy = llvm::SmallPtrSet<const Stmt *, 16>;
+
+  // StmtMapTy denotes a map of a statement to another statement. This is used
+  // to store the mapping of a statement to its previous statement in a block.
+  using StmtMapTy = llvm::DenseMap<const Stmt *, const Stmt *>;
+
+  // OrderedBlocksTy denotes blocks ordered by block numbers. This is useful
+  // for printing the blocks in a deterministic order.
+  using OrderedBlocksTy = std::vector<const CFGBlock *>;
 
 } // end namespace clang
 
@@ -72,6 +90,19 @@ namespace clang {
     AvailableFactsUtil AFUtil;
     const bool DebugAvailableFacts;
 
+  private:
+
+    // BlockMapTy denotes the mapping from CFGBlocks to ElevatedCFGBlocks.
+    using BlockMapTy = llvm::DenseMap<const CFGBlock *, ElevatedCFGBlock *>;
+
+    // A queue of unique ElevatedCFGBlocks involved in the fixpoint of the
+    // dataflow analysis.
+    using WorkListTy = QueueSet<ElevatedCFGBlock>;
+
+    // BlockMap maps a CFGBlock to an ElevatedCFGBlock. Given a CFGBlock it is
+    // used to lookup an ElevatedCFGBlock.
+    BlockMapTy BlockMap;
+  
   public:
     AvailableWhereFactsAnalysis(Sema &SemaRef, CFG *Cfg) :
       SemaRef(SemaRef), Cfg(Cfg), Ctx(SemaRef.Context),
