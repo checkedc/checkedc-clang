@@ -295,6 +295,93 @@ bool AvailableFactsUtil::IsFallthroughEdge(const CFGBlock *PredBlock,
          CurrBlock == *(PredBlock->succs().begin());
 }
 
+bool AvailableFactsUtil::IsSwitchCaseBlock(const CFGBlock *PredBlock,
+                                           const CFGBlock *CurrBlock) const {
+  // Check if PredBlock ends in a switch statement.
+  const Stmt *TerminatorStmt = PredBlock->getTerminatorStmt();
+  if (const auto *TS = dyn_cast_or_null<SwitchStmt>(TerminatorStmt)) {
+    const auto *SSCond = TS->getCond();
+    if (SSCond->containsErrors())
+      return false;
+  } else
+    return false;
+
+  const Stmt *BlockLabel = CurrBlock->getLabel();
+  return BlockLabel &&
+        (isa<CaseStmt>(BlockLabel) ||
+         isa<DefaultStmt>(BlockLabel));
+}
+
+bool AvailableFactsUtil::ConditionOnEdge(const CFGBlock *PredBlock,
+                                    const CFGBlock *CurrBlock) const {
+  if (PredBlock->succ_empty())
+    llvm_unreachable("not guard from a PredBlock with no succ");
+
+  // Get the last successor in the list of successors of PredBlock.
+  const CFGBlock *LastSucc = *(PredBlock->succs().end() - 1);
+
+  return (CurrBlock != LastSucc);
+}
+
+void AvailableFactsUtil::GetModifiedVars(const Stmt *CurrStmt,
+                                         VarSetTy &ModifiedVars) const {
+  // Get all variables modified by CurrStmt or statements nested in CurrStmt.
+  if (!CurrStmt)
+    return;
+
+  Expr *E = nullptr;
+
+  // If the variable is modified using a unary operator, like ++I or I++.
+  if (const auto *UO = dyn_cast<const UnaryOperator>(CurrStmt)) {
+    if (UO->isIncrementDecrementOp()) {
+      assert(UO->getSubExpr() && "invalid UnaryOperator expression");
+      E = TranspareCasts(UO->getSubExpr());
+    }
+  // Else if the variable is being assigned to, like I = ...
+  } else if (const auto *BO = dyn_cast<const BinaryOperator>(CurrStmt)) {
+    if (BO->isAssignmentOp()) {
+      E = TranspareCasts(BO->getLHS());
+      if (const auto *UO = dyn_cast<UnaryOperator>(E)) {
+        if (UO->getOpcode() == UO_Deref) {
+          E = TranspareCasts(UO->getSubExpr());
+        }
+      } else if (const MemberExpr *ME = dyn_cast<MemberExpr>(E)) {
+        E = TranspareCasts(ME->getBase());
+      // } else if (auto *AE = dyn_cast<ArraySubscriptExpr>(E)) {
+      //   E = TranspareCasts(AE->getBase());
+      }
+    }
+  }
+
+  if (const auto *D = dyn_cast_or_null<DeclRefExpr>(E)) {
+    if (const auto *V = dyn_cast_or_null<VarDecl>(D->getDecl())) {
+      ModifiedVars.insert(V);
+    }
+  }
+
+  for (const Stmt *NestedStmt : CurrStmt->children())
+    GetModifiedVars(NestedStmt, ModifiedVars);
+}
+
+Expr *AvailableFactsUtil::TranspareCasts(const Expr *E) const {
+  Expr *Pre = Lex.IgnoreValuePreservingOperations(Ctx, const_cast<Expr *>(E));
+  Expr *Post = Pre;
+  if (auto *CE = dyn_cast<CastExpr>(Pre)) {
+    if (CE->getCastKind() == CastKind::CK_IntegralCast)
+      Post = CE->getSubExpr();
+  }
+
+  if (auto *CE = dyn_cast<CastExpr>(Pre))
+    if (CE->getCastKind() == CastKind::CK_LValueToRValue)
+      Post = CE->getSubExpr();
+
+  if (Pre == Post) {
+    return Post;
+  } else {
+    return TranspareCasts(Post);
+  }
+}
+
 Expr *AvailableFactsUtil::IgnoreCasts(const Expr *E) const {
   return Lex.IgnoreValuePreservingOperations(Ctx, const_cast<Expr *>(E));
 }

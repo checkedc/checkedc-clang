@@ -88,10 +88,34 @@ namespace clang {
     bool IsFallthroughEdge(const CFGBlock *PredBlock,
                            const CFGBlock *CurrBlock) const;
 
+    // Determine if the current block begins a case of a switch-case.
+    // @param[in] PredBlock is the previous block.
+    // @param[in] CurrBlock is the current block.
+    // @return Returns true if the current block begins a case.
+    bool IsSwitchCaseBlock(const CFGBlock *PredBlock,
+                           const CFGBlock *CurrBlock) const;
+
+    // Determine the boolean state of an edge when the 
+    // @param[in] PredBlock is a predecessor block of the current block.
+    // @param[in] CurrBlock is the current block.
+    // @return Returns true if true if on the edge, false otherwise.
+    bool ConditionOnEdge(const CFGBlock *PredBlock,
+                         const CFGBlock *CurrBlock) const;
+
+    // Get all variables modified by CurrStmt or statements nested in CurrStmt.
+    // @param[in] CurrStmt is a given statement.
+    // @param[out] ModifiedVars is a set of variables modified by CurrStmt or
+    // statements nested in CurrStmt.
+    void GetModifiedVars(const Stmt *CurrStmt, VarSetTy &ModifiedVars) const;
+
     // Invoke IgnoreValuePreservingOperations to strip off casts.
     // @param[in] E is the expression whose casts must be stripped.
     // @return E with casts stripped off.
     Expr *IgnoreCasts(const Expr *E) const;
+
+    // Based on IgnoreCasts, strip off more casts including IntegralCast and 
+    // LValueToRValue
+    Expr *TranspareCasts(const Expr *E) const;
 
     // We do not want to run dataflow analysis on null blocks or the exit
     // block. So we skip them.
