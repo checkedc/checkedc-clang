@@ -197,8 +197,6 @@ namespace clang {
     Lexicographic Lex;
     llvm::raw_ostream &OS;
     AvailableFactsUtil AFUtil;
-    const bool DebugAvailableFacts;
-
     class ElevatedCFGBlock {
     public:
       using EdgeFactsTy = llvm::DenseMap<const ElevatedCFGBlock *, AbstractFactListTy>;
@@ -249,8 +247,7 @@ namespace clang {
     AvailableWhereFactsAnalysis(Sema &SemaRef, CFG *Cfg) :
       SemaRef(SemaRef), Cfg(Cfg), Ctx(SemaRef.Context),
       Lex(Lexicographic(Ctx, nullptr)), OS(llvm::outs()),
-      AFUtil(AvailableFactsUtil(SemaRef, Cfg, Ctx, Lex)),
-      DebugAvailableFacts(SemaRef.getLangOpts().DebugAvailableFacts) {}
+      AFUtil(AvailableFactsUtil(SemaRef, Cfg, Ctx, Lex)) {}
 
     ~AvailableWhereFactsAnalysis();
     

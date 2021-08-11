@@ -2422,9 +2422,6 @@ void CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   if (Args.hasArg(OPT_fdump_available_facts))
     Opts.DumpAvailableFacts = true;
 
-  if (Args.hasArg(OPT_fdebug_available_facts))
-    Opts.DebugAvailableFacts = true;
-
   if (Args.hasArg(OPT_fdump_preorder_ast))
     Opts.DumpPreorderAST = true;
 
