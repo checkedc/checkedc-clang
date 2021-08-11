@@ -205,7 +205,7 @@ void AvailableWhereFactsAnalysis::CollectFactsInDecl(
   if (V->hasBoundsExpr()) {
     BoundsExpr *NormalizedBounds = SemaRef.NormalizeBounds(V);
     if (BoundsExpr *RBE = dyn_cast_or_null<RangeBoundsExpr>(NormalizedBounds)) {
-      BoundsDeclFact *BDFact = new BoundsDeclFact(CV, RBE, SourceLocation());          
+      BoundsDeclFact *BDFact = new BoundsDeclFact(CV, RBE, CV->getInitializerStartLoc());
       Gen.push_back(BDFact);
       Kill.insert(std::make_pair(CV, KillBounds));
     }
@@ -291,7 +291,7 @@ void AvailableWhereFactsAnalysis::InitBlockGenOut(ElevatedCFGBlock *EB) {
       
       // Make an inferred fact with switch condition expression equals the labal value on CaseStmt
       BinaryOperator *Binop = ExprCreatorUtil::CreateBinaryOperator(SemaRef, StmtCond, LHS, BinaryOperatorKind::BO_EQ);
-      InferredFact *EqFact = new InferredFact(Binop, SourceLocation());
+      InferredFact *EqFact = new InferredFact(Binop, StmtCond->getBeginLoc());
       EB->Gen[SuccEB].push_back(EqFact);
 
       continue;
@@ -311,7 +311,7 @@ void AvailableWhereFactsAnalysis::InitBlockGenOut(ElevatedCFGBlock *EB) {
         Expr *LHS = const_cast<Expr *>(BO->getLHS());
         Expr *RHS = const_cast<Expr *>(BO->getRHS());
         BinaryOperator *Binop = ExprCreatorUtil::CreateBinaryOperator(SemaRef, LHS, RHS, Op);
-        InferredFact *EqFact = new InferredFact(Binop, SourceLocation());
+        InferredFact *EqFact = new InferredFact(Binop, TermCond->getBeginLoc());
         EB->Gen[SuccEB].push_back(EqFact);
         continue;
       }
@@ -326,11 +326,11 @@ void AvailableWhereFactsAnalysis::InitBlockGenOut(ElevatedCFGBlock *EB) {
 
     if (EdgeCondition) {
       BinaryOperator *Binop = ExprCreatorUtil::CreateBinaryOperator(SemaRef, LHS, Zero, BinaryOperatorKind::BO_NE);
-      InferredFact *EqFact = new InferredFact(Binop, SourceLocation());
+      InferredFact *EqFact = new InferredFact(Binop, TermCond->getBeginLoc());
       EB->Gen[SuccEB].push_back(EqFact);
     } else {
       BinaryOperator *Binop = ExprCreatorUtil::CreateBinaryOperator(SemaRef, LHS, Zero, BinaryOperatorKind::BO_EQ);
-      InferredFact *EqFact = new InferredFact(Binop, SourceLocation());
+      InferredFact *EqFact = new InferredFact(Binop, TermCond->getBeginLoc());
       EB->Gen[SuccEB].push_back(EqFact);
     }
   }
