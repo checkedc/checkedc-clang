@@ -46,6 +46,7 @@
 #include "clang/AST/NormalizeUtils.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Sema/AvailableFactsAnalysis.h"
+#include "clang/Sema/AvailableWhereFactsAnalysis.h"
 #include "clang/Sema/BoundsUtils.h"
 #include "clang/Sema/BoundsWideningAnalysis.h"
 #include "clang/Sema/CheckedCAnalysesPrepass.h"
@@ -656,6 +657,8 @@ namespace {
                               // function, if any.
     ASTContext &Context;
     std::pair<ComparisonSet, ComparisonSet> &Facts;
+
+    AvailableWhereFactsAnalysis AvailableWhereFactsAnalyzer;
 
     // Having a BoundsWideningAnalysis object here allows us to easily invoke
     // methods for bounds widening and get back the widened bounds info needed
@@ -2579,6 +2582,7 @@ namespace {
       ReturnBounds(ReturnBounds),
       Context(SemaRef.Context),
       Facts(Facts),
+      AvailableWhereFactsAnalyzer(AvailableWhereFactsAnalysis(SemaRef, Cfg)),
       BoundsWideningAnalyzer(BoundsWideningAnalysis(SemaRef, Cfg,
                                                     Info.BoundsVarsLower,
                                                     Info.BoundsVarsUpper)),
@@ -2596,6 +2600,7 @@ namespace {
       ReturnBounds(nullptr),
       Context(SemaRef.Context),
       Facts(Facts),
+      AvailableWhereFactsAnalyzer(AvailableWhereFactsAnalysis(SemaRef, nullptr)),
       BoundsWideningAnalyzer(BoundsWideningAnalysis(SemaRef, nullptr,
                                                     Info.BoundsVarsLower,
                                                     Info.BoundsVarsUpper)),
@@ -2790,6 +2795,11 @@ namespace {
      StmtSetTy MemoryCheckedStmts;
      StmtSetTy BoundsCheckedStmts;
      IdentifyChecked(Body, MemoryCheckedStmts, BoundsCheckedStmts, CheckedScopeSpecifier::CSS_Unchecked);
+
+     // Run the available fact analysis on this function.
+     AvailableWhereFactsAnalyzer.Analyze(FD, NestedElements);
+     if (S.getLangOpts().DumpAvailableFacts)
+       AvailableWhereFactsAnalyzer.DumpAvailableFacts(FD);
 
      // Run the bounds widening analysis on this function.
      BoundsWideningAnalyzer.WidenBounds(FD, NestedElements);
