@@ -296,6 +296,19 @@ namespace clang {
     // @param[in] EB is the current ElevatedCFGBlock.
     void InitBlockGenOut(ElevatedCFGBlock *EB);
 
+    // Compute the In set for the block.
+    // @param[in] EB is the current ElevatedCFGBlock.
+    // @return Return true if the In set of the block has changed, false
+    // otherwise.
+    bool ComputeInSet(ElevatedCFGBlock *EB);
+
+    // Compute the Out set for the block.
+    // @param[in] EB is the current ElevatedCFGBlock.
+    // @param[out] EB is added to WorkList if the Out set of EB changes.
+    // @return Return true if the OutAll set of the block has changed, false
+    // otherwise.
+    bool ComputeOutSet(ElevatedCFGBlock *EB, WorkListTy &WorkList);
+
     // Get the Out set for the statement. 
     AbstractFactListTy GetStmtOut(ElevatedCFGBlock *EB, const Stmt *CurrStmt) const;
 

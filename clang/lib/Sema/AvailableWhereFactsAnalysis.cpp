@@ -255,6 +255,63 @@ void AvailableWhereFactsAnalysis::InitBlockGenOut(ElevatedCFGBlock *EB) {
   }
 }
 
+bool AvailableWhereFactsAnalysis::ComputeInSet(ElevatedCFGBlock *EB) {
+  const CFGBlock *CurrBlock = EB->Block;
+  auto OrigIn = EB->In;
+
+  auto Accu = AbstractFactListTy();
+  bool IsFirst = true;
+
+  // Iterate through all the predecessor blocks of EB.
+  for (const CFGBlock *PredBlock : CurrBlock->preds()) {
+    ElevatedCFGBlock *PredEB = BlockMap[PredBlock];
+
+    AbstractFactListTy PredOut = AFUtil.Union(PredEB->Out[EB], PredEB->OutAllSucc);
+
+    if (IsFirst) {
+      Accu = PredOut;
+      IsFirst = false;
+      continue;
+    }
+
+    Accu = AFUtil.Intersect(Accu, PredOut);
+  }
+
+  EB->In = Accu;
+
+  return !AFUtil.IsEqual(OrigIn, EB->In);
+}
+
+bool AvailableWhereFactsAnalysis::ComputeOutSet(ElevatedCFGBlock *EB,
+                                                WorkListTy &WorkList) {
+  auto OrigOutAllSucc = EB->OutAllSucc;
+  auto FactsDiff = AFUtil.Difference(EB->In, EB->Kill);
+  EB->OutAllSucc = AFUtil.Union(EB->GenAllSucc, FactsDiff);
+
+  // If the OutAllSucc is changed, all the successors block will be added to the 
+  // WorkList after this function
+  const bool isOutAllSuccChanged = !AFUtil.IsEqual(EB->OutAllSucc, OrigOutAllSucc);
+
+  for (const CFGBlock *SuccBlock : EB->Block->succs()) {
+    if (AFUtil.SkipBlock(SuccBlock))
+      continue;
+
+    ElevatedCFGBlock *SuccEB = BlockMap[SuccBlock];
+    auto OrigOut = EB->Out[SuccEB];
+    EB->Out[SuccEB] = AFUtil.Union(EB->Gen[SuccEB], FactsDiff);
+
+    const bool isThisOutChanged = !AFUtil.IsEqual(EB->Out[SuccEB], OrigOut);
+
+    // If OutAllSucc is changed, then all successors block will be added outside.
+    // When OutAllSucc is not changed but the Out for this succ block is changed,
+    // only this one succ block is added to the WorkList
+    if (!isOutAllSuccChanged && isThisOutChanged)
+      WorkList.append(SuccEB);
+  }
+
+  return isOutAllSuccChanged;
+}
+
 AbstractFactListTy AvailableWhereFactsAnalysis::GetStmtOut(ElevatedCFGBlock *EB,
                       const Stmt *CurrStmt) const {
   if (CurrStmt) {
