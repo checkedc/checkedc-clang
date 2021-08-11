@@ -38,17 +38,18 @@ namespace clang {
 
   // AvailableFactsKillKind denotes two kinds of kill variables.
   // KillExpr denotes a variable to kill a EqualityOpFact or a InferredFact
-  // KillBounds denotes a variable to kill a BoundsDeclFact
+  // KillBounds denotes a variable to kill a BoundsDeclFact.
   enum AvailableFactsKillKind {
     KillExpr,
     KillBounds
   };
 
-  // KillVar (a pair of VarDecl with its kind) and the containers based on it
+  // KillVar (a pair of VarDecl with its kind) and the containers based on it.
   using KillVar = std::pair<VarDecl *, AvailableFactsKillKind>;
   using KillVarSetTy = llvm::SmallSet<KillVar, 2>;
   using StmtKillVarSetTy = llvm::DenseMap<const Stmt *, KillVarSetTy>;
 
+  // FactComparisionMapTy denotes the comparision result of two facts.
   using FactComparision = std::pair<const AbstractFact *, const AbstractFact *>;
   using FactComparisionMapTy = llvm::DenseMap<FactComparision, bool>;
 
@@ -231,7 +232,6 @@ namespace clang {
       const Stmt *LastStmt = nullptr;
 
       ElevatedCFGBlock(const CFGBlock *B) : Block(B) {}
-      ~ElevatedCFGBlock();
 
     }; // end of ElevatedCFGBlock class.
 
@@ -247,6 +247,9 @@ namespace clang {
     // BlockMap maps a CFGBlock to an ElevatedCFGBlock. Given a CFGBlock it is
     // used to lookup an ElevatedCFGBlock.
     BlockMapTy BlockMap;
+
+    // Allocated facts in the analysis
+    AbstractFactListTy FactsCreated;
   
   public:
     // Top is a special bounds expression that denotes the super set of all
