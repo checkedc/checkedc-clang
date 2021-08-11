@@ -71,29 +71,12 @@ namespace clang {
     // if (*(p + i) == 0) ==> DerefExpr = p + i
     Expr *DerefExpr;
 
-    // Whether the value that an expression is compared against is null. For
-    // example:
-    // if (*p == 0)   ==> IsComparedValNull = True
-    // if (*p == 'a') ==> IsComparedValNull = False
-    bool IsComparedValNull;
-
-    // Whether the operator of the conditional is positive. For example:
-    // if (*p == 0) ==> IsCheckPositive = True
-    // if (*p != 0) ==> IsCheckPositive = False
-    bool IsCheckPositive;
-
-    // Whether the terminating condition is an expression involving a binary
-    // operator. For example:
-    // if (*p == 0) ==> HasBinaryOp = True
-    // if (!*p)     ==> HasBinaryOp = False
-    bool HasBinaryOp;
-
-    // Whether the terminating condition is an expression involving a unary not
-    // operator. For example:
-    // if (!*p)        ==> HasUnaryNot = True
-    // if (!(*p == 0)) ==> HasUnaryNot = True
-    // if (*p == 0)    ==> HasUnaryNot = False
-    bool HasUnaryNot;
+    // Whether the terminating condition checks for a null value. For example:
+    // if (*p == 0)   ==> IsCheckNull = True
+    // if (*p != 0)   ==> IsCheckNull = False
+    // if (*p == 'a') ==> IsCheckNull = False
+    // if (*p != 'a') ==> IsCheckNull = True
+    bool IsCheckNull;
   };
 
 } // end namespace clang
@@ -204,7 +187,8 @@ namespace clang {
     // @param[out] TermCondInfo is the struct that is filled with various
     // information about the terminating condition.
     void FillTermCondInfo(const Expr *TermCond,
-                          TermCondInfoTy &TermCondInfo) const;
+                          TermCondInfoTy &TermCondInfo,
+                          bool HasUnaryNot) const;
 
     // Get the variable in an expression that is a pointer to a null-terminated
     // array.
@@ -567,13 +551,6 @@ namespace clang {
     void CheckStmtInvertibility(ElevatedCFGBlock *EB,
                                 const Stmt *CurrStmt,
                                 VarSetTy PtrsWithAffectedBounds) const;
-
-    // Check whether the terminating condition of a block tests for a
-    // null-terminator.
-    // @param[in] EB is the current ElevatedCFGBlock.
-    // @return Returns true if the terminating condition of block EB tests for
-    // a null-terminator, false otherwise.
-    bool DoesTermCondCheckNull(ElevatedCFGBlock *EB) const;
 
     // Update the bounds in StmtOut with the adjusted bounds for the current
     // statement, if they exist.

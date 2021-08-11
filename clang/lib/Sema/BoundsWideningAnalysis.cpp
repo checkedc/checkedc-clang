@@ -361,9 +361,8 @@ BoundsMapTy BoundsWideningAnalysis::PruneOutSet(
   // Check if the edge from pred to the current block is a true edge.
   bool IsEdgeTrue = BWUtil.IsTrueEdge(PredBlock, CurrBlock);
 
-  // Check if the terminating condition of the pred block tests for a null
-  // terminator.
-  bool TermCondChecksNull = DoesTermCondCheckNull(PredEB);
+  // Does the terminating condition of the pred block tests for a null value.
+  bool TermCondChecksNull = PredEB->TermCondInfo.IsCheckNull;
 
   // Get the In of the last statement in the pred block. If the pred
   // block does not have any statements then InOfLastStmtOfPred is set to
@@ -931,25 +930,6 @@ void BoundsWideningAnalysis::CheckStmtInvertibility(ElevatedCFGBlock *EB,
   }
 }
 
-bool BoundsWideningAnalysis::DoesTermCondCheckNull(
-  ElevatedCFGBlock *EB) const {
-
-  // *p == 0
-  //   ==> IsComparedValNull = True, IsCheckPositive = True, return True
-
-  // *p != 0
-  //   ==> IsComparedValNull = True, IsCheckPositive = False, return False
-
-  // *p == 'a'
-  //   ==> IsComparedValNull = False, IsCheckPositive = True, return False
-
-  // *p != 'a'
-  // ==> IsComparedValNull = False, IsCheckPositive = False, return True
-
-  return EB->TermCondInfo.IsComparedValNull ==
-         EB->TermCondInfo.IsCheckPositive;
-}
-
 void BoundsWideningAnalysis::UpdateAdjustedBounds(
   ElevatedCFGBlock *EB, const Stmt *CurrStmt, BoundsMapTy &StmtOut) const {
 
@@ -1402,63 +1382,64 @@ TermCondInfoTy BoundsWideningUtil::GetTermCondInfo(
   TermCondInfoTy TermCondInfo;
   // Initialize fields of TermCondInfo.
   TermCondInfo.DerefExpr = nullptr;
-  TermCondInfo.IsComparedValNull = false;
-  TermCondInfo.IsCheckPositive = false;
-  TermCondInfo.HasBinaryOp = false;
-  TermCondInfo.HasUnaryNot = false;
+  TermCondInfo.IsCheckNull = false;
 
-  FillTermCondInfo(TermCond, TermCondInfo);
+  FillTermCondInfo(TermCond, TermCondInfo, /*HasUnaryNot*/ false);
   return TermCondInfo;
 }
 
 void BoundsWideningUtil::FillTermCondInfo(const Expr *TermCond,
-                                          TermCondInfoTy &TermCondInfo) const {
+                                          TermCondInfoTy &TermCondInfo,
+                                          bool HasUnaryNot) const {
   Expr *E = StripCasts(TermCond);
 
+  // *p, !*p, !(*p == 0), etc.
   if (auto *UO = dyn_cast<UnaryOperator>(E)) {
     UnaryOperatorKind UnaryOp = UO->getOpcode();
 
+    // *p, LHS of *p == 0, etc.
     if (UnaryOp == UO_Deref) {
       Expr *SubExpr = IgnoreCasts(UO->getSubExpr());
 
-      // *p ==> DerefExpr = p
-      // *(p + i) ==> DerefExpr = p + i
-      TermCondInfo.DerefExpr = SubExpr;
-
-      if (TermCondInfo.HasBinaryOp) {
-        // *p == 0 ==> HasUnaryNot = False, IsCheckPositive = True
-        // *p != 0 ==> HasUnaryNot = True, IsCheckPositive = False
-        // !(*p == 0) ==> HasUnaryNot = True, IsCheckPositive = False
-        // !(*p != 0) ==> HasUnaryNot = False, IsCheckPositive = True
-        TermCondInfo.IsCheckPositive =
-          TermCondInfo.IsCheckPositive != TermCondInfo.HasUnaryNot;
-
-      } else {
-        // *p ==> *p != 0 ==> HasUnaryNot = False
-        //                    IsCheckPositive = False,
-        //                    IsComparedValNull = True
-
-        // !*p ==> *p == 0 ==> HasUnaryNot = True
-        //                     IsCheckPositive = True,
-        //                     IsComparedValNull = True
-        TermCondInfo.IsCheckPositive = TermCondInfo.HasUnaryNot;
-        TermCondInfo.IsComparedValNull = true;
+      // If the expression is a binary expression then we set
+      // TermCondInfo.DerefExpr to the binary expression just to signal that we
+      // have visited a biary expression. If TermCondInfo.DerefExpr is nullptr
+      // then it means we did not visit a binary expression.
+      if (!TermCondInfo.DerefExpr) {
+        // If we do not have a binary operator then we do the following
+        // normalizations:
+        // *p ==> *p != 0
+        // !*p ==> *p == 0
+        // In the above normalizations the compared value would always be null.
+        // Whether the check is null or not is determined by the
+        // presence/absence of the unary not operator as follows:
+        // *p == 0 ==> HasUnaryNot = True, IsCheckNull = True
+        // *p != 0 ==> HasUnaryNot = False, IsCheckNull = False
+        TermCondInfo.IsCheckNull = HasUnaryNot;
       }
 
+      // *p ==> DerefExpr = p
+      TermCondInfo.DerefExpr = SubExpr;
+
+      // !*p, !!!*p, !(*p == 0), etc.
     } else if (UnaryOp == UO_LNot) {
       Expr *SubExpr = IgnoreCasts(UO->getSubExpr());
+
+      // *p ==> *p != 0 ==> HasUnaryNot = False, IsCheckNull = False
+      // !*p ==> *p == 0 ==> HasUnaryNot = True, IsCheckNull = True
+      TermCondInfo.IsCheckNull = HasUnaryNot;
 
       // *p ==> HasUnaryNot = False
       // !*p ==> HasUnaryNot = True
       // !!*p ==> HasUnaryNot = False
       // !!!*p ==> HasUnaryNot = True
-      TermCondInfo.HasUnaryNot = !TermCondInfo.HasUnaryNot;
+      HasUnaryNot = !HasUnaryNot;
 
       // !*p ==> FillTermCondInfo(*p);
       // !!*p ==> FillTermCondInfo(!*p);
       // !!!*p ==> FillTermCondInfo(!!*p);
       // !(*p == 0) ==> FillTermCondInfo(*p == 0);
-      FillTermCondInfo(SubExpr, TermCondInfo);
+      FillTermCondInfo(SubExpr, TermCondInfo, HasUnaryNot);
     }
 
     // If dereference expression contains an array access. An array access can
@@ -1466,44 +1447,34 @@ void BoundsWideningUtil::FillTermCondInfo(const Expr *TermCond,
     // always present the normalized view: A[i]. In this case getBase() returns
     // "A" and getIdx() returns "i".
   } else if (auto *AE = dyn_cast<ArraySubscriptExpr>(E)) {
+    // If the expression is a binary expression then we set
+    // TermCondInfo.DerefExpr to the binary expression just to signal that we
+    // have visited a biary expression. If TermCondInfo.DerefExpr is nullptr
+    // then it means we did not visit a binary expression.
+    if (!TermCondInfo.DerefExpr) {
+      // If we do not have a binary operator then we do the following
+      // normalizations:
+      // p[i] ==> p[i] != 0
+      // !p[i] ==> p[i] == 0
+      // In the above normalizations the compared value would always be null.
+      // Whether the check is null or not is determined by the
+      // presence/absence of the unary not operator as follows:
+      // p[i] == 0 ==> HasUnaryNot = True, IsCheckNull = True
+      // p[i] != 0 ==> HasUnaryNot = False, IsCheckNull = False
+      TermCondInfo.IsCheckNull = HasUnaryNot;
+    }
+
     // p[i] ==> DerefExpr = p + i
     TermCondInfo.DerefExpr =
       ExprCreatorUtil::CreateBinaryOperator(SemaRef, AE->getBase(),
                                             AE->getIdx(),
                                             BinaryOperatorKind::BO_Add);
-    if (TermCondInfo.HasBinaryOp) {
-      // p[i] == 0 ==> IsCheckPositive = True
-      // p[i] != 0 ==> IsCheckPositive = False
-      // !(p[i] == 0) ==> IsCheckPositive = False
-      // !(p[i] != 0) ==> IsCheckPositive = True
-      TermCondInfo.IsCheckPositive =
-        TermCondInfo.IsCheckPositive != TermCondInfo.HasUnaryNot;
-
-    } else {
-      // p[i] ==> p[i] != 0 ==> HasUnaryNot = False
-      //                        IsCheckPositive = False,
-      //                        IsComparedValNull = True
-
-      // !p[i] ==> p[i] == 0 ==> HasUnaryNot = True
-      //                         IsCheckPositive = True,
-      //                         IsComparedValNull = True
-      TermCondInfo.IsCheckPositive = TermCondInfo.HasUnaryNot;
-      TermCondInfo.IsComparedValNull = true;
-    }
 
   } else if (auto *BO = dyn_cast<BinaryOperator>(E)) {
     BinaryOperatorKind BinOp = BO->getOpcode();
 
     // *p == 0, 0 != *p
     if (BinOp == BO_EQ || BinOp == BO_NE) {
-      // *p == 0 ==> HasBinaryOp = True
-      // *p != 0 ==> HasBinaryOp = True
-      // (c = *p) != 0 ==> HasBinaryOp = True
-      TermCondInfo.HasBinaryOp = true;
-
-      // *p == 0 ==> IsCheckPositive = True
-      // *p != 0 ==> IsCheckPositive = False
-      TermCondInfo.IsCheckPositive = BinOp == BO_EQ;
 
       Expr *LHS = BO->getLHS();
       Expr *RHS = BO->getRHS();
@@ -1527,33 +1498,58 @@ void BoundsWideningUtil::FillTermCondInfo(const Expr *TermCond,
         return;
       }
 
+      // *p == 0  ==> BinOp == BO_EQ, HasUnaryNot = False
+      //          ==> IsCheckPositive = True
+      // *p != 0  ==> BinOp != BO_EQ, HasUnaryNot = False
+      //          ==> IsCheckPositive = False
+      // !*p == 0 ==> BinOp == BO_EQ, HasUnaryNot = True
+      //          ==> IsCheckPositive = False
+      // !*p != 0 ==> BinOp != BO_EQ, HasUnaryNot = True
+      //          ==> IsCheckPositive = True
+      bool IsCheckPositive = (BinOp == BO_EQ && !HasUnaryNot) ||
+                             (BinOp != BO_EQ && HasUnaryNot);
+
       llvm::APSInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
       if (LHSVal) {
         // 0 == *p ==> IsComparedValNull = True
         // 'a' != *p ==> IsComparedValNull = False
-        TermCondInfo.IsComparedValNull =
+        bool IsComparedValNull =
           llvm::APSInt::compareValues(*LHSVal, Zero) == 0;
+
+        TermCondInfo.IsCheckNull = IsCheckPositive ==
+                                   IsComparedValNull;
+
+        // We are setting DerefExpr here to the RHS just to signal to unary
+        // operator logic above that a binary expression has been visited.
+        TermCondInfo.DerefExpr = RHS;
 
         // 0 == *p ==> FillTermCondInfo(*p);
         // 'a' != *p ==> FillTermCondInfo(*p);
-        FillTermCondInfo(RHS, TermCondInfo);
+        FillTermCondInfo(RHS, TermCondInfo, HasUnaryNot);
 
       } else if (RHSVal) {
         // *p == 0 ==> IsComparedValNull = True
         // *p != 'a' ==> IsComparedValNull = False
-        TermCondInfo.IsComparedValNull =
+        bool IsComparedValNull =
           llvm::APSInt::compareValues(*RHSVal, Zero) == 0;
+
+        TermCondInfo.IsCheckNull = IsCheckPositive ==
+                                   IsComparedValNull;
+
+        // We are setting DerefExpr here to the LHS just to signal to unary
+        // operator logic above that a binary expression has been visited.
+        TermCondInfo.DerefExpr = LHS;
 
         // *p == 0 ==> FillTermCondInfo(*p);
         // *p != 'a' ==> FillTermCondInfo(*p);
-        FillTermCondInfo(LHS, TermCondInfo);
+        FillTermCondInfo(LHS, TermCondInfo, HasUnaryNot);
       }
 
       // (c = *p) != 0
     } else if (BinOp == BO_Assign) {
       // (c = *p) ==> RHS = *p
       Expr *RHS = BO->getRHS();
-      FillTermCondInfo(RHS, TermCondInfo);
+      FillTermCondInfo(RHS, TermCondInfo, HasUnaryNot);
     }
   }
 }
