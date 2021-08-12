@@ -32,6 +32,7 @@ class ConstraintsGraph;
 
 #define DEFAULT_REASON "UNKNOWN_REASON"
 #define POINTER_IS_ARRAY_REASON "Pointer is array but alltypes is disabled."
+#define UNWRITABLE_REASON "Source code in non-writable file."
 
 template <typename T> struct PComp {
   bool operator()(const T Lhs, const T Rhs) const { return *Lhs < *Rhs; }
@@ -287,8 +288,12 @@ public:
   virtual bool operator==(const Constraint &Other) const = 0;
   virtual bool operator!=(const Constraint &Other) const = 0;
   virtual bool operator<(const Constraint &Other) const = 0;
-  virtual std::string getReason() { return REASON; }
+  virtual std::string getReason() const { return REASON; }
   virtual void setReason(const std::string &Rsn) { REASON = Rsn; }
+
+  bool isUnwritable(void) const {
+    return getReason() == UNWRITABLE_REASON;
+  }
 
   const PersistentSourceLoc &getLocation() const { return PL; }
 };

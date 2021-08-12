@@ -739,8 +739,8 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
 
   assert("We shouldn't be adding a null CV to Variables map." && NewCV);
   if (!canWrite(PLoc.getFileName())) {
-    NewCV->equateWithItype(*this, "Declaration in non-writable file", &PLoc);
-    NewCV->constrainToWild(CS, "Declaration in non-writable file", &PLoc);
+    NewCV->equateWithItype(*this, UNWRITABLE_REASON, &PLoc);
+    NewCV->constrainToWild(CS, UNWRITABLE_REASON, &PLoc);
   }
   constrainWildIfMacro(NewCV, D->getLocation());
   Variables[PLoc] = NewCV;
@@ -811,7 +811,7 @@ void ProgramInfo::storePersistentConstraints(Expr *E, const CSetBkeyPair &Vars,
   auto PSL = PersistentSourceLoc::mkPSL(E, *C);
   if (PSL.valid() && !canWrite(PSL.getFileName()))
     for (ConstraintVariable *CVar : Vars.first)
-      CVar->constrainToWild(CS, "Expression in non-writable file", &PSL);
+      CVar->constrainToWild(CS, UNWRITABLE_REASON, &PSL);
 
   IDAndTranslationUnit Key = getExprKey(E, C);
   ExprConstraintVars[Key] = Vars;
@@ -1190,12 +1190,12 @@ void ProgramInfo::addTypedef(PersistentSourceLoc PSL, bool CanRewriteDef,
   else
     V = new PointerVariableConstraint(TD, *this, C);
 
-  auto *const Rsn = !CanRewriteDef
-                        ? "Unable to rewrite a typedef with multiple names"
-                        : "Declaration in non-writable file";
-  if (!(CanRewriteDef && canWrite(PSL.getFileName()))) {
-    V->constrainToWild(this->getConstraints(), Rsn, &PSL);
-  }
+  if (!CanRewriteDef)
+    V->constrainToWild(this->getConstraints(), "Unable to rewrite a typedef with multiple names", &PSL);
+
+  if (!canWrite(PSL.getFileName()))
+    V->constrainToWild(this->getConstraints(), UNWRITABLE_REASON, &PSL);
+
   constrainWildIfMacro(V, TD->getLocation(), &PSL);
   this->TypedefVars[PSL] = {*V};
 }

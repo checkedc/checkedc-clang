@@ -96,8 +96,10 @@ void Constraints::editConstraintHook(Constraint *C) {
 bool Constraints::addConstraint(Constraint *C) {
   editConstraintHook(C);
 
+  auto Search = TheConstraints.find(C);
+
   // Check if C is already in the set of constraints.
-  if (TheConstraints.find(C) == TheConstraints.end()) {
+  if (Search == TheConstraints.end()) {
     TheConstraints.insert(C);
 
     if (Geq *G = dyn_cast<Geq>(C)) {
@@ -119,6 +121,17 @@ bool Constraints::addConstraint(Constraint *C) {
     } else
       llvm_unreachable("unsupported constraint");
     return true;
+  }
+
+  // If the constraint being added is due to unwritability,
+  // propagate this reason to the existing constraint.
+  // This way we always prioritize the unwritability as the reason
+  // for wildness.
+  // This is needed as 3C will currently only report one cause of wildness
+  // (See https://github.com/correctcomputation/checkedc-clang/issues/664)
+  if (C->isUnwritable()) {
+    auto *StoredConstraint = *Search;
+    StoredConstraint->setReason(C->getReason());
   }
 
   return false;
