@@ -63,6 +63,22 @@ namespace clang {
   using InvertibleStmtMapTy = llvm::DenseMap<const Stmt *,
                                              LValuesToReplaceInBoundsTy>;
 
+  // A struct representing various information about the terminating condition
+  // of a block.
+  struct TermCondInfoTy {
+    // The expression that dereferences a pointer or subscripts an array. For
+    // example:
+    // if (*(p + i) == 0) ==> DerefExpr = p + i
+    Expr *DerefExpr;
+
+    // Whether the terminating condition tests for a null value. For example:
+    // if (*p == 0)   ==> IsCheckNull = True
+    // if (*p != 0)   ==> IsCheckNull = False
+    // if (*p == 'a') ==> IsCheckNull = False
+    // if (*p != 'a') ==> IsCheckNull = True
+    bool IsCheckNull;
+  };
+
 } // end namespace clang
 
 namespace clang {
@@ -159,11 +175,19 @@ namespace clang {
     // @return Returns the expression E + Offset.
     Expr *AddOffsetToExpr(Expr *E, unsigned Offset) const;
 
-    // From the given expression get the dereference expression. A dereference
-    // expression can be of the form "*(p + 1)" or "p[1]".
-    // @param[in] E is the given expression.
-    // @return Returns the dereference expression, if it exists.
-    Expr *GetDerefExpr(const Expr *E) const;
+    // Get various information about the terminating condition of a block.
+    // @param[in] TermCond is the terminating condition of a block.
+    // @return A struct containing various information about the terminating
+    // condition.
+    TermCondInfoTy GetTermCondInfo(const Expr *TermCond) const;
+
+    // Fill the TermCondInfo parameter with information about the terminating
+    // condition TermCond.
+    // @param[in] TermCond is the terminating condition of a block.
+    // @param[out] TermCondInfo is the struct that is filled with various
+    // information about the terminating condition.
+    void FillTermCondInfo(const Expr *TermCond,
+                          TermCondInfoTy &TermCondInfo) const;
 
     // Get the variable in an expression that is a pointer to a null-terminated
     // array.
@@ -177,6 +201,11 @@ namespace clang {
     // @param[in] E is the expression whose casts must be stripped.
     // @return E with casts stripped off.
     Expr *IgnoreCasts(const Expr *E) const;
+
+    // Strip off more casts than IgnoreCasts.
+    // @param[in] E is the expression whose casts must be stripped.
+    // @return E with casts stripped off.
+    Expr *StripCasts(const Expr *E) const;
 
     // We do not want to run dataflow analysis on null blocks or the exit
     // block. So we skip them.
@@ -287,9 +316,8 @@ namespace clang {
       // The last statement of the block. This is nullptr if the block is empty.
       const Stmt *LastStmt = nullptr;
 
-      // The terminating condition that dereferences a pointer. This is nullptr
-      // if the terminating condition does not dereference a pointer.
-      Expr *TermCondDerefExpr = nullptr;
+      // Various information about the terminating condition of the block.
+      TermCondInfoTy TermCondInfo;
 
       // The In set of the last statment of each block.
       BoundsMapTy InOfLastStmt;
