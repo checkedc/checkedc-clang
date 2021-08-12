@@ -1463,6 +1463,9 @@ void BoundsWideningUtil::FillTermCondInfo(const Expr *TermCond,
     Expr *LHS = BO->getLHS();
     Expr *RHS = BO->getRHS();
 
+    if (LHS->containsErrors() || RHS->containsErrors())
+      return;
+
     // 0 == *p ==> LHSVal = 0
     // 'a' != *p ==> LHSVal = 'a'
     // a != *p ==> LHSVal = nullptr
