@@ -601,3 +601,66 @@ void f7(char p _Nt_checked[1], char q _Nt_checked[2]) {
 // CHECK:     p: bounds(p, p + 0 + 1)
 // CHECK:     q: bounds(q, q + 1 + 1)
 }
+
+void f8(_Nt_array_ptr<_Ptr<char>> p : count(0),
+        _Nt_array_ptr<_Ptr<char>> q : bounds(*q, *q)) {
+
+  if (**p) {
+    a = 1;
+  }
+
+// CHECK: Function: f8
+// CHECK: Block: B9 (Entry), Pred: Succ: B8
+
+// CHECK: Block: B8, Pred: B9, Succ: B7, B6
+// CHECK:   Widened bounds before stmt: **p
+// CHECK:     p: bounds(p, p + 0)
+// CHECK:     q: bounds(*q, *q)
+
+// CHECK: Block: B7, Pred: B8, Succ: B6
+// CHECK:   Widened bounds before stmt: a = 1
+// CHECK:     p: bounds(p, p + 0)
+// CHECK:     q: bounds(*q, *q)
+
+  if (!**p) {
+    a = 2;
+  }
+
+// CHECK: Block: B6, Pred: B7, B8, Succ: B5, B4
+// CHECK:   Widened bounds before stmt: !**p
+// CHECK:     p: bounds(p, p + 0)
+// CHECK:     q: bounds(*q, *q)
+
+// CHECK: Block: B5, Pred: B6, Succ: B4
+// CHECK:   Widened bounds before stmt: a = 2
+// CHECK:     p: bounds(p, p + 0)
+// CHECK:     q: bounds(*q, *q)
+
+  if (**q) {
+    a = 3;
+  }
+
+// CHECK: Block: B4, Pred: B5, B6, Succ: B3, B2
+// CHECK:   Widened bounds before stmt: **q
+// CHECK:     p: bounds(p, p + 0)
+// CHECK:     q: bounds(*q, *q)
+
+// CHECK: Block: B3, Pred: B4, Succ: B2
+// CHECK:   Widened bounds before stmt: a = 3
+// CHECK:     p: bounds(p, p + 0)
+// CHECK:     q: bounds(*q, *q + 1)
+
+  if (!**q) {
+    a = 4;
+  }
+
+// CHECK: Block: B2, Pred: B3, B4, Succ: B1, B0
+// CHECK:   Widened bounds before stmt: !**q
+// CHECK:     p: bounds(p, p + 0)
+// CHECK:     q: bounds(*q, *q)
+
+// CHECK: Block: B1, Pred: B2, Succ: B0
+// CHECK:   Widened bounds before stmt: a = 4
+// CHECK:     p: bounds(p, p + 0)
+// CHECK:     q: bounds(*q, *q)
+}

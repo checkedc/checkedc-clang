@@ -361,7 +361,7 @@ BoundsMapTy BoundsWideningAnalysis::PruneOutSet(
   // Check if the edge from pred to the current block is a true edge.
   bool IsEdgeTrue = BWUtil.IsTrueEdge(PredBlock, CurrBlock);
 
-  // Does the terminating condition of the pred block tests for a null value.
+  // Does the terminating condition of the pred block test for a null value.
   bool DoesTermCondCheckNull = PredEB->TermCondInfo.IsCheckNull;
 
   // Get the In of the last statement in the pred block. If the pred
@@ -1394,35 +1394,25 @@ void BoundsWideningUtil::FillTermCondInfo(const Expr *TermCond,
   // *p, !*p, !(*p == 0), etc.
   if (auto *UO = dyn_cast<UnaryOperator>(E)) {
     UnaryOperatorKind UnaryOp = UO->getOpcode();
+    Expr *SubExpr = IgnoreCasts(UO->getSubExpr());
 
     // *p, LHS of *p == 0, etc.
     if (UnaryOp == UO_Deref) {
-      Expr *SubExpr = IgnoreCasts(UO->getSubExpr());
-
-      // In the logic for a binary expression below we set
-      // TermCondInfo.DerefExpr to either the LHS or the RHS of the binary
-      // expression just to signal that we have visited a biary expression. If
-      // TermCondInfo.DerefExpr is nullptr here then it means we did not visit
-      // a binary expression.
-      if (!TermCondInfo.DerefExpr) {
-        // If we do not have a binary operator then we do the following
-        // normalizations:
-        // *p ==> *p != 0
-        // !*p ==> *p == 0
-        // In the above normalizations the compared value would always be null.
-        // Whether the condition tests for a null value will be determined in
-        // the logic for UO_LNot after we return from the current recursive
-        // call. So for now simply set TermCondInfo.IsCheckNull to false.
-        TermCondInfo.IsCheckNull = false;
-      }
+      // We do the following normalizations:
+      // *p ==> *p != 0
+      // !*p ==> *p == 0
+      // In the above normalizations the compared value would always be null.
+      // Whether the condition tests for a null value will be determined in
+      // the logic for UO_LNot after we return from the current recursive
+      // call.
 
       // *p ==> DerefExpr = p
+      // *(p + 1) ==> DerefExpr = p + 1
+      // **p ==> DerefExpr = *p
       TermCondInfo.DerefExpr = SubExpr;
 
       // !*p, !!!*p, !(*p == 0), etc.
     } else if (UnaryOp == UO_LNot) {
-      Expr *SubExpr = IgnoreCasts(UO->getSubExpr());
-
       // !*p ==> FillTermCondInfo(*p);
       // !!*p ==> FillTermCondInfo(!*p);
       // !!!*p ==> FillTermCondInfo(!!*p);
@@ -1433,8 +1423,7 @@ void BoundsWideningUtil::FillTermCondInfo(const Expr *TermCond,
       // !*p ==> IsCheckNull = True
       // !!*p ==> IsCheckNull = False
       // !!!*p ==> IsCheckNull = True
-      TermCondInfo.IsCheckNull =
-        !TermCondInfo.IsCheckNull;
+      TermCondInfo.IsCheckNull = !TermCondInfo.IsCheckNull;
     }
 
     // If dereference expression contains an array access. An array access can
@@ -1442,21 +1431,13 @@ void BoundsWideningUtil::FillTermCondInfo(const Expr *TermCond,
     // always present the normalized view: A[i]. In this case getBase() returns
     // "A" and getIdx() returns "i".
   } else if (auto *AE = dyn_cast<ArraySubscriptExpr>(E)) {
-    // In the logic for a binary expression below we set TermCondInfo.DerefExpr
-    // to either the LHS or the RHS of the binary expression just to signal
-    // that we have visited a biary expression. If TermCondInfo.DerefExpr is
-    // nullptr here then it means we did not visit a binary expression.
-    if (!TermCondInfo.DerefExpr) {
-      // If we do not have a binary operator then we do the following
-      // normalizations:
-      // p[i] ==> p[i] != 0
-      // !p[i] ==> p[i] == 0
-      // In the above normalizations the compared value would always be null.
-      // Whether the condition tests for a null value will be determined in
-      // the logic for UO_LNot after we return from the current recursive
-      // call. So for now simply set TermCondInfo.IsCheckNull to false.
-      TermCondInfo.IsCheckNull = false;
-    }
+    // We do the following normalizations:
+    // p[i] ==> p[i] != 0
+    // !p[i] ==> p[i] == 0
+    // In the above normalizations the compared value would always be null.
+    // Whether the condition tests for a null value will be determined in
+    // the logic for UO_LNot after we return from the current recursive
+    // call.
 
     // p[i] ==> DerefExpr = p + i
     TermCondInfo.DerefExpr =
@@ -1467,81 +1448,73 @@ void BoundsWideningUtil::FillTermCondInfo(const Expr *TermCond,
   } else if (auto *BO = dyn_cast<BinaryOperator>(E)) {
     BinaryOperatorKind BinOp = BO->getOpcode();
 
-    // *p == 0, 0 != *p, etc.
-    if (BinOp == BO_EQ || BinOp == BO_NE) {
-      Expr *LHS = BO->getLHS();
-      Expr *RHS = BO->getRHS();
-
-      // 0 == *p ==> LHSVal = 0
-      // 'a' != *p ==> LHSVal = 'a'
-      // a != *p ==> LHSVal = nullptr
-      // *p == *q ==> LHSVal = nullptr;
-      Optional<llvm::APSInt> LHSVal = LHS->getIntegerConstantExpr(Ctx);
-
-      // *p == 0 ==> RHSVal = 0
-      // *p != 'a' ==> RHSVal = 'a'
-      // *p != a ==> RHSVal = nullptr
-      // *p == *q ==> RHSVal = nullptr
-      Optional<llvm::APSInt> RHSVal = RHS->getIntegerConstantExpr(Ctx);
-
-      // 1 == 2 ==> DerefExpr = nullptr
-      // *p != q ==> DerefExpr = nullptr
-      if (LHSVal == RHSVal) {
-        TermCondInfo.DerefExpr = nullptr;
-        return;
-      }
-
-      bool IsComparedValNull = false;
-
-      llvm::APSInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
-      if (LHSVal) {
-        // 0 == *p ==> IsComparedValNull = True
-        // 'a' != *p ==> IsComparedValNull = False
-        IsComparedValNull =
-          llvm::APSInt::compareValues(*LHSVal, Zero) == 0;
-
-        // We are setting DerefExpr here to the RHS just to signal to unary
-        // operator logic above that a binary expression has been visited.
-        TermCondInfo.DerefExpr = RHS;
-
-        // 0 == *p ==> FillTermCondInfo(*p);
-        // 'a' != *p ==> FillTermCondInfo(*p);
-        FillTermCondInfo(RHS, TermCondInfo);
-
-      } else if (RHSVal) {
-        // *p == 0 ==> IsComparedValNull = True
-        // *p != 'a' ==> IsComparedValNull = False
-        IsComparedValNull =
-          llvm::APSInt::compareValues(*RHSVal, Zero) == 0;
-
-        // We are setting DerefExpr here to the LHS just to signal to unary
-        // operator logic above that a binary expression has been visited.
-        TermCondInfo.DerefExpr = LHS;
-
-        // *p == 0 ==> FillTermCondInfo(*p);
-        // *p != 'a' ==> FillTermCondInfo(*p);
-        FillTermCondInfo(LHS, TermCondInfo);
-      }
-
-      // *p == 0  ==> BinOp == BO_EQ, IsComparedValNull = True,
-      //              IsCheckNull(prev value) = False
-      //          ==> IsCheckNull = True
-
-      // *p != 'a' ==> BinOp != BO_EQ, IsComparedValNull = False,
-      //               IsCheckNull(prev value) = False
-      //           ==> IsCheckNull = True
-      TermCondInfo.IsCheckNull =
-        (BinOp == BO_EQ && IsComparedValNull &&
-           !TermCondInfo.IsCheckNull) ||
-        (BinOp != BO_EQ && !IsComparedValNull &&
-           !TermCondInfo.IsCheckNull);
-
-      // (c = *p) != 0
-    } else if (BinOp == BO_Assign) {
+    // (c = *p) != 0
+    if (BinOp == BO_Assign) {
       // (c = *p) ==> RHS = *p
       Expr *RHS = BO->getRHS();
       FillTermCondInfo(RHS, TermCondInfo);
+      return;
     }
+
+    // We only handle *p == 0, 0 != *p, etc.
+    if (BinOp != BO_EQ && BinOp != BO_NE)
+      return;
+
+    Expr *LHS = BO->getLHS();
+    Expr *RHS = BO->getRHS();
+
+    // 0 == *p ==> LHSVal = 0
+    // 'a' != *p ==> LHSVal = 'a'
+    // a != *p ==> LHSVal = nullptr
+    // *p == *q ==> LHSVal = nullptr;
+    Optional<llvm::APSInt> LHSVal = LHS->getIntegerConstantExpr(Ctx);
+
+    // *p == 0 ==> RHSVal = 0
+    // *p != 'a' ==> RHSVal = 'a'
+    // *p != a ==> RHSVal = nullptr
+    // *p == *q ==> RHSVal = nullptr
+    Optional<llvm::APSInt> RHSVal = RHS->getIntegerConstantExpr(Ctx);
+
+    // 1 == 2 ==> DerefExpr = nullptr
+    // *p != q ==> DerefExpr = nullptr
+    if ((LHSVal && RHSVal) || (!LHSVal && !RHSVal))
+      return;
+
+    bool IsComparedValNull = false;
+
+    llvm::APSInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
+    if (LHSVal) {
+      // 0 == *p ==> IsComparedValNull = True
+      // 'a' != *p ==> IsComparedValNull = False
+      IsComparedValNull =
+        llvm::APSInt::compareValues(*LHSVal, Zero) == 0;
+
+      // 0 == *p ==> FillTermCondInfo(*p);
+      // 'a' != *p ==> FillTermCondInfo(*p);
+      FillTermCondInfo(RHS, TermCondInfo);
+
+    } else if (RHSVal) {
+      // *p == 0 ==> IsComparedValNull = True
+      // *p != 'a' ==> IsComparedValNull = False
+      IsComparedValNull =
+        llvm::APSInt::compareValues(*RHSVal, Zero) == 0;
+
+      // *p == 0 ==> FillTermCondInfo(*p);
+      // *p != 'a' ==> FillTermCondInfo(*p);
+      FillTermCondInfo(LHS, TermCondInfo);
+    }
+
+    // *p == 0  ==> BinOp == BO_EQ, IsComparedValNull = True,
+    //              IsCheckNull(prev value) = False
+    //          ==> IsCheckNull = True
+
+    // *p != 'a' ==> BinOp != BO_EQ, IsComparedValNull = False,
+    //               IsCheckNull(prev value) = False
+    //           ==> IsCheckNull = True
+    TermCondInfo.IsCheckNull = (BinOp == BO_EQ && IsComparedValNull &&
+                                 !TermCondInfo.IsCheckNull) ||
+                               (BinOp != BO_EQ && !IsComparedValNull &&
+                                 !TermCondInfo.IsCheckNull);
   }
 }
 
