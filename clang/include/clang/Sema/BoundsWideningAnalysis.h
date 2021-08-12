@@ -71,13 +71,12 @@ namespace clang {
     // if (*(p + i) == 0) ==> DerefExpr = p + i
     Expr *DerefExpr;
 
-    // Whether the terminating condition asserts nullness of the element. For
-    // example:
-    // if (*p == 0)   ==> DoesCondAssertNullness = True
-    // if (*p != 0)   ==> DoesCondAssertNullness = False
-    // if (*p == 'a') ==> DoesCondAssertNullness = False
-    // if (*p != 'a') ==> DoesCondAssertNullness = True
-    bool DoesCondAssertNullness;
+    // Whether the terminating condition tests for a null value. For example:
+    // if (*p == 0)   ==> IsCheckNull = True
+    // if (*p != 0)   ==> IsCheckNull = False
+    // if (*p == 'a') ==> IsCheckNull = False
+    // if (*p != 'a') ==> IsCheckNull = True
+    bool IsCheckNull;
   };
 
 } // end namespace clang
