@@ -14049,11 +14049,6 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
         // (assuming the deref expression is valid).
         return uOp->getSubExpr()->getType();
     }
-    if (ArraySubscriptExpr *arrSub = dyn_cast<ArraySubscriptExpr>(op)) {
-      // Per C99 6.5.3.2, the address of an array subscript always returns
-      // a valid result (assuming the array subscript expression is valid).
-      return arrSub->getBase()->getType();
-    }
   }
   ValueDecl *dcl = getPrimaryDecl(op);
 
@@ -14203,6 +14198,15 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
     return Context.getObjCObjectPointerType(op->getType());
 
   CheckAddressOfPackedMember(op);
+
+  if (getLangOpts().C99) {
+    // Implement C99-only parts of addressof rules.
+    if (ArraySubscriptExpr *arrSubscript = dyn_cast<ArraySubscriptExpr>(op)) {
+      // Per C99 6.5.3.2, the address of an array subscript always returns
+      // a valid result (assuming the array subscript expression is valid).
+      return arrSubscript->getBase()->getType();
+    }
+  }
 
   // Checked scopes change the types of the address-of(&) operator.
   // In a checked scope, the operator produces an array_ptr<T> except for
