@@ -239,12 +239,11 @@ public:
           for (const auto &A : E->arguments()) {
             CSetBkeyPair ArgumentConstraints;
             if (I < TargetFV->numParams()) {
-              // Remove casts to void* on polymorphic types that are used
-              // consistently.
-              const int TyIdx =
-                  TargetFV->getExternalParam(I)->getGenericIndex();
-              if (ConsistentTypeParams.find(TyIdx) !=
-                  ConsistentTypeParams.end())
+              // When the function has a void* parameter, Clang will
+              // add an implicit cast to void* here. Generating constraints
+              // will add an extraneous wild constraint to void*. This
+              // unnecessarily complicates results and root causes.
+              if (TargetFV->getExternalParam(I)->isVoidPtr())
                 ArgumentConstraints =
                     CB.getExprConstraintVars(A->IgnoreImpCasts());
               else
