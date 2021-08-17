@@ -4614,6 +4614,16 @@ namespace {
                               const EquivExprSets EquivExprs,
                               const EqualExprTy RetSameValue,
                               CheckedScopeSpecifier CSS) {
+      // In an unchecked scope, if the enclosing function has a bounds-safe
+      // interface, and the return value has not been implicitly converted
+      // to an unchecked pointer, we skip checking the return value bounds.
+      if (CSS == CheckedScopeSpecifier::CSS_Unchecked) {
+        if (FunctionDeclaration->hasBoundsSafeInterface(Context)) {
+          if (!IsBoundsSafeInterfaceAssignment(FunctionDeclaration->getReturnType(), RetExpr))
+            return;
+        }
+      }
+
       ProofFailure Cause;
       FreeVariableListTy FreeVars;
       ProofResult Result = ProveReturnBoundsValidity(RetExpr, RetExprBounds,
