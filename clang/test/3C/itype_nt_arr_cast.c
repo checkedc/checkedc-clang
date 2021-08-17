@@ -4,14 +4,6 @@
 // RUN: 3c -base-dir=%S -alltypes -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 // RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s --
 // RUN: 3c -base-dir=%t.checked -alltypes %t.checked/itype_nt_arr_cast.c -- | diff %t.checked/itype_nt_arr_cast.c -
-// XFAIL: *
-
-// TODO: checkedc-clang issue 1147. This test fails due to the compiler
-// checking that the inferred bounds for the return value of a function
-// imply the declared bounds for the function. The following functions in
-// this test file return expressions with unknown bounds, which do not imply
-// the function's declared bounds:
-// 1. fn1
 
 char *fn1() {
 //CHECK_ALL: char *fn1(void) : itype(_Nt_array_ptr<char>) {
