@@ -11,9 +11,9 @@
 // imply the declared bounds for the function. The following functions in
 // this test file return expressions with unknown bounds, which do not imply
 // the function's declared bounds:
-// 1. test3
-// 2. test7
-// 3. test8
+// 1. test3 (in unchecked scope - no error)
+// 2. test7 (in checked scope - this result in a compiler error)
+// 3. test8 (in unchecked scope - no error)
 
 // Tests for issue 392. When rewriting function prototypes sometimes code
 // falling between the start of the definition and the end of the prototype
