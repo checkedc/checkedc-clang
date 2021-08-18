@@ -14203,6 +14203,11 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
 
   if (getLangOpts().C99) {
     // Implement C99-only parts of addressof rules.
+    // This logic should be near the end of this method (as opposed to the
+    // C99-only rules for addressof dereferences above) so that the necessary
+    // checks can be made for addressof array subscript expressions (taking
+    // the address of a register variable, taking the address of a vector
+    // element, etc.).
     if (ArraySubscriptExpr *arrSubscript = dyn_cast<ArraySubscriptExpr>(op)) {
       // Per C99 6.5.3.2, the address of an array subscript always returns
       // a valid result (assuming the array subscript expression is valid).
