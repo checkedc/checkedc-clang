@@ -14049,6 +14049,8 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
         // (assuming the deref expression is valid).
         return uOp->getSubExpr()->getType();
     }
+    // Technically, there should be a check for array subscript
+    // expressions here, but the result of one is always an lvalue anyway.
   }
   ValueDecl *dcl = getPrimaryDecl(op);
 
