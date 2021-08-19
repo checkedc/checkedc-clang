@@ -4703,13 +4703,14 @@ namespace {
                                         CheckedScopeSpecifier CSS,
                                         CheckingState &State) {
       // Adjust SameValue to account for any uses of LValue in PrevSameValue.
-      // If the original value uses the value of V, then any expressions that
-      // use the value of V should be removed from SameValue.
+      // If the original value uses the value of LValue, then any expressions
+      // that use the value of LValue should be removed from SameValue.
       // For example, in the assignment i = i + 2, where the original value
       // of i is i - 2, the expression i + 2 in SameValue should be removed
       // rather than replaced with (i - 2) + 2.
-      // Otherwise, SameValue would contain (i - 2) + 2 and i, which is a
-      // tautology.
+      // Otherwise, EquivExprs would eventually contain (i - 2) + 2 and i,
+      // which is a tautology.
+      bool ModifiedSameValue = false;
       const ExprSetTy PrevSameValue = State.SameValue;
       State.SameValue.clear();
       Expr *OriginalSameValueVal = OriginalValueUsesLValue ? nullptr : OriginalValue;
@@ -4717,11 +4718,13 @@ namespace {
         Expr *E = *I;
         Expr *AdjustedE = BoundsUtil::ReplaceLValue(S, E, LValue,
                                                     OriginalSameValueVal, CSS);
+        if (!AdjustedE)
+          ModifiedSameValue = true;
         // Don't add duplicate expressions to SameValue.
         if (AdjustedE && !EqualExprsContainsExpr(State.SameValue, AdjustedE))
           State.SameValue.push_back(AdjustedE);
       }
-      return State.SameValue.size() == PrevSameValue.size();
+      return !ModifiedSameValue;
     }
 
     // RecordEqualityWithTarget updates the checking state to record equality
