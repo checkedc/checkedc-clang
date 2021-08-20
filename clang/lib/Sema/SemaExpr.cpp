@@ -14201,18 +14201,13 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
 
   CheckAddressOfPackedMember(op);
 
-  if (getLangOpts().C99) {
-    // Implement C99-only parts of addressof rules.
-    // This logic should be near the end of this method (as opposed to the
-    // C99-only rules for addressof dereferences above) so that the necessary
-    // checks can be made for addressof array subscript expressions (taking
-    // the address of a register variable, taking the address of a vector
-    // element, etc.).
-    if (ArraySubscriptExpr *arrSubscript = dyn_cast<ArraySubscriptExpr>(op)) {
-      // Per C99 6.5.3.2, the address of an array subscript always returns
-      // a valid result (assuming the array subscript expression is valid).
+  // For Checked C, &e1[e2] should be a pointer to T if e1 or e2 is a pointer
+  // to T, regardless of checked scope. This avoids the unexpected result of
+  // &e1[e2] having a different type than e1 or e2, which could otherwise
+  // happen in an unchecked scope if e1 or e2 is a checked pointer.
+  if (getLangOpts().CheckedC) {
+    if (ArraySubscriptExpr *arrSubscript = dyn_cast<ArraySubscriptExpr>(op))
       return arrSubscript->getBase()->getType();
-    }
   }
 
   // Checked scopes change the types of the address-of(&) operator.
