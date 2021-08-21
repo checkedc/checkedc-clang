@@ -816,3 +816,24 @@ void f96(_Nt_array_ptr<char> p : bounds(p, (p + (len + 4)) + 4), int len) {
                                                               // expected-note {{(expanded) declared bounds are 'bounds(v, (v + (1 + len)) + 2)'}} \
                                                               // expected-note {{(expanded) inferred bounds are 'bounds(p, (p + (len + 4)) + 4)'}}
 }
+
+//
+// Test diagnostic behavior for bounds checking across multiple assignments.
+//
+
+void f97(_Array_ptr<int> p : count(i), // expected-note 4 {{(expanded) declared bounds are 'bounds(p, p + i)'}}
+         unsigned int i, 
+         _Array_ptr<int> unknwn1,
+         _Array_ptr<int> unknwn2) {
+  p = unknwn1, p = p; // expected-error {{inferred bounds for 'p' are unknown after assignment}} \
+                      // expected-note {{assigned expression 'unknwn1' with unknown bounds to 'p'}}
+
+  p = unknwn1, p++; // expected-error {{inferred bounds for 'p' are unknown after assignment}} \
+                    // expected-note {{assigned expression 'unknwn1' with unknown bounds to 'p'}}
+
+  p = unknwn1, p = unknwn2; // expected-error {{inferred bounds for 'p' are unknown after assignment}} \
+                            // expected-note {{assigned expression 'unknwn1' with unknown bounds to 'p'}}
+
+  p++, i = 0, p = unknwn1; // expected-error {{inferred bounds for 'p' are unknown after assignment}} \
+                           // expected-note {{lost the value of the expression 'i' which is used in the (expanded) inferred bounds 'bounds(p - 1, p - 1 + i)' of 'p'}}
+}
