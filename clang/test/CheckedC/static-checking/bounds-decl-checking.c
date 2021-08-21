@@ -837,3 +837,11 @@ void f97(_Array_ptr<int> p : count(i), // expected-note 4 {{(expanded) declared 
   p++, i = 0, p = unknwn1; // expected-error {{inferred bounds for 'p' are unknown after assignment}} \
                            // expected-note {{lost the value of the expression 'i' which is used in the (expanded) inferred bounds 'bounds(p - 1, p - 1 + i)' of 'p'}}
 }
+
+void f98(_Array_ptr<int> p : count(i), unsigned int i) { // expected-note 2 {{(expanded) declared bounds are 'bounds(p, p + i)'}}
+  i++, p += 2; // expected-warning {{cannot prove declared bounds for 'p' are valid after assignment}} \
+               // expected-note {{(expanded) inferred bounds are 'bounds(p - 2, p - 2 + i)'}}
+
+  p += 2, i++; // expected-warning {{cannot prove declared bounds for 'p' are valid after increment}} \
+               // expected-note {{(expanded) inferred bounds are 'bounds(p - 2, p - 2 + i - 1U)'}}
+}
