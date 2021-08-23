@@ -816,3 +816,55 @@ void f96(_Nt_array_ptr<char> p : bounds(p, (p + (len + 4)) + 4), int len) {
                                                               // expected-note {{(expanded) declared bounds are 'bounds(v, (v + (1 + len)) + 2)'}} \
                                                               // expected-note {{(expanded) inferred bounds are 'bounds(p, (p + (len + 4)) + 4)'}}
 }
+
+//
+// Test validating bounds for unchecked pointer with bounds-safe interfaces
+// in unchecked and checked scopes.
+//
+
+_Unchecked extern int *get_unchecked(_Array_ptr<int> a);
+extern _Array_ptr<int> get_checked(unsigned int i) : count(i);
+
+_Unchecked void f97(int *p : count(i), // expected-note 7 {{(expanded) declared bounds are 'bounds(p, p + i)'}}
+                    int *q : bounds(unknown),
+                    _Array_ptr<int> r,
+                    unsigned int i) {
+  // For statements where a checked pointer is not assigned to p, do not
+  // validate the bounds of p.
+  i = 0;
+  p++;
+  p = q;
+  q = r, p = q;
+  p = get_unchecked(r);
+  p += i;
+
+  // The type of the RHS expression p + r is int *, so a checked pointer is not
+  // assigned to p here.
+  p -= (_Array_ptr<int>)q; // expected-warning {{incompatible integer to pointer conversion assigning to 'int *' from 'long long'}}
+
+  // For statements where a checked pointer is assigned to p, validate the
+  // bounds of p.
+  p = (_Array_ptr<int>)(p - q); // expected-error {{inferred bounds for 'p' are unknown after assignment}} \
+                                // expected-note {{assigned expression '(_Array_ptr<int>)(p - q)' with unknown bounds to 'p'}}
+
+  p = r; // expected-error {{inferred bounds for 'p' are unknown after assignment}} \
+         // expected-note {{assigned expression 'r' with unknown bounds to 'p'}}
+
+  p = (_Array_ptr<int>)q; // expected-error {{inferred bounds for 'p' are unknown after assignment}} \
+                          // expected-note {{assigned expression '(_Array_ptr<int>)q' with unknown bounds to 'p'}}
+
+  p = get_checked(i), i++; // expected-warning {{cannot prove declared bounds for 'p' are valid after increment}} \
+                           // expected-note {{(expanded) inferred bounds are 'bounds(value of get_checked(i), value of get_checked(i) + i - 1U)'}}
+
+  p = (_Array_ptr<int>)p, --p; // expected-warning {{cannot prove declared bounds for 'p' are valid after decrement}} \
+                               // expected-note {{'bounds((int *)p + 1, (int *)p + 1 + i)'}}
+  
+  // In a checked scope, always validate the bounds of p.
+  _Checked {
+    i = 1; // expected-error {{inferred bounds for 'p' are unknown after assignment}} \
+           // expected-note {{lost the value of the expression 'i' which is used in the (expanded) inferred bounds 'bounds(p, p + i)' of 'p'}}
+
+    ++p; // expected-warning {{cannot prove declared bounds for 'p' are valid after increment}} \
+         // expected-note {{(expanded) inferred bounds are 'bounds(p - 1, p - 1 + i)'}}
+  }
+}
