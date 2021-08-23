@@ -4333,6 +4333,8 @@ namespace {
           this->S.GetLValueDeclaredBounds(A->GetRepresentative(), CSS);
         if (!DeclaredBounds || DeclaredBounds->isUnknown())
           continue;
+        if (SkipBoundsValidation(A, CSS, State))
+          continue;
         if (ObservedBounds->isUnknown())
           DiagnoseUnknownObservedBounds(S, A, DeclaredBounds, State);
         else {
@@ -4349,6 +4351,33 @@ namespace {
                               &EquivExprs, CSS, Block, DiagnoseObservedBounds);
         }
       }
+    }
+
+    // SkipBoundsValidation returns true if the observed bounds of A should
+    // not be validated after the current top-level statement.
+    //
+    // The bounds of A should not be validated if the current statement is
+    // in an unchecked scope, and A represents lvalue expressions that:
+    // 1. Have unchecked type (i.e. their declared bounds were specified using
+    //    a bounds-safe interface), and:
+    // 2. Were not assigned a checked pointer at any point in the current
+    //    top-level statement.
+    bool SkipBoundsValidation(const AbstractSet *A, CheckedScopeSpecifier CSS,
+                              CheckingState State) {
+      if (CSS != CheckedScopeSpecifier::CSS_Unchecked)
+        return false;
+
+      if (A->GetRepresentative()->getType()->isCheckedPointerType() ||
+          A->GetRepresentative()->getType()->isCheckedArrayType())
+        return false;
+
+      // State.LValuesAssignedChecked contains AbstractSets with unchecked type
+      // that were assigned a checked pointer at some point in the current
+      // statement. If A belongs to this set, we must validate the bounds of A.
+      if (State.LValuesAssignedChecked.contains(A))
+        return false;
+
+      return true;
     }
 
     // DiagnoseUnknownObservedBounds emits an error message for an AbstractSet
