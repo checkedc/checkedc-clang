@@ -825,7 +825,7 @@ void f96(_Nt_array_ptr<char> p : bounds(p, (p + (len + 4)) + 4), int len) {
 _Unchecked extern int *get_unchecked(_Array_ptr<int> a);
 extern _Array_ptr<int> get_checked(unsigned int i) : count(i);
 
-_Unchecked void f97(int *p : count(i), // expected-note 7 {{(expanded) declared bounds are 'bounds(p, p + i)'}}
+_Unchecked void f97(int *p : count(i), // expected-note 8 {{(expanded) declared bounds are 'bounds(p, p + i)'}}
                     int *q : bounds(unknown),
                     _Array_ptr<int> r,
                     unsigned int i) {
@@ -858,6 +858,11 @@ _Unchecked void f97(int *p : count(i), // expected-note 7 {{(expanded) declared 
 
   p = (_Array_ptr<int>)p, --p; // expected-warning {{cannot prove declared bounds for 'p' are valid after decrement}} \
                                // expected-note {{'bounds((int *)p + 1, (int *)p + 1 + i)'}}
+
+  int arr _Checked[3] : count(3) = {0, 1, 2};
+  p = arr; // expected-error {{it is not possible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after assignment}} \
+           // expected-note {{the declared upper bounds use the variable 'i' and there is no relational information involving 'i' and any of the expressions used by the inferred upper bounds}} \
+           // expected-note {{(expanded) inferred bounds are 'bounds(arr, arr + 3)'}}
   
   // In a checked scope, always validate the bounds of p.
   _Checked {
