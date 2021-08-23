@@ -579,6 +579,17 @@ namespace {
       // then be used to validate the bounds context.
       llvm::DenseMap<Expr *, Expr *> TargetSrcEquality;
 
+      // LValuesAssignedChecked is a set of AbstractSets containing lvalue
+      // expressions with unchecked pointer type that have been assigned an
+      // expression with checked pointer type at some point during the current
+      // top-level statement (if the statement occurs in an unchecked scope).
+      // These AbstractSets should have their bounds validated during
+      // ValidateBoundsContext. In an unchecked scope, AbstractSets containing
+      // lvalue expressions with unchecked pointer type that have not been
+      // assigned an expression with checked pointer type during the current
+      // statement should not have their bounds validated.
+      AbstractSetSetTy LValuesAssignedChecked;
+
       // Resets the checking state after checking a top-level CFG statement.
       void Reset() {
         SameValue.clear();
@@ -586,6 +597,7 @@ namespace {
         UnknownSrcBounds.clear();
         BlameAssignments.clear();
         TargetSrcEquality.clear();
+        LValuesAssignedChecked.clear();
       }
   };
 }
@@ -4593,6 +4605,21 @@ namespace {
       if (HasTargetBounds) {
         LValueAbstractSet = AbstractSetMgr.GetOrCreateAbstractSet(LValue);
         State.ObservedBounds[LValueAbstractSet] = SrcBounds;
+
+        // In an unchecked scope, if an expression with checked pointer type
+        // is assigned to an unchecked pointer LValue (whose bounds are
+        // declared via a bounds-safe interface), bounds validation should
+        // validate the bounds of LValue after the current top-level statement.
+        // For unchecked pointer LValues that were not assigned a checked
+        // pointer expression during the current top-level statement, bounds
+        // validation should skip validating the bounds of LValue.
+        if (CSS == CheckedScopeSpecifier::CSS_Unchecked) {
+          if (!LValue->getType()->isCheckedPointerType() &&
+              !LValue->getType()->isCheckedArrayType()) {
+            if (IsBoundsSafeInterfaceAssignment(LValue->getType(), Src))
+              State.LValuesAssignedChecked.insert(LValueAbstractSet);
+          }
+        }
       }
 
       // If Src initially has unknown bounds (before making any lvalue
