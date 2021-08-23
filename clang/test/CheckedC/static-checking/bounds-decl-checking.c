@@ -760,9 +760,9 @@ void f91(_Array_ptr<int> p : count(1)) _Unchecked { // expected-note {{(expanded
        // expected-note {{(expanded) inferred bounds are 'bounds(p - 1, p - 1 + 1)'}}
 }
 
-void f92(int *p : count(1)) _Unchecked { // expected-note {{(expanded) declared bounds are 'bounds(p, p + 1)'}}
- ++p; // expected-warning {{cannot prove declared bounds for 'p' are valid after increment}} \
-      // expected-note {{(expanded) inferred bounds are 'bounds(p - 1, p - 1 + 1)'}}
+_Unchecked void f92(_Array_ptr<int> p : bounds(q, q + 1), int *q) { // expected-note {{(expanded) declared bounds are 'bounds(q, q + 1)'}}
+ ++q; // expected-warning {{cannot prove declared bounds for 'p' are valid after increment}} \
+      // expected-note {{(expanded) inferred bounds are 'bounds(q - 1, q - 1 + 1)'}}
 }
 
 //
