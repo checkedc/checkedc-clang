@@ -71,7 +71,7 @@ void f2(_Array_ptr<int> p : count(5)) {
 // CHECK: |     |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <LValueToRValue>
 // CHECK: |     | `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
 // CHECK: |     `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 5
-// CHECK: `-UnaryOperator {{0x[0-9a-f]+}} {{.*}} 'int *' prefix '&'
+// CHECK: `-UnaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' prefix '&'
 // CHECK:   `-ArraySubscriptExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue
 // CHECK:     |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <LValueToRValue>
 // CHECK:     | `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
