@@ -872,4 +872,17 @@ _Unchecked void f97(int *p : count(i), // expected-note 8 {{(expanded) declared 
     ++p; // expected-warning {{cannot prove declared bounds for 'p' are valid after increment}} \
          // expected-note {{(expanded) inferred bounds are 'bounds(p - 1, p - 1 + i)'}}
   }
+
+  // Non-pointer-typed values with declared bounds do not have their bounds
+  // validated in unchecked scopes.
+  short int t1 : byte_count(2) = (short int)arr; // expected-warning {{cast to smaller integer type 'short' from '_Array_ptr<int>'}}
+  t1 = (short int)r; // expected-warning {{cast to smaller integer type 'short' from '_Array_ptr<int>'}}
+
+  // Non-pointer-typed values with declared bounds have their bounds
+  // validated in checked scopes.
+  _Checked {
+    short int t2 : byte_count(2) = (short int)r; // expected-error {{inferred bounds for 't2' are unknown after initialization}} \
+                                                 // expected-note {{(expanded) declared bounds are 'bounds((_Array_ptr<char>)t2, (_Array_ptr<char>)t2 + 2)'}} \
+                                                 // expected-warning {{cast to smaller integer type 'short' from '_Array_ptr<int>'}}
+  }
 }
