@@ -57,9 +57,11 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *CE) {
       Expr *ArgExpr = A;
       if (FD && PIdx < FD->getNumParams()) {
         const int TyVarIdx = FV->getExternalParam(PIdx)->getGenericIndex();
-        if (TypeVars.find(TyVarIdx) != TypeVars.end() &&
-            TypeVars[TyVarIdx] != nullptr)
-          TypeVar = TypeVars[TyVarIdx];
+        // Check if local type vars are available
+        if (TypeVars.find(TyVarIdx) != TypeVars.end()) {
+          TypeVar = TypeVars[TyVarIdx].getConstraint(
+                  Info.getConstraints().getVariables());
+        }
       }
       if (TypeVar != nullptr)
         ArgExpr = ArgExpr->IgnoreImpCasts();

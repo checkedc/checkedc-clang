@@ -59,7 +59,7 @@ PointerVariableConstraint *PointerVariableConstraint::getWildPVConstraint(
   // number of atoms it needs to have. Fortunately, it's already WILD, so any
   // constraint made with it will force the other constraint to WILD, safely
   // handling assignment between incompatible pointer depths.
-  WildPVC->GenericIndex = 0;
+  WildPVC->InferredGenericIndex = 0;
 
   return WildPVC;
 }
@@ -127,7 +127,9 @@ PointerVariableConstraint::PointerVariableConstraint(
     SrcHasItype(Ot->SrcHasItype), ItypeStr(Ot->ItypeStr),
     PartOfFuncPrototype(Ot->PartOfFuncPrototype), Parent(Ot),
     BoundsAnnotationStr(Ot->BoundsAnnotationStr),
-    GenericIndex(Ot->GenericIndex), IsZeroWidthArray(Ot->IsZeroWidthArray),
+    SourceGenericIndex(Ot->SourceGenericIndex),
+    InferredGenericIndex(Ot->InferredGenericIndex),
+    IsZeroWidthArray(Ot->IsZeroWidthArray),
     IsTypedef(Ot->IsTypedef), TDT(Ot->TDT), TypedefString(Ot->TypedefString),
     TypedefLevelInfo(Ot->TypedefLevelInfo), IsVoidPtr(Ot->IsVoidPtr) {
   // These are fields of the super class Constraint Variable
@@ -140,15 +142,15 @@ PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
                                                      ProgramInfo &I,
                                                      const ASTContext &C)
     : PointerVariableConstraint(D->getType(), D, std::string(D->getName()), I,
-                                C, nullptr, -1, false, D->getTypeSourceInfo()) {
-}
+                                C, nullptr, -1, false, false,
+                                D->getTypeSourceInfo()) {}
 
 PointerVariableConstraint::PointerVariableConstraint(TypedefDecl *D,
                                                      ProgramInfo &I,
                                                      const ASTContext &C)
     : PointerVariableConstraint(D->getUnderlyingType(), nullptr,
                                 D->getNameAsString(), I, C, nullptr, -1, false,
-                                D->getTypeSourceInfo()) {}
+                                false, D->getTypeSourceInfo()) {}
 
 PointerVariableConstraint::PointerVariableConstraint(Expr *E, ProgramInfo &I,
                                                      const ASTContext &C)
@@ -202,6 +204,7 @@ private:
 PointerVariableConstraint::PointerVariableConstraint(
     const QualType &QT, DeclaratorDecl *D, std::string N, ProgramInfo &I,
     const ASTContext &C, std::string *InFunc, int ForceGenericIndex,
+    bool PotentialGeneric,
     bool VarAtomForChecked, TypeSourceInfo *TSInfo, const QualType &ITypeT)
     : ConstraintVariable(ConstraintVariable::PointerVariable,
                          tyToStr(QT.getTypePtr()), N),
@@ -296,9 +299,9 @@ PointerVariableConstraint::PointerVariableConstraint(
   TypedefLevelInfo = TypedefLevelFinder::find(QTy);
 
   if (ForceGenericIndex >= 0) {
-    GenericIndex = ForceGenericIndex;
+    SourceGenericIndex = ForceGenericIndex;
   } else {
-    GenericIndex = -1;
+    SourceGenericIndex = -1;
     // This makes a lot of assumptions about how the AST will look, and limits
     // it to one level.
     // TODO: Enhance TypedefLevelFinder to get this info.
@@ -307,10 +310,11 @@ PointerVariableConstraint::PointerVariableConstraint(
       if (auto *TypdefTy = dyn_cast_or_null<TypedefType>(PtrTy)) {
         const auto *Tv = dyn_cast<TypeVariableType>(TypdefTy->desugar());
         if (Tv)
-          GenericIndex = Tv->GetIndex();
+          SourceGenericIndex = Tv->GetIndex();
       }
     }
   }
+  InferredGenericIndex = SourceGenericIndex;
 
   bool VarCreated = false;
   bool IsArr = false;
@@ -506,11 +510,17 @@ PointerVariableConstraint::PointerVariableConstraint(
   // Get a string representing the type without pointer and array indirection.
   BaseType = extractBaseType(D, TSInfo, QT, Ty, C);
 
-  IsVoidPtr = isTypeHasVoid(QT);
-  bool IsWild = !getIsGeneric() && (isVarArgType(BaseType) || IsVoidPtr);
+  // check if the type is some depth of pointers to void
+  // TODO: is this what the field should mean? do we want to include other
+  // indirection options like arrays?
+  // https://github.com/correctcomputation/checkedc-clang/issues/648
+  IsVoidPtr = QT->isPointerType() && isTypeHasVoid(QT);
+  // varargs are always wild, as are void pointers that are not generic
+  bool IsWild = isVarArgType(BaseType) ||
+      (!(PotentialGeneric || isGeneric()) && IsVoidPtr);
   if (IsWild) {
     std::string Rsn =
-        IsVoidPtr ? "Default void* type" : "Default Var arg list type";
+        IsVoidPtr ? VOID_TYPE_REASON : "Default Var arg list type";
     // TODO: Github issue #61: improve handling of types for variable arguments.
     for (const auto &V : Vars)
       if (VarAtom *VA = dyn_cast<VarAtom>(V))
@@ -754,6 +764,17 @@ PointerVariableConstraint::mkString(Constraints &CS,
     EmittedName = true;
   uint32_t TypeIdx = 0;
 
+  // If we've set a GenericIndex for void, it means we're converting it into
+  // a generic function so give it the default generic type name.
+  // Add more type names below if we expect to use a lot.
+  std::string BaseTypeName = BaseType;
+  if (InferredGenericIndex > -1 && isVoidPtr() &&
+      isSolutionChecked(CS.getVariables())) {
+    assert(InferredGenericIndex < 3
+           && "Trying to use an unexpected type variable name");
+    BaseTypeName = std::begin({"T","U","V"})[InferredGenericIndex];
+  }
+
   auto It = Vars.begin();
   auto I = 0;
   // Skip over first pointer level if only emitting pointee string.
@@ -781,9 +802,9 @@ PointerVariableConstraint::mkString(Constraints &CS,
 
     Atom::AtomKind K = C->getKind();
 
-    // If this is not an itype
+    // If this is not an itype or generic
     // make this wild as it can hold any pointer type.
-    if (!ForItype && BaseType == "void")
+    if (!ForItype && InferredGenericIndex == -1 && isVoidPtr())
       K = Atom::A_Wild;
 
     if (PrevArr && ArrSizes.at(TypeIdx).first != O_SizedArray && !EmittedName) {
@@ -851,9 +872,9 @@ PointerVariableConstraint::mkString(Constraints &CS,
         getQualString(TypeIdx, FptrInner);
       } else {
         if (!EmittedBase) {
-          assert(!BaseType.empty());
+          assert(!BaseTypeName.empty());
           EmittedBase = true;
-          Ss << BaseType << " ";
+          Ss << BaseTypeName << " ";
         }
         Ss << "*";
         getQualString(TypeIdx, Ss);
@@ -907,7 +928,7 @@ PointerVariableConstraint::mkString(Constraints &CS,
       auto Name = TypedefLevelInfo.TypedefName;
       Ss << Buf.str() << Name;
     } else {
-      Ss << BaseType;
+      Ss << BaseTypeName;
     }
   }
 
@@ -1013,6 +1034,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(
     auto PSL = PersistentSourceLoc::mkPSL(D, *TmpCtx);
     FileName = PSL.getFileName();
     IsFunctionPtr = false;
+    TypeParams = FD->getNumTypeVars();
   }
 
   bool ReturnHasItype = false;
@@ -1057,11 +1079,9 @@ FunctionVariableConstraint::FunctionVariableConstraint(
         ParmVD = FTL.getParam(J);
       std::string PName = ParmVD ? ParmVD->getName().str() : "";
 
-      auto ParamVar = FVComponentVariable(QT, ITypeT, ParmVD, PName, I, Ctx, &N,
-                                          ParamHasItype);
-      int GenericIdx = ParamVar.ExternalConstraint->getGenericIndex();
-      if (GenericIdx >= 0)
-        TypeParams = std::max(TypeParams, GenericIdx + 1);
+      auto ParamVar =
+          FVComponentVariable(QT, ITypeT, ParmVD, PName, I, Ctx,
+                              &N, true, ParamHasItype);
       ParamVars.push_back(ParamVar);
     }
 
@@ -1075,11 +1095,45 @@ FunctionVariableConstraint::FunctionVariableConstraint(
   }
 
   // ConstraintVariable for the return.
-  ReturnVar =
-      FVComponentVariable(RT, RTIType, D, RETVAR, I, Ctx, &N, ReturnHasItype);
-  int GenericIdx = ReturnVar.ExternalConstraint->getGenericIndex();
-  if (GenericIdx >= 0)
-    TypeParams = std::max(TypeParams, GenericIdx + 1);
+  ReturnVar = FVComponentVariable(RT, RTIType, D, RETVAR, I, Ctx,
+                                  &N, true, ReturnHasItype);
+
+  // Locate the void* params that were not marked wild above
+  // to either do so or use as generics
+  std::vector<int> Voids;
+  auto Ext = ReturnVar.ExternalConstraint;
+  if(Ext->isVoidPtr() && !Ext->isGeneric()) {
+    Voids.push_back(-1);
+  }
+  for(unsigned i=0; i < ParamVars.size();i++) {
+    auto Ext = ParamVars[i].ExternalConstraint;
+    if(Ext->isVoidPtr() && !Ext->isGeneric()) {
+      Voids.push_back(i);
+    }
+  }
+  // Strategy: If there's one void*, turn this into a generic function.
+  // Otherwise, we need to constraint the void*'s to wild
+  // Exclude unwritables, external functions,
+  // function pointers, and source generics for now
+  // Also exclude params that are checked or have itypes
+  bool ConvertFunc = canWrite(FileName) && hasBody() && !IsFunctionPtr &&
+                        TypeParams == 0 && Voids.size() == 1;
+  bool DidConvert = false;
+  auto &CS = I.getConstraints();
+  for(int idx : Voids) {
+    FVComponentVariable *FVCV = idx == -1 ? &ReturnVar : &ParamVars[idx];
+    auto Ext = FVCV->ExternalConstraint;
+    if (ConvertFunc && !Ext->isOriginallyChecked() && !Ext->srcHasItype() &&
+        Ext->getCvars().size() == 1) {
+      FVCV->setGenericIndex(0);
+      DidConvert = true;
+    } else {
+      if (!Ext->isOriginallyChecked()) {
+        Ext->constrainToWild(CS, VOID_TYPE_REASON);
+      }
+    }
+  }
+  if (DidConvert) TypeParams = 1;
 }
 
 void FunctionVariableConstraint::constrainToWild(Constraints &CS,
@@ -1287,6 +1341,9 @@ bool PointerVariableConstraint::anyChanges(const EnvironmentMap &E) const {
     PtrChanged |= SrcType != SolutionType;
   }
 
+  // also check if we've make this generic
+  PtrChanged |= isGenericChanged();
+
   if (FV)
     PtrChanged |= FV->anyChanges(E);
 
@@ -1417,7 +1474,7 @@ bool PointerVariableConstraint::solutionEqualTo(Constraints &CS,
   if (CV != nullptr) {
     if (const auto *PV = dyn_cast<PVConstraint>(CV)) {
       auto &OthCVars = PV->Vars;
-      if (getIsGeneric() || PV->getIsGeneric() ||
+      if (isGeneric() || PV->isGeneric() ||
           Vars.size() == OthCVars.size()) {
         Ret = true;
 
@@ -1800,8 +1857,8 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
         // Only generate constraint if LHS is not a base type.
         if (CLHS.size() != 0) {
           if (CLHS.size() == CRHS.size() ||
-              (CLHS.size() < CRHS.size() && PCLHS->getIsGeneric()) ||
-              (CLHS.size() > CRHS.size() && PCRHS->getIsGeneric())) {
+              (CLHS.size() < CRHS.size() && PCLHS->isGeneric()) ||
+              (CLHS.size() > CRHS.size() && PCRHS->isGeneric())) {
             unsigned Min = std::min(CLHS.size(), CRHS.size());
             for (unsigned N = 0; N < Min; N++) {
               Atom *IAtom = PCLHS->getAtom(N, CS);
@@ -1932,8 +1989,10 @@ void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
   if (!From->BoundsAnnotationStr.empty())
     BoundsAnnotationStr = From->BoundsAnnotationStr;
 
-  if (From->GenericIndex >= 0)
-    GenericIndex = From->GenericIndex;
+  if (From->SourceGenericIndex >= 0) {
+    SourceGenericIndex = From->SourceGenericIndex;
+    InferredGenericIndex = From->InferredGenericIndex;
+  }
   if (FV) {
     assert(From->FV);
     FV->mergeDeclaration(From->FV, Info, ReasonFailed);
@@ -2122,14 +2181,18 @@ FVComponentVariable::FVComponentVariable(const QualType &QT,
                                          clang::DeclaratorDecl *D,
                                          std::string N, ProgramInfo &I,
                                          const ASTContext &C,
-                                         std::string *InFunc, bool HasItype) {
+                                         std::string *InFunc,
+                                         bool PotentialGeneric,
+                                         bool HasItype) {
   ExternalConstraint =
-      new PVConstraint(QT, D, N, I, C, InFunc, -1, HasItype, nullptr, ITypeT);
+      new PVConstraint(QT, D, N, I, C, InFunc, -1, PotentialGeneric, HasItype,
+                       nullptr, ITypeT);
   if (!HasItype && QT->isVoidPointerType()) {
     InternalConstraint = ExternalConstraint;
   } else {
     InternalConstraint =
-        new PVConstraint(QT, D, N, I, C, InFunc, -1, HasItype, nullptr, ITypeT);
+        new PVConstraint(QT, D, N, I, C, InFunc, -1, PotentialGeneric, HasItype,
+                         nullptr, ITypeT);
     bool EquateChecked = QT->isVoidPointerType();
     linkInternalExternal(I, EquateChecked);
   }
@@ -2149,7 +2212,7 @@ void FVComponentVariable::equateWithItype(ProgramInfo &I,
                                           PersistentSourceLoc *PSL) const {
   Constraints &CS = I.getConstraints();
   const std::string ReasonUnchangeable2 =
-      (ReasonUnchangeable.empty() && ExternalConstraint->getIsGeneric())
+      (ReasonUnchangeable.empty() && ExternalConstraint->isGeneric())
           ? "Internal constraint for generic function declaration, "
             "for which 3C currently does not support re-solving."
           : ReasonUnchangeable;

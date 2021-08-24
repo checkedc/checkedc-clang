@@ -230,7 +230,7 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
     if (FD) {
       if (Info.hasTypeParamBindings(C, Context))
         for (auto Entry : Info.getTypeParamBindings(C, Context))
-          Wild |= (Entry.second == nullptr);
+          Wild |= !Entry.second.isConsistent();
       auto Type = FD->getReturnType();
       Wild |= (!(FD->hasPrototype() || FD->doesThisDeclarationHaveABody())) ||
               containsUncheckedPtr(Type);

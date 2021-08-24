@@ -440,14 +440,14 @@ bool ProgramInfo::link() {
       const FVComponentVariable *Ret = G->getCombineReturn();
       Ret->getInternal()->constrainToWild(CS, Rsn);
       if (!Ret->getExternal()->srcHasItype() &&
-          !Ret->getExternal()->getIsGeneric())
+          !Ret->getExternal()->isGeneric())
         Ret->getExternal()->constrainToWild(CS, Rsn);
 
       for (unsigned I = 0; I < G->numParams(); I++) {
         const FVComponentVariable *Param = G->getCombineParam(I);
         Param->getInternal()->constrainToWild(CS, Rsn);
         if (!Param->getExternal()->srcHasItype() &&
-            !Param->getExternal()->getIsGeneric())
+            !Param->getExternal()->isGeneric())
           Param->getExternal()->constrainToWild(CS, Rsn);
       }
     }
@@ -476,10 +476,10 @@ bool ProgramInfo::link() {
 
       if (!G->hasBody()) {
 
-        if (!G->getExternalReturn()->getIsGeneric())
+        if (!G->getExternalReturn()->isGeneric())
           G->getExternalReturn()->constrainToWild(CS, Rsn);
         for (unsigned I = 0; I < G->numParams(); I++)
-          if (!G->getExternalParam(I)->getIsGeneric())
+          if (!G->getExternalParam(I)->isGeneric())
             G->getExternalParam(I)->constrainToWild(CS, Rsn);
       }
     }
@@ -577,31 +577,6 @@ ProgramInfo::insertNewFVConstraint(FunctionDecl *FD, FVConstraint *NewC,
   return (*Map)[FuncName];
 }
 
-void ProgramInfo::specialCaseVarIntros(ValueDecl *D, ASTContext *Context) {
-  // Special-case for va_list, constrain to wild.
-  bool IsGeneric = false;
-  PVConstraint *PVC = nullptr;
-
-  CVarOption CVOpt = getVariable(D, Context);
-  if (CVOpt.hasValue()) {
-    ConstraintVariable &CV = CVOpt.getValue();
-    PVC = dyn_cast<PVConstraint>(&CV);
-  }
-
-  if (isa<ParmVarDecl>(D))
-    IsGeneric = PVC && PVC->getIsGeneric();
-  bool IsVarArg = isVarArgType(D->getType().getAsString());
-  bool IsVoidPtr = hasVoidType(D) && !IsGeneric;
-  if (IsVarArg || IsVoidPtr) {
-    // Set the reason for making this variable WILD.
-    PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(D, *Context);
-    std::string Rsn = IsVoidPtr ? "Variable type void."
-                                : "Variable type is va_list.";
-    if (PVC != nullptr)
-      PVC->constrainToWild(CS, Rsn, &PL);
-  }
-}
-
 // For each pointer type in the declaration of D, add a variable to the
 // constraint system for that pointer type.
 void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
@@ -686,7 +661,6 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       // Constraint variable is stored on the parent function, so we need to
       // constrain to WILD even if we don't end up storing this in the map.
       constrainWildIfMacro(PVExternal, PVD->getLocation());
-      specialCaseVarIntros(PVD, AstContext);
       // If this is "main", constrain its argv parameter to a nested arr
       if (AllTypes && FuncName == "main" && FD->isGlobal() && I == 1) {
         PVInternal->constrainOuterTo(CS, CS.getArr());
@@ -722,7 +696,6 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
         }
         GlobalVariableSymbols[VarName].insert(P);
       }
-      specialCaseVarIntros(D, AstContext);
     }
 
   } else if (FieldDecl *FlD = dyn_cast<FieldDecl>(D)) {
@@ -732,7 +705,6 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       unifyIfTypedef(Ty, *AstContext, FlD, P);
       NewCV = P;
       NewCV->setValidDecl();
-      specialCaseVarIntros(D, AstContext);
     }
   } else
     llvm_unreachable("unknown decl type");
@@ -1148,16 +1120,18 @@ void ProgramInfo::computePtrLevelStats() {
 }
 
 void ProgramInfo::setTypeParamBinding(CallExpr *CE, unsigned int TypeVarIdx,
-                                      ConstraintVariable *CV, ASTContext *C) {
+                                      ConstraintVariable *CV,
+                                      ConstraintVariable *Ident,
+                                      ASTContext *C) {
 
   auto Key = getExprKey(CE, C);
   auto CallMap = TypeParamBindings[Key];
   if (CallMap.find(TypeVarIdx) == CallMap.end()) {
-    TypeParamBindings[Key][TypeVarIdx] = CV;
+    TypeParamBindings[Key][TypeVarIdx] = TypeParamConstraint(CV,Ident);
   } else {
     // If this CE/idx is at the same location, it's in a macro,
     // so mark it as inconsistent.
-    TypeParamBindings[Key][TypeVarIdx] = nullptr;
+    TypeParamBindings[Key][TypeVarIdx] = TypeParamConstraint(nullptr,nullptr);
   }
 }
 

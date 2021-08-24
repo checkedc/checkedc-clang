@@ -354,7 +354,9 @@ private:
   // Generic types can be used with fewer restrictions, so this field is used
   // stop assignments with generic variables from forcing constraint variables
   // to be wild.
-  int GenericIndex;
+  // Source is generated from the source code, Inferred is set internally
+  int SourceGenericIndex;
+  int InferredGenericIndex;
 
   // Empty array pointers are represented the same as standard pointers. This
   // lets pointers be passed to functions expecting a zero width array. This
@@ -378,7 +380,8 @@ private:
   PointerVariableConstraint(std::string Name) :
     ConstraintVariable(PointerVariable, "", Name), FV(nullptr),
     SrcHasItype(false), PartOfFuncPrototype(false), Parent(nullptr),
-    GenericIndex(-1), IsZeroWidthArray(false), IsTypedef(false), TDT(nullptr),
+    SourceGenericIndex(-1), InferredGenericIndex(-1),
+    IsZeroWidthArray(false), IsTypedef(false), TDT(nullptr),
     TypedefLevelInfo({}), IsVoidPtr(false) {}
 
 public:
@@ -404,9 +407,12 @@ public:
   // Get bounds annotation.
   std::string getBoundsStr() const { return BoundsAnnotationStr; }
 
-  bool getIsGeneric() const { return GenericIndex >= 0; }
-  int getGenericIndex() const { return GenericIndex; }
-
+  bool isGeneric() const { return InferredGenericIndex >= 0; }
+  int getGenericIndex() const { return InferredGenericIndex; }
+  void setGenericIndex(int idx) { InferredGenericIndex = idx; }
+  bool isGenericChanged() const {
+    return SourceGenericIndex != InferredGenericIndex;
+  }
   // Was this variable a checked pointer in the input program?
   // This is important for two reasons: (1) externs that are checked should be
   // kept that way during solving, (2) nothing that was originally checked
@@ -449,6 +455,10 @@ public:
   // ForceGenericIndex: CheckedC supports generic types (_Itype_for_any) which
   //                    need less restrictive constraints. Set >= 0 to indicate
   //                    that this variable should be considered generic.
+  // PotentialGeneric: Whether this may become generic after analysis. Disables
+  //                   constraint to wild for non-generics. If you use this
+  //                   you'll have to add that constraint later if it is
+  //                   not generic.
   // TSI: TypeSourceInfo object gives access to information about the source
   //      code representation of the type. Allows for more precise rewriting by
   //      preserving the exact syntax used to write types that aren't rewritten
@@ -458,6 +468,7 @@ public:
                             const clang::ASTContext &C,
                             std::string *InFunc = nullptr,
                             int ForceGenericIndex = -1,
+                            bool PotentialGeneric = false,
                             bool VarAtomForChecked = false,
                             TypeSourceInfo *TSI = nullptr,
                             const clang::QualType &ItypeT = QualType());
@@ -550,7 +561,7 @@ public:
   FVComponentVariable(const clang::QualType &QT, const clang::QualType &ITypeT,
                       clang::DeclaratorDecl *D, std::string N, ProgramInfo &I,
                       const clang::ASTContext &C, std::string *InFunc,
-                      bool HasItype);
+                      bool PotentialGeneric, bool HasItype);
 
   void mergeDeclaration(FVComponentVariable *From, ProgramInfo &I,
                         std::string &ReasonFailed);
@@ -566,6 +577,11 @@ public:
 
   PVConstraint *getInternal() const { return InternalConstraint; }
   PVConstraint *getExternal() const { return ExternalConstraint; }
+
+  void setGenericIndex(int idx) {
+    ExternalConstraint->setGenericIndex(idx);
+    InternalConstraint->setGenericIndex(idx);
+  }
 
   void equateWithItype(ProgramInfo &CS, const std::string &ReasonUnchangeable,
                        PersistentSourceLoc *PSL) const;
@@ -595,7 +611,7 @@ private:
   // Flag to indicate whether this is a function pointer or not.
   bool IsFunctionPtr;
 
-  // Count of type parameters from `_Itype_for_any(...)`.
+  // Count of type parameters (originally from `_Itype_for_any(...)`).
   int TypeParams;
 
   void equateFVConstraintVars(ConstraintVariable *CV, ProgramInfo &Info) const;
@@ -652,8 +668,23 @@ public:
   bool srcHasItype() const override;
   bool srcHasBounds() const override;
 
+  // The number of type variables
+  int getGenericParams() const {
+    return TypeParams;
+  }
+  // remove added generics
+  // use when we constrain a potential generic param to wild
+  void resetGenericParams() {
+    TypeParams = 0;
+  }
+
+  // The type parameter index of the return
   int getGenericIndex() const {
     return ReturnVar.ExternalConstraint->getGenericIndex();
+  }
+  // Change the type parameter index of the return
+  void setGenericIndex(int idx) {
+    ReturnVar.ExternalConstraint->setGenericIndex(idx);
   }
 
   bool solutionEqualTo(Constraints &CS, const ConstraintVariable *CV,

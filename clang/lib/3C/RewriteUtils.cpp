@@ -365,10 +365,17 @@ public:
       : Context(C), Info(I), Writer(R) {}
 
   bool VisitCallExpr(CallExpr *CE) {
-    if (isa_and_nonnull<FunctionDecl>(CE->getCalleeDecl())) {
+    if (auto *FD = dyn_cast_or_null<FunctionDecl>(CE->getCalleeDecl())) {
       // If the function call already has type arguments, we'll trust that
       // they're correct and not add anything else.
       if (typeArgsProvided(CE))
+        return true;
+
+      // If the function is not generic, we have nothing to do.
+      // This could happen even if it has type param binding if we
+      // reset generics because of wildness
+      if (Info.getFuncConstraint(FD,Context)->getGenericParams() == 0 &&
+          !FD->isItypeGenericFunction())
         return true;
 
       if (Info.hasTypeParamBindings(CE, Context)) {
@@ -377,11 +384,12 @@ public:
         std::string TypeParamString;
         bool AllInconsistent = true;
         for (auto Entry : Info.getTypeParamBindings(CE, Context))
-          if (Entry.second != nullptr) {
+          if (Entry.second.isConsistent()) {
             AllInconsistent = false;
-            std::string TyStr = Entry.second->mkString(
-                Info.getConstraints(),
-                MKSTRING_OPTS(EmitName = false, EmitPointee = true));
+            std::string TyStr = Entry.second.getConstraint(
+                Info.getConstraints().getVariables()
+              )->mkString(Info.getConstraints(), MKSTRING_OPTS(
+                EmitName = false, EmitPointee = true));
             if (TyStr.back() == ' ')
               TyStr.pop_back();
             TypeParamString += TyStr + ",";
@@ -420,7 +428,8 @@ private:
 };
 
 SourceRange FunctionDeclReplacement::getSourceRange(SourceManager &SM) const {
-  SourceLocation Begin = RewriteReturn ? getDeclBegin(SM) : getParamBegin(SM);
+  SourceLocation Begin = RewriteGeneric ? getDeclBegin(SM) :
+                      (RewriteReturn ? getReturnBegin(SM) : getParamBegin(SM));
   SourceLocation End = RewriteParams ? getDeclEnd(SM) : getReturnEnd(SM);
   // Begin can be equal to End if the SourceRange only contains one token.
   assert("Invalid FunctionDeclReplacement SourceRange!" &&
@@ -431,6 +440,22 @@ SourceRange FunctionDeclReplacement::getSourceRange(SourceManager &SM) const {
 SourceLocation FunctionDeclReplacement::getDeclBegin(SourceManager &SM) const {
   SourceLocation Begin = Decl->getBeginLoc();
   return Begin;
+}
+
+SourceLocation FunctionDeclReplacement::getReturnBegin(SourceManager &SM) const {
+  // TODO: more accuracy
+  // This code gets the point after a modifier like "static"
+  // But currently, that leads to multiple "static"s
+  //  SourceRange ReturnSource = Decl->getReturnTypeSourceRange();
+  //  if (ReturnSource.isValid())
+  //    return ReturnSource.getBegin();
+
+  // Invalid return means we're in a macro or typedef, so just get the
+  // starting point. We may overwrite a _For_any(..), but those only
+  // exist in partially converted code, so we're relying on the user
+  // to have it correct anyway.
+
+  return getDeclBegin(SM);
 }
 
 SourceLocation FunctionDeclReplacement::getParamBegin(SourceManager &SM) const {

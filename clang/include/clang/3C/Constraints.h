@@ -32,6 +32,7 @@ class ConstraintsGraph;
 
 #define DEFAULT_REASON "UNKNOWN_REASON"
 #define POINTER_IS_ARRAY_REASON "Pointer is array but alltypes is disabled."
+#define VOID_TYPE_REASON "Default void* type"
 #define UNWRITABLE_REASON "Source code in non-writable file."
 
 template <typename T> struct PComp {

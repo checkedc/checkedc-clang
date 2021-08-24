@@ -304,8 +304,7 @@ bool hasVoidType(clang::ValueDecl *D) { return isTypeHasVoid(D->getType()); }
 //  return D->isPointerType() == S->isPointerType();
 //}
 
-static bool castCheck(clang::QualType DstType, clang::QualType SrcType,
-                      bool AllowVoidCast) {
+static bool castCheck(clang::QualType DstType, clang::QualType SrcType) {
 
   // Check if both types are same.
   if (SrcType == DstType)
@@ -321,9 +320,8 @@ static bool castCheck(clang::QualType DstType, clang::QualType SrcType,
 
   // Both are pointers? check their pointee
   if (SrcPtrTypePtr && DstPtrTypePtr) {
-    return (AllowVoidCast && SrcPtrTypePtr->isVoidPointerType()) ||
-           castCheck(DstPtrTypePtr->getPointeeType(),
-                     SrcPtrTypePtr->getPointeeType(), AllowVoidCast);
+    return castCheck(DstPtrTypePtr->getPointeeType(),
+                SrcPtrTypePtr->getPointeeType());
   }
 
   if (SrcPtrTypePtr || DstPtrTypePtr)
@@ -337,12 +335,11 @@ static bool castCheck(clang::QualType DstType, clang::QualType SrcType,
       return false;
 
     for (unsigned I = 0; I < SrcFnType->getNumParams(); I++)
-      if (!castCheck(SrcFnType->getParamType(I), DstFnType->getParamType(I),
-                     false))
+      if (!castCheck(SrcFnType->getParamType(I),
+                     DstFnType->getParamType(I)))
         return false;
 
-    return castCheck(SrcFnType->getReturnType(), DstFnType->getReturnType(),
-                     false);
+    return castCheck(SrcFnType->getReturnType(), DstFnType->getReturnType());
   }
 
   // If both are not scalar types? Then the types must be exactly same.
@@ -366,7 +363,7 @@ bool isCastSafe(clang::QualType DstType, clang::QualType SrcType) {
       dyn_cast<clang::PointerType>(DstTypePtr);
   if (!DstPtrTypePtr) // Safe to cast to a non-pointer.
     return true;
-  return castCheck(DstType, SrcType, true);
+  return castCheck(DstType, SrcType);
 }
 
 bool canWrite(const std::string &FilePath) {

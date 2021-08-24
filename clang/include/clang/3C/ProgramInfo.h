@@ -43,9 +43,40 @@ protected:
 
 typedef std::pair<CVarSet, BKeySet> CSetBkeyPair;
 
+// The pair of CVs are the type param constraint and an optional
+// constraint used to get the generic index. A better solution would have
+// generic constraints saved within ConstraintVariables, but those don't
+// exist at this time.
+struct TypeParamConstraint {
+  ConstraintVariable *MainConstraint;
+  ConstraintVariable *GenericAddition;
+  TypeParamConstraint() :
+      MainConstraint(nullptr), GenericAddition(nullptr) {}
+  TypeParamConstraint(ConstraintVariable *M, ConstraintVariable *G) :
+      MainConstraint(M), GenericAddition(G) {}
+  // Fast. Whether `getConstraint` will return something other than nullptr.
+  bool isConsistent() const { return MainConstraint != nullptr; }
+  // Provides generic information if available and safe. This is somewhat of
+  // a hack for nested generics and returns (the constraint for) a local
+  // parameter. Otherwise, returns the generated constraint, which can also be
+  // accessed as `MainConstraint`.
+  ConstraintVariable *getConstraint(const EnvironmentMap &E) {
+    if (MainConstraint != nullptr && GenericAddition != nullptr &&
+        GenericAddition->isSolutionChecked(E)) {
+      return GenericAddition;
+    } else {
+      return MainConstraint;
+    }
+  }
+};
+
 class ProgramInfo : public ProgramVariableAdder {
 public:
-  typedef std::map<unsigned int, ConstraintVariable *> CallTypeParamBindingsT;
+
+  // This map holds similar information as the type variable map in
+  // ConstraintBuilder.cpp, but it is stored in a form that is usable during
+  // rewriting.
+  typedef std::map<unsigned int, TypeParamConstraint> CallTypeParamBindingsT;
 
   typedef std::map<std::string, FVConstraint *> ExternalFunctionMapType;
   typedef std::map<std::string, ExternalFunctionMapType> StaticFunctionMapType;
@@ -119,7 +150,8 @@ public:
   }
 
   void setTypeParamBinding(CallExpr *CE, unsigned int TypeVarIdx,
-                           ConstraintVariable *CV, ASTContext *C);
+                           ConstraintVariable *CV,
+                           ConstraintVariable* Ident, ASTContext *C);
   bool hasTypeParamBindings(CallExpr *CE, ASTContext *C) const;
   const CallTypeParamBindingsT &getTypeParamBindings(CallExpr *CE,
                                                      ASTContext *C) const;
@@ -216,11 +248,6 @@ private:
   // in this map are used as part of the IDAndTranslationUnit which is the type
   // used as keys for maps from ASTNodes.
   std::map<ASTContext *, unsigned int> TranslationUnitIdxMap;
-
-  // Special-case handling for decl introductions. For the moment this covers:
-  //  * void-typed variables
-  //  * va_list-typed variables
-  void specialCaseVarIntros(ValueDecl *D, ASTContext *Context);
 
   // Inserts the given FVConstraint set into the extern or static function map.
   // Returns the merged version if it was a redeclaration, or the constraint

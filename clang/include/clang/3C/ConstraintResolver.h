@@ -42,6 +42,8 @@ public:
 
   CVarSet getCalleeConstraintVars(CallExpr *CE);
 
+  bool isCastofGeneric(CastExpr *C);
+
   // Handle assignment of RHS expression to LHS expression using the
   // given action.
   void constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS,

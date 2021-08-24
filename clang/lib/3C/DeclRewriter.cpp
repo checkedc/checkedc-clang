@@ -561,6 +561,11 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   bool RewriteParams = false;
   bool RewriteReturn = false;
 
+  // RewriteGeneric is similar to the above, but we need to further check
+  // if the potential generic variables were set to wild by the constraint
+  // resolver. In that case don't rewrite.
+  bool RewriteGeneric = false;
+
   bool DeclIsTypedef = false;
   if (TypeSourceInfo *TS = FD->getTypeSourceInfo()) {
     // This still could possibly be a typedef type if TS was NULL.
@@ -571,9 +576,17 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
     DeclIsTypedef = isa<TypedefType>(TS->getType());
   }
 
+  // If we've made this generic we need add "_For_any" or "_Itype_for_any"
+  if (FDConstraint->getGenericParams() > 0
+      && !FD->isGenericFunction() && !FD->isItypeGenericFunction())
+    RewriteGeneric = true;
+
   // Get rewritten parameter variable declarations. Try to use
   // the source for as much as possible.
   std::vector<std::string> ParmStrs;
+
+  // Needed to distinguish between Itype_for_any and For_any
+  bool ProtoHasItype = false;
 
   // Typedefs must be expanded for now, so allow interpret them as rewritable
   // by ignoring their special case code.
@@ -588,9 +601,10 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
       const FVComponentVariable *CV = FDConstraint->getCombineParam(I);
       std::string Type, IType;
       this->buildDeclVar(CV, PVDecl, Type, IType,
-                         PVDecl->getQualifiedNameAsString(), RewriteParams,
-                         RewriteReturn, FD->isStatic());
+                         PVDecl->getQualifiedNameAsString(), RewriteGeneric,
+                         RewriteParams, RewriteReturn, FD->isStatic());
       ParmStrs.push_back(Type + IType);
+      ProtoHasItype |= !IType.empty();
     }
   } else if (FDConstraint->numParams() != 0) {
     // lacking params but the constraint has them: mirror the constraint
@@ -598,9 +612,10 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
       ParmVarDecl *PVDecl = nullptr;
       const FVComponentVariable *CV = FDConstraint->getCombineParam(I);
       std::string Type, IType;
-      this->buildDeclVar(CV, PVDecl, Type, IType, "", RewriteParams,
-                         RewriteReturn, FD->isStatic());
+      this->buildDeclVar(CV, PVDecl, Type, IType, "", RewriteGeneric,
+                         RewriteParams, RewriteReturn, FD->isStatic());
       ParmStrs.push_back(Type + IType);
+      ProtoHasItype |= !IType.empty();
       // FIXME: when the above FIXME is changed this condition will always
       // be true. This is correct, always rewrite if there were no params
       // in source but they exist in the constraint variable.
@@ -621,7 +636,15 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   // For now we still need to check if this needs rewriting, see FIXME below
   // if (!DeclIsTypedef)
   this->buildDeclVar(FDConstraint->getCombineReturn(), FD, ReturnVar, ItypeStr,
-                     "", RewriteParams, RewriteReturn, FD->isStatic());
+                   "", RewriteGeneric, RewriteParams,
+                   RewriteReturn, FD->isStatic());
+
+  ProtoHasItype |= !ItypeStr.empty();
+
+  // Generic forany and return are in the same rewrite location, so
+  // we must rewrite the return if rewriting generic
+  if (RewriteGeneric)
+    RewriteReturn = true;
 
   // If the return is a function pointer, we need to rewrite the whole
   // declaration even if no actual changes were made to the parameters because
@@ -630,6 +653,13 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   // better, but getting the correct source locations is painful.
   if (FD->getReturnType()->isFunctionPointerType() && RewriteReturn)
     RewriteParams = true;
+
+  // If we're making this into a generic function, we'll
+  // rewrite parameters in case there's an itype in there that won't trigger
+  // a normal rewrite. Temp fix for #678 in generics case.
+  if (RewriteGeneric) {
+    RewriteParams = true;
+  }
 
   // If the function is declared using a typedef for the function type, then we
   // need to rewrite parameters and the return if either would have been
@@ -645,11 +675,37 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
     RewriteReturn = true;
   }
 
+  // Mirrors the check above that sets RewriteGeneric to true.
+  // If we've decided against making this generic, remove the generic params
+  // so later rewrites (of typeparams) don't happen
+  if (!RewriteGeneric && FDConstraint->getGenericParams() > 0
+      && !FD->isGenericFunction() && !FD->isItypeGenericFunction())
+    FDConstraint->resetGenericParams();
+
+  // If this was an itype but is now checked, we'll be changing
+  // "_Itype_for_any" to "_For_any"
+  if (!RewriteGeneric && FD->isItypeGenericFunction() && !ProtoHasItype) {
+    RewriteGeneric = true;
+    RewriteReturn = true;
+  }
+
   // Combine parameter and return variables rewritings into a single rewriting
   // for the entire function declaration.
   std::string NewSig = "";
+  if (RewriteGeneric) {
+    if (ProtoHasItype)
+      NewSig += "_Itype_for_any(T";
+    else
+      NewSig += "_For_any(T";
+    for (int i = 0; i < FDConstraint->getGenericParams() - 1; i++) {
+      assert(i < 2 &&
+             "Need an unexpected number of type variables");
+      NewSig += std::begin({",U",",V"})[i];
+    }
+    NewSig += ") ";
+  }
   if (RewriteReturn)
-    NewSig = getStorageQualifierString(FD) + ReturnVar;
+    NewSig += getStorageQualifierString(FD) + ReturnVar;
 
   if (RewriteReturn && RewriteParams)
     NewSig += FDConstraint->getName();
@@ -674,7 +730,8 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   if (RewriteReturn || RewriteParams) {
     RewriteThese.insert(std::make_pair(
         FD,
-        new FunctionDeclReplacement(FD, NewSig, RewriteReturn, RewriteParams)));
+        new FunctionDeclReplacement(FD, NewSig, RewriteReturn,
+                                    RewriteParams, RewriteGeneric)));
   }
 
   return true;
@@ -711,8 +768,8 @@ void FunctionDeclBuilder::buildItypeDecl(PVConstraint *Defn,
 void FunctionDeclBuilder::buildDeclVar(const FVComponentVariable *CV,
                                        DeclaratorDecl *Decl, std::string &Type,
                                        std::string &IType, std::string UseName,
-                                       bool &RewriteParm, bool &RewriteRet,
-                                       bool StaticFunc) {
+                                       bool &RewriteGen, bool &RewriteParm,
+                                       bool &RewriteRet, bool StaticFunc) {
 
   bool CheckedSolution = CV->hasCheckedSolution(Info.getConstraints());
   bool ItypeSolution = CV->hasItypeSolution(Info.getConstraints());
@@ -727,7 +784,12 @@ void FunctionDeclBuilder::buildDeclVar(const FVComponentVariable *CV,
     return;
   }
 
-  // If the type of the pointer hasn't changed, then neither of the above
+  // Don't add generics if one of the potential generic params is wild,
+  // even if it could have an itype
+  if (!CheckedSolution && CV->getExternal()->isGenericChanged())
+    RewriteGen = false;
+
+// If the type of the pointer hasn't changed, then neither of the above
   // branches will be taken, but it's still possible for the bounds of an array
   // pointer to change.
   if (ABRewriter.hasNewBoundsString(CV->getExternal(), Decl)) {
