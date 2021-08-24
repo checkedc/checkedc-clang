@@ -840,7 +840,7 @@ _Unchecked void f97(int *p : count(i), // expected-note 8 {{(expanded) declared 
 
   // The type of the RHS expression p + r is int *, so a checked pointer is not
   // assigned to p here.
-  p -= (_Array_ptr<int>)q; // expected-warning {{incompatible integer to pointer conversion assigning to 'int *' from 'long long'}}
+  p -= (_Array_ptr<int>)q; // expected-warning {{incompatible integer to pointer conversion assigning to 'int *'}}
 
   // For statements where a checked pointer is assigned to p, validate the
   // bounds of p.
