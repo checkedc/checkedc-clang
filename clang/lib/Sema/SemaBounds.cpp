@@ -4551,6 +4551,10 @@ namespace {
         return SrcBounds;
       }
 
+      // Account for uses of LValue in the declared return bounds (if any)
+      // for the enclosing function.
+      UpdateReturnBoundsAfterAssignment(LValue, E, Src, CSS);
+
       // Get the original value (if any) of LValue before the assignment,
       // and determine whether the original value uses the value of LValue.
       // OriginalValue is named OV in the Checked C spec.
@@ -4575,6 +4579,47 @@ namespace {
 
       StateUpdated = true;
       return ResultBounds;
+    }
+
+    // UpdateReturnBoundsAfterAssignment computes the observed bounds for the
+    // return value of the enclosing function (if any) by replacing all
+    // uses of LValue within the declared return bounds with null. If the
+    // declared return bounds use the value of LValue, the observed return
+    // bounds will be bounds(unknown) and an error will be emitted.
+    //
+    // The current implementation does not use invertibility of lvalue
+    // expressions. This simplifies the implementation so that the updated
+    // return bounds can be computed locally at each assignment statement,
+    // rather than keeping track of a return bounds expression across the
+    // entire function body.
+    // TODO: track an observed return bounds expression as a global property
+    // of the function body so that invertibility of lvalue expressions can
+    // be taken into account.
+    void UpdateReturnBoundsAfterAssignment(Expr *LValue, Expr *E, Expr *Src,
+                                           CheckedScopeSpecifier CSS) {
+      if (!ReturnBounds || ReturnBounds->isUnknown() || ReturnBounds->isAny())
+        return;
+
+      // In unchecked scopes, if the enclosing function has its bounds declared
+      // via a bounds-safe interface, we do not check that expressions used in
+      // the declared function bounds are not modified.
+      if (CSS == CheckedScopeSpecifier::CSS_Unchecked) {
+        if (FunctionDeclaration->hasBoundsSafeInterface(Context))
+          return;
+      }
+
+      BoundsExpr *UpdatedReturnBounds =
+        BoundsUtil::ReplaceLValueInBounds(S, ReturnBounds, LValue,
+                                          nullptr, CSS);
+      if (!UpdatedReturnBounds->isUnknown())
+        return;
+
+      S.Diag(LValue->getBeginLoc(), diag::error_modified_return_bounds)
+          << LValue << FunctionDeclaration << E->getSourceRange();
+
+      SourceLocation DeclaredLoc = FunctionDeclaration->getLocation();
+      S.Diag(DeclaredLoc, diag::note_declared_return_bounds)
+        << ReturnBounds << ReturnBounds->getSourceRange();
     }
 
     // UpdateBoundsAfterAssignment updates the observed bounds context after
