@@ -15,6 +15,7 @@
 #ifndef LLVM_CLANG_EXPRUTILS_H
 #define LLVM_CLANG_EXPRUTILS_H
 
+#include "clang/AST/CanonBounds.h"
 #include "clang/AST/Expr.h"
 #include "clang/Sema/Sema.h"
 #include <queue>
@@ -174,6 +175,15 @@ public:
 
   // IsVarUsed searches whether V is used in E.
   static bool IsVarUsed(Sema &S, VarDecl *V, Expr *E);
+
+  // Invoke IgnoreValuePreservingOperations to strip off casts.
+  // @param[in] E is the expression whose casts must be stripped.
+  // @return E with casts stripped off.
+  static Expr *IgnoreCasts(Lexicographic &Lex, ASTContext &Ctx, const Expr *E);
+
+  // Based on IgnoreCasts, strip off more casts including IntegralCast and 
+  // LValueToRValue
+  static Expr *TranspareCasts(Lexicographic &Lex, ASTContext &Ctx, const Expr *E);
 };
 
 } // end namespace clang

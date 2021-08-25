@@ -399,6 +399,29 @@ std::pair<Expr *, Expr *> ExprUtil::SplitByLValueCount(Sema &S, Expr *LValue,
   return Pair;
 }
 
+Expr *ExprUtil::IgnoreCasts(Lexicographic &Lex, ASTContext &Ctx, const Expr *E) {
+  return Lex.IgnoreValuePreservingOperations(Ctx, const_cast<Expr *>(E));
+}
+
+Expr *ExprUtil::TranspareCasts(Lexicographic &Lex, ASTContext &Ctx, const Expr *E) {
+  Expr *Pre = Lex.IgnoreValuePreservingOperations(Ctx, const_cast<Expr *>(E));
+  Expr *Post = Pre;
+  if (auto *CE = dyn_cast<CastExpr>(Pre)) {
+    if (CE->getCastKind() == CastKind::CK_IntegralCast)
+      Post = CE->getSubExpr();
+  }
+
+  if (auto *CE = dyn_cast<CastExpr>(Pre))
+    if (CE->getCastKind() == CastKind::CK_LValueToRValue)
+      Post = CE->getSubExpr();
+
+  if (Pre == Post) {
+    return Post;
+  } else {
+    return TranspareCasts(Lex, Ctx, Post);
+  }
+}
+
 namespace {
   class LValueCountHelper : public RecursiveASTVisitor<LValueCountHelper> {
     private:

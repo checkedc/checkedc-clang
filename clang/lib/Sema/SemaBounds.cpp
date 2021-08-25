@@ -657,6 +657,7 @@ namespace {
                               // function, if any.
     ASTContext &Context;
     std::pair<ComparisonSet, ComparisonSet> &Facts;
+    AbstractFactListTy &AvailableFacts;
 
     AvailableWhereFactsAnalysis AvailableWhereFactsAnalyzer;
 
@@ -2572,7 +2573,9 @@ namespace {
 
 
   public:
-    CheckBoundsDeclarations(Sema &SemaRef, PrepassInfo &Info, Stmt *Body, CFG *Cfg, BoundsExpr *ReturnBounds, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
+    CheckBoundsDeclarations(Sema &SemaRef, PrepassInfo &Info, Stmt *Body, CFG *Cfg, 
+        BoundsExpr *ReturnBounds, std::pair<ComparisonSet, ComparisonSet> &Facts,
+        AbstractFactListTy &AvailableFacts) : S(SemaRef),
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
       DumpState(SemaRef.getLangOpts().DumpCheckingState),
       DumpSynthesizedMembers(SemaRef.getLangOpts().DumpSynthesizedMembers),
@@ -2582,6 +2585,7 @@ namespace {
       ReturnBounds(ReturnBounds),
       Context(SemaRef.Context),
       Facts(Facts),
+      AvailableFacts(AvailableFacts),
       AvailableWhereFactsAnalyzer(AvailableWhereFactsAnalysis(SemaRef, Cfg)),
       BoundsWideningAnalyzer(BoundsWideningAnalysis(SemaRef, Cfg,
                                                     Info.BoundsVarsLower,
@@ -2590,7 +2594,9 @@ namespace {
       BoundsSiblingFields(Info.BoundsSiblingFields),
       IncludeNullTerminator(false) {}
 
-    CheckBoundsDeclarations(Sema &SemaRef, PrepassInfo &Info, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
+    CheckBoundsDeclarations(Sema &SemaRef, PrepassInfo &Info, 
+        std::pair<ComparisonSet, ComparisonSet> &Facts,
+        AbstractFactListTy &AvailableFacts) : S(SemaRef),
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
       DumpState(SemaRef.getLangOpts().DumpCheckingState),
       DumpSynthesizedMembers(SemaRef.getLangOpts().DumpSynthesizedMembers),
@@ -2600,6 +2606,7 @@ namespace {
       ReturnBounds(nullptr),
       Context(SemaRef.Context),
       Facts(Facts),
+      AvailableFacts(AvailableFacts),
       AvailableWhereFactsAnalyzer(AvailableWhereFactsAnalysis(SemaRef, nullptr)),
       BoundsWideningAnalyzer(BoundsWideningAnalysis(SemaRef, nullptr,
                                                     Info.BoundsVarsLower,
@@ -2810,6 +2817,7 @@ namespace {
 
      PostOrderCFGView POView = PostOrderCFGView(Cfg);
      ResetFacts();
+
      for (const CFGBlock *Block : POView) {
        AFA.GetFacts(Facts);
        CheckingState BlockState = GetIncomingBlockState(Block, BlockStates);
@@ -2856,6 +2864,8 @@ namespace {
             BoundsContextTy InitialObservedBounds = BlockState.ObservedBounds;
             BlockState.Reset();
 
+            AvailableFacts = AvailableWhereFactsAnalyzer.GetStmtIn(Block, S);
+            
             Check(S, CSS, BlockState);
 
             if (DumpState)
@@ -6173,11 +6183,12 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   CheckedCAnalysesPrepass(Info, FD, Body);
 
   std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
+  AbstractFactListTy EmptyAvailableFacts;
   CFG::BuildOptions BO;
   BO.AddLifetime = true;
   BO.AddNullStmt = true;
   std::unique_ptr<CFG> Cfg = CFG::buildCFG(nullptr, Body, &getASTContext(), BO);
-  CheckBoundsDeclarations Checker(*this, Info, Body, Cfg.get(), FD->getBoundsExpr(), EmptyFacts);
+  CheckBoundsDeclarations Checker(*this, Info, Body, Cfg.get(), FD->getBoundsExpr(), EmptyFacts, EmptyAvailableFacts);
   if (Cfg != nullptr) {
     AvailableFactsAnalysis Collector(*this, Cfg.get());
     Collector.Analyze();
@@ -6202,7 +6213,8 @@ void Sema::CheckTopLevelBoundsDecls(VarDecl *D) {
   if (!D->isLocalVarDeclOrParm()) {
     PrepassInfo Info;
     std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
-    CheckBoundsDeclarations Checker(*this, Info, nullptr, nullptr, nullptr, EmptyFacts);
+    AbstractFactListTy EmptyAvailableFacts;
+    CheckBoundsDeclarations Checker(*this, Info, nullptr, nullptr, nullptr, EmptyFacts, EmptyAvailableFacts);
     Checker.TraverseTopLevelVarDecl(D, GetCheckedScopeInfo());
   }
 }
@@ -6421,7 +6433,8 @@ BoundsExpr *Sema::GetLValueDeclaredBounds(Expr *E, CheckedScopeSpecifier CSS) {
 
   PrepassInfo Info;
   std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
-  CheckBoundsDeclarations CBD(*this, Info, EmptyFacts);
+  AbstractFactListTy EmptyAvailableFacts;
+  CheckBoundsDeclarations CBD(*this, Info, EmptyFacts, EmptyAvailableFacts);
   return CBD.GetLValueTargetBounds(E, CSS);
 }
 

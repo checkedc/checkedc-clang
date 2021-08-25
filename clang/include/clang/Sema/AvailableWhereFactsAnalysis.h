@@ -14,16 +14,12 @@
 #ifndef LLVM_AVAILABLE_WHERE_FACTS_ANALYSIS_H
 #define LLVM_AVAILABLE_WHERE_FACTS_ANALYSIS_H
 
-#include "clang/AST/CanonBounds.h"
 #include "clang/Analysis/Analyses/PostOrderCFGView.h"
+#include "clang/AST/CanonBounds.h"
 #include "clang/Sema/CheckedCAnalysesPrepass.h"
 #include "clang/Sema/Sema.h"
 
 namespace clang {
-
-  // StmtFactsMapTy denotes a map from a statement to the facts associated 
-  // with it.
-  using StmtFactsMapTy = llvm::DenseMap<const Stmt *, AbstractFactListTy>;
 
   // StmtSetTy denotes a set of statements.
   using StmtSetTy = llvm::SmallPtrSet<const Stmt *, 16>;
@@ -36,10 +32,9 @@ namespace clang {
   // for printing the blocks in a deterministic order.
   using OrderedBlocksTy = std::vector<const CFGBlock *>;
 
-  // AvailableFactsKillKind denotes two kinds of kill variables.
-  // KillExpr denotes a variable to kill a EqualityOpFact or a InferredFact
-  // KillBounds denotes a variable to kill a BoundsDeclFact.
-  enum AvailableFactsKillKind {
+  // KillExpr denotes a variable that kills an EqualityOpFact or an InferredFact
+  // KillBounds denotes a variable that kills a BoundsDeclFact.
+  enum class AvailableFactsKillKind {
     KillExpr,
     KillBounds
   };
@@ -49,9 +44,9 @@ namespace clang {
   using KillVarSetTy = llvm::SmallSet<KillVar, 2>;
   using StmtKillVarSetTy = llvm::DenseMap<const Stmt *, KillVarSetTy>;
 
-  // FactComparisionMapTy denotes the comparision result of two facts.
-  using FactComparision = std::pair<const AbstractFact *, const AbstractFact *>;
-  using FactComparisionMapTy = llvm::DenseMap<FactComparision, bool>;
+  // FactComparisonMapTy denotes the comparsion result of two facts.
+  using FactComparison = std::pair<const AbstractFact *, const AbstractFact *>;
+  using FactComparisonMapTy = llvm::DenseMap<FactComparison, bool>;
 
 } // end namespace clang
 
@@ -71,30 +66,18 @@ namespace clang {
     ASTContext &Ctx;
     Lexicographic Lex;
     llvm::raw_ostream &OS;
-    FactComparisionMapTy FactComparisionMap;
+    FactComparisonMapTy FactComparisonMap;
 
   public:
     AvailableFactsUtil(Sema &SemaRef, CFG *Cfg,
                        ASTContext &Ctx, Lexicographic Lex) :
       SemaRef(SemaRef), Cfg(Cfg), Ctx(Ctx), Lex(Lex), OS(llvm::outs()),
-      FactComparisionMap(FactComparisionMapTy()) {}
-
-    // Pretty print a expr
-    void Print(const Expr *) const;
-
-    // Pretty print a Stmt
-    void Print(const Stmt *) const;
-
-    // Pretty print an abstract fact
-    void DumpAbstractFact(const AbstractFact *Fact) const;
-
-    // Pretty print a list of abstract facts
-    void DumpAbstractFacts(const AbstractFactListTy &Facts) const;
+      FactComparisonMap(FactComparisonMapTy()) {}
 
     // Pretty print a set of variables.
     void PrintKillVarSet(KillVarSetTy VarSet) const;
 
-   // Determine if the edge from PredBlock to CurrBlock is a fallthrough.
+    // Determine if the edge from PredBlock to CurrBlock is a fallthrough.
     // @param[in] PredBlock is a predecessor block of the current block.
     // @param[in] CurrBlock is the current block.
     // @return Returns true if the edge is a fallthrough, false otherwise.
@@ -108,7 +91,7 @@ namespace clang {
     bool IsSwitchCaseBlock(const CFGBlock *PredBlock,
                            const CFGBlock *CurrBlock) const;
 
-    // Determine the boolean state of an edge when the 
+    // Determine the boolean state of an edge when the previous block is an if-condition
     // @param[in] PredBlock is a predecessor block of the current block.
     // @param[in] CurrBlock is the current block.
     // @return Returns true if true if on the edge, false otherwise.
@@ -119,16 +102,7 @@ namespace clang {
     // @param[in] CurrStmt is a given statement.
     // @param[out] ModifiedVars is a set of variables modified by CurrStmt or
     // statements nested in CurrStmt.
-    void GetModifiedVars(const Stmt *CurrStmt, VarSetTy &ModifiedVars) const;
-
-    // Invoke IgnoreValuePreservingOperations to strip off casts.
-    // @param[in] E is the expression whose casts must be stripped.
-    // @return E with casts stripped off.
-    Expr *IgnoreCasts(const Expr *E) const;
-
-    // Based on IgnoreCasts, strip off more casts including IntegralCast and 
-    // LValueToRValue
-    Expr *TranspareCasts(const Expr *E) const;
+    void GetModifiedVars(const Stmt *CurrStmt, VarSetTy &ModifiedVars);
 
     // We do not want to run dataflow analysis on null blocks or the exit
     // block. So we skip them.
@@ -140,7 +114,7 @@ namespace clang {
     // Determine if a variable is used in a fact.
     bool IsVarInFact(const AbstractFact *Fact, const VarDecl *Var) const;
 
-    // Determine if two facts equal. First check if the comparision is check before,
+    // Determine if two facts are equal. First check if the comparison is checked before,
     // otherwise, perform the real check.
     bool IsFactEqual(const AbstractFact *Fact1, const AbstractFact *Fact2);
 
@@ -207,24 +181,21 @@ namespace clang {
     Lexicographic Lex;
     llvm::raw_ostream &OS;
     AvailableFactsUtil AFUtil;
+    
     class ElevatedCFGBlock {
     public:
       using EdgeFactsTy = llvm::DenseMap<const ElevatedCFGBlock *, AbstractFactListTy>;
 
       const CFGBlock *Block;
 
-      // Block-wise
+      // Block-wise.
       AbstractFactListTy In;
       KillVarSetTy Kill;
 
-      // Edge-wise
+      // Edge-wise.
       EdgeFactsTy Gen, Out;
-      // Edge-wise (but on a Block)
+      // Edge-wise (stored at its starting block).
       AbstractFactListTy GenAllSucc, OutAllSucc;
-
-      // Statement-wise
-      StmtFactsMapTy StmtGen;
-      StmtKillVarSetTy StmtKill;
 
       // A mapping from a statement to its previous statement in a block.
       StmtMapTy PrevStmtMap;
@@ -250,7 +221,14 @@ namespace clang {
 
     // Allocated facts in the analysis
     AbstractFactListTy FactsCreated;
-  
+
+    // Stateful accumulated fact sets in a block.
+    // This is for GetStmtIn/GetStmtOut, which are called per statement in a block sequentially.
+    AbstractFactListTy AccuGen;
+    KillVarSetTy AccuKill;
+    const CFGBlock *AccuBlock;
+    ElevatedCFGBlock *AccuEB;
+
   public:
     // Top is a special bounds expression that denotes the super set of all
     // bounds expressions.
@@ -259,10 +237,10 @@ namespace clang {
     AvailableWhereFactsAnalysis(Sema &SemaRef, CFG *Cfg) :
       SemaRef(SemaRef), Cfg(Cfg), Ctx(SemaRef.Context),
       Lex(Lexicographic(Ctx, nullptr)), OS(llvm::outs()),
-      AFUtil(AvailableFactsUtil(SemaRef, Cfg, Ctx, Lex)) {}
+      AFUtil(AvailableFactsUtil(SemaRef, Cfg, SemaRef.Context, Lex)) {}
 
     ~AvailableWhereFactsAnalysis();
-    
+
     // Run the dataflow analysis.
     // @param[in] FD is the current function.
     void Analyze(FunctionDecl *FD, StmtSetTy NestedStmts);
@@ -272,7 +250,17 @@ namespace clang {
     // @param[in] FD is the current function.
     void DumpAvailableFacts(FunctionDecl *FD);
 
+    // Get the Out set for the statement. 
+    AbstractFactListTy GetStmtOut(const CFGBlock *EB, const Stmt *CurrStmt);
+
+    // Get the In set for the statement. 
+    AbstractFactListTy GetStmtIn(const CFGBlock *EB, const Stmt *CurrStmt);
+
   private:
+    // Add the successors of the current block to WorkList.
+    // @param[in] CurrBlock is the current block.
+    // @param[in] WorkList stores the blocks remaining to be processed for the
+    // fixpoint computation.
     void AddSuccsToWorkList(const CFGBlock *CurrBlock, WorkListTy &WorkList);
 
     // Compute Gen and Kill sets for the entry block.
@@ -288,13 +276,19 @@ namespace clang {
     // @param[in] EB is the current ElevatedCFGBlock.
     // @param[in] CurrStmt is the current statement.
     void ComputeStmtGenKillSets(ElevatedCFGBlock *EB, const Stmt *CurrStmt,
-                                StmtSetTy NestedStmts);
+                                StmtSetTy NestedStmts,
+                                AbstractFactListTy &Gen,
+                                KillVarSetTy &Kill);
 
+    // Collect the facts in the variable declaration.
+    // @param[in] Gen is the container for the facts set.
+    // @param[in] Gen is the container for the Kill set.
+    // @param[in] V is the variable declaration to act.
     void CollectFactsInDecl(AbstractFactListTy &Gen,
                             KillVarSetTy &Kill,
                             const VarDecl *V);
 
-    // Collect the facts and killed varibles in the where clauses.
+    // Collect the facts in the where clauses.
     // @param[in] Gen is the container for the facts set.
     // @param[in] Gen is the container for the Kill set.
     // @param[in] WC is the where clause to act.
@@ -318,12 +312,6 @@ namespace clang {
     // @return Return true if the OutAll set of the block has changed, false
     // otherwise.
     bool ComputeOutSet(ElevatedCFGBlock *EB, WorkListTy &WorkList);
-
-    // Get the Out set for the statement. 
-    AbstractFactListTy GetStmtOut(ElevatedCFGBlock *EB, const Stmt *CurrStmt) const;
-
-    // Get the In set for the statement. 
-    AbstractFactListTy GetStmtIn(ElevatedCFGBlock *EB, const Stmt *CurrStmt) const;
 
     // Order the blocks by block number to get a deterministic iteration order
     // for the blocks.
