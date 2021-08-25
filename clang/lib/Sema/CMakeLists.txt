@@ -18,6 +18,7 @@ add_clang_library(clangSema
   CheckedCAlias.cpp
   CheckedCAnalysesPrepass.cpp
   CheckedCInterop.cpp
+  CheckedCSMTProver.cpp
   CheckedCSubst.cpp
   CodeCompleteConsumer.cpp
   DeclSpec.cpp

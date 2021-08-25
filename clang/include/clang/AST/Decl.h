@@ -1395,7 +1395,7 @@ public:
   /// \brief Get the location of the first token of the initializer
   /// expression.  For C-style intializers, this is the location of
   /// the equal token.
-  SourceLocation getInitializerStartLoc() {
+  SourceLocation getInitializerStartLoc() const {
     return InitializerStartLoc;
   }
 

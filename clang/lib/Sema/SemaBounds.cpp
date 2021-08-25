@@ -50,6 +50,7 @@
 #include "clang/Sema/BoundsUtils.h"
 #include "clang/Sema/BoundsWideningAnalysis.h"
 #include "clang/Sema/CheckedCAnalysesPrepass.h"
+#include "clang/Sema/CheckedCSMTProver.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
@@ -660,6 +661,7 @@ namespace {
     AbstractFactListTy &AvailableFacts;
 
     AvailableWhereFactsAnalysis AvailableWhereFactsAnalyzer;
+    CheckedCSMTProver SMTProver;
 
     // Having a BoundsWideningAnalysis object here allows us to easily invoke
     // methods for bounds widening and get back the widened bounds info needed
@@ -1984,6 +1986,9 @@ namespace {
       BaseRange DeclaredRange(S);
       BaseRange SrcRange(S);
 
+      // CreateBaseRange checks bounds can be normalized.
+      SMTProver.ProveBounds(DeclaredBounds, SrcBounds, EquivExprs, AvailableFacts);
+
       if (CreateBaseRange(DeclaredBounds, &DeclaredRange, EquivExprs) &&
           CreateBaseRange(SrcBounds, &SrcRange, EquivExprs)) {
 
@@ -2587,6 +2592,7 @@ namespace {
       Facts(Facts),
       AvailableFacts(AvailableFacts),
       AvailableWhereFactsAnalyzer(AvailableWhereFactsAnalysis(SemaRef, Cfg)),
+      SMTProver(CheckedCSMTProver(SemaRef, Cfg)),
       BoundsWideningAnalyzer(BoundsWideningAnalysis(SemaRef, Cfg,
                                                     Info.BoundsVarsLower,
                                                     Info.BoundsVarsUpper)),
@@ -2608,6 +2614,7 @@ namespace {
       Facts(Facts),
       AvailableFacts(AvailableFacts),
       AvailableWhereFactsAnalyzer(AvailableWhereFactsAnalysis(SemaRef, nullptr)),
+      SMTProver(CheckedCSMTProver(SemaRef, Cfg)),
       BoundsWideningAnalyzer(BoundsWideningAnalysis(SemaRef, nullptr,
                                                     Info.BoundsVarsLower,
                                                     Info.BoundsVarsUpper)),
