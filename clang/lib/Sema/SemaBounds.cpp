@@ -2581,8 +2581,7 @@ namespace {
       Facts(Facts),
       BoundsWideningAnalyzer(BoundsWideningAnalysis(SemaRef, Cfg,
                                                     Info.BoundsVarsLower,
-                                                    Info.BoundsVarsUpper,
-                                                    Info.CheckedScopeMap)),
+                                                    Info.BoundsVarsUpper)),
       AbstractSetMgr(AbstractSetManager(SemaRef, Info.VarUses)),
       BoundsSiblingFields(Info.BoundsSiblingFields),
       IncludeNullTerminator(false) {}
@@ -2599,8 +2598,7 @@ namespace {
       Facts(Facts),
       BoundsWideningAnalyzer(BoundsWideningAnalysis(SemaRef, nullptr,
                                                     Info.BoundsVarsLower,
-                                                    Info.BoundsVarsUpper,
-                                                    Info.CheckedScopeMap)),
+                                                    Info.BoundsVarsUpper)),
       AbstractSetMgr(AbstractSetManager(SemaRef, Info.VarUses)),
       BoundsSiblingFields(Info.BoundsSiblingFields),
       IncludeNullTerminator(false) {}
@@ -3860,7 +3858,8 @@ namespace {
           ExprCreatorUtil::CreateImplicitCast(S, TargetDeclRef, Kind, TargetTy);
 
         // Record equality between the target and initializer.
-        RecordEqualityWithTarget(TargetDeclRef, TargetExpr, Init, State);
+        RecordEqualityWithTarget(TargetDeclRef, TargetExpr, Init,
+                                 /*AllowTempEquality=*/true, State);
       }
 
       if (D->isInvalidDecl())
@@ -4539,9 +4538,15 @@ namespace {
                                                              OriginalValue,
                                                              CSS, State);
       UpdateEquivExprsAfterAssignment(LValue, OriginalValue, CSS, State);
-      UpdateSameValueAfterAssignment(LValue, OriginalValue,
-                                     OriginalValueUsesLValue, CSS, State);
-      RecordEqualityWithTarget(LValue, Target, Src, State);
+      // We can only record temporary equality between Target and Src in
+      // State.TargetSrcEquality if Src does not use the value of LValue.
+      // If UpdateSameValueAfterAssignment did not remove any expressions from
+      // State.SameValue, then no expressions equivalent to Src use the value
+      // of LValue, so we can record temporary equality between Target and Src.
+      bool AllowTempEquality =
+        UpdateSameValueAfterAssignment(LValue, OriginalValue,
+                                       OriginalValueUsesLValue, CSS, State);
+      RecordEqualityWithTarget(LValue, Target, Src, AllowTempEquality, State);
 
       StateUpdated = true;
       return ResultBounds;
@@ -4684,43 +4689,69 @@ namespace {
       }
     }
 
-    // UpdateSameValue updates the set of expressions that produce the
-    // same value as the source of an assignment, after an assignment
-    // that modifies the expression LValue.
+    // UpdateSameValueAfterAssignment updates the set of expressions that
+    // produce the same value as the source of an assignment, after an
+    // assignment that modifies the expression LValue.
     //
     // OriginalValue is the value of LValue before the assignment.
-    void UpdateSameValueAfterAssignment(Expr *LValue, Expr *OriginalValue,
+    // OriginalValueUsesLValue is true if OriginalValue uses the value of
+    // LValue. If this is true, then any expressions in SameValue that use
+    // the value of LValue are removed from SameValue.
+    //
+    // UpdateSameValueAfterAssignment returns true if no expressions were
+    // removed from SameValue, i.e. if no expressions in SameValue used the
+    // value of LValue.
+    bool UpdateSameValueAfterAssignment(Expr *LValue, Expr *OriginalValue,
                                         bool OriginalValueUsesLValue,
                                         CheckedScopeSpecifier CSS,
                                         CheckingState &State) {
-      // Adjust SameValue to account for any uses of LValue in PrevSameValue.
-      // If the original value uses the value of V, then any expressions that
-      // use the value of V should be removed from SameValue.
+      bool RemovedAnyExprs = false;
+      const ExprSetTy PrevSameValue = State.SameValue;
+      State.SameValue.clear();
+
+      // Determine the expression (if any) to be used as the replacement for
+      // LValue in expressions in SameValue.
+      // If the original value uses the value of LValue, then any expressions
+      // that use the value of LValue should be removed from SameValue.
       // For example, in the assignment i = i + 2, where the original value
       // of i is i - 2, the expression i + 2 in SameValue should be removed
       // rather than replaced with (i - 2) + 2.
-      // Otherwise, SameValue would contain (i - 2) + 2 and i, which is a
-      // tautology.
-      const ExprSetTy PrevSameValue = State.SameValue;
-      State.SameValue.clear();
-      Expr *OriginalSameValueVal = OriginalValueUsesLValue ? nullptr : OriginalValue;
+      // Otherwise, RecordEqualityWithTarget would record equality between
+      // (i - 2) + 2 and i, which is a tautology.
+      Expr *LValueReplacement = OriginalValueUsesLValue ? nullptr : OriginalValue;
+
       for (auto I = PrevSameValue.begin(); I != PrevSameValue.end(); ++I) {
         Expr *E = *I;
         Expr *AdjustedE = BoundsUtil::ReplaceLValue(S, E, LValue,
-                                                    OriginalSameValueVal, CSS);
+                                                    LValueReplacement, CSS);
+        if (!AdjustedE)
+          RemovedAnyExprs = true;
         // Don't add duplicate expressions to SameValue.
         if (AdjustedE && !EqualExprsContainsExpr(State.SameValue, AdjustedE))
           State.SameValue.push_back(AdjustedE);
       }
+
+      return !RemovedAnyExprs;
     }
 
     // RecordEqualityWithTarget updates the checking state to record equality
     // implied by an assignment or initializer of the form LValue = Src,
     // where Target is an rvalue expression that is the value of LValue.
     //
+    // AllowTempEquality is true if it is permissible to record temporary
+    // equality between Target and Src in State.TargetSrcEquality if necessary.
+    // The purpose of TargetSrcEquality is to record equality between target
+    // and source expressions only for checking bounds after the current
+    // statement (unlike State.EquivExprs, this equality does not persist
+    // across statements). However, not all target/source pairs should be added
+    // to TargetSrcEquality. For example, in an assignment x = x + 1, SameValue
+    // will be empty since x + 1 uses the value of x. However, x => x + 1
+    // should not be added to TargetSrcEquality.
+    //
     // State.SameValue is assumed to contain expressions that produce the same
-    // value as Source.
+    // value as Src.
     void RecordEqualityWithTarget(Expr *LValue, Expr *Target, Expr *Src,
+                                  bool AllowTempEquality,
                                   CheckingState &State) {
       if (!LValue)
         return;
@@ -4728,9 +4759,10 @@ namespace {
 
       // Certain kinds of expressions (e.g. member expressions) are not allowed
       // to be included in EquivExprs. For these expressions, we record
-      // temporary equality between Target and Src in TargetSrcEquality instead
-      // of in EquivExprs. If Src is allowed in EquivExprs, SameValue will
-      // contain at least one expression that produces the same value as Src.
+      // temporary equality (if permitted by AllowTempEquality) between Target
+      // and Src in TargetSrcEquality instead of in EquivExprs. If Src is
+      // allowed in EquivExprs, SameValue will contain at least one expression
+      // that produces the same value as Src.
       bool TargetAllowedInEquivExprs = !isa<MemberExpr>(LValue);
       bool SrcAllowedInEquivExprs = State.SameValue.size() > 0;
 
@@ -4768,7 +4800,8 @@ namespace {
       // This temporary equality information will be used to validate the
       // bounds context after checking the current top-level CFG statement,
       // but does not persist across checking CFG statements.
-      if (Src && (!TargetAllowedInEquivExprs || !SrcAllowedInEquivExprs)) {
+      if (AllowTempEquality && Src &&
+          (!TargetAllowedInEquivExprs || !SrcAllowedInEquivExprs)) {
         CHKCBindTemporaryExpr *Temp = GetTempBinding(Src);
         if (Temp)
           State.TargetSrcEquality[Target] = CreateTemporaryUse(Temp);
