@@ -14201,6 +14201,15 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
 
   CheckAddressOfPackedMember(op);
 
+  // For Checked C, &e1[e2] should be a pointer to T if e1 or e2 is a pointer
+  // to T, regardless of checked scope. This avoids the unexpected result of
+  // &e1[e2] having a different type than e1 or e2, which could otherwise
+  // happen in an unchecked scope if e1 or e2 is a checked pointer.
+  if (getLangOpts().CheckedC) {
+    if (ArraySubscriptExpr *arrSubscript = dyn_cast<ArraySubscriptExpr>(op))
+      return arrSubscript->getBase()->getType();
+  }
+
   // Checked scopes change the types of the address-of(&) operator.
   // In a checked scope, the operator produces an array_ptr<T> except for
   // function type. For address-of function type, it produces ptr not array_ptr.
