@@ -187,6 +187,14 @@ Retry:
       return ParseCompoundStatement();
     goto FallThrough;
   }
+
+  case tok::kw__Bundled: {
+    Token Next = NextToken();
+    if (Next.is(tok::l_brace))
+      return ParseCompoundStatement();
+    goto FallThrough;
+  }
+
   case tok::identifier: {
     Token Next = NextToken();
     if (Next.is(tok::colon)) { // C99 6.8.1: labeled-statement
@@ -938,6 +946,7 @@ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {
 ///         { block-item-list[opt] }
 /// [GNU]   { label-declarations block-item-list } [TODO]
 /// [CHECKED C] checked-spec[opt] { block-item-list[opt] }
+/// [CHECKED C] bundled-spec[opt] { block-item-list[opt] }
 ///
 ///       block-item-list:
 ///         block-item
@@ -957,14 +966,21 @@ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {
 ///
 /// [CHECKED C] checked-spec:
 ///            '_Checked'
-///            '_Checked' '_Bounds_only
+///            '_Checked' '_Bounds_only'
 ///            '_Unchecked'
+///
+/// [CHECKED C] bundled-spec:
+///            '_Bundled'
 StmtResult Parser::ParseCompoundStatement(bool isStmtExpr, unsigned ScopeFlags) {
-  // Checked C - process optional checked scope information.
+  // Checked C - process optional checked scope and bundled block information.
   CheckedScopeSpecifier CSS = CSS_None;
   SourceLocation CSSLoc;
   SourceLocation CSMLoc;
-  if (Tok.is(tok::kw__Checked)) {
+  SourceLocation BNDLoc;
+
+  if (Tok.is(tok::kw__Bundled)) {
+    BNDLoc = ConsumeToken();
+  } else if (Tok.is(tok::kw__Checked)) {
     CSS = CSS_Memory;
     CSSLoc = ConsumeToken();
     if (Tok.is(tok::kw__Bounds_only)) {
@@ -976,14 +992,14 @@ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr, unsigned ScopeFlags) 
     CSSLoc = ConsumeToken();
   }
 
-  assert(Tok.is(tok::l_brace) && "Not a compount stmt!");
+  assert(Tok.is(tok::l_brace) && "Not a compound stmt!");
   // Enter a scope to hold everything within the compound stmt.  Compound
   // statements can always hold declarations.
 
   ParseScope CompoundScope(this, ScopeFlags);
 
   // Parse the statements in the body.
-  return ParseCompoundStatementBody(isStmtExpr, CSS, CSSLoc, CSMLoc);
+  return ParseCompoundStatementBody(isStmtExpr, CSS, CSSLoc, CSMLoc, BNDLoc);
 }
 
 /// Parse any pragmas at the start of the compound expression. We handle these
@@ -1111,7 +1127,8 @@ StmtResult Parser::handleExprStmt(ExprResult E, ParsedStmtContext StmtCtx) {
 StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr,
                                               CheckedScopeSpecifier WrittenCSS,
                                               SourceLocation CSSLoc,
-                                              SourceLocation CSMLoc) {
+                                              SourceLocation CSMLoc,
+                                              SourceLocation BNDLoc) {
   PrettyStackTraceLoc CrashInfo(PP.getSourceManager(),
                                 Tok.getLocation(),
                                 "in compound statement ('{}')");
@@ -1243,7 +1260,7 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr,
 
   return Actions.ActOnCompoundStmt(T.getOpenLocation(), CloseLoc,
                                    Stmts, isStmtExpr, WrittenCSS,
-                                   CSSLoc, CSMLoc);
+                                   CSSLoc, CSMLoc, BNDLoc);
 }
 
 /// ParseParenExprOrCondition:
