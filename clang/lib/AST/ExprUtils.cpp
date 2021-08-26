@@ -312,18 +312,29 @@ namespace {
       Sema &SemaRef;
       Lexicographic Lex;
       Expr *LValue;
+      ValueDecl *V;
       bool Found;
 
     public:
-      FindLValueHelper(Sema &SemaRef, Expr *LValue) :
+      FindLValueHelper(Sema &SemaRef, Expr *LValue, ValueDecl *V) :
         SemaRef(SemaRef),
         Lex(Lexicographic(SemaRef.Context, nullptr)),
         LValue(LValue),
+        V(V),
         Found(false) {}
 
       bool IsFound() { return Found; }
 
       bool VisitDeclRefExpr(DeclRefExpr *E) {
+        if (V) {
+          if (ValueDecl *D = E->getDecl()) {
+            if (Lex.CompareDecl(D, V) == Lexicographic::Result::Equal)
+              Found = true;
+          };
+
+          return true;
+        }
+
         DeclRefExpr *V = dyn_cast_or_null<DeclRefExpr>(LValue);
         if (!V)
           return true;
@@ -360,7 +371,13 @@ namespace {
 }
 
 bool ExprUtil::FindLValue(Sema &S, Expr *LValue, Expr *E) {
-  FindLValueHelper Finder(S, LValue);
+  FindLValueHelper Finder(S, LValue, nullptr);
+  Finder.TraverseStmt(E);
+  return Finder.IsFound();
+}
+
+bool ExprUtil::IsVarUsed(Sema &S, VarDecl *V, Expr *E) {
+  FindLValueHelper Finder(S, nullptr, V);
   Finder.TraverseStmt(E);
   return Finder.IsFound();
 }
@@ -380,6 +397,29 @@ std::pair<Expr *, Expr *> ExprUtil::SplitByLValueCount(Sema &S, Expr *LValue,
     Pair.second = E1;
   }
   return Pair;
+}
+
+Expr *ExprUtil::IgnoreCasts(Lexicographic &Lex, ASTContext &Ctx, const Expr *E) {
+  return Lex.IgnoreValuePreservingOperations(Ctx, const_cast<Expr *>(E));
+}
+
+Expr *ExprUtil::TranspareCasts(Lexicographic &Lex, ASTContext &Ctx, const Expr *E) {
+  Expr *Pre = Lex.IgnoreValuePreservingOperations(Ctx, const_cast<Expr *>(E));
+  Expr *Post = Pre;
+  if (auto *CE = dyn_cast<CastExpr>(Pre)) {
+    if (CE->getCastKind() == CastKind::CK_IntegralCast)
+      Post = CE->getSubExpr();
+  }
+
+  if (auto *CE = dyn_cast<CastExpr>(Pre))
+    if (CE->getCastKind() == CastKind::CK_LValueToRValue)
+      Post = CE->getSubExpr();
+
+  if (Pre == Post) {
+    return Post;
+  } else {
+    return TranspareCasts(Lex, Ctx, Post);
+  }
 }
 
 namespace {
@@ -469,7 +509,7 @@ void ExprUtil::EnsureEqualBitWidths(llvm::APSInt &A, llvm::APSInt &B) {
 }
 
 bool InverseUtil::IsInvertible(Sema &S, Expr *LValue, Expr *E) {
-  if (!E)
+  if (!E || E->containsErrors())
     return false;
 
   E = E->IgnoreParens();
@@ -628,7 +668,10 @@ bool InverseUtil::IsCastExprInvertible(Sema &S, Expr *LValue, CastExpr *E) {
 }
 
 Expr *InverseUtil::Inverse(Sema &S, Expr *LValue, Expr *F, Expr *E) {
-  if (!F)
+  if (!F || F->containsErrors())
+    return nullptr;
+
+  if (!E || E->containsErrors())
     return nullptr;
 
   E = E->IgnoreParens();

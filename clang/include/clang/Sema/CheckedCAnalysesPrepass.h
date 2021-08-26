@@ -38,9 +38,6 @@ namespace clang {
   // of F in whose declared bounds expressions F occurs.
   using BoundsSiblingFieldsTy = llvm::DenseMap<const FieldDecl *, FieldSetTy>;
 
-  // CheckedScopeMapTy maps a statement to its checked scope specifier.
-  using CheckedScopeMapTy = llvm::DenseMap<const Stmt *, CheckedScopeSpecifier>;
-
   struct PrepassInfo {
     // VarUses maps each VarDecl V in a function to the DeclRefExpr (if any)
     // that is the first use of V, if V fulfills the following conditions:
@@ -85,10 +82,6 @@ namespace clang {
     // a deterministic iteration order we must remember to sort the keys as
     // well as the values.
     BoundsSiblingFieldsTy BoundsSiblingFields;
-
-    // A map of statements to their checked scope specifiers. An entry in this
-    // map is made only when the checked scope specifier changes.
-    CheckedScopeMapTy CheckedScopeMap;
   };
 } // end namespace clang
 #endif

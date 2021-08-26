@@ -7225,8 +7225,41 @@ private:
   friend class ASTStmtWriter;
 };
 
+/// \brief Represents a Checked C abstract fact
+/// The AbstractFact works as the basic fact that can be collected in the 
+/// available facts analysis. A concrete fact should always be a subclass
+/// of this fact.
+class AbstractFact {
+public:  
+  enum class FactKind { WhereClauseFact, InferredFact };
+  FactKind Kind;
+
+private:
+  SourceLocation Loc;
+
+public:
+  AbstractFact(FactKind Kind, SourceLocation Loc)
+    : Kind(Kind), Loc(Loc) {}
+
+  SourceLocation getLoc() const { return Loc; }
+  void setLoc(SourceLocation L) { Loc = L; }
+};
+
+class InferredFact : public AbstractFact {
+public:
+  BinaryOperator *EqualityOp;
+
+  InferredFact(BinaryOperator *EqualityOp, SourceLocation Loc)
+    : AbstractFact(FactKind::InferredFact, Loc),
+      EqualityOp(EqualityOp) {}
+
+  static bool classof(const AbstractFact *Fact) {
+    return Fact->Kind == FactKind::InferredFact;
+  }
+};
+
 /// \brief Represents a Checked C where clause fact.
-class WhereClauseFact {
+class WhereClauseFact : public AbstractFact {
 public:
   enum class FactKind { BoundsDeclFact, EqualityOpFact };
   FactKind Kind;
@@ -7244,8 +7277,14 @@ private:
 
 public:
   WhereClauseFact(FactKind Kind, SourceLocation Loc)
-    : Kind(Kind), Loc(Loc) {}
+    : AbstractFact(AbstractFact::FactKind::WhereClauseFact, Loc), Kind(Kind), Loc(Loc)  {}
+
+  static bool classof(const AbstractFact *Fact) {
+    return Fact->Kind == AbstractFact::FactKind::WhereClauseFact;
+  }
 };
+
+using AbstractFactListTy = llvm::SmallVector<AbstractFact *, 2>;
 
 /// \brief Represents a Checked C where clause bounds decl fact.
 class BoundsDeclFact : public WhereClauseFact {

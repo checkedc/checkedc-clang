@@ -2419,6 +2419,9 @@ void CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   if (Args.hasArg(OPT_fdump_boundssiblingfields))
     Opts.DumpBoundsSiblingFields = true;
 
+  if (Args.hasArg(OPT_fdump_available_facts))
+    Opts.DumpAvailableFacts = true;
+
   if (Args.hasArg(OPT_fdump_where_clauses))
     Opts.DumpWhereClauses = true;
 

@@ -84,6 +84,10 @@ public:
                              Expr *OriginalValue,
                              CheckedScopeSpecifier CSS);
 
+  // IsVarInNormalizeBounds searches whether V is used in the lower and
+  // upper bounds expression of Bounds.
+  static bool IsVarInNormalizeBounds(Sema &S, BoundsExpr *Bounds, VarDecl *V);
+
 private:
   // ExpandToRange expands the bounds expression for a variable declaration
   // to a range bounds expression.

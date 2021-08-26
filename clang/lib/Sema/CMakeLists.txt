@@ -12,6 +12,7 @@ clang_tablegen(OpenCLBuiltins.inc -gen-clang-opencl-builtins
 add_clang_library(clangSema
   AnalysisBasedWarnings.cpp
   AvailableFactsAnalysis.cpp
+  AvailableWhereFactsAnalysis.cpp
   BoundsUtils.cpp
   BoundsWideningAnalysis.cpp
   CheckedCAlias.cpp
@@ -21,6 +22,7 @@ add_clang_library(clangSema
   CodeCompleteConsumer.cpp
   DeclSpec.cpp
   DelayedDiagnostic.cpp
+  FactUtils.cpp
   IdentifierResolver.cpp
   JumpDiagnostics.cpp
   MultiplexExternalSemaSource.cpp
