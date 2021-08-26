@@ -567,7 +567,8 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   bool RewriteGeneric = false;
 
   bool DeclIsTypedef = false;
-  if (TypeSourceInfo *TS = FD->getTypeSourceInfo()) {
+  TypeSourceInfo *TS = FD->getTypeSourceInfo();
+  if (TS != nullptr) {
     // This still could possibly be a typedef type if TS was NULL.
     // TypeSourceInfo is null for implicit function declarations, so if a
     // implicit declaration uses a typedef, it will be missed. That's fine
@@ -623,12 +624,10 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
         RewriteParams = true;
     }
   } else {
-    // No params and no param source: make explicit
+    // Functions in CheckedC need prototypes, so replace empty parameter lists
+    // with an explict (void). This updates the parameter list; the rewrite flag
+    // will be set once it is known if the return needs to be rewritten.
     ParmStrs.push_back("void");
-    QualType ReturnTy = FD->getReturnType();
-    QualType Ty = FD->getTypeSourceInfo()->getType();
-    if (!Ty->isFunctionProtoType() && ReturnTy->isPointerType())
-      RewriteParams = true;
   }
 
   // Get rewritten return variable.
@@ -660,6 +659,15 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   if (RewriteGeneric) {
     RewriteParams = true;
   }
+
+  // If this function was declared without a prototype, then we must add one
+  // to be able to give it a checked return type. This was done by adding "void"
+  // to the parameter list above. Here we indicate the parameter list should be
+  // rewritten to include "void" only if the return is already being rewritten.
+  // This avoids unnecessarily adding void to empty parameter lists on unchecked
+  // functions.
+  if (TS && !TS->getType()->isFunctionProtoType() && RewriteReturn)
+    RewriteParams = true;
 
   // If the function is declared using a typedef for the function type, then we
   // need to rewrite parameters and the return if either would have been

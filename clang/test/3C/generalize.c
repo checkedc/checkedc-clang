@@ -22,10 +22,10 @@ void viewer_update(void *i) {
 void *getNull() { return 0; }
 // CHECK: _For_any(T) _Ptr<T> getNull(void) { return 0; }
 void *getOne() { return 1; }
-// CHECK: void *getOne(void) { return 1; }
+// CHECK: void *getOne() { return 1; }
 extern void *glob = 0;
 void *getGlobal() { return glob; }
-// CHECK: void *getGlobal(void) { return glob; }
+// CHECK: void *getGlobal() { return glob; }
 
 // check type parameters
 void call_from_fn() {
