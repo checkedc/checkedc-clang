@@ -364,9 +364,9 @@ int64_t Stmt::getID(const ASTContext &Context) const {
 CompoundStmt::CompoundStmt(ArrayRef<Stmt*> Stmts, SourceLocation LB,
                            SourceLocation RB, CheckedScopeSpecifier WrittenCSS,
                            CheckedScopeSpecifier CSS, SourceLocation CSSLoc,
-                           SourceLocation CSMLoc)
-  : Stmt(CompoundStmtClass), RBraceLoc(RB),
-    WrittenCSS(WrittenCSS), CSS(CSS), CSSLoc(CSSLoc), CSMLoc(CSMLoc) {
+                           SourceLocation CSMLoc, SourceLocation BNDLoc)
+  : Stmt(CompoundStmtClass), RBraceLoc(RB), WrittenCSS(WrittenCSS),
+    CSS(CSS), CSSLoc(CSSLoc), CSMLoc(CSMLoc), BNDLoc(BNDLoc) {
   CompoundStmtBits.NumStmts = Stmts.size();
   setStmts(Stmts);
   CompoundStmtBits.LBraceLoc = LB;
@@ -384,10 +384,12 @@ CompoundStmt *CompoundStmt::Create(const ASTContext &C, ArrayRef<Stmt *> Stmts,
                                    CheckedScopeSpecifier WrittenCSS,
                                    CheckedScopeSpecifier CSS,
                                    SourceLocation CSSLoc,
-                                   SourceLocation CSMLoc) {
+                                   SourceLocation CSMLoc,
+                                   SourceLocation BNDLoc) {
   void *Mem =
       C.Allocate(totalSizeToAlloc<Stmt *>(Stmts.size()), alignof(CompoundStmt));
-  return new (Mem) CompoundStmt(Stmts, LB, RB, WrittenCSS, CSS, CSSLoc, CSMLoc);
+  return new (Mem) CompoundStmt(Stmts, LB, RB, WrittenCSS, CSS,
+                                CSSLoc, CSMLoc, BNDLoc);
 }
 
 CompoundStmt *CompoundStmt::CreateEmpty(const ASTContext &C,

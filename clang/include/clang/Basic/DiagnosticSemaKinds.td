@@ -11680,5 +11680,8 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_expanding_cycle : Error<
     "expanding cycle in struct definition">;
 
+  def err_bundled_blk_can_contain_only_decl_value_stmts : Error<
+    "a bundled block can contain only declarations and expression statements">;
+
 } // end of Checked C Category
 } // end of sema component.
