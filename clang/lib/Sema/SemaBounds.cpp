@@ -4553,7 +4553,7 @@ namespace {
 
       // Account for uses of LValue in the declared return bounds (if any)
       // for the enclosing function.
-      UpdateReturnBoundsAfterAssignment(LValue, E, Src, CSS);
+      UpdateReturnBoundsAfterAssignment(LValue, E, CSS);
 
       // Get the original value (if any) of LValue before the assignment,
       // and determine whether the original value uses the value of LValue.
@@ -4595,7 +4595,7 @@ namespace {
     // TODO: track an observed return bounds expression as a global property
     // of the function body so that invertibility of lvalue expressions can
     // be taken into account.
-    void UpdateReturnBoundsAfterAssignment(Expr *LValue, Expr *E, Expr *Src,
+    void UpdateReturnBoundsAfterAssignment(Expr *LValue, Expr *E,
                                            CheckedScopeSpecifier CSS) {
       if (!ReturnBounds || ReturnBounds->isUnknown() || ReturnBounds->isAny())
         return;
