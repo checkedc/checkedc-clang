@@ -92,6 +92,9 @@ private:
                                  std::map<BoundsKey, BoundsKey> &BKMap,
                                  bool IsGlobal);
 
+  void contextualizeCVar(RecordDecl *RD, std::string AccessKey, bool IsGlobal,
+                         ASTContext *C, ProgramInfo &I);
+
   // Get string that represents a context sensitive key for the struct
   // member access ME.
   std::string getCtxStructKey(MemberExpr *ME, ASTContext *C);

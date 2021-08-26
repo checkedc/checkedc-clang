@@ -170,7 +170,7 @@ bool CtxSensitiveBoundsKeyHandler::tryGetFieldCSKey(
     FieldDecl *FD, CtxStKeyMap *CSK, const std::string &AK, ASTContext *C,
     ProgramInfo &I, BoundsKey &CSKey) {
   bool RetVal = false;
-  if (CSK->find(AK) != CSK->end()) {
+  if (ABI->isValidBoundVariable(FD) && CSK->find(AK) != CSK->end()) {
     CVarOption CV = I.getVariable(FD, C);
     BoundsKey OrigK;
     if (CV.hasValue() && CV.getValue().hasBoundsKey()) {
@@ -225,44 +225,41 @@ void CtxSensitiveBoundsKeyHandler::contextualizeStructRecord(
   }
 }
 
+void CtxSensitiveBoundsKeyHandler::contextualizeCVar(RecordDecl *RD,
+                                                     std::string AccessKey,
+                                                     bool IsGlobal,
+                                                     ASTContext *C,
+                                                     ProgramInfo &I) {
+  std::string FileName = PersistentSourceLoc::mkPSL(RD, *C).getFileName();
+  if (canWrite(FileName)) {
+    // Context sensitive struct key map.
+    CtxStKeyMap *MECSMap = getCtxStKeyMap(IsGlobal);
+    auto &BKeyMap = (*MECSMap)[AccessKey];
+    contextualizeStructRecord(I, C, RD, AccessKey, BKeyMap, IsGlobal);
+  }
+}
+
 void CtxSensitiveBoundsKeyHandler::contextualizeCVar(MemberExpr *ME,
                                                      ASTContext *C,
                                                      ProgramInfo &I) {
   FieldDecl *FD = dyn_cast_or_null<FieldDecl>(ME->getMemberDecl());
-  if (FD != nullptr) {
-    RecordDecl *RD = FD->getParent();
-    // If the base decl is not null.
-    if (RD != nullptr) {
-      // Get structure access key.
-      StructAccessVisitor SKV(C);
-      SKV.TraverseStmt(ME->getBase()->getExprStmt());
-      std::string AK = SKV.getStructAccessKey();
-      // Context sensitive struct key map.
-      CtxStKeyMap *MECSMap = getCtxStKeyMap(SKV.IsGlobal);
-      auto &BKeyMap = (*MECSMap)[AK];
-      contextualizeStructRecord(I, C, RD, AK, BKeyMap, SKV.IsGlobal);
-    }
+  if (RecordDecl *RD = FD != nullptr ? FD->getParent() : nullptr) {
+    // Get structure access key.
+    StructAccessVisitor SKV(C);
+    SKV.TraverseStmt(ME->getBase()->getExprStmt());
+    contextualizeCVar(RD, SKV.getStructAccessKey(), SKV.IsGlobal, C, I);
   }
 }
 
 void CtxSensitiveBoundsKeyHandler::contextualizeCVar(VarDecl *VD, ASTContext *C,
                                                      ProgramInfo &I) {
-  const RecordType *RT = dyn_cast_or_null<RecordType>(
-      VD->getType()->getUnqualifiedDesugaredType());
-  const RecordDecl *RD = nullptr;
-  if (RT != nullptr) {
-    RD = RT->getDecl();
-  }
-  // If the base decl is not null.
-  if (RT != nullptr) {
+  const auto *RT = dyn_cast_or_null<RecordType>(
+    VD->getType()->getUnqualifiedDesugaredType());
+  if (RecordDecl *RD = RT != nullptr ? RT->getDecl() : nullptr) {
     // Get structure access key.
     StructAccessVisitor SKV(C);
     SKV.processVarDecl(VD);
-    // Context sensitive struct key map.
-    CtxStKeyMap *MECSMap = getCtxStKeyMap(SKV.IsGlobal);
-    std::string AK = SKV.getStructAccessKey();
-    auto &BKeyMap = (*MECSMap)[AK];
-    contextualizeStructRecord(I, C, RD, AK, BKeyMap, SKV.IsGlobal);
+    contextualizeCVar(RD, SKV.getStructAccessKey(), SKV.IsGlobal, C, I);
   }
 }
 
