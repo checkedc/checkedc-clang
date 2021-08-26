@@ -359,12 +359,6 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
     ValueDecl *VD = cast<ValueDecl>(D);
     if (!VD->isInvalidDecl() && !DiagnoseCheckedDecl(VD, Loc))
       return true;
-    if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
-      if (FD->getType()->hasVariadicType()) {
-        Diag(Loc, diag::err_checked_scope_no_variadic_func_for_expression);
-        return true;
-      }
-    }
   }
 
   DiagnoseAvailabilityOfDecl(D, Locs, UnknownObjCClass, ObjCPropertyAccess,
