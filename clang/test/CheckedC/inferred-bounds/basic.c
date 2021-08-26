@@ -431,8 +431,7 @@ void f42(void) {
 // CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} r '_Array_ptr<int>' cinit
 // CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
 // CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 1
-// CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <BitCast>
-// CHECK: `-UnaryOperator {{0x[0-9a-f]+}} {{.*}} 'int *' prefix '&'
+// CHECK: `-UnaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' prefix '&'
 // CHECK:     `-ArraySubscriptExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue
 // CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <LValueToRValue>
 // CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
@@ -521,8 +520,7 @@ void f43(void) {
 
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' '='
 // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'r' '_Array_ptr<int>'
-// CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <BitCast>
-// CHECK: `-UnaryOperator {{0x[0-9a-f]+}} {{.*}} 'int *' prefix '&'
+// CHECK: `-UnaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' prefix '&'
 // CHECK: `-ArraySubscriptExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue
 // CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <LValueToRValue>
 // CHECK:       | `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
