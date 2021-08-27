@@ -436,8 +436,19 @@ StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
       DiagnoseEmptyLoopBody(Elts[i], Elts[i + 1]);
   }
 
+  // Set the checked scope specifiers for all statements that are part of this
+  // compound statement.
+  CheckedScopeSpecifier InferredCSS = GetCheckedScopeInfo();
+  for (Stmt *S : Elts) {
+    if (!S)
+      continue;
+    if (auto *L = dyn_cast<LabelStmt>(S))
+      S = L->getSubStmt();
+    S->setCheckedScopeSpecifier(InferredCSS);
+  }
+
   return CompoundStmt::Create(Context, Elts, L, R, WrittenCSS,
-                              GetCheckedScopeInfo(), CSSLoc, CSMLoc);
+                              InferredCSS, CSSLoc, CSMLoc);
 }
 
 ExprResult

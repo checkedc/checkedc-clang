@@ -476,7 +476,7 @@ void ExprUtil::EnsureEqualBitWidths(llvm::APSInt &A, llvm::APSInt &B) {
 }
 
 bool InverseUtil::IsInvertible(Sema &S, Expr *LValue, Expr *E) {
-  if (!E)
+  if (!E || E->containsErrors())
     return false;
 
   E = E->IgnoreParens();
@@ -635,7 +635,10 @@ bool InverseUtil::IsCastExprInvertible(Sema &S, Expr *LValue, CastExpr *E) {
 }
 
 Expr *InverseUtil::Inverse(Sema &S, Expr *LValue, Expr *F, Expr *E) {
-  if (!F)
+  if (!F || F->containsErrors())
+    return nullptr;
+
+  if (!E || E->containsErrors())
     return nullptr;
 
   E = E->IgnoreParens();
