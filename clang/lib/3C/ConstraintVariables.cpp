@@ -130,7 +130,7 @@ PointerVariableConstraint::PointerVariableConstraint(
     SourceGenericIndex(Ot->SourceGenericIndex),
     InferredGenericIndex(Ot->InferredGenericIndex),
     IsZeroWidthArray(Ot->IsZeroWidthArray),
-    IsTypedef(Ot->IsTypedef), TDT(Ot->TDT), TypedefString(Ot->TypedefString),
+    IsTypedef(Ot->IsTypedef), TypedefString(Ot->TypedefString),
     TypedefLevelInfo(Ot->TypedefLevelInfo), IsVoidPtr(Ot->IsVoidPtr) {
   // These are fields of the super class Constraint Variable
   this->HasEqArgumentConstraints = Ot->HasEqArgumentConstraints;
@@ -206,8 +206,7 @@ PointerVariableConstraint::PointerVariableConstraint(
     const ASTContext &C, std::string *InFunc, int ForceGenericIndex,
     bool PotentialGeneric,
     bool VarAtomForChecked, TypeSourceInfo *TSInfo, const QualType &ITypeT)
-    : ConstraintVariable(ConstraintVariable::PointerVariable,
-                         tyToStr(QT.getTypePtr()), N),
+    : ConstraintVariable(ConstraintVariable::PointerVariable, qtyToStr(QT), N),
       FV(nullptr), SrcHasItype(false), PartOfFuncPrototype(InFunc != nullptr),
       Parent(nullptr) {
   QualType QTy = QT;
@@ -704,12 +703,18 @@ void PointerVariableConstraint::addArrayAnnotations(
   assert(ConstArrs.empty());
 }
 
-bool PointerVariableConstraint::isTypedef(void) { return IsTypedef; }
+bool PointerVariableConstraint::isTypedef(void) const { return IsTypedef; }
 
-void PointerVariableConstraint::setTypedef(TypedefNameDecl *T, std::string S) {
+void PointerVariableConstraint::setTypedef(ConstraintVariable *TDVar,
+                                           std::string S) {
   IsTypedef = true;
-  TDT = T;
+  TypedefVar = TDVar;
   TypedefString = S;
+}
+
+const ConstraintVariable *PointerVariableConstraint::getTypedefVar() const {
+  assert(isTypedef());
+  return TypedefVar;
 }
 
 // Mesh resolved constraints with the PointerVariableConstraints set of
@@ -736,8 +741,12 @@ PointerVariableConstraint::mkString(Constraints &CS,
     UseName = getName();
 
   if (IsTypedef && !UnmaskTypedef) {
-    return gatherQualStrings() + TypedefString +
-           (EmitName && !IsReturn ? (" " + UseName) : " ");
+    std::string QualTypedef = gatherQualStrings() + TypedefString;
+    if (!ForItype)
+      QualTypedef += " ";
+    if (EmitName && !IsReturn)
+      QualTypedef += UseName;
+    return QualTypedef;
   }
 
   std::ostringstream Ss;

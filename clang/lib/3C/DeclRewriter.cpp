@@ -35,6 +35,10 @@ using namespace clang;
 void DeclRewriter::buildItypeDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
                                   std::string &Type, std::string &IType,
                                   ProgramInfo &Info, ArrayBoundsRewriter &ABR) {
+  const EnvironmentMap &Env = Info.getConstraints().getVariables();
+  bool IsTypedefVarUnchecked =
+    Defn->isTypedef() && (ItypesForExtern ||
+                          !Defn->getTypedefVar()->isSolutionChecked(Env));
   if (Defn->getFV()) {
     // This declaration is for a function pointer. Writing itypes on function
     // pointers is a little bit harder since the original type string will not
@@ -42,10 +46,22 @@ void DeclRewriter::buildItypeDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
     // unchecked type from the PVConstraint. The last argument of this call
     // tells mkString to generate a string using unchecked types instead of
     // checked types.
-    Type = Defn->mkString(Info.getConstraints(),
-                          MKSTRING_OPTS(ForItypeBase = true));
+    if (Defn->isTypedef() && !IsTypedefVarUnchecked)
+      Type = Defn->mkString(Info.getConstraints(),
+                            MKSTRING_OPTS(UnmaskTypedef = true,
+                                          ForItypeBase = true));
+    else
+      Type = Defn->mkString(Info.getConstraints(),
+                            MKSTRING_OPTS(ForItypeBase = true));
   } else {
-    Type = Defn->getRewritableOriginalTy();
+    if (Defn->isTypedef() && !IsTypedefVarUnchecked)
+      Type = Defn->mkString(Info.getConstraints(),
+                            MKSTRING_OPTS(UnmaskTypedef = true,
+                                          ForItypeBase = true,
+                                          EmitName = false));
+    else
+      Type = Defn->getRewritableOriginalTy();
+
     if (isa_and_nonnull<ParmVarDecl>(Decl)) {
       if (Decl->getName().empty())
         Type += Defn->getName();
@@ -59,7 +75,8 @@ void DeclRewriter::buildItypeDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
   }
 
   IType = " : itype(";
-  if (ItypesForExtern && Defn->isTypedef()) {
+
+  if (IsTypedefVarUnchecked) {
     // In -itypes-for-extern mode we do not rewrite typedefs to checked types.
     // They are given a checked itype instead. The unchecked portion of the
     // itype continues to use the original typedef, but the typedef in the

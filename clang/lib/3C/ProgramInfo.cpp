@@ -640,8 +640,8 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     NewCV = F;
 
     auto RetTy = FD->getReturnType();
-    unifyIfTypedef(RetTy.getTypePtr(), *AstContext, FD, F->getExternalReturn());
-    unifyIfTypedef(RetTy.getTypePtr(), *AstContext, FD, F->getInternalReturn());
+    unifyIfTypedef(RetTy, *AstContext, F->getExternalReturn(), Wild_to_Safe);
+    unifyIfTypedef(RetTy, *AstContext, F->getInternalReturn(), Safe_to_Wild);
     ensureNtCorrect(RetTy, *AstContext, F->getExternalReturn());
     ensureNtCorrect(RetTy, *AstContext, F->getInternalReturn());
 
@@ -649,13 +649,13 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     // the parameters.
     for (unsigned I = 0; I < FD->getNumParams(); I++) {
       ParmVarDecl *PVD = FD->getParamDecl(I);
-      const Type *Ty = PVD->getType().getTypePtr();
+      QualType ParamTy = PVD->getType();
       PVConstraint *PVInternal = F->getInternalParam(I);
       PVConstraint *PVExternal = F->getExternalParam(I);
-      unifyIfTypedef(Ty, *AstContext, PVD, PVInternal);
-      unifyIfTypedef(Ty, *AstContext, PVD, PVExternal);
-      ensureNtCorrect(PVD->getType(), *AstContext, PVInternal);
-      ensureNtCorrect(PVD->getType(), *AstContext, PVExternal);
+      unifyIfTypedef(ParamTy, *AstContext, PVExternal, Wild_to_Safe);
+      unifyIfTypedef(ParamTy, *AstContext, PVInternal, Safe_to_Wild);
+      ensureNtCorrect(ParamTy, *AstContext, PVInternal);
+      ensureNtCorrect(ParamTy, *AstContext, PVExternal);
       PVInternal->setValidDecl();
       PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(PVD, *AstContext);
       // Constraint variable is stored on the parent function, so we need to
@@ -675,13 +675,13 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
 
   } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
     assert(!isa<ParmVarDecl>(VD));
-    const Type *Ty = VD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
-    if (Ty->isPointerType() || Ty->isArrayType()) {
+    QualType QT = VD->getTypeSourceInfo()->getTypeLoc().getType();
+    if (QT->isPointerType() || QT->isArrayType()) {
       PVConstraint *P = new PVConstraint(D, *this, *AstContext);
       P->setValidDecl();
       NewCV = P;
       std::string VarName(VD->getName());
-      unifyIfTypedef(Ty, *AstContext, VD, P);
+      unifyIfTypedef(QT, *AstContext, P);
       ensureNtCorrect(VD->getType(), *AstContext, P);
       if (VD->hasGlobalStorage()) {
         // If we see a definition for this global variable, indicate so in
@@ -699,10 +699,10 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     }
 
   } else if (FieldDecl *FlD = dyn_cast<FieldDecl>(D)) {
-    const Type *Ty = FlD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
-    if (Ty->isPointerType() || Ty->isArrayType()) {
+    QualType QT = FlD->getTypeSourceInfo()->getTypeLoc().getType();
+    if (QT->isPointerType() || QT->isArrayType()) {
       PVConstraint *P = new PVConstraint(D, *this, *AstContext);
-      unifyIfTypedef(Ty, *AstContext, FlD, P);
+      unifyIfTypedef(QT, *AstContext, P);
       NewCV = P;
       NewCV->setValidDecl();
     }
@@ -725,16 +725,16 @@ void ProgramInfo::ensureNtCorrect(const QualType &QT, const ASTContext &C,
   }
 }
 
-void ProgramInfo::unifyIfTypedef(const Type *Ty, ASTContext &Context,
-                                 DeclaratorDecl *Decl, PVConstraint *P) {
-  if (const auto *TDT = dyn_cast<TypedefType>(Ty)) {
+void ProgramInfo::unifyIfTypedef(const QualType &QT, ASTContext &Context,
+                                 PVConstraint *P, ConsAction CA) {
+  if (const auto *TDT = dyn_cast<TypedefType>(QT.getTypePtr())) {
     auto *TDecl = TDT->getDecl();
     auto PSL = PersistentSourceLoc::mkPSL(TDecl, Context);
     auto O = lookupTypedef(PSL);
     if (O.hasValue()) {
       auto *Bounds = &O.getValue();
-      P->setTypedef(TDecl, TDecl->getNameAsString());
-      constrainConsVarGeq(P, Bounds, CS, &PSL, Same_to_Same, true, this);
+      P->setTypedef(Bounds, TDecl->getNameAsString());
+      constrainConsVarGeq(P, Bounds, CS, &PSL, CA, false, this);
     }
   }
 }
