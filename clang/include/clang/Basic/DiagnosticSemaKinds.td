@@ -11386,6 +11386,10 @@ def err_bounds_type_annotation_lost_checking : Error<
     "argument has unknown bounds, bounds expected because the "
     "%ordinal0 parameter has bounds">;
 
+  def err_expected_bounds_for_return : Error<
+    "return value has unknown bounds, bounds expected because the "
+    "function %0 has bounds">;
+
   def err_initializer_expected_with_bounds : Error<
     "automatic variable %0 with bounds must have initializer">;
 
@@ -11622,11 +11626,29 @@ def err_bounds_type_annotation_lost_checking : Error<
   def error_modified_return_bounds : Error<
     "modified expression '%0' used in the declared return bounds for %1">;
 
+  def error_return_bounds_invalid : Error<
+    "return value bounds do not imply declared return bounds for %0">;
+
+  def error_return_bounds_unprovable: Error<
+    "it is not possible to prove that return value bounds "
+    "imply declared return bounds for %0">;
+
+  def warn_return_bounds_invalid: Warning<
+    "cannot prove return value bounds imply declared return bounds for %0">,
+    InGroup<CheckBoundsDeclsUnchecked>;
+
+  def warn_checked_scope_return_bounds_invalid : Warning<
+    "cannot prove return value bounds imply declared return bounds for %0">,
+    InGroup<CheckBoundsDeclsChecked>;
+
   def note_declared_return_bounds : Note<
     "(expanded) declared return bounds are '%0'">;
 
+  def note_inferred_return_bounds : Note<
+    "(expanded) inferred return value bounds are '%0'">;
+
   def error_out_of_bounds_access : Error<
-    "out-of-bounds %select{||memory access|base value}0">;
+    "out-of-bounds %select{|||memory access|base value}0">;
 
   def note_source_bounds_empty : Note<"source bounds are an empty range">;
 
@@ -11637,21 +11659,22 @@ def err_bounds_type_annotation_lost_checking : Error<
   def note_destination_bounds_invalid : Note<"destination bounds are an invalid range">;
 
   def note_bounds_too_narrow : Note<
-    "%select{destination bounds are|target bounds are|memory accessed is|"
-    "struct/union pointed to by base is}0 wider than the "
-    "%select{source|source||}0 bounds">;
+    "%select{destination bounds are|target bounds are|declared return bounds are|"
+    "memory accessed is|struct/union pointed to by base is|}0 wider "
+    "than the %select{source|source|return value|source|source}0 bounds">;
 
   def note_lower_out_of_bounds : Note<
-    "%select{destination lower bound is|target lower bound is|accesses memory|"
-    "base value is}0 below %select{source|source|the|its}0 lower bound">;
+    "%select{destination lower bound is|target lower bound is|"
+    "declared return lower bound is|accesses memory|base value is}0 "
+    "below %select{source|source|return value|the|its}0 lower bound">;
 
   def note_upper_out_of_bounds : Note<
     "%select{destination upper bound is|target upper bound is|"
-    "accesses memory at or|base value is}0 "
-    "above %select{source|source|the|its}0 upper bound">;
+    "declared return upper bound is|accesses memory at or|base value is}0 "
+    "above %select{source|source|return value|the|its}0 upper bound">;
 
    def note_bounds_partially_overlap : Note<
-    "%select{||accesses memory that|struct/union pointed to by base value}0 is "
+    "%select{|||accesses memory that|struct/union pointed to by base value}0 is "
     "only partially in bounds">;
 
   def no_prototype_generic_function : Error<

@@ -16,7 +16,7 @@ _Array_ptr<int> f1(_Array_ptr<int> p : count(1), unsigned int i) : bounds(p, p +
 
 _Nt_array_ptr<char> f2(unsigned int len) : count(len) { // expected-note {{(expanded) declared return bounds are 'bounds(_Return_value, _Return_value + len)'}}
   len = len * 2; // expected-error {{modified expression 'len' used in the declared return bounds for 'f2'}}
-  return "abcd";
+  return 0;
 }
 
 _Array_ptr<int> f3(_Array_ptr<int> arr : count(1), unsigned int idx) : byte_count(arr[idx]) { // expected-note 2 {{(expanded) declared return bounds are 'bounds((_Array_ptr<char>)_Return_value, (_Array_ptr<char>)_Return_value + arr[idx])'}}
