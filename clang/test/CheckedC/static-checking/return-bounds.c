@@ -53,8 +53,8 @@ _Nt_array_ptr<char> f8(_Nt_array_ptr<char> p, int test) : count(0) { // expected
                 // expected-note {{(expanded) inferred return value bounds are 'bounds(p, p + 0)'}}
 }
 
-_Array_ptr<int> f9(int i, int j) : count(i) { // expected-note {{(expanded) declared return bounds are 'bounds(_Return_value, _Return_value + i)'}}
-  i = j + 1;
+_Array_ptr<int> f9(int i, int j) : count(i) { // expected-note 2 {{(expanded) declared return bounds are 'bounds(_Return_value, _Return_value + i)'}}
+  i = j + 1; // expected-error {{modified expression 'i' used in the declared return bounds for 'f9'}}
   _Array_ptr<int> p : count(j) = 0;
   return p; // expected-warning {{cannot prove return value bounds imply declared return bounds for 'f9'}} \
             // expected-note {{(expanded) inferred return value bounds are 'bounds(p, p + j)'}}

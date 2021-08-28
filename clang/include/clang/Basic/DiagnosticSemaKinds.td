@@ -11623,6 +11623,9 @@ def err_bounds_type_annotation_lost_checking : Error<
   def error_static_cast_bounds_invalid : Error<
     "cast source bounds are too narrow for %0">;
 
+  def error_modified_return_bounds : Error<
+    "modified expression '%0' used in the declared return bounds for %1">;
+
   def error_return_bounds_invalid : Error<
     "return value bounds do not imply declared return bounds for %0">;
 
