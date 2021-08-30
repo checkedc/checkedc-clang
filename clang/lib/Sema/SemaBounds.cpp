@@ -3280,7 +3280,8 @@ namespace {
       bool StateUpdated = false;
 
       // Update the checking state.  The result bounds may also be updated
-      // for assignments to a variable.
+      // for assignments to a variable, member expression, pointer dereference,
+      // or array subscript.
       if (E->isAssignmentOp()) {
         Expr *Target =
           ExprCreatorUtil::CreateImplicitCast(S, LHS, CK_LValueToRValue,
@@ -4524,9 +4525,10 @@ namespace {
       Lexicographic Lex(S.Context, nullptr);
       LValue = Lex.IgnoreValuePreservingOperations(S.Context, LValue);
 
-      // Currently, we only update the checking state after assignments
-      // to a variable or a member expression.
-      if (!isa<DeclRefExpr>(LValue) && !isa<MemberExpr>(LValue)) {
+      // We only update the checking state after assignments to a variable,
+      // member expression, pointer dereference, or array subscript.
+      if (!isa<DeclRefExpr>(LValue) && !isa<MemberExpr>(LValue) &&
+          !isa<UnaryOperator>(LValue) && !isa<ArraySubscriptExpr>(LValue)) {
         StateUpdated = false;
         return SrcBounds;
       }
@@ -4762,13 +4764,14 @@ namespace {
         return;
       LValue = LValue->IgnoreParens();
 
-      // Certain kinds of expressions (e.g. member expressions) are not allowed
-      // to be included in EquivExprs. For these expressions, we record
-      // temporary equality (if permitted by AllowTempEquality) between Target
-      // and Src in TargetSrcEquality instead of in EquivExprs. If Src is
-      // allowed in EquivExprs, SameValue will contain at least one expression
-      // that produces the same value as Src.
-      bool TargetAllowedInEquivExprs = !isa<MemberExpr>(LValue);
+      // Certain kinds of expressions (e.g. member expressions,
+      // pointer dereferences, array subscripts, etc.) are not allowed to be
+      // included in EquivExprs. For these expressions, we record temporary
+      // equality (if permitted by AllowTempEquality) between Target and Src
+      // in TargetSrcEquality instead of in EquivExprs. If Src is allowed in
+      // EquivExprs, SameValue will contain at least one expression that
+      // produces the same value as Src.
+      bool TargetAllowedInEquivExprs = isa<DeclRefExpr>(LValue);
       bool SrcAllowedInEquivExprs = State.SameValue.size() > 0;
 
       // For expressions that are allowed in EquivExprs, try to add Target
