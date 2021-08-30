@@ -4355,10 +4355,9 @@ namespace {
       if (!V)
         return;
 
-      BlameAssignmentWithinStmt(St, A, State,
-                                diag::err_unknown_inferred_bounds);
-      S.Diag(V->getLocation(), diag::note_declared_bounds)
-        << DeclaredBounds << DeclaredBounds->getSourceRange();
+      SourceLocation Loc = BlameAssignmentWithinStmt(St, A, State,
+                            diag::err_unknown_inferred_bounds);
+      EmitDeclaredBoundsNote(A, DeclaredBounds, Loc);
 
       // The observed bounds of A are unknown because the original observed
       // bounds B of A used the value of an lvalue expression E, and there
@@ -4439,8 +4438,7 @@ namespace {
         DiagnoseFreeVariables(diag::note_free_variable_decl_or_inferred, Loc,
                               FreeVars);
 
-      S.Diag(V->getLocation(), diag::note_declared_bounds)
-        << DeclaredBounds << DeclaredBounds->getSourceRange();
+      EmitDeclaredBoundsNote(A, DeclaredBounds, Loc);
       S.Diag(Loc, diag::note_expanded_inferred_bounds)
         << ObservedBounds << ObservedBounds->getSourceRange();
     }
@@ -4499,6 +4497,23 @@ namespace {
       S.Diag(Loc, DiagId) << BDCType << A->GetRepresentative()
         << SrcRange << SrcRange;
       return Loc;
+    }
+
+    // EmitDeclaredBoundsNote emits a diagnostic message containing the
+    // declared bounds for the lvalue expressions in A.
+    // If the expressions in A are associated with a NamedDecl (e.g. if
+    // the expressions in A are variables or member expressions), the note
+    // is emitted at the declaration. Otherwise (e.g. the expressions in
+    // A are pointer dereferences or array subscripts), the note is emitted
+    // at the location of the last assignment expression that updated the
+    // observed bounds of the expressions in A.
+    void EmitDeclaredBoundsNote(const AbstractSet *A,
+                                BoundsExpr *DeclaredBounds,
+                                SourceLocation AssignmentLoc) {
+      const NamedDecl *V = A->GetDecl();
+      SourceLocation Loc = V ? V->getLocation() : AssignmentLoc;
+      S.Diag(Loc, diag::note_declared_bounds)
+        << DeclaredBounds << DeclaredBounds->getSourceRange();
     }
 
     // Methods to update the checking state.
