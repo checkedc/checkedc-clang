@@ -4401,12 +4401,12 @@ namespace {
       if (Result == ProofResult::True)
         return;
 
-      // If v currently has widened bounds and the widened bounds of v are not
+      // If A currently has widened bounds and the widened bounds of A are not
       // killed by the statement St, then the proof failure was caused by not
-      // being able to prove the widened bounds of v imply the declared bounds
-      // of v. Diagnostics should not be emitted in this case. Otherwise,
-      // statements that make no changes to v or any variables used in the
-      // bounds of v would cause diagnostics to be emitted.
+      // being able to prove the widened bounds of A imply the declared bounds
+      // of A. Diagnostics should not be emitted in this case. Otherwise,
+      // statements that make no changes to A or any expressions used in the
+      // bounds of A would cause diagnostics to be emitted.
       // For example, the widened bounds (p, (p + 0) + 1) do not provably imply
       // the declared bounds (p, p + 0) due to the left-associativity of the
       // observed upper bound (p + 0) + 1.
