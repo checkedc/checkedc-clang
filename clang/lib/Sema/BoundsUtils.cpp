@@ -242,6 +242,30 @@ namespace {
           return E;
       }
 
+      ExprResult TransformUnaryOperator(UnaryOperator *E) {
+        if (!ExprUtil::IsDereferenceOrSubscript(LValue))
+          return E;
+        if (Lex.CompareExprSemantically(LValue, E)) {
+          if (OriginalValue)
+            return OriginalValue;
+          else
+            return ExprError();
+        } else
+          return E;
+      }
+
+      ExprResult TransformArraySubscriptExpr(ArraySubscriptExpr *E) {
+        if (!ExprUtil::IsDereferenceOrSubscript(LValue))
+          return E;
+        if (Lex.CompareExprSemantically(LValue, E)) {
+          if (OriginalValue)
+            return OriginalValue;
+          else
+            return ExprError();
+        } else
+          return E;
+      }
+
       // Overriding TransformImplicitCastExpr is necessary since TreeTransform
       // does not preserve implicit casts.
       ExprResult TransformImplicitCastExpr(ImplicitCastExpr *E) {
