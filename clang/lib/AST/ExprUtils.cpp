@@ -458,6 +458,22 @@ namespace {
         return true;
       }
 
+      bool VisitUnaryOperator(UnaryOperator *E) {
+        if (!ExprUtil::IsDereferenceOrSubscript(LValue))
+          return true;
+        if (Lex.CompareExprSemantically(E, LValue))
+          ++Count;
+        return true;
+      }
+
+      bool VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
+        if (!ExprUtil::IsDereferenceOrSubscript(LValue))
+          return true;
+        if (Lex.CompareExprSemantically(E, LValue))
+          ++Count;
+        return true;
+      }
+
       // Do not traverse the child of a BoundsValueExpr.
       // If a BoundsValueExpr uses the expression LValue (or a variable whose
       // declaration matches V), this should not count toward the total
