@@ -4316,9 +4316,6 @@ namespace {
 
       for (auto const &Pair : State.ObservedBounds) {
         const AbstractSet *A = Pair.first;
-        const NamedDecl *V = A->GetDecl();
-        if (!V)
-          continue;
         BoundsExpr *ObservedBounds = Pair.second;
         BoundsExpr *DeclaredBounds =
           this->S.GetLValueDeclaredBounds(A->GetRepresentative(), CSS);
@@ -4333,9 +4330,11 @@ namespace {
           // variables whose bounds are widened in this block before statement
           // S and not killed by statement S.
           bool DiagnoseObservedBounds = true;
-          if (const VarDecl *Var = dyn_cast<VarDecl>(V))
-            DiagnoseObservedBounds = BoundsWidenedAndNotKilled.find(Var) ==
-                                     BoundsWidenedAndNotKilled.end();
+          if (const NamedDecl *V = A->GetDecl()) {
+            if (const VarDecl *Var = dyn_cast<VarDecl>(V))
+              DiagnoseObservedBounds = BoundsWidenedAndNotKilled.find(Var) ==
+                                        BoundsWidenedAndNotKilled.end();
+          }
           CheckObservedBounds(S, A, DeclaredBounds, ObservedBounds, State,
                               &EquivExprs, CSS, Block, DiagnoseObservedBounds);
         }
@@ -4351,9 +4350,6 @@ namespace {
     void DiagnoseUnknownObservedBounds(Stmt *St, const AbstractSet *A,
                                        BoundsExpr *DeclaredBounds,
                                        CheckingState State) {
-      const NamedDecl *V = A->GetDecl();
-      if (!V)
-        return;
 
       SourceLocation Loc = BlameAssignmentWithinStmt(St, A, State,
                             diag::err_unknown_inferred_bounds);
@@ -4398,7 +4394,6 @@ namespace {
                              CheckedScopeSpecifier CSS,
                              const CFGBlock *Block,
                              bool DiagnoseObservedBounds) {
-      const NamedDecl *V = A->GetDecl();
       ProofFailure Cause;
       FreeVariableListTy FreeVars;
       ProofResult Result = ProveBoundsDeclValidity(
@@ -4454,7 +4449,6 @@ namespace {
                                              unsigned DiagId) const {
       assert(St);
       const NamedDecl *V = A->GetDecl();
-      assert(V);
       SourceRange SrcRange = St->getSourceRange();
       auto BDCType = Sema::BoundsDeclarationCheck::BDC_Statement;
 
@@ -4463,7 +4457,7 @@ namespace {
       // message starts at the beginning of a declaration T v = e, then extra
       // diagnostics may be emitted for T.
       SourceLocation Loc = St->getBeginLoc();
-      if (isa<DeclStmt>(St)) {
+      if (V && isa<DeclStmt>(St)) {
         Loc = V->getLocation();
         BDCType = Sema::BoundsDeclarationCheck::BDC_Initialization;
         S.Diag(Loc, DiagId) << BDCType << A->GetRepresentative()
