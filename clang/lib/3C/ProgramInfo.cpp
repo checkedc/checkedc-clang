@@ -169,7 +169,8 @@ void ProgramInfo::printAggregateStats(const std::set<std::string> &F,
   for (auto &I : Variables) {
     ConstraintVariable *C = I.second;
     std::string FileName = I.first.getFileName();
-    if (F.count(FileName) || FileName.find(BaseDir) != std::string::npos) {
+    if (F.count(FileName) ||
+        FileName.find(_3COpts.BaseDir) != std::string::npos) {
       if (C->isForValidDecl()) {
         FoundVars.clear();
         getVarsFromConstraint(C, FoundVars, Visited);
@@ -236,8 +237,9 @@ void ProgramInfo::printAggregateStats(const std::set<std::string> &F,
 void ProgramInfo::printStats(const std::set<std::string> &F, raw_ostream &O,
                              bool OnlySummary, bool JsonFormat) {
   if (!OnlySummary && !JsonFormat) {
-    O << "Enable itype propagation:" << EnablePropThruIType << "\n";
-    O << "Sound handling of var args functions:" << HandleVARARGS << "\n";
+    O << "Enable itype propagation:" << _3COpts.EnablePropThruIType << "\n";
+    O << "Sound handling of var args functions:" << _3COpts.HandleVARARGS
+      << "\n";
   }
   std::map<std::string, std::tuple<int, int, int, int, int>> FilesToVars;
   CVarSet InSrcCVars, Visited;
@@ -247,7 +249,8 @@ void ProgramInfo::printStats(const std::set<std::string> &F, raw_ostream &O,
   // First, build the map and perform the aggregation.
   for (auto &I : Variables) {
     std::string FileName = I.first.getFileName();
-    if (F.count(FileName) || FileName.find(BaseDir) != std::string::npos) {
+    if (F.count(FileName) ||
+        FileName.find(_3COpts.BaseDir) != std::string::npos) {
       int VarC = 0;
       int PC = 0;
       int NtaC = 0;
@@ -352,7 +355,7 @@ void ProgramInfo::printStats(const std::set<std::string> &F, raw_ostream &O,
     O << "}},\n";
   }
 
-  if (AllTypes) {
+  if (_3COpts.AllTypes) {
     if (JsonFormat) {
       O << "\"BoundsStats\":";
     }
@@ -375,7 +378,7 @@ void ProgramInfo::printStats(const std::set<std::string> &F, raw_ostream &O,
 bool ProgramInfo::link() {
   // For every global symbol in all the global symbols that we have found
   // go through and apply rules for whether they are functions or variables.
-  if (Verbose)
+  if (_3COpts.Verbose)
     llvm::errs() << "Linking!\n";
 
   // Equate the constraints for all global variables.
@@ -387,7 +390,7 @@ bool ProgramInfo::link() {
       std::set<PVConstraint *>::iterator I = C.begin();
       std::set<PVConstraint *>::iterator J = C.begin();
       ++J;
-      if (Verbose)
+      if (_3COpts.Verbose)
         llvm::errs() << "Global variables:" << V.first << "\n";
       while (J != C.end()) {
         constrainConsVarGeq(*I, *J, CS, nullptr, Same_to_Same, true, this);
@@ -662,7 +665,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       // constrain to WILD even if we don't end up storing this in the map.
       constrainWildIfMacro(PVExternal, PVD->getLocation());
       // If this is "main", constrain its argv parameter to a nested arr
-      if (AllTypes && FuncName == "main" && FD->isGlobal() && I == 1) {
+      if (_3COpts.AllTypes && FuncName == "main" && FD->isGlobal() && I == 1) {
         PVInternal->constrainOuterTo(CS, CS.getArr());
         PVInternal->constrainIdxTo(CS, CS.getNTArr(), 1);
       }
@@ -720,7 +723,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
 
 void ProgramInfo::ensureNtCorrect(const QualType &QT, const ASTContext &C,
                                   PointerVariableConstraint *PV) {
-  if (AllTypes && !canBeNtArray(QT)) {
+  if (_3COpts.AllTypes && !canBeNtArray(QT)) {
     PV->constrainOuterTo(CS, CS.getArr(), true, true);
   }
 }

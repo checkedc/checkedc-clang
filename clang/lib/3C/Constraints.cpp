@@ -64,7 +64,7 @@ bool Constraints::removeConstraint(Constraint *C) {
 // Check if we can add this constraint. This provides a global switch to
 // control what constraints we can add to our system.
 void Constraints::editConstraintHook(Constraint *C) {
-  if (!AllTypes) {
+  if (!_3COpts.AllTypes) {
     // Invalidate any pointer-type constraints.
     if (Geq *E = dyn_cast<Geq>(C)) {
       if (!E->constraintIsChecked()) {
@@ -236,7 +236,7 @@ doSolve(ConstraintsGraph &CG,
           // new WILD-ness.
           Conflicts.insert(VA);
           // Failure case.
-          if (Verbose) {
+          if (_3COpts.Verbose) {
             errs() << "Unsolvable constraints: ";
             VA->print(errs());
             errs() << "=";
@@ -352,7 +352,7 @@ bool Constraints::graphBasedSolve() {
   bool Res = doSolve(SolChkCG, Env, this, true, nullptr, Conflicts);
 
   // Now solve PtrType constraints
-  if (Res && AllTypes) {
+  if (Res && _3COpts.AllTypes) {
     Env.doCheckedSolve(false);
     bool RegularSolve = !(OnlyGreatestSol || OnlyLeastSol);
 

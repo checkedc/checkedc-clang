@@ -182,8 +182,9 @@ bool functionHasVarArgs(clang::FunctionDecl *FD) {
 }
 
 bool isFunctionAllocator(std::string FuncName) {
-  return std::find(AllocatorFunctions.begin(), AllocatorFunctions.end(),
-                   FuncName) != AllocatorFunctions.end() ||
+  return std::find(_3COpts.AllocatorFunctions.begin(),
+                   _3COpts.AllocatorFunctions.end(),
+                   FuncName) != _3COpts.AllocatorFunctions.end() ||
          llvm::StringSwitch<bool>(FuncName)
              .Cases("malloc", "calloc", "realloc", true)
              .Default(false);
@@ -372,7 +373,7 @@ bool canWrite(const std::string &FilePath) {
     return true;
   // Get the absolute path of the file and check that
   // the file path starts with the base directory.
-  return filePathStartsWith(FilePath, BaseDir);
+  return filePathStartsWith(FilePath, _3COpts.BaseDir);
 }
 
 bool isInSysHeader(clang::Decl *D) {

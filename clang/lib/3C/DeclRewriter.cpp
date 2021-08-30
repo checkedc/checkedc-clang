@@ -37,7 +37,7 @@ void DeclRewriter::buildItypeDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
                                   ProgramInfo &Info, ArrayBoundsRewriter &ABR) {
   const EnvironmentMap &Env = Info.getConstraints().getVariables();
   bool IsTypedefVarUnchecked =
-    Defn->isTypedef() && (ItypesForExtern ||
+    Defn->isTypedef() && (_3COpts.ItypesForExtern ||
                           !Defn->getTypedefVar()->isSolutionChecked(Env));
   if (Defn->getFV()) {
     // This declaration is for a function pointer. Writing itypes on function
@@ -122,7 +122,7 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
     // Don't convert typedefs when -itype-for-extern is passed. Typedefs will
     // keep their unchecked type but function using the typedef will be given a
     // checked itype.
-    if (!ItypesForExtern && TD) {
+    if (!_3COpts.ItypesForExtern && TD) {
       auto PSL = PersistentSourceLoc::mkPSL(TD, Context);
       // Don't rewrite base types like int
       if (!TD->getUnderlyingType()->isBuiltinType()) {
@@ -195,7 +195,8 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
         bool IsExternGlobalVar =
           isa<VarDecl>(D) &&
           cast<VarDecl>(D)->getFormalLinkage() == Linkage::ExternalLinkage;
-        if (ItypesForExtern && (isa<FieldDecl>(D) || IsExternGlobalVar)) {
+        if (_3COpts.ItypesForExtern &&
+            (isa<FieldDecl>(D) || IsExternGlobalVar)) {
           // Give record fields and global variables itypes when using
           // -itypes-for-extern. Note that we haven't properly implemented
           // itypes for structures and globals. This just rewrites to an itype
@@ -247,7 +248,7 @@ void DeclRewriter::rewrite(RSet &ToRewrite) {
     DeclReplacement *N = Pair.second;
     assert(N->getDecl() != nullptr);
 
-    if (Verbose) {
+    if (_3COpts.Verbose) {
       errs() << "Replacing type of decl:\n";
       N->getDecl()->dump();
       errs() << "with " << N->getReplacement() << "\n";
@@ -278,7 +279,7 @@ void DeclRewriter::rewriteTypedefDecl(TypedefDeclReplacement *TDR,
 // SourceLocations will be generated incorrectly if we rewrite it as a
 // normal multidecl.
 bool isInlineStruct(std::vector<Decl *> &InlineDecls) {
-  if (InlineDecls.size() >= 2 && AllTypes)
+  if (InlineDecls.size() >= 2 && _3COpts.AllTypes)
     return isa<RecordDecl>(InlineDecls[0]) &&
            std::all_of(InlineDecls.begin() + 1, InlineDecls.end(),
                        [](Decl *D) { return isa<VarDecl>(D); });
@@ -798,7 +799,8 @@ void FunctionDeclBuilder::buildDeclVar(const FVComponentVariable *CV,
 
   bool CheckedSolution = CV->hasCheckedSolution(Info.getConstraints());
   bool ItypeSolution = CV->hasItypeSolution(Info.getConstraints());
-  if (ItypeSolution || (CheckedSolution && ItypesForExtern && !StaticFunc)) {
+  if (ItypeSolution ||
+      (CheckedSolution && _3COpts.ItypesForExtern && !StaticFunc)) {
     buildItypeDecl(CV->getExternal(), Decl, Type, IType, RewriteParm,
                    RewriteRet);
     return;

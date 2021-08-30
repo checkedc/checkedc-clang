@@ -15,29 +15,61 @@
 
 #include "llvm/Support/CommandLine.h"
 
-extern bool Verbose;
-extern bool DumpIntermediate;
-extern std::string OutputPostfix;
-extern std::string OutputDir;
-extern bool HandleVARARGS;
-extern bool SeperateMultipleFuncDecls;
-extern bool EnablePropThruIType;
-extern bool ConsiderAllocUnsafe;
-extern bool AllTypes;
-extern bool NewSolver;
-extern std::string BaseDir;
-extern std::vector<std::string> AllocatorFunctions;
-extern bool AddCheckedRegions;
-extern bool WarnRootCause;
-extern bool WarnAllRootCause;
-extern bool DumpUnwritableChanges;
-extern bool AllowUnwritableChanges;
-extern bool AllowRewriteFailures;
-extern bool ItypesForExtern;
+// Options used to initialize 3C tool.
+//
+// See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+// NOLINTNEXTLINE(readability-identifier-naming)
+struct _3COptions {
+  bool DumpIntermediate;
+
+  bool Verbose;
+
+  std::string OutputPostfix;
+  std::string OutputDir;
+
+  std::string ConstraintOutputJson;
+
+  bool DumpStats;
+
+  std::string StatsOutputJson;
+
+  std::string WildPtrInfoJson;
+
+  std::string PerWildPtrInfoJson;
+
+  std::vector<std::string> AllocatorFunctions;
+
+  bool HandleVARARGS;
+
+  bool EnablePropThruIType;
+
+  std::string BaseDir;
+  bool AllowSourcesOutsideBaseDir;
+
+  bool AllTypes;
+
+  bool AddCheckedRegions;
+
+  bool EnableCCTypeChecker;
+
+  bool WarnRootCause;
+
+  bool WarnAllRootCause;
 
 #ifdef FIVE_C
-extern bool RemoveItypes;
-extern bool ForceItypes;
+  bool RemoveItypes;
+  bool ForceItypes;
 #endif
+
+  bool DumpUnwritableChanges;
+  bool AllowUnwritableChanges;
+
+  bool AllowRewriteFailures;
+
+  bool ItypesForExtern;
+};
+
+// NOLINTNEXTLINE(readability-identifier-naming)
+extern struct _3COptions _3COpts;
 
 #endif // LLVM_CLANG_3C_3CGLOBALOPTIONS_H

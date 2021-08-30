@@ -894,7 +894,7 @@ void LengthVarInference::VisitArraySubscriptExpr(ArraySubscriptExpr *ASE) {
 void handleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I,
                                          bool UseHeuristics) {
   // Run array bounds
-  for (auto FuncName : AllocatorFunctions) {
+  for (auto FuncName : _3COpts.AllocatorFunctions) {
     AllocatorSizeAssoc[FuncName] = {0};
   }
   GlobalABVisitor GlobABV(C, I);

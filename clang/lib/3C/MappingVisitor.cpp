@@ -28,7 +28,7 @@ bool MappingVisitor::VisitDeclStmt(DeclStmt *S) {
       Decl *D = nullptr;
       Stmt *So = nullptr;
       std::tie<Stmt *, Decl *>(So, D) = PSLtoSDT[PSL];
-      if (So != nullptr && Verbose) {
+      if (So != nullptr && _3COpts.Verbose) {
         llvm::errs() << "\nOverriding ";
         S->dump();
         llvm::errs() << "\n";
@@ -65,7 +65,7 @@ bool MappingVisitor::VisitDecl(Decl *D) {
       Decl *Do = nullptr;
       Stmt *S = nullptr;
       std::tie<Stmt *, Decl *>(S, Do) = PSLtoSDT[PSL];
-      if (Do != nullptr && Verbose) {
+      if (Do != nullptr && _3COpts.Verbose) {
         llvm::errs() << "Overriding ";
         Do->dump();
         llvm::errs() << " with ";
