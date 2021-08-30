@@ -4543,9 +4543,30 @@ namespace {
       // If LValue has target bounds, get the AbstractSet that contains LValue.
       // LValueAbstractSet will be used in UpdateBoundsAfterAssignment to
       // record the observed bounds of all lvalue expressions in this set.
+      // If LValue belongs to an LValueAbstractSet, then the rvalue expression
+      // used to record equality between the target and source of the
+      // assignment should be LValueAbstractSet's representative expression.
+      // In ValidateBoundsContext, the target bounds for all expressions in
+      // LValueAbstractSet are constructed using its representative expression.
+      // Therefore, the equality information used to validate bounds should
+      // also be based on this representative expression. Consider:
+      // void f(_Array_ptr<_Nt_array_ptr<char>> arr : count(10)) {
+      //   *arr = "abc";
+      //   arr[0] = "xyz";
+      // }
+      // At the assignment to arr[0], the representative expression for the
+      // LValueAbstractSet containing *arr and arr[0] is *arr. When validating
+      // the bounds context after this assignment, the target bounds for arr[0]
+      // are bounds(*arr, *arr + 0). Therefore, (temporary) equality should be
+      // recorded between *arr and "xyz", rather than between arr[0] and "xyz".
       const AbstractSet *LValueAbstractSet = nullptr;
+      Expr *EqualityTarget = Target;
       if (TargetBounds && !TargetBounds->isUnknown()) {
         LValueAbstractSet = AbstractSetMgr.GetOrCreateAbstractSet(LValue);
+        Expr *Rep = LValueAbstractSet->GetRepresentative();
+        EqualityTarget =
+          ExprCreatorUtil::CreateImplicitCast(S, Rep, CK_LValueToRValue,
+                                              Rep->getType());
       }
 
       BoundsExpr *ResultBounds =
@@ -4560,7 +4581,8 @@ namespace {
       bool AllowTempEquality =
         UpdateSameValueAfterAssignment(LValue, OriginalValue,
                                        OriginalValueUsesLValue, CSS, State);
-      RecordEqualityWithTarget(LValue, Target, Src, AllowTempEquality, State);
+      RecordEqualityWithTarget(LValue, EqualityTarget, Src,
+                               AllowTempEquality, State);
 
       StateUpdated = true;
       return ResultBounds;
