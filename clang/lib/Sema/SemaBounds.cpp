@@ -3300,8 +3300,9 @@ namespace {
 
         // Update the checking state and result bounds to reflect the
         // assignment to `e1`.
-        ResultBounds = UpdateAfterAssignment(LHS, E, Target, Src, ResultBounds,
-                                             CSS, State, StateUpdated);
+        ResultBounds = UpdateAfterAssignment(LHS, LHSTargetBounds, E, Target,
+                                             Src, ResultBounds, CSS, State,
+                                             StateUpdated);
 
         // SameValue is empty for assignments to a non-variable. This
         // conservative approach avoids recording false equality facts for
@@ -3759,9 +3760,9 @@ namespace {
                                        SubExprBounds, State);
         }
         bool StateUpdated = false;
-        IncDecResultBounds = UpdateAfterAssignment(SubExpr, E, Target, RHS,
-                                                   RHSBounds, CSS,
-                                                   State, StateUpdated);
+        IncDecResultBounds = UpdateAfterAssignment(SubExpr, SubExprTargetBounds,
+                                                   E, Target, RHS, RHSBounds,
+                                                   CSS, State, StateUpdated);
 
         // Update the set SameValue of expressions that produce the same
         // value as `e`.
@@ -4506,10 +4507,14 @@ namespace {
     // LValue = Src.
     // UpdateAfterAssignment also returns updated bounds for Src.
     //
+    // TargetBounds are the bounds for the target of LValue.
+    //
     // Target is an rvalue expression that is the value of LValue.
     //
     // SrcBounds are the original bounds for the source of the assignment.
-    BoundsExpr *UpdateAfterAssignment(Expr *LValue, Expr *E, Expr *Target,
+    BoundsExpr *UpdateAfterAssignment(Expr *LValue,
+                                      BoundsExpr *TargetBounds,
+                                      Expr *E, Expr *Target,
                                       Expr *Src, BoundsExpr *SrcBounds,
                                       CheckedScopeSpecifier CSS,
                                       CheckingState &State,
