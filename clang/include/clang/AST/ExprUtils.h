@@ -145,6 +145,10 @@ public:
   // pointer). Returns false if E is nullptr.
   static bool ReadsMemoryViaPointer(Expr *E, bool IncludeAllMemberExprs = false);
 
+  // IsDereferenceOrSubscript returns true if the expression e is a pointer
+  // dereference *e1 or an array subscript expression e1[e2].
+  static bool IsDereferenceOrSubscript(Expr *E);
+
   // FindLValue returns true if the given lvalue expression occurs in E.
   static bool FindLValue(Sema &S, Expr *LValue, Expr *E);
 

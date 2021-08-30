@@ -306,6 +306,18 @@ bool ExprUtil::ReadsMemoryViaPointer(Expr *E, bool IncludeAllMemberExprs) {
   }
 }
 
+bool ExprUtil::IsDereferenceOrSubscript(Expr *E) {
+  if (!E)
+    return false;
+  E = E->IgnoreParens();
+  if (isa<ArraySubscriptExpr>(E))
+    return true;
+  UnaryOperator *UO = dyn_cast<UnaryOperator>(E);
+  if (!UO)
+    return false;
+  return UO->getOpcode() == UnaryOperatorKind::UO_Deref;
+}
+
 namespace {
   class FindLValueHelper : public RecursiveASTVisitor<FindLValueHelper> {
     private:
