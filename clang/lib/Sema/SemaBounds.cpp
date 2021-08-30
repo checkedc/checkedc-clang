@@ -4540,10 +4540,17 @@ namespace {
       Expr *OriginalValue = GetOriginalValue(LValue, Target, Src,
                               State.EquivExprs, OriginalValueUsesLValue);
 
-      BoundsExpr *ResultBounds = UpdateBoundsAfterAssignment(LValue, E, Src,
-                                                             SrcBounds,
-                                                             OriginalValue,
-                                                             CSS, State);
+      // If LValue has target bounds, get the AbstractSet that contains LValue.
+      // LValueAbstractSet will be used in UpdateBoundsAfterAssignment to
+      // record the observed bounds of all lvalue expressions in this set.
+      const AbstractSet *LValueAbstractSet = nullptr;
+      if (TargetBounds && !TargetBounds->isUnknown()) {
+        LValueAbstractSet = AbstractSetMgr.GetOrCreateAbstractSet(LValue);
+      }
+
+      BoundsExpr *ResultBounds =
+        UpdateBoundsAfterAssignment(LValue, LValueAbstractSet, E, Src,
+                                    SrcBounds, OriginalValue, CSS, State);
       UpdateEquivExprsAfterAssignment(LValue, OriginalValue, CSS, State);
       // We can only record temporary equality between Target and Src in
       // State.TargetSrcEquality if Src does not use the value of LValue.
@@ -4564,6 +4571,11 @@ namespace {
     // LValue = Src, based on the state before the assignment.
     // It also returns updated bounds for Src.
     //
+    // LValueAbstractSet is the AbstractSet (if any) that contains LValue.
+    // This AbstractSet will only be non-null if LValue has (non-unknown)
+    // target bounds. If LValueAbstractSet is non-null, it is used as the key
+    // in State.ObservedBounds to record the observed bounds of LValue.
+    //
     // If LValue is a member expression, the observed bounds context will
     // include the updated bounds for each member expression whose target
     // bounds use the value of LValue.
@@ -4573,8 +4585,10 @@ namespace {
     // have all occurrences of LValue replaced with OriginalValue.
     // If OriginalValue is null, bounds in the observed bounds context
     // that use the value of LValue are set to bounds(unknown).
-    BoundsExpr *UpdateBoundsAfterAssignment(Expr *LValue, Expr *E,
-                                            Expr *Src, BoundsExpr *SrcBounds,
+    BoundsExpr *UpdateBoundsAfterAssignment(Expr *LValue,
+                                            const AbstractSet *LValueAbstractSet,
+                                            Expr *E, Expr *Src,
+                                            BoundsExpr *SrcBounds,
                                             Expr *OriginalValue,
                                             CheckedScopeSpecifier CSS,
                                             CheckingState &State) {
@@ -4596,23 +4610,16 @@ namespace {
         }
       }
 
-      // Determine whether LValue has (non-unknown) target bounds.
-      const AbstractSet *LValueAbstractSet = nullptr;
-      BoundsExpr *TargetBounds = S.GetLValueDeclaredBounds(LValue, CSS);
-      bool HasTargetBounds = TargetBounds && !TargetBounds->isUnknown();
-
-      // If LValue has target bounds, the initial observed bounds of LValue
-      // are SrcBounds. These bounds will be updated to account for any uses
-      // of LValue below.
-      if (HasTargetBounds) {
-        LValueAbstractSet = AbstractSetMgr.GetOrCreateAbstractSet(LValue);
+      // If LValue belongs to an AbstractSet, the initial observed bounds of
+      // LValue are SrcBounds. These bounds will be updated to account for
+      // any uses of LValue below.
+      if (LValueAbstractSet)
         State.ObservedBounds[LValueAbstractSet] = SrcBounds;
-      }
 
       // If Src initially has unknown bounds (before making any lvalue
       // replacements), use Src to explain bounds checking errors that
       // can occur when validating the bounds context.
-      if (HasTargetBounds) {
+      if (LValueAbstractSet) {
         if (SrcBounds->isUnknown())
           State.UnknownSrcBounds[LValueAbstractSet].push_back(Src);
       }
@@ -4641,9 +4648,10 @@ namespace {
 
       // Adjust SrcBounds to account for any uses of LValue.
       BoundsExpr *AdjustedSrcBounds = nullptr;
-      // If LValue has target bounds, then the observed bounds of LValue
-      // are already SrcBounds adjusted to account for any use of LValue.
-      if (HasTargetBounds)
+      // If LValue belongs to an AbstractSet, then the observed bounds of
+      // LValue are already SrcBounds adjusted to account for any uses of
+      // LValue.
+      if (LValueAbstractSet)
         AdjustedSrcBounds = State.ObservedBounds[LValueAbstractSet];
       else
         AdjustedSrcBounds =
@@ -4651,14 +4659,14 @@ namespace {
                                             OriginalValue, CSS);
 
       // Record that E updates the observed bounds of LValue.
-      if (HasTargetBounds)
+      if (LValueAbstractSet)
         State.BlameAssignments[LValueAbstractSet] = E;
 
       // If the initial source bounds were not unknown, but they are unknown
       // after replacing uses of LValue, then the assignment to LValue caused
       // the source bounds (which are the observed bounds for LValue) to be
       // unknown.
-      if (HasTargetBounds) {
+      if (LValueAbstractSet) {
         if (!SrcBounds->isUnknown() && AdjustedSrcBounds->isUnknown())
           State.LostLValues[LValueAbstractSet] =
             std::make_pair(SrcBounds, LValue);
