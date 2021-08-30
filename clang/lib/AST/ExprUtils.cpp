@@ -353,6 +353,22 @@ namespace {
         return true;
       }
 
+      bool VisitUnaryOperator(UnaryOperator *E) {
+        if (!ExprUtil::IsDereferenceOrSubscript(LValue))
+          return true;
+        if (Lex.CompareExprSemantically(E, LValue))
+          Found = true;
+        return true;
+      }
+
+      bool VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
+        if (!ExprUtil::IsDereferenceOrSubscript(LValue))
+          return true;
+        if (Lex.CompareExprSemantically(E, LValue))
+          Found = true;
+        return true;
+      }
+
       // Do not traverse the child of a BoundsValueExpr.
       // Expressions within a BoundsValueExpr should not be considered
       // when looking for LValue.
