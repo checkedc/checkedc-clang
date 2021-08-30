@@ -306,6 +306,13 @@ bool ExprUtil::ReadsMemoryViaPointer(Expr *E, bool IncludeAllMemberExprs) {
   }
 }
 
+bool ExprUtil::IsReturnValueExpr(Expr *E) {
+  BoundsValueExpr *BVE = dyn_cast_or_null<BoundsValueExpr>(E);
+  if (!BVE)
+    return false;
+  return BVE->getKind() == BoundsValueExpr::Kind::Return;
+}
+
 namespace {
   class FindLValueHelper : public RecursiveASTVisitor<FindLValueHelper> {
     private:
@@ -469,7 +476,7 @@ void ExprUtil::EnsureEqualBitWidths(llvm::APSInt &A, llvm::APSInt &B) {
 }
 
 bool InverseUtil::IsInvertible(Sema &S, Expr *LValue, Expr *E) {
-  if (!E)
+  if (!E || E->containsErrors())
     return false;
 
   E = E->IgnoreParens();
@@ -628,7 +635,10 @@ bool InverseUtil::IsCastExprInvertible(Sema &S, Expr *LValue, CastExpr *E) {
 }
 
 Expr *InverseUtil::Inverse(Sema &S, Expr *LValue, Expr *F, Expr *E) {
-  if (!F)
+  if (!F || F->containsErrors())
+    return nullptr;
+
+  if (!E || E->containsErrors())
     return nullptr;
 
   E = E->IgnoreParens();
