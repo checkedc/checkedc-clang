@@ -450,20 +450,15 @@ StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
     if (!S)
       continue;
 
-    if (auto *L = dyn_cast<LabelStmt>(S))
-      S = L->getSubStmt();
-    // Set the checked scope specifiers for all statements that are part of
-    // this compound statement.
-    S->setCheckedScopeSpecifier(InferredCSS);
-
     if (isBundledBlk && ValidBundledBlk) {
 
       // A valid bundled block can contain only DeclStmts and ExpressionStmts.
-      if (!dyn_cast<DeclStmt>(S))
+      if (!dyn_cast<DeclStmt>(S)) {
         if (!dyn_cast<ValueStmt>(S))
           ValidBundledBlk = false;
         else if (dyn_cast<LabelStmt>(S) || dyn_cast<AttributedStmt>(S))
           ValidBundledBlk = false;
+      }
 
       // If the bundled block is invalid, remember the source location of the
       // first invalid statement in the bundled block.
@@ -478,7 +473,14 @@ StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
         LastStmtOfBndBlk = S;
       }
     }
+
+    if (auto *L = dyn_cast<LabelStmt>(S))
+      S = L->getSubStmt();
+    // Set the checked scope specifiers for all statements that are part of
+    // this compound statement.
+    S->setCheckedScopeSpecifier(InferredCSS);
   }
+
   if (isBundledBlk) {
     if (!ValidBundledBlk)
       Diag(LocOfInvalidStmt,

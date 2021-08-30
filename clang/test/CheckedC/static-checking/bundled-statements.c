@@ -6,6 +6,8 @@
 // RUN: %clang_cc1 -verify -verify-ignore-unexpected=note %s
 
 
+// Tests for invalid bundled statements.
+
 void f1()
 {
   _Bundled {
@@ -54,3 +56,30 @@ _Checked _Bundled void f3()       // expected-error {{expected identifier or '('
   }
 }
 
+void f4(int flag1, int flag2)
+_Unchecked{
+  _Array_ptr<int> p : count(2) = 0;
+  int val = 5;
+  int val1 _Checked[3];
+  _Array_ptr<int> q : count(1) = &val;
+  L1:
+  _Bundled {
+    p = val1;
+    p++;                                  // expected-warning {{cannot prove declared bounds for 'p' are valid after increment}}
+    _Bundled {                            // expected-error {{a bundled block can contain only declarations and expression statements}}
+      p = flag1 ? q : flag2 ? q : val1;   // expected-error {{inferred bounds for 'p' are unknown after assignment}}
+      *(p+1) = 4;                         // expected-error {{expression has unknown bounds}}
+    }
+  }
+}
+
+void f5()
+_Unchecked{
+  _Array_ptr<int> p : count(2) = 0;
+  int val _Checked[3];
+  _Bundled {
+    p = val;
+    L1: p++;                             // expected-error {{a bundled block can contain only declarations and expression statements}} \
+                                         // expected-warning {{cannot prove declared bounds for 'p' are valid after increment}}
+  }
+}
