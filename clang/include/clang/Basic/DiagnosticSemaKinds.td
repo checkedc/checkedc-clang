@@ -11507,7 +11507,7 @@ def err_bounds_type_annotation_lost_checking : Error<
     "variable arguments function cannot be made in a checked scope">;
 
   def err_checked_scope_no_variadic_func_for_expression : Error<
-    "cannot use a variable arguments function in a checked scope or function">;
+    "cannot use this variable arguments function in a checked scope or function">;
 
   def err_checked_scope_no_assume_bounds_casting : Error<
     "_Assume_bounds_cast not allowed in a checked scope or function">;

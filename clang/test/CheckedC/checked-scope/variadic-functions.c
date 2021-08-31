@@ -219,9 +219,17 @@ _Checked {
   scanf("%c", (_Bool)1); // expected-error {{format specifies type 'char *' but the argument has type 'int'}}
   MyScanf("%c", (_Bool)1); // expected-error {{format specifies type 'char *' but the argument has type 'int'}}
 
-  printf("%[", p); // expected-error {{incomplete format specifier}}
-  MyPrintf("%[", p); // expected-error {{incomplete format specifier}}
-  scanf("%[", p); // expected-error {{no closing ']' for '%[' in scanf format string}}
-  MyScanf("%[", p); // expected-error {{no closing ']' for '%[' in scanf format string}}
+  printf("%]", p); // expected-error {{invalid conversion specifier ']'}}
+  MyPrintf("%]", p); // expected-error {{invalid conversion specifier ']'}}
+  scanf("%]", p); // expected-error {{invalid conversion specifier ']'}}
+  MyScanf("%]", p); // expected-error {{invalid conversion specifier ']'}}
+}
+}
+
+int MyPrintf_NoFormatAttr(const char *format : itype(_Nt_array_ptr<const char>), ...);
+
+void f5(_Nt_array_ptr<char> p) {
+_Checked {
+  MyPrintf_NoFormatAttr("%s", "abc"); // expected-error {{cannot use this variable arguments function in a checked scope or function}}
 }
 }

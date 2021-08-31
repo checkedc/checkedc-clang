@@ -196,6 +196,15 @@ void Sema::MaybeSuggestAddingStaticToDecl(const FunctionDecl *Cur) {
   }
 }
 
+static bool IsVariadicAllowedInCheckedScope(StringRef FuncName) {
+  return llvm::StringSwitch<bool>(FuncName)
+           .Cases("printf", "fprintf", "sprintf", "snprintf",
+                  "vprintf", "vfprintf", "vsprintf", true)
+           .Cases("scanf", "fscanf", "sscanf",
+                  "vscanf", "vfscanf", "vsscanf", true)
+           .Default(false);
+}
+
 /// Determine whether the use of this declaration is valid, and
 /// emit any corresponding diagnostics.
 ///
@@ -359,6 +368,23 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
     ValueDecl *VD = cast<ValueDecl>(D);
     if (!VD->isInvalidDecl() && !DiagnoseCheckedDecl(VD, Loc))
       return true;
+
+    if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+      // In checked scope, we only allow functions calls to the following
+      // variadic functions:
+      // 1. C library functions like printf/scanf, etc.
+      // 2. Functions that are marked as __attribute__((format(func))), where
+      // func is a C library function like printf/scanf, etc.
+      if (FD->getType()->hasVariadicType() &&
+          !IsVariadicAllowedInCheckedScope(FD->getName())) {
+        const auto *FA = FD->getAttr<FormatAttr>();
+        if (!FA ||
+            !IsVariadicAllowedInCheckedScope(FA->getType()->getName())) {
+          Diag(Loc, diag::err_checked_scope_no_variadic_func_for_expression);
+          return true;
+        }
+      }
+    }
   }
 
   DiagnoseAvailabilityOfDecl(D, Locs, UnknownObjCClass, ObjCPropertyAccess,

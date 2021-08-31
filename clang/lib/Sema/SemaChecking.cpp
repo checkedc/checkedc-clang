@@ -7947,8 +7947,13 @@ void CheckFormatHandler::CheckVarargsInCheckedScope(
     const char *StartSpecifier, unsigned SpecifierLen, const Expr *E,
     SmallString<128> FSString) {
 
+  // Check arguments to variadic functions like printf/scanf, etc in checked
+  // scope. This function is called per argument. E is current argument that
+  // needs checking.
+
   using ConversionSpecifier = analyze_format_string::ConversionSpecifier;
 
+  // Do not proceed with the checking if we are not in a checked scope.
   if (!S.IsCheckedScope())
     return;
 
@@ -7960,6 +7965,8 @@ void CheckFormatHandler::CheckVarargsInCheckedScope(
   default:
     break;
 
+  // Check if the argument corresponding to the %s format specifier is either
+  // _Nt_array_ptr or _Nt_checked.
   case ConversionSpecifier::sArg:
     if (!ArgTy->isCheckedPointerNtArrayType() &&
         !ArgTy->isNtCheckedArrayType()) {
