@@ -19,28 +19,31 @@ _Nt_array_ptr<char> f2(unsigned int len) : count(len) { // expected-note {{(expa
   return 0;
 }
 
-_Array_ptr<int> f3(_Array_ptr<int> arr : count(1), unsigned int idx) : byte_count(arr[idx]) { // expected-note 2 {{(expanded) declared return bounds are 'bounds((_Array_ptr<char>)_Return_value, (_Array_ptr<char>)_Return_value + arr[idx])'}}
-  arr = 0; // expected-error {{modified expression 'arr' used in the declared return bounds for 'f3'}}
-  idx--; // expected-error {{modified expression 'idx' used in the declared return bounds for 'f3'}}
-
-  // We currently do not check that array subscript expressions used in return
-  // bounds are not modified.
-  arr[idx] = 1;
+_Array_ptr<int> f3(unsigned int a, unsigned int b) : count(a + b) { // expected-note 2 {{(expanded) declared return bounds are 'bounds(_Return_value, _Return_value + a + b)'}}
+  a++, b--; // expected-error {{modified expression 'a' used in the declared return bounds for 'f3'}} \
+            // expected-error {{modified expression 'b' used in the declared return bounds for 'f3'}}
   return 0;
 }
 
-_Array_ptr<char> f4(_Ptr<int> num) : count(*num + 1) { // expected-note {{(expanded) declared return bounds are 'bounds(_Return_value, _Return_value + *num + 1)'}}
-  num = 0; // expected-error {{modified expression 'num' used in the declared return bounds for 'f4'}}
+//
+// Test variable parameters, pointer dereferences, and array subscripts
+// used in return bounds.
+//
 
-  // We currently do not check that pointer dereference expressions used in
-  // return bounds are not modified.
-  *num = 1;
+_Array_ptr<int> f4(_Array_ptr<int> arr : count(1), unsigned int idx) : byte_count(arr[idx]) { // expected-note 5 {{(expanded) declared return bounds are 'bounds((_Array_ptr<char>)_Return_value, (_Array_ptr<char>)_Return_value + arr[idx])'}}
+  arr = 0; // expected-error {{modified expression 'arr' used in the declared return bounds for 'f4'}}
+  idx--; // expected-error {{modified expression 'idx' used in the declared return bounds for 'f4'}}
+
+  arr[idx] = 1; // expected-error {{modified expression 'arr[idx]' used in the declared return bounds for 'f4'}}
+  *(arr + idx) = 2; // expected-error {{'*(arr + idx)' used in the declared return bounds for 'f4'}}
+  *(idx + arr + 1 - 1) = 3; // expected-error {{'*(idx + arr + 1 - 1)' used in the declared return bounds for 'f4'}}
   return 0;
 }
 
-_Array_ptr<int> f5(unsigned int a, unsigned int b) : count(a + b) { // expected-note 2 {{(expanded) declared return bounds are 'bounds(_Return_value, _Return_value + a + b)'}}
-  a++, b--; // expected-error {{modified expression 'a' used in the declared return bounds for 'f5'}} \
-            // expected-error {{modified expression 'b' used in the declared return bounds for 'f5'}}
+_Array_ptr<char> f5(_Ptr<int> num) : count(*num + 1) { // expected-note 2 {{(expanded) declared return bounds are 'bounds(_Return_value, _Return_value + *num + 1)'}}
+  num = 0; // expected-error {{modified expression 'num' used in the declared return bounds for 'f5'}}
+
+  *num = 1; // expected-error {{modified expression '*num' used in the declared return bounds for 'f5'}}
   return 0;
 }
 
