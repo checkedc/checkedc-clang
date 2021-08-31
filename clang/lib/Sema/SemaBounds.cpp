@@ -4755,7 +4755,7 @@ namespace {
       // We only update the checking state after assignments to a variable,
       // member expression, pointer dereference, or array subscript.
       if (!isa<DeclRefExpr>(LValue) && !isa<MemberExpr>(LValue) &&
-          !isa<UnaryOperator>(LValue) && !isa<ArraySubscriptExpr>(LValue)) {
+          !ExprUtil::IsDereferenceOrSubscript(LValue)) {
         StateUpdated = false;
         return SrcBounds;
       }
