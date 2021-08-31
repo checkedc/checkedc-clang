@@ -579,6 +579,17 @@ namespace {
       // then be used to validate the bounds context.
       llvm::DenseMap<Expr *, Expr *> TargetSrcEquality;
 
+      // LValuesAssignedChecked is a set of AbstractSets containing lvalue
+      // expressions with unchecked pointer type that have been assigned an
+      // expression with checked pointer type at some point during the current
+      // top-level statement (if the statement occurs in an unchecked scope).
+      // These AbstractSets should have their bounds validated during
+      // ValidateBoundsContext. In an unchecked scope, AbstractSets containing
+      // lvalue expressions with unchecked pointer type that have not been
+      // assigned an expression with checked pointer type during the current
+      // statement should not have their bounds validated.
+      AbstractSetSetTy LValuesAssignedChecked;
+
       // Resets the checking state after checking a top-level CFG statement.
       void Reset() {
         SameValue.clear();
@@ -586,6 +597,7 @@ namespace {
         UnknownSrcBounds.clear();
         BlameAssignments.clear();
         TargetSrcEquality.clear();
+        LValuesAssignedChecked.clear();
       }
   };
 }
@@ -652,8 +664,20 @@ namespace {
     uint64_t PointerWidth;
     Stmt *Body;
     CFG *Cfg;
-    BoundsExpr *ReturnBounds; // return bounds expression for enclosing
-                              // function, if any.
+
+    // Declaration for enclosing function. Having this here allows us to emit
+    // the name of the function in any diagnostic message when checking return
+    // bounds.
+    FunctionDecl *FunctionDeclaration;
+    // Return value expression for enclosing function, if any. Having this
+    // here allows us to avoid reconstructing a return value for each
+    // return statement.
+    BoundsValueExpr *ReturnVal;
+    // Expanded declared return bounds expression for enclosing function, if
+    // any. Having this here allows us to avoid re-expanding the return bounds
+    // for each return statement.
+    BoundsExpr *ReturnBounds;
+
     ASTContext &Context;
     std::pair<ComparisonSet, ComparisonSet> &Facts;
 
@@ -946,6 +970,7 @@ namespace {
     enum class ProofStmtKind : unsigned {
       BoundsDeclaration,
       StaticBoundsCast,
+      ReturnStmt,
       MemoryAccess,
       MemberArrowBase
     };
@@ -1364,6 +1389,11 @@ namespace {
         // not track equality information for member expressions.
         if (ExprUtil::ReadsMemoryViaPointer(E1, true) ||
             ExprUtil::ReadsMemoryViaPointer(E2, true))
+          return false;
+
+        // If E1 or E2 is a _Return_value expression, we skip since we cannot
+        // determine the set of variables that occur in these expressions.
+        if (ExprUtil::IsReturnValueExpr(E1) || ExprUtil::IsReturnValueExpr(E2))
           return false;
 
         bool HasFreeVariables = false;
@@ -1943,6 +1973,9 @@ namespace {
       return false;
     }
 
+    // Methods to try to prove that an inferred bounds expression implies
+    // the validity of a target bounds expression.
+
     // Try to prove that SrcBounds implies the validity of DeclaredBounds.
     //
     // If Kind is StaticBoundsCast, check whether a static cast between Ptr
@@ -2018,6 +2051,80 @@ namespace {
       } else if (CompareNormalizedBounds(DeclaredBounds, SrcBounds, EquivExprs))
         return ProofResult::True;
       return ProofResult::Maybe;
+    }
+
+    // Try to prove that RetExprBounds implies the validity of ReturnBounds
+    // (the declared return bounds for the enclosing function).
+    ProofResult ProveReturnBoundsValidity(Expr *RetExpr,
+                                          BoundsExpr *RetExprBounds,
+                                          const EquivExprSets EQ,
+                                          const EqualExprTy G,
+                                          ProofFailure &Cause,
+                                          FreeVariableListTy &FreeVariables) {
+      // Check some basic properties of the declared ReturnBounds and the
+      // source RetExprBounds. Even though these checks will also be done
+      // in ProveBoundsDeclValidity, if any of these checks result in an
+      // early return, we can avoid constructing a modified EquivExprs set
+      // that records equality between RetVal and RetExpr.
+      
+      // Null declared return bounds or declared return bounds(unknown) 
+      // implied by any other bounds.
+      if (!ReturnBounds || ReturnBounds->isUnknown())
+        return ProofResult::True;
+
+      // Ignore invalid bounds.
+      if (RetExprBounds->isInvalid() || ReturnBounds->isInvalid())
+        return ProofResult::True;
+
+      // Return expression bounds(any) implies any declared return bounds.
+      if (RetExprBounds->isAny())
+        return ProofResult::True;
+
+      // Return expression bounds(unknown) cannot imply any non-unknown
+      // declared return bounds.
+      if (RetExprBounds->isUnknown())
+        return ProofResult::False;
+
+      // Record equality between ReturnVal and all expressions that produce
+      // the same value as RetExpr. This allows ProveBoundsDeclValidity to
+      // validate bounds that depend on the return value of the function.
+      // For example, if the declared function bounds are count(1), then the
+      // expanded ReturnBounds will be bounds(RetVal, RetVal + 1).
+      EquivExprSets EquivExprs = EQ;
+
+      // Determine the set of expressions that produce the same value as
+      // RetExpr.
+      // If G (the set of expressions that produce the same value as RetExpr)
+      // is empty, then RetExpr may be an expression that is not allowed to
+      // be recorded in State.EquivExprs (e.g. an expression that reads memory
+      // via a pointer). The EquivExprs set that we construct here is temporary
+      // and is only used to check the return bounds for one return statement,
+      // so we can add RetExpr to EquivExprs in this case.
+      EqualExprTy RetSameValue = G;
+      if (RetSameValue.size() == 0)
+        RetSameValue.push_back(RetExpr);
+
+      bool FoundRetExpr = false;
+      for (auto F = EquivExprs.begin(); F != EquivExprs.end(); ++F) {
+        if (DoExprSetsIntersect(*F, RetSameValue)) {
+          // Add all expressions in RetSameValue to F that are not already in F.
+          for (Expr *E : RetSameValue)
+            if (!EqualExprsContainsExpr(*F, E))
+              F->push_back(E);
+          F->push_back(ReturnVal);
+          FoundRetExpr = true;
+          break;
+        }
+      }
+      if (!FoundRetExpr) {
+        EqualExprTy F = RetSameValue;
+        F.push_back(ReturnVal);
+        EquivExprs.push_back(F);
+      }
+
+      return ProveBoundsDeclValidity(ReturnBounds, RetExprBounds, Cause,
+                                     &EquivExprs, FreeVariables,
+                                     ProofStmtKind::ReturnStmt);
     }
 
     // CompareNormalizedBounds returns true if SrcBounds implies DeclaredBounds
@@ -2569,14 +2676,16 @@ namespace {
 
 
   public:
-    CheckBoundsDeclarations(Sema &SemaRef, PrepassInfo &Info, Stmt *Body, CFG *Cfg, BoundsExpr *ReturnBounds, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
+    CheckBoundsDeclarations(Sema &SemaRef, PrepassInfo &Info, Stmt *Body, CFG *Cfg, FunctionDecl *FD, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
       DumpState(SemaRef.getLangOpts().DumpCheckingState),
       DumpSynthesizedMembers(SemaRef.getLangOpts().DumpSynthesizedMembers),
       PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
       Body(Body),
       Cfg(Cfg),
-      ReturnBounds(ReturnBounds),
+      FunctionDeclaration(FD),
+      ReturnVal(nullptr),
+      ReturnBounds(nullptr),
       Context(SemaRef.Context),
       Facts(Facts),
       BoundsWideningAnalyzer(BoundsWideningAnalysis(SemaRef, Cfg,
@@ -2584,7 +2693,16 @@ namespace {
                                                     Info.BoundsVarsUpper)),
       AbstractSetMgr(AbstractSetManager(SemaRef, Info.VarUses)),
       BoundsSiblingFields(Info.BoundsSiblingFields),
-      IncludeNullTerminator(false) {}
+      IncludeNullTerminator(false) {
+        if (FD) {
+          ReturnVal =
+            new (S.Context) BoundsValueExpr(SourceLocation(),
+                                            FD->getReturnType(),
+                                            BoundsValueExpr::Kind::Return);
+          ReturnBounds =
+            BoundsUtil::ExpandToRange(S, ReturnVal, FD->getBoundsExpr());
+        }
+      }
 
     CheckBoundsDeclarations(Sema &SemaRef, PrepassInfo &Info, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
@@ -2593,6 +2711,8 @@ namespace {
       PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
       Body(nullptr),
       Cfg(nullptr),
+      FunctionDeclaration(nullptr),
+      ReturnVal(nullptr),
       ReturnBounds(nullptr),
       Context(SemaRef.Context),
       Facts(Facts),
@@ -3921,14 +4041,13 @@ namespace {
         return ResultBounds;
 
       // Check the return value if it exists.
-      Check(RetValue, CSS, State);
+      BoundsExpr *RetValueBounds = Check(RetValue, CSS, State);
 
-      if (!ReturnBounds)
-        return ResultBounds;
+      // Check that the return expression bounds imply the return bounds.
+      ValidateReturnBounds(RS, RetValue, RetValueBounds, State.EquivExprs,
+                           State.SameValue, CSS);
 
-      // TODO: Actually check that the return expression bounds imply the 
-      // return bounds.
-      // TODO: Also check that any parameters used in the return bounds are
+      // TODO: Check that any parameters used in the return bounds are
       // unmodified.
       return ResultBounds;
     }
@@ -4322,6 +4441,8 @@ namespace {
           this->S.GetLValueDeclaredBounds(A->GetRepresentative(), CSS);
         if (!DeclaredBounds || DeclaredBounds->isUnknown())
           continue;
+        if (SkipBoundsValidation(A, CSS, State))
+          continue;
         if (ObservedBounds->isUnknown())
           DiagnoseUnknownObservedBounds(S, A, DeclaredBounds, State);
         else {
@@ -4338,6 +4459,33 @@ namespace {
                               &EquivExprs, CSS, Block, DiagnoseObservedBounds);
         }
       }
+    }
+
+    // SkipBoundsValidation returns true if the observed bounds of A should
+    // not be validated after the current top-level statement.
+    //
+    // The bounds of A should not be validated if the current statement is
+    // in an unchecked scope, and A represents lvalue expressions that:
+    // 1. Have unchecked type (i.e. their declared bounds were specified using
+    //    a bounds-safe interface), and:
+    // 2. Were not assigned a checked pointer at any point in the current
+    //    top-level statement.
+    bool SkipBoundsValidation(const AbstractSet *A, CheckedScopeSpecifier CSS,
+                              CheckingState State) {
+      if (CSS != CheckedScopeSpecifier::CSS_Unchecked)
+        return false;
+
+      if (A->GetRepresentative()->getType()->isCheckedPointerType() ||
+          A->GetRepresentative()->getType()->isCheckedArrayType())
+        return false;
+
+      // State.LValuesAssignedChecked contains AbstractSets with unchecked type
+      // that were assigned a checked pointer at some point in the current
+      // statement. If A belongs to this set, we must validate the bounds of A.
+      if (State.LValuesAssignedChecked.contains(A))
+        return false;
+
+      return true;
     }
 
     // DiagnoseUnknownObservedBounds emits an error message for an AbstractSet
@@ -4499,6 +4647,76 @@ namespace {
       return Loc;
     }
 
+    // ValidateReturnBounds checks that the observed bounds for the return
+    // value RetExpr imply the declared bounds for the enclosing function.
+    void ValidateReturnBounds(ReturnStmt *RS, Expr *RetExpr,
+                              BoundsExpr *RetExprBounds,
+                              const EquivExprSets EquivExprs,
+                              const EqualExprTy RetSameValue,
+                              CheckedScopeSpecifier CSS) {
+      // In an unchecked scope, if the enclosing function has a bounds-safe
+      // interface, and the return value has not been implicitly converted
+      // to an unchecked pointer, we skip checking the return value bounds.
+      if (CSS == CheckedScopeSpecifier::CSS_Unchecked) {
+        if (FunctionDeclaration->hasBoundsSafeInterface(Context)) {
+          if (!IsBoundsSafeInterfaceAssignment(FunctionDeclaration->getReturnType(), RetExpr))
+            return;
+        }
+      }
+
+      ProofFailure Cause;
+      FreeVariableListTy FreeVars;
+      ProofResult Result = ProveReturnBoundsValidity(RetExpr, RetExprBounds,
+                                                     EquivExprs, RetSameValue,
+                                                     Cause, FreeVars);
+
+      if (Result == ProofResult::True)
+        return;
+
+      if (RetExprBounds->isUnknown()) {
+        DiagnoseUnknownReturnBounds(RS, RetExpr);
+        return;
+      }
+
+      // Which diagnostic message to print?
+      unsigned DiagId =
+          (Result == ProofResult::False)
+              ? (TestFailure(Cause, ProofFailure::HasFreeVariables)
+                     ? diag::error_return_bounds_unprovable
+                     : diag::error_return_bounds_invalid)
+              : (CSS != CheckedScopeSpecifier::CSS_Unchecked
+                     ? diag::warn_checked_scope_return_bounds_invalid
+                     : diag::warn_return_bounds_invalid);
+
+      SourceLocation Loc = RetExpr->getBeginLoc();
+      S.Diag(Loc, DiagId) << FunctionDeclaration << RS->getSourceRange();
+      if (Result == ProofResult::False)
+        ExplainProofFailure(Loc, Cause, ProofStmtKind::ReturnStmt);
+      
+      if (TestFailure(Cause, ProofFailure::HasFreeVariables))
+        DiagnoseFreeVariables(diag::note_free_variable_decl_or_inferred, Loc,
+                              FreeVars);
+
+      SourceLocation DeclaredLoc = FunctionDeclaration->getLocation();
+      S.Diag(DeclaredLoc, diag::note_declared_return_bounds)
+        << ReturnBounds << ReturnBounds->getSourceRange();
+      S.Diag(Loc, diag::note_inferred_return_bounds)
+        << RetExprBounds << RetExprBounds->getSourceRange();
+    }
+
+    // DiagnoseUnknownReturnBounds emits an error message at the return
+    // statement RS and return expression RetExpr whose inferred bounds are
+    // unknown, where the enclosing function has declared bounds ReturnBounds.
+    void DiagnoseUnknownReturnBounds(ReturnStmt *RS, Expr *RetExpr) {
+      SourceLocation Loc = RetExpr->getBeginLoc();
+      S.Diag(Loc, diag::err_expected_bounds_for_return)
+        << FunctionDeclaration << RS->getSourceRange();
+
+      SourceLocation DeclaredLoc = FunctionDeclaration->getLocation();
+      S.Diag(DeclaredLoc, diag::note_declared_return_bounds)
+        << ReturnBounds << ReturnBounds->getSourceRange();
+    }
+
     // Methods to update the checking state.
 
     // UpdateAfterAssignment updates the checking state after the lvalue
@@ -4526,6 +4744,10 @@ namespace {
         return SrcBounds;
       }
 
+      // Account for uses of LValue in the declared return bounds (if any)
+      // for the enclosing function.
+      CheckIfLValueIsUsedInReturnBounds(LValue, E, CSS);
+
       // Get the original value (if any) of LValue before the assignment,
       // and determine whether the original value uses the value of LValue.
       // OriginalValue is named OV in the Checked C spec.
@@ -4550,6 +4772,47 @@ namespace {
 
       StateUpdated = true;
       return ResultBounds;
+    }
+
+    // CheckIfLValueIsUsedInReturnBounds computes the observed bounds for
+    // the return value of the enclosing function (if any) by replacing all
+    // uses of LValue within the declared return bounds with null. If the
+    // declared return bounds use the value of LValue, the observed return
+    // bounds will be bounds(unknown) and an error will be emitted.
+    //
+    // The current implementation does not use invertibility of lvalue
+    // expressions. This simplifies the implementation so that the updated
+    // return bounds can be computed locally at each assignment statement,
+    // rather than keeping track of a return bounds expression across the
+    // entire function body.
+    // TODO: track an observed return bounds expression as a global property
+    // of the function body so that invertibility of lvalue expressions can
+    // be taken into account.
+    void CheckIfLValueIsUsedInReturnBounds(Expr *LValue, Expr *E,
+                                           CheckedScopeSpecifier CSS) {
+      if (!ReturnBounds || ReturnBounds->isUnknown() || ReturnBounds->isAny())
+        return;
+
+      // In unchecked scopes, if the enclosing function has its bounds declared
+      // via a bounds-safe interface, we do not check that expressions used in
+      // the declared function bounds are not modified.
+      if (CSS == CheckedScopeSpecifier::CSS_Unchecked) {
+        if (FunctionDeclaration->hasBoundsSafeInterface(Context))
+          return;
+      }
+
+      BoundsExpr *UpdatedReturnBounds =
+        BoundsUtil::ReplaceLValueInBounds(S, ReturnBounds, LValue,
+                                          nullptr, CSS);
+      if (!UpdatedReturnBounds->isUnknown())
+        return;
+
+      S.Diag(LValue->getBeginLoc(), diag::error_modified_return_bounds)
+          << LValue << FunctionDeclaration << E->getSourceRange();
+
+      SourceLocation DeclaredLoc = FunctionDeclaration->getLocation();
+      S.Diag(DeclaredLoc, diag::note_declared_return_bounds)
+        << ReturnBounds << ReturnBounds->getSourceRange();
     }
 
     // UpdateBoundsAfterAssignment updates the observed bounds context after
@@ -4602,6 +4865,21 @@ namespace {
         LValueAbstractSet = AbstractSetMgr.GetOrCreateAbstractSet(LValue);
         PrevLValueBounds = State.ObservedBounds[LValueAbstractSet];
         State.ObservedBounds[LValueAbstractSet] = SrcBounds;
+
+        // In an unchecked scope, if an expression with checked pointer type
+        // is assigned to an unchecked pointer LValue (whose bounds are
+        // declared via a bounds-safe interface), bounds validation should
+        // validate the bounds of LValue after the current top-level statement.
+        // For unchecked pointer LValues that were not assigned a checked
+        // pointer expression during the current top-level statement, bounds
+        // validation should skip validating the bounds of LValue.
+        if (CSS == CheckedScopeSpecifier::CSS_Unchecked) {
+          if (!LValue->getType()->isCheckedPointerType() &&
+              !LValue->getType()->isCheckedArrayType()) {
+            if (IsBoundsSafeInterfaceAssignment(LValue->getType(), Src))
+              State.LValuesAssignedChecked.insert(LValueAbstractSet);
+          }
+        }
       }
 
       // Adjust ObservedBounds to account for any uses of LValue in the bounds.
@@ -6173,7 +6451,7 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   BO.AddLifetime = true;
   BO.AddNullStmt = true;
   std::unique_ptr<CFG> Cfg = CFG::buildCFG(nullptr, Body, &getASTContext(), BO);
-  CheckBoundsDeclarations Checker(*this, Info, Body, Cfg.get(), FD->getBoundsExpr(), EmptyFacts);
+  CheckBoundsDeclarations Checker(*this, Info, Body, Cfg.get(), FD, EmptyFacts);
   if (Cfg != nullptr) {
     AvailableFactsAnalysis Collector(*this, Cfg.get());
     Collector.Analyze();
