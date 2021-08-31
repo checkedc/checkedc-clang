@@ -186,6 +186,8 @@ BoundsExpr *BoundsUtil::ExpandToRange(Sema &S, VarDecl *D, BoundsExpr *B) {
 BoundsExpr *BoundsUtil::ReplaceLValueInBounds(Sema &S, BoundsExpr *Bounds,
                                               Expr *LValue, Expr *OriginalValue,
                                               CheckedScopeSpecifier CSS) {
+  if (Bounds->isUnknown() || Bounds->isAny())
+    return Bounds;
   Expr *Replaced = ReplaceLValue(S, Bounds, LValue, OriginalValue, CSS);
   if (!Replaced)
     return CreateBoundsUnknown(S);

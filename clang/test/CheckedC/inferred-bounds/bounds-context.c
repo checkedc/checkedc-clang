@@ -1138,7 +1138,6 @@ void multiple_assign1(
   // Observed bounds context after assignments: { a => bounds(unknown), b => bounds(unknown) }
   len = 0, a = b; // expected-error {{inferred bounds for 'a' are unknown after assignment}} \
                   // expected-note {{lost the value of the expression 'len' which is used in the (expanded) inferred bounds 'bounds(a, a + len)' of 'a'}} \
-                  // expected-note {{assigned expression 'b' with unknown bounds to 'a'}} \
                   // expected-error {{inferred bounds for 'b' are unknown after assignment}} \
                   // expected-note {{lost the value of the expression 'len' which is used in the (expanded) inferred bounds 'bounds(b, b + len)' of 'b'}}
   // CHECK: Statement S:

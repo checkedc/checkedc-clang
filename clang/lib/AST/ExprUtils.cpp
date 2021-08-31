@@ -318,6 +318,13 @@ bool ExprUtil::IsDereferenceOrSubscript(Expr *E) {
   return UO->getOpcode() == UnaryOperatorKind::UO_Deref;
 }
 
+bool ExprUtil::IsReturnValueExpr(Expr *E) {
+  BoundsValueExpr *BVE = dyn_cast_or_null<BoundsValueExpr>(E);
+  if (!BVE)
+    return false;
+  return BVE->getKind() == BoundsValueExpr::Kind::Return;
+}
+
 namespace {
   class FindLValueHelper : public RecursiveASTVisitor<FindLValueHelper> {
     private:
