@@ -4886,13 +4886,15 @@ namespace {
                                             Expr *OriginalValue,
                                             CheckedScopeSpecifier CSS,
                                             CheckingState &State) {
-      // If LValue is a member expression, get the set of AbstractSets whose
-      // target bounds depend on LValue. The observed bounds of each of these
-      // AbstractSets are recorded in ObservedBounds.
-      MemberExpr *M = dyn_cast<MemberExpr>(LValue);
+      // If LValue is associated with a member expression (i.e. the assignment
+      // to LValue means that a member expression is being used to write to
+      // memory), get the set of AbstractSets whose target bounds depend on
+      // LValue. The observed bounds of each of these AbstractSets are recorded
+      // in ObservedBounds.
+      MemberExpr *M = GetAssignmentTargetMemberExpr(LValue);
       if (M) {
         AbstractSetSetTy AbstractSets;
-        SynthesizeMembers(M, M, CSS, AbstractSets);
+        SynthesizeMembers(M, LValue, CSS, AbstractSets);
 
         if (DumpSynthesizedMembers)
           DumpSynthesizedMemberAbstractSets(llvm::outs(), AbstractSets);
@@ -5547,10 +5549,46 @@ namespace {
       }
     }
 
+    // GetAssignmentTargetMemberExpr returns the member expression, if any,
+    // that is associated with the expression e, where e is the target of
+    // an assignment. e is associated with a member expression m if:
+    // 1. e is of the form m, or:
+    // 2. e is of the form (T)e1 and e1 is associated with m (note that this
+    //    includes implicit casts such as LValueToRValue(e1)), or:
+    // 3. e is of the form *e1 and e1 is associated with m, or:
+    // 4. e is of the form base[index] or index[base] and base is associated
+    //    with m, or:
+    // 5. e is of the form p OP e1 or e1 OP p and p is associated with m,
+    //    where OP is any binary operator and p has pointer type.
+    MemberExpr *GetAssignmentTargetMemberExpr(Expr *E) {
+      if (!E)
+        return nullptr;
+      Lexicographic Lex(S.Context, nullptr);
+      E = Lex.IgnoreValuePreservingOperations(S.Context, E);
+      if (MemberExpr *M = dyn_cast<MemberExpr>(E))
+        return M;
+      else if (CastExpr *CE = dyn_cast<CastExpr>(E))
+        return GetAssignmentTargetMemberExpr(CE->getSubExpr());
+      else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
+        if (UO->getOpcode() == UnaryOperatorKind::UO_Deref)
+          return GetAssignmentTargetMemberExpr(UO->getSubExpr());
+      } else if (ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(E))
+        return GetAssignmentTargetMemberExpr(AS->getBase());
+      else if (BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
+        Expr *LHS = BO->getLHS();
+        Expr *RHS = BO->getRHS();
+        if (LHS->getType()->isPointerType())
+          return GetAssignmentTargetMemberExpr(LHS);
+        else if (RHS->getType()->isPointerType())
+          return GetAssignmentTargetMemberExpr(RHS);
+      }
+      return nullptr;
+    }
+
     // SynthesizeMembers modifies the set AbstractSets to include AbstractSets
-    // for member expressions whose target bounds use the value of the member
-    // expression M that is being modified via an assignment.
-    void SynthesizeMembers(Expr *E, MemberExpr *M, CheckedScopeSpecifier CSS,
+    // for member expressions whose target bounds use the value of the lvalue
+    // expression LValue that is being modified via an assignment.
+    void SynthesizeMembers(Expr *E, Expr *LValue, CheckedScopeSpecifier CSS,
                            AbstractSetSetTy &AbstractSets) {
       if (!E)
         return;
@@ -5564,17 +5602,17 @@ namespace {
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass: {
           CastExpr *CE = cast<CastExpr>(E);
-          SynthesizeMembers(CE->getSubExpr(), M, CSS, AbstractSets);
+          SynthesizeMembers(CE->getSubExpr(), LValue, CSS, AbstractSets);
           return;
         }
         case Expr::UnaryOperatorClass: {
           UnaryOperator *UO = cast<UnaryOperator>(E);
-          SynthesizeMembers(UO->getSubExpr(), M, CSS, AbstractSets);
+          SynthesizeMembers(UO->getSubExpr(), LValue, CSS, AbstractSets);
           return;
         }
         case Expr::ArraySubscriptExprClass: {
           ArraySubscriptExpr *AE = cast<ArraySubscriptExpr>(E);
-          SynthesizeMembers(AE->getBase(), M, CSS, AbstractSets);
+          SynthesizeMembers(AE->getBase(), LValue, CSS, AbstractSets);
           return;
         }
         case Expr::BinaryOperatorClass: {
@@ -5582,9 +5620,9 @@ namespace {
           Expr *LHS = BO->getLHS();
           Expr *RHS = BO->getRHS();
           if (LHS->getType()->isPointerType())
-            SynthesizeMembers(LHS, M, CSS, AbstractSets);
+            SynthesizeMembers(LHS, LValue, CSS, AbstractSets);
           if (RHS->getType()->isPointerType())
-            SynthesizeMembers(RHS, M, CSS, AbstractSets);
+            SynthesizeMembers(RHS, LValue, CSS, AbstractSets);
           return;
         }
         default:
@@ -5615,7 +5653,7 @@ namespace {
             ExprCreatorUtil::CreateMemberExpr(S, Base, F, ME->isArrow());
           ++S.CheckedCStats.NumSynthesizedMemberExprs;
           BoundsExpr *Bounds = MemberExprTargetBounds(BaseF, CSS);
-          if (ExprUtil::FindLValue(S, M, Bounds)) {
+          if (ExprUtil::FindLValue(S, LValue, Bounds)) {
             const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(BaseF);
             AbstractSets.insert(A);
             ++S.CheckedCStats.NumSynthesizedMemberAbstractSets;
@@ -5623,7 +5661,7 @@ namespace {
         }
       }
 
-      SynthesizeMembers(Base, M, CSS, AbstractSets);
+      SynthesizeMembers(Base, LValue, CSS, AbstractSets);
     }
 
     // This describes an empty range. We use this where semantically the value
