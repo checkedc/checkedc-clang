@@ -187,3 +187,21 @@ void f6(_Ptr<struct S1> s) {
   *(s->arr + s->len[1 + 0] + 0) = 0; // expected-error {{inferred bounds for 's->f' are unknown after assignment}} \
                                      // expected-note {{lost the value of the expression '*(s->arr + s->len[1 + 0] + 0)'}}
 }
+
+//
+// Test pointer dereferences with bounds-safe interface types.
+//
+
+void f7(_Array_ptr<char *> p : count(10) itype(_Array_ptr<_Nt_array_ptr<char>>),
+        _Nt_array_ptr<char> buf : bounds(unknown)) _Unchecked {
+  // In an unchecked scope, *p has type char * and has target bounds of bounds(unknown).
+  *p = buf;
+
+  _Checked {
+    // In a checked scope, *p has type _Nt_array_ptr<char> and has target bounds
+    // of bounds(*p, *p + 0).
+    *p = buf; // expected-error {{inferred bounds for '*p' are unknown after assignment}} \
+              // expected-note {{(expanded) declared bounds are 'bounds(*p, *p + 0)'}} \
+              // expected-note {{assigned expression 'buf' with unknown bounds to '*p'}}
+  }
+}
