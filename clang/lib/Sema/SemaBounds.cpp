@@ -549,12 +549,12 @@ namespace {
       llvm::DenseMap<const AbstractSet *, std::pair<BoundsExpr *, Expr *>> LostLValues;
 
       // UnknownSrcBounds maps an AbstractSet A whose observed bounds are
-      // unknown to a set of expressions with unknown bounds that have been
-      // assigned to A.
+      // unknown to the first expression with unknown bounds (if any) that
+      // has been assigned to an lvalue expression in A.
       //
       // UnknownSrcBounds is used to emit notes to provide more context to the
       // user when diagnosing unknown bounds errors.
-      llvm::DenseMap<const AbstractSet *, SmallVector<Expr *, 4>> UnknownSrcBounds;
+      llvm::DenseMap<const AbstractSet *, Expr *> UnknownSrcBounds;
 
       // BlameAssignments maps an AbstractSet A to an expression in a top-level
       // CFG statement that last updates any variable used in the declared
@@ -579,6 +579,17 @@ namespace {
       // then be used to validate the bounds context.
       llvm::DenseMap<Expr *, Expr *> TargetSrcEquality;
 
+      // LValuesAssignedChecked is a set of AbstractSets containing lvalue
+      // expressions with unchecked pointer type that have been assigned an
+      // expression with checked pointer type at some point during the current
+      // top-level statement (if the statement occurs in an unchecked scope).
+      // These AbstractSets should have their bounds validated during
+      // ValidateBoundsContext. In an unchecked scope, AbstractSets containing
+      // lvalue expressions with unchecked pointer type that have not been
+      // assigned an expression with checked pointer type during the current
+      // statement should not have their bounds validated.
+      AbstractSetSetTy LValuesAssignedChecked;
+
       // Resets the checking state after checking a top-level CFG statement.
       void Reset() {
         SameValue.clear();
@@ -586,6 +597,7 @@ namespace {
         UnknownSrcBounds.clear();
         BlameAssignments.clear();
         TargetSrcEquality.clear();
+        LValuesAssignedChecked.clear();
       }
   };
 }
@@ -4475,6 +4487,8 @@ namespace {
           this->S.GetLValueDeclaredBounds(A->GetRepresentative(), CSS);
         if (!DeclaredBounds || DeclaredBounds->isUnknown())
           continue;
+        if (SkipBoundsValidation(A, CSS, State))
+          continue;
         if (ObservedBounds->isUnknown())
           DiagnoseUnknownObservedBounds(S, A, DeclaredBounds, State);
         else {
@@ -4491,6 +4505,33 @@ namespace {
                               &EquivExprs, CSS, Block, DiagnoseObservedBounds);
         }
       }
+    }
+
+    // SkipBoundsValidation returns true if the observed bounds of A should
+    // not be validated after the current top-level statement.
+    //
+    // The bounds of A should not be validated if the current statement is
+    // in an unchecked scope, and A represents lvalue expressions that:
+    // 1. Have unchecked type (i.e. their declared bounds were specified using
+    //    a bounds-safe interface), and:
+    // 2. Were not assigned a checked pointer at any point in the current
+    //    top-level statement.
+    bool SkipBoundsValidation(const AbstractSet *A, CheckedScopeSpecifier CSS,
+                              CheckingState State) {
+      if (CSS != CheckedScopeSpecifier::CSS_Unchecked)
+        return false;
+
+      if (A->GetRepresentative()->getType()->isCheckedPointerType() ||
+          A->GetRepresentative()->getType()->isCheckedArrayType())
+        return false;
+
+      // State.LValuesAssignedChecked contains AbstractSets with unchecked type
+      // that were assigned a checked pointer at some point in the current
+      // statement. If A belongs to this set, we must validate the bounds of A.
+      if (State.LValuesAssignedChecked.contains(A))
+        return false;
+
+      return true;
     }
 
     // DiagnoseUnknownObservedBounds emits an error message for an AbstractSet
@@ -4526,14 +4567,14 @@ namespace {
 
       // The observed bounds of A are unknown because at least one expression
       // e with unknown bounds was assigned to an lvalue expression in A.
+      // Emit a note for the first expression with unknown bounds that was
+      // assigned to A (this expression is the only one that is tracked in
+      // State.UnknownSrcBounds).
       auto BlameSrcIt = State.UnknownSrcBounds.find(A);
       if (BlameSrcIt != State.UnknownSrcBounds.end()) {
-        SmallVector<Expr *, 4> UnknownSources = BlameSrcIt->second;
-        for (auto I = UnknownSources.begin(); I != UnknownSources.end(); ++I) {
-          Expr *Src = *I;
-          S.Diag(Src->getBeginLoc(), diag::note_unknown_source_bounds)
+        Expr *Src = BlameSrcIt->second;
+        S.Diag(Src->getBeginLoc(), diag::note_unknown_source_bounds)
             << Src << A->GetRepresentative() << Src->getSourceRange();
-        }
       }
     }
 
@@ -4865,17 +4906,26 @@ namespace {
       // If LValue has target bounds, the initial observed bounds of LValue
       // are SrcBounds. These bounds will be updated to account for any uses
       // of LValue below.
+      BoundsExpr *PrevLValueBounds = nullptr;
       if (HasTargetBounds) {
         LValueAbstractSet = AbstractSetMgr.GetOrCreateAbstractSet(LValue);
+        PrevLValueBounds = State.ObservedBounds[LValueAbstractSet];
         State.ObservedBounds[LValueAbstractSet] = SrcBounds;
-      }
 
-      // If Src initially has unknown bounds (before making any lvalue
-      // replacements), use Src to explain bounds checking errors that
-      // can occur when validating the bounds context.
-      if (HasTargetBounds) {
-        if (SrcBounds->isUnknown())
-          State.UnknownSrcBounds[LValueAbstractSet].push_back(Src);
+        // In an unchecked scope, if an expression with checked pointer type
+        // is assigned to an unchecked pointer LValue (whose bounds are
+        // declared via a bounds-safe interface), bounds validation should
+        // validate the bounds of LValue after the current top-level statement.
+        // For unchecked pointer LValues that were not assigned a checked
+        // pointer expression during the current top-level statement, bounds
+        // validation should skip validating the bounds of LValue.
+        if (CSS == CheckedScopeSpecifier::CSS_Unchecked) {
+          if (!LValue->getType()->isCheckedPointerType() &&
+              !LValue->getType()->isCheckedArrayType()) {
+            if (IsBoundsSafeInterfaceAssignment(LValue->getType(), Src))
+              State.LValuesAssignedChecked.insert(LValueAbstractSet);
+          }
+        }
       }
 
       // Adjust ObservedBounds to account for any uses of LValue in the bounds.
@@ -4911,9 +4961,21 @@ namespace {
           BoundsUtil::ReplaceLValueInBounds(S, SrcBounds, LValue,
                                             OriginalValue, CSS);
 
-      // Record that E updates the observed bounds of LValue.
-      if (HasTargetBounds)
+      // If the updated observed bounds of LValue are different than the
+      // previous observed bounds of LValue, record that E updates the
+      // observed bounds of LValue.
+      // We can check this cheaply because ReplaceLValueInBounds returns
+      // PrevLValueBounds as AdjustedSrcBounds if the previous observed
+      // bounds of LValue were not adjusted.
+      if (HasTargetBounds && PrevLValueBounds != AdjustedSrcBounds) {
         State.BlameAssignments[LValueAbstractSet] = E;
+
+        // If the original bounds of Src (before replacing LValue) were
+        // unknown, record that the expression Src with unknown bounds was
+        // assigned to LValue.
+        if (SrcBounds->isUnknown())
+          State.UnknownSrcBounds[LValueAbstractSet] = Src;
+      }
 
       // If the initial source bounds were not unknown, but they are unknown
       // after replacing uses of LValue, then the assignment to LValue caused
