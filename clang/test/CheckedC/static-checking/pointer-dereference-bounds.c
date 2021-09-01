@@ -13,6 +13,7 @@
 //
 
 extern _Nt_array_ptr<char> g1(_Nt_array_ptr<char> p);
+extern _Nt_array_ptr<int> g2(_Nt_array_ptr<int> p);
 
 void f1(_Array_ptr<_Nt_array_ptr<char>> ptr_to_buf : count(10),
         _Nt_array_ptr<char> buf : bounds(unknown)) {
@@ -63,4 +64,58 @@ void f2(_Array_ptr<_Nt_array_ptr<char>> p : count(10)) {
   *(p + 2 + 3) = 5[p] - 2; // expected-error {{inferred bounds for '*(p + 2 + 3)' are unknown after assignment}} \
                            // expected-note {{(expanded) declared bounds are 'bounds(*(p + 2 + 3), *(p + 2 + 3) + 0)'}} \
                            // expected-note {{lost the value of the expression '*(p + 2 + 3)' which is used in the (expanded) inferred bounds 'bounds(5[p], 5[p] + 0)' of '*(p + 2 + 3)'}}
+}
+
+void f3(_Array_ptr<_Nt_array_ptr<int> *> p : itype(_Array_ptr<_Array_ptr<_Nt_array_ptr<int>>>) count(10),
+        _Nt_array_ptr<int> val,
+        _Nt_array_ptr<int> unknown : bounds(unknown),
+        _Array_ptr<_Nt_array_ptr<int>> unknown_arr : bounds(unknown)) {
+  // *p is an _Array_ptr so its target bounds are bounds(unknown).
+  *p = unknown_arr;
+
+  // **p is an _Nt_array_ptr so its target bounds are bounds(**p, **p + 0).
+  // The RHS bounds are bounds(val, val + 0).
+  **p = val;
+
+  p[0][1] = unknown; // expected-error {{inferred bounds for 'p[0][1]' are unknown after assignment}} \
+                     // expected-note {{(expanded) declared bounds are 'bounds(p[0][1], p[0][1] + 0)'}} \
+                     // expected-note {{assigned expression 'unknown' with unknown bounds to 'p[0][1]'}}
+
+  *(*(p + 2) + 3) = g2(*(*(p + 2) + 3));
+}
+
+//
+// Test checking the bounds of pointer dereferences and array subscripts
+// of type _Ptr<T>.
+//
+
+struct S {
+  int len;
+  _Ptr<struct S> next;
+};
+
+void f4(_Array_ptr<_Ptr<struct S>> s : count(10)) {
+  *s = (*s)->next; // expected-error {{inferred bounds for '*s' are unknown after assignment}} \
+                   // expected-note {{(expanded) declared bounds are 'bounds((_Array_ptr<struct S>)*s, (_Array_ptr<struct S>)*s + 1)'}} \
+                   // expected-note {{lost the value of the expression '*s' which is used in the (expanded) inferred bounds 'bounds((_Array_ptr<struct S>)(*s)->next, (_Array_ptr<struct S>)(*s)->next + 1)' of '*s'}}
+
+  // If we use a temporary variable to store (*s)->next, then the inferred
+  // bounds of the RHS of the assignment to *s do not use the value of *s.
+  _Ptr<struct S> temp = (*s)->next;
+  *s = temp;
+}
+
+//
+// Test modifying pointer dereferences and array subscripts that are used
+// in the declared bounds of other lvalue expressions (variables, member
+// expressions, etc).
+//
+
+void f5(_Array_ptr<int> p : count(*ptr_to_len), // expected-note 2 {{(expanded) declared bounds are 'bounds(p, p + *ptr_to_len)'}}
+        _Array_ptr<unsigned int> ptr_to_len : count(10)) {
+  *ptr_to_len = 0; // expected-error {{inferred bounds for 'p' are unknown after assignment}} \
+                   // expected-note {{lost the value of the expression '*ptr_to_len' which is used in the (expanded) inferred bounds 'bounds(p, p + *ptr_to_len)' of 'p'}}
+
+  ptr_to_len[0]++; // expected-warning {{cannot prove declared bounds for 'p' are valid after increment}} \
+                   // expected-note {{(expanded) inferred bounds are 'bounds(p, p + ptr_to_len[0] - 1U)'}}
 }
