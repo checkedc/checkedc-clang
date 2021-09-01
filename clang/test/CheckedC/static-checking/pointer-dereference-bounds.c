@@ -119,3 +119,71 @@ void f5(_Array_ptr<int> p : count(*ptr_to_len), // expected-note 2 {{(expanded) 
   ptr_to_len[0]++; // expected-warning {{cannot prove declared bounds for 'p' are valid after increment}} \
                    // expected-note {{(expanded) inferred bounds are 'bounds(p, p + ptr_to_len[0] - 1U)'}}
 }
+
+struct S1 {
+  _Array_ptr<int> f : bounds(arr[*len], arr[len[1]] + *(len + 2)); // expected-note 14 {{(expanded) declared bounds are 'bounds(s->arr[*s->len], s->arr[s->len[1]] + *(s->len + 2))'}}
+  _Array_ptr<int> g : bounds(len, len + 0); // expected-note {{(expanded) declared bounds are 'bounds(s->len, s->len + 0)'}}
+  _Array_ptr<int> *arr;
+  _Array_ptr<int> len : count(10);
+};
+
+void f6(_Ptr<struct S1> s) {
+  s->arr = 0; // expected-error {{inferred bounds for 's->f' are unknown after assignment}} \
+              // expected-note {{lost the value of the expression 's->arr' which is used in the (expanded) inferred bounds 'bounds(s->arr[*s->len], s->arr[s->len[1]] + *(s->len + 2))' of 's->f'}}
+
+  s->len = 0; // expected-error {{inferred bounds for 's->f' are unknown after assignment}} \
+              // expected-note {{lost the value of the expression 's->len' which is used in the (expanded) inferred bounds 'bounds(s->arr[*s->len], s->arr[s->len[1]] + *(s->len + 2))' of 's->f'}} \
+              // expected-error {{inferred bounds for 's->g' are unknown after assignment}} \
+              // expected-note {{lost the value of the expression 's->len' which is used in the (expanded) inferred bounds 'bounds(s->len, s->len + 0)' of 's->g'}}
+  
+  // No members of s have bounds that depend on *s->arr.
+  *s->arr = 0;
+
+  // The bounds of s->f depend on the following dereferences/array subscripts:
+  // 1. *len
+  // 2. len[1]
+  // 3. *(len + 2)
+  // 4. arr[*len]
+  // 5. arr[len[1]]
+
+  // 1. Assigning to various forms of *len
+  *s->len = 0; // expected-error {{inferred bounds for 's->f' are unknown after assignment}} \
+               // expected-note {{lost the value of the expression '*s->len'}}
+
+  *(s->len + 0) = 0; // expected-error {{inferred bounds for 's->f' are unknown after assignment}} \
+                     // expected-note {{lost the value of the expression '*(s->len + 0)'}}
+
+  s->len[2 - 2] = 0; // expected-error {{inferred bounds for 's->f' are unknown after assignment}} \
+                     // expected-note {{lost the value of the expression 's->len[2 - 2]'}}
+
+  // 2. Assigning to various forms of len[1]
+  s->len[1] = 0; // expected-error {{inferred bounds for 's->f' are unknown after assignment}} \
+                 // expected-note {{lost the value of the expression 's->len[1]'}}
+
+  *(s->len + 4 - 3) = 0; // expected-error {{inferred bounds for 's->f' are unknown after assignment}} \
+                         // expected-note {{lost the value of the expression '*(s->len + 4 - 3)'}}
+
+  // 3. Assigning to various forms of *(len + 2)
+  *(s->len + 2) = 0; // expected-error {{inferred bounds for 's->f' are unknown after assignment}} \
+                     // expected-note {{lost the value of the expression '*(s->len + 2)'}}
+
+  2[s->len + 0] = 0; // expected-error {{inferred bounds for 's->f' are unknown after assignment}} \
+                     // expected-note {{lost the value of the expression '2[s->len + 0]'}}
+  
+  // 4. Assigning to various forms of arr[*len]
+  s->arr[*s->len] = 0; // expected-error {{inferred bounds for 's->f' are unknown after assignment}} \
+                       // expected-note {{lost the value of the expression 's->arr[*s->len]'}}
+
+  s->arr[*(s->len + 0)] = 0; // expected-error {{inferred bounds for 's->f' are unknown after assignment}} \
+                             // expected-note {{lost the value of the expression 's->arr[*(s->len + 0)]'}}
+
+  *(s->arr + *s->len) = 0; // expected-error {{inferred bounds for 's->f' are unknown after assignment}} \
+                           // expected-note {{lost the value of the expression '*(s->arr + *s->len)'}}
+
+  // 5. Assigning to various forms of arr[len[1]]
+  s->arr[s->len[1]] = 0; // expected-error {{inferred bounds for 's->f' are unknown after assignment}} \
+                         // expected-note {{lost the value of the expression 's->arr[s->len[1]]'}}
+
+  *(s->arr + s->len[1 + 0] + 0) = 0; // expected-error {{inferred bounds for 's->f' are unknown after assignment}} \
+                                     // expected-note {{lost the value of the expression '*(s->arr + s->len[1 + 0] + 0)'}}
+}
