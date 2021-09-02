@@ -372,9 +372,9 @@ each variable imply the declared bounds of the variable.
 After validating the bounds, `ObservedBounds` is reset to its value from before
 checking `S`. Any observed bounds that were updated while checking `S` are only
 used to validate the bounds. They do not persist across multiple statements in
-a CFG block. Finally, `ObservedBounds` is updated so that, for each variable
-`x` whose widened bounds in `B` were killed by `S`, `ObservedBounds[x]` is the
-declared bounds of `x`.
+a CFG block. Finally, `ObservedBounds` is updated so that, if a variable `v` is
+no longer in scope after `S`, the `AbstractSet` `V` containing `v` is removed
+from `ObservedBounds`. The value of `v` is also removed fro `EquivExprs`.
 
 The following methods are responsible for updating the `ObservedBounds` and
 `EquivExprs` members of the checking state.
