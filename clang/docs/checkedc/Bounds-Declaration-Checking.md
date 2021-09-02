@@ -441,29 +441,33 @@ void f(_Array_ptr<int> a : count(1)) {
 }
 ```
 
-### ResetKilledBounds
+### UpdateWidenedBounds
 
-A statement `S` within a CFG block `B` may kill the widened bounds of a
-variable `v` if `S` modifies any variables that are used by the widened
-bounds of `v`. After checking `S`, this method updates `ObservedBounds`
-so that, for each variable `x` whose widened bounds are killed by `S`,
-`ObservedBounds[x]` is the declared bounds of `x`. For example:
+Before checking a CFG block `B`, this method updates `ObservedBounds` to map
+each variable that has widened bounds in `B` to its widened bounds. For
+example:
 
 ```
-void f(_Nt_array_ptr<char> p : count(1)) {
-  if (*(p + 1)) {
+void f(_Nt_array_ptr<char> p : count(2)) {
+  // Since p is dereferenced at its upper bound of 2, the bounds of p are
+  // widened by 1.
+  if (*(p + 2)) {
+    // CFG block B.
+
+    // Before checking this statement, the initial observed bounds of p
+    // are its widened bounds of bounds(p, p + 2).
+    // p[2] is within the (widened) observed bounds of bounds(p, p + 2).
+    // This will not result in a compile-time error.
+    char c = p[2];
+
     // This statement kills the widened bounds of p.
-    // Before checking this statement:
-    // ObservedBounds = { p => bounds(p, p + 2) }
-    // After checking this statement (before validating the bounds):
-    // ObservedBounds = { p => bounds(any) }.
-    // After calling ResetKilledBounds:
-    // ObservedBounds = { p => bounds(p, p + 1) }.
     p = 0;
 
-    // p now has observed bounds of bounds(p, p + 1), so this is an
-    // out-of-bounds error.
-    int c = p[1];
+    // p no longer has widened bounds at this statement. The initial observed
+    // bounds of p are its declared bounds of bounds(p, p + 1).
+    // p[2] is outside of its bounds of bounds(p, p + 1). This will result
+    // in a compile-time error.
+    char d = p[2];
   }
 }
 ```
