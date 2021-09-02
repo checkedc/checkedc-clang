@@ -140,8 +140,9 @@ If the compiler can neither prove nor disprove that inferred bounds imply
 target bounds, a compile-time warning is emitted.
 
 Examples of inferred bounds provably implying target bounds:
+
 ```
-void f(array_ptr<int> small : count(2), array_ptr<int> large : count(5)) {
+void f(_Array_ptr<int> small : count(2), _Array_ptr<int> large : count(5)) {
   // Target LHS bounds: bounds(small, small + 2)
   // Inferred RHS bounds: bounds(large + 5)
   small = large + 7;
@@ -156,20 +157,21 @@ void f(array_ptr<int> small : count(2), array_ptr<int> large : count(5)) {
 
   // Target LHS bounds: bounds(large, large + 5)
   // Inferred RHS bounds: bounds(small, small + 10)
-  large = _Dynamic_bounds_cast<array_ptr<int>>(small, bounds(small, small + 10));
+  large = _Dynamic_bounds_cast<_Array_ptr<int>>(small, bounds(small, small + 10));
 }
 ```
 
 Examples of inferred bounds provably not implying target bounds:
+
 ```
-void f(array_ptr<int> small : count(2), array_ptr<int> large : count(5)) {
+void f(_Array_ptr<int> small : count(2), _Array_ptr<int> large : count(5)) {
   // Target LHS bounds: bounds(large, large + 5)
   // Inferred RHS bounds: bounds(small, small + 2)
   large = small;
 
   // Target LHS bounds: bounds(large, large + 5)
   // Inferred RHS bounds: bounds(small, small + 3)
-  large = _Dynamic_bounds_cast<array_ptr<int>>(small, bounds(small, small + 3));
+  large = _Dynamic_bounds_cast<_Array_ptr<int>>(small, bounds(small, small + 3));
 }
 ```
 
