@@ -262,33 +262,63 @@ and the `PreorderAST` for `e2` are equivalent. If an lvalue expression belongs
 to an `AbstractSet` `A`, we say that `A` **contains** `e`.
 
 ## Checking State
-The bounds checking methods use the [CheckingState](https://github.com/microsoft/checkedc-clang/blob/master/clang/lib/Sema/SemaBounds.cpp#L661)
-class to maintain state while recursively checking expressions. The members
-of CheckingState track information that is then used to prove or disprove
-that inferred bounds imply declared bounds. Some notable members of
-CheckingState include:
+
+The bounds checking methods use the `CheckingState` class (defined in
+[SemaBounds.cpp](https://github.com/microsoft/checkedc-clang/blob/master/clang/lib/Sema/SemaBounds.cpp))
+to maintain state while recursively checking expressions. The members of
+CheckingState track information that is then used to prove or disprove that
+inferred bounds imply target bounds. Some notable members of CheckingState
+include:
 
 ### ObservedBounds
-A map of variables to their current inferred bounds as determined by the
-bounds checker.
 
-Example: If ObservedBounds is `{ p => bounds(p, p + 1), q => bounds(unknown) }`,
-then the current inferred bounds of `p` are `bounds(p, p + 1)` and the current
-bounds of `q` are `bounds(unknown)`.
+A map of an `AbstractSet` to the current inferred bounds of all lvalue
+expression in the `AbstractSet` as determined by the bounds checker while
+traversing a statement.
+
+Example: suppose `P` is an `AbstractSet` that contains the variable `p`, and
+`A0` is an `AbstractSet` that contains the expressions `*a`, `*(a + 0)`, and
+`a[0]`. If `ObservedBounds` is `{ P => bounds(p, p + 1), A0 => bounds(unknown) }`,
+then the current inferred bounds of `p` are `bounds(p, p + 1)`, and the current
+inferred bounds of `*a`, `*(a + 0)`, and `a[0]` are `bounds(unknown)`.
+
+`ObservedBounds` is updated after each assignment to a variable, member
+expression, pointer dereference, and array subscript in the
+`UpdateBoundsAfterAssignment` method. It is used to check the validity of
+bounds in the `ValidateBoundsContext` method.
 
 ### EquivExprs
+
 A set of sets of expressions that produce the same value. If expressions `e1`
 and `e2` are in the same set in EquivExprs, then `e1` and `e2` produce the
 same value.
 
-Example: If EquivExprs is `{ { x, y, 1 }, { i + j, k } }`, then the variables
-`x` and `y` are equal to `1`, and the variable `k` is equal to `i + j`.
+`EquivExprs` contains only rvalue expressions. Certain kinds of rvalue
+expressions are not allowed in `EquivExprs`, such as expressions that:
+
+1. Modify any expressions. For example, `p++` is not allowed in `EquivExprs`.
+2. Read memory via a pointer. For example, `*p` is not allowed in `EquivExprs`.
+3. Are a member expression. For example, `a.f` is not allowed in `EquivExprs`.
+4. Create an object literal. For example, `"abc"` is not allowed in
+   `EquivExprs`.
+
+Example: If `EquivExprs` is `{ { x, y, 1 }, { i + j, k } }`, then the variables
+`x` and `y` produce the same value as `1`, and the variable `k` produces the
+same value as `i + j`. Note that since `EquivExprs` contains only rvalue
+expressions, `x`, `y`, `i`, `j`, and `k` should be read as `LValueToRValue(x)`,
+etc. where `LValueToRValue` is a clang implicit cast that produces the value
+of an lvalue expression.
 
 ### SameValue
-A set of expressions that produce the same value as the expression that is 
+
+A set of expressions that produce the same value as the expression that is
 currently being checked.
 
-Example: If SameValue is `{ x, y, 1 }` and the current expression being
+Like `EquivExprs`, `SameValue` contains only rvalue expressions. Any
+expressions that are not allowed in `EquivExprs` are not allowed in
+`SameValue`.
+
+Example: If `SameValue` is `{ x, y, 1 }` and the current expression being
 checked is the variable `y`, then `x`, `y`, and `1` all produce the same
 value as `y`.
 
