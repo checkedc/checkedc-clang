@@ -1,9 +1,11 @@
 # Bounds Declaration Checking
 
 ## Checking Overview
-After each statement in the clang CFG, the inferred bounds for an expression
-must imply the expression's declared bounds. The algorithms for inferring and
-checking bounds for expressions are implemented in [SemaBounds.cpp](https://github.com/microsoft/checkedc-clang/blob/master/clang/lib/Sema/SemaBounds.cpp).
+
+After each statement in the clang CFG, the inferred bounds for the value
+prodced by an lvalue expression must imply the target bounds for the lvalue.
+The algorithms for inferring and checking bounds for expressions are
+implemented in [SemaBounds.cpp](https://github.com/microsoft/checkedc-clang/blob/master/clang/lib/Sema/SemaBounds.cpp).
 
 ## Bounds Terminology
 The bounds checking code uses the following definitions to reason about
