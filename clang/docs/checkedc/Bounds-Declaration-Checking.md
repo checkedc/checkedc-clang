@@ -192,6 +192,75 @@ void f(_Array_ptr<int> p : count(2), _Array_ptr<int> q : count(3)) {
 }
 ```
 
+## Checking LValue Expressions
+
+While traversing each statement in a function body, the bounds checker keeps
+track of the inferred bounds for the following kinds of lvalue expressions:
+
+1. Variables (e.g. `v`)
+2. Member expressions (e.g. `s.f`, `s->f`)
+3. Pointer dereference expressions (e.g. `*p`)
+4. Array subscript expressions (e.g. `p[i]`)
+
+It is possible for a programmer to express the same member expression, pointer
+deference, or array subscript in multiple ways. This means that different clang
+expression nodes can refer to the same lvalue. For two lvalue expressions `e1`
+and `e2`, we say that `e1` and `e2` are **identical** if and only if `e1` and
+`e2` both point to the same contiguous memory location, i.e. if `e1` and `e2`
+both point to the same location and range of memory.
+
+Any two identical lvalue expressions should always have the same inferred
+bounds. For example:
+
+```
+void f(_Array_ptr<_Nt_array_ptr<char>> p : count(10)) {
+  *p = "abc;
+  p[0] = "xyz";
+}
+```
+
+The lvalue expressions `*p` and `p[0]` are identical. Therefore, the assignment
+`*p = "abc"` should not only update the inferred bounds of `*p`, but also of
+`p[0]` (as well as all other lvalue expressions such as `*(p + 0)`, `p[1 - 1]`,
+etc. that are identical to `*p`). The assignment `p[0] = "xyz"` should behave
+in a similar manner.
+
+In order to perform these updates, we consider equivalence classes of lvalue
+expressions where `e1` and `e2` belong to the same equivalence class if and
+only if `e1` and `e2` are identical. The
+[AbstractSet](https://github.com/microsoft/checkedc-clang/blob/master/clang/include/clang/AST/AbstractSet.h)
+class is a representation of an equivalence class of lvalue expressions.
+The bounds checker uses `AbstractSets` to track the inferred bounds for all
+lvalue expressions that belong to a given `AbstractSet`.
+
+### Canonical Forms
+
+In the current implementation, we consider two lvalue expressions to belong
+to the same `AbstractSet` if and only if they have the same canonical form.
+The canonical form of an lvalue expression `e` is defined as:
+
+1. If `e` is a variable, then the canonical form of `e` is `e` together with
+   its declaration. (In other words, two variables `e1` and `e2` are canonically
+   equivalent if and only if `e1` and `e2` share the same declaration. It is not
+   sufficient for `e1` and `e2` to share the same variable name).
+2. If `e` is a member expression of the form `a.f`, then the canonical form
+   of `e` is `a.f`.
+3. If `e` is a member expression of the form `a->f` `*a.f`, `(*(a + 0)).f`,
+   `(*(0 + a)).f`, `a[0].f`, or `0[a].f`, then the canonical form of `e` is
+   `(a + 0)->f`.
+4. If `e` is a member expression of the form `(a + i)->f`, `(a + i)->f`,
+   `(*(a + i)).f`, `(*(i + a)).f`, `a[i].f`, or `i[a].f`, where `i` is an integer,
+   then the canonical form of `e` is `(a + i)->f`.
+5. If `e` is a pointer dereference of the form `*e1`, `*(e1 + 0)`, `*(0 + e1)`,
+   `e1[0]`, or `0[e1]`, then the canonical form of `e` is `*(e1 + 0)`.
+
+The [PreorderAST](https://github.com/microsoft/checkedc-clang/blob/master/clang/include/clang/AST/PreorderAST.h)
+class determines the canonical form of an expression, and determines whether
+two canonical forms are equivalent. Therefore, two lvalue expressions `e1` and
+`e2` belong to the same `AbstractSet` if and only the `PreorderAST` for `e1`
+and the `PreorderAST` for `e2` are equivalent. If an lvalue expression belongs
+to an `AbstractSet` `A`, we say that `A` **contains** `e`.
+
 ## Checking State
 The bounds checking methods use the [CheckingState](https://github.com/microsoft/checkedc-clang/blob/master/clang/lib/Sema/SemaBounds.cpp#L661)
 class to maintain state while recursively checking expressions. The members
