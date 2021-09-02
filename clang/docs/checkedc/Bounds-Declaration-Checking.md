@@ -8,53 +8,59 @@ The algorithms for inferring and checking bounds for expressions are
 implemented in [SemaBounds.cpp](https://github.com/microsoft/checkedc-clang/blob/master/clang/lib/Sema/SemaBounds.cpp).
 
 ## Bounds Terminology
+
 The bounds checking code uses the following definitions to reason about
 bounds expressions:
+
 - **Declared bounds**: The bounds that the programmer has declared for a
-pointer expression.
-  - Example: In `array_ptr<int> p : bounds(p, p + 1) = 0;`, the declared bounds
-  of `p` are `bounds(p, p + 1)`.
+  pointer expression.
+  - Example: In `_Array_ptr<int> p : bounds(p, p + 1) = 0;`, the declared bounds
+    of `p` are `bounds(p, p + 1)`.
 - **Inferred bounds**: The bounds that the compiler determines for a pointer
-expression at a particular point in checking a statement.
-  - Example: After checking `array_ptr<int> p : bounds(p, p + 1) = 0`, the
-  inferred bounds of `p` are `bounds(any)` (since `0` by definition has
-  bounds of `bounds(any)`).
+  expression at a particular point in checking a statement. In SemaBounds.cpp,
+  these bounds may also be referred to as "observed bounds".
+  - Example: After checking `_Array_ptr<int> p : bounds(p, p + 1) = 0`, the
+    inferred bounds of `p` are `bounds(any)` (since `0` by definition has
+    bounds of `bounds(any)`).
 - **RValue bounds**: The bounds of the value produced by an rvalue expression.
-  - Example: If `p` is a variable of type `array_ptr<int>` with declared bounds
-  of `bounds(p, p + 1)`, then the rvalue expression `p + 3` has type
-  `array_ptr<int>` and rvalue bounds of `bounds(p, p + 1)`.
-  - Example: If `p` is a variable of type `array_ptr<int>` with declared bounds
-  of `bounds(p, p + 5)`, then the rvalue expression from reading the value of
-  `*(p + 2)` has rvalue bounds of `bounds(unknown)`. `*(p + 2)` has type `int`,
-  and integers do not have bounds.
+  - Example: If `p` is a variable of type `_Array_ptr<int>` with declared bounds
+    of `bounds(p, p + 1)`, then the rvalue expression `p + 3` has type
+    `_Array_ptr<int>` and rvalue bounds of `bounds(p, p + 1)`.
+  - Example: If `p` is a variable of type `_Array_ptr<int>` with declared bounds
+    of `bounds(p, p + 5)`, then the rvalue expression from reading the value of
+    `*(p + 2)` has rvalue bounds of `bounds(unknown)`. `*(p + 2)` has type `int`,
+    and integers do not have bounds.
 - **LValue bounds**: The bounds of an lvalue expression `e`. These bounds
-determine whether it is valid to access memory using the lvalue produced by
-`e`, and should be the range (or a subrange) of an object in memory. LValue
-bounds are used to check that a memory access is within bounds.
+  determine whether it is valid to access memory using the lvalue produced by
+  `e`, and should be the range (or a subrange) of an object in memory. LValue
+  bounds are used to check that a memory access is within bounds.
   - Example: If `p` is a non-array-typed variable, then the lvalue bounds
-  of `p` are `bounds(&p, &p + 1)`.
+    of `p` are `bounds(&p, &p + 1)`.
   - Example: If `p` is a variable with declared bounds of `bounds(p, p + 3)`,
-  then `*(p + 1)` and `p[2]` have lvalue bounds of `bounds(p, p + 3)`. The
-  compiler will check that `p + 1` and `p + 2` are within the lvalue bounds of
-  `bounds(p, p + 3)`.
+    then `*(p + 1)` and `p[2]` have lvalue bounds of `bounds(p, p + 3)`. The
+    compiler will check that `p + 1` and `p + 2` are within the lvalue bounds of
+    `bounds(p, p + 3)`.
 - **Target bounds**: The target bounds of an lvalue expression `e`. Values
-assigned to `e` must satisfy these bounds. Values read through `e` will
-meet these bounds.
+  assigned to `e` must satisfy these bounds. Values read through `e` will
+  meet these bounds.
   - Example: If `p` is a variable with declared bounds of `bounds(p, p + 1)`,
-  then the target bounds of `p` are `bounds(p, p + 1)`.
-  - Example: If `p` is a variable of type `array_ptr<int>` with declared
-  bounds of `bounds(p, p + 7)`, then the target bounds of `p[4]` are
-  `bounds(unknown)`.
+    then the target bounds of `p` are `bounds(p, p + 1)`.
+  - Example: If `p` is a pointer to a null-terminated array pointer, then
+    the target bounds of `*p` are `bounds(*p, *p + 0)`.
+  - Example: If `p` is a pointer to a singleton `ptr<T>`, then the target
+    bounds of `*p` are `bounds((_Array_ptr<T>)*p, (_Array_ptr<T>)*p + 1)`.
   - Example: If S is a struct with members
-  `{ array_ptr<int> f : count(len); int len; }`, then `s.f` has target bounds
-  of `bounds(s.f, s.f + s.len)`. In an assignment `s.f = e;`, the rvalue bounds
-  of `e` must imply `bounds(s.f, s.f + s.len)`.
+    `{ _Array_ptr<int> f : count(len); int len; }` and `s` is a variable of
+    type `struct S`, then the target bounds of `s.f` are
+    `bounds(s.f, s.f + s.len)`. In an assignment `s.f = e;`, the rvalue
+    bounds of `e` must imply `bounds(s.f, s.f + s.len)`.
 
 Examples of declared and inferred bounds:
+
 ```
 // p has declared bounds of bounds(p, p + i).
 // q has declared bounds of bounds(q, q + j).
-void f(array_ptr<int> p : count(i), array_ptr<int> q : count(j)) {
+void f(_Array_ptr<int> p : count(i), _Array_ptr<int> q : count(j)) {
   // Updating after assignment: The inferred bounds of the left-hand side
   // variable are the bounds of the right-hand side expression.
   // p has inferred bounds of bounds(q, q + j).
