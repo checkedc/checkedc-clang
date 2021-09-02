@@ -82,6 +82,15 @@ void f(_Array_ptr<int> p : count(i), _Array_ptr<int> q : count(j)) {
 }
 ```
 
+## Bounds Checking Implementation Overview
+
+The bounds checker traverses each top-level statement in the body of a
+function. During this traversal, the bounds checker determines the inferred
+bounds for the lvalue expressions that are currently in scope. At the end
+of traversing the statement, the bounds checker determines the target bounds
+of each lvalue expression, and attempts to prove or disprove that the inferred
+bounds for the value produced by the lvalue expression imply the target bounds.
+
 ## Bounds Validity
 After checking each statement in the clang CFG, the compiler attempts to prove
 or disprove that the inferred bounds of each variable imply the target bounds
