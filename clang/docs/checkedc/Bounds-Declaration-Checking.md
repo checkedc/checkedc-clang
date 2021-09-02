@@ -328,18 +328,34 @@ The `ObservedBounds` and `EquivExprs` members of the `CheckingState` instance
 are updated before, during, and after checking each statement `S` in a CFG
 block `B`.
 
+**Before** checking the block `B`:
+
+The incoming `CheckingState` for a block `B` is determined by taking the
+intersection of the `CheckingStates` for each predecessor block of `B`.
+This intersection is computed in the method `GetIncomingBlockState`. To
+get the intersection of any two `CheckingState` instances `State1` and
+`State2`:
+
+1. The resulting `ObservedBounds` map contains a mapping for each `AbstractSet`
+   `A` that is a key in both `State1.ObservedBounds` and `State2.ObservedBounds`.
+   `ObservedBounds[A]` is the target bounds for all lvalue expressions in `A`.
+2. Each set in the resulting `EquivExprs` is the intersection of a set `F`
+   in `State1.EquivExprs` and a set `G` in `State2.EquivExprs`, if the
+   intersection of `F` and `G` contains more than one expression.
+
 **Before** checking `S`:
 
-`ObservedBounds` will contain a mapping for each variable `v` that:
+For each variable `v` that:
 
 1. Is in scope at `S` or is declared in `S`, and:
-2. Has declared bounds.
+2. Has declared bounds,
 
-For each variable `v` in `ObservedBounds`,
-`ObservedBounds[v]` will be either:
+`ObservedBounds` will contain an `AbstractSet` `V` that contains `v`.
 
-1. The widened bounds of `v`, if `v` has widened bounds in the block `B` and
-   the widened bounds of `v` were not killed by a previous statement in `B`, or:
+`ObservedBounds[V]` (where `V` contains a variable `v`) will be either:
+
+1. The widened bounds of `v`, if `v` has widened bounds at the statement `S`
+   (as determined by the [BoundsWideningAnalysis](https://github.com/microsoft/checkedc-clang/blob/master/clang/include/clang/Sema/BoundsWideningAnalysis.h)), or:
 2. The declared bounds of `v`.
 
 **While** checking `S`:
