@@ -472,23 +472,60 @@ void f(_Nt_array_ptr<char> p : count(2)) {
 }
 ```
 
+`p` initially has observed bounds of `bounds(p, p + 1)` (the declared bounds
+of `p`). At the statement `char c = p[2]`, `p` has widened bounds of
+`bounds(p, p + 2)`. Before checking `char c = p[2]`, `UpdateWidenedBounds`
+updates `ObservedBounds` so that `ObservedBounds[P] = bounds(p, p + 2)` (where
+`P` is the `AbstractSet` that contains `p`).
+
+### UpdateStateForVariableOutOfScope
+
+After traversing a statement `S`, a given variable `v` may no longer be in
+scope. If `v` belongs to an `AbstractSet` `V` that is a key in `ObservedBounds`,
+`UpdateStateForVariableOutOfScope` removes `V` from `ObservedBounds` so that
+subsequent statements do not perform bounds checking for out-of-scope variables.
+If the value of `v` belongs to a set `F` in `EquivExprs`, then the value of `v`
+is removed from `F`, and if `F` then contains fewer than two expressions, `F`
+is removed from `EquivExprs`.
+
 ### UpdateAfterAssignment
 
-After an assignment to a variable `v`, this method updates each bounds
-expression in `ObservedBounds` that uses `v`, and updates any sets in
-`EquivExprs` that use `v`.
+After an assignment to a lvalue expression `e` of the form `e = src`, this
+method makes several updates to the `CheckingState` instance:
 
-After certain assignments to a variable `v`, `v` may have an original value
-from before the assignment. For example, in the assignment `v = v + 1`, where
-`v` is an unsigned integer or a checked pointer, the original value of `v` is
-`v - 1`.
+1. Updates the inferred bounds of each `AbstractSet` `A` in `ObservedBounds`
+   if the current inferred bounds of `A` use the value of `e`.
+2. Update the inferred bounds of the RHS rvalue expression `src` if they use
+   the value of `e`.
+3. If `e` has target bounds, set the inferred bounds of `E` to the updated
+   inferred bounds for `src` (where `E` is the `AbstractSet` containing `E`).
+4. Update each rvalue expression in `EquivExprs` and `SameValue` that uses
+   the value of `e`. Note that `SameValue` will contain expressions that
+   produce the same value as `src`.
+5. Update `EquivExprs` and `SameValue` to record equality between the value
+   of `e` and `src`.
 
-For each variable `x` in `ObservedBounds`:
-1. Let `B` = `ObservedBounds[x]`.
-2. If `B` uses the value of `v`, and the original value of `v` is a non-null
-expression `e`, replace all uses of `v` in `B` with `e`.
-3. If `B` uses the value of `v`, and the original value of `v` is null, set
-`ObservedBounds[x]` to `bounds(unknown)`.
+After certain kinds of assignments to `e`, `e` may have an original value
+from before the assignment. For example, in the assignment `e = e + 1`, where
+`e` is an unsigned integer or a pointer, the original value of `e` is `e - 1`.
+If `e` has an original value, this original value is used to update each
+inferred bounds expression in `ObservedBounds` and each rvalue expression in
+`EquivExprs` and `SameValue`.
+
+For each `AbstractSet` `A` in `ObservedBounds`:
+
+1. Let `B` = `ObservedBounds[A]`.
+2. If `B` uses the value of `e`, and the original value of `e` is a non-null
+   expression `OV`, replace all uses of `e` in `B` with `OV`.
+3. If `B` uses the value of `e`, and the original value of `e` is null, set
+   `ObservedBounds[A]` to `bounds(unknown)`.
+
+The inferred bounds for `src` and the expressions in `EquivExprs` are updated
+in a similar manner. For expression in `SameValue`, if the original value `OV`
+of `e` uses the value of `e` (e.g. if the original value is `e - 1`), then any
+expressions in `SameValue` that use the value of `e` are removed from
+`SameValue`. This prevents `SameValue` from recording equality between
+expressions such as `e + 1` and `(e - 1) + 1`.
 
 For example:
 
@@ -501,11 +538,11 @@ void f(_Array_ptr<int> a : count(i), unsigned i) {
   i = 0;
 
   // The original value of i is i + 1. After checking this statement,
-  // the observed bounds of a are bounds(a, a + i + 1).
+  // the observed bounds of a are bounds(a, a + (i + 1)).
   i--;
 
   // The original value of a is a - 2. After checking this statement,
-  // the observed bounds of a are bounds(a - 2, a - 2 + 1).
+  // the observed bounds of a are bounds(a - 2, (a - 2) + 1).
   a += 2;
 }
 ```
