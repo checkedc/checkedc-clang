@@ -92,29 +92,40 @@ of each lvalue expression, and attempts to prove or disprove that the inferred
 bounds for the value produced by the lvalue expression imply the target bounds.
 
 ## Bounds Validity
-After checking each statement in the clang CFG, the compiler attempts to prove
-or disprove that the inferred bounds of each variable imply the target bounds
-of the variable. (The target bounds of a variable are always the declared
-bounds of the variable). In addition, after an assignment to a non-variable
-lvalue, the compiler attempts to prove that the inferred bounds of the
-right-hand side expression imply the target bounds of the left-hand side
-lvalue expression.
 
-For all bounds expressions `B`:
-1. Inferred bounds of `bounds(any)` imply target bounds of `B`.
-2. Inferred bounds of `B` imply target bounds of `bounds(unknown)`.
-3. Inferred bounds of `bounds(unknown)` do not imply target bounds
-other than `bounds(unknown)`.
+For a given inferred bounds expression `S` and a target bounds expression `D`,
+the bounds checker attempts to prove or disprove that `S` implies `D`. There
+are three possible results for this proof:
 
-If both the inferred and target bounds are neither `bounds(any)` or
-`bounds(unknown)`, they are converted to ranges. A range consists of a
-base expression, a lower offset expression, and an upper offset expression.
-For example, the bounds expression `bounds(p - i, p + j)` will be converted to
-a range with base `p`, lower offset `i`, and upper offset `j`.
+1. `True`: the bounds checker proved that `S` implies `D`.
+2. `False`: the bounds checker proved that `S` does not imply `D`.
+3. `Maybe`: the bounds checker could neither prove nor disprove that `S`
+   implies `D`. Some features of the bounds checker are not fully implemented,
+   so it will not be able to prove or disprove bounds validity for all inferred
+   and target bounds expressions.
+
+The bounds checker uses the following rules to determine whether `S` implies
+`D`:
+
+1. If `S` is `bounds(any)`, then `S` implies `D`.
+2. If `D` is `bounds(unknown)`, then `S` implies `D`.
+3. If `S` is `bounds(unknown)` and `D` is not `bounds(unknown)`, then `S`
+   does not imply `D`.
+
+If `S` and `D` are neither `bounds(any)` nor `bounds(unknown)`, they are
+converted to ranges. A range consists of:
+
+1. A base expression.
+2. A lower offset. This may be either an integer constant or an expression.
+3. An upper offset. This may be either an integer constant or an expression.
+
+For example, the bounds expression `bounds(p - 2, p + j)` will be converted to
+a range with base `p`, lower offset `2`, and upper offset `j`.
 
 In order for an inferred bounds range with base `S`, lower offset `Sl`, and
 upper offset `Su` to imply a target bounds range with base `D`, lower offset
 `Dl`, and upper offset `Du`, the following must be true:
+
 1. `S == D`, and:
 2. `Sl <= Dl`, and:
 3. `Du <= Su`
