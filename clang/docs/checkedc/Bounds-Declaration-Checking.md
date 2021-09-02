@@ -549,10 +549,10 @@ void f(_Array_ptr<int> a : count(i), unsigned i) {
 
 ### ValidateBoundsContext
 
-After checking a statement `S`, this method checks that, for each variable
-declaration `v` in `ObservedBounds`, the inferred bounds `ObservedBounds[v]`
-imply the declared bounds of `v` (`v->getBoundsExpr()`). The bounds validation
-uses the expression equality recorded in `EquivExprs`.
+After checking a statement `S`, this method checks that, for each `AbstractSet`
+`A` in `ObservedBounds`, the inferred bounds `ObservedBounds[A]` for all lvalue
+expressions in `A` imply the target bounds for all lvalue expressions in `A`.
+The bounds validation uses the expression equality recorded in `EquivExprs`.
 
 ## Checking Methods
 The entry point for bounds checking is the method [TraverseCFG](https://github.com/microsoft/checkedc-clang/blob/master/clang/lib/Sema/SemaBounds.cpp#L2317). For each statement `S` in the
