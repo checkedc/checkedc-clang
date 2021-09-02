@@ -555,41 +555,45 @@ expressions in `A` imply the target bounds for all lvalue expressions in `A`.
 The bounds validation uses the expression equality recorded in `EquivExprs`.
 
 ## Checking Methods
+
 The entry point for bounds checking is the method [TraverseCFG](https://github.com/microsoft/checkedc-clang/blob/master/clang/lib/Sema/SemaBounds.cpp#L2317). For each statement `S` in the
 clang CFG, TraverseStmt does the following:
 
-1. Recursively traverse `S` and its subexpression by calling the Check method.
-Checking `S` updates the checking state and infers bounds for expressions that
-`S` may have modified.
-2. For each variable `v` in the ObservedBounds map in the checking state,
-validate that the inferred bounds of `v` as recorded in ObservedBounds imply
-the declared bounds of `v`.
+1. Recursively traverse `S` and its subexpression by calling the `Check`
+   method. Checking `S` updates the checking state and infers bounds for expressions that `S` may have modified.
+2. For each `AbstractSet` `A` in the `ObservedBounds` map in the checking
+   state, validate that the inferred bounds of the lvalue expressions in `A`
+   as recorded in `ObservedBounds` imply the target bounds of the lvalue
+   expressions in `A`.
 
 The recursive traversal for bounds checking is done in the two methods
-[Check](https://github.com/microsoft/checkedc-clang/blob/master/clang/lib/Sema/SemaBounds.cpp#L2501) and [CheckLValue](https://github.com/microsoft/checkedc-clang/blob/master/clang/lib/Sema/SemaBounds.cpp#L2501).
-These two methods check rvalue and lvalue methods, respectively. Check returns
-the bounds of the value produced by an rvalue expression. CheckLValue returns
-the lvalue bounds and target bounds of an lvalue expression.
+`Check` and `CheckLValue`. These two methods check rvalue and lvalue methods,
+respectively. Check returns the bounds of the value produced by an rvalue expression. CheckLValue returns the lvalue bounds of an lvalue expression.
 
-Check and CheckLValue call different methods for different kinds of clang AST
-expressions (CheckBinaryOperator, CheckUnaryOperator, CheckDeclRefExpr,
-CheckArraySubscriptExpr, etc.). Each of these methods performs the following
+`Check` and `CheckLValue` call different methods for different kinds of clang
+expressions (`CheckBinaryOperator`, `CheckUnaryOperator`, `CheckDeclRefExpr`,
+`CheckArraySubscriptExpr`, etc.). Each of these methods performs the following
 actions for an expression `e`:
-1. Infer the subexpression rvalue, lvalue, and target bounds as needed by
-recursively calling Check and/or CheckLValue on the subexpressions of `e`.
-2. If needed, use the inferred lvalue bounds to add a bounds check to an
-lvalue expression `e1` (`e1` could be `e` or one of its subexpressions).
-This check performs the following actions:
-  * Checks that the memory access that `e1` is being used to perform
+
+1. Infer the subexpression rvalue and/or lvalue bounds as needed by recursively
+   calling `Check` and/or `CheckLValue` on the subexpressions of `e`.
+2. If needed, infer the target bounds for an lvalue expression (e.g. the LHS
+   of an assignment) by calling `GetLValueTargetBounds`.
+3. If needed, use the inferred lvalue bounds to add a bounds check to an
+   lvalue expression `e1` (`e1` could be `e` or one of its subexpressions).
+   This check performs the following actions:
+
+- Checks that the memory access that `e1` is being used to perform
   meets the lvalue bounds.
-  * Sets the lvalue bounds of `e1`. During code generation, these lvalue
+- Sets the lvalue bounds of `e1`. During code generation, these lvalue
   bounds will be used to insert a dynamic check. At runtime, the dynamic
   check will verify that, for any access `*(e1 + i)`, `i` is within the
   lvalue bounds of `e1`.
-3. Update the members of the CheckingState instance that maintains internal
-checking state. For example, after an assignment to a variable `i` that is
-used in the declared bounds of a variable `p`, update the ObservedBounds member
-of the CheckingState to reflect the updated inferred bounds of `p`.
-4. Use the inferred rvalue, lvalue, and target bounds of `e`'s subexpressions
-to return the inferred rvalue, lvalue and/or target bounds of `e`.
-  
+
+4. Update the members of the `CheckingState` instance that maintains internal
+   checking state. For example, after an assignment to a variable `i` that is
+   used in the declared bounds of a variable `p`, update the `ObservedBounds`
+   member of the `CheckingState` instance to reflect the updated inferred
+   bounds of the `AbstractSet` that contains `p`.
+5. Use the inferred rvalue, lvalue, and/or target bounds of `e`'s
+   subexpressions to return the inferred rvalue or lvalue bounds of `e`.
