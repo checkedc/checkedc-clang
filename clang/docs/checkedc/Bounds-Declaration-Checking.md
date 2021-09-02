@@ -175,6 +175,23 @@ void f(_Array_ptr<int> small : count(2), _Array_ptr<int> large : count(5)) {
 }
 ```
 
+Examples where the bounds checker cannot prove that the inferred bounds
+imply the target bounds:
+
+```
+void f(_Array_ptr<int> p : count(2), _Array_ptr<int> q : count(3)) {
+  // Target LHS bounds: bounds(p, p + 2)
+  // Inferred RHS bounds: bounds(q, q + 3)
+  // Target LHS range: p with lower offset 0 and upper offset 2
+  // Inferred RHS range: q with lower offset 0 and upper offset 3
+  // The bases of these ranges (p and q) are not equivalent. After the
+  // assignment p = q + 1, p and q + 1 are equivalent, but p and q are
+  // not equivalent. Since the bases are not equivalent, the bounds checker
+  // cannot prove the validity of these bounds.
+  p = q + 1;
+}
+```
+
 ## Checking State
 The bounds checking methods use the [CheckingState](https://github.com/microsoft/checkedc-clang/blob/master/clang/lib/Sema/SemaBounds.cpp#L661)
 class to maintain state while recursively checking expressions. The members
