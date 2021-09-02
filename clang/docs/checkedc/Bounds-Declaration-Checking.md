@@ -425,29 +425,6 @@ void f(int flag) {
 }
 ```
 
-### UpdateCtxWithWidenedBounds
-
-Before checking a CFG block `B`, this method updates `ObservedBounds` to map
-each variable that has widened bounds in `B` to its widened bounds. For
-example:
-
-```
-void f(_Nt_array_ptr<char> p : count(1)) {
-  if (*(p + 1)) {
-    // CFG block B.
-    // Within this block, the bounds of p are widened by 1.
-
-    // p[1] is within the (widened) observed bounds of (p, p + 2).
-    char c = p[1];
-  }
-}
-```
-
-`p` initially has observed bounds of `bounds(p, p + 1)` (the declared bounds
-of `p`). In block `B`, `p` has widened bounds of `bounds(p, p + 2)`. Before
-checking block `B`, `UpdateCtxWithWidenedBounds` updates `ObservedBounds` so
-that `ObservedBounds[p] = bounds(p, p + 2)`.
-
 ### GetDeclaredBounds
 
 Before checking a statement `S` within a CFG block `B`, this method updates
