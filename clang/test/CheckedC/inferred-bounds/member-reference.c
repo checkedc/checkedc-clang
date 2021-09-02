@@ -348,7 +348,7 @@ int global_arr2 _Checked[5];
 void f12(struct Interop_S1 a1) {
   // TODO: need bundled block.
   a1.p = global_arr2;
-  a1.len = 5; // expected-error {{inferred bounds for 'a1.p' are unknown after assignment}}
+  a1.len = 5;
 }
 
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} {{.*}} 'int *' '='
