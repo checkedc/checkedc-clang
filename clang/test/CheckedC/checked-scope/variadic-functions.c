@@ -1,4 +1,9 @@
 // Test calls to variadic functions in checked scopes.
+// Some -Wformat error messages are different between linux and windows
+// systems. This file contains tests that have the same error messages on both
+// linux and windows. The windows-specific tests are in
+// variadic-functions-win.c and the non-windows tests are in
+// variadic-functions-non-win.c.
 
 // RUN: %clang_cc1 -fcheckedc-extension -verify \
 // RUN: -verify-ignore-unexpected=note %s
@@ -120,11 +125,6 @@ _Checked {
   scanf("%d", 1, 2); // expected-error {{format specifies type 'int *' but the argument has type 'int'}} expected-error {{data argument not used by format string}}
   MyScanf("%d", 1, 2); // expected-error {{format specifies type 'int *' but the argument has type 'int'}} expected-error {{data argument not used by format string}}
 
-  printf("%Z", p); // expected-error {{invalid conversion specifier 'Z'}}
-  MyPrintf("%Z", p); // expected-error {{invalid conversion specifier 'Z'}}
-  scanf("%Z", p); // expected-error {{invalid conversion specifier 'Z'}}
-  MyScanf("%Z", p); // expected-error {{invalid conversion specifier 'Z'}}
-
   printf("\%", p); // expected-error {{incomplete format specifier}}
   MyPrintf("\%", p); // expected-error {{incomplete format specifier}}
   scanf("\%", p); // expected-error {{incomplete format specifier}}
@@ -169,11 +169,6 @@ _Checked {
   MyPrintf("%Lc", 'a'); // expected-error {{length modifier 'L' results in undefined behavior or no effect with 'c' conversion specifier}}
   scanf("%Lc", 'a'); // expected-error {{length modifier 'L' results in undefined behavior or no effect with 'c' conversion specifier}}
   MyScanf("%Lc", 'a'); // expected-error {{length modifier 'L' results in undefined behavior or no effect with 'c' conversion specifier}}
-
-  printf("%Li", (long long) 42); // expected-error{{using length modifier 'L' with conversion specifier 'i' is not supported by ISO C}}
-  MyPrintf("%Li", (long long) 42); // expected-error{{using length modifier 'L' with conversion specifier 'i' is not supported by ISO C}}
-  scanf("%Li", (long long) 42); // expected-error{{using length modifier 'L' with conversion specifier 'i' is not supported by ISO C}} expected-error {{format specifies type 'long long *' but the argument has type 'long long'}}
-  MyScanf("%Li", (long long) 42); // expected-error{{using length modifier 'L' with conversion specifier 'i' is not supported by ISO C}} expected-error {{format specifies type 'long long *' but the argument has type 'long long'}}
 
   printf("%P", p); // expected-error {{invalid conversion specifier 'P'}}
   MyPrintf("%P", p); // expected-error {{invalid conversion specifier 'P'}}
