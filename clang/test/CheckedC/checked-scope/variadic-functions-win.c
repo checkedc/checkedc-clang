@@ -19,14 +19,14 @@ int MyScanf(const char *format : itype(_Nt_array_ptr<const char>), ...)
 
 void f1 (_Nt_array_ptr<char> p) {
 _Checked {
-  printf("%Z", p);
-  MyPrintf("%Z", p);
-  scanf("%Z", p); // expected-error {{'Z' conversion specifier is not supported by ISO C}}
-  MyScanf("%Z", p); // expected-error {{'Z' conversion specifier is not supported by ISO C}}
+  printf("%Z", p); // expected-error {{'Z' conversion specifier is not supported by ISO C}}
+  MyPrintf("%Z", p); // expected-error {{'Z' conversion specifier is not supported by ISO C}}
+  scanf("%Z", p); // expected-error {{invalid conversion specifier 'Z'}}
+  MyScanf("%Z", p); // expected-error {{invalid conversion specifier 'Z'}}
 
   printf("%Li", (long long) 42); // expected-error {{length modifier 'L' results in undefined behavior or no effect with 'i' conversion specifier}}
   MyPrintf("%Li", (long long) 42); // expected-error {{length modifier 'L' results in undefined behavior or no effect with 'i' conversion specifier}}
-  scanf("%Li", (long long) 42); // expected-error {{length modifier 'L' results in undefined behavior or no effect with 'i' conversion specifier}}
-  MyScanf("%Li", (long long) 42); // expected-error {{length modifier 'L' results in undefined behavior or no effect with 'i' conversion specifier}}
+  scanf("%Li", (long long) 42); // expected-error {{length modifier 'L' results in undefined behavior or no effect with 'i' conversion specifier}} expected-error {{format specifies type 'long long *' but the argument has type 'long long'}}
+  MyScanf("%Li", (long long) 42); // expected-error {{length modifier 'L' results in undefined behavior or no effect with 'i' conversion specifier}} expected-error {{format specifies type 'long long *' but the argument has type 'long long'}}
 }
 }
