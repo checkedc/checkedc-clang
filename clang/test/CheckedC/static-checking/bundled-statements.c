@@ -83,3 +83,34 @@ _Unchecked{
                                          // expected-warning {{cannot prove declared bounds for 'p' are valid after increment}}
   }
 }
+
+void f6()
+{
+  _Bundle {                              // expected-error {{use of undeclared identifier '_Bundle'}}
+    unsigned int len;
+    _Array_ptr<int> p : count(len) = 0;
+  }
+}
+
+void f7()
+{
+  _bundle {                              // expected-error {{use of undeclared identifier '_bundle'}}
+    unsigned int len;
+    _Array_ptr<int> p : count(len) = 0;
+  }
+}
+
+void f8()
+{
+  _bundled {                             // expected-error {{use of undeclared identifier '_bundled'}}
+    unsigned int len;
+    _Array_ptr<int> p : count(len) = 0;
+  }
+}
+
+void f9()
+_Bundled {                               // expected-error {{function body cannot be a bundled block}}
+    unsigned int len;
+    _Array_ptr<int> p : count(len) = 0;
+}
+

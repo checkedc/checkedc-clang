@@ -440,8 +440,8 @@ StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
   // Get the inferred checked scope specifier for this compound statement.
   CheckedScopeSpecifier InferredCSS = GetCheckedScopeInfo();
 
-  bool isBundledBlk = BNDLoc.isValid();
-  bool ValidBundledBlk = isBundledBlk;
+  bool IsBundledBlk = BNDLoc.isValid();
+  bool ValidBundledBlk = IsBundledBlk;
   Stmt *FirstStmtOfBndBlk = nullptr;
   Stmt *LastStmtOfBndBlk = nullptr;
   SourceLocation LocOfInvalidStmt;
@@ -450,13 +450,13 @@ StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
     if (!S)
       continue;
 
-    if (isBundledBlk && ValidBundledBlk) {
+    if (IsBundledBlk && ValidBundledBlk) {
 
       // A valid bundled block can contain only DeclStmts and ExpressionStmts.
-      if (!dyn_cast<DeclStmt>(S)) {
-        if (!dyn_cast<ValueStmt>(S))
+      if (!isa<DeclStmt>(S)) {
+        if (!isa<ValueStmt>(S))
           ValidBundledBlk = false;
-        else if (dyn_cast<LabelStmt>(S) || dyn_cast<AttributedStmt>(S))
+        else if (isa<LabelStmt>(S) || isa<AttributedStmt>(S))
           ValidBundledBlk = false;
       }
 
@@ -481,7 +481,7 @@ StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
     S->setCheckedScopeSpecifier(InferredCSS);
   }
 
-  if (isBundledBlk) {
+  if (IsBundledBlk) {
     if (!ValidBundledBlk)
       Diag(LocOfInvalidStmt,
            diag::err_bundled_blk_can_contain_only_decl_value_stmts);

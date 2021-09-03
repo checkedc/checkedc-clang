@@ -1358,12 +1358,16 @@ class DeclStmt : public Stmt {
 
 public:
   DeclStmt(DeclGroupRef dg, SourceLocation startLoc, SourceLocation endLoc)
-      : Stmt(DeclStmtClass), DG(dg), StartLoc(startLoc), EndLoc(endLoc)
-  { PosInBundle.FirstStmt = 0; PosInBundle.LastStmt = 0; }
+      : Stmt(DeclStmtClass), DG(dg), StartLoc(startLoc), EndLoc(endLoc) {
+    PosInBundle.FirstStmt = 0;
+    PosInBundle.LastStmt = 0;
+  }
 
   /// Build an empty declaration statement.
-  explicit DeclStmt(EmptyShell Empty) : Stmt(DeclStmtClass, Empty)
-  { PosInBundle.FirstStmt = 0; PosInBundle.LastStmt = 0; }
+  explicit DeclStmt(EmptyShell Empty) : Stmt(DeclStmtClass, Empty) {
+    PosInBundle.FirstStmt = 0;
+    PosInBundle.LastStmt = 0;
+  }
 
   /// isSingleDecl - This method returns true if this DeclStmt refers
   /// to a single Decl.
