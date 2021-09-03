@@ -192,6 +192,102 @@ void f(_Array_ptr<int> p : count(2), _Array_ptr<int> q : count(3)) {
 }
 ```
 
+## Bounds Checking Across Multiple Assignments
+
+During bounds checking, the checker maintains a state that tracks the observed
+bounds for certain lvalue expressions (see below for more details). The
+observed bounds in this state are validated when:
+
+1. The checker is done traversing a top-level statement that is **not**
+   contained within a bundled statement. During this validation, the observed
+   bounds of all lvalue expressions as recorded in the current checking state
+   must imply the target bounds for the lvalue expression.
+2. The checker is done traversing the last statement in a bundled statement.
+   During this validation, the observed bounds of all lvalue expressions as
+   recorded in the current checking state must imply the target bounds for the
+   lvalue expression.
+
+**1. Comma-separated assignments**
+
+Note that, in a statement that contains multiple assignments, bounds checking
+is only performed at the end of the statement, not after each assignment.
+The observed bounds of variables, member expressions, pointer dereferences,
+and array subscripts are updated after each assignment, but validating the
+updated observed bounds is not done until the end of the entire top-level
+statement.
+
+For example:
+
+```
+void f(_Array_ptr<int> small : count(1),
+       _Array_ptr<int> medium : count(2),
+       _Array_ptr<int> large : count(3)) {
+  medium = small, medium = large;
+}
+```
+
+After checking the assignment `medium = small`, the observed bounds of `medium`
+are `bounds(small, small + 1)`, which are too narrow to imply the target bounds
+of `bounds(medium, medium + 2)`. However, after the assignment `medium = large`,
+the observed bounds of `medium` are `bounds(large, large + 3)`. At the end of
+checking the statement `medium = small, medium = large;`, the bounds checker
+validates that the observed bounds of `bounds(large, large + 3)` imply the
+target bounds of `bounds(medium, medium + 2)`. This proof result returns
+`True`, so no compiler errors are emitted for this statement.
+
+The observed bounds for lvalue expressions are tracked throughout a top-level
+statement and then reset after validating the bounds. For example:
+
+```
+void f(_Array_ptr<int> p : count(2), _Array_ptr<int> q : count(1)) {
+  p = q, q++;
+  p--;
+}
+```
+
+After checking the assignment `p = q`, the observed bounds of `p` are
+`bounds(q, q + 1)`. After the increment `q++`, the observed bounds of `p`
+are `bounds(q - 1, (q - 1) + 1)`. These are the bounds for `p` that the
+checker uses during bounds validation at the end of checking the statement
+`p = q, q++;`. After validating the bounds, the observed bounds of `p` are
+reset to its declared bounds of `bounds(p, p + 2)`.
+
+After the decrement `p--`, the observed bounds of `p` are
+`bounds(p + 1, (p + 1) + 2)`. These are the bounds for `p` that the checker
+uses during bounds validation at the end of checking the statement `p--;`.
+
+**2. Bundled statements**
+
+Bounds checking for bundled statements behaves in a similar manner as
+bounds checking for statements that contain comma-separated assignments.
+The observed bounds of lvalues are tracked across all statements in a
+bundled statement, and bounds validation is only performed after traversing
+the last statement in the bundled statement. For example:
+
+```
+void f(_Array_ptr<int> small : count(1),
+       _Array_ptr<int> medium : count(2),
+       _Array_ptr<int> large : count(3)) {
+  _Bundled {
+    medium = small;
+    medium = large;
+  }
+}
+```
+
+After traversing the statement `medium = small;`, the observed bounds for
+`medium` are `bounds(small, small + 1)`, which are too narrow to imply the
+target bounds for `medium`. However, there is no bounds validation performed
+here since `medium = small;` is not the last statement in the bundled
+statement.
+
+After traversing the statement `medium = large;`, the observed bounds for
+`medium` are `bounds(large, large + 3)`. Since `medium = large;` is the last
+statement in the bundled statement, these are the observed bounds that the
+checker uses during bounds validation. These observed bounds do imply the
+target bounds of `bounds(medium, medium + 2)`, so there is no compiler error
+emitted for this bundled statement.
+
 ## Checking LValue Expressions
 
 While traversing each statement in a function body, the bounds checker keeps
