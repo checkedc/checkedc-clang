@@ -4836,7 +4836,8 @@ namespace {
                                             CheckingState &State) {
       // If LValue is a member expression, get the set of AbstractSets whose
       // target bounds depend on LValue. The observed bounds of each of these
-      // AbstractSets are recorded in ObservedBounds.
+      // AbstractSets are recorded in ObservedBounds if they are not already
+      // present in ObservedBounds.
       MemberExpr *M = dyn_cast<MemberExpr>(LValue);
       if (M) {
         AbstractSetSetTy AbstractSets;
@@ -4846,9 +4847,18 @@ namespace {
           DumpSynthesizedMemberAbstractSets(llvm::outs(), AbstractSets);
 
         for (const AbstractSet *A : AbstractSets) {
-          BoundsExpr *TargetBounds =
-            S.GetLValueDeclaredBounds(A->GetRepresentative(), CSS);
-          State.ObservedBounds[A] = TargetBounds;
+          // We only set the observed bounds of A to the target bounds of A
+          // if A is not already present in ObservedBounds. If A is already
+          // present in ObservedBounds, then there was an assignment in the
+          // current top-level statement (or bundled block) that updated the
+          // observed bounds of A. These observed bounds may or may not depend
+          // on LValue. If A currently has observed bounds that do not use the
+          // value of LValue, then the current assignment to LValue should
+          // have no effect on the observed bounds of A.
+          if (!State.ObservedBounds.count(A)) {
+            State.ObservedBounds[A] =
+              S.GetLValueDeclaredBounds(A->GetRepresentative(), CSS);
+          }
         }
       }
 
