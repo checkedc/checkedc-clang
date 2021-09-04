@@ -4836,8 +4836,9 @@ namespace {
                                             CheckingState &State) {
       // If LValue is a member expression, get the set of AbstractSets whose
       // target bounds depend on LValue. The observed bounds of each of these
-      // AbstractSets are recorded in ObservedBounds if they are not already
-      // present in ObservedBounds.
+      // AbstractSets are recorded in ObservedBounds. If they are not already
+      // present in ObservedBounds, their observed bounds are initialized to
+      // their target bounds.
       MemberExpr *M = dyn_cast<MemberExpr>(LValue);
       if (M) {
         AbstractSetSetTy AbstractSets;
