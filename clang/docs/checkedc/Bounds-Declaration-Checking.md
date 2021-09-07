@@ -13,7 +13,7 @@ The bounds checking code uses the following definitions to reason about
 bounds expressions:
 
 - **Declared bounds**: The bounds that the programmer has declared for a
-  pointer expression.
+  pointer-typed or array-typed expression.
   - Example: In `_Array_ptr<int> p : bounds(p, p + 1) = 0;`, the declared bounds
     of `p` are `bounds(p, p + 1)`.
 - **Inferred bounds**: The bounds that the compiler determines for a pointer
@@ -42,12 +42,13 @@ bounds expressions:
     `bounds(p, p + 3)`.
 - **Target bounds**: The target bounds of an lvalue expression `e`. Values
   assigned to `e` must satisfy these bounds. Values read through `e` will
-  meet these bounds.
+  meet these bounds. If an lvalue expression `e` has target bounds, then `e`
+  must either have pointer type or array type.
   - Example: If `p` is a variable with declared bounds of `bounds(p, p + 1)`,
     then the target bounds of `p` are `bounds(p, p + 1)`.
   - Example: If `p` is a pointer to a null-terminated array pointer, then
     the target bounds of `*p` are `bounds(*p, *p + 0)`.
-  - Example: If `p` is a pointer to a singleton `ptr<T>`, then the target
+  - Example: If `p` is a pointer to a singleton `_Ptr<T>`, then the target
     bounds of `*p` are `bounds((_Array_ptr<T>)*p, (_Array_ptr<T>)*p + 1)`.
   - Example: If S is a struct with members
     `{ _Array_ptr<int> f : count(len); int len; }` and `s` is a variable of
