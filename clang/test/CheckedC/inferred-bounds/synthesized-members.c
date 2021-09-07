@@ -77,7 +77,7 @@ void f1(struct X x, struct Y y, struct Z z) {
   // CHECK:     FieldDecl {{.*}} p
   // CHECK:   IntegerLiteral {{.*}} 0
   // CHECK: }
-};
+}
 
 struct C {
   int len;
@@ -368,6 +368,141 @@ void f3(struct A *a, struct B *b) {
   // CHECK:         DeclRefExpr {{.*}} 'b'
   // CHECK:       IntegerLiteral {{.*}} 0
   // CHECK:     FieldDecl {{.*}} q
+  // CHECK:   IntegerLiteral {{.*}} 0
+  // CHECK: }
+}
+
+struct S {
+  _Array_ptr<int> f : bounds(*arr, *arr + *len);
+  _Array_ptr<int> g : count(*len);
+  _Array_ptr<int> *arr;
+  _Array_ptr<int> len : count(10);
+};
+
+struct R {
+  _Array_ptr<int> a : count(*s->len);
+  _Array_ptr<struct S> s : count(10);
+};
+
+void f4(struct R *r, struct S *s) {
+  // Member expressions whose bounds depend on s->arr: { s->f }
+  s->arr = 0; // expected-error {{inferred bounds for 's->f' are unknown after assignment}}
+  // CHECK: AbstractSets for member expressions:
+  // CHECK: {
+  // CHECK: +
+  // CHECK:   ->
+  // CHECK:     +
+  // CHECK:       LValueToRValue
+  // CHECK:         DeclRefExpr {{.*}} 's'
+  // CHECK:       IntegerLiteral {{.*}} 0
+  // CHECK:     FieldDecl {{.*}} f
+  // CHECK:   IntegerLiteral {{.*}} 0
+  // CHECK: }
+
+  // Member expressions whose bounds depend on s->len: { s->f, s->g }
+  s->len = 0; // expected-error {{inferred bounds for 's->f' are unknown after assignment}} \
+              // expected-error {{inferred bounds for 's->g' are unknown after assignment}}
+  // CHECK: AbstractSets for member expressions:
+  // CHECK: {
+  // CHECK: +
+  // CHECK:   ->
+  // CHECK:     +
+  // CHECK:       LValueToRValue
+  // CHECK:         DeclRefExpr {{.*}} 's'
+  // CHECK:       IntegerLiteral {{.*}} 0
+  // CHECK:     FieldDecl {{.*}} f
+  // CHECK:   IntegerLiteral {{.*}} 0
+  // CHECK: +
+  // CHECK:   ->
+  // CHECK:     +
+  // CHECK:       LValueToRValue
+  // CHECK:         DeclRefExpr {{.*}} 's'
+  // CHECK:       IntegerLiteral {{.*}} 0
+  // CHECK:     FieldDecl {{.*}} g
+  // CHECK:   IntegerLiteral {{.*}} 0
+  // CHECK: }
+
+  // Member expressions whose bounds depend on s->arr[0]: { s->f }
+  s->arr[0] = 0; // expected-error {{inferred bounds for 's->f' are unknown after assignment}}
+  // CHECK: AbstractSets for member expressions:
+  // CHECK: {
+  // CHECK: +
+  // CHECK:   ->
+  // CHECK:     +
+  // CHECK:       LValueToRValue
+  // CHECK:         DeclRefExpr {{.*}} 's'
+  // CHECK:       IntegerLiteral {{.*}} 0
+  // CHECK:     FieldDecl {{.*}} f
+  // CHECK:   IntegerLiteral {{.*}} 0
+  // CHECK: }
+
+  // Member expressions whose bounds depend on *(s->arr + 1) : { }
+  *(s->arr + 1) = 0;
+  // CHECK: AbstractSets for member expressions:
+  // CHECK: { }
+
+  // Member expressions whose bounds depend on *s->len: { s->f, s->g }
+  *s->len = 0; // expected-error {{inferred bounds for 's->f' are unknown after assignment}} \
+               // expected-error {{inferred bounds for 's->g' are unknown after assignment}}
+  // CHECK: AbstractSets for member expressions:
+  // CHECK: {
+  // CHECK: +
+  // CHECK:   ->
+  // CHECK:     +
+  // CHECK:       LValueToRValue
+  // CHECK:         DeclRefExpr {{.*}} 's'
+  // CHECK:       IntegerLiteral {{.*}} 0
+  // CHECK:     FieldDecl {{.*}} f
+  // CHECK:   IntegerLiteral {{.*}} 0
+  // CHECK: +
+  // CHECK:   ->
+  // CHECK:     +
+  // CHECK:       LValueToRValue
+  // CHECK:         DeclRefExpr {{.*}} 's'
+  // CHECK:       IntegerLiteral {{.*}} 0
+  // CHECK:     FieldDecl {{.*}} g
+  // CHECK:   IntegerLiteral {{.*}} 0
+  // CHECK: }
+
+  // Member expressions whose bounds depend on *r->s->len: { r->a, r->s->f, r->s->g }
+  *r->s->len = 0; // expected-error {{inferred bounds for 'r->a' are unknown after assignment}} \
+                  // expected-error {{inferred bounds for 'r->s->f' are unknown after assignment}} \
+                  // expected-error {{inferred bounds for 'r->s->g' are unknown after assignment}}
+  // CHECK: AbstractSets for member expressions:
+  // CHECK: {
+  // CHECK: +
+  // CHECK:   ->
+  // CHECK:     +
+  // CHECK:       LValueToRValue
+  // CHECK:         DeclRefExpr {{.*}} 'r'
+  // CHECK:       IntegerLiteral {{.*}} 0
+  // CHECK:     FieldDecl {{.*}} a
+  // CHECK:   IntegerLiteral {{.*}} 0
+  // CHECK: +
+  // CHECK:   ->
+  // CHECK:     +
+  // CHECK:       LValueToRValue
+  // CHECK:         ->
+  // CHECK:           +
+  // CHECK:             LValueToRValue
+  // CHECK:               DeclRefExpr {{.*}} 'r'
+  // CHECK:             IntegerLiteral {{.*}} 0
+  // CHECK:           FieldDecl {{.*}} s
+  // CHECK:       IntegerLiteral {{.*}} 0
+  // CHECK:     FieldDecl {{.*}} f
+  // CHECK:   IntegerLiteral {{.*}} 0
+  // CHECK: +
+  // CHECK:   ->
+  // CHECK:     +
+  // CHECK:       LValueToRValue
+  // CHECK:         ->
+  // CHECK:           +
+  // CHECK:             LValueToRValue
+  // CHECK:               DeclRefExpr {{.*}} 'r'
+  // CHECK:             IntegerLiteral {{.*}} 0
+  // CHECK:           FieldDecl {{.*}} s
+  // CHECK:       IntegerLiteral {{.*}} 0
+  // CHECK:     FieldDecl {{.*}} g
   // CHECK:   IntegerLiteral {{.*}} 0
   // CHECK: }
 }
