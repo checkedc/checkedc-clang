@@ -1923,12 +1923,16 @@ private:
 
 public:
   /// Build a value statement.
-  ValueStmt(StmtClass SC) : Stmt(SC)
-  { PosInBundle.FirstStmt = 0; PosInBundle.LastStmt = 0; }
+  ValueStmt(StmtClass SC) : Stmt(SC) {
+    PosInBundle.FirstStmt = 0;
+    PosInBundle.LastStmt = 0;
+  }
 
   /// Build an empty value statement.
-  explicit ValueStmt(StmtClass SC, EmptyShell Empty) : Stmt(SC, Empty)
-  { PosInBundle.FirstStmt = 0; PosInBundle.LastStmt = 0; }
+  explicit ValueStmt(StmtClass SC, EmptyShell Empty) : Stmt(SC, Empty) {
+    PosInBundle.FirstStmt = 0;
+    PosInBundle.LastStmt = 0;
+  }
 
   const Expr *getExprStmt() const;
   Expr *getExprStmt() {
