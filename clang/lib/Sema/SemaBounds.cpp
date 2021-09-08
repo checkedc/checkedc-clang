@@ -3846,9 +3846,15 @@ namespace {
       // At this point, State contains EquivExprs and SameValue for `e1`.
       if (UnaryOperator::isIncrementDecrementOp(Op)) {
         // `++e1`, `e1++`, `--e1`, `e1--` all have bounds of `e1`.
-        // `e1` is an lvalue, so its bounds are its lvalue target bounds.
-        // These bounds may be updated if `e1` is a variable.
+        // `e1` is an lvalue, so its bounds are either:
+        // 1. The observed bounds for the value produced by `e1` as recorded
+        // in State.ObservedBounds (if any), or:
+        // 2. The target bounds of `e1`.
+        // These bounds may be updated if `e1` is a variable, member
+        // expression, pointer dereference, or array subscript.
         BoundsExpr *IncDecResultBounds = SubExprTargetBounds;
+        if (BoundsExpr *ObservedBounds = GetLValueObservedBounds(SubExpr, State))
+          IncDecResultBounds = ObservedBounds;
 
         // Create the target of the implied assignment `e1 = e1 +/- 1`.
         CastExpr *Target = ExprCreatorUtil::CreateImplicitCast(S, SubExpr,
