@@ -464,6 +464,33 @@ void multiple_assignments2(struct S *s) {
   // CHECK-NEXT: }
 }
 
+void multiple_assignments3(struct S *s, int i) {
+  // Observed bounds context after statement: { s->a = bounds(s->f, s->f + 3) }
+  // The access s->a[2] is within s->a's observed bounds of bounds(s->f, s->f + 3)
+  s->a = s->f, i = s->a[2];
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} ','
+  // CHECK: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: LValue Expression:
+  // CHECK-NEXT: MemberExpr {{.*}} ->a
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     MemberExpr {{.*}} ->f
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       MemberExpr {{.*}} ->f
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 3
+  // CHECK-NEXT: }
+}
+
 struct C {
   int len;
   array_ptr<int> r : count(len); // expected-note {{(expanded) declared bounds are 'bounds(a.b.c.r, a.b.c.r + a.b.c.len)'}}
