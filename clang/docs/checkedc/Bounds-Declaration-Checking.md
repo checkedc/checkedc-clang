@@ -2,8 +2,11 @@
 
 ## Checking Overview
 
-After each statement in the clang CFG, the inferred bounds for the value
-prodced by an lvalue expression must imply the target bounds for the lvalue.
+After each full expression within a function body, the inferred bounds for
+the value produced by an lvalue expression must imply the target bounds for
+the lvalue.
+A **full expression** is an expression not nested within another expression
+(according to the C11 standard, 2011).
 The algorithms for inferring and checking bounds for expressions are
 implemented in [SemaBounds.cpp](https://github.com/microsoft/checkedc-clang/blob/master/clang/lib/Sema/SemaBounds.cpp).
 
@@ -17,8 +20,8 @@ bounds expressions:
   - Example: In `_Array_ptr<int> p : bounds(p, p + 1) = 0;`, the declared bounds
     of `p` are `bounds(p, p + 1)`.
 - **Inferred bounds**: The bounds that the compiler determines for a pointer
-  expression at a particular point in checking a statement. In SemaBounds.cpp,
-  these bounds may also be referred to as "observed bounds".
+  expression at a particular point in checking an expression. In
+  SemaBounds.cpp, these bounds may also be referred to as "observed bounds".
   - Example: After checking `_Array_ptr<int> p : bounds(p, p + 1) = 0`, the
     inferred bounds of `p` are `bounds(any)` (since `0` by definition has
     bounds of `bounds(any)`).
@@ -85,12 +88,12 @@ void f(_Array_ptr<int> p : count(i), _Array_ptr<int> q : count(j)) {
 
 ## Bounds Checking Implementation Overview
 
-The bounds checker traverses each top-level statement in the body of a
-function. During this traversal, the bounds checker determines the inferred
-bounds for the lvalue expressions that are currently in scope. At the end
-of traversing the statement, the bounds checker determines the target bounds
-of each lvalue expression, and attempts to prove or disprove that the inferred
-bounds for the value produced by the lvalue expression imply the target bounds.
+The bounds checker traverses each full expression in the body of a function.
+During this traversal, the bounds checker determines the inferred bounds for
+the lvalue expressions that are currently in scope. At the end of traversing
+the full expression, the bounds checker determines the target bounds of each
+lvalue expression, and attempts to prove or disprove that the inferred bounds
+for the value produced by the lvalue expression imply the target bounds.
 
 ## Bounds Validity
 
@@ -199,23 +202,23 @@ During bounds checking, the checker maintains a state that tracks the observed
 bounds for certain lvalue expressions (see below for more details). The
 observed bounds in this state are validated when:
 
-1. The checker is done traversing a top-level statement that is **not**
-   contained within a bundled statement. During this validation, the observed
-   bounds of all lvalue expressions as recorded in the current checking state
-   must imply the target bounds for the lvalue expression.
-2. The checker is done traversing the last statement in a bundled statement.
-   During this validation, the observed bounds of all lvalue expressions as
-   recorded in the current checking state must imply the target bounds for the
-   lvalue expression.
+1. The checker is done traversing a full expression that is **not** contained
+   within a bundled statement.
+2. The checker is done traversing the last full expression in a bundled
+   statement.
+
+During these validations, the observed bounds of all lvalue expressions as
+recorded in the current checking state must imply the target bounds for the
+lvalue expression.
 
 **1. Comma-separated assignments**
 
-Note that, in a statement that contains multiple assignments, bounds checking
-is only performed at the end of the statement, not after each assignment.
+Note that, in an expression that contains multiple assignments, bounds checking
+is only performed at the end of the full expression, not after each assignment.
 The observed bounds of variables, member expressions, pointer dereferences,
 and array subscripts are updated after each assignment, but validating the
-updated observed bounds is not done until the end of the entire top-level
-statement.
+updated observed bounds is not done until the end of the entire full
+expression.
 
 For example:
 
@@ -236,8 +239,8 @@ validates that the observed bounds of `bounds(large, large + 3)` imply the
 target bounds of `bounds(medium, medium + 2)`. This proof result returns
 `True`, so no compiler errors are emitted for this statement.
 
-The observed bounds for lvalue expressions are tracked throughout a top-level
-statement and then reset after validating the bounds. For example:
+The observed bounds for lvalue expressions are tracked throughout a full
+expression and then reset after validating the bounds. For example:
 
 ```
 void f(_Array_ptr<int> p : count(2), _Array_ptr<int> q : count(1)) {
@@ -260,10 +263,10 @@ uses during bounds validation at the end of checking the statement `p--;`.
 **2. Bundled statements**
 
 Bounds checking for bundled statements behaves in a similar manner as
-bounds checking for statements that contain comma-separated assignments.
-The observed bounds of lvalues are tracked across all statements in a
+bounds checking for expressions that contain comma-separated assignments.
+The observed bounds of lvalues are tracked across all expressions in a
 bundled statement, and bounds validation is only performed after traversing
-the last statement in the bundled statement. For example:
+the last full expression in the bundled statement. For example:
 
 ```
 void f(_Array_ptr<int> small : count(1),
@@ -276,13 +279,13 @@ void f(_Array_ptr<int> small : count(1),
 }
 ```
 
-After traversing the statement `medium = small;`, the observed bounds for
+After traversing the assignment `medium = small;`, the observed bounds for
 `medium` are `bounds(small, small + 1)`, which are too narrow to imply the
 target bounds for `medium`. However, there is no bounds validation performed
 here since `medium = small;` is not the last statement in the bundled
 statement.
 
-After traversing the statement `medium = large;`, the observed bounds for
+After traversing the assignment `medium = large;`, the observed bounds for
 `medium` are `bounds(large, large + 3)`. Since `medium = large;` is the last
 statement in the bundled statement, these are the observed bounds that the
 checker uses during bounds validation. These observed bounds do imply the
@@ -291,8 +294,9 @@ emitted for this bundled statement.
 
 ## Checking LValue Expressions
 
-While traversing each statement in a function body, the bounds checker keeps
-track of the inferred bounds for the following kinds of lvalue expressions:
+While traversing each full expression in a function body, the bounds checker
+keeps track of the inferred bounds for the following kinds of lvalue
+expressions:
 
 1. Variables (e.g. `v`)
 2. Member expressions (e.g. `s.f`, `s->f`)
@@ -371,7 +375,7 @@ include:
 
 A map of an `AbstractSet` to the current inferred bounds of all lvalue
 expression in the `AbstractSet` as determined by the bounds checker while
-traversing a statement.
+traversing a full expression.
 
 Example: suppose `P` is an `AbstractSet` that contains the variable `p`, and
 `A0` is an `AbstractSet` that contains the expressions `*a`, `*(a + 0)`, and
