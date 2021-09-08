@@ -3330,11 +3330,17 @@ namespace {
       
       else {
         // Compound Assignments function like assignments mostly,
-        // except the LHS is an L-Value, so we'll use its lvalue target bounds
+        // except the LHS is an L-Value, so we'll use the bounds for the
+        // value produced by the LHS. These are either:
+        // 1. The observed bounds as recorded in State.ObservedBounds, or:
+        // 2. The target bounds for the LHS.
+        BoundsExpr *LHSRValueBounds = LHSTargetBounds;
         bool IsCompoundAssignment = false;
         if (BinaryOperator::isCompoundAssignmentOp(Op)) {
           Op = BinaryOperator::getOpForCompoundAssignment(Op);
           IsCompoundAssignment = true;
+          if (BoundsExpr *ObservedBounds = GetLValueObservedBounds(LHS, State))
+            LHSRValueBounds = ObservedBounds;
         }
 
         // Pointer arithmetic.
@@ -3346,7 +3352,7 @@ namespace {
             RHS->getType()->isIntegerType() &&
             BinaryOperator::isAdditiveOp(Op)) {
           ResultBounds = IsCompoundAssignment ?
-            LHSTargetBounds : LHSBounds;
+            LHSRValueBounds : LHSBounds;
         }
         // `i + p` has the bounds of `p`. `p` is an RValue.
         // `i += p` has the bounds of `p`. `p` is an RValue.
@@ -3381,7 +3387,7 @@ namespace {
               BinaryOperator::isBitwiseOp(Op) ||
               BinaryOperator::isShiftOp(Op))) {
           BoundsExpr *LeftBounds = IsCompoundAssignment ?
-            LHSTargetBounds : LHSBounds;
+            LHSRValueBounds : LHSBounds;
           if (LeftBounds->isUnknown() && !RHSBounds->isUnknown())
             ResultBounds = RHSBounds;
           else if (!LeftBounds->isUnknown() && RHSBounds->isUnknown())
