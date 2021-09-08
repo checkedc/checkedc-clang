@@ -6087,6 +6087,28 @@ namespace {
       }
     }
 
+    // If LValue belongs to an AbstractSet that has observed bounds recorded
+    // in State.ObservedBounds, GetLValueObservedBounds returns the observed
+    // bounds for the rvalue expression produced by LValue as recorded in
+    // State.ObservedBounds. Otherwise, GetLValueObservedBounds returns null.
+    BoundsExpr *GetLValueObservedBounds(Expr *LValue, CheckingState State) {
+      Lexicographic Lex(S.Context, nullptr);
+      LValue = Lex.IgnoreValuePreservingOperations(S.Context, LValue);
+
+      // Only variables, member expressions, pointer dereferences, and
+      // array subscripts have bounds recorded in State.ObservedBounds.
+      if (!isa<DeclRefExpr>(LValue) && !isa<MemberExpr>(LValue) &&
+          !ExprUtil::IsDereferenceOrSubscript(LValue))
+        return nullptr;
+
+      const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(LValue);
+      auto It = State.ObservedBounds.find(A);
+      if (It != State.ObservedBounds.end())
+        return It->second;
+
+      return nullptr;
+    }
+
     // Compute the bounds of a call expression.  Call expressions always
     // produce rvalues.
     //
