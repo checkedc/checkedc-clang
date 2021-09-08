@@ -269,6 +269,8 @@ private:
   // constraint system for that pointer type.
   void addVariable(clang::DeclaratorDecl *D,
                    clang::ASTContext *AstContext) override;
+
+  void linkFunction(FunctionVariableConstraint *FV);
 };
 
 #endif

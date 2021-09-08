@@ -11,7 +11,7 @@ void test_no_cause() {
   has_void(c);
 }
 
-void has_float(float* v); // expected-warning {{Unchecked pointer in parameter or return of external function has_float}}
+void has_float(float* v); // expected-warning {{Unchecked pointer in parameter or return of undefined function has_float}}
 void test_float_cause() {
   int *b, *c;
   has_float(b); // expected-warning {{1 unchecked pointer: Cast from int * to float *}}

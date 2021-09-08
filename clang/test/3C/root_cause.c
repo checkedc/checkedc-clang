@@ -6,7 +6,7 @@
 // as including stdlib will create numerous root-cause warnings we don't want to deal with
 
 // unwritable-expected-warning@+2 {{0 unchecked pointers: Source code in non-writable file}}
-// expected-warning@+1 {{Unchecked pointer in parameter or return of external function my_malloc}}
+// expected-warning@+1 {{Unchecked pointer in parameter or return of undefined function my_malloc}}
 _Itype_for_any(T) void *my_malloc(unsigned long size) : itype(_Array_ptr<T>) byte_count(size);
 
 
@@ -64,7 +64,7 @@ void test1() {
 extern int *glob;
 
 // unwritable-expected-warning@+2 {{0 unchecked pointers: Source code in non-writable file}}
-// expected-warning@+1 {{1 unchecked pointer: Unchecked pointer in parameter or return of external function glob_f}}
+// expected-warning@+1 {{1 unchecked pointer: Unchecked pointer in parameter or return of undefined function glob_f}}
 int *glob_f(void);
 
 // unwritable-expected-warning@+1 {{0 unchecked pointers: Source code in non-writable file}}

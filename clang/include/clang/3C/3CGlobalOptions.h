@@ -67,6 +67,8 @@ struct _3COptions {
   bool AllowRewriteFailures;
 
   bool ItypesForExtern;
+
+  bool InferTypesForUndefs;
 };
 
 // NOLINTNEXTLINE(readability-identifier-naming)
