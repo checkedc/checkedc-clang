@@ -10,6 +10,7 @@
 //
 // This line is for the clang test infrastructure:
 // RUN: %clang_cc1 -fcheckedc-extension -fdump-inferred-bounds -verify -verify-ignore-unexpected=warning -verify-ignore-unexpected=note -fdump-inferred-bounds %s | FileCheck %s
+// expected-no-diagnostics
 
 struct S1 {
   _Array_ptr<int> p : count(len);
@@ -101,7 +102,7 @@ int global_arr1[5];
 void f2(struct S1 a3) {
   _Bundled {
     a3.p = global_arr1;
-    a3.len = 5; // expected-error {{inferred bounds for 'a3.p' are unknown after assignment}}
+    a3.len = 5;
   }
 
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' '='
@@ -349,7 +350,7 @@ int global_arr2 _Checked[5];
 void f12(struct Interop_S1 a1) {
   _Bundled {
     a1.p = global_arr2;
-    a1.len = 5;  // expected-error {{inferred bounds for 'a1.p' are unknown after assignment}}
+    a1.len = 5;
   }
 }
 
@@ -383,7 +384,7 @@ void f12(struct Interop_S1 a1) {
 _Checked void f13(struct Interop_S1 a1) {
   _Bundled {
     a1.p = global_arr2;
-    a1.len = 5; // expected-error {{inferred bounds for 'a1.p' are unknown after assignment}}
+    a1.len = 5;
   }
 }
 
