@@ -306,6 +306,18 @@ bool ExprUtil::ReadsMemoryViaPointer(Expr *E, bool IncludeAllMemberExprs) {
   }
 }
 
+bool ExprUtil::IsDereferenceOrSubscript(Expr *E) {
+  if (!E)
+    return false;
+  E = E->IgnoreParens();
+  if (isa<ArraySubscriptExpr>(E))
+    return true;
+  UnaryOperator *UO = dyn_cast<UnaryOperator>(E);
+  if (!UO)
+    return false;
+  return UO->getOpcode() == UnaryOperatorKind::UO_Deref;
+}
+
 bool ExprUtil::IsReturnValueExpr(Expr *E) {
   BoundsValueExpr *BVE = dyn_cast_or_null<BoundsValueExpr>(E);
   if (!BVE)
@@ -344,6 +356,22 @@ namespace {
         if (!M)
           return true;
         if (Lex.CompareExprSemantically(E, M))
+          Found = true;
+        return true;
+      }
+
+      bool VisitUnaryOperator(UnaryOperator *E) {
+        if (!ExprUtil::IsDereferenceOrSubscript(LValue))
+          return true;
+        if (Lex.CompareExprSemantically(E, LValue))
+          Found = true;
+        return true;
+      }
+
+      bool VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
+        if (!ExprUtil::IsDereferenceOrSubscript(LValue))
+          return true;
+        if (Lex.CompareExprSemantically(E, LValue))
           Found = true;
         return true;
       }
@@ -433,6 +461,22 @@ namespace {
         if (!M)
           return true;
         if (Lex.CompareExprSemantically(E, M))
+          ++Count;
+        return true;
+      }
+
+      bool VisitUnaryOperator(UnaryOperator *E) {
+        if (!ExprUtil::IsDereferenceOrSubscript(LValue))
+          return true;
+        if (Lex.CompareExprSemantically(E, LValue))
+          ++Count;
+        return true;
+      }
+
+      bool VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
+        if (!ExprUtil::IsDereferenceOrSubscript(LValue))
+          return true;
+        if (Lex.CompareExprSemantically(E, LValue))
           ++Count;
         return true;
       }
