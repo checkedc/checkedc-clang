@@ -423,6 +423,16 @@ Example: If `SameValue` is `{ x, y, 1 }` and the current expression being
 checked is the variable `y`, then `x`, `y`, and `1` all produce the same
 value as `y`.
 
+In addition, the `CheckingState` class also has several members that keep
+track of information that is used to emit diagnostic messages during bounds
+validation (if the bounds checker is not able to prove that a given inferred
+bounds expression implies a given target bounds expression). These members
+include:
+
+1. `LostLValues`
+2. `UnknownSrcBounds`
+3. `BlameAssignments`
+
 ## Updating the Checking State
 
 The `ObservedBounds` and `EquivExprs` members of the `CheckingState` instance
