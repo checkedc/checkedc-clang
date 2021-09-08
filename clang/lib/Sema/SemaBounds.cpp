@@ -6041,42 +6041,28 @@ namespace {
         case CastKind::CK_BooleanToSignedIntegral:
           return RValueBounds;
         case CastKind::CK_LValueToRValue: {
-          // For an rvalue cast of a variable v, if v has observed bounds,
-          // the rvalue bounds of the value of v should be the observed bounds.
-          // This also accounts for variables that have widened bounds.
-          if (DeclRefExpr *V = VariableUtil::GetRValueVariable(S, E)) {
-            if (const VarDecl *D = dyn_cast_or_null<VarDecl>(V->getDecl())) {
-              if (D->hasBoundsExpr()) {
-                const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
-                auto It = State.ObservedBounds.find(A);
-                if (It != State.ObservedBounds.end())
-                  return It->second;
-              }
-            }
-          }
-          // If an lvalue to rvalue cast e is not the value of a variable
-          // with observed bounds, the rvalue bounds of e default to the
-          // given target bounds.
+          // For an LValueToRValue cast of an lvalue expression LValue, if
+          // LValue has observed bounds, the rvalue bounds of the value of
+          // LValue should be the observed bounds. This also accounts for
+          // variables that have widened bounds, since widened bounds for
+          // variables are recorded in State.ObservedBounds.
+          if (BoundsExpr *ObservedBounds = GetLValueObservedBounds(E->getSubExpr(), State))
+            return ObservedBounds;
+          // If LValue has no recorded observed bounds, the rvalue bounds of
+          // LValueToRValue(LValue) default to the target bounds of LValue.
           return TargetBounds;
         }
         case CastKind::CK_ArrayToPointerDecay: {
-          // For an array to pointer cast of a variable v, if v has observed
-          // bounds, the rvalue bounds of the value of v should be the observed
-          // bounds. This also accounts for variables with array type that have
-          // widened bounds.
-          if (DeclRefExpr *V = VariableUtil::GetRValueVariable(S, E)) {
-            if (const VarDecl *D = dyn_cast_or_null<VarDecl>(V->getDecl())) {
-              if (D->hasBoundsExpr()) {
-                const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
-                auto It = State.ObservedBounds.find(A);
-                if (It != State.ObservedBounds.end())
-                  return It->second;
-              }
-            }
-          }
-          // If an array to pointer cast e is not the value of a variable
-          // with observed bounds, the rvalue bounds of e default to the
-          // given lvalue bounds.
+          // For an array to pointer cast of an lvalue expression LValue, if
+          // LValue has observed bounds, the rvalue bounds of the value of
+          // LValue should be the observed bounds. This also accounts for
+          // variables that have widened bounds, since widened bounds for
+          // variables are recorded in State.ObservedBounds.
+          if (BoundsExpr *ObservedBounds = GetLValueObservedBounds(E->getSubExpr(), State))
+            return ObservedBounds;
+          // If LValue has no recorded observed bounds, the rvalue bounds of
+          // ArrayToPointerDecay(LValue) default to the lvalue bounds of
+          // LValue.
           return LValueBounds;
         }
         case CastKind::CK_DynamicPtrBounds:
