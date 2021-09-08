@@ -11715,6 +11715,9 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_expanding_cycle : Error<
     "expanding cycle in struct definition">;
 
+  def err_bundled_blk_can_contain_only_decl_value_stmts : Error<
+    "a bundled block can contain only declarations and expression statements">;
+
   // -Wformat warnings issued as errors in checked scope.
   def err_format_nonliteral_noargs : Error<
     "format string is not a string literal (potentially insecure)">;

@@ -1255,9 +1255,12 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
       (!getLangOpts().CPlusPlus ||
        (Tok.isNot(tok::colon) && Tok.isNot(tok::kw_try) &&
         Tok.isNot(tok::equal)))) {
-    if (getLangOpts().CheckedC && Tok.is(tok::colon))
-      Diag(Tok, diag::err_expected_bounds_expr_or_interop_type);
-    else
+    if (getLangOpts().CheckedC) {
+      if (Tok.is(tok::colon))
+        Diag(Tok, diag::err_expected_bounds_expr_or_interop_type);
+      else if (Tok.is(tok::kw__Bundled))
+        Diag(Tok, diag::err_fn_body_cannot_be_bundled_blk);
+    } else
       Diag(Tok, diag::err_expected_fn_body);
 
     // Skip over garbage, until we get to '{'.  Don't eat the '{'.
