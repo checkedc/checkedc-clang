@@ -556,12 +556,21 @@ std::string PointerVariableConstraint::tryExtractBaseType(DeclaratorDecl *D,
                                                           QualType QT,
                                                           const Type *Ty,
                                                           const ASTContext &C) {
-  bool FoundBaseTypeInSrc = false;
-  if (D && !TSI)
+  // Implicit parameters declarations from typedef function declarations will
+  // still have valid and non-empty source ranges, but implicit declarations
+  // aren't written in the source, so extracting the base type from this range
+  // gives incorrect type strings. For example, the base type for the implicit
+  // parameter for `foo_decl` in `typedef void foo(int*); foo foo_decl;` would
+  // be extracted as "foo_decl", when it should be "int".
+  if (!D || D->isImplicit())
+    return "";
+
+  if (!TSI)
     TSI = D->getTypeSourceInfo();
-  if (!QT->isOrContainsCheckedType() && !Ty->getAs<TypedefType>() && D && TSI) {
+  if (!QT->isOrContainsCheckedType() && !Ty->getAs<TypedefType>() && TSI) {
     // Try to extract the type from original source to preserve defines
     TypeLoc TL = TSI->getTypeLoc();
+    bool FoundBaseTypeInSrc = false;
     if (isa<FunctionDecl>(D)) {
       FoundBaseTypeInSrc = D->getAsFunction()->getReturnType() == QT;
       TL = getBaseTypeLoc(TL).getAs<FunctionTypeLoc>();
@@ -2220,8 +2229,30 @@ FVComponentVariable::FVComponentVariable(const QualType &QT,
   // parameters similarly to how we do it for pointers in regular function
   // declarations.
   if (D && D->getType() == QT) {
-    SourceRange SR = D->getSourceRange();
-    SourceDeclaration = SR.isValid() ? getSourceText(SR, C) : "";
+    SourceRange DRange = D->getSourceRange();
+    if (DRange.isValid()) {
+      const SourceManager &SM = C.getSourceManager();
+      SourceLocation DLoc = D->getLocation();
+      CharSourceRange CSR;
+      if (SM.isBeforeInTranslationUnit(DRange.getEnd(), DLoc)) {
+        // It's not clear to me why, but the end of the SourceRange for the
+        // declaration can come before the SourceLocation for the declaration.
+        // This can result in SourceDeclaration failing to capture the whole
+        // declaration string, causing rewriting errors. In this case it is also
+        // necessary to use CharSourceRange::getCharRange to work around some
+        // cases where CharSourceRange::getTokenRange (the default behavior of
+        // getSourceText when passed a SourceRange) would not get the full
+        // declaration. For example: a parameter declared without a name such as
+        // `_Ptr<char>` was captured as `_Ptr`.
+        CSR = CharSourceRange::getCharRange(DRange.getBegin(), DLoc);
+      } else {
+        CSR = CharSourceRange::getTokenRange(DRange);
+      }
+
+      SourceDeclaration = getSourceText(CSR , C);
+    } else {
+      SourceDeclaration = "";
+    }
   }
 }
 

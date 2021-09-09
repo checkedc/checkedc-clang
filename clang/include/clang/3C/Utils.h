@@ -181,6 +181,8 @@ bool isInSysHeader(clang::Decl *D);
 
 std::string getSourceText(const clang::SourceRange &SR,
                           const clang::ASTContext &C);
+std::string getSourceText(const clang::CharSourceRange &SR,
+                          const clang::ASTContext &C);
 
 // Find the longest common subsequence.
 unsigned longestCommonSubsequence(const char *Str1, const char *Str2,

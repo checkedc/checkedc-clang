@@ -387,11 +387,15 @@ bool isInSysHeader(clang::Decl *D) {
 
 std::string getSourceText(const clang::SourceRange &SR,
                           const clang::ASTContext &C) {
+  return getSourceText(CharSourceRange::getTokenRange(SR), C);
+}
+
+std::string getSourceText(const clang::CharSourceRange &SR,
+                          const clang::ASTContext &C) {
   assert(SR.isValid() && "Invalid Source Range requested.");
   auto &SM = C.getSourceManager();
   auto LO = C.getLangOpts();
-  llvm::StringRef Srctxt =
-      Lexer::getSourceText(CharSourceRange::getTokenRange(SR), SM, LO);
+  llvm::StringRef Srctxt = Lexer::getSourceText(SR, SM, LO);
   return Srctxt.str();
 }
 

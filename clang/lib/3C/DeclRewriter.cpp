@@ -567,7 +567,14 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
 
   // If this is an external function, there is no need to rewrite the
   // declaration. We cannot change the signature of external functions.
-  if (!FDConstraint->hasBody())
+  // Under the flag -infer-types-for-undef, however, undefined functions do need
+  // to be rewritten. If the rest of the 3c inference and rewriting code is
+  // correct, short-circuiting here shouldn't be necessary; the rest of the
+  // logic in this function should successfully not rewrite undefined functions
+  // when -infer-types-for-undef is not passed. This assumption could be
+  // transformed into an assertion if we're confident it won't fail in too many
+  // places.
+  if (!_3COpts.InferTypesForUndefs && !FDConstraint->hasBody())
     return true;
 
   // RewriteParams and RewriteReturn track if we will need to rewrite the
