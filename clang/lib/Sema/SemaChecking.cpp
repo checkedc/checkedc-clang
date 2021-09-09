@@ -7581,6 +7581,9 @@ public:
 
   void HandleNullChar(const char *nullCharacter) override;
 
+  // Note: IsFuncScanfLike = true means that the variadic function being called
+  // is scanf-like. IsFuncScanfLike = false means that the function is
+  // printf-like.
   void CheckVarargsInCheckedScope(
     const analyze_format_string::ConversionSpecifier &CS,
     const char *StartSpecifier, unsigned SpecifierLen, const Expr *E,
@@ -7974,8 +7977,16 @@ void CheckFormatHandler::CheckVarargsInCheckedScope(
           getSpecifierRange(StartSpecifier, SpecifierLen));
       }
 
-      // In printf-like functions, only allow scalar type arguments with format
-      // specifiers other than %s.
+    // In printf-like functions, only allow scalar type arguments with format
+    // specifiers other than %s.
+
+    // TODO: Currently, we do not handle the case where an out-of-bounds
+    // null-terminated array is passed as an argument to %s. The following code
+    // is allowed even though it might be a safety hole.
+    // _Checked {
+    //   _Nt_array_ptr<char> p : count(5);
+    //   printf("%s", p + 1234);
+    // }
     } else {
       if (ArgTy->isCheckedPointerType()) {
         EmitFormatDiagnostic(
