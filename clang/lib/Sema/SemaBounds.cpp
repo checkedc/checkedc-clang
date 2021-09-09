@@ -2868,6 +2868,37 @@ namespace {
      }
    }
 
+   // Return true if Statement S is the first statement in a bundled block.
+   // A bundled block can contain only declarations or expression statements.
+   // Therefore only the classes DeclStmt and ValueStmt (which wraps an
+   // expression statement) contain flags that indicate if a statement is the
+   // first or the last statement of a bundled block.
+   bool IsFirstStmtOfBundledBlk(Stmt *S) {
+     if (auto VS = dyn_cast<ValueStmt>(S)) {
+       if (VS->isFirstStmtOfBundledBlk())
+         return true;
+     }
+     else if (auto DS = dyn_cast<DeclStmt>(S)) {
+       if (DS->isFirstStmtOfBundledBlk())
+         return true;
+     }
+     return false;
+   }
+
+   // Return true if Statement S is the last statement in a bundled block.
+   // See the description of the above function for more details.
+   bool IsLastStmtOfBundledBlk(Stmt *S) {
+     if (auto VS = dyn_cast<ValueStmt>(S)) {
+       if (VS->isLastStmtOfBundledBlk())
+         return true;
+     }
+     else if (auto DS = dyn_cast<DeclStmt>(S)) {
+       if (DS->isLastStmtOfBundledBlk())
+         return true;
+     }
+     return false;
+   }
+
    // Walk the CFG, traversing basic blocks in reverse post-oder.
    // For each element of a block, check bounds declarations.  Skip
    // CFG elements that are subexpressions of other CFG elements.
@@ -2910,6 +2941,8 @@ namespace {
      StmtSetTy MemoryCheckedStmts;
      StmtSetTy BoundsCheckedStmts;
      IdentifyChecked(Body, MemoryCheckedStmts, BoundsCheckedStmts, CheckedScopeSpecifier::CSS_Unchecked);
+     BoundsContextTy InitialObservedBounds;
+     bool InBundledBlock = false;
 
      // Run the bounds widening analysis on this function.
      BoundsWideningAnalyzer.WidenBounds(FD, NestedElements);
@@ -2963,24 +2996,37 @@ namespace {
             // bounds for v (if any), or the declared bounds for v (if any).
             GetDeclaredBounds(this->S, BlockState.ObservedBounds, S, AbstractSetMgr);
 
-            BoundsContextTy InitialObservedBounds = BlockState.ObservedBounds;
-            BlockState.Reset();
+            if (!InBundledBlock) {
+                InitialObservedBounds = BlockState.ObservedBounds;
+                BlockState.Reset();
+            }
+
+            if (IsFirstStmtOfBundledBlk(S)) InBundledBlock = true;
 
             Check(S, CSS, BlockState);
 
             if (DumpState)
               DumpCheckingState(llvm::outs(), S, BlockState);
 
-            // For each AbstractSet A in ObservedBounds, check that the
-            // observed bounds of A imply the declared bounds of A.
-            ValidateBoundsContext(S, BlockState, CSS, Block);
+            if (IsLastStmtOfBundledBlk(S)) InBundledBlock = false;
 
-            // The observed bounds that were updated after checking S should
-            // only be used to check that the updated observed bounds imply
-            // the declared variable bounds.  After checking the observed and
-            // declared bounds, the observed bounds for each AbstractSet should
-            // be reset to their observed bounds from before checking S.
-            BlockState.ObservedBounds = InitialObservedBounds;
+            // If a bundled block is detected, then the ObservedBounds are
+            // updated for each statement in the bundled block. However,
+            // the ObservedBounds are checked against the declared bounds
+            // only at the end of a bundled block.
+            if (!InBundledBlock) {
+
+              // For each AbstractSet A in ObservedBounds, check that the
+              // observed bounds of A imply the declared bounds of A.
+              ValidateBoundsContext(S, BlockState, CSS, Block);
+
+              // The observed bounds that were updated after checking S should
+              // only be used to check that the updated observed bounds imply
+              // the declared variable bounds.  After checking the observed and
+              // declared bounds, the observed bounds for each AbstractSet should
+              // be reset to their observed bounds from before checking S.
+              BlockState.ObservedBounds = InitialObservedBounds;
+            }
          }
          else if (Elem.getKind() == CFGElement::LifetimeEnds) {
             // Every variable going out of scope is indicated by a LifetimeEnds
