@@ -5,6 +5,25 @@
 // variadic-functions-win.c and the non-windows tests are in
 // variadic-functions-non-win.c.
 
+// The checking of variadic functions in checked scope follows these rules:
+// 1. All warnings issued by the -Wformat family of flags are errors in checked
+// scope.
+// 2. No bounds checking of arguments to variadic functions like printf/scanf,
+// etc is done.
+
+// For printf-like functions:
+// 3. %s is allowed only with arg type _Nt_array_ptr or _Nt_checked.
+// 4. %p is allowed with any arg type.
+// 5. %n is disallowed.
+// 6. For all other format specifiers, only scalar arg types are allowed.
+
+// For scanf-like functions:
+// 7. %s is disallowed.
+// 8. All width modifiers to format specifiers are disallowed.
+// 9. %p is disallowed
+// 10. %n is disallowed
+// 11. For all other format specifiers, only _Ptr arg types are allowed.
+
 // RUN: %clang_cc1 -fcheckedc-extension -verify \
 // RUN: -verify-ignore-unexpected=note %s
 
@@ -57,40 +76,95 @@ void f1(_Nt_array_ptr<char> chk, char *unchk1, _Array_ptr<char> arr) {
   int a = 1, b = 2;
   char *unchk2;
 
+  // Calling printf-scanf-like functions with unchecked pointers is allowed in
+  // unchecked scope.
   printf("%d %s %d %s", 1, unchk1, 2, unchk2);
   MyPrintf("%d %s %d %s", 1, unchk1, 2, unchk2);
   scanf("%d %s %d %s", &a, unchk1, &b, unchk2);
   MyScanf("%d %s %d %s", &a, unchk1, &b, unchk2);
 
 _Checked {
+  // Calling printf-scanf-like functions with unchecked pointers is disallowed
+  // in checked scope.
   printf("%d %s %d %s", 1, unchk1, 2, unchk2); // expected-error {{local variable used in a checked scope must have a checked type}} expected-error {{parameter used in a checked scope must have a checked type or a bounds-safe interface}}
   MyPrintf("%d %s %d %s", 1, unchk1, 2, unchk2); // expected-error {{local variable used in a checked scope must have a checked type}} expected-error {{parameter used in a checked scope must have a checked type or a bounds-safe interface}}
   scanf("%d %s %d %s", &a, unchk1, &b, unchk2); // expected-error {{local variable used in a checked scope must have a checked type}} expected-error {{parameter used in a checked scope must have a checked type or a bounds-safe interface}}
   MyScanf("%d %s %d %s", &a, unchk1, &b, unchk2); // expected-error {{local variable used in a checked scope must have a checked type}} expected-error {{parameter used in a checked scope must have a checked type or a bounds-safe interface}}
 
+
+  // For printf-like functions %s is allowed only with arg type _Nt_array_ptr or _Nt_checked.
   printf("%s", arr); // expected-error {{in a checked scope %s format specifier requires null-terminated argument}}
   MyPrintf("%s", arr); // expected-error {{in a checked scope %s format specifier requires null-terminated argument}}
-  scanf("%s", arr); // expected-error {{in a checked scope %s format specifier requires null-terminated argument}}
-  MyScanf("%s", arr); // expected-error {{in a checked scope %s format specifier requires null-terminated argument}}
+
+  // For scanf-like functions %s is disallowed in checked scope.
+  scanf("%s", arr); // expected-error {{in a checked scope %s format specifier is not allowed in scanf}}
+  MyScanf("%s", arr); // expected-error {{in a checked scope %s format specifier is not allowed in scanf}}
+
+  _Nt_array_ptr<char> p = "a";
+
+  // For printf-like functions %s is allowed in checked scope.
+  printf("%10s", p);
+  MyPrintf("%10s", p);
+
+  // For scanf-like functions %s is disallowed in checked scope.
+  scanf("%10s", p); // expected-error {{in a checked scope %10s format specifier is not allowed in scanf}} expected-error {{in a checked scope width is not allowed with format specifier in scanf}}
+  MyScanf("%10s", p); // expected-error {{in a checked scope %10s format specifier is not allowed in scanf}} expected-error {{in a checked scope width is not allowed with format specifier in scanf}}
+
+  _Ptr<int> i = 0;
+  _Ptr<void> q = 0;
+
+  // For printf/scanf-like functions %n is disallowed in checked scope.
+  printf("hello\n%n", i); // expected-error {{in a checked scope %n format specifier is not allowed}}
+  MyPrintf("hello\n%n", i); // expected-error {{in a checked scope %n format specifier is not allowed}}
+  scanf("%n", i); // expected-error {{in a checked scope %n format specifier is not allowed}}
+  MyScanf("%n", i); // expected-error {{in a checked scope %n format specifier is not allowed}}
+
+  // For printf-like functions %p is allowed in checked scope.
+  printf("%p", q);
+  MyPrintf("%p", q);
+
+  // For scanf-like functions %p is disallowed in checked scope.
+  scanf("%p", &q); // expected-error {{in a checked scope %p format specifier is not allowed with scanf}}
+  MyScanf("%p", &q); // expected-error {{in a checked scope %p format specifier is not allowed with scanf}}
+
+  int arr _Checked[5];
+
+  // For printf-like functions for format specifiers other than %s, only scalar
+  // arg types are allowed in checked scope.
+  printf("%d", arr[4]);
+  printf("%d", *i);
+
+  printf("%d", arr); // expected-error {{format specifies type 'int' but the argument has type '_Array_ptr<int>'}} expected-error {{in a checked scope %d format specifier requires scalar argument}}
+  MyPrintf("%d", arr); // expected-error {{format specifies type 'int' but the argument has type '_Array_ptr<int>'}} expected-error {{in a checked scope %d format specifier requires scalar argument}}
+
+  // For scanf-like functions only _Ptr arg types are allowed in checked scope.
+  scanf("%d", arr); // expected-error {{in a checked scope %d format specifier requires _Ptr argument}}
+  MyScanf("%d", arr); // expected-error {{in a checked scope %d format specifier requires _Ptr argument}}
 }
 }
 
 void f2 (_Nt_array_ptr<char> p, _Array_ptr<char> arr, _Ptr<FILE> fp) {
   char *s;
 
+  // In checked scope, fprintf, sprintf, snprintf, fscanf, sscanf, etc follow
+  // rules similar to printf/scanf.
+
 _Checked {
   fprintf(fp, "%s", arr); // expected-error {{in a checked scope %s format specifier requires null-terminated argument}}
   sprintf(s, "%s", arr); // expected-error {{local variable used in a checked scope must have a checked type}}
   snprintf(p, 1, "%s", arr); // expected-error {{in a checked scope %s format specifier requires null-terminated argument}}
 
-  fscanf(fp, "%s", arr); // expected-error {{in a checked scope %s format specifier requires null-terminated argument}}
-  sscanf(p, "%s", arr); // expected-error {{in a checked scope %s format specifier requires null-terminated argument}}
+  fscanf(fp, "%s", arr); // expected-error {{in a checked scope %s format specifier is not allowed in scanf}}
+  sscanf(p, "%s", arr); // expected-error {{in a checked scope %s format specifier is not allowed in scanf}}
 }
 }
 
 void f3(_Nt_array_ptr<char> p, _Array_ptr<char> arr, _Ptr<FILE> fp) {
   va_list args;
   char *s;
+
+  // In checked scope, vprintf, vscanf, etc follow rules similar to
+  // printf/scanf.
 
 _Checked {
   vprintf(p, args); // expected-error {{local variable used in a checked scope must have a checked type}}
@@ -104,6 +178,9 @@ _Checked {
 }
 
 void f4 (_Nt_array_ptr<char> p, _Nt_array_ptr<wchar_t> w, _Ptr<int> ptr, _Ptr<void> voidPtr) {
+  // These diagnostics issued by the -Wformat family of flags are treated as
+  // errors in checked scope.
+
 _Checked {
   printf(p); // expected-error {{format string is not a string literal (potentially insecure)}}
   MyPrintf(p); // expected-error {{format string is not a string literal (potentially insecure)}}
@@ -134,11 +211,6 @@ _Checked {
   MyPrintf("", p); // expected-error {{format string is empty}}
   scanf("", p); // expected-error {{format string is empty}}
   MyScanf("", p); // expected-error {{format string is empty}}
-
-  printf("%10s", p);
-  MyPrintf("%10s", p);
-  scanf("%10s", p); // expected-error {{in a checked scope width is not allowed with format specifier in scanf}}
-  MyScanf("%10s", p); // expected-error {{in a checked scope width is not allowed with format specifier in scanf}}
 
   printf("%d", 1.0); // expected-error {{format specifies type 'int' but the argument has type 'double'}}
   MyPrintf("%d", 1.0); // expected-error {{format specifies type 'int' but the argument has type 'double'}}
@@ -175,15 +247,20 @@ _Checked {
   scanf("%P", p); // expected-error {{invalid conversion specifier 'P'}}
   MyScanf("%P", p); // expected-error {{invalid conversion specifier 'P'}}
 
-  printf("%S", w); // expected-error {{'S' conversion specifier is not supported by ISO C}}
-  MyPrintf("%S", w); // expected-error {{'S' conversion specifier is not supported by ISO C}}
-  scanf("%S", w); // expected-error {{'S' conversion specifier is not supported by ISO C}}
-  MyScanf("%S", w); // expected-error {{'S' conversion specifier is not supported by ISO C}}
+  printf("%S", w); // expected-error {{'S' conversion specifier is not supported by ISO C}} expected-error {{in a checked scope %S format specifier requires scalar argument}}
+  MyPrintf("%S", w); // expected-error {{'S' conversion specifier is not supported by ISO C}} expected-error {{in a checked scope %S format specifier requires scalar argument}}
+  scanf("%S", w); // expected-error {{'S' conversion specifier is not supported by ISO C}} expected-error {{in a checked scope %S format specifier requires _Ptr argument}}
+  MyScanf("%S", w); // expected-error {{'S' conversion specifier is not supported by ISO C}} expected-error {{in a checked scope %S format specifier requires _Ptr argument}}
+
+  int i;
+  printf("%*d", 123456789, i);
 
   printf("%*d"); // expected-error {{'*' specified field width is missing a matching 'int' argument}}
   MyPrintf("%*d"); // expected-error {{'*' specified field width is missing a matching 'int' argument}}
   scanf("%*d"); // Note: This is safe because * indicates the data is to be read from the stream but ignored (i.e. it is not stored in the location pointed by an argument).
   MyScanf("%*d"); // Note: This is safe because * indicates the data is to be read from the stream but ignored (i.e. it is not stored in the location pointed by an argument).
+
+  printf("%.*d", 123456789, i);
 
   printf("%.*d"); // expected-error {{'.*' specified field precision is missing a matching 'int' argument}}
   MyPrintf("%.*d"); // expected-error {{'.*' specified field precision is missing a matching 'int' argument}}
@@ -224,6 +301,8 @@ _Checked {
 int MyPrintf_NoFormatAttr(const char *format : itype(_Nt_array_ptr<const char>), ...);
 
 void f5(_Nt_array_ptr<char> p) {
+  // A custom variadic function that does not have an __attribute__((format))
+  // is not allowed in checked scope.
 _Checked {
   MyPrintf_NoFormatAttr("%s", "abc"); // expected-error {{cannot use this variable arguments function in a checked scope or function}}
 }
