@@ -7987,6 +7987,8 @@ void CheckFormatHandler::CheckVarargsInCheckedScope(
     //   _Nt_array_ptr<char> p : count(5);
     //   printf("%s", p + 1234);
     // }
+    // Issue https://github.com/microsoft/checkedc-clang/pull/1182 tracks this.
+
     } else {
       if (ArgTy->isCheckedPointerType()) {
         EmitFormatDiagnostic(
