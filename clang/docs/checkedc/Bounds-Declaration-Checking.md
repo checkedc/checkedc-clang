@@ -64,7 +64,8 @@ Examples of declared and inferred bounds:
 ```
 // p has declared bounds of bounds(p, p + i).
 // q has declared bounds of bounds(q, q + j).
-void f(_Array_ptr<int> p : count(i), _Array_ptr<int> q : count(j)) {
+void f(_Array_ptr<int> p : count(i), _Array_ptr<int> q : count(j),
+       unsigned int i, unsigned int j) {
   // Updating after assignment: The inferred bounds of the left-hand side
   // variable are the bounds of the right-hand side expression.
   // p has inferred bounds of bounds(q, q + j).
