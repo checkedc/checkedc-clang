@@ -228,6 +228,8 @@ void getPrintfStringArgIndices(const clang::CallExpr *CE,
 int64_t getStmtIdWorkaround(const clang::Stmt *St,
                             const clang::ASTContext &Context);
 
+clang::SourceLocation getCheckedCAnnotationsEnd(const clang::Decl *D);
+
 // Shortcut for the getCustomDiagID + Report sequence to report a custom
 // diagnostic as we currently do in 3C.
 //

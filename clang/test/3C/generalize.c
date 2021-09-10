@@ -48,7 +48,7 @@ void nameless(void *a, char *b)
 {
   a = 1; // make it unsafe
 }
-// CHECK: void nameless(void * a, _Ptr<char> b);
+// CHECK: void nameless(void *a, _Ptr<char> b);
 // CHECK: void nameless(void *a, _Ptr<char> b)
 
 // Safe functions should be upgraded from "_Itype_for_any" to "_For_any"

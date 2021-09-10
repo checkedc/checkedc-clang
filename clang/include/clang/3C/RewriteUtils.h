@@ -28,9 +28,7 @@ public:
 
   std::string getReplacement() const { return Replacement; }
 
-  virtual SourceRange getSourceRange(SourceManager &SM) const {
-    return getDecl()->getSourceRange();
-  }
+  virtual SourceRange getSourceRange(SourceManager &SM) const;
 
   // Discriminator for LLVM-style RTTI (dyn_cast<> et al.).
   enum DRKind {

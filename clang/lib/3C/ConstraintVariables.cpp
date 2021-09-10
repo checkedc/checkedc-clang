@@ -46,6 +46,12 @@ std::string ConstraintVariable::getRewritableOriginalTy() const {
   return OrigTyString;
 }
 
+std::string ConstraintVariable::getOriginalTypeWithName() const {
+  if (Name == RETVAR)
+    return getRewritableOriginalTy();
+  return OriginalTypeWithName;
+}
+
 PointerVariableConstraint *PointerVariableConstraint::getWildPVConstraint(
     Constraints &CS, const std::string &Rsn, PersistentSourceLoc *PSL) {
   auto *WildPVC = new PointerVariableConstraint("wildvar");
@@ -121,9 +127,9 @@ PointerVariableConstraint *PointerVariableConstraint::addAtomPVConstraint(
 PointerVariableConstraint::PointerVariableConstraint(
     PointerVariableConstraint *Ot)
   : ConstraintVariable(ConstraintVariable::PointerVariable, Ot->OriginalType,
-                       Ot->Name), BaseType(Ot->BaseType), Vars(Ot->Vars),
-    SrcVars(Ot->SrcVars), FV(Ot->FV), QualMap(Ot->QualMap),
-    ArrSizes(Ot->ArrSizes), ArrSizeStrs(Ot->ArrSizeStrs),
+                       Ot->Name, Ot->OriginalTypeWithName),
+    BaseType(Ot->BaseType), Vars(Ot->Vars), SrcVars(Ot->SrcVars), FV(Ot->FV),
+    QualMap(Ot->QualMap), ArrSizes(Ot->ArrSizes), ArrSizeStrs(Ot->ArrSizeStrs),
     SrcHasItype(Ot->SrcHasItype), ItypeStr(Ot->ItypeStr),
     PartOfFuncPrototype(Ot->PartOfFuncPrototype), Parent(Ot),
     BoundsAnnotationStr(Ot->BoundsAnnotationStr),
@@ -206,7 +212,7 @@ PointerVariableConstraint::PointerVariableConstraint(
     const ASTContext &C, std::string *InFunc, int ForceGenericIndex,
     bool PotentialGeneric,
     bool VarAtomForChecked, TypeSourceInfo *TSInfo, const QualType &ITypeT)
-    : ConstraintVariable(ConstraintVariable::PointerVariable, qtyToStr(QT), N),
+    : ConstraintVariable(ConstraintVariable::PointerVariable, QT, N),
       FV(nullptr), SrcHasItype(false), PartOfFuncPrototype(InFunc != nullptr),
       Parent(nullptr) {
   QualType QTy = QT;
@@ -512,7 +518,7 @@ PointerVariableConstraint::PointerVariableConstraint(
     //    tn fname = ...,
     // where tn is the typedef'ed type name.
     // There is possibly something more elegant to do in the code here.
-    FV = new FVConstraint(Ty, IsDeclTy ? D : nullptr, IsTypedef ? "" : N, I, C,
+    FV = new FVConstraint(QTy, IsDeclTy ? D : nullptr, IsTypedef ? "" : N, I, C,
                           TSInfo);
 
   // Get a string representing the type without pointer and array indirection.
@@ -965,8 +971,11 @@ PointerVariableConstraint::mkString(Constraints &CS,
   }
 
   // No space after itype.
-  if (!EmittedName && !UseName.empty())
-    Ss << " " << UseName;
+  if (!EmittedName && !UseName.empty()) {
+    if (!StringRef(Ss.str()).endswith("*"))
+      Ss << " ";
+    Ss << UseName;
+  }
 
   // Final array dropping.
   if (!ConstArrs.empty()) {
@@ -1004,10 +1013,10 @@ const CVarSet &PVConstraint::getArgumentConstraints() const {
 
 FunctionVariableConstraint::FunctionVariableConstraint(FVConstraint *Ot)
   : ConstraintVariable(ConstraintVariable::FunctionVariable, Ot->OriginalType,
-                       Ot->getName()), ReturnVar(Ot->ReturnVar),
-    ParamVars(Ot->ParamVars), FileName(Ot->FileName), Hasproto(Ot->Hasproto),
-    Hasbody(Ot->Hasbody), IsStatic(Ot->IsStatic), Parent(Ot),
-    IsFunctionPtr(Ot->IsFunctionPtr), TypeParams(Ot->TypeParams) {
+                       Ot->getName(), Ot->OriginalTypeWithName),
+    ReturnVar(Ot->ReturnVar), ParamVars(Ot->ParamVars), FileName(Ot->FileName),
+    Hasproto(Ot->Hasproto), Hasbody(Ot->Hasbody), IsStatic(Ot->IsStatic),
+    Parent(Ot), IsFunctionPtr(Ot->IsFunctionPtr), TypeParams(Ot->TypeParams) {
   this->HasEqArgumentConstraints = Ot->HasEqArgumentConstraints;
 }
 
@@ -1019,22 +1028,23 @@ FunctionVariableConstraint::FunctionVariableConstraint(DeclaratorDecl *D,
                                                        ProgramInfo &I,
                                                        const ASTContext &C)
     : FunctionVariableConstraint(
-          D->getType().getTypePtr(), D,
+          D->getType(), D,
           D->getDeclName().isIdentifier() ? std::string(D->getName()) : "", I,
           C, D->getTypeSourceInfo()) {}
 
 FunctionVariableConstraint::FunctionVariableConstraint(TypedefDecl *D,
                                                        ProgramInfo &I,
                                                        const ASTContext &C)
-    : FunctionVariableConstraint(D->getUnderlyingType().getTypePtr(), nullptr,
+    : FunctionVariableConstraint(D->getUnderlyingType(), nullptr,
                                  D->getNameAsString(), I, C,
                                  D->getTypeSourceInfo()) {}
 
 FunctionVariableConstraint::FunctionVariableConstraint(
-    const Type *Ty, DeclaratorDecl *D, std::string N, ProgramInfo &I,
+    const QualType QT, DeclaratorDecl *D, std::string N, ProgramInfo &I,
     const ASTContext &Ctx, TypeSourceInfo *TSInfo)
-    : ConstraintVariable(ConstraintVariable::FunctionVariable, tyToStr(Ty), N),
+    : ConstraintVariable(ConstraintVariable::FunctionVariable, QT, N),
       Parent(nullptr) {
+  const Type *Ty = QT.getTypePtr();
   QualType RT, RTIType;
   Hasproto = false;
   Hasbody = false;
@@ -2004,8 +2014,10 @@ void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
          "Merging error, pointer depth change");
   Vars = NewVAtoms;
   SrcVars = NewSrcAtoms;
-  if (Name.empty())
+  if (Name.empty()) {
     Name = From->Name;
+    OriginalTypeWithName = From->OriginalTypeWithName;
+  }
   SrcHasItype = SrcHasItype || From->SrcHasItype;
   if (!From->ItypeStr.empty())
     ItypeStr = From->ItypeStr;
@@ -2265,16 +2277,20 @@ void FVComponentVariable::equateWithItype(ProgramInfo &I,
           ? "Internal constraint for generic function declaration, "
             "for which 3C currently does not support re-solving."
           : ReasonUnchangeable;
-  bool HasBounds = ExternalConstraint->srcHasBounds();
   bool HasItype = ExternalConstraint->srcHasItype();
   // If the type cannot change at all (ReasonUnchangeable2 is set), then we
-  // constrain both the external and internal types to not change. Otherwise, if
-  // the variable has bounds, then we don't want the checked (external) portion
-  // of the type to change because that could blow away the bounds, but we still
-  // allow the internal type to change so that the type can change from an itype
-  // to fully checked.
+  // constrain both the external and internal types to not change.
   bool MustConstrainInternalType = !ReasonUnchangeable2.empty();
-  if (HasItype && (MustConstrainInternalType || HasBounds)) {
+  // Otherwise, if a pointer is an array pointer with declared bounds or is a
+  // constant size array, then we want to ensure the external type continues to
+  // solve to ARR or NTARR; see the comment on
+  // ConstraintVariable::equateWithItype re how this is achieved. This avoids
+  // losing bounds on array pointers, and converting constant sized arrays into
+  // pointers. We still allow the internal type to change so that the type can
+  // change from an itype to fully checked.
+  bool MustBeArray =
+    ExternalConstraint->srcHasBounds() || ExternalConstraint->hasSomeSizedArr();
+  if (HasItype && (MustConstrainInternalType || MustBeArray)) {
     ExternalConstraint->equateWithItype(I, ReasonUnchangeable2, PSL);
     if (ExternalConstraint != InternalConstraint)
       linkInternalExternal(I, false);

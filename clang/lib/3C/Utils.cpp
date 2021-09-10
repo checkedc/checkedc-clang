@@ -570,3 +570,28 @@ int64_t getStmtIdWorkaround(const Stmt *St, const ASTContext &Context) {
   // (alignof(Stmt) - 1) before dividing.
   return Context.getAllocator().identifyKnownObject(St);
 }
+
+// Get the SourceLocation for the end of any Checked C bounds or interop type
+// annotations on a declaration. Returns an invalid source location if no
+// Checked C annotations are present.
+SourceLocation getCheckedCAnnotationsEnd(const Decl *D) {
+  SourceManager &SM = D->getASTContext().getSourceManager();
+  SourceLocation End;
+
+  // Update the current end SourceLocation to the new SourceLocation if the new
+  // location is valid and comes after the current end location.
+  auto UpdateEnd = [&SM, &End](SourceLocation SL) {
+    if (SL.isValid() &&
+        (!End.isValid() || SM.isBeforeInTranslationUnit(End, SL)))
+      End = SL;
+  };
+
+  if (auto *DD = dyn_cast<DeclaratorDecl>(D)) {
+    if (auto *InteropE = DD->getInteropTypeExpr())
+      UpdateEnd(InteropE->getEndLoc());
+    if (auto *BoundsE = DD->getBoundsExpr())
+      UpdateEnd(BoundsE->getEndLoc());
+  }
+
+  return End;
+}

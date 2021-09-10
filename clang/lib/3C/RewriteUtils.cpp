@@ -428,6 +428,17 @@ private:
   }
 };
 
+SourceRange DeclReplacement::getSourceRange(SourceManager &SM) const {
+  SourceRange SR = getDecl()->getSourceRange();
+  SourceLocation OldEnd = SR.getEnd();
+  SourceLocation NewEnd  = getCheckedCAnnotationsEnd(getDecl());
+  if (NewEnd.isValid() &&
+      (!OldEnd.isValid() || SM.isBeforeInTranslationUnit(OldEnd, NewEnd)))
+    SR.setEnd(NewEnd);
+
+  return SR;
+}
+
 SourceRange FunctionDeclReplacement::getSourceRange(SourceManager &SM) const {
   SourceLocation Begin = RewriteGeneric ? getDeclBegin(SM) :
                       (RewriteReturn ? getReturnBegin(SM) : getParamBegin(SM));
@@ -503,24 +514,12 @@ SourceLocation FunctionDeclReplacement::getDeclEnd(SourceManager &SM) const {
     }
   }
 
-  // If there's a bounds expression, this comes after the right paren of the
-  // function declaration parameter list.
-  if (auto *BoundsE = Decl->getBoundsExpr()) {
-    SourceLocation BoundsEnd = BoundsE->getEndLoc();
-    if (BoundsEnd.isValid() &&
-        (!End.isValid() || SM.isBeforeInTranslationUnit(End, BoundsEnd)))
-      End = BoundsEnd;
-  }
-
-  // If there's an itype, this also comes after the right paren. In the case
-  // that there is both a bounds expression and an itype, we need check
-  // which is later in the file and use that as the declaration end.
-  if (auto *InteropE = Decl->getInteropTypeExpr()) {
-    SourceLocation InteropEnd = InteropE->getEndLoc();
-    if (InteropEnd.isValid() &&
-        (!End.isValid() || SM.isBeforeInTranslationUnit(End, InteropEnd)))
-      End = InteropEnd;
-  }
+  // If there's a bounds or interop type expression, this will come after the
+  // right paren of the function declaration parameter list.
+  SourceLocation AnnotationsEnd = getCheckedCAnnotationsEnd(Decl);
+  if (AnnotationsEnd.isValid() &&
+      (!End.isValid() || SM.isBeforeInTranslationUnit(End, AnnotationsEnd)))
+    End = AnnotationsEnd;
 
   // SourceLocations are weird and turn up invalid for reasons I don't
   // understand. Fallback to extracting r paren location from source

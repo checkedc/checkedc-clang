@@ -92,3 +92,49 @@ void has_itype0(int *a : itype(_Ptr<int>)) { a = 1; }
 
 void has_itype1(int *a : itype(_Ptr<int>)) { a = 0; }
 //CHECK: void has_itype1(int *a : itype(_Ptr<int>)) _Checked { a = 0; }
+
+// Test rewriting itypes for constant sized arrays. As with function pointers,
+// part of the type (the array size) occurs after the name of the variable
+// being declared. This complicates rewriting. These examples caused errors in
+// libjpeg.
+
+int const_arr0[10];
+//CHECK_ALL: int const_arr0[10] : itype(int _Checked[10]);
+//CHECK_NOALL: int const_arr0[10];
+
+int *const_arr1[10];
+//CHECK_ALL: int *const_arr1[10] : itype(_Ptr<int> _Checked[10]) = {((void *)0)};
+//CHECK_NOALL: int *const_arr1[10];
+
+int (*const_arr2)[10];
+//CHECK_ALL: int (*const_arr2)[10] : itype(_Ptr<int _Checked[10]>) = ((void *)0);
+//CHECK_NOALL: int (*const_arr2)[10] : itype(_Ptr<int[10]>) = ((void *)0);
+
+// Itypes for constants sized arrays when there is a declaration with and
+// without a parameter list take slightly different paths that need to be
+// tested. If there is no parameter list, then the unchecked component of the
+// itype can't be copied from the declaration, and it instead must be generated
+// from the constraint variable.
+
+void const_arr_fn();
+void const_arr_fn(int a[10]) {}
+//CHECK_ALL: void const_arr_fn(int *a : itype(int _Checked[10]));
+//CHECK_ALL: void const_arr_fn(int *a : itype(int _Checked[10])) _Checked {}
+
+// Rewriting an existing itype or bounds expression on a global variable. Doing
+// this correctly requires replacing text until the end of the Checked C
+// annotation expression.
+int *a : itype(_Ptr<int>);
+int **b : itype(_Ptr<int *>);
+int *c : count(2);
+int **d : count(2);
+int **e : itype(_Array_ptr<int *>) count(2);
+int **f : count(2) itype(_Array_ptr<int *>);
+int **g : count(2) itype(_Array_ptr<int *>) = 0;
+//CHECK: int *a : itype(_Ptr<int>);
+//CHECK: int **b : itype(_Ptr<_Ptr<int>>) = ((void *)0);
+//CHECK: int *c : count(2);
+//CHECK: int **d : itype(_Array_ptr<_Ptr<int>>) count(2) = ((void *)0);
+//CHECK: int **e : itype(_Array_ptr<_Ptr<int>>) count(2) = ((void *)0);
+//CHECK: int **f : itype(_Array_ptr<_Ptr<int>>) count(2) = ((void *)0);
+//CHECK: int **g : itype(_Array_ptr<_Ptr<int>>) count(2) = 0;
