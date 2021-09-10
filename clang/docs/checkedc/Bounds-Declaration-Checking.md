@@ -150,7 +150,7 @@ Examples of inferred bounds provably implying target bounds:
 void f(_Array_ptr<int> small : count(2), _Array_ptr<int> large : count(5)) {
   // Target LHS bounds: bounds(small, small + 2)
   // Inferred RHS bounds: bounds(large + 5)
-  small = large + 7;
+  small = large;
 
   // Target LHS bounds: bounds(unknown)
   // Inferred RHS bounds: bounds(unknown)
@@ -316,7 +316,7 @@ bounds. For example:
 
 ```
 void f(_Array_ptr<_Nt_array_ptr<char>> p : count(10)) {
-  *p = "abc;
+  *p = "abc";
   p[0] = "xyz";
 }
 ```
