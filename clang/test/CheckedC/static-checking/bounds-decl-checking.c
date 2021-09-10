@@ -840,7 +840,7 @@ void f97(_Array_ptr<int> p : count(i), // expected-note 4 {{(expanded) declared 
 
 void f98(_Array_ptr<int> p : count(i), unsigned int i) { // expected-note 2 {{(expanded) declared bounds are 'bounds(p, p + i)'}}
   i++, p += 2; // expected-warning {{cannot prove declared bounds for 'p' are valid after assignment}} \
-               // expected-note {{(expanded) inferred bounds are 'bounds(p - 2, p - 2 + i)'}}
+               // expected-note {{(expanded) inferred bounds are 'bounds(p - 2, p - 2 + i - 1U)'}}
 
   p += 2, i++; // expected-warning {{cannot prove declared bounds for 'p' are valid after increment}} \
                // expected-note {{(expanded) inferred bounds are 'bounds(p - 2, p - 2 + i - 1U)'}}

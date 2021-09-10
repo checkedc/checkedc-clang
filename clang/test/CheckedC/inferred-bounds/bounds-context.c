@@ -2733,10 +2733,10 @@ void conditional3(nt_array_ptr<char> p : count(i),
     if (*(q + j)) {
       // Bounds written in condition: { q => bounds(q - 2, q - 2 + j) }
       // Bounds written in "true" arm: { q => bounds(any) }
-      // Bounds written in "false" arm: { q => bounds(q + 1 - 2, q + 1 - 2 + j) }
+      // Bounds written in "false" arm: { q => bounds(q + 1 - 2, q + 1 - 2 + j + 1) }
       // Observed bounds context: {  p => bounds(p, p + i), q => bounds(q, q + j + 1) }
       (q += 2) ? (q = 0) : q--; // expected-warning {{cannot prove declared bounds for 'q' are valid after decrement}} \
-                                // expected-note {{(expanded) inferred bounds are 'bounds(q + 1 - 2, q + 1 - 2 + j)'}}
+                                // expected-note {{(expanded) inferred bounds are 'bounds(q + 1 - 2, q + 1 - 2 + j + 1)'}}
       // CHECK: Statement S:
       // CHECK:      ConditionalOperator
       // CHECK-NEXT:   ParenExpr

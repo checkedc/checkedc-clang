@@ -3376,11 +3376,17 @@ namespace {
       
       else {
         // Compound Assignments function like assignments mostly,
-        // except the LHS is an L-Value, so we'll use its lvalue target bounds
+        // except the LHS is an L-Value, so we'll use the bounds for the
+        // value produced by the LHS. These are either:
+        // 1. The observed bounds as recorded in State.ObservedBounds, or:
+        // 2. The target bounds for the LHS.
+        BoundsExpr *LHSRValueBounds = LHSTargetBounds;
         bool IsCompoundAssignment = false;
         if (BinaryOperator::isCompoundAssignmentOp(Op)) {
           Op = BinaryOperator::getOpForCompoundAssignment(Op);
           IsCompoundAssignment = true;
+          if (BoundsExpr *ObservedBounds = GetLValueObservedBounds(LHS, State))
+            LHSRValueBounds = ObservedBounds;
         }
 
         // Pointer arithmetic.
@@ -3392,7 +3398,7 @@ namespace {
             RHS->getType()->isIntegerType() &&
             BinaryOperator::isAdditiveOp(Op)) {
           ResultBounds = IsCompoundAssignment ?
-            LHSTargetBounds : LHSBounds;
+            LHSRValueBounds : LHSBounds;
         }
         // `i + p` has the bounds of `p`. `p` is an RValue.
         // `i += p` has the bounds of `p`. `p` is an RValue.
@@ -3427,7 +3433,7 @@ namespace {
               BinaryOperator::isBitwiseOp(Op) ||
               BinaryOperator::isShiftOp(Op))) {
           BoundsExpr *LeftBounds = IsCompoundAssignment ?
-            LHSTargetBounds : LHSBounds;
+            LHSRValueBounds : LHSBounds;
           if (LeftBounds->isUnknown() && !RHSBounds->isUnknown())
             ResultBounds = RHSBounds;
           else if (!LeftBounds->isUnknown() && RHSBounds->isUnknown())
@@ -3892,9 +3898,15 @@ namespace {
       // At this point, State contains EquivExprs and SameValue for `e1`.
       if (UnaryOperator::isIncrementDecrementOp(Op)) {
         // `++e1`, `e1++`, `--e1`, `e1--` all have bounds of `e1`.
-        // `e1` is an lvalue, so its bounds are its lvalue target bounds.
-        // These bounds may be updated if `e1` is a variable.
+        // `e1` is an lvalue, so its bounds are either:
+        // 1. The observed bounds for the value produced by `e1` as recorded
+        // in State.ObservedBounds (if any), or:
+        // 2. The target bounds of `e1`.
+        // These bounds may be updated if `e1` is a variable, member
+        // expression, pointer dereference, or array subscript.
         BoundsExpr *IncDecResultBounds = SubExprTargetBounds;
+        if (BoundsExpr *ObservedBounds = GetLValueObservedBounds(SubExpr, State))
+          IncDecResultBounds = ObservedBounds;
 
         // Create the target of the implied assignment `e1 = e1 +/- 1`.
         CastExpr *Target = ExprCreatorUtil::CreateImplicitCast(S, SubExpr,
@@ -6087,42 +6099,28 @@ namespace {
         case CastKind::CK_BooleanToSignedIntegral:
           return RValueBounds;
         case CastKind::CK_LValueToRValue: {
-          // For an rvalue cast of a variable v, if v has observed bounds,
-          // the rvalue bounds of the value of v should be the observed bounds.
-          // This also accounts for variables that have widened bounds.
-          if (DeclRefExpr *V = VariableUtil::GetRValueVariable(S, E)) {
-            if (const VarDecl *D = dyn_cast_or_null<VarDecl>(V->getDecl())) {
-              if (D->hasBoundsExpr()) {
-                const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
-                auto It = State.ObservedBounds.find(A);
-                if (It != State.ObservedBounds.end())
-                  return It->second;
-              }
-            }
-          }
-          // If an lvalue to rvalue cast e is not the value of a variable
-          // with observed bounds, the rvalue bounds of e default to the
-          // given target bounds.
+          // For an LValueToRValue cast of an lvalue expression LValue, if
+          // LValue has observed bounds, the rvalue bounds of the value of
+          // LValue should be the observed bounds. This also accounts for
+          // variables that have widened bounds, since widened bounds for
+          // variables are recorded in State.ObservedBounds.
+          if (BoundsExpr *ObservedBounds = GetLValueObservedBounds(E->getSubExpr(), State))
+            return ObservedBounds;
+          // If LValue has no recorded observed bounds, the rvalue bounds of
+          // LValueToRValue(LValue) default to the target bounds of LValue.
           return TargetBounds;
         }
         case CastKind::CK_ArrayToPointerDecay: {
-          // For an array to pointer cast of a variable v, if v has observed
-          // bounds, the rvalue bounds of the value of v should be the observed
-          // bounds. This also accounts for variables with array type that have
-          // widened bounds.
-          if (DeclRefExpr *V = VariableUtil::GetRValueVariable(S, E)) {
-            if (const VarDecl *D = dyn_cast_or_null<VarDecl>(V->getDecl())) {
-              if (D->hasBoundsExpr()) {
-                const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
-                auto It = State.ObservedBounds.find(A);
-                if (It != State.ObservedBounds.end())
-                  return It->second;
-              }
-            }
-          }
-          // If an array to pointer cast e is not the value of a variable
-          // with observed bounds, the rvalue bounds of e default to the
-          // given lvalue bounds.
+          // For an array to pointer cast of an lvalue expression LValue, if
+          // LValue has observed bounds, the rvalue bounds of the value of
+          // LValue should be the observed bounds. This also accounts for
+          // variables that have widened bounds, since widened bounds for
+          // variables are recorded in State.ObservedBounds.
+          if (BoundsExpr *ObservedBounds = GetLValueObservedBounds(E->getSubExpr(), State))
+            return ObservedBounds;
+          // If LValue has no recorded observed bounds, the rvalue bounds of
+          // ArrayToPointerDecay(LValue) default to the lvalue bounds of
+          // LValue.
           return LValueBounds;
         }
         case CastKind::CK_DynamicPtrBounds:
@@ -6131,6 +6129,28 @@ namespace {
         default:
           return BoundsUtil::CreateBoundsAlwaysUnknown(S);
       }
+    }
+
+    // If LValue belongs to an AbstractSet that has observed bounds recorded
+    // in State.ObservedBounds, GetLValueObservedBounds returns the observed
+    // bounds for the rvalue expression produced by LValue as recorded in
+    // State.ObservedBounds. Otherwise, GetLValueObservedBounds returns null.
+    BoundsExpr *GetLValueObservedBounds(Expr *LValue, CheckingState State) {
+      Lexicographic Lex(S.Context, nullptr);
+      LValue = Lex.IgnoreValuePreservingOperations(S.Context, LValue);
+
+      // Only variables, member expressions, pointer dereferences, and
+      // array subscripts have bounds recorded in State.ObservedBounds.
+      if (!isa<DeclRefExpr>(LValue) && !isa<MemberExpr>(LValue) &&
+          !ExprUtil::IsDereferenceOrSubscript(LValue))
+        return nullptr;
+
+      const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(LValue);
+      auto It = State.ObservedBounds.find(A);
+      if (It != State.ObservedBounds.end())
+        return It->second;
+
+      return nullptr;
     }
 
     // Compute the bounds of a call expression.  Call expressions always

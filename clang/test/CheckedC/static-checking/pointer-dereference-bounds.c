@@ -53,17 +53,22 @@ void f1(_Array_ptr<_Nt_array_ptr<char>> ptr_to_buf : count(10),
 // to have an inverse actually have no inverse in the current implementation.
 // TODO: investigate using semantic expression comparison in invertibility.
 void f2(_Array_ptr<_Nt_array_ptr<char>> p : count(10)) {
-  p[0] = *p + 1; // expected-error {{inferred bounds for 'p[0]' are unknown after assignment}} \
-                 // expected-note {{(expanded) declared bounds are 'bounds(p[0], p[0] + 0)'}} \
-                 // expected-note {{lost the value of the expression 'p[0]' which is used in the (expanded) inferred bounds 'bounds(*p, *p + 0)' of 'p[0]'}}
+  // The representative expression for the AbstractSet containing p[0], *p,
+  // *(p + 0), and p[2 - 2] is *p.
+  // The representative expression for the AbstractSet containing *(p + 2 + 3)
+  // and 5[p] is 5[p].
 
-  *(p + 0) = p[2 - 2] + 1; // expected-error {{inferred bounds for 'p[0]' are unknown after assignment}} \
-                           // expected-note {{(expanded) declared bounds are 'bounds(p[0], p[0] + 0)'}} \
-                           // expected-note {{lost the value of the expression '*(p + 0)' which is used in the (expanded) inferred bounds 'bounds(p[2 - 2], p[2 - 2] + 0)' of 'p[0]'}}
+  p[0] = *p + 1; // expected-error {{inferred bounds for '*p' are unknown after assignment}} \
+                 // expected-note {{(expanded) declared bounds are 'bounds(*p, *p + 0)'}} \
+                 // expected-note {{lost the value of the expression 'p[0]' which is used in the (expanded) inferred bounds 'bounds(*p, *p + 0)' of '*p'}}
 
-  *(p + 2 + 3) = 5[p] - 2; // expected-error {{inferred bounds for '*(p + 2 + 3)' are unknown after assignment}} \
-                           // expected-note {{(expanded) declared bounds are 'bounds(*(p + 2 + 3), *(p + 2 + 3) + 0)'}} \
-                           // expected-note {{lost the value of the expression '*(p + 2 + 3)' which is used in the (expanded) inferred bounds 'bounds(5[p], 5[p] + 0)' of '*(p + 2 + 3)'}}
+  *(p + 0) = p[2 - 2] + 1; // expected-error {{inferred bounds for '*p' are unknown after assignment}} \
+                           // expected-note {{(expanded) declared bounds are 'bounds(*p, *p + 0)'}} \
+                           // expected-note {{lost the value of the expression '*(p + 0)' which is used in the (expanded) inferred bounds 'bounds(p[2 - 2], p[2 - 2] + 0)' of '*p'}}
+
+  *(p + 2 + 3) = 5[p] - 2; // expected-error {{inferred bounds for '5[p]' are unknown after assignment}} \
+                           // expected-note {{(expanded) declared bounds are 'bounds(5[p], 5[p] + 0)'}} \
+                           // expected-note {{lost the value of the expression '*(p + 2 + 3)' which is used in the (expanded) inferred bounds 'bounds(5[p], 5[p] + 0)' of '5[p]'}}
 }
 
 void f3(_Array_ptr<_Nt_array_ptr<int> *> p : itype(_Array_ptr<_Array_ptr<_Nt_array_ptr<int>>>) count(10),
