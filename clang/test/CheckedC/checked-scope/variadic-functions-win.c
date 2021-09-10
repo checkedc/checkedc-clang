@@ -19,8 +19,8 @@ int MyScanf(const char *format : itype(_Nt_array_ptr<const char>), ...)
 
 void f1 (_Nt_array_ptr<char> p) {
 _Checked {
-  printf("%Z", p); // expected-error {{'Z' conversion specifier is not supported by ISO C}}
-  MyPrintf("%Z", p); // expected-error {{'Z' conversion specifier is not supported by ISO C}}
+  printf("%Z", p); // expected-error {{'Z' conversion specifier is not supported by ISO C}} expected-error {{in a checked scope %Z format specifier requires scalar argument}}
+  MyPrintf("%Z", p); // expected-error {{'Z' conversion specifier is not supported by ISO C}} expected-error {{in a checked scope %Z format specifier requires scalar argument}}
   scanf("%Z", p); // expected-error {{invalid conversion specifier 'Z'}}
   MyScanf("%Z", p); // expected-error {{invalid conversion specifier 'Z'}}
 

@@ -7581,10 +7581,13 @@ public:
 
   void HandleNullChar(const char *nullCharacter) override;
 
+  // Note: IsFuncScanfLike = true means that the variadic function being called
+  // is scanf-like. IsFuncScanfLike = false means that the function is
+  // printf-like.
   void CheckVarargsInCheckedScope(
     const analyze_format_string::ConversionSpecifier &CS,
     const char *StartSpecifier, unsigned SpecifierLen, const Expr *E,
-    SmallString<128> FSString);
+    SmallString<128> FSString, bool IsFuncScanfLike = false);
 
   template <typename Range>
   static void
@@ -7945,7 +7948,7 @@ CheckFormatHandler::CheckNumArgs(
 void CheckFormatHandler::CheckVarargsInCheckedScope(
     const analyze_format_string::ConversionSpecifier &CS,
     const char *StartSpecifier, unsigned SpecifierLen, const Expr *E,
-    SmallString<128> FSString) {
+    SmallString<128> FSString, bool IsFuncScanfLike) {
 
   // Check arguments to variadic functions like printf/scanf, etc in checked
   // scope. This function is called per argument. E is current argument that
@@ -7958,33 +7961,86 @@ void CheckFormatHandler::CheckVarargsInCheckedScope(
     return;
 
   QualType ArgTy = E->getType();
-  bool EmitVariadicFuncDiag = false;
-  std::string ExpectedTyMsg;
 
   switch (CS.getKind()) {
   default:
+    // In scanf-like functions, only allow _Ptr type arguments.
+    if (IsFuncScanfLike) {
+      if (ArgTy->isCheckedPointerNtArrayType() ||
+          ArgTy->isNtCheckedArrayType() ||
+          ArgTy->isCheckedPointerArrayType() ||
+          ArgTy->isCheckedArrayType()) {
+        EmitFormatDiagnostic(
+          S.PDiag(diag::err_checked_scope_invalid_format_specifier_argument)
+            << FSString << "_Ptr",
+          E->getExprLoc(), /*IsStringLocation*/false,
+          getSpecifierRange(StartSpecifier, SpecifierLen));
+      }
+
+    // In printf-like functions, only allow scalar type arguments with format
+    // specifiers other than %s.
+
+    // TODO: Currently, we do not handle the case where an out-of-bounds
+    // null-terminated array is passed as an argument to %s. The following code
+    // is allowed even though it might be a safety hole.
+    // _Checked {
+    //   _Nt_array_ptr<char> p : count(5);
+    //   printf("%s", p + 1234);
+    // }
+    // Issue https://github.com/microsoft/checkedc-clang/issues/1178 tracks this.
+
+    } else {
+      if (ArgTy->isCheckedPointerType()) {
+        EmitFormatDiagnostic(
+          S.PDiag(diag::err_checked_scope_invalid_format_specifier_argument)
+            << FSString << "scalar",
+          E->getExprLoc(), /*IsStringLocation*/false,
+          getSpecifierRange(StartSpecifier, SpecifierLen));
+      }
+    }
     break;
 
   // Check if the argument corresponding to the %s format specifier is either
   // _Nt_array_ptr or _Nt_checked.
   case ConversionSpecifier::sArg:
-    if (!ArgTy->isCheckedPointerNtArrayType() &&
-        !ArgTy->isNtCheckedArrayType()) {
-      EmitVariadicFuncDiag = true;
-      ExpectedTyMsg = "null-terminated";
+    if (IsFuncScanfLike) {
+      EmitFormatDiagnostic(
+        S.PDiag(diag::err_checked_scope_disallowed_format_specifier)
+          << FSString << "in scanf",
+        E->getExprLoc(), /*IsStringLocation*/false,
+        getSpecifierRange(StartSpecifier, SpecifierLen));
+
+    } else if (!ArgTy->isCheckedPointerNtArrayType() &&
+               !ArgTy->isNtCheckedArrayType()) {
+      EmitFormatDiagnostic(
+        S.PDiag(diag::err_checked_scope_invalid_format_specifier_argument)
+          << FSString << "null-terminated",
+        E->getExprLoc(), /*IsStringLocation*/false,
+        getSpecifierRange(StartSpecifier, SpecifierLen));
     }
     break;
-  }
 
-  if (EmitVariadicFuncDiag) {
+  // Disallow %p format specifier with scanf-like functions.
+  case ConversionSpecifier::pArg:
+    if (IsFuncScanfLike) {
+      EmitFormatDiagnostic(
+        S.PDiag(diag::err_checked_scope_disallowed_format_specifier)
+          << FSString << "with scanf",
+        E->getExprLoc(), /*IsStringLocation*/false,
+        getSpecifierRange(StartSpecifier, SpecifierLen));
+    }
+    break;
+
+  // Disallow %n specifier in checked scope.
+  case ConversionSpecifier::nArg:
     EmitFormatDiagnostic(
-      S.PDiag(diag::err_checked_scope_invalid_format_specifier_argument)
-        << FSString << ExpectedTyMsg,
+      S.PDiag(diag::err_checked_scope_disallowed_format_specifier)
+        << FSString << "",
       E->getExprLoc(), /*IsStringLocation*/false,
       getSpecifierRange(StartSpecifier, SpecifierLen));
+    break;
   }
 }
-
 
 template<typename Range>
 void CheckFormatHandler::EmitFormatDiagnostic(PartialDiagnostic PDiag,
@@ -9176,7 +9232,8 @@ bool CheckScanfHandler::HandleScanfSpecifier(
   SmallString<128> FSString;
   llvm::raw_svector_ostream os(FSString);
   FS.toString(os);
-  CheckVarargsInCheckedScope(CS, startSpecifier, specifierLen, Ex, FSString);
+  CheckVarargsInCheckedScope(CS, startSpecifier, specifierLen, Ex, FSString,
+                             /*IsFuncScanfLike*/ true);
 
   analyze_format_string::ArgType::MatchKind Match =
       AT.matchesType(S.Context, Ex->getType());

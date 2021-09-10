@@ -11530,6 +11530,9 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_checked_scope_scanf_width : Error<
     "in a checked scope width is not allowed with format specifier in scanf">;
 
+  def err_checked_scope_disallowed_format_specifier : Error<
+    "in a checked scope %0 format specifier is not allowed %1">;
+
   def err_pragma_pop_checked_scope_mismatch : Error<
   "#pragma CHECKED_SCOPE pop with no matching #pragma CHECKED_SCOPE push">;
 
