@@ -16,6 +16,7 @@
 #include "clang/3C/ConstraintBuilder.h"
 #include "clang/3C/IntermediateToolHook.h"
 #include "clang/3C/RewriteUtils.h"
+#include "clang/Frontend/ASTConsumers.h"
 #include "clang/Frontend/VerifyDiagnosticConsumer.h"
 #include "clang/Tooling/ArgumentsAdjusters.h"
 #include "llvm/Support/TargetSelect.h"
@@ -251,8 +252,56 @@ public:
     if (!AST)
       return false;
 
+    handleExtraProgramAction(Invocation->getFrontendOpts(),
+                             AST->getASTContext());
+
     ASTs.push_back(std::move(AST));
     return true;
+  }
+
+private:
+  void handleExtraProgramAction(FrontendOptions &Opts,
+                                ASTContext &C) {
+    // The Opts.ProgramAction field is normally used only by `clang -cc1` to
+    // select a FrontendAction (see CreateFrontendBaseAction in
+    // ExecuteCompilerInvocation.cpp) and is ignored by LibTooling tools, which
+    // perform a custom FrontendAction. But we want to support at least AST
+    // dumping (as an addition to 3C's normal workflow) since it's useful for
+    // debugging 3C, and we prefer to honor the standard `-Xclang -ast-dump`
+    // option rather than define our own tool-level option like clang-check
+    // does. We could add support for more `-ast-*` options here if desired.
+    switch (Opts.ProgramAction) {
+    case frontend::ParseSyntaxOnly:
+      // Nothing extra to do.
+      break;
+    case frontend::ASTDump: {
+      // Code copied from ASTDumpAction::CreateASTConsumer since we don't have a
+      // good way to actually use ASTDumpAction from here. :/
+      //
+      // XXX: Maybe we'd prefer to output this somewhere other than stdout to
+      // separate it from the updated main file written to stdout? This doesn't
+      // look trivial because ASTPrinter requires ownership of the output
+      // stream, and it probably isn't important for the intended debugging use
+      // case.
+      std::unique_ptr<ASTConsumer> Dumper =
+          CreateASTDumper(nullptr /*Dump to stdout.*/, Opts.ASTDumpFilter,
+                          Opts.ASTDumpDecls, Opts.ASTDumpAll,
+                          Opts.ASTDumpLookups, Opts.ASTDumpDeclTypes,
+                          Opts.ASTDumpFormat);
+      // In principle, we should call all the ASTConsumer methods the same way
+      // the normal AST parsing process would, but there isn't an obvious way to
+      // do that when using ASTUnit. Instead, we rely on the assumption
+      // (apparently valid as of this writing) that the only ASTConsumer method
+      // that has a nonempty implementation in ASTPrinter is
+      // HandleTranslationUnit, and we just call HandleTranslationUnit manually.
+      Dumper->HandleTranslationUnit(C);
+      break;
+    }
+    default:
+      llvm::errs() << "Warning: The requested ProgramAction is not implemented "
+                      "by 3C and will be ignored.\n";
+      break;
+    }
   }
 };
 
