@@ -4629,7 +4629,8 @@ public:
                                ArrayRef<Stmt *> Elts, bool isStmtExpr,
                                CheckedScopeSpecifier WrittenCSS = CSS_None,
                                SourceLocation CSSLoc = SourceLocation(),
-                               SourceLocation CSMLoc = SourceLocation());
+                               SourceLocation CSMLoc = SourceLocation(),
+                               SourceLocation BNDLoc = SourceLocation());
 
 private:
   CheckedScopeSpecifier CheckingKind;

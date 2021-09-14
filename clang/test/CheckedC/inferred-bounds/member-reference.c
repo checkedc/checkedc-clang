@@ -10,6 +10,7 @@
 //
 // This line is for the clang test infrastructure:
 // RUN: %clang_cc1 -fcheckedc-extension -fdump-inferred-bounds -verify -verify-ignore-unexpected=warning -verify-ignore-unexpected=note -fdump-inferred-bounds %s | FileCheck %s
+// expected-no-diagnostics
 
 struct S1 {
   _Array_ptr<int> p : count(len);
@@ -99,9 +100,10 @@ void f1(struct S1 a1, struct S2 b2) {
 
 int global_arr1[5];
 void f2(struct S1 a3) {
-  // TODO: need bundled block.
-  a3.p = global_arr1;
-  a3.len = 5; // expected-error {{inferred bounds for 'a3.p' are unknown after assignment}}
+  _Bundled {
+    a3.p = global_arr1;
+    a3.len = 5;
+  }
 
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' '='
 // CHECK: |-MemberExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue .p {{0x[0-9a-f]+}}
@@ -346,9 +348,10 @@ _Checked void f11(struct Interop_S1 a1, struct Interop_S2 b2,
 int global_arr2 _Checked[5];
 
 void f12(struct Interop_S1 a1) {
-  // TODO: need bundled block.
-  a1.p = global_arr2;
-  a1.len = 5; // expected-error {{inferred bounds for 'a1.p' are unknown after assignment}}
+  _Bundled {
+    a1.p = global_arr2;
+    a1.len = 5;
+  }
 }
 
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} {{.*}} 'int *' '='
@@ -379,9 +382,10 @@ void f12(struct Interop_S1 a1) {
 // CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 5
 
 _Checked void f13(struct Interop_S1 a1) {
-  // TODO: need bundled block.
-  a1.p = global_arr2;
-  a1.len = 5; // expected-error {{inferred bounds for 'a1.p' are unknown after assignment}}
+  _Bundled {
+    a1.p = global_arr2;
+    a1.len = 5;
+  }
 }
 
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' '='

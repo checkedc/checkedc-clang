@@ -1575,4 +1575,7 @@ def err_expected_expr_in_where_clause : Error<
 def err_invalid_decl_where_clause : Error<
   "where clause on invalid decl">;
 
+def err_fn_body_cannot_be_bundled_blk : Error<
+  "function body cannot be a bundled block">;
+
 } // end of Parser diagnostics

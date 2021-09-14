@@ -186,6 +186,8 @@ BoundsExpr *BoundsUtil::ExpandToRange(Sema &S, VarDecl *D, BoundsExpr *B) {
 BoundsExpr *BoundsUtil::ReplaceLValueInBounds(Sema &S, BoundsExpr *Bounds,
                                               Expr *LValue, Expr *OriginalValue,
                                               CheckedScopeSpecifier CSS) {
+  if (Bounds->isUnknown() || Bounds->isAny())
+    return Bounds;
   Expr *Replaced = ReplaceLValue(S, Bounds, LValue, OriginalValue, CSS);
   if (!Replaced)
     return CreateBoundsUnknown(S);
@@ -223,10 +225,9 @@ namespace {
         if (Lex.CompareExpr(V, E) == Lexicographic::Result::Equal) {
           if (OriginalValue)
             return OriginalValue;
-          else
-            return ExprError();
-        } else
-          return E;
+          return ExprError();
+        }
+        return E;
       }
 
       ExprResult TransformMemberExpr(MemberExpr *E) {
@@ -236,16 +237,38 @@ namespace {
         if (Lex.CompareExprSemantically(M, E)) {
           if (OriginalValue)
             return OriginalValue;
-          else
-            return ExprError();
-        } else
+          return ExprError();
+        }
+        return E;
+      }
+
+      ExprResult TransformUnaryOperator(UnaryOperator *E) {
+        if (!ExprUtil::IsDereferenceOrSubscript(LValue))
           return E;
+        if (Lex.CompareExprSemantically(LValue, E)) {
+          if (OriginalValue)
+            return OriginalValue;
+          return ExprError();
+        }
+        return E;
+      }
+
+      ExprResult TransformArraySubscriptExpr(ArraySubscriptExpr *E) {
+        if (!ExprUtil::IsDereferenceOrSubscript(LValue))
+          return E;
+        if (Lex.CompareExprSemantically(LValue, E)) {
+          if (OriginalValue)
+            return OriginalValue;
+          return ExprError();
+        }
+        return E;
       }
 
       // Overriding TransformImplicitCastExpr is necessary since TreeTransform
       // does not preserve implicit casts.
       ExprResult TransformImplicitCastExpr(ImplicitCastExpr *E) {
-        // Replace V with OV (if applicable) in the subexpression of E.
+        // Replace LValue with OriginalValue (if applicable) in the
+        // subexpression of E.
         ExprResult ChildResult = TransformExpr(E->getSubExpr());
         if (ChildResult.isInvalid())
           return ChildResult;
@@ -253,17 +276,17 @@ namespace {
         Expr *Child = ChildResult.get();
         CastKind CK = E->getCastKind();
 
+        // Only cast children of lvalue to rvalue or array to pointer casts
+        // to an rvalue if necessary. The transformed child expression may
+        // no longer be an lvalue, depending on the original value.
+        // For example, if x is transformed to the original value x + 1, it
+        // does not need to be cast to an rvalue.
         if (CK == CastKind::CK_LValueToRValue ||
             CK == CastKind::CK_ArrayToPointerDecay)
-          // Only cast children of lvalue to rvalue casts to an rvalue if
-          // necessary.  The transformed child expression may no longer be
-          // an lvalue, depending on the original value.  For example, if x
-          // is transformed to the original value x + 1, it does not need to
-          // be cast to an rvalue.
           return ExprCreatorUtil::EnsureRValue(SemaRef, Child);
-        else
-          return ExprCreatorUtil::CreateImplicitCast(SemaRef, Child,
-                                                     CK, E->getType());
+
+        return ExprCreatorUtil::CreateImplicitCast(SemaRef, Child,
+                                                   CK, E->getType());
       }
   };
 }

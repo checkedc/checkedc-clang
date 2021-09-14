@@ -306,6 +306,25 @@ bool ExprUtil::ReadsMemoryViaPointer(Expr *E, bool IncludeAllMemberExprs) {
   }
 }
 
+bool ExprUtil::IsDereferenceOrSubscript(Expr *E) {
+  if (!E)
+    return false;
+  E = E->IgnoreParens();
+  if (isa<ArraySubscriptExpr>(E))
+    return true;
+  UnaryOperator *UO = dyn_cast<UnaryOperator>(E);
+  if (!UO)
+    return false;
+  return UO->getOpcode() == UnaryOperatorKind::UO_Deref;
+}
+
+bool ExprUtil::IsReturnValueExpr(Expr *E) {
+  BoundsValueExpr *BVE = dyn_cast_or_null<BoundsValueExpr>(E);
+  if (!BVE)
+    return false;
+  return BVE->getKind() == BoundsValueExpr::Kind::Return;
+}
+
 namespace {
   class FindLValueHelper : public RecursiveASTVisitor<FindLValueHelper> {
     private:
@@ -337,6 +356,22 @@ namespace {
         if (!M)
           return true;
         if (Lex.CompareExprSemantically(E, M))
+          Found = true;
+        return true;
+      }
+
+      bool VisitUnaryOperator(UnaryOperator *E) {
+        if (!ExprUtil::IsDereferenceOrSubscript(LValue))
+          return true;
+        if (Lex.CompareExprSemantically(E, LValue))
+          Found = true;
+        return true;
+      }
+
+      bool VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
+        if (!ExprUtil::IsDereferenceOrSubscript(LValue))
+          return true;
+        if (Lex.CompareExprSemantically(E, LValue))
           Found = true;
         return true;
       }
@@ -430,6 +465,22 @@ namespace {
         return true;
       }
 
+      bool VisitUnaryOperator(UnaryOperator *E) {
+        if (!ExprUtil::IsDereferenceOrSubscript(LValue))
+          return true;
+        if (Lex.CompareExprSemantically(E, LValue))
+          ++Count;
+        return true;
+      }
+
+      bool VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
+        if (!ExprUtil::IsDereferenceOrSubscript(LValue))
+          return true;
+        if (Lex.CompareExprSemantically(E, LValue))
+          ++Count;
+        return true;
+      }
+
       // Do not traverse the child of a BoundsValueExpr.
       // If a BoundsValueExpr uses the expression LValue (or a variable whose
       // declaration matches V), this should not count toward the total
@@ -469,7 +520,7 @@ void ExprUtil::EnsureEqualBitWidths(llvm::APSInt &A, llvm::APSInt &B) {
 }
 
 bool InverseUtil::IsInvertible(Sema &S, Expr *LValue, Expr *E) {
-  if (!E)
+  if (!E || E->containsErrors())
     return false;
 
   E = E->IgnoreParens();
@@ -628,7 +679,10 @@ bool InverseUtil::IsCastExprInvertible(Sema &S, Expr *LValue, CastExpr *E) {
 }
 
 Expr *InverseUtil::Inverse(Sema &S, Expr *LValue, Expr *F, Expr *E) {
-  if (!F)
+  if (!F || F->containsErrors())
+    return nullptr;
+
+  if (!E || E->containsErrors())
     return nullptr;
 
   E = E->IgnoreParens();

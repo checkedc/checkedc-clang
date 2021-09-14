@@ -196,6 +196,15 @@ void Sema::MaybeSuggestAddingStaticToDecl(const FunctionDecl *Cur) {
   }
 }
 
+static bool IsVariadicAllowedInCheckedScope(StringRef FuncName) {
+  return llvm::StringSwitch<bool>(FuncName)
+           .Cases("printf", "fprintf", "sprintf", "snprintf",
+                  "vprintf", "vfprintf", "vsprintf", true)
+           .Cases("scanf", "fscanf", "sscanf",
+                  "vscanf", "vfscanf", "vsscanf", true)
+           .Default(false);
+}
+
 /// Determine whether the use of this declaration is valid, and
 /// emit any corresponding diagnostics.
 ///
@@ -359,10 +368,21 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
     ValueDecl *VD = cast<ValueDecl>(D);
     if (!VD->isInvalidDecl() && !DiagnoseCheckedDecl(VD, Loc))
       return true;
+
     if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
-      if (FD->getType()->hasVariadicType()) {
-        Diag(Loc, diag::err_checked_scope_no_variadic_func_for_expression);
-        return true;
+      // In checked scope, we only allow functions calls to the following
+      // variadic functions:
+      // 1. C library functions like printf/scanf, etc.
+      // 2. Functions that are marked as __attribute__((format(func))), where
+      // func is a C library function like printf/scanf, etc.
+      if (FD->getType()->hasVariadicType() &&
+          !IsVariadicAllowedInCheckedScope(FD->getName())) {
+        const auto *FA = FD->getAttr<FormatAttr>();
+        if (!FA ||
+            !IsVariadicAllowedInCheckedScope(FA->getType()->getName())) {
+          Diag(Loc, diag::err_checked_scope_no_variadic_func_for_expression);
+          return true;
+        }
       }
     }
   }
@@ -14200,6 +14220,15 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
     return Context.getObjCObjectPointerType(op->getType());
 
   CheckAddressOfPackedMember(op);
+
+  // For Checked C, &e1[e2] should be a pointer to T if e1 or e2 is a pointer
+  // to T, regardless of checked scope. This avoids the unexpected result of
+  // &e1[e2] having a different type than e1 or e2, which could otherwise
+  // happen in an unchecked scope if e1 or e2 is a checked pointer.
+  if (getLangOpts().CheckedC) {
+    if (ArraySubscriptExpr *arrSubscript = dyn_cast<ArraySubscriptExpr>(op))
+      return arrSubscript->getBase()->getType();
+  }
 
   // Checked scopes change the types of the address-of(&) operator.
   // In a checked scope, the operator produces an array_ptr<T> except for

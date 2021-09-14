@@ -2077,7 +2077,10 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
           // the erroneous declspec where it would otherwise expect a comma or
           // semicolon.
         } else {
-          Diag(Tok, diag::err_expected_fn_body);
+          if (getLangOpts().CheckedC && Tok.is(tok::kw__Bundled))
+            Diag(Tok, diag::err_fn_body_cannot_be_bundled_blk);
+          else
+            Diag(Tok, diag::err_expected_fn_body);
           SkipUntil(tok::semi);
           return nullptr;
         }
@@ -3253,7 +3256,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       //
       // First make sure it is a declaration specifier.  _Checked,
       // _Checked _Bounds_only, and _Unchecked are only declaration
-      // specifiers if they aren't followed by a `{` or `['.
+      // specifiers if they aren't followed by a '{' or '['.
 
       // Look past any optional _Bounds_only modifier.
       int nextLoc = 1;

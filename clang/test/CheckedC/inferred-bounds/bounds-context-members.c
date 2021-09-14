@@ -8,14 +8,14 @@
 
 struct S {
   int len;
-  array_ptr<int> p : count(len); // expected-note 4 {{(expanded) declared bounds are 'bounds(s->p, s->p + s->len)'}}
+  array_ptr<int> p : count(len); // expected-note 5 {{(expanded) declared bounds are 'bounds(s->p, s->p + s->len)'}}
   int i;
   array_ptr<int> q : count(i); // expected-note 2 {{(expanded) declared bounds are 'bounds(s[3].q, s[3].q + s[3].i)'}} \
                                // expected-note {{(expanded) declared bounds are 'bounds(s[4].q, s[4].q + s[4].i)'}}
   array_ptr<int> r : count(i); // expected-note 2 {{(expanded) declared bounds are 'bounds(s[3].r, s[3].r + s[3].i)'}}
   array_ptr<int> f : count(3); // expected-note 2 {{(expanded) declared bounds are 'bounds(s->f, s->f + 3)'}}
   array_ptr<int> g : bounds(f, f + 3); // expected-note 2 {{(expanded) declared bounds are 'bounds(s->f, s->f + 3)'}}
-  array_ptr<int> a : count(2);
+  array_ptr<int> a : count(2); // expected-note {{(expanded) declared bounds are 'bounds(s->a, s->a + 2)'}}
   array_ptr<int> b : count(2);
 };
 
@@ -357,6 +357,137 @@ void updated_source_bounds3(struct S *s) {
   // CHECK-NEXT:     DeclRefExpr {{.*}} 's'
   // CHECK-NEXT: Bounds:
   // CHECK-NEXT: NullaryBoundsExpr {{.*}} Unknown
+  // CHECK-NEXT: }
+}
+
+void multiple_assignments1(struct S *s, _Array_ptr<int> arr : count(3)) {
+  // Observed bounds context after statement: { s->p => bounds(arr, arr + 3), arr => bounds(arr, arr + 3) }
+  s->p = arr, s->len = 3;
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} ','
+  // CHECK: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: LValue Expression:
+  // CHECK-NEXT: MemberExpr {{.*}} ->p
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 3
+  // CHECK-NEXT: LValue Expression:
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 3
+  // CHECK-NEXT: }
+
+  // Observed bounds context after assignment: { s->p => bounds(unknown), arr => bounds(arr, arr + 3) }
+  s[0].len = 0; // expected-error {{inferred bounds for 's->p' are unknown after assignment}} \
+                // expected-note {{lost the value of the expression 's[0].len' which is used in the (expanded) inferred bounds 'bounds(s->p, s->p + s->len)' of 's->p'}}
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: LValue Expression:
+  // CHECK-NEXT: MemberExpr {{.*}} ->p
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: NullaryBoundsExpr {{.*}} Unknown
+  // CHECK-NEXT: LValue Expression:
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 3
+  // CHECK-NEXT: }
+}
+
+void multiple_assignments2(struct S *s) {
+  // Observed bounds context after statement: { s->a => bounds(s->b, s->b + 2) }
+  s->a = s->b, s->a++;
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} ','
+  // CHECK: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: LValue Expression:
+  // CHECK-NEXT: MemberExpr {{.*}} ->a
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     MemberExpr {{.*}} ->b
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       MemberExpr {{.*}} ->b
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 2
+  // CHECK-NEXT: }
+
+  // Observed bounds context after statement: { s->a => bounds(unknown), s->b = bounds(any) }
+  s->a = s->b, s->b = 0; // expected-error {{inferred bounds for 's->a' are unknown after assignment}} \
+                         // expected-note {{lost the value of the expression 's->b' which is used in the (expanded) inferred bounds 'bounds(s->b, s->b + 2)' of 's->a'}}
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} ','
+  // CHECK: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: LValue Expression:
+  // CHECK-NEXT: MemberExpr {{.*}} ->a
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: NullaryBoundsExpr {{.*}} Unknown
+  // CHECK-NEXT: LValue Expression:
+  // CHECK-NEXT: MemberExpr {{.*}} ->b
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: NullaryBoundsExpr {{.*}} Any
+  // CHECK-NEXT: }
+}
+
+void multiple_assignments3(struct S *s, int i) {
+  // Observed bounds context after statement: { s->a = bounds(s->f, s->f + 3) }
+  // The access s->a[2] is within s->a's observed bounds of bounds(s->f, s->f + 3)
+  s->a = s->f, i = s->a[2];
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} ','
+  // CHECK: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: LValue Expression:
+  // CHECK-NEXT: MemberExpr {{.*}} ->a
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     MemberExpr {{.*}} ->f
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       MemberExpr {{.*}} ->f
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 3
   // CHECK-NEXT: }
 }
 

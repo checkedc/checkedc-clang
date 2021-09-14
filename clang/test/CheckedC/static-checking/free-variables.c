@@ -133,10 +133,13 @@ void f3(struct S1 a3) {
 void f4(void) {
   int a checked[5];
   // Check that parentheses are correctly ignored.
-  short int t1 : byte_count(5 * sizeof(int)) = ((((short int)(a)))); // expected-warning {{cast to smaller integer type 'short' from '_Array_ptr<int>'}} \
-                                                                     // expected-warning {{cannot prove declared bounds for 't1' are valid after initialization}} \
-                                                                     // expected-note {{(expanded) declared bounds are 'bounds((_Array_ptr<char>)t1, (_Array_ptr<char>)t1 + 5 * sizeof(int))'}} \
-                                                                     // expected-note {{(expanded) inferred bounds are 'bounds(a, a + 5)'}}
+  _Checked {
+    short int t1 : byte_count(5 * sizeof(int)) = ((((short int)(a)))); // expected-warning {{cast to smaller integer type 'short' from '_Array_ptr<int>'}} \
+                                                                       // expected-warning {{cannot prove declared bounds for 't1' are valid after initialization}} \
+                                                                       // expected-note {{(expanded) declared bounds are 'bounds((_Array_ptr<char>)t1, (_Array_ptr<char>)t1 + 5 * sizeof(int))'}} \
+                                                                       // expected-note {{(expanded) inferred bounds are 'bounds(a, a + 5)'}}
+  }
+
   array_ptr<int> t2 : byte_count(5 * sizeof(int)) = (((a)));
   array_ptr<int> t3 : byte_count(5 * sizeof(int)) = (((array_ptr<int>)(((a)))));
 

@@ -126,7 +126,7 @@ void test6(int *a)
 int *test7(int *a)
     : count(10)
 //CHECK_NOALL: int *test7(int *a : itype(_Ptr<int>)) : count(10)
-//CHECK_ALL: _Array_ptr<int> test7(_Array_ptr<int> a) : count(10)
+//CHECK_ALL: _Array_ptr<int> test7(_Array_ptr<int> a : count(10)) : count(10)
 #else
 int *test7(int *a)
     : count(10)
@@ -139,8 +139,10 @@ int *test7(int *a)
 //CHECK: ;
 
 int *test7(int *a) : count(10) {
-  //CHECK_ALL: _Array_ptr<int> test7(_Array_ptr<int> a) : count(10) _Checked {
+  //CHECK_ALL: _Array_ptr<int> test7(_Array_ptr<int> a : count(10)) : count(10) _Checked {
   //CHECK_NOALL: int *test7(int *a : itype(_Ptr<int>)) : count(10) {
+  for (int i = 0; i < 10; i++)
+    a[i];
   return a;
 }
 

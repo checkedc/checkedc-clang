@@ -1138,7 +1138,6 @@ void multiple_assign1(
   // Observed bounds context after assignments: { a => bounds(unknown), b => bounds(unknown) }
   len = 0, a = b; // expected-error {{inferred bounds for 'a' are unknown after assignment}} \
                   // expected-note {{lost the value of the expression 'len' which is used in the (expanded) inferred bounds 'bounds(a, a + len)' of 'a'}} \
-                  // expected-note {{assigned expression 'b' with unknown bounds to 'a'}} \
                   // expected-error {{inferred bounds for 'b' are unknown after assignment}} \
                   // expected-note {{lost the value of the expression 'len' which is used in the (expanded) inferred bounds 'bounds(b, b + len)' of 'b'}}
   // CHECK: Statement S:
@@ -1858,21 +1857,49 @@ void inc_dec_bounds4(array_ptr<int> a : bounds(a, a)) { // expected-note {{(expa
   // CHECK-NEXT: }
 }
 
-// Increment/decrement operators on non-variables or variables without declared bounds
-// do not result in bounds checking-related warnings or errors
+// Increment/decrement operators on dereference expressions or array subscripts
+// of type _Nt_array_ptr<T> are bounds checked
+// Increment/decrement operators on variables without declared bounds are not
+// bounds checked
 void inc_dec_bounds5(nt_array_ptr<int> *p, array_ptr<int> a) {
-  // Observed bounds context after increment:  { }
-  ++*p;
+  // Observed bounds context after increment:  { *p => bounds(*p - 1, (*p - 1) + 0) }
+  ++*p; // expected-warning {{cannot prove declared bounds for '*p' are valid after increment}} \
+        // expected-note {{(expanded) declared bounds are 'bounds(*p, *p + 0)'}} \
+        // expected-note {{(expanded) inferred bounds are 'bounds(*p - 1, *p - 1 + 0)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '++'
   // CHECK-NEXT:   UnaryOperator {{.*}} '*'
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
   // CHECK-NEXT: Observed bounds context after checking S:
-  // CHECK-NEXT: { }
+  // CHECK-NEXT: {
+  // CHECK-NEXT: LValue Expression:
+  // CHECK-NEXT:   UnaryOperator {{.*}} '_Nt_array_ptr<int>' {{.*}} '*'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} '_Nt_array_ptr<int> *' <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'p' '_Nt_array_ptr<int> *'
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       UnaryOperator {{.*}} '*'
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}}  <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         UnaryOperator {{.*}} '*'
+  // CHECK-NEXT:           ImplicitCastExpr {{.*}}  <LValueToRValue>
+  // CHECK-NEXT:             DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: }
 
-  // Observed bounds context after increment:  { }
-  p[0]++;
+  // Observed bounds context after increment:  { *p => bounds(p[0] - 1, (p[0] - 1) + 0) }
+  // Note: *p is the representative expression of the AbstractSet containing *p and p[0]
+  p[0]++; // expected-warning {{cannot prove declared bounds for '*p' are valid after increment}} \
+          // expected-note {{(expanded) declared bounds are 'bounds(*p, *p + 0)'}} \
+          // expected-note {{(expanded) inferred bounds are 'bounds(p[0] - 1, p[0] - 1 + 0)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} postfix '++'
   // CHECK-NEXT:   ArraySubscriptExpr {{.*}} '_Nt_array_ptr<int>'
@@ -1880,7 +1907,30 @@ void inc_dec_bounds5(nt_array_ptr<int> *p, array_ptr<int> a) {
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
   // CHECK-NEXT:     IntegerLiteral {{.*}} 0
   // CHECK-NEXT: Observed bounds context after checking S:
-  // CHECK-NEXT: { }
+  // CHECK-NEXT: {
+  // CHECK-NEXT: LValue Expression:
+  // CHECK-NEXT:   UnaryOperator {{.*}} '_Nt_array_ptr<int>' {{.*}} '*'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} '_Nt_array_ptr<int> *' <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'p' '_Nt_array_ptr<int> *'
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       ArraySubscriptExpr {{.*}} '_Nt_array_ptr<int>'
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}}  <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:         IntegerLiteral {{.*}} 0
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         ArraySubscriptExpr {{.*}} '_Nt_array_ptr<int>'
+  // CHECK-NEXT:           ImplicitCastExpr {{.*}}  <LValueToRValue>
+  // CHECK-NEXT:             DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:           IntegerLiteral {{.*}} 0
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: }
 
   // Observed bounds context after increment:  { }
   a--;
@@ -2683,10 +2733,10 @@ void conditional3(nt_array_ptr<char> p : count(i),
     if (*(q + j)) {
       // Bounds written in condition: { q => bounds(q - 2, q - 2 + j) }
       // Bounds written in "true" arm: { q => bounds(any) }
-      // Bounds written in "false" arm: { q => bounds(q + 1 - 2, q + 1 - 2 + j) }
+      // Bounds written in "false" arm: { q => bounds(q + 1 - 2, q + 1 - 2 + j + 1) }
       // Observed bounds context: {  p => bounds(p, p + i), q => bounds(q, q + j + 1) }
       (q += 2) ? (q = 0) : q--; // expected-warning {{cannot prove declared bounds for 'q' are valid after decrement}} \
-                                // expected-note {{(expanded) inferred bounds are 'bounds(q + 1 - 2, q + 1 - 2 + j)'}}
+                                // expected-note {{(expanded) inferred bounds are 'bounds(q + 1 - 2, q + 1 - 2 + j + 1)'}}
       // CHECK: Statement S:
       // CHECK:      ConditionalOperator
       // CHECK-NEXT:   ParenExpr

@@ -549,12 +549,12 @@ namespace {
       llvm::DenseMap<const AbstractSet *, std::pair<BoundsExpr *, Expr *>> LostLValues;
 
       // UnknownSrcBounds maps an AbstractSet A whose observed bounds are
-      // unknown to a set of expressions with unknown bounds that have been
-      // assigned to A.
+      // unknown to the first expression with unknown bounds (if any) that
+      // has been assigned to an lvalue expression in A.
       //
       // UnknownSrcBounds is used to emit notes to provide more context to the
       // user when diagnosing unknown bounds errors.
-      llvm::DenseMap<const AbstractSet *, SmallVector<Expr *, 4>> UnknownSrcBounds;
+      llvm::DenseMap<const AbstractSet *, Expr *> UnknownSrcBounds;
 
       // BlameAssignments maps an AbstractSet A to an expression in a top-level
       // CFG statement that last updates any variable used in the declared
@@ -579,6 +579,17 @@ namespace {
       // then be used to validate the bounds context.
       llvm::DenseMap<Expr *, Expr *> TargetSrcEquality;
 
+      // LValuesAssignedChecked is a set of AbstractSets containing lvalue
+      // expressions with unchecked pointer type that have been assigned an
+      // expression with checked pointer type at some point during the current
+      // top-level statement (if the statement occurs in an unchecked scope).
+      // These AbstractSets should have their bounds validated during
+      // ValidateBoundsContext. In an unchecked scope, AbstractSets containing
+      // lvalue expressions with unchecked pointer type that have not been
+      // assigned an expression with checked pointer type during the current
+      // statement should not have their bounds validated.
+      AbstractSetSetTy LValuesAssignedChecked;
+
       // Resets the checking state after checking a top-level CFG statement.
       void Reset() {
         SameValue.clear();
@@ -586,6 +597,7 @@ namespace {
         UnknownSrcBounds.clear();
         BlameAssignments.clear();
         TargetSrcEquality.clear();
+        LValuesAssignedChecked.clear();
       }
   };
 }
@@ -652,8 +664,20 @@ namespace {
     uint64_t PointerWidth;
     Stmt *Body;
     CFG *Cfg;
-    BoundsExpr *ReturnBounds; // return bounds expression for enclosing
-                              // function, if any.
+
+    // Declaration for enclosing function. Having this here allows us to emit
+    // the name of the function in any diagnostic message when checking return
+    // bounds.
+    FunctionDecl *FunctionDeclaration;
+    // Return value expression for enclosing function, if any. Having this
+    // here allows us to avoid reconstructing a return value for each
+    // return statement.
+    BoundsValueExpr *ReturnVal;
+    // Expanded declared return bounds expression for enclosing function, if
+    // any. Having this here allows us to avoid re-expanding the return bounds
+    // for each return statement.
+    BoundsExpr *ReturnBounds;
+
     ASTContext &Context;
     std::pair<ComparisonSet, ComparisonSet> &Facts;
 
@@ -946,6 +970,7 @@ namespace {
     enum class ProofStmtKind : unsigned {
       BoundsDeclaration,
       StaticBoundsCast,
+      ReturnStmt,
       MemoryAccess,
       MemberArrowBase
     };
@@ -1364,6 +1389,11 @@ namespace {
         // not track equality information for member expressions.
         if (ExprUtil::ReadsMemoryViaPointer(E1, true) ||
             ExprUtil::ReadsMemoryViaPointer(E2, true))
+          return false;
+
+        // If E1 or E2 is a _Return_value expression, we skip since we cannot
+        // determine the set of variables that occur in these expressions.
+        if (ExprUtil::IsReturnValueExpr(E1) || ExprUtil::IsReturnValueExpr(E2))
           return false;
 
         bool HasFreeVariables = false;
@@ -1943,6 +1973,9 @@ namespace {
       return false;
     }
 
+    // Methods to try to prove that an inferred bounds expression implies
+    // the validity of a target bounds expression.
+
     // Try to prove that SrcBounds implies the validity of DeclaredBounds.
     //
     // If Kind is StaticBoundsCast, check whether a static cast between Ptr
@@ -2018,6 +2051,80 @@ namespace {
       } else if (CompareNormalizedBounds(DeclaredBounds, SrcBounds, EquivExprs))
         return ProofResult::True;
       return ProofResult::Maybe;
+    }
+
+    // Try to prove that RetExprBounds implies the validity of ReturnBounds
+    // (the declared return bounds for the enclosing function).
+    ProofResult ProveReturnBoundsValidity(Expr *RetExpr,
+                                          BoundsExpr *RetExprBounds,
+                                          const EquivExprSets EQ,
+                                          const EqualExprTy G,
+                                          ProofFailure &Cause,
+                                          FreeVariableListTy &FreeVariables) {
+      // Check some basic properties of the declared ReturnBounds and the
+      // source RetExprBounds. Even though these checks will also be done
+      // in ProveBoundsDeclValidity, if any of these checks result in an
+      // early return, we can avoid constructing a modified EquivExprs set
+      // that records equality between RetVal and RetExpr.
+      
+      // Null declared return bounds or declared return bounds(unknown) 
+      // implied by any other bounds.
+      if (!ReturnBounds || ReturnBounds->isUnknown())
+        return ProofResult::True;
+
+      // Ignore invalid bounds.
+      if (RetExprBounds->isInvalid() || ReturnBounds->isInvalid())
+        return ProofResult::True;
+
+      // Return expression bounds(any) implies any declared return bounds.
+      if (RetExprBounds->isAny())
+        return ProofResult::True;
+
+      // Return expression bounds(unknown) cannot imply any non-unknown
+      // declared return bounds.
+      if (RetExprBounds->isUnknown())
+        return ProofResult::False;
+
+      // Record equality between ReturnVal and all expressions that produce
+      // the same value as RetExpr. This allows ProveBoundsDeclValidity to
+      // validate bounds that depend on the return value of the function.
+      // For example, if the declared function bounds are count(1), then the
+      // expanded ReturnBounds will be bounds(RetVal, RetVal + 1).
+      EquivExprSets EquivExprs = EQ;
+
+      // Determine the set of expressions that produce the same value as
+      // RetExpr.
+      // If G (the set of expressions that produce the same value as RetExpr)
+      // is empty, then RetExpr may be an expression that is not allowed to
+      // be recorded in State.EquivExprs (e.g. an expression that reads memory
+      // via a pointer). The EquivExprs set that we construct here is temporary
+      // and is only used to check the return bounds for one return statement,
+      // so we can add RetExpr to EquivExprs in this case.
+      EqualExprTy RetSameValue = G;
+      if (RetSameValue.size() == 0)
+        RetSameValue.push_back(RetExpr);
+
+      bool FoundRetExpr = false;
+      for (auto F = EquivExprs.begin(); F != EquivExprs.end(); ++F) {
+        if (DoExprSetsIntersect(*F, RetSameValue)) {
+          // Add all expressions in RetSameValue to F that are not already in F.
+          for (Expr *E : RetSameValue)
+            if (!EqualExprsContainsExpr(*F, E))
+              F->push_back(E);
+          F->push_back(ReturnVal);
+          FoundRetExpr = true;
+          break;
+        }
+      }
+      if (!FoundRetExpr) {
+        EqualExprTy F = RetSameValue;
+        F.push_back(ReturnVal);
+        EquivExprs.push_back(F);
+      }
+
+      return ProveBoundsDeclValidity(ReturnBounds, RetExprBounds, Cause,
+                                     &EquivExprs, FreeVariables,
+                                     ProofStmtKind::ReturnStmt);
     }
 
     // CompareNormalizedBounds returns true if SrcBounds implies DeclaredBounds
@@ -2569,23 +2676,33 @@ namespace {
 
 
   public:
-    CheckBoundsDeclarations(Sema &SemaRef, PrepassInfo &Info, Stmt *Body, CFG *Cfg, BoundsExpr *ReturnBounds, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
+    CheckBoundsDeclarations(Sema &SemaRef, PrepassInfo &Info, Stmt *Body, CFG *Cfg, FunctionDecl *FD, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
       DumpState(SemaRef.getLangOpts().DumpCheckingState),
       DumpSynthesizedMembers(SemaRef.getLangOpts().DumpSynthesizedMembers),
       PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
       Body(Body),
       Cfg(Cfg),
-      ReturnBounds(ReturnBounds),
+      FunctionDeclaration(FD),
+      ReturnVal(nullptr),
+      ReturnBounds(nullptr),
       Context(SemaRef.Context),
       Facts(Facts),
       BoundsWideningAnalyzer(BoundsWideningAnalysis(SemaRef, Cfg,
                                                     Info.BoundsVarsLower,
-                                                    Info.BoundsVarsUpper,
-                                                    Info.CheckedScopeMap)),
+                                                    Info.BoundsVarsUpper)),
       AbstractSetMgr(AbstractSetManager(SemaRef, Info.VarUses)),
       BoundsSiblingFields(Info.BoundsSiblingFields),
-      IncludeNullTerminator(false) {}
+      IncludeNullTerminator(false) {
+        if (FD) {
+          ReturnVal =
+            new (S.Context) BoundsValueExpr(SourceLocation(),
+                                            FD->getReturnType(),
+                                            BoundsValueExpr::Kind::Return);
+          ReturnBounds =
+            BoundsUtil::ExpandToRange(S, ReturnVal, FD->getBoundsExpr());
+        }
+      }
 
     CheckBoundsDeclarations(Sema &SemaRef, PrepassInfo &Info, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
@@ -2594,13 +2711,14 @@ namespace {
       PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
       Body(nullptr),
       Cfg(nullptr),
+      FunctionDeclaration(nullptr),
+      ReturnVal(nullptr),
       ReturnBounds(nullptr),
       Context(SemaRef.Context),
       Facts(Facts),
       BoundsWideningAnalyzer(BoundsWideningAnalysis(SemaRef, nullptr,
                                                     Info.BoundsVarsLower,
-                                                    Info.BoundsVarsUpper,
-                                                    Info.CheckedScopeMap)),
+                                                    Info.BoundsVarsUpper)),
       AbstractSetMgr(AbstractSetManager(SemaRef, Info.VarUses)),
       BoundsSiblingFields(Info.BoundsSiblingFields),
       IncludeNullTerminator(false) {}
@@ -2750,6 +2868,37 @@ namespace {
      }
    }
 
+   // Return true if Statement S is the first statement in a bundled block.
+   // A bundled block can contain only declarations or expression statements.
+   // Therefore only the classes DeclStmt and ValueStmt (which wraps an
+   // expression statement) contain flags that indicate if a statement is the
+   // first or the last statement of a bundled block.
+   bool IsFirstStmtOfBundledBlk(Stmt *S) {
+     if (auto VS = dyn_cast<ValueStmt>(S)) {
+       if (VS->isFirstStmtOfBundledBlk())
+         return true;
+     }
+     else if (auto DS = dyn_cast<DeclStmt>(S)) {
+       if (DS->isFirstStmtOfBundledBlk())
+         return true;
+     }
+     return false;
+   }
+
+   // Return true if Statement S is the last statement in a bundled block.
+   // See the description of the above function for more details.
+   bool IsLastStmtOfBundledBlk(Stmt *S) {
+     if (auto VS = dyn_cast<ValueStmt>(S)) {
+       if (VS->isLastStmtOfBundledBlk())
+         return true;
+     }
+     else if (auto DS = dyn_cast<DeclStmt>(S)) {
+       if (DS->isLastStmtOfBundledBlk())
+         return true;
+     }
+     return false;
+   }
+
    // Walk the CFG, traversing basic blocks in reverse post-oder.
    // For each element of a block, check bounds declarations.  Skip
    // CFG elements that are subexpressions of other CFG elements.
@@ -2792,6 +2941,8 @@ namespace {
      StmtSetTy MemoryCheckedStmts;
      StmtSetTy BoundsCheckedStmts;
      IdentifyChecked(Body, MemoryCheckedStmts, BoundsCheckedStmts, CheckedScopeSpecifier::CSS_Unchecked);
+     BoundsContextTy InitialObservedBounds;
+     bool InBundledBlock = false;
 
      // Run the bounds widening analysis on this function.
      BoundsWideningAnalyzer.WidenBounds(FD, NestedElements);
@@ -2845,24 +2996,37 @@ namespace {
             // bounds for v (if any), or the declared bounds for v (if any).
             GetDeclaredBounds(this->S, BlockState.ObservedBounds, S, AbstractSetMgr);
 
-            BoundsContextTy InitialObservedBounds = BlockState.ObservedBounds;
-            BlockState.Reset();
+            if (!InBundledBlock) {
+                InitialObservedBounds = BlockState.ObservedBounds;
+                BlockState.Reset();
+            }
+
+            if (IsFirstStmtOfBundledBlk(S)) InBundledBlock = true;
 
             Check(S, CSS, BlockState);
 
             if (DumpState)
               DumpCheckingState(llvm::outs(), S, BlockState);
 
-            // For each AbstractSet A in ObservedBounds, check that the
-            // observed bounds of A imply the declared bounds of A.
-            ValidateBoundsContext(S, BlockState, CSS, Block);
+            if (IsLastStmtOfBundledBlk(S)) InBundledBlock = false;
 
-            // The observed bounds that were updated after checking S should
-            // only be used to check that the updated observed bounds imply
-            // the declared variable bounds.  After checking the observed and
-            // declared bounds, the observed bounds for each AbstractSet should
-            // be reset to their observed bounds from before checking S.
-            BlockState.ObservedBounds = InitialObservedBounds;
+            // If a bundled block is detected, then the ObservedBounds are
+            // updated for each statement in the bundled block. However,
+            // the ObservedBounds are checked against the declared bounds
+            // only at the end of a bundled block.
+            if (!InBundledBlock) {
+
+              // For each AbstractSet A in ObservedBounds, check that the
+              // observed bounds of A imply the declared bounds of A.
+              ValidateBoundsContext(S, BlockState, CSS, Block);
+
+              // The observed bounds that were updated after checking S should
+              // only be used to check that the updated observed bounds imply
+              // the declared variable bounds.  After checking the observed and
+              // declared bounds, the observed bounds for each AbstractSet should
+              // be reset to their observed bounds from before checking S.
+              BlockState.ObservedBounds = InitialObservedBounds;
+            }
          }
          else if (Elem.getKind() == CFGElement::LifetimeEnds) {
             // Every variable going out of scope is indicated by a LifetimeEnds
@@ -3212,11 +3376,17 @@ namespace {
       
       else {
         // Compound Assignments function like assignments mostly,
-        // except the LHS is an L-Value, so we'll use its lvalue target bounds
+        // except the LHS is an L-Value, so we'll use the bounds for the
+        // value produced by the LHS. These are either:
+        // 1. The observed bounds as recorded in State.ObservedBounds, or:
+        // 2. The target bounds for the LHS.
+        BoundsExpr *LHSRValueBounds = LHSTargetBounds;
         bool IsCompoundAssignment = false;
         if (BinaryOperator::isCompoundAssignmentOp(Op)) {
           Op = BinaryOperator::getOpForCompoundAssignment(Op);
           IsCompoundAssignment = true;
+          if (BoundsExpr *ObservedBounds = GetLValueObservedBounds(LHS, State))
+            LHSRValueBounds = ObservedBounds;
         }
 
         // Pointer arithmetic.
@@ -3228,7 +3398,7 @@ namespace {
             RHS->getType()->isIntegerType() &&
             BinaryOperator::isAdditiveOp(Op)) {
           ResultBounds = IsCompoundAssignment ?
-            LHSTargetBounds : LHSBounds;
+            LHSRValueBounds : LHSBounds;
         }
         // `i + p` has the bounds of `p`. `p` is an RValue.
         // `i += p` has the bounds of `p`. `p` is an RValue.
@@ -3263,7 +3433,7 @@ namespace {
               BinaryOperator::isBitwiseOp(Op) ||
               BinaryOperator::isShiftOp(Op))) {
           BoundsExpr *LeftBounds = IsCompoundAssignment ?
-            LHSTargetBounds : LHSBounds;
+            LHSRValueBounds : LHSBounds;
           if (LeftBounds->isUnknown() && !RHSBounds->isUnknown())
             ResultBounds = RHSBounds;
           else if (!LeftBounds->isUnknown() && RHSBounds->isUnknown())
@@ -3282,7 +3452,8 @@ namespace {
       bool StateUpdated = false;
 
       // Update the checking state.  The result bounds may also be updated
-      // for assignments to a variable.
+      // for assignments to a variable, member expression, pointer dereference,
+      // or array subscript.
       if (E->isAssignmentOp()) {
         Expr *Target =
           ExprCreatorUtil::CreateImplicitCast(S, LHS, CK_LValueToRValue,
@@ -3302,8 +3473,9 @@ namespace {
 
         // Update the checking state and result bounds to reflect the
         // assignment to `e1`.
-        ResultBounds = UpdateAfterAssignment(LHS, E, Target, Src, ResultBounds,
-                                             CSS, State, StateUpdated);
+        ResultBounds = UpdateAfterAssignment(LHS, LHSTargetBounds, E, Target,
+                                             Src, ResultBounds, CSS, State,
+                                             StateUpdated);
 
         // SameValue is empty for assignments to a non-variable. This
         // conservative approach avoids recording false equality facts for
@@ -3726,9 +3898,15 @@ namespace {
       // At this point, State contains EquivExprs and SameValue for `e1`.
       if (UnaryOperator::isIncrementDecrementOp(Op)) {
         // `++e1`, `e1++`, `--e1`, `e1--` all have bounds of `e1`.
-        // `e1` is an lvalue, so its bounds are its lvalue target bounds.
-        // These bounds may be updated if `e1` is a variable.
+        // `e1` is an lvalue, so its bounds are either:
+        // 1. The observed bounds for the value produced by `e1` as recorded
+        // in State.ObservedBounds (if any), or:
+        // 2. The target bounds of `e1`.
+        // These bounds may be updated if `e1` is a variable, member
+        // expression, pointer dereference, or array subscript.
         BoundsExpr *IncDecResultBounds = SubExprTargetBounds;
+        if (BoundsExpr *ObservedBounds = GetLValueObservedBounds(SubExpr, State))
+          IncDecResultBounds = ObservedBounds;
 
         // Create the target of the implied assignment `e1 = e1 +/- 1`.
         CastExpr *Target = ExprCreatorUtil::CreateImplicitCast(S, SubExpr,
@@ -3761,9 +3939,9 @@ namespace {
                                        SubExprBounds, State);
         }
         bool StateUpdated = false;
-        IncDecResultBounds = UpdateAfterAssignment(SubExpr, E, Target, RHS,
-                                                   RHSBounds, CSS,
-                                                   State, StateUpdated);
+        IncDecResultBounds = UpdateAfterAssignment(SubExpr, SubExprTargetBounds,
+                                                   E, Target, RHS, RHSBounds,
+                                                   CSS, State, StateUpdated);
 
         // Update the set SameValue of expressions that produce the same
         // value as `e`.
@@ -3860,7 +4038,8 @@ namespace {
           ExprCreatorUtil::CreateImplicitCast(S, TargetDeclRef, Kind, TargetTy);
 
         // Record equality between the target and initializer.
-        RecordEqualityWithTarget(TargetDeclRef, TargetExpr, Init, State);
+        RecordEqualityWithTarget(TargetDeclRef, TargetExpr, Init,
+                                 /*AllowTempEquality=*/true, State);
       }
 
       if (D->isInvalidDecl())
@@ -3922,14 +4101,13 @@ namespace {
         return ResultBounds;
 
       // Check the return value if it exists.
-      Check(RetValue, CSS, State);
+      BoundsExpr *RetValueBounds = Check(RetValue, CSS, State);
 
-      if (!ReturnBounds)
-        return ResultBounds;
+      // Check that the return expression bounds imply the return bounds.
+      ValidateReturnBounds(RS, RetValue, RetValueBounds, State.EquivExprs,
+                           State.SameValue, CSS);
 
-      // TODO: Actually check that the return expression bounds imply the 
-      // return bounds.
-      // TODO: Also check that any parameters used in the return bounds are
+      // TODO: Check that any parameters used in the return bounds are
       // unmodified.
       return ResultBounds;
     }
@@ -4315,13 +4493,12 @@ namespace {
 
       for (auto const &Pair : State.ObservedBounds) {
         const AbstractSet *A = Pair.first;
-        const NamedDecl *V = A->GetDecl();
-        if (!V)
-          continue;
         BoundsExpr *ObservedBounds = Pair.second;
         BoundsExpr *DeclaredBounds =
           this->S.GetLValueDeclaredBounds(A->GetRepresentative(), CSS);
         if (!DeclaredBounds || DeclaredBounds->isUnknown())
+          continue;
+        if (SkipBoundsValidation(A, CSS, State))
           continue;
         if (ObservedBounds->isUnknown())
           DiagnoseUnknownObservedBounds(S, A, DeclaredBounds, State);
@@ -4332,13 +4509,42 @@ namespace {
           // variables whose bounds are widened in this block before statement
           // S and not killed by statement S.
           bool DiagnoseObservedBounds = true;
-          if (const VarDecl *Var = dyn_cast<VarDecl>(V))
-            DiagnoseObservedBounds = BoundsWidenedAndNotKilled.find(Var) ==
-                                     BoundsWidenedAndNotKilled.end();
+          if (const NamedDecl *V = A->GetDecl()) {
+            if (const VarDecl *Var = dyn_cast<VarDecl>(V))
+              DiagnoseObservedBounds = BoundsWidenedAndNotKilled.find(Var) ==
+                                        BoundsWidenedAndNotKilled.end();
+          }
           CheckObservedBounds(S, A, DeclaredBounds, ObservedBounds, State,
                               &EquivExprs, CSS, Block, DiagnoseObservedBounds);
         }
       }
+    }
+
+    // SkipBoundsValidation returns true if the observed bounds of A should
+    // not be validated after the current top-level statement.
+    //
+    // The bounds of A should not be validated if the current statement is
+    // in an unchecked scope, and A represents lvalue expressions that:
+    // 1. Have unchecked type (i.e. their declared bounds were specified using
+    //    a bounds-safe interface), and:
+    // 2. Were not assigned a checked pointer at any point in the current
+    //    top-level statement.
+    bool SkipBoundsValidation(const AbstractSet *A, CheckedScopeSpecifier CSS,
+                              CheckingState State) {
+      if (CSS != CheckedScopeSpecifier::CSS_Unchecked)
+        return false;
+
+      if (A->GetRepresentative()->getType()->isCheckedPointerType() ||
+          A->GetRepresentative()->getType()->isCheckedArrayType())
+        return false;
+
+      // State.LValuesAssignedChecked contains AbstractSets with unchecked type
+      // that were assigned a checked pointer at some point in the current
+      // statement. If A belongs to this set, we must validate the bounds of A.
+      if (State.LValuesAssignedChecked.contains(A))
+        return false;
+
+      return true;
     }
 
     // DiagnoseUnknownObservedBounds emits an error message for an AbstractSet
@@ -4350,14 +4556,10 @@ namespace {
     void DiagnoseUnknownObservedBounds(Stmt *St, const AbstractSet *A,
                                        BoundsExpr *DeclaredBounds,
                                        CheckingState State) {
-      const NamedDecl *V = A->GetDecl();
-      if (!V)
-        return;
 
-      BlameAssignmentWithinStmt(St, A, State,
-                                diag::err_unknown_inferred_bounds);
-      S.Diag(V->getLocation(), diag::note_declared_bounds)
-        << DeclaredBounds << DeclaredBounds->getSourceRange();
+      SourceLocation Loc = BlameAssignmentWithinStmt(St, A, State,
+                            diag::err_unknown_inferred_bounds);
+      EmitDeclaredBoundsNote(A, DeclaredBounds, Loc);
 
       // The observed bounds of A are unknown because the original observed
       // bounds B of A used the value of an lvalue expression E, and there
@@ -4374,14 +4576,14 @@ namespace {
 
       // The observed bounds of A are unknown because at least one expression
       // e with unknown bounds was assigned to an lvalue expression in A.
+      // Emit a note for the first expression with unknown bounds that was
+      // assigned to A (this expression is the only one that is tracked in
+      // State.UnknownSrcBounds).
       auto BlameSrcIt = State.UnknownSrcBounds.find(A);
       if (BlameSrcIt != State.UnknownSrcBounds.end()) {
-        SmallVector<Expr *, 4> UnknownSources = BlameSrcIt->second;
-        for (auto I = UnknownSources.begin(); I != UnknownSources.end(); ++I) {
-          Expr *Src = *I;
-          S.Diag(Src->getBeginLoc(), diag::note_unknown_source_bounds)
+        Expr *Src = BlameSrcIt->second;
+        S.Diag(Src->getBeginLoc(), diag::note_unknown_source_bounds)
             << Src << A->GetRepresentative() << Src->getSourceRange();
-        }
       }
     }
 
@@ -4398,7 +4600,6 @@ namespace {
                              CheckedScopeSpecifier CSS,
                              const CFGBlock *Block,
                              bool DiagnoseObservedBounds) {
-      const NamedDecl *V = A->GetDecl();
       ProofFailure Cause;
       FreeVariableListTy FreeVars;
       ProofResult Result = ProveBoundsDeclValidity(
@@ -4406,12 +4607,12 @@ namespace {
       if (Result == ProofResult::True)
         return;
 
-      // If v currently has widened bounds and the widened bounds of v are not
+      // If A currently has widened bounds and the widened bounds of A are not
       // killed by the statement St, then the proof failure was caused by not
-      // being able to prove the widened bounds of v imply the declared bounds
-      // of v. Diagnostics should not be emitted in this case. Otherwise,
-      // statements that make no changes to v or any variables used in the
-      // bounds of v would cause diagnostics to be emitted.
+      // being able to prove the widened bounds of A imply the declared bounds
+      // of A. Diagnostics should not be emitted in this case. Otherwise,
+      // statements that make no changes to A or any expressions used in the
+      // bounds of A would cause diagnostics to be emitted.
       // For example, the widened bounds (p, (p + 0) + 1) do not provably imply
       // the declared bounds (p, p + 0) due to the left-associativity of the
       // observed upper bound (p + 0) + 1.
@@ -4438,8 +4639,7 @@ namespace {
         DiagnoseFreeVariables(diag::note_free_variable_decl_or_inferred, Loc,
                               FreeVars);
 
-      S.Diag(V->getLocation(), diag::note_declared_bounds)
-        << DeclaredBounds << DeclaredBounds->getSourceRange();
+      EmitDeclaredBoundsNote(A, DeclaredBounds, Loc);
       S.Diag(Loc, diag::note_expanded_inferred_bounds)
         << ObservedBounds << ObservedBounds->getSourceRange();
     }
@@ -4455,7 +4655,6 @@ namespace {
                                              unsigned DiagId) const {
       assert(St);
       const NamedDecl *V = A->GetDecl();
-      assert(V);
       SourceRange SrcRange = St->getSourceRange();
       auto BDCType = Sema::BoundsDeclarationCheck::BDC_Statement;
 
@@ -4464,7 +4663,7 @@ namespace {
       // message starts at the beginning of a declaration T v = e, then extra
       // diagnostics may be emitted for T.
       SourceLocation Loc = St->getBeginLoc();
-      if (isa<DeclStmt>(St)) {
+      if (V && isa<DeclStmt>(St)) {
         Loc = V->getLocation();
         BDCType = Sema::BoundsDeclarationCheck::BDC_Initialization;
         S.Diag(Loc, DiagId) << BDCType << A->GetRepresentative()
@@ -4500,6 +4699,93 @@ namespace {
       return Loc;
     }
 
+    // EmitDeclaredBoundsNote emits a diagnostic message containing the
+    // declared bounds for the lvalue expressions in A.
+    // If the expressions in A are associated with a NamedDecl (e.g. if
+    // the expressions in A are variables or member expressions), the note
+    // is emitted at the declaration. Otherwise (e.g. the expressions in
+    // A are pointer dereferences or array subscripts), the note is emitted
+    // at the location of the last assignment expression that updated the
+    // observed bounds of the expressions in A.
+    void EmitDeclaredBoundsNote(const AbstractSet *A,
+                                BoundsExpr *DeclaredBounds,
+                                SourceLocation AssignmentLoc) {
+      const NamedDecl *V = A->GetDecl();
+      SourceLocation Loc = V ? V->getLocation() : AssignmentLoc;
+      S.Diag(Loc, diag::note_declared_bounds)
+        << DeclaredBounds << DeclaredBounds->getSourceRange();
+    }
+
+    // ValidateReturnBounds checks that the observed bounds for the return
+    // value RetExpr imply the declared bounds for the enclosing function.
+    void ValidateReturnBounds(ReturnStmt *RS, Expr *RetExpr,
+                              BoundsExpr *RetExprBounds,
+                              const EquivExprSets EquivExprs,
+                              const EqualExprTy RetSameValue,
+                              CheckedScopeSpecifier CSS) {
+      // In an unchecked scope, if the enclosing function has a bounds-safe
+      // interface, and the return value has not been implicitly converted
+      // to an unchecked pointer, we skip checking the return value bounds.
+      if (CSS == CheckedScopeSpecifier::CSS_Unchecked) {
+        if (FunctionDeclaration->hasBoundsSafeInterface(Context)) {
+          if (!IsBoundsSafeInterfaceAssignment(FunctionDeclaration->getReturnType(), RetExpr))
+            return;
+        }
+      }
+
+      ProofFailure Cause;
+      FreeVariableListTy FreeVars;
+      ProofResult Result = ProveReturnBoundsValidity(RetExpr, RetExprBounds,
+                                                     EquivExprs, RetSameValue,
+                                                     Cause, FreeVars);
+
+      if (Result == ProofResult::True)
+        return;
+
+      if (RetExprBounds->isUnknown()) {
+        DiagnoseUnknownReturnBounds(RS, RetExpr);
+        return;
+      }
+
+      // Which diagnostic message to print?
+      unsigned DiagId =
+          (Result == ProofResult::False)
+              ? (TestFailure(Cause, ProofFailure::HasFreeVariables)
+                     ? diag::error_return_bounds_unprovable
+                     : diag::error_return_bounds_invalid)
+              : (CSS != CheckedScopeSpecifier::CSS_Unchecked
+                     ? diag::warn_checked_scope_return_bounds_invalid
+                     : diag::warn_return_bounds_invalid);
+
+      SourceLocation Loc = RetExpr->getBeginLoc();
+      S.Diag(Loc, DiagId) << FunctionDeclaration << RS->getSourceRange();
+      if (Result == ProofResult::False)
+        ExplainProofFailure(Loc, Cause, ProofStmtKind::ReturnStmt);
+      
+      if (TestFailure(Cause, ProofFailure::HasFreeVariables))
+        DiagnoseFreeVariables(diag::note_free_variable_decl_or_inferred, Loc,
+                              FreeVars);
+
+      SourceLocation DeclaredLoc = FunctionDeclaration->getLocation();
+      S.Diag(DeclaredLoc, diag::note_declared_return_bounds)
+        << ReturnBounds << ReturnBounds->getSourceRange();
+      S.Diag(Loc, diag::note_inferred_return_bounds)
+        << RetExprBounds << RetExprBounds->getSourceRange();
+    }
+
+    // DiagnoseUnknownReturnBounds emits an error message at the return
+    // statement RS and return expression RetExpr whose inferred bounds are
+    // unknown, where the enclosing function has declared bounds ReturnBounds.
+    void DiagnoseUnknownReturnBounds(ReturnStmt *RS, Expr *RetExpr) {
+      SourceLocation Loc = RetExpr->getBeginLoc();
+      S.Diag(Loc, diag::err_expected_bounds_for_return)
+        << FunctionDeclaration << RS->getSourceRange();
+
+      SourceLocation DeclaredLoc = FunctionDeclaration->getLocation();
+      S.Diag(DeclaredLoc, diag::note_declared_return_bounds)
+        << ReturnBounds << ReturnBounds->getSourceRange();
+    }
+
     // Methods to update the checking state.
 
     // UpdateAfterAssignment updates the checking state after the lvalue
@@ -4507,10 +4793,14 @@ namespace {
     // LValue = Src.
     // UpdateAfterAssignment also returns updated bounds for Src.
     //
+    // TargetBounds are the bounds for the target of LValue.
+    //
     // Target is an rvalue expression that is the value of LValue.
     //
     // SrcBounds are the original bounds for the source of the assignment.
-    BoundsExpr *UpdateAfterAssignment(Expr *LValue, Expr *E, Expr *Target,
+    BoundsExpr *UpdateAfterAssignment(Expr *LValue,
+                                      BoundsExpr *TargetBounds,
+                                      Expr *E, Expr *Target,
                                       Expr *Src, BoundsExpr *SrcBounds,
                                       CheckedScopeSpecifier CSS,
                                       CheckingState &State,
@@ -4520,12 +4810,17 @@ namespace {
       Lexicographic Lex(S.Context, nullptr);
       LValue = Lex.IgnoreValuePreservingOperations(S.Context, LValue);
 
-      // Currently, we only update the checking state after assignments
-      // to a variable or a member expression.
-      if (!isa<DeclRefExpr>(LValue) && !isa<MemberExpr>(LValue)) {
+      // We only update the checking state after assignments to a variable,
+      // member expression, pointer dereference, or array subscript.
+      if (!isa<DeclRefExpr>(LValue) && !isa<MemberExpr>(LValue) &&
+          !ExprUtil::IsDereferenceOrSubscript(LValue)) {
         StateUpdated = false;
         return SrcBounds;
       }
+
+      // Account for uses of LValue in the declared return bounds (if any)
+      // for the enclosing function.
+      CheckIfLValueIsUsedInReturnBounds(LValue, E, CSS);
 
       // Get the original value (if any) of LValue before the assignment,
       // and determine whether the original value uses the value of LValue.
@@ -4534,23 +4829,104 @@ namespace {
       Expr *OriginalValue = GetOriginalValue(LValue, Target, Src,
                               State.EquivExprs, OriginalValueUsesLValue);
 
-      BoundsExpr *ResultBounds = UpdateBoundsAfterAssignment(LValue, E, Src,
-                                                             SrcBounds,
-                                                             OriginalValue,
-                                                             CSS, State);
+      // If LValue has target bounds, get the AbstractSet that contains LValue.
+      // LValueAbstractSet will be used in UpdateBoundsAfterAssignment to
+      // record the observed bounds of all lvalue expressions in this set.
+      // If LValue belongs to an LValueAbstractSet, then the rvalue expression
+      // used to record equality between the target and source of the
+      // assignment should be LValueAbstractSet's representative expression.
+      // In ValidateBoundsContext, the target bounds for all expressions in
+      // LValueAbstractSet are constructed using its representative expression.
+      // Therefore, the equality information used to validate bounds should
+      // also be based on this representative expression. Consider:
+      // void f(_Array_ptr<_Nt_array_ptr<char>> arr : count(10)) {
+      //   *arr = "abc";
+      //   arr[0] = "xyz";
+      // }
+      // At the assignment to arr[0], the representative expression for the
+      // LValueAbstractSet containing *arr and arr[0] is *arr. When validating
+      // the bounds context after this assignment, the target bounds for arr[0]
+      // are bounds(*arr, *arr + 0). Therefore, (temporary) equality should be
+      // recorded between *arr and "xyz", rather than between arr[0] and "xyz".
+      const AbstractSet *LValueAbstractSet = nullptr;
+      Expr *EqualityTarget = Target;
+      if (TargetBounds && !TargetBounds->isUnknown()) {
+        LValueAbstractSet = AbstractSetMgr.GetOrCreateAbstractSet(LValue);
+        Expr *Rep = LValueAbstractSet->GetRepresentative();
+        EqualityTarget =
+          ExprCreatorUtil::CreateImplicitCast(S, Rep, CK_LValueToRValue,
+                                              Rep->getType());
+      }
+
+      BoundsExpr *ResultBounds =
+        UpdateBoundsAfterAssignment(LValue, LValueAbstractSet, E, Src,
+                                    SrcBounds, OriginalValue, CSS, State);
       UpdateEquivExprsAfterAssignment(LValue, OriginalValue, CSS, State);
-      UpdateSameValueAfterAssignment(LValue, OriginalValue,
-                                     OriginalValueUsesLValue, CSS, State);
-      RecordEqualityWithTarget(LValue, Target, Src, State);
+      // We can only record temporary equality between Target and Src in
+      // State.TargetSrcEquality if Src does not use the value of LValue.
+      // If UpdateSameValueAfterAssignment did not remove any expressions from
+      // State.SameValue, then no expressions equivalent to Src use the value
+      // of LValue, so we can record temporary equality between Target and Src.
+      bool AllowTempEquality =
+        UpdateSameValueAfterAssignment(LValue, OriginalValue,
+                                       OriginalValueUsesLValue, CSS, State);
+      RecordEqualityWithTarget(LValue, EqualityTarget, Src,
+                               AllowTempEquality, State);
 
       StateUpdated = true;
       return ResultBounds;
+    }
+
+    // CheckIfLValueIsUsedInReturnBounds computes the observed bounds for
+    // the return value of the enclosing function (if any) by replacing all
+    // uses of LValue within the declared return bounds with null. If the
+    // declared return bounds use the value of LValue, the observed return
+    // bounds will be bounds(unknown) and an error will be emitted.
+    //
+    // The current implementation does not use invertibility of lvalue
+    // expressions. This simplifies the implementation so that the updated
+    // return bounds can be computed locally at each assignment statement,
+    // rather than keeping track of a return bounds expression across the
+    // entire function body.
+    // TODO: track an observed return bounds expression as a global property
+    // of the function body so that invertibility of lvalue expressions can
+    // be taken into account.
+    void CheckIfLValueIsUsedInReturnBounds(Expr *LValue, Expr *E,
+                                           CheckedScopeSpecifier CSS) {
+      if (!ReturnBounds || ReturnBounds->isUnknown() || ReturnBounds->isAny())
+        return;
+
+      // In unchecked scopes, if the enclosing function has its bounds declared
+      // via a bounds-safe interface, we do not check that expressions used in
+      // the declared function bounds are not modified.
+      if (CSS == CheckedScopeSpecifier::CSS_Unchecked) {
+        if (FunctionDeclaration->hasBoundsSafeInterface(Context))
+          return;
+      }
+
+      BoundsExpr *UpdatedReturnBounds =
+        BoundsUtil::ReplaceLValueInBounds(S, ReturnBounds, LValue,
+                                          nullptr, CSS);
+      if (!UpdatedReturnBounds->isUnknown())
+        return;
+
+      S.Diag(LValue->getBeginLoc(), diag::error_modified_return_bounds)
+          << LValue << FunctionDeclaration << E->getSourceRange();
+
+      SourceLocation DeclaredLoc = FunctionDeclaration->getLocation();
+      S.Diag(DeclaredLoc, diag::note_declared_return_bounds)
+        << ReturnBounds << ReturnBounds->getSourceRange();
     }
 
     // UpdateBoundsAfterAssignment updates the observed bounds context after
     // an lvalue expression LValue is modified via an assignment E of the form
     // LValue = Src, based on the state before the assignment.
     // It also returns updated bounds for Src.
+    //
+    // LValueAbstractSet is the AbstractSet (if any) that contains LValue.
+    // This AbstractSet will only be non-null if LValue has (non-unknown)
+    // target bounds. If LValueAbstractSet is non-null, it is used as the key
+    // in State.ObservedBounds to record the observed bounds of LValue.
     //
     // If LValue is a member expression, the observed bounds context will
     // include the updated bounds for each member expression whose target
@@ -4561,48 +4937,65 @@ namespace {
     // have all occurrences of LValue replaced with OriginalValue.
     // If OriginalValue is null, bounds in the observed bounds context
     // that use the value of LValue are set to bounds(unknown).
-    BoundsExpr *UpdateBoundsAfterAssignment(Expr *LValue, Expr *E,
-                                            Expr *Src, BoundsExpr *SrcBounds,
+    BoundsExpr *UpdateBoundsAfterAssignment(Expr *LValue,
+                                            const AbstractSet *LValueAbstractSet,
+                                            Expr *E, Expr *Src,
+                                            BoundsExpr *SrcBounds,
                                             Expr *OriginalValue,
                                             CheckedScopeSpecifier CSS,
                                             CheckingState &State) {
-      // If LValue is a member expression, get the set of AbstractSets whose
-      // target bounds depend on LValue. The observed bounds of each of these
-      // AbstractSets are recorded in ObservedBounds.
-      MemberExpr *M = dyn_cast<MemberExpr>(LValue);
+      // If LValue is associated with a member expression (i.e. the assignment
+      // to LValue means that a member expression is being used to write to
+      // memory), get the set of AbstractSets whose target bounds depend on
+      // LValue. The observed bounds of each of these AbstractSets are recorded
+      // in ObservedBounds. If they are not already present in ObservedBounds,
+      // their observed bounds are initialized to their target bounds.
+      MemberExpr *M = GetAssignmentTargetMemberExpr(LValue);
       if (M) {
         AbstractSetSetTy AbstractSets;
-        SynthesizeMembers(M, M, CSS, AbstractSets);
+        SynthesizeMembers(M, LValue, CSS, AbstractSets);
 
         if (DumpSynthesizedMembers)
           DumpSynthesizedMemberAbstractSets(llvm::outs(), AbstractSets);
 
         for (const AbstractSet *A : AbstractSets) {
-          BoundsExpr *TargetBounds =
-            S.GetLValueDeclaredBounds(A->GetRepresentative(), CSS);
-          State.ObservedBounds[A] = TargetBounds;
+          // We only set the observed bounds of A to the target bounds of A
+          // if A is not already present in ObservedBounds. If A is already
+          // present in ObservedBounds, then there was an assignment in the
+          // current top-level statement (or bundled block) that updated the
+          // observed bounds of A. These observed bounds may or may not depend
+          // on LValue. If A currently has observed bounds that do not use the
+          // value of LValue, then the current assignment to LValue should
+          // have no effect on the observed bounds of A.
+          if (!State.ObservedBounds.count(A)) {
+            State.ObservedBounds[A] =
+              S.GetLValueDeclaredBounds(A->GetRepresentative(), CSS);
+          }
         }
       }
 
-      // Determine whether LValue has (non-unknown) target bounds.
-      const AbstractSet *LValueAbstractSet = nullptr;
-      BoundsExpr *TargetBounds = S.GetLValueDeclaredBounds(LValue, CSS);
-      bool HasTargetBounds = TargetBounds && !TargetBounds->isUnknown();
-
-      // If LValue has target bounds, the initial observed bounds of LValue
-      // are SrcBounds. These bounds will be updated to account for any uses
-      // of LValue below.
-      if (HasTargetBounds) {
-        LValueAbstractSet = AbstractSetMgr.GetOrCreateAbstractSet(LValue);
+      // If LValue belongs to an AbstractSet, the initial observed bounds of
+      // LValue are SrcBounds. These bounds will be updated to account for
+      // any uses of LValue below.
+      BoundsExpr *PrevLValueBounds = nullptr;
+      if (LValueAbstractSet) {
+        PrevLValueBounds = State.ObservedBounds[LValueAbstractSet];
         State.ObservedBounds[LValueAbstractSet] = SrcBounds;
-      }
 
-      // If Src initially has unknown bounds (before making any lvalue
-      // replacements), use Src to explain bounds checking errors that
-      // can occur when validating the bounds context.
-      if (HasTargetBounds) {
-        if (SrcBounds->isUnknown())
-          State.UnknownSrcBounds[LValueAbstractSet].push_back(Src);
+        // In an unchecked scope, if an expression with checked pointer type
+        // is assigned to an unchecked pointer LValue (whose bounds are
+        // declared via a bounds-safe interface), bounds validation should
+        // validate the bounds of LValue after the current top-level statement.
+        // For unchecked pointer LValues that were not assigned a checked
+        // pointer expression during the current top-level statement, bounds
+        // validation should skip validating the bounds of LValue.
+        if (CSS == CheckedScopeSpecifier::CSS_Unchecked) {
+          if (!LValue->getType()->isCheckedPointerType() &&
+              !LValue->getType()->isCheckedArrayType()) {
+            if (IsBoundsSafeInterfaceAssignment(LValue->getType(), Src))
+              State.LValuesAssignedChecked.insert(LValueAbstractSet);
+          }
+        }
       }
 
       // Adjust ObservedBounds to account for any uses of LValue in the bounds.
@@ -4629,24 +5022,37 @@ namespace {
 
       // Adjust SrcBounds to account for any uses of LValue.
       BoundsExpr *AdjustedSrcBounds = nullptr;
-      // If LValue has target bounds, then the observed bounds of LValue
-      // are already SrcBounds adjusted to account for any use of LValue.
-      if (HasTargetBounds)
+      // If LValue belongs to an AbstractSet, then the observed bounds of
+      // LValue are already SrcBounds adjusted to account for any uses of
+      // LValue.
+      if (LValueAbstractSet)
         AdjustedSrcBounds = State.ObservedBounds[LValueAbstractSet];
       else
         AdjustedSrcBounds =
           BoundsUtil::ReplaceLValueInBounds(S, SrcBounds, LValue,
                                             OriginalValue, CSS);
 
-      // Record that E updates the observed bounds of LValue.
-      if (HasTargetBounds)
+      // If the updated observed bounds of LValue are different than the
+      // previous observed bounds of LValue, record that E updates the
+      // observed bounds of LValue.
+      // We can check this cheaply because ReplaceLValueInBounds returns
+      // PrevLValueBounds as AdjustedSrcBounds if the previous observed
+      // bounds of LValue were not adjusted.
+      if (LValueAbstractSet && PrevLValueBounds != AdjustedSrcBounds) {
         State.BlameAssignments[LValueAbstractSet] = E;
+
+        // If the original bounds of Src (before replacing LValue) were
+        // unknown, record that the expression Src with unknown bounds was
+        // assigned to LValue.
+        if (SrcBounds->isUnknown())
+          State.UnknownSrcBounds[LValueAbstractSet] = Src;
+      }
 
       // If the initial source bounds were not unknown, but they are unknown
       // after replacing uses of LValue, then the assignment to LValue caused
       // the source bounds (which are the observed bounds for LValue) to be
       // unknown.
-      if (HasTargetBounds) {
+      if (LValueAbstractSet) {
         if (!SrcBounds->isUnknown() && AdjustedSrcBounds->isUnknown())
           State.LostLValues[LValueAbstractSet] =
             std::make_pair(SrcBounds, LValue);
@@ -4684,54 +5090,82 @@ namespace {
       }
     }
 
-    // UpdateSameValue updates the set of expressions that produce the
-    // same value as the source of an assignment, after an assignment
-    // that modifies the expression LValue.
+    // UpdateSameValueAfterAssignment updates the set of expressions that
+    // produce the same value as the source of an assignment, after an
+    // assignment that modifies the expression LValue.
     //
     // OriginalValue is the value of LValue before the assignment.
-    void UpdateSameValueAfterAssignment(Expr *LValue, Expr *OriginalValue,
+    // OriginalValueUsesLValue is true if OriginalValue uses the value of
+    // LValue. If this is true, then any expressions in SameValue that use
+    // the value of LValue are removed from SameValue.
+    //
+    // UpdateSameValueAfterAssignment returns true if no expressions were
+    // removed from SameValue, i.e. if no expressions in SameValue used the
+    // value of LValue.
+    bool UpdateSameValueAfterAssignment(Expr *LValue, Expr *OriginalValue,
                                         bool OriginalValueUsesLValue,
                                         CheckedScopeSpecifier CSS,
                                         CheckingState &State) {
-      // Adjust SameValue to account for any uses of LValue in PrevSameValue.
-      // If the original value uses the value of V, then any expressions that
-      // use the value of V should be removed from SameValue.
+      bool RemovedAnyExprs = false;
+      const ExprSetTy PrevSameValue = State.SameValue;
+      State.SameValue.clear();
+
+      // Determine the expression (if any) to be used as the replacement for
+      // LValue in expressions in SameValue.
+      // If the original value uses the value of LValue, then any expressions
+      // that use the value of LValue should be removed from SameValue.
       // For example, in the assignment i = i + 2, where the original value
       // of i is i - 2, the expression i + 2 in SameValue should be removed
       // rather than replaced with (i - 2) + 2.
-      // Otherwise, SameValue would contain (i - 2) + 2 and i, which is a
-      // tautology.
-      const ExprSetTy PrevSameValue = State.SameValue;
-      State.SameValue.clear();
-      Expr *OriginalSameValueVal = OriginalValueUsesLValue ? nullptr : OriginalValue;
+      // Otherwise, RecordEqualityWithTarget would record equality between
+      // (i - 2) + 2 and i, which is a tautology.
+      Expr *LValueReplacement = OriginalValueUsesLValue ? nullptr : OriginalValue;
+
       for (auto I = PrevSameValue.begin(); I != PrevSameValue.end(); ++I) {
         Expr *E = *I;
         Expr *AdjustedE = BoundsUtil::ReplaceLValue(S, E, LValue,
-                                                    OriginalSameValueVal, CSS);
+                                                    LValueReplacement, CSS);
+        if (!AdjustedE)
+          RemovedAnyExprs = true;
         // Don't add duplicate expressions to SameValue.
         if (AdjustedE && !EqualExprsContainsExpr(State.SameValue, AdjustedE))
           State.SameValue.push_back(AdjustedE);
       }
+
+      return !RemovedAnyExprs;
     }
 
     // RecordEqualityWithTarget updates the checking state to record equality
     // implied by an assignment or initializer of the form LValue = Src,
     // where Target is an rvalue expression that is the value of LValue.
     //
+    // AllowTempEquality is true if it is permissible to record temporary
+    // equality between Target and Src in State.TargetSrcEquality if necessary.
+    // The purpose of TargetSrcEquality is to record equality between target
+    // and source expressions only for checking bounds after the current
+    // statement (unlike State.EquivExprs, this equality does not persist
+    // across statements). However, not all target/source pairs should be added
+    // to TargetSrcEquality. For example, in an assignment x = x + 1, SameValue
+    // will be empty since x + 1 uses the value of x. However, x => x + 1
+    // should not be added to TargetSrcEquality.
+    //
     // State.SameValue is assumed to contain expressions that produce the same
-    // value as Source.
+    // value as Src.
     void RecordEqualityWithTarget(Expr *LValue, Expr *Target, Expr *Src,
+                                  bool AllowTempEquality,
                                   CheckingState &State) {
       if (!LValue)
         return;
       LValue = LValue->IgnoreParens();
 
-      // Certain kinds of expressions (e.g. member expressions) are not allowed
-      // to be included in EquivExprs. For these expressions, we record
-      // temporary equality between Target and Src in TargetSrcEquality instead
-      // of in EquivExprs. If Src is allowed in EquivExprs, SameValue will
-      // contain at least one expression that produces the same value as Src.
-      bool TargetAllowedInEquivExprs = !isa<MemberExpr>(LValue);
+      // Certain kinds of expressions (e.g. member expressions,
+      // pointer dereferences, array subscripts, etc.) are not allowed to be
+      // included in EquivExprs. For these expressions, we record temporary
+      // equality (if permitted by AllowTempEquality) between Target and Src
+      // in TargetSrcEquality instead of in EquivExprs. If Src is allowed in
+      // EquivExprs, SameValue will contain at least one expression that
+      // produces the same value as Src.
+      bool TargetAllowedInEquivExprs = isa<DeclRefExpr>(LValue);
       bool SrcAllowedInEquivExprs = State.SameValue.size() > 0;
 
       // For expressions that are allowed in EquivExprs, try to add Target
@@ -4768,7 +5202,8 @@ namespace {
       // This temporary equality information will be used to validate the
       // bounds context after checking the current top-level CFG statement,
       // but does not persist across checking CFG statements.
-      if (Src && (!TargetAllowedInEquivExprs || !SrcAllowedInEquivExprs)) {
+      if (AllowTempEquality && Src &&
+          (!TargetAllowedInEquivExprs || !SrcAllowedInEquivExprs)) {
         CHKCBindTemporaryExpr *Temp = GetTempBinding(Src);
         if (Temp)
           State.TargetSrcEquality[Target] = CreateTemporaryUse(Temp);
@@ -5182,10 +5617,46 @@ namespace {
       }
     }
 
+    // GetAssignmentTargetMemberExpr returns the member expression, if any,
+    // that is associated with the expression e, where e is the target of
+    // an assignment. e is associated with a member expression m if:
+    // 1. e is of the form m, or:
+    // 2. e is of the form (T)e1 and e1 is associated with m (note that this
+    //    includes implicit casts such as LValueToRValue(e1)), or:
+    // 3. e is of the form *e1 and e1 is associated with m, or:
+    // 4. e is of the form base[index] or index[base] and base is associated
+    //    with m, or:
+    // 5. e is of the form p OP e1 or e1 OP p and p is associated with m,
+    //    where OP is any binary operator and p has pointer type.
+    MemberExpr *GetAssignmentTargetMemberExpr(Expr *E) {
+      if (!E)
+        return nullptr;
+      Lexicographic Lex(S.Context, nullptr);
+      E = Lex.IgnoreValuePreservingOperations(S.Context, E);
+      if (MemberExpr *M = dyn_cast<MemberExpr>(E))
+        return M;
+      else if (CastExpr *CE = dyn_cast<CastExpr>(E))
+        return GetAssignmentTargetMemberExpr(CE->getSubExpr());
+      else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
+        if (UO->getOpcode() == UnaryOperatorKind::UO_Deref)
+          return GetAssignmentTargetMemberExpr(UO->getSubExpr());
+      } else if (ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(E))
+        return GetAssignmentTargetMemberExpr(AS->getBase());
+      else if (BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
+        Expr *LHS = BO->getLHS();
+        Expr *RHS = BO->getRHS();
+        if (LHS->getType()->isPointerType())
+          return GetAssignmentTargetMemberExpr(LHS);
+        else if (RHS->getType()->isPointerType())
+          return GetAssignmentTargetMemberExpr(RHS);
+      }
+      return nullptr;
+    }
+
     // SynthesizeMembers modifies the set AbstractSets to include AbstractSets
-    // for member expressions whose target bounds use the value of the member
-    // expression M that is being modified via an assignment.
-    void SynthesizeMembers(Expr *E, MemberExpr *M, CheckedScopeSpecifier CSS,
+    // for member expressions whose target bounds use the value of the lvalue
+    // expression LValue that is being modified via an assignment.
+    void SynthesizeMembers(Expr *E, Expr *LValue, CheckedScopeSpecifier CSS,
                            AbstractSetSetTy &AbstractSets) {
       if (!E)
         return;
@@ -5199,17 +5670,17 @@ namespace {
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass: {
           CastExpr *CE = cast<CastExpr>(E);
-          SynthesizeMembers(CE->getSubExpr(), M, CSS, AbstractSets);
+          SynthesizeMembers(CE->getSubExpr(), LValue, CSS, AbstractSets);
           return;
         }
         case Expr::UnaryOperatorClass: {
           UnaryOperator *UO = cast<UnaryOperator>(E);
-          SynthesizeMembers(UO->getSubExpr(), M, CSS, AbstractSets);
+          SynthesizeMembers(UO->getSubExpr(), LValue, CSS, AbstractSets);
           return;
         }
         case Expr::ArraySubscriptExprClass: {
           ArraySubscriptExpr *AE = cast<ArraySubscriptExpr>(E);
-          SynthesizeMembers(AE->getBase(), M, CSS, AbstractSets);
+          SynthesizeMembers(AE->getBase(), LValue, CSS, AbstractSets);
           return;
         }
         case Expr::BinaryOperatorClass: {
@@ -5217,9 +5688,9 @@ namespace {
           Expr *LHS = BO->getLHS();
           Expr *RHS = BO->getRHS();
           if (LHS->getType()->isPointerType())
-            SynthesizeMembers(LHS, M, CSS, AbstractSets);
+            SynthesizeMembers(LHS, LValue, CSS, AbstractSets);
           if (RHS->getType()->isPointerType())
-            SynthesizeMembers(RHS, M, CSS, AbstractSets);
+            SynthesizeMembers(RHS, LValue, CSS, AbstractSets);
           return;
         }
         default:
@@ -5250,7 +5721,7 @@ namespace {
             ExprCreatorUtil::CreateMemberExpr(S, Base, F, ME->isArrow());
           ++S.CheckedCStats.NumSynthesizedMemberExprs;
           BoundsExpr *Bounds = MemberExprTargetBounds(BaseF, CSS);
-          if (ExprUtil::FindLValue(S, M, Bounds)) {
+          if (ExprUtil::FindLValue(S, LValue, Bounds)) {
             const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(BaseF);
             AbstractSets.insert(A);
             ++S.CheckedCStats.NumSynthesizedMemberAbstractSets;
@@ -5258,7 +5729,7 @@ namespace {
         }
       }
 
-      SynthesizeMembers(Base, M, CSS, AbstractSets);
+      SynthesizeMembers(Base, LValue, CSS, AbstractSets);
     }
 
     // This describes an empty range. We use this where semantically the value
@@ -5628,42 +6099,28 @@ namespace {
         case CastKind::CK_BooleanToSignedIntegral:
           return RValueBounds;
         case CastKind::CK_LValueToRValue: {
-          // For an rvalue cast of a variable v, if v has observed bounds,
-          // the rvalue bounds of the value of v should be the observed bounds.
-          // This also accounts for variables that have widened bounds.
-          if (DeclRefExpr *V = VariableUtil::GetRValueVariable(S, E)) {
-            if (const VarDecl *D = dyn_cast_or_null<VarDecl>(V->getDecl())) {
-              if (D->hasBoundsExpr()) {
-                const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
-                auto It = State.ObservedBounds.find(A);
-                if (It != State.ObservedBounds.end())
-                  return It->second;
-              }
-            }
-          }
-          // If an lvalue to rvalue cast e is not the value of a variable
-          // with observed bounds, the rvalue bounds of e default to the
-          // given target bounds.
+          // For an LValueToRValue cast of an lvalue expression LValue, if
+          // LValue has observed bounds, the rvalue bounds of the value of
+          // LValue should be the observed bounds. This also accounts for
+          // variables that have widened bounds, since widened bounds for
+          // variables are recorded in State.ObservedBounds.
+          if (BoundsExpr *ObservedBounds = GetLValueObservedBounds(E->getSubExpr(), State))
+            return ObservedBounds;
+          // If LValue has no recorded observed bounds, the rvalue bounds of
+          // LValueToRValue(LValue) default to the target bounds of LValue.
           return TargetBounds;
         }
         case CastKind::CK_ArrayToPointerDecay: {
-          // For an array to pointer cast of a variable v, if v has observed
-          // bounds, the rvalue bounds of the value of v should be the observed
-          // bounds. This also accounts for variables with array type that have
-          // widened bounds.
-          if (DeclRefExpr *V = VariableUtil::GetRValueVariable(S, E)) {
-            if (const VarDecl *D = dyn_cast_or_null<VarDecl>(V->getDecl())) {
-              if (D->hasBoundsExpr()) {
-                const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(V);
-                auto It = State.ObservedBounds.find(A);
-                if (It != State.ObservedBounds.end())
-                  return It->second;
-              }
-            }
-          }
-          // If an array to pointer cast e is not the value of a variable
-          // with observed bounds, the rvalue bounds of e default to the
-          // given lvalue bounds.
+          // For an array to pointer cast of an lvalue expression LValue, if
+          // LValue has observed bounds, the rvalue bounds of the value of
+          // LValue should be the observed bounds. This also accounts for
+          // variables that have widened bounds, since widened bounds for
+          // variables are recorded in State.ObservedBounds.
+          if (BoundsExpr *ObservedBounds = GetLValueObservedBounds(E->getSubExpr(), State))
+            return ObservedBounds;
+          // If LValue has no recorded observed bounds, the rvalue bounds of
+          // ArrayToPointerDecay(LValue) default to the lvalue bounds of
+          // LValue.
           return LValueBounds;
         }
         case CastKind::CK_DynamicPtrBounds:
@@ -5672,6 +6129,28 @@ namespace {
         default:
           return BoundsUtil::CreateBoundsAlwaysUnknown(S);
       }
+    }
+
+    // If LValue belongs to an AbstractSet that has observed bounds recorded
+    // in State.ObservedBounds, GetLValueObservedBounds returns the observed
+    // bounds for the rvalue expression produced by LValue as recorded in
+    // State.ObservedBounds. Otherwise, GetLValueObservedBounds returns null.
+    BoundsExpr *GetLValueObservedBounds(Expr *LValue, CheckingState State) {
+      Lexicographic Lex(S.Context, nullptr);
+      LValue = Lex.IgnoreValuePreservingOperations(S.Context, LValue);
+
+      // Only variables, member expressions, pointer dereferences, and
+      // array subscripts have bounds recorded in State.ObservedBounds.
+      if (!isa<DeclRefExpr>(LValue) && !isa<MemberExpr>(LValue) &&
+          !ExprUtil::IsDereferenceOrSubscript(LValue))
+        return nullptr;
+
+      const AbstractSet *A = AbstractSetMgr.GetOrCreateAbstractSet(LValue);
+      auto It = State.ObservedBounds.find(A);
+      if (It != State.ObservedBounds.end())
+        return It->second;
+
+      return nullptr;
     }
 
     // Compute the bounds of a call expression.  Call expressions always
@@ -6134,7 +6613,7 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   BO.AddLifetime = true;
   BO.AddNullStmt = true;
   std::unique_ptr<CFG> Cfg = CFG::buildCFG(nullptr, Body, &getASTContext(), BO);
-  CheckBoundsDeclarations Checker(*this, Info, Body, Cfg.get(), FD->getBoundsExpr(), EmptyFacts);
+  CheckBoundsDeclarations Checker(*this, Info, Body, Cfg.get(), FD, EmptyFacts);
   if (Cfg != nullptr) {
     AvailableFactsAnalysis Collector(*this, Cfg.get());
     Collector.Analyze();

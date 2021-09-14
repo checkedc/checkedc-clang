@@ -168,14 +168,14 @@ void PreorderAST::CreateUnaryOperator(UnaryOperator *E, Node *Parent) {
 }
 
 void PreorderAST::CreateArraySubscript(ArraySubscriptExpr *E, Node *Parent) {
-  // e1[e2] has the same canonical form as *(e1 + e2).
+  // e1[e2] has the same canonical form as *(e1 + e2 + 0).
   auto *DerefExpr = BinaryOperator::Create(Ctx, E->getBase(), E->getIdx(),
                                            BinaryOperatorKind::BO_Add, E->getType(),
                                            E->getValueKind(), E->getObjectKind(),
                                            E->getExprLoc(), FPOptionsOverride());
   auto *N = new UnaryOperatorNode(UnaryOperatorKind::UO_Deref, Parent);
   AttachNode(N, Parent);
-  Create(DerefExpr, N);
+  AddZero(DerefExpr, N);
 }
 
 void PreorderAST::CreateMember(MemberExpr *E, Node *Parent) {

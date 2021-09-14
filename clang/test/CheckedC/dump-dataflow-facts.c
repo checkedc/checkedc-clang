@@ -187,7 +187,7 @@ _Nt_array_ptr<int> fn_5(int a) {
     return 0;
 
   _Nt_array_ptr<int> p : byte_count(d) = g(a);
-  return p;
+  return 0;
 
 // CHECK-LABEL: fn_5
 // CHECK-NEXT: Block #4: {
@@ -216,7 +216,7 @@ _Nt_array_ptr<int> fn_6(int a) {
   int d;
   if (d <= a) {
     _Nt_array_ptr<int> p : byte_count(d) = g(a);
-    return p;
+    return 0;
   }
   return 0;
 

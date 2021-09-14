@@ -2199,7 +2199,8 @@ private:
   StmtResult ParseCompoundStatementBody(bool isStmtExpr = false,
                                         CheckedScopeSpecifier WrittenCSS = CSS_None,
                                         SourceLocation CSSLoc = SourceLocation(),
-                                        SourceLocation CSMLoc = SourceLocation());
+                                        SourceLocation CSMLoc = SourceLocation(),
+                                        SourceLocation BNDLoc = SourceLocation());
 
   bool ParseParenExprOrCondition(StmtResult *InitStmt,
                                  Sema::ConditionResult &CondResult,

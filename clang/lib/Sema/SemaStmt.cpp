@@ -405,7 +405,8 @@ StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
                                    ArrayRef<Stmt *> Elts, bool isStmtExpr,
                                    CheckedScopeSpecifier WrittenCSS,
                                    SourceLocation CSSLoc,
-                                   SourceLocation CSMLoc) {
+                                   SourceLocation CSMLoc,
+                                   SourceLocation BNDLoc) {
   const unsigned NumElts = Elts.size();
 
   // If we're in C89 mode, check that we don't have any decls after stmts.  If
@@ -436,8 +437,68 @@ StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
       DiagnoseEmptyLoopBody(Elts[i], Elts[i + 1]);
   }
 
+  // Get the inferred checked scope specifier for this compound statement.
+  CheckedScopeSpecifier InferredCSS = GetCheckedScopeInfo();
+
+  bool IsBundledBlk = BNDLoc.isValid();
+  bool ValidBundledBlk = IsBundledBlk;
+  Stmt *FirstStmtOfBndBlk = nullptr;
+  Stmt *LastStmtOfBndBlk = nullptr;
+  SourceLocation LocOfInvalidStmt;
+
+  for (Stmt *S : Elts) {
+    if (!S)
+      continue;
+
+    if (IsBundledBlk && ValidBundledBlk) {
+
+      // A valid bundled block can contain only DeclStmts and ExpressionStmts.
+      if (!isa<DeclStmt>(S)) {
+        if (!isa<ValueStmt>(S))
+          ValidBundledBlk = false;
+        else if (isa<LabelStmt>(S) || isa<AttributedStmt>(S))
+          ValidBundledBlk = false;
+      }
+
+      // If the bundled block is invalid, remember the source location of the
+      // first invalid statement in the bundled block.
+      if (!ValidBundledBlk) {
+        if (LocOfInvalidStmt.isInvalid())
+          LocOfInvalidStmt = S->getBeginLoc();
+      }
+      else {
+        // Record the first and last statements of the bundled block.
+        if (!FirstStmtOfBndBlk)
+          FirstStmtOfBndBlk = S;
+        LastStmtOfBndBlk = S;
+      }
+    }
+
+    if (auto *L = dyn_cast<LabelStmt>(S))
+      S = L->getSubStmt();
+    // Set the checked scope specifiers for all statements that are part of
+    // this compound statement.
+    S->setCheckedScopeSpecifier(InferredCSS);
+  }
+
+  if (IsBundledBlk) {
+    if (!ValidBundledBlk)
+      Diag(LocOfInvalidStmt,
+           diag::err_bundled_blk_can_contain_only_decl_value_stmts);
+    else if (FirstStmtOfBndBlk && LastStmtOfBndBlk) {
+      if (auto *VS = dyn_cast<ValueStmt>(FirstStmtOfBndBlk))
+        VS->markFirstStmtOfBundledBlk();
+      else if (auto *DS = dyn_cast<DeclStmt>(FirstStmtOfBndBlk))
+        DS->markFirstStmtOfBundledBlk();
+      if (auto *VS = dyn_cast<ValueStmt>(LastStmtOfBndBlk))
+        VS->markLastStmtOfBundledBlk();
+      else if (auto *DS = dyn_cast<DeclStmt>(LastStmtOfBndBlk))
+        DS->markLastStmtOfBundledBlk();
+    }
+  }
+
   return CompoundStmt::Create(Context, Elts, L, R, WrittenCSS,
-                              GetCheckedScopeInfo(), CSSLoc, CSMLoc);
+                              InferredCSS, CSSLoc, CSMLoc, BNDLoc);
 }
 
 ExprResult

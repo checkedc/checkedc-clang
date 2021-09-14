@@ -102,8 +102,10 @@ protected:
 
     /// The statement class.
     unsigned sClass : 8;
+    /// The checked scope specifier for the statement.
+    unsigned CSS : 2;
   };
-  enum { NumStmtBits = 8 };
+  enum { NumStmtBits = 10 };
 
   class NullStmtBitfields {
     friend class ASTStmtReader;
@@ -1207,6 +1209,14 @@ public:
 
   const char *getStmtClassName() const;
 
+  CheckedScopeSpecifier getCheckedScopeSpecifier() const {
+    return static_cast<CheckedScopeSpecifier>(StmtBits.CSS);
+  }
+
+  void setCheckedScopeSpecifier(CheckedScopeSpecifier CSS) {
+    StmtBits.CSS = CSS;
+  }
+
   /// SourceLocation tokens are not useful in isolation - they are low level
   /// value objects created/interpreted by SourceManager. We assume AST
   /// clients will have a pointer to the respective SourceManager.
@@ -1326,6 +1336,17 @@ public:
   void ProcessODRHash(llvm::FoldingSetNodeID &ID, ODRHash& Hash) const;
 };
 
+/// Checked C
+/// A Bitfield to indicate the position of a statement within a bundle.
+class BundlePositionBitfield {
+  friend class DeclStmt;
+  friend class ValueStmt;
+
+  unsigned char FirstStmt : 1;
+  unsigned char LastStmt : 1;
+};
+
+
 /// DeclStmt - Adaptor class for mixing declarations with statements and
 /// expressions. For example, CompoundStmt mixes statements, expressions
 /// and declarations (variables, types). Another example is ForStmt, where
@@ -1333,13 +1354,20 @@ public:
 class DeclStmt : public Stmt {
   DeclGroupRef DG;
   SourceLocation StartLoc, EndLoc;
+  BundlePositionBitfield PosInBundle;
 
 public:
   DeclStmt(DeclGroupRef dg, SourceLocation startLoc, SourceLocation endLoc)
-      : Stmt(DeclStmtClass), DG(dg), StartLoc(startLoc), EndLoc(endLoc) {}
+      : Stmt(DeclStmtClass), DG(dg), StartLoc(startLoc), EndLoc(endLoc) {
+    PosInBundle.FirstStmt = 0;
+    PosInBundle.LastStmt = 0;
+  }
 
   /// Build an empty declaration statement.
-  explicit DeclStmt(EmptyShell Empty) : Stmt(DeclStmtClass, Empty) {}
+  explicit DeclStmt(EmptyShell Empty) : Stmt(DeclStmtClass, Empty) {
+    PosInBundle.FirstStmt = 0;
+    PosInBundle.LastStmt = 0;
+  }
 
   /// isSingleDecl - This method returns true if this DeclStmt refers
   /// to a single Decl.
@@ -1355,6 +1383,11 @@ public:
   void setStartLoc(SourceLocation L) { StartLoc = L; }
   SourceLocation getEndLoc() const { return EndLoc; }
   void setEndLoc(SourceLocation L) { EndLoc = L; }
+
+  void markFirstStmtOfBundledBlk() { PosInBundle.FirstStmt = 1; }
+  bool isFirstStmtOfBundledBlk() const { return PosInBundle.FirstStmt == 1; }
+  void markLastStmtOfBundledBlk() { PosInBundle.LastStmt = 1; }
+  bool isLastStmtOfBundledBlk() const { return PosInBundle.LastStmt == 1; }
 
   SourceLocation getBeginLoc() const LLVM_READONLY { return StartLoc; }
 
@@ -1475,14 +1508,18 @@ class CompoundStmt final : public Stmt,
   // Checked scope modifier (_Bounds_only) location.
   SourceLocation CSMLoc;
 
+  // Bundled keyword (_Bundled) location.
+  SourceLocation BNDLoc;
+
   CompoundStmt(ArrayRef<Stmt *> Stmts, SourceLocation LB, SourceLocation RB,
                CheckedScopeSpecifier WrittenCSS = CSS_None,
                CheckedScopeSpecifier CSS = CSS_Unchecked,
                SourceLocation CSSLoc = SourceLocation(),
-               SourceLocation CSMLoc = SourceLocation());
+               SourceLocation CSMLoc = SourceLocation(),
+               SourceLocation BNDLoc = SourceLocation());
 
   explicit CompoundStmt(EmptyShell Empty) : Stmt(CompoundStmtClass, Empty),
-        WrittenCSS(CSS_None), CSS(CSS_Unchecked), CSSLoc(), CSMLoc() {}
+       WrittenCSS(CSS_None), CSS(CSS_Unchecked), CSSLoc(), CSMLoc(), BNDLoc() {}
 
   void setStmts(ArrayRef<Stmt *> Stmts);
 
@@ -1492,12 +1529,13 @@ public:
                CheckedScopeSpecifier WrittenCSS = CSS_None,
                CheckedScopeSpecifier CSS = CSS_Unchecked,
                SourceLocation CSSLoc = SourceLocation(),
-               SourceLocation CSMLoc = SourceLocation());
+               SourceLocation CSMLoc = SourceLocation(),
+               SourceLocation BNDLoc = SourceLocation());
 
   // Build an empty compound statement with a location.
   explicit CompoundStmt(SourceLocation Loc)
-      : Stmt(CompoundStmtClass), RBraceLoc(Loc),
-        WrittenCSS(CSS_None), CSS(CSS_Unchecked), CSSLoc(Loc), CSMLoc(Loc) {
+      : Stmt(CompoundStmtClass), RBraceLoc(Loc),  WrittenCSS(CSS_None),
+        CSS(CSS_Unchecked), CSSLoc(Loc), CSMLoc(Loc), BNDLoc(SourceLocation()) {
     CompoundStmtBits.NumStmts = 0;
     CompoundStmtBits.LBraceLoc = Loc;
   }
@@ -1519,6 +1557,7 @@ public:
   void setWrittenCheckedSpecifiers(CheckedScopeSpecifier NS) { WrittenCSS = NS; }
   void setCheckedSpecifiers(CheckedScopeSpecifier NS) { CSS = NS; }
   bool isCheckedScope() const { return CSS != CSS_Unchecked; }
+  bool isBundledStmt() const { return BNDLoc.isValid(); }
 
   using body_iterator = Stmt **;
   using body_range = llvm::iterator_range<body_iterator>;
@@ -1601,6 +1640,7 @@ public:
   SourceLocation getRBracLoc() const { return RBraceLoc; }
   SourceLocation getCheckedSpecifierLoc() const { return CSSLoc; }
   SourceLocation getSpecifierModifierLoc() const { return CSMLoc; }
+  SourceLocation getBundledSpecifierLoc() const { return BNDLoc; }
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == CompoundStmtClass;
@@ -1879,8 +1919,21 @@ protected:
 
 private:
   WhereClause *WClause = nullptr;
+  BundlePositionBitfield PosInBundle;
 
 public:
+  /// Build a value statement.
+  ValueStmt(StmtClass SC) : Stmt(SC) {
+    PosInBundle.FirstStmt = 0;
+    PosInBundle.LastStmt = 0;
+  }
+
+  /// Build an empty value statement.
+  explicit ValueStmt(StmtClass SC, EmptyShell Empty) : Stmt(SC, Empty) {
+    PosInBundle.FirstStmt = 0;
+    PosInBundle.LastStmt = 0;
+  }
+
   const Expr *getExprStmt() const;
   Expr *getExprStmt() {
     const ValueStmt *ConstThis = this;
@@ -1894,6 +1947,11 @@ public:
 
   void setWhereClause(WhereClause *WC) { WClause = WC; }
   WhereClause *getWhereClause() const { return WClause; }
+
+  void markFirstStmtOfBundledBlk() { PosInBundle.FirstStmt = 1; }
+  bool isFirstStmtOfBundledBlk() const { return PosInBundle.FirstStmt == 1; }
+  void markLastStmtOfBundledBlk() { PosInBundle.LastStmt = 1; }
+  bool isLastStmtOfBundledBlk() const { return PosInBundle.LastStmt == 1; }
 };
 
 /// LabelStmt - Represents a label, which has a substatement.  For example:

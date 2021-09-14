@@ -11386,6 +11386,10 @@ def err_bounds_type_annotation_lost_checking : Error<
     "argument has unknown bounds, bounds expected because the "
     "%ordinal0 parameter has bounds">;
 
+  def err_expected_bounds_for_return : Error<
+    "return value has unknown bounds, bounds expected because the "
+    "function %0 has bounds">;
+
   def err_initializer_expected_with_bounds : Error<
     "automatic variable %0 with bounds must have initializer">;
 
@@ -11507,7 +11511,7 @@ def err_bounds_type_annotation_lost_checking : Error<
     "variable arguments function cannot be made in a checked scope">;
 
   def err_checked_scope_no_variadic_func_for_expression : Error<
-    "cannot use a variable arguments function in a checked scope or function">;
+    "cannot use this variable arguments function in a checked scope or function">;
 
   def err_checked_scope_no_assume_bounds_casting : Error<
     "_Assume_bounds_cast not allowed in a checked scope or function">;
@@ -11519,6 +11523,15 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_checked_on_non_function : Error<
   "%select{'_Unchecked'|'_Checked _Bounds_only|'_Checked'}0 "
   "can only appear on functions">;
+
+  def err_checked_scope_invalid_format_specifier_argument : Error<
+    "in a checked scope %0 format specifier requires %1 argument">;
+
+  def err_checked_scope_scanf_width : Error<
+    "in a checked scope width is not allowed with format specifier in scanf">;
+
+  def err_checked_scope_disallowed_format_specifier : Error<
+    "in a checked scope %0 format specifier is not allowed %1">;
 
   def err_pragma_pop_checked_scope_mismatch : Error<
   "#pragma CHECKED_SCOPE pop with no matching #pragma CHECKED_SCOPE push">;
@@ -11619,8 +11632,32 @@ def err_bounds_type_annotation_lost_checking : Error<
   def error_static_cast_bounds_invalid : Error<
     "cast source bounds are too narrow for %0">;
 
+  def error_modified_return_bounds : Error<
+    "modified expression '%0' used in the declared return bounds for %1">;
+
+  def error_return_bounds_invalid : Error<
+    "return value bounds do not imply declared return bounds for %0">;
+
+  def error_return_bounds_unprovable: Error<
+    "it is not possible to prove that return value bounds "
+    "imply declared return bounds for %0">;
+
+  def warn_return_bounds_invalid: Warning<
+    "cannot prove return value bounds imply declared return bounds for %0">,
+    InGroup<CheckBoundsDeclsUnchecked>;
+
+  def warn_checked_scope_return_bounds_invalid : Warning<
+    "cannot prove return value bounds imply declared return bounds for %0">,
+    InGroup<CheckBoundsDeclsChecked>;
+
+  def note_declared_return_bounds : Note<
+    "(expanded) declared return bounds are '%0'">;
+
+  def note_inferred_return_bounds : Note<
+    "(expanded) inferred return value bounds are '%0'">;
+
   def error_out_of_bounds_access : Error<
-    "out-of-bounds %select{||memory access|base value}0">;
+    "out-of-bounds %select{|||memory access|base value}0">;
 
   def note_source_bounds_empty : Note<"source bounds are an empty range">;
 
@@ -11631,21 +11668,22 @@ def err_bounds_type_annotation_lost_checking : Error<
   def note_destination_bounds_invalid : Note<"destination bounds are an invalid range">;
 
   def note_bounds_too_narrow : Note<
-    "%select{destination bounds are|target bounds are|memory accessed is|"
-    "struct/union pointed to by base is}0 wider than the "
-    "%select{source|source||}0 bounds">;
+    "%select{destination bounds are|target bounds are|declared return bounds are|"
+    "memory accessed is|struct/union pointed to by base is|}0 wider "
+    "than the %select{source|source|return value|source|source}0 bounds">;
 
   def note_lower_out_of_bounds : Note<
-    "%select{destination lower bound is|target lower bound is|accesses memory|"
-    "base value is}0 below %select{source|source|the|its}0 lower bound">;
+    "%select{destination lower bound is|target lower bound is|"
+    "declared return lower bound is|accesses memory|base value is}0 "
+    "below %select{source|source|return value|the|its}0 lower bound">;
 
   def note_upper_out_of_bounds : Note<
     "%select{destination upper bound is|target upper bound is|"
-    "accesses memory at or|base value is}0 "
-    "above %select{source|source|the|its}0 upper bound">;
+    "declared return upper bound is|accesses memory at or|base value is}0 "
+    "above %select{source|source|return value|the|its}0 upper bound">;
 
    def note_bounds_partially_overlap : Note<
-    "%select{||accesses memory that|struct/union pointed to by base value}0 is "
+    "%select{|||accesses memory that|struct/union pointed to by base value}0 is "
     "only partially in bounds">;
 
   def no_prototype_generic_function : Error<
@@ -11679,6 +11717,79 @@ def err_bounds_type_annotation_lost_checking : Error<
   // See https://github.com/microsoft/checkedc-clang/issues/644
   def err_expanding_cycle : Error<
     "expanding cycle in struct definition">;
+
+  def err_bundled_blk_can_contain_only_decl_value_stmts : Error<
+    "a bundled block can contain only declarations and expression statements">;
+
+  // -Wformat warnings issued as errors in checked scope.
+  def err_format_nonliteral_noargs : Error<
+    "format string is not a string literal (potentially insecure)">;
+  def err_format_nonliteral : Error<
+    "format string is not a string literal">;
+  def err_printf_insufficient_data_args : Error<
+    "more '%%' conversions than data arguments">;
+  def err_printf_data_arg_not_used : Error<
+    "data argument not used by format string">;
+  def err_format_invalid_conversion : Error<
+    "invalid conversion specifier '%0'">;
+  def err_printf_incomplete_specifier : Error<
+    "incomplete format specifier">;
+  def err_missing_format_string : Error<
+    "format string missing">;
+  def err_scanf_nonzero_width : Error<
+    "zero field width in scanf format string is unused">;
+  def err_format_conversion_argument_type_mismatch : Error<
+    "format specifies type %0 but the argument has "
+    "%select{type|underlying type}2 %1">;
+  def err_format_conversion_argument_type_mismatch_pedantic : Error<
+    err_format_conversion_argument_type_mismatch.Text>;
+  def err_format_conversion_argument_type_mismatch_confusion : Error<
+    err_format_conversion_argument_type_mismatch.Text>;
+  def err_format_argument_needs_cast : Error<
+    "%select{values of type|enum values with underlying type}2 '%0' should not "
+    "be used as format arguments; add an explicit cast to %1 instead">;
+  def err_format_argument_needs_cast_pedantic : Error<
+    err_format_argument_needs_cast.Text>;
+  def err_printf_positional_arg_exceeds_data_args : Error <
+    "data argument position '%0' exceeds the number of data arguments (%1)">;
+  def err_format_invalid_positional_specifier : Error<
+    "invalid position specified for %select{field width|field precision}0">;
+  def err_format_mix_positional_nonpositional_args : Error<
+    "cannot mix positional and non-positional arguments in format string">;
+  def err_empty_format_string : Error<
+    "format string is empty">;
+  def err_format_string_is_wide_literal : Error<
+    "format string should not be a wide string">;
+  def err_printf_format_string_contains_null_char : Error<
+    "format string contains '\\0' within the string body">;
+  def err_printf_format_string_not_null_terminated : Error<
+    "format string is not null-terminated">;
+  def err_printf_asterisk_missing_arg : Error<
+    "'%select{*|.*}0' specified field %select{width|precision}0 is missing a matching 'int' argument">;
+  def err_printf_asterisk_wrong_type : Error<
+    "field %select{width|precision}0 should have type %1, but argument has type %2">;
+  def err_printf_nonsensical_optional_amount: Error<
+    "%select{field width|precision}0 used with '%1' conversion specifier, resulting in undefined behavior">;
+  def err_printf_nonsensical_flag: Error<
+    "flag '%0' results in undefined behavior with '%1' conversion specifier">;
+  def err_format_nonsensical_length: Error<
+    "length modifier '%0' results in undefined behavior or no effect with '%1' conversion specifier">;
+  def err_format_non_standard_positional_arg: Error<
+    "positional arguments are not supported by ISO C">;
+  def err_format_non_standard: Error<
+    "'%0' %select{length modifier|conversion specifier}1 is not supported by ISO C">;
+  def err_format_non_standard_conversion_spec: Error<
+    "using length modifier '%0' with conversion specifier '%1' is not supported by ISO C">;
+  def err_format_invalid_annotation : Error<
+    "using '%0' format specifier annotation outside of os_log()/os_trace()">;
+  def err_format_P_no_precision : Error<
+    "using '%%P' format specifier without precision">;
+  def err_printf_ignored_flag: Error<
+    "flag '%0' is ignored when flag '%1' is present">;
+  def err_scanf_scanlist_incomplete : Error<
+    "no closing ']' for '%%[' in scanf format string">;
+  def err_format_bool_as_character : Error<
+    "using '%0' format specifier, but argument has boolean value">;
 
 } // end of Checked C Category
 } // end of sema component.

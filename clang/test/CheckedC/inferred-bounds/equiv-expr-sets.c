@@ -1027,27 +1027,25 @@ void original_value11(array_ptr<int> p, array_ptr<int> q) {
   // CHECK-NEXT: }
   // CHECK-NEXT: }
 
-  // Original value of p in (_Array_ptr<int>&p[2]): (int *)p - 2
-  // Updated EquivExprs: { { (int *)p - 2 + 1, q } }
+  // Original value of p in &p[2]: p - 2
+  // Updated EquivExprs: { { p - 2 + 1, q } }
   p = &p[2];
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'p'
-  // CHECK-NEXT:   ImplicitCastExpr {{.*}} '_Array_ptr<int>' <BitCast>
-  // CHECK-NEXT:     UnaryOperator {{.*}} 'int *' prefix '&'
-  // CHECK-NEXT:       ArraySubscriptExpr {{.*}} 'int'
-  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:           DeclRefExpr {{.*}} 'p'
-  // CHECK-NEXT:         IntegerLiteral {{.*}} 2
+  // CHECK-NEXT:   UnaryOperator {{.*}} '_Array_ptr<int>' prefix '&'
+  // CHECK-NEXT:     ArraySubscriptExpr {{.*}} 'int'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 2
   // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: BinaryOperator {{.*}} '+'
   // CHECK-NEXT:   BinaryOperator {{.*}} '-'
-  // CHECK-NEXT:     ImplicitCastExpr {{.*}} 'int *' <BitCast>
-  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:         DeclRefExpr {{.*}} 'p'
-  // CHECK-NEXT:       IntegerLiteral {{.*}} 2
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 2
   // CHECK-NEXT:   IntegerLiteral {{.*}} 1
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'q'
@@ -1127,28 +1125,26 @@ void original_value13(array_ptr<int> p, array_ptr<int> q) {
   // CHECK-NEXT: }
   // CHECK-NEXT: }
 
-  // Original value of p in (_Array_ptr<int>)&0[&*p]: (int *)p - 0
-  // Updated EquivExprs: { { (int *)p - 0 + 1, q } }
+  // Original value of p in &0[&*p]: p - 0
+  // Updated EquivExprs: { { p - 0 + 1, q } }
   p = &0[&*p];
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'p'
-  // CHECK-NEXT:   ImplicitCastExpr {{.*}} '_Array_ptr<int>' <BitCast>
-  // CHECK-NEXT:     UnaryOperator {{.*}} 'int *' prefix '&'
-  // CHECK-NEXT:       ArraySubscriptExpr {{.*}} 'int'
-  // CHECK-NEXT:         IntegerLiteral {{.*}} 0
-  // CHECK-NEXT:         UnaryOperator {{.*}} '_Array_ptr<int>' prefix '&'
-  // CHECK-NEXT:           UnaryOperator {{.*}} '*'
-  // CHECK-NEXT:             ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:               DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:   UnaryOperator {{.*}} '_Array_ptr<int>' prefix '&'
+  // CHECK-NEXT:     ArraySubscriptExpr {{.*}} 'int'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 0
+  // CHECK-NEXT:       UnaryOperator {{.*}} '_Array_ptr<int>' prefix '&'
+  // CHECK-NEXT:         UnaryOperator {{.*}} '*'
+  // CHECK-NEXT:           ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:             DeclRefExpr {{.*}} 'p'
   // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: BinaryOperator {{.*}} '+'
   // CHECK-NEXT:   BinaryOperator {{.*}} '-'
-  // CHECK-NEXT:     ImplicitCastExpr {{.*}} 'int *' <BitCast>
-  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:         DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
   // CHECK-NEXT:     IntegerLiteral {{.*}} 0
   // CHECK-NEXT:   IntegerLiteral {{.*}} 1
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
