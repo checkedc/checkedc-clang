@@ -46,3 +46,27 @@ float* dar(struct foobar f) {
   //CHECK: _Ptr<float> dar(struct foobar f) {
   return f.ptr;
 }
+
+// Test a bug I found in canBeNtArray triggered by some specific types.
+// The P >= ARR constraint was incorrectly added to these variables, causing
+// them to solve to WILD instead of NTARR.
+
+void force_nt_arr(char *s : itype(_Nt_array_ptr<char>));
+
+void decayed_type(char s[10]) {
+//CHECK_NOALL: void decayed_type(char s[10]) {
+//CHECK_ALL: void decayed_type(char s _Nt_checked[10]) {
+  force_nt_arr(s);
+}
+
+void paren_type(char *(s)) {
+//CHECK_NOALL: void paren_type(char *(s) : itype(_Ptr<char>)) {
+//CHECK_ALL: void paren_type(_Nt_array_ptr<char> s) {
+  force_nt_arr(s);
+}
+
+void decayed_paren_type(char (s)[10]) {
+//CHECK_NOALL: void decayed_paren_type(char (s)[10]) {
+//CHECK_ALL: void decayed_paren_type(char s _Nt_checked[10]) {
+  force_nt_arr(s);
+}

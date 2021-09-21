@@ -640,10 +640,7 @@ bool AVarBoundsInfo::isValidBoundVariable(clang::Decl *D) {
   return false;
 }
 
-void AVarBoundsInfo::insertDeclaredBounds(clang::Decl *D, ABounds *B) {
-  assert(isValidBoundVariable(D) && "Declaration not a valid bounds variable");
-  BoundsKey BK;
-  tryGetVariable(D, BK);
+void AVarBoundsInfo::insertDeclaredBounds(BoundsKey BK, ABounds *B) {
   if (B != nullptr) {
     // If there is already bounds information, release it.
     removeBounds(BK);
@@ -654,6 +651,13 @@ void AVarBoundsInfo::insertDeclaredBounds(clang::Decl *D, ABounds *B) {
     InvalidBounds.insert(BK);
     BoundsInferStats.DeclaredButNotHandled.insert(BK);
   }
+}
+
+void AVarBoundsInfo::insertDeclaredBounds(clang::Decl *D, ABounds *B) {
+  assert(isValidBoundVariable(D) && "Declaration not a valid bounds variable");
+  BoundsKey BK;
+  tryGetVariable(D, BK);
+  insertDeclaredBounds(BK, B);
 }
 
 bool AVarBoundsInfo::tryGetVariable(clang::Decl *D, BoundsKey &R) {
@@ -1470,4 +1474,36 @@ std::set<BoundsKey> AVarBoundsInfo::getCtxSensFieldBoundsKey(Expr *E,
       Ret.insert(NewBK);
   }
   return Ret;
+}
+
+// Adds declared bounds for all constant sized arrays. This needs to happen
+// after constraint solving because the bounds for a _Nt_checked array and a
+// _Checked array are different even if they are written with the same length.
+// The Checked C bounds for a _Nt_checked array do not include the null
+// terminator, but the length as written in the source code does.
+void AVarBoundsInfo::addConstantArrayBounds(ProgramInfo &I) {
+  for (auto VarEntry : I.getVarMap()) {
+    if (auto *VarPCV = dyn_cast<PVConstraint>(VarEntry.second)) {
+      if (VarPCV->hasBoundsKey() && VarPCV->isConstantArr()) {
+        // Lookup the declared size of the array. This is known because it is
+        // written in the source and was stored during constraint generation.
+        unsigned int ConstantCount = VarPCV->getConstantArrSize();
+
+        // Check if this array solved to NTARR. If it did, subtract one from the
+        // length to account for the null terminator.
+        const EnvironmentMap &Env = I.getConstraints().getVariables();
+        if (VarPCV->isNtConstantArr(Env)) {
+          assert("Size zero constant array should not solve to NTARR" &&
+                 ConstantCount != 0);
+          ConstantCount--;
+        }
+
+        // Insert this as a declared constant count bound for the constraint
+        // variable.
+        BoundsKey CBKey = getConstKey(ConstantCount);
+        ABounds *NB = new CountBound(CBKey);
+        insertDeclaredBounds(VarPCV->getBoundsKey(), NB);
+      }
+    }
+  }
 }

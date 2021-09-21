@@ -209,9 +209,12 @@ bool isNullableType(const clang::QualType &QT) {
 }
 
 bool canBeNtArray(const clang::QualType &QT) {
-  if (const auto &Ptr = dyn_cast<clang::PointerType>(QT))
+  // First get the canonical type so that the following checks will not have to
+  // account for ParenType, DecayedType, or other variants used by clang.
+  QualType Canon = QT.getCanonicalType();
+  if (const auto &Ptr = dyn_cast<clang::PointerType>(Canon))
     return isNullableType(Ptr->getPointeeType());
-  if (const auto &Arr = dyn_cast<clang::ArrayType>(QT))
+  if (const auto &Arr = dyn_cast<clang::ArrayType>(Canon))
     return isNullableType(Arr->getElementType());
   return false;
 }

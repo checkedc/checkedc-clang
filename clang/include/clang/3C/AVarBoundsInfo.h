@@ -197,6 +197,8 @@ public:
   bool isValidBoundVariable(clang::Decl *D);
 
   void insertDeclaredBounds(clang::Decl *D, ABounds *B);
+  void insertDeclaredBounds(BoundsKey BK, ABounds *B);
+
   bool mergeBounds(BoundsKey L, BoundsPriority P, ABounds *B);
   bool removeBounds(BoundsKey L, BoundsPriority P = Invalid);
   bool replaceBounds(BoundsKey L, BoundsPriority P, ABounds *B);
@@ -289,6 +291,8 @@ public:
   // Check if the provided BoundsKey is for a function param?
   // If yes, provide the index of the parameter.
   bool isFuncParamBoundsKey(BoundsKey BK, unsigned &PIdx);
+
+  void addConstantArrayBounds(ProgramInfo &I);
 
 private:
   friend class AvarBoundsInference;

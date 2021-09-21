@@ -580,6 +580,12 @@ bool _3CInterface::solveConstraints() {
     dumpConstraintOutputJson(FINAL_OUTPUT_SUFFIX, GlobalProgramInfo);
 
   if (_3COpts.AllTypes) {
+    // Add declared bounds for all constant sized arrays. This needs to happen
+    // after constraint solving because the bound added depends on whether the
+    // array is NTARR or ARR.
+    GlobalProgramInfo.getABoundsInfo().addConstantArrayBounds(
+      GlobalProgramInfo);
+
     if (DebugArrSolver)
       GlobalProgramInfo.getABoundsInfo().dumpAVarGraph(
           "arr_bounds_initial.dot");

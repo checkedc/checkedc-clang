@@ -382,7 +382,7 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
             if (auto *PCV = dyn_cast<PVConstraint>(CV))
               // On the other hand, CheckedC does let you take the address of
               // constant sized arrays.
-              if (!PCV->getArrPresent())
+              if (!PCV->isConstantArr())
                 PCV->constrainOuterTo(CS, CS.getPtr(), true);
           // Add a VarAtom to UOExpr's PVConstraint, for &.
           Ret = std::make_pair(addAtomAll(T.first, CS.getPtr(), CS), T.second);

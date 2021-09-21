@@ -410,7 +410,6 @@ private:
 
 public:
   std::string getTy() const { return BaseType; }
-  bool getArrPresent() const;
   // Check if the outermost pointer is an unsized array.
   bool isTopAtomUnsizedArr() const;
   // Check if any of the pointers is either a sized or unsized arr.
@@ -531,6 +530,10 @@ public:
   bool hasWild(const EnvironmentMap &E, int AIdx = -1) const override;
   bool hasArr(const EnvironmentMap &E, int AIdx = -1) const override;
   bool hasNtArr(const EnvironmentMap &E, int AIdx = -1) const override;
+
+  bool isNtConstantArr(const EnvironmentMap &E) const;
+  bool isConstantArr() const;
+  unsigned long getConstantArrSize() const;
 
   void equateArgumentConstraints(ProgramInfo &I) override;
 
