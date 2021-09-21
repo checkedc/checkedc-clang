@@ -488,8 +488,8 @@ public:
   NTArrAtom *getNTArr() const;
   WildAtom *getWild() const;
   ConstAtom *getAssignment(Atom *A);
-  ConstraintsGraph &getChkCG();
-  ConstraintsGraph &getPtrTypCG();
+  const ConstraintsGraph &getChkCG() const;
+  const ConstraintsGraph &getPtrTypCG() const;
 
   void resetEnvironment();
   bool checkInitialEnvSanity();

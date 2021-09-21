@@ -406,35 +406,55 @@ private:
 // Class that represents a program variable along with its scope.
 class ProgramVar {
 public:
-  const ProgramVarScope *getScope() { return VScope; }
+  const ProgramVarScope *getScope() const { return VScope; }
   void setScope(const ProgramVarScope *PVS) { this->VScope = PVS; }
-  BoundsKey getKey() { return K; }
-  bool isNumConstant() { return IsConstant; }
-  std::string mkString(bool GetKey = false);
-  std::string getVarName() { return VarName; }
-  std::string verboseStr();
-  ProgramVar *makeCopy(BoundsKey NK);
-  virtual ~ProgramVar() {}
+  BoundsKey getKey() const { return K; }
+  const std::string &getVarName() const { return VarName; }
+  std::string verboseStr() const;
+  ProgramVar *makeCopy(BoundsKey NK) const;
+
+  bool isNumConstant() const {return IsConstant; }
+  uint64_t getConstantVal() const {
+    assert("Can't get constant value for non-constant var." && IsConstant);
+    return ConstantVal;
+  }
 
   static ProgramVar *createNewProgramVar(BoundsKey VK, std::string VName,
-                                         const ProgramVarScope *PVS,
-                                         bool IsCons = false);
+                                         const ProgramVarScope *PVS);
+
+  static ProgramVar *createNewConstantVar(BoundsKey VK, uint64_t Value);
 
 private:
   BoundsKey K;
   std::string VarName;
   const ProgramVarScope *VScope;
-  bool IsConstant; // is a literal integer, not a variable
+
+  // Is a literal integer, not a variable.
+  bool IsConstant;
+  uint64_t ConstantVal;
+
   // TODO: All the ProgramVars may not be used. We should try to figure out
   //  a way to free unused program vars.
-  static std::set<ProgramVar *> AllProgramVars;
+  static std::set<const ProgramVar *> AllProgramVars;
 
-  ProgramVar(BoundsKey VK, std::string VName, const ProgramVarScope *PVS,
-             bool IsCons)
-      : K(VK), VarName(VName), VScope(PVS), IsConstant(IsCons) {}
+  ProgramVar(BoundsKey K, const std::string &VarName,
+             const ProgramVarScope *VScope, bool IsConstant,
+             uint32_t ConstantVal)
+    : K(K), VarName(VarName), VScope(VScope), IsConstant(IsConstant),
+      ConstantVal(ConstantVal) {
+    // Constant variables should be a subclass of ProgramVariable. Until that
+    // change happens this should sanity check how ProgramVars are constructed.
+    assert("Constant value should not be set for non-constant variables." &&
+           (IsConstant || ConstantVal == 0));
+    AllProgramVars.insert(this);
+  }
 
   ProgramVar(BoundsKey VK, std::string VName, const ProgramVarScope *PVS)
-      : ProgramVar(VK, VName, PVS, false) {}
+    : ProgramVar(VK, VName, PVS, false, 0) {}
+
+  ProgramVar(BoundsKey VK, uint32_t CVal)
+    : ProgramVar(VK, std::to_string(CVal), GlobalScope::getGlobalScope(), true,
+                 CVal) {}
 };
 
 #endif // LLVM_CLANG_3C_PROGRAMVAR_H

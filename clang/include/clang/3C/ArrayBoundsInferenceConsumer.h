@@ -69,11 +69,11 @@ public:
   bool VisitSwitchStmt(SwitchStmt *S);
   bool VisitBinaryOperator(BinaryOperator *O);
   bool VisitArraySubscriptExpr(ArraySubscriptExpr *E);
-  bool isNonLengthParameter(ParmVarDecl *PVD);
+  bool isNonLengthParameter(ParmVarDecl *PVD) const;
 
 private:
   void handleAssignment(BoundsKey LK, QualType LHSType, Expr *RHS);
-  void addUsedParmVarDecl(Expr *CE);
+  void addNonLengthParameter(Expr *CE);
   std::set<ParmVarDecl *> NonLengthParameters;
   ASTContext *Context;
   ProgramInfo &Info;
@@ -88,8 +88,6 @@ class LengthVarInference : public StmtVisitor<LengthVarInference> {
 public:
   LengthVarInference(ProgramInfo &In, ASTContext *AC, FunctionDecl *F);
 
-  virtual ~LengthVarInference();
-
   void VisitStmt(Stmt *St);
 
   void VisitArraySubscriptExpr(ArraySubscriptExpr *ASE);
@@ -98,11 +96,9 @@ private:
   std::map<const Stmt *, CFGBlock *> StMap;
   ProgramInfo &I;
   ASTContext *C;
-  FunctionDecl *FD;
   CFGBlock *CurBB;
-  ControlDependencyCalculator *CDG;
-  ConstraintResolver *CR;
   std::unique_ptr<CFG> Cfg;
+  ControlDependencyCalculator CDG;
 };
 
 void handleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I,

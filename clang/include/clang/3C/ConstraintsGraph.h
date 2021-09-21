@@ -153,7 +153,7 @@ public:
   }
 
   bool getNeighbors(Data D, std::set<Data> &DataSet, bool Succ,
-                    bool Append = false, bool IgnoreSoftEdges = false) {
+                    bool Append = false, bool IgnoreSoftEdges = false) const {
     NodeType *N = this->findNode(D);
     if (N == nullptr)
       return false;
@@ -170,21 +170,23 @@ public:
     return !DataSet.empty();
   }
 
-  bool getSuccessors(Data D, std::set<Data> &DataSet, bool Append = false) {
+  bool
+  getSuccessors(Data D, std::set<Data> &DataSet, bool Append = false) const {
     return getNeighbors(D, DataSet, true, Append);
   }
 
-  bool getPredecessors(Data D, std::set<Data> &DataSet, bool Append = false) {
+  bool
+  getPredecessors(Data D, std::set<Data> &DataSet, bool Append = false) const {
     return getNeighbors(D, DataSet, false, Append);
   }
 
-  NodeType *findNode(Data D) {
+  NodeType *findNode(Data D) const {
     if (NodeSet.find(D) != NodeSet.end())
-      return NodeSet[D];
+      return NodeSet.at(D);
     return nullptr;
   }
 
-  void visitBreadthFirst(Data Start, llvm::function_ref<void(Data)> Fn) {
+  void visitBreadthFirst(Data Start, llvm::function_ref<void(Data)> Fn) const {
     NodeType *N = this->findNode(Start);
     if (N == nullptr)
       return;
@@ -217,7 +219,7 @@ protected:
 private:
   template <typename G> friend struct llvm::GraphTraits;
   friend class GraphVizOutputGraph;
-  std::map<Data, std::set<Data>> BFSCache;
+  mutable std::map<Data, std::set<Data>> BFSCache;
   std::map<Data, NodeType *> NodeSet;
 
   void invalidateBFSCache() { BFSCache.clear(); }

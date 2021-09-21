@@ -1488,7 +1488,7 @@ bool PointerVariableConstraint::getArrPresent() const {
                       [](auto E) { return E.second.first != O_Pointer; });
 }
 
-bool PointerVariableConstraint::isTopCvarUnsizedArr() const {
+bool PointerVariableConstraint::isTopAtomUnsizedArr() const {
   if (ArrSizes.find(0) != ArrSizes.end()) {
     return ArrSizes.at(0).first != O_SizedArray;
   }

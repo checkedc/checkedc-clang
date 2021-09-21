@@ -554,12 +554,12 @@ ConstAtom *Constraints::getAssignment(Atom *A) {
   return Environment.getAssignment(A);
 }
 
-ConstraintsGraph &Constraints::getChkCG() {
+const ConstraintsGraph &Constraints::getChkCG() const {
   assert(ChkCG != nullptr && "Checked Constraint graph cannot be nullptr");
   return *ChkCG;
 }
 
-ConstraintsGraph &Constraints::getPtrTypCG() {
+const ConstraintsGraph &Constraints::getPtrTypCG() const {
   assert(PtrTypCG != nullptr && "Pointer type Constraint graph "
                                 "cannot be nullptr");
   return *PtrTypCG;

@@ -30,7 +30,7 @@ ABounds *ABounds::getBoundsInfo(AVarBoundsInfo *ABInfo, BoundsExpr *BExpr,
     if (ABInfo->tryGetVariable(CBE->getCountExpr()->IgnoreParenCasts(), C,
                                VK)) {
       ProgramVar *PV = ABInfo->getProgramVar(VK);
-      if (PV->isNumConstant() && PV->getVarName() == "0") {
+      if (PV->isNumConstant() && PV->getConstantVal() == 0) {
         // Invalid bounds. This is for functions like free.
         // Where the bounds is 0.
         Ret = nullptr;
@@ -60,7 +60,7 @@ std::string ABounds::getBoundsKeyStr(BoundsKey BK, AVarBoundsInfo *ABI,
                                      Decl *D) {
   ProgramVar *PV = ABI->getProgramVar(BK);
   assert(PV != nullptr && "No Valid program var");
-  std::string BKStr = PV->mkString();
+  std::string BKStr = PV->getVarName();
   unsigned PIdx = 0;
   auto *PVD = dyn_cast_or_null<ParmVarDecl>(D);
   // Does this belong to a function parameter?
@@ -74,7 +74,7 @@ std::string ABounds::getBoundsKeyStr(BoundsKey BK, AVarBoundsInfo *ABI,
       // If the parameter in the new declaration does not have a name?
       // then use the old name.
       if (BKStr.empty())
-        BKStr = PV->mkString();
+        BKStr = PV->getVarName();
     }
   }
   return BKStr;

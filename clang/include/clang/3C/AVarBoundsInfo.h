@@ -106,18 +106,18 @@ public:
 
   // Infer bounds for the given key from the set of given ARR atoms.
   // The flag FromPB requests the inference to use potential length variables.
-  bool inferBounds(BoundsKey K, AVarGraph &BKGraph, bool FromPB = false);
+  bool inferBounds(BoundsKey K, const AVarGraph &BKGraph, bool FromPB = false);
 
-  // Get a consistent bound for all the arrays whose bounds have been
-  // inferred.
-  bool convergeInferredBounds();
+  // Get a consistent bound for all the arrays whose bounds have been inferred.
+  void convergeInferredBounds();
 
 private:
   // Find all the reachable variables form FromVarK that are visible
   // in DstScope
   bool getReachableBoundKeys(const ProgramVarScope *DstScope,
                              BoundsKey FromVarK, std::set<BoundsKey> &PotK,
-                             AVarGraph &BKGraph, bool CheckImmediate = false);
+                             const AVarGraph &BKGraph,
+                             bool CheckImmediate = false);
 
   // Check if bounds specified by Bnds are declared bounds of K.
   bool areDeclaredBounds(
@@ -125,12 +125,12 @@ private:
       const std::pair<ABounds::BoundsKind, std::set<BoundsKey>> &Bnds);
 
   // Get all the bounds of the given array i.e., BK
-  bool getRelevantBounds(BoundsKey BK, BndsKindMap &ResBounds);
+  void getRelevantBounds(BoundsKey BK, BndsKindMap &ResBounds);
 
   // Predict possible bounds for DstArrK from the bounds of  Neighbours.
   // Return true if there is any change in the captured bounds information.
-  bool predictBounds(BoundsKey DstArrK, std::set<BoundsKey> &Neighbours,
-                     AVarGraph &BKGraph);
+  bool predictBounds(BoundsKey DstArrK, const std::set<BoundsKey> &Neighbours,
+                     const AVarGraph &BKGraph);
 
   void mergeReachableProgramVars(BoundsKey TarBK, std::set<BoundsKey> &AllVars);
 
@@ -139,7 +139,7 @@ private:
   // Set the given pointer to have impossible bounds.
   void setImpossibleBounds(BoundsKey BK);
   // Infer bounds of the given pointer key from potential bounds.
-  bool inferFromPotentialBounds(BoundsKey BK, AVarGraph &BKGraph);
+  bool inferFromPotentialBounds(BoundsKey BK, const AVarGraph &BKGraph);
 
   AVarBoundsInfo *BI;
 
@@ -147,6 +147,8 @@ private:
   std::map<BoundsKey, BndsKindMap> CurrIterInferBounds;
   // BoundsKey that failed the flow inference.
   std::set<BoundsKey> BKsFailedFlowInference;
+
+  static ABounds *getPreferredBound(const BndsKindMap &BKindMap);
 };
 
 // Class that maintains information about potential bounds for
@@ -255,7 +257,7 @@ public:
   ProgramVar *getProgramVar(BoundsKey VK);
 
   // Propagate the array bounds information for all array ptrs.
-  bool performFlowAnalysis(ProgramInfo *PI);
+  void performFlowAnalysis(ProgramInfo *PI);
 
   // Get the context sensitive BoundsKey for the given key at CallSite
   // located at PSL.
@@ -366,23 +368,23 @@ private:
   bool isFunctionReturn(BoundsKey BK);
 
   // Of all the pointer bounds key, find arr pointers.
-  void computerArrPointers(ProgramInfo *PI, std::set<BoundsKey> &Ret);
+  void computeArrPointers(const ProgramInfo *PI);
 
   // Get all the array pointers that need bounds.
-  void getBoundsNeededArrPointers(const std::set<BoundsKey> &ArrPtrs,
-                                  std::set<BoundsKey> &AB);
+  void getBoundsNeededArrPointers(std::set<BoundsKey> &AB) const;
 
   // Keep only highest priority bounds for all the provided BoundsKeys
   // returns true if any thing changed, else false.
-  bool keepHighestPriorityBounds(std::set<BoundsKey> &ArrPtrs);
+  bool keepHighestPriorityBounds();
 
   // Perform worklist based inference on the requested array variables using
   // the provided graph and potential length variables.
-  bool performWorkListInference(const std::set<BoundsKey> &ArrNeededBounds,
-                                AVarGraph &BKGraph, AvarBoundsInference &BI,
-                                bool FromPB);
+  void performWorkListInference(const AVarGraph &BKGraph,
+                                AvarBoundsInference &BI, bool FromPB);
 
   void insertParamKey(ParamDeclType ParamDecl, BoundsKey NK);
+
+  void dumpBounds();
 };
 
 #endif // LLVM_CLANG_3C_AVARBOUNDSINFO_H

@@ -10,7 +10,6 @@
 // CtxSensAVarBounds.h
 //
 //===----------------------------------------------------------------------===//
-
 #include "clang/3C/CtxSensAVarBounds.h"
 #include "clang/3C/AVarBoundsInfo.h"
 #include "clang/3C/ConstraintResolver.h"
@@ -23,31 +22,30 @@
 // We will ignore array indexing.
 class StructAccessVisitor : public RecursiveASTVisitor<StructAccessVisitor> {
 public:
-  std::vector<std::string> StructAccessStr;
-  bool IsGlobal = false;
-
-  explicit StructAccessVisitor(ASTContext *Ctx) : C(Ctx) {
-    StructAccessStr.clear();
-  }
+  explicit StructAccessVisitor(ASTContext *Ctx) : C(Ctx), StructAccessStr() {}
   virtual ~StructAccessVisitor() { StructAccessStr.clear(); }
 
+  bool isGlobal() const { return IsGlobal; }
+
   void processVarDecl(VarDecl *VD) {
-    if (VD != nullptr &&
-        (VD->getType()->isPointerType() || VD->getType()->isStructureType())) {
+    assert("StructAccessVisitor visiting null VarDecl" && VD != nullptr);
+    if (VD->getType()->isPointerType() || VD->getType()->isStructureType()) {
+      // If VD is a ParmVarDecl isLocalVarDecl will return false
+      // FIXME: This method can be called multiple times, and each time it will
+      //        set the value of IsGlobal. This could be a problem if it is
+      //        called on a global and then a local variable. e.g.:
+      //        ( 0 ? global_struct_var : local_struct_var).array
+      //        IsGlobal might be true or false depending on the order it
+      //        encounters the variables. This would also change the order of
+      //        entries in StructAccessStr.
       IsGlobal = !VD->isLocalVarDecl();
       StructAccessStr.insert(StructAccessStr.begin(), VD->getNameAsString());
     }
   }
 
   bool VisitDeclRefExpr(DeclRefExpr *DRE) {
-    ParmVarDecl *PD = dyn_cast_or_null<ParmVarDecl>(DRE->getDecl());
-    if (PD != nullptr &&
-        (PD->getType()->isPointerType() || PD->getType()->isStructureType())) {
-      StructAccessStr.insert(StructAccessStr.begin(), PD->getNameAsString());
-    } else {
-      VarDecl *VD = dyn_cast_or_null<VarDecl>(DRE->getDecl());
+    if (auto *VD = dyn_cast_or_null<VarDecl>(DRE->getDecl()))
       processVarDecl(VD);
-    }
     return true;
   }
 
@@ -59,7 +57,7 @@ public:
   }
 
   // This gives us a string serves as a key for a struct member access.
-  std::string getStructAccessKey() {
+  std::string getStructAccessKey() const {
     std::string Ret = "";
     for (auto CurrStr : StructAccessStr) {
       Ret = CurrStr + ":" + Ret;
@@ -69,6 +67,8 @@ public:
 
 private:
   ASTContext *C;
+  bool IsGlobal = false;
+  std::vector<std::string> StructAccessStr;
 };
 
 void CtxSensitiveBoundsKeyHandler::insertCtxSensBoundsKey(
@@ -146,7 +146,7 @@ CtxStKeyMap *CtxSensitiveBoundsKeyHandler::getCtxStKeyMap(MemberExpr *ME,
                                                           ASTContext *C) {
   StructAccessVisitor SKV(C);
   SKV.TraverseStmt(ME->getBase()->getExprStmt());
-  CtxStKeyMap *MECSMap = getCtxStKeyMap(SKV.IsGlobal);
+  CtxStKeyMap *MECSMap = getCtxStKeyMap(SKV.isGlobal());
   return MECSMap;
 }
 
@@ -247,7 +247,7 @@ void CtxSensitiveBoundsKeyHandler::contextualizeCVar(MemberExpr *ME,
     // Get structure access key.
     StructAccessVisitor SKV(C);
     SKV.TraverseStmt(ME->getBase()->getExprStmt());
-    contextualizeCVar(RD, SKV.getStructAccessKey(), SKV.IsGlobal, C, I);
+    contextualizeCVar(RD, SKV.getStructAccessKey(), SKV.isGlobal(), C, I);
   }
 }
 
@@ -259,7 +259,7 @@ void CtxSensitiveBoundsKeyHandler::contextualizeCVar(VarDecl *VD, ASTContext *C,
     // Get structure access key.
     StructAccessVisitor SKV(C);
     SKV.processVarDecl(VD);
-    contextualizeCVar(RD, SKV.getStructAccessKey(), SKV.IsGlobal, C, I);
+    contextualizeCVar(RD, SKV.getStructAccessKey(), SKV.isGlobal(), C, I);
   }
 }
 
@@ -363,7 +363,7 @@ bool ContextSensitiveBoundsKeyVisitor::VisitDeclStmt(DeclStmt *DS) {
           // to various fields of the structure variable.
           const RecordDecl *Definition =
               ILE->getType()->getAsStructureType()->getDecl()->getDefinition();
-          auto *CSKeyMap = CSBHandler.getCtxStKeyMap(SAV.IsGlobal);
+          auto *CSKeyMap = CSBHandler.getCtxStKeyMap(SAV.isGlobal());
           unsigned int InitIdx = 0;
           const auto Fields = Definition->fields();
           for (auto It = Fields.begin();
