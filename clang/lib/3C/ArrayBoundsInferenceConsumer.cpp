@@ -118,16 +118,20 @@ static bool needArrayBounds(Expr *E, ProgramInfo &Info, ASTContext *C) {
   return false;
 }
 
+static bool
+needArrayBounds(ConstraintVariable *CV, ProgramInfo &Info, bool IsNtArr) {
+  const auto &E = Info.getConstraints().getVariables();
+  if (IsNtArr)
+    return needNTArrayBounds(CV, E);
+  return needArrayBounds(CV, E);
+}
+
 static bool needArrayBounds(Decl *D, ProgramInfo &Info, ASTContext *C,
                             bool IsNtArr) {
-  const auto &E = Info.getConstraints().getVariables();
   CVarOption CVar = Info.getVariable(D, C);
   if (CVar.hasValue()) {
     ConstraintVariable &CV = CVar.getValue();
-    if ((!IsNtArr && needArrayBounds(&CV, E)) ||
-        (IsNtArr && needNTArrayBounds(&CV, E)))
-      return true;
-    return false;
+    return needArrayBounds(&CV, Info, IsNtArr);
   }
   return false;
 }
@@ -440,6 +444,11 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       std::map<unsigned, std::pair<std::string, BoundsKey>> ParamNtArrays;
       std::map<unsigned, std::pair<std::string, BoundsKey>> LengthParams;
 
+      // The FVConstraint is needed to access the external parameter
+      // ConstraintVariables. External CVs are required because these
+      // are there variables can solve to a checked array type when the
+      // parameter has an itype while the internals will solve to WILD.
+      FVConstraint *FV = Info.getFuncConstraint(FD, Context);
       for (unsigned I = 0; I < FT->getNumParams(); I++) {
         ParmVarDecl *PVD = FD->getParamDecl(I);
         BoundsKey PK;
@@ -451,14 +460,14 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           // Here, we are using heuristics. So we only use heuristics when
           // there are no bounds already computed.
           if (!ABInfo.getBounds(PK)) {
-            if (needArrayBounds(PVD, Info, Context, true)) {
-              // Is this an NTArray?
+            PVConstraint *ParamCV = FV->getExternalParam(I);
+            const EnvironmentMap &Env = Info.getConstraints().getVariables();
+            // Is this an NTArray?
+            if (needNTArrayBounds(ParamCV, Env))
               ParamNtArrays[I] = PVal;
-            }
-            if (needArrayBounds(PVD, Info, Context, false)) {
-              // Is this an array?
+            // Is this an array?
+            if (needArrayBounds(ParamCV, Env))
               ParamArrays[I] = PVal;
-            }
           }
 
           // If this is a length field?
