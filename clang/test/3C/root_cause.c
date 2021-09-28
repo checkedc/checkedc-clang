@@ -16,29 +16,31 @@ void *x; // expected-warning {{1 unchecked pointer: Default void* type}}
 void test0() {
   // unwritable-expected-warning@+1 {{0 unchecked pointers: Source code in non-writable file}}
   int *a;
-  // unwritable-expected-warning@+1 {{0 unchecked pointers: Source code in non-writable file}}
   char *b;
   // unwritable-expected-warning@+1 {{0 unchecked pointers: Source code in non-writable file}}
   a = b; // expected-warning {{2 unchecked pointers: Cast from char * to int *}}
 
-  // unwritable-expected-warning@+1 {{0 unchecked pointers: Source code in non-writable file}}
   int *c;
+  // unwritable-expected-warning@+1 {{0 unchecked pointers: Source code in non-writable file}}
   (char *)c; // expected-warning {{1 unchecked pointer: Cast from int * to char *}}
 
-  // unwritable-expected-warning@+1 {{0 unchecked pointers: Source code in non-writable file}}
   int *e;
   // unwritable-expected-warning@+1 {{0 unchecked pointers: Source code in non-writable file}}
   char *f;
+  // unwritable-expected-warning@+2 {{0 unchecked pointers: Source code in non-writable file}}
   // unwritable-expected-warning@+1 {{0 unchecked pointers: Source code in non-writable file}}
   f = (char *)e; // expected-warning {{2 unchecked pointers: Cast from int * to char *}}
 }
 
 void test1() {
   int a;
+  int *b;
   // unwritable-expected-warning@+1 {{0 unchecked pointers: Source code in non-writable file}}
-  int *b; 
+  b = my_malloc(sizeof(int)); // #conflict
+  // expected-warning@#conflict {{1 unchecked pointer: Inferred conflicting types}}
+  // expected-note@#conflict {{Return type from an allocator}}
+  // expected-note@#conflict {{Assigning from &my_malloc to my_malloc_tyarg_0}}
   // unwritable-expected-warning@+1 {{0 unchecked pointers: Source code in non-writable file}}
-  b = my_malloc(sizeof(int)); // expected-warning {{1 unchecked pointer: Bad pointer type solution}}
   b[0] = 1;
 
   union u {
@@ -88,3 +90,21 @@ PA pa_test0, pa_test1;
 // unwritable-expected-warning@+2 {{0 unchecked pointers: Source code in non-writable file}}
 // expected-warning@+1 {{1 unchecked pointer: Internal constraint for generic function declaration, for which 3C currently does not support re-solving.}}
 _Itype_for_any(T) void remember(void *p : itype(_Ptr<T>)) {}
+
+// Demonstrate multiple locations in notes
+// unwritable-expected-warning@+1 {{0 unchecked pointers: Source code in non-writable file}}
+int get_strlen(char *s : itype(_Nt_array_ptr<char>)); // expected-warning {{1 unchecked pointer: Unchecked pointer in parameter or return of undefined function get_strlen}}
+void test_conflict() {
+  char *c; // #decl
+  // unwritable-expected-warning@+1 {{0 unchecked pointers: Source code in non-writable file}}
+  get_strlen(c); // #as_nt
+  // unwritable-expected-warning@+2 {{0 unchecked pointers: Source code in non-writable file}}
+  // unwritable-expected-warning@+1 {{0 unchecked pointers: Source code in non-writable file}}
+  char **cptr = &c; // #as_ptr
+}
+// expected-warning@#decl {{2 unchecked pointers: Inferred conflicting types}}
+// expected-note@#as_ptr {{Operand of address-of has PTR lower bound}}
+// expected-note@#as_nt {{Assigning from c to s}}
+
+
+

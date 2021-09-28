@@ -19,20 +19,24 @@ using namespace llvm;
 // This currently the expansion location for the declarations source location.
 // If we want to add more complete source for macros in the future, I expect we
 // will need to the spelling location instead.
-PersistentSourceLoc PersistentSourceLoc::mkPSL(const Decl *D, ASTContext &C) {
+PersistentSourceLoc PersistentSourceLoc::mkPSL(const Decl *D,
+                                               const ASTContext &C) {
+  if (D == nullptr) return PersistentSourceLoc();
   SourceLocation SL = C.getSourceManager().getExpansionLoc(D->getLocation());
   return mkPSL(D->getSourceRange(), SL, C);
 }
 
 // Create a PersistentSourceLoc for a Stmt.
 PersistentSourceLoc PersistentSourceLoc::mkPSL(const Stmt *S,
-                                               ASTContext &Context) {
+                                               const ASTContext &Context) {
+  if (S == nullptr) return PersistentSourceLoc();
   return mkPSL(S->getSourceRange(), S->getBeginLoc(), Context);
 }
 
 // Create a PersistentSourceLoc for an Expression.
 PersistentSourceLoc PersistentSourceLoc::mkPSL(const clang::Expr *E,
-                                               clang::ASTContext &Context) {
+                                               const clang::ASTContext &Context) {
+  if (E == nullptr) return PersistentSourceLoc();
   return mkPSL(E->getSourceRange(), E->getBeginLoc(), Context);
 }
 
@@ -40,8 +44,8 @@ PersistentSourceLoc PersistentSourceLoc::mkPSL(const clang::Expr *E,
 // line and column numbers for a SourceLocation.
 PersistentSourceLoc PersistentSourceLoc::mkPSL(clang::SourceRange SR,
                                                SourceLocation SL,
-                                               ASTContext &Context) {
-  SourceManager &SM = Context.getSourceManager();
+                                               const ASTContext &Context) {
+  const SourceManager &SM = Context.getSourceManager();
   PresumedLoc PL = SM.getPresumedLoc(SL);
 
   // If there is no PresumedLoc, create a nullary PersistentSourceLoc.

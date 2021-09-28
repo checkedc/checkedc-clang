@@ -339,7 +339,7 @@ bool CheckedRegionFinder::isInStatementPosition(CallExpr *C) {
   //TODO there are other statement positions
   //     besides child of compound stmt
   auto PSL = PersistentSourceLoc::mkPSL(C, *Context);
-  emitCauseDiagnostic(&PSL);
+  emitCauseDiagnostic(PSL);
   return false;
 }
 
@@ -430,15 +430,15 @@ void CheckedRegionFinder::markChecked(CompoundStmt *S, int Localwild) {
   Map[Id] = IsChecked ? IS_CHECKED : IS_UNCHECKED;
 }
 
-void CheckedRegionFinder::emitCauseDiagnostic(PersistentSourceLoc *PSL) {
+void CheckedRegionFinder::emitCauseDiagnostic(PersistentSourceLoc PSL) {
   if (Emitted.find(PSL) == Emitted.end()) {
     SourceManager &SM = Context->getSourceManager();
     llvm::ErrorOr<const clang::FileEntry *> File =
-        SM.getFileManager().getFile(PSL->getFileName());
+        SM.getFileManager().getFile(PSL.getFileName());
     if (File.getError())
       return;
     SourceLocation SL =
-        SM.translateFileLineCol(*File, PSL->getLineNo(), PSL->getColSNo());
+        SM.translateFileLineCol(*File, PSL.getLineNo(), PSL.getColSNo());
     if (SL.isValid())
       reportCustomDiagnostic(Context->getDiagnostics(),
                              DiagnosticsEngine::Warning,

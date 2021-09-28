@@ -578,8 +578,7 @@ void RewriteConsumer::emitRootCauseDiagnostics(ASTContext &Context) {
   SourceManager &SM = Context.getSourceManager();
   for (auto &WReason : I.RootWildAtomsWithReason) {
     // Avoid emitting the same diagnostic message twice.
-    WildPointerInferenceInfo PtrInfo = WReason.second;
-    PersistentSourceLoc PSL = PtrInfo.getLocation();
+    const PersistentSourceLoc& PSL = WReason.second.getLocation();
 
     if (PSL.valid() &&
         EmittedDiagnostics.find(PSL) == EmittedDiagnostics.end()) {
@@ -598,7 +597,25 @@ void RewriteConsumer::emitRootCauseDiagnostics(ASTContext &Context) {
           // SL is invalid when the File is not in the current translation unit.
           if (SL.isValid()) {
             EmittedDiagnostics.insert(PSL);
-            DE.Report(SL, ID) << PtrCount << WReason.second.getWildPtrReason();
+            DE.Report(SL, ID) << PtrCount << WReason.second.getReason();
+          }
+          // if notes have sources in other files, these files may not
+          // be in the same TU and will not be displayed. At the initial
+          // time of this comment, that was expected to be very rare.
+          // see https://github.com/correctcomputation/checkedc-clang/pull/708#discussion_r716903129
+          // for a discussion
+          for (auto &Note : WReason.second.additionalNotes()) {
+            PersistentSourceLoc NPSL = Note.Location;
+            llvm::ErrorOr<const clang::FileEntry *> NFile =
+                SM.getFileManager().getFile(NPSL.getFileName());
+            if (!NFile.getError()) {
+              SourceLocation NSL = SM.translateFileLineCol(
+                  *NFile, NPSL.getLineNo(), NPSL.getColSNo());
+              if (NSL.isValid()) {
+                unsigned NID = DE.getCustomDiagID(DiagnosticsEngine::Note, "%0");
+                DE.Report(NSL, NID) << Note.Reason;
+              }
+            }
           }
         }
       }

@@ -201,7 +201,8 @@ public:
     if (FVCons.size() > 1) {
       PersistentSourceLoc PL =
           PersistentSourceLoc::mkPSL(E->getCallee(), *Context);
-      constrainConsVarGeq(FVCons, FVCons, Info.getConstraints(), &PL,
+      auto Rsn = ReasonLoc("Multiple function variables", PL);
+      constrainConsVarGeq(FVCons, FVCons, Info.getConstraints(), Rsn,
                           Same_to_Same, false, &Info);
     }
 
@@ -239,6 +240,8 @@ public:
           unsigned I = 0;
           for (const auto &A : E->arguments()) {
             CSetBkeyPair ArgumentConstraints;
+            auto ArgPSL = PersistentSourceLoc::mkPSL(A,*Context);
+            auto Rsn = ReasonLoc("Constrain arguments to parameters", ArgPSL);
             if (I < TargetFV->numParams()) {
               // When the function has a void* parameter, Clang will
               // add an implicit cast to void* here. Generating constraints
@@ -267,7 +270,7 @@ public:
               // Do not handle bounds key here because we will be
               // doing context-sensitive assignment next.
               constrainConsVarGeq(ParameterDC, ArgumentConstraints.first, CS,
-                                  &PL, CA, false, &Info, false);
+                                  Rsn, CA, false, &Info, false);
 
               if (_3COpts.AllTypes && TFD != nullptr &&
                   I < TFD->getNumParams()) {
@@ -291,7 +294,8 @@ public:
                   // In `printf("... %s ...", ...)`, the argument corresponding
                   // to the `%s` should be an _Nt_array_ptr
                   // (https://github.com/correctcomputation/checkedc-clang/issues/549).
-                  constrainVarsTo(ArgumentConstraints.first, CS.getNTArr());
+                  constrainVarsTo(ArgumentConstraints.first, CS.getNTArr(),
+                                  ReasonLoc(NT_ARRAY_REASON,ArgPSL));
                 }
                 if (_3COpts.Verbose) {
                   std::string FuncName = TargetFV->getName();
@@ -311,14 +315,15 @@ public:
   // e1[e2]
   bool VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
     Constraints &CS = Info.getConstraints();
-    constraintInBodyVariable(E->getBase(), CS.getArr());
+    auto PSL = PersistentSourceLoc::mkPSL(E,*Context);
+    constraintInBodyVariable(E->getBase(), CS.getArr(),
+                             ReasonLoc(ARRAY_REASON,PSL));
     return true;
   }
 
   // return e;
   bool VisitReturnStmt(ReturnStmt *S) {
     // Get function variable constraint of the body
-    PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(S, *Context);
     CVarOption CVOpt = Info.getVariable(Function, Context);
 
     // Constrain the value returned (if present) against the return value
@@ -332,8 +337,10 @@ public:
       if (FVConstraint *FV = dyn_cast<FVConstraint>(&CVOpt.getValue())) {
         // This is to ensure that the return type of the function is same
         // as the type of return expression.
+        PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(S, *Context);
+        auto Rsn = ReasonLoc("Return types must match", PL);
         constrainConsVarGeq(FV->getInternalReturn(), RconsVar,
-                            Info.getConstraints(), &PL, Same_to_Same, false,
+                            Info.getConstraints(), Rsn, Same_to_Same, false,
                             &Info);
       }
     }
@@ -375,18 +382,18 @@ public:
 private:
   // Constraint all the provided vars to be
   // equal to the provided type i.e., (V >= type).
-  void constrainVarsTo(CVarSet &Vars, ConstAtom *CAtom) {
+  void constrainVarsTo(CVarSet &Vars, ConstAtom *CAtom, const ReasonLoc &Rsn) {
     Constraints &CS = Info.getConstraints();
     for (const auto &I : Vars)
       if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
-        PVC->constrainOuterTo(CS, CAtom);
+        PVC->constrainOuterTo(CS, CAtom, Rsn);
       }
   }
 
   // Constraint helpers.
-  void constraintInBodyVariable(Expr *E, ConstAtom *CAtom) {
+  void constraintInBodyVariable(Expr *E, ConstAtom *CAtom, const ReasonLoc &Rsn) {
     CVarSet Var = CB.getExprConstraintVarsSet(E);
-    constrainVarsTo(Var, CAtom);
+    constrainVarsTo(Var, CAtom, Rsn);
   }
 
   // Constraint all the argument of the provided
@@ -423,9 +430,11 @@ private:
       std::string Rsn = "Pointer arithmetic performed on a function pointer.";
       CB.constraintAllCVarsToWild(Var, Rsn, E);
     } else {
+      auto PSL = PersistentSourceLoc::mkPSL(E,*Context);
       if (ModifyingExpr)
         Info.getABoundsInfo().recordArithmeticOperation(E, &CB);
-      constraintInBodyVariable(E, Info.getConstraints().getArr());
+      constraintInBodyVariable(E, Info.getConstraints().getArr(),
+                               ReasonLoc(ARRAY_REASON,PSL));
     }
   }
 

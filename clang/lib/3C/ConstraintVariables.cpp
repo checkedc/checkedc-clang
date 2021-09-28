@@ -53,10 +53,10 @@ std::string ConstraintVariable::getOriginalTypeWithName() const {
 }
 
 PointerVariableConstraint *PointerVariableConstraint::getWildPVConstraint(
-    Constraints &CS, const std::string &Rsn, PersistentSourceLoc *PSL) {
+    Constraints &CS, const ReasonLoc &Rsn) {
   auto *WildPVC = new PointerVariableConstraint("wildvar");
   VarAtom *VA = CS.createFreshGEQ("wildvar", VarAtom::V_Other, CS.getWild(),
-                                  Rsn, PSL);
+                                  Rsn);
   WildPVC->Vars.push_back(VA);
   WildPVC->SrcVars.push_back(CS.getWild());
 
@@ -102,21 +102,23 @@ PointerVariableConstraint::derefPVConstraint(PointerVariableConstraint *PVC) {
 }
 
 PointerVariableConstraint *PointerVariableConstraint::addAtomPVConstraint(
-    PointerVariableConstraint *PVC, ConstAtom *PtrTyp, Constraints &CS) {
+    PointerVariableConstraint *PVC, ConstAtom *PtrTyp,
+    ReasonLoc &Rsn, Constraints &CS) {
   auto *Copy = new PointerVariableConstraint(PVC);
   std::vector<Atom *> &Vars = Copy->Vars;
   std::vector<ConstAtom *> &SrcVars = Copy->SrcVars;
 
   VarAtom *NewA = CS.getFreshVar("&" + Copy->Name, VarAtom::V_Other);
-  CS.addConstraint(CS.createGeq(NewA, PtrTyp, false));
+  CS.addConstraint(CS.createGeq(NewA, PtrTyp, Rsn, false));
 
   // Add a constraint between the new atom and any existing atom for this
   // pointer. This is the same constraint that is added between atoms of a
   // pointer in the PointerVariableConstraint constructor. It forces all inner
-  // atoms to be wild if an outer atom in wild.
+  // atoms to be wild if an outer atom is wild.
   if (!Vars.empty())
     if (auto *VA = dyn_cast<VarAtom>(*Vars.begin()))
-      CS.addConstraint(new Geq(VA, NewA));
+      CS.addConstraint(new Geq(VA, NewA,
+                       ReasonLoc(INNER_POINTER_REASON, PersistentSourceLoc())));
 
   Vars.insert(Vars.begin(), NewA);
   SrcVars.insert(SrcVars.begin(), PtrTyp);
@@ -215,6 +217,7 @@ PointerVariableConstraint::PointerVariableConstraint(
     : ConstraintVariable(ConstraintVariable::PointerVariable, QT, N),
       FV(nullptr), SrcHasItype(false), PartOfFuncPrototype(InFunc != nullptr),
       Parent(nullptr) {
+  PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(D, C);
   QualType QTy = QT;
   const Type *Ty = QTy.getTypePtr();
   auto &CS = I.getConstraints();
@@ -357,7 +360,7 @@ PointerVariableConstraint::PointerVariableConstraint(
     std::string TyName = tyToStr(Ty);
     if (isVarArgType(TyName)) {
       // Variable number of arguments. Make it WILD.
-      std::string Rsn = "Variable number of arguments.";
+      auto Rsn = ReasonLoc("Variable number of arguments.", PSL);
       VarAtom *WildVA = CS.createFreshGEQ(Npre + N, VK, CS.getWild(), Rsn);
       Vars.push_back(WildVA);
       SrcVars.push_back(CS.getWild());
@@ -475,13 +478,14 @@ PointerVariableConstraint::PointerVariableConstraint(
       // Incomplete arrays are not given ARR as an upper bound because the
       // transformation int[] -> _Ptr<int> is permitted but int[1] -> _Ptr<int>
       // is not.
+      auto Rsn = ReasonLoc("0-sized Array", PSL);
       if (ArrSizes[TypeIdx].first == O_SizedArray) {
-        CS.addConstraint(CS.createGeq(CS.getArr(), VA, false));
+        CS.addConstraint(CS.createGeq(CS.getArr(), VA, Rsn, false));
         // A constant array declared with size 0 cannot be _Nt_checked. Checked
         // C requires that _Nt_checked arrays are not empty since the declared
         // size of the array includes the null terminator.
         if (ArrSizes[TypeIdx].second == 0)
-          CS.addConstraint(CS.createGeq(VA, CS.getArr(), false));
+          CS.addConstraint(CS.createGeq(VA, CS.getArr(), Rsn, false));
       }
     }
 
@@ -527,7 +531,7 @@ PointerVariableConstraint::PointerVariableConstraint(
     // TODO: Github issue #61: improve handling of types for variable arguments.
     for (const auto &V : Vars)
       if (VarAtom *VA = dyn_cast<VarAtom>(V))
-        CS.addConstraint(CS.createGeq(VA, CS.getWild(), Rsn));
+        CS.addConstraint(CS.createGeq(VA, CS.getWild(), ReasonLoc(Rsn,PSL)));
   }
 
   // Add qualifiers.
@@ -541,7 +545,7 @@ PointerVariableConstraint::PointerVariableConstraint(
       VarAtom *VI = dyn_cast<VarAtom>(Vars[VarIdx]);
       VarAtom *VJ = dyn_cast<VarAtom>(Vars[VarIdx + 1]);
       if (VI && VJ)
-        CS.addConstraint(new Geq(VJ, VI));
+        CS.addConstraint(new Geq(VJ, VI, ReasonLoc(INNER_POINTER_REASON, PSL)));
     }
   }
 }
@@ -981,19 +985,20 @@ PointerVariableConstraint::mkString(Constraints &CS,
 }
 
 bool PVConstraint::addArgumentConstraint(ConstraintVariable *DstCons,
+                                         ReasonLoc &Rsn,
                                          ProgramInfo &Info) {
   if (this->Parent == nullptr) {
     bool RetVal = false;
     if (isPartOfFunctionPrototype()) {
       RetVal = ArgumentConstraints.insert(DstCons).second;
       if (RetVal && this->HasEqArgumentConstraints) {
-        constrainConsVarGeq(DstCons, this, Info.getConstraints(), nullptr,
+        constrainConsVarGeq(DstCons, this, Info.getConstraints(), Rsn,
                             Same_to_Same, true, &Info);
       }
     }
     return RetVal;
   }
-  return this->Parent->addArgumentConstraint(DstCons, Info);
+  return this->Parent->addArgumentConstraint(DstCons, Rsn, Info);
 }
 
 const CVarSet &PVConstraint::getArgumentConstraints() const {
@@ -1041,6 +1046,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(
   HasEqArgumentConstraints = false;
   IsFunctionPtr = true;
   TypeParams = 0;
+  PersistentSourceLoc PSL;
 
   // Metadata about function.
   FunctionDecl *FD = nullptr;
@@ -1057,7 +1063,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(
       Hasbody = true;
     IsStatic = !(FD->isGlobal());
     ASTContext *TmpCtx = const_cast<ASTContext *>(&Ctx);
-    auto PSL = PersistentSourceLoc::mkPSL(D, *TmpCtx);
+    PSL = PersistentSourceLoc::mkPSL(D, *TmpCtx);
     FileName = PSL.getFileName();
     IsFunctionPtr = false;
     TypeParams = FD->getNumTypeVars();
@@ -1155,24 +1161,19 @@ FunctionVariableConstraint::FunctionVariableConstraint(
       DidConvert = true;
     } else {
       if (!Ext->isOriginallyChecked()) {
-        Ext->constrainToWild(CS, VOID_TYPE_REASON);
+        Ext->constrainToWild(CS, ReasonLoc(VOID_TYPE_REASON, PSL));
       }
     }
   }
   if (DidConvert) TypeParams = 1;
 }
 
-void FunctionVariableConstraint::constrainToWild(Constraints &CS,
-                                                 const std::string &Rsn) const {
-  constrainToWild(CS, Rsn, nullptr);
-}
-
 void FunctionVariableConstraint::constrainToWild(
-    Constraints &CS, const std::string &Rsn, PersistentSourceLoc *PL) const {
-  ReturnVar.ExternalConstraint->constrainToWild(CS, Rsn, PL);
+    Constraints &CS, const ReasonLoc &Rsn) const {
+  ReturnVar.ExternalConstraint->constrainToWild(CS, Rsn);
 
   for (const auto &V : ParamVars)
-    V.ExternalConstraint->constrainToWild(CS, Rsn, PL);
+    V.ExternalConstraint->constrainToWild(CS, Rsn);
 }
 bool FunctionVariableConstraint::anyChanges(const EnvironmentMap &E) const {
   return ReturnVar.ExternalConstraint->anyChanges(E) ||
@@ -1212,40 +1213,42 @@ bool FunctionVariableConstraint::hasNtArr(const EnvironmentMap &E,
   return ReturnVar.ExternalConstraint->hasNtArr(E, AIdx);
 }
 
-FVConstraint *FunctionVariableConstraint::getCopy(Constraints &CS) {
+FVConstraint *FunctionVariableConstraint::getCopy(ReasonLoc &Rsn,
+                                                  Constraints &CS) {
   FunctionVariableConstraint *Copy = new FunctionVariableConstraint(this);
-  Copy->ReturnVar = FVComponentVariable(&Copy->ReturnVar, CS);
+  Copy->ReturnVar = FVComponentVariable(&Copy->ReturnVar, Rsn, CS);
   // Make copy of ParameterCVs too.
   std::vector<FVComponentVariable> FreshParams;
   for (auto &ParmPv : Copy->ParamVars)
-    FreshParams.push_back(FVComponentVariable(&ParmPv, CS));
+    FreshParams.push_back(FVComponentVariable(&ParmPv, Rsn, CS));
   Copy->ParamVars = FreshParams;
   return Copy;
 }
 
-void PVConstraint::equateArgumentConstraints(ProgramInfo &Info) {
+void PVConstraint::equateArgumentConstraints(ProgramInfo &Info, ReasonLoc &Rsn) {
   if (HasEqArgumentConstraints) {
     return;
   }
   HasEqArgumentConstraints = true;
   constrainConsVarGeq(this, this->ArgumentConstraints, Info.getConstraints(),
-                      nullptr, Same_to_Same, true, &Info);
+                      Rsn, Same_to_Same, true, &Info);
 
   if (this->FV != nullptr) {
-    this->FV->equateArgumentConstraints(Info);
+    this->FV->equateArgumentConstraints(Info, Rsn);
   }
 }
 
 void FunctionVariableConstraint::equateFVConstraintVars(
-    ConstraintVariable *CV, ProgramInfo &Info) const {
+    ConstraintVariable *CV, ProgramInfo &Info, ReasonLoc &Rsn) const {
   if (FVConstraint *FVCons = dyn_cast<FVConstraint>(CV)) {
     for (auto &PCon : FVCons->ParamVars)
-      PCon.InternalConstraint->equateArgumentConstraints(Info);
-    FVCons->ReturnVar.InternalConstraint->equateArgumentConstraints(Info);
+      PCon.InternalConstraint->equateArgumentConstraints(Info, Rsn);
+    FVCons->ReturnVar.InternalConstraint->equateArgumentConstraints(Info, Rsn);
   }
 }
 
-void FunctionVariableConstraint::equateArgumentConstraints(ProgramInfo &Info) {
+void FunctionVariableConstraint::equateArgumentConstraints(ProgramInfo &Info,
+                                                           ReasonLoc &Rsn) {
   if (HasEqArgumentConstraints) {
     return;
   }
@@ -1253,7 +1256,7 @@ void FunctionVariableConstraint::equateArgumentConstraints(ProgramInfo &Info) {
   HasEqArgumentConstraints = true;
 
   // Equate arguments and parameters vars.
-  this->equateFVConstraintVars(this, Info);
+  this->equateFVConstraintVars(this, Info, Rsn);
 
   // Is this not a function pointer?
   if (!IsFunctionPtr) {
@@ -1269,18 +1272,12 @@ void FunctionVariableConstraint::equateArgumentConstraints(ProgramInfo &Info) {
     assert(DefnCons != nullptr);
 
     // Equate arguments and parameters vars.
-    this->equateFVConstraintVars(DefnCons, Info);
+    this->equateFVConstraintVars(DefnCons, Info, Rsn);
   }
 }
 
 void PointerVariableConstraint::constrainToWild(Constraints &CS,
-                                                const std::string &Rsn) const {
-  constrainToWild(CS, Rsn, nullptr);
-}
-
-void PointerVariableConstraint::constrainToWild(Constraints &CS,
-                                                const std::string &Rsn,
-                                                PersistentSourceLoc *PL) const {
+                                                const ReasonLoc &Rsn) const {
   // Find the first VarAtom. All atoms before this are ConstAtoms, so
   // constraining them isn't useful;
   VarAtom *FirstVA = nullptr;
@@ -1294,24 +1291,25 @@ void PointerVariableConstraint::constrainToWild(Constraints &CS,
   // implicitly constrained to WILD because of GEQ constraints that exist
   // between levels of a pointer.
   if (FirstVA)
-    CS.addConstraint(CS.createGeq(FirstVA, CS.getWild(), Rsn, PL, true));
+    CS.addConstraint(CS.createGeq(FirstVA, CS.getWild(), Rsn, true));
 
   if (FV)
-    FV->constrainToWild(CS, Rsn, PL);
+    FV->constrainToWild(CS, Rsn);
 }
 
 void PointerVariableConstraint::constrainIdxTo(Constraints &CS, ConstAtom *C,
-                                               unsigned int Idx, bool DoLB,
-                                               bool Soft) {
+                                               unsigned int Idx,
+                                               const ReasonLoc &Rsn,
+                                               bool DoLB, bool Soft) {
   assert(C == CS.getPtr() || C == CS.getArr() || C == CS.getNTArr());
 
   if (Vars.size() > Idx) {
     Atom *A = Vars[Idx];
     if (VarAtom *VA = dyn_cast<VarAtom>(A)) {
       if (DoLB)
-        CS.addConstraint(CS.createGeq(VA, C, false, Soft));
+        CS.addConstraint(CS.createGeq(VA, C, Rsn, false, Soft));
       else
-        CS.addConstraint(CS.createGeq(C, VA, false, Soft));
+        CS.addConstraint(CS.createGeq(C, VA, Rsn, false, Soft));
     } else if (ConstAtom *CA = dyn_cast<ConstAtom>(A)) {
       if (DoLB) {
         if (*CA < *C) {
@@ -1329,8 +1327,9 @@ void PointerVariableConstraint::constrainIdxTo(Constraints &CS, ConstAtom *C,
 }
 
 void PointerVariableConstraint::constrainOuterTo(Constraints &CS, ConstAtom *C,
+                                                 const ReasonLoc &Rsn,
                                                  bool DoLB, bool Soft) {
-  constrainIdxTo(CS, C, 0, DoLB, Soft);
+  constrainIdxTo(CS, C, 0, Rsn, DoLB, Soft);
 }
 
 bool PointerVariableConstraint::anyArgumentIsWild(const EnvironmentMap &E) {
@@ -1376,7 +1375,8 @@ bool PointerVariableConstraint::anyChanges(const EnvironmentMap &E) const {
   return PtrChanged;
 }
 
-PVConstraint *PointerVariableConstraint::getCopy(Constraints &CS) {
+PVConstraint *PointerVariableConstraint::getCopy(ReasonLoc &Rsn,
+                                                 Constraints &CS) {
   auto *Copy = new PointerVariableConstraint(this);
 
   // After the copy construct, the copy Vars vector holds exactly the same
@@ -1390,8 +1390,9 @@ PVConstraint *PointerVariableConstraint::getCopy(Constraints &CS) {
     } else if (auto *VA = dyn_cast<VarAtom>(*VAIt)) {
       VarAtom *FreshVA = CS.getFreshVar(VA->getName(), VA->getVarKind());
       FreshVars.push_back(FreshVA);
-      if (!isa<WildAtom>(*CAIt))
-        CS.addConstraint(CS.createGeq(*CAIt, FreshVA, false));
+      if (!isa<WildAtom>(*CAIt)){
+        CS.addConstraint(CS.createGeq(*CAIt, FreshVA, Rsn, false));
+      }
     }
     ++VAIt;
     ++CAIt;
@@ -1399,7 +1400,7 @@ PVConstraint *PointerVariableConstraint::getCopy(Constraints &CS) {
   Copy->Vars = FreshVars;
 
   if (Copy->FV != nullptr)
-    Copy->FV = Copy->FV->getCopy(CS);
+    Copy->FV = Copy->FV->getCopy(Rsn, CS);
 
   return Copy;
 }
@@ -1705,9 +1706,8 @@ FunctionVariableConstraint::mkString(Constraints &CS,
 // CA |- R <: L
 // Action depends on the kind of constraint (checked, ptyp),
 //   which is inferred from the atom type
-static void createAtomGeq(Constraints &CS, Atom *L, Atom *R, std::string &Rsn,
-                          PersistentSourceLoc *PSL, ConsAction CAct,
-                          bool DoEqType) {
+static void createAtomGeq(Constraints &CS, Atom *L, Atom *R,
+                         const ReasonLoc &Rsn, ConsAction CAct, bool DoEqType) {
   ConstAtom *CAL, *CAR;
   VarAtom *VAL, *VAR;
   ConstAtom *Wild = CS.getWild();
@@ -1746,35 +1746,35 @@ static void createAtomGeq(Constraints &CS, Atom *L, Atom *R, std::string &Rsn,
     switch (CAct) {
     case Same_to_Same:
       // Equality for checked.
-      CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true));
-      CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, true));
+      CS.addConstraint(CS.createGeq(L, R, Rsn, true));
+      CS.addConstraint(CS.createGeq(R, L, Rsn, true));
       // Not for ptyp.
-      CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, false));
+      CS.addConstraint(CS.createGeq(L, R, Rsn, false));
       // Unless indicated.
       if (DoEqType)
-        CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, false));
+        CS.addConstraint(CS.createGeq(R, L, Rsn, false));
       break;
     case Safe_to_Wild:
-      CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true));
-      CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, false));
+      CS.addConstraint(CS.createGeq(L, R, Rsn, true));
+      CS.addConstraint(CS.createGeq(L, R, Rsn, false));
       if (DoEqType) {
-        CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, true));
-        CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, false));
+        CS.addConstraint(CS.createGeq(R, L, Rsn, true));
+        CS.addConstraint(CS.createGeq(R, L, Rsn, false));
       }
       break;
     case Wild_to_Safe:
       if (!DisableRDs) {
         // Note: reversal.
-        CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, true));
+        CS.addConstraint(CS.createGeq(R, L, Rsn, true));
       } else {
         // Add edges both ways.
-        CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true));
-        CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, true));
+        CS.addConstraint(CS.createGeq(L, R, Rsn, true));
+        CS.addConstraint(CS.createGeq(R, L, Rsn, true));
       }
-      CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, false));
+      CS.addConstraint(CS.createGeq(L, R, Rsn, false));
       if (DoEqType) {
-        CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true));
-        CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, false));
+        CS.addConstraint(CS.createGeq(L, R, Rsn, true));
+        CS.addConstraint(CS.createGeq(R, L, Rsn, false));
       }
       break;
     }
@@ -1783,23 +1783,23 @@ static void createAtomGeq(Constraints &CS, Atom *L, Atom *R, std::string &Rsn,
     if (CAL == Wild || CAR == Wild) {
       switch (CAct) {
       case Same_to_Same:
-        CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true));
-        CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, true));
+        CS.addConstraint(CS.createGeq(L, R, Rsn, true));
+        CS.addConstraint(CS.createGeq(R, L, Rsn, true));
         break;
       case Safe_to_Wild:
-        CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true));
+        CS.addConstraint(CS.createGeq(L, R, Rsn, true));
         if (DoEqType)
-          CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, true));
+          CS.addConstraint(CS.createGeq(R, L, Rsn, true));
         break;
       case Wild_to_Safe:
         if (!DisableRDs) {
           // Note: reversal.
-          CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, true));
+          CS.addConstraint(CS.createGeq(R, L, Rsn, true));
         } else {
-          CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true));
+          CS.addConstraint(CS.createGeq(L, R, Rsn, true));
         }
         if (DoEqType)
-          CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true));
+          CS.addConstraint(CS.createGeq(L, R, Rsn, true));
         break;
       }
     } else {
@@ -1808,9 +1808,9 @@ static void createAtomGeq(Constraints &CS, Atom *L, Atom *R, std::string &Rsn,
       case Same_to_Same:
       case Safe_to_Wild:
       case Wild_to_Safe:
-        CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, false));
+        CS.addConstraint(CS.createGeq(L, R, Rsn, false));
         if (DoEqType)
-          CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, false));
+          CS.addConstraint(CS.createGeq(R, L, Rsn, false));
         break;
       }
     }
@@ -1820,7 +1820,7 @@ static void createAtomGeq(Constraints &CS, Atom *L, Atom *R, std::string &Rsn,
 // Generate constraints according to CA |- RHS <: LHS.
 // If doEqType is true, then also do CA |- LHS <: RHS.
 void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
-                         Constraints &CS, PersistentSourceLoc *PL,
+                         Constraints &CS, const ReasonLoc &Rsn,
                          ConsAction CA, bool DoEqType, ProgramInfo *Info,
                          bool HandleBoundsKey) {
 
@@ -1828,12 +1828,13 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
   // This can happen when a non-function pointer gets assigned to
   // a function pointer.
   if (LHS == nullptr || RHS == nullptr) {
-    std::string Rsn = "Assignment a non-pointer to a pointer";
+    auto Reason = ReasonLoc("Assignment a non-pointer to a pointer",
+                            Rsn.Location);
     if (LHS != nullptr) {
-      LHS->constrainToWild(CS, Rsn, PL);
+      LHS->constrainToWild(CS, Reason);
     }
     if (RHS != nullptr) {
-      RHS->constrainToWild(CS, Rsn, PL);
+      RHS->constrainToWild(CS, Reason);
     }
     return;
   }
@@ -1845,16 +1846,17 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
         // This is an assignment between function pointer and
         // function pointer or a function.
         // Force past/future callers of function to use equality constraints.
-        FCLHS->equateArgumentConstraints(*Info);
-        FCRHS->equateArgumentConstraints(*Info);
+        auto Reason = ReasonLoc("Assignment of function pointer", Rsn.Location);
+        FCLHS->equateArgumentConstraints(*Info, Reason);
+        FCRHS->equateArgumentConstraints(*Info, Reason);
 
         // Constrain the return values covariantly.
         // FIXME: Make neg(CA) here? Function pointers equated.
         constrainConsVarGeq(FCLHS->getExternalReturn(),
-                            FCRHS->getExternalReturn(), CS, PL, Same_to_Same,
+                            FCRHS->getExternalReturn(), CS, Reason, Same_to_Same,
                             DoEqType, Info, HandleBoundsKey);
         constrainConsVarGeq(FCLHS->getInternalReturn(),
-                            FCRHS->getInternalReturn(), CS, PL, Same_to_Same,
+                            FCRHS->getInternalReturn(), CS, Reason, Same_to_Same,
                             DoEqType, Info, HandleBoundsKey);
 
         // Constrain the parameters contravariantly.
@@ -1863,20 +1865,21 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
             ConstraintVariable *LHSV = FCLHS->getExternalParam(I);
             ConstraintVariable *RHSV = FCRHS->getExternalParam(I);
             // FIXME: Make neg(CA) here? Now: Function pointers equated.
-            constrainConsVarGeq(RHSV, LHSV, CS, PL, Same_to_Same, DoEqType,
+            constrainConsVarGeq(RHSV, LHSV, CS, Reason, Same_to_Same, DoEqType,
                                 Info, HandleBoundsKey);
 
             ConstraintVariable *LParam = FCLHS->getInternalParam(I);
             ConstraintVariable *RParam = FCRHS->getInternalParam(I);
-            constrainConsVarGeq(RParam, LParam, CS, PL, Same_to_Same, DoEqType,
+            constrainConsVarGeq(RParam, LParam, CS, Reason, Same_to_Same, DoEqType,
                                 Info, HandleBoundsKey);
           }
         } else {
           // Constrain both to be top.
-          std::string Rsn =
-              "Assigning from:" + FCRHS->getName() + " to " + FCLHS->getName();
-          RHS->constrainToWild(CS, Rsn, PL);
-          LHS->constrainToWild(CS, Rsn, PL);
+          auto WildReason = ReasonLoc(
+              "Assigning from " + FCRHS->getName() + " to " + FCLHS->getName(),
+              Rsn.Location);
+          RHS->constrainToWild(CS, WildReason);
+          LHS->constrainToWild(CS, WildReason);
         }
       } else {
         llvm_unreachable("impossible");
@@ -1890,11 +1893,13 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
                                                PCRHS->getBoundsKey());
         }
 
-        std::string Rsn = "";
+        auto Reason = ReasonLoc(
+            "Assigning from " + PCRHS->getName() + " to " + PCLHS->getName(),
+            Rsn.Location);
         // This is to handle function subtyping. Try to add LHS and RHS
         // to each others argument constraints.
-        PCLHS->addArgumentConstraint(PCRHS, *Info);
-        PCRHS->addArgumentConstraint(PCLHS, *Info);
+        PCLHS->addArgumentConstraint(PCRHS, Reason, *Info);
+        PCRHS->addArgumentConstraint(PCLHS, Reason, *Info);
         // Element-wise constrain PCLHS and PCRHS to be equal.
         CAtoms CLHS = PCLHS->getCvars();
         CAtoms CRHS = PCRHS->getCvars();
@@ -1913,24 +1918,26 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
 
               // Get outermost pointer first, using current ConsAction.
               if (N == 0)
-                createAtomGeq(CS, IAtom, JAtom, Rsn, PL, CA, DoEqType);
+                createAtomGeq(CS, IAtom, JAtom, Reason, CA, DoEqType);
               else {
                 // Now constrain the inner ones as equal.
-                createAtomGeq(CS, IAtom, JAtom, Rsn, PL, CA, true);
+                createAtomGeq(CS, IAtom, JAtom, Reason, CA, true);
               }
             }
             // Unequal sizes means casting from (say) T** to T*; not safe.
             // unless assigning to a generic type.
           } else {
             // Constrain both to be top.
-            std::string Rsn = "Assigning from:" + std::to_string(CRHS.size()) +
+            auto WildReason = ReasonLoc(
+                "Assigning from " + std::to_string(CRHS.size()) +
                               " depth pointer to " +
-                              std::to_string(CLHS.size()) + " depth pointer.";
-            PCLHS->constrainToWild(CS, Rsn, PL);
-            PCRHS->constrainToWild(CS, Rsn, PL);
+                              std::to_string(CLHS.size()) + " depth pointer.",
+                Rsn.Location);
+            PCLHS->constrainToWild(CS, WildReason);
+            PCRHS->constrainToWild(CS, WildReason);
           }
           // Equate the corresponding FunctionConstraint.
-          constrainConsVarGeq(PCLHS->getFV(), PCRHS->getFV(), CS, PL, CA,
+          constrainConsVarGeq(PCLHS->getFV(), PCRHS->getFV(), CS, Reason, CA,
                               DoEqType, Info, HandleBoundsKey);
         }
       } else
@@ -1939,42 +1946,48 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
       llvm_unreachable("unknown kind");
   } else {
     // Assigning from a function variable to a pointer variable?
+    auto Reason = ReasonLoc(
+        "Assigning from a function variable to a pointer variable",
+        Rsn.Location);
     PVConstraint *PCLHS = dyn_cast<PVConstraint>(LHS);
     FVConstraint *FCRHS = dyn_cast<FVConstraint>(RHS);
     if (PCLHS && FCRHS) {
       if (FVConstraint *FCLHS = PCLHS->getFV()) {
-        constrainConsVarGeq(FCLHS, FCRHS, CS, PL, CA, DoEqType, Info,
+        constrainConsVarGeq(FCLHS, FCRHS, CS, Reason, CA, DoEqType, Info,
                             HandleBoundsKey);
       } else {
-        std::string Rsn = "Function:" + FCRHS->getName() +
-                          " assigned to non-function pointer.";
-        LHS->constrainToWild(CS, Rsn, PL);
-        RHS->constrainToWild(CS, Rsn, PL);
+        auto WildReason = ReasonLoc("Function:" + FCRHS->getName() +
+                                        " assigned to non-function pointer.",
+                                    Rsn.Location);
+        LHS->constrainToWild(CS, WildReason);
+        RHS->constrainToWild(CS, WildReason);
       }
     } else {
       // Constrain everything in both to wild.
-      std::string Rsn = "Assignment to functions from variables";
-      LHS->constrainToWild(CS, Rsn, PL);
-      RHS->constrainToWild(CS, Rsn, PL);
+      auto WildReason = ReasonLoc(
+          "Assignment to functions from variables",
+          Rsn.Location);
+      LHS->constrainToWild(CS, WildReason);
+      RHS->constrainToWild(CS, WildReason);
     }
   }
 }
 
 void constrainConsVarGeq(ConstraintVariable *LHS, const CVarSet &RHS,
-                         Constraints &CS, PersistentSourceLoc *PL,
+                         Constraints &CS, const ReasonLoc &Rsn,
                          ConsAction CA, bool DoEqType, ProgramInfo *Info,
                          bool HandleBoundsKey) {
   for (const auto &J : RHS)
-    constrainConsVarGeq(LHS, J, CS, PL, CA, DoEqType, Info, HandleBoundsKey);
+    constrainConsVarGeq(LHS, J, CS, Rsn, CA, DoEqType, Info, HandleBoundsKey);
 }
 
 // Given an RHS and a LHS, constrain them to be equal.
 void constrainConsVarGeq(const CVarSet &LHS, const CVarSet &RHS,
-                         Constraints &CS, PersistentSourceLoc *PL,
+                         Constraints &CS, const ReasonLoc &Rsn,
                          ConsAction CA, bool DoEqType, ProgramInfo *Info,
                          bool HandleBoundsKey) {
   for (const auto &I : LHS)
-    constrainConsVarGeq(I, RHS, CS, PL, CA, DoEqType, Info, HandleBoundsKey);
+    constrainConsVarGeq(I, RHS, CS, Rsn, CA, DoEqType, Info, HandleBoundsKey);
 }
 
 // True if [C] is a PVConstraint that contains at least one Atom (i.e.,
@@ -2056,22 +2069,18 @@ Atom *PointerVariableConstraint::getAtom(unsigned AtomIdx, Constraints &CS) {
 }
 
 void PointerVariableConstraint::equateWithItype(
-    ProgramInfo &I, const std::string &ReasonUnchangeable,
-    PersistentSourceLoc *PSL) {
+    ProgramInfo &I, const ReasonLoc &ReasonUnchangeable) {
   Constraints &CS = I.getConstraints();
   assert(SrcVars.size() == Vars.size());
   for (unsigned VarIdx = 0; VarIdx < Vars.size(); VarIdx++) {
     ConstAtom *CA = SrcVars[VarIdx];
     if (isa<WildAtom>(CA))
-      CS.addConstraint(CS.createGeq(
-          Vars[VarIdx], CA,
-          ReasonUnchangeable.empty() ? DEFAULT_REASON : ReasonUnchangeable, PSL,
-          true));
+      CS.addConstraint(CS.createGeq(Vars[VarIdx], CA,ReasonUnchangeable,true));
     else
       Vars[VarIdx] = SrcVars[VarIdx];
   }
   if (FV) {
-    FV->equateWithItype(I, ReasonUnchangeable, PSL);
+    FV->equateWithItype(I, ReasonUnchangeable);
   }
 }
 
@@ -2113,11 +2122,10 @@ bool FunctionVariableConstraint::isOriginallyChecked() const {
 }
 
 void FunctionVariableConstraint::equateWithItype(
-    ProgramInfo &I, const std::string &ReasonUnchangeable,
-    PersistentSourceLoc *PSL) {
-  ReturnVar.equateWithItype(I, ReasonUnchangeable, PSL);
+    ProgramInfo &I, const ReasonLoc &ReasonUnchangeable) {
+  ReturnVar.equateWithItype(I, ReasonUnchangeable);
   for (auto Param : ParamVars)
-    Param.equateWithItype(I, ReasonUnchangeable, PSL);
+    Param.equateWithItype(I, ReasonUnchangeable);
 }
 
 void FVComponentVariable::mergeDeclaration(FVComponentVariable *From,
@@ -2277,18 +2285,19 @@ FVComponentVariable::FVComponentVariable(const QualType &QT,
 }
 
 void FVComponentVariable::equateWithItype(ProgramInfo &I,
-                                          const std::string &ReasonUnchangeable,
-                                          PersistentSourceLoc *PSL) const {
+                                 const ReasonLoc &ReasonUnchangeable) const {
   Constraints &CS = I.getConstraints();
-  const std::string ReasonUnchangeable2 =
-      (ReasonUnchangeable.empty() && ExternalConstraint->isGeneric())
-          ? "Internal constraint for generic function declaration, "
-            "for which 3C currently does not support re-solving."
+  const ReasonLoc &ReasonUnchangeable2 =
+      (ReasonUnchangeable.isDefault() && ExternalConstraint->isGeneric())
+          ? ReasonLoc("Internal constraint for generic function declaration, "
+                      "for which 3C currently does not support re-solving.",
+                      // TODO: What PSL should we actually use here?
+                      ReasonUnchangeable.Location)
           : ReasonUnchangeable;
   bool HasItype = ExternalConstraint->srcHasItype();
   // If the type cannot change at all (ReasonUnchangeable2 is set), then we
   // constrain both the external and internal types to not change.
-  bool MustConstrainInternalType = !ReasonUnchangeable2.empty();
+  bool MustConstrainInternalType = !ReasonUnchangeable2.isDefault();
   // Otherwise, if a pointer is an array pointer with declared bounds or is a
   // constant size array, then we want to ensure the external type continues to
   // solve to ARR or NTARR; see the comment on
@@ -2299,25 +2308,26 @@ void FVComponentVariable::equateWithItype(ProgramInfo &I,
   bool MustBeArray =
     ExternalConstraint->srcHasBounds() || ExternalConstraint->hasSomeSizedArr();
   if (HasItype && (MustConstrainInternalType || MustBeArray)) {
-    ExternalConstraint->equateWithItype(I, ReasonUnchangeable2, PSL);
+    ExternalConstraint->equateWithItype(I, ReasonUnchangeable2);
     if (ExternalConstraint != InternalConstraint)
       linkInternalExternal(I, false);
     if (MustConstrainInternalType)
-      InternalConstraint->constrainToWild(CS, ReasonUnchangeable2, PSL);
+      InternalConstraint->constrainToWild(CS, ReasonUnchangeable2);
   }
 }
 
 void FVComponentVariable::linkInternalExternal(ProgramInfo &I,
                                                bool EquateChecked) const {
   Constraints &CS = I.getConstraints();
+  auto LinkReason = ReasonLoc("Function Internal/External Link", PersistentSourceLoc());
   for (unsigned J = 0; J < InternalConstraint->getCvars().size(); J++) {
     Atom *InternalA = InternalConstraint->getCvars()[J];
     Atom *ExternalA = ExternalConstraint->getCvars()[J];
     if (isa<VarAtom>(InternalA) || isa<VarAtom>(ExternalA)) {
       // Equate pointer types for internal and external parameter constraint
       // variables.
-      CS.addConstraint(CS.createGeq(InternalA, ExternalA, false));
-      CS.addConstraint(CS.createGeq(ExternalA, InternalA, false));
+      CS.addConstraint(CS.createGeq(InternalA, ExternalA, LinkReason, false));
+      CS.addConstraint(CS.createGeq(ExternalA, InternalA, LinkReason, false));
 
       if (!isa<ConstAtom>(ExternalA)) {
         // Constrain Internal >= External. If external solves to wild, then so
@@ -2325,7 +2335,8 @@ void FVComponentVariable::linkInternalExternal(ProgramInfo &I,
         // use causes the internal variable to be wild because the external
         // variable solves to WILD only when there is an unsafe use that
         // cannot be resolved by inserting casts.
-        CS.addConstraint(CS.createGeq(InternalA, ExternalA, true));
+        CS.addConstraint(CS.createGeq(InternalA, ExternalA,
+                                      LinkReason, true));
 
         // Atoms of return constraint variables are unified after the first
         // level. This is because CheckedC does not allow assignment from e.g.
@@ -2333,14 +2344,15 @@ void FVComponentVariable::linkInternalExternal(ProgramInfo &I,
         // variable with type `int **`.
         if (DisableFunctionEdges || DisableRDs || EquateChecked ||
             (ExternalConstraint->getName() == RETVAR && J > 0))
-          CS.addConstraint(CS.createGeq(ExternalA, InternalA, true));
+          CS.addConstraint(CS.createGeq(ExternalA, InternalA,
+                                        LinkReason, true));
       }
     }
   }
   if (FVConstraint *ExtFV = ExternalConstraint->getFV()) {
     FVConstraint *IntFV = InternalConstraint->getFV();
     assert(IntFV != nullptr);
-    constrainConsVarGeq(ExtFV, IntFV, CS, nullptr, Same_to_Same, true, &I);
+    constrainConsVarGeq(ExtFV, IntFV, CS, LinkReason, Same_to_Same, true, &I);
   }
 }
 
@@ -2355,7 +2367,8 @@ bool FVComponentVariable::solutionEqualTo(Constraints &CS,
 }
 
 FVComponentVariable::FVComponentVariable(FVComponentVariable *Ot,
+                                         ReasonLoc &Rsn,
                                          Constraints &CS) {
-  InternalConstraint = Ot->InternalConstraint->getCopy(CS);
-  ExternalConstraint = Ot->ExternalConstraint->getCopy(CS);
+  InternalConstraint = Ot->InternalConstraint->getCopy(Rsn,CS);
+  ExternalConstraint = Ot->ExternalConstraint->getCopy(Rsn,CS);
 }

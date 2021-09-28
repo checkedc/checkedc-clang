@@ -160,14 +160,16 @@ bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
         // elsewhere, especially `ConstraintResolver::getExprConstraintVars`
         // using variable `ReallocFlow`. Because `realloc` can take a wild
         // pointer and return a safe one.
+        auto PSL = PersistentSourceLoc::mkPSL(CE,*Context);
+        auto Rsn = ReasonLoc("Type variable", PSL);
         if (FD->getNameAsString() == "realloc") {
           constrainConsVarGeq(P, TVEntry.second.getConstraintVariables(),
-                              Info.getConstraints(), nullptr, Wild_to_Safe, false,
+                              Info.getConstraints(), Rsn, Wild_to_Safe, false,
                               &Info);
 
         } else {
           constrainConsVarGeq(P, TVEntry.second.getConstraintVariables(),
-                            Info.getConstraints(), nullptr, Safe_to_Wild, false,
+                            Info.getConstraints(), Rsn, Safe_to_Wild, false,
                             &Info);
       }
 

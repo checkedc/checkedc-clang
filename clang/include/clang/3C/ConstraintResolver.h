@@ -71,7 +71,8 @@ private:
 
   CVarSet getInvalidCastPVCons(CastExpr *E);
 
-  CVarSet addAtomAll(CVarSet CVS, ConstAtom *PtrTyp, Constraints &CS);
+  CVarSet addAtomAll(CVarSet CVS, ConstAtom *PtrTyp,
+                     ReasonLoc &Rsn, Constraints &CS);
   CVarSet pvConstraintFromType(QualType TypE);
 
   CSetBkeyPair getAllSubExprConstraintVars(std::vector<Expr *> &Exprs);

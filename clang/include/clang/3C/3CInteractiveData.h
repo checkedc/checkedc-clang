@@ -16,18 +16,26 @@
 #include "clang/3C/ConstraintVariables.h"
 #include "clang/3C/PersistentSourceLoc.h"
 
-// Source info and reason for each wild pointer.
-class WildPointerInferenceInfo {
+// Source info and reason
+class RootCauseDiagnostic {
 public:
-  WildPointerInferenceInfo(std::string Reason, const PersistentSourceLoc PSL)
-      : WildPtrReason(Reason), Location(PSL) {}
+  RootCauseDiagnostic() = default;
+  explicit RootCauseDiagnostic(ReasonLoc &Rsn) : Main(Rsn) {}
 
-  const std::string &getWildPtrReason() const { return WildPtrReason; }
-  const PersistentSourceLoc &getLocation() const { return Location; }
+  const std::string &getReason() { return Main.Reason; }
+  void setReason(const std::string &Rsn) { Main.Reason = Rsn; }
+
+  const PersistentSourceLoc &getLocation() const { return Main.Location; }
+
+  void addReason(const ReasonLoc &Rsn) {
+    Supplemental.push_back(Rsn);
+  }
+
+  std::vector<ReasonLoc> &additionalNotes() { return Supplemental; }
 
 private:
-  std::string WildPtrReason = "";
-  PersistentSourceLoc Location;
+  ReasonLoc Main;
+  std::vector<ReasonLoc> Supplemental;
 };
 
 // Constraints information.
@@ -44,7 +52,7 @@ public:
   void printRootCauseStats(raw_ostream &O, Constraints &CS);
   int getNumPtrsAffected(ConstraintKey CK);
 
-  std::map<ConstraintKey, WildPointerInferenceInfo> RootWildAtomsWithReason;
+  std::map<ConstraintKey, RootCauseDiagnostic> RootWildAtomsWithReason;
   CVars AllWildAtoms;
   CVars InSrcWildAtoms;
   CVars TotalNonDirectWildAtoms;
