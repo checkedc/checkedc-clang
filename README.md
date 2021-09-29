@@ -59,6 +59,12 @@ manual is
 For more information on Checked C and pointers to example code, see our
 [Wiki](https://github.com/Microsoft/checkedc/wiki).
 
+You can use `clangd` built from this repository to get similar IDE support for
+editing Checked C code as upstream `clangd` provides for C code. For example,
+you can jump to definition/references and get a real-time display of errors and
+warnings, etc. Here is [more information about Checked C's
+`clangd`](clang/docs/checkedc/clangd.md).
+
 ## 3C: Semi-automated conversion of C code to Checked C
 
 This repository includes a tool called 3C that partially automates the
