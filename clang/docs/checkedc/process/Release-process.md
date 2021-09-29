@@ -5,8 +5,8 @@ This document describes the steps to be followed while making a release of Check
 1. Make sure that all builds and tests are successful on the release branch. For our example, this branch is `release_11.x`.
 
 2. The artifacts that comprise the release are, at present:
-  1. The Checked C Clang compiler executables for Windows 32 and 64.
-  2. The version of the Checked C specification that accompanies the released compiler.
+	- The Checked C Clang compiler executables for Windows 32 and 64.
+	- The version of the Checked C specification that accompanies the released compiler.
 
 3. The release tag and name has the format `CheckedC-Clang-<llvm-version>-rel<checkedc-release-number>`.  For our example, the release tag and name is `CheckedC-Clang-11.1.0-rel1`. Note that `<llvm-version>` represents the version of LLVM/Clang on which the current Checked C compiler release is based, and `<checkedc-release-number>` is to identify different releases of the Checked C compiler based on the same LLVM/Clang version.
 
@@ -18,9 +18,9 @@ This document describes the steps to be followed while making a release of Check
 
 7. Update the release notes for the current release in this draft, guided by previous release notes. Also upload the release artifacts. Some points to note:
 
-  1. The release note should mention the version of the Checked C language specification that the released compiler is based on as this version number if not available in the name or tag associated with the release.
-  2. The release note should mention the release date and tag.
-  3. The bug fixes and the new features mentioned in the release note must be relative to the previous release. Moreover only bug fixes and PRs relevant to users should be part of the release notes. Specifically, bugs and PRs created for internal tracking should not be part of the release notes.
+	- The release note should mention the version of the Checked C language specification that the released compiler is based on as this version number if not available in the name or tag associated with the release.
+	- The release note should mention the release date and tag.
+	- The bug fixes and the new features mentioned in the release note must be relative to the previous release. Moreover only bug fixes and PRs relevant to users should be part of the release notes. Specifically, bugs and PRs created for internal tracking should not be part of the release notes.
 
 8. Once the release note is published, request another team member to download the release artifacts and sanity-check them.
 
