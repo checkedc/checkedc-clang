@@ -47,7 +47,7 @@ To make the details clear, the steps will walk through the merge of an example e
 
 7. The last step is to merge PR 123 into the `master` branch of our remote repository (https://github.com/microsoft/checkedc-clang). Two points should be kept in mind:
 
-  1. The merge should either be a `merge commit` or a `squash merge` depending on the context of the PR. For example, PRs from CCI should always be `merge commit` as CCI needs to be able to access the commit history in their PRs.
-  2. We should manually ensure that the commit id of the PR that gets merged is exactly the same as the commit id on which the most recent build and test executions were successful. This is to make sure that we avoid merging any unreviewed/untested changes that may compromise security.
+	- The merge should either be a "merge commit" or a "squash merge" depending on the context of the PR. For example, "omnibus" 3C PRs from CCI ([example](https://github.com/microsoft/checkedc-clang/pull/1065)) should always be "merge commit" because they contain intermediate commits from CCI's `main` branch that need to stay in sync between CCI's and Microsoft's repositories after the merge. But for most PRs, the intermediate commits just reflect steps of work and code review that don't need to stay in sync with anywhere else, so a "squash merge" leaves a simpler history on the `master` branch for the benefit of most readers, and readers who want more detail can still view the intermediate commits on the PR page.
+	- We should manually ensure that the commit id of the PR that gets merged is exactly the same as the commit id on which the most recent build and test executions were successful. This is to make sure that we avoid merging any unreviewed/untested changes that may compromise security.
 
 8. After a successful merge of the external PR, the temporary branch (`test-CCI-PR-123` in the steps above) may be deleted.

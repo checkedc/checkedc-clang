@@ -18,7 +18,7 @@ This document describes the steps to be followed while making a release of Check
 
 7. Update the release notes for the current release in this draft, guided by previous release notes. Also upload the release artifacts. Some points to note:
 
-	- The release note should mention the version of the Checked C language specification that the released compiler is based on as this version number if not available in the name or tag associated with the release.
+	- The release note should mention the version of the Checked C language specification that the released compiler is based on as this version number is not available in the name or tag associated with the release.
 	- The release note should mention the release date and tag.
 	- The bug fixes and the new features mentioned in the release note must be relative to the previous release. Moreover only bug fixes and PRs relevant to users should be part of the release notes. Specifically, bugs and PRs created for internal tracking should not be part of the release notes.
 
@@ -26,7 +26,7 @@ This document describes the steps to be followed while making a release of Check
 
 9. Similar to the release made in the `checkedc-clang` repository, a release has to be made in the `checkedc` repository also. The only artifact in this release is the Checked C specification. It should be the same as the one released through the `checkedc-clang` release (i.e. both the releases must be in sync). The same tag as in step 3 must be applied to the `master` branch of the `checkedc` repository.
 
-10. Apply an annotation tag (same tag as in step 3) on the `master` branches of both `checkedc-automation` and `checkedc-llvm-test-suite` repositories using the command below (assumes that the `master` branch of both these repositories is checked out and it is at exactly the same revision that was used to test the release):
+10. Apply an annotated tag (same tag as in step 3) on the `master` branches of both `checkedc-automation` and `checkedc-llvm-test-suite` repositories using the command below (assumes that the `master` branch of both these repositories is checked out and it is at exactly the same revision that was used to test the release):
   
 ```
     * git tag -a CheckedC-Clang-11.1.0-rel1
