@@ -42,8 +42,15 @@ typedef std::set<ConstraintKey> CVars;
 // Holds Atoms, one for each of the pointer (*) declared in the program.
 typedef std::vector<Atom *> CAtoms;
 
+// Options for ConstraintVariable::mkString, using the code pattern described in
+// clang/include/clang/3C/OptionalParams.h. Use the MKSTRING_OPTS macro to
+// generate a MkStringOpts instance at a call site.
 struct MkStringOpts {
+  // True when the generated string should include
+  // the name of the variable, false for just the type.
   bool EmitName = true;
+  // True when the generated string is expected
+  // to be used inside an itype.
   bool ForItype = false;
   bool EmitPointee = false;
   bool UnmaskTypedef = false;
@@ -113,11 +120,12 @@ protected:
                          qtyToStr(QT, N == RETVAR ? "" : N)) {}
 
 public:
-  // Create a "for-rewriting" representation of this ConstraintVariable.
-  // The 'emitName' parameter is true when the generated string should include
-  // the name of the variable, false for just the type.
-  // The 'forIType' parameter is true when the generated string is expected
-  // to be used inside an itype.
+  // Generate source code for the type and (in certain cases) the name of the
+  // variable or function represented by this ConstraintVariable that reflects
+  // any changes made by 3C and is suitable to insert during rewriting.
+  //
+  // This method is used in several contexts with special requirements, which
+  // are addressed by the options in MkStringOpts; see the comments there.
   virtual std::string mkString(Constraints &CS,
                                const MkStringOpts &Opts = {}) const = 0;
 

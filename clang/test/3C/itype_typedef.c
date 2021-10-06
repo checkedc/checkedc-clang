@@ -34,7 +34,7 @@ void test2(td2 a) {
 typedef int *td3;
 td3 test3() {
 //CHECK: typedef _Ptr<int> td3;
-//CHECK: int * test3(void) : itype(td3) {
+//CHECK: int *test3(void) : itype(td3) {
   return (int*) 1;
 }
 

@@ -30,14 +30,8 @@ int *baz(int *a, int len, int *b) {
   return a;
 }
 
-// FIXME: The space between after the first star is needed for the idempotence
-//        test to pass. If there isn't a space there, 3c will add one when
-//        re-run on its original output. This should be fixed ideally in two
-//        ways.  First, the space shouldn't be added when not present in the
-//        original source, and second, the second conversion should not rewrite
-//        the declaration.
-void buz(int * (*f)(int *, int *)) {}
-//CHECK: void buz(int * ((*f)(int *, int *)) : itype(_Ptr<_Ptr<int> (_Ptr<int>, _Ptr<int>)>)) _Checked {}
+void buz(int *(*f)(int *, int *)) {}
+//CHECK: void buz(int *((*f)(int *, int *)) : itype(_Ptr<_Ptr<int> (_Ptr<int>, _Ptr<int>)>)) _Checked {}
 
 typedef int * int_star;
 void typedef_test(int_star p) {}

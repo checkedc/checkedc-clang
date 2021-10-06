@@ -67,7 +67,7 @@ void lists() {
 
   int *d[2] = (int *[2]){&x, (int *)1};
   //CHECK_NOALL: int *d[2] = (int *[2]){&x, (int *)1};
-  //CHECK_ALL: int * d _Checked[2] = (int * _Checked[2]){&x, (int *)1};
+  //CHECK_ALL: int *d _Checked[2] = (int * _Checked[2]){&x, (int *)1};
   int *d0 = d[0];
   //CHECK: int *d0 = d[0];
 

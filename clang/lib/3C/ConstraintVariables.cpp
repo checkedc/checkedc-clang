@@ -750,12 +750,19 @@ PointerVariableConstraint::mkString(Constraints &CS,
   UNPACK_OPTS(EmitName, ForItype, EmitPointee, UnmaskTypedef, UseName,
               ForItypeBase);
 
+  // This function has become pretty ad-hoc and has a number of known bugs: see
+  // https://github.com/correctcomputation/checkedc-clang/issues/703. We hope to
+  // overhaul it in the future.
+
   // The name field encodes if this variable is the return type for a function.
   // TODO: store this information in a separate field.
   bool IsReturn = getName() == RETVAR;
 
-  if (UseName.empty())
+  if (UseName.empty()) {
     UseName = getName();
+    if (UseName.empty())
+      EmitName = false;
+  }
 
   if (IsTypedef && !UnmaskTypedef) {
     std::string QualTypedef = gatherQualStrings() + TypedefString;
@@ -782,13 +789,9 @@ PointerVariableConstraint::mkString(Constraints &CS,
   bool EmittedBase = false;
   // Have we emitted the name of the variable yet?
   bool EmittedName = false;
-  // Was the last variable an Array?
-  bool PrevArr = false;
-  // Is the entire type so far an array?
-  bool AllArrays = true;
   if (!EmitName || IsReturn)
     EmittedName = true;
-  uint32_t TypeIdx = 0;
+  int TypeIdx = 0;
 
   // If we've set a GenericIndex for void, it means we're converting it into
   // a generic function so give it the default generic type name.
@@ -802,7 +805,6 @@ PointerVariableConstraint::mkString(Constraints &CS,
   }
 
   auto It = Vars.begin();
-  auto I = 0;
   // Skip over first pointer level if only emitting pointee string.
   // This is needed when inserting type arguments.
   if (EmitPointee)
@@ -810,8 +812,8 @@ PointerVariableConstraint::mkString(Constraints &CS,
   // Iterate through the vars(), but if we have an internal typedef, then stop
   // once you reach the typedef's level.
   for (; It != Vars.end() && IMPLIES(TypedefLevelInfo.HasTypedef,
-                                     I < TypedefLevelInfo.TypedefLevel);
-       ++It, I++) {
+                                     TypeIdx < TypedefLevelInfo.TypedefLevel);
+       ++It, TypeIdx++) {
     const auto &V = *It;
     ConstAtom *C = nullptr;
     if (ForItypeBase) {
@@ -833,21 +835,23 @@ PointerVariableConstraint::mkString(Constraints &CS,
     if (!ForItype && InferredGenericIndex == -1 && isVoidPtr())
       K = Atom::A_Wild;
 
-    if (PrevArr && ArrSizes.at(TypeIdx).first != O_SizedArray && !EmittedName) {
-      EmittedName = true;
+    // In a case like `_Ptr<TYPE> p[2]`, the ` p[2]` needs to end up _after_ the
+    // `>`, so we need to push the ` p[2]` onto EndStrs _before_ the code below
+    // pushes the `>`. In general, before we visit a checked pointer level (not
+    // a checked array level), we need to transfer any pending array levels and
+    // emit the name (if applicable).
+    if (K != Atom::A_Wild && ArrSizes.at(TypeIdx).first != O_SizedArray) {
       addArrayAnnotations(ConstArrs, EndStrs);
-      EndStrs.push_front(" " + UseName);
+      if (!EmittedName) {
+        EmittedName = true;
+        EndStrs.push_front(" " + UseName);
+      }
     }
-    PrevArr = ArrSizes.at(TypeIdx).first == O_SizedArray;
 
     switch (K) {
     case Atom::A_Ptr:
       getQualString(TypeIdx, Ss);
 
-      // We need to check and see if this level of variable
-      // is constrained by a bounds safe interface. If it is,
-      // then we shouldn't re-write it.
-      AllArrays = false;
       EmittedBase = false;
       Ss << "_Ptr<";
       EndStrs.push_front(">");
@@ -861,38 +865,28 @@ PointerVariableConstraint::mkString(Constraints &CS,
       // we should substitute [K].
       if (emitArraySize(ConstArrs, TypeIdx, K))
         break;
-      AllArrays = false;
-      // We need to check and see if this level of variable
-      // is constrained by a bounds safe interface. If it is,
-      // then we shouldn't re-write it.
       EmittedBase = false;
       Ss << "_Array_ptr<";
       EndStrs.push_front(">");
       break;
     case Atom::A_NTArr:
+      // If this is an NTArray.
+      getQualString(TypeIdx, Ss);
       if (emitArraySize(ConstArrs, TypeIdx, K))
         break;
-      AllArrays = false;
-      // This additional check is to prevent fall-through from the array.
-      if (K == Atom::A_NTArr) {
-        // If this is an NTArray.
-        getQualString(TypeIdx, Ss);
 
-        // We need to check and see if this level of variable
-        // is constrained by a bounds safe interface. If it is,
-        // then we shouldn't re-write it.
-        EmittedBase = false;
-        Ss << "_Nt_array_ptr<";
-        EndStrs.push_front(">");
-        break;
-      }
-      LLVM_FALLTHROUGH;
+      EmittedBase = false;
+      Ss << "_Nt_array_ptr<";
+      EndStrs.push_front(">");
+      break;
     // If there is no array in the original program, then we fall through to
     // the case where we write a pointer value.
     case Atom::A_Wild:
       if (emitArraySize(ConstArrs, TypeIdx, K))
         break;
-      AllArrays = false;
+      // FIXME: This code emits wild pointer levels with the outermost on the
+      // left. The outermost should be on the right
+      // (https://github.com/correctcomputation/checkedc-clang/issues/161).
       if (FV != nullptr) {
         FptrInner << "*";
         getQualString(TypeIdx, FptrInner);
@@ -912,35 +906,19 @@ PointerVariableConstraint::mkString(Constraints &CS,
       llvm_unreachable("impossible");
       break;
     }
-    TypeIdx++;
-  }
-
-  // If the previous variable was an array or
-  // if we are leaving an array run, we need to emit the
-  // annotation for a stack-array
-  if (PrevArr && !ConstArrs.empty())
-    addArrayAnnotations(ConstArrs, EndStrs);
-
-  // If the whole type is an array so far, and we haven't emitted
-  // a name yet, then emit the name so that it appears before
-  // the the stack array type.
-  if (PrevArr && !EmittedName && AllArrays) {
-    EmittedName = true;
-    EndStrs.push_front(" " + UseName);
   }
 
   if (!EmittedBase) {
     // If we have a FV pointer, then our "base" type is a function pointer type.
     if (FV) {
-      if (Ss.str().empty()) {
-        if (!EmittedName) {
-          FptrInner << UseName;
-          EmittedName = true;
-        }
-        for (std::string Str : EndStrs)
-          FptrInner << Str;
-        EndStrs.clear();
+      if (!EmittedName) {
+        FptrInner << UseName;
+        EmittedName = true;
       }
+      std::deque<std::string> FptrEndStrs;
+      addArrayAnnotations(ConstArrs, FptrEndStrs);
+      for (std::string Str : FptrEndStrs)
+        FptrInner << Str;
       bool EmitFVName = !FptrInner.str().empty();
       if (EmitFVName)
         Ss << FV->mkString(CS, MKSTRING_OPTS(UseName = FptrInner.str(),
@@ -958,27 +936,20 @@ PointerVariableConstraint::mkString(Constraints &CS,
     }
   }
 
-  // Add closing elements to type
-  for (std::string Str : EndStrs) {
-    Ss << Str;
-  }
-
   // No space after itype.
-  if (!EmittedName && !UseName.empty()) {
+  if (!EmittedName) {
     if (!StringRef(Ss.str()).endswith("*"))
       Ss << " ";
     Ss << UseName;
   }
 
-  // Final array dropping.
-  if (!ConstArrs.empty()) {
-    std::deque<std::string> ArrStrs;
-    addArrayAnnotations(ConstArrs, ArrStrs);
-    for (std::string Str : ArrStrs)
-      Ss << Str;
+  // Add closing elements to type
+  addArrayAnnotations(ConstArrs, EndStrs);
+  for (std::string Str : EndStrs) {
+    Ss << Str;
   }
 
-  if (IsReturn && !ForItype)
+  if (IsReturn && !ForItype && !StringRef(Ss.str()).endswith("*"))
     Ss << " ";
 
   return Ss.str();
