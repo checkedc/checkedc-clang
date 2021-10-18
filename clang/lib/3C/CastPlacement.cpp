@@ -172,33 +172,30 @@ CastPlacementVisitor::getCastString(ConstraintVariable *Dst,
   case CAST_TO_WILD:
     return std::make_pair("((" + Dst->getRewritableOriginalTy() + ")", ")");
   case CAST_TO_CHECKED: {
+    // Needed as default to TypeVar branch below, reset otherwise.
+    std::string Type = "_Ptr<";
     std::string Suffix = ")";
     if (const auto *DstPVC = dyn_cast<PVConstraint>(Dst)) {
       assert("Checked cast not to a pointer" && !DstPVC->getCvars().empty());
       ConstAtom *CA =
           Info.getConstraints().getAssignment(DstPVC->getCvars().at(0));
 
-      // Writing an _Assume_bounds_cast to an array type requires inserting
-      // the bounds for destination array. These can come from the source
-      // code or the infered bounds. If neither source is available, use empty
-      // bounds.
-      if (isa<ArrAtom>(CA) || isa<NTArrAtom>(CA)) {
-        std::string Bounds = "";
-        if (DstPVC->srcHasBounds())
-          Bounds = DstPVC->getBoundsStr();
-        else if (DstPVC->hasBoundsKey())
-          Bounds = ABRewriter.getBoundsString(DstPVC, nullptr, true);
-        if (Bounds.empty())
-          Bounds = "byte_count(0)";
-
-        Suffix = ", " + Bounds + ")";
+      // TODO: Writing an _Assume_bounds_cast to an array type requires
+      // inserting the bounds for destination array. But the names used in src
+      // and dest may be different, so we need more sophisticated code to
+      // convert to local variable names. Use unknown bounds for now.
+      if (isa<ArrAtom>(CA)) {
+        Type = "_Array_ptr<";
+        Suffix = ", bounds(unknown))";
+      } else if (isa<NTArrAtom>(CA)) {
+        Type = "_Nt_array_ptr<";
+        Suffix = ", bounds(unknown))";
       }
     }
     // The destination's type may be generic, which would have an out-of-scope
     // type var, so use the already analysed local type var instead
-    std::string Type;
     if (TypeVar != nullptr) {
-      Type = "_Ptr<" +
+      Type +=
           TypeVar->mkString(Info.getConstraints(),
                             MKSTRING_OPTS(EmitName = false, EmitPointee = true)) +
           ">";
