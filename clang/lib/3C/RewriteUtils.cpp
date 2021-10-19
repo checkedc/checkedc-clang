@@ -589,11 +589,10 @@ void RewriteConsumer::emitRootCauseDiagnostics(ASTContext &Context) {
       if (!File.getError()) {
         SourceLocation SL =
             SM.translateFileLineCol(*File, PSL.getLineNo(), PSL.getColSNo());
-        // Limit emitted root causes to those that effect more than one pointer
-        // or are in the main file of the TU. Alternatively, don't filter causes
-        // if -warn-all-root-cause is passed.
+        // Limit emitted root causes to those that effect at least one pointer.
+        // Alternatively, don't filter causes if -warn-all-root-cause is passed.
         int PtrCount = I.getNumPtrsAffected(WReason.first);
-        if (_3COpts.WarnAllRootCause || SM.isInMainFile(SL) || PtrCount > 1) {
+        if (_3COpts.WarnAllRootCause || PtrCount > 0) {
           // SL is invalid when the File is not in the current translation unit.
           if (SL.isValid()) {
             EmittedDiagnostics.insert(PSL);
