@@ -14,23 +14,11 @@
 #include "clang/3C/ProgramInfo.h"
 #include "clang/Lex/Lexer.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/Support/CommandLine.h"
 #include <sstream>
 
 using namespace clang;
 // Macro for boolean implication.
 #define IMPLIES(a, b) ((a) ? (b) : true)
-
-static llvm::cl::OptionCategory OptimizationCategory("Optimization category");
-static llvm::cl::opt<bool>
-    DisableRDs("disable-rds",
-               llvm::cl::desc("Disable reverse edges for Checked Constraints."),
-               llvm::cl::init(false), llvm::cl::cat(OptimizationCategory));
-
-static llvm::cl::opt<bool> DisableFunctionEdges(
-    "disable-fnedgs",
-    llvm::cl::desc("Disable reverse edges for external functions."),
-    llvm::cl::init(false), llvm::cl::cat(OptimizationCategory));
 
 std::string ConstraintVariable::getRewritableOriginalTy() const {
   std::string OrigTyString = getOriginalTy();
@@ -1734,7 +1722,7 @@ static void createAtomGeq(Constraints &CS, Atom *L, Atom *R,
       }
       break;
     case Wild_to_Safe:
-      if (!DisableRDs) {
+      if (!_3COpts.DisableRDs) {
         // Note: reversal.
         CS.addConstraint(CS.createGeq(R, L, Rsn, true));
       } else {
@@ -1763,7 +1751,7 @@ static void createAtomGeq(Constraints &CS, Atom *L, Atom *R,
           CS.addConstraint(CS.createGeq(R, L, Rsn, true));
         break;
       case Wild_to_Safe:
-        if (!DisableRDs) {
+        if (!_3COpts.DisableRDs) {
           // Note: reversal.
           CS.addConstraint(CS.createGeq(R, L, Rsn, true));
         } else {
@@ -2313,8 +2301,8 @@ void FVComponentVariable::linkInternalExternal(ProgramInfo &I,
         // level. This is because CheckedC does not allow assignment from e.g.
         // a function return of type `int ** : itype(_Ptr<_Ptr<int>>)` to a
         // variable with type `int **`.
-        if (DisableFunctionEdges || DisableRDs || EquateChecked ||
-            (ExternalConstraint->getName() == RETVAR && J > 0))
+        if (_3COpts.DisableFunctionEdges || _3COpts.DisableRDs ||
+            EquateChecked || (ExternalConstraint->getName() == RETVAR && J > 0))
           CS.addConstraint(CS.createGeq(ExternalA, InternalA,
                                         LinkReason, true));
       }

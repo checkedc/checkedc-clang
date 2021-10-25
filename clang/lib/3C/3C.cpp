@@ -32,12 +32,6 @@ using namespace llvm;
 #define BEFORE_SOLVING_SUFFIX "_before_solving_"
 #define AFTER_SUBTYPING_SUFFIX "_after_subtyping_"
 
-cl::OptionCategory ArrBoundsInferCat("Array bounds inference options");
-static cl::opt<bool>
-    DebugArrSolver("debug-arr-solver",
-                   cl::desc("Dump array bounds inference graph"),
-                   cl::init(false), cl::cat(ArrBoundsInferCat));
-
 std::set<std::string> FilePaths;
 
 struct _3COptions _3COpts;
@@ -586,7 +580,7 @@ bool _3CInterface::solveConstraints() {
     GlobalProgramInfo.getABoundsInfo().addConstantArrayBounds(
       GlobalProgramInfo);
 
-    if (DebugArrSolver)
+    if (_3COpts.DebugArrSolver)
       GlobalProgramInfo.getABoundsInfo().dumpAVarGraph(
           "arr_bounds_initial.dot");
 
@@ -670,7 +664,7 @@ bool _3CInterface::writeAllConvertedFilesToDisk() {
 }
 
 bool _3CInterface::dumpStats() {
-  if (_3COpts.AllTypes && DebugArrSolver) {
+  if (_3COpts.AllTypes && _3COpts.DebugArrSolver) {
     GlobalProgramInfo.getABoundsInfo().dumpAVarGraph("arr_bounds_final.dot");
   }
 

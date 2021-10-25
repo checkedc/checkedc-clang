@@ -21,54 +21,40 @@
 // NOLINTNEXTLINE(readability-identifier-naming)
 struct _3COptions {
   bool DumpIntermediate;
-
   bool Verbose;
-
   std::string OutputPostfix;
   std::string OutputDir;
-
   std::string ConstraintOutputJson;
-
   bool DumpStats;
-
   std::string StatsOutputJson;
-
   std::string WildPtrInfoJson;
-
   std::string PerWildPtrInfoJson;
-
   std::vector<std::string> AllocatorFunctions;
-
   bool HandleVARARGS;
-
-  bool EnablePropThruIType;
-
   std::string BaseDir;
   bool AllowSourcesOutsideBaseDir;
-
   bool AllTypes;
-
   bool AddCheckedRegions;
-
   bool EnableCCTypeChecker;
-
   bool WarnRootCause;
-
   bool WarnAllRootCause;
-
+  bool DumpUnwritableChanges;
+  bool AllowUnwritableChanges;
+  bool AllowRewriteFailures;
+  bool ItypesForExtern;
+  bool InferTypesForUndefs;
+  bool DebugSolver;
+  bool OnlyGreatestSol;
+  bool OnlyLeastSol;
+  bool DisableRDs;
+  bool DisableFunctionEdges;
+  bool DisableInfDecls;
+  bool DisableArrH;
+  bool DebugArrSolver;
 #ifdef FIVE_C
   bool RemoveItypes;
   bool ForceItypes;
 #endif
-
-  bool DumpUnwritableChanges;
-  bool AllowUnwritableChanges;
-
-  bool AllowRewriteFailures;
-
-  bool ItypesForExtern;
-
-  bool InferTypesForUndefs;
 };
 
 // NOLINTNEXTLINE(readability-identifier-naming)

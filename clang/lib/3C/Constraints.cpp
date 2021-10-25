@@ -13,25 +13,10 @@
 #include "clang/3C/3CGlobalOptions.h"
 #include "clang/3C/ConstraintVariables.h"
 #include "clang/3C/ConstraintsGraph.h"
-#include "llvm/Support/CommandLine.h"
 #include <iostream>
 #include <set>
 
 using namespace llvm;
-
-static cl::OptionCategory SolverCategory("solver options");
-static cl::opt<bool> DebugSolver("debug-solver",
-                                 cl::desc("Dump intermediate solver state"),
-                                 cl::init(false), cl::cat(SolverCategory));
-static cl::opt<bool> OnlyGreatestSol(
-    "only-g-sol",
-    cl::desc("Perform only greatest solution for Pty Constrains."),
-    cl::init(false), cl::cat(SolverCategory));
-
-static cl::opt<bool>
-    OnlyLeastSol("only-l-sol",
-                 cl::desc("Perform only least solution for Pty Constrains."),
-                 cl::init(false), cl::cat(SolverCategory));
 
 // Remove the constraint from the global constraint set.
 bool Constraints::removeConstraint(Constraint *C) {
@@ -339,7 +324,7 @@ bool Constraints::graphBasedSolve() {
     }
   }
 
-  if (DebugSolver)
+  if (_3COpts.DebugSolver)
     GraphVizOutputGraph::dumpConstraintGraphs("initial_constraints_graph.dot",
                                               SolChkCG, SolPtrTypCG);
 
@@ -351,9 +336,9 @@ bool Constraints::graphBasedSolve() {
   // Now solve PtrType constraints
   if (Res && _3COpts.AllTypes) {
     Env.doCheckedSolve(false);
-    bool RegularSolve = !(OnlyGreatestSol || OnlyLeastSol);
+    bool RegularSolve = !(_3COpts.OnlyGreatestSol || _3COpts.OnlyLeastSol);
 
-    if (OnlyLeastSol) {
+    if (_3COpts.OnlyLeastSol) {
       // Do only least solution.
       // First reset ptr solution to NTArr.
       Env.resetSolution(
@@ -363,7 +348,7 @@ bool Constraints::graphBasedSolve() {
           },
           getNTArr());
       Res = doSolve(SolPtrTypCG, Env, this, true, nullptr, Conflicts);
-    } else if (OnlyGreatestSol) {
+    } else if (_3COpts.OnlyGreatestSol) {
       // Do only greatest solution
       Res = doSolve(SolPtrTypCG, Env, this, false, nullptr, Conflicts);
     } else {
@@ -481,13 +466,13 @@ bool Constraints::graphBasedSolve() {
 // an empty. If the system could not be solved, the constraints in conflict
 // are returned in the first position.
 void Constraints::solve() {
-  if (DebugSolver) {
+  if (_3COpts.DebugSolver) {
     errs() << "constraints beginning solve\n";
     dump();
   }
   graphBasedSolve();
 
-  if (DebugSolver) {
+  if (_3COpts.DebugSolver) {
     errs() << "solution, when done solving\n";
     Environment.dump();
   }

@@ -237,7 +237,6 @@ void ProgramInfo::printAggregateStats(const std::set<std::string> &F,
 void ProgramInfo::printStats(const std::set<std::string> &F, raw_ostream &O,
                              bool OnlySummary, bool JsonFormat) {
   if (!OnlySummary && !JsonFormat) {
-    O << "Enable itype propagation:" << _3COpts.EnablePropThruIType << "\n";
     O << "Sound handling of var args functions:" << _3COpts.HandleVARARGS
       << "\n";
   }
