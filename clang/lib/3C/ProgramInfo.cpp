@@ -695,6 +695,11 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       unifyIfTypedef(QT, *AstContext, P);
       NewCV = P;
       NewCV->setValidDecl();
+      if (FlD->getParent()->isUnion()) {
+        auto Rsn = ReasonLoc(UNION_FIELD_REASON, PLoc);
+        NewCV->equateWithItype(*this, Rsn);
+        NewCV->constrainToWild(CS, Rsn);
+      }
     }
   } else
     llvm_unreachable("unknown decl type");
@@ -1156,17 +1161,13 @@ bool ProgramInfo::seenTypedef(PersistentSourceLoc PSL) {
   return TypedefVars.count(PSL) != 0;
 }
 
-void ProgramInfo::addTypedef(PersistentSourceLoc PSL, bool CanRewriteDef,
-                             TypedefDecl *TD, ASTContext &C) {
+void ProgramInfo::addTypedef(PersistentSourceLoc PSL, TypedefDecl *TD,
+                             ASTContext &C) {
   ConstraintVariable *V = nullptr;
   if (isa<clang::FunctionType>(TD->getUnderlyingType()))
     V = new FunctionVariableConstraint(TD, *this, C);
   else
     V = new PointerVariableConstraint(TD, *this, C);
-
-  if (!CanRewriteDef)
-    V->constrainToWild(this->getConstraints(),
-                       ReasonLoc("Unable to rewrite a typedef with multiple names", PSL));
 
   if (!canWrite(PSL.getFileName()))
     V->constrainToWild(this->getConstraints(),

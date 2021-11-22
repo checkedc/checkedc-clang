@@ -21,106 +21,6 @@
 using namespace llvm;
 using namespace clang;
 
-// This class is intended to locate inline struct definitions
-// in order to mark them wild or signal a warning as appropriate.
-class InlineStructDetector {
-public:
-  explicit InlineStructDetector() : LastRecordDecl(nullptr) {}
-
-  void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
-                         ASTContext *Context, ConstraintResolver CB) {
-    LastRecordDecl = Declaration;
-    if (RecordDecl *Definition = Declaration->getDefinition()) {
-      auto LastRecordLocation = Definition->getBeginLoc();
-      FullSourceLoc FL = Context->getFullLoc(Definition->getBeginLoc());
-      if (FL.isValid()) {
-        SourceManager &SM = Context->getSourceManager();
-        FileID FID = FL.getFileID();
-        const FileEntry *FE = SM.getFileEntryForID(FID);
-
-        // Detect whether this RecordDecl is part of an inline struct.
-        bool IsInLineStruct = false;
-        Decl *D = Declaration->getNextDeclInContext();
-        if (VarDecl *VD = dyn_cast_or_null<VarDecl>(D)) {
-          auto VarTy = VD->getType();
-          auto BeginLoc = VD->getBeginLoc();
-          auto EndLoc = VD->getEndLoc();
-          SourceManager &SM = Context->getSourceManager();
-          IsInLineStruct =
-              !isPtrOrArrayType(VarTy) && !VD->hasInit() &&
-              SM.isPointWithin(LastRecordLocation, BeginLoc, EndLoc);
-        }
-
-        if (FE && FE->isValid()) {
-          // We only want to re-write a record if it contains
-          // any pointer types, to include array types.
-          for (const auto &F : Definition->fields()) {
-            auto FieldTy = F->getType();
-            // If the RecordDecl is a union or in a system header
-            // and this field is a pointer, we need to mark it wild.
-            bool FieldInUnionOrSysHeader =
-                (FL.isInSystemHeader() || Definition->isUnion());
-            // Mark field wild if the above is true and the field is a pointer.
-            if (isPtrOrArrayType(FieldTy) &&
-                (FieldInUnionOrSysHeader || IsInLineStruct)) {
-              std::string Rsn = "Union or external struct field encountered";
-              CVarOption CV = Info.getVariable(F, Context);
-              CB.constraintCVarToWild(CV, Rsn);
-            }
-          }
-        }
-      }
-    }
-  }
-
-  void processVarDecl(VarDecl *VD, ProgramInfo &Info, ASTContext *Context,
-                      ConstraintResolver CB) {
-    // If the last seen RecordDecl is non-null and coincides with the current
-    // VarDecl (i.e. via an inline struct), we proceed as follows:
-    // If the struct is named, do nothing.
-    // If the struct is anonymous:
-    //      When alltypes is on, do nothing, but signal a warning to
-    //                           the user indicating its presence.
-    //      When alltypes is off, mark the VarDecl WILD in order to
-    //                           ensure the converted program compiles.
-    if (LastRecordDecl != nullptr) {
-      auto LastRecordLocation = LastRecordDecl->getBeginLoc();
-      auto BeginLoc = VD->getBeginLoc();
-      auto EndLoc = VD->getEndLoc();
-      auto VarTy = VD->getType();
-      SourceManager &SM = Context->getSourceManager();
-      bool IsInLineStruct =
-          SM.isPointWithin(LastRecordLocation, BeginLoc, EndLoc) &&
-          isPtrOrArrayType(VarTy);
-      bool IsNamedInLineStruct =
-          IsInLineStruct && LastRecordDecl->getNameAsString() != "";
-      if (IsInLineStruct && !IsNamedInLineStruct) {
-        if (!_3COpts.AllTypes) {
-          CVarOption CV = Info.getVariable(VD, Context);
-          CB.constraintCVarToWild(CV, "Inline struct encountered.");
-        } else {
-          reportCustomDiagnostic(Context->getDiagnostics(),
-                                 DiagnosticsEngine::Warning,
-                                 "\n Rewriting failed"
-                                 "for %q0 because an inline "
-                                 "or anonymous struct instance "
-                                 "was detected.\n Consider manually "
-                                 "rewriting by inserting the struct "
-                                 "definition inside the _Ptr "
-                                 "annotation.\n "
-                                 "EX. struct {int *a; int *b;} x; "
-                                 "_Ptr<struct {int *a; _Ptr<int> b;}>;",
-                                 VD->getLocation())
-              << VD;
-        }
-      }
-    }
-  }
-
-private:
-  RecordDecl *LastRecordDecl;
-};
-
 // This class visits functions and adds constraints to the
 // Constraints instance assigned to it.
 // Each VisitXXX method is responsible for looking inside statements
@@ -128,27 +28,10 @@ private:
 class FunctionVisitor : public RecursiveASTVisitor<FunctionVisitor> {
 public:
   explicit FunctionVisitor(ASTContext *C, ProgramInfo &I, FunctionDecl *FD)
-      : Context(C), Info(I), Function(FD), CB(Info, Context),
-        ISD() {}
+      : Context(C), Info(I), Function(FD), CB(Info, Context) {}
 
   // T x = e
   bool VisitDeclStmt(DeclStmt *S) {
-    // Introduce variables as needed.
-    for (const auto &D : S->decls()) {
-      if (RecordDecl *RD = dyn_cast<RecordDecl>(D)) {
-        ISD.processRecordDecl(RD, Info, Context, CB);
-      }
-      if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
-        if (VD->isLocalVarDecl()) {
-          FullSourceLoc FL = Context->getFullLoc(VD->getBeginLoc());
-          SourceRange SR = VD->getSourceRange();
-          if (SR.isValid() && FL.isValid() && isPtrOrArrayType(VD->getType())) {
-            ISD.processVarDecl(VD, Info, Context, CB);
-          }
-        }
-      }
-    }
-
     // Process inits even for non-pointers because structs and union values
     // can contain pointers
     for (const auto &D : S->decls()) {
@@ -442,48 +325,6 @@ private:
   ProgramInfo &Info;
   FunctionDecl *Function;
   ConstraintResolver CB;
-  InlineStructDetector ISD;
-};
-
-class PtrToStructDef : public RecursiveASTVisitor<PtrToStructDef> {
-public:
-  explicit PtrToStructDef(TypedefDecl *TDT) : TDT(TDT) {}
-
-  bool VisitPointerType(clang::PointerType *PT) {
-    IsPointer = true;
-    return true;
-  }
-
-  bool VisitRecordType(RecordType *RT) {
-    auto *Decl = RT->getDecl();
-    auto DeclRange = Decl->getSourceRange();
-    auto TypedefRange = TDT->getSourceRange();
-    bool DeclContained = (TypedefRange.getBegin() < DeclRange.getBegin()) &&
-                         !(TypedefRange.getEnd() < DeclRange.getEnd());
-    if (DeclContained) {
-      StructDefInTD = true;
-      return false;
-    }
-    return true;
-  }
-
-  bool VisitFunctionProtoType(FunctionProtoType *FPT) {
-    IsPointer = true;
-    return true;
-  }
-
-  bool getResult(void) { return StructDefInTD; }
-
-  static bool containsPtrToStructDef(TypedefDecl *TDT) {
-    PtrToStructDef Traverser(TDT);
-    Traverser.TraverseDecl(TDT);
-    return Traverser.getResult();
-  }
-
-private:
-  TypedefDecl *TDT = nullptr;
-  bool IsPointer = false;
-  bool StructDefInTD = false;
 };
 
 // This class visits a global declaration, generating constraints
@@ -491,7 +332,7 @@ private:
 class ConstraintGenVisitor : public RecursiveASTVisitor<ConstraintGenVisitor> {
 public:
   explicit ConstraintGenVisitor(ASTContext *Context, ProgramInfo &I)
-      : Context(Context), Info(I), CB(Info, Context), ISD() {}
+      : Context(Context), Info(I), CB(Info, Context) {}
 
   bool VisitVarDecl(VarDecl *G) {
 
@@ -499,7 +340,6 @@ public:
       if (G->hasInit()) {
         CB.constrainLocalAssign(nullptr, G, G->getInit(), Same_to_Same);
       }
-      ISD.processVarDecl(G, Info, Context, CB);
     }
     return true;
   }
@@ -546,16 +386,10 @@ public:
     return true;
   }
 
-  bool VisitRecordDecl(RecordDecl *Declaration) {
-    ISD.processRecordDecl(Declaration, Info, Context, CB);
-    return true;
-  }
-
 private:
   ASTContext *Context;
   ProgramInfo &Info;
   ConstraintResolver CB;
-  InlineStructDetector ISD;
 };
 
 // Some information about variables in the program is required by the type
@@ -579,10 +413,8 @@ public:
     // typedef map. If we have seen it before, and we need to preserve the
     // constraints contained within it
     if (!VarAdder.seenTypedef(PSL))
-      // Add this typedef to the program info, if it contains a ptr to
-      // an anonymous struct we mark as not being rewritable
-      VarAdder.addTypedef(PSL, !PtrToStructDef::containsPtrToStructDef(TD), TD,
-                          *Context);
+      // Add this typedef to the program info.
+      VarAdder.addTypedef(PSL, TD, *Context);
     return true;
   }
 

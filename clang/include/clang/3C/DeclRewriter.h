@@ -26,8 +26,8 @@ using namespace clang;
 
 class DeclRewriter {
 public:
-  DeclRewriter(Rewriter &R, ASTContext &A, GlobalVariableGroups &GP)
-      : R(R), A(A), GP(GP) {}
+  DeclRewriter(Rewriter &R, ProgramInfo &Info, ASTContext &A)
+      : R(R), Info(Info), A(A) {}
 
   // The publicly accessible interface for performing declaration rewriting.
   // All declarations for variables with checked types in the variable map of
@@ -40,41 +40,24 @@ public:
                  ArrayBoundsRewriter &ABR);
 
 private:
-  static RecordDecl *LastRecordDecl;
-  static std::map<Decl *, Decl *> VDToRDMap;
-  static std::set<Decl *> InlineVarDecls;
   Rewriter &R;
+  ProgramInfo &Info;
   ASTContext &A;
-  GlobalVariableGroups &GP;
 
-  // This set contains declarations that have already been rewritten as part of
-  // a prior declaration that was in the same multi-declaration. It is checked
-  // before rewriting in order to avoid rewriting a declaration more than once.
-  // It is not used with individual declarations outside of multi-declarations
-  // because these declarations are seen exactly once, rather than every time a
-  // declaration in the containing multi-decl is visited.
-  std::set<Decl *> VisitedMultiDeclMembers;
+  // List of TagDecls that were split from multi-decls and should be moved out
+  // of an enclosing RecordDecl to avoid a compiler warning. Filled during
+  // multi-decl rewriting and processed by denestTagDecls.
+  std::vector<TagDecl *> TagDeclsToDenest;
 
   // Visit each Decl in ToRewrite and apply the appropriate pointer type
   // to that Decl. ToRewrite is the set of all declarations to rewrite.
   void rewrite(RSet &ToRewrite);
 
-  // Rewrite a specific variable declaration using the replacement string in the
-  // DAndReplace structure. Each of these functions is specialized to handling
-  // one subclass of declarations.
-  template <typename DRType>
-  void rewriteFieldOrVarDecl(DRType *N, RSet &ToRewrite);
-  void rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite,
-                        std::vector<Decl *> SameLineDecls,
-                        bool ContainsInlineStruct);
-  void rewriteSingleDecl(DeclReplacement *N, RSet &ToRewrite);
+  void rewriteMultiDecl(MultiDeclInfo &MDI, RSet &ToRewrite);
   void doDeclRewrite(SourceRange &SR, DeclReplacement *N);
   void rewriteFunctionDecl(FunctionDeclReplacement *N);
-  void rewriteTypedefDecl(TypedefDeclReplacement *TDT, RSet &ToRewrite);
-  void getDeclsOnSameLine(DeclReplacement *N, std::vector<Decl *> &Decls);
-  bool isSingleDeclaration(DeclReplacement *N);
-  SourceRange getNextCommaOrSemicolon(SourceLocation L);
-  static void detectInlineStruct(Decl *D, SourceManager &SM);
+  SourceRange getNextComma(SourceLocation L);
+  void denestTagDecls();
 };
 
 // Visits function declarations and adds entries with their new rewritten
@@ -118,17 +101,5 @@ protected:
   bool hasDeclWithTypedef(const FunctionDecl *FD);
 
   bool inParamMultiDecl(const ParmVarDecl *PVD);
-};
-
-class FieldFinder : public RecursiveASTVisitor<FieldFinder> {
-public:
-  FieldFinder(GlobalVariableGroups &GVG) : GVG(GVG) {}
-
-  bool VisitFieldDecl(FieldDecl *FD);
-
-  static void gatherSameLineFields(GlobalVariableGroups &GVG, Decl *D);
-
-private:
-  GlobalVariableGroups &GVG;
 };
 #endif // LLVM_CLANG_3C_DECLREWRITER_H

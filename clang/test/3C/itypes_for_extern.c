@@ -46,9 +46,12 @@ void fn_typedef_test(fn f) {}
 struct foo {
   int *a;
   void (*fn)(int *);
+  int *b, **c;
 };
 //CHECK: int *a : itype(_Ptr<int>);
 //CHECK: void ((*fn)(int *)) : itype(_Ptr<void (_Ptr<int>)>);
+//CHECK: int *b : itype(_Ptr<int>);
+//CHECK: int **c : itype(_Ptr<_Ptr<int>>);
 
 int *glob = 0;
 extern int *extern_glob = 0;
@@ -91,6 +94,9 @@ void has_itype1(int *a : itype(_Ptr<int>)) { a = 0; }
 // part of the type (the array size) occurs after the name of the variable
 // being declared. This complicates rewriting. These examples caused errors in
 // libjpeg.
+//
+// multivardecls_complex_types.c has tests of some similar cases as part of
+// multi-decls, with and without -itypes-for-extern.
 
 int const_arr0[10];
 //CHECK_ALL: int const_arr0[10] : itype(int _Checked[10]);
@@ -117,7 +123,8 @@ void const_arr_fn(int a[10]) {}
 
 // Rewriting an existing itype or bounds expression on a global variable. Doing
 // this correctly requires replacing text until the end of the Checked C
-// annotation expression.
+// annotation expression. The m_* and s_* tests in multivardecls_complex_types.c
+// test some similar cases in combination with multi-decls.
 int *a : itype(_Ptr<int>);
 int **b : itype(_Ptr<int *>);
 int *c : count(2);

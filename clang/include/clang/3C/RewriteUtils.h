@@ -24,18 +24,14 @@ class DeclReplacement {
 public:
   virtual Decl *getDecl() const = 0;
 
-  DeclStmt *getStatement() const { return Statement; }
-
   std::string getReplacement() const { return Replacement; }
 
   virtual SourceRange getSourceRange(SourceManager &SM) const;
 
   // Discriminator for LLVM-style RTTI (dyn_cast<> et al.).
   enum DRKind {
-    DRK_VarDecl,
+    DRK_MultiDeclMember,
     DRK_FunctionDecl,
-    DRK_FieldDecl,
-    DRK_TypedefDecl
   };
 
   DRKind getKind() const { return Kind; }
@@ -43,11 +39,7 @@ public:
   virtual ~DeclReplacement() {}
 
 protected:
-  explicit DeclReplacement(DeclStmt *S, std::string R, DRKind K)
-      : Statement(S), Replacement(R), Kind(K) {}
-
-  // The Stmt, if it exists (may be nullptr).
-  DeclStmt *Statement;
+  explicit DeclReplacement(std::string R, DRKind K) : Replacement(R), Kind(K) {}
 
   // The string to replace the declaration with.
   std::string Replacement;
@@ -59,8 +51,8 @@ private:
 template <typename DeclT, DeclReplacement::DRKind K>
 class DeclReplacementTempl : public DeclReplacement {
 public:
-  explicit DeclReplacementTempl(DeclT *D, DeclStmt *DS, std::string R)
-      : DeclReplacement(DS, R, K), Decl(D) {}
+  explicit DeclReplacementTempl(DeclT *D, std::string R)
+      : DeclReplacement(R, K), Decl(D) {}
 
   DeclT *getDecl() const override { return Decl; }
 
@@ -70,12 +62,8 @@ protected:
   DeclT *Decl;
 };
 
-typedef DeclReplacementTempl<VarDecl, DeclReplacement::DRK_VarDecl>
-    VarDeclReplacement;
-typedef DeclReplacementTempl<FieldDecl, DeclReplacement::DRK_FieldDecl>
-    FieldDeclReplacement;
-typedef DeclReplacementTempl<TypedefDecl, DeclReplacement::DRK_TypedefDecl>
-    TypedefDeclReplacement;
+typedef DeclReplacementTempl<NamedDecl, DeclReplacement::DRK_MultiDeclMember>
+    MultiDeclMemberReplacement;
 
 class FunctionDeclReplacement
     : public DeclReplacementTempl<FunctionDecl,
@@ -83,7 +71,7 @@ class FunctionDeclReplacement
 public:
   explicit FunctionDeclReplacement(FunctionDecl *D, std::string R, bool Return,
                                    bool Params, bool Generic = false)
-      : DeclReplacementTempl(D, nullptr, R), RewriteGeneric(Generic),
+      : DeclReplacementTempl(D, R), RewriteGeneric(Generic),
         RewriteReturn(Return), RewriteParams(Params) {
     assert("Doesn't make sense to rewrite nothing!" &&
            (RewriteGeneric || RewriteReturn || RewriteParams));
@@ -106,25 +94,28 @@ private:
 
 typedef std::map<Decl *, DeclReplacement *> RSet;
 
-// This class is used to figure out which global variables are part of
-// multi-variable declarations. For local variables, all variables in a single
-// multi declaration are grouped together in a DeclStmt object. This is not the
-// case for global variables, so this class is required to correctly group
-// global variable declarations. Declarations in the same multi-declarations
-// have the same beginning source locations, so it is used to group variables.
-class GlobalVariableGroups {
-public:
-  GlobalVariableGroups(SourceManager &SourceMgr) : SM(SourceMgr) {}
-  void addGlobalDecl(Decl *VD, std::vector<Decl *> *VDVec = nullptr);
+// Generate a string for the declaration based on the given PVConstraint.
+// Includes the storage qualifier, type, name, and bounds string (as
+// applicable), or generates an itype declaration if required due to
+// ItypesForExtern. Does not include a trailing semicolon or an initializer, so
+// it can be used in combination with getDeclSourceRangeWithAnnotations with
+// IncludeInitializer = false to preserve an existing initializer.
+std::string mkStringForPVDecl(MultiDeclMemberDecl *MMD, PVConstraint *PVC,
+                              ProgramInfo &Info);
 
-  std::vector<Decl *> &getVarsOnSameLine(Decl *VD);
-
-  virtual ~GlobalVariableGroups();
-
-private:
-  SourceManager &SM;
-  std::map<Decl *, std::vector<Decl *> *> GlobVarGroups;
-};
+// Generate a string like mkStringForPVDecl, but for a declaration whose type is
+// known not to have changed (except possibly for a base type rename) and that
+// may not have a PVConstraint if the type is not a pointer or array type.
+//
+// For similar reasons as in the comment in DeclRewriter::buildItypeDecl, this
+// will get the string from Clang instead of mkString if the base type hasn't
+// been renamed (hence the need to assume the rest of the type has not changed).
+// Yet another possible approach would be to combine the new base type name with
+// the original source for the rest of the declaration, but that may run into
+// problems with macros and the like, so we might still need some fallback. For
+// now, we don't implement this "original source" approach.
+std::string mkStringForDeclWithUnchangedType(MultiDeclMemberDecl *D,
+                                             ProgramInfo &Info);
 
 // Class that handles rewriting bounds information for all the
 // detected array variables.

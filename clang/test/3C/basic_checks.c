@@ -33,12 +33,13 @@ typedef struct _A {
   int a;
   int b;
 } A, *PA;
+//CHECK: typedef _Ptr<struct _A> PA;
 
 void mut_pa(PA p) {
   p->a = 0;
   p->b = 1;
 }
-//CHECK: void mut_pa(PA p : itype(_Ptr<struct _A>)) {
+//CHECK: void mut_pa(PA p) {
 
 void pa_driver(void) {
   A a = {0};

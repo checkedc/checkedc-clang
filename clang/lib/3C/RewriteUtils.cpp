@@ -21,41 +21,94 @@
 using namespace llvm;
 using namespace clang;
 
-void GlobalVariableGroups::addGlobalDecl(Decl *VD, std::vector<Decl *> *VDVec) {
-  if (VD && GlobVarGroups.find(VD) == GlobVarGroups.end()) {
-    if (VDVec == nullptr)
-      VDVec = new std::vector<Decl *>();
-    assert("Decls in group are not ordered correctly." &&
-           (VDVec->empty() ||
-            SM.isBeforeInTranslationUnit(VDVec->back()->getEndLoc(),
-                                         VD->getEndLoc())));
-    VDVec->push_back(VD);
-    GlobVarGroups[VD] = VDVec;
-    // Process the next decl.
-    Decl *NDecl = VD->getNextDeclInContext();
-    if (isa_and_nonnull<VarDecl>(NDecl) || isa_and_nonnull<FieldDecl>(NDecl))
-      if (VD->getBeginLoc() == NDecl->getBeginLoc())
-        addGlobalDecl(dyn_cast<Decl>(NDecl), VDVec);
+std::string mkStringForPVDecl(MultiDeclMemberDecl *MMD, PVConstraint *PVC,
+                              ProgramInfo &Info) {
+  // Currently, it's cheap to keep recreating the ArrayBoundsRewriter. If that
+  // ceases to be true, we should pass it along as another argument.
+  ArrayBoundsRewriter ABRewriter{Info};
+  std::string NewDecl = getStorageQualifierString(MMD);
+  bool IsExternGlobalVar =
+      isa<VarDecl>(MMD) &&
+      cast<VarDecl>(MMD)->getFormalLinkage() == Linkage::ExternalLinkage;
+  if (_3COpts.ItypesForExtern && (isa<FieldDecl>(MMD) || IsExternGlobalVar) &&
+      // isSolutionChecked can return false here when splitting out an unchanged
+      // multi-decl member.
+      PVC->isSolutionChecked(Info.getConstraints().getVariables())) {
+    // Give record fields and global variables itypes when using
+    // -itypes-for-extern. Note that we haven't properly implemented itypes for
+    // structures and globals
+    // (https://github.com/correctcomputation/checkedc-clang/issues/744). This
+    // just rewrites to an itype instead of a fully checked type when a checked
+    // type could have been used. This does provide most of the rewriting
+    // infrastructure that would be required to support these itypes if
+    // constraint generation is updated to handle structure/global itypes.
+    std::string Type, IType;
+    // VarDecl and FieldDecl subclass DeclaratorDecl, so the cast will
+    // always succeed.
+    DeclRewriter::buildItypeDecl(PVC, cast<DeclaratorDecl>(MMD), Type, IType,
+                                 Info, ABRewriter);
+    NewDecl += Type + IType;
+  } else {
+    NewDecl += PVC->mkString(Info.getConstraints()) +
+               ABRewriter.getBoundsString(PVC, MMD);
   }
+  return NewDecl;
 }
 
-std::vector<Decl *> &GlobalVariableGroups::getVarsOnSameLine(Decl *D) {
-  assert(GlobVarGroups.find(D) != GlobVarGroups.end() &&
-         "Expected to find the group.");
-  return *(GlobVarGroups[D]);
-}
+std::string mkStringForDeclWithUnchangedType(MultiDeclMemberDecl *MMD,
+                                             ProgramInfo &Info) {
+  ASTContext &Context = MMD->getASTContext();
 
-GlobalVariableGroups::~GlobalVariableGroups() {
-  std::set<std::vector<Decl *> *> VVisited;
-  // Free each of the group.
-  for (auto &CurrV : GlobVarGroups) {
-    // Avoid double free by caching deleted sets.
-    if (VVisited.find(CurrV.second) != VVisited.end())
-      continue;
-    VVisited.insert(CurrV.second);
-    delete (CurrV.second);
+  bool BaseTypeRenamed = Info.TheMultiDeclsInfo.wasBaseTypeRenamed(MMD);
+  if (!BaseTypeRenamed) {
+    // As far as we know, we can let Clang generate the declaration string.
+    PrintingPolicy Policy = Context.getPrintingPolicy();
+    Policy.SuppressInitializers = true;
+    std::string DeclStr = "";
+    raw_string_ostream DeclStream(DeclStr);
+    MMD->print(DeclStream, Policy);
+    assert("Original decl string empty." && !DeclStr.empty());
+    return DeclStr;
   }
-  GlobVarGroups.clear();
+
+  // OK, we have to use mkString.
+  QualType DType = getTypeOfMultiDeclMember(MMD);
+  if (isPtrOrArrayType(DType)) {
+    CVarOption CVO =
+        (isa<TypedefDecl>(MMD)
+             ? Info.lookupTypedef(PersistentSourceLoc::mkPSL(MMD, Context))
+             : Info.getVariable(MMD, &Context));
+    assert(CVO.hasValue() &&
+           "Missing ConstraintVariable for unchanged multi-decl member");
+    // A function currently can't be a multi-decl member, so this should always
+    // be a PointerVariableConstraint.
+    PVConstraint *PVC = cast<PointerVariableConstraint>(&CVO.getValue());
+    // Currently, we benefit from the ItypesForExtern handling in
+    // mkStringForPVDecl in one very unusual case: an unchanged multi-decl
+    // member with a renamed TagDecl and an existing implicit itype coming from
+    // a bounds annotation will keep the itype and not be changed to a fully
+    // checked type. DeclRewriter::buildItypeDecl will detect the base type
+    // rename and generate the unchecked side using mkString instead of
+    // Decl::print in order to pick up the new name.
+    //
+    // As long as 3C lacks real support for itypes on variables, this is
+    // probably the behavior we want with -itypes-for-extern. If we don't care
+    // about this case, we could alternatively inline the few lines of
+    // mkStringForPVDecl that would still be relevant.
+    return mkStringForPVDecl(MMD, PVC, Info);
+  }
+
+  // If the type is not a pointer or array, then it should just equal the base
+  // type except for top-level qualifiers, and it can't have itypes or bounds.
+  llvm::Optional<std::string> BaseTypeNewNameOpt =
+      Info.TheMultiDeclsInfo.getTypeStrOverride(DType.getTypePtr(), Context);
+  assert(BaseTypeNewNameOpt &&
+         "BaseTypeRenamed is true but we couldn't get the new name");
+  std::string QualifierPrefix = DType.getQualifiers().getAsString();
+  if (!QualifierPrefix.empty())
+    QualifierPrefix += " ";
+  return getStorageQualifierString(MMD) + QualifierPrefix +
+         *BaseTypeNewNameOpt + " " + std::string(MMD->getName());
 }
 
 // Test to see if we can rewrite a given SourceRange.
@@ -429,14 +482,8 @@ private:
 };
 
 SourceRange DeclReplacement::getSourceRange(SourceManager &SM) const {
-  SourceRange SR = getDecl()->getSourceRange();
-  SourceLocation OldEnd = SR.getEnd();
-  SourceLocation NewEnd  = getCheckedCAnnotationsEnd(getDecl());
-  if (NewEnd.isValid() &&
-      (!OldEnd.isValid() || SM.isBeforeInTranslationUnit(OldEnd, NewEnd)))
-    SR.setEnd(NewEnd);
-
-  return SR;
+  return getDeclSourceRangeWithAnnotations(getDecl(),
+                                           /*IncludeInitializer=*/false);
 }
 
 SourceRange FunctionDeclReplacement::getSourceRange(SourceManager &SM) const {

@@ -16,6 +16,7 @@
 #include "clang/3C/3CStats.h"
 #include "clang/3C/AVarBoundsInfo.h"
 #include "clang/3C/ConstraintVariables.h"
+#include "clang/3C/MultiDecls.h"
 #include "clang/3C/PersistentSourceLoc.h"
 #include "clang/3C/Utils.h"
 #include "clang/AST/ASTConsumer.h"
@@ -34,8 +35,8 @@ public:
 
   virtual bool seenTypedef(PersistentSourceLoc PSL) = 0;
 
-  virtual void addTypedef(PersistentSourceLoc PSL, bool CanRewriteDef,
-                          TypedefDecl *TD, ASTContext &C) = 0;
+  virtual void addTypedef(PersistentSourceLoc PSL, TypedefDecl *TD,
+                          ASTContext &C) = 0;
 
 protected:
   virtual AVarBoundsInfo &getABoundsInfo() = 0;
@@ -170,7 +171,7 @@ public:
 
   bool seenTypedef(PersistentSourceLoc PSL) override;
 
-  void addTypedef(PersistentSourceLoc PSL, bool CanRewriteDef, TypedefDecl *TD,
+  void addTypedef(PersistentSourceLoc PSL, TypedefDecl *TD,
                   ASTContext &C) override;
 
   // Store mapping from ASTContexts to a unique index in the ASTs vector in
@@ -178,6 +179,8 @@ public:
   // traversals so that the map is populated.
   void registerTranslationUnits(
       const std::vector<std::unique_ptr<clang::ASTUnit>> &ASTs);
+
+  ProgramMultiDeclsInfo TheMultiDeclsInfo;
 
 private:
   // List of constraint variables for declarations, indexed by their location in

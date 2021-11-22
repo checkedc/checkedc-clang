@@ -43,6 +43,7 @@ class ConstraintsGraph;
 #define SPECIAL_REASON(spec) (std::string("Special case for ") + (spec))
 #define STRING_LITERAL_REASON "The type of a string literal"
 #define MACRO_REASON "Pointer in Macro declaration."
+#define UNION_FIELD_REASON "Union field encountered"
 
 template <typename T> struct PComp {
   bool operator()(const T Lhs, const T Rhs) const { return *Lhs < *Rhs; }

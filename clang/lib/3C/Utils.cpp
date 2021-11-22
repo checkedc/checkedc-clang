@@ -120,13 +120,20 @@ static std::string storageClassToString(StorageClass SC) {
 }
 
 // This method gets the storage qualifier for the
-// provided declaration i.e., static, extern, etc.
+// provided declaration including any trailing space, i.e., "static ",
+// "extern ", etc., or "" if none.
 std::string getStorageQualifierString(Decl *D) {
   if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     return storageClassToString(FD->getStorageClass());
   }
   if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
     return storageClassToString(VD->getStorageClass());
+  }
+  if (isa<TypedefDecl>(D)) {
+    // `typedef` goes in the same syntactic position as a storage qualifier and
+    // needs to be inserted when breaking up a multi-decl, just like a real
+    // storage qualifier.
+    return "typedef ";
   }
   return "";
 }
@@ -597,4 +604,43 @@ SourceLocation getCheckedCAnnotationsEnd(const Decl *D) {
   }
 
   return End;
+}
+
+SourceRange getDeclSourceRangeWithAnnotations(const clang::Decl *D,
+                                              bool IncludeInitializer) {
+  SourceManager &SM = D->getASTContext().getSourceManager();
+  SourceRange SR;
+  const VarDecl *VD;
+  // Only a VarDecl can have an initializer. VarDecl's implementation of the
+  // getSourceRange virtual method includes the initializer, but we can manually
+  // call DeclaratorDecl's implementation, which excludes the initializer.
+  if (!IncludeInitializer && (VD = dyn_cast<VarDecl>(D)) != nullptr)
+    SR = VD->DeclaratorDecl::getSourceRange();
+  else
+    SR = D->getSourceRange();
+  if (!SR.isValid())
+    return SR;
+  SourceLocation DeclEnd = SR.getEnd();
+
+  // Partial workaround for a compiler bug where if D has certain checked
+  // pointer types such as `_Ptr<int *(void)>` (seen in the partial_checked.c
+  // regression test), D->getSourceRange() returns only the _Ptr token. (As of
+  // this writing on 2021-11-18, no bug report has been filed against the
+  // compiler, but https://github.com/correctcomputation/checkedc-clang/pull/723
+  // tracks our work on the bug.)
+  //
+  // Always extend the range at least through the name (given by
+  // D->getLocation()). That fixes the `_Ptr<int *(void)> x` case but not cases
+  // with additional syntax after the name, such as `_Ptr<int *(void)> x[10]`.
+  SourceLocation DeclLoc = D->getLocation();
+  if (SM.isBeforeInTranslationUnit(DeclEnd, DeclLoc))
+    DeclEnd = DeclLoc;
+
+  SourceLocation AnnotationsEnd = getCheckedCAnnotationsEnd(D);
+  if (AnnotationsEnd.isValid() &&
+      SM.isBeforeInTranslationUnit(DeclEnd, AnnotationsEnd))
+    DeclEnd = AnnotationsEnd;
+
+  SR.setEnd(DeclEnd);
+  return SR;
 }

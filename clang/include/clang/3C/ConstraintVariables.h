@@ -26,6 +26,7 @@
 #define LLVM_CLANG_3C_CONSTRAINTVARIABLES_H
 
 #include "clang/3C/Constraints.h"
+#include "clang/3C/MultiDecls.h"
 #include "clang/3C/OptionalParams.h"
 #include "clang/3C/ProgramVar.h"
 #include "clang/AST/ASTContext.h"
@@ -355,16 +356,17 @@ private:
   // declaration's base type. To preserve macros, this we first try to take
   // the type directly from source code. Where that is not possible, the type
   // is regenerated from the type in the clang AST.
-  static std::string extractBaseType(DeclaratorDecl *D, TypeSourceInfo *TSI,
-                                     QualType QT, const Type *Ty,
-                                     const ASTContext &C);
+  static std::string extractBaseType(MultiDeclMemberDecl *MMD,
+                                     TypeSourceInfo *TSI, QualType QT,
+                                     const Type *Ty, const ASTContext &C,
+                                     ProgramInfo &Info);
 
   // Try to extract string representation of the base type for a declaration
   // from the source code. If the base type cannot be extracted from source, an
   // empty string is returned instead.
-  static std::string tryExtractBaseType(DeclaratorDecl *D, TypeSourceInfo *TSI,
-                                        QualType QT, const Type *Ty,
-                                        const ASTContext &C);
+  static std::string tryExtractBaseType(MultiDeclMemberDecl *MMD,
+                                        TypeSourceInfo *TSI, QualType QT,
+                                        const Type *Ty, const ASTContext &C);
 
   // Flag to indicate that this constraint is a part of function prototype
   // e.g., Parameters or Return.

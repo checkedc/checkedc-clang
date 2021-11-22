@@ -503,7 +503,7 @@ PointerVariableConstraint::PointerVariableConstraint(
                           TSInfo);
 
   // Get a string representing the type without pointer and array indirection.
-  BaseType = extractBaseType(D, TSInfo, QT, Ty, C);
+  BaseType = extractBaseType(D, TSInfo, QT, Ty, C, I);
 
   // check if the type is some depth of pointers to void
   // TODO: is this what the field should mean? do we want to include other
@@ -538,11 +538,9 @@ PointerVariableConstraint::PointerVariableConstraint(
   }
 }
 
-std::string PointerVariableConstraint::tryExtractBaseType(DeclaratorDecl *D,
-                                                          TypeSourceInfo *TSI,
-                                                          QualType QT,
-                                                          const Type *Ty,
-                                                          const ASTContext &C) {
+std::string PointerVariableConstraint::tryExtractBaseType(
+    MultiDeclMemberDecl *D, TypeSourceInfo *TSI, QualType QT, const Type *Ty,
+    const ASTContext &C) {
   // Implicit parameters declarations from typedef function declarations will
   // still have valid and non-empty source ranges, but implicit declarations
   // aren't written in the source, so extracting the base type from this range
@@ -553,7 +551,7 @@ std::string PointerVariableConstraint::tryExtractBaseType(DeclaratorDecl *D,
     return "";
 
   if (!TSI)
-    TSI = D->getTypeSourceInfo();
+    TSI = getTypeSourceInfoOfMultiDeclMember(D);
   if (!QT->isOrContainsCheckedType() && !Ty->getAs<TypedefType>() && TSI) {
     // Try to extract the type from original source to preserve defines
     TypeLoc TL = TSI->getTypeLoc();
@@ -566,7 +564,7 @@ std::string PointerVariableConstraint::tryExtractBaseType(DeclaratorDecl *D,
         return "";
       TL = TL.getAs<clang::FunctionTypeLoc>().getReturnLoc();
     } else {
-      FoundBaseTypeInSrc = D->getType() == QT;
+      FoundBaseTypeInSrc = getTypeOfMultiDeclMember(D) == QT;
     }
     if (!TL.isNull()) {
       TypeLoc BaseLoc = getBaseTypeLoc(TL);
@@ -583,11 +581,13 @@ std::string PointerVariableConstraint::tryExtractBaseType(DeclaratorDecl *D,
   return "";
 }
 
-std::string PointerVariableConstraint::extractBaseType(DeclaratorDecl *D,
-                                                       TypeSourceInfo *TSI,
-                                                       QualType QT,
-                                                       const Type *Ty,
-                                                       const ASTContext &C) {
+std::string PointerVariableConstraint::extractBaseType(
+    MultiDeclMemberDecl *D, TypeSourceInfo *TSI, QualType QT, const Type *Ty,
+    const ASTContext &C, ProgramInfo &Info) {
+  if (llvm::Optional<std::string> TypeStrOverride =
+          Info.TheMultiDeclsInfo.getTypeStrOverride(Ty, C))
+    return *TypeStrOverride;
+
   std::string BaseTypeStr = tryExtractBaseType(D, TSI, QT, Ty, C);
   // Fall back to rebuilding the base type based on type passed to constructor
   if (BaseTypeStr.empty())

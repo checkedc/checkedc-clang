@@ -44,6 +44,7 @@ add_clang_library(clang3C
   DeclRewriter.cpp
   IntermediateToolHook.cpp
   MappingVisitor.cpp
+  MultiDecls.cpp
   PersistentSourceLoc.cpp
   ProgramInfo.cpp
   ProgramVar.cpp
