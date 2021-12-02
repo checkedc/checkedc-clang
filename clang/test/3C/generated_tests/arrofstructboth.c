@@ -108,7 +108,8 @@ struct general **sus(struct general *x, struct general *y) {
   //CHECK: x = (struct general *)5;
   struct general **z = calloc(5, sizeof(struct general *));
   //CHECK_NOALL: struct general **z = calloc<struct general *>(5, sizeof(struct general *));
-  //CHECK_ALL: _Array_ptr<_Ptr<struct general>> z = calloc<_Ptr<struct general>>(5, sizeof(struct general *));
+  //CHECK_ALL: _Array_ptr<_Ptr<struct general>> __3c_lower_bound_z : count(5) = calloc<_Ptr<struct general>>(5, sizeof(struct general *));
+  //CHECK_ALL: _Array_ptr<_Ptr<struct general>> z : bounds(__3c_lower_bound_z, __3c_lower_bound_z + 5) = __3c_lower_bound_z;
   struct general *curr = y;
   //CHECK_NOALL: struct general *curr = y;
   //CHECK_ALL: _Ptr<struct general> curr = y;

@@ -139,3 +139,28 @@ int **g : count(2) itype(_Array_ptr<int *>) = 0;
 //CHECK: int **e : itype(_Array_ptr<_Ptr<int>>) count(2) = ((void *)0);
 //CHECK: int **f : itype(_Array_ptr<_Ptr<int>>) count(2) = ((void *)0);
 //CHECK: int **g : itype(_Array_ptr<_Ptr<int>>) count(2) = 0;
+
+// `a` gets a fresh lower bound because of the update `a = a + 2`. The fresh
+// bound for itype parameters uses an unchecked type outside of
+// -itypes-for-extern, but needs to still use a checked type with
+// -itypes-for-extern to avoid type errors on assignment to checked pointers
+// inside the function.
+void test_fresh_lower_bound(int *a, int l) {
+// CHECK_ALL: void test_fresh_lower_bound(int *__3c_lower_bound_a : itype(_Array_ptr<int>) count(l), int l) _Checked {
+// CHECK_ALL: _Array_ptr<int> a : bounds(__3c_lower_bound_a, __3c_lower_bound_a + l) = __3c_lower_bound_a;
+  for(int i = 0; i < l; i++)
+    a[i];
+  a = a + 2;
+  int *b = a;
+  // CHECK_ALL: _Ptr<int> b = a;
+}
+
+void test_fresh_lower_bound_itype(int *a, int l) {
+// CHECK_ALL: void test_fresh_lower_bound_itype(int *__3c_lower_bound_a : itype(_Array_ptr<int>) count(l), int l) {
+// CHECK_ALL: int *a = __3c_lower_bound_a;
+  for(int i = 0; i < l; i++)
+    a[i];
+  a = a + 2;
+  a = 1;
+  int *b = a;
+}

@@ -596,6 +596,11 @@ bool _3CInterface::solveConstraints() {
       GlobalProgramInfo.getABoundsInfo().dumpAVarGraph(
           "arr_bounds_initial.dot");
 
+    // Infer lower bounds for pointers that are not valid lower bounds.
+    // The result of this inference is required for length inference, so
+    // this call must be before the subsequent call to performFlowAnalysis.
+    GlobalProgramInfo.getABoundsInfo().inferLowerBounds(&GlobalProgramInfo);
+
     // Propagate initial data-flow information for Array pointers from
     // bounds declarations.
     GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);

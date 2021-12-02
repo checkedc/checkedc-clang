@@ -124,6 +124,9 @@ public:
 
   // Retrieve a function's constraints by decl, or by name; nullptr if not found
   FVConstraint *getFuncConstraint(FunctionDecl *D, ASTContext *C) const;
+  FVConstraint *
+  getFuncConstraint(const std::string &FuncName, const std::string &FileName,
+                    bool IsStatic) const;
   FVConstraint *getExtFuncDefnConstraint(std::string FuncName) const;
   FVConstraint *getStaticFuncConstraint(std::string FuncName,
                                         std::string FileName) const;

@@ -854,6 +854,14 @@ FVConstraint *ProgramInfo::getFuncConstraint(FunctionDecl *D,
   return getStaticFuncConstraint(FuncName, FileName);
 }
 
+FVConstraint *ProgramInfo::getFuncConstraint(const std::string &FuncName,
+                                             const std::string &FileName,
+                                             bool IsStatic) const {
+  if (IsStatic || !getExtFuncDefnConstraint(FuncName))
+    return getStaticFuncConstraint(FuncName, FileName);
+  return getExtFuncDefnConstraint(FuncName);
+}
+
 FVConstraint *ProgramInfo::getFuncFVConstraint(FunctionDecl *FD,
                                                ASTContext *C) {
   std::string FuncName = FD->getNameAsString();

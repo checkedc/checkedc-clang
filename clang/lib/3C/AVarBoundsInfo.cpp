@@ -15,6 +15,7 @@
 #include "clang/3C/ProgramInfo.h"
 #include "clang/3C/3CGlobalOptions.h"
 #include <sstream>
+#include <clang/3C/LowerBoundAssignment.h>
 
 std::vector<BoundsPriority> AVarBoundsInfo::PrioList{Declared, Allocator,
                                                      FlowInferred, Heuristics};
@@ -92,16 +93,10 @@ bool isInSrcArray(const ConstraintVariable *CK, const Constraints &CS) {
 // This class picks variables that are in the same scope as the provided scope.
 class ScopeVisitor {
 public:
-  ScopeVisitor(const ProgramVarScope *S,
-               const std::map<BoundsKey, ProgramVar *> &VM,
-               const std::set<BoundsKey> &P)
-    : Scope(S), InScopeKeys(), VisibleKeys(), PVarInfo(VM),
-      PointerBoundsKey(P) {}
+  ScopeVisitor(const ProgramVarScope *S, AVarBoundsInfo *BI)
+    : Scope(S), InScopeKeys(), VisibleKeys(), BI(BI) {}
   void visitBoundsKey(BoundsKey V) {
-    // If the variable is non-pointer?
-    if (PVarInfo.find(V) != PVarInfo.end() &&
-        PointerBoundsKey.find(V) == PointerBoundsKey.end()) {
-      ProgramVar *S = PVarInfo.at(V);
+    if (ProgramVar *S = BI->getProgramVar(V)) {
       // If the variable is constant or in the same scope?
       if (S->isNumConstant() || (*Scope == *(S->getScope()))) {
         InScopeKeys.insert(V);
@@ -127,15 +122,7 @@ private:
   // bounds keys from scopes where this scope is an inner scope.
   std::set<BoundsKey> VisibleKeys;
 
-  // A constant reference to PVarInfo frm the AVarBoundsInfo instance. This set
-  // maps each bounds key to variable. BoundsKeys are just a uint_32, so a
-  // corresponding ProgramVar is required find the scope of a key.
-  const std::map<BoundsKey, ProgramVar *> &PVarInfo;
-
-  // A constant reference to the field PointerBoundsKey from the AVarBoundsInfo
-  // instance. This set contains the bounds keys that correspond to pointers.
-  // Used to verify that a visited bounds key is not a pointer.
-  const std::set<BoundsKey> &PointerBoundsKey;
+  const AVarBoundsInfo *BI;
 };
 
 void AvarBoundsInference::mergeReachableProgramVars(
@@ -226,11 +213,11 @@ void AvarBoundsInference::convergeInferredBounds() {
     if (BI->getBounds(PtrBoundsKey) == nullptr) {
       // Maps ABounds::BoundsKind to the set of possible bounds of this kind for
       // the current PtrBoundsKey.
-      auto BKindMap = CInfABnds.second;
+      auto &BKindMap = CInfABnds.second;
       for (auto &TySet : BKindMap)
         mergeReachableProgramVars(PtrBoundsKey, TySet.second);
 
-      ABounds *NewBound = getPreferredBound(BKindMap);
+      ABounds *NewBound = getPreferredBound(PtrBoundsKey);
       // If we found any bounds?
       if (NewBound != nullptr) {
         // Record that we inferred bounds using data-flow.
@@ -248,7 +235,17 @@ void AvarBoundsInference::convergeInferredBounds() {
 // count-plus-one bounds. This function assumes that the BoundsKey sets in the
 // map contain either zero or one BoundsKey. This is be achieved by first
 // passing the sets to `mergeReachableProgramVars`.
-ABounds *AvarBoundsInference::getPreferredBound(const BndsKindMap &BKindMap) {
+ABounds *AvarBoundsInference::getPreferredBound(BoundsKey BK) {
+  BoundsKey BaseVar = 0;
+  bool NeedsBasePointer =
+    BI->InvalidLowerBounds.find(BK) != BI->InvalidLowerBounds.end();
+  if (NeedsBasePointer && BI->LowerBounds.find(BK) != BI->LowerBounds.end())
+    BaseVar = BI->LowerBounds[BK];
+
+  assert("Lower bound required but not available." &&
+         (!NeedsBasePointer || BaseVar != 0));
+
+  const auto &BKindMap = CurrIterInferBounds[BK];
   // Utility to check if the map contains a non-empty set of bounds for a
   // particular kind. This makes the following if statements much cleaner.
   auto HasBoundKind = [&BKindMap](ABounds::BoundsKind Kind) {
@@ -257,14 +254,15 @@ ABounds *AvarBoundsInference::getPreferredBound(const BndsKindMap &BKindMap) {
 
   // Order of preference: Count, Byte, Count-plus-one
   if (HasBoundKind(ABounds::CountBoundKind))
-    return new CountBound(getOnly(BKindMap.at(ABounds::CountBoundKind)));
+    return new CountBound(getOnly(BKindMap.at(ABounds::CountBoundKind)),
+                          BaseVar);
 
   if (HasBoundKind(ABounds::ByteBoundKind))
-    return new ByteBound(getOnly(BKindMap.at(ABounds::ByteBoundKind)));
+    return new ByteBound(getOnly(BKindMap.at(ABounds::ByteBoundKind)), BaseVar);
 
   if (HasBoundKind(ABounds::CountPlusOneBoundKind))
     return new CountPlusOneBound(
-      getOnly(BKindMap.at(ABounds::CountPlusOneBoundKind)));
+      getOnly(BKindMap.at(ABounds::CountPlusOneBoundKind)), BaseVar);
 
   return nullptr;
 }
@@ -305,7 +303,7 @@ bool AvarBoundsInference::getReachableBoundKeys(const ProgramVarScope *DstScope,
   }
 
   // Find all in scope variables reachable from the FromVarK bounds variable.
-  ScopeVisitor TV(DstScope, BI->PVarInfo, BI->PointerBoundsKey);
+  ScopeVisitor TV(DstScope, BI);
   BKGraph.visitBreadthFirst(FromVarK,
                             [&TV](BoundsKey BK) { TV.visitBoundsKey(BK); });
   // Prioritize in scope keys.
@@ -346,16 +344,11 @@ bool AvarBoundsInference::getReachableBoundKeys(const ProgramVarScope *DstScope,
 
 void AvarBoundsInference::getRelevantBounds(BoundsKey BK,
                                             BndsKindMap &ResBounds) {
-  // Try to get the bounds of all RBKeys.
-  // If this pointer is used in pointer arithmetic then there
-  // are no relevant bounds for this pointer.
-  if (!BI->hasPointerArithmetic(BK)) {
-    if (CurrIterInferBounds.find(BK) != CurrIterInferBounds.end()) {
-      // get the bounds inferred from the current iteration
-      ResBounds = CurrIterInferBounds[BK];
-    } else if (ABounds *PrevBounds = BI->getBounds(BK)) {
-      ResBounds[PrevBounds->getKind()].insert(PrevBounds->getBKey());
-    }
+  if (CurrIterInferBounds.find(BK) != CurrIterInferBounds.end()) {
+    // get the bounds inferred from the current iteration
+    ResBounds = CurrIterInferBounds[BK];
+  } else if (ABounds *PrevBounds = BI->getBounds(BK)) {
+    ResBounds[PrevBounds->getKind()].insert(PrevBounds->getLengthKey());
   }
 }
 
@@ -369,7 +362,7 @@ bool AvarBoundsInference::areDeclaredBounds(
   if (DeclB && DeclB->getKind() == Bnds.first) {
     IsDeclaredB = true;
     for (auto TmpNBK : Bnds.second) {
-      if (!this->BI->areSameProgramVar(TmpNBK, DeclB->getBKey())) {
+      if (!this->BI->areSameProgramVar(TmpNBK, DeclB->getLengthKey())) {
         IsDeclaredB = false;
         break;
       }
@@ -395,7 +388,7 @@ bool AvarBoundsInference::predictBounds(BoundsKey K,
     if (!NeighboursBnds.empty()) {
       for (auto &NKBChoice : NeighboursBnds) {
         ABounds::BoundsKind NeighbourKind = NKBChoice.first;
-        std::set<BoundsKey> NeighbourSet = NKBChoice.second;
+        const std::set<BoundsKey> &NeighbourSet = NKBChoice.second;
 
         std::set<BoundsKey> InfBK;
         for (BoundsKey NeighborBK : NeighbourSet)
@@ -446,11 +439,11 @@ bool AvarBoundsInference::predictBounds(BoundsKey K,
     for (auto &IN : InferredNBnds) {
       for (auto &INB : IN.second) {
         ABounds::BoundsKind NeighbourKind = INB.first;
-        std::set<BoundsKey> NeighbourSet = INB.second;
+        const std::set<BoundsKey> &NeighbourSet = INB.second;
         if (InferredKBnds.find(NeighbourKind) == InferredKBnds.end()) {
           InferredKBnds[NeighbourKind] = NeighbourSet;
         } else {
-          std::set<BoundsKey> KBoundsOfKind = InferredKBnds[NeighbourKind];
+          const std::set<BoundsKey> &KBoundsOfKind = InferredKBnds[NeighbourKind];
           // Keep the bounds in the intersection between the current bounds and
           // the bounds from the neighbor.
           std::set<BoundsKey> SharedBounds;
@@ -509,7 +502,12 @@ bool AvarBoundsInference::inferBounds(BoundsKey K, const AVarGraph &BKGraph,
                                       bool FromPB) {
   bool IsChanged = false;
 
-  if (BI->InvalidBounds.find(K) == BI->InvalidBounds.end()) {
+  // If a lower bound could not be inferred for a BoundsKey, then we refuse to
+  // infer an upper bound for it as well. This prevents inferring incorrect
+  // bounds when a bound would propagate through a pointer without a lower
+  // bound.
+  if (BI->hasLowerBound(K) &&
+      BI->InvalidBounds.find(K) == BI->InvalidBounds.end()) {
     // Infer from potential bounds?
     if (FromPB) {
       IsChanged = inferFromPotentialBounds(K, BKGraph);
@@ -522,6 +520,227 @@ bool AvarBoundsInference::inferBounds(BoundsKey K, const AVarGraph &BKGraph,
     }
   }
   return IsChanged;
+}
+
+
+void AVarBoundsInfo::computeInvalidLowerBounds(ProgramInfo *PI) {
+  // This will compute a breadth first search starting from the constant
+  // InvalidLowerBoundKey. Any reachable keys are also invalid lower bounds.
+  // This is essentially the same algorithm as is used for solving the checked
+  // type constraint graph.
+  assert(InvalidLowerBounds.empty());
+  std::queue<BoundsKey> WorkList;
+  WorkList.push(InvalidLowerBoundKey);
+
+  // To check if a bounds key is already invalidated we check if it is either in
+  // the set of invalidated keys, or is the constant InvalidLowerBoundKey.
+  auto IsInvalidated = [this](BoundsKey BK) {
+    return BK == InvalidLowerBoundKey ||
+           InvalidLowerBounds.find(BK) != InvalidLowerBounds.end();
+  };
+
+  while (!WorkList.empty()) {
+    BoundsKey Curr = WorkList.front();
+    WorkList.pop();
+    assert(IsInvalidated(Curr));
+
+    std::set<BoundsKey> Neighbors;
+    LowerBoundGraph.getSuccessors(Curr, Neighbors);
+    for (BoundsKey NK : Neighbors) {
+      // This is an awful hack to work around a problem during conversion phase
+      // two. A parameter would be given count bounds, with a local being
+      // created to hold the range bounds. A conversion is done with
+      // -itypes-for-extern` and the headers are copied over. The version of
+      // the header in the local directory now has count bounds on an itype. If
+      // we trust those bounds, then the next conversion does not emit range
+      // bounds.
+      PointerVariableConstraint *PVC = getConstraintVariable(PI, NK);
+      // Strictly speaking, this can occur outside of -itypes-for-extern, but
+      // it is unlikely, and I've decided that the risk of unintentionally
+      // changing other behavior is greater than the risk that this special
+      // case will be needed in some other circumstance.
+      bool IsItypeParam = _3COpts.ItypesForExtern && PVC && PVC->srcHasItype();
+
+      // The neighbors of an invalid lower bound are also invalid, with the
+      // exception that if there is a bound in the source code, then we assume
+      // the bound is correct, and so the pointer is a valid lower bound for
+      // itself.
+      bool HasDeclaredBounds =
+        getBounds(NK, BoundsPriority::Declared) != nullptr;
+      if ((IsItypeParam || !HasDeclaredBounds) && !IsInvalidated(NK)) {
+        InvalidLowerBounds.insert(NK);
+        WorkList.push(NK);
+      }
+    }
+  }
+}
+
+void
+AVarBoundsInfo::inferLowerBounds(ProgramInfo *PI) {
+  computeInvalidLowerBounds(PI);
+
+  // This maps array pointers to a single consistent lower bound pointer, or
+  // possible the constant InvalidLowerBoundKey if no lower bound could be found
+  // or generated. Note that there can only be a single valid lower bound.
+  // Future work can extend this map to track sets if possible lower bounds.
+  std::map<BoundsKey, BoundsKey> InfLBs;
+
+  // Lower bound inference will proceed as a traversal of the LowerBoundGraph.
+  // The traversal starts at the direct predecessors of the pointers that need
+  // an inferred lower bound.
+  std::queue<BoundsKey> WorkList;
+  for (BoundsKey BK: InvalidLowerBounds) {
+    std::set<BoundsKey> Pred;
+    LowerBoundGraph.getPredecessors(BK, Pred);
+    for (BoundsKey Seed: Pred) {
+      if (Seed != InvalidLowerBoundKey &&
+          InvalidLowerBounds.find(Seed) == InvalidLowerBounds.end()) {
+        // This pointer is a valid lower bound for itself, so add it to the
+        // worklist and initialize it in the map of inferred lower bounds.
+        InfLBs[Seed] = Seed;
+        WorkList.push(Seed);
+      }
+    }
+  }
+
+  // It's possible for there to be invalid lower bounds that are not reachable
+  // from any valid lower bounds, so we also initialize the worklist with all
+  // invalid lower bounds. These come after the valid lower bounds so that is
+  // less likely a fresh lower bound will be generated but later thrown out, as
+  // that process is inefficient at least in the current implementation.
+  for (BoundsKey InvLB : InvalidLowerBounds)
+    WorkList.push(InvLB);
+
+  // This set tracks the pointers for which we will need to generate a fresh
+  // lower bound pointer. These pointers do not have a single consistent lower
+  // bound in the source code, but 3C is able to insert a duplicate declaration
+  // to act as the lower bound.
+  std::set<BoundsKey> NeedFreshLB;
+
+  // This set track the pointers that have multiple inconsistent lower bounds.
+  // This is used to differentiate pointers that need a fresh lower bound
+  // because no lower bounds could be found from pointers that need a fresh
+  // lower bound because there were multiple inconsistent lower bounds. Note
+  // that is not a subset of NeedFreshLB because a pointer may have conflicting
+  // bounds but be ineligible for a fresh lower bound.
+  std::set<BoundsKey> HasConflictingBounds;
+
+  while (!WorkList.empty()) {
+    BoundsKey BK = WorkList.front();
+    WorkList.pop();
+
+    if (isEligibleForFreshLowerBound(BK) &&
+        (InfLBs.find(BK) == InfLBs.end() ||
+         InfLBs[BK] == InvalidLowerBoundKey)) {
+      // We've reached an array pointer in the work list that either has not
+      // been assigned a lower bound, or has multiple conflicting lower bounds.
+      // We will generate a fresh lower bound.
+      assert(
+        "Generating fresh bound for pointer that can be its own lower bound." &&
+        InvalidLowerBounds.find(BK) != InvalidLowerBounds.end());
+      InfLBs[BK] = getFreshLowerBound(BK);
+      NeedFreshLB.insert(BK);
+    }
+
+    std::set<BoundsKey> Succ;
+    LowerBoundGraph.getSuccessors(BK, Succ);
+    for (BoundsKey S : Succ) {
+
+      // Do not process any array pointers that are valid lower bounds. They
+      // should just serve as their own lower bound.
+      if (InvalidLowerBounds.find(S) == InvalidLowerBounds.end())
+        continue;
+
+      if (InfLBs.find(S) == InfLBs.end()) {
+        // No prior lower bound known for `S`. Initialize it to use the same
+        // lower bound as `BK`, if this is possible given their scopes.
+        if (isInAccessibleScope(S, InfLBs[BK])) {
+          InfLBs[S] = InfLBs[BK];
+        } else {
+          InfLBs[S] = InvalidLowerBoundKey;
+        }
+        WorkList.push(S);
+      } else if (InfLBs[BK] != InfLBs[S] &&
+                 HasConflictingBounds.find(S) == HasConflictingBounds.end()) {
+        // The lower bound of `BK` is not the same as the current inferred lower
+        // bounds of `S`. This is a problem, so we need to mark `S` as having
+        // conflicting lower bounds. We only do this invalidation step once. If
+        // the BoundsKey is already known to have conflicting bounds, then do
+        // not reset it again. Doing so can cause an infinite loop when there is
+        // a cycle of BoundsKeys needing a lower bound, where each BoundsKey in
+        // the cycle is eligible for a fresh lower bound.
+        HasConflictingBounds.insert(S);
+
+        if (NeedFreshLB.find(S) != NeedFreshLB.end()) {
+          // This case handles when we a fresh lower bounds was created for `S`
+          // before any conflict was detected. It is possible that the conflict
+          // we detect here only exists between the fresh lower bound and the
+          // lower bound of `BK`. In this case, we can drop the fresh lower
+          // bounds to use the inferred lower bound. In order to fully drop the
+          // fresh bound, we must also drop it from all BoundsKey reachable from
+          // `S`, as these may have already had a lower bound inferred based on
+          // the fresh lower bound.
+          NeedFreshLB.erase(S);
+          BoundsKey SLB = InfLBs[S];
+          // TODO: Erasing the bounds by a breadth first search from S is
+          //       inefficient, probably resulting in quadratic worst case
+          //       running time, but this hasn't shown up a real performance
+          //       issue yet.
+          LowerBoundGraph.visitBreadthFirst(S, [this, SLB, &InfLBs, &WorkList](
+            BoundsKey BK) {
+            if (InfLBs.find(BK) != InfLBs.end() && InfLBs[BK] == SLB) {
+              InfLBs.erase(BK);
+              std::set<BoundsKey> Pred;
+              LowerBoundGraph.getPredecessors(BK, Pred);
+              for (BoundsKey P : Pred) {
+                if (P != InvalidLowerBoundKey &&
+                    InfLBs.find(P) != InfLBs.end())
+                  WorkList.push(P);
+              }
+            }
+          });
+        } else if (InfLBs[S] != InvalidLowerBoundKey) {
+          // If no fresh lower bound was generated, then things are much
+          // simpler. Just invalidate the lower bound of `S` and enqueue it.
+          InfLBs[S] = InvalidLowerBoundKey;
+          WorkList.push(S);
+        }
+      }
+      // Otherwise, the a lower bound exists for `S`, and it's the same lower
+      // bounds as `BK`. Nothing changes, so don't enqueue `S`.
+    }
+  }
+
+  NeedFreshLowerBounds = NeedFreshLB;
+  LowerBounds = InfLBs;
+
+  // This is an awful hack to work around a problem during conversion phase
+  // two.
+  if (_3COpts.ItypesForExtern) {
+    for (auto InferredLBPair : LowerBounds) {
+      if (BInfo[InferredLBPair.first][Declared]) {
+        BInfo[InferredLBPair.first][Declared]->setLowerBoundKey(
+          InferredLBPair.second);
+      }
+    }
+  }
+}
+
+BoundsKey AVarBoundsInfo::getFreshLowerBound(BoundsKey Arr) {
+  ProgramVar *ArrVar = getProgramVar(Arr);
+  BoundsKey FreshLB = getRandomBKey();
+  ProgramVar *FreshLBVar =
+    ProgramVar::createNewProgramVar(FreshLB,
+                                    "__3c_lower_bound_" + ArrVar->getVarName(),
+                                    ArrVar->getScope());
+  insertProgramVar(FreshLB, FreshLBVar);
+  return FreshLB;
+}
+
+bool AVarBoundsInfo::hasLowerBound(BoundsKey K)  {
+  return InvalidLowerBounds.find(K) == InvalidLowerBounds.end() ||
+         (LowerBounds.find(K) != LowerBounds.end() &&
+          LowerBounds[K] != InvalidLowerBoundKey);
 }
 
 bool AvarBoundsInference::inferFromPotentialBounds(BoundsKey BK,
@@ -704,6 +923,9 @@ bool AVarBoundsInfo::tryGetVariable(clang::Expr *E, const ASTContext &C,
 // Merging bounds B with the present bounds of key L at the same priority P
 // Returns true if we update the bounds for L (with B)
 bool AVarBoundsInfo::mergeBounds(BoundsKey L, BoundsPriority P, ABounds *B) {
+  if (B->getLowerBoundKey() == InvalidLowerBoundKey &&
+      LowerBounds.find(L) != LowerBounds.end())
+    B->setLowerBoundKey(LowerBounds[L]);
   bool RetVal = false;
   if (BInfo.find(L) != BInfo.end() && BInfo[L].find(P) != BInfo[L].end()) {
     // If previous computed bounds are not same? Then release the old bounds.
@@ -810,8 +1032,18 @@ BoundsKey AVarBoundsInfo::getVariable(clang::VarDecl *VD) {
     auto *PVar =
         ProgramVar::createNewProgramVar(NK, VD->getNameAsString(), PVS);
     insertProgramVar(NK, PVar);
-    if (isPtrOrArrayType(VD->getType()))
+    if (isPtrOrArrayType(VD->getType())) {
       PointerBoundsKey.insert(NK);
+      // Global variables cannot be given range bounds because it is not
+      // possible to initialize a duplicated pointer variable with the same
+      // value as the original.
+      // TODO: Followup issue: Implementing the rewriting here would be easy,
+      //       but it would also require change the compiler to recognize
+      //       dynamic bounds casts are constant expressions, which doesn't
+      //       sound too hard.
+      if (!VD->isLocalVarDeclOrParm())
+        markIneligibleForFreshLowerBound(NK);
+    }
   }
   return getVarKey(PSL);
 }
@@ -829,16 +1061,43 @@ BoundsKey AVarBoundsInfo::getVariable(clang::ParmVarDecl *PVD) {
     const FunctionParamScope *FPS = FunctionParamScope::getFunctionParamScope(
         FD->getNameAsString(), FD->isStatic());
     std::string ParamName = PVD->getNameAsString();
-    // If this is a parameter without name!?
-    // Just get the name from argument number.
-    if (ParamName.empty())
-      ParamName = "NONAMEPARAM_" + std::to_string(ParamIdx);
+
+    if (ParamName.empty()) {
+      // The parameter declaration doesn't have a name. Try to get the
+      // corresponding function definition, and then the parameter declaration
+      // in that function. Use the name of that parameter.
+      // TODO: I think the declaration merging code written by kyle does a good
+      //       job of handling missing/inconsistent parameter names. Can I just
+      //       use that?
+      if (auto *FnDef = FD->getDefinition()) {
+        if (FnDef->getNumParams() >= ParamIdx) {
+          if (auto *DefPVD = FnDef->getParamDecl(ParamIdx)) {
+            ParamName = DefPVD->getNameAsString();
+          }
+        }
+      }
+      // If we still couldn't find a name, then we make one up using the
+      // parameter index.
+      // TODO: Is this better than leaving the name string empty? There are
+      //       situations where an identifier can be omitted without error, but
+      //       using an undeclared identifier is an error.
+      if (ParamName.empty())
+        ParamName = "NONAMEPARAM_" + std::to_string(ParamIdx);
+    }
 
     auto *PVar = ProgramVar::createNewProgramVar(NK, ParamName, FPS);
     insertProgramVar(NK, PVar);
     insertParamKey(ParamKey, NK);
-    if (isPtrOrArrayType(PVD->getType()))
+    if (isPtrOrArrayType(PVD->getType())) {
       PointerBoundsKey.insert(NK);
+      // We do not give range bounds to parameters with an array type. Doing
+      // this causes the local variable duplicate definition to have an array
+      // type, but pointer arithmetic on constant size arrays is not allowed.
+      // TODO: Follow up issue: Can we add some special logic in rewriting to
+      //       emit the duplicate definition with an _Array_pointer type?
+      if (isArrayType(PVD->getType()))
+        markIneligibleForFreshLowerBound(NK);
+    }
   }
   return ParamDeclVarMap.left().at(ParamKey);
 }
@@ -858,8 +1117,12 @@ BoundsKey AVarBoundsInfo::getVariable(clang::FunctionDecl *FD) {
         ProgramVar::createNewProgramVar(NK, FD->getNameAsString(), FPS);
     insertProgramVar(NK, PVar);
     FuncDeclVarMap.insert(FuncKey, NK);
-    if (isPtrOrArrayType(FD->getReturnType()))
+    if (isPtrOrArrayType(FD->getReturnType())) {
       PointerBoundsKey.insert(NK);
+      // Fresh lower bounds are not inserted for function returns. I don't see a
+      // way around this limitation.
+      markIneligibleForFreshLowerBound(NK);
+    }
   }
   return FuncDeclVarMap.left().at(FuncKey);
 }
@@ -874,8 +1137,16 @@ BoundsKey AVarBoundsInfo::getVariable(clang::FieldDecl *FD) {
     const StructScope *SS = StructScope::getStructScope(StName);
     auto *PVar = ProgramVar::createNewProgramVar(NK, FD->getNameAsString(), SS);
     insertProgramVar(NK, PVar);
-    if (isPtrOrArrayType(FD->getType()))
+    if (isPtrOrArrayType(FD->getType())) {
       PointerBoundsKey.insert(NK);
+      // Fields are not rewritten with range bounds because we would need to
+      // duplicate the field and update all structure initializations to
+      // properly set the new field.
+      // TODO: Followup issue: Add the duplicate declaration as a new field in
+      //       the struct and then also update all struct initializer to include
+      //       the new field.
+      markIneligibleForFreshLowerBound(NK);
+    }
   }
   return getVarKey(PSL);
 }
@@ -884,19 +1155,6 @@ BoundsKey AVarBoundsInfo::getRandomBKey() {
   BoundsKey Ret = ++BCount;
   TmpBoundsKey.insert(Ret);
   return Ret;
-}
-
-bool AVarBoundsInfo::addAssignment(clang::Decl *L, clang::Decl *R) {
-  BoundsKey BL, BR;
-  if (tryGetVariable(L, BL) && tryGetVariable(R, BR)) {
-    return addAssignment(BL, BR);
-  }
-  return false;
-}
-
-bool AVarBoundsInfo::addAssignment(clang::DeclRefExpr *L,
-                                   clang::DeclRefExpr *R) {
-  return addAssignment(L->getDecl(), R->getDecl());
 }
 
 bool AVarBoundsInfo::handleAssignment(clang::Expr *L, const CVarSet &LCVars,
@@ -953,10 +1211,13 @@ bool AVarBoundsInfo::addAssignment(BoundsKey L, BoundsKey R) {
     // So, if we create a edge from return to itself then we create a cyclic
     // dependency and never will be able to find the bounds for the return
     // value.
-    if (L != R)
+    if (L != R) {
       ProgVarGraph.addUniqueEdge(R, L);
+      LowerBoundGraph.addUniqueEdge(R, L);
+    }
   } else {
     ProgVarGraph.addUniqueEdge(R, L);
+    LowerBoundGraph.addUniqueEdge(R, L);
     ProgramVar *PV = getProgramVar(R);
     if (!(PV && PV->isNumConstant()))
       ProgVarGraph.addUniqueEdge(L, R);
@@ -964,66 +1225,11 @@ bool AVarBoundsInfo::addAssignment(BoundsKey L, BoundsKey R) {
   return true;
 }
 
-// Visitor to collect all the variables and structure member access that are
-// used during the life-time of the visitor.
-class CollectDeclsVisitor : public RecursiveASTVisitor<CollectDeclsVisitor> {
-public:
-  explicit CollectDeclsVisitor(ASTContext *Ctx)
-    : ObservedDecls(), StructAccess(), C(Ctx) {}
-
-  virtual ~CollectDeclsVisitor() {}
-
-  bool VisitDeclRefExpr(DeclRefExpr *DRE) {
-    if (auto *VD = dyn_cast_or_null<VarDecl>(DRE->getDecl()))
-      ObservedDecls.insert(VD);
-    return true;
-  }
-
-  // For a->b; We need to get `a->b`
-  bool VisitMemberExpr(MemberExpr *ME) {
-    std::string MAccess = getSourceText(ME->getSourceRange(), *C);
-    if (!MAccess.empty()) {
-      StructAccess.insert(MAccess);
-    }
-    return false;
-  }
-
-  const std::set<VarDecl *> &getObservedDecls() { return ObservedDecls; }
-  const std::set<std::string> &getStructAccess() { return StructAccess; }
-
-private:
-  // Contains all VarDecls seen by this visitor
-  std::set<VarDecl *> ObservedDecls;
-
-  // Contains the source representation of all record access (MemberExpression)
-  // seen by this visitor.
-  std::set<std::string> StructAccess;
-
-  ASTContext *C;
-};
-
-bool AVarBoundsInfo::handlePointerAssignment(clang::Stmt *St, clang::Expr *L,
-                                             clang::Expr *R, ASTContext *C,
+bool AVarBoundsInfo::handlePointerAssignment(clang::Expr *L, clang::Expr *R,
+                                             ASTContext *C,
                                              ConstraintResolver *CR) {
-  CollectDeclsVisitor LVarVis(C);
-  LVarVis.TraverseStmt(L->getExprStmt());
-
-  CollectDeclsVisitor RVarVis(C);
-  RVarVis.TraverseStmt(R->getExprStmt());
-
-  std::set<VarDecl *> CommonVars;
-  std::set<std::string> CommonStVars;
-  findIntersection(LVarVis.getObservedDecls(), RVarVis.getObservedDecls(),
-                   CommonVars);
-  findIntersection(LVarVis.getStructAccess(), RVarVis.getStructAccess(),
-                   CommonStVars);
-
-  if (!CommonVars.empty() || CommonStVars.empty()) {
-    for (auto *LHSCVar : CR->getExprConstraintVarsSet(L)) {
-      if (LHSCVar->hasBoundsKey())
-        ArrPointerBoundsKey.insert(LHSCVar->getBoundsKey());
-    }
-  }
+  if (!isLowerBoundAssignment(L, R))
+    recordArithmeticOperation(L, CR);
   return true;
 }
 
@@ -1039,21 +1245,62 @@ void AVarBoundsInfo::recordArithmeticOperation(clang::Expr *E,
                                                ConstraintResolver *CR) {
   CVarSet CSet = CR->getExprConstraintVarsSet(E);
   for (auto *CV : CSet) {
-    if (CV->hasBoundsKey())
-      ArrPointersWithArithmetic.insert(CV->getBoundsKey());
+    if (CV->hasBoundsKey()) {
+      BoundsKey BK = CV->getBoundsKey();
+      ArrPointersWithArithmetic.insert(BK);
+      LowerBoundGraph.addUniqueEdge(InvalidLowerBoundKey, BK);
+    }
   }
 }
 
-bool AVarBoundsInfo::hasPointerArithmetic(BoundsKey BK) {
-  return ArrPointersWithArithmetic.find(BK) != ArrPointersWithArithmetic.end();
+bool AVarBoundsInfo::needsFreshLowerBound(BoundsKey BK) {
+  return NeedFreshLowerBounds.find(BK) != NeedFreshLowerBounds.end();
 }
 
-ProgramVar *AVarBoundsInfo::getProgramVar(BoundsKey VK) {
-  ProgramVar *Ret = nullptr;
-  if (PVarInfo.find(VK) != PVarInfo.end()) {
-    Ret = PVarInfo[VK];
-  }
-  return Ret;
+bool AVarBoundsInfo::isEligibleForFreshLowerBound(BoundsKey BK) {
+  return IneligibleForFreshLowerBound.find(BK) ==
+         IneligibleForFreshLowerBound.end();
+}
+
+void AVarBoundsInfo::markIneligibleForFreshLowerBound(BoundsKey BK) {
+  IneligibleForFreshLowerBound.insert(BK);
+}
+
+bool AVarBoundsInfo::needsFreshLowerBound(ConstraintVariable *CV) {
+  if (!CV->hasBoundsKey())
+    return false;
+  BoundsKey BK = CV->getBoundsKey();
+  // A pointer should get range bounds if it is computed by pointer arithmetic
+  // and would otherwise need bounds. Some pointers (global variables and struct
+  // fields) can't be rewritten to use range bounds (by 3C; Checked C does
+  // permit it), so we return false on these.
+  return needsFreshLowerBound(BK) && isEligibleForFreshLowerBound(BK) &&
+         getBounds(BK) != nullptr;
+}
+
+ProgramVar *AVarBoundsInfo::getProgramVar(BoundsKey VK) const {
+  if (PVarInfo.find(VK) != PVarInfo.end())
+    return PVarInfo.at(VK);
+  return nullptr;
+}
+
+const ProgramVarScope *AVarBoundsInfo::getProgramVarScope(BoundsKey BK) const{
+  if (ProgramVar *Var = getProgramVar(BK))
+    return Var->getScope();
+  return nullptr;
+}
+
+bool AVarBoundsInfo::isInAccessibleScope(BoundsKey From, BoundsKey To) {
+  const ProgramVarScope *FromScope = getProgramVarScope(From);
+  const ProgramVarScope *ToScope = getProgramVarScope(To);
+  return FromScope != nullptr && ToScope != nullptr &&
+         (*FromScope == *ToScope || FromScope->isInInnerScope(*ToScope));
+}
+
+bool AVarBoundsInfo::scopeCanHaveLowerBound(BoundsKey BK) {
+  const ProgramVarScope *BKScope = getProgramVarScope(BK);
+  return BKScope != nullptr && !isa<CtxFunctionArgScope>(BKScope) &&
+         !isa<CtxStructScope>(BKScope);
 }
 
 bool AVarBoundsInfo::hasVarKey(PersistentSourceLoc &PSL) {
@@ -1142,9 +1389,11 @@ void AVarBoundsInfo::computeArrPointers(const ProgramInfo *PI) {
   NtArrPointerBoundsKey.clear();
   ArrPointerBoundsKey.clear();
 
-  // Called in following loop to add a BoundsKey to the appropriate sets based
-  // on the pointer type of a corresponding ConstraintVariable.
-  auto AddToArrSets = [this, PI](BoundsKey BK, const ConstraintVariable *CV) {
+  for (auto BK : PointerBoundsKey) {
+    const PointerVariableConstraint *CV = getConstraintVariable(PI, BK);
+    if (CV == nullptr)
+      continue;
+
     if (hasArray(CV, PI->getConstraints()))
       ArrPointerBoundsKey.insert(BK);
 
@@ -1160,50 +1409,6 @@ void AVarBoundsInfo::computeArrPointers(const ProgramInfo *PI) {
       // https://github.com/correctcomputation/checkedc-clang/issues/553
       if (CV->getName() == RETVAR && getBounds(BK) == nullptr)
         PointersWithImpossibleBounds.insert(BK);
-    }
-  };
-
-  // Find a FVConstraint in the ProgramInfo function definition maps given a
-  // function name and filename.
-  auto LookupFVCons = [PI](const std::string &FuncName,
-                           const std::string &FileName, bool IsStatic) {
-    if (IsStatic || !PI->getExtFuncDefnConstraint(FuncName))
-      return PI->getStaticFuncConstraint(FuncName, FileName);
-    return PI->getExtFuncDefnConstraint(FuncName);
-  };
-
-  auto &VariableMap = DeclVarMap.right();
-  auto &ParamMap = ParamDeclVarMap.right();
-  auto &ReturnMap = FuncDeclVarMap.right();
-  for (auto Bkey : PointerBoundsKey) {
-    if (VariableMap.find(Bkey) != VariableMap.end()) {
-      // Regular variables.
-      const PersistentSourceLoc &PSL = VariableMap.at(Bkey);
-      const ConstraintVariable *BkeyCV = PI->getVarMap().at(PSL);
-      AddToArrSets(Bkey, BkeyCV);
-
-    } else if (ParamMap.find(Bkey) != ParamMap.end()) {
-      // Function parameters
-      auto &ParmTup = ParamMap.at(Bkey);
-      std::string FuncName = std::get<0>(ParmTup);
-      std::string FileName = std::get<1>(ParmTup);
-      bool IsStatic = std::get<2>(ParmTup);
-      unsigned ParmNum = std::get<3>(ParmTup);
-
-      FVConstraint *FV = LookupFVCons(FuncName, FileName, IsStatic);
-      PVConstraint *ParamPVC = FV->getExternalParam(ParmNum);
-      AddToArrSets(Bkey, ParamPVC);
-
-    } else if (ReturnMap.find(Bkey) != ReturnMap.end()) {
-      // Function returns.
-      auto &FuncRet = ReturnMap.at(Bkey);
-      std::string FuncName = std::get<0>(FuncRet);
-      std::string FileName = std::get<1>(FuncRet);
-      bool IsStatic = std::get<2>(FuncRet);
-
-      FVConstraint *FV = LookupFVCons(FuncName, FileName, IsStatic);
-      PVConstraint *RetPVC = FV->getExternalReturn();
-      AddToArrSets(Bkey, RetPVC);
     }
   }
 
@@ -1344,6 +1549,7 @@ void AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
   PStats.endArrayBoundsInferenceTime();
 }
 
+
 bool AVarBoundsInfo::keepHighestPriorityBounds() {
   bool HasChanged = false;
   for (auto BK : ArrPointerBoundsKey) {
@@ -1382,6 +1588,7 @@ void AVarBoundsInfo::dumpAVarGraph(const std::string &DFPath) {
   DumpGraph(ProgVarGraph, "ProgVar");
   DumpGraph(CtxSensProgVarGraph, "CtxSen");
   DumpGraph(RevCtxSensProgVarGraph, "RevCtxSen");
+  DumpGraph(LowerBoundGraph, "Invalid");
 }
 
 bool AVarBoundsInfo::isFunctionReturn(BoundsKey BK) {
@@ -1500,4 +1707,40 @@ void AVarBoundsInfo::addConstantArrayBounds(ProgramInfo &I) {
       }
     }
   }
+}
+
+PVConstraint *AVarBoundsInfo::getConstraintVariable(const ProgramInfo *PI,
+                                                    BoundsKey BK) const {
+  // Regular variables.
+  const auto &VariableMap = DeclVarMap.right();
+  if (VariableMap.find(BK) != VariableMap.end()) {
+    const PersistentSourceLoc &PSL = VariableMap.at(BK);
+    return dyn_cast<PVConstraint>(PI->getVarMap().at(PSL));
+  }
+
+  // Function parameters
+  const auto &ParamMap = ParamDeclVarMap.right();
+  if (ParamMap.find(BK) != ParamMap.end()) {
+    auto &ParmTup = ParamMap.at(BK);
+    std::string FuncName = std::get<0>(ParmTup);
+    std::string FileName = std::get<1>(ParmTup);
+    bool IsStatic = std::get<2>(ParmTup);
+    unsigned ParmNum = std::get<3>(ParmTup);
+
+    FVConstraint *FV = PI->getFuncConstraint(FuncName, FileName, IsStatic);
+    return FV->getExternalParam(ParmNum);
+  }
+
+  // Function returns.
+  const auto &ReturnMap = FuncDeclVarMap.right();
+  if (ReturnMap.find(BK) != ReturnMap.end()) {
+    auto &FuncRet = ReturnMap.at(BK);
+    std::string FuncName = std::get<0>(FuncRet);
+    std::string FileName = std::get<1>(FuncRet);
+    bool IsStatic = std::get<2>(FuncRet);
+
+    FVConstraint *FV = PI->getFuncConstraint(FuncName, FileName, IsStatic);
+    return FV->getExternalReturn();
+  }
+  return nullptr;
 }

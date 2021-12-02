@@ -34,10 +34,15 @@ public:
   // Info parameter are rewritten.
   static void rewriteDecls(ASTContext &Context, ProgramInfo &Info, Rewriter &R);
 
-  static void
-  buildItypeDecl(PVConstraint *Defn, DeclaratorDecl *Decl, std::string &Type,
-                 std::string &IType, ProgramInfo &Info,
-                 ArrayBoundsRewriter &ABR);
+  static RewrittenDecl buildItypeDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
+                                      std::string UseName, ProgramInfo &Info,
+                                      ArrayBoundsRewriter &ABR,
+                                      bool GenerateSDecls, bool SDeclChecked);
+
+  static RewrittenDecl
+  buildCheckedDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
+                   std::string UseName, ProgramInfo &Info,
+                   ArrayBoundsRewriter &ABR, bool GenerateSDecls);
 
 private:
   Rewriter &R;
@@ -56,7 +61,14 @@ private:
   void rewriteMultiDecl(MultiDeclInfo &MDI, RSet &ToRewrite);
   void doDeclRewrite(SourceRange &SR, DeclReplacement *N);
   void rewriteFunctionDecl(FunctionDeclReplacement *N);
-  SourceRange getNextComma(SourceLocation L);
+  // Emit supplementary declarations _after_ the token that begins at Loc.
+  // Inserts a newline before the first supplementary declaration but not after
+  // the last supplementary declaration. This is suitable if Loc is expected to
+  // be the last token on a line or if rewriteMultiDecl will insert a newline
+  // after the supplementary declarations later.
+  void emitSupplementaryDeclarations(const std::vector<std::string> &SDecls,
+                                     SourceLocation Loc);
+  SourceLocation getNextCommaOrSemicolon(SourceLocation L);
   void denestTagDecls();
 };
 
@@ -85,20 +97,20 @@ protected:
   // Get existing itype string from constraint variables.
   std::string getExistingIType(ConstraintVariable *DeclC);
 
-  virtual void buildDeclVar(const FVComponentVariable *CV,
-                            DeclaratorDecl *Decl, std::string &Type,
-                            std::string &IType, std::string UseName,
-                            bool &RewriteGen, bool &RewriteParm,
-                            bool &RewriteRet, bool StaticFunc);
-  void buildCheckedDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
-                        std::string &Type, std::string &IType,
-                        std::string UseName, bool &RewriteParm,
-                        bool &RewriteRet);
-  void buildItypeDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
-                      std::string &Type, std::string &IType, bool &RewriteParm,
-                      bool &RewriteRet);
+  virtual RewrittenDecl
+  buildDeclVar(const FVComponentVariable *CV, DeclaratorDecl *Decl,
+               std::string UseName, bool &RewriteGen, bool &RewriteParm,
+               bool &RewriteRet, bool StaticFunc, bool GenerateSDecls);
 
-  bool hasDeclWithTypedef(const FunctionDecl *FD);
+  RewrittenDecl
+  buildCheckedDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
+                   std::string UseName, bool &RewriteParm, bool &RewriteRet,
+                   bool GenerateSDecls);
+
+  RewrittenDecl buildItypeDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
+                               std::string UseName, bool &RewriteParm,
+                               bool &RewriteRet, bool GenerateSDecls,
+                               bool SDeclChecked);
 
   bool inParamMultiDecl(const ParmVarDecl *PVD);
 };

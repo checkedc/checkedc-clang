@@ -144,7 +144,8 @@ int *bar() {
   //CHECK: int (*y)(int) = mul2;
   int *z = sus(x, y);
   //CHECK_NOALL: int *z = sus(x, _Assume_bounds_cast<_Ptr<int (int)>>(y));
-  //CHECK_ALL: _Array_ptr<int> z = sus(x, _Assume_bounds_cast<_Ptr<int (int)>>(y));
+  //CHECK_ALL: _Array_ptr<int> __3c_lower_bound_z : count(5) = sus(x, _Assume_bounds_cast<_Ptr<int (int)>>(y));
+  //CHECK_ALL: _Array_ptr<int> z : bounds(__3c_lower_bound_z, __3c_lower_bound_z + 5) = __3c_lower_bound_z;
 
   z += 2;
   return z;

@@ -14,6 +14,7 @@
 #include "clang/3C/CastPlacement.h"
 #include "clang/3C/CheckedRegions.h"
 #include "clang/3C/DeclRewriter.h"
+#include "clang/3C/LowerBoundAssignment.h"
 #include "clang/3C/TypeVariableAnalysis.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Tooling/Transformer/SourceCode.h"
@@ -21,12 +22,13 @@
 using namespace llvm;
 using namespace clang;
 
-std::string mkStringForPVDecl(MultiDeclMemberDecl *MMD, PVConstraint *PVC,
-                              ProgramInfo &Info) {
+RewrittenDecl mkStringForPVDecl(MultiDeclMemberDecl *MMD, PVConstraint *PVC,
+                                ProgramInfo &Info) {
   // Currently, it's cheap to keep recreating the ArrayBoundsRewriter. If that
   // ceases to be true, we should pass it along as another argument.
   ArrayBoundsRewriter ABRewriter{Info};
-  std::string NewDecl = getStorageQualifierString(MMD);
+
+  RewrittenDecl RD;
   bool IsExternGlobalVar =
       isa<VarDecl>(MMD) &&
       cast<VarDecl>(MMD)->getFormalLinkage() == Linkage::ExternalLinkage;
@@ -42,17 +44,17 @@ std::string mkStringForPVDecl(MultiDeclMemberDecl *MMD, PVConstraint *PVC,
     // type could have been used. This does provide most of the rewriting
     // infrastructure that would be required to support these itypes if
     // constraint generation is updated to handle structure/global itypes.
-    std::string Type, IType;
-    // VarDecl and FieldDecl subclass DeclaratorDecl, so the cast will
-    // always succeed.
-    DeclRewriter::buildItypeDecl(PVC, cast<DeclaratorDecl>(MMD), Type, IType,
-                                 Info, ABRewriter);
-    NewDecl += Type + IType;
+    RD = DeclRewriter::buildItypeDecl(PVC, cast<DeclaratorDecl>(MMD),
+                                      PVC->getName(), Info, ABRewriter, true,
+                                      true);
   } else {
-    NewDecl += PVC->mkString(Info.getConstraints()) +
-               ABRewriter.getBoundsString(PVC, MMD);
+    RD = DeclRewriter::buildCheckedDecl(PVC, cast<DeclaratorDecl>(MMD),
+                                        PVC->getName(), Info, ABRewriter,
+                                        true);
   }
-  return NewDecl;
+  RD.Type = getStorageQualifierString(MMD) + RD.Type;
+
+  return RD;
 }
 
 std::string mkStringForDeclWithUnchangedType(MultiDeclMemberDecl *MMD,
@@ -95,7 +97,9 @@ std::string mkStringForDeclWithUnchangedType(MultiDeclMemberDecl *MMD,
     // probably the behavior we want with -itypes-for-extern. If we don't care
     // about this case, we could alternatively inline the few lines of
     // mkStringForPVDecl that would still be relevant.
-    return mkStringForPVDecl(MMD, PVC, Info);
+    RewrittenDecl RD = mkStringForPVDecl(MMD, PVC, Info);
+    assert(RD.SupplementaryDecl.empty());
+    return RD.Type + RD.IType;
   }
 
   // If the type is not a pointer or array, then it should just equal the base
@@ -125,13 +129,37 @@ void rewriteSourceRange(Rewriter &R, const SourceRange &Range,
                      ErrFail);
 }
 
+// Wrapper for Rewriter::ReplaceText(CharSourceRange, StringRef) that works
+// around a bug that occurs when text has previously been inserted at the start
+// location of the specified range.
+//
+// When Rewriter::ReplaceText(CharSourceRange, StringRef) computes the range of
+// the rewrite buffer to replace, it sets the start location to be after the
+// previous insertion (RewriteBuffer::ReplaceText calls getMappedOffset with
+// AfterInserts = true) but sets the length to include the length of the
+// previous insertion (it calls getRangeSize with the default RewriteOptions
+// with IncludeInsertsAtBeginOfRange = true). This causes the range to extend
+// beyond the intended end location by an amount equal to the length of the
+// previous insertion. We avoid the problem by calling getRangeSize ourselves
+// with IncludeInsertsAtBeginOfRange = false.
+//
+// TODO: File an upstream Clang bug report if appropriate. As of this writing
+// (2021-11-24), we found some discussion of the problem
+// (https://reviews.llvm.org/D107503) but not a real entry in the bug tracker.
+static bool replaceTextWorkaround(Rewriter &R, const CharSourceRange &Range,
+                                  const std::string &NewText) {
+  Rewriter::RewriteOptions Opts;
+  Opts.IncludeInsertsAtBeginOfRange = false;
+  return R.ReplaceText(Range.getBegin(), R.getRangeSize(Range, Opts), NewText);
+}
+
 void rewriteSourceRange(Rewriter &R, const CharSourceRange &Range,
                         const std::string &NewText, bool ErrFail) {
   // Attempt to rewrite the source range. First use the source range directly
   // from the parameter.
   bool RewriteSuccess = false;
   if (canRewrite(R, Range))
-    RewriteSuccess = !R.ReplaceText(Range, NewText);
+    RewriteSuccess = !replaceTextWorkaround(R, Range, NewText);
 
   // If initial rewriting attempt failed (either because canRewrite returned
   // false or because ReplaceText failed (returning true), try rewriting again
@@ -140,7 +168,7 @@ void rewriteSourceRange(Rewriter &R, const CharSourceRange &Range,
     CharSourceRange Expand = clang::Lexer::makeFileCharRange(
         Range, R.getSourceMgr(), R.getLangOpts());
     if (canRewrite(R, Expand))
-      RewriteSuccess = !R.ReplaceText(Expand, NewText);
+      RewriteSuccess = !replaceTextWorkaround(R, Expand, NewText);
   }
 
   // Emit an error if we were unable to rewrite the source range. This is more
@@ -578,7 +606,8 @@ SourceLocation FunctionDeclReplacement::getDeclEnd(SourceManager &SM) const {
 }
 
 std::string ArrayBoundsRewriter::getBoundsString(const PVConstraint *PV,
-                                                 Decl *D, bool Isitype) {
+                                                 Decl *D, bool Isitype,
+                                                 bool OmitLowerBound) {
   auto &ABInfo = Info.getABoundsInfo();
 
   // Try to find a bounds key for the constraint variable. If we can't,
@@ -596,9 +625,13 @@ std::string ArrayBoundsRewriter::getBoundsString(const PVConstraint *PV,
 
   if (ValidBKey && !PV->hasSomeSizedArr()) {
     ABounds *ArrB = ABInfo.getBounds(DK);
-    // Only we we have bounds and no pointer arithmetic on the variable.
-    if (ArrB != nullptr && !ABInfo.hasPointerArithmetic(DK)) {
-      BString = ArrB->mkString(&ABInfo, D);
+    // If we have pointer arithmetic and cannot add range bounds, then do not
+    // emit any bounds string.
+    if (ArrB != nullptr && ABInfo.hasLowerBound(DK)) {
+      if (OmitLowerBound)
+        BString = ArrB->mkStringWithoutLowerBound(&ABInfo, D);
+      else
+        BString = ArrB->mkString(&ABInfo, D, DK);
       if (!BString.empty())
         BString = Pfix + BString;
     }
@@ -691,6 +724,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   CastPlacementVisitor ECPV(&Context, Info, R, CLV.getExprsWithCast());
   TypeExprRewriter TER(&Context, Info, R);
   TypeArgumentAdder TPA(&Context, Info, R);
+  LowerBoundAssignmentUpdater AU(&Context, Info, R);
   TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
   for (const auto &D : TUD->decls()) {
     if (_3COpts.AddCheckedRegions) {
@@ -709,6 +743,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
     CLV.TraverseDecl(D);
     ECPV.TraverseDecl(D);
     TPA.TraverseDecl(D);
+    AU.TraverseDecl(D);
   }
 
   // Output files.

@@ -10,6 +10,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/3C/ConstraintBuilder.h"
+#include "clang/3C/LowerBoundAssignment.h"
 #include "clang/3C/3CGlobalOptions.h"
 #include "clang/3C/3CStats.h"
 #include "clang/3C/ArrayBoundsInferenceConsumer.h"
@@ -471,10 +472,12 @@ void VariableAdderConsumer::HandleTranslationUnit(ASTContext &C) {
   }
 
   VariableAdderVisitor VAV = VariableAdderVisitor(&C, Info);
+  LowerBoundAssignmentFinder LBF = LowerBoundAssignmentFinder(&C, Info);
   TranslationUnitDecl *TUD = C.getTranslationUnitDecl();
   // Collect Variables.
   for (const auto &D : TUD->decls()) {
     VAV.TraverseDecl(D);
+    LBF.TraverseDecl(D);
   }
 
   if (_3COpts.Verbose)

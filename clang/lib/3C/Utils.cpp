@@ -15,6 +15,7 @@
 #include "clang/Sema/Sema.h"
 #include "llvm/Support/Path.h"
 #include <errno.h>
+#include <clang/3C/ConstraintResolver.h>
 
 using namespace llvm;
 using namespace clang;
@@ -207,6 +208,20 @@ bool isPointerType(clang::ValueDecl *VD) {
 
 bool isPtrOrArrayType(const clang::QualType &QT) {
   return QT->isPointerType() || QT->isArrayType();
+}
+
+bool isArrayType(const QualType &QT) {
+  // This is an array type. Just return true.
+  if (QT->isArrayType())
+    return true;
+
+  // It might instead be an array which has decayed to a pointer. We still want
+  // to treat this as an array.
+  const DecayedType *T = QT->getAs<DecayedType>();
+  if (T && T->getOriginalType()->isArrayType())
+    return true;
+
+  return false;
 }
 
 bool isNullableType(const clang::QualType &QT) {
@@ -604,6 +619,11 @@ SourceLocation getCheckedCAnnotationsEnd(const Decl *D) {
   }
 
   return End;
+}
+
+SourceLocation getLocationAfterToken(SourceLocation SL, const SourceManager &SM,
+                                     const LangOptions &LO) {
+  return Lexer::getLocForEndOfToken(SL, 0, SM, LO);
 }
 
 SourceRange getDeclSourceRangeWithAnnotations(const clang::Decl *D,

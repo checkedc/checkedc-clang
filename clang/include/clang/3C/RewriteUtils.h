@@ -38,12 +38,22 @@ public:
 
   virtual ~DeclReplacement() {}
 
+  const std::vector<std::string> &getSupplementaryDecls() const {
+    return SupplementaryDecls;
+  }
+
 protected:
-  explicit DeclReplacement(std::string R, DRKind K) : Replacement(R), Kind(K) {}
+  explicit DeclReplacement(std::string R, std::vector<std::string> SDecls,
+                           DRKind K) : Replacement(R),
+                                       SupplementaryDecls(SDecls), Kind(K) {}
 
   // The string to replace the declaration with.
   std::string Replacement;
 
+  // A declaration might need to be replaced with more than a single new
+  // declaration. These extra declarations can be stored in this vector to be
+  // emitted after the original declaration.
+  std::vector<std::string> SupplementaryDecls;
 private:
   const DRKind Kind;
 };
@@ -51,8 +61,9 @@ private:
 template <typename DeclT, DeclReplacement::DRKind K>
 class DeclReplacementTempl : public DeclReplacement {
 public:
-  explicit DeclReplacementTempl(DeclT *D, std::string R)
-      : DeclReplacement(R, K), Decl(D) {}
+  explicit DeclReplacementTempl(DeclT *D, std::string R,
+                                std::vector<std::string> SDecls)
+    : DeclReplacement(R, SDecls, K), Decl(D) {}
 
   DeclT *getDecl() const override { return Decl; }
 
@@ -69,9 +80,10 @@ class FunctionDeclReplacement
     : public DeclReplacementTempl<FunctionDecl,
                                   DeclReplacement::DRK_FunctionDecl> {
 public:
-  explicit FunctionDeclReplacement(FunctionDecl *D, std::string R, bool Return,
+  explicit FunctionDeclReplacement(FunctionDecl *D, std::string R,
+                                   std::vector<std::string> SDecls, bool Return,
                                    bool Params, bool Generic = false)
-      : DeclReplacementTempl(D, R), RewriteGeneric(Generic),
+      : DeclReplacementTempl(D, R, SDecls), RewriteGeneric(Generic),
         RewriteReturn(Return), RewriteParams(Params) {
     assert("Doesn't make sense to rewrite nothing!" &&
            (RewriteGeneric || RewriteReturn || RewriteParams));
@@ -94,13 +106,49 @@ private:
 
 typedef std::map<Decl *, DeclReplacement *> RSet;
 
+// Represent a rewritten declaration split into three components. For a
+// parameter or local variable declaration, concatenating Type and IType will
+// give the full declaration. For a function return, Type should appear before
+// the identifier and parameter list and itype should appear after.
+struct RewrittenDecl {
+  explicit RewrittenDecl() : Type(), IType(), SupplementaryDecl() {}
+  explicit RewrittenDecl(std::string Type, std::string IType,
+                         std::string SupplementaryDecl)
+    : Type(Type), IType(IType), SupplementaryDecl(SupplementaryDecl) {}
+
+  // For function returns, the component of the declaration that appears before
+  // the identifier. For parameter and local variables, a prefix of the full
+  // declaration up to at least the identifier, but possibly omitting any itype
+  // or array bounds, which may be stored in the Itype field below. The
+  // identifier in this string is not always the same as the original identifier.
+  // If 3C generates a fresh lower bound (stored in the SupplementrayDecl
+  // string), then the identifier is changed to a temporary name.
+  std::string Type;
+
+  // For function returns, the component of the rewritten declaration that
+  // appears after the parameter list. For parameter and local variables, some
+  // suffix of the full declaration, often any itype or bounds declaration,
+  // but also possibly empty.
+  std::string IType;
+
+  // An additional declaration required as a result of the rewriting done to the
+  // original declaration. The additional declaration may refer to the original,
+  // so it must be emitted after the original declaration.
+  // This is currently only used to automatically fatten pointers to use fresh
+  // lower bound pointers. e.g.,
+  //     _Array_ptr<int> a : bounds(__3c_lower_bound_a, __3c_lower_bound_a + n)
+  // If the declaration does not need a fresh lower bound, then this string is
+  // empty.
+  std::string SupplementaryDecl;
+};
+
 // Generate a string for the declaration based on the given PVConstraint.
 // Includes the storage qualifier, type, name, and bounds string (as
 // applicable), or generates an itype declaration if required due to
 // ItypesForExtern. Does not include a trailing semicolon or an initializer, so
 // it can be used in combination with getDeclSourceRangeWithAnnotations with
 // IncludeInitializer = false to preserve an existing initializer.
-std::string mkStringForPVDecl(MultiDeclMemberDecl *MMD, PVConstraint *PVC,
+RewrittenDecl mkStringForPVDecl(MultiDeclMemberDecl *MMD, PVConstraint *PVC,
                               ProgramInfo &Info);
 
 // Generate a string like mkStringForPVDecl, but for a declaration whose type is
@@ -124,7 +172,8 @@ public:
   ArrayBoundsRewriter(ProgramInfo &I) : Info(I) {}
   // Get the string representation of the bounds for the given variable.
   std::string getBoundsString(const PVConstraint *PV, Decl *D,
-                              bool Isitype = false);
+                              bool Isitype = false,
+                              bool OmitLowerBound = false);
 
   // Check if the constraint variable has newly created bounds string.
   bool hasNewBoundsString(const PVConstraint *PV, Decl *D,

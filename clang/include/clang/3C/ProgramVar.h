@@ -362,9 +362,6 @@ public:
     if (auto *FS = clang::dyn_cast<FunctionScope>(&O)) {
       return (FS->FName == FName && FS->IsStatic == IsStatic);
     }
-    if (auto *FPS = clang::dyn_cast<FunctionParamScope>(&O)) {
-      return (FPS->FName == FName && FPS->IsStatic == IsStatic);
-    }
     return false;
   }
 

@@ -464,14 +464,12 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
       } else if (DeclaratorDecl *FD = dyn_cast<DeclaratorDecl>(D)) {
         /* Allocator call */
         if (isFunctionAllocator(std::string(FD->getName()))) {
-          bool DidInsert = false;
           IsAllocator = true;
+          ConstraintVariable *CV = nullptr;
           if (TypeVars.find(0) != TypeVars.end() &&
               TypeVars[0].isConsistent()) {
-            ConstraintVariable *CV = TypeVars[0].getConstraint(
-                       Info.getConstraints().getVariables());
-            ReturnCVs.insert(CV);
-            DidInsert = true;
+            CV = TypeVars[0].getConstraint(
+              Info.getConstraints().getVariables());
           } else if (CE->getNumArgs() > 0) {
             QualType ArgTy;
             std::string FuncName = FD->getNameAsString();
@@ -484,8 +482,7 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
                                                    *Context, nullptr, 0);
               PVC->constrainOuterTo(CS, A,
                        ReasonLoc(ALLOCATOR_REASON, ExprPSL), true);
-              ReturnCVs.insert(PVC);
-              DidInsert = true;
+              CV = PVC;
               if (FuncName.compare("realloc") == 0) {
                 // We will constrain the first arg to the return of
                 // realloc, below
@@ -495,11 +492,27 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
               }
             }
           }
-          if (!DidInsert) {
+          if (CV == nullptr) {
             std::string Rsn = "Unsafe call to allocator function.";
             PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CE, *Context);
             ReturnCVs.insert(PVConstraint::getWildPVConstraint(
                 Info.getConstraints(), ReasonLoc(Rsn, PL)));
+          } else {
+            // The ConstraintVariable generated for allocator functions don't
+            // have associated BoundsKeys. This is problem for lower bound
+            // inference, because, without a BoundsKey, the algorithm cannot
+            // detect that the allocator represents a possible lower bound. If
+            // there is another possible lower bound, the conflict is not
+            // detected. To avoid this, we fill the bounds key with the bounds
+            // key for the allocators declaration.
+            // TODO: This is another place where fully de-specializing
+            //       allocators will simplify code.
+            CVarOption FuncCV = Info.getVariable(FD, Context);
+            assert(FuncCV.hasValue() && "Function without constraint variable.");
+            FVConstraint *FVC = cast<FVConstraint>(&FuncCV.getValue());
+            CV->setBoundsKey(FVC->getExternalReturn()->getBoundsKey());
+
+            ReturnCVs.insert(CV);
           }
 
           /* Normal function call */
@@ -709,7 +722,7 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS,
 
   // Handle pointer arithmetic.
   auto &ABI = Info.getABoundsInfo();
-  ABI.handlePointerAssignment(TSt, LHS, RHS, Context, this);
+  ABI.handlePointerAssignment(LHS, RHS, Context, this);
 
   // Only if all types are enabled and these are not pointers, then track
   // the assignment.

@@ -69,8 +69,8 @@ public:
     ValToK.clear();
   }
 
-  const std::map<KeyT, ValueT> &left() { return KtoVal; }
-  const std::map<ValueT, KeyT> &right() { return ValToK; }
+  const std::map<KeyT, ValueT> &left() const { return KtoVal; }
+  const std::map<ValueT, KeyT> &right() const { return ValToK; }
 
 private:
   std::map<KeyT, ValueT> KtoVal;
@@ -127,6 +127,11 @@ bool isPointerType(clang::ValueDecl *VD);
 
 // Is this a pointer or array type?
 bool isPtrOrArrayType(const clang::QualType &QT);
+
+// Is this an array type? Note that this includes pointer types decayed from
+// array types (i.e., arrays in function parameters) but does not include
+// Checked C checked array pointers (unless they decayed from a checked array).
+bool isArrayType(const clang::QualType &QT);
 
 // Is this a type that can go inside an _Nt_array_ptr?
 bool isNullableType(const clang::QualType &QT);
@@ -229,6 +234,12 @@ int64_t getStmtIdWorkaround(const clang::Stmt *St,
                             const clang::ASTContext &Context);
 
 clang::SourceLocation getCheckedCAnnotationsEnd(const clang::Decl *D);
+
+
+clang::SourceLocation
+getLocationAfterToken(clang::SourceLocation SL, const clang::SourceManager &SM,
+                      const clang::LangOptions &LO);
+
 
 // Get the source range for a declaration including Checked C annotations.
 // Optionally, any initializer can be excluded from the range in order to avoid
