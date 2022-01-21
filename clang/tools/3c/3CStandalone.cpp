@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/3C/3C.h"
+#include "clang/3C/3CGlobalOptions.h"
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/TargetSelect.h"
@@ -74,15 +75,19 @@ are "#include"-d by that file and it is an error if any other file changes.
 // Skip the 2 initial newlines.
 static cl::extrahelp MoreHelp(MoreHelpStr + 2);
 
-static cl::opt<bool> OptDumpIntermediate("dump-intermediate",
-                                         cl::desc("Dump intermediate "
-                                                  "information"),
-                                         cl::init(false), cl::cat(_3CCategory));
+// Letting clang-format reflow these declarations gives very inconsistent
+// formatting between options.
+// clang-format off
 
-static cl::opt<bool> OptVerbose("verbose",
-                                cl::desc("Print verbose "
-                                         "information"),
-                                cl::init(false), cl::cat(_3CCategory));
+static cl::opt<bool> OptDumpIntermediate(
+    "dump-intermediate",
+    cl::desc("Dump intermediate information"),
+    cl::init(false), cl::cat(_3CCategory));
+
+static cl::opt<bool> OptVerbose(
+    "verbose",
+    cl::desc("Print verbose information"),
+    cl::init(false), cl::cat(_3CCategory));
 
 static cl::opt<std::string> OptOutputPostfix(
     "output-postfix",
@@ -97,82 +102,72 @@ static cl::opt<std::string> OptOutputDir(
              "relative paths as the originals under the -base-dir"),
     cl::init(""), cl::cat(_3CCategory));
 
-static cl::opt<std::string>
-    OptMalloc("use-malloc",
-              cl::desc("Allows for the usage of user-specified "
-                       "versions of function allocators"),
-              cl::init(""), cl::cat(_3CCategory));
+static cl::opt<std::string> OptMalloc(
+    "use-malloc",
+    cl::desc("Allows for the usage of user-specified versions of function "
+             "allocators"),
+    cl::init(""), cl::cat(_3CCategory));
 
-static cl::opt<std::string>
-    OptConstraintOutputJson("constraint-output",
-                            cl::desc("Path to the file where all the analysis "
-                                     "information will be dumped as json"),
-                            cl::init("constraint_output.json"),
-                            cl::cat(_3CCategory));
+static cl::opt<std::string> OptConstraintOutputJson(
+    "constraint-output",
+    cl::desc("Path to the file where all the analysis information will be "
+             "dumped as json"),
+    cl::init("constraint_output.json"), cl::cat(_3CCategory));
 
-static cl::opt<std::string>
-    OptStatsOutputJson("stats-output",
-                       cl::desc("Path to the file where all the stats "
-                                "will be dumped as json"),
-                       cl::init("TotalConstraintStats.json"),
-                       cl::cat(_3CCategory));
-static cl::opt<std::string>
-    OptWildPtrInfoJson("wildptrstats-output",
-                       cl::desc("Path to the file where all the info "
-                                "related to WILD ptr grouped by reason"
-                                " will be dumped as json"),
-                       cl::init("WildPtrStats.json"), cl::cat(_3CCategory));
+static cl::opt<std::string> OptStatsOutputJson(
+    "stats-output",
+    cl::desc("Path to the file where all the stats will be dumped as json"),
+    cl::init("TotalConstraintStats.json"), cl::cat(_3CCategory));
+
+static cl::opt<std::string> OptWildPtrInfoJson(
+    "wildptrstats-output",
+    cl::desc("Path to the file where all the info related to WILD ptr grouped "
+             "by reason will be dumped as json"),
+    cl::init("WildPtrStats.json"), cl::cat(_3CCategory));
 
 static cl::opt<std::string> OptPerPtrWILDInfoJson(
     "perptrstats-output",
-    cl::desc("Path to the file where all the info "
-             "related to each WILD ptr will be dumped as json"),
+    cl::desc("Path to the file where all the info related to each WILD ptr "
+             "will be dumped as json"),
     cl::init("PerWildPtrStats.json"), cl::cat(_3CCategory));
 
-static cl::opt<bool> OptDumpStats("dump-stats", cl::desc("Dump statistics"),
-                                  cl::init(false), cl::cat(_3CCategory));
+static cl::opt<bool> OptDumpStats(
+    "dump-stats",
+    cl::desc("Dump statistics"),
+    cl::init(false), cl::cat(_3CCategory));
 
-static cl::opt<bool> OptHandleVARARGS("handle-varargs",
-                                      cl::desc("Enable handling of varargs "
-                                               "in a "
-                                               "sound manner"),
-                                      cl::init(false), cl::cat(_3CCategory));
+static cl::opt<bool> OptHandleVARARGS(
+    "handle-varargs",
+    cl::desc("Enable handling of varargs in a sound manner"),
+    cl::init(false), cl::cat(_3CCategory));
 
-static cl::opt<bool>
-    OptEnablePropThruIType("enable-itypeprop",
-                           cl::desc("Enable propagation of "
-                                    "constraints through ityped "
-                                    "parameters/returns."),
-                           cl::init(false), cl::cat(_3CCategory));
+static cl::opt<bool> OptAllTypes(
+    "alltypes",
+    cl::desc("Consider all Checked C types for conversion"),
+    cl::init(false), cl::cat(_3CCategory));
 
-static cl::opt<bool> OptAllTypes("alltypes",
-                                 cl::desc("Consider all Checked C types for "
-                                          "conversion"),
-                                 cl::init(false), cl::cat(_3CCategory));
-
-static cl::opt<bool> OptAddCheckedRegions("addcr",
-                                          cl::desc("Add Checked "
-                                                   "Regions"),
-                                          cl::init(false),
-                                          cl::cat(_3CCategory));
+static cl::opt<bool> OptAddCheckedRegions(
+    "addcr",
+    cl::desc("Add Checked Regions"),
+    cl::init(false), cl::cat(_3CCategory));
 
 static cl::opt<bool> OptEnableCCTypeChecker(
     "enccty",
     cl::desc(
-        "Enable the Checked C type checker. 3c normally disables it (via the "
-        "equivalent of `clang -f3c-tool`) so that 3c can operate on partially "
-        "converted programs that may have Checked C type errors."),
+      "Enable the Checked C type checker. 3c normally disables it (via the "
+      "equivalent of `clang -f3c-tool`) so that 3c can operate on partially "
+      "converted programs that may have Checked C type errors."),
     cl::init(false), cl::cat(_3CCategory));
 
 static cl::opt<std::string> OptBaseDir(
     "base-dir",
     cl::desc(
-        "Ancestor directory defining the set of files that 3c "
-        "is allowed to modify (default: the working "
-        "directory). All source files specified on the command line must be "
-        "under this directory. You can use "
-        "this option to let 3c modify your project's own header files but not "
-        "those of libraries outside your control."),
+      "Ancestor directory defining the set of files that 3c "
+      "is allowed to modify (default: the working "
+      "directory). All source files specified on the command line must be "
+      "under this directory. You can use "
+      "this option to let 3c modify your project's own header files but not "
+      "those of libraries outside your control."),
     cl::init(""), cl::cat(_3CCategory));
 
 static cl::opt<bool> OptAllowSourcesOutsideBaseDir(
@@ -188,11 +183,11 @@ static cl::opt<bool> OptWarnRootCause(
     cl::desc("Emit warnings indicating root causes of unchecked pointers."),
     cl::init(false), cl::cat(_3CCategory));
 
-static cl::opt<bool>
-    OptWarnAllRootCause("warn-all-root-cause",
-                        cl::desc("Emit warnings for all root causes, "
-                                 "even those unlikely to be interesting."),
-                        cl::init(false), cl::cat(_3CCategory));
+static cl::opt<bool> OptWarnAllRootCause(
+    "warn-all-root-cause",
+    cl::desc("Emit warnings for all root causes, even those unlikely to be "
+             "interesting."),
+    cl::init(false), cl::cat(_3CCategory));
 
 // In the future, we may enhance this to write the output to individual files.
 // For now, the user has to copy and paste the correct portions of stderr.
@@ -227,6 +222,72 @@ static cl::opt<bool> OptAllowRewriteFailures(
              "affect common use cases."),
     cl::init(false), cl::cat(_3CCategory));
 
+static cl::opt<bool> OptItypesForExtern(
+    "itypes-for-extern",
+    cl::desc("All functions with external linkage will be rewritten to use "
+             "itypes instead checked types. This does not apply to static "
+             "functions which continue to have itypes only when the function "
+             "is internally unsafe."),
+    cl::init(false), cl::cat(_3CCategory));
+
+static cl::opt<bool> OptInferTypesForUndef(
+    "infer-types-for-undefs",
+    cl::desc("Enable type inference for undefined functions. Under this flag, "
+             "types for undefined functions are inferred according to the same "
+             "rules as defined functions with the caveat that an undefined "
+             "function will only solve to an itype and not a fully checked "
+             "type. Because 3c is not able to examine the body of the "
+             "function, the inferred pointer types (and array bounds) may not "
+             "be consistent with the actual implementation. By default, the "
+             "Checked C compiler trusts the declared itypes and will not "
+             "detect a spatial memory safety violation if the function is used "
+             "in a way that is consistent with the itypes but not the "
+             "assumptions actually made by the implementation. Thus, if you "
+             "want to guarantee spatial memory safety, you must manually "
+             "check the inferred types against your understanding of what the "
+             "function actually does (or any available documentation)."),
+    cl::init(false), cl::cat(_3CCategory));
+
+static cl::opt<bool> OptDebugSolver(
+    "debug-solver",
+    cl::desc("Dump intermediate solver state"),
+    cl::init(false), cl::cat(_3CCategory));
+
+static cl::opt<bool> OptOnlyGreatestSol(
+    "only-g-sol",
+    cl::desc("Perform only greatest solution for Pty Constrains."),
+    cl::init(false), cl::cat(_3CCategory));
+
+static cl::opt<bool> OptOnlyLeastSol(
+    "only-l-sol",
+    cl::desc("Perform only least solution for Pty Constrains."),
+    cl::init(false), cl::cat(_3CCategory));
+
+static llvm::cl::opt<bool> OptDisableRDs(
+    "disable-rds",
+    llvm::cl::desc("Disable reverse edges for Checked Constraints."),
+    llvm::cl::init(false), cl::cat(_3CCategory));
+
+static llvm::cl::opt<bool> OptDisableFunctionEdges(
+    "disable-fnedgs",
+    llvm::cl::desc("Disable reverse edges for external functions."),
+    llvm::cl::init(false), cl::cat(_3CCategory));
+
+static cl::opt<bool> OptDisableArrH(
+    "disable-arr-hu",
+    cl::desc("Disable Array Bounds Inference Heuristics."),
+    cl::init(false), cl::cat(_3CCategory));
+
+static cl::opt<bool> DebugArrSolver(
+    "debug-arr-solver",
+    cl::desc("Dump array bounds inference graph"),
+    cl::init(false), cl::cat(_3CCategory));
+
+static cl::opt<bool> OptDisableInfDecls(
+    "disable-arr-missd",
+    cl::desc("Disable ignoring of missed bounds from declarations."),
+    cl::init(false), cl::cat(_3CCategory));
+
 #ifdef FIVE_C
 static cl::opt<bool> OptRemoveItypes(
     "remove-itypes",
@@ -238,6 +299,8 @@ static cl::opt<bool> OptForceItypes(
     cl::desc("Use interoperation types instead of regular checked pointers. "),
     cl::init(false), cl::cat(_3CCategory));
 #endif
+
+// clang-format on
 
 int main(int argc, const char **argv) {
   sys::PrintStackTraceOnErrorSignal(argv[0]);
@@ -273,7 +336,6 @@ int main(int argc, const char **argv) {
   struct _3COptions CcOptions;
   CcOptions.BaseDir = OptBaseDir.getValue();
   CcOptions.AllowSourcesOutsideBaseDir = OptAllowSourcesOutsideBaseDir;
-  CcOptions.EnablePropThruIType = OptEnablePropThruIType;
   CcOptions.HandleVARARGS = OptHandleVARARGS;
   CcOptions.DumpStats = OptDumpStats;
   CcOptions.OutputPostfix = OptOutputPostfix.getValue();
@@ -283,15 +345,25 @@ int main(int argc, const char **argv) {
   CcOptions.ConstraintOutputJson = OptConstraintOutputJson.getValue();
   CcOptions.StatsOutputJson = OptStatsOutputJson.getValue();
   CcOptions.WildPtrInfoJson = OptWildPtrInfoJson.getValue();
-  CcOptions.PerPtrInfoJson = OptPerPtrWILDInfoJson.getValue();
+  CcOptions.PerWildPtrInfoJson = OptPerPtrWILDInfoJson.getValue();
   CcOptions.AddCheckedRegions = OptAddCheckedRegions;
-  CcOptions.EnableAllTypes = OptAllTypes;
+  CcOptions.AllTypes = OptAllTypes;
   CcOptions.EnableCCTypeChecker = OptEnableCCTypeChecker;
   CcOptions.WarnRootCause = OptWarnRootCause;
   CcOptions.WarnAllRootCause = OptWarnAllRootCause;
   CcOptions.DumpUnwritableChanges = OptDumpUnwritableChanges;
   CcOptions.AllowUnwritableChanges = OptAllowUnwritableChanges;
   CcOptions.AllowRewriteFailures = OptAllowRewriteFailures;
+  CcOptions.ItypesForExtern = OptItypesForExtern;
+  CcOptions.InferTypesForUndefs = OptInferTypesForUndef;
+  CcOptions.DebugSolver = OptDebugSolver;
+  CcOptions.OnlyGreatestSol = OptOnlyGreatestSol;
+  CcOptions.OnlyLeastSol = OptOnlyLeastSol;
+  CcOptions.DisableRDs = OptDisableRDs;
+  CcOptions.DisableFunctionEdges = OptDisableFunctionEdges;
+  CcOptions.DisableInfDecls = OptDisableInfDecls;
+  CcOptions.DisableArrH = OptDisableArrH;
+  CcOptions.DebugArrSolver = DebugArrSolver;
 
 #ifdef FIVE_C
   CcOptions.RemoveItypes = OptRemoveItypes;

@@ -94,35 +94,26 @@ const FunctionScope *FunctionScope::getFunctionScope(std::string FnName,
   return &FS;
 }
 
-std::set<ProgramVar *> ProgramVar::AllProgramVars;
+std::set<const ProgramVar *> ProgramVar::AllProgramVars;
 
-std::string ProgramVar::mkString(bool GetKey) {
-  std::string Ret = "";
-  if (GetKey) {
-    Ret = std::to_string(K) + "_";
-  }
-  if (GetKey && IsConstant) {
+std::string ProgramVar::verboseStr() const {
+  std::string Ret = std::to_string(K) + "_";
+  if (IsConstant)
     Ret += "Cons:";
-  }
-  Ret += VarName;
-  return Ret;
+  return Ret + VarName + "(" + VScope->getStr() + ")";
 }
 
-ProgramVar *ProgramVar::makeCopy(BoundsKey NK) {
-  ProgramVar *NewPVar =
-      new ProgramVar(NK, this->VarName, this->VScope, this->IsConstant);
-  return NewPVar;
+ProgramVar *ProgramVar::makeCopy(BoundsKey NK) const {
+  return new ProgramVar(NK, this->VarName, this->VScope, this->IsConstant,
+                        this->ConstantVal);
 }
 
-std::string ProgramVar::verboseStr() {
-  std::string Ret = mkString(true) + "(" + VScope->getStr() + ")";
-  return Ret;
+ProgramVar *ProgramVar::createNewConstantVar(BoundsKey VK,
+                                             uint64_t Value) {
+  return new ProgramVar(VK, Value);
 }
 
 ProgramVar *ProgramVar::createNewProgramVar(BoundsKey VK, std::string VName,
-                                            const ProgramVarScope *PVS,
-                                            bool IsCons) {
-  ProgramVar *NewPV = new ProgramVar(VK, VName, PVS, IsCons);
-  AllProgramVars.insert(NewPV);
-  return NewPV;
+                                            const ProgramVarScope *PVS) {
+  return new ProgramVar(VK, VName, PVS);
 }

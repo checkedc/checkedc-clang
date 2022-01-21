@@ -36,11 +36,12 @@ public:
 
   DataType getData() const { return Data; }
 
-  void connectTo(NodeType &Other, bool SoftEdge = false) {
-    auto *BLR = new EdgeType(Other);
+  void connectTo(NodeType &Other, bool SoftEdge = false,
+                 Constraint *C = nullptr) {
+    auto *BLR = new EdgeType(Other, C);
     BLR->IsSoft = SoftEdge;
     this->addEdge(*BLR);
-    auto *BRL = new EdgeType(*this);
+    auto *BRL = new EdgeType(*this, C);
     Other.addPredecessor(*BRL);
   }
 
@@ -93,9 +94,12 @@ struct GraphTraits<DataNode<Data, EdgeType> *> {
 template <class DataType>
 struct DataEdge : public llvm::DGEdge<DataNode<DataType>, DataEdge<DataType>> {
   typedef llvm::DGEdge<DataNode<DataType>, DataEdge<DataType>> SuperType;
-  explicit DataEdge(DataNode<DataType> &Node) : SuperType(Node) {}
-  DataEdge(const DataEdge &E) : SuperType(E) {}
+  explicit DataEdge(DataNode<DataType> &Node, Constraint *C = nullptr)
+      : SuperType(Node), EdgeConstraint(C) {}
+  DataEdge(const DataEdge &E, Constraint *C = nullptr)
+      : SuperType(E), EdgeConstraint(C) {}
   bool IsSoft = false;
+  Constraint *EdgeConstraint;
 };
 
 class GraphVizOutputGraph;
@@ -135,10 +139,10 @@ public:
     invalidateBFSCache();
   }
 
-  void addEdge(Data L, Data R, bool SoftEdge = false) {
+  void addEdge(Data L, Data R, bool SoftEdge = false, Constraint *C = nullptr) {
     NodeType *BL = this->findOrCreateNode(L);
     NodeType *BR = this->findOrCreateNode(R);
-    BL->connectTo(*BR, SoftEdge);
+    BL->connectTo(*BR, SoftEdge, C);
     invalidateBFSCache();
   }
 
@@ -152,13 +156,15 @@ public:
     }
   }
 
-  bool getNeighbors(Data D, std::set<Data> &DataSet, bool Succ,
-                    bool Append = false, bool IgnoreSoftEdges = false) {
+  // This version provides more info by returning graph edges
+  // rather than data items
+  bool getIncidentEdges(Data D, std::set<EdgeType*> &EdgeSet, bool Succ,
+                      bool Append = false, bool IgnoreSoftEdges = false) const {
     NodeType *N = this->findNode(D);
     if (N == nullptr)
       return false;
     if (!Append)
-      DataSet.clear();
+      EdgeSet.clear();
     llvm::SetVector<EdgeType *> Edges;
     if (Succ)
       Edges = N->getEdges();
@@ -166,25 +172,49 @@ public:
       Edges = N->getPredecessors();
     for (auto *E : Edges)
       if (!E->IsSoft || !IgnoreSoftEdges)
-        DataSet.insert(E->getTargetNode().getData());
+        EdgeSet.insert(E);
+    return !EdgeSet.empty();
+  }
+
+  bool getNeighbors(Data D, std::set<Data> &DataSet, bool Succ,
+                    bool Append = false, bool IgnoreSoftEdges = false) const {
+    if (!Append)
+      DataSet.clear();
+
+    std::set<EdgeType *> Edges;
+    getIncidentEdges(D, Edges, Succ, Append, IgnoreSoftEdges);
+    for (auto *E : Edges)
+      DataSet.insert(E->getTargetNode().getData());
     return !DataSet.empty();
   }
 
-  bool getSuccessors(Data D, std::set<Data> &DataSet, bool Append = false) {
+  bool getSuccessorsEdges(Atom *A, std::set<EdgeType*> &EdgeSet,
+                     bool Append = false) {
+    return getIncidentEdges(A, EdgeSet, true, Append);
+  }
+
+  bool getPredecessorsEdges(Atom *A, std::set<EdgeType*> &EdgeSet,
+                            bool Append = false) {
+    return getIncidentEdges(A, EdgeSet, false, Append);
+  }
+
+  bool
+  getSuccessors(Data D, std::set<Data> &DataSet, bool Append = false) const {
     return getNeighbors(D, DataSet, true, Append);
   }
 
-  bool getPredecessors(Data D, std::set<Data> &DataSet, bool Append = false) {
+  bool
+  getPredecessors(Data D, std::set<Data> &DataSet, bool Append = false) const {
     return getNeighbors(D, DataSet, false, Append);
   }
 
-  NodeType *findNode(Data D) {
+  NodeType *findNode(Data D) const {
     if (NodeSet.find(D) != NodeSet.end())
-      return NodeSet[D];
+      return NodeSet.at(D);
     return nullptr;
   }
 
-  void visitBreadthFirst(Data Start, llvm::function_ref<void(Data)> Fn) {
+  void visitBreadthFirst(Data Start, llvm::function_ref<void(Data)> Fn) const {
     NodeType *N = this->findNode(Start);
     if (N == nullptr)
       return;
@@ -217,14 +247,16 @@ protected:
 private:
   template <typename G> friend struct llvm::GraphTraits;
   friend class GraphVizOutputGraph;
-  std::map<Data, std::set<Data>> BFSCache;
+  mutable std::map<Data, std::set<Data>> BFSCache;
   std::map<Data, NodeType *> NodeSet;
 
   void invalidateBFSCache() { BFSCache.clear(); }
 };
 
 // Specialize the graph for the checked and pointer type constraint graphs. This
-// graphs stores atoms at each node.
+// graphs stores atoms at each node, and constraints on each edge. These edges
+// are returned by the specialized `getNeighbors` function to provide constraint
+// data to clients.
 class ConstraintsGraph : public DataGraph<Atom *> {
 public:
   // Add an edge to the graph according to the Geq constraint. This is an edge
@@ -235,6 +267,7 @@ public:
   // be able to retrieve them from the graph.
   std::set<ConstAtom *> &getAllConstAtoms();
 
+  typedef DataEdge<Atom*> EdgeType;
 protected:
   // Add vertex is overridden to save const atoms as they are added to the graph
   // so that getAllConstAtoms can efficiently retrieve them.

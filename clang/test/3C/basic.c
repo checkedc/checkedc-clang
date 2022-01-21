@@ -131,7 +131,7 @@ void basic_realloc(int count) {
   free(ptr);
 }
 //CHECK_NOALL: int *ptr = (int *)malloc<int>(n1 * sizeof(int));
-//CHECK_ALL: _Array_ptr<int> ptr : count(n1) = (_Array_ptr<int>)malloc<int>(n1 * sizeof(int));
+//CHECK_ALL: _Array_ptr<int> ptr = (_Array_ptr<int>)malloc<int>(n1 * sizeof(int));
 
 struct student {
   char name[30];

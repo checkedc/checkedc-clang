@@ -13,6 +13,7 @@
 
 #include "clang/3C/PersistentSourceLoc.h"
 #include "clang/AST/Type.h"
+#include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
@@ -68,8 +69,8 @@ public:
     ValToK.clear();
   }
 
-  const std::map<KeyT, ValueT> &left() { return KtoVal; }
-  const std::map<ValueT, KeyT> &right() { return ValToK; }
+  const std::map<KeyT, ValueT> &left() const { return KtoVal; }
+  const std::map<ValueT, KeyT> &right() const { return ValToK; }
 
 private:
   std::map<KeyT, ValueT> KtoVal;
@@ -100,8 +101,6 @@ clang::FunctionDecl *getDefinition(clang::FunctionDecl *FD);
 clang::CheckedPointerKind
 getCheckedPointerKind(clang::InteropTypeExpr *ItypeExpr);
 
-bool hasFunctionBody(clang::Decl *D);
-
 std::string getStorageQualifierString(clang::Decl *D);
 
 std::error_code tryGetCanonicalFilePath(const std::string &FileName,
@@ -128,6 +127,11 @@ bool isPointerType(clang::ValueDecl *VD);
 
 // Is this a pointer or array type?
 bool isPtrOrArrayType(const clang::QualType &QT);
+
+// Is this an array type? Note that this includes pointer types decayed from
+// array types (i.e., arrays in function parameters) but does not include
+// Checked C checked array pointers (unless they decayed from a checked array).
+bool isArrayType(const clang::QualType &QT);
 
 // Is this a type that can go inside an _Nt_array_ptr?
 bool isNullableType(const clang::QualType &QT);
@@ -182,6 +186,8 @@ bool isInSysHeader(clang::Decl *D);
 
 std::string getSourceText(const clang::SourceRange &SR,
                           const clang::ASTContext &C);
+std::string getSourceText(const clang::CharSourceRange &SR,
+                          const clang::ASTContext &C);
 
 // Find the longest common subsequence.
 unsigned longestCommonSubsequence(const char *Str1, const char *Str2,
@@ -226,5 +232,64 @@ void getPrintfStringArgIndices(const clang::CallExpr *CE,
 // string literals (https://bugs.llvm.org/show_bug.cgi?id=49926).
 int64_t getStmtIdWorkaround(const clang::Stmt *St,
                             const clang::ASTContext &Context);
+
+clang::SourceLocation getCheckedCAnnotationsEnd(const clang::Decl *D);
+
+
+clang::SourceLocation
+getLocationAfterToken(clang::SourceLocation SL, const clang::SourceManager &SM,
+                      const clang::LangOptions &LO);
+
+
+// Get the source range for a declaration including Checked C annotations.
+// Optionally, any initializer can be excluded from the range in order to avoid
+// interfering with other rewrites inside an existing initializer
+// (https://github.com/correctcomputation/checkedc-clang/issues/267). If the
+// declaration has no initializer, then IncludeInitializer has no effect.
+clang::SourceRange getDeclSourceRangeWithAnnotations(const clang::Decl *D,
+                                                     bool IncludeInitializer);
+
+// Shortcut for the getCustomDiagID + Report sequence to report a custom
+// diagnostic as we currently do in 3C.
+//
+// Unlike DiagnosticEngine::Report, to make it harder to forget to provide a
+// source location when we intend to, we don't provide a version that doesn't
+// take a source location; instead, the caller should just pass
+// SourceLocation().
+
+template <unsigned N>
+inline clang::DiagnosticBuilder reportCustomDiagnostic(
+    clang::DiagnosticsEngine &DE,
+    clang::DiagnosticsEngine::Level Level,
+    const char (&FormatString)[N],
+    clang::SourceLocation Loc) {
+  return DE.Report(Loc, DE.getCustomDiagID(Level, FormatString));
+}
+
+// For whatever reason, Clang provides << equivalents for many other
+// DiagnosticBuilder::Add* methods but not this one, and we want it in a few
+// places.
+inline const clang::DiagnosticBuilder &operator<<(
+    const clang::DiagnosticBuilder &DB, clang::NamedDecl *ND) {
+  DB.AddTaggedVal(reinterpret_cast<intptr_t>(ND),
+                  clang::DiagnosticsEngine::ArgumentKind::ak_nameddecl);
+  return DB;
+}
+
+// Marker for conditions that we might want to make into non-fatal assertions
+// once we have an API design for them
+// (https://github.com/correctcomputation/checkedc-clang/issues/745). An inline
+// function would work just as well, but macros have an LLVM naming convention
+// and syntax highlighting that make call sites easier to read, in Matt's
+// opinion.
+#define NONFATAL_ASSERT_PLACEHOLDER(_cond) (_cond)
+
+// Variant for conditions that the caller doesn't actually test because no
+// separate recovery path is currently implemented. We want to check that the
+// condition compiles but not evaluate it at runtime (until non-fatal assertions
+// are actually implemented, and then only when assertions are enabled in the
+// build configuration), and we don't want "unused code" compiler warnings.
+// TODO: Is there a better way to achieve this?
+#define NONFATAL_ASSERT_PLACEHOLDER_UNUSED(_cond) ((void)sizeof(_cond))
 
 #endif

@@ -43,7 +43,9 @@ add_clang_library(clang3C
   CtxSensAVarBounds.cpp
   DeclRewriter.cpp
   IntermediateToolHook.cpp
+  LowerBoundAssignment.cpp
   MappingVisitor.cpp
+  MultiDecls.cpp
   PersistentSourceLoc.cpp
   ProgramInfo.cpp
   ProgramVar.cpp

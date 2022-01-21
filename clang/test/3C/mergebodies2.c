@@ -24,7 +24,7 @@ int *wildBody(int x, int *y, int **z);
 // CHECK: int *wildBody(int x, _Ptr<int> y, _Ptr<_Ptr<int>> z) : itype(_Ptr<int>);
 
 int *fnPtrParamUnsafe(int (*fn)(int,int)) {
-// CHECK: int *fnPtrParamUnsafe(int (*fn)(int,int)) : itype(_Ptr<int>) {
+// CHECK: int *fnPtrParamUnsafe(int ((*fn)(int, int)) : itype(_Ptr<int (int, int)>)) : itype(_Ptr<int>) {
   fn = (int (*)(int,int))5;
   return fn(1,3);
 }

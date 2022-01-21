@@ -8,7 +8,6 @@
 //
 // This implements a simple constraint solver for expressions of the form:
 //  a >= b
-//  a implies b
 //
 // The 3C tool performs type inference to identify locations
 // where a C type might be replaced with a Checked C type. This interface
@@ -31,8 +30,20 @@ class Constraints;
 class PersistentSourceLoc;
 class ConstraintsGraph;
 
+#define INTERNAL_USE_REASON "This reason should never be displayed"
 #define DEFAULT_REASON "UNKNOWN_REASON"
 #define POINTER_IS_ARRAY_REASON "Pointer is array but alltypes is disabled."
+#define VOID_TYPE_REASON "Default void* type"
+#define UNWRITABLE_REASON "Source code in non-writable file."
+#define INNER_POINTER_REASON "Pointer is within an outer pointer"
+#define ALLOCATOR_REASON "Return type from an allocator"
+#define ARRAY_REASON "Lowerbounded to an array type"
+#define NT_ARRAY_REASON "Lowerbounded to an nt_array type"
+// SPECIAL_REASON("name_of_func")
+#define SPECIAL_REASON(spec) (std::string("Special case for ") + (spec))
+#define STRING_LITERAL_REASON "The type of a string literal"
+#define MACRO_REASON "Pointer in Macro declaration."
+#define UNION_FIELD_REASON "Union field encountered"
 
 template <typename T> struct PComp {
   bool operator()(const T Lhs, const T Rhs) const { return *Lhs < *Rhs; }
@@ -106,25 +117,27 @@ public:
     return "";
   }
 
-  void print(llvm::raw_ostream &O) const {
+  void print(llvm::raw_ostream &O) const override {
     O << varKindToStr(KindV) << Name << "_" << Loc;
   }
 
-  void dump(void) const { print(llvm::errs()); }
+  void dump(void) const override { print(llvm::errs()); }
 
-  void dumpJson(llvm::raw_ostream &O) const {
+  void dumpJson(llvm::raw_ostream &O) const override {
     O << "\"" << varKindToStr(KindV) << Name << "_" << Loc << "\"";
   }
 
-  bool operator==(const Atom &Other) const {
+  bool operator==(const Atom &Other) const override {
     if (const VarAtom *V = llvm::dyn_cast<VarAtom>(&Other))
       return V->Loc == Loc;
     return false;
   }
 
-  bool operator!=(const Atom &Other) const { return !(*this == Other); }
+  bool operator!=(const Atom &Other) const override {
+    return !(*this == Other);
+  }
 
-  bool operator<(const Atom &Other) const {
+  bool operator<(const Atom &Other) const override {
     if (const VarAtom *V = llvm::dyn_cast<VarAtom>(&Other))
       return Loc < V->Loc;
     return false;
@@ -160,19 +173,21 @@ public:
 
   static bool classof(const Atom *S) { return S->getKind() == A_NTArr; }
 
-  void print(llvm::raw_ostream &O) const { O << "NTARR"; }
+  void print(llvm::raw_ostream &O) const override { O << "NTARR"; }
 
-  void dump(void) const { print(llvm::errs()); }
+  void dump(void) const override { print(llvm::errs()); }
 
-  void dumpJson(llvm::raw_ostream &O) const { O << "\"NTARR\""; }
+  void dumpJson(llvm::raw_ostream &O) const override { O << "\"NTARR\""; }
 
-  bool operator==(const Atom &Other) const {
+  bool operator==(const Atom &Other) const override {
     return llvm::isa<NTArrAtom>(&Other);
   }
 
-  bool operator!=(const Atom &Other) const { return !(*this == Other); }
+  bool operator!=(const Atom &Other) const override {
+    return !(*this == Other);
+  }
 
-  bool operator<(const Atom &Other) const { return !(*this == Other); }
+  bool operator<(const Atom &Other) const override { return !(*this == Other); }
 };
 
 // This refers to the constant ARR.
@@ -182,19 +197,21 @@ public:
 
   static bool classof(const Atom *S) { return S->getKind() == A_Arr; }
 
-  void print(llvm::raw_ostream &O) const { O << "ARR"; }
+  void print(llvm::raw_ostream &O) const override { O << "ARR"; }
 
-  void dump(void) const { print(llvm::errs()); }
+  void dump(void) const override { print(llvm::errs()); }
 
-  void dumpJson(llvm::raw_ostream &O) const { O << "\"ARR\""; }
+  void dumpJson(llvm::raw_ostream &O) const override { O << "\"ARR\""; }
 
-  bool operator==(const Atom &Other) const {
+  bool operator==(const Atom &Other) const override {
     return llvm::isa<ArrAtom>(&Other);
   }
 
-  bool operator!=(const Atom &Other) const { return !(*this == Other); }
+  bool operator!=(const Atom &Other) const override {
+    return !(*this == Other);
+  }
 
-  bool operator<(const Atom &Other) const {
+  bool operator<(const Atom &Other) const override {
     return !(llvm::isa<NTArrAtom>(&Other) || *this == Other);
   }
 };
@@ -206,19 +223,21 @@ public:
 
   static bool classof(const Atom *S) { return S->getKind() == A_Ptr; }
 
-  void print(llvm::raw_ostream &O) const { O << "PTR"; }
+  void print(llvm::raw_ostream &O) const override { O << "PTR"; }
 
-  void dump(void) const { print(llvm::errs()); }
+  void dump(void) const override { print(llvm::errs()); }
 
-  void dumpJson(llvm::raw_ostream &O) const { O << "\"PTR\""; }
+  void dumpJson(llvm::raw_ostream &O) const override { O << "\"PTR\""; }
 
-  bool operator==(const Atom &Other) const {
+  bool operator==(const Atom &Other) const override {
     return llvm::isa<PtrAtom>(&Other);
   }
 
-  bool operator!=(const Atom &Other) const { return !(*this == Other); }
+  bool operator!=(const Atom &Other) const override {
+    return !(*this == Other);
+  }
 
-  bool operator<(const Atom &Other) const {
+  bool operator<(const Atom &Other) const override {
     return !(llvm::isa<ArrAtom>(&Other) || llvm::isa<NTArrAtom>(&Other) ||
              *this == Other);
   }
@@ -231,43 +250,51 @@ public:
 
   static bool classof(const Atom *S) { return S->getKind() == A_Wild; }
 
-  void print(llvm::raw_ostream &O) const { O << "WILD"; }
+  void print(llvm::raw_ostream &O) const override { O << "WILD"; }
 
-  void dump(void) const { print(llvm::errs()); }
+  void dump(void) const override { print(llvm::errs()); }
 
-  void dumpJson(llvm::raw_ostream &O) const { O << "\"WILD\""; }
+  void dumpJson(llvm::raw_ostream &O) const override { O << "\"WILD\""; }
 
-  bool operator==(const Atom &Other) const {
+  bool operator==(const Atom &Other) const override {
     return llvm::isa<WildAtom>(&Other);
   }
 
-  bool operator!=(const Atom &Other) const { return !(*this == Other); }
+  bool operator!=(const Atom &Other) const override {
+    return !(*this == Other);
+  }
 
-  bool operator<(const Atom &Other) const {
+  bool operator<(const Atom &Other) const override {
     return !(llvm::isa<ArrAtom>(&Other) || llvm::isa<NTArrAtom>(&Other) ||
              llvm::isa<PtrAtom>(&Other) || *this == Other);
   }
 };
 
+// Helper struct requiring locations for every reason, that is,
+// Constraints need reasons and locations to provide good user feedback
+struct ReasonLoc {
+  ReasonLoc() : Reason(DEFAULT_REASON), Location(PersistentSourceLoc()) {}
+  ReasonLoc(std::string Reason, PersistentSourceLoc Loc)
+      : Reason(Reason), Location(Loc) {}
+  bool isDefault() const { return Reason == DEFAULT_REASON; }
+  std::string Reason;
+  PersistentSourceLoc Location;
+};
+
 // Represents constraints of the form:
 //  - a >= b
-//  - a ==> b
 class Constraint {
 public:
-  enum ConstraintKind { C_Geq, C_Imp };
+  enum ConstraintKind { C_Geq };
 
 private:
   const ConstraintKind Kind;
-  PersistentSourceLoc PL;
+  ReasonLoc Reason;
+  std::vector<ReasonLoc> ExtraReasons;
 
 public:
-  std::string REASON = DEFAULT_REASON;
-
   Constraint(ConstraintKind K) : Kind(K) {}
-  Constraint(ConstraintKind K, const std::string &Rsn) : Kind(K) {
-    REASON = Rsn;
-  }
-  Constraint(ConstraintKind K, const std::string &Rsn, PersistentSourceLoc *PL);
+  Constraint(ConstraintKind K, const ReasonLoc &Rsn) : Kind(K), Reason(Rsn) {}
 
   virtual ~Constraint() {}
 
@@ -279,10 +306,24 @@ public:
   virtual bool operator==(const Constraint &Other) const = 0;
   virtual bool operator!=(const Constraint &Other) const = 0;
   virtual bool operator<(const Constraint &Other) const = 0;
-  virtual std::string getReason() { return REASON; }
-  virtual void setReason(const std::string &Rsn) { REASON = Rsn; }
+  virtual std::string getReasonText() const { return Reason.Reason; }
+  virtual const ReasonLoc &getReason() const { return Reason; }
+  // Alter the internal reason and remove any additional reasons
+  virtual void setReason(const ReasonLoc &Rsn) {
+    Reason = Rsn;
+    ExtraReasons.clear();
+  }
+  virtual std::vector<ReasonLoc> &additionalReasons() { return ExtraReasons; }
+  // include additional reasons that will appear in output as notes
+  virtual void addReason(const ReasonLoc &Rsn) {
+    ExtraReasons.push_back(Rsn);
+  }
 
-  const PersistentSourceLoc &getLocation() const { return PL; }
+  bool isUnwritable(void) const {
+    return getReasonText() == UNWRITABLE_REASON;
+  }
+
+  const PersistentSourceLoc &getLocation() const { return Reason.Location; }
 };
 
 // a >= b
@@ -290,33 +331,24 @@ class Geq : public Constraint {
   friend class VarAtom;
 
 public:
-  Geq(Atom *Lhs, Atom *Rhs, bool IsCC = true, bool Soft = false)
-      : Constraint(C_Geq), Lhs(Lhs), Rhs(Rhs), IsCheckedConstraint(IsCC),
-        IsSoft(Soft) {}
-
-  Geq(Atom *Lhs, Atom *Rhs, const std::string &Rsn, bool IsCC = true,
+  Geq(Atom *Lhs, Atom *Rhs, const ReasonLoc &Rsn, bool IsCC = true,
       bool Soft = false)
       : Constraint(C_Geq, Rsn), Lhs(Lhs), Rhs(Rhs), IsCheckedConstraint(IsCC),
         IsSoft(Soft) {}
 
-  Geq(Atom *Lhs, Atom *Rhs, const std::string &Rsn, PersistentSourceLoc *PL,
-      bool IsCC = true, bool Soft = false)
-      : Constraint(C_Geq, Rsn, PL), Lhs(Lhs), Rhs(Rhs),
-        IsCheckedConstraint(IsCC), IsSoft(Soft) {}
-
   static bool classof(const Constraint *C) { return C->getKind() == C_Geq; }
 
-  void print(llvm::raw_ostream &O) const {
+  void print(llvm::raw_ostream &O) const override {
     Lhs->print(O);
     std::string Kind = IsCheckedConstraint ? " (C)>= " : " (P)>= ";
     O << Kind;
     Rhs->print(O);
-    O << ", Reason:" << REASON;
+    O << ", Reason: " << getReasonText();
   }
 
-  void dump(void) const { print(llvm::errs()); }
+  void dump(void) const override { print(llvm::errs()); }
 
-  void dumpJson(llvm::raw_ostream &O) const {
+  void dumpJson(llvm::raw_ostream &O) const override {
     O << "{\"Geq\":{\"Atom1\":";
     Lhs->dumpJson(O);
     O << ", \"Atom2\":";
@@ -324,7 +356,7 @@ public:
     O << ", \"isChecked\":";
     O << (IsCheckedConstraint ? "true" : "false");
     O << ", \"Reason\":";
-    llvm::json::Value ReasonVal(REASON);
+    llvm::json::Value ReasonVal(getReasonText());
     O << ReasonVal;
     O << "}}";
   }
@@ -346,16 +378,18 @@ public:
 
   bool constraintIsChecked(void) const { return IsCheckedConstraint; }
 
-  bool operator==(const Constraint &Other) const {
+  bool operator==(const Constraint &Other) const override {
     if (const Geq *E = llvm::dyn_cast<Geq>(&Other))
       return *Lhs == *E->Lhs && *Rhs == *E->Rhs &&
              IsCheckedConstraint == E->IsCheckedConstraint;
     return false;
   }
 
-  bool operator!=(const Constraint &Other) const { return !(*this == Other); }
+  bool operator!=(const Constraint &Other) const override {
+    return !(*this == Other);
+  }
 
-  bool operator<(const Constraint &Other) const {
+  bool operator<(const Constraint &Other) const override {
     ConstraintKind K = Other.getKind();
     if (K == C_Geq) {
       const Geq *E = llvm::dyn_cast<Geq>(&Other);
@@ -380,61 +414,6 @@ private:
   Atom *Rhs;
   bool IsCheckedConstraint;
   bool IsSoft;
-};
-
-// a ==> b
-class Implies : public Constraint {
-public:
-  Implies(Geq *Premise, Geq *Conclusion)
-      : Constraint(C_Imp), Premise(Premise), Conclusion(Conclusion) {}
-
-  static bool classof(const Constraint *C) { return C->getKind() == C_Imp; }
-
-  Geq *getPremise() { return Premise; }
-  Geq *getConclusion() { return Conclusion; }
-
-  void print(llvm::raw_ostream &O) const {
-    Premise->print(O);
-    O << " ==> ";
-    Conclusion->print(O);
-  }
-
-  void dump(void) const { print(llvm::errs()); }
-
-  void dumpJson(llvm::raw_ostream &O) const {
-    O << "{\"Implies\":{\"Premise\":";
-    Premise->dumpJson(O);
-    O << ", \"Conclusion\":";
-    Conclusion->dumpJson(O);
-    O << "}}";
-  }
-
-  bool operator==(const Constraint &Other) const {
-    if (const Implies *I = llvm::dyn_cast<Implies>(&Other))
-      return *Premise == *I->Premise && *Conclusion == *I->Conclusion;
-    return false;
-  }
-
-  bool operator!=(const Constraint &Other) const { return !(*this == Other); }
-
-  bool operator<(const Constraint &Other) const {
-    ConstraintKind K = Other.getKind();
-    if (K == C_Imp) {
-      const Implies *I = llvm::dyn_cast<Implies>(&Other);
-      assert(I != nullptr);
-
-      if (*Premise == *I->Premise && *Conclusion == *I->Conclusion)
-        return false;
-      if (*Premise == *I->Premise && *Conclusion != *I->Conclusion)
-        return *Conclusion < *I->Conclusion;
-      return *Premise < *I->Premise;
-    }
-    return C_Imp < K;
-  }
-
-private:
-  Geq *Premise;
-  Geq *Conclusion;
 };
 
 // This is the solution, the first item is Checked Solution and the second
@@ -507,17 +486,11 @@ public:
   void print(llvm::raw_ostream &) const;
   void dumpJson(llvm::raw_ostream &) const;
 
-  Geq *createGeq(Atom *Lhs, Atom *Rhs, bool IsCheckedConstraint = true,
-                 bool Soft = false);
-  Geq *createGeq(Atom *Lhs, Atom *Rhs, const std::string &Rsn,
-                 bool IsCheckedConstraint = true);
-  Geq *createGeq(Atom *Lhs, Atom *Rhs, const std::string &Rsn,
-                 PersistentSourceLoc *PL, bool IsCheckedConstraint = true);
-  Implies *createImplies(Geq *Premise, Geq *Conclusion);
+  Geq *createGeq(Atom *Lhs, Atom *Rhs, ReasonLoc Rsn,
+                 bool IsCheckedConstraint = true, bool Soft = false);
 
   VarAtom *createFreshGEQ(std::string Name, VarAtom::VarKind VK, ConstAtom *Con,
-                          std::string Rsn = DEFAULT_REASON,
-                          PersistentSourceLoc *PSL = nullptr);
+                          ReasonLoc Rsn = ReasonLoc());
 
   VarAtom *getFreshVar(std::string Name, VarAtom::VarKind VK);
   VarAtom *getOrCreateVar(ConstraintKey V, std::string Name,
@@ -528,8 +501,8 @@ public:
   NTArrAtom *getNTArr() const;
   WildAtom *getWild() const;
   ConstAtom *getAssignment(Atom *A);
-  ConstraintsGraph &getChkCG();
-  ConstraintsGraph &getPtrTypCG();
+  const ConstraintsGraph &getChkCG() const;
+  const ConstraintsGraph &getPtrTypCG() const;
 
   void resetEnvironment();
   bool checkInitialEnvSanity();
@@ -546,9 +519,6 @@ private:
   ConstraintsGraph *PtrTypCG;
   std::map<std::string, ConstraintSet> ConstraintsByReason;
   ConstraintsEnv Environment;
-
-  // Confirm a constraint is well-formed
-  bool check(Constraint *C);
 
   // Managing constraints based on the underlying reason.
   // add constraint to the map.

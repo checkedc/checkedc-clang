@@ -117,7 +117,7 @@ int *sus(int *x, int *y) {
   int i, fac;
   int *p;
   //CHECK_NOALL: int *p;
-  //CHECK_ALL: _Array_ptr<int> p = ((void *)0);
+  //CHECK_ALL: _Array_ptr<int> p : bounds(z, z + 5) = ((void *)0);
   for (i = 0, p = z, fac = 1; i < 5; ++i, p++, fac *= i) {
     //CHECK_NOALL: for (i = 0, p = z, fac = 1; i < 5; ++i, p++, fac *= i) {
     //CHECK_ALL: for (i = 0, p = z, fac = 1; i < 5; ++i, p++, fac *= i) _Checked {
