@@ -1,6 +1,6 @@
 // RUN: rm -rf %t
 // RUN: mkdir %t && cd %t
-// RUN: python -c 'import sys, json; json.dump([{"arguments": ["clang", "-c", "%s"], "directory": "%S", "file": "%s"}]*2, sys.stdout)' > compile_commands.json
+// RUN: python -c 'import sys, json; json.dump([{"arguments": ["clang", "-c", r"%s"], "directory": r"%S", "file": r"%s"}]*2, sys.stdout)' > compile_commands.json
 // RUN: 3c -dump-stats -p %t -base-dir=%S %s | FileCheck -match-full-lines %s
 // RUN: python -c 'import sys, json; exit(any(e["Name"].startswith("ImplicitCastExpr") for e in json.load(sys.stdin)["RootCauseStats"]))' < PerWildPtrStats.json
 
