@@ -10,21 +10,16 @@
 
 #include "clang/3C/IntermediateToolHook.h"
 #include "clang/3C/ArrayBoundsInferenceConsumer.h"
+#include "clang/3C/3CGlobalOptions.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 
 using namespace llvm;
 using namespace clang;
 
-extern cl::OptionCategory ArrBoundsInferCat;
-static cl::opt<bool>
-    DisableArrH("disable-arr-hu",
-                cl::desc("Disable Array Bounds Inference Heuristics."),
-                cl::init(false), cl::cat(ArrBoundsInferCat));
-
 void IntermediateToolHook::HandleTranslationUnit(ASTContext &Context) {
   Info.enterCompilationUnit(Context);
   Info.getPerfStats().startArrayBoundsInferenceTime();
-  handleArrayVariablesBoundsDetection(&Context, Info, !DisableArrH);
+  handleArrayVariablesBoundsDetection(&Context, Info, !_3COpts.DisableArrH);
   Info.getPerfStats().endArrayBoundsInferenceTime();
   Info.exitCompilationUnit();
 }

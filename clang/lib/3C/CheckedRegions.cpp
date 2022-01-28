@@ -230,7 +230,7 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
     if (FD) {
       if (Info.hasTypeParamBindings(C, Context))
         for (auto Entry : Info.getTypeParamBindings(C, Context))
-          Wild |= (Entry.second == nullptr);
+          Wild |= !Entry.second.isConsistent();
       auto Type = FD->getReturnType();
       Wild |= (!(FD->hasPrototype() || FD->doesThisDeclarationHaveABody())) ||
               containsUncheckedPtr(Type);
@@ -339,7 +339,7 @@ bool CheckedRegionFinder::isInStatementPosition(CallExpr *C) {
   //TODO there are other statement positions
   //     besides child of compound stmt
   auto PSL = PersistentSourceLoc::mkPSL(C, *Context);
-  emitCauseDiagnostic(&PSL);
+  emitCauseDiagnostic(PSL);
   return false;
 }
 
@@ -430,21 +430,20 @@ void CheckedRegionFinder::markChecked(CompoundStmt *S, int Localwild) {
   Map[Id] = IsChecked ? IS_CHECKED : IS_UNCHECKED;
 }
 
-void CheckedRegionFinder::emitCauseDiagnostic(PersistentSourceLoc *PSL) {
+void CheckedRegionFinder::emitCauseDiagnostic(PersistentSourceLoc PSL) {
   if (Emitted.find(PSL) == Emitted.end()) {
-    clang::DiagnosticsEngine &DE = Context->getDiagnostics();
-    unsigned ID =
-        DE.getCustomDiagID(DiagnosticsEngine::Warning,
-                           "Root cause of unchecked region: Variadic Call");
     SourceManager &SM = Context->getSourceManager();
     llvm::ErrorOr<const clang::FileEntry *> File =
-        SM.getFileManager().getFile(PSL->getFileName());
+        SM.getFileManager().getFile(PSL.getFileName());
     if (File.getError())
       return;
     SourceLocation SL =
-        SM.translateFileLineCol(*File, PSL->getLineNo(), PSL->getColSNo());
+        SM.translateFileLineCol(*File, PSL.getLineNo(), PSL.getColSNo());
     if (SL.isValid())
-      DE.Report(SL, ID);
+      reportCustomDiagnostic(Context->getDiagnostics(),
+                             DiagnosticsEngine::Warning,
+                             "Root cause of unchecked region: Variadic Call",
+                             SL);
     Emitted.insert(PSL);
   }
 }

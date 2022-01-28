@@ -23,7 +23,7 @@ public:
   explicit VariableAdderConsumer(ProgramInfo &I, clang::ASTContext *C)
       : Info(I) {}
 
-  virtual void HandleTranslationUnit(clang::ASTContext &);
+  void HandleTranslationUnit(clang::ASTContext &) override;
 
 private:
   ProgramInfo &Info;
@@ -36,7 +36,7 @@ public:
   explicit ConstraintBuilderConsumer(ProgramInfo &I, clang::ASTContext *C)
       : Info(I) {}
 
-  virtual void HandleTranslationUnit(clang::ASTContext &);
+  void HandleTranslationUnit(clang::ASTContext &) override;
 
 private:
   ProgramInfo &Info;

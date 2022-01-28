@@ -117,7 +117,7 @@ struct warr *foo() {
   //CHECK_ALL: struct warr *y = malloc<struct warr>(sizeof(struct warr));
   struct warr *z = sus(x, y);
   //CHECK_NOALL: _Ptr<struct warr> z = sus(x, y);
-  //CHECK_ALL: _Ptr<struct warr> z = sus(x, _Assume_bounds_cast<_Array_ptr<struct warr>>(y, byte_count(0)));
+  //CHECK_ALL: _Ptr<struct warr> z = sus(x, _Assume_bounds_cast<_Array_ptr<struct warr>>(y, bounds(unknown)));
   return z;
 }
 
@@ -131,7 +131,7 @@ struct warr *bar() {
   //CHECK_ALL: struct warr *y = malloc<struct warr>(sizeof(struct warr));
   struct warr *z = sus(x, y);
   //CHECK_NOALL: struct warr *z = sus(x, y);
-  //CHECK_ALL: _Array_ptr<struct warr> z = sus(x, _Assume_bounds_cast<_Array_ptr<struct warr>>(y, byte_count(0)));
+  //CHECK_ALL: _Array_ptr<struct warr> z = sus(x, _Assume_bounds_cast<_Array_ptr<struct warr>>(y, bounds(unknown)));
   z += 2;
   return z;
 }

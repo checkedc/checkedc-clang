@@ -14,11 +14,9 @@ void f(int *p) {
 }
 
 void g(int p[]) {
-  //CHECK_NOALL: void g(int p[]) {
-  //CHECK_ALL: void g(_Ptr<int> p) {
+  //CHECK: void g(_Ptr<int> p) {
   int *x = (int *)p;
-  //CHECK_NOALL: int *x = (int *)p;
-  //CHECK_ALL: _Ptr<int> x = (_Ptr<int>)p;
+  //CHECK: _Ptr<int> x = (_Ptr<int>)p;
 }
 
 /* A very similar issue with function pointers */

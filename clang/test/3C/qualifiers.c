@@ -64,7 +64,7 @@ void structs() {
   const extern struct qualifier_struct d;
 }
 //CHECK: struct qualifier_struct a0 = {};
-//CHECK: static struct qualifier_struct a = {};
-//CHECK: static volatile struct qualifier_struct b = {};
+//CHECK: static struct qualifier_struct a;
+//CHECK: volatile static struct qualifier_struct b;
 //CHECK: static _Ptr<const struct qualifier_struct> c = ((void *)0);
 //CHECK: const extern struct qualifier_struct d;

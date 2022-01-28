@@ -32,17 +32,26 @@ public:
     CountPlusOneBoundKind,
     // Bounds that represent number of bytes.
     ByteBoundKind,
-    // Bounds that represent range.
-    RangeBoundKind,
   };
   BoundsKind getKind() const { return Kind; }
 
 protected:
+  ABounds(BoundsKind K, BoundsKey L, BoundsKey B) : Kind(K), LengthKey(L),
+                                                    LowerBoundKey(B) {}
+  ABounds(BoundsKind K, BoundsKey L) : ABounds(K, L, 0) {}
+
   BoundsKind Kind;
 
-protected:
-  ABounds(BoundsKind K) : Kind(K) {}
-  void addBoundsUsedKey(BoundsKey);
+  // Bounds key representing the length of the bounds from the base pointer of
+  // the range. The exact interpretation of this field varies by subclass.
+  BoundsKey LengthKey;
+
+  // The base pointer representing the start of the range of the bounds. If this
+  // is not equal to 0, then this ABounds has a specific lower bound that should
+  // be used when emitting array pointer bounds. Otherwise, if it is 0, then the
+  // lower bound should implicitly be the pointer the bound is applied to.
+  BoundsKey LowerBoundKey;
+
   // Get the variable name of the the given bounds key that corresponds
   // to the given declaration.
   static std::string getBoundsKeyStr(BoundsKey, AVarBoundsInfo *,
@@ -51,15 +60,30 @@ protected:
 public:
   virtual ~ABounds() {}
 
-  virtual std::string mkString(AVarBoundsInfo *, clang::Decl *D = nullptr) = 0;
+  // Make a string representation of this array bound. If the array has a
+  // defined lower bound pointer that is not the same as the pointer for which
+  // the bound string is being generated (passed as parameter BK), then a range
+  // bound is generated using that lower bound. Otherwise, a standard count
+  // bound is generated.
+  std::string
+  mkString(AVarBoundsInfo *ABI, clang::Decl *D = nullptr, BoundsKey BK = 0);
+
+  // Make a string representation of this array bound always generating explicit
+  // lower bounds in range bounds expressions.
+  virtual std::string
+  mkStringWithLowerBound(AVarBoundsInfo *ABI, clang::Decl *D) = 0;
+
+  // Make a string representation of this array bound ignoring any lower bound
+  // information. A standard count bound is always generated.
+  virtual std::string
+  mkStringWithoutLowerBound(AVarBoundsInfo *ABI, clang::Decl *D) = 0;
+
   virtual bool areSame(ABounds *, AVarBoundsInfo *) = 0;
-  virtual BoundsKey getBKey() = 0;
   virtual ABounds *makeCopy(BoundsKey NK) = 0;
 
-  // Set that maintains all the bound keys that are used inin
-  // TODO: Is this still needed?
-  static std::set<BoundsKey> KeysUsedInBounds;
-  static bool isKeyUsedInBounds(BoundsKey ToCheck);
+  BoundsKey getLengthKey() const { return LengthKey; }
+  BoundsKey getLowerBoundKey() const { return LowerBoundKey; }
+  void setLowerBoundKey(BoundsKey LB) { LowerBoundKey = LB; }
 
   static ABounds *getBoundsInfo(AVarBoundsInfo *AVBInfo, BoundsExpr *BExpr,
                                 const ASTContext &C);
@@ -67,34 +91,38 @@ public:
 
 class CountBound : public ABounds {
 public:
-  CountBound(BoundsKey Var) : ABounds(CountBoundKind), CountVar(Var) {
-    addBoundsUsedKey(Var);
-  }
+  CountBound(BoundsKey L, BoundsKey B) : ABounds(CountBoundKind, L, B) {}
+  CountBound(BoundsKey L) : ABounds(CountBoundKind, L) {}
 
-  virtual ~CountBound() {}
+  std::string
+  mkStringWithLowerBound(AVarBoundsInfo *ABI, clang::Decl *D) override;
+  std::string
+  mkStringWithoutLowerBound(AVarBoundsInfo *ABI, clang::Decl *D) override;
 
-  std::string mkString(AVarBoundsInfo *ABI, clang::Decl *D = nullptr) override;
   bool areSame(ABounds *O, AVarBoundsInfo *ABI) override;
-  BoundsKey getBKey() override;
+
   ABounds *makeCopy(BoundsKey NK) override;
 
   static bool classof(const ABounds *S) {
     return S->getKind() == CountBoundKind;
   }
-
-  BoundsKey getCountVar() { return CountVar; }
-
-protected:
-  BoundsKey CountVar;
 };
 
 class CountPlusOneBound : public CountBound {
 public:
-  CountPlusOneBound(BoundsKey Var) : CountBound(Var) {
+  CountPlusOneBound(BoundsKey L, BoundsKey B) : CountBound(L, B) {
     this->Kind = CountPlusOneBoundKind;
   }
 
-  std::string mkString(AVarBoundsInfo *ABI, clang::Decl *D = nullptr) override;
+  CountPlusOneBound(BoundsKey L) : CountBound(L) {
+    this->Kind = CountPlusOneBoundKind;
+  }
+
+  std::string
+  mkStringWithLowerBound(AVarBoundsInfo *ABI, clang::Decl *D) override;
+  std::string
+  mkStringWithoutLowerBound(AVarBoundsInfo *ABI, clang::Decl *D) override;
+
   bool areSame(ABounds *O, AVarBoundsInfo *ABI) override;
 
   static bool classof(const ABounds *S) {
@@ -104,54 +132,20 @@ public:
 
 class ByteBound : public ABounds {
 public:
-  ByteBound(BoundsKey Var) : ABounds(ByteBoundKind), ByteVar(Var) {
-    addBoundsUsedKey(Var);
-  }
+  ByteBound(BoundsKey L, BoundsKey B) : ABounds(ByteBoundKind, L, B) {}
+  ByteBound(BoundsKey L) : ABounds(ByteBoundKind, L) {}
 
-  virtual ~ByteBound() {}
+  std::string
+  mkStringWithLowerBound(AVarBoundsInfo *ABI, clang::Decl *D) override;
+  std::string
+  mkStringWithoutLowerBound(AVarBoundsInfo *ABI, clang::Decl *D) override;
 
-  std::string mkString(AVarBoundsInfo *ABI, clang::Decl *D = nullptr) override;
   bool areSame(ABounds *O, AVarBoundsInfo *ABI) override;
-  BoundsKey getBKey() override;
   ABounds *makeCopy(BoundsKey NK) override;
 
   static bool classof(const ABounds *S) {
     return S->getKind() == ByteBoundKind;
   }
-  BoundsKey getByteVar() { return ByteVar; }
-
-private:
-  BoundsKey ByteVar;
 };
 
-class RangeBound : public ABounds {
-public:
-  RangeBound(BoundsKey L, BoundsKey R) : ABounds(RangeBoundKind), LB(L), UB(R) {
-    addBoundsUsedKey(L);
-    addBoundsUsedKey(R);
-  }
-
-  virtual ~RangeBound() {}
-
-  std::string mkString(AVarBoundsInfo *ABI, clang::Decl *D = nullptr) override;
-  bool areSame(ABounds *O, AVarBoundsInfo *ABI) override;
-
-  BoundsKey getBKey() override {
-    assert(false && "Not implemented.");
-    return 0;
-  }
-
-  ABounds *makeCopy(BoundsKey NK) override {
-    assert(false && "Not Implemented");
-    return nullptr;
-  }
-
-  static bool classof(const ABounds *S) {
-    return S->getKind() == RangeBoundKind;
-  }
-
-private:
-  BoundsKey LB;
-  BoundsKey UB;
-};
 #endif // LLVM_CLANG_3C_ABOUNDS_H

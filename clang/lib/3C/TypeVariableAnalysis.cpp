@@ -31,7 +31,8 @@ void TypeVariableEntry::setTypeParamConsVar(ConstraintVariable *CV) {
   TypeParamConsVar = CV;
 }
 
-void TypeVariableEntry::updateEntry(QualType Ty, CVarSet &CVs) {
+void TypeVariableEntry::updateEntry(QualType Ty, CVarSet &CVs,
+                                    ConstraintVariable *IdentCV) {
   if (!(Ty->isArrayType() || Ty->isPointerType())) {
     // We need to have a pointer or an array type for an instantiation to make
     // sense. Anything else is treated as inconsistent.
@@ -45,9 +46,20 @@ void TypeVariableEntry::updateEntry(QualType Ty, CVarSet &CVs) {
                          getType()->getPointeeOrArrayElementType() != PtrTy))
       IsConsistent = false;
   }
+  // If these came from two different type params originally and are both
+  // passed to the same type param, we have no way of knowing if they were
+  // the same and in general they will not always be, so this must be marked
+  // inconsistent.
+  if (auto PVC1 = dyn_cast_or_null<PVConstraint>(GenArgumentCV))
+      if (auto PVC2 = dyn_cast_or_null<PVConstraint>(IdentCV))
+        if (PVC1->getGenericIndex() != PVC2->getGenericIndex())
+          IsConsistent = false;
+
   // Record new constraints for the entry. These are used even when the variable
   // is not consistent.
   insertConstraintVariables(CVs);
+  if (!GenArgumentCV)
+    GenArgumentCV = IdentCV;
 }
 
 ConstraintVariable *TypeVariableEntry::getTypeParamConsVar() {
@@ -55,6 +67,12 @@ ConstraintVariable *TypeVariableEntry::getTypeParamConsVar() {
          IsConsistent);
   assert("Accessing null constraint variable" && TypeParamConsVar != nullptr);
   return TypeParamConsVar;
+}
+
+ConstraintVariable *TypeVariableEntry::getGenArgCV() {
+  assert("Accessing constraint variable for inconsistent Type Variable." &&
+         IsConsistent);
+  return GenArgumentCV;
 }
 
 QualType TypeVariableEntry::getType() {
@@ -72,7 +90,7 @@ bool TypeVarVisitor::VisitCastExpr(CastExpr *CE) {
   if (CHKCBindTemporaryExpr *TempE = dyn_cast<CHKCBindTemporaryExpr>(SubExpr))
     SubExpr = TempE->getSubExpr();
 
-  if (auto *Call = dyn_cast<CallExpr>(SubExpr))
+  if (auto *Call = dyn_cast<CallExpr>(SubExpr)) {
     if (auto *FD = dyn_cast_or_null<FunctionDecl>(Call->getCalleeDecl())) {
       FunctionDecl *FDef = getDefinition(FD);
       if (FDef == nullptr)
@@ -87,6 +105,7 @@ bool TypeVarVisitor::VisitCastExpr(CastExpr *CE) {
         }
       }
     }
+  }
   return true;
 }
 
@@ -96,11 +115,6 @@ bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
     if (FDef == nullptr)
       FDef = FD;
     if (auto *FVCon = Info.getFuncConstraint(FDef, Context)) {
-      // if we need to rewrite it but can't (macro, etc), it isn't safe
-      bool ForcedInconsistent =
-          !typeArgsProvided(CE) &&
-          (!Rewriter::isRewritable(CE->getExprLoc()) ||
-           !canWrite(PersistentSourceLoc::mkPSL(CE, *Context).getFileName()));
       // Visit each function argument, and if it use a type variable, insert it
       // into the type variable binding map.
       unsigned int I = 0;
@@ -111,9 +125,20 @@ bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
         const int TyIdx = FVCon->getExternalParam(I)->getGenericIndex();
         if (TyIdx >= 0) {
           Expr *Uncast = A->IgnoreImpCasts();
-          std::set<ConstraintVariable *> CVs =
-              CR.getExprConstraintVarsSet(Uncast);
-          insertBinding(CE, TyIdx, Uncast->getType(), CVs, ForcedInconsistent);
+          std::set<ConstraintVariable *> CVs = CR.getExprConstraintVarsSet(Uncast);
+          if (auto *DRE = dyn_cast<DeclRefExpr>(Uncast)){
+            CVarOption Var = Info.getVariable(DRE->getFoundDecl(),Context);
+            if (Var.hasValue())
+              if (PVConstraint *GenVar =
+                      dyn_cast<PVConstraint>(&Var.getValue()))
+                if (GenVar->isGeneric()) {
+                  insertBinding(CE,TyIdx,Uncast->getType(),
+                                CVs,GenVar);
+                  ++I;
+                  continue;
+                }
+          }
+          insertBinding(CE, TyIdx, Uncast->getType(), CVs);
         }
         ++I;
       }
@@ -127,16 +152,33 @@ bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
             FD->getNameAsString() + "_tyarg_" + std::to_string(TVEntry.first);
         PVConstraint *P =
             new PVConstraint(TVEntry.second.getType(), nullptr, Name, Info,
-                             *Context, nullptr, TVEntry.first);
+                             *Context, nullptr);
 
         // Constrain this variable GEQ the function arguments using the type
         // variable so if any of them are wild, the type argument will also be
-        // an unchecked pointer.
-        constrainConsVarGeq(P, TVEntry.second.getConstraintVariables(),
-                            Info.getConstraints(), nullptr, Safe_to_Wild, false,
+        // an unchecked pointer. Except for realloc, which has special casing
+        // elsewhere, especially `ConstraintResolver::getExprConstraintVars`
+        // using variable `ReallocFlow`. Because `realloc` can take a wild
+        // pointer and return a safe one.
+        auto PSL = PersistentSourceLoc::mkPSL(CE,*Context);
+        auto Rsn = ReasonLoc("Type variable", PSL);
+        if (FD->getNameAsString() == "realloc") {
+          constrainConsVarGeq(P, TVEntry.second.getConstraintVariables(),
+                              Info.getConstraints(), Rsn, Wild_to_Safe, false,
+                              &Info);
+
+        } else {
+          constrainConsVarGeq(P, TVEntry.second.getConstraintVariables(),
+                            Info.getConstraints(), Rsn, Safe_to_Wild, false,
                             &Info);
+      }
 
         TVEntry.second.setTypeParamConsVar(P);
+        // Since we've changed the constraint variable for this context, we
+        // need to remove the cache from the old one. Our new info will be
+        // used next request.
+        if (Info.hasPersistentConstraints(CE,Context))
+          Info.removePersistentConstraints(CE,Context);
       } else {
         // TODO: This might be too cautious.
         CR.constraintAllCVarsToWild(TVEntry.second.getConstraintVariables(),
@@ -151,17 +193,24 @@ bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
 // used and the index of the type variable type in the function declaration.
 void TypeVarVisitor::insertBinding(CallExpr *CE, const int TyIdx,
                                    clang::QualType Ty, CVarSet &CVs,
-                                   bool ForceInconsistent) {
+                                   ConstraintVariable *IdentCV) {
+  // if we need to rewrite it but can't (macro, etc), it isn't safe
+  bool ForceInconsistent =
+      !typeArgsProvided(CE) &&
+      (!Rewriter::isRewritable(CE->getExprLoc()) ||
+       !canWrite(PersistentSourceLoc::mkPSL(CE, *Context).getFileName()));
+
   assert(TyIdx >= 0 &&
          "Creating a type variable binding without a type variable.");
   auto &CallTypeVarMap = TVMap[CE];
   if (CallTypeVarMap.find(TyIdx) == CallTypeVarMap.end()) {
     // If the type variable hasn't been seen before, add it to the map.
-    TypeVariableEntry TVEntry = TypeVariableEntry(Ty, CVs, ForceInconsistent);
+    TypeVariableEntry TVEntry = TypeVariableEntry(Ty, CVs, ForceInconsistent,
+                                                  IdentCV);
     CallTypeVarMap[TyIdx] = TVEntry;
   } else {
     // Otherwise, update entry with new type and constraints.
-    CallTypeVarMap[TyIdx].updateEntry(Ty, CVs);
+    CallTypeVarMap[TyIdx].updateEntry(Ty, CVs, IdentCV);
   }
 }
 
@@ -187,9 +236,11 @@ void TypeVarVisitor::setProgramInfoTypeVars() {
       if (TVCallEntry.second.getIsConsistent())
         Info.setTypeParamBinding(TVEntry.first, TVCallEntry.first,
                                  TVCallEntry.second.getTypeParamConsVar(),
+                                 TVCallEntry.second.getGenArgCV(),
                                  Context);
       else
-        Info.setTypeParamBinding(TVEntry.first, TVCallEntry.first, nullptr,
+        Info.setTypeParamBinding(TVEntry.first, TVCallEntry.first,
+                                 nullptr, nullptr,
                                  Context);
   }
 }

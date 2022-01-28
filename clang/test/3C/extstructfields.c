@@ -13,7 +13,7 @@
 #include <signal.h>
 
 void vsf_sysutil_set_sighandler(int sig, void (*p_handlefunc)(int))
-//CHECK: void vsf_sysutil_set_sighandler(int sig, void (*p_handlefunc)(int))
+//CHECK: void vsf_sysutil_set_sighandler(int sig, void ((*p_handlefunc)(int)) : itype(_Ptr<void (int)>))
 {
   int retval;
   struct sigaction sigact;

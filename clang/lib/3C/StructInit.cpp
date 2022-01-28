@@ -11,6 +11,7 @@
 
 #include "clang/3C/StructInit.h"
 #include "clang/3C/MappingVisitor.h"
+#include "clang/3C/RewriteUtils.h"
 #include "clang/Tooling/Transformer/SourceCode.h"
 #include <sstream>
 
@@ -53,30 +54,18 @@ bool StructVariableInitializer::hasCheckedMembers(DeclaratorDecl *DD) {
 
 // Insert the declaration and correct replacement text for the declaration into
 // the set of required rewritings.
-void StructVariableInitializer::insertVarDecl(VarDecl *VD, DeclStmt *S) {
+bool StructVariableInitializer::VisitVarDecl(VarDecl *VD) {
   // Check if we need to add an initializer.
-  bool IsVarExtern = VD->getStorageClass() == StorageClass::SC_Extern;
-  if (!IsVarExtern && !VD->hasInit() && hasCheckedMembers(VD)) {
-    // Create replacement declaration text with an initializer.
-    const clang::Type *Ty = VD->getType().getTypePtr();
-    std::string TQ = VD->getType().getQualifiers().getAsString();
-    if (!TQ.empty())
-      TQ += " ";
-    std::string ToReplace = getStorageQualifierString(VD) + TQ + tyToStr(Ty) +
-                            " " + VD->getName().str() + " = {}";
-    RewriteThese.insert(new VarDeclReplacement(VD, S, ToReplace));
-  }
-}
+  // TODO: Centralize initialization logic for all types:
+  // https://github.com/correctcomputation/checkedc-clang/issues/645#issuecomment-876474200
 
-// Check to see if this variable require an initialization.
-bool StructVariableInitializer::VisitDeclStmt(DeclStmt *S) {
-  if (S->isSingleDecl()) {
-    if (VarDecl *VD = dyn_cast<VarDecl>(S->getSingleDecl()))
-      insertVarDecl(VD, S);
-  } else {
-    for (const auto &D : S->decls())
-      if (VarDecl *VD = dyn_cast<VarDecl>(D))
-        insertVarDecl(VD, S);
+  // The first two conditions are the same as in Sema::ActOnUninitializedDecl.
+  if (VD->hasLocalStorage() && !isa<ParmVarDecl>(VD) && !VD->hasInit() &&
+      hasCheckedMembers(VD)) {
+    // Create replacement declaration text with an initializer.
+    std::string ToReplace = mkStringForDeclWithUnchangedType(VD, I) + " = {}";
+    RewriteThese.insert(
+        std::make_pair(VD, new MultiDeclMemberReplacement(VD, ToReplace, {})));
   }
   return true;
 }

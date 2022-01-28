@@ -32,7 +32,7 @@ int *foo() {
   //CHECK: _Ptr<int> y = &sy;
   int *z = sus(x, y);
   //CHECK_NOALL: _Ptr<int> z = sus(x, y);
-  //CHECK_ALL: _Ptr<int> z = sus(_Assume_bounds_cast<_Array_ptr<int>>(x, byte_count(0)), y);
+  //CHECK_ALL: _Ptr<int> z = sus(_Assume_bounds_cast<_Array_ptr<int>>(x, bounds(unknown)), y);
   *z = *z + 1;
   return z;
 }
@@ -48,7 +48,7 @@ int *bar() {
   //CHECK: _Ptr<int> y = &sy;
   int *z = sus(x, y);
   //CHECK_NOALL: int *z = sus(x, y);
-  //CHECK_ALL: _Array_ptr<int> z = sus(_Assume_bounds_cast<_Array_ptr<int>>(x, byte_count(0)), y);
+  //CHECK_ALL: _Array_ptr<int> z = sus(_Assume_bounds_cast<_Array_ptr<int>>(x, bounds(unknown)), y);
   z += 2;
   *z = -17;
   return z;

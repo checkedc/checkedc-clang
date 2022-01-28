@@ -11,14 +11,11 @@
 
 typedef double mydouble;
 
-// TODO: FunctionDeclBuilder::buildDeclVar should be able to handle an itype
-// here, but currently the PointerConstraintVariable constructor asserts when it
-// fails to retrieve the original source of the itype declaration.
 #define parms1 volatile mydouble d, void (*f)(void)
-#define parms2 int *const y : count(7), _Ptr<char> z
+#define parms2 int *const y : count(7), _Ptr<char> z, int *zz : itype(_Ptr<int>)
 
 void test(parms1, int *x, parms2) {}
-// CHECK: void test(volatile mydouble d, void (*f)(void), _Ptr<int> x, int *const y : count(7), _Ptr<char> z) {}
+// CHECK: void test(volatile mydouble d, void (*f)(void), _Ptr<int> x, int *const y : count(7), _Ptr<char> z, int *zz : itype(_Ptr<int>)) {}
 
 // Before the bug fix, we got:
-// void test(, , _Ptr<int> x, , ) {}
+// void test(, , _Ptr<int> x, , , ) {}

@@ -81,7 +81,7 @@ private:
   bool containsUncheckedPtr(clang::QualType Qt);
   bool containsUncheckedPtrAcc(clang::QualType Qt, std::set<std::string> &Seen);
   bool isUncheckedStruct(clang::QualType Qt, std::set<std::string> &Seen);
-  void emitCauseDiagnostic(PersistentSourceLoc *);
+  void emitCauseDiagnostic(PersistentSourceLoc);
   bool isWild(CVarOption CVar);
 
   clang::ASTContext *Context;
@@ -89,7 +89,7 @@ private:
   ProgramInfo &Info;
   std::set<llvm::FoldingSetNodeID> &Seen;
   std::map<llvm::FoldingSetNodeID, AnnotationNeeded> &Map;
-  std::set<PersistentSourceLoc *> Emitted;
+  std::set<PersistentSourceLoc> Emitted;
   bool EmitWarnings;
 };
 

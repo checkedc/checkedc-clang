@@ -12,3 +12,12 @@ int *a;
 int *b(int *c);
 static int *d() { return 0; }
 void e(int *f, int len) { f[0]; }
+
+// from root_cause.c, this has a conflicting constraint
+// with additional reasons that add more json structure
+int get_strlen(char *s : itype(_Nt_array_ptr<char>));
+void test_conflict() {
+  char *c;
+  get_strlen(c);
+  char **cptr = &c;
+}

@@ -16,6 +16,7 @@
 #include "clang/3C/3CStats.h"
 #include "clang/3C/AVarBoundsInfo.h"
 #include "clang/3C/ConstraintVariables.h"
+#include "clang/3C/MultiDecls.h"
 #include "clang/3C/PersistentSourceLoc.h"
 #include "clang/3C/Utils.h"
 #include "clang/AST/ASTConsumer.h"
@@ -34,8 +35,8 @@ public:
 
   virtual bool seenTypedef(PersistentSourceLoc PSL) = 0;
 
-  virtual void addTypedef(PersistentSourceLoc PSL, bool CanRewriteDef,
-                          TypedefDecl *TD, ASTContext &C) = 0;
+  virtual void addTypedef(PersistentSourceLoc PSL, TypedefDecl *TD,
+                          ASTContext &C) = 0;
 
 protected:
   virtual AVarBoundsInfo &getABoundsInfo() = 0;
@@ -43,14 +44,40 @@ protected:
 
 typedef std::pair<CVarSet, BKeySet> CSetBkeyPair;
 
+// The pair of CVs are the type param constraint and an optional
+// constraint used to get the generic index. A better solution would have
+// generic constraints saved within ConstraintVariables, but those don't
+// exist at this time.
+struct TypeParamConstraint {
+  ConstraintVariable *MainConstraint;
+  ConstraintVariable *GenericAddition;
+  TypeParamConstraint() :
+      MainConstraint(nullptr), GenericAddition(nullptr) {}
+  TypeParamConstraint(ConstraintVariable *M, ConstraintVariable *G) :
+      MainConstraint(M), GenericAddition(G) {}
+  // Fast. Whether `getConstraint` will return something other than nullptr.
+  bool isConsistent() const { return MainConstraint != nullptr; }
+  // Provides generic information if available and safe. This is somewhat of
+  // a hack for nested generics and returns (the constraint for) a local
+  // parameter. Otherwise, returns the generated constraint, which can also be
+  // accessed as `MainConstraint`.
+  ConstraintVariable *getConstraint(const EnvironmentMap &E) {
+    if (MainConstraint != nullptr && GenericAddition != nullptr &&
+        GenericAddition->isSolutionChecked(E)) {
+      return GenericAddition;
+    } else {
+      return MainConstraint;
+    }
+  }
+};
+
 class ProgramInfo : public ProgramVariableAdder {
 public:
+
   // This map holds similar information as the type variable map in
   // ConstraintBuilder.cpp, but it is stored in a form that is usable during
   // rewriting.
-  typedef std::map<unsigned int, ConstraintVariable *> CallTypeParamBindingsT;
-  typedef std::map<PersistentSourceLoc, CallTypeParamBindingsT>
-      TypeParamBindingsT;
+  typedef std::map<unsigned int, TypeParamConstraint> CallTypeParamBindingsT;
 
   typedef std::map<std::string, FVConstraint *> ExternalFunctionMapType;
   typedef std::map<std::string, ExternalFunctionMapType> StaticFunctionMapType;
@@ -90,12 +117,16 @@ public:
   // Store CVarSet with an empty set of BoundsKey into persistent contents.
   void storePersistentConstraints(clang::Expr *E, const CVarSet &Vars,
                                   ASTContext *C);
+  void removePersistentConstraints(Expr *E, ASTContext *C);
 
   // Get constraint variable for the provided Decl
   CVarOption getVariable(clang::Decl *D, clang::ASTContext *C);
 
   // Retrieve a function's constraints by decl, or by name; nullptr if not found
   FVConstraint *getFuncConstraint(FunctionDecl *D, ASTContext *C) const;
+  FVConstraint *
+  getFuncConstraint(const std::string &FuncName, const std::string &FileName,
+                    bool IsStatic) const;
   FVConstraint *getExtFuncDefnConstraint(std::string FuncName) const;
   FVConstraint *getStaticFuncConstraint(std::string FuncName,
                                         std::string FileName) const;
@@ -107,7 +138,8 @@ public:
 
   const VariableMap &getVarMap() const { return Variables; }
   Constraints &getConstraints() { return CS; }
-  AVarBoundsInfo &getABoundsInfo() { return ArrBInfo; }
+  const Constraints &getConstraints() const { return CS; }
+  AVarBoundsInfo &getABoundsInfo() override { return ArrBInfo; }
 
   PerformanceStats &getPerfStats() { return PerfS; }
 
@@ -123,26 +155,35 @@ public:
   }
 
   void setTypeParamBinding(CallExpr *CE, unsigned int TypeVarIdx,
-                           ConstraintVariable *CV, ASTContext *C);
+                           ConstraintVariable *CV,
+                           ConstraintVariable* Ident, ASTContext *C);
   bool hasTypeParamBindings(CallExpr *CE, ASTContext *C) const;
   const CallTypeParamBindingsT &getTypeParamBindings(CallExpr *CE,
                                                      ASTContext *C) const;
 
   void constrainWildIfMacro(ConstraintVariable *CV, SourceLocation Location,
-                            PersistentSourceLoc *PSL = nullptr);
+                            const ReasonLoc &Rsn);
 
-  void ensureNtCorrect(const QualType &QT, const ASTContext &C,
+  void ensureNtCorrect(const QualType &QT, const PersistentSourceLoc &PSL,
                        PointerVariableConstraint *PV);
 
-  void unifyIfTypedef(const clang::Type *, clang::ASTContext &,
-                      clang::DeclaratorDecl *, PVConstraint *);
+  void unifyIfTypedef(const QualType &QT, clang::ASTContext &,
+                      PVConstraint *, ConsAction CA = Same_to_Same);
 
   CVarOption lookupTypedef(PersistentSourceLoc PSL);
 
-  bool seenTypedef(PersistentSourceLoc PSL);
+  bool seenTypedef(PersistentSourceLoc PSL) override;
 
-  void addTypedef(PersistentSourceLoc PSL, bool CanRewriteDef, TypedefDecl *TD,
-                  ASTContext &C);
+  void addTypedef(PersistentSourceLoc PSL, TypedefDecl *TD,
+                  ASTContext &C) override;
+
+  // Store mapping from ASTContexts to a unique index in the ASTs vector in
+  // the ProgramInfo object. This function must be called prior to any AST
+  // traversals so that the map is populated.
+  void registerTranslationUnits(
+      const std::vector<std::unique_ptr<clang::ASTUnit>> &ASTs);
+
+  ProgramMultiDeclsInfo TheMultiDeclsInfo;
 
 private:
   // List of constraint variables for declarations, indexed by their location in
@@ -155,9 +196,11 @@ private:
   // rewritten.
   std::map<PersistentSourceLoc, CVarOption> TypedefVars;
 
-  // A pair containing an AST node ID and the name of the main file in the
-  // translation unit. Used as a key to index expression in the following maps.
-  typedef std::pair<int64_t, std::string> IDAndTranslationUnit;
+  // A pair containing an AST node ID and an index that uniquely identifies the
+  // translation unit. Translation unit identifiers are drawn from the
+  // TranslationUnitIdxMap. Used as a key to index expression in the following
+  // maps.
+  typedef std::pair<int64_t, unsigned int> IDAndTranslationUnit;
   IDAndTranslationUnit getExprKey(clang::Expr *E, clang::ASTContext *C) const;
 
   // Map with the similar purpose as the Variables map. This stores a set of
@@ -168,6 +211,14 @@ private:
   // location for the expression. This is used to emit diagnostics. It is
   // expected that multiple entries will map to the same source location.
   std::map<IDAndTranslationUnit, PersistentSourceLoc> ExprLocations;
+
+  // This map holds similar information as the type variable map in
+  // ConstraintBuilder.cpp, but it is stored in a form that is usable during
+  // rewriting.
+  typedef std::map<IDAndTranslationUnit, CallTypeParamBindingsT>
+      TypeParamBindingsT;
+
+  std::map<ConstraintKey, PersistentSourceLoc> DeletedAtomLocations;
 
   //Performance stats
   PerformanceStats PerfS;
@@ -196,10 +247,14 @@ private:
   // instantiated so they can be inserted during rewriting.
   TypeParamBindingsT TypeParamBindings;
 
-  // Special-case handling for decl introductions. For the moment this covers:
-  //  * void-typed variables
-  //  * va_list-typed variables
-  void specialCaseVarIntros(ValueDecl *D, ASTContext *Context);
+  // Maps each ASTContext to a unique index in the vector of ASTs being
+  // processed. This is used to uniquely determine the translation unit an AST
+  // belongs to given its corresponding ASTContext. By using this index instead
+  // of the name of the main file, this uniquely identifies the translation unit
+  // even when a file is the main file of multiple translation units. The values
+  // in this map are used as part of the IDAndTranslationUnit which is the type
+  // used as keys for maps from ASTNodes.
+  std::map<ASTContext *, unsigned int> TranslationUnitIdxMap;
 
   // Inserts the given FVConstraint set into the extern or static function map.
   // Returns the merged version if it was a redeclaration, or the constraint
@@ -210,8 +265,7 @@ private:
   // Retrieves a FVConstraint* from a Decl (which could be static, or global)
   FVConstraint *getFuncFVConstraint(FunctionDecl *FD, ASTContext *C);
 
-  void insertIntoPtrSourceMap(const PersistentSourceLoc *PSL,
-                              ConstraintVariable *CV);
+  void insertIntoPtrSourceMap(PersistentSourceLoc PSL, ConstraintVariable *CV);
 
   void computePtrLevelStats();
 
@@ -220,7 +274,10 @@ private:
 
   // For each pointer type in the declaration of D, add a variable to the
   // constraint system for that pointer type.
-  void addVariable(clang::DeclaratorDecl *D, clang::ASTContext *AstContext);
+  void addVariable(clang::DeclaratorDecl *D,
+                   clang::ASTContext *AstContext) override;
+
+  void linkFunction(FunctionVariableConstraint *FV);
 };
 
 #endif

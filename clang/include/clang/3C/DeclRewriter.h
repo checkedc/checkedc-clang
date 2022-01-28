@@ -26,54 +26,50 @@ using namespace clang;
 
 class DeclRewriter {
 public:
-  DeclRewriter(Rewriter &R, ASTContext &A, GlobalVariableGroups &GP)
-      : R(R), A(A), GP(GP),
-        VisitedMultiDeclMembers(DComp(A.getSourceManager())) {}
+  DeclRewriter(Rewriter &R, ProgramInfo &Info, ASTContext &A)
+      : R(R), Info(Info), A(A) {}
 
   // The publicly accessible interface for performing declaration rewriting.
   // All declarations for variables with checked types in the variable map of
   // Info parameter are rewritten.
   static void rewriteDecls(ASTContext &Context, ProgramInfo &Info, Rewriter &R);
 
-private:
-  static RecordDecl *LastRecordDecl;
-  static std::map<Decl *, Decl *> VDToRDMap;
-  static std::set<Decl *> InlineVarDecls;
-  Rewriter &R;
-  ASTContext &A;
-  GlobalVariableGroups &GP;
+  static RewrittenDecl buildItypeDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
+                                      std::string UseName, ProgramInfo &Info,
+                                      ArrayBoundsRewriter &ABR,
+                                      bool GenerateSDecls, bool SDeclChecked);
 
-  // This set contains declarations that have already been rewritten as part of
-  // a prior declaration that was in the same multi-declaration. It is checked
-  // before rewriting in order to avoid rewriting a declaration more than once.
-  // It is not used with individual declarations outside of multi-declarations
-  // because these declarations are seen exactly once, rather than every time a
-  // declaration in the containing multi-decl is visited.
-  RSet VisitedMultiDeclMembers;
+  static RewrittenDecl
+  buildCheckedDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
+                   std::string UseName, ProgramInfo &Info,
+                   ArrayBoundsRewriter &ABR, bool GenerateSDecls);
+
+private:
+  Rewriter &R;
+  ProgramInfo &Info;
+  ASTContext &A;
+
+  // List of TagDecls that were split from multi-decls and should be moved out
+  // of an enclosing RecordDecl to avoid a compiler warning. Filled during
+  // multi-decl rewriting and processed by denestTagDecls.
+  std::vector<TagDecl *> TagDeclsToDenest;
 
   // Visit each Decl in ToRewrite and apply the appropriate pointer type
   // to that Decl. ToRewrite is the set of all declarations to rewrite.
   void rewrite(RSet &ToRewrite);
 
-  // Rewrite a specific variable declaration using the replacement string in the
-  // DAndReplace structure. Each of these functions is specialized to handling
-  // one subclass of declarations.
-  void rewriteParmVarDecl(ParmVarDeclReplacement *N);
-
-  template <typename DRType>
-  void rewriteFieldOrVarDecl(DRType *N, RSet &ToRewrite);
-  void rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite,
-                        std::vector<Decl *> SameLineDecls,
-                        bool ContainsInlineStruct);
-  void rewriteSingleDecl(DeclReplacement *N, RSet &ToRewrite);
+  void rewriteMultiDecl(MultiDeclInfo &MDI, RSet &ToRewrite);
   void doDeclRewrite(SourceRange &SR, DeclReplacement *N);
   void rewriteFunctionDecl(FunctionDeclReplacement *N);
-  void rewriteTypedefDecl(TypedefDeclReplacement *TDT, RSet &ToRewrite);
-  void getDeclsOnSameLine(DeclReplacement *N, std::vector<Decl *> &Decls);
-  bool isSingleDeclaration(DeclReplacement *N);
-  bool areDeclarationsOnSameLine(DeclReplacement *N1, DeclReplacement *N2);
-  SourceRange getNextCommaOrSemicolon(SourceLocation L);
-  static void detectInlineStruct(Decl *D, SourceManager &SM);
+  // Emit supplementary declarations _after_ the token that begins at Loc.
+  // Inserts a newline before the first supplementary declaration but not after
+  // the last supplementary declaration. This is suitable if Loc is expected to
+  // be the last token on a line or if rewriteMultiDecl will insert a newline
+  // after the supplementary declarations later.
+  void emitSupplementaryDeclarations(const std::vector<std::string> &SDecls,
+                                     SourceLocation Loc);
+  SourceLocation getNextCommaOrSemicolon(SourceLocation L);
+  void denestTagDecls();
 };
 
 // Visits function declarations and adds entries with their new rewritten
@@ -101,32 +97,21 @@ protected:
   // Get existing itype string from constraint variables.
   std::string getExistingIType(ConstraintVariable *DeclC);
 
-  virtual void buildDeclVar(const FVComponentVariable *CV, DeclaratorDecl *Decl,
-                            std::string &Type, std::string &IType,
-                            std::string UseName, bool &RewriteParm,
-                            bool &RewriteRet);
-  void buildCheckedDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
-                        std::string &Type, std::string &IType,
-                        std::string UseName, bool &RewriteParm,
-                        bool &RewriteRet);
-  void buildItypeDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
-                      std::string &Type, std::string &IType, bool &RewriteParm,
-                      bool &RewriteRet);
+  virtual RewrittenDecl
+  buildDeclVar(const FVComponentVariable *CV, DeclaratorDecl *Decl,
+               std::string UseName, bool &RewriteGen, bool &RewriteParm,
+               bool &RewriteRet, bool StaticFunc, bool GenerateSDecls);
 
-  bool hasDeclWithTypedef(const FunctionDecl *FD);
+  RewrittenDecl
+  buildCheckedDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
+                   std::string UseName, bool &RewriteParm, bool &RewriteRet,
+                   bool GenerateSDecls);
+
+  RewrittenDecl buildItypeDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
+                               std::string UseName, bool &RewriteParm,
+                               bool &RewriteRet, bool GenerateSDecls,
+                               bool SDeclChecked);
 
   bool inParamMultiDecl(const ParmVarDecl *PVD);
-};
-
-class FieldFinder : public RecursiveASTVisitor<FieldFinder> {
-public:
-  FieldFinder(GlobalVariableGroups &GVG) : GVG(GVG) {}
-
-  bool VisitFieldDecl(FieldDecl *FD);
-
-  static void gatherSameLineFields(GlobalVariableGroups &GVG, Decl *D);
-
-private:
-  GlobalVariableGroups &GVG;
 };
 #endif // LLVM_CLANG_3C_DECLREWRITER_H

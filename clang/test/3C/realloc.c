@@ -15,6 +15,6 @@ void foo(int *w) {
   y[1] = 3;
   int *z = realloc(y, 5 * sizeof(int));
   //CHECK_NOALL: int *z = realloc<int>(y, 5 * sizeof(int));
-  //CHECK_ALL: _Array_ptr<int> z : count(3 + 1) = realloc<int>(y, 5 * sizeof(int));
+  //CHECK_ALL: _Array_ptr<int> z : count(5) = realloc<int>(y, 5 * sizeof(int));
   z[3] = 2;
 }

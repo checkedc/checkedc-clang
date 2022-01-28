@@ -91,7 +91,7 @@ static bool needArrayBounds(const ConstraintVariable *CV,
                             const EnvironmentMap &E) {
   if (CV->hasArr(E, 0)) {
     const PVConstraint *PV = dyn_cast<PVConstraint>(CV);
-    return !PV || PV->isTopCvarUnsizedArr();
+    return !PV || PV->isTopAtomUnsizedArr();
   }
   return false;
 }
@@ -100,7 +100,7 @@ static bool needNTArrayBounds(const ConstraintVariable *CV,
                               const EnvironmentMap &E) {
   if (CV->hasNtArr(E, 0)) {
     const PVConstraint *PV = dyn_cast<PVConstraint>(CV);
-    return !PV || PV->isTopCvarUnsizedArr();
+    return !PV || PV->isTopAtomUnsizedArr();
   }
   return false;
 }
@@ -118,16 +118,20 @@ static bool needArrayBounds(Expr *E, ProgramInfo &Info, ASTContext *C) {
   return false;
 }
 
+static bool
+needArrayBounds(ConstraintVariable *CV, ProgramInfo &Info, bool IsNtArr) {
+  const auto &E = Info.getConstraints().getVariables();
+  if (IsNtArr)
+    return needNTArrayBounds(CV, E);
+  return needArrayBounds(CV, E);
+}
+
 static bool needArrayBounds(Decl *D, ProgramInfo &Info, ASTContext *C,
                             bool IsNtArr) {
-  const auto &E = Info.getConstraints().getVariables();
   CVarOption CVar = Info.getVariable(D, C);
   if (CVar.hasValue()) {
     ConstraintVariable &CV = CVar.getValue();
-    if ((!IsNtArr && needArrayBounds(&CV, E)) ||
-        (IsNtArr && needNTArrayBounds(&CV, E)))
-      return true;
-    return false;
+    return needArrayBounds(&CV, Info, IsNtArr);
   }
   return false;
 }
@@ -140,27 +144,15 @@ static bool needArrayBounds(Decl *D, ProgramInfo &Info, ASTContext *C) {
 // Map that contains association of allocator functions and indexes of
 // parameters that correspond to the size of the object being assigned.
 static std::map<std::string, std::set<unsigned>> AllocatorSizeAssoc = {
-    {"malloc", {0}}, {"calloc", {0, 1}}};
+    {"malloc", {0}}, {"calloc", {0, 1}} , {"realloc" , {1}}};
 
 // Get the name of the function called by this call expression.
-static std::string getCalledFunctionName(const Expr *E) {
-  const CallExpr *CE = dyn_cast<CallExpr>(E);
-  assert(CE && "The provided expression should be a call expression.");
+static std::string getCalledFunctionName(const CallExpr *CE) {
   const FunctionDecl *CalleeDecl = dyn_cast<FunctionDecl>(CE->getCalleeDecl());
   if (CalleeDecl && CalleeDecl->getDeclName().isIdentifier())
     return std::string(CalleeDecl->getName());
   return "";
 }
-
-/*bool tryGetBoundsKeyVar(Expr *E, BoundsKey &BK, ProgramInfo &Info,
-                        ASTContext *Context) {
-  ConstraintResolver CR(Info, Context);
-  CVarSet CVs = CR.getExprConstraintVarsSet(E);
-  auto &ABInfo = Info.getABoundsInfo();
-  return CR.resolveBoundsKey(CVs, BK) ||
-         ABInfo.tryGetVariable(E, *Context, BK);
-
-}*/
 
 bool tryGetBoundsKeyVar(Decl *D, BoundsKey &BK, ProgramInfo &Info,
                         ASTContext *Context) {
@@ -189,24 +181,27 @@ bool tryGetValidBoundsKey(Expr *E, BoundsKey &BK, ProgramInfo &I,
   return Ret;
 }
 
+bool hasValidBoundsKey(Expr *E, ProgramInfo &I, ASTContext *C)  {
+  BoundsKey Unused;
+  return tryGetValidBoundsKey(E, Unused, I, C);
+}
+
 // Check if the provided expression E is a call to one of the known
 // memory allocators. Will only return true if the argument to the call
 // is a simple expression, and then organizes the ArgVals for determining
 // a possible bound
-static bool isAllocatorCall(Expr *E, std::string &FName, ProgramInfo &I,
-                            ASTContext *C, std::vector<Expr *> &ArgVals) {
+static bool isAllocatorCall(Expr *E, ProgramInfo &I, ASTContext *C,
+                            std::vector<Expr *> &ArgVals) {
   bool RetVal = false;
   if (CallExpr *CE = dyn_cast<CallExpr>(removeAuxillaryCasts(E)))
     if (CE->getCalleeDecl() != nullptr) {
       // Is this a call to a named function?
-      FName = getCalledFunctionName(CE);
+      std::string FName = getCalledFunctionName(CE);
       // check if the called function is a known allocator?
       if (AllocatorSizeAssoc.find(FName) != AllocatorSizeAssoc.end()) {
         RetVal = true;
-        BoundsKey Tmp;
         // First get all base expressions.
         std::vector<Expr *> BaseExprs;
-        BaseExprs.clear();
         for (auto Pidx : AllocatorSizeAssoc[FName]) {
           Expr *PExpr = CE->getArg(Pidx)->IgnoreParenCasts();
           BinaryOperator *BO = dyn_cast<BinaryOperator>(PExpr);
@@ -217,7 +212,7 @@ static bool isAllocatorCall(Expr *E, std::string &FName, ProgramInfo &I,
             BaseExprs.push_back(BO->getRHS());
           } else if (UExpr && UExpr->getKind() == UETT_SizeOf) {
             BaseExprs.push_back(UExpr);
-          } else if (tryGetValidBoundsKey(PExpr, Tmp, I, C)) {
+          } else if (hasValidBoundsKey(PExpr, I, C)) {
             BaseExprs.push_back(PExpr);
           } else {
             RetVal = false;
@@ -227,13 +222,13 @@ static bool isAllocatorCall(Expr *E, std::string &FName, ProgramInfo &I,
 
         // Check if each of the expression is either sizeof or a DeclRefExpr
         if (RetVal && !BaseExprs.empty()) {
-          for (auto *TmpE : BaseExprs) {
-            TmpE = TmpE->IgnoreParenCasts();
+          for (auto *BaseE : BaseExprs) {
+            BaseE = BaseE->IgnoreParenCasts();
             UnaryExprOrTypeTraitExpr *UExpr =
-                dyn_cast<UnaryExprOrTypeTraitExpr>(TmpE);
+                dyn_cast<UnaryExprOrTypeTraitExpr>(BaseE);
             if ((UExpr && UExpr->getKind() == UETT_SizeOf) ||
-                tryGetValidBoundsKey(TmpE, Tmp, I, C)) {
-              ArgVals.push_back(TmpE);
+                hasValidBoundsKey(BaseE, I, C)) {
+              ArgVals.push_back(BaseE);
             } else {
               RetVal = false;
               break;
@@ -250,17 +245,18 @@ static void handleAllocatorCall(QualType LHSType, BoundsKey LK, Expr *E,
   auto &AVarBInfo = Info.getABoundsInfo();
   auto &ABStats = AVarBInfo.getBStats();
   ConstraintResolver CR(Info, Context);
-  std::string FnName;
   std::vector<Expr *> ArgVals;
-  // is the RHS expression a call to allocator function?
-  if (isAllocatorCall(E, FnName, Info, Context, ArgVals)) {
+  // Is the RHS expression a call to allocator function? isAllocatorCall
+  // mutates ArgVals, populating it with the argument expressions for the
+  // allocator call.
+  if (isAllocatorCall(E, Info, Context, ArgVals)) {
     BoundsKey RK;
     bool FoundSingleKeyInAllocExpr = false;
     // We consider everything as byte_count unless we see a sizeof
     // expression in which case if the type matches we use count bounds.
     bool IsByteBound = true;
-    for (auto *TmpE : ArgVals) {
-      UnaryExprOrTypeTraitExpr *Arg = dyn_cast<UnaryExprOrTypeTraitExpr>(TmpE);
+    for (auto *ArgE : ArgVals) {
+      UnaryExprOrTypeTraitExpr *Arg = dyn_cast<UnaryExprOrTypeTraitExpr>(ArgE);
       if (Arg && Arg->getKind() == UETT_SizeOf) {
         QualType STy = Context->getPointerType(Arg->getTypeOfArgument());
         // This is a count bound.
@@ -270,7 +266,7 @@ static void handleAllocatorCall(QualType LHSType, BoundsKey LK, Expr *E,
           FoundSingleKeyInAllocExpr = false;
           break;
         }
-      } else if (tryGetValidBoundsKey(TmpE, RK, Info, Context)) {
+      } else if (tryGetValidBoundsKey(ArgE, RK, Info, Context)) {
         // Is this variable?
         if (!FoundSingleKeyInAllocExpr) {
           FoundSingleKeyInAllocExpr = true;
@@ -448,6 +444,11 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       std::map<unsigned, std::pair<std::string, BoundsKey>> ParamNtArrays;
       std::map<unsigned, std::pair<std::string, BoundsKey>> LengthParams;
 
+      // The FVConstraint is needed to access the external parameter
+      // ConstraintVariables. External CVs are required because these
+      // are there variables can solve to a checked array type when the
+      // parameter has an itype while the internals will solve to WILD.
+      FVConstraint *FV = Info.getFuncConstraint(FD, Context);
       for (unsigned I = 0; I < FT->getNumParams(); I++) {
         ParmVarDecl *PVD = FD->getParamDecl(I);
         BoundsKey PK;
@@ -459,14 +460,14 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           // Here, we are using heuristics. So we only use heuristics when
           // there are no bounds already computed.
           if (!ABInfo.getBounds(PK)) {
-            if (needArrayBounds(PVD, Info, Context, true)) {
-              // Is this an NTArray?
+            PVConstraint *ParamCV = FV->getExternalParam(I);
+            const EnvironmentMap &Env = Info.getConstraints().getVariables();
+            // Is this an NTArray?
+            if (needNTArrayBounds(ParamCV, Env))
               ParamNtArrays[I] = PVal;
-            }
-            if (needArrayBounds(PVD, Info, Context, false)) {
-              // Is this an array?
+            // Is this an array?
+            if (needArrayBounds(ParamCV, Env))
               ParamArrays[I] = PVal;
-            }
           }
 
           // If this is a length field?
@@ -570,9 +571,6 @@ void LocalVarABVisitor::handleAssignment(BoundsKey LK, QualType LHSType,
 bool LocalVarABVisitor::handleBinAssign(BinaryOperator *O) {
   Expr *LHS = O->getLHS()->IgnoreParenCasts();
   Expr *RHS = O->getRHS()->IgnoreParenCasts();
-  ConstraintResolver CR(Info, Context);
-  std::string FnName;
-  std::vector<Expr *> ArgVals;
   BoundsKey LK;
   // is the RHS expression a call to allocator function?
   if (needArrayBounds(LHS, Info, Context) &&
@@ -580,15 +578,17 @@ bool LocalVarABVisitor::handleBinAssign(BinaryOperator *O) {
     handleAssignment(LK, LHS->getType(), RHS);
   }
 
+  // TODO: Why is this done only for the RHS of assignment? Why not place this
+  //       in a VisitConditionalOperator function?
   // Any parameter directly used as a condition in ternary expression
   // cannot be length.
   if (ConditionalOperator *CO = dyn_cast<ConditionalOperator>(RHS))
-    addUsedParmVarDecl(CO->getCond());
+    addNonLengthParameter(CO->getCond());
 
   return true;
 }
 
-void LocalVarABVisitor::addUsedParmVarDecl(Expr *CE) {
+void LocalVarABVisitor::addNonLengthParameter(Expr *CE) {
   if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(CE->IgnoreParenCasts()))
     if (ParmVarDecl *PVD = dyn_cast<ParmVarDecl>(DRE->getDecl()))
       NonLengthParameters.insert(PVD);
@@ -622,8 +622,8 @@ bool LocalVarABVisitor::VisitBinaryOperator(BinaryOperator *BO) {
   BinaryOperator::Opcode BOpcode = BO->getOpcode();
   // Is this not a valid bin op for a potential length parameter?
   if (!isValidBinOpForLen(BOpcode)) {
-    addUsedParmVarDecl(BO->getLHS());
-    addUsedParmVarDecl(BO->getRHS());
+    addNonLengthParameter(BO->getLHS());
+    addNonLengthParameter(BO->getRHS());
   }
   if (BOpcode == BinaryOperator::Opcode::BO_Assign) {
     handleBinAssign(BO);
@@ -632,7 +632,7 @@ bool LocalVarABVisitor::VisitBinaryOperator(BinaryOperator *BO) {
 }
 
 bool LocalVarABVisitor::VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
-  addUsedParmVarDecl(E->getIdx());
+  addNonLengthParameter(E->getIdx());
   return true;
 }
 
@@ -663,7 +663,7 @@ bool LocalVarABVisitor::VisitSwitchStmt(SwitchStmt *S) {
 }
 
 // Check if the provided parameter cannot be a length of an array.
-bool LocalVarABVisitor::isNonLengthParameter(ParmVarDecl *PVD) {
+bool LocalVarABVisitor::isNonLengthParameter(ParmVarDecl *PVD) const {
   if (PVD->getType().getTypePtr()->isEnumeralType())
     return true;
   return NonLengthParameters.find(PVD) != NonLengthParameters.end();
@@ -698,19 +698,10 @@ void addMainFuncHeuristic(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
 // Given a variable I, this visitor collects all the variables that are used as
 // RHS operand of < and I >=  expression.
 // i.e., for all I < X expressions, it collects X.
-class ComparisionVisitor : public RecursiveASTVisitor<ComparisionVisitor> {
+class ComparisonVisitor : public RecursiveASTVisitor<ComparisonVisitor> {
 public:
-  explicit ComparisionVisitor(ProgramInfo &In, ASTContext *AC, BoundsKey I,
-                              std::set<BoundsKey> &PossB)
-      : I(In), C(AC), IndxBKey(I), PB(PossB), CurrStmt(nullptr) {
-    CR = new ConstraintResolver(In, AC);
-  }
-  virtual ~ComparisionVisitor() {
-    if (CR != nullptr) {
-      delete (CR);
-      CR = nullptr;
-    }
-  }
+  explicit ComparisonVisitor(ProgramInfo &In, ASTContext *AC, BoundsKey I)
+      : I(In), C(AC), IndxBKey(I), PossibleBounds(), CurrStmt(nullptr) {}
 
   // Here, we save the most recent statement we have visited.
   // This is a way to keep track of the statement to which currently
@@ -749,35 +740,36 @@ public:
           //     return -1;
           //  }
           //  arr[i] = ..
-          IsRKeyBound &= (CurrStmt != nullptr && isa<IfStmt>(CurrStmt));
+          IsRKeyBound &= isa_and_nonnull<IfStmt>(CurrStmt);
         }
 
         if (IsRKeyBound)
-          PB.insert(RKey);
+          PossibleBounds.insert(RKey);
       }
     }
     return true;
+  }
+
+  const std::set<BoundsKey> &getPossibleBounds() const {
+    return PossibleBounds;
   }
 
 private:
   ProgramInfo &I;
   ASTContext *C;
   // Index variable used in dereference.
-  BoundsKey IndxBKey;
-  // Possible Bounds.
-  std::set<BoundsKey> &PB;
-  // Helper objects.
-  ConstraintResolver *CR;
+  const BoundsKey IndxBKey;
+  std::set<BoundsKey> PossibleBounds;
   // Current statement: The statement to which the processing
   // node belongs. This is to avoid walking the AST.
   Stmt *CurrStmt;
 };
 
 LengthVarInference::LengthVarInference(ProgramInfo &In, ASTContext *AC,
-                                       FunctionDecl *F)
-    : I(In), C(AC), FD(F), CurBB(nullptr) {
-
-  Cfg = CFG::buildCFG(nullptr, FD->getBody(), AC, CFG::BuildOptions());
+                                       FunctionDecl *F) :
+    I(In), C(AC), CurBB(nullptr),
+    Cfg(CFG::buildCFG(nullptr, F->getBody(), AC, CFG::BuildOptions())),
+    CDG(Cfg.get()) {
   for (auto *CBlock : *(Cfg.get())) {
     for (auto &CfgElem : *CBlock) {
       if (CfgElem.getKind() == clang::CFGElement::Statement) {
@@ -785,21 +777,6 @@ LengthVarInference::LengthVarInference(ProgramInfo &In, ASTContext *AC,
         StMap[TmpSt] = CBlock;
       }
     }
-  }
-
-  CDG = new ControlDependencyCalculator(Cfg.get());
-
-  CR = new ConstraintResolver(I, C);
-}
-
-LengthVarInference::~LengthVarInference() {
-  if (CDG != nullptr) {
-    delete (CDG);
-    CDG = nullptr;
-  }
-  if (CR != nullptr) {
-    delete (CR);
-    CR = nullptr;
   }
 }
 
@@ -861,30 +838,27 @@ void LengthVarInference::VisitArraySubscriptExpr(ArraySubscriptExpr *ASE) {
     VisitArraySubscriptExpr(SubASE);
     return;
   }
-  //auto BaseCVars = CR->getExprConstraintVars(BE);
+
   // Next get the index used.
   Expr *IdxExpr = ASE->getIdx()->IgnoreParenCasts();
-  //auto IdxCVars = CR->getExprConstraintVars(IdxExpr);
-  BoundsKey BasePtr, IdxKey;
-  auto &ABI = I.getABoundsInfo();
 
   // Get the bounds key of the base and index.
+  BoundsKey BasePtr, IdxKey;
   if (tryGetValidBoundsKey(BE, BasePtr, I, C) &&
       tryGetValidBoundsKey(IdxExpr, IdxKey, I, C)) {
-    std::set<BoundsKey> PossibleLens;
-    PossibleLens.clear();
-    ComparisionVisitor CV(I, C, IdxKey, PossibleLens);
-    auto &CDNodes = CDG->getControlDependencies(CurBB);
+    auto &ABI = I.getABoundsInfo();
+    auto &CDNodes = CDG.getControlDependencies(CurBB);
     if (!CDNodes.empty()) {
       // Next try to find all the nodes that the CurBB is
       // control dependent on.
       // For each of the control dependent node, check if we are comparing the
       // index variable with another variable.
+      ComparisonVisitor CV(I, C, IdxKey);
       for (auto &CDGNode : CDNodes) {
         // Collect the possible length bounds keys.
         CV.TraverseStmt(CDGNode->getTerminatorStmt());
       }
-      ABI.updatePotentialCountBounds(BasePtr, PossibleLens);
+      ABI.updatePotentialCountBounds(BasePtr, CV.getPossibleBounds());
     } else {
       ABI.updatePotentialCountPOneBounds(BasePtr, {IdxKey});
     }
@@ -893,26 +867,27 @@ void LengthVarInference::VisitArraySubscriptExpr(ArraySubscriptExpr *ASE) {
 
 void handleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I,
                                          bool UseHeuristics) {
-  // Run array bounds
-  for (auto FuncName : AllocatorFunctions) {
+  // This is adding function names provided to --use-malloc to the set of
+  // allocator functions. It assumes that the first argument is always the size,
+  // which should be correct if the function have the same interface as malloc.
+  for (auto FuncName : _3COpts.AllocatorFunctions)
     AllocatorSizeAssoc[FuncName] = {0};
-  }
+
   GlobalABVisitor GlobABV(C, I);
+  LocalVarABVisitor LocABV(C, I);
   TranslationUnitDecl *TUD = C->getTranslationUnitDecl();
-  LocalVarABVisitor LFV = LocalVarABVisitor(C, I);
-  bool GlobalTraversed;
   // First visit all the structure members.
   for (const auto &D : TUD->decls()) {
-    GlobalTraversed = false;
+    bool GlobalTraversed = false;
     if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
       if (FD->hasBody() && FD->isThisDeclarationADefinition()) {
         // Try to guess the bounds information for function locals.
         Stmt *Body = FD->getBody();
-        LFV.TraverseStmt(Body);
+        LocABV.TraverseStmt(Body);
 
         if (UseHeuristics) {
           // Set information collected after analyzing the function body.
-          GlobABV.setParamHeuristicInfo(&LFV);
+          GlobABV.setParamHeuristicInfo(&LocABV);
           GlobABV.TraverseDecl(D);
         }
         addMainFuncHeuristic(C, I, FD);

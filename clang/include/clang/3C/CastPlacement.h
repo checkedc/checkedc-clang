@@ -62,9 +62,12 @@ private:
                          ConstraintVariable *DstExt);
 
   std::pair<std::string, std::string> getCastString(ConstraintVariable *Dst,
+                                                    ConstraintVariable *TypeVar,
                                                     CastNeeded CastKind);
 
-  void surroundByCast(ConstraintVariable *Dst, CastNeeded CastKind, Expr *E);
+  void surroundByCast(ConstraintVariable *Dst,
+                      ConstraintVariable *TypeVar,
+                      CastNeeded CastKind, Expr *E);
   void reportCastInsertionFailure(Expr *E, const std::string &CastStr);
   void updateRewriteStats(CastNeeded CastKind);
 };
