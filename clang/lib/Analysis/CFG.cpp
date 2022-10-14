@@ -5965,6 +5965,10 @@ const Expr *CFGBlock::getLastCondition() const {
   if (isa<ObjCForCollectionStmt>(Cond) || isa<DeclStmt>(Cond))
     return nullptr;
 
+  // Introduced as a fix for crash --> #1195
+  if (!isa<Expr>(Cond))
+    return nullptr;
+
   // Only ObjCForCollectionStmt is known not to be a non-Expr terminator, hence
   // the cast<>.
   return cast<Expr>(Cond)->IgnoreParens();
