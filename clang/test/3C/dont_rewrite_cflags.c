@@ -6,5 +6,5 @@
 
 // RUN: 3c -base-dir=%S %s -- -O2 -D_FORTIFY_SOURCE=2
 
-#include <sys/socket.h>
+#include <string.h>
 
