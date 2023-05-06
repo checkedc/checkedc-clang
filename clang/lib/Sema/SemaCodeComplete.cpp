@@ -5402,6 +5402,13 @@ static void AddTypeQualifierResults(DeclSpec &DS, ResultBuilder &Results,
     Results.AddResult("_Atomic");
   if (LangOpts.MSVCCompat && !(DS.getTypeQualifiers() & DeclSpec::TQ_unaligned))
     Results.AddResult("__unaligned");
+  if (LangOpts.C99 && !(DS.getTypeQualifiers() & DeclSpec::TQ_CheckedPtr))
+    Results.AddResult("_Single");
+  if (LangOpts.C99 && !(DS.getTypeQualifiers() & DeclSpec::TQ_CheckedArrayPtr))
+    Results.AddResult("_Array");
+  if (LangOpts.C99 && !(DS.getTypeQualifiers() & DeclSpec::TQ_CheckedNtArrayPtr))
+    Results.AddResult("_Nt_array");
+
 }
 
 void Sema::CodeCompleteTypeQualifiers(DeclSpec &DS) {

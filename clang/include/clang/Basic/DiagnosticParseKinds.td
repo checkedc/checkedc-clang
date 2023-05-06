@@ -1540,6 +1540,12 @@ def err_generic_specifier_unexpected_token : Error<
 def err_generic_specifier_comma_or_parenthesis_expected : Error<
   "expected , or )">;
 
+def err_expected_r_parent_in_where_clause : Error<
+  "expected ')' in where clause">;
+
+def err_unbalanced_parentheses_in_where_clause : Error<
+  "unbalanced parentheses in where clause">;
+
 def err_expected_list_of_types_expr_for_generic_function : Error<
   "expected a list of type arguments for a generic function">;
 

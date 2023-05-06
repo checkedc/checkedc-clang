@@ -2597,7 +2597,10 @@ public:
                             SourceLocation VolatileQualLoc = SourceLocation(),
                             SourceLocation RestrictQualLoc = SourceLocation(),
                             SourceLocation AtomicQualLoc = SourceLocation(),
-                            SourceLocation UnalignedQualLoc = SourceLocation());
+                            SourceLocation UnalignedQualLoc = SourceLocation(),
+                            SourceLocation CheckedPtLoc = SourceLocation(),
+                            SourceLocation CheckedArrayLoc = SourceLocation(),
+                            SourceLocation CheckedNtArrayLoc = SourceLocation());
 
   static bool adjustContextForLocalExternDecl(DeclContext *&DC);
   void DiagnoseFunctionSpecifiers(const DeclSpec &DS);
