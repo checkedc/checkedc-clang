@@ -116,14 +116,14 @@ to Checked C work and testing that the Checked C implementation has not broken
 existing functionality.
 
 To run benchmarks, clone the
-[Checked C LLVM test suite repo](https://github.com/microsoft/checkedc-llvm-test-suite)
+[Checked C LLVM test suite repo](https://github.com/secure-sw-dev/checkedc-llvm-test-suite)
 and follow the directions in the
-[README.md file](https://github.com/Microsoft/checkedc-llvm-test-suite/blob/master/README.md).
+[README.md file](https://github.com/secure-sw-dev/checkedc-llvm-test-suite/blob/master/README.md).
 To test that existing functionality has not been broken,
 check out the `original` branch of the
-[Checked C LLVM test suite repo](https://github.com/microsoft/checkedc-llvm-test-suite)
+[Checked C LLVM test suite repo](https://github.com/secure-sw-dev/checkedc-llvm-test-suite)
 and then follow the directions in the
-[README.md file](https://github.com/Microsoft/checkedc-llvm-test-suite/blob/master/README.md).
+[README.md file](https://github.com/secure-sw-dev/checkedc-llvm-test-suite/blob/master/README.md).
 Note that the  `original` branch contains tests as well as benchmarks.
 It is much larger than the `master` branch. It will use more than 2 GBytes of disk space
 and the testing will take much longer to run.
