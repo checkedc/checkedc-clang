@@ -1,13 +1,13 @@
 # Instructions for updating to the latest LLVM/Clang sources
 
 We are staying in sync with the upstream LLVM/Clang repository. The `baseline`
-branch of the `checkedc-clang` repository is a pristine copy of LLVM/Clang
+branch of the `checkedc-llvm-project` repository is a pristine copy of LLVM/Clang
 sources, and the `master` branch contains LLVM/Clang sources plus the support
 for Checked C language extensions. We periodically upgrade the `baseline` branch
 and the `master` branch to the sources of the most recent releases from the
 upstream LLVM/Clang repository.
 
-The branching and merging policies of the `checkedc-clang` repository are
+The branching and merging policies of the `checkedc-llvm-project` repository are
 aligned with the versioning and branching of upstream LLVM/Clang repository in
 order to closely follow the LLVM/Clang releases. LLVM/Clang releases are
 versioned as &lt;major-version&gt;.&lt;minor-version&gt;.&lt;patch-version&gt;.
@@ -19,13 +19,13 @@ is created. Bug fixes go on the release branch and only some of these bug fixes
 get merged back into the `main` branch. Typically, LLVM/Clang makes two final
 releases for each major version.
 
-Now we describe our approach for upgrading the `checkedc-clang` repository to
+Now we describe our approach for upgrading the `checkedc-llvm-project` repository to
 LLVM/Clang sources corresponding to the two releases for each major version,
 for example, 12.0.0 and 12.0.1. The upgrade is performed in two phases as
 described below. This description is followed by detailed instructions for each
 phase.
 
-**Phase 1**: We upgrade the `master` branch of the `checkedc-clang` repository
+**Phase 1**: We upgrade the `master` branch of the `checkedc-llvm-project` repository
 up to the commit hash on the `main` branch of the LLVM/Clang repository at which
 the branch `release/12.x` is created - we shall refer to this commit hash as
 &lt;branch-point-of-12-on-main&gt;. We get this commit hash by executing the
@@ -35,10 +35,10 @@ needs to be the full commit hash and not just the 7-digit abbreviation. This
 phase constitutes the major portion of the developer effort towards the merge.
 
 **Phase 2**: We create a branch called `release_12.x` off the `master` branch in
-the `checkedc-clang` repository. Then there are two sub-phases:
+the `checkedc-llvm-project` repository. Then there are two sub-phases:
    - When we wish to make a Checked C compiler release based on the 12.0.0
    release of LLVM/Clang:
-      - We first upgrade the `release_12.x` branch (of the `checkedc-clang`
+      - We first upgrade the `release_12.x` branch (of the `checkedc-llvm-project`
       repository) to the sources corresponding to the 12.0.0 release on the
       `release/12.x` branch of the LLVM/Clang repository.
       - Next, we merge Checked C features and bug fixes from the `master` branch
@@ -47,7 +47,7 @@ the `checkedc-clang` repository. Then there are two sub-phases:
       branch.
    - When we wish to make a Checked C compiler release based on the 12.0.1
    release of LLVM/Clang:
-      - We upgrade the same `release_12.x` branch (of the `checkedc-clang`
+      - We upgrade the same `release_12.x` branch (of the `checkedc-llvm-project`
       repository) to the sources corresponding to the 12.0.1 release on the
       `release/12.x` branch of the LLVM/Clang repository.
       - Next, we merge Checked C features and bug fixes from the `master` branch
@@ -66,7 +66,7 @@ be interspersed with Checked C development on the `master` branch.
 
 ## Detailed Instructions - Phase 1
 
-1. Create a new branch off the `baseline` branch in the `checkedc-clang`
+1. Create a new branch off the `baseline` branch in the `checkedc-llvm-project`
 repository. Let us call this new branch `updated_baseline`.
 ```        
     git checkout -b updated_baseline baseline
@@ -92,7 +92,7 @@ branch.
 ```
     git checkout -b updated_baseline_master_12 baseline
 ```
-6. Merge the `master` branch of the checkedc-clang repository into the
+6. Merge the `master` branch of the checkedc-llvm-project repository into the
 `updated_baseline_master_12` branch. This merge may cause several merge
 conflicts and test case failures. After the merge command, git may suggest to
 you to set `merge.renamelimit` to a specific value. It is a good idea to set it
@@ -144,7 +144,7 @@ We give the instructions for the first sub-phase of Phase 2. Similar steps
 have to be followed for the other sub-phase.
 
 1. Create a new branch, called `release_12.x`, from the `master` branch in the
-`checkedc-clang` repository. If the branch already exists, then merge the
+`checkedc-llvm-project` repository. If the branch already exists, then merge the
 `master` branch into it. Resolve merge conflicts and test failures if any.
 ```        
     git checkout -b release_12.x master
@@ -209,7 +209,7 @@ on GitHub.  Just push the branches up to GitHub.
 2. While resolving merge conflicts, it is a good idea to have three reference
 code snapshots to perform diffs of individual files to help distinguish between
 checkedc-specific changes and llvm-11-to-12 changes:
-    - The `master` branch of the `checkedc-clang` repository at the commit hash
+    - The `master` branch of the `checkedc-llvm-project` repository at the commit hash
   which was merged into `updated_baseline_master_12`.
     - The pristine LLVM/Clang source at &lt;branch-point-of-11-on-main&gt;
     - The pristine LLVM/Clang source at &lt;branch-point-of-12-on-main&gt;
