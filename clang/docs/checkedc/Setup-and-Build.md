@@ -2,7 +2,7 @@
 
 Note: The automation scripts used to build and test the Checked C compiler have
 now been moved to their own
-[repo](https://github.com/microsoft/checkedc-automation). We use CMake with
+[repo](https://github.com/checkedc/checkedc-automation). We use CMake with
 Ninja for both Linux and Windows builds.
 
 ## Setting up your machine
@@ -48,7 +48,7 @@ In order to limit the amount of build parallelism with Visual Studio:
 - Debug->Options->Projects and Solutions->VC++ Project Settings
 - Set `Maximum Number of concurrent C++ compilations` to 3, if your development
 machine has 1 GByte of memory or more per core. If not, see the
-[Wiki page](https://github.com/Microsoft/checkedc-clang/wiki/Parallel-builds-of-clang-on-Windows/)
+[Wiki page](https://github.com/checkedc/checkedc-clang/wiki/Parallel-builds-of-clang-on-Windows/)
 to figure out what number to use. By default, 0 causes it to be the number of
 available CPU cores on your machine, which is too much. You should also to go to
 Debug->Options->Projects and Solutions->Build and Run and set the maximum number
@@ -70,7 +70,7 @@ LLVM uses Git for distributed source code control. It is mirrored by a Git
 repository on Github: [llvm project](https://github.com/llvm/llvm-project)
 
 The code for the Checked C version of LLVM/Clang lives in the following
-repository: [Checked C clang repo](https://github.com/Microsoft/checkedc-clang).
+repository: [Checked C clang repo](https://github.com/checkedc/checkedc-clang).
 It is licensed under the
 [University of Illinois/NCSAlicense](https://opensource.org/licenses/NCSA).
 See the file LICENSE.TXT in for complete details of licensing.
@@ -83,14 +83,14 @@ have been code reviewed and passed testing.
 changes for Checked C to the baseline branches.
 
 There are tests in three locations: the
-[Checked C repo](https://github.com/Microsoft/checkedc), the
-[Checked C clang repo](https://github.com/Microsoft/checkedc-clang), and the
-[Checked C LLVM Test Suite](http://github.com/Microsft/checkedc-llvm-test-suite).
-The [Checked C repo](https://github.com/Microsoft/checkedc) tests are language
+[Checked C repo](https://github.com/checkedc/checkedc), the
+[Checked C clang repo](https://github.com/checkedc/checkedc-clang), and the
+[Checked C LLVM Test Suite](http://github.com/checkedc/checkedc-llvm-test-suite).
+The [Checked C repo](https://github.com/checkedc/checkedc) tests are language
 conformance tests, so they are placed with the specification, not with the
 compiler. The Checked C repo tests are licensed under the
 [MIT license](https://opensource.org/licenses/MIT). The
-[Checked C LLVM Test Suite](http://github.com/Microsft/checkedc-llvm-test-suite)
+[Checked C LLVM Test Suite](http://github.com/checkedc/checkedc-llvm-test-suite)
 is a fork of the
 [LLVM test suite mirror](https://github.com/llvm-mirror/test-suite). The LLVM
 test suite is for extended testing and includes applications and benchmarks.
@@ -100,7 +100,7 @@ We do not recommend that developers install sources for it or the Checked C
 version by default. The test suite is meant to be run as part of automated
 integration testing or for changes that require extensive testing, not as part
 of day-to-day development. For developers who need to install it, information is
-[here](https://github.com/Microsoft/checkedc-llvm-test-suite/blob/master/README.md).
+[here](https://github.com/checkedc/checkedc-llvm-test-suite/blob/master/README.md).
 
 ## Checkout and Build Instructions for Checked C Compiler
 
@@ -121,14 +121,14 @@ directory as \<WORK_DIR\>.
 2. Clone the `checkedc-clang` repository:
 
    ```
-   git clone https://github.com/Microsoft/checkedc-clang src
+   git clone https://github.com/checkedc/checkedc-llvm-project src
    ```
 
 3. The Checked C language tests live in a folder within `llvm/project`. Change
 to the  `src/llvm/projects/checkedc-wrapper` directory and clone the Checked C
 repo:
    ```
-   git clone https://github.com/Microsoft/checkedc
+   git clone https://github.com/checkedc/checkedc
    ```
 
 4. **\[OPTIONAL\]** Install `ccache` to speed up the compiler build on Linux and
@@ -201,7 +201,7 @@ directory as \<WORK_DIR\>.
 Unix/Linux directions. Otherwise, follow these directions:
 
    ```
-   git clone -c core.autocrlf=false https://github.com/Microsoft/checkedc-clang src
+   git clone -c core.autocrlf=false https://github.com/checkedc/checkedc-llvm-project src
    ```
 
 3. The Checked C language tests live in a folder within `llvm\project`. Change
@@ -209,7 +209,7 @@ to the `src\llvm\projects\checkedc-wrapper` directory and clone the Checked C
 repo:
 
    ```
-   git clone https://github.com/Microsoft/checkedc
+   git clone https://github.com/checkedc/checkedc
    ```
 
 4. LLVM and Clang use CMake, which is a meta-build system generator. It
