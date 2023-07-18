@@ -1,10 +1,9 @@
-// UNSUPPORTED: system-windows
+// UNSUPPORTED: !linux
 
 // Test calls to variadic functions in checked scopes.
-// Some -Wformat error messages are different between linux and windows
-// systems. This file contains non-windows-specific tests. The windows tests
-// are in variadic-functions-win.c and the common tests are in
-// variadic-functions.c.
+// Some -Wformat error messages are different between Linux, Windows,
+// and MacOS.   This file contains Linux specific tests.  The common
+// tests are in variadic-functions.c.
 
 // RUN: %clang_cc1 -fcheckedc-extension -verify \
 // RUN: -verify-ignore-unexpected=note %s

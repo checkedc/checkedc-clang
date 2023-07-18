@@ -1,8 +1,8 @@
-// UNSUPPORTED: !windows
+// UNSUPPORTED: !darwin
 
 // Test calls to variadic functions in checked scopes.
-// Some -Wformat error messages are different between Linux, Windows,
-// and MacOS.   This file contains windows-specific tests. The common
+// Some -Wformat error messages are different between Linux, Windows
+// and MacOS.   This file contains MacOS specific ests. The common
 // tests are in variadic-functions.c.
 
 // RUN: %clang_cc1 -fcheckedc-extension -verify \
@@ -18,8 +18,8 @@ int MyScanf(const char *format : itype(_Nt_array_ptr<const char>), ...)
 
 void f1 (_Nt_array_ptr<char> p) {
 _Checked {
-  printf("%Z", p); // expected-error {{'Z' conversion specifier is not supported by ISO C}} expected-error {{in a checked scope %Z format specifier requires scalar argument}}
-  MyPrintf("%Z", p); // expected-error {{'Z' conversion specifier is not supported by ISO C}} expected-error {{in a checked scope %Z format specifier requires scalar argument}}
+  printf("%Z", p); // expected-error {{invalid conversion specifier 'Z'}}
+  MyPrintf("%Z", p); // expected-error {{invalid conversion specifier 'Z'}}
   scanf("%Z", p); // expected-error {{invalid conversion specifier 'Z'}}
   MyScanf("%Z", p); // expected-error {{invalid conversion specifier 'Z'}}
 
