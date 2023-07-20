@@ -21,13 +21,13 @@
 // RUN: cp %s .
 // RUN: cp %S/json_formatting.c 'json\_formatting.h'
 // RUN: 3c -alltypes -dump-stats -dump-intermediate -debug-solver -output-dir=out.checked json_formatting_backslash.c --
-// RUN: python -c "import json, glob; [json.load(open(f)) for f in glob.glob('*.json')]"
+// RUN: %python -c "import json, glob; [json.load(open(f)) for f in glob.glob('*.json')]"
 
 // RUN: mkdir %t.noalltypes && cd %t.noalltypes
 // RUN: cp %s .
 // RUN: cp %S/json_formatting.c 'json\_formatting.h'
 // RUN: 3c -dump-stats -dump-intermediate -debug-solver -output-dir=out.checked json_formatting_backslash.c --
-// RUN: python -c "import json, glob; [json.load(open(f)) for f in glob.glob('*.json')]"
+// RUN: %python -c "import json, glob; [json.load(open(f)) for f in glob.glob('*.json')]"
 
 // Even though this looks like a double-quoted string, the Checked C compiler
 // seems to require the backslash to _not_ be escaped. We choose `\_` because it

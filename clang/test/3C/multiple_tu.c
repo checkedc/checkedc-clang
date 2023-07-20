@@ -1,8 +1,8 @@
 // RUN: rm -rf %t
 // RUN: mkdir %t && cd %t
-// RUN: python -c 'import sys, json; json.dump([{"arguments": ["clang", "-c", r"%s"], "directory": r"%S", "file": r"%s"}]*2, sys.stdout)' > compile_commands.json
+// RUN: %python -c 'import sys, json; json.dump([{"arguments": ["clang", "-c", r"%s"], "directory": r"%S", "file": r"%s"}]*2, sys.stdout)' > compile_commands.json
 // RUN: 3c -dump-stats -p %t -base-dir=%S %s | FileCheck -match-full-lines %s
-// RUN: python -c 'import sys, json; exit(any(e["Name"].startswith("ImplicitCastExpr") for e in json.load(sys.stdin)["RootCauseStats"]))' < PerWildPtrStats.json
+// RUN: %python -c 'import sys, json; exit(any(e["Name"].startswith("ImplicitCastExpr") for e in json.load(sys.stdin)["RootCauseStats"]))' < PerWildPtrStats.json
 
 // The compilation database used for this test includes two entries for this
 // file, causing 3C to process it twice. In issue #661, this caused type
