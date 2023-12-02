@@ -1,7 +1,7 @@
 # The Checked C clang repo
 
 This repo contains a version of the LLVM/Clang toolchain that has been modified to support Checked C. 
-Checked C extends C with checking to detect or prevent common programming errors such as out-of-bounds memory accesses.
+Checked C extends C with bounds checking and improved type-safety.
 The Checked C specification is available at the
 [Checked C repo release page](https://github.com/checkedc/checkedc/releases).
 
@@ -52,9 +52,11 @@ conversion of C code to Checked C. Quick documentation links:
 For more information on the Checked C clang compiler, see the [Checked C LLVM Project
 wiki](https://github.com/checkedc/checkedc-llvm-project/wiki).
 
-## Build Status
+## Automated testing status
 
-Automated builds are not currently available.
+[![Checked C Clang CI [MacOS]](https://github.com/checkedc/workflows/actions/workflows/checkedc-clang-macos.yml/badge.svg)](https://github.com/checkedc/workflows/actions/workflows/checkedc-clang-macos.yml)
+
+[![Checked C Clang CI [WINDOWS]](https://github.com/checkedc/workflows/actions/workflows/check-clang-windows.yml/badge.svg)](https://github.com/checkedc/workflows/actions/workflows/check-clang-windows.yml)
 
 ## Contributing
 

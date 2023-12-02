@@ -8,12 +8,18 @@ Ninja for both Linux and Windows builds.
 ## Setting up your machine
 
 See the clang [Getting started guide](http://clang.llvm.org/get_started.html)
-for information on how to set up your machine.
+for information on how to set up your machine.  For Windows machines,
+follow the steps below instead.
 
 For Linux, install CMake 3.8 or later. For Windows, CMake is bundled as part of
 your Visual Studio install.
 
-### Developing on Windows
+If you want to run tests, you will need a Python version between 3.7 and 3.11
+installed.  Python 3.12 contains changes that break our old version of the `lit`
+testing tool.
+
+
+### Setting up a Windows machine
 
 We recommend that you use a 64-bit version of Windows. We have found that the
 32-bit hosted Visual Studio linker tends to run out of memory when linking clang
@@ -22,25 +28,14 @@ instead, which will require a 64-bit version of Windows too.
 
 Prerequisites:
 
-- Visual Studio 2017 or later, Python (version 2.7), and versions of UNIX
-command-line tools. We recommend using Visual Studio 2019. In the event you
-already have a Visual Studio 2017 installed and wish to upgrade to VS 2019,
-execute the following steps with the currently installed VS:
-  - Go to Tools -> Get Tools and Features (this opens the VS installer)
-  - Go to Individual Components
-  - Scroll to the “SDKs, libraries, and frameworks” section (near the bottom of
-  the list)
-  - Check “C++ ATL for latest v142 build tools (x86 and x64)”
-  - Install
+- Visual Studio 2022, Python (version 3.7), and versions of UNIX
+command-line tools.
 
 - Install UNIX command-line tools via
-[GnuWin32](https://sourceforge.net/projects/getgnuwin32/postdownload)
-  - In cmd prompt, cd to the download dir and run:
-  - download.bat
-  - install.bat C:\GnuWin32
-  - set PATH=C:\GnuWin32\bin;%PATH%
+[Cygwin](https://www.cygwin.com/).   Install the `Base` package.
+Add the `bin` directory in your `Cygwin` install directory to to your system path.
 
-- If Ninja is not already available on your machine, you can download it from
+- If Ninja is not already installed on your machine, you can download it from
 [here](https://github.com/ninja-build/ninja/releases). Remember to set path to
 the ninja executable.
 
@@ -124,8 +119,8 @@ directory as \<WORK_DIR\>.
    git clone https://github.com/checkedc/checkedc-llvm-project src
    ```
 
-3. The Checked C language tests live in a folder within `llvm/project`. Change
-to the  `src/llvm/projects/checkedc-wrapper` directory and clone the Checked C
+3. The Checked C language header files and tests are stored in a folder within
+`llvm/project`. Change to the  `src/llvm/projects/checkedc-wrapper` directory and clone the Checked C
 repo:
    ```
    git clone https://github.com/checkedc/checkedc
@@ -156,24 +151,30 @@ is a sibling of your LLVM source tree, like \<WORK_DIR\>/build.
 6. Execute the following `cmake` command in the build directory:
 
    ```
-   cmake -G Ninja -DLLVM_ENABLE_PROJECTS=clang   // Required to enable Clang build
+   cmake -G Ninja -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_INSTALL_PREFIX=<WORK_DIR>/install -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON  -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON  <WORK_DIR>/src/llvm
+   ```
+   Here is an explanation of the options:
+   ```
+   -DLLVM_ENABLE_PROJECTS=clang   // Required to enable Clang build
    -DCMAKE_INSTALL_PREFIX=<WORK_DIR>/install     // Directory where the compiler will be
                                                  // installed when "ninja install" is executed. 
    -DCMAKE_BUILD_TYPE=Release                    // Alternate values: Debug, RelWithDebInfo,
                                                  // MinSizeRel.
    -DLLVM_ENABLE_ASSERTIONS=ON                   // Alternate value: OFF.
-   -DLLVM_CCACHE_BUILD=ON                        // OPTIONAL. If this definition exists, ccache
-                                                 // will be used to speed up builds.
    -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON              // OPTIONAL. This definition is required to
                                                  // build a package for installation on other
                                                  // machines.
-   -DLLVM_TARGETS_TO_BUILD="X86"                 // By default, CMake will produce a build
-                                                 // system that builds code generators for all
-                                                 // LLVM-supported architectures. Specify
-                                                 // architecture to decrease build/link times.
    -DLLVM_LIT_ARGS=-v                            // Arguments to pass to the test framework
    <WORK_DIR>/src/llvm
    ```
+   Here are some options that you can add.  On Linux, you can use ccache to speed up the build:
+1. ```
+   -DLLVM_CCACHE_BUILD=ON
+    ```
+   If you want to speed up build times, you can build a version of clang that only takes one architecture:
+   ```
+   -DLLVM_TARGETS_TO_BUILD="X86"
+    ```
 
 7. After executing the `cmake` command as above, build the compiler as follows:
 
@@ -185,12 +186,13 @@ is a sibling of your LLVM source tree, like \<WORK_DIR\>/build.
    ninja clean      // This command cleans the build directory.
    ```
 
-   ​
+### Instructions for Windows
 
-### Instruction for Windows (Command shell)
 
-1. Choose any directory as your working directory. We will refer to to this
-directory as \<WORK_DIR\>.
+1. Start a Visual Studio `x64 Native Tools Command Prompt`
+
+2. Choose any directory as your working directory. We will refer to to this
+directory as \<WORK_DIR\>.  In your Visual Studio Command Prompt:
 
    ```
    cd <WORK_DIR>
@@ -204,8 +206,8 @@ Unix/Linux directions. Otherwise, follow these directions:
    git clone -c core.autocrlf=false https://github.com/checkedc/checkedc-llvm-project src
    ```
 
-3. The Checked C language tests live in a folder within `llvm\project`. Change
-to the `src\llvm\projects\checkedc-wrapper` directory and clone the Checked C
+3. The Checked C language header files and tests are stored in a folder within `llvm\project`. 
+Change to the `src\llvm\projects\checkedc-wrapper` directory and clone the Checked C
 repo:
 
    ```
@@ -222,41 +224,13 @@ exclude the build directory from anti-virus scanning. On Windows 10, go to
       cd <WORK_DIR>\build
       ```
 
-5. In a Windows command shell, execute the commands given below. NOTE: In the
-last command, supply the argument `x64` to build the X64 version of `clang`, or
-the argument `x86` to build the X86 version of clang, or the argument `x86_64`
-to build the X86 version of clang that executes on X64 Windows.
+5. Execute the following `cmake` command:
+```
+   cmake -G Ninja -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_INSTALL_PREFIX=<WORK_DIR>/install -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON  -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON  <WORK_DIR>\srcllvm
+```
+For additional options, see the instructions for Linux.
 
-      ```
-      set TOP=<WORK_DIR>
-      cd %TOP%\build
-      set PATH="C:\GnuWin32\bin";%PATH%
-      @call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
-      ```
-
-6. Execute the following `cmake` command in the same command shell created above
-in the `<WORK_DIR>\build` directory:
-
-      ```
-      cmake -G Ninja -DLLVM_ENABLE_PROJECTS=clang   // Required to enable Clang build
-      -DCMAKE_INSTALL_PREFIX=<WORK_DIR>/install     // Directory where the compiler will be
-                                                    // installed when "ninja install" is executed. 
-      -DCMAKE_BUILD_TYPE=Release                    // Alternate values: Debug, RelWithDebInfo,
-                                                    // MinSizeRel.
-      -DLLVM_ENABLE_ASSERTIONS=ON                   // Alternate value: OFF.
-      -DLLVM_USE_CRT_RELEASE=MT
-      -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON              // OPTIONAL. This definition is required to
-                                                    // build a package for installation on other
-                                                    // machines.
-      -DLLVM_TARGETS_TO_BUILD="X86"                 // By default, CMake will produce a build
-                                                    // system that builds code generators for all
-                                                    // LLVM-supported architectures.Specify
-                                                    // architecture to decrease build/link times.
-      -DLLVM_LIT_ARGS=-v                            // Arguments to pass to the test framework
-      <WORK_DIR>/src/llvm
-      ```
-
-7. After executing the `cmake` command as above, build the compiler as follows
+6. After executing the `cmake` command as above, build the compiler as follows
 (in the same command shell as above):
 
    ```
@@ -267,22 +241,18 @@ in the `<WORK_DIR>\build` directory:
    ninja clean      // This command cleans the build directory.
    ```
 
-
-
-
 ### Instruction for Windows (Visual Studio)
 
-For day-to-day development, we recommend building from Visual Studio. This will
-improve your productivity significantly because it will give you all the
-capabilities of Visual Studio for navigating the code base, code browsing, and
-Intellisense.
+On Windows, you can use Visual Studio for developemt.  It has support
+for navigating the code base, code browsing, Intellisense,
+and symbolic debugging.
 
 #### Visual Studio
 After you have followed the earlier instructions to set up the build system:
 - Start Visual Studio->Open a Local Folder.
-- To build llvm and clang: Open the src/llvm directory (because this contains
+- To build llvm and clang: Open the src\llvm directory (because this contains
 the llvm CMakeLists file).
-- To build only clang: Open the src/clang directory (because this contains the
+- To build only clang: Open the src\clang directory (because this contains the
 clang CMakeLists file).
 
 To configure:
