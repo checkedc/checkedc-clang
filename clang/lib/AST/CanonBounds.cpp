@@ -440,7 +440,6 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) const {
 
      // GNU Extensions.
      case Expr::AddrLabelExprClass: break;
-     case Expr::StmtExprClass: break;
      case Expr::ChooseExprClass: break;
      case Expr::GNUNullExprClass: break;
 
@@ -472,6 +471,7 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) const {
      // of Lexicographic. These expressions are compared by their addresses.
      // This comparison will be deterministic for one compiler run, but is
      // not guaranteed to be deterministic across compiler runs.
+     case Expr::StmtExprClass:
      case Expr::ExtVectorElementExprClass:
      case Expr::InitListExprClass:
      case Expr::ImplicitValueInitExprClass: return CompareAddress(E1, E2);
