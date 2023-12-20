@@ -54,7 +54,7 @@ wiki](https://github.com/checkedc/checkedc-llvm-project/wiki).
 
 ## Automated testing status
 
-[![Checked C Clang CI Linux]](https://github.com/checkedc/workflows/actions/workflows/check-clang-linux.yml/badge.svg)](https://github.com/checkedc/workflows/actions/workflows/check-clang-linux.yml)
+[![Checked C Clang CI [Linux]](https://github.com/checkedc/workflows/actions/workflows/check-clang-linux.yml/badge.svg)](https://github.com/checkedc/workflows/actions/workflows/check-clang-linux.yml)
 
 [![Checked C Clang CI [MacOS]](https://github.com/checkedc/workflows/actions/workflows/checkedc-clang-macos.yml/badge.svg)](https://github.com/checkedc/workflows/actions/workflows/checkedc-clang-macos.yml)
 
