@@ -294,3 +294,9 @@ bool ProgramMultiDeclsInfo::wasBaseTypeRenamed(Decl *D) {
     return false;
   return MDI->BaseTypeRenamed;
 }
+
+void ProgramMultiDeclsInfo::clear() {
+  UsedTagNames.clear();
+  RenamedTagDefs.clear();
+  TUInfos.clear();
+}

@@ -29,9 +29,11 @@
 class _3CInterface {
 
 public:
-  ProgramInfo GlobalProgramInfo;
+  ProgramInfo * GlobalProgramInfo;
   // Mutex for this interface.
   std::mutex InterfaceMutex;
+
+  bool CStateisclear = true;
 
   // If the parameters are invalid, this function prints an error message to
   // stderr and returns null.
@@ -77,6 +79,8 @@ public:
   // as well.
   bool invalidateWildReasonGlobally(ConstraintKey PtrKey);
 
+  void resetInterface();
+
   // Rewriting.
 
   // Write all converted versions of the files in the source file list
@@ -111,6 +115,7 @@ private:
 
   // Are constraints already built?
   bool ConstraintsBuilt;
+  // Remove all constraints sharing the same reason as ConstraintToRemove.
   void invalidateAllConstraintsWithReason(Constraint *ConstraintToRemove);
 };
 

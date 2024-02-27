@@ -899,6 +899,16 @@ struct WorkspaceEdit {
 bool fromJSON(const llvm::json::Value &, WorkspaceEdit &, llvm::json::Path);
 llvm::json::Value toJSON(const WorkspaceEdit &WE);
 
+
+#ifdef LSP3C
+
+struct _3CManualFix{
+  int ptrID;
+};
+
+bool fromJSON(const llvm::json::Value &, _3CManualFix &, llvm::json::Path);
+llvm::json::Value toJSON(const _3CManualFix &WE);
+#endif
 /// Arguments for the 'applyTweak' command. The server sends these commands as a
 /// response to the textDocument/codeAction request. The client can later send a
 /// command back to the server if the user requests to execute a particular code
@@ -927,6 +937,12 @@ struct ExecuteCommandParams {
   const static llvm::StringLiteral CLANGD_APPLY_FIX_COMMAND;
   // Command to apply the code action. Uses TweakArgs as argument.
   const static llvm::StringLiteral CLANGD_APPLY_TWEAK;
+#ifdef LSP3C
+  // Command to apply the change for this pointer only
+  const static llvm::StringLiteral _3C_APPLY_ONLY_FOR_THIS;
+  // Command to apply the change for all pointers with same reason
+  const static llvm::StringLiteral _3C_APPLY_FOR_ALL;
+#endif
 
   /// The command identifier, e.g. CLANGD_APPLY_FIX_COMMAND
   std::string command;
@@ -934,6 +950,9 @@ struct ExecuteCommandParams {
   // Arguments
   llvm::Optional<WorkspaceEdit> workspaceEdit;
   llvm::Optional<TweakArgs> tweakArgs;
+#ifdef LSP3C
+  llvm::Optional<_3CManualFix> _3CFix;
+#endif
 };
 bool fromJSON(const llvm::json::Value &, ExecuteCommandParams &,
               llvm::json::Path);
@@ -1695,7 +1714,17 @@ struct ASTParams {
   Range range;
 };
 bool fromJSON(const llvm::json::Value &, ASTParams &, llvm::json::Path);
+#ifdef LSP3C
+struct _3CParams{
+  TextDocumentIdentifier textDocument;
+};
 
+bool fromJSON(const llvm::json::Value &, _3CParams &, llvm::json::Path);
+struct _3CStats {
+  std::string Details;
+};
+llvm::json::Value toJSON(const _3CStats &);
+#endif
 /// Simplified description of a clang AST node.
 /// This is clangd's internal representation of C++ code.
 struct ASTNode {

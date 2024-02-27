@@ -360,6 +360,8 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
   llvm::InitializeAllAsmPrinters();
   llvm::InitializeAllAsmParsers();
 
+  GlobalProgramInfo = new ProgramInfo();
+
   ConstraintsBuilt = false;
 
   if (_3COpts.OutputPostfix != "-" && !_3COpts.OutputDir.empty()) {
@@ -457,10 +459,12 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
 
   CurrCompDB = CompDB;
 
-  GlobalProgramInfo.getPerfStats().startTotalTime();
+  GlobalProgramInfo->getPerfStats().startTotalTime();
 }
 
 _3CInterface::~_3CInterface() {
+  if(GlobalProgramInfo)
+    delete (GlobalProgramInfo);
   assert(ConstructionFailed || DeterminedExitCode);
 }
 
@@ -507,7 +511,7 @@ bool _3CInterface::parseASTs() {
   int ToolExitStatus = Tool->run(&Action);
   HadNonDiagnosticError |= (ToolExitStatus != 0);
 
-  GlobalProgramInfo.registerTranslationUnits(ASTs);
+  GlobalProgramInfo->registerTranslationUnits(ASTs);
 
   return isSuccessfulSoFar();
 }
@@ -520,16 +524,16 @@ bool _3CInterface::addVariables() {
   // the assigned type names are available when we construct ConstraintVariables
   // for the multi-decl members in the "Add Variables" step below.
   for (auto &TU : ASTs)
-    GlobalProgramInfo.TheMultiDeclsInfo.findUsedTagNames(TU->getASTContext());
+    GlobalProgramInfo->TheMultiDeclsInfo.findUsedTagNames(TU->getASTContext());
   if (!isSuccessfulSoFar())
     return false;
   for (auto &TU : ASTs)
-    GlobalProgramInfo.TheMultiDeclsInfo.findMultiDecls(TU->getASTContext());
+    GlobalProgramInfo->TheMultiDeclsInfo.findMultiDecls(TU->getASTContext());
   if (!isSuccessfulSoFar())
     return false;
 
   // 1. Add Variables.
-  VariableAdderConsumer VA = VariableAdderConsumer(GlobalProgramInfo, nullptr);
+  VariableAdderConsumer VA = VariableAdderConsumer(*GlobalProgramInfo, nullptr);
   for (auto &TU : ASTs)
     VA.HandleTranslationUnit(TU->getASTContext());
 
@@ -540,7 +544,7 @@ bool _3CInterface::buildInitialConstraints() {
 
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
 
-  if (!GlobalProgramInfo.link()) {
+  if (!GlobalProgramInfo->link()) {
     errs() << "Linking failed!\n";
     HadNonDiagnosticError = true;
     return isSuccessfulSoFar(); // False, of course, but follow the pattern.
@@ -548,7 +552,7 @@ bool _3CInterface::buildInitialConstraints() {
 
   // 2. Gather constraints.
   ConstraintBuilderConsumer CB =
-      ConstraintBuilderConsumer(GlobalProgramInfo, nullptr);
+      ConstraintBuilderConsumer(*GlobalProgramInfo, nullptr);
   for (auto &TU : ASTs)
     CB.HandleTranslationUnit(TU->getASTContext());
   if (!isSuccessfulSoFar())
@@ -568,98 +572,102 @@ bool _3CInterface::solveConstraints() {
     errs() << "Solving constraints\n";
 
   if (_3COpts.DumpIntermediate)
-    GlobalProgramInfo.dump();
+    GlobalProgramInfo->dump();
 
-  auto &PStats = GlobalProgramInfo.getPerfStats();
+  auto &PStats = GlobalProgramInfo->getPerfStats();
 
   PStats.startConstraintSolverTime();
-  runSolver(GlobalProgramInfo, FilePaths);
+  runSolver(*GlobalProgramInfo, FilePaths);
   PStats.endConstraintSolverTime();
 
   if (_3COpts.Verbose)
     errs() << "Constraints solved\n";
 
-  if (_3COpts.WarnRootCause)
-    GlobalProgramInfo.computeInterimConstraintState(FilePaths);
+  if (_3COpts.WarnRootCause) {
+    assert(CStateisclear == true);
+    GlobalProgramInfo->computeInterimConstraintState(FilePaths);
+  }
 
   if (_3COpts.DumpIntermediate)
-    dumpConstraintOutputJson(FINAL_OUTPUT_SUFFIX, GlobalProgramInfo);
+    dumpConstraintOutputJson(FINAL_OUTPUT_SUFFIX, *GlobalProgramInfo);
+
 
   if (_3COpts.AllTypes) {
     // Add declared bounds for all constant sized arrays. This needs to happen
     // after constraint solving because the bound added depends on whether the
     // array is NTARR or ARR.
-    GlobalProgramInfo.getABoundsInfo().addConstantArrayBounds(
-      GlobalProgramInfo);
+    GlobalProgramInfo->getABoundsInfo().addConstantArrayBounds(
+      *GlobalProgramInfo);
 
     if (_3COpts.DebugArrSolver)
-      GlobalProgramInfo.getABoundsInfo().dumpAVarGraph(
+      GlobalProgramInfo->getABoundsInfo().dumpAVarGraph(
           "arr_bounds_initial.dot");
 
     // Infer lower bounds for pointers that are not valid lower bounds.
     // The result of this inference is required for length inference, so
     // this call must be before the subsequent call to performFlowAnalysis.
-    GlobalProgramInfo.getABoundsInfo().inferLowerBounds(&GlobalProgramInfo);
+    GlobalProgramInfo->getABoundsInfo().inferLowerBounds(*&GlobalProgramInfo);
 
     // Propagate initial data-flow information for Array pointers from
     // bounds declarations.
-    GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);
+    GlobalProgramInfo->getABoundsInfo().performFlowAnalysis(*&GlobalProgramInfo);
 
     // 4. Infer the bounds based on calls to malloc and calloc
     AllocBasedBoundsInference ABBI =
-        AllocBasedBoundsInference(GlobalProgramInfo, nullptr);
+        AllocBasedBoundsInference(*GlobalProgramInfo, nullptr);
     for (auto &TU : ASTs)
       ABBI.HandleTranslationUnit(TU->getASTContext());
     if (!isSuccessfulSoFar())
       return false;
 
     // Propagate the information from allocator bounds.
-    GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);
+    GlobalProgramInfo->getABoundsInfo().performFlowAnalysis(*&GlobalProgramInfo);
   }
 
   // 5. Run intermediate tool hook to run visitors that need to be executed
   // after constraint solving but before rewriting.
-  IntermediateToolHook ITH = IntermediateToolHook(GlobalProgramInfo, nullptr);
+  IntermediateToolHook ITH = IntermediateToolHook(*GlobalProgramInfo, nullptr);
   for (auto &TU : ASTs)
     ITH.HandleTranslationUnit(TU->getASTContext());
   if (!isSuccessfulSoFar())
     return false;
 
   if (_3COpts.AllTypes) {
+
     // Propagate data-flow information for Array pointers.
-    GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);
+    GlobalProgramInfo->getABoundsInfo().performFlowAnalysis(*&GlobalProgramInfo, true);
 
     /*if (DebugArrSolver)
-      GlobalProgramInfo.getABoundsInfo().dumpAVarGraph(
+      GlobalProgramInfo->getABoundsInfo().dumpAVarGraph(
           "arr_bounds_final.dot");*/
   }
 
   /*if (DumpStats) {
-    GlobalProgramInfo.printStats(FilePaths, llvm::errs(), true);
-    GlobalProgramInfo.computeInterimConstraintState(FilePaths);
+    GlobalProgramInfo->printStats(FilePaths, llvm::errs(), true);
+    GlobalProgramInfo->computeInterimConstraintState(FilePaths);
     std::error_code Ec;
     llvm::raw_fd_ostream OutputJson(StatsOutputJson, Ec);
     if (!OutputJson.has_error()) {
-      GlobalProgramInfo.printStats(FilePaths, OutputJson, false, true);
+      GlobalProgramInfo->printStats(FilePaths, OutputJson, false, true);
       OutputJson.close();
     }
     std::string AggregateStats = StatsOutputJson + ".aggregate.json";
     llvm::raw_fd_ostream AggrJson(AggregateStats, Ec);
     if (!AggrJson.has_error()) {
-      GlobalProgramInfo.printAggregateStats(FilePaths, AggrJson);
+      GlobalProgramInfo->printAggregateStats(FilePaths, AggrJson);
       AggrJson.close();
     }
 
     llvm::raw_fd_ostream WildPtrInfo(WildPtrInfoJson, Ec);
     if (!WildPtrInfo.has_error()) {
-      GlobalProgramInfo.getInterimConstraintState().printStats(WildPtrInfo);
+      GlobalProgramInfo->getInterimConstraintState().printStats(WildPtrInfo);
       WildPtrInfo.close();
     }
 
     llvm::raw_fd_ostream PerWildPtrInfo(PerWildPtrInfoJson, Ec);
     if (!PerWildPtrInfo.has_error()) {
-      GlobalProgramInfo.getInterimConstraintState().printRootCauseStats(
-          PerWildPtrInfo, GlobalProgramInfo.getConstraints());
+      GlobalProgramInfo->getInterimConstraintState().printRootCauseStats(
+          PerWildPtrInfo, GlobalProgramInfo->getConstraints());
       PerWildPtrInfo.close();
     }
   }*/
@@ -671,46 +679,47 @@ bool _3CInterface::writeAllConvertedFilesToDisk() {
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
 
   // 6. Rewrite the input files.
-  RewriteConsumer RC = RewriteConsumer(GlobalProgramInfo);
+  RewriteConsumer RC = RewriteConsumer(*GlobalProgramInfo);
   for (auto &TU : ASTs)
     RC.HandleTranslationUnit(TU->getASTContext());
 
-  GlobalProgramInfo.getPerfStats().endTotalTime();
-  GlobalProgramInfo.getPerfStats().startTotalTime();
+  GlobalProgramInfo->getPerfStats().endTotalTime();
+  GlobalProgramInfo->getPerfStats().startTotalTime();
   return isSuccessfulSoFar();
 }
 
 bool _3CInterface::dumpStats() {
   if (_3COpts.AllTypes && _3COpts.DebugArrSolver) {
-    GlobalProgramInfo.getABoundsInfo().dumpAVarGraph("arr_bounds_final.dot");
+    GlobalProgramInfo->getABoundsInfo().dumpAVarGraph("arr_bounds_final.dot");
   }
 
   if (_3COpts.DumpStats) {
-    GlobalProgramInfo.printStats(FilePaths, llvm::errs(), true);
-    GlobalProgramInfo.computeInterimConstraintState(FilePaths);
+    GlobalProgramInfo->printStats(FilePaths, llvm::errs(), true);
+    assert(CStateisclear == true);
+    GlobalProgramInfo->computeInterimConstraintState(FilePaths);
     std::error_code Ec;
     llvm::raw_fd_ostream OutputJson(_3COpts.StatsOutputJson, Ec);
     if (!OutputJson.has_error()) {
-      GlobalProgramInfo.printStats(FilePaths, OutputJson, false, true);
+      GlobalProgramInfo->printStats(FilePaths, OutputJson, false, true);
       OutputJson.close();
     }
     std::string AggregateStats = _3COpts.StatsOutputJson + ".aggregate.json";
     llvm::raw_fd_ostream AggrJson(AggregateStats, Ec);
     if (!AggrJson.has_error()) {
-      GlobalProgramInfo.printAggregateStats(FilePaths, AggrJson);
+      GlobalProgramInfo->printAggregateStats(FilePaths, AggrJson);
       AggrJson.close();
     }
 
     llvm::raw_fd_ostream WildPtrInfo(_3COpts.WildPtrInfoJson, Ec);
     if (!WildPtrInfo.has_error()) {
-      GlobalProgramInfo.getInterimConstraintState().printStats(WildPtrInfo);
+      GlobalProgramInfo->getInterimConstraintState().printStats(WildPtrInfo);
       WildPtrInfo.close();
     }
 
     llvm::raw_fd_ostream PerWildPtrInfo(_3COpts.PerWildPtrInfoJson, Ec);
     if (!PerWildPtrInfo.has_error()) {
-      GlobalProgramInfo.getInterimConstraintState().printRootCauseStats(
-          PerWildPtrInfo, GlobalProgramInfo.getConstraints());
+      GlobalProgramInfo->getInterimConstraintState().printRootCauseStats(
+          PerWildPtrInfo, GlobalProgramInfo->getConstraints());
       PerWildPtrInfo.close();
     }
   }
@@ -718,7 +727,7 @@ bool _3CInterface::dumpStats() {
 }
 
 ConstraintsInfo &_3CInterface::getWildPtrsInfo() {
-  return GlobalProgramInfo.getInterimConstraintState();
+  return GlobalProgramInfo->getInterimConstraintState();
 }
 
 void _3CInterface::invalidateAllConstraintsWithReason(
@@ -726,7 +735,7 @@ void _3CInterface::invalidateAllConstraintsWithReason(
   // Get the reason for the current constraint.
   std::string ConstraintRsn = ConstraintToRemove->getReasonText();
   Constraints::ConstraintSet ToRemoveConstraints;
-  Constraints &CS = GlobalProgramInfo.getConstraints();
+  Constraints &CS = GlobalProgramInfo->getConstraints();
   // Remove all constraints that have the reason.
   CS.removeAllConstraintsOnReason(ConstraintRsn, ToRemoveConstraints);
 
@@ -735,9 +744,101 @@ void _3CInterface::invalidateAllConstraintsWithReason(
     assert(dyn_cast<Geq>(ToDelCons) && "We can only delete Geq constraints.");
     Geq *TCons = dyn_cast<Geq>(ToDelCons);
     auto *Vatom = dyn_cast<VarAtom>(TCons->getLHS());
-    assert(Vatom != nullptr && "Equality constraint with out VarAtom as LHS");
+    assert(Vatom != nullptr && "Equality constraint without VarAtom as LHS");
     VarAtom *VS = CS.getOrCreateVar(Vatom->getLoc(), "q", VarAtom::V_Other);
     VS->getAllConstraints().erase(TCons);
     delete (ToDelCons);
   }
 }
+
+// This function is designed to be thread-safe for concurrent invocation
+// by the user from vscode. The mutex ensures that data races are prevented.
+bool _3CInterface::makeSinglePtrNonWild(ConstraintKey TargetPtr) {
+  std::lock_guard<std::mutex> Lock(InterfaceMutex);
+  CVars RemovePtrs;
+  RemovePtrs.clear();
+
+  auto &PtrDisjointSet = GlobalProgramInfo->getInterimConstraintState();
+  auto &CS = GlobalProgramInfo->getConstraints();
+
+  CVars OldWildPtrs = PtrDisjointSet.AllWildAtoms;
+
+  // Delete the constraint that makes the target non-wild
+  VarAtom *VA = CS.getOrCreateVar(TargetPtr, "q", VarAtom::V_Other);
+  Geq NewE(VA, CS.getWild(), ReasonLoc());
+  Constraint *OriginalConstraint = *CS.getConstraints().find(&NewE);
+  CS.removeConstraint(OriginalConstraint);
+  VA->getAllConstraints().erase(OriginalConstraint);
+
+  delete(OriginalConstraint);
+
+  // Reset the constraint system.
+  CS.resetEnvironment();
+
+  // Solve the constraints.
+  runSolver(*GlobalProgramInfo, FilePaths);
+
+  // Compute new disjoint set.
+  assert(CStateisclear == true);
+  GlobalProgramInfo->computeInterimConstraintState(FilePaths);
+
+  // Get new WILD pointers.
+  CVars &NewWildPtrs = PtrDisjointSet.AllWildAtoms;
+
+  // Get the number of pointers that have now converted to non-WILD.
+  std::set_difference(OldWildPtrs.begin(), OldWildPtrs.end(),
+                      NewWildPtrs.begin(), NewWildPtrs.end(),
+                      std::inserter(RemovePtrs, RemovePtrs.begin()));
+
+  return !RemovePtrs.empty();
+}
+
+// This function, like makeSinglePtrNonWild, requires the same level of
+// thread-safety to support concurrent invocation by the user from vscode.
+bool _3CInterface::invalidateWildReasonGlobally(ConstraintKey PtrKey) {
+  std::lock_guard<std::mutex> Lock(InterfaceMutex);
+
+  CVars RemovePtrs;
+  RemovePtrs.clear();
+
+  auto &PtrDisjointSet = GlobalProgramInfo->getInterimConstraintState();
+  auto &CS = GlobalProgramInfo->getConstraints();
+
+  CVars OldWildPtrs = PtrDisjointSet.AllWildAtoms;
+
+  // Delete ALL the constraints that have the same given reason.
+  VarAtom *VA = CS.getOrCreateVar(PtrKey, "q", VarAtom::V_Other);
+  // Here we use Geq even though a constraint can never be > WILD.
+  // This is done to simplify the code by using already exising constraint
+  // rather than creating a new one just for equating to WILD.
+  Geq NewE(VA, CS.getWild(), ReasonLoc());
+  Constraint *OriginalConstraint = *CS.getConstraints().find(&NewE);
+  invalidateAllConstraintsWithReason(OriginalConstraint);
+
+  // Reset constraint solver.
+  CS.resetEnvironment();
+
+  // Solve the constraints.
+  runSolver(*GlobalProgramInfo, FilePaths);
+
+  // Recompute the WILD pointer disjoint sets.
+  assert(CStateisclear == true);
+  GlobalProgramInfo->computeInterimConstraintState(FilePaths);
+
+  // Computed the number of removed pointers.
+  CVars &NewWildPtrs = PtrDisjointSet.AllWildAtoms;
+
+  std::set_difference(OldWildPtrs.begin(), OldWildPtrs.end(),
+                      NewWildPtrs.begin(), NewWildPtrs.end(),
+                      std::inserter(RemovePtrs, RemovePtrs.begin()));
+
+  return !RemovePtrs.empty();
+}
+
+void _3CInterface::resetInterface() {
+  if(GlobalProgramInfo)
+    delete (GlobalProgramInfo);
+  GlobalProgramInfo = new ProgramInfo();
+}
+
+

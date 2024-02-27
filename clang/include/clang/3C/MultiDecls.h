@@ -211,6 +211,7 @@ public:
   MultiDeclInfo *findContainingMultiDecl(MultiDeclMemberDecl *MMD);
   MultiDeclInfo *findContainingMultiDecl(TagDecl *TD);
   bool wasBaseTypeRenamed(Decl *D);
+  void clear();
 };
 
 #endif // LLVM_CLANG_3C_MULTIDECLS_H

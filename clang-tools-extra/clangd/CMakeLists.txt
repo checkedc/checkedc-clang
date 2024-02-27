@@ -49,6 +49,8 @@ add_clang_library(clangDaemon
   ASTSignals.cpp
   ClangdLSPServer.cpp
   ClangdServer.cpp
+  3CCommands.cpp
+  3CDiagnostics.cpp
   CodeComplete.cpp
   CodeCompletionStrings.cpp
   CollectMacros.cpp
@@ -158,6 +160,123 @@ target_link_libraries(clangDaemon
   clangdSupport
   )
 
+add_clang_library(3cClangDaemon
+        AST.cpp
+        ASTSignals.cpp
+        ClangdLSPServer.cpp
+        ClangdServer.cpp
+        3CCommands.cpp
+        3CDiagnostics.cpp
+        CodeComplete.cpp
+        CodeCompletionStrings.cpp
+        CollectMacros.cpp
+        CompileCommands.cpp
+        Compiler.cpp
+        Config.cpp
+        ConfigCompile.cpp
+        ConfigProvider.cpp
+        ConfigYAML.cpp
+        Diagnostics.cpp
+        DraftStore.cpp
+        DumpAST.cpp
+        ExpectedTypes.cpp
+        FindSymbols.cpp
+        FindTarget.cpp
+        FileDistance.cpp
+        Format.cpp
+        FS.cpp
+        FuzzyMatch.cpp
+        GlobalCompilationDatabase.cpp
+        Headers.cpp
+        HeaderSourceSwitch.cpp
+        Hover.cpp
+        IncludeFixer.cpp
+        JSONTransport.cpp
+        PathMapping.cpp
+        Protocol.cpp
+        Quality.cpp
+        ParsedAST.cpp
+        Preamble.cpp
+        RIFF.cpp
+        Selection.cpp
+        SemanticHighlighting.cpp
+        SemanticSelection.cpp
+        SourceCode.cpp
+        QueryDriverDatabase.cpp
+        TidyProvider.cpp
+        TUScheduler.cpp
+        URI.cpp
+        XRefs.cpp
+        ${CMAKE_CURRENT_BINARY_DIR}/CompletionModel.cpp
+
+        index/Background.cpp
+        index/BackgroundIndexLoader.cpp
+        index/BackgroundIndexStorage.cpp
+        index/BackgroundQueue.cpp
+        index/BackgroundRebuild.cpp
+        index/CanonicalIncludes.cpp
+        index/FileIndex.cpp
+        index/Index.cpp
+        index/IndexAction.cpp
+        index/MemIndex.cpp
+        index/Merge.cpp
+        index/ProjectAware.cpp
+        index/Ref.cpp
+        index/Relation.cpp
+        index/Serialization.cpp
+        index/Symbol.cpp
+        index/SymbolCollector.cpp
+        index/SymbolID.cpp
+        index/SymbolLocation.cpp
+        index/SymbolOrigin.cpp
+        index/YAMLSerialization.cpp
+
+        index/dex/Dex.cpp
+        index/dex/Iterator.cpp
+        index/dex/PostingList.cpp
+        index/dex/Trigram.cpp
+
+        refactor/Rename.cpp
+        refactor/Tweak.cpp
+
+        DEPENDS
+        omp_gen
+        )
+
+# Include generated CompletionModel headers.
+target_include_directories(3cClangDaemon PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+        )
+
+clang_target_link_libraries(3cClangDaemon
+        PRIVATE
+        clangAST
+        clangASTMatchers
+        clangBasic
+        clang3C
+        clangDriver
+        clangFormat
+        clangFrontend
+        clangIndex
+        clangLex
+        clangSema
+        clangSerialization
+        clangTooling
+        clangToolingCore
+        clangToolingInclusions
+        clangToolingSyntax
+        )
+
+target_link_libraries(3cClangDaemon
+        PRIVATE
+        ${LLVM_PTHREAD_LIB}
+
+        clangTidy
+        ${ALL_CLANG_TIDY_CHECKS}
+
+        clangdSupport
+        )
+target_compile_definitions(obj.3cClangDaemon PRIVATE LSP3C=1)
 add_subdirectory(refactor/tweaks)
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
   # FIXME: Make fuzzer not use linux-specific APIs, build it everywhere.

@@ -23,6 +23,23 @@ ProgramInfo::ProgramInfo() : Persisted(true) {
   StaticFunctionFVCons.clear();
 }
 
+ProgramInfo::~ProgramInfo(){
+  std::set<ConstraintVariable *> CVars;
+  for (auto &Var : Variables) {
+    if( CVars.find(Var.second) == CVars.end()){
+      CVars.insert(Var.second);
+      delete (Var.second);
+    }
+  }
+
+  for (auto &FVCons : ExternalFunctionFVCons) {
+      if( CVars.find(FVCons.second) == CVars.end()){
+        CVars.insert(FVCons.second);
+        delete (FVCons.second);
+      }
+  }
+}
+
 void dumpExtFuncMap(const ProgramInfo::ExternalFunctionMapType &EMap,
                     raw_ostream &O) {
   for (const auto &DefM : EMap) {
@@ -1061,6 +1078,24 @@ bool ProgramInfo::computeInterimConstraintState(
 
   computePtrLevelStats();
   return true;
+}
+
+void ProgramInfo::clear() {
+  TheMultiDeclsInfo.clear();
+  Variables.clear();
+  TypedefVars.clear();
+  ExprConstraintVars.clear();
+  ExprLocations.clear();
+  DeletedAtomLocations.clear();
+  CS.clear();
+  ExternGVars.clear();
+  ExternalFunctionFVCons.clear();
+  StaticFunctionFVCons.clear();
+  GlobalVariableSymbols.clear();
+  CState.clear();
+  ArrBInfo.clear();
+  TypeParamBindings.clear();
+  TranslationUnitIdxMap.clear();
 }
 
 void ProgramInfo::insertIntoPtrSourceMap(PersistentSourceLoc PSL,

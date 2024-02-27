@@ -10,14 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/3C/AVarBoundsInfo.h"
-#include "clang/3C/ConstraintResolver.h"
-#include "clang/3C/ProgramInfo.h"
 #include "clang/3C/3CGlobalOptions.h"
-#include <sstream>
+#include "clang/3C/AVarBoundsInfo.h"
+#include "clang/3C/AVarBoundsConflictResolver.h"
+#include "clang/3C/ConstraintResolver.h"
 #include <clang/3C/LowerBoundAssignment.h>
+#include "clang/3C/ProgramInfo.h"
+#include <sstream>
 
-std::vector<BoundsPriority> AVarBoundsInfo::PrioList{Declared, Allocator,
+const std::vector<BoundsPriority> AVarBoundsInfo::PrioList{Declared, Allocator,
                                                      FlowInferred, Heuristics};
 
 void AVarBoundsStats::print(llvm::raw_ostream &O,
@@ -432,6 +433,10 @@ bool AvarBoundsInference::predictBounds(BoundsKey K,
   if (!InferredNBnds.empty()) {
     // All the possible inferred bounds for K.
     BndsKindMap InferredKBnds;
+    // Bounds of neighbours with non-const types only for K.
+    BndsKindMap InferredKNonConstBnds;
+    // Map to keep track of non-const only neighbours and total neighbours.
+    std::map<ABounds::BoundsKind, std::pair<int, int>> NonConstCount;
     // TODO: Figure out if there is a discrepancy and try to implement
     // root-cause analysis.
 
@@ -440,6 +445,35 @@ bool AvarBoundsInference::predictBounds(BoundsKey K,
       for (auto &INB : IN.second) {
         ABounds::BoundsKind NeighbourKind = INB.first;
         const std::set<BoundsKey> &NeighbourSet = INB.second;
+        std::set<BoundsKey> NonConstSet;
+        // Find all non-const bounds of a neighbour.
+        for (auto &NK : NeighbourSet) {
+          auto *NKVar = this->BI->getProgramVar(NK);
+          if (NKVar != nullptr && !NKVar->isNumConstant())
+            NonConstSet.insert(NK);
+        }
+        // Increment to keep track of count of neighbour of a kind.
+        NonConstCount[NeighbourKind].second++;
+
+        // We have non-const bounds for the current neighbour
+        if (!NonConstSet.empty()) {
+          // Increment to keep track of count of neighbour of a kind
+          // with atleast one non-const bounds.
+          NonConstCount[NeighbourKind].first++;
+
+          if (InferredKNonConstBnds.find(NeighbourKind) == InferredKNonConstBnds.end()) {
+            InferredKNonConstBnds[NeighbourKind] = NonConstSet;
+          } else {
+            const std::set<BoundsKey> &KBoundsOfKind = InferredKNonConstBnds[NeighbourKind];
+            // Keep the bounds in the intersection between the current bounds and
+            // the bounds from the neighbor.
+            std::set<BoundsKey> SharedBounds;
+            findIntersection(KBoundsOfKind, NonConstSet, SharedBounds);
+
+            InferredKNonConstBnds[NeighbourKind] = SharedBounds;
+          }
+        }
+
         if (InferredKBnds.find(NeighbourKind) == InferredKBnds.end()) {
           InferredKBnds[NeighbourKind] = NeighbourSet;
         } else {
@@ -461,6 +495,13 @@ bool AvarBoundsInference::predictBounds(BoundsKey K,
           InferredKBnds[NeighbourKind] = SharedBounds;
         }
       }
+    }
+
+    // If more than 50% of neighbour of a kind is having non-const
+    // bounds, use that insted of the InferredKBnds. 
+    for (auto &MB : NonConstCount) {
+      if (MB.second.first > (MB.second.second / 2))
+        InferredKBnds[MB.first] = InferredKNonConstBnds[MB.first];
     }
 
     // Now from the newly inferred bounds i.e., InferredKBnds, check
@@ -814,6 +855,28 @@ void PotentialBoundsInfo::addPotentialBoundsPOne(
     auto &TmpK = PotentialCntPOneBounds[BK];
     TmpK.insert(PotK.begin(), PotK.end());
   }
+}
+
+void AVarBoundsInfo::clear() {
+  BCount = 1;
+  PVarInfo.clear();
+  ConstVarKeys.clear();
+  BInfo.clear();
+  InvalidBounds.clear();
+  ArrPointersWithArithmetic.clear();
+  IneligibleForFreshLowerBound.clear();
+  PointerBoundsKey.clear();
+  ArrPointerBoundsKey.clear();
+  NtArrPointerBoundsKey.clear();
+  PointersWithImpossibleBounds.clear();
+  InProgramArrPtrBoundsKeys.clear();
+  TmpBoundsKey.clear();
+
+  DeclVarMap.clear();
+  ParamDeclVarMap.clear();
+  FuncDeclVarMap.clear();
+
+  ArrPointersWithArithmetic.clear();
 }
 
 bool AVarBoundsInfo::isValidBoundVariable(clang::Decl *D) {
@@ -1476,7 +1539,7 @@ void AVarBoundsInfo::getBoundsNeededArrPointers(std::set<BoundsKey> &AB) const {
 // In the above case, we use n as a potential count bounds for arr.
 // Note: we only use potential bounds for a variable when none of its
 // predecessors have bounds.
-void AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
+void AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI, bool ResolveConflicts) {
   auto &PStats = PI->getPerfStats();
   PStats.startArrayBoundsInferenceTime();
 
@@ -1546,6 +1609,10 @@ void AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
     OuterChanged = (TmpArrNeededBounds != ArrNeededBounds);
   }
 
+  if (ResolveConflicts) {
+    AVarBoundsConflictResolver AVarBoundsConflictResolver;
+    AVarBoundsConflictResolver.resolveConflicts(this);
+  }
   PStats.endArrayBoundsInferenceTime();
 }
 
@@ -1715,7 +1782,10 @@ PVConstraint *AVarBoundsInfo::getConstraintVariable(const ProgramInfo *PI,
   const auto &VariableMap = DeclVarMap.right();
   if (VariableMap.find(BK) != VariableMap.end()) {
     const PersistentSourceLoc &PSL = VariableMap.at(BK);
-    return dyn_cast<PVConstraint>(PI->getVarMap().at(PSL));
+    if (PI->getVarMap().count(PSL) > 0)
+        return dyn_cast<PVConstraint>(PI->getVarMap().at(PSL));
+    else
+        return nullptr;
   }
 
   // Function parameters

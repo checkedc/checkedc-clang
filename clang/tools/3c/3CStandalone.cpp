@@ -93,7 +93,8 @@ static cl::opt<std::string> OptOutputPostfix(
     "output-postfix",
     cl::desc("String to insert into the names of updated files just before the "
              "extension (e.g., with -output-postfix=checked, foo.c -> "
-             "foo.checked.c)"),
+             "foo.checked.c.)"
+              "Pass null to overwrite the file with CheckedC annotations."),
     cl::init("-"), cl::cat(_3CCategory));
 
 static cl::opt<std::string> OptOutputDir(
@@ -300,6 +301,11 @@ static cl::opt<bool> OptForceItypes(
     cl::init(false), cl::cat(_3CCategory));
 #endif
 
+static cl::opt<bool> OptReRun(
+    "rerun",
+    cl::desc("Run 3C second time for purpose of 3clsp."),
+    cl::init(false), cl::cat(_3CCategory));
+
 // clang-format on
 
 int main(int argc, const char **argv) {
@@ -464,5 +470,15 @@ int main(int argc, const char **argv) {
 
   // Even if all passes succeeded, we could still have a diagnostic verification
   // failure.
+  if (OptReRun) {
+    if (OptVerbose)
+      errs() << "Running 3C second time.\n";
+    _3CInterface.resetInterface();
+    _3CInterface.parseASTs();
+    _3CInterface.addVariables();
+    _3CInterface.buildInitialConstraints();
+    _3CInterface.solveConstraints();
+  }
+
   return _3CInterface.determineExitCode();
 }

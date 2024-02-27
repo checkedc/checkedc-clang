@@ -18,6 +18,10 @@
 #include "SourceCode.h"
 #include "TUScheduler.h"
 #include "URI.h"
+#ifdef LSP3C
+#include "clang/3C/3C.h"
+#include "3CCommands.h"
+#endif
 #include "refactor/Tweak.h"
 #include "support/Context.h"
 #include "support/MemoryTree.h"
@@ -587,7 +591,30 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
         {"codeActionKinds",
          {CodeAction::QUICKFIX_KIND, CodeAction::REFACTOR_KIND,
           CodeAction::INFO_KIND}}};
+#ifdef LSP3C
+  llvm::json::Object Result{
+      {{
+          "capabilities",
+          llvm::json::Object{
+            {"textDocumentSync",
+               llvm::json::Object{
+                   {"openClose", true},
+                   {"change", (int)TextDocumentSyncKind::Incremental},
+                   {"save", true},
+               }},
+              {"codeActionProvider", true},
+              {"executeCommandProvider",
+               llvm::json::Object{
+                   {"commands",
+                    {ExecuteCommandParams::_3C_APPLY_FOR_ALL,
+                     ExecuteCommandParams::_3C_APPLY_ONLY_FOR_THIS}},
+               }},
 
+
+          }
+      }}
+  };
+#else
   llvm::json::Object Result{
       {{"serverInfo",
         llvm::json::Object{{"name", "clangd"},
@@ -666,6 +693,7 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
              llvm::json::Object{{"scopes", buildHighlightScopeLookupTable()}}});
   if (Opts.FoldingRanges)
     Result.getObject("capabilities")->insert({"foldingRangeProvider", true});
+#endif
   Reply(std::move(Result));
 }
 
@@ -688,6 +716,10 @@ void ClangdLSPServer::onSync(Callback<std::nullptr_t> Reply) {
 
 void ClangdLSPServer::onDocumentDidOpen(
     const DidOpenTextDocumentParams &Params) {
+#ifdef LSP3C
+  PathRef File = Params.textDocument.uri.file();
+  Server->_3COpenDocument(File.str(),this);
+#else
   PathRef File = Params.textDocument.uri.file();
 
   const std::string &Contents = Params.textDocument.text;
@@ -695,10 +727,12 @@ void ClangdLSPServer::onDocumentDidOpen(
   auto Version = DraftMgr.addDraft(File, Params.textDocument.version, Contents);
   Server->addDocument(File, Contents, encodeVersion(Version),
                       WantDiagnostics::Yes);
+#endif
 }
 
 void ClangdLSPServer::onDocumentDidChange(
     const DidChangeTextDocumentParams &Params) {
+#ifndef LSP3C
   auto WantDiags = WantDiagnostics::Auto;
   if (Params.wantDiagnostics.hasValue())
     WantDiags = Params.wantDiagnostics.getValue() ? WantDiagnostics::Yes
@@ -719,8 +753,35 @@ void ClangdLSPServer::onDocumentDidChange(
 
   Server->addDocument(File, Draft->Contents, encodeVersion(Draft->Version),
                       WantDiags, Params.forceRebuild);
+#endif
+}
+#ifdef LSP3C
+void ClangdLSPServer::_3CisDone(std::string FileName,
+                                      bool ClearDiags) {
+  // Get the diagnostics and update the client.
+  std::vector<Diag> Diagnostics;
+  Diagnostics.clear();
+  if (!ClearDiags) {
+    std::lock_guard<std::mutex> lock(Server->DiagInfofor3C.DiagMutex);
+    auto &allDiags = Server->DiagInfofor3C.GetAllFilesDiagnostics();
+    auto &FileDiag = Server->DiagInfofor3C.Get3CDiagsForThisFile(FileName);
+    Diagnostics.insert(Diagnostics.begin(),
+                       allDiags[FileName].begin(),
+                       allDiags[FileName].end());
+  }
+  this->onDiagnosticsReady(FileName," ",Diagnostics);
 }
 
+void ClangdLSPServer::sendMessage(std::string MsgStr) {
+  // Send message as info to the client.
+  notify("window/showMessage",
+         llvm::json::Object{
+             // Info message.
+             {"type", 3},
+             {"message", std::move(MsgStr)},
+         });
+}
+#endif
 void ClangdLSPServer::onDocumentDidSave(
     const DidSaveTextDocumentParams &Params) {
   reparseOpenFilesIfNeeded([](llvm::StringRef) { return true; });
@@ -740,6 +801,19 @@ void ClangdLSPServer::onFileEvent(const DidChangeWatchedFilesParams &Params) {
 
 void ClangdLSPServer::onCommand(const ExecuteCommandParams &Params,
                                 Callback<llvm::json::Value> Reply) {
+#ifdef LSP3C
+  elog("Command run from LSPServer");
+  if (Is3CCommand(Params)){
+    Server->execute3CFix(_3CInter,Params,this);
+    Reply("3c Background work going on");
+  }
+  else{
+    Reply(llvm::make_error<LSPError>(
+        llvm::formatv("Unsupported command \"{0}\".", Params.command).str(),
+        ErrorCode::InvalidParams));
+  }
+
+#else
   auto ApplyEdit = [this](WorkspaceEdit WE, std::string SuccessMessage,
                           decltype(Reply) Reply) {
     ApplyWorkspaceEditParams Edit;
@@ -819,6 +893,7 @@ void ClangdLSPServer::onCommand(const ExecuteCommandParams &Params,
         llvm::formatv("Unsupported command \"{0}\".", Params.command).str(),
         ErrorCode::InvalidParams));
   }
+#endif
 }
 
 void ClangdLSPServer::onWorkspaceSymbol(
@@ -875,9 +950,15 @@ void ClangdLSPServer::onRename(const RenameParams &Params,
 
 void ClangdLSPServer::onDocumentDidClose(
     const DidCloseTextDocumentParams &Params) {
+#ifdef LSP3C
+  PathRef File = Params.textDocument.uri.file();
+  Server->_3CCloseDocument(File.str(),this);
+  /*sendMessage("Finished writing the file: "+File.str());*/
+#else
   PathRef File = Params.textDocument.uri.file();
   DraftMgr.removeDraft(File);
   Server->removeDocument(File);
+
 
   {
     std::lock_guard<std::mutex> Lock(FixItsMutex);
@@ -899,6 +980,7 @@ void ClangdLSPServer::onDocumentDidClose(
   PublishDiagnosticsParams Notification;
   Notification.uri = URIForFile::canonicalize(File, /*TUPath=*/File);
   publishDiagnostics(Notification);
+#endif
 }
 
 void ClangdLSPServer::onDocumentOnTypeFormatting(
@@ -1025,6 +1107,17 @@ static llvm::Optional<Command> asCommand(const CodeAction &Action) {
 
 void ClangdLSPServer::onCodeAction(const CodeActionParams &Params,
                                    Callback<llvm::json::Value> Reply) {
+
+#ifdef LSP3C
+  URIForFile File = Params.textDocument.uri;
+  std::vector<Command> CCommands;
+  for(const Diagnostic &D: Params.context.diagnostics) {
+    log("This One");
+    AsCCCommands(D,CCommands);
+  }
+  Reply(llvm::json::Array(CCommands));
+
+#else
   URIForFile File = Params.textDocument.uri;
   auto Code = DraftMgr.getDraft(File.file());
   if (!Code)
@@ -1093,6 +1186,7 @@ void ClangdLSPServer::onCodeAction(const CodeActionParams &Params,
         return Opts.TweakFilter(T) && KindAllowed(T.kind());
       },
       std::move(ConsumeActions));
+#endif
 }
 
 void ClangdLSPServer::onCompletion(const CompletionParams &Params,
@@ -1478,10 +1572,29 @@ void ClangdLSPServer::onAST(const ASTParams &Params,
                             Callback<llvm::Optional<ASTNode>> CB) {
   Server->getAST(Params.textDocument.uri.file(), Params.range, std::move(CB));
 }
+#ifdef LSP3C
+void ClangdLSPServer::onRun3c(Callback<llvm::Optional<_3CStats>> Reply) {
+  _3CStats ST;
+  ST.Details="You just ran the 3C command on the Project";
+  Reply(std::move(ST));
+  Server->execute3CCommand(_3CInter, this);
+/*
+  Server->secondrun3C(_3CInter,this);
+*/
+    elog("Done converting successfully now in "
+         "LSP Server part of clangd");
 
+
+
+}
+#endif
 ClangdLSPServer::ClangdLSPServer(class Transport &Transp,
                                  const ThreadsafeFS &TFS,
+#ifdef LSP3C
+                                 const ClangdLSPServer::Options &Opts, _3CInterface &_3CInterface)
+#else
                                  const ClangdLSPServer::Options &Opts)
+#endif
     : ShouldProfile(/*Period=*/std::chrono::minutes(5),
                     /*Delay=*/std::chrono::minutes(1)),
       ShouldCleanupMemory(/*Period=*/std::chrono::minutes(1),
@@ -1489,7 +1602,11 @@ ClangdLSPServer::ClangdLSPServer(class Transport &Transp,
       BackgroundContext(Context::current().clone()), Transp(Transp),
       MsgHandler(new MessageHandler(*this)), TFS(TFS),
       SupportedSymbolKinds(defaultSymbolKinds()),
-      SupportedCompletionItemKinds(defaultCompletionItemKinds()), Opts(Opts) {
+      SupportedCompletionItemKinds(defaultCompletionItemKinds()), Opts(Opts)
+#ifdef LSP3C
+      , _3CInter(_3CInterface)
+#endif
+{
   if (Opts.ConfigProvider) {
     assert(!Opts.ContextProvider &&
            "Only one of ConfigProvider and ContextProvider allowed!");
@@ -1502,6 +1619,9 @@ ClangdLSPServer::ClangdLSPServer(class Transport &Transp,
   MsgHandler->bind("initialized", &ClangdLSPServer::onInitialized);
   MsgHandler->bind("shutdown", &ClangdLSPServer::onShutdown);
   MsgHandler->bind("sync", &ClangdLSPServer::onSync);
+#ifdef LSP3C
+  MsgHandler->bind("textDocument/run3c",&ClangdLSPServer::onRun3c);
+#endif
   MsgHandler->bind("textDocument/rangeFormatting", &ClangdLSPServer::onDocumentRangeFormatting);
   MsgHandler->bind("textDocument/onTypeFormatting", &ClangdLSPServer::onDocumentOnTypeFormatting);
   MsgHandler->bind("textDocument/formatting", &ClangdLSPServer::onDocumentFormatting);
@@ -1627,6 +1747,20 @@ void ClangdLSPServer::onHighlightingsReady(
 
 void ClangdLSPServer::onDiagnosticsReady(PathRef File, llvm::StringRef Version,
                                          std::vector<Diag> Diagnostics) {
+#ifdef LSP3C
+  PublishDiagnosticsParams Notification;
+  Notification.uri = URIForFile::canonicalize(File, /*TUPath=*/File);
+
+  for (auto &Diag : Diagnostics) {
+    toLSPDiags(Diag, Notification.uri, DiagOpts,
+               [&](clangd::Diagnostic Diag, llvm::ArrayRef<Fix> Fixes) {
+                 Notification.diagnostics.push_back(std::move(Diag));
+               });
+  }
+  auto size = Diagnostics.size();
+  log(std::to_string(size).c_str());
+  publishDiagnostics(Notification);
+#else
   PublishDiagnosticsParams Notification;
   Notification.version = decodeVersion(Version);
   Notification.uri = URIForFile::canonicalize(File, /*TUPath=*/File);
@@ -1640,6 +1774,7 @@ void ClangdLSPServer::onDiagnosticsReady(PathRef File, llvm::StringRef Version,
                });
   }
 
+
   // Cache FixIts
   {
     std::lock_guard<std::mutex> Lock(FixItsMutex);
@@ -1648,6 +1783,7 @@ void ClangdLSPServer::onDiagnosticsReady(PathRef File, llvm::StringRef Version,
 
   // Send a notification to the LSP client.
   publishDiagnostics(Notification);
+#endif
 }
 
 void ClangdLSPServer::onBackgroundIndexProgress(
@@ -1746,6 +1882,7 @@ void ClangdLSPServer::reparseOpenFilesIfNeeded(
                             encodeVersion(Draft->Version),
                             WantDiagnostics::Auto);
 }
+
 
 } // namespace clangd
 } // namespace clang

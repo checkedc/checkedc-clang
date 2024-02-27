@@ -124,6 +124,7 @@ public:
   mkStringWithoutLowerBound(AVarBoundsInfo *ABI, clang::Decl *D) override;
 
   bool areSame(ABounds *O, AVarBoundsInfo *ABI) override;
+  ABounds *makeCopy(BoundsKey NK) override;
 
   static bool classof(const ABounds *S) {
     return S->getKind() == CountPlusOneBoundKind;

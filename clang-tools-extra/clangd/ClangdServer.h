@@ -38,6 +38,10 @@
 #include <string>
 #include <type_traits>
 #include <utility>
+#ifdef LSP3C
+#include <clang/3C/3C.h>
+#include "3CDiagnostics.h"
+#endif
 
 namespace clang {
 namespace clangd {
@@ -79,7 +83,20 @@ public:
     /// Not called concurrently.
     virtual void
     onBackgroundIndexProgress(const BackgroundQueue::Stats &Stats) {}
+
   };
+#ifdef LSP3C
+  class _3CLSPCallBack {
+  public:
+    virtual ~_3CLSPCallBack() = default;
+    virtual void
+    _3CisDone(std::string FileName,
+              bool ClearDiags = false) = 0;
+    virtual void
+    sendMessage(std::string Msg) = 0;
+  };
+
+#endif
   /// Creates a context provider that loads and installs config.
   /// Errors in loading config are reported as diagnostics via Callbacks.
   /// (This is typically used as ClangdServer::Options::ContextProvider).
@@ -348,6 +365,18 @@ public:
   // Returns false if the timeout expires.
   LLVM_NODISCARD bool
   blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds = 10);
+#ifdef LSP3C
+  //These are 3C specific commands on ClangdServer
+
+  void execute3CCommand(_3CInterface &, _3CLSPCallBack *ConvCB);
+  void secondrun3C(_3CInterface &, _3CLSPCallBack *ConvCB);
+  void execute3CFix(_3CInterface &,ExecuteCommandParams Params,
+                    _3CLSPCallBack *ConvCB);
+  _3CDiagnostics DiagInfofor3C;
+  void _3COpenDocument(std::string FileName,
+                       _3CLSPCallBack *ConvCB);
+  void _3CCloseDocument(std::string FileName,_3CLSPCallBack *ConvCB);
+#endif
 
   /// Builds a nested representation of memory used by components.
   void profile(MemoryTree &MT) const;
@@ -359,7 +388,11 @@ private:
 
   const GlobalCompilationDatabase &CDB;
   const ThreadsafeFS &TFS;
-
+#ifdef LSP3C
+  void report3CDiagsForAllFiles(ConstraintsInfo &CcInfo, _3CLSPCallBack *ConvCB);
+  void report3CDiagsforFile(std::string FileName, _3CLSPCallBack *ConvCB);
+  void clear3CDiagsForAllFiles(ConstraintsInfo &CcInfo, _3CLSPCallBack *ConvCB);
+#endif
   Path ResourceDir;
   // The index used to look up symbols. This could be:
   //   - null (all index functionality is optional)

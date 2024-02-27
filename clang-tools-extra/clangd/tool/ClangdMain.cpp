@@ -20,6 +20,10 @@
 #include "index/Serialization.h"
 #include "index/remote/Client.h"
 #include "refactor/Rename.h"
+#ifdef LSP3C
+#include <clang/3C/3CGlobalOptions.h>
+#include "clang/3C/3C.h"
+#endif
 #include "support/Path.h"
 #include "support/Shutdown.h"
 #include "support/ThreadsafeFS.h"
@@ -735,6 +739,7 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
       // the rest of clangd so we make sure the path is absolute before
       // continuing.
       llvm::SmallString<128> Path(CompileCommandsDir);
+
       if (std::error_code EC = llvm::sys::fs::make_absolute(Path)) {
         elog("Error while converting the relative path specified by "
              "--compile-commands-dir to an absolute path: {0}. The argument "
@@ -912,8 +917,46 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
     TransportLayer = createPathMappingTransport(std::move(TransportLayer),
                                                 std::move(*Mappings));
   }
+#ifdef LSP3C
+  struct _3COptions CcOptions={0};
+  CcOptions.AllTypes=true;
+  CcOptions.AddCheckedRegions=false;
+  CcOptions.WarnRootCause=true;
+  CcOptions.AllowUnwritableChanges=true;
+  CcOptions.ItypesForExtern=true;
+  CcOptions.InferTypesForUndefs=true;
+  CcOptions.HandleVARARGS= true;
+  CcOptions.OutputPostfix="null";
+  CcOptions.AllocatorFunctions={};
+  std::string ErrorMsg;
+  // This is a weird hack to go over the condition of not finding a comp DB
+  // todo Cleanup this code segment below
+  std::string FileBuf = getClangRepositoryPath();
+  if (!CompileCommandsDir.empty()){
+    FileBuf = CompileCommandsDir;
+  }
+  std::unique_ptr<tooling::CompilationDatabase> CompDB(
+        tooling::CompilationDatabase::autoDetectFromDirectory(FileBuf,
+                                                              ErrorMsg)
+    );
+    tooling::CompilationDatabase &_CompDB = *CompDB;
+    std::unique_ptr<_3CInterface> _3CInterfacePtr(
+        _3CInterface::create(CcOptions, CompDB->getAllFiles(),
+                             &(_CompDB)));
+    if (!_3CInterfacePtr) {
+      // _3CInterface::create has already printed an error message. Just exit.
+      return 1;
+    }
 
-  ClangdLSPServer LSPServer(*TransportLayer, TFS, Opts);
+  _3CInterface &_3CInter = *_3CInterfacePtr;
+
+#endif
+  ClangdLSPServer LSPServer(*TransportLayer, TFS,
+#ifdef LSP3C
+                            Opts,_3CInter);
+#else
+                            Opts);
+#endif
   llvm::set_thread_name("clangd.main");
   int ExitCode = LSPServer.run()
                      ? 0
